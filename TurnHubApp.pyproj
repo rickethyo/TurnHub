@@ -23,17 +23,22 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="audio.py" />
-    <Compile Include="config.py" />
-    <Compile Include="game_engine.py" />
-    <Compile Include="leds.py" />
-    <Compile Include="lobby.py" />
+    <Compile Include="Controller\audio.py" />
+    <Compile Include="Controller\config.py" />
+    <Compile Include="Controller\game_engine.py" />
+    <Compile Include="Controller\leds.py" />
+    <Compile Include="Controller\lobby.py" />
     <Compile Include="requirements.txt" />
-    <Compile Include="serial_controller.py" />
-    <Compile Include="turnhub.py" />
+    <Compile Include="Controller\serial_controller.py" />
+    <Compile Include="Controller\turnhub.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="README.md" />
+    <Content Include="Arduino\TurnHubArduino.ino" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Arduino\" />
+    <Folder Include="Controller\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
