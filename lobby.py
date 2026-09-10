@@ -2,55 +2,112 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import (
+    dataclass,
+    field,
+)
 
 from config import MODULE_IDS
 
 
 @dataclass
 class Lobby:
-    module_ids: list[int] = field(default_factory=lambda: list(MODULE_IDS))
-    player_modules: list[int] = field(default_factory=list)
+    module_ids: list[int] = field(
+        default_factory=lambda: list(MODULE_IDS)
+    )
+
+    player_modules: list[int] = field(
+        default_factory=list
+    )
+
     selected_starter: int | None = None
-    held_modules: set[int] = field(default_factory=set)
+
+    held_modules: set[int] = field(
+        default_factory=set
+    )
+
     start_armed_by: int | None = None
 
     @property
     def host_module(self) -> int | None:
-        return self.player_modules[0] if self.player_modules else None
+        if not self.player_modules:
+            return None
+
+        return self.player_modules[0]
 
     @property
     def player_count(self) -> int:
-        return len(self.player_modules)
+        return len(
+            self.player_modules
+        )
 
-    def is_joined(self, module: int) -> bool:
-        return module in self.player_modules
+    def is_joined(
+        self,
+        module: int,
+    ) -> bool:
 
-    def player_number(self, module: int) -> int | None:
+        return (
+            module
+            in self.player_modules
+        )
+
+    def player_number(
+        self,
+        module: int,
+    ) -> int | None:
+
         try:
-            return self.player_modules.index(module) + 1
+            return (
+                self.player_modules.index(module)
+                + 1
+            )
+
         except ValueError:
             return None
 
-    def join(self, module: int) -> int | None:
+    def join(
+        self,
+        module: int,
+    ) -> int | None:
+
         if module not in self.module_ids:
             return None
+
         if module in self.player_modules:
             return self.player_number(module)
 
         self.player_modules.append(module)
-        return len(self.player_modules)
 
-    def select_starter(self, module: int) -> bool:
+        return len(
+            self.player_modules
+        )
+
+    def select_starter(
+        self,
+        module: int,
+    ) -> bool:
+
         if module not in self.player_modules:
             return False
+
         self.selected_starter = module
+
         return True
 
-    def starter_or_default(self) -> int | None:
-        if self.selected_starter in self.player_modules:
+    def starter_or_default(
+        self,
+    ) -> int | None:
+
+        if (
+            self.selected_starter
+            in self.player_modules
+        ):
             return self.selected_starter
-        return self.player_modules[0] if self.player_modules else None
+
+        if self.player_modules:
+            return self.player_modules[0]
+
+        return None
 
     def reset_empty(self) -> None:
         self.player_modules.clear()
