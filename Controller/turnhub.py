@@ -23,6 +23,7 @@ from game_engine import GameEngine
 from leds import LEDController
 from lobby import Lobby
 from serial_controller import SerialController
+from status_monitor import StatusMonitor
 
 
 def warning_description(
@@ -45,7 +46,7 @@ def warning_description(
 class TurnHub:
     def __init__(self) -> None:
 
-        # SerialController now receives messages in its
+        # SerialController receives messages in its
         # background reader threads and forwards them here.
         self.serial = SerialController(
             message_callback=self.handle_serial_line
@@ -61,6 +62,9 @@ class TurnHub:
 
         self.lobby = Lobby()
         self.game = GameEngine()
+
+        # Development status monitor.
+        self.status = StatusMonitor()
 
         self.state = STATE_LOBBY
 
@@ -84,7 +88,6 @@ class TurnHub:
             return
 
         parts = line.split("|")
-
         event = parts[0].upper()
 
         # ----------------------------------------------------
@@ -280,10 +283,8 @@ class TurnHub:
 
         if (
             self.state == STATE_LOBBY
-            and self.lobby.start_armed_by
-            == module
-            and module
-            == self.lobby.host_module
+            and self.lobby.start_armed_by == module
+            and module == self.lobby.host_module
         ):
 
             print(
@@ -336,10 +337,7 @@ class TurnHub:
 
         if self.state == STATE_GAME_OVER:
 
-            if (
-                module
-                == self.lobby.host_module
-            ):
+            if module == self.lobby.host_module:
 
                 print(
                     "[GAME] Host requested rematch."
@@ -443,10 +441,7 @@ class TurnHub:
 
         if self.state == STATE_GAME_OVER:
 
-            if (
-                module
-                == self.lobby.host_module
-            ):
+            if module == self.lobby.host_module:
 
                 print(
                     "[GAME] Host requested "
@@ -467,10 +462,7 @@ class TurnHub:
         module: int,
     ) -> None:
 
-        if (
-            module
-            != self.lobby.host_module
-        ):
+        if module != self.lobby.host_module:
 
             print(
                 "[LOBBY] Only the host "
@@ -524,10 +516,8 @@ class TurnHub:
         if self.state == STATE_LOBBY:
 
             if (
-                module
-                == self.lobby.host_module
-                and self.lobby.start_armed_by
-                == module
+                module == self.lobby.host_module
+                and self.lobby.start_armed_by == module
             ):
 
                 print(
@@ -603,8 +593,7 @@ class TurnHub:
 
         if (
             self.state != STATE_STARTING
-            or self.start_countdown_at
-            is None
+            or self.start_countdown_at is None
         ):
             return
 
@@ -828,11 +817,6 @@ class TurnHub:
             f"{self.game.total_paused_seconds:.1f}s"
         )
 
-        print(
-            "Hardware downtime: "
-            f"{self.game.total_hardware_downtime:.1f}s"
-        )
-
         for module in self.game.players:
 
             stats = (
@@ -871,8 +855,7 @@ class TurnHub:
 
         elif (
             self.state == STATE_STARTING
-            and self.start_countdown_at
-            is not None
+            and self.start_countdown_at is not None
         ):
 
             elapsed = (
@@ -943,6 +926,12 @@ class TurnHub:
 
         self.leds.clear_cache()
 
+        # Always show an initial snapshot when TurnHub starts.
+        self.status.update(
+            self,
+            force=True,
+        )
+
         try:
 
             while True:
@@ -959,6 +948,12 @@ class TurnHub:
 
                 self.update_leds(
                     now
+                )
+
+                # Prints a new status snapshot only when
+                # meaningful application state changes.
+                self.status.update(
+                    self
                 )
 
                 time.sleep(

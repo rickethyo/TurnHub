@@ -28,6 +28,7 @@
     <Compile Include="Controller\game_engine.py" />
     <Compile Include="Controller\leds.py" />
     <Compile Include="Controller\lobby.py" />
+    <Compile Include="Controller\status_monitor.py" />
     <Compile Include="requirements.txt" />
     <Compile Include="Controller\serial_controller.py" />
     <Compile Include="Controller\turnhub.py" />
