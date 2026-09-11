@@ -33,9 +33,12 @@ def warning_description(
     if warning_ms == WARNING_OFF:
         return "OFF (green at 5 minutes)"
 
-    minutes = int(
-        warning_ms / 60_000
-    )
+    seconds = warning_ms // 1000
+
+    if seconds < 60:
+        return f"{seconds} seconds"
+
+    minutes = seconds // 60
 
     if minutes == 1:
         return "1 minute"
@@ -52,6 +55,8 @@ class TurnHub:
             message_callback=self.handle_serial_line
         )
 
+        # Audio is now hub-level hardware connected directly
+        # to the Raspberry Pi.
         self.audio = AudioController(
             self.serial
         )
@@ -68,8 +73,9 @@ class TurnHub:
 
         self.state = STATE_LOBBY
 
-        # The physical warning potentiometer has been removed
-        # for the current prototype.
+        # Warning threshold comes from config.py.
+        # During prototype testing this can be set very low,
+        # such as 10 seconds.
         self.warning_ms = DEFAULT_WARNING_MS
 
         self.start_countdown_at: float | None = None
@@ -543,6 +549,9 @@ class TurnHub:
                     f"[GAME] Module {module} wins!"
                 )
 
+                # Global hub victory sound.
+                self.audio.game_over()
+
                 self.print_game_summary()
 
                 self.celebrate_winner(
@@ -620,6 +629,9 @@ class TurnHub:
                 f"{3 - second_index}..."
             )
 
+            # Short audible cue for each countdown step.
+            self.audio.countdown_tone()
+
         if (
             elapsed
             >= START_COUNTDOWN_SECONDS
@@ -656,6 +668,9 @@ class TurnHub:
         print(
             "[GAME] Game started."
         )
+
+        # Audible confirmation that the game is live.
+        self.audio.game_start()
 
         print(
             "[GAME] Host module: "
@@ -735,6 +750,10 @@ class TurnHub:
                 f"{self.game.active_module} reached "
                 f"{warning_description(self.game.current_warning_ms)}."
             )
+
+            # Play once per turn when the warning threshold
+            # is first crossed.
+            self.audio.warning()
 
     # ========================================================
     # Winner Celebration

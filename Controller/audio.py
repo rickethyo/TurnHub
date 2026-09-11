@@ -1,113 +1,227 @@
-"""TurnHub audio interface.
+"""TurnHub hub audio controller using Raspberry Pi GPIO."""
 
-The prototype's physical buzzer has been temporarily removed.
+from __future__ import annotations
 
-This module intentionally preserves TurnHub's audio API so the
-game/controller code does not need to know whether audio hardware
-is currently installed.
+import threading
+import time
 
-When audio hardware returns later, implementation can be restored
-here without changing the rest of the application.
-"""
+try:
+    import RPi.GPIO as GPIO
+
+except ImportError:
+    GPIO = None
+
+
+BUZZER_GPIO = 18
 
 
 class AudioController:
-    """Audio interface for TurnHub."""
+    """
+    Controls TurnHub's central passive buzzer.
 
-    def __init__(self, serial_controller=None):
-        # Retained for API compatibility and future hardware use.
-        self.serial = serial_controller
+    The buzzer is connected to:
+        GPIO18 / physical pin 12 -> signal
+        GND / physical pin 14    -> ground
 
-        # Audio is intentionally disabled in the current prototype.
-        self.enabled = False
+    Audio runs in background threads so tones do not block
+    the main TurnHub game loop.
+    """
 
+    def __init__(
+        self,
+        serial_controller=None,
+    ) -> None:
+
+        self.enabled = GPIO is not None
+
+        self._lock = threading.Lock()
+        self._shutdown = False
+
+        if not self.enabled:
+
+            print(
+                "[AUDIO] RPi.GPIO unavailable. "
+                "Audio disabled."
+            )
+
+            return
+
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
+
+        GPIO.setup(
+            BUZZER_GPIO,
+            GPIO.OUT,
+            initial=GPIO.LOW,
+        )
+
+        print(
+            "[AUDIO] Hub buzzer ready on "
+            f"GPIO{BUZZER_GPIO}."
+        )
 
     # ========================================================
-    # Generic Tone
+    # Basic Tone Generation
     # ========================================================
 
-    def tone(self, frequency, duration_ms):
-        """Play a tone if audio hardware is available."""
+    def _play_tone(
+        self,
+        frequency: int,
+        duration_ms: int,
+    ) -> None:
+
+        if (
+            not self.enabled
+            or self._shutdown
+        ):
+            return
+
+        with self._lock:
+
+            if self._shutdown:
+                return
+
+            pwm = GPIO.PWM(
+                BUZZER_GPIO,
+                frequency,
+            )
+
+            try:
+
+                pwm.start(50)
+
+                time.sleep(
+                    duration_ms / 1000.0
+                )
+
+            finally:
+
+                pwm.stop()
+
+                GPIO.output(
+                    BUZZER_GPIO,
+                    GPIO.LOW,
+                )
+
+    def tone(
+        self,
+        frequency: int,
+        duration_ms: int,
+    ) -> None:
 
         if not self.enabled:
             return
 
-        # Future implementation goes here.
+        thread = threading.Thread(
+            target=self._play_tone,
+            args=(
+                frequency,
+                duration_ms,
+            ),
+            daemon=True,
+        )
 
+        thread.start()
 
     # ========================================================
-    # Countdown Tone
+    # TurnHub Sounds
     # ========================================================
 
-    def countdown_tone(self, frequency):
-        """Play one countdown tone."""
+    def countdown_tone(
+        self,
+        frequency: int = 700,
+    ) -> None:
+
+        self.tone(
+            frequency,
+            120,
+        )
+
+    def turn_pass(self) -> None:
+
+        self.tone(
+            1000,
+            80,
+        )
+
+    def warning(self) -> None:
+
+        self.tone(
+            500,
+            180,
+        )
+
+    def game_start(self) -> None:
+
+        def sequence() -> None:
+
+            self._play_tone(
+                700,
+                100,
+            )
+
+            time.sleep(0.05)
+
+            self._play_tone(
+                1000,
+                100,
+            )
+
+            time.sleep(0.05)
+
+            self._play_tone(
+                1400,
+                180,
+            )
+
+        threading.Thread(
+            target=sequence,
+            daemon=True,
+        ).start()
+
+    def game_over(self) -> None:
+
+        def sequence() -> None:
+
+            for frequency in (
+                900,
+                1200,
+                1500,
+            ):
+
+                self._play_tone(
+                    frequency,
+                    150,
+                )
+
+                time.sleep(0.05)
+
+        threading.Thread(
+            target=sequence,
+            daemon=True,
+        ).start()
+
+    # ========================================================
+    # Shutdown
+    # ========================================================
+
+    def stop(self) -> None:
+
+        self._shutdown = True
 
         if not self.enabled:
             return
 
-        # Future implementation goes here.
+        try:
 
+            GPIO.output(
+                BUZZER_GPIO,
+                GPIO.LOW,
+            )
 
-    # ========================================================
-    # Turn Pass
-    # ========================================================
+            GPIO.cleanup(
+                BUZZER_GPIO
+            )
 
-    def turn_pass(self):
-        """Audio feedback for a turn pass."""
-
-        if not self.enabled:
-            return
-
-        # Future implementation goes here.
-
-
-    # ========================================================
-    # Warning
-    # ========================================================
-
-    def warning(self):
-        """Audio feedback for a turn warning."""
-
-        if not self.enabled:
-            return
-
-        # Future implementation goes here.
-
-
-    # ========================================================
-    # Game Start
-    # ========================================================
-
-    def game_start(self):
-        """Audio feedback when a game begins."""
-
-        if not self.enabled:
-            return
-
-        # Future implementation goes here.
-
-
-    # ========================================================
-    # Game Over
-    # ========================================================
-
-    def game_over(self):
-        """Audio feedback when a game ends."""
-
-        if not self.enabled:
-            return
-
-        # Future implementation goes here.
-
-
-    # ========================================================
-    # Stop
-    # ========================================================
-
-    def stop(self):
-        """Stop currently playing audio."""
-
-        if not self.enabled:
-            return
-
-        # Future implementation goes here.
+        except Exception:
+            pass
