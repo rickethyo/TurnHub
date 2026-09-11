@@ -7,18 +7,15 @@ import time
 from audio import AudioController
 
 from config import (
+    DEFAULT_WARNING_MS,
     LOOP_SLEEP_SECONDS,
     MODULE_IDS,
-    POT_RAW_MAX_MS,
-    POT_RAW_MIN_MS,
     START_COUNTDOWN_SECONDS,
     STATE_GAME_OVER,
     STATE_LOBBY,
     STATE_PAUSED,
     STATE_RUNNING,
     STATE_STARTING,
-    WARNING_MAX_MINUTES,
-    WARNING_MIN_MINUTES,
     WARNING_OFF,
 )
 
@@ -26,60 +23,6 @@ from game_engine import GameEngine
 from leds import LEDController
 from lobby import Lobby
 from serial_controller import SerialController
-
-
-def map_pot_to_warning(
-    raw_value: int,
-) -> int:
-    """
-    Convert the Arduino's existing potentiometer value into
-    TurnHub's warning setting.
-
-    Lowest physical position:
-        Warning OFF
-
-    Remaining physical range:
-        1 through 10 minutes
-    """
-
-    # Fully counter-clockwise is OFF.
-    if raw_value <= POT_RAW_MIN_MS:
-        return WARNING_OFF
-
-    ratio = (
-        raw_value - POT_RAW_MIN_MS
-    ) / (
-        POT_RAW_MAX_MS - POT_RAW_MIN_MS
-    )
-
-    ratio = max(
-        0.0,
-        min(
-            1.0,
-            ratio,
-        ),
-    )
-
-    minutes = round(
-        WARNING_MIN_MINUTES
-        + ratio
-        * (
-            WARNING_MAX_MINUTES
-            - WARNING_MIN_MINUTES
-        )
-    )
-
-    minutes = max(
-        WARNING_MIN_MINUTES,
-        min(
-            WARNING_MAX_MINUTES,
-            minutes,
-        ),
-    )
-
-    return (
-        minutes * 60_000
-    )
 
 
 def warning_description(
@@ -102,7 +45,11 @@ def warning_description(
 class TurnHub:
     def __init__(self) -> None:
 
-        self.serial = SerialController()
+        # SerialController now receives messages in its
+        # background reader threads and forwards them here.
+        self.serial = SerialController(
+            message_callback=self.handle_serial_line
+        )
 
         self.audio = AudioController(
             self.serial
@@ -117,117 +64,12 @@ class TurnHub:
 
         self.state = STATE_LOBBY
 
-        # Until the Arduino reports its initial pot position,
-        # default to warning OFF.
-        self.warning_ms = WARNING_OFF
+        # The physical warning potentiometer has been removed
+        # for the current prototype.
+        self.warning_ms = DEFAULT_WARNING_MS
 
         self.start_countdown_at: float | None = None
         self.last_countdown_tone = -1
-
-        self.hardware_outage: dict | None = None
-        self.was_ever_connected = False
-
-    # ========================================================
-    # Serial Lifecycle
-    # ========================================================
-
-    def connect_if_needed(self) -> None:
-
-        if self.serial.connected:
-            return
-
-        startup_lines = (
-            self.serial.connect()
-        )
-
-        if not self.serial.connected:
-            return
-
-        reconnecting = (
-            self.was_ever_connected
-        )
-
-        self.was_ever_connected = True
-
-        for line in startup_lines:
-            self.handle_serial_line(
-                line,
-                startup=True,
-            )
-
-        self.leds.clear_cache()
-
-        if reconnecting:
-            self.on_connection_restored()
-
-        else:
-            print(
-                "[TURNHUB] Arduino ready."
-            )
-
-            self.audio.ready()
-
-    def on_connection_lost(self) -> None:
-
-        print(
-            "[TURNHUB] Arduino disconnected. "
-            "Timer frozen."
-        )
-
-        self.lobby.held_modules.clear()
-        self.lobby.start_armed_by = None
-
-        self.game.win_armed_module = None
-
-        if self.state in (
-            STATE_RUNNING,
-            STATE_PAUSED,
-        ):
-
-            self.hardware_outage = (
-                self.game.freeze_for_hardware_loss()
-            )
-
-    def on_connection_restored(self) -> None:
-
-        print(
-            "[TURNHUB] Arduino reconnected."
-        )
-
-        if self.state == STATE_STARTING:
-
-            print(
-                "[LOBBY] Countdown cancelled "
-                "after reconnect."
-            )
-
-            self.state = STATE_LOBBY
-            self.start_countdown_at = None
-            self.last_countdown_tone = -1
-
-        elif (
-            self.state
-            in (
-                STATE_RUNNING,
-                STATE_PAUSED,
-            )
-            and self.hardware_outage
-        ):
-
-            self.game.restore_after_hardware_loss(
-                self.hardware_outage
-            )
-
-            self.state = STATE_PAUSED
-
-            print(
-                "[GAME] Reconnected in PAUSED state. "
-                "Long-press to resume."
-            )
-
-        self.hardware_outage = None
-
-        self.leds.clear_cache()
 
     # ========================================================
     # Serial Protocol
@@ -236,7 +78,6 @@ class TurnHub:
     def handle_serial_line(
         self,
         line: str,
-        startup: bool = False,
     ) -> None:
 
         if not line:
@@ -244,138 +85,173 @@ class TurnHub:
 
         parts = line.split("|")
 
-        event = (
-            parts[0].upper()
-        )
+        event = parts[0].upper()
 
         # ----------------------------------------------------
-        # Arduino Ready
+        # Module Ready
+        # READY|module
         # ----------------------------------------------------
 
         if event == "READY":
 
-            print(
-                "[ARDUINO] READY"
-            )
-
-            return
-
-        # ----------------------------------------------------
-        # Potentiometer
-        # ----------------------------------------------------
-
-        if (
-            event == "POT"
-            and len(parts) >= 2
-        ):
+            if len(parts) < 2:
+                return
 
             try:
-                raw_pot = int(
-                    parts[1]
-                )
+                module = int(parts[1])
 
             except ValueError:
                 return
 
-            new_warning = (
-                map_pot_to_warning(
-                    raw_pot
-                )
+            if module not in MODULE_IDS:
+                return
+
+            print(
+                f"[TURNHUB] Module {module} ready."
             )
 
-            changed = (
-                new_warning
-                != self.warning_ms
-            )
-
-            self.warning_ms = (
-                new_warning
-            )
-
-            if changed:
-
-                print(
-                    "[POT] Next-turn warning: "
-                    f"{warning_description(self.warning_ms)}"
-                )
-
-                if (
-                    self.state
-                    == STATE_LOBBY
-                    and not startup
-                ):
-
-                    self.audio.pot_feedback(
-                        raw_pot
-                    )
+            self.leds.clear_cache()
 
             return
 
         # ----------------------------------------------------
-        # Buttons
+        # Dedicated Pass Button
+        # PASS|module
         # ----------------------------------------------------
 
-        if (
-            event != "BUTTON"
-            or len(parts) < 3
+        if event == "PASS":
+
+            if len(parts) < 2:
+                return
+
+            try:
+                module = int(parts[1])
+
+            except ValueError:
+                return
+
+            if module not in MODULE_IDS:
+                return
+
+            self.on_pass(
+                module
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # Action Button
+        # ACTION|module|DOWN
+        # ACTION|module|UP
+        # ACTION|module|SHORT
+        # ACTION|module|LONG
+        # ACTION|module|WIN
+        # ----------------------------------------------------
+
+        if event == "ACTION":
+
+            if len(parts) < 3:
+                return
+
+            try:
+                module = int(parts[1])
+
+            except ValueError:
+                return
+
+            if module not in MODULE_IDS:
+                return
+
+            action = parts[2].upper()
+
+            if action == "DOWN":
+
+                self.on_action_down(
+                    module
+                )
+
+            elif action == "UP":
+
+                self.on_action_up(
+                    module
+                )
+
+            elif action == "SHORT":
+
+                self.on_action_short(
+                    module
+                )
+
+            elif action == "LONG":
+
+                self.on_action_long(
+                    module
+                )
+
+            elif action == "WIN":
+
+                self.on_action_win(
+                    module
+                )
+
+            return
+
+        print(
+            f"[SERIAL] Unknown: {line}"
+        )
+
+    # ========================================================
+    # Dedicated Pass Button
+    # ========================================================
+
+    def on_pass(
+        self,
+        module: int,
+    ) -> None:
+
+        # PASS has exactly one job:
+        # pass the active player's turn during a running game.
+
+        if self.state != STATE_RUNNING:
+
+            print(
+                f"[GAME] PASS from module {module} "
+                f"ignored while state is {self.state}."
+            )
+
+            return
+
+        if self.game.pass_turn(
+            module,
+            self.warning_ms,
         ):
 
             print(
-                f"[SERIAL] Unknown: {line}"
+                f"[GAME] Module {module} "
+                "passed turn."
             )
 
-            return
-
-        try:
-            module = int(
-                parts[1]
+            print(
+                "[GAME] Active module: "
+                f"{self.game.active_module}, "
+                "warning locked at "
+                f"{warning_description(self.game.current_warning_ms)}"
             )
 
-        except ValueError:
-            return
+            self.audio.turn_pass()
 
-        action = (
-            parts[2].upper()
-        )
+        else:
 
-        if module not in MODULE_IDS:
-            return
-
-        if action == "DOWN":
-
-            self.on_button_down(
-                module
-            )
-
-        elif action == "UP":
-
-            self.on_button_up(
-                module
-            )
-
-        elif action == "SHORT":
-
-            self.on_button_short(
-                module
-            )
-
-        elif action == "LONG":
-
-            self.on_button_long(
-                module
-            )
-
-        elif action == "WIN":
-
-            self.on_button_win(
-                module
+            print(
+                f"[GAME] PASS from module "
+                f"{module} ignored."
             )
 
     # ========================================================
-    # Physical Button Tracking
+    # Action Button Tracking
     # ========================================================
 
-    def on_button_down(
+    def on_action_down(
         self,
         module: int,
     ) -> None:
@@ -388,14 +264,12 @@ class TurnHub:
 
             print(
                 "[LOBBY] Countdown cancelled "
-                "by button press."
+                "by action button press."
             )
-
-            self.audio.invalid()
 
             self.cancel_countdown()
 
-    def on_button_up(
+    def on_action_up(
         self,
         module: int,
     ) -> None:
@@ -422,10 +296,10 @@ class TurnHub:
             self.begin_countdown()
 
     # ========================================================
-    # Short Press
+    # Action Short Press
     # ========================================================
 
-    def on_button_short(
+    def on_action_short(
         self,
         module: int,
     ) -> None:
@@ -438,33 +312,25 @@ class TurnHub:
 
             return
 
+        # During an active game, ACTION SHORT currently has
+        # no game function. Passing is handled exclusively
+        # by the dedicated PASS button.
+
         if self.state == STATE_RUNNING:
 
-            if self.game.pass_turn(
-                module,
-                self.warning_ms,
-            ):
+            print(
+                f"[GAME] ACTION SHORT from "
+                f"module {module} ignored."
+            )
 
-                print(
-                    f"[GAME] Module {module} "
-                    "passed turn."
-                )
+            return
 
-                print(
-                    "[GAME] Active module: "
-                    f"{self.game.active_module}, "
-                    "warning locked at "
-                    f"{warning_description(self.game.current_warning_ms)}"
-                )
+        if self.state == STATE_PAUSED:
 
-                self.audio.turn_pass()
-
-            else:
-
-                print(
-                    f"[GAME] Ignored SHORT "
-                    f"from module {module}."
-                )
+            print(
+                f"[GAME] ACTION SHORT from "
+                f"module {module} ignored."
+            )
 
             return
 
@@ -479,15 +345,13 @@ class TurnHub:
                     "[GAME] Host requested rematch."
                 )
 
-                self.audio.rematch()
-
                 self.enter_rematch_lobby()
 
             else:
 
                 print(
                     "[GAME] Non-host post-game "
-                    "SHORT ignored."
+                    "ACTION SHORT ignored."
                 )
 
     def handle_lobby_short(
@@ -516,8 +380,6 @@ class TurnHub:
                     "is the host."
                 )
 
-            self.audio.join()
-
             return
 
         self.lobby.select_starter(
@@ -533,13 +395,11 @@ class TurnHub:
             f"module {module} selected to go first."
         )
 
-        self.audio.starter_selected()
-
     # ========================================================
-    # Long Press
+    # Action Long Press
     # ========================================================
 
-    def on_button_long(
+    def on_action_long(
         self,
         module: int,
     ) -> None:
@@ -566,8 +426,6 @@ class TurnHub:
                     "to declare victory."
                 )
 
-                self.audio.pause()
-
             return
 
         if self.state == STATE_PAUSED:
@@ -580,8 +438,6 @@ class TurnHub:
                     f"[GAME] Resumed by "
                     f"module {module}."
                 )
-
-                self.audio.resume()
 
             return
 
@@ -597,15 +453,13 @@ class TurnHub:
                     "full lobby reset."
                 )
 
-                self.audio.lobby_reset()
-
                 self.enter_empty_lobby()
 
             else:
 
                 print(
                     "[GAME] Non-host post-game "
-                    "LONG ignored."
+                    "ACTION LONG ignored."
                 )
 
     def handle_lobby_long(
@@ -623,8 +477,6 @@ class TurnHub:
                 "can start the game."
             )
 
-            self.audio.invalid()
-
             return
 
         if self.lobby.player_count < 2:
@@ -633,8 +485,6 @@ class TurnHub:
                 "[LOBBY] At least two "
                 "players are required."
             )
-
-            self.audio.invalid()
 
             return
 
@@ -650,8 +500,6 @@ class TurnHub:
                 f"modules {other_held} are held."
             )
 
-            self.audio.invalid()
-
             return
 
         self.lobby.start_armed_by = (
@@ -664,13 +512,11 @@ class TurnHub:
             "or keep holding to 5s to reset lobby."
         )
 
-        self.audio.start_armed()
-
     # ========================================================
-    # Five-Second Hold / WIN
+    # Five-Second Action Hold / WIN
     # ========================================================
 
-    def on_button_win(
+    def on_action_win(
         self,
         module: int,
     ) -> None:
@@ -690,8 +536,6 @@ class TurnHub:
                 )
 
                 self.lobby.start_armed_by = None
-
-                self.audio.lobby_reset()
 
                 self.enter_empty_lobby()
 
@@ -729,9 +573,6 @@ class TurnHub:
     def begin_countdown(self) -> None:
 
         if self.lobby.player_count < 2:
-
-            self.audio.invalid()
-
             return
 
         self.state = STATE_STARTING
@@ -788,10 +629,6 @@ class TurnHub:
             print(
                 "[LOBBY] Starting in "
                 f"{3 - second_index}..."
-            )
-
-            self.audio.countdown(
-                second_index
             )
 
         if (
@@ -949,8 +786,6 @@ class TurnHub:
 
             time.sleep(0.10)
 
-        self.audio.victory()
-
         self.leds.clear_cache()
 
         print(
@@ -958,12 +793,12 @@ class TurnHub:
         )
 
         print(
-            "[GAME] Host SHORT: "
+            "[GAME] Host ACTION SHORT: "
             "rematch with same players."
         )
 
         print(
-            "[GAME] Host LONG: "
+            "[GAME] Host ACTION LONG: "
             "clear players and reset lobby."
         )
 
@@ -1086,49 +921,31 @@ class TurnHub:
         )
 
         print(
-            "Waiting for Arduino..."
+            "Starting player modules..."
         )
+
+        self.serial.start()
+
+        connected = (
+            self.serial.connected_modules()
+        )
+
+        print(
+            "[TURNHUB] Connected modules: "
+            f"{connected}"
+        )
+
+        if not connected:
+
+            print(
+                "[TURNHUB] No player modules connected."
+            )
+
+        self.leds.clear_cache()
 
         try:
 
             while True:
-
-                if not self.serial.connected:
-
-                    self.connect_if_needed()
-
-                    time.sleep(
-                        LOOP_SLEEP_SECONDS
-                    )
-
-                    continue
-
-                try:
-
-                    for line in (
-                        self.serial.read_lines()
-                    ):
-
-                        self.handle_serial_line(
-                            line
-                        )
-
-                except Exception as exc:
-
-                    print(
-                        "[SERIAL] Lost connection: "
-                        f"{exc}"
-                    )
-
-                    self.on_connection_lost()
-
-                    self.serial.disconnect()
-
-                    time.sleep(
-                        LOOP_SLEEP_SECONDS
-                    )
-
-                    continue
 
                 now = time.monotonic()
 
@@ -1140,22 +957,9 @@ class TurnHub:
                     now
                 )
 
-                try:
-
-                    self.update_leds(
-                        now
-                    )
-
-                except Exception as exc:
-
-                    print(
-                        "[SERIAL] Output failed: "
-                        f"{exc}"
-                    )
-
-                    self.on_connection_lost()
-
-                    self.serial.disconnect()
+                self.update_leds(
+                    now
+                )
 
                 time.sleep(
                     LOOP_SLEEP_SECONDS
@@ -1169,15 +973,15 @@ class TurnHub:
 
         finally:
 
-            if self.serial.connected:
+            try:
+                self.serial.all_off()
 
-                try:
-                    self.serial.off()
+            except Exception:
+                pass
 
-                except Exception:
-                    pass
+            self.audio.stop()
 
-            self.serial.disconnect()
+            self.serial.stop()
 
 
 if __name__ == "__main__":

@@ -1,164 +1,113 @@
-"""TurnHub sound language."""
+"""TurnHub audio interface.
 
-import time
+The prototype's physical buzzer has been temporarily removed.
 
-from config import (
-    POT_RAW_MAX_MS,
-    POT_RAW_MIN_MS,
-)
+This module intentionally preserves TurnHub's audio API so the
+game/controller code does not need to know whether audio hardware
+is currently installed.
 
-from serial_controller import SerialController
+When audio hardware returns later, implementation can be restored
+here without changing the rest of the application.
+"""
 
 
 class AudioController:
-    def __init__(
-        self,
-        serial_controller: SerialController,
-    ) -> None:
+    """Audio interface for TurnHub."""
 
+    def __init__(self, serial_controller=None):
+        # Retained for API compatibility and future hardware use.
         self.serial = serial_controller
 
-    def tone(
-        self,
-        frequency: int,
-        duration_ms: int,
-        gap_ms: int = 0,
-    ) -> None:
+        # Audio is intentionally disabled in the current prototype.
+        self.enabled = False
 
-        self.serial.sound(
-            frequency,
-            duration_ms,
-        )
 
-        if duration_ms or gap_ms:
-            time.sleep(
-                (duration_ms + gap_ms) / 1000.0
-            )
+    # ========================================================
+    # Generic Tone
+    # ========================================================
 
-    def ready(self) -> None:
-        self.tone(900, 70, 40)
-        self.tone(1200, 90)
+    def tone(self, frequency, duration_ms):
+        """Play a tone if audio hardware is available."""
 
-    def join(self) -> None:
-        self.tone(1500, 75)
+        if not self.enabled:
+            return
 
-    def starter_selected(self) -> None:
-        self.tone(1700, 60, 35)
-        self.tone(2300, 80)
+        # Future implementation goes here.
 
-    def start_armed(self) -> None:
-        self.tone(1100, 60, 35)
-        self.tone(1500, 80)
 
-    def countdown(
-        self,
-        second_index: int,
-    ) -> None:
+    # ========================================================
+    # Countdown Tone
+    # ========================================================
 
-        tones = [
-            1000,
-            1300,
-            1700,
-        ]
+    def countdown_tone(self, frequency):
+        """Play one countdown tone."""
 
-        index = max(
-            0,
-            min(
-                second_index,
-                len(tones) - 1,
-            ),
-        )
+        if not self.enabled:
+            return
 
-        self.tone(
-            tones[index],
-            110,
-        )
+        # Future implementation goes here.
 
-    def turn_pass(self) -> None:
-        self.tone(2200, 90)
 
-    def pause(self) -> None:
-        self.tone(1800, 90, 120)
-        self.tone(1800, 90)
+    # ========================================================
+    # Turn Pass
+    # ========================================================
 
-    def resume(self) -> None:
-        self.tone(1300, 60, 40)
-        self.tone(1800, 80)
+    def turn_pass(self):
+        """Audio feedback for a turn pass."""
 
-    def invalid(self) -> None:
-        self.tone(500, 70, 35)
-        self.tone(420, 90)
+        if not self.enabled:
+            return
 
-    def lobby_reset(self) -> None:
-        self.tone(1800, 70, 30)
-        self.tone(1250, 70, 30)
-        self.tone(800, 100)
+        # Future implementation goes here.
 
-    def rematch(self) -> None:
-        self.tone(1000, 60, 30)
-        self.tone(1400, 60, 30)
-        self.tone(1800, 90)
 
-    def victory(self) -> None:
+    # ========================================================
+    # Warning
+    # ========================================================
 
-        notes = [
-            (523, 110),
-            (659, 110),
-            (784, 110),
-            (1047, 350),
-        ]
+    def warning(self):
+        """Audio feedback for a turn warning."""
 
-        for index, (
-            frequency,
-            duration,
-        ) in enumerate(notes):
+        if not self.enabled:
+            return
 
-            gap = (
-                50
-                if index < len(notes) - 1
-                else 0
-            )
+        # Future implementation goes here.
 
-            self.tone(
-                frequency,
-                duration,
-                gap,
-            )
 
-    def pot_feedback(
-        self,
-        raw_pot_value: int,
-    ) -> None:
-        """
-        Produce a short tone based on the physical pot position.
+    # ========================================================
+    # Game Start
+    # ========================================================
 
-        Lowest position:
-            ~700 Hz
+    def game_start(self):
+        """Audio feedback when a game begins."""
 
-        Highest position:
-            ~2200 Hz
-        """
+        if not self.enabled:
+            return
 
-        low_hz = 700
-        high_hz = 2200
+        # Future implementation goes here.
 
-        ratio = (
-            raw_pot_value - POT_RAW_MIN_MS
-        ) / (
-            POT_RAW_MAX_MS - POT_RAW_MIN_MS
-        )
 
-        ratio = max(
-            0.0,
-            min(1.0, ratio),
-        )
+    # ========================================================
+    # Game Over
+    # ========================================================
 
-        frequency = int(
-            low_hz
-            + ratio * (high_hz - low_hz)
-        )
+    def game_over(self):
+        """Audio feedback when a game ends."""
 
-        self.tone(
-            frequency,
-            35,
-        )
+        if not self.enabled:
+            return
+
+        # Future implementation goes here.
+
+
+    # ========================================================
+    # Stop
+    # ========================================================
+
+    def stop(self):
+        """Stop currently playing audio."""
+
+        if not self.enabled:
+            return
+
+        # Future implementation goes here.

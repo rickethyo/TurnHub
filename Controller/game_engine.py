@@ -41,7 +41,6 @@ class GameEngine:
     pause_started_at: float | None = None
 
     total_paused_seconds: float = 0.0
-    total_hardware_downtime: float = 0.0
 
     current_warning_ms: int = WARNING_OFF
 
@@ -53,6 +52,10 @@ class GameEngine:
     stats: dict[int, PlayerStats] = field(
         default_factory=dict
     )
+
+    # ========================================================
+    # Game Start
+    # ========================================================
 
     def start(
         self,
@@ -78,7 +81,6 @@ class GameEngine:
         self.pause_started_at = None
 
         self.total_paused_seconds = 0.0
-        self.total_hardware_downtime = 0.0
 
         self.current_warning_ms = warning_ms
 
@@ -92,6 +94,10 @@ class GameEngine:
             for module in self.players
         }
 
+    # ========================================================
+    # Active Player
+    # ========================================================
+
     @property
     def active_module(
         self,
@@ -103,6 +109,10 @@ class GameEngine:
         return self.players[
             self.active_index
         ]
+
+    # ========================================================
+    # Turn Timing
+    # ========================================================
 
     def current_turn_elapsed(
         self,
@@ -131,6 +141,10 @@ class GameEngine:
             end - self.turn_started_at,
         )
 
+    # ========================================================
+    # Game Timing
+    # ========================================================
+
     def game_elapsed(
         self,
         now: float | None = None,
@@ -141,6 +155,7 @@ class GameEngine:
 
         if self.game_ended_at is not None:
             end = self.game_ended_at
+
         else:
             end = now
 
@@ -150,6 +165,10 @@ class GameEngine:
             - self.game_started_at
             - self.total_paused_seconds,
         )
+
+    # ========================================================
+    # Warning State
+    # ========================================================
 
     def warning_phase(
         self,
@@ -165,7 +184,7 @@ class GameEngine:
         # Warning OFF
         # ----------------------------------------------------
         #
-        # No red warning is ever generated.
+        # No red warning is generated.
         #
         # After five minutes, the active player's green LED
         # turns on and remains on.
@@ -185,7 +204,7 @@ class GameEngine:
             return "NORMAL"
 
         # ----------------------------------------------------
-        # Normal warning
+        # Normal Warning
         # ----------------------------------------------------
 
         if (
@@ -204,6 +223,10 @@ class GameEngine:
 
         return "NORMAL"
 
+    # ========================================================
+    # Pass Turn
+    # ========================================================
+
     def pass_turn(
         self,
         module: int,
@@ -213,7 +236,17 @@ class GameEngine:
         if self.state != STATE_RUNNING:
             return False
 
+        # Only the currently active player's physical module
+        # may pass the turn through the normal player-module
+        # interface.
+        #
+        # A future hub-level master pass command can bypass
+        # this check through a separate method.
+
         if module != self.active_module:
+            return False
+
+        if not self.players:
             return False
 
         now = time.monotonic()
@@ -234,7 +267,7 @@ class GameEngine:
 
         self.turn_started_at = now
 
-        # The warning setting is locked at the beginning
+        # Warning configuration is locked at the beginning
         # of each new turn.
         self.current_warning_ms = (
             next_warning_ms
@@ -244,6 +277,10 @@ class GameEngine:
         self.win_armed_module = None
 
         return True
+
+    # ========================================================
+    # Pause
+    # ========================================================
 
     def pause(
         self,
@@ -263,6 +300,10 @@ class GameEngine:
 
         return True
 
+    # ========================================================
+    # Resume
+    # ========================================================
+
     def resume(self) -> bool:
 
         if (
@@ -281,6 +322,10 @@ class GameEngine:
             pause_duration
         )
 
+        # Move the turn start forward by the duration of the
+        # pause so paused time does not count against the
+        # active player's turn.
+
         self.turn_started_at += (
             pause_duration
         )
@@ -291,6 +336,10 @@ class GameEngine:
         self.state = STATE_RUNNING
 
         return True
+
+    # ========================================================
+    # Declare Winner
+    # ========================================================
 
     def declare_winner(
         self,
@@ -331,56 +380,3 @@ class GameEngine:
         self.state = STATE_GAME_OVER
 
         return True
-
-    def freeze_for_hardware_loss(
-        self,
-    ) -> dict:
-
-        return {
-            "was_running": (
-                self.state == STATE_RUNNING
-            ),
-            "was_paused": (
-                self.state == STATE_PAUSED
-            ),
-            "disconnect_at": (
-                time.monotonic()
-            ),
-        }
-
-    def restore_after_hardware_loss(
-        self,
-        outage: dict,
-    ) -> None:
-
-        now = time.monotonic()
-
-        downtime = max(
-            0.0,
-            now - outage["disconnect_at"],
-        )
-
-        self.total_hardware_downtime += (
-            downtime
-        )
-
-        # Exclude hardware downtime from game timing.
-
-        self.game_started_at += downtime
-        self.turn_started_at += downtime
-
-        if self.pause_started_at is not None:
-            self.pause_started_at += downtime
-
-        # After reconnection the game always returns
-        # in a paused state and requires a deliberate
-        # long press to continue.
-
-        if self.state in (
-            STATE_RUNNING,
-            STATE_PAUSED,
-        ):
-
-            self.state = STATE_PAUSED
-            self.pause_started_at = now
-            self.win_armed_module = None
