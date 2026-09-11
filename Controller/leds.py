@@ -41,6 +41,10 @@ class LEDController:
             int | bool,
         ] = {}
 
+    # ========================================================
+    # Basic LED Control
+    # ========================================================
+
     def clear_cache(self) -> None:
         self.cache.clear()
 
@@ -62,18 +66,21 @@ class LEDController:
         self.cache[key] = value
 
         if kind == "BLUE":
+
             self.serial.set_blue(
                 module,
                 int(value),
             )
 
         elif kind == "RED":
+
             self.serial.set_red(
                 module,
                 bool(value),
             )
 
         elif kind == "GREEN":
+
             self.serial.set_green(
                 module,
                 bool(value),
@@ -148,6 +155,10 @@ class LEDController:
         for module in MODULE_IDS:
             self.off_module(module)
 
+    # ========================================================
+    # LED Effects
+    # ========================================================
+
     @staticmethod
     def breathe_value(
         now: float,
@@ -170,7 +181,10 @@ class LEDController:
         return int(
             BREATHE_MIN
             + shaped
-            * (BREATHE_MAX - BREATHE_MIN)
+            * (
+                BREATHE_MAX
+                - BREATHE_MIN
+            )
         )
 
     @staticmethod
@@ -185,7 +199,8 @@ class LEDController:
         )
 
         sequence_length = (
-            player_number * flash_block
+            player_number
+            * flash_block
             + LOBBY_FLASH_GAP
         )
 
@@ -198,17 +213,23 @@ class LEDController:
         ):
 
             start = (
-                index * flash_block
+                index
+                * flash_block
             )
 
             if (
                 start
                 <= position
-                < start + LOBBY_FLASH_ON
+                < start
+                + LOBBY_FLASH_ON
             ):
                 return True
 
         return False
+
+    # ========================================================
+    # Lobby
+    # ========================================================
 
     def render_lobby(
         self,
@@ -221,12 +242,22 @@ class LEDController:
 
         for module in lobby.module_ids:
 
-            if lobby.is_joined(module):
+            # ------------------------------------------------
+            # Joined Module
+            # ------------------------------------------------
+
+            if lobby.is_joined(
+                module
+            ):
 
                 player_number = (
-                    lobby.player_number(module)
+                    lobby.player_number(
+                        module
+                    )
                 )
 
+                # BLUE:
+                # Selected starting player.
                 self.blue(
                     module,
                     255
@@ -235,12 +266,26 @@ class LEDController:
                     else 0,
                 )
 
+                # GREEN:
+                # Host indicator.
+                #
+                # This remains solid even while the red
+                # player-number LED flashes.
                 self.green(
                     module,
                     module
                     == lobby.host_module,
                 )
 
+                # RED:
+                # Player number indicator.
+                #
+                # This applies to ALL joined players,
+                # including the host.
+                #
+                # Player 1 = one flash
+                # Player 2 = two flashes
+                # etc.
                 self.red(
                     module,
                     self.player_number_red_on(
@@ -252,7 +297,12 @@ class LEDController:
                     else False,
                 )
 
+            # ------------------------------------------------
+            # Unjoined Module
+            # ------------------------------------------------
+
             else:
+
                 self.render_unjoined(
                     module,
                     now,
@@ -265,36 +315,79 @@ class LEDController:
     ) -> None:
 
         cycle_length = (
-            LOBBY_IDLE_LED_TIME * 3
+            LOBBY_IDLE_LED_TIME
+            * 3
         )
 
         position = (
-            now % cycle_length
+            now
+            % cycle_length
         )
 
+        # Blue
         if (
             position
             < LOBBY_IDLE_LED_TIME
         ):
 
-            self.blue(module, 255)
-            self.red(module, False)
-            self.green(module, False)
+            self.blue(
+                module,
+                255,
+            )
 
+            self.red(
+                module,
+                False,
+            )
+
+            self.green(
+                module,
+                False,
+            )
+
+        # Red
         elif (
             position
-            < LOBBY_IDLE_LED_TIME * 2
+            < LOBBY_IDLE_LED_TIME
+            * 2
         ):
 
-            self.blue(module, 0)
-            self.red(module, True)
-            self.green(module, False)
+            self.blue(
+                module,
+                0,
+            )
 
+            self.red(
+                module,
+                True,
+            )
+
+            self.green(
+                module,
+                False,
+            )
+
+        # Green
         else:
 
-            self.blue(module, 0)
-            self.red(module, False)
-            self.green(module, True)
+            self.blue(
+                module,
+                0,
+            )
+
+            self.red(
+                module,
+                False,
+            )
+
+            self.green(
+                module,
+                True,
+            )
+
+    # ========================================================
+    # Starting Countdown
+    # ========================================================
 
     def render_starting(
         self,
@@ -322,11 +415,15 @@ class LEDController:
 
         for module in lobby.module_ids:
 
-            if lobby.is_joined(module):
+            if lobby.is_joined(
+                module
+            ):
 
                 self.blue(
                     module,
-                    255 if flash_on else 0,
+                    255
+                    if flash_on
+                    else 0,
                 )
 
                 self.red(
@@ -346,6 +443,10 @@ class LEDController:
                     now,
                 )
 
+    # ========================================================
+    # Game Rendering
+    # ========================================================
+
     def render_game(
         self,
         game: GameEngine,
@@ -356,7 +457,14 @@ class LEDController:
         if now is None:
             now = time.monotonic()
 
-        if game.state == STATE_GAME_OVER:
+        # ----------------------------------------------------
+        # Game Over
+        # ----------------------------------------------------
+
+        if (
+            game.state
+            == STATE_GAME_OVER
+        ):
 
             self.render_game_over(
                 game,
@@ -365,10 +473,19 @@ class LEDController:
 
             return
 
-        if game.state == STATE_PAUSED:
+        # ----------------------------------------------------
+        # Paused
+        # ----------------------------------------------------
 
-            breathe = self.breathe_value(
-                now
+        if (
+            game.state
+            == STATE_PAUSED
+        ):
+
+            breathe = (
+                self.breathe_value(
+                    now
+                )
             )
 
             for module in game.players:
@@ -390,20 +507,31 @@ class LEDController:
 
             return
 
-        if game.state != STATE_RUNNING:
+        # ----------------------------------------------------
+        # Running
+        # ----------------------------------------------------
+
+        if (
+            game.state
+            != STATE_RUNNING
+        ):
             return
 
-        active = game.active_module
+        active = (
+            game.active_module
+        )
 
         turn_elapsed = (
-            game.current_turn_elapsed(now)
+            game.current_turn_elapsed(
+                now
+            )
         )
 
         for module in game.players:
 
-            # ------------------------------------------------
+            # --------------------------------------------
             # Waiting Players
-            # ------------------------------------------------
+            # --------------------------------------------
 
             if module != active:
 
@@ -424,9 +552,9 @@ class LEDController:
 
                 continue
 
-            # ------------------------------------------------
+            # --------------------------------------------
             # Active Player Blue LED
-            # ------------------------------------------------
+            # --------------------------------------------
 
             if (
                 turn_elapsed
@@ -444,24 +572,31 @@ class LEDController:
 
                 self.blue(
                     module,
-                    255 if blink_on else 0,
+                    255
+                    if blink_on
+                    else 0,
                 )
 
             else:
 
                 self.blue(
                     module,
-                    self.breathe_value(now),
+                    self.breathe_value(
+                        now
+                    ),
                 )
 
-            # ------------------------------------------------
-            # Warning LEDs
-            # ------------------------------------------------
+            # --------------------------------------------
+            # Warning State
+            # --------------------------------------------
 
-            phase = game.warning_phase(
-                now
+            phase = (
+                game.warning_phase(
+                    now
+                )
             )
 
+            # Normal turn
             if phase == "NORMAL":
 
                 self.green(
@@ -474,6 +609,8 @@ class LEDController:
                     False,
                 )
 
+            # 75% threshold or timer-disabled
+            # five-minute indicator
             elif phase in (
                 "CAUTION",
                 "OFF_GREEN",
@@ -489,6 +626,7 @@ class LEDController:
                     False,
                 )
 
+            # Warning threshold reached
             elif phase == "WARNING":
 
                 self.green(
@@ -510,6 +648,10 @@ class LEDController:
                     blink_on,
                 )
 
+    # ========================================================
+    # Game Over
+    # ========================================================
+
     def render_game_over(
         self,
         game: GameEngine,
@@ -518,6 +660,7 @@ class LEDController:
 
         for module in game.players:
 
+            # Winner gets blue.
             self.blue(
                 module,
                 255
@@ -531,7 +674,9 @@ class LEDController:
                 False,
             )
 
+            # Host gets green.
             self.green(
                 module,
-                module == host_module,
+                module
+                == host_module,
             )
