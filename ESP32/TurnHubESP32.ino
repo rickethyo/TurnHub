@@ -1,70 +1,57 @@
 // ============================================================
-// TurnHub - Arduino Module 1
-// Temporary wired player module
+// TurnHub - ESP32 Module 0
 //
-// Module 0 = ESP32  = WHITE wiring
-// Module 1 = Arduino = RED wiring
+// Module 0 = ESP32 = WHITE wiring
 //
-// The Arduino does NOT own game state.
+// The ESP32 does NOT own game state.
 // The Raspberry Pi is authoritative.
 //
-// HARDWARE:
-//
-//   SHORT BUTTON = PASS TURN
-//   TALL BUTTON  = ACTION
-//
-// Pass Turn is intentionally assigned to the shorter,
-// harder-to-hit button because passing a turn cannot
-// currently be undone.
+// SHORT BUTTON = PASS TURN
+// TALL BUTTON  = ACTION
 //
 // Pins:
-//   Blue LED   -> 5
-//   Red LED    -> 6
-//   Green LED  -> 3
-//   Pass       -> 8  (SHORT button)
-//   Action     -> 7  (TALL button)
+//   Blue LED   -> GPIO 27
+//   Red LED    -> GPIO 14
+//   Green LED  -> GPIO 13
+//   Pass       -> GPIO 26 (SHORT button)
+//   Action     -> GPIO 25 (TALL button)
 //
 // Serial baud: 9600
 //
-// Arduino -> Pi:
+// ESP32 -> Pi:
 //
-//   READY|1
+//   READY|0
+//   PASS|0
 //
-//   PASS|1
+//   ACTION|0|DOWN
+//   ACTION|0|UP
+//   ACTION|0|SHORT
+//   ACTION|0|LONG
+//   ACTION|0|WIN
 //
-//   ACTION|1|DOWN
-//   ACTION|1|UP
-//   ACTION|1|SHORT
-//   ACTION|1|LONG
-//   ACTION|1|WIN
+// Pi -> ESP32:
 //
-// Pi -> Arduino:
-//
-//   BLUE|1|<0-255>
-//   RED|1|<0|1>
-//   GREEN|1|<0|1>
+//   BLUE|0|<0-255>
+//   RED|0|<0|1>
+//   GREEN|0|<0|1>
 //   OFF
 //
 // ============================================================
 
 
-// ============================================================
-// Module Identity
-// ============================================================
-
-const int MODULE_ID = 1;
+const int MODULE_ID = 0;
 
 
 // ============================================================
-// Pin Assignments
+// Pins
 // ============================================================
 
-const int BLUE_LED  = 5;
-const int RED_LED   = 6;
-const int GREEN_LED = 3;
+const int BLUE_LED  = 27;
+const int RED_LED   = 14;
+const int GREEN_LED = 13;
 
-const int PASS_BUTTON   = 8;   // SHORT physical button
-const int ACTION_BUTTON = 7;   // TALL physical button
+const int PASS_BUTTON   = 26;
+const int ACTION_BUTTON = 25;
 
 
 // ============================================================
@@ -81,7 +68,6 @@ const unsigned long WIN_HOLD_TIME   = 5000;
 // ============================================================
 
 struct ButtonState {
-
   int pin;
 
   bool rawState;
@@ -95,10 +81,6 @@ struct ButtonState {
 };
 
 
-// ============================================================
-// Button Instances
-// ============================================================
-
 ButtonState passButton = {
   PASS_BUTTON,
   HIGH,
@@ -108,6 +90,7 @@ ButtonState passButton = {
   false,
   false
 };
+
 
 ButtonState actionButton = {
   ACTION_BUTTON,
@@ -161,9 +144,7 @@ void loop() {
 // PASS BUTTON
 //
 // Short physical button.
-//
-// Pass is sent only after a complete press/release cycle.
-// This prevents a noisy edge from immediately passing the turn.
+// PASS occurs after a complete press/release.
 // ============================================================
 
 void updatePassButton() {
@@ -191,7 +172,7 @@ void updatePassButton() {
         passButton.rawState;
 
 
-      // Button released after a valid press.
+      // PASS on release
       if (passButton.stableState == HIGH) {
 
         Serial.print("PASS|");
@@ -206,9 +187,6 @@ void updatePassButton() {
 // ACTION BUTTON
 //
 // Tall physical button.
-//
-// This button handles the richer interactions:
-// short, long and win-hold.
 // ============================================================
 
 void updateActionButton() {
@@ -268,7 +246,6 @@ void updateActionButton() {
 
         sendActionEvent("UP");
 
-        // SHORT only fires if LONG was never reached.
         if (!actionButton.longSent) {
 
           sendActionEvent("SHORT");
@@ -293,10 +270,7 @@ void updateActionButton() {
       millis() - actionButton.pressStartTime;
 
 
-    // --------------------------------------------------------
-    // Long press: 2 seconds
-    // --------------------------------------------------------
-
+    // 2 second hold
     if (
       !actionButton.longSent &&
       heldTime >= LONG_PRESS_TIME
@@ -308,10 +282,7 @@ void updateActionButton() {
     }
 
 
-    // --------------------------------------------------------
-    // Win hold: 5 seconds
-    // --------------------------------------------------------
-
+    // 5 second hold
     if (
       !actionButton.winSent &&
       heldTime >= WIN_HOLD_TIME
@@ -326,7 +297,7 @@ void updateActionButton() {
 
 
 // ============================================================
-// Action Event Output
+// Action Events
 // ============================================================
 
 void sendActionEvent(
@@ -393,10 +364,7 @@ void handleCommand(String command) {
       command.indexOf('|');
 
     int second =
-      command.indexOf(
-        '|',
-        first + 1
-      );
+      command.indexOf('|', first + 1);
 
     if (second == -1) {
       return;
@@ -443,10 +411,7 @@ void handleCommand(String command) {
       command.indexOf('|');
 
     int second =
-      command.indexOf(
-        '|',
-        first + 1
-      );
+      command.indexOf('|', first + 1);
 
     if (second == -1) {
       return;
@@ -486,10 +451,7 @@ void handleCommand(String command) {
       command.indexOf('|');
 
     int second =
-      command.indexOf(
-        '|',
-        first + 1
-      );
+      command.indexOf('|', first + 1);
 
     if (second == -1) {
       return;

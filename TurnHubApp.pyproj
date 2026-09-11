@@ -33,12 +33,14 @@
     <Compile Include="Controller\turnhub.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="ESP32\TurnHubESP32.ino" />
     <Content Include="README.md" />
     <Content Include="Arduino\TurnHubArduino.ino" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Arduino\" />
     <Folder Include="Controller\" />
+    <Folder Include="ESP32\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
