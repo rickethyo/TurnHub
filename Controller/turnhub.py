@@ -7,7 +7,6 @@ import time
 from audio import AudioController
 
 from config import (
-    DEFAULT_WARNING_MS,
     LOOP_SLEEP_SECONDS,
     MODULE_IDS,
     START_COUNTDOWN_SECONDS,
@@ -23,6 +22,7 @@ from game_engine import GameEngine
 from leds import LEDController
 from lobby import Lobby
 from serial_controller import SerialController
+from settings import SettingsController
 from status_monitor import StatusMonitor
 
 
@@ -49,14 +49,14 @@ def warning_description(
 class TurnHub:
     def __init__(self) -> None:
 
-        # SerialController receives messages in its
-        # background reader threads and forwards them here.
+        # ====================================================
+        # Hardware Controllers
+        # ====================================================
+
         self.serial = SerialController(
             message_callback=self.handle_serial_line
         )
 
-        # Audio is now hub-level hardware connected directly
-        # to the Raspberry Pi.
         self.audio = AudioController(
             self.serial
         )
@@ -65,21 +65,58 @@ class TurnHub:
             self.serial
         )
 
+        # Physical hub DIP switches.
+        self.settings = SettingsController()
+
+        # ====================================================
+        # Game Controllers
+        # ====================================================
+
         self.lobby = Lobby()
         self.game = GameEngine()
 
-        # Development status monitor.
         self.status = StatusMonitor()
 
         self.state = STATE_LOBBY
 
-        # Warning threshold comes from config.py.
-        # During prototype testing this can be set very low,
-        # such as 10 seconds.
-        self.warning_ms = DEFAULT_WARNING_MS
+        # Read the physical timer selector.
+        self.warning_ms = (
+            self.settings.warning_ms()
+        )
+
+        print(
+            "[SETTINGS] Turn timer: "
+            f"{self.settings.description()}"
+        )
 
         self.start_countdown_at: float | None = None
         self.last_countdown_tone = -1
+
+    # ========================================================
+    # Physical Hub Settings
+    # ========================================================
+
+    def update_settings(self) -> None:
+        """
+        Watch the physical DIP switches.
+
+        Changes update the warning setting used for future
+        turns. The GameEngine locks the selected value when
+        each turn begins, so changing the switch does not
+        alter a turn already in progress.
+        """
+
+        if not self.settings.changed():
+            return
+
+        self.warning_ms = (
+            self.settings.warning_ms()
+        )
+
+        print(
+            "[SETTINGS] Turn timer: "
+            f"{self.settings.description()}"
+        )
 
     # ========================================================
     # Serial Protocol
@@ -150,11 +187,6 @@ class TurnHub:
 
         # ----------------------------------------------------
         # Action Button
-        # ACTION|module|DOWN
-        # ACTION|module|UP
-        # ACTION|module|SHORT
-        # ACTION|module|LONG
-        # ACTION|module|WIN
         # ----------------------------------------------------
 
         if event == "ACTION":
@@ -217,9 +249,6 @@ class TurnHub:
         self,
         module: int,
     ) -> None:
-
-        # PASS has exactly one job:
-        # pass the active player's turn during a running game.
 
         if self.state != STATE_RUNNING:
 
@@ -318,10 +347,6 @@ class TurnHub:
             )
 
             return
-
-        # During an active game, ACTION SHORT currently has
-        # no game function. Passing is handled exclusively
-        # by the dedicated PASS button.
 
         if self.state == STATE_RUNNING:
 
@@ -549,7 +574,6 @@ class TurnHub:
                     f"[GAME] Module {module} wins!"
                 )
 
-                # Global hub victory sound.
                 self.audio.game_over()
 
                 self.print_game_summary()
@@ -629,7 +653,6 @@ class TurnHub:
                 f"{3 - second_index}..."
             )
 
-            # Short audible cue for each countdown step.
             self.audio.countdown_tone()
 
         if (
@@ -654,6 +677,12 @@ class TurnHub:
 
             return
 
+        # Capture the physical timer setting when the
+        # first turn begins.
+        self.warning_ms = (
+            self.settings.warning_ms()
+        )
+
         self.game.start(
             players=self.lobby.player_modules,
             starter=starter,
@@ -669,7 +698,6 @@ class TurnHub:
             "[GAME] Game started."
         )
 
-        # Audible confirmation that the game is live.
         self.audio.game_start()
 
         print(
@@ -734,9 +762,6 @@ class TurnHub:
         if self.state != STATE_RUNNING:
             return
 
-        # OFF_GREEN deliberately does not count as a warning.
-        # Only the true red warning state is logged.
-
         if (
             self.game.warning_phase(now)
             == "WARNING"
@@ -751,8 +776,6 @@ class TurnHub:
                 f"{warning_description(self.game.current_warning_ms)}."
             )
 
-            # Play once per turn when the warning threshold
-            # is first crossed.
             self.audio.warning()
 
     # ========================================================
@@ -923,6 +946,11 @@ class TurnHub:
         )
 
         print(
+            "[SETTINGS] Turn timer: "
+            f"{self.settings.description()}"
+        )
+
+        print(
             "Starting player modules..."
         )
 
@@ -945,7 +973,6 @@ class TurnHub:
 
         self.leds.clear_cache()
 
-        # Always show an initial snapshot when TurnHub starts.
         self.status.update(
             self,
             force=True,
@@ -956,6 +983,9 @@ class TurnHub:
             while True:
 
                 now = time.monotonic()
+
+                # Check physical hub controls.
+                self.update_settings()
 
                 self.update_countdown(
                     now
@@ -969,8 +999,6 @@ class TurnHub:
                     now
                 )
 
-                # Prints a new status snapshot only when
-                # meaningful application state changes.
                 self.status.update(
                     self
                 )
@@ -989,6 +1017,13 @@ class TurnHub:
 
             try:
                 self.serial.all_off()
+
+            except Exception:
+                pass
+
+            # Release the DIP-switch GPIO inputs.
+            try:
+                self.settings.cleanup()
 
             except Exception:
                 pass
