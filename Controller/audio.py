@@ -30,6 +30,7 @@ class AudioController:
             tuple[tuple[int, int, int], ...]
         ] = queue.Queue()
         self._worker: threading.Thread | None = None
+        self._pwm = None
 
         if not self.enabled:
 
@@ -48,6 +49,15 @@ class AudioController:
             GPIO.OUT,
             initial=GPIO.LOW,
         )
+
+        # Create exactly one PWM object for the lifetime of the
+        # audio controller. RPi.GPIO does not allow multiple live
+        # PWM objects to own the same GPIO channel.
+        self._pwm = GPIO.PWM(
+            BUZZER_GPIO,
+            1000,
+        )
+        self._pwm.start(0)
 
         self._worker = threading.Thread(
             target=self._audio_worker,
@@ -81,6 +91,13 @@ class AudioController:
             try:
                 self._play_pattern(pattern)
 
+            except Exception as exc:
+                # A single audio failure should never kill the
+                # background worker for the rest of the session.
+                print(
+                    f"[AUDIO] Playback error: {exc}"
+                )
+
             finally:
                 self._queue.task_done()
 
@@ -103,20 +120,21 @@ class AudioController:
             if self._shutdown:
                 return
 
-            pwm = GPIO.PWM(
-                BUZZER_GPIO,
-                frequency,
+            if self._pwm is None:
+                return
+
+            self._pwm.ChangeFrequency(
+                frequency
             )
+            self._pwm.ChangeDutyCycle(50)
 
             try:
-                pwm.start(50)
-
                 time.sleep(
                     duration_ms / 1000.0
                 )
 
             finally:
-                pwm.stop()
+                self._pwm.ChangeDutyCycle(0)
 
                 GPIO.output(
                     BUZZER_GPIO,
@@ -260,6 +278,11 @@ class AudioController:
             )
 
         try:
+            if self._pwm is not None:
+                self._pwm.ChangeDutyCycle(0)
+                self._pwm.stop()
+                self._pwm = None
+
             GPIO.output(
                 BUZZER_GPIO,
                 GPIO.LOW,
