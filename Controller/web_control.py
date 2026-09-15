@@ -324,6 +324,9 @@ class WebControlManager:
         if player is None:
             return False, {"error": "that player seat is not part of this game"}, 404
 
+        if self.turnhub.game.is_eliminated(player.player_number):
+            return False, {"error": "eliminated players do not need a web controller"}, 409
+
         host_module = self.turnhub.lobby.host_module
         if host_module is None:
             return False, {"error": "no host module is available to approve reassignment"}, 409

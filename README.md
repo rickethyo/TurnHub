@@ -182,3 +182,17 @@ The web Pass button is shown only when the paired browser's exact logical seat i
 If a phone is lost or dies during play, pause the game. A replacement browser may request reassignment to a seat, but the reassignment is not accepted until the physical host module approves it with a short Action press. Approval replaces the old token immediately.
 
 The physical Pass button always remains available. TurnHub also suppresses the near-simultaneous duplicate physical Pass that could arrive immediately after a successful web Pass on a shared module.
+
+## Player Elimination
+
+Multiplayer games keep eliminated players in the game record without renumbering anyone. Turn order skips eliminated seats, their statistics remain available, and the last living player is declared the winner automatically.
+
+Elimination is deliberately physical and only available while the game is paused:
+
+1. Pause the game normally.
+2. On the module containing the player to eliminate, **hold Action and tap Pass**.
+3. TurnHub marks the selected seat in red. On a shared module, Action Short cycles between the living local seats. Seat A uses one repeating red pulse and Seat B uses two.
+4. Press Pass on that module with Action released to confirm the elimination.
+5. The game remains paused. Hold Action normally when the table is ready to resume.
+
+Action Long cancels an armed elimination selection instead of resuming immediately. A confirmed elimination gives three red LED strikes and a distinct descending audio cue. Eliminated players remain visible in the web portal with an `ELIMINATED` marker and are included in game logs and recovered session state.

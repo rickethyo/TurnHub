@@ -102,6 +102,14 @@ class TurnHub:
         self._turn_advance_lock = threading.RLock()
         self._suppress_physical_pass_until: dict[int, float] = {}
 
+        # Paused-game elimination is deliberately a multi-step physical
+        # operation: Action+Pass selects a module, Action Short cycles an
+        # exact logical seat, and Pass confirms. The selection is transient
+        # and intentionally is not restored after a reboot.
+        self.elimination_target_player: int | None = None
+        self._elimination_chord_modules: set[int] = set()
+        self._suppress_elimination_short_modules: set[int] = set()
+
         # Read the physical timer selector.
         self.warning_ms = (
             self.settings.warning_ms()
@@ -346,6 +354,23 @@ class TurnHub:
 
             return
 
+        if self.state == STATE_PAUSED:
+
+            # Deliberate elimination chord: while paused, hold Action and
+            # tap Pass on the module containing the player to eliminate.
+            if module in self.lobby.held_modules:
+                self._elimination_chord_modules.add(module)
+                self._suppress_elimination_short_modules.add(module)
+                self._begin_elimination_selection(module)
+                return
+
+            # Once a target is selected, a normal Pass on that same module
+            # is the explicit confirmation.
+            if self.elimination_target_player is not None:
+                self._confirm_elimination(module)
+
+            return
+
         if self.state != STATE_RUNNING:
             return
 
@@ -427,6 +452,182 @@ class TurnHub:
             return True
 
     # ========================================================
+    # Player Elimination
+    # ========================================================
+
+    def _begin_elimination_selection(
+        self,
+        module: int,
+    ) -> None:
+        """Arm a living logical player on one module for elimination."""
+
+        if self.state != STATE_PAUSED:
+            return
+
+        candidates = self.game.living_players_for_module(module)
+
+        if not candidates:
+            print(
+                "[GAME] Elimination ignored: "
+                f"Module {module} has no living players."
+            )
+            return
+
+        target = candidates[0]
+        self.elimination_target_player = target.player_number
+
+        # Entering elimination selection intentionally disarms the old
+        # hold-to-win candidate from the action that originally paused play.
+        self.game.win_armed_module = None
+        self.game.win_armed_player = None
+
+        label = self.persistence.player_label(target)
+        print(
+            "[GAME] Elimination selected: "
+            f"{label}. "
+            "Action Short cycles seats; Pass confirms; "
+            "Action Long cancels."
+        )
+
+        self.audio.elimination_armed()
+        self.leds.clear_cache()
+
+    def _cycle_elimination_target(
+        self,
+        module: int,
+    ) -> None:
+        """Cycle the selected living seat on a shared module."""
+
+        target = self.game.player_by_number(
+            self.elimination_target_player
+        )
+
+        if target is None:
+            return
+
+        if module != target.module_id:
+            print(
+                "[GAME] Elimination selection is on "
+                f"Module {target.module_id}; Action on Module {module} ignored."
+            )
+            return
+
+        candidates = self.game.living_players_for_module(module)
+        if not candidates:
+            self._cancel_elimination_selection()
+            return
+
+        if len(candidates) == 1:
+            selected = candidates[0]
+        else:
+            try:
+                index = next(
+                    i
+                    for i, player in enumerate(candidates)
+                    if player.player_number == target.player_number
+                )
+            except StopIteration:
+                index = -1
+
+            selected = candidates[(index + 1) % len(candidates)]
+
+        self.elimination_target_player = selected.player_number
+        print(
+            "[GAME] Elimination target: "
+            f"{self.persistence.player_label(selected)}."
+        )
+        self.audio.elimination_target_changed()
+        self.leds.clear_cache()
+
+    def _cancel_elimination_selection(self) -> None:
+        if self.elimination_target_player is None:
+            return
+
+        self.elimination_target_player = None
+        self.audio.elimination_cancelled()
+        self.leds.clear_cache()
+        print(
+            "[GAME] Elimination selection cancelled. Game remains paused."
+        )
+
+    def _confirm_elimination(
+        self,
+        module: int,
+    ) -> None:
+        """Confirm the selected elimination with Pass on its module."""
+
+        target = self.game.player_by_number(
+            self.elimination_target_player
+        )
+
+        if target is None:
+            self.elimination_target_player = None
+            return
+
+        if module != target.module_id:
+            print(
+                "[GAME] Elimination confirmation ignored: "
+                f"use Pass on Module {target.module_id}."
+            )
+            return
+
+        eliminated, game_finished = self.game.eliminate_player(
+            target.player_number,
+            self.warning_ms,
+        )
+
+        if not eliminated:
+            print(
+                "[GAME] Elimination could not be completed for "
+                f"{self.persistence.player_label(target)}."
+            )
+            return
+
+        self.elimination_target_player = None
+        self.leds.player_eliminated(module)
+        self.audio.player_eliminated()
+
+        print(
+            "[GAME] Eliminated: "
+            f"{self.persistence.player_label(target)}."
+        )
+
+        if game_finished:
+            self.state = STATE_GAME_OVER
+            winner = self.game.player_by_number(
+                self.game.winner_player
+            )
+
+            print(
+                "[GAME] Last player standing. Winner: "
+                + (
+                    self.persistence.player_label(winner)
+                    if winner is not None
+                    else "Unknown"
+                )
+                + "."
+            )
+
+            self.audio.game_over()
+            self.persistence.mark_dirty()
+            self.print_game_summary()
+            self.save_game_log()
+            self.celebrate_winner()
+            return
+
+        self.state = STATE_PAUSED
+        active = self.game.active_player
+        print(
+            "[GAME] Game remains paused. "
+            + (
+                f"Next active player: {self.persistence.player_label(active)}."
+                if active is not None
+                else ""
+            )
+        )
+        self.persistence.mark_dirty()
+
+    # ========================================================
     # Action Button Tracking
     # ========================================================
 
@@ -438,6 +639,7 @@ class TurnHub:
         self.lobby.held_modules.add(module)
         self.lobby.action_long_modules.discard(module)
         self.lobby.shared_chord_modules.discard(module)
+        self._elimination_chord_modules.discard(module)
 
         if self.state == STATE_STARTING:
             print(
@@ -454,16 +656,23 @@ class TurnHub:
 
         self.lobby.held_modules.discard(module)
 
-        used_chord = module in self.lobby.shared_chord_modules
+        used_lobby_chord = module in self.lobby.shared_chord_modules
+        used_elimination_chord = module in self._elimination_chord_modules
         was_long = module in self.lobby.action_long_modules
 
         self.lobby.shared_chord_modules.discard(module)
+        self._elimination_chord_modules.discard(module)
         self.lobby.action_long_modules.discard(module)
 
-        if used_chord:
+        if used_lobby_chord:
             # ACTION SHORT follows UP only if LONG was never reached.
             if was_long:
                 self.lobby.suppress_next_short_modules.discard(module)
+            return
+
+        if used_elimination_chord:
+            if was_long:
+                self._suppress_elimination_short_modules.discard(module)
             return
 
         if (
@@ -489,6 +698,19 @@ class TurnHub:
 
         if module in self.lobby.suppress_next_short_modules:
             self.lobby.suppress_next_short_modules.discard(module)
+            return
+
+        if module in self._suppress_elimination_short_modules:
+            self._suppress_elimination_short_modules.discard(module)
+            return
+
+        # While an elimination target is armed, Action Short belongs to the
+        # elimination selector and cannot also approve a web-controller claim.
+        if (
+            self.state == STATE_PAUSED
+            and self.elimination_target_player is not None
+        ):
+            self._cycle_elimination_target(module)
             return
 
         # Web-controller pairing uses a deliberate physical short press.
@@ -605,6 +827,12 @@ class TurnHub:
         ):
             return
 
+        if (
+            self.state == STATE_PAUSED
+            and module in self._elimination_chord_modules
+        ):
+            return
+
         if self.state == STATE_LOBBY:
 
             self.handle_lobby_long(
@@ -633,6 +861,10 @@ class TurnHub:
             return
 
         if self.state == STATE_PAUSED:
+
+            if self.elimination_target_player is not None:
+                self._cancel_elimination_selection()
+                return
 
             if self.game.resume():
 
@@ -739,6 +971,12 @@ class TurnHub:
             return
 
         if self.state == STATE_PAUSED:
+
+            if self.elimination_target_player is not None:
+                print(
+                    "[GAME] WIN ignored while elimination selection is active."
+                )
+                return
 
             if self.game.declare_winner(
                 module
@@ -885,6 +1123,9 @@ class TurnHub:
             warning_ms=self.warning_ms,
         )
 
+        self.elimination_target_player = None
+        self._elimination_chord_modules.clear()
+        self._suppress_elimination_short_modules.clear()
         self.state = STATE_RUNNING
 
         self.start_countdown_at = None
@@ -920,6 +1161,9 @@ class TurnHub:
         self.web_control.clear_all_claims()
 
         self.game = GameEngine()
+        self.elimination_target_player = None
+        self._elimination_chord_modules.clear()
+        self._suppress_elimination_short_modules.clear()
 
         self.start_countdown_at = None
         self.last_countdown_tone = -1
@@ -940,6 +1184,9 @@ class TurnHub:
         self.web_control.cancel_pending()
 
         self.game = GameEngine()
+        self.elimination_target_player = None
+        self._elimination_chord_modules.clear()
+        self._suppress_elimination_short_modules.clear()
 
         self.start_countdown_at = None
         self.last_countdown_tone = -1
@@ -1049,9 +1296,14 @@ class TurnHub:
 
         for player in self.game.players:
             stats = self.game.stats[player.player_number]
+            status = (
+                " [ELIMINATED]"
+                if self.game.is_eliminated(player.player_number)
+                else ""
+            )
 
             print(
-                f"{player.label()}: "
+                f"{player.label()}{status}: "
                 f"{stats.turns_completed} completed turns, "
                 f"{format_duration(stats.total_turn_seconds)} "
                 "completed-turn time"
@@ -1131,6 +1383,7 @@ class TurnHub:
                 self.game,
                 self.lobby.host_module,
                 now,
+                elimination_target_player=self.elimination_target_player,
             )
 
     # ========================================================

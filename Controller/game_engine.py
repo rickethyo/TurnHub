@@ -49,6 +49,11 @@ class GameEngine:
 
     stats: dict[int, PlayerStats] = field(default_factory=dict)
 
+    # Logical players remain in the game record after elimination so player
+    # numbers, names, web-controller claims, and statistics stay stable.
+    # Order records the elimination sequence.
+    eliminated_players: list[int] = field(default_factory=list)
+
     # ========================================================
     # Game Start
     # ========================================================
@@ -85,6 +90,7 @@ class GameEngine:
         self.win_armed_module = None
         self.win_armed_player = None
         self.warning_logged_for_turn = False
+        self.eliminated_players = []
 
         self.stats = {
             player.player_number: PlayerStats()
@@ -138,6 +144,26 @@ class GameEngine:
             if player.module_id == module
         ]
 
+    def living_players_for_module(self, module: int) -> list[PlayerSeat]:
+        return [
+            player
+            for player in self.players_for_module(module)
+            if not self.is_eliminated(player.player_number)
+        ]
+
+    def is_eliminated(self, player_number: int | None) -> bool:
+        if player_number is None:
+            return False
+        return player_number in self.eliminated_players
+
+    @property
+    def living_players(self) -> list[PlayerSeat]:
+        return [
+            player
+            for player in self.players
+            if not self.is_eliminated(player.player_number)
+        ]
+
     @property
     def starter_module(self) -> int | None:
         player = self.player_by_number(self.starter_player)
@@ -147,6 +173,37 @@ class GameEngine:
     def winner_module(self) -> int | None:
         player = self.player_by_number(self.winner_player)
         return player.module_id if player is not None else None
+
+    def _next_living_index(self, start_index: int) -> int | None:
+        if not self.players:
+            return None
+
+        for offset in range(1, len(self.players) + 1):
+            index = (start_index + offset) % len(self.players)
+            player = self.players[index]
+            if not self.is_eliminated(player.player_number):
+                return index
+
+        return None
+
+    def normalize_active_player(self) -> None:
+        """Move an invalid/eliminated active index to the next living seat."""
+        if not self.players:
+            self.active_index = 0
+            return
+
+        self.active_index = max(
+            0,
+            min(self.active_index, len(self.players) - 1),
+        )
+
+        active = self.active_player
+        if active is not None and not self.is_eliminated(active.player_number):
+            return
+
+        next_index = self._next_living_index(self.active_index)
+        if next_index is not None:
+            self.active_index = next_index
 
     # ========================================================
     # Turn Timing
@@ -246,6 +303,9 @@ class GameEngine:
         if active is None or module != active.module_id:
             return False
 
+        if self.is_eliminated(active.player_number):
+            return False
+
         now = time.monotonic()
         elapsed = max(0.0, now - self.turn_started_at)
 
@@ -253,9 +313,11 @@ class GameEngine:
         stat.turns_completed += 1
         stat.total_turn_seconds += elapsed
 
-        self.active_index = (
-            self.active_index + 1
-        ) % len(self.players)
+        next_index = self._next_living_index(self.active_index)
+        if next_index is None:
+            return False
+
+        self.active_index = next_index
 
         self.turn_started_at = now
         self.current_warning_ms = next_warning_ms
@@ -283,12 +345,17 @@ class GameEngine:
 
         # A shared physical module cannot tell which person held
         # the button. Prefer its currently active logical player;
-        # otherwise use that module's first seat as the candidate.
-        candidates = self.players_for_module(armed_by) if armed_by is not None else []
+        # otherwise use that module's first living seat as the candidate.
+        candidates = (
+            self.living_players_for_module(armed_by)
+            if armed_by is not None
+            else []
+        )
 
         if (
             self.active_player is not None
             and self.active_player.module_id == armed_by
+            and not self.is_eliminated(self.active_player.player_number)
         ):
             self.win_armed_player = self.active_player.player_number
         elif candidates:
@@ -319,8 +386,81 @@ class GameEngine:
         return True
 
     # ========================================================
-    # Declare Winner
+    # Elimination
     # ========================================================
+
+    def eliminate_player(
+        self,
+        player_number: int,
+        next_warning_ms: int,
+    ) -> tuple[bool, bool]:
+        """
+        Eliminate one logical player while paused.
+
+        Returns (eliminated, game_finished). If the active player is
+        eliminated, their incomplete turn is intentionally not counted and
+        the next living player starts at 00:00 when the game resumes.
+        """
+
+        if self.state != STATE_PAUSED:
+            return (False, False)
+
+        player = self.player_by_number(player_number)
+        if player is None or self.is_eliminated(player_number):
+            return (False, False)
+
+        if len(self.living_players) <= 1:
+            return (False, False)
+
+        was_active = (
+            self.active_player is not None
+            and self.active_player.player_number == player_number
+        )
+
+        self.eliminated_players.append(player_number)
+        self.win_armed_module = None
+        self.win_armed_player = None
+
+        if was_active:
+            next_index = self._next_living_index(self.active_index)
+            if next_index is not None:
+                self.active_index = next_index
+
+            # The new active player's turn should begin only after resume.
+            if self.pause_started_at is not None:
+                self.turn_started_at = self.pause_started_at
+            else:
+                self.turn_started_at = time.monotonic()
+
+            self.current_warning_ms = next_warning_ms
+            self.warning_logged_for_turn = False
+
+        living = self.living_players
+        if len(living) == 1:
+            self._finish_game(living[0].player_number)
+            return (True, True)
+
+        return (True, False)
+
+    # ========================================================
+    # Finish / Declare Winner
+    # ========================================================
+
+    def _finish_game(self, winner_player: int) -> None:
+        now = time.monotonic()
+
+        self.winner_player = winner_player
+        self.game_ended_at = now
+
+        if self.pause_started_at is not None:
+            pause_duration = now - self.pause_started_at
+            self.total_paused_seconds += pause_duration
+            self.turn_started_at += pause_duration
+
+        self.pause_started_at = None
+        self.win_armed_module = None
+        self.win_armed_player = None
+        self.state = STATE_GAME_OVER
 
     def declare_winner(
         self,
@@ -336,19 +476,8 @@ class GameEngine:
         if self.win_armed_player is None:
             return False
 
-        now = time.monotonic()
+        if self.is_eliminated(self.win_armed_player):
+            return False
 
-        self.winner_player = self.win_armed_player
-        self.game_ended_at = now
-
-        if self.pause_started_at is not None:
-            pause_duration = now - self.pause_started_at
-            self.total_paused_seconds += pause_duration
-            self.turn_started_at += pause_duration
-
-        self.pause_started_at = None
-        self.win_armed_module = None
-        self.win_armed_player = None
-        self.state = STATE_GAME_OVER
-
+        self._finish_game(self.win_armed_player)
         return True

@@ -53,6 +53,8 @@ class StatusMonitor:
             selected.seat_key if selected else None,
             active.player_number if active else None,
             turnhub.game.winner_player,
+            tuple(turnhub.game.eliminated_players),
+            turnhub.elimination_target_player,
             stats,
         )
 
@@ -167,5 +169,19 @@ class StatusMonitor:
             )
 
             parts.append(f"turns={turns or 'none'}")
+
+            if turnhub.game.eliminated_players:
+                parts.append(
+                    "out="
+                    + ",".join(
+                        f"P{number}"
+                        for number in turnhub.game.eliminated_players
+                    )
+                )
+
+            if turnhub.elimination_target_player is not None:
+                parts.append(
+                    f"eliminate=P{turnhub.elimination_target_player}"
+                )
 
         print(" | ".join(parts))

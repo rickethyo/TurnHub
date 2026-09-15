@@ -261,6 +261,7 @@ class PersistentStore:
                 "active_index": hub.game.active_index,
                 "starter_player": hub.game.starter_player,
                 "winner_player": hub.game.winner_player,
+                "eliminated_players": list(hub.game.eliminated_players),
                 "state": hub.state,
                 "game_elapsed_seconds": self._game_elapsed_for_save(
                     hub.game,
@@ -287,7 +288,7 @@ class PersistentStore:
         )
 
         return {
-            "version": 2,
+            "version": 3,
             "saved_at": datetime.now(timezone.utc).isoformat(),
             "hub_state": hub.state,
             "lobby": lobby,
@@ -446,6 +447,24 @@ class PersistentStore:
 
         game.starter_player = self._int_or_none(game_data.get("starter_player"))
         game.winner_player = self._int_or_none(game_data.get("winner_player"))
+
+        valid_player_numbers = {player.player_number for player in players}
+        raw_eliminated = game_data.get("eliminated_players", [])
+        game.eliminated_players = []
+        if isinstance(raw_eliminated, list):
+            for value in raw_eliminated:
+                try:
+                    number = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    number in valid_player_numbers
+                    and number not in game.eliminated_players
+                ):
+                    game.eliminated_players.append(number)
+
+        game.normalize_active_player()
+
         try:
             game.current_warning_ms = int(game_data.get("current_warning_ms", 0))
         except (TypeError, ValueError):

@@ -220,6 +220,31 @@ class AudioController:
             (1500, 120, 0),
         )
 
+    def elimination_armed(self) -> None:
+        self._enqueue(
+            (900, 70, 40),
+            (650, 110, 0),
+        )
+
+    def elimination_target_changed(self) -> None:
+        self._enqueue(
+            (700, 55, 30),
+            (1050, 80, 0),
+        )
+
+    def elimination_cancelled(self) -> None:
+        self._enqueue(
+            (500, 70, 35),
+            (850, 95, 0),
+        )
+
+    def player_eliminated(self) -> None:
+        self._enqueue(
+            (1500, 90, 45),
+            (1000, 110, 45),
+            (550, 180, 0),
+        )
+
     def starter_selected(self) -> None:
         self._enqueue(
             (1100, 70, 35),

@@ -119,6 +119,9 @@ class LEDController:
     def same_module_pass(self, module: int) -> None:
         self._start_feedback(module, "SAME_MODULE_PASS")
 
+    def player_eliminated(self, module: int) -> None:
+        self._start_feedback(module, "PLAYER_ELIMINATED")
+
     def clear_feedback(self) -> None:
         with self._feedback_lock:
             self._feedback.clear()
@@ -152,6 +155,16 @@ class LEDController:
                 (0, True, False),
                 (0, False, False),
                 (255, True, False),
+                (0, False, False),
+            )
+        elif effect == "PLAYER_ELIMINATED":
+            # Three unmistakable red strikes.
+            sequence = (
+                (0, True, False),
+                (0, False, False),
+                (0, True, False),
+                (0, False, False),
+                (0, True, False),
                 (0, False, False),
             )
         else:
@@ -365,6 +378,7 @@ class LEDController:
         game: GameEngine,
         host_module: int | None,
         now: float | None = None,
+        elimination_target_player: int | None = None,
     ) -> None:
 
         if now is None:
@@ -376,8 +390,39 @@ class LEDController:
 
         if game.state == STATE_PAUSED:
             breathe = self.breathe_value(now)
+            target = game.player_by_number(elimination_target_player)
 
             for module in game.modules:
+                if self._render_feedback(module, now):
+                    continue
+
+                if target is not None and module == target.module_id:
+                    # Red is the elimination-selection language. A module
+                    # with one living seat stays solid red. On a shared
+                    # module, Seat A pulses once and Seat B pulses twice.
+                    living_local = game.living_players_for_module(module)
+                    if len(living_local) <= 1:
+                        red = True
+                    else:
+                        pulse_on = 0.18
+                        pulse_off = 0.18
+                        position = now % 1.80
+                        if target.slot == 1:
+                            red = position < pulse_on
+                        else:
+                            second_start = pulse_on + pulse_off
+                            red = (
+                                position < pulse_on
+                                or second_start
+                                <= position
+                                < second_start + pulse_on
+                            )
+
+                    self.blue(module, 0)
+                    self.red(module, red)
+                    self.green(module, False)
+                    continue
+
                 self.blue(module, breathe)
                 self.red(module, False)
                 self.green(module, False)

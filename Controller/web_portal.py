@@ -79,6 +79,8 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .player { background:var(--panel-2); border:1px solid var(--line); border-radius:14px; padding:14px; }
 .player.active { border-color:var(--blue); box-shadow:0 0 0 1px rgba(114,167,255,.25) inset; }
 .player.winner { border-color:var(--good); }
+.player.eliminated { border-color:rgba(239,106,106,.38); opacity:.62; }
+.player.eliminated .player-name { text-decoration:line-through; text-decoration-thickness:2px; }
 .player-head { display:flex; justify-content:space-between; gap:8px; align-items:center; }
 .player-name { font-size:1.22rem; font-weight:850; }
 .player-seat { color:var(--muted); font-size:.88rem; margin-top:3px; }
@@ -305,12 +307,20 @@ function renderHero(d) {
     badges.innerHTML = phaseBadge(d);
     if (d.active_player) badges.innerHTML += badge(`Turn ${d.active_turn_number}`, 'blue');
   } else if (state === 'PAUSED') {
-    eye.textContent = 'GAME PAUSED';
-    title.textContent = 'PAUSED';
-    sub.textContent = d.active_player ? `${playerLabel(d.active_player)} • ${seatLabel(d.active_player)}` : '';
-    timer.classList.remove('hidden');
-    timer.textContent = fmt(d.turn_elapsed_seconds);
-    badges.innerHTML = badge('Timer stopped', 'warn');
+    if (d.elimination_target) {
+      eye.textContent = 'ELIMINATION SELECTED';
+      title.textContent = playerLabel(d.elimination_target).toUpperCase();
+      sub.textContent = seatLabel(d.elimination_target);
+      timer.classList.add('hidden');
+      badges.innerHTML = badge(`Press Pass on ${d.elimination_target.module_name || 'Module ' + d.elimination_target.module_id} to confirm`, 'bad');
+    } else {
+      eye.textContent = 'GAME PAUSED';
+      title.textContent = 'PAUSED';
+      sub.textContent = d.active_player ? `${playerLabel(d.active_player)} • ${seatLabel(d.active_player)}` : '';
+      timer.classList.remove('hidden');
+      timer.textContent = fmt(d.turn_elapsed_seconds);
+      badges.innerHTML = badge('Timer stopped', 'warn');
+    }
   } else if (state === 'GAME_OVER') {
     eye.textContent = 'GAME OVER';
     title.textContent = d.winner ? playerLabel(d.winner).toUpperCase() : 'COMPLETE';
@@ -334,13 +344,16 @@ function renderPlayers(d) {
     const active = d.active_player && d.active_player.player_number === p.player_number;
     const winner = d.winner && d.winner.player_number === p.player_number;
     const starter = d.starter && d.starter.player_number === p.player_number;
+    const eliminated = !!p.eliminated;
     let cls = 'player';
     if (active) cls += ' active';
     if (winner) cls += ' winner';
+    if (eliminated) cls += ' eliminated';
     const flags = [];
     if (active) flags.push(badge('ACTIVE','blue'));
     if (starter) flags.push(badge('STARTER','blue'));
     if (winner) flags.push(badge('WINNER','good'));
+    if (eliminated) flags.push(badge('ELIMINATED','bad'));
     return `<div class="${cls}">
       <div class="player-head"><div><div class="player-name">${esc(playerLabel(p))}</div><div class="player-seat">${esc(playerMeta(p))}</div></div><div>${flags.join(' ')}</div></div>
       <div class="player-stat"><span>Completed turns</span><strong>${p.turns_completed ?? 0}</strong></div>
@@ -485,9 +498,11 @@ function openIdentity() {
     }
     actions.innerHTML += '<button class="secondary-button" type="button" onclick="chooseDisplayOnly()">Display only</button>';
   } else if (latest.state === 'PAUSED') {
-    root.innerHTML = latest.players.map(p =>
-      `<button class="choice" type="button" onclick="requestSeatReassign(${p.module_id},${p.slot})"><strong>${esc(playerLabel(p))}</strong><span>${esc(playerMeta(p))} • Host approval required</span></button>`
-    ).join('');
+    root.innerHTML = latest.players.map(p => {
+      const disabled = !!p.eliminated;
+      const caption = disabled ? 'Eliminated' : 'Host approval required';
+      return `<button class="choice" type="button" ${disabled ? 'disabled' : ''} onclick="requestSeatReassign(${p.module_id},${p.slot})"><strong>${esc(playerLabel(p))}</strong><span>${esc(playerMeta(p))} • ${esc(caption)}</span></button>`;
+    }).join('');
     actions.innerHTML = '<button class="secondary-button" type="button" onclick="closeIdentity()">Cancel</button>';
   } else {
     root.innerHTML = currentIdentity ? `<div class="field"><strong>${esc(identityChoiceText(currentIdentity.player))}</strong></div>` : '<div class="field">Display only during this game.</div>';
@@ -742,6 +757,10 @@ class WebPortal:
             "has_custom_name": custom_name is not None,
             "module_name": self.turnhub.persistence.module_name(player.module_id),
             "web_claimed": player.seat_key in self.turnhub.web_control.claimed_seats(),
+            "eliminated": bool(
+                self.turnhub.game.players
+                and self.turnhub.game.is_eliminated(player.player_number)
+            ),
         }
 
         if stats is not None:
@@ -787,6 +806,9 @@ class WebPortal:
         active = self._player_dict(hub.game.active_player)
         winner = self._player_dict(
             hub.game.player_by_number(hub.game.winner_player)
+        )
+        elimination_target = self._player_dict(
+            hub.game.player_by_number(hub.elimination_target_player)
         )
 
         countdown_remaining = 0.0
@@ -864,6 +886,8 @@ class WebPortal:
             "starter": starter,
             "active_player": active,
             "winner": winner,
+            "elimination_target": elimination_target,
+            "eliminated_players": list(hub.game.eliminated_players),
             "active_turn_number": active_turn_number,
             "turn_elapsed_seconds": hub.game.current_turn_elapsed(now)
             if hub.game.players

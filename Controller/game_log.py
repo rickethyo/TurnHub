@@ -441,6 +441,17 @@ class GameLogWriter:
                     game.total_paused_seconds
                 )
             ),
+            (
+                "Elimination order: "
+                + (
+                    " -> ".join(
+                        self._player_label(game, number)
+                        for number in game.eliminated_players
+                    )
+                    if game.eliminated_players
+                    else "None"
+                )
+            ),
             "",
             "Player Statistics",
             "-----------------",
@@ -454,7 +465,14 @@ class GameLogWriter:
 
             lines.extend(
                 [
-                    self._seat_label(player),
+                    (
+                        self._seat_label(player)
+                        + (
+                            " [ELIMINATED]"
+                            if game.is_eliminated(player.player_number)
+                            else ""
+                        )
+                    ),
                     (
                         "  Completed turns: "
                         f"{stats.turns_completed}"
