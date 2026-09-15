@@ -39,6 +39,13 @@ class SerialController:
         # module_id -> reader thread
         self.reader_threads = {}
 
+        # Modules currently being opened. This prevents duplicate
+        # connection attempts for the same physical module.
+        self.connecting_modules = set()
+
+        # Background thread that retries disconnected modules.
+        self.reconnect_thread = None
+
         # Protect serial writes and connection changes.
         self.lock = threading.Lock()
 
@@ -58,6 +65,14 @@ class SerialController:
 
         for module_id in config.MODULE_IDS:
             self._connect_module(module_id)
+
+        self.reconnect_thread = threading.Thread(
+            target=self._reconnect_loop,
+            daemon=True,
+            name="TurnHub-Reconnect",
+        )
+
+        self.reconnect_thread.start()
 
 
     # ========================================================
@@ -81,32 +96,61 @@ class SerialController:
             except Exception:
                 pass
 
+        if (
+            self.reconnect_thread is not None
+            and self.reconnect_thread.is_alive()
+        ):
+            self.reconnect_thread.join(timeout=1.0)
+
+        self.reconnect_thread = None
+
         for thread in self.reader_threads.values():
             if thread.is_alive():
                 thread.join(timeout=1.0)
 
         self.reader_threads.clear()
 
+        with self.lock:
+            self.connecting_modules.clear()
+
 
     # ========================================================
     # Module Connection
     # ========================================================
 
-    def _connect_module(self, module_id):
+    def _connect_module(self, module_id, reconnect=False):
         """Connect one configured TurnHub module."""
 
         port = config.MODULE_SERIAL_PORTS.get(module_id)
 
         if not port:
-            print(
-                f"No serial port configured for Module {module_id}"
-            )
+            if not reconnect:
+                print(
+                    f"No serial port configured for Module {module_id}"
+                )
             return False
 
+        with self.lock:
+            existing = self.connections.get(module_id)
+
+            if (
+                existing is not None
+                and existing.is_open
+            ):
+                return True
+
+            if module_id in self.connecting_modules:
+                return False
+
+            self.connecting_modules.add(module_id)
+
+        connection = None
+
         try:
-            print(
-                f"Connecting Module {module_id}: {port}"
-            )
+            if not reconnect:
+                print(
+                    f"Connecting Module {module_id}: {port}"
+                )
 
             connection = serial.Serial(
                 port=port,
@@ -114,12 +158,16 @@ class SerialController:
                 timeout=config.SERIAL_TIMEOUT,
             )
 
-            # Opening the serial connection can reset Arduino/ESP32
-            # development boards.
+            # Clear stale host-side bytes immediately after opening.
+            # Doing this after MODULE_BOOT_WAIT could discard READY.
+            connection.reset_input_buffer()
+
+            # Opening the serial port can reset Arduino/ESP32 boards.
             time.sleep(config.MODULE_BOOT_WAIT)
 
-            # Discard bootloader/reset noise before normal operation.
-            connection.reset_input_buffer()
+            if not self.running:
+                connection.close()
+                return False
 
             with self.lock:
                 self.connections[module_id] = connection
@@ -134,18 +182,53 @@ class SerialController:
             self.reader_threads[module_id] = thread
             thread.start()
 
-            print(
-                f"Module {module_id} serial connection open"
-            )
+            if reconnect:
+                print(
+                    f"[TURNHUB] Module {module_id} connected."
+                )
+            else:
+                print(
+                    f"Module {module_id} serial connection open"
+                )
 
             return True
 
-        except serial.SerialException as exc:
-            print(
-                f"Could not connect Module {module_id}: {exc}"
-            )
+        except (serial.SerialException, OSError) as exc:
+            if not reconnect:
+                print(
+                    f"Could not connect Module {module_id}: {exc}"
+                )
+
+            if connection is not None:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
             return False
+
+        finally:
+            with self.lock:
+                self.connecting_modules.discard(module_id)
+
+
+    def _reconnect_loop(self):
+        """Periodically retry any configured module that is missing."""
+
+        while self.running:
+
+            for module_id in config.MODULE_IDS:
+
+                if not self.running:
+                    break
+
+                if not self.is_connected(module_id):
+                    self._connect_module(
+                        module_id,
+                        reconnect=True,
+                    )
+
+            time.sleep(config.RECONNECT_DELAY)
 
 
     # ========================================================
@@ -185,10 +268,11 @@ class SerialController:
                 if not message:
                     continue
 
-                print(
-                    f"[Module {expected_module_id}] "
-                    f"{message}"
-                )
+                if config.DEBUG_SERIAL_MESSAGES:
+                    print(
+                        f"[Module {expected_module_id}] "
+                        f"{message}"
+                    )
 
                 self._handle_incoming(
                     expected_module_id,
@@ -203,7 +287,8 @@ class SerialController:
                 )
 
                 self._remove_connection(
-                    expected_module_id
+                    expected_module_id,
+                    expected_connection=connection,
                 )
 
                 break
@@ -216,7 +301,8 @@ class SerialController:
                 )
 
                 self._remove_connection(
-                    expected_module_id
+                    expected_module_id,
+                    expected_connection=connection,
                 )
 
                 break
@@ -346,9 +432,21 @@ class SerialController:
     # Remove Connection
     # ========================================================
 
-    def _remove_connection(self, module_id):
+    def _remove_connection(
+        self,
+        module_id,
+        expected_connection=None,
+    ):
+        """Remove one connection without disturbing a newer replacement."""
 
         with self.lock:
+            current = self.connections.get(module_id)
+
+            if (
+                expected_connection is not None
+                and current is not expected_connection
+            ):
+                return False
 
             connection = self.connections.pop(
                 module_id,
@@ -362,6 +460,10 @@ class SerialController:
 
             except Exception:
                 pass
+
+            return True
+
+        return False
 
 
     # ========================================================
@@ -403,7 +505,10 @@ class SerialController:
                 f"{module_id}: {exc}"
             )
 
-            self._remove_connection(module_id)
+            self._remove_connection(
+                module_id,
+                expected_connection=connection,
+            )
 
             return False
 
@@ -419,7 +524,7 @@ class SerialController:
             min(255, int(brightness)),
         )
 
-        self.send(
+        return self.send(
             module_id,
             f"BLUE|{module_id}|{brightness}",
         )
@@ -427,7 +532,7 @@ class SerialController:
 
     def set_red(self, module_id, state):
 
-        self.send(
+        return self.send(
             module_id,
             f"RED|{module_id}|"
             f"{1 if state else 0}",
@@ -436,7 +541,7 @@ class SerialController:
 
     def set_green(self, module_id, state):
 
-        self.send(
+        return self.send(
             module_id,
             f"GREEN|{module_id}|"
             f"{1 if state else 0}",

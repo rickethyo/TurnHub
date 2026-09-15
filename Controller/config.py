@@ -13,6 +13,10 @@ SERIAL_TIMEOUT = 0.05
 MODULE_BOOT_WAIT = 2.0
 RECONNECT_DELAY = 2.0
 
+# Raw module protocol traffic is useful for development but noisy
+# during normal tabletop use.
+DEBUG_SERIAL_MESSAGES = False
+
 
 # ============================================================
 # Physical Modules

@@ -63,28 +63,31 @@ class LEDController:
         if self.cache.get(key) == value:
             return
 
-        self.cache[key] = value
+        sent = False
 
         if kind == "BLUE":
 
-            self.serial.set_blue(
+            sent = self.serial.set_blue(
                 module,
                 int(value),
             )
 
         elif kind == "RED":
 
-            self.serial.set_red(
+            sent = self.serial.set_red(
                 module,
                 bool(value),
             )
 
         elif kind == "GREEN":
 
-            self.serial.set_green(
+            sent = self.serial.set_green(
                 module,
                 bool(value),
             )
+
+        if sent:
+            self.cache[key] = value
 
     def blue(
         self,

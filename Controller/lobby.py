@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import secrets
+
 from dataclasses import (
     dataclass,
     field,
@@ -93,6 +95,20 @@ class Lobby:
         self.selected_starter = module
 
         return True
+
+
+    def random_starter(
+        self,
+    ) -> int | None:
+
+        if not self.player_modules:
+            return None
+
+        self.selected_starter = secrets.choice(
+            self.player_modules
+        )
+
+        return self.selected_starter
 
     def starter_or_default(
         self,

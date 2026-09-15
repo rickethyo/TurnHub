@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import queue
 import threading
 import time
 
@@ -16,16 +17,7 @@ BUZZER_GPIO = 18
 
 
 class AudioController:
-    """
-    Controls TurnHub's central passive buzzer.
-
-    The buzzer is connected to:
-        GPIO18 / physical pin 12 -> signal
-        GND / physical pin 14    -> ground
-
-    Audio runs in background threads so tones do not block
-    the main TurnHub game loop.
-    """
+    """Controls TurnHub's central passive buzzer."""
 
     def __init__(
         self,
@@ -33,9 +25,11 @@ class AudioController:
     ) -> None:
 
         self.enabled = GPIO is not None
-
-        self._lock = threading.Lock()
         self._shutdown = False
+        self._queue: queue.Queue[
+            tuple[tuple[int, int, int], ...]
+        ] = queue.Queue()
+        self._worker: threading.Thread | None = None
 
         if not self.enabled:
 
@@ -55,28 +49,56 @@ class AudioController:
             initial=GPIO.LOW,
         )
 
+        self._worker = threading.Thread(
+            target=self._audio_worker,
+            daemon=True,
+            name="TurnHub-Audio",
+        )
+        self._worker.start()
+
         print(
             "[AUDIO] Hub buzzer ready on "
             f"GPIO{BUZZER_GPIO}."
         )
 
     # ========================================================
-    # Basic Tone Generation
+    # Queue / Tone Generation
     # ========================================================
 
-    def _play_tone(
+    def _audio_worker(self) -> None:
+        """Play queued sound patterns one at a time."""
+
+        while not self._shutdown:
+
+            try:
+                pattern = self._queue.get(
+                    timeout=0.10
+                )
+
+            except queue.Empty:
+                continue
+
+            try:
+                self._play_pattern(pattern)
+
+            finally:
+                self._queue.task_done()
+
+    def _play_pattern(
         self,
-        frequency: int,
-        duration_ms: int,
+        pattern: tuple[
+            tuple[int, int, int], ...
+        ],
     ) -> None:
+        """
+        Play one complete pattern without allowing another
+        TurnHub sound to interleave with it.
 
-        if (
-            not self.enabled
-            or self._shutdown
-        ):
-            return
+        Each tuple is:
+            (frequency_hz, duration_ms, gap_after_ms)
+        """
 
-        with self._lock:
+        for frequency, duration_ms, gap_ms in pattern:
 
             if self._shutdown:
                 return
@@ -87,7 +109,6 @@ class AudioController:
             )
 
             try:
-
                 pwm.start(50)
 
                 time.sleep(
@@ -95,7 +116,6 @@ class AudioController:
                 )
 
             finally:
-
                 pwm.stop()
 
                 GPIO.output(
@@ -103,103 +123,122 @@ class AudioController:
                     GPIO.LOW,
                 )
 
+            if gap_ms > 0:
+                time.sleep(
+                    gap_ms / 1000.0
+                )
+
+    def _enqueue(
+        self,
+        *notes: tuple[int, int, int],
+    ) -> None:
+
+        if (
+            not self.enabled
+            or self._shutdown
+            or not notes
+        ):
+            return
+
+        self._queue.put(
+            tuple(notes)
+        )
+
     def tone(
         self,
         frequency: int,
         duration_ms: int,
     ) -> None:
 
-        if not self.enabled:
-            return
-
-        thread = threading.Thread(
-            target=self._play_tone,
-            args=(
+        self._enqueue(
+            (
                 frequency,
                 duration_ms,
-            ),
-            daemon=True,
+                0,
+            )
         )
-
-        thread.start()
 
     # ========================================================
     # TurnHub Sounds
     # ========================================================
 
+    def player_joined(self) -> None:
+        self._enqueue(
+            (800, 60, 35),
+            (1100, 90, 0),
+        )
+
+    def starter_selected(self) -> None:
+        self._enqueue(
+            (1100, 70, 35),
+            (1500, 110, 0),
+        )
+
+    def random_starter(self) -> None:
+        self._enqueue(
+            (750, 55, 35),
+            (950, 55, 35),
+            (1200, 55, 35),
+            (1550, 120, 0),
+        )
+
+    def start_armed(self) -> None:
+        self._enqueue(
+            (650, 120, 0),
+        )
+
+    def countdown_cancelled(self) -> None:
+        self._enqueue(
+            (650, 80, 35),
+            (400, 130, 0),
+        )
+
     def countdown_tone(
         self,
         frequency: int = 700,
     ) -> None:
-
         self.tone(
             frequency,
             120,
         )
 
     def turn_pass(self) -> None:
-
         self.tone(
             1000,
             80,
         )
 
-    def warning(self) -> None:
+    def pause(self) -> None:
+        self._enqueue(
+            (1000, 90, 35),
+            (650, 140, 0),
+        )
 
+    def resume(self) -> None:
+        self._enqueue(
+            (650, 90, 35),
+            (1000, 140, 0),
+        )
+
+    def warning(self) -> None:
         self.tone(
             500,
             180,
         )
 
     def game_start(self) -> None:
-
-        def sequence() -> None:
-
-            self._play_tone(
-                700,
-                100,
-            )
-
-            time.sleep(0.05)
-
-            self._play_tone(
-                1000,
-                100,
-            )
-
-            time.sleep(0.05)
-
-            self._play_tone(
-                1400,
-                180,
-            )
-
-        threading.Thread(
-            target=sequence,
-            daemon=True,
-        ).start()
+        self._enqueue(
+            (700, 100, 50),
+            (1000, 100, 50),
+            (1400, 180, 0),
+        )
 
     def game_over(self) -> None:
-
-        def sequence() -> None:
-
-            for frequency in (
-                900,
-                1200,
-                1500,
-            ):
-
-                self._play_tone(
-                    frequency,
-                    150,
-                )
-
-                time.sleep(0.05)
-
-        threading.Thread(
-            target=sequence,
-            daemon=True,
-        ).start()
+        self._enqueue(
+            (900, 150, 50),
+            (1200, 150, 50),
+            (1500, 150, 0),
+        )
 
     # ========================================================
     # Shutdown
@@ -212,8 +251,15 @@ class AudioController:
         if not self.enabled:
             return
 
-        try:
+        if (
+            self._worker is not None
+            and self._worker.is_alive()
+        ):
+            self._worker.join(
+                timeout=0.50
+            )
 
+        try:
             GPIO.output(
                 BUZZER_GPIO,
                 GPIO.LOW,

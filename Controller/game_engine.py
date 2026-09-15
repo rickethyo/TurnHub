@@ -32,6 +32,7 @@ class GameEngine:
     )
 
     active_index: int = 0
+    starter_module: int | None = None
     state: str = STATE_RUNNING
 
     game_started_at: float = 0.0
@@ -70,6 +71,7 @@ class GameEngine:
             self.players.index(starter)
         )
 
+        self.starter_module = starter
         self.state = STATE_RUNNING
 
         now = time.monotonic()

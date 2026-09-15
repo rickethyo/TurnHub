@@ -10,6 +10,7 @@ from config import (
     LOOP_SLEEP_SECONDS,
     MODULE_IDS,
     START_COUNTDOWN_SECONDS,
+    START_COUNTDOWN_TONES,
     STATE_GAME_OVER,
     STATE_LOBBY,
     STATE_PAUSED,
@@ -19,6 +20,7 @@ from config import (
 )
 
 from game_engine import GameEngine
+from game_log import GameLogWriter, format_duration
 from leds import LEDController
 from lobby import Lobby
 from serial_controller import SerialController
@@ -76,6 +78,7 @@ class TurnHub:
         self.game = GameEngine()
 
         self.status = StatusMonitor()
+        self.game_log = GameLogWriter()
 
         self.state = STATE_LOBBY
 
@@ -250,13 +253,38 @@ class TurnHub:
         module: int,
     ) -> None:
 
+        # In the lobby, the host's Pass button is the
+        # starting-player randomizer. The selected module is
+        # shown by the existing solid blue starter LED.
+        if self.state == STATE_LOBBY:
+
+            if (
+                module == self.lobby.host_module
+                and self.lobby.player_count >= 2
+            ):
+
+                starter = (
+                    self.lobby.random_starter()
+                )
+
+                if starter is not None:
+                    player_number = (
+                        self.lobby.player_number(
+                            starter
+                        )
+                    )
+
+                    print(
+                        "[LOBBY] Random starter: "
+                        f"Player {player_number} / "
+                        f"Module {starter}."
+                    )
+
+                    self.audio.random_starter()
+
+            return
+
         if self.state != STATE_RUNNING:
-
-            print(
-                f"[GAME] PASS from module {module} "
-                f"ignored while state is {self.state}."
-            )
-
             return
 
         if self.game.pass_turn(
@@ -277,13 +305,6 @@ class TurnHub:
             )
 
             self.audio.turn_pass()
-
-        else:
-
-            print(
-                f"[GAME] PASS from module "
-                f"{module} ignored."
-            )
 
     # ========================================================
     # Action Button Tracking
@@ -306,6 +327,7 @@ class TurnHub:
             )
 
             self.cancel_countdown()
+            self.audio.countdown_cancelled()
 
     def on_action_up(
         self,
@@ -348,22 +370,10 @@ class TurnHub:
 
             return
 
-        if self.state == STATE_RUNNING:
-
-            print(
-                f"[GAME] ACTION SHORT from "
-                f"module {module} ignored."
-            )
-
-            return
-
-        if self.state == STATE_PAUSED:
-
-            print(
-                f"[GAME] ACTION SHORT from "
-                f"module {module} ignored."
-            )
-
+        if self.state in (
+            STATE_RUNNING,
+            STATE_PAUSED,
+        ):
             return
 
         if self.state == STATE_GAME_OVER:
@@ -377,11 +387,7 @@ class TurnHub:
                 self.enter_rematch_lobby()
 
             else:
-
-                print(
-                    "[GAME] Non-host post-game "
-                    "ACTION SHORT ignored."
-                )
+                return
 
     def handle_lobby_short(
         self,
@@ -409,6 +415,7 @@ class TurnHub:
                     "is the host."
                 )
 
+            self.audio.player_joined()
             return
 
         self.lobby.select_starter(
@@ -423,6 +430,8 @@ class TurnHub:
             f"[LOBBY] Player {player_number} / "
             f"module {module} selected to go first."
         )
+
+        self.audio.starter_selected()
 
     # ========================================================
     # Action Long Press
@@ -455,6 +464,8 @@ class TurnHub:
                     "to declare victory."
                 )
 
+                self.audio.pause()
+
             return
 
         if self.state == STATE_PAUSED:
@@ -467,6 +478,8 @@ class TurnHub:
                     f"[GAME] Resumed by "
                     f"module {module}."
                 )
+
+                self.audio.resume()
 
             return
 
@@ -482,11 +495,7 @@ class TurnHub:
                 self.enter_empty_lobby()
 
             else:
-
-                print(
-                    "[GAME] Non-host post-game "
-                    "ACTION LONG ignored."
-                )
+                return
 
     def handle_lobby_long(
         self,
@@ -535,6 +544,8 @@ class TurnHub:
             "or keep holding to 5s to reset lobby."
         )
 
+        self.audio.start_armed()
+
     # ========================================================
     # Five-Second Action Hold / WIN
     # ========================================================
@@ -577,6 +588,7 @@ class TurnHub:
                 self.audio.game_over()
 
                 self.print_game_summary()
+                self.save_game_log()
 
                 self.celebrate_winner(
                     module
@@ -653,7 +665,11 @@ class TurnHub:
                 f"{3 - second_index}..."
             )
 
-            self.audio.countdown_tone()
+            self.audio.countdown_tone(
+                START_COUNTDOWN_TONES[
+                    second_index
+                ]
+            )
 
         if (
             elapsed
@@ -844,19 +860,27 @@ class TurnHub:
             "========== GAME SUMMARY =========="
         )
 
+        winner = self.game.winner_module
+        winner_number = (
+            self.lobby.player_number(winner)
+            if winner is not None
+            else None
+        )
+
         print(
-            "Winner module: "
-            f"{self.game.winner_module}"
+            "Winner: "
+            f"Player {winner_number} / "
+            f"Module {winner}"
         )
 
         print(
             "Game time: "
-            f"{self.game.game_elapsed():.1f}s"
+            f"{format_duration(self.game.game_elapsed())}"
         )
 
         print(
             "Paused time: "
-            f"{self.game.total_paused_seconds:.1f}s"
+            f"{format_duration(self.game.total_paused_seconds)}"
         )
 
         for module in self.game.players:
@@ -865,12 +889,25 @@ class TurnHub:
                 self.game.stats[module]
             )
 
+            player_number = (
+                self.lobby.player_number(module)
+            )
+
             print(
+                f"Player {player_number} / "
                 f"Module {module}: "
                 f"{stats.turns_completed} "
                 "completed turns, "
-                f"{stats.total_turn_seconds:.1f}s "
-                "total completed-turn time"
+                f"{format_duration(stats.total_turn_seconds)} "
+                "completed-turn time"
+            )
+
+        if self.game.active_module is not None:
+            print(
+                "Final partial turn: "
+                f"Player {self.lobby.player_number(self.game.active_module)} / "
+                f"Module {self.game.active_module}, "
+                f"{format_duration(self.game.current_turn_elapsed())}"
             )
 
         print(
@@ -878,6 +915,24 @@ class TurnHub:
         )
 
         print("")
+
+    def save_game_log(self) -> None:
+
+        try:
+            path = self.game_log.write(
+                self.game
+            )
+
+            print(
+                "[STATS] Saved game log: "
+                f"{path}"
+            )
+
+        except OSError as exc:
+            print(
+                "[STATS] Could not save game log: "
+                f"{exc}"
+            )
 
     # ========================================================
     # LED Rendering
