@@ -186,6 +186,26 @@ class AudioController:
             (1100, 90, 0),
         )
 
+    def shared_player_added(self) -> None:
+        self._enqueue(
+            (700, 65, 35),
+            (1050, 65, 35),
+            (1450, 120, 0),
+        )
+
+    def shared_player_removed(self) -> None:
+        self._enqueue(
+            (1450, 65, 35),
+            (1000, 65, 35),
+            (650, 120, 0),
+        )
+
+    def same_module_pass(self) -> None:
+        self._enqueue(
+            (950, 65, 40),
+            (1250, 95, 0),
+        )
+
     def starter_selected(self) -> None:
         self._enqueue(
             (1100, 70, 35),

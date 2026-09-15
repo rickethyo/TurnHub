@@ -253,33 +253,65 @@ class TurnHub:
         module: int,
     ) -> None:
 
-        # In the lobby, the host's Pass button is the
-        # starting-player randomizer. The selected module is
-        # shown by the existing solid blue starter LED.
         if self.state == STATE_LOBBY:
 
+            # Deliberate setup chord: hold Action and tap Pass.
+            # This takes priority over the host randomizer.
+            if module in self.lobby.held_modules:
+                self.lobby.shared_chord_modules.add(module)
+                self.lobby.suppress_next_short_modules.add(module)
+
+                if self.lobby.start_armed_by == module:
+                    self.lobby.start_armed_by = None
+
+                result = self.lobby.toggle_secondary(module)
+
+                if result is None:
+                    print(
+                        "[LOBBY] Shared-player chord ignored: "
+                        f"Module {module} must join first."
+                    )
+                    return
+
+                added, player = result
+
+                if added:
+                    print(
+                        "[LOBBY] Added second player on "
+                        f"Module {module}: {player.label()}."
+                    )
+                    self.leds.shared_player_added(module)
+                    self.audio.shared_player_added()
+                else:
+                    print(
+                        "[LOBBY] Removed second player from "
+                        f"Module {module}: {player.label()}."
+                    )
+                    self.leds.shared_player_removed(module)
+                    self.audio.shared_player_removed()
+
+                assignments = ", ".join(
+                    player.label()
+                    for player in self.lobby.players
+                )
+                print(
+                    "[LOBBY] Table order: "
+                    f"{assignments}"
+                )
+                return
+
+            # Normal host Pass remains the randomizer.
             if (
                 module == self.lobby.host_module
                 and self.lobby.player_count >= 2
             ):
-
-                starter = (
-                    self.lobby.random_starter()
-                )
+                starter = self.lobby.random_starter()
 
                 if starter is not None:
-                    player_number = (
-                        self.lobby.player_number(
-                            starter
-                        )
-                    )
-
                     print(
                         "[LOBBY] Random starter: "
-                        f"Player {player_number} / "
-                        f"Module {starter}."
+                        f"{starter.label()}."
                     )
-
                     self.audio.random_starter()
 
             return
@@ -287,24 +319,35 @@ class TurnHub:
         if self.state != STATE_RUNNING:
             return
 
+        previous = self.game.active_player
+
         if self.game.pass_turn(
             module,
             self.warning_ms,
         ):
+            current = self.game.active_player
+
+            if previous is not None and current is not None:
+                print(
+                    "[GAME] "
+                    f"{previous.label()} passed to "
+                    f"{current.label()}."
+                )
+
+                if previous.module_id == current.module_id:
+                    self.leds.same_module_pass(module)
+                    self.audio.same_module_pass()
+                    print(
+                        "[GAME] Same-module handoff on "
+                        f"Module {module}."
+                    )
+                else:
+                    self.audio.turn_pass()
 
             print(
-                f"[GAME] Module {module} "
-                "passed turn."
-            )
-
-            print(
-                "[GAME] Active module: "
-                f"{self.game.active_module}, "
-                "warning locked at "
+                "[GAME] Warning locked at "
                 f"{warning_description(self.game.current_warning_ms)}"
             )
-
-            self.audio.turn_pass()
 
     # ========================================================
     # Action Button Tracking
@@ -315,17 +358,15 @@ class TurnHub:
         module: int,
     ) -> None:
 
-        self.lobby.held_modules.add(
-            module
-        )
+        self.lobby.held_modules.add(module)
+        self.lobby.action_long_modules.discard(module)
+        self.lobby.shared_chord_modules.discard(module)
 
         if self.state == STATE_STARTING:
-
             print(
                 "[LOBBY] Countdown cancelled "
                 "by action button press."
             )
-
             self.cancel_countdown()
             self.audio.countdown_cancelled()
 
@@ -334,23 +375,30 @@ class TurnHub:
         module: int,
     ) -> None:
 
-        self.lobby.held_modules.discard(
-            module
-        )
+        self.lobby.held_modules.discard(module)
+
+        used_chord = module in self.lobby.shared_chord_modules
+        was_long = module in self.lobby.action_long_modules
+
+        self.lobby.shared_chord_modules.discard(module)
+        self.lobby.action_long_modules.discard(module)
+
+        if used_chord:
+            # ACTION SHORT follows UP only if LONG was never reached.
+            if was_long:
+                self.lobby.suppress_next_short_modules.discard(module)
+            return
 
         if (
             self.state == STATE_LOBBY
             and self.lobby.start_armed_by == module
             and module == self.lobby.host_module
         ):
-
             print(
                 "[LOBBY] Host released. "
                 "Starting countdown."
             )
-
             self.lobby.start_armed_by = None
-
             self.begin_countdown()
 
     # ========================================================
@@ -361,6 +409,10 @@ class TurnHub:
         self,
         module: int,
     ) -> None:
+
+        if module in self.lobby.suppress_next_short_modules:
+            self.lobby.suppress_next_short_modules.discard(module)
+            return
 
         if self.state == STATE_LOBBY:
 
@@ -418,17 +470,14 @@ class TurnHub:
             self.audio.player_joined()
             return
 
-        self.lobby.select_starter(
-            module
-        )
+        starter = self.lobby.select_starter(module)
 
-        player_number = (
-            self.lobby.player_number(module)
-        )
+        if starter is None:
+            return
 
         print(
-            f"[LOBBY] Player {player_number} / "
-            f"module {module} selected to go first."
+            "[LOBBY] Selected starter: "
+            f"{starter.label()}."
         )
 
         self.audio.starter_selected()
@@ -441,6 +490,14 @@ class TurnHub:
         self,
         module: int,
     ) -> None:
+
+        self.lobby.action_long_modules.add(module)
+
+        if (
+            self.state == STATE_LOBBY
+            and module in self.lobby.shared_chord_modules
+        ):
+            return
 
         if self.state == STATE_LOBBY:
 
@@ -581,8 +638,18 @@ class TurnHub:
 
                 self.state = STATE_GAME_OVER
 
+                winner = self.game.player_by_number(
+                    self.game.winner_player
+                )
+
                 print(
-                    f"[GAME] Module {module} wins!"
+                    "[GAME] Winner: "
+                    + (
+                        winner.label()
+                        if winner is not None
+                        else f"Module {module}"
+                    )
+                    + "."
                 )
 
                 self.audio.game_over()
@@ -590,9 +657,7 @@ class TurnHub:
                 self.print_game_summary()
                 self.save_game_log()
 
-                self.celebrate_winner(
-                    module
-                )
+                self.celebrate_winner()
 
             else:
 
@@ -700,7 +765,7 @@ class TurnHub:
         )
 
         self.game.start(
-            players=self.lobby.player_modules,
+            players=self.lobby.players,
             starter=starter,
             warning_ms=self.warning_ms,
         )
@@ -722,8 +787,8 @@ class TurnHub:
         )
 
         print(
-            "[GAME] Starting module: "
-            f"{starter}"
+            "[GAME] Starting player: "
+            f"{starter.label()}."
         )
 
         print(
@@ -742,6 +807,7 @@ class TurnHub:
         self.start_countdown_at = None
         self.last_countdown_tone = -1
 
+        self.leds.clear_feedback()
         self.leds.clear_cache()
 
         print(
@@ -759,6 +825,7 @@ class TurnHub:
         self.start_countdown_at = None
         self.last_countdown_tone = -1
 
+        self.leds.clear_feedback()
         self.leds.clear_cache()
 
         print(
@@ -786,9 +853,12 @@ class TurnHub:
 
             self.game.warning_logged_for_turn = True
 
+            active = self.game.active_player
+            label = active.label() if active is not None else "Unknown player"
+
             print(
-                "[WARNING] Module "
-                f"{self.game.active_module} reached "
+                "[WARNING] "
+                f"{label} reached "
                 f"{warning_description(self.game.current_warning_ms)}."
             )
 
@@ -798,39 +868,23 @@ class TurnHub:
     # Winner Celebration
     # ========================================================
 
-    def celebrate_winner(
-        self,
-        winner: int,
-    ) -> None:
+    def celebrate_winner(self) -> None:
+
+        winner_module = self.game.winner_module
+        if winner_module is None:
+            return
 
         for _ in range(5):
-
-            for module in self.game.players:
-
+            for module in self.game.modules:
                 self.leds.blue(
                     module,
-                    255
-                    if module == winner
-                    else 0,
+                    255 if module == winner_module else 0,
                 )
-
-                self.leds.red(
-                    module,
-                    False,
-                )
-
-                self.leds.green(
-                    module,
-                    False,
-                )
+                self.leds.red(module, False)
+                self.leds.green(module, False)
 
             time.sleep(0.10)
-
-            self.leds.blue(
-                winner,
-                0,
-            )
-
+            self.leds.blue(winner_module, 0)
             time.sleep(0.10)
 
         self.leds.clear_cache()
@@ -838,12 +892,10 @@ class TurnHub:
         print(
             "[GAME] GREEN LED identifies the host."
         )
-
         print(
             "[GAME] Host ACTION SHORT: "
             "rematch with same players."
         )
-
         print(
             "[GAME] Host ACTION LONG: "
             "clear players and reset lobby."
@@ -856,64 +908,43 @@ class TurnHub:
     def print_game_summary(self) -> None:
 
         print("")
-        print(
-            "========== GAME SUMMARY =========="
-        )
+        print("========== GAME SUMMARY ==========")
 
-        winner = self.game.winner_module
-        winner_number = (
-            self.lobby.player_number(winner)
-            if winner is not None
-            else None
+        winner = self.game.player_by_number(
+            self.game.winner_player
         )
 
         print(
             "Winner: "
-            f"Player {winner_number} / "
-            f"Module {winner}"
+            + (winner.label() if winner is not None else "None")
         )
-
         print(
             "Game time: "
             f"{format_duration(self.game.game_elapsed())}"
         )
-
         print(
             "Paused time: "
             f"{format_duration(self.game.total_paused_seconds)}"
         )
 
-        for module in self.game.players:
-
-            stats = (
-                self.game.stats[module]
-            )
-
-            player_number = (
-                self.lobby.player_number(module)
-            )
+        for player in self.game.players:
+            stats = self.game.stats[player.player_number]
 
             print(
-                f"Player {player_number} / "
-                f"Module {module}: "
-                f"{stats.turns_completed} "
-                "completed turns, "
+                f"{player.label()}: "
+                f"{stats.turns_completed} completed turns, "
                 f"{format_duration(stats.total_turn_seconds)} "
                 "completed-turn time"
             )
 
-        if self.game.active_module is not None:
+        if self.game.active_player is not None:
             print(
                 "Final partial turn: "
-                f"Player {self.lobby.player_number(self.game.active_module)} / "
-                f"Module {self.game.active_module}, "
+                f"{self.game.active_player.label()}, "
                 f"{format_duration(self.game.current_turn_elapsed())}"
             )
 
-        print(
-            "=================================="
-        )
-
+        print("==================================")
         print("")
 
     def save_game_log(self) -> None:

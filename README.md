@@ -73,6 +73,24 @@ TurnHub then performs a 3 second countdown before starting the first player's ti
 
 If the host continues holding the button for 5 seconds instead of releasing it, the lobby is cleared.
 
+
+## Shared-Module Players
+
+A physical module can deliberately represent two adjacent logical players. In the lobby, join the module normally, then **hold Action and tap Pass** to add a second player. Repeat the same chord to remove that second player.
+
+The chord does not also trigger the host randomizer or the normal Action-short command.
+
+With two modules and four players, table order is naturally:
+
+```text
+Module 0: Player 1, Player 2
+Module 1: Player 3, Player 4
+```
+
+Pass still advances one logical player at a time. A same-module handoff has its own LED pattern and two-note sound.
+
+The starter randomizer chooses among all logical players equally. On a shared module, Slot A is shown with one repeating blue pulse and Slot B with two repeating blue pulses. Manual Action-short starter selection cycles between the two local seats.
+
 ## LED Behavior
 
 The LEDs are intended to communicate most of the important game state without requiring a display.
