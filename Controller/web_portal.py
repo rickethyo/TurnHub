@@ -116,6 +116,13 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .identity-button.paired { color:var(--blue); border-color:rgba(114,167,255,.38); }
 .pass-button { margin-top:18px; width:min(340px,100%); border:1px solid rgba(98,213,138,.55); background:rgba(98,213,138,.15); color:var(--good); border-radius:16px; padding:15px 18px; font:inherit; font-size:1.15rem; font-weight:900; cursor:pointer; }
 .pass-button:disabled { opacity:.55; cursor:default; }
+.game-actions { margin-top:12px; width:min(520px,100%); display:flex; flex-wrap:wrap; justify-content:center; gap:9px; }
+.control-button { border-radius:14px; padding:12px 15px; font:inherit; font-weight:850; cursor:pointer; border:1px solid var(--line); background:var(--panel-2); color:var(--text); }
+.control-button.pause { color:var(--warn); border-color:rgba(239,197,90,.48); background:rgba(239,197,90,.10); }
+.control-button.win { color:var(--good); border-color:rgba(98,213,138,.48); background:rgba(98,213,138,.10); }
+.control-button.confirm { color:var(--good); border-color:rgba(98,213,138,.55); background:rgba(98,213,138,.15); }
+.control-button.deny { color:var(--bad); border-color:rgba(239,106,106,.55); background:rgba(239,106,106,.12); }
+.control-button:disabled { opacity:.55; cursor:default; }
 .choice-list { display:grid; gap:10px; margin-top:14px; }
 .choice { width:100%; text-align:left; border:1px solid var(--line); background:var(--panel-2); color:var(--text); border-radius:14px; padding:13px 14px; font:inherit; cursor:pointer; }
 .choice:disabled { opacity:.5; cursor:not-allowed; }
@@ -151,6 +158,13 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     <div id="turnTimer" class="timer hidden">00:00</div>
     <div id="heroBadges" class="badges"></div>
     <button id="passButton" class="pass-button hidden" type="button" onclick="passTurnFromWeb()">Pass Turn</button>
+    <div id="gameActions" class="game-actions">
+      <button id="pauseButton" class="control-button pause hidden" type="button" onclick="pauseFromWeb()">Pause Game</button>
+      <button id="winButton" class="control-button win hidden" type="button" onclick="claimWinFromWeb()">I Win</button>
+      <button id="confirmWinButton" class="control-button confirm hidden" type="button" onclick="confirmWinFromWeb()">Confirm Win</button>
+      <button id="denyWinButton" class="control-button deny hidden" type="button" onclick="denyWinFromWeb()">Deny Claim</button>
+      <button id="cancelWinButton" class="control-button deny hidden" type="button" onclick="cancelWinFromWeb()">Cancel Win Claim</button>
+    </div>
   </section>
 
   <section class="card side-card">
@@ -307,7 +321,18 @@ function renderHero(d) {
     badges.innerHTML = phaseBadge(d);
     if (d.active_player) badges.innerHTML += badge(`Turn ${d.active_turn_number}`, 'blue');
   } else if (state === 'PAUSED') {
-    if (d.elimination_target) {
+    if (d.win_claim) {
+      eye.textContent = 'VICTORY CLAIM';
+      title.textContent = playerLabel(d.win_claim.claimant).toUpperCase();
+      const confirmed = d.win_claim.confirmed_count || 0;
+      const required = d.win_claim.required_count || 0;
+      sub.textContent = `Waiting for confirmations • ${confirmed}/${required}`;
+      timer.classList.add('hidden');
+      badges.innerHTML = badge('Game clock frozen', 'warn');
+      if (d.win_claim.next_confirmation) {
+        badges.innerHTML += badge(`Physical vote: ${playerLabel(d.win_claim.next_confirmation)} • Action = confirm • Pass = deny`, 'good');
+      }
+    } else if (d.elimination_target) {
       eye.textContent = 'ELIMINATION SELECTED';
       title.textContent = playerLabel(d.elimination_target).toUpperCase();
       sub.textContent = seatLabel(d.elimination_target);
@@ -353,6 +378,8 @@ function renderPlayers(d) {
     if (active) flags.push(badge('ACTIVE','blue'));
     if (starter) flags.push(badge('STARTER','blue'));
     if (winner) flags.push(badge('WINNER','good'));
+    if (d.win_claim && d.win_claim.claimant && d.win_claim.claimant.player_number === p.player_number) flags.push(badge('WIN CLAIM','good'));
+    if (d.win_claim && (d.win_claim.confirmed_players || []).some(v => v.player_number === p.player_number)) flags.push(badge('CONFIRMED','good'));
     if (eliminated) flags.push(badge('ELIMINATED','bad'));
     return `<div class="${cls}">
       <div class="player-head"><div><div class="player-name">${esc(playerLabel(p))}</div><div class="player-seat">${esc(playerMeta(p))}</div></div><div>${flags.join(' ')}</div></div>
@@ -382,7 +409,7 @@ function render(d) {
   renderHero(d);
   renderPlayers(d);
   renderModules(d);
-  renderWebPass(d);
+  renderWebControls(d);
   updateIdentityChip();
   maybePromptIdentity();
 }
@@ -414,12 +441,53 @@ function updateIdentityChip() {
   }
 }
 
-function renderWebPass(d) {
-  const button = document.getElementById('passButton');
-  const canPass = !!(currentIdentity && currentIdentity.player && d.state === 'RUNNING' && sameSeat(currentIdentity.player, d.active_player));
-  button.classList.toggle('hidden', !canPass);
-  button.disabled = false;
-  button.textContent = 'Pass Turn';
+function renderWebControls(d) {
+  const passButton = document.getElementById('passButton');
+  const pauseButton = document.getElementById('pauseButton');
+  const winButton = document.getElementById('winButton');
+  const confirmButton = document.getElementById('confirmWinButton');
+  const denyButton = document.getElementById('denyWinButton');
+  const cancelButton = document.getElementById('cancelWinButton');
+
+  for (const button of [passButton, pauseButton, winButton, confirmButton, denyButton, cancelButton]) {
+    button.classList.add('hidden');
+    button.disabled = false;
+  }
+  passButton.textContent = 'Pass Turn';
+  pauseButton.textContent = 'Pause Game';
+  winButton.textContent = 'I Win';
+  confirmButton.textContent = 'Confirm Win';
+  denyButton.textContent = 'Deny Claim';
+  cancelButton.textContent = 'Cancel Win Claim';
+
+  const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
+  const livingPaired = !!(me && !me.eliminated);
+  if (!livingPaired) return;
+
+  if (d.win_claim) {
+    const claimant = d.win_claim.claimant;
+    const mine = claimant && sameSeat(me, claimant);
+    if (mine) {
+      cancelButton.classList.remove('hidden');
+      return;
+    }
+
+    const required = (d.win_claim.required_players || []).some(p => sameSeat(me, p));
+    const confirmed = (d.win_claim.confirmed_players || []).some(p => sameSeat(me, p));
+    if (required && !confirmed) {
+      confirmButton.classList.remove('hidden');
+      denyButton.classList.remove('hidden');
+    }
+    return;
+  }
+
+  if (d.state === 'RUNNING') {
+    pauseButton.classList.remove('hidden');
+    winButton.classList.remove('hidden');
+    if (sameSeat(me, d.active_player)) passButton.classList.remove('hidden');
+  } else if (d.state === 'PAUSED' && !d.elimination_target) {
+    winButton.classList.remove('hidden');
+  }
 }
 
 async function refreshIdentity() {
@@ -442,7 +510,7 @@ async function refreshIdentity() {
     currentIdentity = await r.json();
     localStorage.removeItem(DISPLAY_ONLY_KEY);
     updateIdentityChip();
-    if (latest) renderWebPass(latest);
+    if (latest) renderWebControls(latest);
   } catch (e) {
     // Status polling will show connection problems; keep the last identity.
   }
@@ -606,9 +674,36 @@ async function passTurnFromWeb() {
     await refreshIdentity();
   } catch (e) {
     button.textContent = 'Pass rejected';
-    setTimeout(() => { if (latest) renderWebPass(latest); }, 900);
+    setTimeout(() => { if (latest) renderWebControls(latest); }, 900);
   }
 }
+
+async function authenticatedGameAction(path, buttonId, busyText) {
+  const button = document.getElementById(buttonId);
+  button.disabled = true;
+  const original = button.textContent;
+  button.textContent = busyText;
+  try {
+    const r = await fetch(path, {method:'POST', headers:authHeaders()});
+    const data = await r.json();
+    if (r.status === 401) {
+      localStorage.removeItem(WEB_TOKEN_KEY);
+      currentIdentity = null;
+    }
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    await refresh();
+    await refreshIdentity();
+  } catch (e) {
+    button.textContent = e.message || 'Rejected';
+    setTimeout(() => { button.textContent = original; if (latest) renderWebControls(latest); }, 1100);
+  }
+}
+
+function pauseFromWeb() { return authenticatedGameAction('/api/web/pause', 'pauseButton', 'Pausing…'); }
+function claimWinFromWeb() { return authenticatedGameAction('/api/web/win-claim', 'winButton', 'Requesting…'); }
+function confirmWinFromWeb() { return authenticatedGameAction('/api/web/win-confirm', 'confirmWinButton', 'Confirming…'); }
+function denyWinFromWeb() { return authenticatedGameAction('/api/web/win-deny', 'denyWinButton', 'Denying…'); }
+function cancelWinFromWeb() { return authenticatedGameAction('/api/web/win-cancel', 'cancelWinButton', 'Cancelling…'); }
 
 let settingsData = null;
 
@@ -811,6 +906,34 @@ class WebPortal:
             hub.game.player_by_number(hub.elimination_target_player)
         )
 
+        win_claim = None
+        if hub.game.has_win_claim:
+            claimant = hub.game.player_by_number(hub.game.win_claim_player)
+            required_players = [
+                self._player_dict(hub.game.player_by_number(number))
+                for number in hub.game.win_claim_required
+            ]
+            confirmed_players = [
+                self._player_dict(hub.game.player_by_number(number))
+                for number in hub.game.win_claim_confirmed
+            ]
+            required_players = [p for p in required_players if p is not None]
+            confirmed_players = [p for p in confirmed_players if p is not None]
+            next_confirmation = self._player_dict(
+                hub.game.player_by_number(
+                    hub.game.next_win_confirmation_player
+                )
+            )
+            win_claim = {
+                "claimant": self._player_dict(claimant),
+                "required_players": required_players,
+                "confirmed_players": confirmed_players,
+                "required_count": len(required_players),
+                "confirmed_count": len(confirmed_players),
+                "next_confirmation": next_confirmation,
+                "restore_state": hub.game.win_claim_restore_state,
+            }
+
         countdown_remaining = 0.0
         if (
             hub.state == STATE_STARTING
@@ -887,6 +1010,7 @@ class WebPortal:
             "active_player": active,
             "winner": winner,
             "elimination_target": elimination_target,
+            "win_claim": win_claim,
             "eliminated_players": list(hub.game.eliminated_players),
             "active_turn_number": active_turn_number,
             "turn_elapsed_seconds": hub.game.current_turn_elapsed(now)
@@ -932,6 +1056,10 @@ class WebPortal:
                 else None,
             ),
             "can_pass": bool(identity.get("can_pass")),
+            "can_pause": bool(
+                self.turnhub.state == STATE_RUNNING
+                and not self.turnhub.game.is_eliminated(player.player_number)
+            ),
             "state": self.turnhub.state,
         }
 
@@ -1127,6 +1255,47 @@ class WebPortal:
                         return
 
                     self._send_json({"passed": True})
+                    return
+
+                if path in (
+                    "/api/web/pause",
+                    "/api/web/win-claim",
+                    "/api/web/win-confirm",
+                    "/api/web/win-deny",
+                    "/api/web/win-cancel",
+                ):
+                    ok, player, reason = portal.turnhub.web_control.authorize_living_player(
+                        self._bearer_token()
+                    )
+                    if not ok or player is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+
+                    if path == "/api/web/pause":
+                        accepted = portal.turnhub.on_web_pause(player.player_number)
+                        action = "pause"
+                    elif path == "/api/web/win-claim":
+                        accepted = portal.turnhub.on_web_win_claim(player.player_number)
+                        action = "win claim"
+                    elif path == "/api/web/win-confirm":
+                        accepted = portal.turnhub.on_web_win_confirm(player.player_number)
+                        action = "win confirmation"
+                    elif path == "/api/web/win-deny":
+                        accepted = portal.turnhub.on_web_win_deny(player.player_number)
+                        action = "win denial"
+                    else:
+                        accepted = portal.turnhub.on_web_win_cancel(player.player_number)
+                        action = "win cancellation"
+
+                    if not accepted:
+                        self._send_json(
+                            {"error": f"{action} is not allowed in the current state"},
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+
+                    self._send_json({"accepted": True, "action": action})
                     return
 
                 if path == "/api/settings":

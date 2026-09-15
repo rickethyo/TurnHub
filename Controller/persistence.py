@@ -262,6 +262,10 @@ class PersistentStore:
                 "starter_player": hub.game.starter_player,
                 "winner_player": hub.game.winner_player,
                 "eliminated_players": list(hub.game.eliminated_players),
+                "win_claim_player": hub.game.win_claim_player,
+                "win_claim_required": list(hub.game.win_claim_required),
+                "win_claim_confirmed": list(hub.game.win_claim_confirmed),
+                "win_claim_restore_state": hub.game.win_claim_restore_state,
                 "state": hub.state,
                 "game_elapsed_seconds": self._game_elapsed_for_save(
                     hub.game,
@@ -288,7 +292,7 @@ class PersistentStore:
         )
 
         return {
-            "version": 3,
+            "version": 4,
             "saved_at": datetime.now(timezone.utc).isoformat(),
             "hub_state": hub.state,
             "lobby": lobby,
@@ -464,6 +468,49 @@ class PersistentStore:
                     game.eliminated_players.append(number)
 
         game.normalize_active_player()
+
+        # Restore a pending victory claim if it is internally consistent.
+        # Recovery itself always returns paused, so a later denial/cancel also
+        # remains paused rather than automatically restarting after a reboot.
+        claim_player = self._int_or_none(game_data.get("win_claim_player"))
+        raw_required = game_data.get("win_claim_required", [])
+        raw_confirmed = game_data.get("win_claim_confirmed", [])
+        living_numbers = {
+            player.player_number
+            for player in players
+            if player.player_number not in game.eliminated_players
+        }
+
+        if claim_player in living_numbers:
+            required: list[int] = []
+            if isinstance(raw_required, list):
+                for value in raw_required:
+                    try:
+                        number = int(value)
+                    except (TypeError, ValueError):
+                        continue
+                    if (
+                        number in living_numbers
+                        and number != claim_player
+                        and number not in required
+                    ):
+                        required.append(number)
+
+            confirmed: list[int] = []
+            if isinstance(raw_confirmed, list):
+                for value in raw_confirmed:
+                    try:
+                        number = int(value)
+                    except (TypeError, ValueError):
+                        continue
+                    if number in required and number not in confirmed:
+                        confirmed.append(number)
+
+            if required and not all(number in confirmed for number in required):
+                game.win_claim_player = claim_player
+                game.win_claim_required = required
+                game.win_claim_confirmed = confirmed
+                game.win_claim_restore_state = STATE_PAUSED
 
         try:
             game.current_warning_ms = int(game_data.get("current_warning_ms", 0))

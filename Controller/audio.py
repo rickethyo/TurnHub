@@ -245,6 +245,32 @@ class AudioController:
             (550, 180, 0),
         )
 
+    def win_claimed(self) -> None:
+        self._enqueue(
+            (900, 80, 40),
+            (1250, 80, 40),
+            (1650, 140, 0),
+        )
+
+    def win_confirmed(self) -> None:
+        self._enqueue(
+            (1050, 70, 35),
+            (1450, 110, 0),
+        )
+
+    def win_denied(self) -> None:
+        self._enqueue(
+            (1150, 75, 35),
+            (700, 75, 35),
+            (420, 140, 0),
+        )
+
+    def win_claim_cancelled(self) -> None:
+        self._enqueue(
+            (850, 70, 35),
+            (600, 105, 0),
+        )
+
     def starter_selected(self) -> None:
         self._enqueue(
             (1100, 70, 35),

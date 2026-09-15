@@ -531,19 +531,32 @@ class SerialController:
 
 
     def set_red(self, module_id, state):
+        # Keep the rest of TurnHub semantic: red means red. The current
+        # prototype modules expose red/green inverted below this layer, so
+        # compensate once here rather than teaching game logic the wrong color.
+        command = (
+            "GREEN"
+            if config.SWAP_RED_GREEN_OUTPUTS
+            else "RED"
+        )
 
         return self.send(
             module_id,
-            f"RED|{module_id}|"
+            f"{command}|{module_id}|"
             f"{1 if state else 0}",
         )
 
 
     def set_green(self, module_id, state):
+        command = (
+            "RED"
+            if config.SWAP_RED_GREEN_OUTPUTS
+            else "GREEN"
+        )
 
         return self.send(
             module_id,
-            f"GREEN|{module_id}|"
+            f"{command}|{module_id}|"
             f"{1 if state else 0}",
         )
 

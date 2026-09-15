@@ -335,13 +335,16 @@ class LEDController:
             self.red(module, False)
             self.green(module, False)
         elif position < LOBBY_IDLE_LED_TIME * 2:
-            self.blue(module, 0)
-            self.red(module, True)
-            self.green(module, False)
-        else:
+            # Lobby idle is intentionally Blue -> Green -> Red. Earlier
+            # prototype mapping made this look correct only because red/green
+            # were inverted below LEDController.
             self.blue(module, 0)
             self.red(module, False)
             self.green(module, True)
+        else:
+            self.blue(module, 0)
+            self.red(module, True)
+            self.green(module, False)
 
     # ========================================================
     # Starting Countdown
@@ -379,6 +382,7 @@ class LEDController:
         host_module: int | None,
         now: float | None = None,
         elimination_target_player: int | None = None,
+        win_confirmation_player: int | None = None,
     ) -> None:
 
         if now is None:
@@ -391,9 +395,36 @@ class LEDController:
         if game.state == STATE_PAUSED:
             breathe = self.breathe_value(now)
             target = game.player_by_number(elimination_target_player)
+            win_target = game.player_by_number(win_confirmation_player)
 
             for module in game.modules:
                 if self._render_feedback(module, now):
+                    continue
+
+                if win_target is not None and module == win_target.module_id:
+                    # Green is the win-confirmation language. On a shared
+                    # module, one pulse means Seat A and two means Seat B.
+                    living_local = game.living_players_for_module(module)
+                    if len(living_local) <= 1:
+                        green = True
+                    else:
+                        pulse_on = 0.18
+                        pulse_off = 0.18
+                        position = now % 1.80
+                        if win_target.slot == 1:
+                            green = position < pulse_on
+                        else:
+                            second_start = pulse_on + pulse_off
+                            green = (
+                                position < pulse_on
+                                or second_start
+                                <= position
+                                < second_start + pulse_on
+                            )
+
+                    self.blue(module, 0)
+                    self.red(module, False)
+                    self.green(module, green)
                     continue
 
                 if target is not None and module == target.module_id:

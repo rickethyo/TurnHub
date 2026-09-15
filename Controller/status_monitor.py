@@ -55,6 +55,9 @@ class StatusMonitor:
             turnhub.game.winner_player,
             tuple(turnhub.game.eliminated_players),
             turnhub.elimination_target_player,
+            turnhub.game.win_claim_player,
+            tuple(turnhub.game.win_claim_confirmed),
+            turnhub.game.next_win_confirmation_player,
             stats,
         )
 
@@ -182,6 +185,24 @@ class StatusMonitor:
             if turnhub.elimination_target_player is not None:
                 parts.append(
                     f"eliminate=P{turnhub.elimination_target_player}"
+                )
+
+            if turnhub.game.has_win_claim:
+                parts.append(f"win-claim=P{turnhub.game.win_claim_player}")
+                parts.append(
+                    "confirmed="
+                    + (
+                        ",".join(
+                            f"P{number}"
+                            for number in turnhub.game.win_claim_confirmed
+                        )
+                        or "none"
+                    )
+                )
+                next_number = turnhub.game.next_win_confirmation_player
+                parts.append(
+                    "next-vote="
+                    + (f"P{next_number}" if next_number is not None else "none")
                 )
 
         print(" | ".join(parts))

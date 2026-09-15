@@ -54,6 +54,14 @@ class GameEngine:
     # Order records the elimination sequence.
     eliminated_players: list[int] = field(default_factory=list)
 
+    # A victory claim freezes the game until every other living player
+    # confirms. Any one denial cancels the claim and restores the prior
+    # running/paused state without charging review time to the clocks.
+    win_claim_player: int | None = None
+    win_claim_required: list[int] = field(default_factory=list)
+    win_claim_confirmed: list[int] = field(default_factory=list)
+    win_claim_restore_state: str | None = None
+
     # ========================================================
     # Game Start
     # ========================================================
@@ -91,6 +99,10 @@ class GameEngine:
         self.win_armed_player = None
         self.warning_logged_for_turn = False
         self.eliminated_players = []
+        self.win_claim_player = None
+        self.win_claim_required = []
+        self.win_claim_confirmed = []
+        self.win_claim_restore_state = None
 
         self.stats = {
             player.player_number: PlayerStats()
@@ -366,6 +378,9 @@ class GameEngine:
         return True
 
     def resume(self) -> bool:
+        if self.has_win_claim:
+            return False
+
         if (
             self.state != STATE_PAUSED
             or self.pause_started_at is None
@@ -386,6 +401,151 @@ class GameEngine:
         return True
 
     # ========================================================
+    # Victory Claim / Confirmation
+    # ========================================================
+
+    @property
+    def has_win_claim(self) -> bool:
+        return self.win_claim_player is not None
+
+    @property
+    def next_win_confirmation_player(self) -> int | None:
+        for player_number in self.win_claim_required:
+            if player_number not in self.win_claim_confirmed:
+                return player_number
+        return None
+
+    def _clear_win_claim(self) -> None:
+        self.win_claim_player = None
+        self.win_claim_required = []
+        self.win_claim_confirmed = []
+        self.win_claim_restore_state = None
+
+    def begin_win_claim(
+        self,
+        player_number: int,
+        restore_state: str | None = None,
+    ) -> bool:
+        if self.has_win_claim or self.state == STATE_GAME_OVER:
+            return False
+
+        claimant = self.player_by_number(player_number)
+        if claimant is None or self.is_eliminated(player_number):
+            return False
+
+        if self.state not in (STATE_RUNNING, STATE_PAUSED):
+            return False
+
+        prior_state = restore_state or self.state
+        if prior_state not in (STATE_RUNNING, STATE_PAUSED):
+            prior_state = STATE_PAUSED
+
+        if self.state == STATE_RUNNING:
+            if not self.pause():
+                return False
+
+        # Physical confirmation walks MODULES around the table, not merely
+        # logical player numbers. With temporary shared modules this means a
+        # claim from M0/P1 asks every living player on the next physical
+        # module first, then wraps back to the other living seat on M0.
+        module_order = self.modules
+        try:
+            claimant_module_index = module_order.index(claimant.module_id)
+        except ValueError:
+            return False
+
+        confirmation_modules = (
+            module_order[claimant_module_index + 1 :]
+            + module_order[: claimant_module_index + 1]
+        )
+
+        required: list[int] = []
+        for module_id in confirmation_modules:
+            for player in self.players_for_module(module_id):
+                if player.player_number == player_number:
+                    continue
+                if self.is_eliminated(player.player_number):
+                    continue
+                required.append(player.player_number)
+
+        # If somehow only one living player remains, finish immediately.
+        if not required:
+            self._finish_game(player_number)
+            return True
+
+        self.win_claim_player = player_number
+        self.win_claim_required = required
+        self.win_claim_confirmed = []
+        self.win_claim_restore_state = prior_state
+        self.win_armed_module = None
+        self.win_armed_player = None
+        return True
+
+    def confirm_win_claim(
+        self,
+        player_number: int,
+    ) -> tuple[bool, bool]:
+        """Return (accepted, game_finished)."""
+        if not self.has_win_claim:
+            return (False, False)
+
+        if player_number not in self.win_claim_required:
+            return (False, False)
+
+        if player_number in self.win_claim_confirmed:
+            return (False, False)
+
+        if self.is_eliminated(player_number):
+            return (False, False)
+
+        self.win_claim_confirmed.append(player_number)
+
+        if all(
+            number in self.win_claim_confirmed
+            for number in self.win_claim_required
+        ):
+            winner = self.win_claim_player
+            if winner is None:
+                return (False, False)
+            self._finish_game(winner)
+            return (True, True)
+
+        return (True, False)
+
+    def _restore_after_win_claim(self) -> bool:
+        if not self.has_win_claim:
+            return False
+
+        restore_state = self.win_claim_restore_state
+        self._clear_win_claim()
+
+        if restore_state == STATE_RUNNING:
+            return self.resume()
+
+        # The game was already paused before the claim. Keep the existing
+        # pause timestamp so review time remains excluded from game/turn time.
+        self.state = STATE_PAUSED
+        return True
+
+    def deny_win_claim(self, player_number: int) -> bool:
+        if not self.has_win_claim:
+            return False
+        if player_number not in self.win_claim_required:
+            return False
+        if player_number in self.win_claim_confirmed:
+            return False
+        if self.is_eliminated(player_number):
+            return False
+        return self._restore_after_win_claim()
+
+    def cancel_win_claim(self, claimant_player: int) -> bool:
+        if not self.has_win_claim:
+            return False
+        if claimant_player != self.win_claim_player:
+            return False
+        return self._restore_after_win_claim()
+
+    # ========================================================
     # Elimination
     # ========================================================
 
@@ -402,7 +562,7 @@ class GameEngine:
         the next living player starts at 00:00 when the game resumes.
         """
 
-        if self.state != STATE_PAUSED:
+        if self.state != STATE_PAUSED or self.has_win_claim:
             return (False, False)
 
         player = self.player_by_number(player_number)
@@ -460,24 +620,23 @@ class GameEngine:
         self.pause_started_at = None
         self.win_armed_module = None
         self.win_armed_player = None
+        self._clear_win_claim()
         self.state = STATE_GAME_OVER
 
     def declare_winner(
         self,
         module: int,
     ) -> bool:
-
+        """Legacy physical WIN entry point now opens a confirmation claim."""
         if self.state != STATE_PAUSED:
             return False
-
         if module != self.win_armed_module:
             return False
-
         if self.win_armed_player is None:
             return False
-
         if self.is_eliminated(self.win_armed_player):
             return False
-
-        self._finish_game(self.win_armed_player)
-        return True
+        return self.begin_win_claim(
+            self.win_armed_player,
+            restore_state=STATE_RUNNING,
+        )

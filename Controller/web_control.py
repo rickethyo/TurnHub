@@ -320,6 +320,9 @@ class WebControlManager:
         if self.turnhub.state != STATE_PAUSED:
             return False, {"error": "web-controller reassignment requires a paused game"}, 409
 
+        if self.turnhub.game.has_win_claim:
+            return False, {"error": "resolve the pending victory claim before reassigning a web controller"}, 409
+
         player = self._player_for_seat(seat_key)
         if player is None:
             return False, {"error": "that player seat is not part of this game"}, 404
@@ -445,6 +448,29 @@ class WebControlManager:
 
         self.turnhub.persistence.mark_dirty()
         return True, {"released": True, "seat_key": list(seat_key)}, 200
+
+    def authorize_living_player(
+        self,
+        token: str | None,
+    ) -> tuple[bool, Any | None, str]:
+        """Validate a browser token and return its living logical player."""
+        with self._lock:
+            seat_key = self._token_seat_locked(token)
+
+        if seat_key is None:
+            return False, None, "invalid web-controller token"
+
+        player = self._player_for_seat(seat_key)
+        if player is None:
+            return False, None, "that player seat is not part of this game"
+
+        if (
+            self.turnhub.game.players
+            and self.turnhub.game.is_eliminated(player.player_number)
+        ):
+            return False, player, "eliminated players cannot control the game"
+
+        return True, player, ""
 
     def authorize_pass(
         self,

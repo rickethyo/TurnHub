@@ -17,6 +17,12 @@ RECONNECT_DELAY = 2.0
 # during normal tabletop use.
 DEBUG_SERIAL_MESSAGES = False
 
+# Prototype hardware currently exposes the red/green outputs inverted below
+# the LEDController layer. Keep semantic color names correct in application
+# code and compensate once at the serial boundary. Set False when the final
+# module hardware/firmware wiring matches the command names directly.
+SWAP_RED_GREEN_OUTPUTS = True
+
 
 # ============================================================
 # Physical Modules

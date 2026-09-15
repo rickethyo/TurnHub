@@ -53,7 +53,7 @@ A short press by the active player ends their turn and passes to the next player
 
 Holding the button for 2 seconds pauses the game.
 
-If the same hold continues to 5 seconds, that player declares victory.
+If the same hold continues to 5 seconds on the active player's module, that player opens a victory claim. Every other living player must confirm the claim before the game ends; any one denial cancels it and restores the previous game state.
 
 While the game is already paused, holding a button for 2 seconds resumes the game.
 
@@ -97,7 +97,7 @@ The LEDs are intended to communicate most of the important game state without re
 
 ### Lobby
 
-Unjoined modules cycle through blue, red, and green.
+Unjoined modules cycle through blue, green, and red.
 
 Joined players use the red LED to indicate their assigned player number.
 
@@ -153,17 +153,15 @@ TurnHub/
 ├── requirements.txt
 └── README.md
 
-## Read-only web portal
+## Local web portal
 
-TurnHub serves a self-contained status page on the local network at port 8080.
-No cloud service or external web assets are required, and the portal exposes no
-game-control actions. On a typical Raspberry Pi hostname, browse to:
+TurnHub serves a self-contained local-network portal on port 8080 with no cloud service or external web assets. On a typical Raspberry Pi hostname, browse to:
 
 ```text
 http://turnhub.local:8080/
 ```
 
-If mDNS is unavailable, use the Raspberry Pi's LAN IP address instead.
+If mDNS is unavailable, use the Raspberry Pi's LAN IP address instead. The portal provides live game output, settings, secure paired-player controls, global pause, Pass Turn for the active paired seat, and victory-claim voting. Physical controls always remain available.
 ## Local web settings and recovery
 
 The local web portal at `http://turnhub.local:8080/` (or the hub IP on port 8080) includes a basic Settings panel for persistent module and player/seat names. Names are keyed to physical module seats so they remain attached to the same person/seat if logical player numbers shift during lobby setup.
@@ -196,3 +194,22 @@ Elimination is deliberately physical and only available while the game is paused
 5. The game remains paused. Hold Action normally when the table is ready to resume.
 
 Action Long cancels an armed elimination selection instead of resuming immediately. A confirmed elimination gives three red LED strikes and a distinct descending audio cue. Eliminated players remain visible in the web portal with an `ELIMINATED` marker and are included in game logs and recovered session state.
+
+
+## Victory Claims
+
+A victory claim freezes the clocks while the table verifies the win condition. A paired living player may press **I Win** in the web portal, or the active player may continue the normal physical Action hold to the 5-second WIN event.
+
+Every other living player must confirm. Any one denial immediately cancels the claim and restores the exact prior running/paused state without charging claim-review time to the game or active turn. The claimant may also cancel their own web claim.
+
+Web confirmations are tied to authenticated physical seats. Physical confirmation uses a logical confirmation cursor that walks physical modules around the table. With shared prototype modules, all living players on the next physical module confirm first before the cursor wraps back to another player sharing the claimant's module. On the module currently being asked to vote, **Action Short confirms** and **Pass denies**.
+
+The portal shows the claimant, confirmation progress, and the exact next logical player expected for physical confirmation. Pending claims are recoverable; after a reboot TurnHub restores them paused for safety.
+
+## Web Global Pause
+
+Any paired living player's portal can pause a running game. Web control is intentionally pause-only: resuming still requires physical hardware. Display-only browsers do not receive game-control buttons.
+
+## Prototype Red/Green Mapping
+
+The current prototype hardware exposes red and green inverted below the LED controller. TurnHub compensates once at the serial boundary with `SWAP_RED_GREEN_OUTPUTS = True`, keeping all game logic semantic: host/caution/confirmation are green and warning/elimination are red. The lobby idle cycle remains explicitly Blue -> Green -> Red. Future hardware with corrected wiring can disable the compatibility flag instead of changing game logic.
