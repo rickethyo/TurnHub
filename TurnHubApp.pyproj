@@ -26,8 +26,10 @@
     <Compile Include="Controller\audio.py" />
     <Compile Include="Controller\config.py" />
     <Compile Include="Controller\game_engine.py" />
+    <Compile Include="Controller\game_log.py" />
     <Compile Include="Controller\leds.py" />
     <Compile Include="Controller\lobby.py" />
+    <Compile Include="Controller\player.py" />
     <Compile Include="Controller\settings.py" />
     <Compile Include="Controller\status_monitor.py" />
     <Compile Include="requirements.txt" />
@@ -38,11 +40,13 @@
     <Content Include="ESP32\TurnHubESP32.ino" />
     <Content Include="README.md" />
     <Content Include="Arduino\TurnHubArduino.ino" />
+    <Content Include="statistics\.gitkeep" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Arduino\" />
     <Folder Include="Controller\" />
     <Folder Include="ESP32\" />
+    <Folder Include="statistics\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

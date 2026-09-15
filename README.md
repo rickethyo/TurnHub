@@ -152,3 +152,15 @@ TurnHub/
 ├── audio.py
 ├── requirements.txt
 └── README.md
+
+## Read-only web portal
+
+TurnHub serves a self-contained status page on the local network at port 8080.
+No cloud service or external web assets are required, and the portal exposes no
+game-control actions. On a typical Raspberry Pi hostname, browse to:
+
+```text
+http://turnhub.local:8080/
+```
+
+If mDNS is unavailable, use the Raspberry Pi's LAN IP address instead.

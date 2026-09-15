@@ -15,7 +15,7 @@ RECONNECT_DELAY = 2.0
 
 # Raw module protocol traffic is useful for development but noisy
 # during normal tabletop use.
-DEBUG_SERIAL_MESSAGES = True
+DEBUG_SERIAL_MESSAGES = False
 
 
 # ============================================================
@@ -153,6 +153,16 @@ START_COUNTDOWN_FLASH_TIME = 0.25
 # removed. This allows audio feedback to return later without
 # changing countdown/game logic.
 START_COUNTDOWN_TONES = [1000, 1300, 1700]
+
+
+# ============================================================
+# Read-only Web Portal
+# ============================================================
+
+# The portal is intentionally LAN-only in behavior: TurnHub
+# serves a read-only status page and exposes no control routes.
+WEB_HOST = "0.0.0.0"
+WEB_PORT = 8080
 
 
 # ============================================================

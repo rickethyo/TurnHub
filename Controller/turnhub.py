@@ -26,6 +26,7 @@ from lobby import Lobby
 from serial_controller import SerialController
 from settings import SettingsController
 from status_monitor import StatusMonitor
+from web_portal import WebPortal
 
 
 def warning_description(
@@ -79,6 +80,7 @@ class TurnHub:
 
         self.status = StatusMonitor()
         self.game_log = GameLogWriter()
+        self.web = WebPortal(self)
 
         self.state = STATE_LOBBY
 
@@ -1064,6 +1066,8 @@ class TurnHub:
             force=True,
         )
 
+        self.web.start()
+
         try:
 
             while True:
@@ -1100,6 +1104,8 @@ class TurnHub:
             )
 
         finally:
+
+            self.web.stop()
 
             try:
                 self.serial.all_off()
