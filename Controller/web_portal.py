@@ -1,4 +1,4 @@
-"""Read-only local web status portal for TurnHub."""
+"""Local TurnHub portal with status, settings, and secure seat-paired Pass control."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import time
 
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 
 from config import (
     MODULE_IDS,
@@ -88,6 +89,38 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .module.online .mini-dot { background:var(--good); }
 .footer { color:var(--muted); text-align:center; font-size:.78rem; margin-top:14px; }
 .hidden { display:none !important; }
+.header-actions { display:flex; align-items:center; gap:10px; }
+.settings-button { border:1px solid var(--line); background:var(--panel); color:var(--text); border-radius:12px; padding:9px 12px; font:inherit; font-weight:750; cursor:pointer; }
+.settings-button:active { transform:translateY(1px); }
+.overlay { position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.72); display:flex; align-items:flex-start; justify-content:center; padding:max(20px,env(safe-area-inset-top)) 14px 20px; overflow:auto; }
+.dialog { width:min(680px,100%); background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:20px; box-shadow:0 24px 70px rgba(0,0,0,.45); }
+.dialog-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.dialog-title { font-size:1.35rem; font-weight:850; }
+.close-button { border:0; background:transparent; color:var(--muted); font-size:1.8rem; cursor:pointer; }
+.settings-note { color:var(--muted); line-height:1.45; font-size:.9rem; margin:0 0 18px; }
+.settings-group { margin-top:18px; }
+.settings-group h3 { color:var(--muted); font-size:.8rem; text-transform:uppercase; letter-spacing:.1em; margin:0 0 10px; }
+.form-grid { display:grid; grid-template-columns:1fr; gap:10px; }
+.field { background:var(--panel-2); border:1px solid var(--line); border-radius:14px; padding:11px; }
+.field label { display:block; color:var(--muted); font-size:.78rem; font-weight:700; margin-bottom:7px; }
+.field input { width:100%; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:10px; padding:10px 11px; font:inherit; outline:none; }
+.field input:focus { border-color:var(--blue); }
+.dialog-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+.primary-button, .secondary-button { border-radius:12px; padding:10px 14px; font:inherit; font-weight:800; cursor:pointer; }
+.primary-button { border:1px solid rgba(114,167,255,.5); background:rgba(114,167,255,.14); color:var(--blue); }
+.secondary-button { border:1px solid var(--line); background:var(--panel-2); color:var(--text); }
+.settings-status { color:var(--muted); font-size:.85rem; min-height:1.2em; margin-top:10px; }
+.identity-button { border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:12px; padding:9px 12px; font:inherit; font-weight:750; cursor:pointer; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.identity-button.paired { color:var(--blue); border-color:rgba(114,167,255,.38); }
+.pass-button { margin-top:18px; width:min(340px,100%); border:1px solid rgba(98,213,138,.55); background:rgba(98,213,138,.15); color:var(--good); border-radius:16px; padding:15px 18px; font:inherit; font-size:1.15rem; font-weight:900; cursor:pointer; }
+.pass-button:disabled { opacity:.55; cursor:default; }
+.choice-list { display:grid; gap:10px; margin-top:14px; }
+.choice { width:100%; text-align:left; border:1px solid var(--line); background:var(--panel-2); color:var(--text); border-radius:14px; padding:13px 14px; font:inherit; cursor:pointer; }
+.choice:disabled { opacity:.5; cursor:not-allowed; }
+.choice strong { display:block; font-size:1.05rem; }
+.choice span { display:block; color:var(--muted); font-size:.84rem; margin-top:4px; }
+.security-note { border:1px solid rgba(114,167,255,.28); background:rgba(114,167,255,.08); border-radius:14px; padding:12px 13px; color:var(--muted); line-height:1.42; font-size:.88rem; }
+@media (min-width:600px) { .form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (min-width:760px) {
   .hero-card { grid-column:span 8; }
   .side-card { grid-column:span 4; }
@@ -101,7 +134,11 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 <div class="shell">
 <header>
   <div class="brand">TurnHub</div>
-  <div class="connection"><span id="connDot" class="dot"></span><span id="connText">Connecting…</span></div>
+  <div class="header-actions">
+    <div class="connection"><span id="connDot" class="dot"></span><span id="connText">Connecting…</span></div>
+    <button id="identityButton" class="identity-button" type="button" onclick="openIdentity()">Choose player</button>
+    <button class="settings-button" type="button" onclick="openSettings()">Settings</button>
+  </div>
 </header>
 
 <div class="grid">
@@ -111,6 +148,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     <div id="heroSub" class="hero-sub"></div>
     <div id="turnTimer" class="timer hidden">00:00</div>
     <div id="heroBadges" class="badges"></div>
+    <button id="passButton" class="pass-button hidden" type="button" onclick="passTurnFromWeb()">Pass Turn</button>
   </section>
 
   <section class="card side-card">
@@ -134,13 +172,64 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   </section>
 </div>
 
-<div class="footer">Read-only local TurnHub display</div>
+<div class="footer">Local TurnHub • physical controls always remain available</div>
+</div>
+
+<div id="settingsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div id="settingsTitle" class="dialog-title">TurnHub Settings</div>
+      <button class="close-button" type="button" aria-label="Close settings" onclick="closeSettings()">×</button>
+    </div>
+    <p class="settings-note">Names are stored on this TurnHub and follow the physical module/seat, so a person's name stays with that seat even if player numbers shift during lobby setup.</p>
+
+    <div class="settings-group">
+      <h3>Module names</h3>
+      <div id="moduleSettings" class="form-grid"></div>
+    </div>
+
+    <div class="settings-group">
+      <h3>Player / seat names</h3>
+      <div id="seatSettings" class="form-grid"></div>
+    </div>
+
+    <div class="settings-group">
+      <h3>Persistence</h3>
+      <p id="persistenceNote" class="settings-note">Game state autosaves locally. If TurnHub restarts during a game, it recovers paused so downtime is never charged to a player.</p>
+    </div>
+
+    <div class="dialog-actions">
+      <button class="primary-button" type="button" onclick="saveSettings()">Save names</button>
+      <button class="secondary-button" type="button" onclick="saveGameStateNow()">Save game state now</button>
+      <button class="secondary-button" type="button" onclick="closeSettings()">Cancel</button>
+    </div>
+    <div id="settingsStatus" class="settings-status"></div>
+  </div>
+</div>
+
+<div id="identityOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="identityTitle">
+  <div class="dialog">
+    <div class="dialog-head">
+      <div id="identityTitle" class="dialog-title">Which player are you?</div>
+      <button class="close-button" type="button" aria-label="Close player selection" onclick="closeIdentity()">×</button>
+    </div>
+    <p id="identityNote" class="settings-note">Pair this browser to your physical seat. TurnHub will ask for a button press on the table before granting control.</p>
+    <div class="security-note">A browser never gains Pass control just by choosing a name. Lobby pairing requires the matching physical module. Mid-game reassignment only works while paused and requires host-module approval.</div>
+    <div id="identityChoices" class="choice-list"></div>
+    <div id="identityActions" class="dialog-actions"></div>
+    <div id="identityStatus" class="settings-status"></div>
+  </div>
 </div>
 
 <script>
 let latest = null;
 let fetchedAt = performance.now();
 let online = false;
+let currentIdentity = null;
+let identityPollTimer = null;
+let identityAutoPrompted = false;
+const WEB_TOKEN_KEY = 'turnhub.webControllerToken';
+const DISPLAY_ONLY_KEY = 'turnhub.displayOnly';
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -160,12 +249,18 @@ function dynamicSeconds(base, shouldRun) {
 
 function playerLabel(p) {
   if (!p) return 'None';
-  return `Player ${p.player_number}`;
+  return p.display_name || `Player ${p.player_number}`;
 }
 
 function seatLabel(p) {
   if (!p) return '';
-  return `Module ${p.module_id}${p.slot_name ? ' • Seat ' + p.slot_name : ''}`;
+  const moduleName = p.module_name || `Module ${p.module_id}`;
+  return `${moduleName}${p.slot_name ? ' • Seat ' + p.slot_name : ''}`;
+}
+
+function playerMeta(p) {
+  if (!p) return '';
+  return p.has_custom_name ? `Player ${p.player_number} • ${seatLabel(p)}` : seatLabel(p);
 }
 
 function badge(text, cls='') {
@@ -247,16 +342,21 @@ function renderPlayers(d) {
     if (starter) flags.push(badge('STARTER','blue'));
     if (winner) flags.push(badge('WINNER','good'));
     return `<div class="${cls}">
-      <div class="player-head"><div><div class="player-name">Player ${p.player_number}</div><div class="player-seat">Module ${p.module_id} • Seat ${esc(p.slot_name)}</div></div><div>${flags.join(' ')}</div></div>
+      <div class="player-head"><div><div class="player-name">${esc(playerLabel(p))}</div><div class="player-seat">${esc(playerMeta(p))}</div></div><div>${flags.join(' ')}</div></div>
       <div class="player-stat"><span>Completed turns</span><strong>${p.turns_completed ?? 0}</strong></div>
       <div class="player-stat"><span>Turn time total</span><strong>${fmt(p.completed_turn_seconds ?? 0)}</strong></div>
     </div>`;
   }).join('');
 }
 
+function moduleLabel(m) {
+  if (!m) return 'None';
+  return m.module_name || `Module ${m.module_id}`;
+}
+
 function renderModules(d) {
   document.getElementById('modules').innerHTML = d.modules.map(m =>
-    `<div class="module ${m.connected ? 'online' : ''}"><span class="mini-dot"></span><strong>Module ${m.module_id}</strong><span>${m.connected ? 'Online' : 'Offline'}</span></div>`
+    `<div class="module ${m.connected ? 'online' : ''}"><span class="mini-dot"></span><strong>${esc(moduleLabel(m))}</strong><span>${m.connected ? 'Online' : 'Offline'}</span></div>`
   ).join('');
 }
 
@@ -265,11 +365,314 @@ function render(d) {
   const gameRunning = d.state === 'RUNNING';
   document.getElementById('gameTime').textContent = fmt(dynamicSeconds(d.game_elapsed_seconds, gameRunning));
   document.getElementById('timerSetting').textContent = d.timer_setting;
-  document.getElementById('hostValue').textContent = d.host_module === null ? 'None' : `Module ${d.host_module}`;
+  document.getElementById('hostValue').textContent = d.host_module === null ? 'None' : (d.host_module_name || `Module ${d.host_module}`);
   renderHero(d);
   renderPlayers(d);
   renderModules(d);
+  renderWebPass(d);
+  updateIdentityChip();
+  maybePromptIdentity();
 }
+
+function browserToken() {
+  return localStorage.getItem(WEB_TOKEN_KEY) || '';
+}
+
+function authHeaders(extra={}) {
+  const token = browserToken();
+  return token ? {...extra, 'Authorization': `Bearer ${token}`} : extra;
+}
+
+function sameSeat(a, b) {
+  return !!a && !!b && Number(a.module_id) === Number(b.module_id) && Number(a.slot) === Number(b.slot);
+}
+
+function updateIdentityChip() {
+  const button = document.getElementById('identityButton');
+  if (currentIdentity && currentIdentity.player) {
+    button.textContent = `You: ${playerLabel(currentIdentity.player)}`;
+    button.classList.add('paired');
+  } else if (localStorage.getItem(DISPLAY_ONLY_KEY) === '1') {
+    button.textContent = 'You: Display only';
+    button.classList.remove('paired');
+  } else {
+    button.textContent = 'Choose player';
+    button.classList.remove('paired');
+  }
+}
+
+function renderWebPass(d) {
+  const button = document.getElementById('passButton');
+  const canPass = !!(currentIdentity && currentIdentity.player && d.state === 'RUNNING' && sameSeat(currentIdentity.player, d.active_player));
+  button.classList.toggle('hidden', !canPass);
+  button.disabled = false;
+  button.textContent = 'Pass Turn';
+}
+
+async function refreshIdentity() {
+  const token = browserToken();
+  if (!token) {
+    currentIdentity = null;
+    updateIdentityChip();
+    return;
+  }
+
+  try {
+    const r = await fetch('/api/web/me', {headers:authHeaders(), cache:'no-store'});
+    if (r.status === 401) {
+      localStorage.removeItem(WEB_TOKEN_KEY);
+      currentIdentity = null;
+      updateIdentityChip();
+      return;
+    }
+    if (!r.ok) return;
+    currentIdentity = await r.json();
+    localStorage.removeItem(DISPLAY_ONLY_KEY);
+    updateIdentityChip();
+    if (latest) renderWebPass(latest);
+  } catch (e) {
+    // Status polling will show connection problems; keep the last identity.
+  }
+}
+
+function maybePromptIdentity() {
+  if (!latest || identityAutoPrompted) return;
+  if (latest.state !== 'LOBBY' || !latest.players.length) return;
+  if (currentIdentity || browserToken() || localStorage.getItem(DISPLAY_ONLY_KEY) === '1') return;
+  identityAutoPrompted = true;
+  openIdentity();
+}
+
+function closeIdentity() {
+  document.getElementById('identityOverlay').classList.add('hidden');
+  if (identityPollTimer) { clearTimeout(identityPollTimer); identityPollTimer = null; }
+}
+
+function identityChoiceText(p) {
+  return `${playerLabel(p)} • ${seatLabel(p)}`;
+}
+
+function openIdentity() {
+  if (!latest) return;
+  const root = document.getElementById('identityChoices');
+  const actions = document.getElementById('identityActions');
+  const note = document.getElementById('identityNote');
+  const status = document.getElementById('identityStatus');
+  status.textContent = '';
+  actions.innerHTML = '';
+
+  if (currentIdentity && currentIdentity.player) {
+    note.textContent = `This browser is paired to ${identityChoiceText(currentIdentity.player)}.`;
+  } else if (latest.state === 'PAUSED') {
+    note.textContent = 'Recovery mode: choose the player whose web controller needs to be reassigned. The host must approve on the physical host module.';
+  } else if (latest.state === 'LOBBY') {
+    note.textContent = 'Choose your seat, then press Action briefly on that physical module to confirm this browser.';
+  } else {
+    note.textContent = 'Player identity is locked while a game is in progress. Pause the game for host-approved controller recovery.';
+  }
+
+  if (latest.state === 'LOBBY') {
+    root.innerHTML = latest.players.map(p => {
+      const mine = currentIdentity && sameSeat(currentIdentity.player, p);
+      const claimed = !!p.web_claimed;
+      const disabled = claimed && !mine;
+      const caption = mine ? 'This browser' : (claimed ? 'Already paired to another browser' : 'Tap to pair, then confirm on the physical module');
+      return `<button class="choice" type="button" ${disabled || mine ? 'disabled' : ''} onclick="requestSeatClaim(${p.module_id},${p.slot})"><strong>${esc(playerLabel(p))}</strong><span>${esc(playerMeta(p))} • ${esc(caption)}</span></button>`;
+    }).join('');
+
+    if (currentIdentity) {
+      actions.innerHTML += '<button class="secondary-button" type="button" onclick="releaseIdentity()">Release / change player</button>';
+    }
+    actions.innerHTML += '<button class="secondary-button" type="button" onclick="chooseDisplayOnly()">Display only</button>';
+  } else if (latest.state === 'PAUSED') {
+    root.innerHTML = latest.players.map(p =>
+      `<button class="choice" type="button" onclick="requestSeatReassign(${p.module_id},${p.slot})"><strong>${esc(playerLabel(p))}</strong><span>${esc(playerMeta(p))} • Host approval required</span></button>`
+    ).join('');
+    actions.innerHTML = '<button class="secondary-button" type="button" onclick="closeIdentity()">Cancel</button>';
+  } else {
+    root.innerHTML = currentIdentity ? `<div class="field"><strong>${esc(identityChoiceText(currentIdentity.player))}</strong></div>` : '<div class="field">Display only during this game.</div>';
+    actions.innerHTML = '<button class="secondary-button" type="button" onclick="closeIdentity()">Close</button>';
+  }
+
+  document.getElementById('identityOverlay').classList.remove('hidden');
+}
+
+async function beginPairRequest(url, moduleId, slot) {
+  const status = document.getElementById('identityStatus');
+  status.textContent = 'Creating secure pairing request…';
+  try {
+    const r = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({module_id:moduleId, slot})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    status.textContent = data.message || 'Confirm on the physical module.';
+    pollPairRequest(data.request_id);
+  } catch (e) {
+    status.textContent = e.message || 'Could not begin pairing.';
+  }
+}
+
+function requestSeatClaim(moduleId, slot) {
+  beginPairRequest('/api/web/claim', moduleId, slot);
+}
+
+function requestSeatReassign(moduleId, slot) {
+  beginPairRequest('/api/web/reassign', moduleId, slot);
+}
+
+async function pollPairRequest(requestId) {
+  if (identityPollTimer) clearTimeout(identityPollTimer);
+  try {
+    const r = await fetch(`/api/web/claim-status?request_id=${encodeURIComponent(requestId)}`, {cache:'no-store'});
+    const data = await r.json();
+    if (data.status === 'confirmed' && data.token) {
+      localStorage.setItem(WEB_TOKEN_KEY, data.token);
+      localStorage.removeItem(DISPLAY_ONLY_KEY);
+      document.getElementById('identityStatus').textContent = 'Paired. This browser now controls only that seat.';
+      await refreshIdentity();
+      await refresh();
+      setTimeout(closeIdentity, 650);
+      return;
+    }
+    if (!r.ok || data.status === 'expired') {
+      document.getElementById('identityStatus').textContent = data.error || 'Pairing request expired.';
+      return;
+    }
+    document.getElementById('identityStatus').textContent = data.message || 'Waiting for physical confirmation…';
+    identityPollTimer = setTimeout(() => pollPairRequest(requestId), 500);
+  } catch (e) {
+    document.getElementById('identityStatus').textContent = 'Waiting for TurnHub…';
+    identityPollTimer = setTimeout(() => pollPairRequest(requestId), 900);
+  }
+}
+
+async function releaseIdentity() {
+  const status = document.getElementById('identityStatus');
+  status.textContent = 'Releasing this browser…';
+  try {
+    const r = await fetch('/api/web/release', {method:'POST', headers:authHeaders()});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    localStorage.removeItem(WEB_TOKEN_KEY);
+    currentIdentity = null;
+    await refresh();
+    openIdentity();
+  } catch (e) {
+    status.textContent = e.message || 'Could not release controller.';
+  }
+}
+
+function chooseDisplayOnly() {
+  if (currentIdentity) {
+    document.getElementById('identityStatus').textContent = 'Release this browser first if you want display-only mode.';
+    return;
+  }
+  localStorage.setItem(DISPLAY_ONLY_KEY, '1');
+  updateIdentityChip();
+  closeIdentity();
+}
+
+async function passTurnFromWeb() {
+  const button = document.getElementById('passButton');
+  button.disabled = true;
+  button.textContent = 'Passing…';
+  try {
+    const r = await fetch('/api/web/pass', {method:'POST', headers:authHeaders()});
+    const data = await r.json();
+    if (r.status === 401) {
+      localStorage.removeItem(WEB_TOKEN_KEY);
+      currentIdentity = null;
+    }
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    await refresh();
+    await refreshIdentity();
+  } catch (e) {
+    button.textContent = 'Pass rejected';
+    setTimeout(() => { if (latest) renderWebPass(latest); }, 900);
+  }
+}
+
+let settingsData = null;
+
+async function openSettings() {
+  const status = document.getElementById('settingsStatus');
+  status.textContent = 'Loading…';
+  document.getElementById('settingsOverlay').classList.remove('hidden');
+  try {
+    const r = await fetch('/api/settings', {cache:'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    settingsData = await r.json();
+
+    document.getElementById('moduleSettings').innerHTML = settingsData.module_ids.map(id => {
+      const value = settingsData.module_names[String(id)] || '';
+      return `<div class="field"><label>Module ${id}</label><input maxlength="40" data-module-id="${id}" value="${esc(value)}" placeholder="Module ${id}"></div>`;
+    }).join('');
+
+    const seatFields = [];
+    for (const id of settingsData.module_ids) {
+      for (const slot of [1,2]) {
+        const key = `${id}:${slot}`;
+        const value = settingsData.seat_names[key] || '';
+        const slotName = slot === 1 ? 'A' : 'B';
+        seatFields.push(`<div class="field"><label>Module ${id} • Seat ${slotName}</label><input maxlength="40" data-seat-key="${key}" value="${esc(value)}" placeholder="Player name"></div>`);
+      }
+    }
+    document.getElementById('seatSettings').innerHTML = seatFields.join('');
+    document.getElementById('persistenceNote').textContent = `Game state autosaves after changes and every ${settingsData.active_autosave_seconds} seconds during active play. Active games recover paused after a restart.`;
+    status.textContent = '';
+  } catch (e) {
+    status.textContent = 'Could not load settings.';
+  }
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.add('hidden');
+}
+
+async function saveSettings() {
+  const status = document.getElementById('settingsStatus');
+  const moduleNames = {};
+  const seatNames = {};
+  document.querySelectorAll('[data-module-id]').forEach(input => { moduleNames[input.dataset.moduleId] = input.value; });
+  document.querySelectorAll('[data-seat-key]').forEach(input => { seatNames[input.dataset.seatKey] = input.value; });
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/settings', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames})
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    settingsData = await r.json();
+    status.textContent = 'Names saved.';
+    await refresh();
+  } catch (e) {
+    status.textContent = 'Could not save names.';
+  }
+}
+
+async function saveGameStateNow() {
+  const status = document.getElementById('settingsStatus');
+  status.textContent = 'Saving game state…';
+  try {
+    const r = await fetch('/api/state/save', {method:'POST'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    status.textContent = 'Game state saved.';
+  } catch (e) {
+    status.textContent = 'Could not save game state.';
+  }
+}
+
+document.getElementById('settingsOverlay').addEventListener('click', e => {
+  if (e.target.id === 'settingsOverlay') closeSettings();
+});
+
+document.getElementById('identityOverlay').addEventListener('click', e => {
+  if (e.target.id === 'identityOverlay') closeIdentity();
+});
 
 async function refresh() {
   try {
@@ -290,7 +693,8 @@ async function refresh() {
 
 setInterval(() => { if (latest) render(latest); }, 100);
 setInterval(refresh, 1000);
-refresh();
+setInterval(refreshIdentity, 2000);
+refresh().then(refreshIdentity);
 </script>
 </body>
 </html>'''
@@ -302,7 +706,7 @@ class _PortalHTTPServer(ThreadingHTTPServer):
 
 
 class WebPortal:
-    """Small read-only HTTP server embedded in the TurnHub process."""
+    """Local status/settings server with physically paired player Pass control."""
 
     def __init__(
         self,
@@ -320,16 +724,24 @@ class WebPortal:
     # Snapshot Building
     # ========================================================
 
-    @staticmethod
-    def _player_dict(player, stats=None) -> dict | None:
+    def _player_dict(self, player, stats=None) -> dict | None:
         if player is None:
             return None
+
+        custom_name = self.turnhub.persistence.seat_name(
+            player.module_id,
+            player.slot,
+        )
 
         result = {
             "player_number": player.player_number,
             "module_id": player.module_id,
             "slot": player.slot,
             "slot_name": player.slot_name,
+            "display_name": custom_name or f"Player {player.player_number}",
+            "has_custom_name": custom_name is not None,
+            "module_name": self.turnhub.persistence.module_name(player.module_id),
+            "web_claimed": player.seat_key in self.turnhub.web_control.claimed_seats(),
         }
 
         if stats is not None:
@@ -444,6 +856,11 @@ class WebPortal:
             "warning_caution_fraction": WARNING_CAUTION_FRACTION,
             "warning_phase": warning_phase,
             "host_module": hub.lobby.host_module,
+            "host_module_name": (
+                hub.persistence.module_name(hub.lobby.host_module)
+                if hub.lobby.host_module is not None
+                else None
+            ),
             "starter": starter,
             "active_player": active,
             "winner": winner,
@@ -458,10 +875,40 @@ class WebPortal:
             "modules": [
                 {
                     "module_id": module_id,
+                    "module_name": hub.persistence.module_name(module_id),
                     "connected": module_id in connected,
                 }
                 for module_id in MODULE_IDS
             ],
+        }
+
+    def identity_snapshot(self, token: str | None) -> dict | None:
+        identity = self.turnhub.web_control.identity_for_token(token)
+        if identity is None:
+            return None
+
+        seat_key = tuple(identity["seat_key"])
+        player = next(
+            (
+                player
+                for player in (self.turnhub.game.players or self.turnhub.lobby.players)
+                if player.seat_key == seat_key
+            ),
+            None,
+        )
+
+        if player is None:
+            return None
+
+        return {
+            "player": self._player_dict(
+                player,
+                self.turnhub.game.stats.get(player.player_number)
+                if self.turnhub.game.players
+                else None,
+            ),
+            "can_pass": bool(identity.get("can_pass")),
+            "state": self.turnhub.state,
         }
 
     # ========================================================
@@ -493,8 +940,48 @@ class WebPortal:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _send_json(
+                self,
+                payload,
+                status: HTTPStatus = HTTPStatus.OK,
+            ) -> None:
+                body = json.dumps(
+                    payload,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                self._send_bytes(
+                    body,
+                    "application/json; charset=utf-8",
+                    status,
+                )
+
+            def _read_json(self):
+                try:
+                    length = int(self.headers.get("Content-Length", "0"))
+                except ValueError:
+                    return None
+
+                if length < 0 or length > 32768:
+                    return None
+
+                try:
+                    raw = self.rfile.read(length) if length else b"{}"
+                    value = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    return None
+
+                return value if isinstance(value, dict) else None
+
+            def _bearer_token(self) -> str | None:
+                value = self.headers.get("Authorization", "").strip()
+                if not value.lower().startswith("bearer "):
+                    return None
+                token = value[7:].strip()
+                return token or None
+
             def do_GET(self):
-                path = self.path.split("?", 1)[0]
+                parsed = urlparse(self.path)
+                path = parsed.path
 
                 if path == "/":
                     self._send_bytes(
@@ -527,11 +1014,145 @@ class WebPortal:
                     )
                     return
 
+                if path == "/api/settings":
+                    payload = portal.turnhub.persistence.settings_snapshot()
+                    payload["module_ids"] = list(MODULE_IDS)
+                    payload["active_autosave_seconds"] = 10
+                    self._send_json(payload)
+                    return
+
+                if path == "/api/web/me":
+                    identity = portal.identity_snapshot(self._bearer_token())
+                    if identity is None:
+                        self._send_json(
+                            {"error": "invalid web-controller token"},
+                            HTTPStatus.UNAUTHORIZED,
+                        )
+                        return
+                    self._send_json(identity)
+                    return
+
+                if path == "/api/web/claim-status":
+                    query = parse_qs(parsed.query)
+                    request_id = (query.get("request_id") or [""])[0]
+                    if not request_id:
+                        self._send_json(
+                            {"error": "request_id is required"},
+                            HTTPStatus.BAD_REQUEST,
+                        )
+                        return
+                    payload, status_code = portal.turnhub.web_control.claim_status(request_id)
+                    self._send_json(payload, HTTPStatus(status_code))
+                    return
+
                 if path == "/health":
                     self._send_bytes(
                         b"ok\n",
                         "text/plain; charset=utf-8",
                     )
+                    return
+
+                self._send_bytes(
+                    b"Not found\n",
+                    "text/plain; charset=utf-8",
+                    HTTPStatus.NOT_FOUND,
+                )
+
+            def do_POST(self):
+                path = urlparse(self.path).path
+
+                if path in ("/api/web/claim", "/api/web/reassign"):
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error": "invalid JSON"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    try:
+                        seat_key = (int(payload.get("module_id")), int(payload.get("slot")))
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "module_id and slot are required"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    if seat_key[1] not in (1, 2):
+                        self._send_json({"error": "slot must be 1 or 2"}, HTTPStatus.BAD_REQUEST)
+                        return
+
+                    if path.endswith("/reassign"):
+                        _ok, result, status_code = portal.turnhub.web_control.request_paused_reassignment(seat_key)
+                    else:
+                        _ok, result, status_code = portal.turnhub.web_control.request_lobby_claim(seat_key)
+
+                    self._send_json(result, HTTPStatus(status_code))
+                    return
+
+                if path == "/api/web/release":
+                    _ok, result, status_code = portal.turnhub.web_control.release_token(self._bearer_token())
+                    self._send_json(result, HTTPStatus(status_code))
+                    return
+
+                if path == "/api/web/pass":
+                    ok, seat_key, reason = portal.turnhub.web_control.authorize_pass(self._bearer_token())
+                    if not ok or seat_key is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+
+                    if not portal.turnhub.on_web_pass(seat_key[0], seat_key[1]):
+                        self._send_json(
+                            {"error": "turn changed before the pass could be accepted"},
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+
+                    self._send_json({"passed": True})
+                    return
+
+                if path == "/api/settings":
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json(
+                            {"error": "invalid JSON"},
+                            HTTPStatus.BAD_REQUEST,
+                        )
+                        return
+
+                    module_names = payload.get("module_names")
+                    seat_names = payload.get("seat_names")
+                    if not isinstance(module_names, dict) or not isinstance(seat_names, dict):
+                        self._send_json(
+                            {"error": "module_names and seat_names must be objects"},
+                            HTTPStatus.BAD_REQUEST,
+                        )
+                        return
+
+                    try:
+                        result = portal.turnhub.persistence.update_names(
+                            module_names=module_names,
+                            seat_names=seat_names,
+                        )
+                    except OSError as exc:
+                        self._send_json(
+                            {"error": "could not save settings", "detail": str(exc)},
+                            HTTPStatus.INTERNAL_SERVER_ERROR,
+                        )
+                        return
+
+                    result["module_ids"] = list(MODULE_IDS)
+                    result["active_autosave_seconds"] = 10
+                    self._send_json(result)
+                    return
+
+                if path == "/api/state/save":
+                    try:
+                        saved = portal.turnhub.persistence.save_session(
+                            portal.turnhub
+                        )
+                    except OSError as exc:
+                        self._send_json(
+                            {"error": "could not save game state", "detail": str(exc)},
+                            HTTPStatus.INTERNAL_SERVER_ERROR,
+                        )
+                        return
+
+                    self._send_json({"saved": True, "path": str(saved)})
                     return
 
                 self._send_bytes(
@@ -573,7 +1194,7 @@ class WebPortal:
         self.thread.start()
 
         print(
-            "[WEB] Read-only portal: "
+            "[WEB] Local portal: "
             f"http://{self._display_hostname()}.local:{self.port}/"
         )
         print(

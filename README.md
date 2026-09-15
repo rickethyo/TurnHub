@@ -164,3 +164,21 @@ http://turnhub.local:8080/
 ```
 
 If mDNS is unavailable, use the Raspberry Pi's LAN IP address instead.
+## Local web settings and recovery
+
+The local web portal at `http://turnhub.local:8080/` (or the hub IP on port 8080) includes a basic Settings panel for persistent module and player/seat names. Names are keyed to physical module seats so they remain attached to the same person/seat if logical player numbers shift during lobby setup.
+
+TurnHub stores user settings and the recoverable session outside the Git working tree under `~/.local/share/turnhub/`. Game state is saved after state changes and periodically during active play. If TurnHub restarts during a running game, the game is restored **paused** with player assignments, starter, active player, timers, and statistics preserved; downtime is not charged to a turn.
+
+
+## Web settings, recovery, and paired Pass control
+
+TurnHub serves its local portal on port `8080`. The portal can name modules and physical player seats, and TurnHub stores those settings outside the Git checkout under `~/.local/share/turnhub/`. Recoverable game state is autosaved there as well; an interrupted live game returns paused so reboot downtime is never charged to a turn.
+
+A browser may optionally become a player controller. In the lobby, the browser chooses an exact physical seat and TurnHub requires a short Action press on that seat's physical module before issuing a random browser token. One browser claim is allowed per seat. The browser token is stored only in that browser; TurnHub persists only its SHA-256 hash. Once the game starts, normal player identity changes are locked.
+
+The web Pass button is shown only when the paired browser's exact logical seat is active. The server independently verifies the bearer token, running state, and exact active `(module, slot)` before advancing the turn. A hidden or manually forged button cannot pass another player's turn.
+
+If a phone is lost or dies during play, pause the game. A replacement browser may request reassignment to a seat, but the reassignment is not accepted until the physical host module approves it with a short Action press. Approval replaces the old token immediately.
+
+The physical Pass button always remains available. TurnHub also suppresses the near-simultaneous duplicate physical Pass that could arrive immediately after a successful web Pass on a shared module.

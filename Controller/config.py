@@ -156,13 +156,17 @@ START_COUNTDOWN_TONES = [1000, 1300, 1700]
 
 
 # ============================================================
-# Read-only Web Portal
+# Local Web Portal
 # ============================================================
 
-# The portal is intentionally LAN-only in behavior: TurnHub
-# serves a read-only status page and exposes no control routes.
+# The portal is intended for the local network. Browser Pass control is
+# seat-paired and physically confirmed before use.
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 8080
+
+# A browser has this long to complete physical pairing or host-approved
+# reassignment before the pending request expires.
+WEB_CLAIM_TIMEOUT_SECONDS = 60.0
 
 
 # ============================================================

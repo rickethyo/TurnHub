@@ -206,6 +206,20 @@ class AudioController:
             (1250, 95, 0),
         )
 
+    def web_controller_paired(self) -> None:
+        self._enqueue(
+            (900, 60, 35),
+            (1350, 60, 35),
+            (1750, 110, 0),
+        )
+
+    def web_controller_reassigned(self) -> None:
+        self._enqueue(
+            (1500, 70, 35),
+            (950, 70, 35),
+            (1500, 120, 0),
+        )
+
     def starter_selected(self) -> None:
         self._enqueue(
             (1100, 70, 35),

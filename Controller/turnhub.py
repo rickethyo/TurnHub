@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 
 from audio import AudioController
@@ -23,9 +24,11 @@ from game_engine import GameEngine
 from game_log import GameLogWriter, format_duration
 from leds import LEDController
 from lobby import Lobby
+from persistence import PersistentStore
 from serial_controller import SerialController
 from settings import SettingsController
 from status_monitor import StatusMonitor
+from web_control import WebControlManager
 from web_portal import WebPortal
 
 
@@ -79,10 +82,25 @@ class TurnHub:
         self.game = GameEngine()
 
         self.status = StatusMonitor()
-        self.game_log = GameLogWriter()
-        self.web = WebPortal(self)
+        self.persistence = PersistentStore()
 
         self.state = STATE_LOBBY
+
+        # Browser controllers are bound to exact physical seats. Tokens are
+        # generated only after a matching physical confirmation and are never
+        # accepted merely because a browser claims a player number.
+        self.web_control = WebControlManager(self)
+
+        self.game_log = GameLogWriter(
+            name_resolver=self.persistence.player_label
+        )
+        self.web = WebPortal(self)
+
+        # Physical and web Pass events can arrive from different threads.
+        # Serialize turn advancement and briefly suppress a duplicate physical
+        # pass after a successful web pass on the same module.
+        self._turn_advance_lock = threading.RLock()
+        self._suppress_physical_pass_until: dict[int, float] = {}
 
         # Read the physical timer selector.
         self.warning_ms = (
@@ -96,6 +114,10 @@ class TurnHub:
 
         self.start_countdown_at: float | None = None
         self.last_countdown_tone = -1
+
+        # Restore the last recoverable table state, if any. Active games
+        # intentionally return paused so downtime is never charged to a turn.
+        self.persistence.restore_session(self)
 
     # ========================================================
     # Physical Hub Settings
@@ -292,6 +314,10 @@ class TurnHub:
                     self.leds.shared_player_removed(module)
                     self.audio.shared_player_removed()
 
+                # Removing a physical seat also invalidates any browser claim
+                # that had been paired to that seat.
+                self.web_control.reconcile_claims()
+
                 assignments = ", ".join(
                     player.label()
                     for player in self.lobby.players
@@ -300,6 +326,7 @@ class TurnHub:
                     "[LOBBY] Table order: "
                     f"{assignments}"
                 )
+                self.persistence.mark_dirty()
                 return
 
             # Normal host Pass remains the randomizer.
@@ -315,18 +342,42 @@ class TurnHub:
                         f"{starter.label()}."
                     )
                     self.audio.random_starter()
+                    self.persistence.mark_dirty()
 
             return
 
         if self.state != STATE_RUNNING:
             return
 
-        previous = self.game.active_player
+        # If a web pass was just accepted from this same physical module,
+        # ignore the near-simultaneous hardware event that can otherwise skip
+        # a shared-module player.
+        if time.monotonic() < self._suppress_physical_pass_until.get(module, 0.0):
+            print(
+                "[GAME] Ignored duplicate physical Pass immediately "
+                f"after web Pass on Module {module}."
+            )
+            return
 
-        if self.game.pass_turn(
-            module,
-            self.warning_ms,
-        ):
+        self._pass_running_turn(module)
+
+    def _pass_running_turn(
+        self,
+        module: int,
+    ) -> bool:
+        """Advance one running turn from an already-authorized module."""
+        with self._turn_advance_lock:
+            if self.state != STATE_RUNNING:
+                return False
+
+            previous = self.game.active_player
+
+            if not self.game.pass_turn(
+                module,
+                self.warning_ms,
+            ):
+                return False
+
             current = self.game.active_player
 
             if previous is not None and current is not None:
@@ -350,6 +401,30 @@ class TurnHub:
                 "[GAME] Warning locked at "
                 f"{warning_description(self.game.current_warning_ms)}"
             )
+            self.persistence.mark_dirty()
+            return True
+
+    def on_web_pass(
+        self,
+        module: int,
+        slot: int,
+    ) -> bool:
+        """Advance only if the requested exact logical seat is active."""
+        with self._turn_advance_lock:
+            if self.state != STATE_RUNNING:
+                return False
+
+            active = self.game.active_player
+            if active is None or active.seat_key != (module, slot):
+                return False
+
+            if not self._pass_running_turn(module):
+                return False
+
+            # Protect shared modules from a nearly simultaneous physical click
+            # generated by the same human action.
+            self._suppress_physical_pass_until[module] = time.monotonic() + 0.45
+            return True
 
     # ========================================================
     # Action Button Tracking
@@ -416,6 +491,32 @@ class TurnHub:
             self.lobby.suppress_next_short_modules.discard(module)
             return
 
+        # Web-controller pairing uses a deliberate physical short press.
+        # It consumes this Action event so it cannot simultaneously select a
+        # starter in the lobby or perform some future short-press action.
+        pairing = self.web_control.confirm_physical_action(module)
+        if pairing is not None:
+            player = pairing.get("player")
+            mode = pairing.get("mode")
+            label = (
+                self.persistence.player_label(player)
+                if player is not None
+                else str(pairing.get("seat_key"))
+            )
+            if mode == "reassign":
+                print(
+                    "[WEB] Host approved web-controller reassignment for "
+                    f"{label}."
+                )
+                self.audio.web_controller_reassigned()
+            else:
+                print(
+                    "[WEB] Physical module confirmed web controller for "
+                    f"{label}."
+                )
+                self.audio.web_controller_paired()
+            return
+
         if self.state == STATE_LOBBY:
 
             self.handle_lobby_short(
@@ -470,6 +571,8 @@ class TurnHub:
                 )
 
             self.audio.player_joined()
+            self.web_control.reconcile_claims()
+            self.persistence.mark_dirty()
             return
 
         starter = self.lobby.select_starter(module)
@@ -483,6 +586,7 @@ class TurnHub:
         )
 
         self.audio.starter_selected()
+        self.persistence.mark_dirty()
 
     # ========================================================
     # Action Long Press
@@ -524,6 +628,7 @@ class TurnHub:
                 )
 
                 self.audio.pause()
+                self.persistence.mark_dirty()
 
             return
 
@@ -539,6 +644,7 @@ class TurnHub:
                 )
 
                 self.audio.resume()
+                self.persistence.mark_dirty()
 
             return
 
@@ -655,6 +761,7 @@ class TurnHub:
                 )
 
                 self.audio.game_over()
+                self.persistence.mark_dirty()
 
                 self.print_game_summary()
                 self.save_game_log()
@@ -688,6 +795,7 @@ class TurnHub:
         print(
             "[LOBBY] 3-second countdown started."
         )
+        self.persistence.mark_dirty()
 
     def cancel_countdown(self) -> None:
 
@@ -697,6 +805,7 @@ class TurnHub:
         self.last_countdown_tone = -1
 
         self.lobby.start_armed_by = None
+        self.persistence.mark_dirty()
 
     def update_countdown(
         self,
@@ -766,6 +875,10 @@ class TurnHub:
             self.settings.warning_ms()
         )
 
+        # Once play begins, browser identity is locked. Any unfinished
+        # lobby pairing request is discarded rather than carrying into play.
+        self.web_control.cancel_pending()
+
         self.game.start(
             players=self.lobby.players,
             starter=starter,
@@ -797,12 +910,14 @@ class TurnHub:
             "[GAME] Warning threshold locked at "
             f"{warning_description(self.game.current_warning_ms)}"
         )
+        self.persistence.mark_dirty()
 
     def enter_empty_lobby(self) -> None:
 
         self.state = STATE_LOBBY
 
         self.lobby.reset_empty()
+        self.web_control.clear_all_claims()
 
         self.game = GameEngine()
 
@@ -815,12 +930,14 @@ class TurnHub:
         print(
             "[LOBBY] Empty lobby ready."
         )
+        self.persistence.mark_dirty()
 
     def enter_rematch_lobby(self) -> None:
 
         self.state = STATE_LOBBY
 
         self.lobby.reset_for_rematch()
+        self.web_control.cancel_pending()
 
         self.game = GameEngine()
 
@@ -834,6 +951,7 @@ class TurnHub:
             "[LOBBY] Rematch lobby ready. "
             "Player assignments preserved."
         )
+        self.persistence.mark_dirty()
 
     # ========================================================
     # Game Monitoring
@@ -1093,6 +1211,11 @@ class TurnHub:
                     self
                 )
 
+                self.persistence.update_autosave(
+                    self,
+                    now,
+                )
+
                 time.sleep(
                     LOOP_SLEEP_SECONDS
                 )
@@ -1104,6 +1227,14 @@ class TurnHub:
             )
 
         finally:
+
+            try:
+                self.persistence.save_session(self)
+            except OSError as exc:
+                print(
+                    "[PERSIST] Final state save failed: "
+                    f"{exc}"
+                )
 
             self.web.stop()
 

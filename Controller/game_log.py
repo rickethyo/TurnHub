@@ -35,6 +35,7 @@ class GameLogWriter:
         usb_mount_directory: Path | None = None,
         usb_device_marker: Path | None = None,
         start_usb_monitor: bool = True,
+        name_resolver=None,
     ) -> None:
 
         if statistics_directory is None:
@@ -63,6 +64,7 @@ class GameLogWriter:
 
         self._usb_lock = threading.Lock()
         self._usb_monitor_thread: threading.Thread | None = None
+        self.name_resolver = name_resolver
 
         if start_usb_monitor:
             self._usb_monitor_thread = threading.Thread(
@@ -76,8 +78,8 @@ class GameLogWriter:
     # Labels / Formatting
     # ========================================================
 
-    @staticmethod
     def _player_label(
+        self,
         game: GameEngine,
         player_number: int | None,
     ) -> str:
@@ -89,9 +91,17 @@ class GameLogWriter:
         if player is None:
             return "None"
 
+        if self.name_resolver is not None:
+            return self.name_resolver(player)
+
         return player.label(
             include_slot=True
         )
+
+    def _seat_label(self, player) -> str:
+        if self.name_resolver is not None:
+            return self.name_resolver(player)
+        return player.label(include_slot=True)
 
     # ========================================================
     # Local File Naming
@@ -444,9 +454,7 @@ class GameLogWriter:
 
             lines.extend(
                 [
-                    player.label(
-                        include_slot=True
-                    ),
+                    self._seat_label(player),
                     (
                         "  Completed turns: "
                         f"{stats.turns_completed}"
@@ -486,9 +494,7 @@ class GameLogWriter:
                     "Final partial turn",
                     "------------------",
                     (
-                        game.active_player.label(
-                            include_slot=True
-                        )
+                        self._seat_label(game.active_player)
                         + ": "
                         + format_duration(
                             game.current_turn_elapsed()
