@@ -556,6 +556,24 @@ class TurnHub:
         self.persistence.mark_dirty()
         return True
 
+    def on_web_life_adjust(
+        self,
+        player_number: int,
+        delta: int,
+    ) -> bool:
+        """Adjust life for the authenticated web player's own seat only."""
+        if delta not in (-100, -10, -1, 1, 10, 100):
+            return False
+
+        if self.elimination_target_player is not None:
+            return False
+
+        if not self.game.adjust_life(player_number, delta):
+            return False
+
+        self.persistence.mark_dirty()
+        return True
+
     def on_web_win_claim(self, player_number: int) -> bool:
         restore_state = self.state
         return self._request_win_claim(
@@ -1348,6 +1366,7 @@ class TurnHub:
             players=self.lobby.players,
             starter=starter,
             warning_ms=self.warning_ms,
+            starting_life=self.persistence.starting_life(),
         )
 
         self.elimination_target_player = None

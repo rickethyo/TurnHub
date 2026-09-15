@@ -213,3 +213,16 @@ Any paired living player's portal can pause a running game. Web control is inten
 ## Prototype Red/Green Mapping
 
 The current prototype hardware exposes red and green inverted below the LED controller. TurnHub compensates once at the serial boundary with `SWAP_RED_GREEN_OUTPUTS = True`, keeping all game logic semantic: host/caution/confirmation are green and warning/elimination are red. The lobby idle cycle remains explicitly Blue -> Green -> Red. Future hardware with corrected wiring can disable the compatibility flag instead of changing game logic.
+
+## Web Life Totals
+
+TurnHub's local web portal can optionally track a life total for each logical player. This is a web-only feature and does not change module firmware, LEDs, audio, or physical button behavior.
+
+- Starting life is configured in the portal Settings page.
+- Built-in presets: 20, 25, 30, 40, 50, 2000, 4000, and 8000, plus a custom whole-number value.
+- The starting-life setting is captured when a game begins. Changing Settings during a game only affects the next game.
+- Everyone can see every player's life total, but only the authenticated browser paired to that exact seat can change its own total.
+- Games at 100 life or below show -1/+1 controls. Larger-life games show -100/-10/+10/+100 controls.
+- Life may reach zero or become negative without automatically eliminating a player. Elimination remains a separate deliberate TurnHub action.
+- Current life totals are included in recoverable game state and restored after a reboot.
+- Completed game logs include the game's starting life and each player's final life total.

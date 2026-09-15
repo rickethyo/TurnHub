@@ -1,4 +1,4 @@
-"""Local TurnHub portal with status, settings, and secure seat-paired Pass control."""
+"""Local TurnHub portal with status, settings, life totals, and secure seat controls."""
 
 from __future__ import annotations
 
@@ -85,6 +85,12 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .player-name { font-size:1.22rem; font-weight:850; }
 .player-seat { color:var(--muted); font-size:.88rem; margin-top:3px; }
 .player-stat { margin-top:12px; display:flex; justify-content:space-between; color:var(--muted); font-size:.9rem; }
+.life-panel { margin-top:14px; border-top:1px solid var(--line); padding-top:13px; text-align:center; }
+.life-label { color:var(--muted); font-size:.72rem; font-weight:800; letter-spacing:.11em; text-transform:uppercase; }
+.life-total { margin-top:2px; font-size:2.15rem; line-height:1; font-weight:900; font-variant-numeric:tabular-nums; }
+.life-controls { display:flex; flex-wrap:wrap; justify-content:center; gap:7px; margin-top:10px; }
+.life-button { min-width:48px; border:1px solid rgba(114,167,255,.38); background:rgba(114,167,255,.09); color:var(--blue); border-radius:10px; padding:8px 10px; font:inherit; font-weight:850; cursor:pointer; }
+.life-button:disabled { opacity:.45; cursor:default; }
 .modules { display:flex; flex-wrap:wrap; gap:9px; }
 .module { display:flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:8px 11px; color:var(--muted); }
 .module .mini-dot { width:8px; height:8px; border-radius:50%; background:var(--bad); }
@@ -105,8 +111,8 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .form-grid { display:grid; grid-template-columns:1fr; gap:10px; }
 .field { background:var(--panel-2); border:1px solid var(--line); border-radius:14px; padding:11px; }
 .field label { display:block; color:var(--muted); font-size:.78rem; font-weight:700; margin-bottom:7px; }
-.field input { width:100%; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:10px; padding:10px 11px; font:inherit; outline:none; }
-.field input:focus { border-color:var(--blue); }
+.field input, .field select { width:100%; border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:10px; padding:10px 11px; font:inherit; outline:none; }
+.field input:focus, .field select:focus { border-color:var(--blue); }
 .dialog-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
 .primary-button, .secondary-button { border-radius:12px; padding:10px 14px; font:inherit; font-weight:800; cursor:pointer; }
 .primary-button { border:1px solid rgba(114,167,255,.5); background:rgba(114,167,255,.14); color:var(--blue); }
@@ -173,6 +179,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
       <div class="metric"><div class="metric-label">State</div><div id="stateValue" class="metric-value">—</div></div>
       <div class="metric"><div class="metric-label">Game Time</div><div id="gameTime" class="metric-value">00:00</div></div>
       <div class="metric"><div class="metric-label">Timer Setting</div><div id="timerSetting" class="metric-value">—</div></div>
+      <div class="metric"><div class="metric-label">Starting Life</div><div id="startingLifeValue" class="metric-value">—</div></div>
       <div class="metric"><div class="metric-label">Host</div><div id="hostValue" class="metric-value">—</div></div>
     </div>
   </section>
@@ -207,6 +214,15 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     <div class="settings-group">
       <h3>Player / seat names</h3>
       <div id="seatSettings" class="form-grid"></div>
+    </div>
+
+    <div class="settings-group">
+      <h3>Starting life</h3>
+      <p class="settings-note">This value is copied to every player when the next game begins. Changing it during a game does not alter current life totals.</p>
+      <div class="form-grid">
+        <div class="field"><label>Starting life preset</label><select id="startingLifeSelect" onchange="startingLifeSelectionChanged()"></select></div>
+        <div id="startingLifeCustomField" class="field hidden"><label>Custom starting life</label><input id="startingLifeCustom" type="number" min="0" max="1000000" step="1" inputmode="numeric"></div>
+      </div>
     </div>
 
     <div class="settings-group">
@@ -358,6 +374,25 @@ function renderHero(d) {
   }
 }
 
+function lifeControlsHtml(d, p) {
+  const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
+  const mine = sameSeat(me, p);
+  const editable = mine
+    && !p.eliminated
+    && (d.state === 'RUNNING' || d.state === 'PAUSED')
+    && !d.win_claim
+    && !d.elimination_target;
+
+  if (!editable) return '';
+
+  const large = Number(d.starting_life || 0) > 100;
+  const deltas = large ? [-100, -10, 10, 100] : [-1, 1];
+  return `<div class="life-controls">${deltas.map(delta => {
+    const label = delta > 0 ? `+${delta}` : String(delta);
+    return `<button class="life-button" type="button" onclick="adjustLife(${delta})">${label}</button>`;
+  }).join('')}</div>`;
+}
+
 function renderPlayers(d) {
   const root = document.getElementById('players');
   if (!d.players.length) {
@@ -381,8 +416,14 @@ function renderPlayers(d) {
     if (d.win_claim && d.win_claim.claimant && d.win_claim.claimant.player_number === p.player_number) flags.push(badge('WIN CLAIM','good'));
     if (d.win_claim && (d.win_claim.confirmed_players || []).some(v => v.player_number === p.player_number)) flags.push(badge('CONFIRMED','good'));
     if (eliminated) flags.push(badge('ELIMINATED','bad'));
+    const lifeCaption = d.state === 'LOBBY' ? 'STARTING LIFE' : 'LIFE';
     return `<div class="${cls}">
       <div class="player-head"><div><div class="player-name">${esc(playerLabel(p))}</div><div class="player-seat">${esc(playerMeta(p))}</div></div><div>${flags.join(' ')}</div></div>
+      <div class="life-panel">
+        <div class="life-label">${lifeCaption}</div>
+        <div class="life-total">${Number(p.life_total ?? d.starting_life ?? 0)}</div>
+        ${lifeControlsHtml(d, p)}
+      </div>
       <div class="player-stat"><span>Completed turns</span><strong>${p.turns_completed ?? 0}</strong></div>
       <div class="player-stat"><span>Turn time total</span><strong>${fmt(p.completed_turn_seconds ?? 0)}</strong></div>
     </div>`;
@@ -405,6 +446,7 @@ function render(d) {
   const gameRunning = d.state === 'RUNNING';
   document.getElementById('gameTime').textContent = fmt(dynamicSeconds(d.game_elapsed_seconds, gameRunning));
   document.getElementById('timerSetting').textContent = d.timer_setting;
+  document.getElementById('startingLifeValue').textContent = String(d.starting_life ?? '—');
   document.getElementById('hostValue').textContent = d.host_module === null ? 'None' : (d.host_module_name || `Module ${d.host_module}`);
   renderHero(d);
   renderPlayers(d);
@@ -678,6 +720,26 @@ async function passTurnFromWeb() {
   }
 }
 
+async function adjustLife(delta) {
+  try {
+    const r = await fetch('/api/web/life', {
+      method:'POST',
+      headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({delta:Number(delta)})
+    });
+    const data = await r.json();
+    if (r.status === 401) {
+      localStorage.removeItem(WEB_TOKEN_KEY);
+      currentIdentity = null;
+    }
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    await refresh();
+    await refreshIdentity();
+  } catch (e) {
+    console.warn('Life adjustment rejected:', e);
+  }
+}
+
 async function authenticatedGameAction(path, buttonId, busyText) {
   const button = document.getElementById(buttonId);
   button.disabled = true;
@@ -731,11 +793,39 @@ async function openSettings() {
       }
     }
     document.getElementById('seatSettings').innerHTML = seatFields.join('');
+
+    const presets = settingsData.starting_life_presets || [20,25,30,40,50,2000,4000,8000];
+    const currentLife = Number(settingsData.starting_life ?? 40);
+    const isPreset = presets.includes(currentLife);
+    const select = document.getElementById('startingLifeSelect');
+    select.innerHTML = presets.map(value => `<option value="${value}">${value}</option>`).join('') + '<option value="custom">Custom…</option>';
+    select.value = isPreset ? String(currentLife) : 'custom';
+    document.getElementById('startingLifeCustom').value = String(currentLife);
+    startingLifeSelectionChanged();
+
     document.getElementById('persistenceNote').textContent = `Game state autosaves after changes and every ${settingsData.active_autosave_seconds} seconds during active play. Active games recover paused after a restart.`;
     status.textContent = '';
   } catch (e) {
     status.textContent = 'Could not load settings.';
   }
+}
+
+function startingLifeSelectionChanged() {
+  const select = document.getElementById('startingLifeSelect');
+  const customField = document.getElementById('startingLifeCustomField');
+  customField.classList.toggle('hidden', select.value !== 'custom');
+}
+
+function selectedStartingLife() {
+  const select = document.getElementById('startingLifeSelect');
+  const raw = select.value === 'custom'
+    ? document.getElementById('startingLifeCustom').value
+    : select.value;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0 || value > 1000000) {
+    throw new Error('Starting life must be a whole number from 0 to 1,000,000.');
+  }
+  return value;
 }
 
 function closeSettings() {
@@ -750,17 +840,18 @@ async function saveSettings() {
   document.querySelectorAll('[data-seat-key]').forEach(input => { seatNames[input.dataset.seatKey] = input.value; });
   status.textContent = 'Saving…';
   try {
+    const startingLife = selectedStartingLife();
     const r = await fetch('/api/settings', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames})
+      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife})
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     settingsData = await r.json();
-    status.textContent = 'Names saved.';
+    status.textContent = 'Settings saved.';
     await refresh();
   } catch (e) {
-    status.textContent = 'Could not save names.';
+    status.textContent = e.message || 'Could not save settings.';
   }
 }
 
@@ -857,6 +948,14 @@ class WebPortal:
                 and self.turnhub.game.is_eliminated(player.player_number)
             ),
         }
+
+        if self.turnhub.game.players:
+            result["life_total"] = self.turnhub.game.life_totals.get(
+                player.player_number,
+                self.turnhub.game.starting_life,
+            )
+        else:
+            result["life_total"] = self.turnhub.persistence.starting_life()
 
         if stats is not None:
             result["turns_completed"] = stats.turns_completed
@@ -995,6 +1094,11 @@ class WebPortal:
             "state": hub.state,
             "generated_at_unix": time.time(),
             "timer_setting": timer_setting,
+            "starting_life": (
+                hub.game.starting_life
+                if hub.game.players
+                else hub.persistence.starting_life()
+            ),
             "warning_ms": display_warning_ms,
             "warning_off": WARNING_OFF,
             "warning_off_green_ms": WARNING_OFF_GREEN_MS,
@@ -1257,6 +1361,42 @@ class WebPortal:
                     self._send_json({"passed": True})
                     return
 
+                if path == "/api/web/life":
+                    ok, player, reason = portal.turnhub.web_control.authorize_living_player(
+                        self._bearer_token()
+                    )
+                    if not ok or player is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error": "invalid JSON"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    try:
+                        delta = int(payload.get("delta"))
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "delta must be an integer"}, HTTPStatus.BAD_REQUEST)
+                        return
+
+                    if delta not in (-100, -10, -1, 1, 10, 100):
+                        self._send_json({"error": "unsupported life adjustment"}, HTTPStatus.BAD_REQUEST)
+                        return
+
+                    if not portal.turnhub.on_web_life_adjust(player.player_number, delta):
+                        self._send_json(
+                            {"error": "life adjustment is not allowed in the current state"},
+                            HTTPStatus.CONFLICT,
+                        )
+                        return
+
+                    self._send_json({
+                        "accepted": True,
+                        "life_total": portal.turnhub.game.life_total(player.player_number),
+                    })
+                    return
+
                 if path in (
                     "/api/web/pause",
                     "/api/web/win-claim",
@@ -1309,6 +1449,7 @@ class WebPortal:
 
                     module_names = payload.get("module_names")
                     seat_names = payload.get("seat_names")
+                    starting_life = payload.get("starting_life")
                     if not isinstance(module_names, dict) or not isinstance(seat_names, dict):
                         self._send_json(
                             {"error": "module_names and seat_names must be objects"},
@@ -1320,7 +1461,14 @@ class WebPortal:
                         result = portal.turnhub.persistence.update_names(
                             module_names=module_names,
                             seat_names=seat_names,
+                            starting_life=starting_life,
                         )
+                    except ValueError as exc:
+                        self._send_json(
+                            {"error": str(exc)},
+                            HTTPStatus.BAD_REQUEST,
+                        )
+                        return
                     except OSError as exc:
                         self._send_json(
                             {"error": "could not save settings", "detail": str(exc)},

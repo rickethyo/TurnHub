@@ -29,15 +29,15 @@
     <Compile Include="Controller\game_log.py" />
     <Compile Include="Controller\leds.py" />
     <Compile Include="Controller\lobby.py" />
-    <Compile Include="Controller\persistence.py" />
     <Compile Include="Controller\player.py" />
+    <Compile Include="Controller\persistence.py" />
     <Compile Include="Controller\settings.py" />
     <Compile Include="Controller\status_monitor.py" />
-    <Compile Include="Controller\web_control.py" />
-    <Compile Include="Controller\web_portal.py" />
     <Compile Include="requirements.txt" />
     <Compile Include="Controller\serial_controller.py" />
     <Compile Include="Controller\turnhub.py" />
+    <Compile Include="Controller\web_control.py" />
+    <Compile Include="Controller\web_portal.py" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ESP32\TurnHubESP32.ino" />

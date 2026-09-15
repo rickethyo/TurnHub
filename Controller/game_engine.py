@@ -49,6 +49,12 @@ class GameEngine:
 
     stats: dict[int, PlayerStats] = field(default_factory=dict)
 
+    # Life totals are optional web-UI game data. Hardware behavior does not
+    # depend on them. starting_life is captured when the game begins so a
+    # later settings change only affects future games.
+    starting_life: int = 40
+    life_totals: dict[int, int] = field(default_factory=dict)
+
     # Logical players remain in the game record after elimination so player
     # numbers, names, web-controller claims, and statistics stay stable.
     # Order records the elimination sequence.
@@ -71,6 +77,7 @@ class GameEngine:
         players: list[PlayerSeat],
         starter: PlayerSeat,
         warning_ms: int,
+        starting_life: int = 40,
     ) -> None:
 
         self.players = list(players)
@@ -108,6 +115,45 @@ class GameEngine:
             player.player_number: PlayerStats()
             for player in self.players
         }
+
+        self.starting_life = int(starting_life)
+        self.life_totals = {
+            player.player_number: self.starting_life
+            for player in self.players
+        }
+
+    # ========================================================
+    # Life Totals (Web UI)
+    # ========================================================
+
+    def life_total(self, player_number: int | None) -> int | None:
+        if player_number is None:
+            return None
+        return self.life_totals.get(player_number)
+
+    def adjust_life(self, player_number: int, delta: int) -> bool:
+        """Adjust one logical player's life total.
+
+        Life is deliberately independent from elimination. Reaching zero or
+        a negative number never removes a player from turn order.
+        """
+        if self.state not in (STATE_RUNNING, STATE_PAUSED):
+            return False
+        if self.has_win_claim:
+            return False
+        if self.player_by_number(player_number) is None:
+            return False
+        if self.is_eliminated(player_number):
+            return False
+        if player_number not in self.life_totals:
+            self.life_totals[player_number] = self.starting_life
+
+        new_total = self.life_totals[player_number] + int(delta)
+        if abs(new_total) > 1_000_000:
+            return False
+
+        self.life_totals[player_number] = new_total
+        return True
 
     # ========================================================
     # Player / Module Lookup

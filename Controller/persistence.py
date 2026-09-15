@@ -32,6 +32,10 @@ SETTINGS_PATH = DATA_DIRECTORY / "settings.json"
 SESSION_PATH = DATA_DIRECTORY / "session.json"
 ACTIVE_AUTOSAVE_SECONDS = 10.0
 MAX_NAME_LENGTH = 40
+DEFAULT_STARTING_LIFE = 40
+STARTING_LIFE_PRESETS = (20, 25, 30, 40, 50, 2000, 4000, 8000)
+MIN_STARTING_LIFE = 0
+MAX_STARTING_LIFE = 1_000_000
 
 
 class PersistentStore:
@@ -48,6 +52,7 @@ class PersistentStore:
         self._lock = threading.RLock()
         self._module_names: dict[str, str] = {}
         self._seat_names: dict[str, str] = {}
+        self._starting_life: int = DEFAULT_STARTING_LIFE
 
         self._dirty = False
         self._last_session_write_monotonic = 0.0
@@ -115,6 +120,14 @@ class PersistentStore:
 
         module_names = data.get("module_names", {})
         seat_names = data.get("seat_names", {})
+        try:
+            starting_life = int(data.get("starting_life", DEFAULT_STARTING_LIFE))
+        except (TypeError, ValueError):
+            starting_life = DEFAULT_STARTING_LIFE
+        self._starting_life = max(
+            MIN_STARTING_LIFE,
+            min(starting_life, MAX_STARTING_LIFE),
+        )
 
         if isinstance(module_names, dict):
             self._module_names = {
@@ -135,6 +148,8 @@ class PersistentStore:
             return {
                 "module_names": dict(self._module_names),
                 "seat_names": dict(self._seat_names),
+                "starting_life": self._starting_life,
+                "starting_life_presets": list(STARTING_LIFE_PRESETS),
                 "storage_directory": str(self.data_directory),
             }
 
@@ -142,6 +157,7 @@ class PersistentStore:
         self,
         module_names: dict[Any, Any] | None = None,
         seat_names: dict[Any, Any] | None = None,
+        starting_life: Any | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             if module_names is not None:
@@ -160,14 +176,31 @@ class PersistentStore:
                         cleaned[str(key)] = name
                 self._seat_names = cleaned
 
+            if starting_life is not None:
+                try:
+                    value = int(starting_life)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("starting_life must be an integer") from exc
+                if not MIN_STARTING_LIFE <= value <= MAX_STARTING_LIFE:
+                    raise ValueError(
+                        f"starting_life must be between {MIN_STARTING_LIFE} and {MAX_STARTING_LIFE}"
+                    )
+                self._starting_life = value
+
             payload = {
-                "version": 1,
+                "version": 2,
                 "saved_at": datetime.now(timezone.utc).isoformat(),
                 "module_names": self._module_names,
                 "seat_names": self._seat_names,
+                "starting_life": self._starting_life,
             }
             self._atomic_write_json(self.settings_path, payload)
             return self.settings_snapshot()
+
+
+    def starting_life(self) -> int:
+        with self._lock:
+            return self._starting_life
 
     def module_name(self, module_id: int) -> str:
         with self._lock:
@@ -275,6 +308,11 @@ class PersistentStore:
                 "paused_seconds": self._paused_total_for_save(hub.game, now),
                 "current_warning_ms": hub.game.current_warning_ms,
                 "warning_logged_for_turn": hub.game.warning_logged_for_turn,
+                "starting_life": hub.game.starting_life,
+                "life_totals": {
+                    str(number): total
+                    for number, total in hub.game.life_totals.items()
+                },
                 "stats": {
                     str(number): {
                         "turns_completed": stat.turns_completed,
@@ -292,7 +330,7 @@ class PersistentStore:
         )
 
         return {
-            "version": 4,
+            "version": 5,
             "saved_at": datetime.now(timezone.utc).isoformat(),
             "hub_state": hub.state,
             "lobby": lobby,
@@ -533,6 +571,34 @@ class PersistentStore:
             game.stats[player.player_number] = PlayerStats(
                 turns_completed=max(0, turns),
                 total_turn_seconds=max(0.0, seconds),
+            )
+
+        try:
+            game.starting_life = int(
+                game_data.get("starting_life", self._starting_life)
+            )
+        except (TypeError, ValueError):
+            game.starting_life = self._starting_life
+        game.starting_life = max(
+            MIN_STARTING_LIFE,
+            min(game.starting_life, MAX_STARTING_LIFE),
+        )
+
+        raw_life_totals = game_data.get("life_totals", {})
+        game.life_totals = {}
+        for player in players:
+            raw_total = (
+                raw_life_totals.get(str(player.player_number), game.starting_life)
+                if isinstance(raw_life_totals, dict)
+                else game.starting_life
+            )
+            try:
+                total = int(raw_total)
+            except (TypeError, ValueError):
+                total = game.starting_life
+            game.life_totals[player.player_number] = max(
+                -MAX_STARTING_LIFE,
+                min(total, MAX_STARTING_LIFE),
             )
 
         try:

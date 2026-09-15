@@ -441,6 +441,7 @@ class GameLogWriter:
                     game.total_paused_seconds
                 )
             ),
+            f"Starting life: {game.starting_life}",
             (
                 "Elimination order: "
                 + (
@@ -472,6 +473,10 @@ class GameLogWriter:
                             if game.is_eliminated(player.player_number)
                             else ""
                         )
+                    ),
+                    (
+                        "  Final life: "
+                        f"{game.life_totals.get(player.player_number, game.starting_life)}"
                     ),
                     (
                         "  Completed turns: "
