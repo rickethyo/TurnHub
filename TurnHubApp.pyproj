@@ -32,6 +32,7 @@
     <Compile Include="Controller\player.py" />
     <Compile Include="Controller\settings.py" />
     <Compile Include="Controller\status_monitor.py" />
+    <Compile Include="Controller\web_portal.py" />
     <Compile Include="requirements.txt" />
     <Compile Include="Controller\serial_controller.py" />
     <Compile Include="Controller\turnhub.py" />
