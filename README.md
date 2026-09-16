@@ -1,239 +1,211 @@
 # TurnHub
 
-TurnHub is a physical turn timer and game management system I am building primarily for Magic: The Gathering.
+TurnHub is a local-first tabletop game-management platform for turn-based games. It began as a physical turn timer for Magic: The Gathering, but the current architecture supports fully virtual tables, official Atlas hardware with physical Sigils, and mixed tables where physical and browser-based controllers play together.
 
-The project started with a pretty simple idea: give each player a button and make it obvious whose turn it is. It has grown into a central hub that keeps track of turn order, turn time, warnings, pauses, player assignments, and game state.
+TurnHub is still a prototype. The current development Atlas is a Raspberry Pi with prototype wired hardware, while the software is being structured so the game engine does not depend on any particular controller or host device.
 
-The current version is still a prototype and uses a Raspberry Pi as the main controller with an Arduino Uno handling the physical hardware.
+## Design goals
 
-## How It Works
+- **Local first and offline capable.** Core play does not require a cloud service, account, subscription, or Internet connection.
+- **Hardware independent game state.** Players own game state; physical Sigils and browser-based Virtual Sigils are controllers for those players.
+- **Repairable and long lived.** The product direction favors standard parts, documented interfaces, replaceable components, and graceful degradation rather than planned obsolescence.
+- **Open software without counterfeit hardware.** TurnHub software and protocols can remain inspectable while future production Atlas hardware uses offline cryptographic identity to distinguish genuine hardware from third-party/community devices.
 
-The Raspberry Pi is the brain of TurnHub.
+## Core model
 
-It keeps track of:
-
-- Players
-- Turn order
-- Current player
-- Turn timers
-- Warning thresholds
-- Paused time
-- Game state
-- Player statistics
-- Winner
-- Lobby and rematch state
-
-The Arduino does not make any game decisions. It acts as an I/O controller for the buttons, LEDs, potentiometer, and piezo buzzer.
-
-This keeps the game state in one place and will make replacing the wired prototype with wireless player modules much easier later.
-
-## Current Hardware
-
-The current breadboard prototype supports two players.
-
-Each player has:
-
-- One pushbutton
-- Blue LED
-- Red LED
-- Green LED
-
-The prototype also has:
-
-- Raspberry Pi 3B
-- OSEPP Uno R3 Plus
-- Piezo buzzer
-- Potentiometer for setting the turn warning time
-
-## Player Controls
-
-Each player only needs one button.
-
-A short press by the active player ends their turn and passes to the next player.
-
-Holding the button for 2 seconds pauses the game.
-
-If the same hold continues to 5 seconds on the active player's module, that player opens a victory claim. Every other living player must confirm the claim before the game ends; any one denial cancels it and restores the previous game state.
-
-While the game is already paused, holding a button for 2 seconds resumes the game.
-
-## Starting a Game
-
-TurnHub starts in a lobby instead of immediately starting a game.
-
-The first module to press its button becomes Player 1 and the host.
-
-The next module becomes Player 2, followed by Player 3, and so on as more modules are eventually supported.
-
-After joining, a player can short press their button again to select themselves as the starting player.
-
-The host starts the game by holding their button for 2 seconds and releasing it.
-
-TurnHub then performs a 3 second countdown before starting the first player's timer.
-
-If the host continues holding the button for 5 seconds instead of releasing it, the lobby is cleared.
-
-
-## Shared-Module Players
-
-A physical module can deliberately represent two adjacent logical players. In the lobby, join the module normally, then **hold Action and tap Pass** to add a second player. Repeat the same chord to remove that second player.
-
-The chord does not also trigger the host randomizer or the normal Action-short command.
-
-With two modules and four players, table order is naturally:
+TurnHub separates several concepts that used to be tied to a physical module:
 
 ```text
-Module 0: Player 1, Player 2
-Module 1: Player 3, Player 4
+Profile (optional persistent person)
+  -> Player (identity/state in one game)
+    -> Controller (how that player interacts)
+      -> Physical Sigil
+      -> Virtual Sigil / browser
 ```
 
-Pass still advances one logical player at a time. A same-module handoff has its own LED pattern and two-note sound.
+A saved profile is optional. Guests can play without creating one. Changing controllers does not change the logical player or erase that player's current game state.
 
-The starter randomizer chooses among all logical players equally. On a shared module, Slot A is shown with one repeating blue pulse and Slot B with two repeating blue pulses. Manual Action-short starter selection cycles between the two local seats.
+## Current capabilities
 
-## LED Behavior
+### Game lifecycle
 
-The LEDs are intended to communicate most of the important game state without requiring a display.
+TurnHub tracks players, turn order, the active player, turn timing, warnings, pauses, eliminated players, victory claims, rematches, game statistics, and recoverable game state. The web UI includes game lifecycle controls so a completely virtual table does not depend on a physical host Sigil.
 
-### Lobby
+### Physical and Virtual Sigils
 
-Unjoined modules cycle through blue, green, and red.
+A player can join using a physical Sigil or play entirely through a browser. On Atlas-capable installations, the table can operate in **Physical + Virtual** mode or **Virtual Only** mode.
 
-Joined players use the red LED to indicate their assigned player number.
+Physical profile joining still requires a real Action press on the selected Sigil. Browser controllers use server-issued tokens and server-side authorization rather than trusting controls rendered in the page. During a paused game, players can switch between physical and virtual controllers while preserving the underlying player state.
 
-The host has a green LED.
+### Player profiles
 
-The selected starting player has a blue LED.
+TurnHub supports persistent local player profiles for recurring players. Profiles are stored locally under the TurnHub data directory and can contain:
 
-### During a Game
+- Display name
+- Optional 4-12 digit PIN
+- Avatar
+- Virtual Sigil sound preference
+- Vibration preference where the browser/device supports it
+- Browser volume preference
+- Game history
 
-The waiting player has a solid blue LED.
+PINs are never stored in plaintext. They are stored as salted PBKDF2-SHA256 hashes. A profile with a PIN requires that PIN for virtual joining. Profiles remain optional, and guest play remains supported.
 
-When a turn begins, the active player's blue LED flashes quickly for 3 seconds and then begins breathing.
+### Avatars
 
-When the active player reaches 75% of their warning time, their green LED turns on.
+On a Home installation, a player can upload an avatar from the browser. The browser crops/resizes the image to 256x256 before upload and TurnHub stores it locally. PNG, JPEG, and WebP are supported by the profile backend.
 
-At 100%, the green LED turns off and the red LED begins flashing.
+Venue mode can disable player avatar uploads by setting `TURNHUB_VENUE_MODE=1`, avoiding unmoderated images on shared/public displays. The Home and Venue behavior uses the same TurnHub software with different capability/policy defaults.
 
-When the game is paused, all player modules breathe blue together.
+### Virtual Sigil feedback
 
-### Game Over
+Virtual Sigils provide browser-side equivalents for physical feedback. Current browser feedback includes sound and, where supported, vibration for events such as turn passes, pause/resume, game over, targeted nudges, and table nudges. Preferences are stored per saved profile.
 
-The winner flashes blue and then remains solid blue.
+Browser audio is initialized after user interaction because mobile browsers may block autoplay before the user interacts with the page.
 
-The host's green LED also turns on so everyone knows which controller can start the next game.
+### Game profiles and life totals
 
-The host can short press for a rematch with the same players or long press to clear the lobby completely.
+The web UI currently includes profiles for:
 
-## Warning Timer
+- Generic
+- Magic: The Gathering
+- MTG Commander
+- Yu-Gi-Oh!
 
-The potentiometer controls when TurnHub begins warning a player about the length of their turn.
+The selected game profile and starting life are captured when a game starts. MTG profiles expose appropriate life controls, and Commander additionally tracks commander damage received from each opposing commander. Commander damage is informational and does not automatically eliminate a player.
 
-The warning can currently be adjusted from 5 seconds to 5 minutes in 5 second increments.
+Authenticated living players may adjust another living player's life. Cross-player changes take effect immediately and create a 30-second notice for the affected player, who may confirm the change, deny it to reverse that delta, or let it auto-confirm.
 
-The value is locked when a turn begins.
+### Elimination and victory
 
-This means changing the potentiometer during someone's turn does not suddenly change their current timer. The new setting takes effect when the next turn starts.
+Eliminated players remain in the game record without renumbering. Turn order skips them, their statistics remain available, and the last living player is declared the winner automatically.
 
-This also allows the warning time to be increased as a game gets longer and turns naturally become more complicated.
+Players may self-eliminate from their authenticated browser controller after confirmation. Physical elimination is also supported by the prototype controls.
 
-## Project Structure
+A victory claim freezes game clocks while the table verifies the claim. Other living players can confirm or deny it, and a denial restores the prior running/paused state without charging claim-review time to the active turn.
 
-The Raspberry Pi software is written in Python and has been split into several modules instead of keeping the entire program in one large file.
+### Nudge
 
-```text
-TurnHub/
-├── turnhub.py
-├── config.py
-├── serial_controller.py
-├── game_engine.py
-├── lobby.py
-├── leds.py
-├── audio.py
-├── requirements.txt
-└── README.md
+Authenticated living players can nudge a specific player or the entire table. Nudges do not change game state and are rate limited. Physical hardware provides its available LED/audio feedback, while Virtual Sigils receive browser sound/vibration feedback.
 
-## Local web portal
+## Local web interface
 
-TurnHub serves a self-contained local-network portal on port 8080 with no cloud service or external web assets. On a typical Raspberry Pi hostname, browse to:
+TurnHub serves a self-contained local web UI on port `8080` with no external web assets. On the prototype Raspberry Pi, a typical address is:
 
 ```text
 http://turnhub.local:8080/
 ```
 
-If mDNS is unavailable, use the Raspberry Pi's LAN IP address instead. The portal provides live game output, settings, secure paired-player controls, global pause, Pass Turn for the active paired seat, and victory-claim voting. Physical controls always remain available.
-## Local web settings and recovery
+If mDNS is unavailable, use the host's LAN IP address on port 8080.
 
-The local web portal at `http://turnhub.local:8080/` (or the hub IP on port 8080) includes a basic Settings panel for persistent module and player/seat names. Names are keyed to physical module seats so they remain attached to the same person/seat if logical player numbers shift during lobby setup.
+The top-level UI is organized into:
 
-TurnHub stores user settings and the recoverable session outside the Git working tree under `~/.local/share/turnhub/`. Game state is saved after state changes and periodically during active play. If TurnHub restarts during a running game, the game is restored **paused** with player assignments, starter, active player, timers, and statistics preserved; downtime is not charged to a turn.
+- **Game** - game lifecycle, starter selection, pause/resume, rematch/reset, and live game state
+- **Players** - saved profiles, guests, physical/virtual joining, player names, controller assignment, life and player tools
+- **Settings** - game profile, starting life, turn timer, and table-interface mode
+- **System** - persistence/runtime information and Atlas host controls when the runtime supports them
 
+The same web application is intended to serve phones/tablets on a Home Atlas and the built-in kiosk display of a future Venue/Tournament Atlas.
 
-## Web settings, recovery, and paired Pass control
+## Persistence and recovery
 
-TurnHub serves its local portal on port `8080`. The portal can name modules and physical player seats, and TurnHub stores those settings outside the Git checkout under `~/.local/share/turnhub/`. Recoverable game state is autosaved there as well; an interrupted live game returns paused so reboot downtime is never charged to a turn.
+TurnHub stores local data outside the Git working tree under:
 
-A browser may optionally become a player controller. In the lobby, the browser chooses an exact physical seat and TurnHub requires a short Action press on that seat's physical module before issuing a random browser token. One browser claim is allowed per seat. The browser token is stored only in that browser; TurnHub persists only its SHA-256 hash. Once the game starts, normal player identity changes are locked.
+```text
+~/.local/share/turnhub/
+```
 
-The web Pass button is shown only when the paired browser's exact logical seat is active. The server independently verifies the bearer token, running state, and exact active `(module, slot)` before advancing the turn. A hidden or manually forged button cannot pass another player's turn.
+This includes settings, recoverable session state, saved profiles, and avatar files. Active game state is autosaved. If TurnHub restarts during a live game, the session is restored **paused** so downtime is not charged to a player.
 
-If a phone is lost or dies during play, pause the game. A replacement browser may request reassignment to a seat, but the reassignment is not accepted until the physical host module approves it with a short Action press. Approval replaces the old token immediately.
+Profile-to-player associations are included in recovery so a saved player's identity can survive a service/device restart during a game.
 
-The physical Pass button always remains available. TurnHub also suppresses the near-simultaneous duplicate physical Pass that could arrive immediately after a successful web Pass on a shared module.
+## Turn timer
 
-## Player Elimination
+The turn-warning setting is currently configured in the web UI rather than by the old prototype potentiometer. Current modes are:
 
-Multiplayer games keep eliminated players in the game record without renumbering anyone. Turn order skips eliminated seats, their statistics remain available, and the last living player is declared the winner automatically.
+- **Disabled** - no red warning limit, but the active player receives the green five-minute indication
+- **5 minutes**
+- **10 minutes**
 
-Elimination is deliberately physical and only available while the game is paused:
+The setting for a game is captured by the game engine rather than being continually changed by hardware input. Physical timer controls can be reintroduced later through the same interface without coupling the game engine to them.
 
-1. Pause the game normally.
-2. On the module containing the player to eliminate, **hold Action and tap Pass**.
-3. TurnHub marks the selected seat in red. On a shared module, Action Short cycles between the living local seats. Seat A uses one repeating red pulse and Seat B uses two.
-4. Press Pass on that module with Action released to confirm the elimination.
-5. The game remains paused. Hold Action normally when the table is ready to resume.
+## Current prototype hardware
 
-Action Long cancels an armed elimination selection instead of resuming immediately. A confirmed elimination gives three red LED strikes and a distinct descending audio cue. Eliminated players remain visible in the web portal with an `ELIMINATED` marker and are included in game logs and recovered session state.
+The development setup uses a Raspberry Pi 3B as the host and prototype microcontroller hardware for physical I/O. Prototype work has included Arduino and ESP32 modules while the design moves toward wireless Sigils.
 
+Physical Sigil concepts include:
 
-## Victory Claims
+- Pass control
+- Action control
+- Blue, green, and red status LEDs
+- Audio feedback where hardware supports it
+- Future persistent low-power display support
 
-A victory claim freezes the clocks while the table verifies the win condition. A paired living player may press **I Win** in the web portal, or the active player may continue the normal physical Action hold to the 5-second WIN event.
+The Raspberry Pi owns game state. Microcontrollers act as I/O devices and do not make game-rule decisions.
 
-Every other living player must confirm. Any one denial immediately cancels the claim and restores the exact prior running/paused state without charging claim-review time to the game or active turn. The claimant may also cancel their own web claim.
+### Prototype LED behavior
 
-Web confirmations are tied to authenticated physical seats. Physical confirmation uses a logical confirmation cursor that walks physical modules around the table. With shared prototype modules, all living players on the next physical module confirm first before the cursor wraps back to another player sharing the claimant's module. On the module currently being asked to vote, **Action Short confirms** and **Pass denies**.
+The current prototype uses LEDs to communicate state such as lobby/host/starter selection, active and waiting players, timer caution/warning, pause, elimination, and game over.
 
-The portal shows the claimant, confirmation progress, and the exact next logical player expected for physical confirmation. Pending claims are recoverable; after a reboot TurnHub restores them paused for safety.
+The current wired prototype exposes red and green inverted below the LED controller. TurnHub compensates once at the serial boundary with `SWAP_RED_GREEN_OUTPUTS = True`, keeping game logic semantic. Future corrected hardware can disable that compatibility flag without changing the game engine.
 
-## Web Global Pause
+### Shared physical modules
 
-Any paired living player's portal can pause a running game. Web control is intentionally pause-only: resuming still requires physical hardware. Display-only browsers do not receive game-control buttons.
+The prototype can represent two adjacent logical players on one physical module. Pass still advances one logical player at a time, and the LED patterns distinguish the local seats. This is primarily a prototype capability and does not change the higher-level Player/Controller architecture.
 
-## Prototype Red/Green Mapping
+## Runtime modes
 
-The current prototype hardware exposes red and green inverted below the LED controller. TurnHub compensates once at the serial boundary with `SWAP_RED_GREEN_OUTPUTS = True`, keeping all game logic semantic: host/caution/confirmation are green and warning/elimination are red. The lobby idle cycle remains explicitly Blue -> Green -> Red. Future hardware with corrected wiring can disable the compatibility flag instead of changing game logic.
+Platform selection is intentionally separate from game logic. `TURNHUB_MODE` currently supports:
 
-## Web Life Totals
+- `virtual` - browser/Virtual Sigil operation only
+- `development-atlas` - explicitly enables current prototype physical hardware
+- `auto` - reserved for future production Atlas identity verification and currently fails safely into Virtual Mode
 
-TurnHub's local web portal can optionally track a life total for each logical player. This is a web-only feature and does not change module firmware, LEDs, audio, or physical button behavior.
+For bench compatibility, the prototype currently defaults to `development-atlas`. A public software release should default to `auto` or `virtual` so generic hardware is never silently treated as an official Atlas.
 
-- Starting life is configured in the portal Settings page.
-- Built-in presets: 20, 25, 30, 40, 50, 2000, 4000, and 8000, plus a custom whole-number value.
-- The starting-life setting is captured when a game begins. Changing Settings during a game only affects the next game.
-- Everyone can see every player's life total, but only the authenticated browser paired to that exact seat can change its own total.
-- Games at 100 life or below show -1/+1 controls. Larger-life games show -100/-10/+10/+100 controls.
-- Life may reach zero or become negative without automatically eliminating a player. Elimination remains a separate deliberate TurnHub action.
-- Current life totals are included in recoverable game state and restored after a reboot.
-- Completed game logs include the game's starting life and each player's final life total.
+Future production Atlas authentication is intended to be entirely offline: a secure element holds a non-extractable device private key, TurnHub verifies a manufacturer-signed device certificate and challenge signature locally, and authentication failure falls back to TurnHub Virtual rather than bricking the software.
 
+## Project structure
 
-## Web Game Profiles, Shared Life, Commander Damage, Self-Elimination, and Nudge
+The controller software is Python and deliberately split into focused modules:
 
-The local web portal can select a game profile for the next game. Profiles currently include Generic, Magic: The Gathering, MTG Commander, and Yu-Gi-Oh!, with profile-appropriate starting-life presets plus custom life. The profile and starting life are captured when a game starts.
+```text
+TurnHub/
+├── Controller/
+│   ├── turnhub.py             # application orchestration
+│   ├── config.py              # runtime constants
+│   ├── game_engine.py         # game state and rules
+│   ├── lobby.py               # lobby/player construction
+│   ├── player.py              # logical player-seat model
+│   ├── player_profiles.py     # persistent profiles, PINs, avatars, history
+│   ├── web_control.py         # browser/controller authorization and assignment
+│   ├── web_portal.py          # self-contained local web application/API
+│   ├── persistence.py         # settings and recoverable session state
+│   ├── platform_identity.py   # Virtual/Atlas runtime selection
+│   ├── serial_controller.py   # physical-module transport
+│   ├── leds.py                # semantic LED rendering
+│   ├── audio.py               # physical audio output
+│   ├── game_log.py            # completed-game logs
+│   └── status_monitor.py      # hardware/status monitoring
+├── Arduino/                   # Arduino prototype firmware
+├── ESP32/                     # ESP32 prototype firmware
+├── requirements.txt
+└── README.md
+```
 
-During an active game, any authenticated living player may adjust any living player's life. Cross-player edits take effect immediately and create a 30-second notice on the affected player's paired portal. The affected player may confirm the edit, deny it to reverse only that edit's delta, or do nothing and allow it to auto-confirm. MTG profiles expose +/-10 controls, while MTG Commander also tracks commander damage received from each opposing commander. Commander damage is informational and never auto-eliminates a player.
+The important architectural rule is that `game_engine.py` should not care whether an action came from a physical Sigil, a Virtual Sigil, or a future controller implementation.
 
-A paired living player may self-eliminate from their portal after two browser confirmations. Physical elimination remains available. Web self-elimination uses the same logical elimination state, statistics, persistence, and last-player-standing behavior as physical elimination.
+## Product direction
 
-Authenticated living players may also nudge the entire table or a specific living player. Nudges do not alter game state. The target Sigil performs a brief attention flash and the current prototype Atlas/Pi buzzer plays a nudge sound. Current prototype Sigils do not contain individual buzzers, so target-specific audio will become available when Sigil hardware adds one. Nudges are rate-limited to prevent spam.
+TurnHub is evolving toward one software platform with multiple deployment profiles rather than separate incompatible products:
+
+- **TurnHub Virtual** - software-only local table management
+- **Home Atlas** - headless first-party host with physical and/or Virtual Sigils, managed from players' devices
+- **Venue/Tournament Atlas** - first-party multi-game host with an integrated display running the same web UI in kiosk mode
+- **Community/third-party hardware** - compatible implementations that can participate without being represented as genuine TurnHub Atlas hardware
+
+Multi-game tournament/venue management and production Atlas secure-element verification are future work, not current prototype capabilities.
+
+## Status
+
+TurnHub is under active development and the hardware, APIs, and UX may change. The current priority is keeping the core model clean while adding first-party features without making physical hardware mandatory.
