@@ -239,6 +239,16 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     </div>
 
     <div class="settings-group">
+      <h3>Turn timer</h3>
+      <p class="settings-note">Sets the timer behavior for the next game. Disabled keeps the green five-minute indicator but never enters red warning mode.</p>
+      <div class="field"><label>Timer</label><select id="warningSelect">
+        <option value="0">Disabled</option>
+        <option value="300000">5 minutes</option>
+        <option value="600000">10 minutes</option>
+      </select></div>
+    </div>
+
+    <div class="settings-group">
       <h3>Starting life</h3>
       <p class="settings-note">This value is copied to every player when the next game begins. Changing it during a game does not alter current life totals.</p>
       <div class="form-grid">
@@ -945,6 +955,7 @@ async function openSettings() {
     profileSelect.innerHTML = Object.entries(profiles).map(([key,value]) => `<option value="${esc(key)}">${esc(value.label || key)}</option>`).join('');
     profileSelect.value = settingsData.game_profile || 'generic';
     document.getElementById('startingLifeCustom').value = String(Number(settingsData.starting_life ?? 40));
+    document.getElementById('warningSelect').value = String(Number(settingsData.warning_ms ?? 0));
     gameProfileSelectionChanged(true);
 
     document.getElementById('persistenceNote').textContent = `Game state autosaves after changes and every ${settingsData.active_autosave_seconds} seconds during active play. Active games recover paused after a restart.`;
@@ -1000,10 +1011,11 @@ async function saveSettings() {
   try {
     const startingLife = selectedStartingLife();
     const gameProfile = document.getElementById('gameProfileSelect').value || 'generic';
+    const warningMs = Number(document.getElementById('warningSelect').value || 0);
     const r = await fetch('/api/settings', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife, game_profile:gameProfile})
+      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife, game_profile:gameProfile, warning_ms:warningMs})
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     settingsData = await r.json();
@@ -1724,6 +1736,7 @@ class WebPortal:
                     seat_names = payload.get("seat_names")
                     starting_life = payload.get("starting_life")
                     game_profile = payload.get("game_profile")
+                    warning_ms = payload.get("warning_ms")
                     if not isinstance(module_names, dict) or not isinstance(seat_names, dict):
                         self._send_json(
                             {"error": "module_names and seat_names must be objects"},
@@ -1737,6 +1750,7 @@ class WebPortal:
                             seat_names=seat_names,
                             starting_life=starting_life,
                             game_profile=game_profile,
+                            warning_ms=warning_ms,
                         )
                     except ValueError as exc:
                         self._send_json(
@@ -1750,6 +1764,16 @@ class WebPortal:
                             HTTPStatus.INTERNAL_SERVER_ERROR,
                         )
                         return
+
+                    # The web setting is authoritative for future games. An
+                    # active turn keeps the value already locked by GameEngine.
+                    portal.turnhub.warning_ms = portal.turnhub.persistence.warning_ms()
+                    timer_text = (
+                        "OFF (green at 5 minutes)"
+                        if portal.turnhub.warning_ms == WARNING_OFF
+                        else f"{portal.turnhub.warning_ms // 60_000} minutes"
+                    )
+                    print(f"[SETTINGS] Turn timer: {timer_text}")
 
                     result["module_ids"] = list(MODULE_IDS)
                     result["active_autosave_seconds"] = 10

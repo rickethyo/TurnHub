@@ -63,6 +63,11 @@ GAME_PROFILES = {
 DEFAULT_GAME_PROFILE = "generic"
 MIN_STARTING_LIFE = 0
 MAX_STARTING_LIFE = 1_000_000
+WARNING_DISABLED = 0
+WARNING_5_MIN = 5 * 60 * 1000
+WARNING_10_MIN = 10 * 60 * 1000
+WARNING_OPTIONS = (WARNING_DISABLED, WARNING_5_MIN, WARNING_10_MIN)
+DEFAULT_WARNING_MS = WARNING_DISABLED
 
 
 class PersistentStore:
@@ -81,6 +86,7 @@ class PersistentStore:
         self._seat_names: dict[str, str] = {}
         self._game_profile: str = DEFAULT_GAME_PROFILE
         self._starting_life: int = DEFAULT_STARTING_LIFE
+        self._warning_ms: int = DEFAULT_WARNING_MS
 
         self._dirty = False
         self._last_session_write_monotonic = 0.0
@@ -162,6 +168,14 @@ class PersistentStore:
             min(starting_life, MAX_STARTING_LIFE),
         )
 
+        try:
+            warning_ms = int(data.get("warning_ms", DEFAULT_WARNING_MS))
+        except (TypeError, ValueError):
+            warning_ms = DEFAULT_WARNING_MS
+        self._warning_ms = (
+            warning_ms if warning_ms in WARNING_OPTIONS else DEFAULT_WARNING_MS
+        )
+
         if isinstance(module_names, dict):
             self._module_names = {
                 str(key): self._clean_name(value)
@@ -185,6 +199,8 @@ class PersistentStore:
                 "game_profiles": GAME_PROFILES,
                 "starting_life": self._starting_life,
                 "starting_life_presets": list(STARTING_LIFE_PRESETS),
+                "warning_ms": self._warning_ms,
+                "warning_options": list(WARNING_OPTIONS),
                 "storage_directory": str(self.data_directory),
             }
 
@@ -194,6 +210,7 @@ class PersistentStore:
         seat_names: dict[Any, Any] | None = None,
         starting_life: Any | None = None,
         game_profile: Any | None = None,
+        warning_ms: Any | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             if module_names is not None:
@@ -229,6 +246,15 @@ class PersistentStore:
                     )
                 self._starting_life = value
 
+            if warning_ms is not None:
+                try:
+                    value = int(warning_ms)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("warning_ms must be an integer") from exc
+                if value not in WARNING_OPTIONS:
+                    raise ValueError("warning_ms must be 0, 300000, or 600000")
+                self._warning_ms = value
+
             payload = {
                 "version": 2,
                 "saved_at": datetime.now(timezone.utc).isoformat(),
@@ -236,6 +262,7 @@ class PersistentStore:
                 "seat_names": self._seat_names,
                 "game_profile": self._game_profile,
                 "starting_life": self._starting_life,
+                "warning_ms": self._warning_ms,
             }
             self._atomic_write_json(self.settings_path, payload)
             return self.settings_snapshot()
@@ -244,6 +271,10 @@ class PersistentStore:
     def starting_life(self) -> int:
         with self._lock:
             return self._starting_life
+
+    def warning_ms(self) -> int:
+        with self._lock:
+            return self._warning_ms
 
     def game_profile(self) -> str:
         with self._lock:

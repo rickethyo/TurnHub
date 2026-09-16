@@ -26,7 +26,6 @@ from leds import LEDController
 from lobby import Lobby
 from persistence import PersistentStore
 from serial_controller import SerialController
-from settings import SettingsController
 from status_monitor import StatusMonitor
 from web_control import WebControlManager
 from web_portal import WebPortal
@@ -71,9 +70,6 @@ class TurnHub:
             self.serial
         )
 
-        # Physical hub DIP switches.
-        self.settings = SettingsController()
-
         # ====================================================
         # Game Controllers
         # ====================================================
@@ -115,14 +111,14 @@ class TurnHub:
         self._elimination_chord_modules: set[int] = set()
         self._suppress_elimination_short_modules: set[int] = set()
 
-        # Read the physical timer selector.
-        self.warning_ms = (
-            self.settings.warning_ms()
-        )
+        # Timer configuration currently comes from the persistent web UI setting.
+        # Physical timer controls can be reintroduced later without changing the
+        # GameEngine interface.
+        self.warning_ms = self.persistence.warning_ms()
 
         print(
             "[SETTINGS] Turn timer: "
-            f"{self.settings.description()}"
+            f"{warning_description(self.warning_ms)}"
         )
 
         self.start_countdown_at: float | None = None
@@ -131,32 +127,6 @@ class TurnHub:
         # Restore the last recoverable table state, if any. Active games
         # intentionally return paused so downtime is never charged to a turn.
         self.persistence.restore_session(self)
-
-    # ========================================================
-    # Physical Hub Settings
-    # ========================================================
-
-    def update_settings(self) -> None:
-        """
-        Watch the physical DIP switches.
-
-        Changes update the warning setting used for future
-        turns. The GameEngine locks the selected value when
-        each turn begins, so changing the switch does not
-        alter a turn already in progress.
-        """
-
-        if not self.settings.changed():
-            return
-
-        self.warning_ms = (
-            self.settings.warning_ms()
-        )
-
-        print(
-            "[SETTINGS] Turn timer: "
-            f"{self.settings.description()}"
-        )
 
     # ========================================================
     # Serial Protocol
@@ -650,7 +620,7 @@ class TurnHub:
 
             eliminated, game_finished = self.game.eliminate_player(
                 player_number,
-                self.settings.warning_ms(),
+                self.warning_ms,
             )
             if not eliminated:
                 if was_running:
@@ -1497,11 +1467,8 @@ class TurnHub:
 
             return
 
-        # Capture the physical timer setting when the
-        # first turn begins.
-        self.warning_ms = (
-            self.settings.warning_ms()
-        )
+        # Capture the configured timer setting when the first turn begins.
+        self.warning_ms = self.persistence.warning_ms()
 
         # Once play begins, browser identity is locked. Any unfinished
         # lobby pairing request is discarded rather than carrying into play.
@@ -1799,7 +1766,7 @@ class TurnHub:
 
         print(
             "[SETTINGS] Turn timer: "
-            f"{self.settings.description()}"
+            f"{warning_description(self.warning_ms)}"
         )
 
         print(
@@ -1837,9 +1804,6 @@ class TurnHub:
             while True:
 
                 now = time.monotonic()
-
-                # Check physical hub controls.
-                self.update_settings()
 
                 self.update_countdown(
                     now
@@ -1889,13 +1853,6 @@ class TurnHub:
 
             try:
                 self.serial.all_off()
-
-            except Exception:
-                pass
-
-            # Release the DIP-switch GPIO inputs.
-            try:
-                self.settings.cleanup()
 
             except Exception:
                 pass
