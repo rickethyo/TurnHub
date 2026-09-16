@@ -32,6 +32,7 @@
     <Compile Include="Controller\platform_identity.py" />
     <Compile Include="Controller\player.py" />
     <Compile Include="Controller\persistence.py" />
+    <Compile Include="Controller\player_profiles.py" />
     <Compile Include="Controller\settings.py" />
     <Compile Include="Controller\status_monitor.py" />
     <Compile Include="requirements.txt" />
