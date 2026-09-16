@@ -44,6 +44,8 @@ class WebControlManager:
 
         # Physical seat key -> SHA-256 bearer-token hash.
         self._claims: dict[tuple[int, int], str] = {}
+        # Current-game association between a logical seat and persistent profile.
+        self._profile_by_seat: dict[tuple[int, int], str] = {}
 
         # Short-lived confirmation requests. The raw bearer token exists only
         # here long enough for the requesting browser to collect it.
@@ -149,6 +151,22 @@ class WebControlManager:
     # Public Claim State
     # ========================================================
 
+    def profile_assignments_snapshot(self) -> dict[str, str]:
+        with self._lock:
+            return {self.seat_key_text(k): v for k, v in self._profile_by_seat.items()}
+
+    def restore_profile_assignments(self, raw: Any) -> None:
+        if not isinstance(raw, dict):
+            return
+        valid = {p.seat_key for p in self._current_players()}
+        restored: dict[tuple[int, int], str] = {}
+        for key, profile_id in raw.items():
+            seat_key = self.parse_seat_key(key)
+            if seat_key in valid and self.turnhub.profiles.get(str(profile_id)) is not None:
+                restored[seat_key] = str(profile_id)
+        with self._lock:
+            self._profile_by_seat = restored
+
     def claim_hashes_snapshot(self) -> dict[str, str]:
         """Return only hashes for persistence, never browser bearer tokens."""
         with self._lock:
@@ -224,6 +242,14 @@ class WebControlManager:
         with self._lock:
             return set(self._claims)
 
+    def profile_id_for_seat(self, seat_key: tuple[int, int]) -> str | None:
+        with self._lock:
+            return self._profile_by_seat.get(seat_key)
+
+    def profile_for_seat(self, seat_key: tuple[int, int]) -> dict[str, Any] | None:
+        profile_id = self.profile_id_for_seat(seat_key)
+        return self.turnhub.profiles.get(profile_id) if profile_id else None
+
     # ========================================================
     # Browser Identity
     # ========================================================
@@ -244,6 +270,7 @@ class WebControlManager:
             "module_id": player.module_id,
             "slot": player.slot,
             "player_number": player.player_number,
+            "profile_id": self.profile_id_for_seat(seat_key),
             "can_pass": (
                 self.turnhub.state == STATE_RUNNING
                 and self.turnhub.game.active_player is not None
@@ -278,10 +305,17 @@ class WebControlManager:
         self._pending[request_id] = pending
         return pending
 
-    def create_virtual_player(self, name: str) -> tuple[bool, dict[str, Any], int]:
+    def create_virtual_player(self, name: str, profile_id: str | None = None, pin: str = "") -> tuple[bool, dict[str, Any], int]:
         """Join a browser-native player without requiring physical hardware."""
         if self.turnhub.state != STATE_LOBBY:
             return False, {"error": "players can only join in the lobby"}, 409
+        if profile_id:
+            profile = self.turnhub.profiles.get(profile_id)
+            if profile is None:
+                return False, {"error": "unknown player profile"}, 404
+            if profile.get("has_pin") and not self.turnhub.profiles.authenticate(profile_id, pin):
+                return False, {"error": "incorrect profile PIN"}, 401
+            name = profile.get("name", name)
         player = self.turnhub.lobby.add_virtual_player()
         if player is None:
             return False, {"error": "could not create virtual player"}, 500
@@ -294,8 +328,10 @@ class WebControlManager:
         token = secrets.token_urlsafe(32)
         with self._lock:
             self._claims[player.seat_key] = self._token_hash(token)
+            if profile_id:
+                self._profile_by_seat[player.seat_key] = str(profile_id)
         self.turnhub.persistence.mark_dirty()
-        return True, {"token": token, "seat_key": list(player.seat_key), "mode": "virtual"}, 200
+        return True, {"token": token, "seat_key": list(player.seat_key), "mode": "virtual", "profile_id": profile_id}, 200
 
     def _next_virtual_module(self) -> int:
         used = {p.module_id for p in (self.turnhub.game.players or self.turnhub.lobby.players)}
@@ -341,6 +377,9 @@ class WebControlManager:
         with self._lock:
             self._claims.pop(old_key, None)
             self._claims[replacement.seat_key] = self._token_hash(new_token)
+            profile_id = self._profile_by_seat.pop(old_key, None)
+            if profile_id:
+                self._profile_by_seat[replacement.seat_key] = profile_id
         self.turnhub.persistence.mark_dirty()
         return True, {"token": new_token, "seat_key": list(replacement.seat_key), "mode": "virtual"}, 200
 
@@ -363,17 +402,22 @@ class WebControlManager:
             self._pending_physical_join = {"request_id":request_id,"created_at":time.monotonic(),"status":"pending","mode":"switch","old_seat_key":seat_key,"player_number":player.player_number}
         return True, {"request_id":request_id,"status":"pending","message":"Press Action on an available physical Sigil."}, 202
 
-    def request_physical_join(self, name: str) -> tuple[bool, dict[str, Any], int]:
+    def request_physical_join(self, name: str, profile_id: str | None = None) -> tuple[bool, dict[str, Any], int]:
         """Arm browser-first pairing; next available physical Sigil Action wins."""
         if self.turnhub.state != STATE_LOBBY:
             return False, {"error": "players can only join in the lobby"}, 409
+        if profile_id:
+            profile = self.turnhub.profiles.get(profile_id)
+            if profile is None:
+                return False, {"error": "unknown player profile"}, 404
+            name = profile.get("name", name)
         if not self.turnhub.hardware_enabled:
             return False, {"error": "physical Sigils are disabled in Virtual Only mode"}, 409
         with self._lock:
             if self._pending_physical_join is not None:
                 return False, {"error": "another physical join is already waiting for a Sigil"}, 409
             request_id = secrets.token_urlsafe(18)
-            self._pending_physical_join = {"request_id": request_id, "name": str(name or "").strip()[:40], "created_at": time.monotonic(), "status": "pending"}
+            self._pending_physical_join = {"request_id": request_id, "name": str(name or "").strip()[:40], "profile_id": profile_id, "created_at": time.monotonic(), "status": "pending"}
         return True, {"request_id": request_id, "status": "pending", "message": "Press Action on an available physical Sigil."}, 202
 
     def confirm_physical_join(self, module_id: int) -> dict[str, Any] | None:
@@ -406,6 +450,9 @@ class WebControlManager:
                 token = secrets.token_urlsafe(32)
                 self._claims.pop(old_key, None)
                 self._claims[replacement.seat_key] = self._token_hash(token)
+                profile_id = self._profile_by_seat.pop(old_key, None)
+                if profile_id:
+                    self._profile_by_seat[replacement.seat_key] = profile_id
                 pending.update({"status":"confirmed","token":token,"seat_key":replacement.seat_key,"module_id":module_id})
                 self.turnhub.persistence.mark_dirty()
                 return {"player": replacement, "module_id": module_id}
@@ -419,6 +466,8 @@ class WebControlManager:
                 return None
             token = secrets.token_urlsafe(32)
             self._claims[player.seat_key] = self._token_hash(token)
+            if pending.get("profile_id"):
+                self._profile_by_seat[player.seat_key] = str(pending["profile_id"])
             pending.update({"status":"confirmed", "token":token, "seat_key":player.seat_key, "module_id":module_id})
             name = pending.get("name", "")
             if name:

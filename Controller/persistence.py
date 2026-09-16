@@ -412,9 +412,14 @@ class PersistentStore:
             if web_control is not None
             else {}
         )
+        profile_assignments = (
+            web_control.profile_assignments_snapshot()
+            if web_control is not None
+            else {}
+        )
 
         return {
-            "version": 5,
+            "version": 6,
             "saved_at": datetime.now(timezone.utc).isoformat(),
             "hub_state": hub.state,
             "lobby": lobby,
@@ -422,6 +427,7 @@ class PersistentStore:
             # Only token hashes are persisted. Browser bearer tokens never
             # appear in session.json.
             "web_claims": web_claims,
+            "profile_assignments": profile_assignments,
         }
 
     def mark_dirty(self) -> None:
@@ -484,6 +490,9 @@ class PersistentStore:
 
         web_control.restore_claim_hashes(
             data.get("web_claims", {})
+        )
+        web_control.restore_profile_assignments(
+            data.get("profile_assignments", {})
         )
 
     def restore_session(self, hub) -> bool:

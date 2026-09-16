@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import binascii
 import socket
 import subprocess
 import threading
@@ -83,6 +85,8 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .player.winner { border-color:var(--good); }
 .player.eliminated { border-color:rgba(239,106,106,.38); opacity:.62; }
 .player.eliminated .player-name { text-decoration:line-through; text-decoration-thickness:2px; }
+.avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; border:1px solid var(--line); background:var(--bg); }
+.profile-row { display:flex; gap:10px; align-items:center; }
 .player-head { display:flex; justify-content:space-between; gap:8px; align-items:center; }
 .player-name { font-size:1.22rem; font-weight:850; }
 .player-seat { color:var(--muted); font-size:.88rem; margin-top:3px; }
@@ -310,8 +314,21 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 <div id="playerManagerOverlay" class="overlay hidden" role="dialog" aria-modal="true">
   <div class="dialog">
     <div class="dialog-head"><div class="dialog-title">Players & Sigils</div><button class="close-button" type="button" onclick="closePlayerManager()">×</button></div>
-    <p class="settings-note">Players own their game state. Choose a physical Sigil by pressing its Action button, or join with a completely virtual controller.</p>
-    <div class="field"><label>Player name</label><input id="newPlayerName" maxlength="40" placeholder="Name"></div>
+    <p class="settings-note">Players own their game state. Choose a saved profile or join as a guest, then use a physical Sigil or play virtually.</p>
+    <div class="settings-group"><h3>Saved player</h3>
+      <div class="form-grid">
+        <div class="field"><label>Profile</label><select id="profileSelect" onchange="profileSelectionChanged()"><option value="">Guest / no saved profile</option></select></div>
+        <div class="field"><label>PIN for virtual play</label><input id="profilePin" type="password" inputmode="numeric" maxlength="12" placeholder="Optional"></div>
+      </div>
+      <div class="field"><label>Player name</label><input id="newPlayerName" maxlength="40" placeholder="Name"></div>
+      <div class="dialog-actions"><button class="secondary-button" type="button" onclick="createProfile()">Save as new profile</button><button id="editProfileButton" class="secondary-button hidden" type="button" onclick="updateProfile()">Update profile</button></div>
+      <div id="avatarField" class="field hidden"><label>Avatar (Home Atlas)</label><input id="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" onchange="uploadAvatar()"><div class="settings-note">TurnHub resizes avatars in your browser before storing them locally.</div></div>
+      <div id="profilePrefs" class="form-grid hidden">
+        <div class="field"><label><input id="profileSound" type="checkbox" checked> Virtual Sigil sound</label><label><input id="profileVibration" type="checkbox" checked> Vibration where supported</label></div>
+        <div class="field"><label>Browser volume</label><select id="profileVolume"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
+      </div>
+      <div id="profileHistory" class="settings-note hidden"></div>
+    </div>
     <div class="dialog-actions">
       <button class="primary-button" type="button" onclick="joinPhysicalPlayer()">Use physical Sigil</button>
       <button class="secondary-button" type="button" onclick="joinVirtualPlayer()">Play virtually</button>
@@ -364,6 +381,9 @@ let identityPollTimer = null;
 let identityAutoPrompted = false;
 const WEB_TOKEN_KEY = 'turnhub.webControllerToken';
 const DISPLAY_ONLY_KEY = 'turnhub.displayOnly';
+let profileData = {profiles:[], avatar_uploads_allowed:false};
+let lastFeedbackSeq = Number(sessionStorage.getItem('turnhub.feedbackSeq') || 0);
+let lastObservedState = null;
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -1023,6 +1043,55 @@ function confirmSystemAction(action,message){if(confirm(message))systemAction(ac
 let settingsData = null;
 let latestStatusData = null;
 
+
+function selectedProfile(){ const id=document.getElementById('profileSelect')?.value||''; return (profileData.profiles||[]).find(p=>p.id===id)||null; }
+async function loadProfiles(){
+  try { const r=await fetch('/api/profiles',{cache:'no-store'}); if(!r.ok) return; profileData=await r.json();
+    const sel=document.getElementById('profileSelect'); if(!sel) return; const keep=sel.value;
+    sel.innerHTML='<option value="">Guest / no saved profile</option>'+(profileData.profiles||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}${p.has_pin?' • PIN':''}</option>`).join('');
+    if((profileData.profiles||[]).some(p=>p.id===keep)) sel.value=keep; profileSelectionChanged();
+  } catch(e) { console.warn('Profiles unavailable',e); }
+}
+function profileSelectionChanged(){
+  const p=selectedProfile(); const name=document.getElementById('newPlayerName'); if(p&&name) name.value=p.name||'';
+  document.getElementById('editProfileButton')?.classList.toggle('hidden',!p);
+  document.getElementById('avatarField')?.classList.toggle('hidden',!(p&&profileData.avatar_uploads_allowed));
+  document.getElementById('profilePrefs')?.classList.toggle('hidden',!p);
+  const hist=document.getElementById('profileHistory');
+  if(p){ const prefs=p.preferences||{}; document.getElementById('profileSound').checked=prefs.browser_sound!==false; document.getElementById('profileVibration').checked=prefs.browser_vibration!==false; document.getElementById('profileVolume').value=prefs.volume||'medium'; const games=p.history||[]; hist.textContent=games.length?`${games.length} saved game${games.length===1?'':'s'} • ${games.filter(g=>g.won).length} win${games.filter(g=>g.won).length===1?'':'s'}`:'No saved games yet.'; hist.classList.remove('hidden'); } else { hist.classList.add('hidden'); }
+}
+async function createProfile(){
+  const name=document.getElementById('newPlayerName').value.trim(), pin=document.getElementById('profilePin').value;
+  const status=document.getElementById('playerJoinStatus');
+  try { const r=await fetch('/api/profile/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,pin})}); const d=await r.json(); if(!r.ok) throw new Error(d.error||'Could not create profile'); await loadProfiles(); document.getElementById('profileSelect').value=d.profile.id; profileSelectionChanged(); status.textContent=`Saved ${d.profile.name}.`; } catch(e){status.textContent=e.message;}
+}
+async function updateProfile(){
+  const p=selectedProfile(); if(!p)return; const status=document.getElementById('playerJoinStatus'); const payload={profile_id:p.id,name:document.getElementById('newPlayerName').value.trim(),preferences:{browser_sound:document.getElementById('profileSound').checked,browser_vibration:document.getElementById('profileVibration').checked,volume:document.getElementById('profileVolume').value}};
+  const pin=document.getElementById('profilePin').value; if(pin) payload.pin=pin;
+  try { const r=await fetch('/api/profile/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const d=await r.json(); if(!r.ok)throw new Error(d.error||'Update failed'); document.getElementById('profilePin').value=''; await loadProfiles(); document.getElementById('profileSelect').value=d.profile.id; profileSelectionChanged(); status.textContent='Profile updated.'; } catch(e){status.textContent=e.message;}
+}
+async function uploadAvatar(){
+  const p=selectedProfile(), input=document.getElementById('avatarInput'), status=document.getElementById('playerJoinStatus'); if(!p||!input.files.length)return;
+  try { const file=input.files[0]; const bitmap=await createImageBitmap(file); const size=256, canvas=document.createElement('canvas'); canvas.width=size; canvas.height=size; const ctx=canvas.getContext('2d'); const scale=Math.max(size/bitmap.width,size/bitmap.height); const w=bitmap.width*scale,h=bitmap.height*scale; ctx.drawImage(bitmap,(size-w)/2,(size-h)/2,w,h); const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82)); const buf=new Uint8Array(await blob.arrayBuffer()); let binary=''; for(let i=0;i<buf.length;i+=8192) binary+=String.fromCharCode(...buf.subarray(i,i+8192)); const r=await fetch('/api/profile/avatar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:p.id,mime_type:'image/jpeg',data:btoa(binary)})}); const d=await r.json(); if(!r.ok)throw new Error(d.error||'Avatar upload failed'); await loadProfiles(); document.getElementById('profileSelect').value=p.id; profileSelectionChanged(); status.textContent='Avatar saved locally.'; } catch(e){status.textContent=e.message||'Avatar upload failed.';}
+}
+function audioPrefs(){ return currentIdentity&&currentIdentity.profile&&currentIdentity.profile.preferences ? currentIdentity.profile.preferences : {browser_sound:true,browser_vibration:true,volume:'medium'}; }
+function playVirtualFeedback(event){
+  const me=currentIdentity&&currentIdentity.player; if(!me||Number(me.module_id)<1000)return; const prefs=audioPrefs();
+  if(prefs.browser_vibration && navigator.vibrate){ const pattern=event.startsWith('nudge')?[80,50,80]:event==='game_over'?[120,60,120]:[55]; navigator.vibrate(pattern); }
+  if(!prefs.browser_sound)return;
+  try { const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx)return; const ctx=window.turnhubAudioContext||(window.turnhubAudioContext=new Ctx()); if(ctx.state==='suspended')ctx.resume(); const gain=ctx.createGain(); gain.gain.value=({low:.025,medium:.055,high:.1})[prefs.volume]||.055; gain.connect(ctx.destination); const tones=event.startsWith('nudge')?[660,880]:event==='pause'?[440,330]:event==='resume'?[440,660]:event==='turn_pass'?[700]:[620]; tones.forEach((hz,i)=>{const o=ctx.createOscillator();o.type='sine';o.frequency.value=hz;o.connect(gain);const t=ctx.currentTime+i*.1;o.start(t);o.stop(t+.075);}); } catch(e){}
+}
+function processBrowserFeedback(d){
+  const me=currentIdentity&&currentIdentity.player;
+  if(lastObservedState!==null && me && Number(me.module_id)>=1000 && d.state!==lastObservedState){
+    if(d.state==='PAUSED') playVirtualFeedback('pause');
+    else if(d.state==='RUNNING'&&lastObservedState==='PAUSED') playVirtualFeedback('resume');
+    else if(d.state==='GAME_OVER') playVirtualFeedback('game_over');
+  }
+  lastObservedState=d.state;
+  const f=d&&d.browser_feedback;if(!f||Number(f.seq)<=lastFeedbackSeq)return; lastFeedbackSeq=Number(f.seq);sessionStorage.setItem('turnhub.feedbackSeq',String(lastFeedbackSeq)); if(!me)return; if(f.target_player!=null&&Number(f.target_player)!==Number(me.player_number))return; playVirtualFeedback(String(f.event||''));
+}
+
 let physicalJoinPoll = null;
 function closePlayerManager(){ document.getElementById('playerManagerOverlay').classList.add('hidden'); if(physicalJoinPoll){clearTimeout(physicalJoinPoll);physicalJoinPoll=null;} }
 function renderPlayerManager(){
@@ -1040,14 +1109,14 @@ function renderPlayerManager(){
     return `<div class="field"><label>${esc(playerMeta(p))}${virtual?' • Virtual':' • Physical'}${mine?' • This browser':''}</label><input maxlength="40" data-player-seat="${p.module_id}:${p.slot}" value="${esc(p.display_name||'')}" placeholder="Player ${p.player_number}"><div class="dialog-actions">${controls}</div></div>`;
   }).join('') || '<p class="settings-note">No players have joined yet.</p>';
 }
-async function openPlayerManager(){ document.getElementById('playerManagerOverlay').classList.remove('hidden'); await refresh(); renderPlayerManager(); }
+async function openPlayerManager(){ document.getElementById('playerManagerOverlay').classList.remove('hidden'); await Promise.all([refresh(),loadProfiles()]); renderPlayerManager(); }
 async function joinVirtualPlayer(){
   const name=document.getElementById('newPlayerName').value.trim(); const status=document.getElementById('playerJoinStatus'); status.textContent='Joining virtually…';
-  try{const r=await fetch('/api/web/join-virtual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Join failed');localStorage.setItem(WEB_TOKEN_KEY,d.token);localStorage.removeItem(DISPLAY_ONLY_KEY);status.textContent='Joined with a virtual Sigil.';await refresh();await refreshIdentity();renderPlayerManager();}catch(e){status.textContent=e.message;}
+  try{const r=await fetch('/api/web/join-virtual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,profile_id:selectedProfile()?.id||null,pin:document.getElementById('profilePin').value})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Join failed');localStorage.setItem(WEB_TOKEN_KEY,d.token);localStorage.removeItem(DISPLAY_ONLY_KEY);status.textContent='Joined with a virtual Sigil.';await refresh();await refreshIdentity();renderPlayerManager();}catch(e){status.textContent=e.message;}
 }
 async function joinPhysicalPlayer(){
   const name=document.getElementById('newPlayerName').value.trim(); const status=document.getElementById('playerJoinStatus'); status.textContent='Press Action on the physical Sigil you want to use…';
-  try{const r=await fetch('/api/web/join-physical',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not start pairing');pollPhysicalJoin(d.request_id);}catch(e){status.textContent=e.message;}
+  try{const r=await fetch('/api/web/join-physical',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,profile_id:selectedProfile()?.id||null})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not start pairing');pollPhysicalJoin(d.request_id);}catch(e){status.textContent=e.message;}
 }
 async function pollPhysicalJoin(id){
   const status=document.getElementById('playerJoinStatus');
@@ -1193,6 +1262,7 @@ async function refresh() {
     document.getElementById('connDot').classList.add('online');
     document.getElementById('connText').textContent = 'Live';
     render(latest);
+    processBrowserFeedback(latest);
   } catch (e) {
     online = false;
     document.getElementById('connDot').classList.remove('online');
@@ -1242,6 +1312,7 @@ class WebPortal:
             player.slot,
         )
 
+        profile = self.turnhub.web_control.profile_for_seat(player.seat_key)
         result = {
             "player_number": player.player_number,
             "module_id": player.module_id,
@@ -1252,6 +1323,8 @@ class WebPortal:
             "module_name": self.turnhub.persistence.module_name(player.module_id),
             "controller_type": "virtual" if player.module_id >= 1000 else "physical",
             "web_claimed": player.seat_key in self.turnhub.web_control.claimed_seats(),
+            "profile_id": profile.get("id") if profile else None,
+            "avatar_url": (f"/api/profile/avatar?id={profile.get('id')}" if profile and profile.get("avatar") else None),
             "eliminated": bool(
                 self.turnhub.game.players
                 and self.turnhub.game.is_eliminated(player.player_number)
@@ -1437,6 +1510,7 @@ class WebPortal:
             "elimination_target": elimination_target,
             "win_claim": win_claim,
             "pending_life_changes": list(hub.game.pending_life_changes),
+            "browser_feedback": hub._browser_feedback,
             "eliminated_players": list(hub.game.eliminated_players),
             "active_turn_number": active_turn_number,
             "turn_elapsed_seconds": hub.game.current_turn_elapsed(now)
@@ -1487,6 +1561,7 @@ class WebPortal:
                 and not self.turnhub.game.is_eliminated(player.player_number)
             ),
             "state": self.turnhub.state,
+            "profile": self.turnhub.web_control.profile_for_seat(player.seat_key),
         }
 
     # ========================================================
@@ -1619,6 +1694,31 @@ class WebPortal:
                     self._send_json(payload)
                     return
 
+                if path == "/api/profiles":
+                    self._send_json({
+                        "profiles": portal.turnhub.profiles.list_profiles(),
+                        "avatar_uploads_allowed": not portal.turnhub.profiles.venue_mode,
+                        "venue_mode": portal.turnhub.profiles.venue_mode,
+                    })
+                    return
+
+                if path == "/api/profile/avatar":
+                    query = parse_qs(parsed.query)
+                    profile_id = (query.get("id") or [""])[0]
+                    profile = portal.turnhub.profiles.get(profile_id)
+                    avatar = profile.get("avatar") if profile else None
+                    if not avatar:
+                        self._send_bytes(b"Not found\n", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
+                        return
+                    avatar_path = portal.turnhub.profiles.avatar_directory / avatar["filename"]
+                    try:
+                        body = avatar_path.read_bytes()
+                    except OSError:
+                        self._send_bytes(b"Not found\n", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
+                        return
+                    self._send_bytes(body, avatar.get("mime_type", "application/octet-stream"))
+                    return
+
                 if path == "/api/web/me":
                     identity = portal.identity_snapshot(self._bearer_token())
                     if identity is None:
@@ -1666,13 +1766,53 @@ class WebPortal:
             def do_POST(self):
                 path = urlparse(self.path).path
 
+                if path == "/api/profile/create":
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error":"invalid JSON"}, HTTPStatus.BAD_REQUEST); return
+                    try:
+                        profile = portal.turnhub.profiles.create(payload.get("name", ""), str(payload.get("pin", "")))
+                    except ValueError as exc:
+                        self._send_json({"error":str(exc)}, HTTPStatus.BAD_REQUEST); return
+                    self._send_json({"profile":profile}, HTTPStatus.CREATED); return
+
+                if path == "/api/profile/update":
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error":"invalid JSON"}, HTTPStatus.BAD_REQUEST); return
+                    try:
+                        profile = portal.turnhub.profiles.update(str(payload.get("profile_id", "")), name=payload.get("name"), pin=payload.get("pin") if "pin" in payload else None, preferences=payload.get("preferences"))
+                    except KeyError:
+                        self._send_json({"error":"unknown profile"}, HTTPStatus.NOT_FOUND); return
+                    except ValueError as exc:
+                        self._send_json({"error":str(exc)}, HTTPStatus.BAD_REQUEST); return
+                    self._send_json({"profile":profile}); return
+
+                if path == "/api/profile/avatar":
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error":"invalid JSON"}, HTTPStatus.BAD_REQUEST); return
+                    try:
+                        mime = str(payload.get("mime_type", ""))
+                        raw = base64.b64decode(str(payload.get("data", "")), validate=True)
+                        profile = portal.turnhub.profiles.set_avatar(str(payload.get("profile_id", "")), mime, raw, allow_player_upload=True)
+                    except (ValueError, binascii.Error) as exc:
+                        self._send_json({"error":str(exc)}, HTTPStatus.BAD_REQUEST); return
+                    except PermissionError as exc:
+                        self._send_json({"error":str(exc)}, HTTPStatus.FORBIDDEN); return
+                    except KeyError:
+                        self._send_json({"error":"unknown profile"}, HTTPStatus.NOT_FOUND); return
+                    self._send_json({"profile":profile}); return
+
                 if path in ("/api/web/join-virtual", "/api/web/join-physical"):
                     payload = self._read_json() or {}
                     name = str(payload.get("name", ""))
+                    profile_id = str(payload.get("profile_id", "")).strip() or None
+                    pin = str(payload.get("pin", ""))
                     if path.endswith("join-virtual"):
-                        _ok, result, status_code = portal.turnhub.web_control.create_virtual_player(name)
+                        _ok, result, status_code = portal.turnhub.web_control.create_virtual_player(name, profile_id=profile_id, pin=pin)
                     else:
-                        _ok, result, status_code = portal.turnhub.web_control.request_physical_join(name)
+                        _ok, result, status_code = portal.turnhub.web_control.request_physical_join(name, profile_id=profile_id)
                     self._send_json(result, HTTPStatus(status_code))
                     return
 
