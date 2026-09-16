@@ -25,8 +25,8 @@ from game_log import GameLogWriter, format_duration
 from leds import LEDController
 from lobby import Lobby
 from persistence import PersistentStore
+from platform_identity import detect_platform
 from serial_controller import SerialController
-from settings import SettingsController
 from status_monitor import StatusMonitor
 from web_control import WebControlManager
 from web_portal import WebPortal
@@ -55,6 +55,11 @@ def warning_description(
 class TurnHub:
     def __init__(self) -> None:
 
+        # Platform selection is intentionally outside the game engine.
+        # Virtual and Atlas installs run the same TurnHub rules/state model.
+        self.platform = detect_platform()
+        self.hardware_enabled = self.platform.hardware_enabled
+
         # ====================================================
         # Hardware Controllers
         # ====================================================
@@ -70,9 +75,6 @@ class TurnHub:
         self.leds = LEDController(
             self.serial
         )
-
-        # Physical hub DIP switches.
-        self.settings = SettingsController()
 
         # ====================================================
         # Game Controllers
@@ -115,14 +117,14 @@ class TurnHub:
         self._elimination_chord_modules: set[int] = set()
         self._suppress_elimination_short_modules: set[int] = set()
 
-        # Read the physical timer selector.
-        self.warning_ms = (
-            self.settings.warning_ms()
-        )
+        # Timer configuration currently comes from the persistent web UI setting.
+        # Physical timer controls can be reintroduced later without changing the
+        # GameEngine interface.
+        self.warning_ms = self.persistence.warning_ms()
 
         print(
             "[SETTINGS] Turn timer: "
-            f"{self.settings.description()}"
+            f"{warning_description(self.warning_ms)}"
         )
 
         self.start_countdown_at: float | None = None
@@ -131,32 +133,6 @@ class TurnHub:
         # Restore the last recoverable table state, if any. Active games
         # intentionally return paused so downtime is never charged to a turn.
         self.persistence.restore_session(self)
-
-    # ========================================================
-    # Physical Hub Settings
-    # ========================================================
-
-    def update_settings(self) -> None:
-        """
-        Watch the physical DIP switches.
-
-        Changes update the warning setting used for future
-        turns. The GameEngine locks the selected value when
-        each turn begins, so changing the switch does not
-        alter a turn already in progress.
-        """
-
-        if not self.settings.changed():
-            return
-
-        self.warning_ms = (
-            self.settings.warning_ms()
-        )
-
-        print(
-            "[SETTINGS] Turn timer: "
-            f"{self.settings.description()}"
-        )
 
     # ========================================================
     # Serial Protocol
@@ -280,6 +256,94 @@ class TurnHub:
         print(
             f"[SERIAL] Unknown: {line}"
         )
+
+    # ========================================================
+    # Software / Web Hardware Emulation
+    # ========================================================
+
+    def on_software_control(self, module: int, action: str) -> tuple[bool, str]:
+        """Run table controls from the Atlas UI through the same game logic."""
+        if module not in self.lobby.module_ids:
+            return False, "unknown module"
+
+        action = str(action).strip().lower()
+
+        if action == "action_short":
+            self.on_action_short(module)
+            return True, "Action short press sent"
+        if action == "action_long":
+            self.on_action_long(module)
+            return True, "Action long press sent"
+        if action == "action_win":
+            self.on_action_win(module)
+            return True, "Action five-second hold sent"
+        if action == "pass":
+            self.on_pass(module)
+            return True, "Pass press sent"
+
+        if action == "join":
+            if self.state != STATE_LOBBY:
+                return False, "modules can only join in the lobby"
+            if self.lobby.is_joined(module):
+                return False, "module is already joined"
+            self.handle_lobby_short(module)
+            return True, "module joined"
+
+        if action == "leave":
+            if self.state != STATE_LOBBY:
+                return False, "modules can only leave in the lobby"
+            if not self.lobby.leave(module):
+                return False, "module is not joined"
+            self.web_control.reconcile_claims()
+            self.persistence.mark_dirty()
+            print(f"[LOBBY] Module {module} left from web controls.")
+            return True, "module left"
+
+        if action == "toggle_secondary":
+            if self.state != STATE_LOBBY:
+                return False, "shared seats can only change in the lobby"
+            result = self.lobby.toggle_secondary(module)
+            if result is None:
+                return False, "module must join first"
+            self.web_control.reconcile_claims()
+            self.persistence.mark_dirty()
+            return True, "second seat added" if result[0] else "second seat removed"
+
+        if action == "select_starter":
+            if self.state != STATE_LOBBY or not self.lobby.is_joined(module):
+                return False, "starter can only be selected from a joined lobby module"
+            starter = self.lobby.select_starter(module)
+            if starter is None:
+                return False, "could not select starter"
+            self.persistence.mark_dirty()
+            return True, f"Player {starter.player_number} selected to start"
+
+        if action == "random_starter":
+            if self.state != STATE_LOBBY or self.lobby.player_count < 2:
+                return False, "at least two lobby players are required"
+            starter = self.lobby.random_starter()
+            self.audio.random_starter()
+            self.persistence.mark_dirty()
+            return True, f"Player {starter.player_number} selected randomly"
+
+        if action == "start_game":
+            if self.state != STATE_LOBBY:
+                return False, "game can only start from the lobby"
+            if module != self.lobby.host_module:
+                return False, "only the host module can start the game"
+            if self.lobby.player_count < 2:
+                return False, "at least two players are required"
+            self.begin_countdown()
+            return True, "game countdown started"
+
+        if action == "cancel_countdown":
+            if self.state != STATE_STARTING:
+                return False, "no countdown is active"
+            self.cancel_countdown()
+            self.audio.countdown_cancelled()
+            return True, "countdown cancelled"
+
+        return False, "unsupported software control"
 
     # ========================================================
     # Dedicated Pass Button
@@ -650,7 +714,7 @@ class TurnHub:
 
             eliminated, game_finished = self.game.eliminate_player(
                 player_number,
-                self.settings.warning_ms(),
+                self.warning_ms,
             )
             if not eliminated:
                 if was_running:
@@ -1497,11 +1561,8 @@ class TurnHub:
 
             return
 
-        # Capture the physical timer setting when the
-        # first turn begins.
-        self.warning_ms = (
-            self.settings.warning_ms()
-        )
+        # Capture the configured timer setting when the first turn begins.
+        self.warning_ms = self.persistence.warning_ms()
 
         # Once play begins, browser identity is locked. Any unfinished
         # lobby pairing request is discarded rather than carrying into play.
@@ -1799,18 +1860,18 @@ class TurnHub:
 
         print(
             "[SETTINGS] Turn timer: "
-            f"{self.settings.description()}"
+            f"{warning_description(self.warning_ms)}"
         )
 
-        print(
-            "Starting player modules..."
-        )
+        print(f"[PLATFORM] {self.platform.display_name}: {self.platform.reason}")
 
-        self.serial.start()
-
-        connected = (
-            self.serial.connected_modules()
-        )
+        if self.hardware_enabled:
+            print("Starting player modules...")
+            self.serial.start()
+            connected = self.serial.connected_modules()
+        else:
+            print("[TURNHUB] Physical module I/O disabled; virtual controls are active.")
+            connected = []
 
         print(
             "[TURNHUB] Connected modules: "
@@ -1837,9 +1898,6 @@ class TurnHub:
             while True:
 
                 now = time.monotonic()
-
-                # Check physical hub controls.
-                self.update_settings()
 
                 self.update_countdown(
                     now
@@ -1889,13 +1947,6 @@ class TurnHub:
 
             try:
                 self.serial.all_off()
-
-            except Exception:
-                pass
-
-            # Release the DIP-switch GPIO inputs.
-            try:
-                self.settings.cleanup()
 
             except Exception:
                 pass

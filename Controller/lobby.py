@@ -136,6 +136,23 @@ class Lobby:
         self.player_modules.append(module)
         return self.player_number(module)
 
+    def leave(self, module: int) -> bool:
+        """Remove a physical module and all logical seats on it from the lobby."""
+        if module not in self.player_modules:
+            return False
+
+        self.player_modules.remove(module)
+        self.secondary_modules.discard(module)
+        if self.selected_starter is not None and self.selected_starter[0] == module:
+            self.selected_starter = None
+        self.held_modules.discard(module)
+        self.shared_chord_modules.discard(module)
+        self.action_long_modules.discard(module)
+        self.suppress_next_short_modules.discard(module)
+        if self.start_armed_by == module:
+            self.start_armed_by = None
+        return True
+
     def toggle_secondary(
         self,
         module: int,

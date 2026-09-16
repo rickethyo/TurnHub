@@ -131,6 +131,11 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .primary-button { border:1px solid rgba(114,167,255,.5); background:rgba(114,167,255,.14); color:var(--blue); }
 .secondary-button { border:1px solid var(--line); background:var(--panel-2); color:var(--text); }
 .settings-status { color:var(--muted); font-size:.85rem; min-height:1.2em; margin-top:10px; }
+.software-module { border:1px solid var(--line); border-radius:14px; padding:12px; margin:10px 0; background:rgba(255,255,255,.025); }
+.software-module-head { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:9px; font-weight:800; }
+.software-controls { display:flex; flex-wrap:wrap; gap:7px; }
+.software-controls button { border:1px solid var(--line); background:var(--panel); color:var(--text); border-radius:10px; padding:8px 10px; font:inherit; font-size:.82rem; font-weight:750; cursor:pointer; }
+.software-controls button:disabled { opacity:.38; cursor:default; }
 .identity-button { border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:12px; padding:9px 12px; font:inherit; font-weight:750; cursor:pointer; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .identity-button.paired { color:var(--blue); border-color:rgba(114,167,255,.38); }
 .pass-button { margin-top:18px; width:min(340px,100%); border:1px solid rgba(98,213,138,.55); background:rgba(98,213,138,.15); color:var(--good); border-radius:16px; padding:15px 18px; font:inherit; font-size:1.15rem; font-weight:900; cursor:pointer; }
@@ -223,6 +228,11 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     <p class="settings-note">Names are stored on this TurnHub and follow the physical module/seat, so a person's name stays with that seat even if player numbers shift during lobby setup.</p>
 
     <div class="settings-group">
+      <h3>Runtime</h3>
+      <p id="runtimeModeNote" class="settings-note">Checking TurnHub runtime mode…</p>
+    </div>
+
+    <div class="settings-group">
       <h3>Module names</h3>
       <div id="moduleSettings" class="form-grid"></div>
     </div>
@@ -239,12 +249,29 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     </div>
 
     <div class="settings-group">
+      <h3>Turn timer</h3>
+      <p class="settings-note">Sets the timer behavior for the next game. Disabled keeps the green five-minute indicator but never enters red warning mode.</p>
+      <div class="field"><label>Timer</label><select id="warningSelect">
+        <option value="0">Disabled</option>
+        <option value="300000">5 minutes</option>
+        <option value="600000">10 minutes</option>
+      </select></div>
+    </div>
+
+    <div class="settings-group">
       <h3>Starting life</h3>
       <p class="settings-note">This value is copied to every player when the next game begins. Changing it during a game does not alter current life totals.</p>
       <div class="form-grid">
         <div class="field"><label>Starting life preset</label><select id="startingLifeSelect" onchange="startingLifeSelectionChanged()"></select></div>
         <div id="startingLifeCustomField" class="field hidden"><label>Custom starting life</label><input id="startingLifeCustom" type="number" min="0" max="1000000" step="1" inputmode="numeric"></div>
       </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>Software table controls</h3>
+      <p class="settings-note">Every physical Sigil input can be emulated here. Lobby shortcuts also provide direct Join, Leave, shared-seat, starter, and Start Game controls. Normal game-state rules still apply.</p>
+      <div id="softwareControls"></div>
+      <div id="softwareControlStatus" class="settings-status"></div>
     </div>
 
     <div class="settings-group">
@@ -914,6 +941,52 @@ function denyWinFromWeb() { return authenticatedGameAction('/api/web/win-deny', 
 function cancelWinFromWeb() { return authenticatedGameAction('/api/web/win-cancel', 'cancelWinButton', 'Cancelling…'); }
 
 let settingsData = null;
+let latestStatusData = null;
+
+function softwareButton(label, moduleId, action, enabled=true) {
+  return `<button type="button" ${enabled ? '' : 'disabled'} onclick="softwareControl(${Number(moduleId)},'${action}')">${esc(label)}</button>`;
+}
+
+function renderSoftwareControls() {
+  const root = document.getElementById('softwareControls');
+  if (!root || !settingsData) return;
+  const d = latestStatusData || {};
+  const state = d.state || 'UNKNOWN';
+  const joined = new Set((d.players || []).map(p => Number(p.module_id)));
+  const host = Number(d.host_module);
+  root.innerHTML = (settingsData.module_ids || []).map(idRaw => {
+    const id = Number(idRaw);
+    const isJoined = joined.has(id);
+    const name = (settingsData.module_names || {})[String(id)] || `Module ${id}`;
+    const lobby = state === 'LOBBY';
+    const controls = [
+      softwareButton('Join', id, 'join', lobby && !isJoined),
+      softwareButton('Leave', id, 'leave', lobby && isJoined),
+      softwareButton('Add / remove Seat B', id, 'toggle_secondary', lobby && isJoined),
+      softwareButton('Select starter', id, 'select_starter', lobby && isJoined),
+      softwareButton('Random starter', id, 'random_starter', lobby && isJoined && id === host),
+      softwareButton('Start game', id, 'start_game', lobby && isJoined && id === host),
+      softwareButton('Pass button', id, 'pass', true),
+      softwareButton('Action short', id, 'action_short', true),
+      softwareButton('Action long', id, 'action_long', true),
+      softwareButton('Action 5 sec', id, 'action_win', true),
+    ];
+    return `<div class="software-module"><div class="software-module-head"><span>${esc(name)}</span><span>${isJoined ? 'Joined' : 'Not joined'}</span></div><div class="software-controls">${controls.join('')}</div></div>`;
+  }).join('');
+}
+
+async function softwareControl(moduleId, action) {
+  const status = document.getElementById('softwareControlStatus');
+  status.textContent = 'Sending control…';
+  try {
+    const r = await fetch('/api/control', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({module_id:moduleId, action})});
+    const result = await r.json();
+    if (!r.ok) throw new Error(result.error || 'Control rejected');
+    status.textContent = result.message || 'Control accepted.';
+    await refresh();
+    renderSoftwareControls();
+  } catch (e) { status.textContent = e.message || 'Control failed.'; }
+}
 
 async function openSettings() {
   const status = document.getElementById('settingsStatus');
@@ -923,6 +996,11 @@ async function openSettings() {
     const r = await fetch('/api/settings', {cache:'no-store'});
     if (!r.ok) throw new Error('HTTP ' + r.status);
     settingsData = await r.json();
+
+    const runtimeNote = document.getElementById('runtimeModeNote');
+    if (runtimeNote && settingsData.platform) {
+      runtimeNote.textContent = `${settingsData.platform.display_name}. ${settingsData.platform.reason}`;
+    }
 
     document.getElementById('moduleSettings').innerHTML = settingsData.module_ids.map(id => {
       const value = settingsData.module_names[String(id)] || '';
@@ -945,9 +1023,11 @@ async function openSettings() {
     profileSelect.innerHTML = Object.entries(profiles).map(([key,value]) => `<option value="${esc(key)}">${esc(value.label || key)}</option>`).join('');
     profileSelect.value = settingsData.game_profile || 'generic';
     document.getElementById('startingLifeCustom').value = String(Number(settingsData.starting_life ?? 40));
+    document.getElementById('warningSelect').value = String(Number(settingsData.warning_ms ?? 0));
     gameProfileSelectionChanged(true);
 
     document.getElementById('persistenceNote').textContent = `Game state autosaves after changes and every ${settingsData.active_autosave_seconds} seconds during active play. Active games recover paused after a restart.`;
+    renderSoftwareControls();
     status.textContent = '';
   } catch (e) {
     status.textContent = 'Could not load settings.';
@@ -1000,10 +1080,11 @@ async function saveSettings() {
   try {
     const startingLife = selectedStartingLife();
     const gameProfile = document.getElementById('gameProfileSelect').value || 'generic';
+    const warningMs = Number(document.getElementById('warningSelect').value || 0);
     const r = await fetch('/api/settings', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife, game_profile:gameProfile})
+      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife, game_profile:gameProfile, warning_ms:warningMs})
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     settingsData = await r.json();
@@ -1445,6 +1526,15 @@ class WebPortal:
                     payload = portal.turnhub.persistence.settings_snapshot()
                     payload["module_ids"] = list(MODULE_IDS)
                     payload["active_autosave_seconds"] = 10
+                    platform = portal.turnhub.platform
+                    payload["platform"] = {
+                        "mode": platform.mode,
+                        "display_name": platform.display_name,
+                        "hardware_enabled": platform.hardware_enabled,
+                        "official_atlas": platform.official_atlas,
+                        "development": platform.development,
+                        "reason": platform.reason,
+                    }
                     self._send_json(payload)
                     return
 
@@ -1711,6 +1801,24 @@ class WebPortal:
                     self._send_json({"accepted": True, "action": action})
                     return
 
+                if path == "/api/control":
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error": "invalid JSON"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    try:
+                        module_id = int(payload.get("module_id"))
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "module_id is required"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    action = str(payload.get("action", ""))
+                    accepted, message = portal.turnhub.on_software_control(module_id, action)
+                    if not accepted:
+                        self._send_json({"error": message}, HTTPStatus.CONFLICT)
+                        return
+                    self._send_json({"accepted": True, "message": message})
+                    return
+
                 if path == "/api/settings":
                     payload = self._read_json()
                     if payload is None:
@@ -1724,6 +1832,7 @@ class WebPortal:
                     seat_names = payload.get("seat_names")
                     starting_life = payload.get("starting_life")
                     game_profile = payload.get("game_profile")
+                    warning_ms = payload.get("warning_ms")
                     if not isinstance(module_names, dict) or not isinstance(seat_names, dict):
                         self._send_json(
                             {"error": "module_names and seat_names must be objects"},
@@ -1737,6 +1846,7 @@ class WebPortal:
                             seat_names=seat_names,
                             starting_life=starting_life,
                             game_profile=game_profile,
+                            warning_ms=warning_ms,
                         )
                     except ValueError as exc:
                         self._send_json(
@@ -1750,6 +1860,16 @@ class WebPortal:
                             HTTPStatus.INTERNAL_SERVER_ERROR,
                         )
                         return
+
+                    # The web setting is authoritative for future games. An
+                    # active turn keeps the value already locked by GameEngine.
+                    portal.turnhub.warning_ms = portal.turnhub.persistence.warning_ms()
+                    timer_text = (
+                        "OFF (green at 5 minutes)"
+                        if portal.turnhub.warning_ms == WARNING_OFF
+                        else f"{portal.turnhub.warning_ms // 60_000} minutes"
+                    )
+                    print(f"[SETTINGS] Turn timer: {timer_text}")
 
                     result["module_ids"] = list(MODULE_IDS)
                     result["active_autosave_seconds"] = 10

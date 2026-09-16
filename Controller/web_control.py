@@ -293,15 +293,26 @@ class WebControlManager:
             if self._pending_for_confirm_module_locked(player.module_id) is not None:
                 return False, {"error": "that module already has a pending web pairing"}, 409
 
+            virtual_mode = not self.turnhub.hardware_enabled
             pending = self._new_request_locked(
                 seat_key=seat_key,
                 confirm_module=player.module_id,
                 mode="claim",
                 message=(
-                    f"Press Action briefly on Module {player.module_id} "
-                    "to confirm this browser."
+                    "Pairing virtual player controller."
+                    if virtual_mode
+                    else (
+                        f"Press Action briefly on Module {player.module_id} "
+                        "to confirm this browser."
+                    )
                 ),
             )
+
+        # Virtual Mode has no physical Sigil to prove possession of.  The seat
+        # itself is the software controller, so complete the same claim through
+        # the existing authorization path immediately.
+        if virtual_mode:
+            self.confirm_physical_action(player.module_id)
 
         return True, {
             "request_id": pending.request_id,
