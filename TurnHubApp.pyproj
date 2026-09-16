@@ -29,6 +29,7 @@
     <Compile Include="Controller\game_log.py" />
     <Compile Include="Controller\leds.py" />
     <Compile Include="Controller\lobby.py" />
+    <Compile Include="Controller\platform_identity.py" />
     <Compile Include="Controller\player.py" />
     <Compile Include="Controller\persistence.py" />
     <Compile Include="Controller\settings.py" />
