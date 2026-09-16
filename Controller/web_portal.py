@@ -206,7 +206,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   </section>
 
   <section class="card players-card">
-    <h2 class="section-title">Players</h2>
+    <div class="dialog-head"><h2 class="section-title">Players</h2><button class="settings-button" type="button" onclick="openPlayerManager()">Manage players</button></div>
     <div id="players" class="players"><div class="player"><div class="player-seat">Waiting for players…</div></div></div>
   </section>
 
@@ -225,21 +225,15 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
       <div id="settingsTitle" class="dialog-title">TurnHub Settings</div>
       <button class="close-button" type="button" aria-label="Close settings" onclick="closeSettings()">×</button>
     </div>
-    <p class="settings-note">Names are stored on this TurnHub and follow the physical module/seat, so a person's name stays with that seat even if player numbers shift during lobby setup.</p>
-
     <div class="settings-group">
       <h3>Runtime</h3>
       <p id="runtimeModeNote" class="settings-note">Checking TurnHub runtime mode…</p>
     </div>
 
     <div class="settings-group">
-      <h3>Module names</h3>
-      <div id="moduleSettings" class="form-grid"></div>
-    </div>
-
-    <div class="settings-group">
-      <h3>Player / seat names</h3>
-      <div id="seatSettings" class="form-grid"></div>
+      <h3>Table interface</h3>
+      <p class="settings-note">Atlas hardware can run with physical and virtual Sigils together, or temporarily ignore physical hardware and operate virtually only.</p>
+      <div class="field"><label>Interface</label><select id="interfaceModeSelect"><option value="hybrid">Physical + Virtual</option><option value="virtual-only">Virtual Only</option></select></div>
     </div>
 
     <div class="settings-group">
@@ -268,13 +262,6 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     </div>
 
     <div class="settings-group">
-      <h3>Software table controls</h3>
-      <p class="settings-note">Every physical Sigil input can be emulated here. Lobby shortcuts also provide direct Join, Leave, shared-seat, starter, and Start Game controls. Normal game-state rules still apply.</p>
-      <div id="softwareControls"></div>
-      <div id="softwareControlStatus" class="settings-status"></div>
-    </div>
-
-    <div class="settings-group">
       <h3>Persistence</h3>
       <p id="persistenceNote" class="settings-note">Game state autosaves locally. If TurnHub restarts during a game, it recovers paused so downtime is never charged to a player.</p>
     </div>
@@ -285,6 +272,21 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
       <button class="secondary-button" type="button" onclick="closeSettings()">Cancel</button>
     </div>
     <div id="settingsStatus" class="settings-status"></div>
+  </div>
+</div>
+
+<div id="playerManagerOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="dialog">
+    <div class="dialog-head"><div class="dialog-title">Players & Sigils</div><button class="close-button" type="button" onclick="closePlayerManager()">×</button></div>
+    <p class="settings-note">Players own their game state. Choose a physical Sigil by pressing its Action button, or join with a completely virtual controller.</p>
+    <div class="field"><label>Player name</label><input id="newPlayerName" maxlength="40" placeholder="Name"></div>
+    <div class="dialog-actions">
+      <button class="primary-button" type="button" onclick="joinPhysicalPlayer()">Use physical Sigil</button>
+      <button class="secondary-button" type="button" onclick="joinVirtualPlayer()">Play virtually</button>
+    </div>
+    <div id="playerJoinStatus" class="settings-status"></div>
+    <div class="settings-group"><h3>Players at table</h3><div id="playerNameSettings" class="form-grid"></div></div>
+    <div class="dialog-actions"><button class="primary-button" type="button" onclick="savePlayerNames()">Save player names</button></div>
   </div>
 </div>
 
@@ -943,49 +945,29 @@ function cancelWinFromWeb() { return authenticatedGameAction('/api/web/win-cance
 let settingsData = null;
 let latestStatusData = null;
 
-function softwareButton(label, moduleId, action, enabled=true) {
-  return `<button type="button" ${enabled ? '' : 'disabled'} onclick="softwareControl(${Number(moduleId)},'${action}')">${esc(label)}</button>`;
+let physicalJoinPoll = null;
+function closePlayerManager(){ document.getElementById('playerManagerOverlay').classList.add('hidden'); if(physicalJoinPoll){clearTimeout(physicalJoinPoll);physicalJoinPoll=null;} }
+function renderPlayerManager(){
+  const root=document.getElementById('playerNameSettings');
+  if(!root || !latest) return;
+  root.innerHTML=(latest.players||[]).map(p=>`<div class="field"><label>${esc(playerMeta(p))}${Number(p.module_id)>=1000?' • Virtual':' • Physical'}</label><input maxlength="40" data-player-seat="${p.module_id}:${p.slot}" value="${esc(p.display_name||'')}" placeholder="Player ${p.player_number}"></div>`).join('') || '<p class="settings-note">No players have joined yet.</p>';
 }
-
-function renderSoftwareControls() {
-  const root = document.getElementById('softwareControls');
-  if (!root || !settingsData) return;
-  const d = latestStatusData || {};
-  const state = d.state || 'UNKNOWN';
-  const joined = new Set((d.players || []).map(p => Number(p.module_id)));
-  const host = Number(d.host_module);
-  root.innerHTML = (settingsData.module_ids || []).map(idRaw => {
-    const id = Number(idRaw);
-    const isJoined = joined.has(id);
-    const name = (settingsData.module_names || {})[String(id)] || `Module ${id}`;
-    const lobby = state === 'LOBBY';
-    const controls = [
-      softwareButton('Join', id, 'join', lobby && !isJoined),
-      softwareButton('Leave', id, 'leave', lobby && isJoined),
-      softwareButton('Add / remove Seat B', id, 'toggle_secondary', lobby && isJoined),
-      softwareButton('Select starter', id, 'select_starter', lobby && isJoined),
-      softwareButton('Random starter', id, 'random_starter', lobby && isJoined && id === host),
-      softwareButton('Start game', id, 'start_game', lobby && isJoined && id === host),
-      softwareButton('Pass button', id, 'pass', true),
-      softwareButton('Action short', id, 'action_short', true),
-      softwareButton('Action long', id, 'action_long', true),
-      softwareButton('Action 5 sec', id, 'action_win', true),
-    ];
-    return `<div class="software-module"><div class="software-module-head"><span>${esc(name)}</span><span>${isJoined ? 'Joined' : 'Not joined'}</span></div><div class="software-controls">${controls.join('')}</div></div>`;
-  }).join('');
+async function openPlayerManager(){ document.getElementById('playerManagerOverlay').classList.remove('hidden'); await refresh(); renderPlayerManager(); }
+async function joinVirtualPlayer(){
+  const name=document.getElementById('newPlayerName').value.trim(); const status=document.getElementById('playerJoinStatus'); status.textContent='Joining virtually…';
+  try{const r=await fetch('/api/web/join-virtual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Join failed');localStorage.setItem(WEB_TOKEN_KEY,d.token);localStorage.removeItem(DISPLAY_ONLY_KEY);status.textContent='Joined with a virtual Sigil.';await refresh();await refreshIdentity();renderPlayerManager();}catch(e){status.textContent=e.message;}
 }
-
-async function softwareControl(moduleId, action) {
-  const status = document.getElementById('softwareControlStatus');
-  status.textContent = 'Sending control…';
-  try {
-    const r = await fetch('/api/control', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({module_id:moduleId, action})});
-    const result = await r.json();
-    if (!r.ok) throw new Error(result.error || 'Control rejected');
-    status.textContent = result.message || 'Control accepted.';
-    await refresh();
-    renderSoftwareControls();
-  } catch (e) { status.textContent = e.message || 'Control failed.'; }
+async function joinPhysicalPlayer(){
+  const name=document.getElementById('newPlayerName').value.trim(); const status=document.getElementById('playerJoinStatus'); status.textContent='Press Action on the physical Sigil you want to use…';
+  try{const r=await fetch('/api/web/join-physical',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not start pairing');pollPhysicalJoin(d.request_id);}catch(e){status.textContent=e.message;}
+}
+async function pollPhysicalJoin(id){
+  const status=document.getElementById('playerJoinStatus');
+  try{const r=await fetch(`/api/web/join-physical-status?request_id=${encodeURIComponent(id)}`,{cache:'no-store'});const d=await r.json();if(d.status==='confirmed'&&d.token){localStorage.setItem(WEB_TOKEN_KEY,d.token);localStorage.removeItem(DISPLAY_ONLY_KEY);status.textContent='Physical Sigil paired.';await refresh();await refreshIdentity();renderPlayerManager();return;}if(!r.ok)throw new Error(d.error||'Pairing expired');physicalJoinPoll=setTimeout(()=>pollPhysicalJoin(id),500);}catch(e){status.textContent=e.message;}
+}
+async function savePlayerNames(){
+  const status=document.getElementById('playerJoinStatus');
+  try{if(!settingsData){const r=await fetch('/api/settings',{cache:'no-store'});settingsData=await r.json();}const seats=Object.assign({},settingsData.seat_names||{});document.querySelectorAll('[data-player-seat]').forEach(i=>{seats[i.dataset.playerSeat]=i.value;});const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_names:settingsData.module_names||{},seat_names:seats,starting_life:settingsData.starting_life,game_profile:settingsData.game_profile,warning_ms:settingsData.warning_ms})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Save failed');settingsData=d;status.textContent='Player names saved.';await refresh();renderPlayerManager();}catch(e){status.textContent=e.message;}
 }
 
 async function openSettings() {
@@ -1000,23 +982,10 @@ async function openSettings() {
     const runtimeNote = document.getElementById('runtimeModeNote');
     if (runtimeNote && settingsData.platform) {
       runtimeNote.textContent = `${settingsData.platform.display_name}. ${settingsData.platform.reason}`;
+      const im=document.getElementById('interfaceModeSelect');
+      im.value=settingsData.platform.hardware_active ? 'hybrid' : 'virtual-only';
+      im.querySelector('option[value="hybrid"]').disabled=!settingsData.platform.hardware_capable;
     }
-
-    document.getElementById('moduleSettings').innerHTML = settingsData.module_ids.map(id => {
-      const value = settingsData.module_names[String(id)] || '';
-      return `<div class="field"><label>Module ${id}</label><input maxlength="40" data-module-id="${id}" value="${esc(value)}" placeholder="Module ${id}"></div>`;
-    }).join('');
-
-    const seatFields = [];
-    for (const id of settingsData.module_ids) {
-      for (const slot of [1,2]) {
-        const key = `${id}:${slot}`;
-        const value = settingsData.seat_names[key] || '';
-        const slotName = slot === 1 ? 'A' : 'B';
-        seatFields.push(`<div class="field"><label>Module ${id} • Seat ${slotName}</label><input maxlength="40" data-seat-key="${key}" value="${esc(value)}" placeholder="Player name"></div>`);
-      }
-    }
-    document.getElementById('seatSettings').innerHTML = seatFields.join('');
 
     const profiles = settingsData.game_profiles || {generic:{label:'Generic',life_presets:settingsData.starting_life_presets || [20,25,30,40,50,2000,4000,8000],default_life:40}};
     const profileSelect = document.getElementById('gameProfileSelect');
@@ -1027,7 +996,6 @@ async function openSettings() {
     gameProfileSelectionChanged(true);
 
     document.getElementById('persistenceNote').textContent = `Game state autosaves after changes and every ${settingsData.active_autosave_seconds} seconds during active play. Active games recover paused after a restart.`;
-    renderSoftwareControls();
     status.textContent = '';
   } catch (e) {
     status.textContent = 'Could not load settings.';
@@ -1072,15 +1040,16 @@ function closeSettings() {
 
 async function saveSettings() {
   const status = document.getElementById('settingsStatus');
-  const moduleNames = {};
-  const seatNames = {};
-  document.querySelectorAll('[data-module-id]').forEach(input => { moduleNames[input.dataset.moduleId] = input.value; });
-  document.querySelectorAll('[data-seat-key]').forEach(input => { seatNames[input.dataset.seatKey] = input.value; });
+  const moduleNames = Object.assign({}, settingsData?.module_names || {});
+  const seatNames = Object.assign({}, settingsData?.seat_names || {});
   status.textContent = 'Saving…';
   try {
     const startingLife = selectedStartingLife();
     const gameProfile = document.getElementById('gameProfileSelect').value || 'generic';
     const warningMs = Number(document.getElementById('warningSelect').value || 0);
+    const interfaceMode=document.getElementById('interfaceModeSelect').value;
+    const modeResponse=await fetch('/api/interface-mode',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:interfaceMode})});
+    if(!modeResponse.ok){const md=await modeResponse.json();throw new Error(md.error||'Could not change interface mode');}
     const r = await fetch('/api/settings', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -1182,6 +1151,7 @@ class WebPortal:
             "display_name": custom_name or f"Player {player.player_number}",
             "has_custom_name": custom_name is not None,
             "module_name": self.turnhub.persistence.module_name(player.module_id),
+            "controller_type": "virtual" if player.module_id >= 1000 else "physical",
             "web_claimed": player.seat_key in self.turnhub.web_control.claimed_seats(),
             "eliminated": bool(
                 self.turnhub.game.players
@@ -1531,6 +1501,8 @@ class WebPortal:
                         "mode": platform.mode,
                         "display_name": platform.display_name,
                         "hardware_enabled": platform.hardware_enabled,
+                        "hardware_capable": platform.hardware_enabled,
+                        "hardware_active": portal.turnhub.hardware_enabled,
                         "official_atlas": platform.official_atlas,
                         "development": platform.development,
                         "reason": platform.reason,
@@ -1547,6 +1519,13 @@ class WebPortal:
                         )
                         return
                     self._send_json(identity)
+                    return
+
+                if path == "/api/web/join-physical-status":
+                    query = parse_qs(parsed.query)
+                    request_id = (query.get("request_id") or [""])[0]
+                    payload, status_code = portal.turnhub.web_control.physical_join_status(request_id)
+                    self._send_json(payload, HTTPStatus(status_code))
                     return
 
                 if path == "/api/web/claim-status":
@@ -1577,6 +1556,16 @@ class WebPortal:
 
             def do_POST(self):
                 path = urlparse(self.path).path
+
+                if path in ("/api/web/join-virtual", "/api/web/join-physical"):
+                    payload = self._read_json() or {}
+                    name = str(payload.get("name", ""))
+                    if path.endswith("join-virtual"):
+                        _ok, result, status_code = portal.turnhub.web_control.create_virtual_player(name)
+                    else:
+                        _ok, result, status_code = portal.turnhub.web_control.request_physical_join(name)
+                    self._send_json(result, HTTPStatus(status_code))
+                    return
 
                 if path in ("/api/web/claim", "/api/web/reassign"):
                     payload = self._read_json()
@@ -1799,6 +1788,15 @@ class WebPortal:
                         return
 
                     self._send_json({"accepted": True, "action": action})
+                    return
+
+                if path == "/api/interface-mode":
+                    payload = self._read_json() or {}
+                    accepted, message = portal.turnhub.set_interface_mode(payload.get("mode", ""))
+                    if not accepted:
+                        self._send_json({"error": message}, HTTPStatus.CONFLICT)
+                    else:
+                        self._send_json({"accepted": True, "message": message})
                     return
 
                 if path == "/api/control":

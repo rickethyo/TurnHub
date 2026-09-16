@@ -143,7 +143,7 @@ class TurnHub:
         line: str,
     ) -> None:
 
-        if not line:
+        if not line or not self.hardware_enabled:
             return
 
         parts = line.split("|")
@@ -256,6 +256,23 @@ class TurnHub:
         print(
             f"[SERIAL] Unknown: {line}"
         )
+
+    def set_interface_mode(self, mode: str) -> tuple[bool, str]:
+        """Switch an Atlas-capable runtime between hybrid and virtual-only."""
+        mode = str(mode).strip().lower()
+        if mode == "virtual-only":
+            if self.hardware_enabled:
+                self.serial.stop()
+            self.hardware_enabled = False
+            return True, "Virtual Only mode enabled"
+        if mode == "hybrid":
+            if not self.platform.hardware_enabled:
+                return False, "This installation has no Atlas hardware capability"
+            if not self.hardware_enabled:
+                self.hardware_enabled = True
+                self.serial.start()
+            return True, "Physical + Virtual mode enabled"
+        return False, "unknown interface mode"
 
     # ========================================================
     # Software / Web Hardware Emulation
@@ -1157,6 +1174,14 @@ class TurnHub:
             and self.elimination_target_player is not None
         ):
             self._cycle_elimination_target(module)
+            return
+
+        # Browser-first physical join: pressing an unused Sigil binds the
+        # waiting browser to that Sigil and consumes this Action press.
+        joined = self.web_control.confirm_physical_join(module)
+        if joined is not None:
+            print(f"[WEB] Physical Sigil {module} joined and paired to browser.")
+            self.audio.web_controller_paired()
             return
 
         # Web-controller pairing uses a deliberate physical short press.

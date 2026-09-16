@@ -45,6 +45,9 @@ class WebControlManager:
         # Short-lived confirmation requests. The raw bearer token exists only
         # here long enough for the requesting browser to collect it.
         self._pending: dict[str, PendingWebClaim] = {}
+        # Browser-first physical join. The next unclaimed Sigil Action press
+        # joins that module and binds this browser to it.
+        self._pending_physical_join: dict[str, Any] | None = None
 
     # ========================================================
     # Helpers
@@ -271,6 +274,75 @@ class WebControlManager:
 
         self._pending[request_id] = pending
         return pending
+
+    def create_virtual_player(self, name: str) -> tuple[bool, dict[str, Any], int]:
+        """Join a browser-native player without requiring physical hardware."""
+        if self.turnhub.state != STATE_LOBBY:
+            return False, {"error": "players can only join in the lobby"}, 409
+        player = self.turnhub.lobby.add_virtual_player()
+        if player is None:
+            return False, {"error": "could not create virtual player"}, 500
+        clean = str(name or "").strip()[:40]
+        if clean:
+            snap = self.turnhub.persistence.settings_snapshot()
+            seats = dict(snap.get("seat_names", {}))
+            seats[self.seat_key_text(player.seat_key)] = clean
+            self.turnhub.persistence.update_names(seat_names=seats)
+        token = secrets.token_urlsafe(32)
+        with self._lock:
+            self._claims[player.seat_key] = self._token_hash(token)
+        self.turnhub.persistence.mark_dirty()
+        return True, {"token": token, "seat_key": list(player.seat_key), "mode": "virtual"}, 200
+
+    def request_physical_join(self, name: str) -> tuple[bool, dict[str, Any], int]:
+        """Arm browser-first pairing; next available physical Sigil Action wins."""
+        if self.turnhub.state != STATE_LOBBY:
+            return False, {"error": "players can only join in the lobby"}, 409
+        if not self.turnhub.hardware_enabled:
+            return False, {"error": "physical Sigils are disabled in Virtual Only mode"}, 409
+        with self._lock:
+            if self._pending_physical_join is not None:
+                return False, {"error": "another physical join is already waiting for a Sigil"}, 409
+            request_id = secrets.token_urlsafe(18)
+            self._pending_physical_join = {"request_id": request_id, "name": str(name or "").strip()[:40], "created_at": time.monotonic(), "status": "pending"}
+        return True, {"request_id": request_id, "status": "pending", "message": "Press Action on an available physical Sigil."}, 202
+
+    def confirm_physical_join(self, module_id: int) -> dict[str, Any] | None:
+        with self._lock:
+            pending = self._pending_physical_join
+            if pending is None or self.turnhub.state != STATE_LOBBY:
+                return None
+            if self.turnhub.lobby.is_joined(module_id):
+                return None
+            self.turnhub.lobby.join(module_id)
+            player = self.turnhub.lobby.primary_player(module_id)
+            if player is None:
+                return None
+            token = secrets.token_urlsafe(32)
+            self._claims[player.seat_key] = self._token_hash(token)
+            pending.update({"status":"confirmed", "token":token, "seat_key":player.seat_key, "module_id":module_id})
+            name = pending.get("name", "")
+            if name:
+                snap = self.turnhub.persistence.settings_snapshot()
+                seats = dict(snap.get("seat_names", {}))
+                seats[self.seat_key_text(player.seat_key)] = name
+                self.turnhub.persistence.update_names(seat_names=seats)
+            self.turnhub.persistence.mark_dirty()
+            return {"player": player, "module_id": module_id}
+
+    def physical_join_status(self, request_id: str) -> tuple[dict[str, Any], int]:
+        with self._lock:
+            p = self._pending_physical_join
+            if p is None or p.get("request_id") != request_id:
+                return {"status":"expired", "error":"join request not found"}, 404
+            if time.monotonic() - p["created_at"] > WEB_CLAIM_TIMEOUT_SECONDS:
+                self._pending_physical_join = None
+                return {"status":"expired", "error":"join request expired"}, 404
+            out = {k:v for k,v in p.items() if k not in {"created_at","name"}}
+            if isinstance(out.get("seat_key"), tuple): out["seat_key"] = list(out["seat_key"])
+            if p.get("status") == "confirmed":
+                self._pending_physical_join = None
+            return out, 200
 
     def request_lobby_claim(
         self,

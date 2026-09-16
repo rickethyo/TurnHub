@@ -7,6 +7,8 @@ import secrets
 from dataclasses import dataclass, field
 
 from config import MODULE_IDS
+
+VIRTUAL_MODULE_BASE = 1000
 from player import PlayerSeat
 
 
@@ -127,14 +129,33 @@ class Lobby:
         return None
 
     def join(self, module: int) -> int | None:
+        # Physical modules are predeclared. Virtual controller IDs are allocated
+        # dynamically and deliberately live outside the physical module range.
         if module not in self.module_ids:
-            return None
+            if module >= VIRTUAL_MODULE_BASE:
+                self.module_ids.append(module)
+            else:
+                return None
 
         if module in self.player_modules:
             return self.player_number(module)
 
         self.player_modules.append(module)
         return self.player_number(module)
+
+
+    def add_virtual_player(self) -> PlayerSeat:
+        """Create one virtual-only player/controller in the lobby."""
+        used = set(self.player_modules)
+        module = VIRTUAL_MODULE_BASE
+        while module in used:
+            module += 1
+        self.join(module)
+        return self.primary_player(module)
+
+    @staticmethod
+    def is_virtual_module(module: int) -> bool:
+        return int(module) >= VIRTUAL_MODULE_BASE
 
     def leave(self, module: int) -> bool:
         """Remove a physical module and all logical seats on it from the lobby."""
