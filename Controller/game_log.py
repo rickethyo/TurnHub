@@ -441,6 +441,7 @@ class GameLogWriter:
                     game.total_paused_seconds
                 )
             ),
+            f"Game profile: {game.game_profile}",
             f"Starting life: {game.starting_life}",
             (
                 "Elimination order: "
@@ -490,6 +491,17 @@ class GameLogWriter:
                     ),
                 ]
             )
+
+            if game.game_profile == "mtg_commander":
+                damage_map = game.commander_damage.get(player.player_number, {})
+                if damage_map:
+                    lines.append("  Commander damage received:")
+                    for source_number, damage in sorted(damage_map.items()):
+                        lines.append(
+                            "    from "
+                            + self._player_label(game, source_number)
+                            + f": {damage}"
+                        )
 
             if stats.turns_completed > 0:
 

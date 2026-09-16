@@ -102,6 +102,11 @@ class TurnHub:
         self._turn_advance_lock = threading.RLock()
         self._suppress_physical_pass_until: dict[int, float] = {}
 
+        # Web nudge is intentionally non-game-state feedback. Rate limits
+        # keep a player from turning the table into a notification siren.
+        self._last_nudge_by_player: dict[int, float] = {}
+        self._last_nudge_global: float = 0.0
+
         # Paused-game elimination is deliberately a multi-step physical
         # operation: Action+Pass selects a module, Action Short cycles an
         # exact logical seat, and Pass confirms. The selection is transient
@@ -558,21 +563,161 @@ class TurnHub:
 
     def on_web_life_adjust(
         self,
-        player_number: int,
+        actor_player: int,
+        target_player: int,
         delta: int,
-    ) -> bool:
-        """Adjust life for the authenticated web player's own seat only."""
+    ) -> dict | None:
+        """Adjust any living player's life from an authenticated player."""
         if delta not in (-100, -10, -1, 1, 10, 100):
-            return False
+            return None
 
         if self.elimination_target_player is not None:
+            return None
+
+        with self._turn_advance_lock:
+            result = self.game.adjust_life_from_web(
+                actor_player,
+                target_player,
+                delta,
+                notice_seconds=30.0,
+            )
+            if result is None:
+                return None
+            self.persistence.mark_dirty()
+            return result
+
+    def on_web_life_notice_confirm(
+        self,
+        player_number: int,
+        notice_id: str,
+    ) -> bool:
+        with self._turn_advance_lock:
+            if not self.game.confirm_life_change(player_number, notice_id):
+                return False
+            self.persistence.mark_dirty()
+            return True
+
+    def on_web_life_notice_deny(
+        self,
+        player_number: int,
+        notice_id: str,
+    ) -> bool:
+        with self._turn_advance_lock:
+            if not self.game.deny_life_change(player_number, notice_id):
+                return False
+            self.persistence.mark_dirty()
+            return True
+
+    def on_web_commander_damage_adjust(
+        self,
+        actor_player: int,
+        target_player: int,
+        source_player: int,
+        delta: int,
+    ) -> bool:
+        """Adjust MTG Commander damage. Any paired living player may edit."""
+        if delta not in (-1, 1):
+            return False
+        actor = self.game.player_by_number(actor_player)
+        if actor is None or self.game.is_eliminated(actor_player):
+            return False
+        if self.elimination_target_player is not None:
+            return False
+        with self._turn_advance_lock:
+            if not self.game.adjust_commander_damage(
+                target_player, source_player, delta
+            ):
+                return False
+            self.persistence.mark_dirty()
+            return True
+
+    def on_web_self_eliminate(self, player_number: int) -> bool:
+        """Let a paired player deliberately eliminate only their own seat."""
+        if self.game.has_win_claim or self.elimination_target_player is not None:
+            return False
+        if self.state not in (STATE_RUNNING, STATE_PAUSED):
+            return False
+        player = self.game.player_by_number(player_number)
+        if player is None or self.game.is_eliminated(player_number):
             return False
 
-        if not self.game.adjust_life(player_number, delta):
-            return False
+        with self._turn_advance_lock:
+            was_running = self.state == STATE_RUNNING
+            if was_running:
+                if not self.game.pause():
+                    return False
+                self.state = STATE_PAUSED
 
-        self.persistence.mark_dirty()
-        return True
+            eliminated, game_finished = self.game.eliminate_player(
+                player_number,
+                self.settings.warning_ms(),
+            )
+            if not eliminated:
+                if was_running:
+                    self.game.resume()
+                    self.state = STATE_RUNNING
+                return False
+
+            self.leds.player_eliminated(player.module_id)
+            self.audio.player_eliminated()
+            self.persistence.mark_dirty()
+            print(
+                "[WEB] Self elimination: "
+                f"{self.persistence.player_label(player)}."
+            )
+
+            if game_finished:
+                self.state = STATE_GAME_OVER
+                self._finish_game_outputs(
+                    reason="Last living player remains after self elimination."
+                )
+            elif was_running:
+                self.game.resume()
+                self.state = STATE_RUNNING
+
+            return True
+
+    def on_web_nudge(
+        self,
+        actor_player: int,
+        target_player: int | None = None,
+        table: bool = False,
+    ) -> tuple[bool, str]:
+        """Send a non-disruptive attention flash plus the current hub beep."""
+        if self.state not in (STATE_RUNNING, STATE_PAUSED):
+            return (False, "nudges are available only during a game")
+        if self.game.has_win_claim or self.elimination_target_player is not None:
+            return (False, "nudges are disabled during a pending decision")
+
+        actor = self.game.player_by_number(actor_player)
+        if actor is None or self.game.is_eliminated(actor_player):
+            return (False, "only a living paired player can nudge")
+
+        now = time.monotonic()
+        if now - self._last_nudge_by_player.get(actor_player, 0.0) < 5.0:
+            return (False, "nudge cooldown: wait a few seconds")
+        if now - self._last_nudge_global < 1.0:
+            return (False, "another nudge just played")
+
+        modules: list[int] = []
+        if table:
+            modules = list(self.game.modules)
+        else:
+            target = self.game.player_by_number(target_player)
+            if target is None or self.game.is_eliminated(target.player_number):
+                return (False, "target player is not available")
+            modules = [target.module_id]
+
+        for module in dict.fromkeys(modules):
+            self.leds.nudge(module)
+
+        # Current prototypes have one buzzer on the Atlas/Pi, not one buzzer
+        # per Sigil. The target Sigil flashes while the Atlas emits the nudge
+        # sound. Future Sigil buzzers can reuse this same web/API action.
+        self.audio.nudge(table=table)
+        self._last_nudge_by_player[actor_player] = now
+        self._last_nudge_global = now
+        return (True, "table nudged" if table else "player nudged")
 
     def on_web_win_claim(self, player_number: int) -> bool:
         restore_state = self.state
@@ -1367,6 +1512,7 @@ class TurnHub:
             starter=starter,
             warning_ms=self.warning_ms,
             starting_life=self.persistence.starting_life(),
+            game_profile=self.persistence.game_profile(),
         )
 
         self.elimination_target_player = None
@@ -1710,6 +1856,9 @@ class TurnHub:
                 self.status.update(
                     self
                 )
+
+                if self.game.players and self.game.expire_life_changes() > 0:
+                    self.persistence.mark_dirty()
 
                 self.persistence.update_autosave(
                     self,

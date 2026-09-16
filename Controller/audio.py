@@ -180,6 +180,20 @@ class AudioController:
     # TurnHub Sounds
     # ========================================================
 
+    def nudge(self, table: bool = False) -> None:
+        """Attention sound for a web nudge. Current prototypes use Atlas audio."""
+        if table:
+            self._enqueue(
+                (900, 55, 35),
+                (1250, 55, 35),
+                (1650, 90, 0),
+            )
+        else:
+            self._enqueue(
+                (1250, 65, 35),
+                (1250, 65, 0),
+            )
+
     def player_joined(self) -> None:
         self._enqueue(
             (800, 60, 35),

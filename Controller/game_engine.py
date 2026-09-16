@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 
 from dataclasses import dataclass, field
 
@@ -49,11 +50,22 @@ class GameEngine:
 
     stats: dict[int, PlayerStats] = field(default_factory=dict)
 
-    # Life totals are optional web-UI game data. Hardware behavior does not
-    # depend on them. starting_life is captured when the game begins so a
-    # later settings change only affects future games.
+    # Web-UI game profile / score data. Hardware behavior does not depend on
+    # these fields. The selected profile and starting life are captured when
+    # the game begins so later settings changes affect only future games.
+    game_profile: str = "generic"
     starting_life: int = 40
     life_totals: dict[int, int] = field(default_factory=dict)
+
+    # Commander damage is stored as target -> source commander -> damage.
+    # It is meaningful only for the MTG Commander profile, but keeping the
+    # structure in the game model makes persistence and the web API simple.
+    commander_damage: dict[int, dict[int, int]] = field(default_factory=dict)
+
+    # Cross-player life edits take effect immediately, then the affected
+    # player gets a short undo window. Notices use wall-clock expiry so they
+    # can survive a TurnHub process restart.
+    pending_life_changes: list[dict] = field(default_factory=list)
 
     # Logical players remain in the game record after elimination so player
     # numbers, names, web-controller claims, and statistics stay stable.
@@ -78,6 +90,7 @@ class GameEngine:
         starter: PlayerSeat,
         warning_ms: int,
         starting_life: int = 40,
+        game_profile: str = "generic",
     ) -> None:
 
         self.players = list(players)
@@ -116,11 +129,21 @@ class GameEngine:
             for player in self.players
         }
 
+        self.game_profile = str(game_profile or "generic")
         self.starting_life = int(starting_life)
         self.life_totals = {
             player.player_number: self.starting_life
             for player in self.players
         }
+        self.commander_damage = {
+            target.player_number: {
+                source.player_number: 0
+                for source in self.players
+                if source.player_number != target.player_number
+            }
+            for target in self.players
+        }
+        self.pending_life_changes = []
 
     # ========================================================
     # Life Totals (Web UI)
@@ -153,6 +176,166 @@ class GameEngine:
             return False
 
         self.life_totals[player_number] = new_total
+        return True
+
+    def adjust_life_from_web(
+        self,
+        actor_player: int,
+        target_player: int,
+        delta: int,
+        notice_seconds: float = 30.0,
+    ) -> dict | None:
+        """Apply a web life edit and optionally create a reversible notice."""
+
+        if self.player_by_number(actor_player) is None:
+            return None
+        if self.is_eliminated(actor_player):
+            return None
+        if self.player_by_number(target_player) is None:
+            return None
+        if self.is_eliminated(target_player):
+            return None
+
+        old_total = self.life_total(target_player)
+        if old_total is None:
+            old_total = self.starting_life
+
+        if not self.adjust_life(target_player, delta):
+            return None
+
+        new_total = self.life_total(target_player)
+        result = {
+            "actor_player": actor_player,
+            "target_player": target_player,
+            "delta": int(delta),
+            "old_total": int(old_total),
+            "new_total": int(new_total if new_total is not None else old_total),
+        }
+
+        if actor_player == target_player:
+            return result
+
+        now_unix = time.time()
+        self.expire_life_changes(now_unix)
+
+        # Coalesce rapid taps by the same editor on the same target so three
+        # -1 taps become one useful "40 -> 37" notification instead of three
+        # stacked popups. The original total is preserved for the message,
+        # while deny still reverses only the combined delta.
+        for notice in reversed(self.pending_life_changes):
+            if (
+                int(notice.get("actor_player", -1)) == int(actor_player)
+                and int(notice.get("target_player", -1)) == int(target_player)
+                and now_unix - float(notice.get("created_at_unix", 0.0)) <= 2.0
+            ):
+                notice["delta"] = int(notice.get("delta", 0)) + int(delta)
+                notice["new_total"] = int(new_total if new_total is not None else old_total)
+                notice["created_at_unix"] = now_unix
+                notice["expires_at_unix"] = now_unix + max(1.0, float(notice_seconds))
+                result["old_total"] = int(notice.get("old_total", old_total))
+                result["new_total"] = notice["new_total"]
+                result["delta"] = notice["delta"]
+                result["notice_id"] = notice["id"]
+                return result
+
+        notice = {
+            "id": uuid.uuid4().hex,
+            **result,
+            "created_at_unix": now_unix,
+            "expires_at_unix": now_unix + max(1.0, float(notice_seconds)),
+        }
+        self.pending_life_changes.append(notice)
+        result["notice_id"] = notice["id"]
+        return result
+
+    def expire_life_changes(self, now_unix: float | None = None) -> int:
+        """Auto-confirm expired life edits by removing their undo notices."""
+        if now_unix is None:
+            now_unix = time.time()
+        before = len(self.pending_life_changes)
+        self.pending_life_changes = [
+            notice
+            for notice in self.pending_life_changes
+            if float(notice.get("expires_at_unix", 0.0)) > now_unix
+        ]
+        return before - len(self.pending_life_changes)
+
+    def life_changes_for_player(self, player_number: int) -> list[dict]:
+        self.expire_life_changes()
+        return [
+            dict(notice)
+            for notice in self.pending_life_changes
+            if int(notice.get("target_player", -1)) == int(player_number)
+        ]
+
+    def confirm_life_change(self, player_number: int, notice_id: str) -> bool:
+        self.expire_life_changes()
+        for index, notice in enumerate(self.pending_life_changes):
+            if (
+                str(notice.get("id")) == str(notice_id)
+                and int(notice.get("target_player", -1)) == int(player_number)
+            ):
+                self.pending_life_changes.pop(index)
+                return True
+        return False
+
+    def deny_life_change(self, player_number: int, notice_id: str) -> bool:
+        """Undo only this edit's delta so later life changes remain intact."""
+        self.expire_life_changes()
+        for index, notice in enumerate(self.pending_life_changes):
+            if (
+                str(notice.get("id")) != str(notice_id)
+                or int(notice.get("target_player", -1)) != int(player_number)
+            ):
+                continue
+
+            delta = int(notice.get("delta", 0))
+            if player_number not in self.life_totals:
+                return False
+            restored = self.life_totals[player_number] - delta
+            if abs(restored) > 1_000_000:
+                return False
+            self.life_totals[player_number] = restored
+            self.pending_life_changes.pop(index)
+            return True
+        return False
+
+    def commander_damage_total(
+        self,
+        target_player: int,
+        source_player: int,
+    ) -> int | None:
+        if target_player == source_player:
+            return None
+        return self.commander_damage.get(target_player, {}).get(source_player, 0)
+
+    def adjust_commander_damage(
+        self,
+        target_player: int,
+        source_player: int,
+        delta: int,
+    ) -> bool:
+        if self.game_profile != "mtg_commander":
+            return False
+        if self.state not in (STATE_RUNNING, STATE_PAUSED):
+            return False
+        if self.has_win_claim:
+            return False
+        if target_player == source_player:
+            return False
+        if self.player_by_number(target_player) is None:
+            return False
+        if self.player_by_number(source_player) is None:
+            return False
+        if self.is_eliminated(target_player):
+            return False
+
+        target_map = self.commander_damage.setdefault(target_player, {})
+        current = int(target_map.get(source_player, 0))
+        new_value = current + int(delta)
+        if new_value < 0 or new_value > 999:
+            return False
+        target_map[source_player] = new_value
         return True
 
     # ========================================================

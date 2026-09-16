@@ -122,6 +122,9 @@ class LEDController:
     def player_eliminated(self, module: int) -> None:
         self._start_feedback(module, "PLAYER_ELIMINATED")
 
+    def nudge(self, module: int) -> None:
+        self._start_feedback(module, "NUDGE")
+
     def clear_feedback(self) -> None:
         with self._feedback_lock:
             self._feedback.clear()
@@ -165,6 +168,17 @@ class LEDController:
                 (0, True, False),
                 (0, False, False),
                 (0, True, False),
+                (0, False, False),
+            )
+        elif effect == "NUDGE":
+            # Fast all-color attention pulse, intentionally distinct from
+            # normal turn, warning, and elimination language.
+            sequence = (
+                (255, True, True),
+                (0, False, False),
+                (255, True, True),
+                (0, False, False),
+                (255, True, True),
                 (0, False, False),
             )
         else:

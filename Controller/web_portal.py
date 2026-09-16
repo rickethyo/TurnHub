@@ -91,6 +91,19 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 .life-controls { display:flex; flex-wrap:wrap; justify-content:center; gap:7px; margin-top:10px; }
 .life-button { min-width:48px; border:1px solid rgba(114,167,255,.38); background:rgba(114,167,255,.09); color:var(--blue); border-radius:10px; padding:8px 10px; font:inherit; font-weight:850; cursor:pointer; }
 .life-button:disabled { opacity:.45; cursor:default; }
+.commander-panel { margin-top:12px; border-top:1px solid var(--line); padding-top:11px; }
+.commander-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 0; color:var(--muted); font-size:.84rem; }
+.commander-row strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.commander-row.danger strong { color:var(--bad); }
+.mini-controls { display:flex; gap:5px; align-items:center; }
+.mini-button { border:1px solid var(--line); background:var(--bg); color:var(--text); border-radius:8px; padding:5px 8px; font:inherit; font-weight:800; cursor:pointer; }
+.player-tools { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.tool-button { border:1px solid var(--line); background:var(--bg); color:var(--muted); border-radius:9px; padding:7px 9px; font:inherit; font-size:.82rem; font-weight:800; cursor:pointer; }
+.tool-button.danger { color:var(--bad); border-color:rgba(239,106,106,.38); }
+.life-notice { position:fixed; z-index:80; left:50%; bottom:max(18px,env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(520px,calc(100% - 28px)); background:#202632; border:1px solid rgba(239,197,90,.5); border-radius:16px; padding:15px; box-shadow:0 20px 60px rgba(0,0,0,.48); }
+.life-notice-title { font-weight:900; margin-bottom:5px; }
+.life-notice-text { color:var(--muted); line-height:1.4; }
+.life-notice-actions { display:flex; gap:8px; margin-top:12px; }
 .modules { display:flex; flex-wrap:wrap; gap:9px; }
 .module { display:flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:8px 11px; color:var(--muted); }
 .module .mini-dot { width:8px; height:8px; border-radius:50%; background:var(--bad); }
@@ -170,6 +183,8 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
       <button id="confirmWinButton" class="control-button confirm hidden" type="button" onclick="confirmWinFromWeb()">Confirm Win</button>
       <button id="denyWinButton" class="control-button deny hidden" type="button" onclick="denyWinFromWeb()">Deny Claim</button>
       <button id="cancelWinButton" class="control-button deny hidden" type="button" onclick="cancelWinFromWeb()">Cancel Win Claim</button>
+      <button id="nudgeTableButton" class="control-button hidden" type="button" onclick="nudgeTableFromWeb()">Nudge Table</button>
+      <button id="selfEliminateButton" class="control-button deny hidden" type="button" onclick="selfEliminateFromWeb()">Self Eliminate</button>
     </div>
   </section>
 
@@ -179,6 +194,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
       <div class="metric"><div class="metric-label">State</div><div id="stateValue" class="metric-value">—</div></div>
       <div class="metric"><div class="metric-label">Game Time</div><div id="gameTime" class="metric-value">00:00</div></div>
       <div class="metric"><div class="metric-label">Timer Setting</div><div id="timerSetting" class="metric-value">—</div></div>
+      <div class="metric"><div class="metric-label">Game</div><div id="gameProfileValue" class="metric-value">—</div></div>
       <div class="metric"><div class="metric-label">Starting Life</div><div id="startingLifeValue" class="metric-value">—</div></div>
       <div class="metric"><div class="metric-label">Host</div><div id="hostValue" class="metric-value">—</div></div>
     </div>
@@ -217,6 +233,12 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     </div>
 
     <div class="settings-group">
+      <h3>Game profile</h3>
+      <p class="settings-note">The profile controls suggested starting life and optional game-specific tools. It is captured when the next game begins.</p>
+      <div class="field"><label>Game</label><select id="gameProfileSelect" onchange="gameProfileSelectionChanged()"></select></div>
+    </div>
+
+    <div class="settings-group">
       <h3>Starting life</h3>
       <p class="settings-note">This value is copied to every player when the next game begins. Changing it during a game does not alter current life totals.</p>
       <div class="form-grid">
@@ -231,7 +253,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     </div>
 
     <div class="dialog-actions">
-      <button class="primary-button" type="button" onclick="saveSettings()">Save names</button>
+      <button class="primary-button" type="button" onclick="saveSettings()">Save settings</button>
       <button class="secondary-button" type="button" onclick="saveGameStateNow()">Save game state now</button>
       <button class="secondary-button" type="button" onclick="closeSettings()">Cancel</button>
     </div>
@@ -250,6 +272,15 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     <div id="identityChoices" class="choice-list"></div>
     <div id="identityActions" class="dialog-actions"></div>
     <div id="identityStatus" class="settings-status"></div>
+  </div>
+</div>
+
+<div id="lifeNotice" class="life-notice hidden">
+  <div class="life-notice-title">Life total changed</div>
+  <div id="lifeNoticeText" class="life-notice-text"></div>
+  <div class="life-notice-actions">
+    <button class="primary-button" type="button" onclick="confirmLifeNotice()">Confirm</button>
+    <button class="secondary-button" type="button" onclick="denyLifeNotice()">Deny / Undo</button>
   </div>
 </div>
 
@@ -293,6 +324,14 @@ function seatLabel(p) {
 function playerMeta(p) {
   if (!p) return '';
   return p.has_custom_name ? `Player ${p.player_number} • ${seatLabel(p)}` : seatLabel(p);
+}
+
+function profileLabel(value) {
+  return ({generic:'Generic', mtg:'Magic: The Gathering', mtg_commander:'MTG Commander', yugioh:'Yu-Gi-Oh!'})[value] || value || 'Generic';
+}
+
+function playerByNumber(d, number) {
+  return (d.players || []).find(p => Number(p.player_number) === Number(number)) || null;
 }
 
 function badge(text, cls='') {
@@ -376,8 +415,8 @@ function renderHero(d) {
 
 function lifeControlsHtml(d, p) {
   const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
-  const mine = sameSeat(me, p);
-  const editable = mine
+  const editable = !!me
+    && !me.eliminated
     && !p.eliminated
     && (d.state === 'RUNNING' || d.state === 'PAUSED')
     && !d.win_claim
@@ -385,12 +424,44 @@ function lifeControlsHtml(d, p) {
 
   if (!editable) return '';
 
-  const large = Number(d.starting_life || 0) > 100;
-  const deltas = large ? [-100, -10, 10, 100] : [-1, 1];
+  let deltas;
+  if (d.game_profile === 'mtg' || d.game_profile === 'mtg_commander') {
+    deltas = [-10, -1, 1, 10];
+  } else if (d.game_profile === 'yugioh' || Number(d.starting_life || 0) > 100) {
+    deltas = [-100, -10, 10, 100];
+  } else {
+    deltas = [-1, 1];
+  }
+
   return `<div class="life-controls">${deltas.map(delta => {
     const label = delta > 0 ? `+${delta}` : String(delta);
-    return `<button class="life-button" type="button" onclick="adjustLife(${delta})">${label}</button>`;
+    return `<button class="life-button" type="button" onclick="adjustLife(${p.player_number},${delta})">${label}</button>`;
   }).join('')}</div>`;
+}
+
+function commanderDamageHtml(d, p) {
+  if (d.game_profile !== 'mtg_commander' || d.state === 'LOBBY' || d.state === 'STARTING') return '';
+  const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
+  const editable = !!me && !me.eliminated && !p.eliminated
+    && (d.state === 'RUNNING' || d.state === 'PAUSED')
+    && !d.win_claim && !d.elimination_target;
+  const sources = (d.players || []).filter(source => source.player_number !== p.player_number);
+  if (!sources.length) return '';
+  return `<div class="commander-panel"><div class="life-label">Commander Damage Received</div>${sources.map(source => {
+    const value = Number((p.commander_damage || {})[String(source.player_number)] ?? (p.commander_damage || {})[source.player_number] ?? 0);
+    const controls = editable ? `<span class="mini-controls"><button class="mini-button" type="button" onclick="adjustCommanderDamage(${p.player_number},${source.player_number},-1)">−</button><button class="mini-button" type="button" onclick="adjustCommanderDamage(${p.player_number},${source.player_number},1)">+</button></span>` : '';
+    return `<div class="commander-row ${value >= 21 ? 'danger' : ''}"><span>from ${esc(playerLabel(source))}</span><span><strong>${value}</strong> ${controls}</span></div>`;
+  }).join('')}</div>`;
+}
+
+function playerToolsHtml(d, p) {
+  const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
+  const living = !!(me && !me.eliminated);
+  if (!living || p.eliminated || !(d.state === 'RUNNING' || d.state === 'PAUSED') || d.win_claim || d.elimination_target) return '';
+  const tools = [];
+  if (!sameSeat(me, p)) tools.push(`<button class="tool-button" type="button" onclick="nudgePlayer(${p.player_number})">Nudge</button>`);
+  if (sameSeat(me, p)) tools.push(`<button class="tool-button danger" type="button" onclick="selfEliminateFromWeb()">Self Eliminate</button>`);
+  return tools.length ? `<div class="player-tools">${tools.join('')}</div>` : '';
 }
 
 function renderPlayers(d) {
@@ -424,6 +495,8 @@ function renderPlayers(d) {
         <div class="life-total">${Number(p.life_total ?? d.starting_life ?? 0)}</div>
         ${lifeControlsHtml(d, p)}
       </div>
+      ${commanderDamageHtml(d, p)}
+      ${playerToolsHtml(d, p)}
       <div class="player-stat"><span>Completed turns</span><strong>${p.turns_completed ?? 0}</strong></div>
       <div class="player-stat"><span>Turn time total</span><strong>${fmt(p.completed_turn_seconds ?? 0)}</strong></div>
     </div>`;
@@ -446,12 +519,14 @@ function render(d) {
   const gameRunning = d.state === 'RUNNING';
   document.getElementById('gameTime').textContent = fmt(dynamicSeconds(d.game_elapsed_seconds, gameRunning));
   document.getElementById('timerSetting').textContent = d.timer_setting;
+  document.getElementById('gameProfileValue').textContent = profileLabel(d.game_profile);
   document.getElementById('startingLifeValue').textContent = String(d.starting_life ?? '—');
   document.getElementById('hostValue').textContent = d.host_module === null ? 'None' : (d.host_module_name || `Module ${d.host_module}`);
   renderHero(d);
   renderPlayers(d);
   renderModules(d);
   renderWebControls(d);
+  renderLifeNotice(d);
   updateIdentityChip();
   maybePromptIdentity();
 }
@@ -490,8 +565,10 @@ function renderWebControls(d) {
   const confirmButton = document.getElementById('confirmWinButton');
   const denyButton = document.getElementById('denyWinButton');
   const cancelButton = document.getElementById('cancelWinButton');
+  const nudgeTableButton = document.getElementById('nudgeTableButton');
+  const selfEliminateButton = document.getElementById('selfEliminateButton');
 
-  for (const button of [passButton, pauseButton, winButton, confirmButton, denyButton, cancelButton]) {
+  for (const button of [passButton, pauseButton, winButton, confirmButton, denyButton, cancelButton, nudgeTableButton, selfEliminateButton]) {
     button.classList.add('hidden');
     button.disabled = false;
   }
@@ -501,6 +578,8 @@ function renderWebControls(d) {
   confirmButton.textContent = 'Confirm Win';
   denyButton.textContent = 'Deny Claim';
   cancelButton.textContent = 'Cancel Win Claim';
+  nudgeTableButton.textContent = 'Nudge Table';
+  selfEliminateButton.textContent = 'Self Eliminate';
 
   const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
   const livingPaired = !!(me && !me.eliminated);
@@ -526,9 +605,13 @@ function renderWebControls(d) {
   if (d.state === 'RUNNING') {
     pauseButton.classList.remove('hidden');
     winButton.classList.remove('hidden');
+    nudgeTableButton.classList.remove('hidden');
+    selfEliminateButton.classList.remove('hidden');
     if (sameSeat(me, d.active_player)) passButton.classList.remove('hidden');
   } else if (d.state === 'PAUSED' && !d.elimination_target) {
     winButton.classList.remove('hidden');
+    nudgeTableButton.classList.remove('hidden');
+    selfEliminateButton.classList.remove('hidden');
   }
 }
 
@@ -720,12 +803,12 @@ async function passTurnFromWeb() {
   }
 }
 
-async function adjustLife(delta) {
+async function adjustLife(targetPlayer, delta) {
   try {
     const r = await fetch('/api/web/life', {
       method:'POST',
       headers:authHeaders({'Content-Type':'application/json'}),
-      body:JSON.stringify({delta:Number(delta)})
+      body:JSON.stringify({target_player:Number(targetPlayer), delta:Number(delta)})
     });
     const data = await r.json();
     if (r.status === 401) {
@@ -739,6 +822,69 @@ async function adjustLife(delta) {
     console.warn('Life adjustment rejected:', e);
   }
 }
+
+async function adjustCommanderDamage(targetPlayer, sourcePlayer, delta) {
+  try {
+    const r = await fetch('/api/web/commander-damage', {
+      method:'POST',
+      headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({target_player:Number(targetPlayer), source_player:Number(sourcePlayer), delta:Number(delta)})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    await refresh();
+  } catch (e) { console.warn('Commander damage rejected:', e); }
+}
+
+let activeLifeNoticeId = null;
+function renderLifeNotice(d) {
+  const root = document.getElementById('lifeNotice');
+  const me = currentIdentity && currentIdentity.player ? currentIdentity.player : null;
+  if (!me) { root.classList.add('hidden'); activeLifeNoticeId = null; return; }
+  const notices = (d.pending_life_changes || []).filter(n => Number(n.target_player) === Number(me.player_number));
+  if (!notices.length) { root.classList.add('hidden'); activeLifeNoticeId = null; return; }
+  notices.sort((a,b) => Number(a.created_at_unix || 0) - Number(b.created_at_unix || 0));
+  const n = notices[0];
+  activeLifeNoticeId = n.id;
+  const actor = playerByNumber(d, n.actor_player);
+  document.getElementById('lifeNoticeText').textContent = `${playerLabel(actor)} changed your life from ${n.old_total} to ${n.new_total}. It will be accepted automatically if you do nothing.`;
+  root.classList.remove('hidden');
+}
+
+async function actOnLifeNotice(path) {
+  if (!activeLifeNoticeId) return;
+  try {
+    const r = await fetch(path, {
+      method:'POST', headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify({notice_id:activeLifeNoticeId})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    activeLifeNoticeId = null;
+    await refresh();
+  } catch (e) { console.warn('Life notification action rejected:', e); }
+}
+function confirmLifeNotice() { return actOnLifeNotice('/api/web/life-confirm'); }
+function denyLifeNotice() { return actOnLifeNotice('/api/web/life-deny'); }
+
+async function selfEliminateFromWeb() {
+  if (!window.confirm('Eliminate yourself from this game? This removes you from turn order.')) return;
+  if (!window.confirm('Confirm self elimination?')) return;
+  return authenticatedGameAction('/api/web/self-eliminate', 'selfEliminateButton', 'Eliminating…');
+}
+
+async function nudgeRequest(payload) {
+  try {
+    const r = await fetch('/api/web/nudge', {
+      method:'POST', headers:authHeaders({'Content-Type':'application/json'}),
+      body:JSON.stringify(payload)
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  } catch (e) { console.warn('Nudge rejected:', e); }
+}
+function nudgePlayer(playerNumber) { return nudgeRequest({target_player:Number(playerNumber)}); }
+function nudgeTableFromWeb() { return nudgeRequest({table:true}); }
 
 async function authenticatedGameAction(path, buttonId, busyText) {
   const button = document.getElementById(buttonId);
@@ -794,20 +940,32 @@ async function openSettings() {
     }
     document.getElementById('seatSettings').innerHTML = seatFields.join('');
 
-    const presets = settingsData.starting_life_presets || [20,25,30,40,50,2000,4000,8000];
-    const currentLife = Number(settingsData.starting_life ?? 40);
-    const isPreset = presets.includes(currentLife);
-    const select = document.getElementById('startingLifeSelect');
-    select.innerHTML = presets.map(value => `<option value="${value}">${value}</option>`).join('') + '<option value="custom">Custom…</option>';
-    select.value = isPreset ? String(currentLife) : 'custom';
-    document.getElementById('startingLifeCustom').value = String(currentLife);
-    startingLifeSelectionChanged();
+    const profiles = settingsData.game_profiles || {generic:{label:'Generic',life_presets:settingsData.starting_life_presets || [20,25,30,40,50,2000,4000,8000],default_life:40}};
+    const profileSelect = document.getElementById('gameProfileSelect');
+    profileSelect.innerHTML = Object.entries(profiles).map(([key,value]) => `<option value="${esc(key)}">${esc(value.label || key)}</option>`).join('');
+    profileSelect.value = settingsData.game_profile || 'generic';
+    document.getElementById('startingLifeCustom').value = String(Number(settingsData.starting_life ?? 40));
+    gameProfileSelectionChanged(true);
 
     document.getElementById('persistenceNote').textContent = `Game state autosaves after changes and every ${settingsData.active_autosave_seconds} seconds during active play. Active games recover paused after a restart.`;
     status.textContent = '';
   } catch (e) {
     status.textContent = 'Could not load settings.';
   }
+}
+
+function gameProfileSelectionChanged(preserveCurrent=false) {
+  if (!settingsData) return;
+  const profileKey = document.getElementById('gameProfileSelect').value || 'generic';
+  const profile = (settingsData.game_profiles || {})[profileKey] || {};
+  const presets = profile.life_presets || settingsData.starting_life_presets || [20,25,30,40,50,2000,4000,8000];
+  const select = document.getElementById('startingLifeSelect');
+  let current = preserveCurrent ? Number(settingsData.starting_life ?? profile.default_life ?? 40) : Number(profile.default_life ?? presets[0] ?? 40);
+  const isPreset = presets.includes(current);
+  select.innerHTML = presets.map(value => `<option value="${value}">${value}</option>`).join('') + '<option value="custom">Custom…</option>';
+  select.value = isPreset ? String(current) : 'custom';
+  document.getElementById('startingLifeCustom').value = String(current);
+  startingLifeSelectionChanged();
 }
 
 function startingLifeSelectionChanged() {
@@ -841,10 +999,11 @@ async function saveSettings() {
   status.textContent = 'Saving…';
   try {
     const startingLife = selectedStartingLife();
+    const gameProfile = document.getElementById('gameProfileSelect').value || 'generic';
     const r = await fetch('/api/settings', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife})
+      body:JSON.stringify({module_names:moduleNames, seat_names:seatNames, starting_life:startingLife, game_profile:gameProfile})
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     settingsData = await r.json();
@@ -954,8 +1113,12 @@ class WebPortal:
                 player.player_number,
                 self.turnhub.game.starting_life,
             )
+            result["commander_damage"] = dict(
+                self.turnhub.game.commander_damage.get(player.player_number, {})
+            )
         else:
             result["life_total"] = self.turnhub.persistence.starting_life()
+            result["commander_damage"] = {}
 
         if stats is not None:
             result["turns_completed"] = stats.turns_completed
@@ -971,6 +1134,8 @@ class WebPortal:
 
         hub = self.turnhub
         now = time.monotonic()
+        if hub.game.players and hub.game.expire_life_changes() > 0:
+            hub.persistence.mark_dirty()
         connected = set(hub.serial.connected_modules())
 
         if hub.game.players:
@@ -1094,6 +1259,11 @@ class WebPortal:
             "state": hub.state,
             "generated_at_unix": time.time(),
             "timer_setting": timer_setting,
+            "game_profile": (
+                hub.game.game_profile
+                if hub.game.players
+                else hub.persistence.game_profile()
+            ),
             "starting_life": (
                 hub.game.starting_life
                 if hub.game.players
@@ -1115,6 +1285,7 @@ class WebPortal:
             "winner": winner,
             "elimination_target": elimination_target,
             "win_claim": win_claim,
+            "pending_life_changes": list(hub.game.pending_life_changes),
             "eliminated_players": list(hub.game.eliminated_players),
             "active_turn_number": active_turn_number,
             "turn_elapsed_seconds": hub.game.current_turn_elapsed(now)
@@ -1376,15 +1547,19 @@ class WebPortal:
                         return
                     try:
                         delta = int(payload.get("delta"))
+                        target_player = int(payload.get("target_player", player.player_number))
                     except (TypeError, ValueError):
-                        self._send_json({"error": "delta must be an integer"}, HTTPStatus.BAD_REQUEST)
+                        self._send_json({"error": "delta and target_player must be integers"}, HTTPStatus.BAD_REQUEST)
                         return
 
                     if delta not in (-100, -10, -1, 1, 10, 100):
                         self._send_json({"error": "unsupported life adjustment"}, HTTPStatus.BAD_REQUEST)
                         return
 
-                    if not portal.turnhub.on_web_life_adjust(player.player_number, delta):
+                    result = portal.turnhub.on_web_life_adjust(
+                        player.player_number, target_player, delta
+                    )
+                    if result is None:
                         self._send_json(
                             {"error": "life adjustment is not allowed in the current state"},
                             HTTPStatus.CONFLICT,
@@ -1393,8 +1568,106 @@ class WebPortal:
 
                     self._send_json({
                         "accepted": True,
-                        "life_total": portal.turnhub.game.life_total(player.player_number),
+                        "target_player": target_player,
+                        "life_total": portal.turnhub.game.life_total(target_player),
+                        "notice_id": result.get("notice_id"),
                     })
+                    return
+
+                if path in ("/api/web/life-confirm", "/api/web/life-deny"):
+                    ok, player, reason = portal.turnhub.web_control.authorize_living_player(
+                        self._bearer_token()
+                    )
+                    if not ok or player is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+                    payload = self._read_json()
+                    if payload is None or not payload.get("notice_id"):
+                        self._send_json({"error": "notice_id is required"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    notice_id = str(payload.get("notice_id"))
+                    if path.endswith("life-confirm"):
+                        accepted = portal.turnhub.on_web_life_notice_confirm(
+                            player.player_number, notice_id
+                        )
+                    else:
+                        accepted = portal.turnhub.on_web_life_notice_deny(
+                            player.player_number, notice_id
+                        )
+                    if not accepted:
+                        self._send_json({"error": "life-change notice is no longer available"}, HTTPStatus.CONFLICT)
+                        return
+                    self._send_json({"accepted": True})
+                    return
+
+                if path == "/api/web/commander-damage":
+                    ok, player, reason = portal.turnhub.web_control.authorize_living_player(
+                        self._bearer_token()
+                    )
+                    if not ok or player is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+                    payload = self._read_json()
+                    if payload is None:
+                        self._send_json({"error": "invalid JSON"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    try:
+                        target_player = int(payload.get("target_player"))
+                        source_player = int(payload.get("source_player"))
+                        delta = int(payload.get("delta"))
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "target_player, source_player and delta are required"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    if not portal.turnhub.on_web_commander_damage_adjust(
+                        player.player_number, target_player, source_player, delta
+                    ):
+                        self._send_json({"error": "commander damage adjustment is not allowed"}, HTTPStatus.CONFLICT)
+                        return
+                    self._send_json({
+                        "accepted": True,
+                        "damage": portal.turnhub.game.commander_damage_total(target_player, source_player),
+                    })
+                    return
+
+                if path == "/api/web/self-eliminate":
+                    ok, player, reason = portal.turnhub.web_control.authorize_living_player(
+                        self._bearer_token()
+                    )
+                    if not ok or player is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+                    if not portal.turnhub.on_web_self_eliminate(player.player_number):
+                        self._send_json({"error": "self elimination is not allowed in the current state"}, HTTPStatus.CONFLICT)
+                        return
+                    self._send_json({"accepted": True})
+                    return
+
+                if path == "/api/web/nudge":
+                    ok, player, reason = portal.turnhub.web_control.authorize_living_player(
+                        self._bearer_token()
+                    )
+                    if not ok or player is None:
+                        status = HTTPStatus.UNAUTHORIZED if reason == "invalid web-controller token" else HTTPStatus.FORBIDDEN
+                        self._send_json({"error": reason}, status)
+                        return
+                    payload = self._read_json() or {}
+                    table = bool(payload.get("table", False))
+                    target = payload.get("target_player")
+                    try:
+                        target_player = None if target is None else int(target)
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "target_player must be an integer"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    accepted, message = portal.turnhub.on_web_nudge(
+                        player.player_number, target_player=target_player, table=table
+                    )
+                    if not accepted:
+                        self._send_json({"error": message}, HTTPStatus.CONFLICT)
+                        return
+                    self._send_json({"accepted": True, "message": message})
                     return
 
                 if path in (
@@ -1450,6 +1723,7 @@ class WebPortal:
                     module_names = payload.get("module_names")
                     seat_names = payload.get("seat_names")
                     starting_life = payload.get("starting_life")
+                    game_profile = payload.get("game_profile")
                     if not isinstance(module_names, dict) or not isinstance(seat_names, dict):
                         self._send_json(
                             {"error": "module_names and seat_names must be objects"},
@@ -1462,6 +1736,7 @@ class WebPortal:
                             module_names=module_names,
                             seat_names=seat_names,
                             starting_life=starting_life,
+                            game_profile=game_profile,
                         )
                     except ValueError as exc:
                         self._send_json(

@@ -226,3 +226,14 @@ TurnHub's local web portal can optionally track a life total for each logical pl
 - Life may reach zero or become negative without automatically eliminating a player. Elimination remains a separate deliberate TurnHub action.
 - Current life totals are included in recoverable game state and restored after a reboot.
 - Completed game logs include the game's starting life and each player's final life total.
+
+
+## Web Game Profiles, Shared Life, Commander Damage, Self-Elimination, and Nudge
+
+The local web portal can select a game profile for the next game. Profiles currently include Generic, Magic: The Gathering, MTG Commander, and Yu-Gi-Oh!, with profile-appropriate starting-life presets plus custom life. The profile and starting life are captured when a game starts.
+
+During an active game, any authenticated living player may adjust any living player's life. Cross-player edits take effect immediately and create a 30-second notice on the affected player's paired portal. The affected player may confirm the edit, deny it to reverse only that edit's delta, or do nothing and allow it to auto-confirm. MTG profiles expose +/-10 controls, while MTG Commander also tracks commander damage received from each opposing commander. Commander damage is informational and never auto-eliminates a player.
+
+A paired living player may self-eliminate from their portal after two browser confirmations. Physical elimination remains available. Web self-elimination uses the same logical elimination state, statistics, persistence, and last-player-standing behavior as physical elimination.
+
+Authenticated living players may also nudge the entire table or a specific living player. Nudges do not alter game state. The target Sigil performs a brief attention flash and the current prototype Atlas/Pi buzzer plays a nudge sound. Current prototype Sigils do not contain individual buzzers, so target-specific audio will become available when Sigil hardware adds one. Nudges are rate-limited to prevent spam.

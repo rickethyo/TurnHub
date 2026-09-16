@@ -34,6 +34,33 @@ ACTIVE_AUTOSAVE_SECONDS = 10.0
 MAX_NAME_LENGTH = 40
 DEFAULT_STARTING_LIFE = 40
 STARTING_LIFE_PRESETS = (20, 25, 30, 40, 50, 2000, 4000, 8000)
+GAME_PROFILES = {
+    "generic": {
+        "label": "Generic",
+        "life_presets": [20, 25, 30, 40, 50, 2000, 4000, 8000],
+        "default_life": 40,
+        "commander_damage": False,
+    },
+    "mtg": {
+        "label": "Magic: The Gathering",
+        "life_presets": [20, 30, 40],
+        "default_life": 20,
+        "commander_damage": False,
+    },
+    "mtg_commander": {
+        "label": "MTG Commander",
+        "life_presets": [40],
+        "default_life": 40,
+        "commander_damage": True,
+    },
+    "yugioh": {
+        "label": "Yu-Gi-Oh!",
+        "life_presets": [8000, 4000],
+        "default_life": 8000,
+        "commander_damage": False,
+    },
+}
+DEFAULT_GAME_PROFILE = "generic"
 MIN_STARTING_LIFE = 0
 MAX_STARTING_LIFE = 1_000_000
 
@@ -52,6 +79,7 @@ class PersistentStore:
         self._lock = threading.RLock()
         self._module_names: dict[str, str] = {}
         self._seat_names: dict[str, str] = {}
+        self._game_profile: str = DEFAULT_GAME_PROFILE
         self._starting_life: int = DEFAULT_STARTING_LIFE
 
         self._dirty = False
@@ -120,6 +148,11 @@ class PersistentStore:
 
         module_names = data.get("module_names", {})
         seat_names = data.get("seat_names", {})
+        game_profile = str(data.get("game_profile", DEFAULT_GAME_PROFILE))
+        if game_profile not in GAME_PROFILES:
+            game_profile = DEFAULT_GAME_PROFILE
+        self._game_profile = game_profile
+
         try:
             starting_life = int(data.get("starting_life", DEFAULT_STARTING_LIFE))
         except (TypeError, ValueError):
@@ -148,6 +181,8 @@ class PersistentStore:
             return {
                 "module_names": dict(self._module_names),
                 "seat_names": dict(self._seat_names),
+                "game_profile": self._game_profile,
+                "game_profiles": GAME_PROFILES,
                 "starting_life": self._starting_life,
                 "starting_life_presets": list(STARTING_LIFE_PRESETS),
                 "storage_directory": str(self.data_directory),
@@ -158,6 +193,7 @@ class PersistentStore:
         module_names: dict[Any, Any] | None = None,
         seat_names: dict[Any, Any] | None = None,
         starting_life: Any | None = None,
+        game_profile: Any | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             if module_names is not None:
@@ -176,6 +212,12 @@ class PersistentStore:
                         cleaned[str(key)] = name
                 self._seat_names = cleaned
 
+            if game_profile is not None:
+                profile = str(game_profile)
+                if profile not in GAME_PROFILES:
+                    raise ValueError("unknown game_profile")
+                self._game_profile = profile
+
             if starting_life is not None:
                 try:
                     value = int(starting_life)
@@ -192,6 +234,7 @@ class PersistentStore:
                 "saved_at": datetime.now(timezone.utc).isoformat(),
                 "module_names": self._module_names,
                 "seat_names": self._seat_names,
+                "game_profile": self._game_profile,
                 "starting_life": self._starting_life,
             }
             self._atomic_write_json(self.settings_path, payload)
@@ -201,6 +244,10 @@ class PersistentStore:
     def starting_life(self) -> int:
         with self._lock:
             return self._starting_life
+
+    def game_profile(self) -> str:
+        with self._lock:
+            return self._game_profile
 
     def module_name(self, module_id: int) -> str:
         with self._lock:
@@ -308,11 +355,17 @@ class PersistentStore:
                 "paused_seconds": self._paused_total_for_save(hub.game, now),
                 "current_warning_ms": hub.game.current_warning_ms,
                 "warning_logged_for_turn": hub.game.warning_logged_for_turn,
+                "game_profile": hub.game.game_profile,
                 "starting_life": hub.game.starting_life,
                 "life_totals": {
                     str(number): total
                     for number, total in hub.game.life_totals.items()
                 },
+                "commander_damage": {
+                    str(target): {str(source): value for source, value in source_map.items()}
+                    for target, source_map in hub.game.commander_damage.items()
+                },
+                "pending_life_changes": list(hub.game.pending_life_changes),
                 "stats": {
                     str(number): {
                         "turns_completed": stat.turns_completed,
@@ -573,6 +626,12 @@ class PersistentStore:
                 total_turn_seconds=max(0.0, seconds),
             )
 
+        game.game_profile = str(
+            game_data.get("game_profile", self._game_profile)
+        )
+        if game.game_profile not in GAME_PROFILES:
+            game.game_profile = self._game_profile
+
         try:
             game.starting_life = int(
                 game_data.get("starting_life", self._starting_life)
@@ -600,6 +659,64 @@ class PersistentStore:
                 -MAX_STARTING_LIFE,
                 min(total, MAX_STARTING_LIFE),
             )
+
+        raw_commander = game_data.get("commander_damage", {})
+        game.commander_damage = {}
+        for target in players:
+            target_number = target.player_number
+            raw_target = (
+                raw_commander.get(str(target_number), {})
+                if isinstance(raw_commander, dict)
+                else {}
+            )
+            game.commander_damage[target_number] = {}
+            for source in players:
+                if source.player_number == target_number:
+                    continue
+                raw_value = (
+                    raw_target.get(str(source.player_number), 0)
+                    if isinstance(raw_target, dict)
+                    else 0
+                )
+                try:
+                    value = int(raw_value)
+                except (TypeError, ValueError):
+                    value = 0
+                game.commander_damage[target_number][source.player_number] = max(0, min(value, 999))
+
+        raw_notices = game_data.get("pending_life_changes", [])
+        game.pending_life_changes = []
+        now_unix = time.time()
+        if isinstance(raw_notices, list):
+            for notice in raw_notices:
+                if not isinstance(notice, dict):
+                    continue
+                try:
+                    target_number = int(notice.get("target_player"))
+                    actor_number = int(notice.get("actor_player"))
+                    expires = float(notice.get("expires_at_unix", 0.0))
+                    delta = int(notice.get("delta", 0))
+                    old_total = int(notice.get("old_total", 0))
+                    new_total = int(notice.get("new_total", 0))
+                    notice_id = str(notice.get("id", ""))
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    notice_id
+                    and target_number in valid_player_numbers
+                    and actor_number in valid_player_numbers
+                    and expires > now_unix
+                ):
+                    game.pending_life_changes.append({
+                        "id": notice_id,
+                        "actor_player": actor_number,
+                        "target_player": target_number,
+                        "delta": delta,
+                        "old_total": old_total,
+                        "new_total": new_total,
+                        "created_at_unix": float(notice.get("created_at_unix", now_unix)),
+                        "expires_at_unix": expires,
+                    })
 
         try:
             game_elapsed = max(0.0, float(game_data.get("game_elapsed_seconds", 0.0)))
