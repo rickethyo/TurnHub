@@ -29,6 +29,7 @@
     <Compile Include="Controller\game_log.py" />
     <Compile Include="Controller\leds.py" />
     <Compile Include="Controller\lobby.py" />
+    <Compile Include="Controller\platform_identity.py" />
     <Compile Include="Controller\player.py" />
     <Compile Include="Controller\persistence.py" />
     <Compile Include="Controller\settings.py" />
@@ -40,6 +41,21 @@
     <Compile Include="Controller\web_portal.py" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Controller\__pycache__\audio.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\config.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\game_engine.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\game_log.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\leds.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\lobby.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\persistence.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\platform_identity.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\player.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\serial_controller.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\settings.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\status_monitor.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\turnhub.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\web_control.cpython-313.pyc" />
+    <Content Include="Controller\__pycache__\web_portal.cpython-313.pyc" />
     <Content Include="ESP32\TurnHubESP32.ino" />
     <Content Include="README.md" />
     <Content Include="Arduino\TurnHubArduino.ino" />
@@ -48,6 +64,7 @@
   <ItemGroup>
     <Folder Include="Arduino\" />
     <Folder Include="Controller\" />
+    <Folder Include="Controller\__pycache__\" />
     <Folder Include="ESP32\" />
     <Folder Include="statistics\" />
   </ItemGroup>
