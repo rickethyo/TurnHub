@@ -684,6 +684,24 @@ class TurnHub:
         )
         return True
 
+    def on_web_resume(
+        self,
+        player_number: int,
+    ) -> bool:
+        """Allow any living paired player to resume a normal paused game."""
+        if self.state != STATE_PAUSED or self.game.has_win_claim:
+            return False
+        player = self.game.player_by_number(player_number)
+        if player is None or self.game.is_eliminated(player_number):
+            return False
+        if not self.game.resume():
+            return False
+        self.state = STATE_RUNNING
+        self.audio.resume()
+        self.persistence.mark_dirty()
+        print(f"[WEB] Game resumed by {self.persistence.player_label(player)}.")
+        return True
+
     def _request_win_claim(
         self,
         player_number: int,

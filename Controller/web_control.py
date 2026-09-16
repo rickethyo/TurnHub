@@ -11,6 +11,9 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from player import PlayerSeat
+from lobby import VIRTUAL_MODULE_BASE
+
 from config import (
     STATE_LOBBY,
     STATE_PAUSED,
@@ -294,6 +297,72 @@ class WebControlManager:
         self.turnhub.persistence.mark_dirty()
         return True, {"token": token, "seat_key": list(player.seat_key), "mode": "virtual"}, 200
 
+    def _next_virtual_module(self) -> int:
+        used = {p.module_id for p in (self.turnhub.game.players or self.turnhub.lobby.players)}
+        module = VIRTUAL_MODULE_BASE
+        while module in used:
+            module += 1
+        return module
+
+    def switch_to_virtual(self, token: str | None) -> tuple[bool, dict[str, Any], int]:
+        """Move the authenticated active-game player from physical to virtual control."""
+        if self.turnhub.state not in (STATE_RUNNING, STATE_PAUSED):
+            return False, {"error": "controller switching is available during an active game"}, 409
+        with self._lock:
+            old_key = self._token_seat_locked(token)
+            if old_key is None:
+                return False, {"error": "invalid web-controller token"}, 401
+            old_hash = self._claims.get(old_key)
+        player = self._player_for_seat(old_key)
+        if player is None:
+            return False, {"error": "player is not part of this game"}, 409
+        if player.module_id >= VIRTUAL_MODULE_BASE:
+            return False, {"error": "player is already virtual"}, 409
+        if player.slot != 1 or any(p.module_id == player.module_id and p.slot == 2 for p in self.turnhub.game.players):
+            return False, {"error": "shared physical Sigils cannot switch controllers mid-game yet"}, 409
+        new_module = self._next_virtual_module()
+        replacement = PlayerSeat(player.player_number, new_module, 1)
+        self.turnhub.game.players = [replacement if p.player_number == player.player_number else p for p in self.turnhub.game.players]
+        # Keep rematch assignments aligned with the controller change.
+        try:
+            idx = self.turnhub.lobby.player_modules.index(player.module_id)
+            self.turnhub.lobby.player_modules[idx] = new_module
+            if new_module not in self.turnhub.lobby.module_ids:
+                self.turnhub.lobby.module_ids.append(new_module)
+        except ValueError:
+            pass
+        snap = self.turnhub.persistence.settings_snapshot()
+        seats = dict(snap.get("seat_names", {}))
+        old_text, new_text = self.seat_key_text(old_key), self.seat_key_text(replacement.seat_key)
+        if old_text in seats:
+            seats[new_text] = seats.pop(old_text)
+            self.turnhub.persistence.update_names(seat_names=seats)
+        new_token = secrets.token_urlsafe(32)
+        with self._lock:
+            self._claims.pop(old_key, None)
+            self._claims[replacement.seat_key] = self._token_hash(new_token)
+        self.turnhub.persistence.mark_dirty()
+        return True, {"token": new_token, "seat_key": list(replacement.seat_key), "mode": "virtual"}, 200
+
+    def request_switch_to_physical(self, token: str | None) -> tuple[bool, dict[str, Any], int]:
+        """Arm an active virtual player's browser to claim an available physical Sigil."""
+        if self.turnhub.state not in (STATE_RUNNING, STATE_PAUSED):
+            return False, {"error": "controller switching is available during an active game"}, 409
+        if not self.turnhub.hardware_enabled:
+            return False, {"error": "physical Sigils are disabled in Virtual Only mode"}, 409
+        with self._lock:
+            seat_key = self._token_seat_locked(token)
+            if seat_key is None:
+                return False, {"error": "invalid web-controller token"}, 401
+            player = self._player_for_seat(seat_key)
+            if player is None or player.module_id < VIRTUAL_MODULE_BASE:
+                return False, {"error": "this player is not using a virtual Sigil"}, 409
+            if self._pending_physical_join is not None:
+                return False, {"error": "another physical pairing is already in progress"}, 409
+            request_id = secrets.token_urlsafe(18)
+            self._pending_physical_join = {"request_id":request_id,"created_at":time.monotonic(),"status":"pending","mode":"switch","old_seat_key":seat_key,"player_number":player.player_number}
+        return True, {"request_id":request_id,"status":"pending","message":"Press Action on an available physical Sigil."}, 202
+
     def request_physical_join(self, name: str) -> tuple[bool, dict[str, Any], int]:
         """Arm browser-first pairing; next available physical Sigil Action wins."""
         if self.turnhub.state != STATE_LOBBY:
@@ -310,7 +379,37 @@ class WebControlManager:
     def confirm_physical_join(self, module_id: int) -> dict[str, Any] | None:
         with self._lock:
             pending = self._pending_physical_join
-            if pending is None or self.turnhub.state != STATE_LOBBY:
+            if pending is None:
+                return None
+            if pending.get("mode") == "switch":
+                if self.turnhub.state not in (STATE_RUNNING, STATE_PAUSED):
+                    return None
+                if any(p.module_id == module_id for p in self.turnhub.game.players):
+                    return None
+                old_key = tuple(pending["old_seat_key"])
+                player = self._player_for_seat(old_key)
+                if player is None:
+                    return None
+                replacement = PlayerSeat(player.player_number, module_id, 1)
+                self.turnhub.game.players = [replacement if p.player_number == player.player_number else p for p in self.turnhub.game.players]
+                try:
+                    idx = self.turnhub.lobby.player_modules.index(player.module_id)
+                    self.turnhub.lobby.player_modules[idx] = module_id
+                except ValueError:
+                    pass
+                snap = self.turnhub.persistence.settings_snapshot()
+                seats = dict(snap.get("seat_names", {}))
+                old_text, new_text = self.seat_key_text(old_key), self.seat_key_text(replacement.seat_key)
+                if old_text in seats:
+                    seats[new_text] = seats.pop(old_text)
+                    self.turnhub.persistence.update_names(seat_names=seats)
+                token = secrets.token_urlsafe(32)
+                self._claims.pop(old_key, None)
+                self._claims[replacement.seat_key] = self._token_hash(token)
+                pending.update({"status":"confirmed","token":token,"seat_key":replacement.seat_key,"module_id":module_id})
+                self.turnhub.persistence.mark_dirty()
+                return {"player": replacement, "module_id": module_id}
+            if self.turnhub.state != STATE_LOBBY:
                 return None
             if self.turnhub.lobby.is_joined(module_id):
                 return None

@@ -184,6 +184,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
 <nav class="top-tabs" aria-label="TurnHub sections">
   <button class="tab-button" type="button" onclick="openGameManager()">Game</button>
   <button class="tab-button" type="button" onclick="openPlayerManager()">Players</button>
+  <button id="identityButton" class="tab-button" type="button" onclick="openIdentity()">Choose player</button>
   <button class="tab-button" type="button" onclick="openSettings()">Settings</button>
   <button class="tab-button" type="button" onclick="openSystem()">System</button>
 </nav>
@@ -681,6 +682,8 @@ function renderWebControls(d) {
     selfEliminateButton.classList.remove('hidden');
     if (sameSeat(me, d.active_player)) passButton.classList.remove('hidden');
   } else if (d.state === 'PAUSED' && !d.elimination_target) {
+    pauseButton.textContent = 'Resume Game';
+    pauseButton.classList.remove('hidden');
     winButton.classList.remove('hidden');
     nudgeTableButton.classList.remove('hidden');
     selfEliminateButton.classList.remove('hidden');
@@ -979,7 +982,7 @@ async function authenticatedGameAction(path, buttonId, busyText) {
   }
 }
 
-function pauseFromWeb() { return authenticatedGameAction('/api/web/pause', 'pauseButton', 'Pausing…'); }
+function pauseFromWeb() { const resume=latest&&latest.state==='PAUSED'; return authenticatedGameAction(resume?'/api/web/resume':'/api/web/pause', 'pauseButton', resume?'Resuming…':'Pausing…'); }
 function claimWinFromWeb() { return authenticatedGameAction('/api/web/win-claim', 'winButton', 'Requesting…'); }
 function confirmWinFromWeb() { return authenticatedGameAction('/api/web/win-confirm', 'confirmWinButton', 'Confirming…'); }
 function denyWinFromWeb() { return authenticatedGameAction('/api/web/win-deny', 'denyWinButton', 'Denying…'); }
@@ -1025,7 +1028,17 @@ function closePlayerManager(){ document.getElementById('playerManagerOverlay').c
 function renderPlayerManager(){
   const root=document.getElementById('playerNameSettings');
   if(!root || !latest) return;
-  root.innerHTML=(latest.players||[]).map(p=>`<div class="field"><label>${esc(playerMeta(p))}${Number(p.module_id)>=1000?' • Virtual':' • Physical'}</label><input maxlength="40" data-player-seat="${p.module_id}:${p.slot}" value="${esc(p.display_name||'')}" placeholder="Player ${p.player_number}"></div>`).join('') || '<p class="settings-note">No players have joined yet.</p>';
+  root.innerHTML=(latest.players||[]).map(p=>{
+    const mine=currentIdentity&&currentIdentity.player&&sameSeat(currentIdentity.player,p);
+    const virtual=Number(p.module_id)>=1000;
+    let controls='';
+    if(mine && (latest.state==='RUNNING'||latest.state==='PAUSED')) {
+      controls = virtual
+        ? '<button class="secondary-button" type="button" onclick="switchToPhysical()">Connect physical Sigil</button>'
+        : '<button class="secondary-button" type="button" onclick="switchToVirtual()">Switch to virtual</button>';
+    }
+    return `<div class="field"><label>${esc(playerMeta(p))}${virtual?' • Virtual':' • Physical'}${mine?' • This browser':''}</label><input maxlength="40" data-player-seat="${p.module_id}:${p.slot}" value="${esc(p.display_name||'')}" placeholder="Player ${p.player_number}"><div class="dialog-actions">${controls}</div></div>`;
+  }).join('') || '<p class="settings-note">No players have joined yet.</p>';
 }
 async function openPlayerManager(){ document.getElementById('playerManagerOverlay').classList.remove('hidden'); await refresh(); renderPlayerManager(); }
 async function joinVirtualPlayer(){
@@ -1039,6 +1052,14 @@ async function joinPhysicalPlayer(){
 async function pollPhysicalJoin(id){
   const status=document.getElementById('playerJoinStatus');
   try{const r=await fetch(`/api/web/join-physical-status?request_id=${encodeURIComponent(id)}`,{cache:'no-store'});const d=await r.json();if(d.status==='confirmed'&&d.token){localStorage.setItem(WEB_TOKEN_KEY,d.token);localStorage.removeItem(DISPLAY_ONLY_KEY);status.textContent='Physical Sigil paired.';await refresh();await refreshIdentity();renderPlayerManager();return;}if(!r.ok)throw new Error(d.error||'Pairing expired');physicalJoinPoll=setTimeout(()=>pollPhysicalJoin(id),500);}catch(e){status.textContent=e.message;}
+}
+async function switchToVirtual(){
+  const status=document.getElementById('playerJoinStatus'); status.textContent='Switching this player to virtual control…';
+  try{const r=await fetch('/api/web/switch-virtual',{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Switch failed');localStorage.setItem(WEB_TOKEN_KEY,d.token);status.textContent='Now using a virtual Sigil.';await refresh();await refreshIdentity();renderPlayerManager();}catch(e){status.textContent=e.message;}
+}
+async function switchToPhysical(){
+  const status=document.getElementById('playerJoinStatus'); status.textContent='Press Action on an available physical Sigil…';
+  try{const r=await fetch('/api/web/switch-physical',{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not start switch');pollPhysicalJoin(d.request_id);}catch(e){status.textContent=e.message;}
 }
 async function savePlayerNames(){
   const status=document.getElementById('playerJoinStatus');
@@ -1655,6 +1676,16 @@ class WebPortal:
                     self._send_json(result, HTTPStatus(status_code))
                     return
 
+                if path == "/api/web/switch-virtual":
+                    _ok, result, status_code = portal.turnhub.web_control.switch_to_virtual(self._bearer_token())
+                    self._send_json(result, HTTPStatus(status_code))
+                    return
+
+                if path == "/api/web/switch-physical":
+                    _ok, result, status_code = portal.turnhub.web_control.request_switch_to_physical(self._bearer_token())
+                    self._send_json(result, HTTPStatus(status_code))
+                    return
+
                 if path in ("/api/web/claim", "/api/web/reassign"):
                     payload = self._read_json()
                     if payload is None:
@@ -1839,6 +1870,7 @@ class WebPortal:
 
                 if path in (
                     "/api/web/pause",
+                    "/api/web/resume",
                     "/api/web/win-claim",
                     "/api/web/win-confirm",
                     "/api/web/win-deny",
@@ -1855,6 +1887,9 @@ class WebPortal:
                     if path == "/api/web/pause":
                         accepted = portal.turnhub.on_web_pause(player.player_number)
                         action = "pause"
+                    elif path == "/api/web/resume":
+                        accepted = portal.turnhub.on_web_resume(player.player_number)
+                        action = "resume"
                     elif path == "/api/web/win-claim":
                         accepted = portal.turnhub.on_web_win_claim(player.player_number)
                         action = "win claim"
