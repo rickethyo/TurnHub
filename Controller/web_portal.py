@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
 import threading
 import time
+import os
 
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -161,6 +163,14 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   .modules-card { grid-column:span 4; }
   .metrics { grid-template-columns:1fr; }
 }
+
+.top-tabs { display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:-4px 0 16px; padding:2px 0; }
+.top-tabs::-webkit-scrollbar { display:none; }
+.tab-button { flex:0 0 auto; border:1px solid var(--line); background:var(--panel); color:var(--text); border-radius:12px; padding:10px 15px; font:inherit; font-weight:800; cursor:pointer; }
+.tab-button:hover { border-color:rgba(114,167,255,.55); }
+.danger-button { border:1px solid rgba(239,106,106,.45); background:rgba(239,106,106,.08); color:var(--bad); border-radius:12px; padding:10px 14px; font:inherit; font-weight:800; cursor:pointer; }
+.system-row { display:flex; flex-wrap:wrap; gap:9px; margin-top:10px; }
+.game-control-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:9px; }
 </style>
 </head>
 <body>
@@ -169,10 +179,14 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   <div class="brand">TurnHub</div>
   <div class="header-actions">
     <div class="connection"><span id="connDot" class="dot"></span><span id="connText">Connecting…</span></div>
-    <button id="identityButton" class="identity-button" type="button" onclick="openIdentity()">Choose player</button>
-    <button class="settings-button" type="button" onclick="openSettings()">Settings</button>
   </div>
 </header>
+<nav class="top-tabs" aria-label="TurnHub sections">
+  <button class="tab-button" type="button" onclick="openGameManager()">Game</button>
+  <button class="tab-button" type="button" onclick="openPlayerManager()">Players</button>
+  <button class="tab-button" type="button" onclick="openSettings()">Settings</button>
+  <button class="tab-button" type="button" onclick="openSystem()">System</button>
+</nav>
 
 <div class="grid">
   <section class="card hero-card hero">
@@ -206,7 +220,7 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   </section>
 
   <section class="card players-card">
-    <div class="dialog-head"><h2 class="section-title">Players</h2><button class="settings-button" type="button" onclick="openPlayerManager()">Manage players</button></div>
+    <h2 class="section-title">Players</h2>
     <div id="players" class="players"><div class="player"><div class="player-seat">Waiting for players…</div></div></div>
   </section>
 
@@ -216,7 +230,24 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
   </section>
 </div>
 
-<div class="footer">Local TurnHub • physical controls always remain available</div>
+<div id="footerMode" class="footer">Local TurnHub</div>
+</div>
+
+<div id="gameManagerOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="dialog">
+    <div class="dialog-head"><div class="dialog-title">Game</div><button class="close-button" type="button" onclick="closeGameManager()">×</button></div>
+    <p class="settings-note">Game lifecycle controls work the same for physical, hybrid, and completely virtual tables.</p>
+    <div id="lobbyGameControls" class="settings-group">
+      <h3>Lobby</h3>
+      <div class="field"><label>Starting player</label><select id="starterSelect"></select></div>
+      <div class="dialog-actions"><button class="secondary-button" type="button" onclick="gameControl('select_starter')">Select starter</button><button class="secondary-button" type="button" onclick="gameControl('random_starter')">Random starter</button><button class="primary-button" type="button" onclick="gameControl('start_game')">Start game</button></div>
+    </div>
+    <div id="startingGameControls" class="settings-group hidden"><h3>Starting</h3><div class="dialog-actions"><button class="secondary-button" type="button" onclick="gameControl('cancel_countdown')">Cancel countdown</button></div></div>
+    <div id="activeGameControls" class="settings-group hidden"><h3>Active game</h3><div class="game-control-grid"><button id="tablePauseButton" class="secondary-button" type="button" onclick="toggleTablePause()">Pause game</button><button class="danger-button" type="button" onclick="confirmGameControl('new_game','End the current game and return to the lobby? Player assignments will be preserved.')">End game / New game</button></div></div>
+    <div id="gameOverControls" class="settings-group hidden"><h3>Game over</h3><div class="dialog-actions"><button class="primary-button" type="button" onclick="gameControl('new_game')">Rematch / New game</button></div></div>
+    <div class="settings-group"><h3>Table</h3><div class="dialog-actions"><button class="danger-button" type="button" onclick="confirmGameControl('clear_table','Clear every player and return to an empty lobby?')">Clear table</button></div></div>
+    <div id="gameManagerStatus" class="settings-status"></div>
+  </div>
 </div>
 
 <div id="settingsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
@@ -287,6 +318,16 @@ header { display:flex; align-items:center; justify-content:space-between; gap:12
     <div id="playerJoinStatus" class="settings-status"></div>
     <div class="settings-group"><h3>Players at table</h3><div id="playerNameSettings" class="form-grid"></div></div>
     <div class="dialog-actions"><button class="primary-button" type="button" onclick="savePlayerNames()">Save player names</button></div>
+  </div>
+</div>
+
+<div id="systemOverlay" class="overlay hidden" role="dialog" aria-modal="true">
+  <div class="dialog">
+    <div class="dialog-head"><div class="dialog-title">System</div><button class="close-button" type="button" onclick="closeSystem()">×</button></div>
+    <div class="settings-group"><h3>Runtime</h3><p id="systemRuntimeNote" class="settings-note">Checking runtime…</p></div>
+    <div class="settings-group"><h3>Persistence</h3><p class="settings-note">TurnHub autosaves game state, but you can force a save before maintenance.</p><div class="system-row"><button class="secondary-button" type="button" onclick="systemSaveNow()">Save state now</button></div></div>
+    <div id="atlasSystemControls" class="settings-group hidden"><h3>Atlas</h3><p class="settings-note">These operations affect the Atlas host, not the current game. Restart, reboot, and shutdown require confirmation.</p><div class="system-row"><button class="secondary-button" type="button" onclick="confirmSystemAction('restart','Restart the TurnHub service? Connected browsers will briefly disconnect.')">Restart TurnHub</button><button class="danger-button" type="button" onclick="confirmSystemAction('reboot','Reboot the Atlas?')">Reboot Atlas</button><button class="danger-button" type="button" onclick="confirmSystemAction('shutdown','Shut down the Atlas? You will need physical access to power it back on.')">Shut down Atlas</button></div></div>
+    <div id="systemStatus" class="settings-status"></div>
   </div>
 </div>
 
@@ -544,6 +585,8 @@ function renderModules(d) {
 }
 
 function render(d) {
+  const footer=document.getElementById('footerMode'); if(footer){ const hw=d.platform && d.platform.hardware_active; footer.textContent=hw?'Local TurnHub • Physical + Virtual':'Local TurnHub • Virtual Only'; }
+  if(!document.getElementById('gameManagerOverlay').classList.contains('hidden')) renderGameManager();
   document.getElementById('stateValue').textContent = d.state.replaceAll('_',' ');
   const gameRunning = d.state === 'RUNNING';
   document.getElementById('gameTime').textContent = fmt(dynamicSeconds(d.game_elapsed_seconds, gameRunning));
@@ -942,6 +985,38 @@ function confirmWinFromWeb() { return authenticatedGameAction('/api/web/win-conf
 function denyWinFromWeb() { return authenticatedGameAction('/api/web/win-deny', 'denyWinButton', 'Denying…'); }
 function cancelWinFromWeb() { return authenticatedGameAction('/api/web/win-cancel', 'cancelWinButton', 'Cancelling…'); }
 
+function closeGameManager(){ document.getElementById('gameManagerOverlay').classList.add('hidden'); }
+function renderGameManager(){
+  if(!latest) return;
+  const state=latest.state;
+  document.getElementById('lobbyGameControls').classList.toggle('hidden',state!=='LOBBY');
+  document.getElementById('startingGameControls').classList.toggle('hidden',state!=='STARTING');
+  document.getElementById('activeGameControls').classList.toggle('hidden',!(state==='RUNNING'||state==='PAUSED'));
+  document.getElementById('gameOverControls').classList.toggle('hidden',state!=='GAME_OVER');
+  const sel=document.getElementById('starterSelect');
+  sel.innerHTML=(latest.players||[]).map(p=>`<option value="${p.player_number}">${esc(playerLabel(p))}</option>`).join('');
+  if(latest.starter) sel.value=String(latest.starter.player_number);
+  const pb=document.getElementById('tablePauseButton');
+  pb.textContent=state==='PAUSED'?'Resume game':'Pause game';
+}
+async function openGameManager(){ document.getElementById('gameManagerOverlay').classList.remove('hidden'); await refresh(); renderGameManager(); }
+async function gameControl(action){
+  const status=document.getElementById('gameManagerStatus'); status.textContent='Working…';
+  const payload={action}; if(action==='select_starter') payload.player_number=Number(document.getElementById('starterSelect').value);
+  try{const r=await fetch('/api/table-control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Action rejected');status.textContent=d.message||'Done.';await refresh();renderGameManager();}catch(e){status.textContent=e.message;}
+}
+function toggleTablePause(){ return gameControl(latest&&latest.state==='PAUSED'?'resume':'pause'); }
+function confirmGameControl(action,message){ if(confirm(message)) gameControl(action); }
+
+function closeSystem(){ document.getElementById('systemOverlay').classList.add('hidden'); }
+async function openSystem(){
+  document.getElementById('systemOverlay').classList.remove('hidden'); const status=document.getElementById('systemStatus'); status.textContent='Loading…';
+  try{const r=await fetch('/api/system',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'System information unavailable');document.getElementById('systemRuntimeNote').textContent=`${d.platform.display_name}. ${d.platform.reason}`;document.getElementById('atlasSystemControls').classList.toggle('hidden',!d.host_controls);status.textContent=d.host_controls?'Atlas host controls available.':'Host OS controls are not exposed on this runtime.';}catch(e){status.textContent=e.message;}
+}
+async function systemSaveNow(){ const status=document.getElementById('systemStatus');status.textContent='Saving…';try{const r=await fetch('/api/state/save',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Save failed');status.textContent='Game state saved.';}catch(e){status.textContent=e.message;} }
+async function systemAction(action){const status=document.getElementById('systemStatus');status.textContent='Requesting '+action+'…';try{const r=await fetch('/api/system/control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request rejected');status.textContent=d.message||'Requested.';}catch(e){status.textContent=e.message;}}
+function confirmSystemAction(action,message){if(confirm(message))systemAction(action);}
+
 let settingsData = null;
 let latestStatusData = null;
 
@@ -1075,6 +1150,9 @@ async function saveGameStateNow() {
     status.textContent = 'Could not save game state.';
   }
 }
+
+document.getElementById('gameManagerOverlay').addEventListener('click', e => { if (e.target.id === 'gameManagerOverlay') closeGameManager(); });
+document.getElementById('systemOverlay').addEventListener('click', e => { if (e.target.id === 'systemOverlay') closeSystem(); });
 
 document.getElementById('settingsOverlay').addEventListener('click', e => {
   if (e.target.id === 'settingsOverlay') closeSettings();
@@ -1307,6 +1385,7 @@ class WebPortal:
             paused_seconds = hub.game.total_paused_seconds
 
         return {
+            "platform": hub.platform_snapshot(),
             "state": hub.state,
             "generated_at_unix": time.time(),
             "timer_setting": timer_setting,
@@ -1490,6 +1569,15 @@ class WebPortal:
                         payload,
                         "application/json; charset=utf-8",
                     )
+                    return
+
+                if path == "/api/system":
+                    platform = portal.turnhub.platform_snapshot()
+                    payload = {
+                        "platform": platform,
+                        "host_controls": bool(platform.get("hardware_capable")),
+                    }
+                    self._send_json(payload)
                     return
 
                 if path == "/api/settings":
@@ -1788,6 +1876,47 @@ class WebPortal:
                         return
 
                     self._send_json({"accepted": True, "action": action})
+                    return
+
+                if path == "/api/table-control":
+                    payload = self._read_json() or {}
+                    action = str(payload.get("action", ""))
+                    try:
+                        player_number = int(payload.get("player_number")) if payload.get("player_number") is not None else None
+                    except (TypeError, ValueError):
+                        self._send_json({"error": "invalid player_number"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    accepted, message = portal.turnhub.on_table_control(action, player_number)
+                    if not accepted:
+                        self._send_json({"error": message}, HTTPStatus.CONFLICT)
+                    else:
+                        self._send_json({"accepted": True, "message": message})
+                    return
+
+                if path == "/api/system/control":
+                    payload = self._read_json() or {}
+                    action = str(payload.get("action", "")).strip().lower()
+                    platform = portal.turnhub.platform_snapshot()
+                    if not platform.get("hardware_capable"):
+                        self._send_json({"error": "host OS controls are only exposed on Atlas-capable runtimes"}, HTTPStatus.FORBIDDEN)
+                        return
+                    commands = {
+                        "restart": ["sudo", "-n", "systemctl", "restart", os.getenv("TURNHUB_SERVICE_NAME", "turnhub.service")],
+                        "reboot": ["sudo", "-n", "systemctl", "reboot"],
+                        "shutdown": ["sudo", "-n", "systemctl", "poweroff"],
+                    }
+                    command = commands.get(action)
+                    if command is None:
+                        self._send_json({"error": "unsupported system action"}, HTTPStatus.BAD_REQUEST)
+                        return
+                    def run_later():
+                        time.sleep(0.8)
+                        try:
+                            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        except OSError as exc:
+                            print(f"[SYSTEM] Could not launch {action}: {exc}")
+                    threading.Thread(target=run_later, daemon=True).start()
+                    self._send_json({"accepted": True, "message": f"{action.capitalize()} requested."})
                     return
 
                 if path == "/api/interface-mode":

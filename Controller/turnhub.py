@@ -278,6 +278,19 @@ class TurnHub:
     # Software / Web Hardware Emulation
     # ========================================================
 
+    def platform_snapshot(self) -> dict:
+        """Return runtime capabilities without exposing platform internals to UI code."""
+        return {
+            "mode": self.platform.mode,
+            "display_name": self.platform.display_name,
+            "hardware_enabled": self.platform.hardware_enabled,
+            "hardware_capable": self.platform.hardware_enabled,
+            "hardware_active": self.hardware_enabled,
+            "official_atlas": self.platform.official_atlas,
+            "development": self.platform.development,
+            "reason": self.platform.reason,
+        }
+
     def on_software_control(self, module: int, action: str) -> tuple[bool, str]:
         """Run table controls from the Atlas UI through the same game logic."""
         if module not in self.lobby.module_ids:
@@ -361,6 +374,85 @@ class TurnHub:
             return True, "countdown cancelled"
 
         return False, "unsupported software control"
+
+    def on_table_control(
+        self,
+        action: str,
+        player_number: int | None = None,
+    ) -> tuple[bool, str]:
+        """Run game-lifecycle controls without pretending a Sigil was pressed.
+
+        These are first-class TurnHub commands used by both Atlas and fully
+        virtual tables.  They intentionally do not depend on a host module.
+        """
+        action = str(action).strip().lower()
+
+        if action == "select_starter":
+            if self.state != STATE_LOBBY:
+                return False, "starter can only be selected in the lobby"
+            player = self.lobby.player_by_number(player_number)
+            if player is None:
+                return False, "unknown lobby player"
+            self.lobby.selected_starter = player.seat_key
+            self.persistence.mark_dirty()
+            return True, f"Player {player.player_number} selected to start"
+
+        if action == "random_starter":
+            if self.state != STATE_LOBBY or self.lobby.player_count < 2:
+                return False, "at least two lobby players are required"
+            starter = self.lobby.random_starter()
+            self.audio.random_starter()
+            self.persistence.mark_dirty()
+            return True, f"Player {starter.player_number} selected randomly"
+
+        if action == "start_game":
+            if self.state != STATE_LOBBY:
+                return False, "game can only start from the lobby"
+            if self.lobby.player_count < 2:
+                return False, "at least two players are required"
+            self.begin_countdown()
+            return True, "game countdown started"
+
+        if action == "cancel_countdown":
+            if self.state != STATE_STARTING:
+                return False, "no countdown is active"
+            self.cancel_countdown()
+            self.audio.countdown_cancelled()
+            return True, "countdown cancelled"
+
+        if action == "pause":
+            if self.state != STATE_RUNNING or self.game.has_win_claim:
+                return False, "game cannot be paused right now"
+            if not self.game.pause():
+                return False, "game could not be paused"
+            self.game.win_armed_module = None
+            self.game.win_armed_player = None
+            self.state = STATE_PAUSED
+            self.audio.pause()
+            self.persistence.mark_dirty()
+            return True, "game paused"
+
+        if action == "resume":
+            if self.state != STATE_PAUSED or self.game.has_win_claim:
+                return False, "game cannot be resumed right now"
+            if not self.game.resume():
+                return False, "game could not be resumed"
+            self.state = STATE_RUNNING
+            self.audio.resume()
+            self.persistence.mark_dirty()
+            return True, "game resumed"
+
+        if action == "new_game":
+            if self.state == STATE_LOBBY:
+                return False, "already in the lobby"
+            self.enter_rematch_lobby()
+            return True, "returned to lobby with players preserved"
+
+        if action == "clear_table":
+            self.enter_empty_lobby()
+            return True, "table cleared and empty lobby opened"
+
+        return False, "unsupported table control"
 
     # ========================================================
     # Dedicated Pass Button
