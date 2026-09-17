@@ -27,8 +27,22 @@ enum class PacketType : uint8_t {
 
 enum class DisplayMode : uint8_t {
   Ready = 1,
-  Joined = 2,
+  Lobby = 2,
+  Starting = 3,
+  Running = 4,
+  Paused = 5,
+  GameOver = 6,
 };
+
+// The display-state mode lives in the low three bits of byte 0. The remaining
+// bits are flags that let Atlas describe the local Sigil's role without
+// growing the compact 7-byte ESP-NOW packet.
+constexpr uint8_t DISPLAY_MODE_MASK = 0x07;
+constexpr uint8_t DISPLAY_FLAG_ACTIVE = 0x08;
+constexpr uint8_t DISPLAY_FLAG_HOST = 0x10;
+constexpr uint8_t DISPLAY_FLAG_STARTER = 0x20;
+constexpr uint8_t DISPLAY_FLAG_WINNER = 0x40;
+constexpr uint8_t DISPLAY_FLAG_ATTENTION = 0x80;
 
 struct __attribute__((packed)) Packet {
   uint8_t version;
@@ -67,24 +81,41 @@ inline uint16_t toneDuration(int32_t value) {
 }
 
 // Display state packets keep the same compact 7-byte wire format.
-// bits  0..7  = DisplayMode
-// bits  8..15 = primary player number (0 when not joined)
-// bits 16..23 = secondary player number (0 when unused)
-// bits 24..31 = personal turn number / next turn number hint
+// byte 0 = DisplayMode in bits 0..2 plus DISPLAY_FLAG_* bits
+// byte 1 = primary player number (0 when not joined)
+// byte 2 = secondary player number (0 when unused)
+// byte 3 = personal turn number / next turn ordinal hint
 inline int32_t encodeDisplayState(
     DisplayMode mode,
     uint8_t primaryPlayer,
     uint8_t secondaryPlayer,
-    uint8_t turnNumber) {
+    uint8_t turnNumber,
+    uint8_t flags = 0) {
+  const uint8_t header =
+      (static_cast<uint8_t>(mode) & DISPLAY_MODE_MASK) |
+      (flags & static_cast<uint8_t>(~DISPLAY_MODE_MASK));
+
   return static_cast<int32_t>(
-      static_cast<uint32_t>(mode) |
+      static_cast<uint32_t>(header) |
       (static_cast<uint32_t>(primaryPlayer) << 8) |
       (static_cast<uint32_t>(secondaryPlayer) << 16) |
       (static_cast<uint32_t>(turnNumber) << 24));
 }
 
 inline DisplayMode displayMode(int32_t value) {
-  return static_cast<DisplayMode>(static_cast<uint32_t>(value) & 0xFFu);
+  return static_cast<DisplayMode>(
+      static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu) &
+      DISPLAY_MODE_MASK);
+}
+
+inline uint8_t displayFlags(int32_t value) {
+  return static_cast<uint8_t>(
+      static_cast<uint32_t>(value) & 0xFFu) &
+      static_cast<uint8_t>(~DISPLAY_MODE_MASK);
+}
+
+inline bool hasDisplayFlag(int32_t value, uint8_t flag) {
+  return (displayFlags(value) & flag) != 0;
 }
 
 inline uint8_t displayPrimaryPlayer(int32_t value) {
