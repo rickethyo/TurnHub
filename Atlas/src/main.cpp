@@ -117,20 +117,21 @@ SigilRecord *findSigilByMac(const uint8_t *mac) {
   return nullptr;
 }
 
-SigilRecord *rememberSigil(const uint8_t *mac, uint8_t id) {
+SigilRecord *rememberSigil(const uint8_t *mac) {
   SigilRecord *record = findSigilByMac(mac);
 
   if (record == nullptr) {
-    for (auto &candidate : sigils) {
+    for (uint8_t i = 0; i < TurnHubProtocol::MAX_SIGILS; ++i) {
+      auto &candidate = sigils[i];
       if (!candidate.used) {
         candidate.used = true;
-        candidate.id = id;
+        candidate.id = i;
         memcpy(candidate.mac, mac, 6);
         candidate.lastSeenMs = millis();
         record = &candidate;
 
         Serial.print("ATLAS|SIGIL|DISCOVERED|");
-        Serial.print(id);
+        Serial.print(candidate.id);
         Serial.print("|");
         printMac(mac);
         Serial.println();
@@ -140,7 +141,6 @@ SigilRecord *rememberSigil(const uint8_t *mac, uint8_t id) {
   }
 
   if (record != nullptr) {
-    record->id = id;
     record->lastSeenMs = millis();
   }
 
@@ -203,12 +203,15 @@ void sendPacket(
   }
 }
 
-void sendAck(const uint8_t *mac, const Packet &received) {
+void sendAck(
+    const uint8_t *mac,
+    const SigilRecord &sigil,
+    PacketType receivedType) {
   sendPacket(
       mac,
       PacketType::Ack,
-      received.sigilId,
-      static_cast<int32_t>(received.type));
+      sigil.id,
+      static_cast<int32_t>(receivedType));
 }
 
 void handleEspNowReceive(
@@ -230,7 +233,7 @@ void handleEspNowReceive(
     return;
   }
 
-  SigilRecord *record = rememberSigil(mac, packet.sigilId);
+  SigilRecord *record = rememberSigil(mac);
   if (record == nullptr) {
     Serial.println("ATLAS|SIGIL|TABLE_FULL");
     return;
@@ -238,44 +241,38 @@ void handleEspNowReceive(
 
   switch (packet.type) {
     case PacketType::Hello:
-      Serial.print("ATLAS|SIGIL|");
-      Serial.print(packet.sigilId);
-      Serial.println("|HELLO");
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|HELLO\n", record->id);
+      sendAck(mac, *record, PacketType::Hello);
       break;
 
     case PacketType::Pass:
-      Serial.print("ATLAS|SIGIL|");
-      Serial.print(packet.sigilId);
-      Serial.println("|PASS");
-      // ACKing PASS causes the test Sigil to flash green. This proves the
-      // return path Atlas -> Sigil without involving game state yet.
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|PASS\n", record->id);
+      sendAck(mac, *record, PacketType::Pass);
       break;
 
     case PacketType::ActionDown:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_DOWN\n", packet.sigilId);
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|ACTION_DOWN\n", record->id);
+      sendAck(mac, *record, PacketType::ActionDown);
       break;
 
     case PacketType::ActionUp:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_UP\n", packet.sigilId);
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|ACTION_UP\n", record->id);
+      sendAck(mac, *record, PacketType::ActionUp);
       break;
 
     case PacketType::ActionShort:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_SHORT\n", packet.sigilId);
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|ACTION_SHORT\n", record->id);
+      sendAck(mac, *record, PacketType::ActionShort);
       break;
 
     case PacketType::ActionLong:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_LONG\n", packet.sigilId);
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|ACTION_LONG\n", record->id);
+      sendAck(mac, *record, PacketType::ActionLong);
       break;
 
     case PacketType::ActionWin:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_WIN\n", packet.sigilId);
-      sendAck(mac, packet);
+      Serial.printf("ATLAS|SIGIL|%u|ACTION_WIN\n", record->id);
+      sendAck(mac, *record, PacketType::ActionWin);
       break;
 
     default:
