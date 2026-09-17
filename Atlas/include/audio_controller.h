@@ -65,6 +65,10 @@ class AudioController {
 
  private:
   struct Job {
+    Job() = default;
+    Job(SoundId soundValue, uint16_t targetMaskValue)
+        : sound(soundValue), targetMask(targetMaskValue) {}
+
     SoundId sound = SoundId::TurnPass;
     uint16_t targetMask = 0;
   };
