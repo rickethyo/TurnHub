@@ -60,6 +60,41 @@ inline Packet makePacket(
   return Packet{VERSION, type, sigilId, value};
 }
 
+// Hello packets reuse the existing 32-bit value field for device metadata.
+// This keeps the wire format at 7 bytes and remains backward compatible with
+// older Atlas builds that ignored Hello.value.
+// byte 0 = capabilities/reserved flags
+// byte 1 = firmware patch
+// byte 2 = firmware minor
+// byte 3 = firmware major
+inline int32_t encodeHelloInfo(
+    uint8_t firmwareMajor,
+    uint8_t firmwareMinor,
+    uint8_t firmwarePatch,
+    uint8_t capabilities = 0) {
+  return static_cast<int32_t>(
+      static_cast<uint32_t>(capabilities) |
+      (static_cast<uint32_t>(firmwarePatch) << 8) |
+      (static_cast<uint32_t>(firmwareMinor) << 16) |
+      (static_cast<uint32_t>(firmwareMajor) << 24));
+}
+
+inline uint8_t helloCapabilities(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
+}
+
+inline uint8_t helloFirmwarePatch(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 8) & 0xFFu);
+}
+
+inline uint8_t helloFirmwareMinor(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 16) & 0xFFu);
+}
+
+inline uint8_t helloFirmwareMajor(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
+}
+
 // Buzzer packets keep the compact 7-byte packet layout by packing one tone
 // into the existing 32-bit value: frequency in the upper 16 bits and duration
 // in milliseconds in the lower 16 bits. A zero frequency or duration means
