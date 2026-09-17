@@ -169,9 +169,8 @@ void queueReadyDisplay() {
 }
 
 void updateDisplay() {
-  // Assignment is durable state. Do not rely on a one-shot callback flag to
-  // move the screen away from Unpaired. If Atlas has assigned an ID and this
-  // screen has not rendered that ID yet, force the Ready screen here.
+  // Assignment is durable state. If Atlas has assigned an ID and this screen
+  // has not rendered that ID yet, force the Ready screen from the main loop.
   if (sigilId != UNASSIGNED_SIGIL_ID && displayRenderedSigilId != sigilId) {
     displayRenderedSigilId = sigilId;
     displayPayload = TurnHubProtocol::encodeDisplayState(
@@ -198,20 +197,23 @@ void updateDisplay() {
   const int32_t payload = displayPayload;
   const DisplayMode mode = TurnHubProtocol::displayMode(payload);
 
-  if (mode == DisplayMode::Joined) {
-    Serial.print("SIGIL|DISPLAY|JOINED|");
-    Serial.println(sigilId);
-    sigilDisplay.showJoined(
-        sigilId,
-        TurnHubProtocol::displayPrimaryPlayer(payload),
-        TurnHubProtocol::displaySecondaryPlayer(payload),
-        TurnHubProtocol::displayTurnNumber(payload));
+  Serial.print("SIGIL|DISPLAY|STATE|");
+  Serial.print(sigilId);
+  Serial.print("|");
+  Serial.println(static_cast<unsigned>(mode));
+
+  if (mode == DisplayMode::Ready) {
+    sigilDisplay.showReady(sigilId);
     return;
   }
 
-  Serial.print("SIGIL|DISPLAY|READY|");
-  Serial.println(sigilId);
-  sigilDisplay.showReady(sigilId);
+  sigilDisplay.showState(
+      sigilId,
+      mode,
+      TurnHubProtocol::displayPrimaryPlayer(payload),
+      TurnHubProtocol::displaySecondaryPlayer(payload),
+      TurnHubProtocol::displayTurnNumber(payload),
+      TurnHubProtocol::displayFlags(payload));
 }
 #endif
 
