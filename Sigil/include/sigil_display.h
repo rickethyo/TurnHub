@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
 
+#include "protocol.h"
+
 namespace TurnHubSigil {
 
 // Inland / Keyestudio KS0461-compatible 2.13" 250x122 monochrome e-paper.
@@ -14,15 +16,18 @@ class SigilDisplay {
   void begin();
   void showUnpaired();
   void showReady(uint8_t sigilId);
-  void showJoined(
+  void showState(
       uint8_t sigilId,
+      TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer,
       uint8_t secondaryPlayer,
-      uint8_t turnNumber);
+      uint8_t turnNumber,
+      uint8_t flags);
 
  private:
-  void drawHeader();
+  void drawHeader(const char *title);
   void drawStatus(const char *line1, const char *line2 = nullptr);
+  void drawPlayerLabel(uint8_t primaryPlayer, uint8_t secondaryPlayer);
 
   static constexpr int8_t EPD_CS = 17;
   static constexpr int8_t EPD_DC = 16;
