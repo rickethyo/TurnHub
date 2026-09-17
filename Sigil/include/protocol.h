@@ -55,6 +55,39 @@ inline Packet makePacket(
   return Packet{VERSION, type, sigilId, value};
 }
 
+// Hello packets carry firmware identity in the existing 32-bit value field.
+// byte 0 = capabilities/reserved flags
+// byte 1 = firmware patch
+// byte 2 = firmware minor
+// byte 3 = firmware major
+inline int32_t encodeHelloInfo(
+    uint8_t firmwareMajor,
+    uint8_t firmwareMinor,
+    uint8_t firmwarePatch,
+    uint8_t capabilities = 0) {
+  return static_cast<int32_t>(
+      static_cast<uint32_t>(capabilities) |
+      (static_cast<uint32_t>(firmwarePatch) << 8) |
+      (static_cast<uint32_t>(firmwareMinor) << 16) |
+      (static_cast<uint32_t>(firmwareMajor) << 24));
+}
+
+inline uint8_t helloCapabilities(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
+}
+
+inline uint8_t helloFirmwarePatch(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 8) & 0xFFu);
+}
+
+inline uint8_t helloFirmwareMinor(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 16) & 0xFFu);
+}
+
+inline uint8_t helloFirmwareMajor(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
+}
+
 inline int32_t encodeTone(uint16_t frequencyHz, uint16_t durationMs) {
   return static_cast<int32_t>(
       (static_cast<uint32_t>(frequencyHz) << 16) |
