@@ -4,10 +4,137 @@
 
 namespace TurnHub {
 
+namespace {
+
+const char UPDATE_HTML[] PROGMEM = R"HTML(
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111318">
+  <title>TurnHub Atlas Update</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      font-family: system-ui, sans-serif;
+      background: #0b0d11;
+      color: #f3f5f7;
+    }
+    main {
+      width: min(620px, 100%);
+      padding: 28px;
+      border: 1px solid #2b3240;
+      border-radius: 18px;
+      background: #141820;
+    }
+    h1 { margin: 0 0 8px; }
+    p { color: #aeb7c6; line-height: 1.5; }
+    .notice {
+      padding: 14px;
+      border: 1px solid #384153;
+      border-radius: 12px;
+      background: #1a202b;
+      margin: 18px 0;
+    }
+    input[type=file] { width: 100%; margin: 12px 0; }
+    button, a.button {
+      display: inline-block;
+      border: 0;
+      border-radius: 10px;
+      padding: 11px 16px;
+      background: #e7ebf2;
+      color: #111318;
+      font-weight: 800;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    progress { width: 100%; height: 16px; margin-top: 16px; }
+    #message { min-height: 24px; font-weight: 700; }
+    .back { margin-top: 18px; display: inline-block; color: #9fc0ff; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Atlas Firmware Update</h1>
+    <p>Upload the Atlas <code>firmware.bin</code> produced by PlatformIO.</p>
+    <div class="notice">
+      For safety, start updates only from Lobby or Game Over and <strong>hold the physical Atlas master button while clicking Upload</strong>. Atlas will restart automatically after a successful install.
+    </div>
+    <input id="file" type="file" accept=".bin,application/octet-stream">
+    <button id="upload" disabled>Upload &amp; Restart</button>
+    <progress id="progress" max="100" value="0"></progress>
+    <p id="message"></p>
+    <a class="back" href="/">← Back to Atlas</a>
+  </main>
+<script>
+  const file = document.getElementById('file');
+  const button = document.getElementById('upload');
+  const progress = document.getElementById('progress');
+  const message = document.getElementById('message');
+
+  file.addEventListener('change', () => {
+    button.disabled = !file.files.length;
+    progress.value = 0;
+    message.textContent = '';
+  });
+
+  button.addEventListener('click', () => {
+    if (!file.files.length) return;
+
+    button.disabled = true;
+    message.textContent = 'Uploading... keep holding the Atlas master button until the upload begins.';
+
+    const form = new FormData();
+    form.append('firmware', file.files[0]);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/firmware');
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) {
+        progress.value = Math.round((event.loaded / event.total) * 100);
+      }
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        progress.value = 100;
+        message.textContent = data.message || 'Installed. Atlas is restarting...';
+        setTimeout(() => { window.location.href = '/'; }, 5000);
+      } else {
+        message.textContent = data.error || 'Update failed.';
+        button.disabled = false;
+      }
+    };
+    xhr.onerror = () => {
+      message.textContent = 'Connection lost during upload.';
+      button.disabled = false;
+    };
+    xhr.send(form);
+  });
+</script>
+</body>
+</html>
+)HTML";
+
+}  // namespace
+
 OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
     : server_(server), allowedCallback_(allowedCallback) {}
 
 void OtaManager::begin() {
+  server_.on("/update", HTTP_GET, [this]() {
+    server_.send_P(200, "text/html", UPDATE_HTML);
+  });
+
   server_.on(
       "/api/firmware",
       HTTP_POST,
@@ -108,7 +235,7 @@ void OtaManager::handleComplete() {
     server_.send(
         403,
         "application/json",
-        "{\"ok\":false,\"error\":\"Hold the Atlas master button and update only from Lobby or Game Over.\"}");
+        "{\"ok\":false,\"error\":\"Update not armed. Return to Lobby or Game Over and hold the Atlas master button while starting the upload.\"}");
     return;
   }
 
