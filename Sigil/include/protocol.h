@@ -38,4 +38,20 @@ inline Packet makePacket(
   return Packet{VERSION, type, sigilId, value};
 }
 
+inline int32_t encodeTone(uint16_t frequencyHz, uint16_t durationMs) {
+  return static_cast<int32_t>(
+      (static_cast<uint32_t>(frequencyHz) << 16) |
+      static_cast<uint32_t>(durationMs));
+}
+
+inline uint16_t toneFrequency(int32_t value) {
+  return static_cast<uint16_t>(
+      (static_cast<uint32_t>(value) >> 16) & 0xFFFFu);
+}
+
+inline uint16_t toneDuration(int32_t value) {
+  return static_cast<uint16_t>(
+      static_cast<uint32_t>(value) & 0xFFFFu);
+}
+
 }  // namespace TurnHubProtocol
