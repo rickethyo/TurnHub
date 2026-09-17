@@ -6,15 +6,19 @@
 namespace TurnHubSigil {
 
 // Inland / Keyestudio KS0461-compatible 2.13" 250x122 monochrome e-paper.
-// The commonly reported panel is compatible with the Waveshare 2.13 V3
-// family (SSD1680). We use GxEPD2's 2.13" SSD1680 driver.
+// The panel works with GxEPD2's 2.13" B74 / SSD1680 driver.
 class SigilDisplay {
  public:
   SigilDisplay();
 
   void begin();
-  void showUnassigned();
-  void showAssigned(uint8_t sigilId);
+  void showUnpaired();
+  void showReady(uint8_t sigilId);
+  void showJoined(
+      uint8_t sigilId,
+      uint8_t primaryPlayer,
+      uint8_t secondaryPlayer,
+      uint8_t turnNumber);
 
  private:
   void drawHeader();
