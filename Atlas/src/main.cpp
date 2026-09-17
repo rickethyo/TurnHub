@@ -2,6 +2,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
+#include "audio_controller.h"
 #include "config.h"
 #include "game_engine.h"
 #include "led_renderer.h"
@@ -14,11 +15,13 @@ WebServer server(AtlasConfig::HTTP_PORT);
 
 namespace {
 
+using TurnHub::AudioController;
 using TurnHub::GameEngine;
 using TurnHub::HubState;
 using TurnHub::INVALID_ID;
 using TurnHub::LedRenderer;
 using TurnHub::Lobby;
+using TurnHub::MAX_PHYSICAL_SIGILS;
 using TurnHub::MAX_PLAYERS;
 using TurnHub::PlayerSeat;
 using TurnHub::SigilBus;
@@ -34,6 +37,7 @@ SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
 Lobby lobby;
 GameEngine game;
 LedRenderer leds(sigilBus);
+AudioController audio(sigilBus);
 
 HubState hubState = HubState::Lobby;
 bool espNowReady = false;
@@ -141,6 +145,26 @@ bool masterButtonPressed() {
   return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
 }
 
+uint16_t lobbyAudioMask() {
+  uint16_t mask = 0;
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (lobby.isJoined(id)) {
+      mask |= AudioController::maskForSigil(id);
+    }
+  }
+  return mask;
+}
+
+uint16_t gameAudioMask() {
+  uint16_t mask = 0;
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (game.moduleInGame(id)) {
+      mask |= AudioController::maskForSigil(id);
+    }
+  }
+  return mask;
+}
+
 void printPlayer(const PlayerSeat &player) {
   Serial.print("Player ");
   Serial.print(player.playerNumber);
@@ -155,6 +179,7 @@ void enterEmptyLobby() {
   game.reset();
   countdownStartedAtMs = 0;
   lastCountdownSecond = -1;
+  audio.clear();
   leds.invalidateAll();
   Serial.println("ATLAS|LOBBY|EMPTY");
 }
@@ -176,10 +201,13 @@ void cancelCountdown() {
     return;
   }
 
+  const uint16_t targets = lobbyAudioMask();
   hubState = HubState::Lobby;
   countdownStartedAtMs = 0;
   lastCountdownSecond = -1;
   lobby.clearStartArm();
+  audio.clear();
+  audio.countdownCancelled(targets);
   Serial.println("ATLAS|LOBBY|COUNTDOWN|CANCEL");
 }
 
@@ -207,6 +235,7 @@ void startGame() {
   countdownStartedAtMs = 0;
   lastCountdownSecond = -1;
   leds.invalidateAll();
+  audio.gameStart(gameAudioMask());
 
   Serial.print("ATLAS|GAME|START|");
   printPlayer(starter);
@@ -225,6 +254,7 @@ void updateCountdown(uint32_t nowMs) {
     lastCountdownSecond = second;
     Serial.print("ATLAS|LOBBY|COUNTDOWN|");
     Serial.println(3 - second);
+    audio.countdownTone(lobbyAudioMask(), static_cast<uint8_t>(second));
   }
 
   if (elapsed >= START_COUNTDOWN_MS) {
@@ -248,6 +278,7 @@ void handleLobbyShort(uint8_t sigilId) {
       Serial.print("ATLAS|LOBBY|HOST|");
       Serial.println(sigilId);
     }
+    audio.playerJoined(sigilId);
     leds.invalidateAll();
     return;
   }
@@ -260,6 +291,7 @@ void handleLobbyShort(uint8_t sigilId) {
     Serial.print(selected.moduleId);
     Serial.print("|SLOT|");
     Serial.println(selected.slotName());
+    audio.starterSelected(selected.moduleId);
   }
 }
 
@@ -282,6 +314,11 @@ void handlePass(uint8_t sigilId) {
         Serial.print(added ? "ADDED" : "REMOVED");
         Serial.print("|PLAYER|");
         Serial.println(affected.playerNumber);
+        if (added) {
+          audio.sharedPlayerAdded(sigilId);
+        } else {
+          audio.sharedPlayerRemoved(sigilId);
+        }
         leds.invalidateAll();
       }
       return;
@@ -292,6 +329,7 @@ void handlePass(uint8_t sigilId) {
       if (lobby.randomStarter(selected)) {
         Serial.print("ATLAS|LOBBY|RANDOM_STARTER|");
         Serial.println(selected.playerNumber);
+        audio.randomStarter(selected.moduleId);
       }
     }
     return;
@@ -316,6 +354,14 @@ void handlePass(uint8_t sigilId) {
   Serial.print(previous.playerNumber);
   Serial.print("->");
   Serial.println(current != nullptr ? current->playerNumber : 0);
+
+  if (current != nullptr) {
+    if (previous.moduleId == current->moduleId) {
+      audio.sameModulePass(current->moduleId);
+    } else {
+      audio.turnPass(current->moduleId);
+    }
+  }
 }
 
 void handleActionDown(uint8_t sigilId) {
@@ -386,6 +432,7 @@ void handleActionLong(uint8_t sigilId) {
     }
 
     lobby.setStartArmedBy(sigilId);
+    audio.startArmed(sigilId);
     Serial.print("ATLAS|LOBBY|START_ARM|");
     Serial.println(sigilId);
     return;
@@ -396,6 +443,7 @@ void handleActionLong(uint8_t sigilId) {
       hubState = HubState::Paused;
       Serial.print("ATLAS|GAME|PAUSE|SIGIL|");
       Serial.println(sigilId);
+      audio.pause(gameAudioMask());
       leds.invalidateAll();
     }
     return;
@@ -406,6 +454,7 @@ void handleActionLong(uint8_t sigilId) {
       hubState = HubState::Running;
       Serial.print("ATLAS|GAME|RESUME|SIGIL|");
       Serial.println(sigilId);
+      audio.resume(gameAudioMask());
       leds.invalidateAll();
     }
   }
@@ -513,10 +562,24 @@ void updateMasterButton() {
   // whichever logical player is active without pretending a particular
   // Sigil was pressed.
   if (currentState == HIGH && hubState == HubState::Running) {
+    const PlayerSeat *before = game.activePlayer();
+    PlayerSeat previous;
+    if (before != nullptr) {
+      previous = *before;
+    }
+
     const uint8_t activeModule = game.activeModule();
     if (activeModule != INVALID_ID &&
         game.passTurn(activeModule, DEFAULT_WARNING_MS, millis())) {
       Serial.println("ATLAS|MASTER_BUTTON|PASS");
+      const PlayerSeat *current = game.activePlayer();
+      if (current != nullptr) {
+        if (previous.moduleId == current->moduleId) {
+          audio.sameModulePass(current->moduleId);
+        } else {
+          audio.turnPass(current->moduleId);
+        }
+      }
     }
   }
 }
@@ -579,6 +642,7 @@ void loop() {
   processSigilEvents();
   updateMasterButton();
   updateCountdown(nowMs);
+  audio.update(nowMs);
   leds.render(hubState, lobby, game, countdownStartedAtMs, nowMs);
   server.handleClient();
 
