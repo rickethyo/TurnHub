@@ -10,7 +10,7 @@ namespace {
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
 
-constexpr uint8_t SIGIL_ID = 0;
+constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
 constexpr uint8_t BLUE_LED = 27;
@@ -47,6 +47,7 @@ ButtonState actionButton(ACTION_BUTTON);
 bool espNowReady = false;
 bool atlasKnown = false;
 uint8_t atlasMac[6] = {};
+uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t greenFlashUntilMs = 0;
 bool commandedGreen = false;
@@ -92,18 +93,22 @@ void rememberAtlas(const uint8_t *mac) {
   ensurePeer(atlasMac);
 }
 
-void sendPacket(PacketType type, int32_t value = 0) {
+void sendPacket(
+    PacketType type,
+    int32_t value = 0,
+    bool forceBroadcast = false) {
   if (!espNowReady) {
     return;
   }
 
-  const uint8_t *destination = atlasKnown ? atlasMac : BROADCAST_MAC;
+  const uint8_t *destination =
+      (forceBroadcast || !atlasKnown) ? BROADCAST_MAC : atlasMac;
 
   if (!ensurePeer(destination)) {
     return;
   }
 
-  const Packet packet = TurnHubProtocol::makePacket(type, SIGIL_ID, value);
+  const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
   const esp_err_t result = esp_now_send(
       destination,
       reinterpret_cast<const uint8_t *>(&packet),
@@ -116,7 +121,9 @@ void sendPacket(PacketType type, int32_t value = 0) {
 }
 
 void sendHello() {
-  sendPacket(PacketType::Hello);
+  // Discovery/heartbeat stays broadcast even after Atlas is known. This keeps
+  // the Sigil visible through Atlas resets and avoids interface-MAC ambiguity.
+  sendPacket(PacketType::Hello, 0, true);
   lastHelloMs = millis();
 }
 
@@ -147,8 +154,26 @@ void handleEspNowReceive(
   Packet packet{};
   memcpy(&packet, incomingData, sizeof(packet));
 
-  if (packet.version != TurnHubProtocol::VERSION ||
-      packet.sigilId != SIGIL_ID) {
+  if (packet.version != TurnHubProtocol::VERSION) {
+    return;
+  }
+
+  // HELLO ACKs are also the Atlas-assigned slot handshake.
+  if (packet.type == PacketType::Ack &&
+      packet.value == static_cast<int32_t>(PacketType::Hello)) {
+    rememberAtlas(mac);
+
+    if (sigilId != packet.sigilId) {
+      sigilId = packet.sigilId;
+      Serial.print("SIGIL|ID|");
+      Serial.println(sigilId);
+    }
+
+    Serial.println("SIGIL|ACK|HELLO");
+    return;
+  }
+
+  if (sigilId == UNASSIGNED_SIGIL_ID || packet.sigilId != sigilId) {
     return;
   }
 
@@ -203,13 +228,17 @@ void updatePassButton() {
   passButton.stableState = passButton.rawState;
 
   if (passButton.stableState == HIGH) {
-    Serial.println("SIGIL|0|PASS");
+    Serial.print("SIGIL|");
+    Serial.print(sigilId);
+    Serial.println("|PASS");
     sendPacket(PacketType::Pass);
   }
 }
 
 void sendAction(PacketType type, const char *name) {
-  Serial.print("SIGIL|0|");
+  Serial.print("SIGIL|");
+  Serial.print(sigilId);
+  Serial.print("|");
   Serial.println(name);
   sendPacket(type);
 }
@@ -266,7 +295,6 @@ bool startEspNow() {
   WiFi.disconnect();
   delay(100);
 
-  // Explicitly put the Sigil on Atlas's ESP-NOW channel.
   esp_wifi_set_promiscuous(true);
   const esp_err_t channelResult =
       esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
@@ -318,7 +346,7 @@ void setup() {
   actionButton.rawState = actionButton.stableState = digitalRead(ACTION_BUTTON);
 
   Serial.println();
-  Serial.println("SIGIL|BOOT|0");
+  Serial.println("SIGIL|BOOT|UNASSIGNED");
 
   espNowReady = startEspNow();
 
