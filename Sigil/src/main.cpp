@@ -30,6 +30,8 @@ constexpr uint8_t BROADCAST_MAC[6] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 struct ButtonState {
+  explicit ButtonState(uint8_t buttonPin) : pin(buttonPin) {}
+
   uint8_t pin;
   bool rawState = HIGH;
   bool stableState = HIGH;
@@ -39,8 +41,8 @@ struct ButtonState {
   bool winSent = false;
 };
 
-ButtonState passButton{PASS_BUTTON};
-ButtonState actionButton{ACTION_BUTTON};
+ButtonState passButton(PASS_BUTTON);
+ButtonState actionButton(ACTION_BUTTON);
 
 bool espNowReady = false;
 bool atlasKnown = false;
