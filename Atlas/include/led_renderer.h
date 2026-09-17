@@ -41,7 +41,9 @@ class LedRenderer {
       uint8_t sigilId,
       HubState state,
       const Lobby &lobby,
-      const GameEngine &game);
+      const GameEngine &game,
+      uint8_t eliminationTargetPlayer,
+      uint8_t winConfirmationPlayer);
 
   void renderUnjoined(uint8_t sigilId, uint32_t nowMs);
   void renderLobby(uint8_t sigilId, const Lobby &lobby, uint32_t nowMs);
