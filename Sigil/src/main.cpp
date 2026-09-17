@@ -69,6 +69,7 @@ bool commandedGreen = false;
 #if SIGIL_HAS_DISPLAY
 volatile bool displayNeedsRefresh = false;
 volatile int32_t displayPayload = 0;
+uint8_t displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
 #endif
 
 void printMac(const uint8_t *mac) {
@@ -140,8 +141,6 @@ void sendPacket(
 }
 
 void sendHello() {
-  // Discovery/heartbeat stays broadcast even after Atlas is known. This keeps
-  // the Sigil visible through Atlas resets and avoids interface-MAC ambiguity.
   sendPacket(PacketType::Hello, 0, true);
   lastHelloMs = millis();
 }
@@ -170,6 +169,20 @@ void queueReadyDisplay() {
 }
 
 void updateDisplay() {
+  // Assignment is durable state. Do not rely on a one-shot callback flag to
+  // move the screen away from Unpaired. If Atlas has assigned an ID and this
+  // screen has not rendered that ID yet, force the Ready screen here.
+  if (sigilId != UNASSIGNED_SIGIL_ID && displayRenderedSigilId != sigilId) {
+    displayRenderedSigilId = sigilId;
+    displayPayload = TurnHubProtocol::encodeDisplayState(
+        DisplayMode::Ready, 0, 0, 0);
+    displayNeedsRefresh = false;
+    Serial.print("SIGIL|DISPLAY|ASSIGNED|");
+    Serial.println(sigilId);
+    sigilDisplay.showReady(sigilId);
+    return;
+  }
+
   if (!displayNeedsRefresh) {
     return;
   }
@@ -177,6 +190,7 @@ void updateDisplay() {
   displayNeedsRefresh = false;
 
   if (sigilId == UNASSIGNED_SIGIL_ID) {
+    displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
     sigilDisplay.showUnpaired();
     return;
   }
@@ -185,6 +199,8 @@ void updateDisplay() {
   const DisplayMode mode = TurnHubProtocol::displayMode(payload);
 
   if (mode == DisplayMode::Joined) {
+    Serial.print("SIGIL|DISPLAY|JOINED|");
+    Serial.println(sigilId);
     sigilDisplay.showJoined(
         sigilId,
         TurnHubProtocol::displayPrimaryPlayer(payload),
@@ -193,6 +209,8 @@ void updateDisplay() {
     return;
   }
 
+  Serial.print("SIGIL|DISPLAY|READY|");
+  Serial.println(sigilId);
   sigilDisplay.showReady(sigilId);
 }
 #endif
@@ -229,7 +247,6 @@ void handleEspNowReceive(
     return;
   }
 
-  // HELLO ACKs are also the Atlas-assigned slot handshake.
   if (packet.type == PacketType::Ack &&
       packet.value == static_cast<int32_t>(PacketType::Hello)) {
     rememberAtlas(mac);
