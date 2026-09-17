@@ -45,6 +45,14 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
       background: #1a202b;
       margin: 18px 0;
     }
+    .status {
+      padding: 12px;
+      border: 1px solid #2b3240;
+      border-radius: 10px;
+      margin: 12px 0 18px;
+      font-family: ui-monospace, monospace;
+      color: #cbd3df;
+    }
     input[type=file] { width: 100%; margin: 12px 0; }
     button, a.button {
       display: inline-block;
@@ -59,7 +67,10 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     }
     button:disabled { opacity: .45; cursor: not-allowed; }
     progress { width: 100%; height: 16px; margin-top: 16px; }
-    #message { min-height: 24px; font-weight: 700; }
+    #message { min-height: 48px; font-weight: 700; }
+    .ok { color: #62d58a !important; }
+    .warn { color: #f2c66d !important; }
+    .error { color: #ff7d7d !important; }
     .back { margin-top: 18px; display: inline-block; color: #9fc0ff; }
   </style>
 </head>
@@ -68,10 +79,11 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     <h1>Atlas Firmware Update</h1>
     <p>Upload the Atlas <code>firmware.bin</code> produced by PlatformIO.</p>
     <div class="notice">
-      For safety, start updates only from Lobby or Game Over and <strong>hold the physical Atlas master button while clicking Upload</strong>. Atlas will restart automatically after a successful install.
+      For safety, start updates only from Lobby or Game Over and <strong>hold the physical Atlas master button while clicking Upload</strong>. Atlas will restart automatically after the image is written.
     </div>
+    <div id="current" class="status">Reading current firmware...</div>
     <input id="file" type="file" accept=".bin,application/octet-stream">
-    <button id="upload" disabled>Upload &amp; Restart</button>
+    <button id="upload" disabled>Upload &amp; Verify</button>
     <progress id="progress" max="100" value="0"></progress>
     <p id="message"></p>
     <a class="back" href="/portal">← Back to TurnHub</a>
@@ -81,18 +93,77 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
   const button = document.getElementById('upload');
   const progress = document.getElementById('progress');
   const message = document.getElementById('message');
+  const current = document.getElementById('current');
+
+  let baseline = null;
+
+  function setMessage(text, kind = '') {
+    message.textContent = text;
+    message.className = kind;
+  }
+
+  async function readStatus() {
+    const response = await fetch('/api/status?ota=' + Date.now(), { cache: 'no-store' });
+    if (!response.ok) throw new Error('status');
+    return response.json();
+  }
+
+  async function loadBaseline() {
+    try {
+      baseline = await readStatus();
+      current.textContent = 'Running: v' + baseline.firmware + ' · build ' + baseline.build;
+    } catch (_) {
+      current.textContent = 'Unable to read current firmware identity.';
+    }
+  }
+
+  async function verifyRestart() {
+    setMessage('Image written. Atlas is restarting; waiting for the new firmware to boot...', 'warn');
+
+    const deadline = Date.now() + 25000;
+    let sawDisconnect = false;
+
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        const status = await readStatus();
+        const changed = !baseline ||
+          status.firmware !== baseline.firmware ||
+          status.build !== baseline.build;
+
+        if (changed) {
+          progress.value = 100;
+          current.textContent = 'Running: v' + status.firmware + ' · build ' + status.build;
+          setMessage('Update verified. Atlas rebooted into the newly uploaded firmware.', 'ok');
+          button.disabled = false;
+          return;
+        }
+
+        if (sawDisconnect) {
+          current.textContent = 'Running: v' + status.firmware + ' · build ' + status.build;
+        }
+      } catch (_) {
+        sawDisconnect = true;
+      }
+    }
+
+    setMessage(
+      'The firmware image was accepted, but the new build could not be verified after restart. Check the Atlas serial log and partition/boot configuration before treating this update as successful.',
+      'error');
+    button.disabled = false;
+  }
 
   file.addEventListener('change', () => {
     button.disabled = !file.files.length;
     progress.value = 0;
-    message.textContent = '';
+    setMessage('');
   });
 
   button.addEventListener('click', () => {
     if (!file.files.length) return;
 
     button.disabled = true;
-    message.textContent = 'Uploading... keep holding the Atlas master button until the upload begins.';
+    setMessage('Uploading... keep holding the Atlas master button until the upload begins.');
 
     const form = new FormData();
     form.append('firmware', file.files[0]);
@@ -101,27 +172,28 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     xhr.open('POST', '/api/firmware');
     xhr.upload.onprogress = event => {
       if (event.lengthComputable) {
-        progress.value = Math.round((event.loaded / event.total) * 100);
+        progress.value = Math.round((event.loaded / event.total) * 95);
       }
     };
     xhr.onload = () => {
       let data = {};
       try { data = JSON.parse(xhr.responseText); } catch (_) {}
       if (xhr.status >= 200 && xhr.status < 300) {
-        progress.value = 100;
-        message.textContent = data.message || 'Installed. Atlas is restarting...';
-        setTimeout(() => { window.location.href = '/portal'; }, 5000);
+        progress.value = 95;
+        verifyRestart();
       } else {
-        message.textContent = data.error || 'Update failed.';
+        setMessage(data.error || 'Update failed.', 'error');
         button.disabled = false;
       }
     };
     xhr.onerror = () => {
-      message.textContent = 'Connection lost during upload.';
+      setMessage('Connection lost during upload before Atlas confirmed the image write.', 'error');
       button.disabled = false;
     };
     xhr.send(form);
   });
+
+  loadBaseline();
 </script>
 </body>
 </html>
@@ -133,10 +205,6 @@ OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
     : server_(server), allowedCallback_(allowedCallback) {}
 
 void OtaManager::begin() {
-  // Keep the original migration status page registered by main.cpp as the
-  // development page. The restored consumer-facing portal lives at /portal
-  // during this first migration pass and can be promoted to / once main.cpp
-  // is split into the new web layer.
   server_.on("/portal", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
     server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
@@ -227,7 +295,7 @@ void OtaManager::handleUpload() {
 
       inProgress_ = false;
       success_ = true;
-      Serial.print("ATLAS|OTA|SUCCESS|");
+      Serial.print("ATLAS|OTA|IMAGE_WRITTEN|");
       Serial.println(bytesWritten_);
       break;
 
@@ -267,10 +335,13 @@ void OtaManager::handleComplete() {
     return;
   }
 
-  server_.send(
-      200,
-      "application/json",
-      "{\"ok\":true,\"message\":\"Firmware installed. Atlas is restarting.\"}");
+  char response[160];
+  snprintf(
+      response,
+      sizeof(response),
+      "{\"ok\":true,\"message\":\"Firmware image written; restart and boot verification pending.\",\"bytes\":%lu}",
+      static_cast<unsigned long>(bytesWritten_));
+  server_.send(200, "application/json", response);
 
   restartAtMs_ = millis() + 1200;
 }
@@ -284,7 +355,7 @@ void OtaManager::update(uint32_t nowMs) {
     return;
   }
 
-  Serial.println("ATLAS|OTA|RESTART");
+  Serial.println("ATLAS|OTA|RESTART_FOR_VERIFICATION");
   delay(50);
   ESP.restart();
 }
