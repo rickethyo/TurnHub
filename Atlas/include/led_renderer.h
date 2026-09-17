@@ -31,10 +31,17 @@ class LedRenderer {
     uint8_t blue = 0;
     bool red = false;
     bool green = false;
+    bool displayValid = false;
+    int32_t displayPayload = 0;
   };
 
   void set(uint8_t sigilId, uint8_t blue, bool red, bool green);
   void off(uint8_t sigilId);
+  void syncDisplay(
+      uint8_t sigilId,
+      HubState state,
+      const Lobby &lobby,
+      const GameEngine &game);
 
   void renderUnjoined(uint8_t sigilId, uint32_t nowMs);
   void renderLobby(uint8_t sigilId, const Lobby &lobby, uint32_t nowMs);
