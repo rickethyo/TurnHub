@@ -122,6 +122,11 @@ void SigilBus::handleReceive(
 
   switch (packet.type) {
     case PacketType::Hello:
+      updateHelloInfo(*sigil, packet.value);
+      sendAck(mac, *sigil, packet.type);
+      enqueue(*sigil, packet);
+      break;
+
     case PacketType::Pass:
     case PacketType::ActionDown:
     case PacketType::ActionUp:
@@ -165,6 +170,10 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
 
     Serial.print("ATLAS|SIGIL|DISCOVERED|");
     Serial.print(candidate.id);
+    Serial.print("|THS-");
+    for (uint8_t byte : candidate.mac) {
+      Serial.printf("%02X", byte);
+    }
     Serial.print("|");
     printMac(candidate.mac);
     Serial.println();
@@ -172,6 +181,45 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
   }
 
   return nullptr;
+}
+
+void SigilBus::updateHelloInfo(SigilRecord &sigil, int32_t value) {
+  const uint8_t major = TurnHubProtocol::helloFirmwareMajor(value);
+  const uint8_t minor = TurnHubProtocol::helloFirmwareMinor(value);
+  const uint8_t patch = TurnHubProtocol::helloFirmwarePatch(value);
+  const uint8_t capabilities = TurnHubProtocol::helloCapabilities(value);
+
+  const bool changed =
+      !sigil.helloInfoValid ||
+      sigil.firmwareMajor != major ||
+      sigil.firmwareMinor != minor ||
+      sigil.firmwarePatch != patch ||
+      sigil.capabilities != capabilities;
+
+  sigil.helloInfoValid = true;
+  sigil.firmwareMajor = major;
+  sigil.firmwareMinor = minor;
+  sigil.firmwarePatch = patch;
+  sigil.capabilities = capabilities;
+
+  if (!changed) {
+    return;
+  }
+
+  Serial.print("ATLAS|SIGIL|INFO|");
+  Serial.print(sigil.id);
+  Serial.print("|THS-");
+  for (uint8_t byte : sigil.mac) {
+    Serial.printf("%02X", byte);
+  }
+  Serial.print("|FW|");
+  Serial.print(static_cast<unsigned>(major));
+  Serial.print(".");
+  Serial.print(static_cast<unsigned>(minor));
+  Serial.print(".");
+  Serial.print(static_cast<unsigned>(patch));
+  Serial.print("|CAPS|0x");
+  Serial.println(static_cast<unsigned>(capabilities), HEX);
 }
 
 bool SigilBus::ensurePeer(const uint8_t *mac) {
