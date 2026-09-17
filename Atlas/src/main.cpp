@@ -46,6 +46,12 @@ uint32_t lastDebounceMs = 0;
 uint32_t countdownStartedAtMs = 0;
 int8_t lastCountdownSecond = -1;
 
+uint8_t eliminationTargetPlayer = 0;
+bool eliminationChord[MAX_PHYSICAL_SIGILS] = {};
+bool suppressEliminationShort[MAX_PHYSICAL_SIGILS] = {};
+uint8_t winArmedModule = INVALID_ID;
+uint8_t winArmedPlayer = 0;
+
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html>
 <html lang="en">
@@ -102,6 +108,9 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     <div class="status"><span>Host Sigil</span><span id="host" class="value muted">None</span></div>
     <div class="status"><span>Starter</span><span id="starter" class="value muted">None</span></div>
     <div class="status"><span>Active Player</span><span id="active" class="value muted">None</span></div>
+    <div class="status"><span>Winner</span><span id="winner" class="value muted">None</span></div>
+    <div class="status"><span>Elimination Target</span><span id="elimination" class="value muted">None</span></div>
+    <div class="status"><span>Win Confirmation</span><span id="winconfirm" class="value muted">None</span></div>
     <div class="status"><span>Master Button</span><span id="button" class="value muted">Released</span></div>
     <div class="status"><span>ESP-NOW</span><span id="espnow" class="value">Starting</span></div>
   </main>
@@ -126,6 +135,9 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         showNumber('host', s.host + 1, 'Sigil ');
         showNumber('starter', s.starter, 'Player ');
         showNumber('active', s.active, 'Player ');
+        showNumber('winner', s.winner, 'Player ');
+        showNumber('elimination', s.eliminationTarget, 'Player ');
+        showNumber('winconfirm', s.winConfirm, 'Player ');
         const button = document.getElementById('button');
         button.textContent = s.masterButton ? 'Pressed' : 'Released';
         button.className = s.masterButton ? 'value pressed' : 'value muted';
@@ -173,15 +185,50 @@ void printPlayer(const PlayerSeat &player) {
   Serial.print(player.slotName());
 }
 
+void clearDecisionState() {
+  eliminationTargetPlayer = 0;
+  winArmedModule = INVALID_ID;
+  winArmedPlayer = 0;
+  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
+    eliminationChord[i] = false;
+    suppressEliminationShort[i] = false;
+  }
+}
+
 void enterEmptyLobby() {
   hubState = HubState::Lobby;
   lobby.resetEmpty();
   game.reset();
   countdownStartedAtMs = 0;
   lastCountdownSecond = -1;
+  clearDecisionState();
   audio.clear();
   leds.invalidateAll();
   Serial.println("ATLAS|LOBBY|EMPTY");
+}
+
+void enterRematchLobby() {
+  hubState = HubState::Lobby;
+  lobby.resetForRematch();
+  game.reset();
+  countdownStartedAtMs = 0;
+  lastCountdownSecond = -1;
+  clearDecisionState();
+  audio.clear();
+  leds.invalidateAll();
+  Serial.println("ATLAS|LOBBY|REMATCH");
+}
+
+void finishGameState() {
+  hubState = HubState::GameOver;
+  eliminationTargetPlayer = 0;
+  winArmedModule = INVALID_ID;
+  winArmedPlayer = 0;
+  leds.invalidateAll();
+  audio.gameOver(gameAudioMask());
+
+  Serial.print("ATLAS|GAME|OVER|WINNER|");
+  Serial.println(game.winnerPlayerNumber());
 }
 
 void beginCountdown() {
@@ -234,6 +281,7 @@ void startGame() {
   hubState = HubState::Running;
   countdownStartedAtMs = 0;
   lastCountdownSecond = -1;
+  clearDecisionState();
   leds.invalidateAll();
   audio.gameStart(gameAudioMask());
 
@@ -295,6 +343,96 @@ void handleLobbyShort(uint8_t sigilId) {
   }
 }
 
+void beginEliminationSelection(uint8_t sigilId) {
+  if (hubState != HubState::Paused || game.hasWinClaim()) {
+    return;
+  }
+
+  PlayerSeat candidates[2];
+  const uint8_t count = game.livingPlayersForModule(sigilId, candidates, 2);
+  if (count == 0) {
+    return;
+  }
+
+  eliminationTargetPlayer = candidates[0].playerNumber;
+  winArmedModule = INVALID_ID;
+  winArmedPlayer = 0;
+  audio.eliminationArmed(sigilId);
+  leds.invalidateAll();
+
+  Serial.print("ATLAS|GAME|ELIMINATION|ARMED|PLAYER|");
+  Serial.println(eliminationTargetPlayer);
+}
+
+void cycleEliminationTarget(uint8_t sigilId) {
+  const PlayerSeat *target = game.playerByNumber(eliminationTargetPlayer);
+  if (target == nullptr || target->moduleId != sigilId) {
+    return;
+  }
+
+  PlayerSeat candidates[2];
+  const uint8_t count = game.livingPlayersForModule(sigilId, candidates, 2);
+  if (count == 0) {
+    eliminationTargetPlayer = 0;
+    return;
+  }
+
+  uint8_t nextIndex = 0;
+  for (uint8_t i = 0; i < count; ++i) {
+    if (candidates[i].playerNumber == eliminationTargetPlayer) {
+      nextIndex = static_cast<uint8_t>((i + 1) % count);
+      break;
+    }
+  }
+
+  eliminationTargetPlayer = candidates[nextIndex].playerNumber;
+  audio.eliminationTargetChanged(sigilId);
+  leds.invalidateAll();
+
+  Serial.print("ATLAS|GAME|ELIMINATION|TARGET|");
+  Serial.println(eliminationTargetPlayer);
+}
+
+void cancelEliminationSelection() {
+  const PlayerSeat *target = game.playerByNumber(eliminationTargetPlayer);
+  if (target != nullptr) {
+    audio.eliminationCancelled(target->moduleId);
+  }
+  eliminationTargetPlayer = 0;
+  leds.invalidateAll();
+  Serial.println("ATLAS|GAME|ELIMINATION|CANCEL");
+}
+
+void confirmElimination(uint8_t sigilId) {
+  const PlayerSeat *target = game.playerByNumber(eliminationTargetPlayer);
+  if (target == nullptr || target->moduleId != sigilId) {
+    return;
+  }
+
+  const uint8_t eliminatedNumber = target->playerNumber;
+  bool gameFinished = false;
+  if (!game.eliminatePlayer(
+          eliminatedNumber,
+          DEFAULT_WARNING_MS,
+          millis(),
+          gameFinished)) {
+    return;
+  }
+
+  eliminationTargetPlayer = 0;
+  audio.playerEliminated(sigilId);
+  leds.invalidateAll();
+
+  Serial.print("ATLAS|GAME|ELIMINATED|PLAYER|");
+  Serial.println(eliminatedNumber);
+
+  if (gameFinished) {
+    finishGameState();
+  } else {
+    hubState = HubState::Paused;
+  }
+}
+
 void handlePass(uint8_t sigilId) {
   if (hubState == HubState::Lobby) {
     if (lobby.isHeld(sigilId)) {
@@ -335,6 +473,37 @@ void handlePass(uint8_t sigilId) {
     return;
   }
 
+  if (hubState == HubState::Paused) {
+    if (game.hasWinClaim()) {
+      const uint8_t expectedNumber = game.nextWinConfirmationPlayerNumber();
+      const PlayerSeat *expected = game.playerByNumber(expectedNumber);
+      if (expected == nullptr || expected->moduleId != sigilId) {
+        return;
+      }
+
+      if (game.denyWinClaim(expectedNumber, millis())) {
+        hubState = game.paused() ? HubState::Paused : HubState::Running;
+        audio.winDenied(gameAudioMask());
+        leds.invalidateAll();
+        Serial.print("ATLAS|GAME|WIN|DENIED|PLAYER|");
+        Serial.println(expectedNumber);
+      }
+      return;
+    }
+
+    if (lobby.isHeld(sigilId)) {
+      eliminationChord[sigilId] = true;
+      suppressEliminationShort[sigilId] = true;
+      beginEliminationSelection(sigilId);
+      return;
+    }
+
+    if (eliminationTargetPlayer != 0) {
+      confirmElimination(sigilId);
+    }
+    return;
+  }
+
   if (hubState != HubState::Running) {
     return;
   }
@@ -368,6 +537,7 @@ void handleActionDown(uint8_t sigilId) {
   lobby.setHeld(sigilId, true);
   lobby.setActionLong(sigilId, false);
   lobby.setSharedChord(sigilId, false);
+  eliminationChord[sigilId] = false;
 
   if (hubState == HubState::Starting) {
     cancelCountdown();
@@ -377,15 +547,24 @@ void handleActionDown(uint8_t sigilId) {
 void handleActionUp(uint8_t sigilId) {
   lobby.setHeld(sigilId, false);
 
-  const bool usedChord = lobby.sharedChord(sigilId);
+  const bool usedLobbyChord = lobby.sharedChord(sigilId);
+  const bool usedEliminationChord = eliminationChord[sigilId];
   const bool wasLong = lobby.actionLong(sigilId);
 
   lobby.setSharedChord(sigilId, false);
+  eliminationChord[sigilId] = false;
   lobby.setActionLong(sigilId, false);
 
-  if (usedChord) {
+  if (usedLobbyChord) {
     if (wasLong) {
       lobby.setSuppressNextShort(sigilId, false);
+    }
+    return;
+  }
+
+  if (usedEliminationChord) {
+    if (wasLong) {
+      suppressEliminationShort[sigilId] = false;
     }
     return;
   }
@@ -403,19 +582,62 @@ void handleActionShort(uint8_t sigilId) {
     return;
   }
 
+  if (suppressEliminationShort[sigilId]) {
+    suppressEliminationShort[sigilId] = false;
+    return;
+  }
+
+  if (hubState == HubState::Paused && game.hasWinClaim()) {
+    const uint8_t expectedNumber = game.nextWinConfirmationPlayerNumber();
+    const PlayerSeat *expected = game.playerByNumber(expectedNumber);
+    if (expected == nullptr || expected->moduleId != sigilId) {
+      return;
+    }
+
+    bool gameFinished = false;
+    if (game.confirmWinClaim(expectedNumber, millis(), gameFinished)) {
+      audio.winConfirmed(gameAudioMask());
+      leds.invalidateAll();
+      Serial.print("ATLAS|GAME|WIN|CONFIRMED|PLAYER|");
+      Serial.println(expectedNumber);
+      if (gameFinished) {
+        finishGameState();
+      }
+    }
+    return;
+  }
+
+  if (hubState == HubState::Paused && eliminationTargetPlayer != 0) {
+    cycleEliminationTarget(sigilId);
+    return;
+  }
+
   if (hubState == HubState::Lobby) {
     handleLobbyShort(sigilId);
+    return;
+  }
+
+  if (hubState == HubState::GameOver && sigilId == lobby.hostModule()) {
+    enterRematchLobby();
   }
 }
 
 void handleActionLong(uint8_t sigilId) {
   lobby.setActionLong(sigilId, true);
 
-  if (hubState == HubState::Lobby) {
-    if (lobby.sharedChord(sigilId)) {
-      return;
-    }
+  if (
+      hubState == HubState::Lobby &&
+      lobby.sharedChord(sigilId)) {
+    return;
+  }
 
+  if (
+      hubState == HubState::Paused &&
+      eliminationChord[sigilId]) {
+    return;
+  }
+
+  if (hubState == HubState::Lobby) {
     if (sigilId != lobby.hostModule()) {
       Serial.println("ATLAS|LOBBY|START_ARM|DENIED_NOT_HOST");
       return;
@@ -439,8 +661,18 @@ void handleActionLong(uint8_t sigilId) {
   }
 
   if (hubState == HubState::Running) {
+    const PlayerSeat *active = game.activePlayer();
     if (game.pause(millis())) {
       hubState = HubState::Paused;
+
+      if (active != nullptr && active->moduleId == sigilId) {
+        winArmedModule = sigilId;
+        winArmedPlayer = active->playerNumber;
+      } else {
+        winArmedModule = INVALID_ID;
+        winArmedPlayer = 0;
+      }
+
       Serial.print("ATLAS|GAME|PAUSE|SIGIL|");
       Serial.println(sigilId);
       audio.pause(gameAudioMask());
@@ -450,13 +682,30 @@ void handleActionLong(uint8_t sigilId) {
   }
 
   if (hubState == HubState::Paused) {
+    if (game.hasWinClaim()) {
+      Serial.println("ATLAS|GAME|RESUME|DENIED_WIN_CLAIM");
+      return;
+    }
+
+    if (eliminationTargetPlayer != 0) {
+      cancelEliminationSelection();
+      return;
+    }
+
     if (game.resume(millis())) {
       hubState = HubState::Running;
+      winArmedModule = INVALID_ID;
+      winArmedPlayer = 0;
       Serial.print("ATLAS|GAME|RESUME|SIGIL|");
       Serial.println(sigilId);
       audio.resume(gameAudioMask());
       leds.invalidateAll();
     }
+    return;
+  }
+
+  if (hubState == HubState::GameOver && sigilId == lobby.hostModule()) {
+    enterEmptyLobby();
   }
 }
 
@@ -469,9 +718,43 @@ void handleActionWin(uint8_t sigilId) {
     return;
   }
 
-  if (hubState == HubState::Paused) {
-    Serial.println("ATLAS|GAME|WIN|TODO_CONFIRMATION_PORT");
+  if (hubState != HubState::Paused || eliminationTargetPlayer != 0) {
+    return;
   }
+
+  if (game.hasWinClaim()) {
+    return;
+  }
+
+  const PlayerSeat *active = game.activePlayer();
+  if (
+      active == nullptr ||
+      sigilId != winArmedModule ||
+      winArmedPlayer == 0 ||
+      active->moduleId != sigilId ||
+      active->playerNumber != winArmedPlayer ||
+      game.isEliminated(active->playerNumber)) {
+    Serial.print("ATLAS|GAME|WIN|IGNORED|SIGIL|");
+    Serial.println(sigilId);
+    return;
+  }
+
+  if (!game.beginWinClaim(winArmedPlayer, true, millis())) {
+    return;
+  }
+
+  winArmedModule = INVALID_ID;
+  winArmedPlayer = 0;
+  leds.invalidateAll();
+
+  if (game.gameOver()) {
+    finishGameState();
+    return;
+  }
+
+  audio.winClaimed(gameAudioMask());
+  Serial.print("ATLAS|GAME|WIN|CLAIMED|PLAYER|");
+  Serial.println(game.winClaimPlayerNumber());
 }
 
 void processSigilEvents() {
@@ -479,8 +762,6 @@ void processSigilEvents() {
   while (sigilBus.poll(event)) {
     switch (event.type) {
       case PacketType::Hello:
-        // Re-apply outputs after every HELLO. This also restores the correct
-        // LEDs if a Sigil rebooted while Atlas kept running.
         leds.invalidate(event.sigilId);
         break;
       case PacketType::Pass:
@@ -515,19 +796,23 @@ void handleStatus() {
   PlayerSeat selected;
   const uint8_t starter = lobby.selectedStarter(selected)
       ? selected.playerNumber
-      : (game.running() ? game.starterPlayerNumber() : 0);
+      : (game.hasPlayers() ? game.starterPlayerNumber() : 0);
 
-  const uint8_t active = game.running() ? game.activePlayerNumber() : 0;
-  const uint8_t players = game.running() ? game.playerCount() : lobby.playerCount();
+  const uint8_t active =
+      (hubState == HubState::Running || hubState == HubState::Paused)
+      ? game.activePlayerNumber()
+      : 0;
+  const uint8_t players = game.hasPlayers() ? game.playerCount() : lobby.playerCount();
   const uint8_t host = lobby.hostModule();
 
-  char json[256];
+  char json[384];
   snprintf(
       json,
       sizeof(json),
       "{\"masterButton\":%s,\"sigils\":%u,\"players\":%u,"
       "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
-      "\"active\":%u,\"espNow\":%s}",
+      "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
+      "\"winConfirm\":%u,\"espNow\":%s}",
       masterButtonPressed() ? "true" : "false",
       static_cast<unsigned>(sigilBus.activeCount(millis())),
       static_cast<unsigned>(players),
@@ -535,6 +820,9 @@ void handleStatus() {
       host == INVALID_ID ? -1 : static_cast<int>(host),
       static_cast<unsigned>(starter),
       static_cast<unsigned>(active),
+      static_cast<unsigned>(game.winnerPlayerNumber()),
+      static_cast<unsigned>(eliminationTargetPlayer),
+      static_cast<unsigned>(game.nextWinConfirmationPlayerNumber()),
       espNowReady ? "true" : "false");
 
   server.send(200, "application/json", json);
@@ -558,9 +846,6 @@ void updateMasterButton() {
                      ? "ATLAS|MASTER_BUTTON|DOWN"
                      : "ATLAS|MASTER_BUTTON|UP");
 
-  // The Atlas button is the table-level emergency/master pass. It advances
-  // whichever logical player is active without pretending a particular
-  // Sigil was pressed.
   if (currentState == HIGH && hubState == HubState::Running) {
     const PlayerSeat *before = game.activePlayer();
     PlayerSeat previous;
@@ -643,7 +928,14 @@ void loop() {
   updateMasterButton();
   updateCountdown(nowMs);
   audio.update(nowMs);
-  leds.render(hubState, lobby, game, countdownStartedAtMs, nowMs);
+  leds.render(
+      hubState,
+      lobby,
+      game,
+      countdownStartedAtMs,
+      eliminationTargetPlayer,
+      game.nextWinConfirmationPlayerNumber(),
+      nowMs);
   server.handleClient();
 
   delay(1);
