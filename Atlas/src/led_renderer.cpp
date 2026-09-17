@@ -93,6 +93,24 @@ bool LedRenderer::playerNumberRedOn(
   return false;
 }
 
+bool LedRenderer::seatPulse(uint8_t slot, bool shared, uint32_t nowMs) {
+  if (!shared) {
+    return true;
+  }
+
+  constexpr uint32_t pulseOn = 180;
+  constexpr uint32_t pulseOff = 180;
+  const uint32_t position = nowMs % 1800;
+
+  if (slot == 1) {
+    return position < pulseOn;
+  }
+
+  const uint32_t secondStart = pulseOn + pulseOff;
+  return position < pulseOn ||
+      (position >= secondStart && position < secondStart + pulseOn);
+}
+
 uint8_t LedRenderer::starterBlueValue(
     const Lobby &lobby,
     uint8_t sigilId,
@@ -102,21 +120,7 @@ uint8_t LedRenderer::starterBlueValue(
     return 0;
   }
 
-  if (!lobby.hasSecondary(sigilId)) {
-    return 255;
-  }
-
-  constexpr uint32_t pulseOn = 180;
-  constexpr uint32_t pulseOff = 180;
-  const uint32_t position = nowMs % 1800;
-
-  if (starter.slot == 1) {
-    return position < pulseOn ? 255 : 0;
-  }
-
-  const uint32_t secondStart = pulseOn + pulseOff;
-  return (position < pulseOn ||
-          (position >= secondStart && position < secondStart + pulseOn))
+  return seatPulse(starter.slot, lobby.hasSecondary(sigilId), nowMs)
       ? 255
       : 0;
 }
@@ -214,13 +218,60 @@ void LedRenderer::renderRunning(
 void LedRenderer::renderPaused(
     uint8_t sigilId,
     const GameEngine &game,
+    uint8_t eliminationTargetPlayer,
+    uint8_t winConfirmationPlayer,
     uint32_t nowMs) {
   if (!game.moduleInGame(sigilId)) {
     off(sigilId);
     return;
   }
 
+  const PlayerSeat *winTarget = game.playerByNumber(winConfirmationPlayer);
+  if (winTarget != nullptr && winTarget->moduleId == sigilId) {
+    PlayerSeat living[2];
+    const uint8_t count = game.livingPlayersForModule(sigilId, living, 2);
+    set(
+        sigilId,
+        0,
+        false,
+        seatPulse(winTarget->slot, count > 1, nowMs));
+    return;
+  }
+
+  const PlayerSeat *eliminationTarget = game.playerByNumber(eliminationTargetPlayer);
+  if (eliminationTarget != nullptr && eliminationTarget->moduleId == sigilId) {
+    PlayerSeat living[2];
+    const uint8_t count = game.livingPlayersForModule(sigilId, living, 2);
+    set(
+        sigilId,
+        0,
+        seatPulse(eliminationTarget->slot, count > 1, nowMs),
+        false);
+    return;
+  }
+
   set(sigilId, breatheValue(nowMs), false, false);
+}
+
+void LedRenderer::renderGameOver(
+    uint8_t sigilId,
+    const Lobby &lobby,
+    const GameEngine &game,
+    uint32_t nowMs) {
+  if (!game.moduleInGame(sigilId)) {
+    off(sigilId);
+    return;
+  }
+
+  uint8_t blue = 0;
+  const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
+  if (winner != nullptr && winner->moduleId == sigilId) {
+    PlayerSeat local[2];
+    const uint8_t count = game.playersForModule(sigilId, local, 2);
+    blue = seatPulse(winner->slot, count > 1, nowMs) ? 255 : 0;
+  }
+
+  set(sigilId, blue, false, sigilId == lobby.hostModule());
 }
 
 void LedRenderer::render(
@@ -228,6 +279,8 @@ void LedRenderer::render(
     const Lobby &lobby,
     const GameEngine &game,
     uint32_t countdownStartedAtMs,
+    uint8_t eliminationTargetPlayer,
+    uint8_t winConfirmationPlayer,
     uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (!bus_.isOnline(id, nowMs)) {
@@ -246,10 +299,15 @@ void LedRenderer::render(
         renderRunning(id, game, nowMs);
         break;
       case HubState::Paused:
-        renderPaused(id, game, nowMs);
+        renderPaused(
+            id,
+            game,
+            eliminationTargetPlayer,
+            winConfirmationPlayer,
+            nowMs);
         break;
       case HubState::GameOver:
-        off(id);
+        renderGameOver(id, lobby, game, nowMs);
         break;
     }
   }
