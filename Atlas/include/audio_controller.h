@@ -63,14 +63,23 @@ class AudioController {
   void gameStart(uint16_t targetMask);
   void gameOver(uint16_t targetMask);
 
+  void eliminationArmed(uint8_t sigilId);
+  void eliminationTargetChanged(uint8_t sigilId);
+  void eliminationCancelled(uint8_t sigilId);
+  void playerEliminated(uint8_t sigilId);
+  void winClaimed(uint16_t targetMask);
+  void winConfirmed(uint16_t targetMask);
+  void winDenied(uint16_t targetMask);
+  void winCancelled(uint16_t targetMask);
+
  private:
   struct Job {
-    Job() = default;
-    Job(SoundId soundValue, uint16_t targetMaskValue)
-        : sound(soundValue), targetMask(targetMaskValue) {}
-
     SoundId sound = SoundId::TurnPass;
     uint16_t targetMask = 0;
+
+    Job() = default;
+    Job(SoundId soundValue, uint16_t maskValue)
+        : sound(soundValue), targetMask(maskValue) {}
   };
 
   static constexpr uint8_t QUEUE_CAPACITY = 16;
