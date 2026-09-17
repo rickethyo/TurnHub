@@ -70,7 +70,9 @@ void LedRenderer::syncDisplay(
     uint8_t sigilId,
     HubState state,
     const Lobby &lobby,
-    const GameEngine &game) {
+    const GameEngine &game,
+    uint8_t eliminationTargetPlayer,
+    uint8_t winConfirmationPlayer) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) {
     return;
   }
@@ -79,17 +81,48 @@ void LedRenderer::syncDisplay(
   uint8_t primary = 0;
   uint8_t secondary = 0;
   uint8_t turnNumber = 0;
+  uint8_t flags = 0;
+
+  if (sigilId == lobby.hostModule()) {
+    flags |= TurnHubProtocol::DISPLAY_FLAG_HOST;
+  }
 
   if (state == HubState::Lobby || state == HubState::Starting) {
     if (lobby.isJoined(sigilId)) {
-      mode = TurnHubProtocol::DisplayMode::Joined;
+      mode = state == HubState::Starting
+          ? TurnHubProtocol::DisplayMode::Starting
+          : TurnHubProtocol::DisplayMode::Lobby;
+
       primary = lobby.playerNumber(sigilId, 1);
       if (lobby.hasSecondary(sigilId)) {
         secondary = lobby.playerNumber(sigilId, 2);
       }
+
+      PlayerSeat starter;
+      if (lobby.selectedStarter(starter) && starter.moduleId == sigilId) {
+        flags |= TurnHubProtocol::DISPLAY_FLAG_STARTER;
+        if (starter.playerNumber == secondary && secondary != 0) {
+          const uint8_t originalPrimary = primary;
+          primary = secondary;
+          secondary = originalPrimary;
+        }
+      }
     }
   } else if (game.moduleInGame(sigilId)) {
-    mode = TurnHubProtocol::DisplayMode::Joined;
+    switch (state) {
+      case HubState::Running:
+        mode = TurnHubProtocol::DisplayMode::Running;
+        break;
+      case HubState::Paused:
+        mode = TurnHubProtocol::DisplayMode::Paused;
+        break;
+      case HubState::GameOver:
+        mode = TurnHubProtocol::DisplayMode::GameOver;
+        break;
+      default:
+        mode = TurnHubProtocol::DisplayMode::Running;
+        break;
+    }
 
     PlayerSeat local[2];
     const uint8_t count = game.playersForModule(sigilId, local, 2);
@@ -98,6 +131,45 @@ void LedRenderer::syncDisplay(
     }
     if (count > 1) {
       secondary = local[1].playerNumber;
+    }
+
+    const PlayerSeat *active = game.activePlayer();
+    if ((state == HubState::Running || state == HubState::Paused) &&
+        active != nullptr && active->moduleId == sigilId) {
+      flags |= TurnHubProtocol::DISPLAY_FLAG_ACTIVE;
+      if (active->playerNumber == secondary && secondary != 0) {
+        const uint8_t originalPrimary = primary;
+        primary = secondary;
+        secondary = originalPrimary;
+      }
+    }
+
+    const PlayerSeat *starter = game.playerByNumber(game.starterPlayerNumber());
+    if (starter != nullptr && starter->moduleId == sigilId) {
+      flags |= TurnHubProtocol::DISPLAY_FLAG_STARTER;
+    }
+
+    const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
+    if (winner != nullptr && winner->moduleId == sigilId) {
+      flags |= TurnHubProtocol::DISPLAY_FLAG_WINNER;
+      if (state == HubState::GameOver &&
+          winner->playerNumber == secondary && secondary != 0) {
+        const uint8_t originalPrimary = primary;
+        primary = secondary;
+        secondary = originalPrimary;
+      }
+    }
+
+    const PlayerSeat *elimination = game.playerByNumber(eliminationTargetPlayer);
+    const PlayerSeat *confirmation = game.playerByNumber(winConfirmationPlayer);
+    const PlayerSeat *attention = confirmation != nullptr ? confirmation : elimination;
+    if (attention != nullptr && attention->moduleId == sigilId) {
+      flags |= TurnHubProtocol::DISPLAY_FLAG_ATTENTION;
+      if (attention->playerNumber == secondary && secondary != 0) {
+        const uint8_t originalPrimary = primary;
+        primary = secondary;
+        secondary = originalPrimary;
+      }
     }
 
     if (primary != 0) {
@@ -113,7 +185,8 @@ void LedRenderer::syncDisplay(
       mode,
       primary,
       secondary,
-      turnNumber);
+      turnNumber,
+      flags);
 
   Cache &cache = cache_[sigilId];
   if (cache.displayValid && cache.displayPayload == payload) {
@@ -351,7 +424,13 @@ void LedRenderer::render(
       continue;
     }
 
-    syncDisplay(id, state, lobby, game);
+    syncDisplay(
+        id,
+        state,
+        lobby,
+        game,
+        eliminationTargetPlayer,
+        winConfirmationPlayer);
 
     switch (state) {
       case HubState::Lobby:
