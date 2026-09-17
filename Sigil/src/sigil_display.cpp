@@ -46,14 +46,53 @@ void SigilDisplay::drawStatus(const char *line1, const char *line2) {
   } while (display_.nextPage());
 }
 
-void SigilDisplay::showUnassigned() {
-  drawStatus("Sigil", "Waiting for Atlas...");
+void SigilDisplay::showUnpaired() {
+  drawStatus("Unpaired", "Waiting for Atlas...");
 }
 
-void SigilDisplay::showAssigned(uint8_t sigilId) {
+void SigilDisplay::showReady(uint8_t sigilId) {
   char title[24];
   snprintf(title, sizeof(title), "Sigil %u", static_cast<unsigned>(sigilId + 1));
-  drawStatus(title, "Connected to Atlas");
+  drawStatus(title, "Ready for game");
+}
+
+void SigilDisplay::showJoined(
+    uint8_t sigilId,
+    uint8_t primaryPlayer,
+    uint8_t secondaryPlayer,
+    uint8_t turnNumber) {
+  display_.setFullWindow();
+  display_.firstPage();
+  do {
+    display_.fillScreen(GxEPD_WHITE);
+
+    display_.setTextSize(2);
+    display_.setCursor(12, 23);
+    display_.print("Game 1");
+    display_.drawFastHLine(12, 33, display_.width() - 24, GxEPD_BLACK);
+
+    display_.setTextSize(2);
+    display_.setCursor(12, 66);
+    if (secondaryPlayer != 0) {
+      display_.printf("P%u + P%u",
+                      static_cast<unsigned>(primaryPlayer),
+                      static_cast<unsigned>(secondaryPlayer));
+    } else {
+      display_.printf("Player %u", static_cast<unsigned>(primaryPlayer));
+    }
+
+    display_.setTextSize(1);
+    display_.setCursor(12, 94);
+    display_.printf("Sigil %u", static_cast<unsigned>(sigilId + 1));
+
+    if (turnNumber != 0) {
+      display_.setCursor(145, 94);
+      display_.printf("T: %u", static_cast<unsigned>(turnNumber));
+    } else {
+      display_.setCursor(145, 94);
+      display_.print("Joined");
+    }
+  } while (display_.nextPage());
 }
 
 }  // namespace TurnHubSigil
