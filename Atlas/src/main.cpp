@@ -4,9 +4,11 @@
 
 #include "audio_controller.h"
 #include "config.h"
+#include "firmware_version.h"
 #include "game_engine.h"
 #include "led_renderer.h"
 #include "lobby.h"
+#include "ota_manager.h"
 #include "protocol.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
@@ -23,6 +25,7 @@ using TurnHub::LedRenderer;
 using TurnHub::Lobby;
 using TurnHub::MAX_PHYSICAL_SIGILS;
 using TurnHub::MAX_PLAYERS;
+using TurnHub::OtaManager;
 using TurnHub::PlayerSeat;
 using TurnHub::SigilBus;
 using TurnHub::SigilEvent;
@@ -33,11 +36,14 @@ constexpr uint32_t DEBOUNCE_MS = 25;
 constexpr uint32_t START_COUNTDOWN_MS = 3000;
 constexpr uint32_t DEFAULT_WARNING_MS = 0;
 
+bool otaAllowed();
+
 SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
 Lobby lobby;
 GameEngine game;
 LedRenderer leds(sigilBus);
 AudioController audio(sigilBus);
+OtaManager ota(server, otaAllowed);
 
 HubState hubState = HubState::Lobby;
 bool espNowReady = false;
@@ -74,7 +80,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       color: #f3f5f7;
     }
     main {
-      width: min(560px, 100%);
+      width: min(580px, 100%);
       padding: 28px;
       border: 1px solid #2b3240;
       border-radius: 18px;
@@ -90,17 +96,32 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       padding: 12px 0;
       border-bottom: 1px solid #2b3240;
     }
-    .status:last-child { border-bottom: 0; }
+    .status:last-of-type { border-bottom: 0; }
     .value { font-weight: 800; }
     .online { color: #62d58a; }
     .pressed { color: #72a7ff; }
     .muted { color: #9ca6b7; }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #e7ebf2;
+      color: #111318;
+      font-weight: 800;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <main>
     <h1>TurnHub Atlas</h1>
-    <div class="sub">ESP32 migration build</div>
+    <div class="sub">ESP32 migration build · <span id="firmware">loading</span></div>
     <div class="status"><span>Atlas</span><span class="value online">Online</span></div>
     <div class="status"><span>State</span><span id="state" class="value">LOBBY</span></div>
     <div class="status"><span>Online Sigils</span><span id="sigils" class="value">0</span></div>
@@ -113,18 +134,33 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     <div class="status"><span>Win Confirmation</span><span id="winconfirm" class="value muted">None</span></div>
     <div class="status"><span>Master Button</span><span id="button" class="value muted">Released</span></div>
     <div class="status"><span>ESP-NOW</span><span id="espnow" class="value">Starting</span></div>
+    <div class="actions">
+      <a class="button" href="/update">Atlas Firmware Update</a>
+    </div>
   </main>
   <script>
-    function showNumber(id, value, prefix) {
+    function showPlayer(id, value) {
       const el = document.getElementById(id);
       if (!value) {
         el.textContent = 'None';
         el.className = 'value muted';
       } else {
-        el.textContent = prefix + value;
+        el.textContent = 'Player ' + value;
         el.className = 'value';
       }
     }
+
+    function showHost(value) {
+      const el = document.getElementById('host');
+      if (value < 0) {
+        el.textContent = 'None';
+        el.className = 'value muted';
+      } else {
+        el.textContent = 'Sigil ' + value;
+        el.className = 'value';
+      }
+    }
+
     async function refresh() {
       try {
         const response = await fetch('/api/status', { cache: 'no-store' });
@@ -132,14 +168,15 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         document.getElementById('state').textContent = s.state;
         document.getElementById('sigils').textContent = s.sigils;
         document.getElementById('players').textContent = s.players;
-        showNumber('host', s.host + 1, 'Sigil ');
-        showNumber('starter', s.starter, 'Player ');
-        showNumber('active', s.active, 'Player ');
-        showNumber('winner', s.winner, 'Player ');
-        showNumber('elimination', s.eliminationTarget, 'Player ');
-        showNumber('winconfirm', s.winConfirm, 'Player ');
+        document.getElementById('firmware').textContent = 'v' + s.firmware;
+        showHost(s.host);
+        showPlayer('starter', s.starter);
+        showPlayer('active', s.active);
+        showPlayer('winner', s.winner);
+        showPlayer('elimination', s.eliminationTarget);
+        showPlayer('winconfirm', s.winConfirm);
         const button = document.getElementById('button');
-        button.textContent = s.masterButton ? 'Pressed' : 'Released';
+        button.textContent = s.masterButton ? 'Pressed / OTA Armed' : 'Released';
         button.className = s.masterButton ? 'value pressed' : 'value muted';
         document.getElementById('espnow').textContent = s.espNow ? 'Ready' : 'Error';
       } catch (_) {
@@ -155,6 +192,13 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
 bool masterButtonPressed() {
   return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
+}
+
+bool otaAllowed() {
+  const bool safeState =
+      hubState == HubState::Lobby ||
+      hubState == HubState::GameOver;
+  return safeState && masterButtonPressed();
 }
 
 uint16_t lobbyAudioMask() {
@@ -804,15 +848,19 @@ void handleStatus() {
       : 0;
   const uint8_t players = game.hasPlayers() ? game.playerCount() : lobby.playerCount();
   const uint8_t host = lobby.hostModule();
+  const bool otaStateAllowed =
+      hubState == HubState::Lobby ||
+      hubState == HubState::GameOver;
 
-  char json[384];
+  char json[576];
   snprintf(
       json,
       sizeof(json),
       "{\"masterButton\":%s,\"sigils\":%u,\"players\":%u,"
       "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
-      "\"winConfirm\":%u,\"espNow\":%s}",
+      "\"winConfirm\":%u,\"espNow\":%s,\"firmware\":\"%s\","
+      "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
       masterButtonPressed() ? "true" : "false",
       static_cast<unsigned>(sigilBus.activeCount(millis())),
       static_cast<unsigned>(players),
@@ -823,7 +871,11 @@ void handleStatus() {
       static_cast<unsigned>(game.winnerPlayerNumber()),
       static_cast<unsigned>(eliminationTargetPlayer),
       static_cast<unsigned>(game.nextWinConfirmationPlayerNumber()),
-      espNowReady ? "true" : "false");
+      espNowReady ? "true" : "false",
+      TurnHubFirmware::VERSION,
+      TurnHubFirmware::BUILD_DATE,
+      TurnHubFirmware::BUILD_TIME,
+      otaStateAllowed ? "true" : "false");
 
   server.send(200, "application/json", json);
 }
@@ -896,6 +948,7 @@ void startNetworking() {
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
+  ota.begin();
   server.onNotFound([]() {
     server.send(404, "text/plain", "Not found");
   });
@@ -914,7 +967,8 @@ void setup() {
   lastButtonState = digitalRead(AtlasConfig::MASTER_BUTTON_PIN);
 
   Serial.println();
-  Serial.println("ATLAS|BOOT");
+  Serial.print("ATLAS|BOOT|");
+  Serial.println(TurnHubFirmware::VERSION);
 
   startNetworking();
 
@@ -937,6 +991,7 @@ void loop() {
       game.nextWinConfirmationPlayerNumber(),
       nowMs);
   server.handleClient();
+  ota.update(nowMs);
 
   delay(1);
 }
