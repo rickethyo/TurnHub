@@ -28,6 +28,16 @@ inline const char *stateName(HubState state) {
 }
 
 struct PlayerSeat {
+  PlayerSeat() = default;
+
+  PlayerSeat(
+      uint8_t playerNumberValue,
+      uint8_t moduleIdValue,
+      uint8_t slotValue = 1)
+      : playerNumber(playerNumberValue),
+        moduleId(moduleIdValue),
+        slot(slotValue) {}
+
   uint8_t playerNumber = 0;
   uint8_t moduleId = INVALID_ID;
   uint8_t slot = 1;
