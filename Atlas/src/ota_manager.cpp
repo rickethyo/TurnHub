@@ -74,7 +74,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     <button id="upload" disabled>Upload &amp; Restart</button>
     <progress id="progress" max="100" value="0"></progress>
     <p id="message"></p>
-    <a class="back" href="/">← Back to TurnHub</a>
+    <a class="back" href="/portal">← Back to TurnHub</a>
   </main>
 <script>
   const file = document.getElementById('file');
@@ -110,7 +110,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
       if (xhr.status >= 200 && xhr.status < 300) {
         progress.value = 100;
         message.textContent = data.message || 'Installed. Atlas is restarting...';
-        setTimeout(() => { window.location.href = '/'; }, 5000);
+        setTimeout(() => { window.location.href = '/portal'; }, 5000);
       } else {
         message.textContent = data.error || 'Update failed.';
         button.disabled = false;
@@ -133,17 +133,10 @@ OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
     : server_(server), allowedCallback_(allowedCallback) {}
 
 void OtaManager::begin() {
-  // main.cpp registers the original migration status page at /. Replace that
-  // route here once all core web services are present, then preserve the old
-  // page at /dev. This keeps the controller logic untouched while the richer
-  // portal is migrated independently.
-  server_.removeRoute("/", HTTP_GET);
-
-  server_.on("/", HTTP_GET, [this]() {
-    server_.sendHeader("Cache-Control", "no-store");
-    server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
-  });
-
+  // Keep the original migration status page registered by main.cpp as the
+  // development page. The restored consumer-facing portal lives at /portal
+  // during this first migration pass and can be promoted to / once main.cpp
+  // is split into the new web layer.
   server_.on("/portal", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
     server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
