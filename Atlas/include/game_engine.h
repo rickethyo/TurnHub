@@ -1,0 +1,73 @@
+#pragma once
+
+#include <Arduino.h>
+
+#include "turnhub_types.h"
+
+namespace TurnHub {
+
+enum class WarningPhase : uint8_t {
+  Normal,
+  Caution,
+  Warning,
+  OffGreen,
+};
+
+class GameEngine {
+ public:
+  GameEngine();
+
+  bool start(
+      const PlayerSeat *players,
+      uint8_t playerCount,
+      const PlayerSeat &starter,
+      uint32_t warningMs,
+      uint32_t nowMs);
+
+  bool passTurn(uint8_t moduleId, uint32_t nextWarningMs, uint32_t nowMs);
+  bool pause(uint32_t nowMs);
+  bool resume(uint32_t nowMs);
+
+  void reset();
+
+  bool running() const;
+  bool paused() const;
+  bool hasPlayers() const;
+
+  uint8_t playerCount() const;
+  const PlayerSeat *playerAt(uint8_t index) const;
+  const PlayerSeat *activePlayer() const;
+  uint8_t activePlayerNumber() const;
+  uint8_t activeModule() const;
+  uint8_t starterPlayerNumber() const;
+
+  bool moduleInGame(uint8_t moduleId) const;
+  uint8_t playersForModule(uint8_t moduleId, PlayerSeat *out, uint8_t capacity) const;
+
+  uint32_t currentTurnElapsedMs(uint32_t nowMs) const;
+  uint32_t gameElapsedMs(uint32_t nowMs) const;
+  WarningPhase warningPhase(uint32_t nowMs) const;
+
+  uint32_t warningMs() const;
+  const PlayerStats *statsForPlayer(uint8_t playerNumber) const;
+
+ private:
+  int indexForSeat(const PlayerSeat &seat) const;
+
+  PlayerSeat players_[MAX_PLAYERS];
+  PlayerStats stats_[MAX_PLAYERS];
+  uint8_t playerCount_ = 0;
+  uint8_t activeIndex_ = 0;
+  uint8_t starterPlayer_ = 0;
+
+  bool running_ = false;
+  bool paused_ = false;
+
+  uint32_t gameStartedAtMs_ = 0;
+  uint32_t turnStartedAtMs_ = 0;
+  uint32_t pauseStartedAtMs_ = 0;
+  uint32_t totalPausedMs_ = 0;
+  uint32_t currentWarningMs_ = 0;
+};
+
+}  // namespace TurnHub
