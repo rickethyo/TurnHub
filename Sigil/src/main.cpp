@@ -4,11 +4,13 @@
 #include <esp_wifi.h>
 
 #include "protocol.h"
+#include "sigil_display.h"
 
 namespace {
 
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
+using TurnHubSigil::SigilDisplay;
 
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
@@ -43,6 +45,7 @@ struct ButtonState {
 
 ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
+SigilDisplay sigilDisplay;
 
 bool espNowReady = false;
 bool atlasKnown = false;
@@ -51,6 +54,7 @@ uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t greenFlashUntilMs = 0;
 bool commandedGreen = false;
+volatile bool displayNeedsRefresh = false;
 
 void printMac(const uint8_t *mac) {
   Serial.printf(
@@ -143,6 +147,22 @@ void updateGreenFlash() {
   }
 }
 
+void updateDisplay() {
+  if (!displayNeedsRefresh) {
+    return;
+  }
+
+  displayNeedsRefresh = false;
+  const uint8_t currentId = sigilId;
+
+  if (currentId == UNASSIGNED_SIGIL_ID) {
+    sigilDisplay.showUnassigned();
+    return;
+  }
+
+  sigilDisplay.showAssigned(currentId);
+}
+
 void playBuzzerPayload(int32_t value) {
   const uint16_t frequencyHz = TurnHubProtocol::toneFrequency(value);
   const uint16_t durationMs = TurnHubProtocol::toneDuration(value);
@@ -182,6 +202,7 @@ void handleEspNowReceive(
 
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
+      displayNeedsRefresh = true;
       Serial.print("SIGIL|ID|");
       Serial.println(sigilId);
     }
@@ -369,6 +390,9 @@ void setup() {
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED");
 
+  sigilDisplay.begin();
+  sigilDisplay.showUnassigned();
+
   espNowReady = startEspNow();
 
   if (espNowReady) {
@@ -380,6 +404,7 @@ void loop() {
   updatePassButton();
   updateActionButton();
   updateGreenFlash();
+  updateDisplay();
 
   if (espNowReady && millis() - lastHelloMs >= HELLO_INTERVAL_MS) {
     sendHello();
