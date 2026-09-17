@@ -1,17 +1,46 @@
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WebServer.h>
-#include <esp_now.h>
+#include <WiFi.h>
 
 #include "config.h"
+#include "game_engine.h"
+#include "led_renderer.h"
+#include "lobby.h"
 #include "protocol.h"
+#include "sigil_bus.h"
+#include "turnhub_types.h"
 
 WebServer server(AtlasConfig::HTTP_PORT);
 
 namespace {
 
-using TurnHubProtocol::Packet;
+using TurnHub::GameEngine;
+using TurnHub::HubState;
+using TurnHub::INVALID_ID;
+using TurnHub::LedRenderer;
+using TurnHub::Lobby;
+using TurnHub::MAX_PLAYERS;
+using TurnHub::PlayerSeat;
+using TurnHub::SigilBus;
+using TurnHub::SigilEvent;
+using TurnHub::stateName;
 using TurnHubProtocol::PacketType;
+
+constexpr uint32_t DEBOUNCE_MS = 25;
+constexpr uint32_t START_COUNTDOWN_MS = 3000;
+constexpr uint32_t DEFAULT_WARNING_MS = 0;
+
+SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
+Lobby lobby;
+GameEngine game;
+LedRenderer leds(sigilBus);
+
+HubState hubState = HubState::Lobby;
+bool espNowReady = false;
+bool lastButtonState = HIGH;
+uint32_t lastDebounceMs = 0;
+uint32_t countdownStartedAtMs = 0;
+int8_t lastCountdownSecond = -1;
 
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!doctype html>
@@ -19,26 +48,31 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111318">
   <title>TurnHub Atlas</title>
   <style>
     :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       display: grid;
       place-items: center;
+      padding: 16px;
       font-family: system-ui, sans-serif;
       background: #0b0d11;
       color: #f3f5f7;
     }
     main {
-      width: min(520px, calc(100% - 32px));
+      width: min(560px, 100%);
       padding: 28px;
       border: 1px solid #2b3240;
       border-radius: 18px;
       background: #141820;
+      box-shadow: 0 18px 60px rgba(0,0,0,.28);
     }
-    h1 { margin-top: 0; }
+    h1 { margin: 0 0 4px; }
+    .sub { color:#9ca6b7; margin-bottom:18px; }
     .status {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -56,21 +90,42 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 <body>
   <main>
     <h1>TurnHub Atlas</h1>
+    <div class="sub">ESP32 migration build</div>
     <div class="status"><span>Atlas</span><span class="value online">Online</span></div>
-    <div class="status"><span>Sigils</span><span id="sigils" class="value">0</span></div>
+    <div class="status"><span>State</span><span id="state" class="value">LOBBY</span></div>
+    <div class="status"><span>Online Sigils</span><span id="sigils" class="value">0</span></div>
+    <div class="status"><span>Players</span><span id="players" class="value">0</span></div>
+    <div class="status"><span>Host Sigil</span><span id="host" class="value muted">None</span></div>
+    <div class="status"><span>Starter</span><span id="starter" class="value muted">None</span></div>
+    <div class="status"><span>Active Player</span><span id="active" class="value muted">None</span></div>
     <div class="status"><span>Master Button</span><span id="button" class="value muted">Released</span></div>
     <div class="status"><span>ESP-NOW</span><span id="espnow" class="value">Starting</span></div>
   </main>
   <script>
+    function showNumber(id, value, prefix) {
+      const el = document.getElementById(id);
+      if (!value) {
+        el.textContent = 'None';
+        el.className = 'value muted';
+      } else {
+        el.textContent = prefix + value;
+        el.className = 'value';
+      }
+    }
     async function refresh() {
       try {
         const response = await fetch('/api/status', { cache: 'no-store' });
-        const state = await response.json();
+        const s = await response.json();
+        document.getElementById('state').textContent = s.state;
+        document.getElementById('sigils').textContent = s.sigils;
+        document.getElementById('players').textContent = s.players;
+        showNumber('host', s.host + 1, 'Sigil ');
+        showNumber('starter', s.starter, 'Player ');
+        showNumber('active', s.active, 'Player ');
         const button = document.getElementById('button');
-        button.textContent = state.masterButton ? 'Pressed' : 'Released';
-        button.className = state.masterButton ? 'value pressed' : 'value muted';
-        document.getElementById('sigils').textContent = state.sigils;
-        document.getElementById('espnow').textContent = state.espNow ? 'Ready' : 'Error';
+        button.textContent = s.masterButton ? 'Pressed' : 'Released';
+        button.className = s.masterButton ? 'value pressed' : 'value muted';
+        document.getElementById('espnow').textContent = s.espNow ? 'Ready' : 'Error';
       } catch (_) {
         document.getElementById('espnow').textContent = 'Disconnected';
       }
@@ -82,201 +137,324 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 </html>
 )HTML";
 
-struct SigilRecord {
-  bool used = false;
-  uint8_t id = 0;
-  uint8_t mac[6] = {};
-  uint32_t lastSeenMs = 0;
-};
-
-SigilRecord sigils[TurnHubProtocol::MAX_SIGILS];
-
-bool espNowReady = false;
-bool lastButtonState = HIGH;
-uint32_t lastDebounceMs = 0;
-
-constexpr uint32_t DEBOUNCE_MS = 25;
-constexpr uint32_t SIGIL_TIMEOUT_MS = 7000;
-
 bool masterButtonPressed() {
   return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
 }
 
-void printMac(const uint8_t *mac) {
-  Serial.printf(
-      "%02X:%02X:%02X:%02X:%02X:%02X",
-      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+void printPlayer(const PlayerSeat &player) {
+  Serial.print("Player ");
+  Serial.print(player.playerNumber);
+  Serial.print(" / Sigil ");
+  Serial.print(player.moduleId);
+  Serial.print(player.slotName());
 }
 
-SigilRecord *findSigilByMac(const uint8_t *mac) {
-  for (auto &sigil : sigils) {
-    if (sigil.used && memcmp(sigil.mac, mac, 6) == 0) {
-      return &sigil;
-    }
+void enterEmptyLobby() {
+  hubState = HubState::Lobby;
+  lobby.resetEmpty();
+  game.reset();
+  countdownStartedAtMs = 0;
+  lastCountdownSecond = -1;
+  leds.invalidateAll();
+  Serial.println("ATLAS|LOBBY|EMPTY");
+}
+
+void beginCountdown() {
+  if (lobby.playerCount() < 2) {
+    return;
   }
-  return nullptr;
+
+  hubState = HubState::Starting;
+  countdownStartedAtMs = millis();
+  lastCountdownSecond = -1;
+  lobby.clearStartArm();
+  Serial.println("ATLAS|LOBBY|COUNTDOWN|START");
 }
 
-SigilRecord *rememberSigil(const uint8_t *mac) {
-  SigilRecord *record = findSigilByMac(mac);
+void cancelCountdown() {
+  if (hubState != HubState::Starting) {
+    return;
+  }
 
-  if (record == nullptr) {
-    for (uint8_t i = 0; i < TurnHubProtocol::MAX_SIGILS; ++i) {
-      auto &candidate = sigils[i];
-      if (!candidate.used) {
-        candidate.used = true;
-        candidate.id = i;
-        memcpy(candidate.mac, mac, 6);
-        candidate.lastSeenMs = millis();
-        record = &candidate;
+  hubState = HubState::Lobby;
+  countdownStartedAtMs = 0;
+  lastCountdownSecond = -1;
+  lobby.clearStartArm();
+  Serial.println("ATLAS|LOBBY|COUNTDOWN|CANCEL");
+}
 
-        Serial.print("ATLAS|SIGIL|DISCOVERED|");
-        Serial.print(candidate.id);
+void startGame() {
+  PlayerSeat starter;
+  if (!lobby.starterOrDefault(starter) || lobby.playerCount() < 2) {
+    cancelCountdown();
+    return;
+  }
+
+  PlayerSeat players[MAX_PLAYERS];
+  const uint8_t count = lobby.buildPlayers(players, MAX_PLAYERS);
+
+  if (!game.start(
+          players,
+          count,
+          starter,
+          DEFAULT_WARNING_MS,
+          millis())) {
+    cancelCountdown();
+    return;
+  }
+
+  hubState = HubState::Running;
+  countdownStartedAtMs = 0;
+  lastCountdownSecond = -1;
+  leds.invalidateAll();
+
+  Serial.print("ATLAS|GAME|START|");
+  printPlayer(starter);
+  Serial.println();
+}
+
+void updateCountdown(uint32_t nowMs) {
+  if (hubState != HubState::Starting) {
+    return;
+  }
+
+  const uint32_t elapsed = nowMs - countdownStartedAtMs;
+  const int8_t second = static_cast<int8_t>(elapsed / 1000);
+
+  if (second >= 0 && second < 3 && second != lastCountdownSecond) {
+    lastCountdownSecond = second;
+    Serial.print("ATLAS|LOBBY|COUNTDOWN|");
+    Serial.println(3 - second);
+  }
+
+  if (elapsed >= START_COUNTDOWN_MS) {
+    startGame();
+  }
+}
+
+void handleLobbyShort(uint8_t sigilId) {
+  if (!lobby.isJoined(sigilId)) {
+    const uint8_t playerNumber = lobby.join(sigilId);
+    if (playerNumber == 0) {
+      return;
+    }
+
+    Serial.print("ATLAS|LOBBY|JOIN|SIGIL|");
+    Serial.print(sigilId);
+    Serial.print("|PLAYER|");
+    Serial.println(playerNumber);
+
+    if (sigilId == lobby.hostModule()) {
+      Serial.print("ATLAS|LOBBY|HOST|");
+      Serial.println(sigilId);
+    }
+    leds.invalidateAll();
+    return;
+  }
+
+  PlayerSeat selected;
+  if (lobby.selectStarter(sigilId, selected)) {
+    Serial.print("ATLAS|LOBBY|STARTER|");
+    Serial.print(selected.playerNumber);
+    Serial.print("|SIGIL|");
+    Serial.print(selected.moduleId);
+    Serial.print("|SLOT|");
+    Serial.println(selected.slotName());
+  }
+}
+
+void handlePass(uint8_t sigilId) {
+  if (hubState == HubState::Lobby) {
+    if (lobby.isHeld(sigilId)) {
+      lobby.setSharedChord(sigilId, true);
+      lobby.setSuppressNextShort(sigilId, true);
+
+      if (lobby.startArmedBy() == sigilId) {
+        lobby.clearStartArm();
+      }
+
+      bool added = false;
+      PlayerSeat affected;
+      if (lobby.toggleSecondary(sigilId, added, affected)) {
+        Serial.print("ATLAS|LOBBY|SECONDARY|");
+        Serial.print(sigilId);
         Serial.print("|");
-        printMac(mac);
-        Serial.println();
-        break;
+        Serial.print(added ? "ADDED" : "REMOVED");
+        Serial.print("|PLAYER|");
+        Serial.println(affected.playerNumber);
+        leds.invalidateAll();
+      }
+      return;
+    }
+
+    if (sigilId == lobby.hostModule() && lobby.playerCount() >= 2) {
+      PlayerSeat selected;
+      if (lobby.randomStarter(selected)) {
+        Serial.print("ATLAS|LOBBY|RANDOM_STARTER|");
+        Serial.println(selected.playerNumber);
       }
     }
+    return;
   }
 
-  if (record != nullptr) {
-    record->lastSeenMs = millis();
+  if (hubState != HubState::Running) {
+    return;
   }
 
-  return record;
+  const PlayerSeat *before = game.activePlayer();
+  PlayerSeat previous;
+  if (before != nullptr) {
+    previous = *before;
+  }
+
+  if (!game.passTurn(sigilId, DEFAULT_WARNING_MS, millis())) {
+    return;
+  }
+
+  const PlayerSeat *current = game.activePlayer();
+  Serial.print("ATLAS|GAME|PASS|");
+  Serial.print(previous.playerNumber);
+  Serial.print("->");
+  Serial.println(current != nullptr ? current->playerNumber : 0);
 }
 
-uint8_t activeSigilCount() {
-  const uint32_t now = millis();
-  uint8_t count = 0;
+void handleActionDown(uint8_t sigilId) {
+  lobby.setHeld(sigilId, true);
+  lobby.setActionLong(sigilId, false);
+  lobby.setSharedChord(sigilId, false);
 
-  for (const auto &sigil : sigils) {
-    if (sigil.used && now - sigil.lastSeenMs <= SIGIL_TIMEOUT_MS) {
-      ++count;
+  if (hubState == HubState::Starting) {
+    cancelCountdown();
+  }
+}
+
+void handleActionUp(uint8_t sigilId) {
+  lobby.setHeld(sigilId, false);
+
+  const bool usedChord = lobby.sharedChord(sigilId);
+  const bool wasLong = lobby.actionLong(sigilId);
+
+  lobby.setSharedChord(sigilId, false);
+  lobby.setActionLong(sigilId, false);
+
+  if (usedChord) {
+    if (wasLong) {
+      lobby.setSuppressNextShort(sigilId, false);
+    }
+    return;
+  }
+
+  if (
+      hubState == HubState::Lobby &&
+      lobby.startArmedBy() == sigilId &&
+      sigilId == lobby.hostModule()) {
+    beginCountdown();
+  }
+}
+
+void handleActionShort(uint8_t sigilId) {
+  if (lobby.consumeSuppressNextShort(sigilId)) {
+    return;
+  }
+
+  if (hubState == HubState::Lobby) {
+    handleLobbyShort(sigilId);
+  }
+}
+
+void handleActionLong(uint8_t sigilId) {
+  lobby.setActionLong(sigilId, true);
+
+  if (hubState == HubState::Lobby) {
+    if (lobby.sharedChord(sigilId)) {
+      return;
+    }
+
+    if (sigilId != lobby.hostModule()) {
+      Serial.println("ATLAS|LOBBY|START_ARM|DENIED_NOT_HOST");
+      return;
+    }
+
+    if (lobby.playerCount() < 2) {
+      Serial.println("ATLAS|LOBBY|START_ARM|DENIED_NEED_PLAYERS");
+      return;
+    }
+
+    if (lobby.anyOtherHeld(sigilId)) {
+      Serial.println("ATLAS|LOBBY|START_ARM|DENIED_OTHER_HELD");
+      return;
+    }
+
+    lobby.setStartArmedBy(sigilId);
+    Serial.print("ATLAS|LOBBY|START_ARM|");
+    Serial.println(sigilId);
+    return;
+  }
+
+  if (hubState == HubState::Running) {
+    if (game.pause(millis())) {
+      hubState = HubState::Paused;
+      Serial.print("ATLAS|GAME|PAUSE|SIGIL|");
+      Serial.println(sigilId);
+      leds.invalidateAll();
+    }
+    return;
+  }
+
+  if (hubState == HubState::Paused) {
+    if (game.resume(millis())) {
+      hubState = HubState::Running;
+      Serial.print("ATLAS|GAME|RESUME|SIGIL|");
+      Serial.println(sigilId);
+      leds.invalidateAll();
     }
   }
-
-  return count;
 }
 
-bool ensurePeer(const uint8_t *mac) {
-  if (esp_now_is_peer_exist(mac)) {
-    return true;
-  }
-
-  esp_now_peer_info_t peer{};
-  memcpy(peer.peer_addr, mac, 6);
-  peer.channel = AtlasConfig::WIFI_CHANNEL;
-  peer.encrypt = false;
-
-  const esp_err_t result = esp_now_add_peer(&peer);
-  if (result != ESP_OK) {
-    Serial.print("ATLAS|ESP_NOW|PEER_ERROR|");
-    printMac(mac);
-    Serial.print("|");
-    Serial.println(static_cast<int>(result));
-    return false;
-  }
-
-  return true;
-}
-
-void sendPacket(
-    const uint8_t *mac,
-    PacketType type,
-    uint8_t sigilId,
-    int32_t value = 0) {
-  if (!ensurePeer(mac)) {
+void handleActionWin(uint8_t sigilId) {
+  if (
+      hubState == HubState::Lobby &&
+      sigilId == lobby.hostModule() &&
+      lobby.startArmedBy() == sigilId) {
+    enterEmptyLobby();
     return;
   }
 
-  const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
-  const esp_err_t result = esp_now_send(
-      mac,
-      reinterpret_cast<const uint8_t *>(&packet),
-      sizeof(packet));
-
-  if (result != ESP_OK) {
-    Serial.print("ATLAS|ESP_NOW|SEND_ERROR|");
-    Serial.println(static_cast<int>(result));
+  if (hubState == HubState::Paused) {
+    Serial.println("ATLAS|GAME|WIN|TODO_CONFIRMATION_PORT");
   }
 }
 
-void sendAck(
-    const uint8_t *mac,
-    const SigilRecord &sigil,
-    PacketType receivedType) {
-  sendPacket(
-      mac,
-      PacketType::Ack,
-      sigil.id,
-      static_cast<int32_t>(receivedType));
-}
-
-void handleEspNowReceive(
-    const uint8_t *mac,
-    const uint8_t *incomingData,
-    int length) {
-  if (length != sizeof(Packet)) {
-    Serial.printf("ATLAS|ESP_NOW|BAD_LENGTH|%d\n", length);
-    return;
-  }
-
-  Packet packet{};
-  memcpy(&packet, incomingData, sizeof(packet));
-
-  if (packet.version != TurnHubProtocol::VERSION) {
-    Serial.printf(
-        "ATLAS|ESP_NOW|BAD_VERSION|%u\n",
-        static_cast<unsigned>(packet.version));
-    return;
-  }
-
-  SigilRecord *record = rememberSigil(mac);
-  if (record == nullptr) {
-    Serial.println("ATLAS|SIGIL|TABLE_FULL");
-    return;
-  }
-
-  switch (packet.type) {
-    case PacketType::Hello:
-      Serial.printf("ATLAS|SIGIL|%u|HELLO\n", record->id);
-      sendAck(mac, *record, PacketType::Hello);
-      break;
-
-    case PacketType::Pass:
-      Serial.printf("ATLAS|SIGIL|%u|PASS\n", record->id);
-      sendAck(mac, *record, PacketType::Pass);
-      break;
-
-    case PacketType::ActionDown:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_DOWN\n", record->id);
-      sendAck(mac, *record, PacketType::ActionDown);
-      break;
-
-    case PacketType::ActionUp:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_UP\n", record->id);
-      sendAck(mac, *record, PacketType::ActionUp);
-      break;
-
-    case PacketType::ActionShort:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_SHORT\n", record->id);
-      sendAck(mac, *record, PacketType::ActionShort);
-      break;
-
-    case PacketType::ActionLong:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_LONG\n", record->id);
-      sendAck(mac, *record, PacketType::ActionLong);
-      break;
-
-    case PacketType::ActionWin:
-      Serial.printf("ATLAS|SIGIL|%u|ACTION_WIN\n", record->id);
-      sendAck(mac, *record, PacketType::ActionWin);
-      break;
-
-    default:
-      break;
+void processSigilEvents() {
+  SigilEvent event;
+  while (sigilBus.poll(event)) {
+    switch (event.type) {
+      case PacketType::Hello:
+        // Re-apply outputs after every HELLO. This also restores the correct
+        // LEDs if a Sigil rebooted while Atlas kept running.
+        leds.invalidate(event.sigilId);
+        break;
+      case PacketType::Pass:
+        handlePass(event.sigilId);
+        break;
+      case PacketType::ActionDown:
+        handleActionDown(event.sigilId);
+        break;
+      case PacketType::ActionUp:
+        handleActionUp(event.sigilId);
+        break;
+      case PacketType::ActionShort:
+        handleActionShort(event.sigilId);
+        break;
+      case PacketType::ActionLong:
+        handleActionLong(event.sigilId);
+        break;
+      case PacketType::ActionWin:
+        handleActionWin(event.sigilId);
+        break;
+      default:
+        break;
+    }
   }
 }
 
@@ -285,13 +463,29 @@ void handleRoot() {
 }
 
 void handleStatus() {
-  char json[128];
+  PlayerSeat selected;
+  const uint8_t starter = lobby.selectedStarter(selected)
+      ? selected.playerNumber
+      : (game.running() ? game.starterPlayerNumber() : 0);
+
+  const uint8_t active = game.running() ? game.activePlayerNumber() : 0;
+  const uint8_t players = game.running() ? game.playerCount() : lobby.playerCount();
+  const uint8_t host = lobby.hostModule();
+
+  char json[256];
   snprintf(
       json,
       sizeof(json),
-      "{\"masterButton\":%s,\"sigils\":%u,\"espNow\":%s}",
+      "{\"masterButton\":%s,\"sigils\":%u,\"players\":%u,"
+      "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
+      "\"active\":%u,\"espNow\":%s}",
       masterButtonPressed() ? "true" : "false",
-      static_cast<unsigned>(activeSigilCount()),
+      static_cast<unsigned>(sigilBus.activeCount(millis())),
+      static_cast<unsigned>(players),
+      stateName(hubState),
+      host == INVALID_ID ? -1 : static_cast<int>(host),
+      static_cast<unsigned>(starter),
+      static_cast<unsigned>(active),
       espNowReady ? "true" : "false");
 
   server.send(200, "application/json", json);
@@ -314,6 +508,17 @@ void updateMasterButton() {
   Serial.println(currentState == LOW
                      ? "ATLAS|MASTER_BUTTON|DOWN"
                      : "ATLAS|MASTER_BUTTON|UP");
+
+  // The Atlas button is the table-level emergency/master pass. It advances
+  // whichever logical player is active without pretending a particular
+  // Sigil was pressed.
+  if (currentState == HIGH && hubState == HubState::Running) {
+    const uint8_t activeModule = game.activeModule();
+    if (activeModule != INVALID_ID &&
+        game.passTurn(activeModule, DEFAULT_WARNING_MS, millis())) {
+      Serial.println("ATLAS|MASTER_BUTTON|PASS");
+    }
+  }
 }
 
 void startNetworking() {
@@ -339,12 +544,7 @@ void startNetworking() {
   Serial.print("ATLAS|MAC|");
   Serial.println(WiFi.macAddress());
 
-  espNowReady = esp_now_init() == ESP_OK;
-  if (espNowReady) {
-    esp_now_register_recv_cb(handleEspNowReceive);
-  }
-
-  Serial.println(espNowReady ? "ATLAS|ESP_NOW|READY" : "ATLAS|ESP_NOW|ERROR");
+  espNowReady = sigilBus.begin();
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
@@ -374,7 +574,13 @@ void setup() {
 }
 
 void loop() {
+  const uint32_t nowMs = millis();
+
+  processSigilEvents();
   updateMasterButton();
+  updateCountdown(nowMs);
+  leds.render(hubState, lobby, game, countdownStartedAtMs, nowMs);
   server.handleClient();
+
   delay(1);
 }
