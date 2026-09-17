@@ -3,6 +3,7 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+#include "firmware_version.h"
 #include "protocol.h"
 
 #ifndef SIGIL_HAS_DISPLAY
@@ -31,6 +32,11 @@ constexpr uint8_t RED_LED = 13;
 constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
 constexpr uint8_t BUZZER_PIN = 33;
+
+// Hardware capability discovery is intentionally reserved for a later pass.
+// Keep this zero until display presence is detected at runtime rather than
+// inferred from which firmware image was flashed.
+constexpr uint8_t DEVICE_CAPABILITIES = 0;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t LONG_PRESS_MS = 2000;
@@ -141,7 +147,12 @@ void sendPacket(
 }
 
 void sendHello() {
-  sendPacket(PacketType::Hello, 0, true);
+  const int32_t helloInfo = TurnHubProtocol::encodeHelloInfo(
+      TurnHubSigilFirmware::MAJOR,
+      TurnHubSigilFirmware::MINOR,
+      TurnHubSigilFirmware::PATCH,
+      DEVICE_CAPABILITIES);
+  sendPacket(PacketType::Hello, helloInfo, true);
   lastHelloMs = millis();
 }
 
@@ -425,6 +436,8 @@ bool startEspNow() {
 
   Serial.print("SIGIL|MAC|");
   Serial.println(WiFi.macAddress());
+  Serial.print("SIGIL|FW|");
+  Serial.println(TurnHubSigilFirmware::VERSION);
   Serial.println("SIGIL|ESP_NOW|READY");
   return true;
 }
