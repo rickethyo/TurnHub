@@ -24,12 +24,14 @@ LedRenderer::LedRenderer(SigilBus &bus)
 void LedRenderer::invalidate(uint8_t sigilId) {
   if (sigilId < MAX_PHYSICAL_SIGILS) {
     cache_[sigilId].valid = false;
+    cache_[sigilId].displayValid = false;
   }
 }
 
 void LedRenderer::invalidateAll() {
   for (auto &entry : cache_) {
     entry.valid = false;
+    entry.displayValid = false;
   }
 }
 
@@ -62,6 +64,66 @@ void LedRenderer::set(
 
 void LedRenderer::off(uint8_t sigilId) {
   set(sigilId, 0, false, false);
+}
+
+void LedRenderer::syncDisplay(
+    uint8_t sigilId,
+    HubState state,
+    const Lobby &lobby,
+    const GameEngine &game) {
+  if (sigilId >= MAX_PHYSICAL_SIGILS) {
+    return;
+  }
+
+  TurnHubProtocol::DisplayMode mode = TurnHubProtocol::DisplayMode::Ready;
+  uint8_t primary = 0;
+  uint8_t secondary = 0;
+  uint8_t turnNumber = 0;
+
+  if (state == HubState::Lobby || state == HubState::Starting) {
+    if (lobby.isJoined(sigilId)) {
+      mode = TurnHubProtocol::DisplayMode::Joined;
+      primary = lobby.playerNumber(sigilId, 1);
+      if (lobby.hasSecondary(sigilId)) {
+        secondary = lobby.playerNumber(sigilId, 2);
+      }
+    }
+  } else if (game.moduleInGame(sigilId)) {
+    mode = TurnHubProtocol::DisplayMode::Joined;
+
+    PlayerSeat local[2];
+    const uint8_t count = game.playersForModule(sigilId, local, 2);
+    if (count > 0) {
+      primary = local[0].playerNumber;
+    }
+    if (count > 1) {
+      secondary = local[1].playerNumber;
+    }
+
+    if (primary != 0) {
+      const PlayerStats *stats = game.statsForPlayer(primary);
+      if (stats != nullptr) {
+        const uint32_t ordinal = stats->turnsCompleted + 1;
+        turnNumber = static_cast<uint8_t>(ordinal > 255 ? 255 : ordinal);
+      }
+    }
+  }
+
+  const int32_t payload = TurnHubProtocol::encodeDisplayState(
+      mode,
+      primary,
+      secondary,
+      turnNumber);
+
+  Cache &cache = cache_[sigilId];
+  if (cache.displayValid && cache.displayPayload == payload) {
+    return;
+  }
+
+  if (bus_.send(sigilId, TurnHubProtocol::PacketType::DisplayState, payload)) {
+    cache.displayPayload = payload;
+    cache.displayValid = true;
+  }
 }
 
 uint8_t LedRenderer::breatheValue(uint32_t nowMs) {
@@ -285,8 +347,11 @@ void LedRenderer::render(
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (!bus_.isOnline(id, nowMs)) {
       cache_[id].valid = false;
+      cache_[id].displayValid = false;
       continue;
     }
+
+    syncDisplay(id, state, lobby, game);
 
     switch (state) {
       case HubState::Lobby:
