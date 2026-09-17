@@ -4,13 +4,22 @@
 #include <esp_wifi.h>
 
 #include "protocol.h"
+
+#ifndef SIGIL_HAS_DISPLAY
+#define SIGIL_HAS_DISPLAY 0
+#endif
+
+#if SIGIL_HAS_DISPLAY
 #include "sigil_display.h"
+#endif
 
 namespace {
 
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
+#if SIGIL_HAS_DISPLAY
 using TurnHubSigil::SigilDisplay;
+#endif
 
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
@@ -45,7 +54,9 @@ struct ButtonState {
 
 ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
+#if SIGIL_HAS_DISPLAY
 SigilDisplay sigilDisplay;
+#endif
 
 bool espNowReady = false;
 bool atlasKnown = false;
@@ -54,7 +65,9 @@ uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t greenFlashUntilMs = 0;
 bool commandedGreen = false;
+#if SIGIL_HAS_DISPLAY
 volatile bool displayNeedsRefresh = false;
+#endif
 
 void printMac(const uint8_t *mac) {
   Serial.printf(
@@ -147,6 +160,7 @@ void updateGreenFlash() {
   }
 }
 
+#if SIGIL_HAS_DISPLAY
 void updateDisplay() {
   if (!displayNeedsRefresh) {
     return;
@@ -162,6 +176,7 @@ void updateDisplay() {
 
   sigilDisplay.showAssigned(currentId);
 }
+#endif
 
 void playBuzzerPayload(int32_t value) {
   const uint16_t frequencyHz = TurnHubProtocol::toneFrequency(value);
@@ -202,7 +217,9 @@ void handleEspNowReceive(
 
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
+#if SIGIL_HAS_DISPLAY
       displayNeedsRefresh = true;
+#endif
       Serial.print("SIGIL|ID|");
       Serial.println(sigilId);
     }
@@ -388,10 +405,13 @@ void setup() {
   actionButton.rawState = actionButton.stableState = digitalRead(ACTION_BUTTON);
 
   Serial.println();
-  Serial.println("SIGIL|BOOT|UNASSIGNED");
-
+#if SIGIL_HAS_DISPLAY
+  Serial.println("SIGIL|BOOT|UNASSIGNED|DISPLAY");
   sigilDisplay.begin();
   sigilDisplay.showUnassigned();
+#else
+  Serial.println("SIGIL|BOOT|UNASSIGNED|BASIC");
+#endif
 
   espNowReady = startEspNow();
 
@@ -404,7 +424,9 @@ void loop() {
   updatePassButton();
   updateActionButton();
   updateGreenFlash();
+#if SIGIL_HAS_DISPLAY
   updateDisplay();
+#endif
 
   if (espNowReady && millis() - lastHelloMs >= HELLO_INTERVAL_MS) {
     sendHello();
