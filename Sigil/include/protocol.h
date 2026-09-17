@@ -20,6 +20,12 @@ enum class PacketType : uint8_t {
   SetRed = 21,
   SetGreen = 22,
   Buzzer = 23,
+  DisplayState = 30,
+};
+
+enum class DisplayMode : uint8_t {
+  Ready = 1,
+  Joined = 2,
 };
 
 struct __attribute__((packed)) Packet {
@@ -52,6 +58,34 @@ inline uint16_t toneFrequency(int32_t value) {
 inline uint16_t toneDuration(int32_t value) {
   return static_cast<uint16_t>(
       static_cast<uint32_t>(value) & 0xFFFFu);
+}
+
+inline int32_t encodeDisplayState(
+    DisplayMode mode,
+    uint8_t primaryPlayer,
+    uint8_t secondaryPlayer,
+    uint8_t turnNumber) {
+  return static_cast<int32_t>(
+      static_cast<uint32_t>(mode) |
+      (static_cast<uint32_t>(primaryPlayer) << 8) |
+      (static_cast<uint32_t>(secondaryPlayer) << 16) |
+      (static_cast<uint32_t>(turnNumber) << 24));
+}
+
+inline DisplayMode displayMode(int32_t value) {
+  return static_cast<DisplayMode>(static_cast<uint32_t>(value) & 0xFFu);
+}
+
+inline uint8_t displayPrimaryPlayer(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 8) & 0xFFu);
+}
+
+inline uint8_t displaySecondaryPlayer(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 16) & 0xFFu);
+}
+
+inline uint8_t displayTurnNumber(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
 }
 
 }  // namespace TurnHubProtocol
