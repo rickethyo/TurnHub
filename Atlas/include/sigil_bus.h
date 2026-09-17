@@ -21,6 +21,12 @@ struct SigilRecord {
   uint8_t id = INVALID_ID;
   uint8_t mac[6] = {};
   uint32_t lastSeenMs = 0;
+
+  bool helloInfoValid = false;
+  uint8_t firmwareMajor = 0;
+  uint8_t firmwareMinor = 0;
+  uint8_t firmwarePatch = 0;
+  uint8_t capabilities = 0;
 };
 
 class SigilBus {
@@ -60,6 +66,7 @@ class SigilBus {
 
   SigilRecord *findByMac(const uint8_t *mac);
   SigilRecord *remember(const uint8_t *mac);
+  void updateHelloInfo(SigilRecord &sigil, int32_t value);
   bool ensurePeer(const uint8_t *mac);
   bool sendToMac(
       const uint8_t *mac,
