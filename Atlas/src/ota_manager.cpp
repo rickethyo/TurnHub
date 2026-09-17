@@ -2,6 +2,8 @@
 
 #include <Update.h>
 
+#include "web_pages.h"
+
 namespace TurnHub {
 
 namespace {
@@ -72,7 +74,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     <button id="upload" disabled>Upload &amp; Restart</button>
     <progress id="progress" max="100" value="0"></progress>
     <p id="message"></p>
-    <a class="back" href="/">← Back to Atlas</a>
+    <a class="back" href="/">← Back to TurnHub</a>
   </main>
 <script>
   const file = document.getElementById('file');
@@ -131,7 +133,29 @@ OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
     : server_(server), allowedCallback_(allowedCallback) {}
 
 void OtaManager::begin() {
+  // main.cpp registers the original migration status page at /. Replace that
+  // route here once all core web services are present, then preserve the old
+  // page at /dev. This keeps the controller logic untouched while the richer
+  // portal is migrated independently.
+  server_.removeRoute("/", HTTP_GET);
+
+  server_.on("/", HTTP_GET, [this]() {
+    server_.sendHeader("Cache-Control", "no-store");
+    server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
+  });
+
+  server_.on("/portal", HTTP_GET, [this]() {
+    server_.sendHeader("Cache-Control", "no-store");
+    server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
+  });
+
+  server_.on("/dev", HTTP_GET, [this]() {
+    server_.sendHeader("Cache-Control", "no-store");
+    server_.send_P(200, "text/html", TurnHubWeb::DEV_HTML);
+  });
+
   server_.on("/update", HTTP_GET, [this]() {
+    server_.sendHeader("Cache-Control", "no-store");
     server_.send_P(200, "text/html", UPDATE_HTML);
   });
 
