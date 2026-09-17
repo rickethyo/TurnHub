@@ -143,6 +143,23 @@ void updateGreenFlash() {
   }
 }
 
+void playBuzzerPayload(int32_t value) {
+  const uint16_t frequencyHz = TurnHubProtocol::toneFrequency(value);
+  const uint16_t durationMs = TurnHubProtocol::toneDuration(value);
+
+  if (frequencyHz == 0 || durationMs == 0) {
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);
+    return;
+  }
+
+  tone(BUZZER_PIN, frequencyHz, durationMs);
+  Serial.print("SIGIL|BUZZER|");
+  Serial.print(frequencyHz);
+  Serial.print("|");
+  Serial.println(durationMs);
+}
+
 void handleEspNowReceive(
     const uint8_t *mac,
     const uint8_t *incomingData,
@@ -202,6 +219,10 @@ void handleEspNowReceive(
       if (greenFlashUntilMs == 0) {
         digitalWrite(GREEN_LED, commandedGreen ? HIGH : LOW);
       }
+      break;
+
+    case PacketType::Buzzer:
+      playBuzzerPayload(packet.value);
       break;
 
     default:
