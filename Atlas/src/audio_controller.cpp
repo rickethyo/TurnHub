@@ -335,4 +335,36 @@ void AudioController::gameOver(uint16_t targetMask) {
   play(SoundId::GameOver, targetMask);
 }
 
+void AudioController::eliminationArmed(uint8_t sigilId) {
+  play(SoundId::EliminationArmed, maskForSigil(sigilId));
+}
+
+void AudioController::eliminationTargetChanged(uint8_t sigilId) {
+  play(SoundId::EliminationChanged, maskForSigil(sigilId));
+}
+
+void AudioController::eliminationCancelled(uint8_t sigilId) {
+  play(SoundId::EliminationCancelled, maskForSigil(sigilId));
+}
+
+void AudioController::playerEliminated(uint8_t sigilId) {
+  play(SoundId::PlayerEliminated, maskForSigil(sigilId));
+}
+
+void AudioController::winClaimed(uint16_t targetMask) {
+  play(SoundId::WinClaimed, targetMask);
+}
+
+void AudioController::winConfirmed(uint16_t targetMask) {
+  play(SoundId::WinConfirmed, targetMask);
+}
+
+void AudioController::winDenied(uint16_t targetMask) {
+  play(SoundId::WinDenied, targetMask);
+}
+
+void AudioController::winCancelled(uint16_t targetMask) {
+  play(SoundId::WinCancelled, targetMask);
+}
+
 }  // namespace TurnHub
