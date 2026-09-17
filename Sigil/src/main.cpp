@@ -15,6 +15,7 @@
 
 namespace {
 
+using TurnHubProtocol::DisplayMode;
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
 #if SIGIL_HAS_DISPLAY
@@ -67,6 +68,7 @@ uint32_t greenFlashUntilMs = 0;
 bool commandedGreen = false;
 #if SIGIL_HAS_DISPLAY
 volatile bool displayNeedsRefresh = false;
+volatile int32_t displayPayload = 0;
 #endif
 
 void printMac(const uint8_t *mac) {
@@ -161,20 +163,37 @@ void updateGreenFlash() {
 }
 
 #if SIGIL_HAS_DISPLAY
+void queueReadyDisplay() {
+  displayPayload = TurnHubProtocol::encodeDisplayState(
+      DisplayMode::Ready, 0, 0, 0);
+  displayNeedsRefresh = true;
+}
+
 void updateDisplay() {
   if (!displayNeedsRefresh) {
     return;
   }
 
   displayNeedsRefresh = false;
-  const uint8_t currentId = sigilId;
 
-  if (currentId == UNASSIGNED_SIGIL_ID) {
-    sigilDisplay.showUnassigned();
+  if (sigilId == UNASSIGNED_SIGIL_ID) {
+    sigilDisplay.showUnpaired();
     return;
   }
 
-  sigilDisplay.showAssigned(currentId);
+  const int32_t payload = displayPayload;
+  const DisplayMode mode = TurnHubProtocol::displayMode(payload);
+
+  if (mode == DisplayMode::Joined) {
+    sigilDisplay.showJoined(
+        sigilId,
+        TurnHubProtocol::displayPrimaryPlayer(payload),
+        TurnHubProtocol::displaySecondaryPlayer(payload),
+        TurnHubProtocol::displayTurnNumber(payload));
+    return;
+  }
+
+  sigilDisplay.showReady(sigilId);
 }
 #endif
 
@@ -218,7 +237,7 @@ void handleEspNowReceive(
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
 #if SIGIL_HAS_DISPLAY
-      displayNeedsRefresh = true;
+      queueReadyDisplay();
 #endif
       Serial.print("SIGIL|ID|");
       Serial.println(sigilId);
@@ -261,6 +280,15 @@ void handleEspNowReceive(
 
     case PacketType::Buzzer:
       playBuzzerPayload(packet.value);
+      break;
+
+    case PacketType::DisplayState:
+#if SIGIL_HAS_DISPLAY
+      if (displayPayload != packet.value) {
+        displayPayload = packet.value;
+        displayNeedsRefresh = true;
+      }
+#endif
       break;
 
     default:
@@ -408,7 +436,7 @@ void setup() {
 #if SIGIL_HAS_DISPLAY
   Serial.println("SIGIL|BOOT|UNASSIGNED|DISPLAY");
   sigilDisplay.begin();
-  sigilDisplay.showUnassigned();
+  sigilDisplay.showUnpaired();
 #else
   Serial.println("SIGIL|BOOT|UNASSIGNED|BASIC");
 #endif
