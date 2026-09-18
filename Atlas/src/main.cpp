@@ -12,6 +12,7 @@
 #include "protocol.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
+#include "web_api.h"
 
 WebServer server(AtlasConfig::HTTP_PORT);
 
@@ -31,6 +32,8 @@ using TurnHub::SigilBus;
 using TurnHub::SigilEvent;
 using TurnHub::stateName;
 using TurnHubProtocol::PacketType;
+using TurnHubWebApi::SeatSnapshot;
+using TurnHubWebApi::WebControl;
 
 constexpr uint32_t DEBOUNCE_MS = 25;
 constexpr uint32_t START_COUNTDOWN_MS = 3000;
@@ -57,138 +60,6 @@ bool eliminationChord[MAX_PHYSICAL_SIGILS] = {};
 bool suppressEliminationShort[MAX_PHYSICAL_SIGILS] = {};
 uint8_t winArmedModule = INVALID_ID;
 uint8_t winArmedPlayer = 0;
-
-const char INDEX_HTML[] PROGMEM = R"HTML(
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#111318">
-  <title>TurnHub Atlas</title>
-  <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 16px;
-      font-family: system-ui, sans-serif;
-      background: #0b0d11;
-      color: #f3f5f7;
-    }
-    main {
-      width: min(580px, 100%);
-      padding: 28px;
-      border: 1px solid #2b3240;
-      border-radius: 18px;
-      background: #141820;
-      box-shadow: 0 18px 60px rgba(0,0,0,.28);
-    }
-    h1 { margin: 0 0 4px; }
-    .sub { color:#9ca6b7; margin-bottom:18px; }
-    .status {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 12px;
-      padding: 12px 0;
-      border-bottom: 1px solid #2b3240;
-    }
-    .status:last-of-type { border-bottom: 0; }
-    .value { font-weight: 800; }
-    .online { color: #62d58a; }
-    .pressed { color: #72a7ff; }
-    .muted { color: #9ca6b7; }
-    .actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
-    .button {
-      display: inline-block;
-      padding: 10px 14px;
-      border-radius: 10px;
-      background: #e7ebf2;
-      color: #111318;
-      font-weight: 800;
-      text-decoration: none;
-    }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>TurnHub Atlas</h1>
-    <div class="sub">ESP32 migration build · <span id="firmware">loading</span></div>
-    <div class="status"><span>Atlas</span><span class="value online">Online</span></div>
-    <div class="status"><span>State</span><span id="state" class="value">LOBBY</span></div>
-    <div class="status"><span>Online Sigils</span><span id="sigils" class="value">0</span></div>
-    <div class="status"><span>Players</span><span id="players" class="value">0</span></div>
-    <div class="status"><span>Host Sigil</span><span id="host" class="value muted">None</span></div>
-    <div class="status"><span>Starter</span><span id="starter" class="value muted">None</span></div>
-    <div class="status"><span>Active Player</span><span id="active" class="value muted">None</span></div>
-    <div class="status"><span>Winner</span><span id="winner" class="value muted">None</span></div>
-    <div class="status"><span>Elimination Target</span><span id="elimination" class="value muted">None</span></div>
-    <div class="status"><span>Win Confirmation</span><span id="winconfirm" class="value muted">None</span></div>
-    <div class="status"><span>Master Button</span><span id="button" class="value muted">Released</span></div>
-    <div class="status"><span>ESP-NOW</span><span id="espnow" class="value">Starting</span></div>
-    <div class="actions">
-      <a class="button" href="/update">Atlas Firmware Update</a>
-    </div>
-  </main>
-  <script>
-    function showPlayer(id, value) {
-      const el = document.getElementById(id);
-      if (!value) {
-        el.textContent = 'None';
-        el.className = 'value muted';
-      } else {
-        el.textContent = 'Player ' + value;
-        el.className = 'value';
-      }
-    }
-
-    function showHost(value) {
-      const el = document.getElementById('host');
-      if (value < 0) {
-        el.textContent = 'None';
-        el.className = 'value muted';
-      } else {
-        el.textContent = 'Sigil ' + value;
-        el.className = 'value';
-      }
-    }
-
-    async function refresh() {
-      try {
-        const response = await fetch('/api/status', { cache: 'no-store' });
-        const s = await response.json();
-        document.getElementById('state').textContent = s.state;
-        document.getElementById('sigils').textContent = s.sigils;
-        document.getElementById('players').textContent = s.players;
-        document.getElementById('firmware').textContent = 'v' + s.firmware;
-        showHost(s.host);
-        showPlayer('starter', s.starter);
-        showPlayer('active', s.active);
-        showPlayer('winner', s.winner);
-        showPlayer('elimination', s.eliminationTarget);
-        showPlayer('winconfirm', s.winConfirm);
-        const button = document.getElementById('button');
-        button.textContent = s.masterButton ? 'Pressed / OTA Armed' : 'Released';
-        button.className = s.masterButton ? 'value pressed' : 'value muted';
-        document.getElementById('espnow').textContent = s.espNow ? 'Ready' : 'Error';
-      } catch (_) {
-        document.getElementById('espnow').textContent = 'Disconnected';
-      }
-    }
-    refresh();
-    setInterval(refresh, 250);
-  </script>
-</body>
-</html>
-)HTML";
 
 bool masterButtonPressed() {
   return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
@@ -227,6 +98,45 @@ void printPlayer(const PlayerSeat &player) {
   Serial.print(" / Sigil ");
   Serial.print(player.moduleId);
   Serial.print(player.slotName());
+}
+
+bool seatForModuleSlot(uint8_t moduleId, uint8_t slot, PlayerSeat &seat) {
+  PlayerSeat local[2];
+  const uint8_t count = game.hasPlayers()
+      ? game.playersForModule(moduleId, local, 2)
+      : lobby.playersForModule(moduleId, local, 2);
+
+  for (uint8_t i = 0; i < count; ++i) {
+    if (local[i].slot == slot) {
+      seat = local[i];
+      return true;
+    }
+  }
+  return false;
+}
+
+bool resolveWebSeat(
+    uint8_t moduleId,
+    uint8_t slot,
+    SeatSnapshot &snapshot) {
+  PlayerSeat seat;
+  if (!seatForModuleSlot(moduleId, slot, seat)) {
+    snapshot = SeatSnapshot{};
+    return false;
+  }
+
+  snapshot.exists = true;
+  snapshot.playerNumber = seat.playerNumber;
+  snapshot.active = false;
+  snapshot.eliminated = false;
+
+  if (game.hasPlayers()) {
+    snapshot.eliminated = game.isEliminated(seat.playerNumber);
+    const PlayerSeat *active = game.activePlayer();
+    snapshot.active = active != nullptr && active->sameSeat(seat);
+  }
+
+  return true;
 }
 
 void clearDecisionState() {
@@ -475,6 +385,262 @@ void confirmElimination(uint8_t sigilId) {
   } else {
     hubState = HubState::Paused;
   }
+}
+
+bool handleWebControl(
+    uint8_t moduleId,
+    uint8_t slot,
+    WebControl control,
+    String &message) {
+  PlayerSeat seat;
+  if (!seatForModuleSlot(moduleId, slot, seat)) {
+    message = "This seat is no longer at the table";
+    return false;
+  }
+
+  const uint32_t nowMs = millis();
+
+  switch (control) {
+    case WebControl::SelectStarter: {
+      if (hubState != HubState::Lobby) {
+        message = "Starter can only be selected in the lobby";
+        return false;
+      }
+      PlayerSeat selected;
+      if (!lobby.selectStarterSeat(moduleId, slot, selected)) {
+        message = "Could not select this seat as starter";
+        return false;
+      }
+      audio.starterSelected(moduleId);
+      leds.invalidateAll();
+      Serial.print("ATLAS|WEB|STARTER|PLAYER|");
+      Serial.println(selected.playerNumber);
+      message = "Selected as starting player";
+      return true;
+    }
+
+    case WebControl::Pass: {
+      if (hubState != HubState::Running) {
+        message = "Pass is only available during a running game";
+        return false;
+      }
+      const PlayerSeat *active = game.activePlayer();
+      if (active == nullptr || !active->sameSeat(seat)) {
+        message = "It is not this seat's turn";
+        return false;
+      }
+
+      const PlayerSeat previous = *active;
+      if (!game.passTurn(moduleId, DEFAULT_WARNING_MS, nowMs)) {
+        message = "Atlas rejected the pass";
+        return false;
+      }
+      const PlayerSeat *current = game.activePlayer();
+      if (current != nullptr) {
+        if (previous.moduleId == current->moduleId) {
+          audio.sameModulePass(current->moduleId);
+        } else {
+          audio.turnPass(current->moduleId);
+        }
+      }
+      Serial.print("ATLAS|WEB|PASS|");
+      Serial.print(previous.playerNumber);
+      Serial.print("->");
+      Serial.println(current != nullptr ? current->playerNumber : 0);
+      message = "Turn passed";
+      return true;
+    }
+
+    case WebControl::PauseResume: {
+      if (!game.hasPlayers() || game.isEliminated(seat.playerNumber)) {
+        message = "This player is not active in the game";
+        return false;
+      }
+
+      if (hubState == HubState::Running) {
+        if (!game.pause(nowMs)) {
+          message = "Could not pause the game";
+          return false;
+        }
+        hubState = HubState::Paused;
+        winArmedModule = INVALID_ID;
+        winArmedPlayer = 0;
+        audio.pause(gameAudioMask());
+        leds.invalidateAll();
+        Serial.print("ATLAS|WEB|PAUSE|PLAYER|");
+        Serial.println(seat.playerNumber);
+        message = "Game paused";
+        return true;
+      }
+
+      if (hubState == HubState::Paused) {
+        if (game.hasWinClaim()) {
+          message = "Resolve the win claim before resuming";
+          return false;
+        }
+        if (eliminationTargetPlayer != 0) {
+          message = "Resolve the elimination before resuming";
+          return false;
+        }
+        if (!game.resume(nowMs)) {
+          message = "Could not resume the game";
+          return false;
+        }
+        hubState = HubState::Running;
+        winArmedModule = INVALID_ID;
+        winArmedPlayer = 0;
+        audio.resume(gameAudioMask());
+        leds.invalidateAll();
+        Serial.print("ATLAS|WEB|RESUME|PLAYER|");
+        Serial.println(seat.playerNumber);
+        message = "Game resumed";
+        return true;
+      }
+
+      message = "Pause/resume is unavailable in this state";
+      return false;
+    }
+
+    case WebControl::Concede: {
+      if (hubState != HubState::Running && hubState != HubState::Paused) {
+        message = "Concede is only available during an active game";
+        return false;
+      }
+      if (game.hasWinClaim() || eliminationTargetPlayer != 0) {
+        message = "Resolve the current table decision first";
+        return false;
+      }
+      if (game.isEliminated(seat.playerNumber)) {
+        message = "This player has already left the game";
+        return false;
+      }
+
+      const bool restoreRunning = hubState == HubState::Running;
+      if (restoreRunning) {
+        if (!game.pause(nowMs)) {
+          message = "Could not prepare the concession";
+          return false;
+        }
+        hubState = HubState::Paused;
+      }
+
+      bool gameFinished = false;
+      if (!game.eliminatePlayer(
+              seat.playerNumber,
+              DEFAULT_WARNING_MS,
+              nowMs,
+              gameFinished)) {
+        if (restoreRunning && game.resume(nowMs)) {
+          hubState = HubState::Running;
+        }
+        message = "Atlas rejected the concession";
+        return false;
+      }
+
+      audio.playerEliminated(moduleId);
+      leds.invalidateAll();
+      Serial.print("ATLAS|WEB|CONCEDE|PLAYER|");
+      Serial.println(seat.playerNumber);
+
+      if (gameFinished) {
+        finishGameState();
+      } else if (restoreRunning && game.resume(nowMs)) {
+        hubState = HubState::Running;
+      }
+
+      message = "Player conceded";
+      return true;
+    }
+
+    case WebControl::ClaimWin: {
+      if (hubState != HubState::Running && hubState != HubState::Paused) {
+        message = "Win claim is unavailable right now";
+        return false;
+      }
+      if (game.hasWinClaim() || eliminationTargetPlayer != 0) {
+        message = "Another table decision is already pending";
+        return false;
+      }
+      const PlayerSeat *active = game.activePlayer();
+      if (active == nullptr || !active->sameSeat(seat) ||
+          game.isEliminated(seat.playerNumber)) {
+        message = "Only the active player can claim a win";
+        return false;
+      }
+
+      const bool restoreRunning = hubState == HubState::Running;
+      if (!game.beginWinClaim(seat.playerNumber, restoreRunning, nowMs)) {
+        message = "Could not start the win claim";
+        return false;
+      }
+      winArmedModule = INVALID_ID;
+      winArmedPlayer = 0;
+      leds.invalidateAll();
+
+      if (game.gameOver()) {
+        finishGameState();
+      } else {
+        hubState = HubState::Paused;
+        audio.winClaimed(gameAudioMask());
+      }
+
+      Serial.print("ATLAS|WEB|WIN|CLAIMED|PLAYER|");
+      Serial.println(seat.playerNumber);
+      message = "Win claim sent to the table";
+      return true;
+    }
+
+    case WebControl::ConfirmWin: {
+      if (hubState != HubState::Paused || !game.hasWinClaim()) {
+        message = "There is no win claim to confirm";
+        return false;
+      }
+      if (game.nextWinConfirmationPlayerNumber() != seat.playerNumber) {
+        message = "Another player must respond first";
+        return false;
+      }
+
+      bool gameFinished = false;
+      if (!game.confirmWinClaim(seat.playerNumber, nowMs, gameFinished)) {
+        message = "Could not confirm the win claim";
+        return false;
+      }
+      audio.winConfirmed(gameAudioMask());
+      leds.invalidateAll();
+      Serial.print("ATLAS|WEB|WIN|CONFIRMED|PLAYER|");
+      Serial.println(seat.playerNumber);
+      if (gameFinished) {
+        finishGameState();
+      }
+      message = "Win claim confirmed";
+      return true;
+    }
+
+    case WebControl::DenyWin: {
+      if (hubState != HubState::Paused || !game.hasWinClaim()) {
+        message = "There is no win claim to deny";
+        return false;
+      }
+      if (game.nextWinConfirmationPlayerNumber() != seat.playerNumber) {
+        message = "Another player must respond first";
+        return false;
+      }
+      if (!game.denyWinClaim(seat.playerNumber, nowMs)) {
+        message = "Could not deny the win claim";
+        return false;
+      }
+      hubState = game.paused() ? HubState::Paused : HubState::Running;
+      audio.winDenied(gameAudioMask());
+      leds.invalidateAll();
+      Serial.print("ATLAS|WEB|WIN|DENIED|PLAYER|");
+      Serial.println(seat.playerNumber);
+      message = "Win claim denied";
+      return true;
+    }
+  }
+
+  message = "Unknown web control";
+  return false;
 }
 
 void handlePass(uint8_t sigilId) {
@@ -833,7 +999,8 @@ void processSigilEvents() {
 }
 
 void handleRoot() {
-  server.send_P(200, "text/html", INDEX_HTML);
+  server.sendHeader("Location", "/portal");
+  server.send(302, "text/plain", "TurnHub portal");
 }
 
 void handleStatus() {
@@ -852,7 +1019,7 @@ void handleStatus() {
       hubState == HubState::Lobby ||
       hubState == HubState::GameOver;
 
-  char json[576];
+  char json[640];
   snprintf(
       json,
       sizeof(json),
@@ -877,6 +1044,7 @@ void handleStatus() {
       TurnHubFirmware::BUILD_TIME,
       otaStateAllowed ? "true" : "false");
 
+  server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json", json);
 }
 
@@ -945,6 +1113,8 @@ void startNetworking() {
   Serial.println(WiFi.macAddress());
 
   espNowReady = sigilBus.begin();
+
+  TurnHubWebApi::configure(resolveWebSeat, handleWebControl);
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
