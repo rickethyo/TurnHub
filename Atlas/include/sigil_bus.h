@@ -14,6 +14,7 @@ struct SigilEvent {
   uint8_t sigilId = INVALID_ID;
   TurnHubProtocol::PacketType type = TurnHubProtocol::PacketType::Hello;
   int32_t value = 0;
+  bool physical = false;
 };
 
 struct SigilRecord {
