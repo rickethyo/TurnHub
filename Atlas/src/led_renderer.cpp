@@ -14,6 +14,7 @@ constexpr uint32_t NEW_TURN_FLASH_MS = 3000;
 constexpr uint32_t NEW_TURN_FLASH_INTERVAL_MS = 200;
 constexpr uint32_t BREATHE_PERIOD_MS = 2600;
 constexpr uint32_t WARNING_BLINK_INTERVAL_MS = 500;
+constexpr uint32_t BLUE_REFRESH_MS = 40;
 }
 
 LedRenderer::LedRenderer(SigilBus &bus)
@@ -23,14 +24,18 @@ LedRenderer::LedRenderer(SigilBus &bus)
 
 void LedRenderer::invalidate(uint8_t sigilId) {
   if (sigilId < MAX_PHYSICAL_SIGILS) {
-    cache_[sigilId].valid = false;
+    cache_[sigilId].blueValid = false;
+    cache_[sigilId].redValid = false;
+    cache_[sigilId].greenValid = false;
     cache_[sigilId].displayValid = false;
   }
 }
 
 void LedRenderer::invalidateAll() {
   for (auto &entry : cache_) {
-    entry.valid = false;
+    entry.blueValid = false;
+    entry.redValid = false;
+    entry.greenValid = false;
     entry.displayValid = false;
   }
 }
@@ -39,31 +44,48 @@ void LedRenderer::set(
     uint8_t sigilId,
     uint8_t blue,
     bool red,
-    bool green) {
+    bool green,
+    uint32_t nowMs) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) {
     return;
   }
 
   Cache &cache = cache_[sigilId];
 
-  if (!cache.valid || cache.blue != blue) {
-    bus_.setBlue(sigilId, blue);
-    cache.blue = blue;
-  }
-  if (!cache.valid || cache.red != red) {
-    bus_.setRed(sigilId, red);
-    cache.red = red;
-  }
-  if (!cache.valid || cache.green != green) {
-    bus_.setGreen(sigilId, green);
-    cache.green = green;
+  if (!cache.blueValid || cache.blue != blue) {
+    // Smooth PWM values do not need millisecond transport updates. Cap them at
+    // 25 Hz so animated breathing cannot outrun ESP-NOW. Hard endpoints remain
+    // immediate because they are also used for flashes and state transitions.
+    const bool endpoint = blue == 0 || blue == 255;
+    const bool due =
+        !cache.blueValid ||
+        endpoint ||
+        nowMs - cache.lastBlueTxMs >= BLUE_REFRESH_MS;
+
+    if (due && bus_.setBlue(sigilId, blue)) {
+      cache.blue = blue;
+      cache.blueValid = true;
+      cache.lastBlueTxMs = nowMs;
+    }
   }
 
-  cache.valid = true;
+  if (!cache.redValid || cache.red != red) {
+    if (bus_.setRed(sigilId, red)) {
+      cache.red = red;
+      cache.redValid = true;
+    }
+  }
+
+  if (!cache.greenValid || cache.green != green) {
+    if (bus_.setGreen(sigilId, green)) {
+      cache.green = green;
+      cache.greenValid = true;
+    }
+  }
 }
 
-void LedRenderer::off(uint8_t sigilId) {
-  set(sigilId, 0, false, false);
+void LedRenderer::off(uint8_t sigilId, uint32_t nowMs) {
+  set(sigilId, 0, false, false, nowMs);
 }
 
 void LedRenderer::syncDisplay(
@@ -265,11 +287,11 @@ void LedRenderer::renderUnjoined(uint8_t sigilId, uint32_t nowMs) {
   const uint32_t position = nowMs % cycle;
 
   if (position < LOBBY_IDLE_LED_MS) {
-    set(sigilId, 255, false, false);
+    set(sigilId, 255, false, false, nowMs);
   } else if (position < LOBBY_IDLE_LED_MS * 2) {
-    set(sigilId, 0, false, true);
+    set(sigilId, 0, false, true, nowMs);
   } else {
-    set(sigilId, 0, true, false);
+    set(sigilId, 0, true, false, nowMs);
   }
 }
 
@@ -287,7 +309,8 @@ void LedRenderer::renderLobby(
       sigilId,
       starterBlueValue(lobby, sigilId, nowMs),
       playerNumberRedOn(player, nowMs),
-      sigilId == lobby.hostModule());
+      sigilId == lobby.hostModule(),
+      nowMs);
 }
 
 void LedRenderer::renderStarting(
@@ -306,7 +329,8 @@ void LedRenderer::renderStarting(
       sigilId,
       withinSecond < START_COUNTDOWN_FLASH_MS ? 255 : 0,
       false,
-      false);
+      false,
+      nowMs);
 }
 
 void LedRenderer::renderRunning(
@@ -314,12 +338,12 @@ void LedRenderer::renderRunning(
     const GameEngine &game,
     uint32_t nowMs) {
   if (!game.moduleInGame(sigilId)) {
-    off(sigilId);
+    off(sigilId, nowMs);
     return;
   }
 
   if (sigilId != game.activeModule()) {
-    set(sigilId, 255, false, false);
+    set(sigilId, 255, false, false, nowMs);
     return;
   }
 
@@ -347,7 +371,7 @@ void LedRenderer::renderRunning(
       break;
   }
 
-  set(sigilId, blue, red, green);
+  set(sigilId, blue, red, green, nowMs);
 }
 
 void LedRenderer::renderPaused(
@@ -357,7 +381,7 @@ void LedRenderer::renderPaused(
     uint8_t winConfirmationPlayer,
     uint32_t nowMs) {
   if (!game.moduleInGame(sigilId)) {
-    off(sigilId);
+    off(sigilId, nowMs);
     return;
   }
 
@@ -369,7 +393,8 @@ void LedRenderer::renderPaused(
         sigilId,
         0,
         false,
-        seatPulse(winTarget->slot, count > 1, nowMs));
+        seatPulse(winTarget->slot, count > 1, nowMs),
+        nowMs);
     return;
   }
 
@@ -381,11 +406,12 @@ void LedRenderer::renderPaused(
         sigilId,
         0,
         seatPulse(eliminationTarget->slot, count > 1, nowMs),
-        false);
+        false,
+        nowMs);
     return;
   }
 
-  set(sigilId, breatheValue(nowMs), false, false);
+  set(sigilId, breatheValue(nowMs), false, false, nowMs);
 }
 
 void LedRenderer::renderGameOver(
@@ -394,7 +420,7 @@ void LedRenderer::renderGameOver(
     const GameEngine &game,
     uint32_t nowMs) {
   if (!game.moduleInGame(sigilId)) {
-    off(sigilId);
+    off(sigilId, nowMs);
     return;
   }
 
@@ -406,7 +432,7 @@ void LedRenderer::renderGameOver(
     blue = seatPulse(winner->slot, count > 1, nowMs) ? 255 : 0;
   }
 
-  set(sigilId, blue, false, sigilId == lobby.hostModule());
+  set(sigilId, blue, false, sigilId == lobby.hostModule(), nowMs);
 }
 
 void LedRenderer::render(
@@ -419,7 +445,9 @@ void LedRenderer::render(
     uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (!bus_.isOnline(id, nowMs)) {
-      cache_[id].valid = false;
+      cache_[id].blueValid = false;
+      cache_[id].redValid = false;
+      cache_[id].greenValid = false;
       cache_[id].displayValid = false;
       continue;
     }
