@@ -2,7 +2,7 @@
 
 namespace TurnHubFirmware {
 
-constexpr const char *VERSION = "0.4.2-dev";
+constexpr const char *VERSION = "0.4.3-dev";
 constexpr const char *BUILD_DATE = __DATE__;
 constexpr const char *BUILD_TIME = __TIME__;
 
