@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <cstring>
 
+#include "web_api.h"
+
 namespace TurnHub {
 
 using TurnHubProtocol::Packet;
@@ -12,6 +14,10 @@ SigilBus *SigilBus::instance_ = nullptr;
 
 SigilBus::SigilBus(uint8_t wifiChannel)
     : wifiChannel_(wifiChannel) {}
+
+SigilBus *SigilBus::activeInstance() {
+  return instance_;
+}
 
 bool SigilBus::begin() {
   instance_ = this;
@@ -84,6 +90,18 @@ bool SigilBus::send(uint8_t sigilId, PacketType type, int32_t value) {
   return sendToMac(sigil->mac, type, sigilId, value);
 }
 
+bool SigilBus::injectEvent(uint8_t sigilId, PacketType type, int32_t value) {
+  if (eventQueue_ == nullptr || !isOnline(sigilId, millis())) {
+    return false;
+  }
+
+  SigilEvent event;
+  event.sigilId = sigilId;
+  event.type = type;
+  event.value = value;
+  return xQueueSend(eventQueue_, &event, 0) == pdTRUE;
+}
+
 void SigilBus::receiveThunk(
     const uint8_t *mac,
     const uint8_t *incomingData,
@@ -127,8 +145,13 @@ void SigilBus::handleReceive(
       enqueue(*sigil, packet);
       break;
 
-    case PacketType::Pass:
     case PacketType::ActionDown:
+      TurnHubWebApi::notePhysicalAction(sigil->id);
+      sendAck(mac, *sigil, packet.type);
+      enqueue(*sigil, packet);
+      break;
+
+    case PacketType::Pass:
     case PacketType::ActionUp:
     case PacketType::ActionShort:
     case PacketType::ActionLong:
