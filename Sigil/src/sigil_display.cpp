@@ -20,9 +20,9 @@ void SigilDisplay::begin() {
 
 void SigilDisplay::drawHeader(const char *title) {
   display_.setTextSize(2);
-  display_.setCursor(10, 22);
+  display_.setCursor(7, 18);
   display_.print(title);
-  display_.drawFastHLine(10, 30, display_.width() - 20, GxEPD_BLACK);
+  display_.drawFastHLine(6, 23, display_.width() - 12, GxEPD_BLACK);
 }
 
 void SigilDisplay::drawStatus(const char *line1, const char *line2) {
@@ -33,12 +33,12 @@ void SigilDisplay::drawStatus(const char *line1, const char *line2) {
     drawHeader("TurnHub");
 
     display_.setTextSize(2);
-    display_.setCursor(10, 66);
+    display_.setCursor(10, 64);
     display_.print(line1);
 
     if (line2 != nullptr) {
       display_.setTextSize(1);
-      display_.setCursor(10, 96);
+      display_.setCursor(10, 94);
       display_.print(line2);
     }
   } while (display_.nextPage());
@@ -108,18 +108,19 @@ void SigilDisplay::showState(
     display_.fillScreen(GxEPD_WHITE);
     drawHeader(header);
 
+    // Compact device metadata stays out of the player workspace.
     display_.setTextSize(1);
-    display_.setCursor(196, 20);
+    display_.setCursor(199, 17);
     display_.printf("S%u", static_cast<unsigned>(sigilId + 1));
     if (host) {
-      display_.setCursor(220, 20);
-      display_.print("H");
+      display_.setCursor(224, 17);
+      display_.print("HOST");
     }
 
     if (shared) {
-      // Player numbering is assigned A then B for a shared physical Sigil.
-      // Atlas may move the focused player into primaryPlayer, so recover the
-      // fixed physical A/B labels from the lower/higher player number.
+      // Player numbering for a shared Sigil is always A then B. Atlas moves
+      // whichever seat currently matters into primaryPlayer, so recover the
+      // fixed physical seat labels from the lower/higher player number.
       const uint8_t playerA = primaryPlayer < secondaryPlayer
           ? primaryPlayer
           : secondaryPlayer;
@@ -129,58 +130,96 @@ void SigilDisplay::showState(
       const bool focusA = focused && primaryPlayer == playerA;
       const bool focusB = focused && primaryPlayer == playerB;
 
-      constexpr int16_t boxY = 38;
-      constexpr int16_t boxH = 54;
-      constexpr int16_t leftX = 8;
-      constexpr int16_t rightX = 127;
-      constexpr int16_t boxW = 115;
+      constexpr int16_t contentX = 6;
+      constexpr int16_t contentY = 29;
+      constexpr int16_t contentW = 238;
+      constexpr int16_t contentH = 68;
+      constexpr int16_t gap = 4;
+      constexpr int16_t footerY = 103;
 
-      display_.drawRect(leftX, boxY, boxW, boxH, GxEPD_BLACK);
-      display_.drawRect(rightX, boxY, boxW, boxH, GxEPD_BLACK);
+      int16_t leftW = 117;
+      int16_t rightW = 117;
       if (focusA) {
-        display_.drawRect(leftX + 2, boxY + 2, boxW - 4, boxH - 4, GxEPD_BLACK);
+        leftW = 164;
+        rightW = 70;
+      } else if (focusB) {
+        leftW = 70;
+        rightW = 164;
+      }
+
+      const int16_t leftX = contentX;
+      const int16_t rightX = contentX + leftW + gap;
+
+      display_.drawRect(leftX, contentY, leftW, contentH, GxEPD_BLACK);
+      display_.drawRect(rightX, contentY, rightW, contentH, GxEPD_BLACK);
+
+      if (focusA) {
+        display_.drawRect(leftX + 2, contentY + 2, leftW - 4, contentH - 4, GxEPD_BLACK);
       }
       if (focusB) {
-        display_.drawRect(rightX + 2, boxY + 2, boxW - 4, boxH - 4, GxEPD_BLACK);
+        display_.drawRect(rightX + 2, contentY + 2, rightW - 4, contentH - 4, GxEPD_BLACK);
       }
 
+      // Seat labels remain readable even when a seat is compressed to 30%.
       display_.setTextSize(1);
-      display_.setCursor(leftX + 8, boxY + 14);
-      display_.print(focusA ? "> SEAT A" : "  SEAT A");
-      display_.setCursor(rightX + 8, boxY + 14);
-      display_.print(focusB ? "> SEAT B" : "  SEAT B");
+      display_.setCursor(leftX + 7, contentY + 12);
+      display_.print("SEAT A");
+      display_.setCursor(rightX + 7, contentY + 12);
+      display_.print("SEAT B");
 
-      display_.setTextSize(3);
-      display_.setCursor(leftX + 26, boxY + 44);
-      display_.printf("P%u", static_cast<unsigned>(playerA));
-      display_.setCursor(rightX + 26, boxY + 44);
-      display_.printf("P%u", static_cast<unsigned>(playerB));
+      // The focused seat receives the large player treatment. The inactive
+      // seat deliberately preserves open space for future life totals/status.
+      if (focusA) {
+        display_.setTextSize(4);
+        display_.setCursor(leftX + 18, contentY + 51);
+        display_.printf("P%u", static_cast<unsigned>(playerA));
 
+        display_.setTextSize(2);
+        display_.setCursor(rightX + 11, contentY + 48);
+        display_.printf("P%u", static_cast<unsigned>(playerB));
+      } else if (focusB) {
+        display_.setTextSize(2);
+        display_.setCursor(leftX + 11, contentY + 48);
+        display_.printf("P%u", static_cast<unsigned>(playerA));
+
+        display_.setTextSize(4);
+        display_.setCursor(rightX + 18, contentY + 51);
+        display_.printf("P%u", static_cast<unsigned>(playerB));
+      } else {
+        display_.setTextSize(3);
+        display_.setCursor(leftX + 24, contentY + 49);
+        display_.printf("P%u", static_cast<unsigned>(playerA));
+        display_.setCursor(rightX + 24, contentY + 49);
+        display_.printf("P%u", static_cast<unsigned>(playerB));
+      }
+
+      display_.drawFastHLine(6, 100, display_.width() - 12, GxEPD_BLACK);
       display_.setTextSize(1);
-      display_.setCursor(10, 111);
+      display_.setCursor(7, footerY + 10);
+
       if (mode == TurnHubProtocol::DisplayMode::Running && active) {
-        display_.printf("YOUR TURN - %c", focusA ? 'A' : 'B');
+        display_.printf("YOUR TURN  SEAT %c", focusA ? 'A' : 'B');
       } else if (mode == TurnHubProtocol::DisplayMode::Starting && starter) {
-        display_.printf("GO FIRST - %c", focusA ? 'A' : 'B');
+        display_.printf("GO FIRST  SEAT %c", focusA ? 'A' : 'B');
       } else if (mode == TurnHubProtocol::DisplayMode::Paused && attention) {
-        display_.printf("ACTION NEEDED - %c", focusA ? 'A' : 'B');
+        display_.printf("ACTION NEEDED  SEAT %c", focusA ? 'A' : 'B');
       } else if (mode == TurnHubProtocol::DisplayMode::GameOver && winner) {
-        display_.printf("WINNER - %c", focusA ? 'A' : 'B');
+        display_.printf("WINNER  SEAT %c", focusA ? 'A' : 'B');
       } else if (mode == TurnHubProtocol::DisplayMode::Paused) {
         display_.print("GAME PAUSED");
       } else if (mode == TurnHubProtocol::DisplayMode::Lobby) {
-        display_.print(host ? "SHARED SIGIL - HOST" : "SHARED SIGIL");
+        display_.print(host ? "SHARED SIGIL  HOST" : "SHARED SIGIL");
       } else {
         display_.print("WAITING");
       }
 
       if (turnNumber != 0) {
-        display_.setCursor(205, 111);
+        display_.setCursor(210, footerY + 10);
         display_.printf("T%u", static_cast<unsigned>(turnNumber));
       }
     } else {
       display_.setTextSize(2);
-      display_.setCursor(10, 67);
+      display_.setCursor(10, 64);
 
       if (mode == TurnHubProtocol::DisplayMode::Running && active) {
         display_.print("YOUR TURN");
@@ -195,7 +234,7 @@ void SigilDisplay::showState(
       }
 
       display_.setTextSize(1);
-      display_.setCursor(10, 98);
+      display_.setCursor(10, 94);
       switch (mode) {
         case TurnHubProtocol::DisplayMode::Lobby:
           display_.printf("Player %u", static_cast<unsigned>(primaryPlayer));
@@ -223,7 +262,7 @@ void SigilDisplay::showState(
       }
 
       if (turnNumber != 0) {
-        display_.setCursor(205, 98);
+        display_.setCursor(205, 94);
         display_.printf("T%u", static_cast<unsigned>(turnNumber));
       }
     }
