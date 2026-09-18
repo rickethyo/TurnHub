@@ -171,7 +171,7 @@ void SigilDisplay::showState(
       // seat deliberately preserves open space for future life totals/status.
       if (focusA) {
         display_.setTextSize(4);
-        display_.setCursor(leftX + 18, contentY + 51);
+        display_.setCursor(leftX + 18, contentY + 45);
         display_.printf("P%u", static_cast<unsigned>(playerA));
 
         display_.setTextSize(2);
@@ -183,7 +183,7 @@ void SigilDisplay::showState(
         display_.printf("P%u", static_cast<unsigned>(playerA));
 
         display_.setTextSize(4);
-        display_.setCursor(rightX + 18, contentY + 51);
+        display_.setCursor(rightX + 18, contentY + 45);
         display_.printf("P%u", static_cast<unsigned>(playerB));
       } else {
         display_.setTextSize(3);
