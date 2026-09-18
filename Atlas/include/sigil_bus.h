@@ -4,6 +4,7 @@
 #include <esp_now.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/task.h>
 
 #include "protocol.h"
 #include "turnhub_types.h"
@@ -62,16 +63,26 @@ class SigilBus {
   static constexpr uint32_t SIGIL_TIMEOUT_MS = 7000;
 
  private:
+  struct TxRequest {
+    uint8_t mac[6] = {};
+    TurnHubProtocol::Packet packet{};
+  };
+
   static SigilBus *instance_;
   static void receiveThunk(
       const uint8_t *mac,
       const uint8_t *incomingData,
       int length);
+  static void sendThunk(
+      const uint8_t *mac,
+      esp_now_send_status_t status);
+  static void txTaskThunk(void *context);
 
   void handleReceive(
       const uint8_t *mac,
       const uint8_t *incomingData,
       int length);
+  void txTaskLoop();
 
   SigilRecord *findByMac(const uint8_t *mac);
   SigilRecord *remember(const uint8_t *mac);
@@ -92,6 +103,8 @@ class SigilBus {
   uint8_t wifiChannel_;
   SigilRecord records_[MAX_PHYSICAL_SIGILS];
   QueueHandle_t eventQueue_ = nullptr;
+  QueueHandle_t txQueue_ = nullptr;
+  TaskHandle_t txTask_ = nullptr;
 };
 
 }  // namespace TurnHub
