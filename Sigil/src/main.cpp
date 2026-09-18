@@ -5,23 +5,14 @@
 
 #include "firmware_version.h"
 #include "protocol.h"
-
-#ifndef SIGIL_HAS_DISPLAY
-#define SIGIL_HAS_DISPLAY 0
-#endif
-
-#if SIGIL_HAS_DISPLAY
 #include "sigil_display.h"
-#endif
 
 namespace {
 
 using TurnHubProtocol::DisplayMode;
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
-#if SIGIL_HAS_DISPLAY
 using TurnHubSigil::SigilDisplay;
-#endif
 
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
@@ -32,11 +23,10 @@ constexpr uint8_t RED_LED = 13;
 constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
 constexpr uint8_t BUZZER_PIN = 33;
+constexpr uint8_t BUZZER_CHANNEL = 7;
 
-// Hardware capability discovery is intentionally reserved for a later pass.
-// Keep this zero until display presence is detected at runtime rather than
-// inferred from which firmware image was flashed.
-constexpr uint8_t DEVICE_CAPABILITIES = 0;
+// All production Sigils use the same firmware and standard display hardware.
+constexpr uint8_t DEVICE_CAPABILITIES = 0x01;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t LONG_PRESS_MS = 2000;
@@ -61,9 +51,7 @@ struct ButtonState {
 
 ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
-#if SIGIL_HAS_DISPLAY
 SigilDisplay sigilDisplay;
-#endif
 
 bool espNowReady = false;
 bool atlasKnown = false;
@@ -71,12 +59,11 @@ uint8_t atlasMac[6] = {};
 uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t greenFlashUntilMs = 0;
+uint32_t buzzerStopAtMs = 0;
 bool commandedGreen = false;
-#if SIGIL_HAS_DISPLAY
 volatile bool displayNeedsRefresh = false;
 volatile int32_t displayPayload = 0;
 uint8_t displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
-#endif
 
 void printMac(const uint8_t *mac) {
   Serial.printf(
@@ -172,7 +159,6 @@ void updateGreenFlash() {
   }
 }
 
-#if SIGIL_HAS_DISPLAY
 void queueReadyDisplay() {
   displayPayload = TurnHubProtocol::encodeDisplayState(
       DisplayMode::Ready, 0, 0, 0);
@@ -180,8 +166,6 @@ void queueReadyDisplay() {
 }
 
 void updateDisplay() {
-  // Assignment is durable state. If Atlas has assigned an ID and this screen
-  // has not rendered that ID yet, force the Ready screen from the main loop.
   if (sigilId != UNASSIGNED_SIGIL_ID && displayRenderedSigilId != sigilId) {
     displayRenderedSigilId = sigilId;
     displayPayload = TurnHubProtocol::encodeDisplayState(
@@ -226,23 +210,37 @@ void updateDisplay() {
       TurnHubProtocol::displayTurnNumber(payload),
       TurnHubProtocol::displayFlags(payload));
 }
-#endif
+
+void stopBuzzer() {
+  ledcWriteTone(BUZZER_CHANNEL, 0);
+  buzzerStopAtMs = 0;
+}
 
 void playBuzzerPayload(int32_t value) {
   const uint16_t frequencyHz = TurnHubProtocol::toneFrequency(value);
   const uint16_t durationMs = TurnHubProtocol::toneDuration(value);
 
   if (frequencyHz == 0 || durationMs == 0) {
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);
+    stopBuzzer();
     return;
   }
 
-  tone(BUZZER_PIN, frequencyHz, durationMs);
+  ledcWriteTone(BUZZER_CHANNEL, frequencyHz);
+  buzzerStopAtMs = millis() + durationMs;
   Serial.print("SIGIL|BUZZER|");
   Serial.print(frequencyHz);
   Serial.print("|");
   Serial.println(durationMs);
+}
+
+void updateBuzzer() {
+  if (buzzerStopAtMs == 0) {
+    return;
+  }
+
+  if (static_cast<int32_t>(millis() - buzzerStopAtMs) >= 0) {
+    stopBuzzer();
+  }
 }
 
 void handleEspNowReceive(
@@ -266,9 +264,7 @@ void handleEspNowReceive(
 
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
-#if SIGIL_HAS_DISPLAY
       queueReadyDisplay();
-#endif
       Serial.print("SIGIL|ID|");
       Serial.println(sigilId);
     }
@@ -313,12 +309,10 @@ void handleEspNowReceive(
       break;
 
     case PacketType::DisplayState:
-#if SIGIL_HAS_DISPLAY
       if (displayPayload != packet.value) {
         displayPayload = packet.value;
         displayNeedsRefresh = true;
       }
-#endif
       break;
 
     default:
@@ -451,27 +445,24 @@ void setup() {
   pinMode(BLUE_LED, OUTPUT);
   pinMode(GREEN_LED, OUTPUT);
   pinMode(RED_LED, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-
   pinMode(PASS_BUTTON, INPUT_PULLUP);
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
 
   analogWrite(BLUE_LED, 0);
   digitalWrite(GREEN_LED, LOW);
   digitalWrite(RED_LED, LOW);
-  digitalWrite(BUZZER_PIN, LOW);
+
+  ledcSetup(BUZZER_CHANNEL, 2000, 8);
+  ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
+  stopBuzzer();
 
   passButton.rawState = passButton.stableState = digitalRead(PASS_BUTTON);
   actionButton.rawState = actionButton.stableState = digitalRead(ACTION_BUTTON);
 
   Serial.println();
-#if SIGIL_HAS_DISPLAY
-  Serial.println("SIGIL|BOOT|UNASSIGNED|DISPLAY");
+  Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
   sigilDisplay.begin();
   sigilDisplay.showUnpaired();
-#else
-  Serial.println("SIGIL|BOOT|UNASSIGNED|BASIC");
-#endif
 
   espNowReady = startEspNow();
 
@@ -484,9 +475,8 @@ void loop() {
   updatePassButton();
   updateActionButton();
   updateGreenFlash();
-#if SIGIL_HAS_DISPLAY
+  updateBuzzer();
   updateDisplay();
-#endif
 
   if (espNowReady && millis() - lastHelloMs >= HELLO_INTERVAL_MS) {
     sendHello();
