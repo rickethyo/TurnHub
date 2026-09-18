@@ -226,6 +226,23 @@ bool Lobby::selectStarter(uint8_t moduleId, PlayerSeat &selected) {
   return selectedStarter(selected);
 }
 
+bool Lobby::selectStarterSeat(
+    uint8_t moduleId,
+    uint8_t slot,
+    PlayerSeat &selected) {
+  if (!isJoined(moduleId) || (slot != 1 && slot != 2)) {
+    return false;
+  }
+  if (slot == 2 && !secondary_[moduleId]) {
+    return false;
+  }
+
+  starterSelected_ = true;
+  starterModule_ = moduleId;
+  starterSlot_ = slot;
+  return selectedStarter(selected);
+}
+
 bool Lobby::randomStarter(PlayerSeat &selected) {
   PlayerSeat players[MAX_PLAYERS];
   const uint8_t count = buildPlayers(players, MAX_PLAYERS);
