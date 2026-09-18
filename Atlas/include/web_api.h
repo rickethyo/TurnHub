@@ -13,6 +13,8 @@ enum class WebControl : uint8_t {
   ConfirmWin,
   DenyWin,
   SelectStarter,
+  StartGame,
+  NudgeTable,
 };
 
 struct SeatSnapshot {
