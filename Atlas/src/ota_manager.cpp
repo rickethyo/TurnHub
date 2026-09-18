@@ -2,6 +2,7 @@
 
 #include <Update.h>
 
+#include "web_api.h"
 #include "web_pages.h"
 
 namespace TurnHub {
@@ -225,6 +226,8 @@ void OtaManager::begin() {
       HTTP_POST,
       [this]() { handleComplete(); },
       [this]() { handleUpload(); });
+
+  TurnHubWebApi::begin(server_);
 }
 
 void OtaManager::resetAttempt() {
