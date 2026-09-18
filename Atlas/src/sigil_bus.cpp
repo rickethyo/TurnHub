@@ -21,8 +21,10 @@ SigilBus *SigilBus::activeInstance() {
 
 bool SigilBus::begin() {
   instance_ = this;
+
   eventQueue_ = xQueueCreate(32, sizeof(SigilEvent));
-  if (eventQueue_ == nullptr) {
+  txQueue_ = xQueueCreate(48, sizeof(TxRequest));
+  if (eventQueue_ == nullptr || txQueue_ == nullptr) {
     Serial.println("ATLAS|SIGIL_BUS|QUEUE_ERROR");
     return false;
   }
@@ -33,6 +35,20 @@ bool SigilBus::begin() {
   }
 
   esp_now_register_recv_cb(receiveThunk);
+  esp_now_register_send_cb(sendThunk);
+
+  if (xTaskCreate(
+          txTaskThunk,
+          "atlas_espnow_tx",
+          3072,
+          this,
+          2,
+          &txTask_) != pdPASS) {
+    txTask_ = nullptr;
+    Serial.println("ATLAS|ESP_NOW|TX_TASK_ERROR");
+    return false;
+  }
+
   Serial.println("ATLAS|ESP_NOW|READY");
   return true;
 }
@@ -122,6 +138,66 @@ void SigilBus::receiveThunk(
     int length) {
   if (instance_ != nullptr) {
     instance_->handleReceive(mac, incomingData, length);
+  }
+}
+
+void SigilBus::sendThunk(
+    const uint8_t *mac,
+    esp_now_send_status_t status) {
+  (void)mac;
+  (void)status;
+
+  if (instance_ != nullptr && instance_->txTask_ != nullptr) {
+    xTaskNotifyGive(instance_->txTask_);
+  }
+}
+
+void SigilBus::txTaskThunk(void *context) {
+  auto *bus = static_cast<SigilBus *>(context);
+  if (bus != nullptr) {
+    bus->txTaskLoop();
+  }
+  vTaskDelete(nullptr);
+}
+
+void SigilBus::txTaskLoop() {
+  TxRequest request;
+
+  for (;;) {
+    if (xQueueReceive(txQueue_, &request, portMAX_DELAY) != pdTRUE) {
+      continue;
+    }
+
+    uint8_t retry = 0;
+    for (;;) {
+      // Clear a stale completion notification before beginning this send.
+      ulTaskNotifyTake(pdTRUE, 0);
+
+      const esp_err_t result = esp_now_send(
+          request.mac,
+          reinterpret_cast<const uint8_t *>(&request.packet),
+          sizeof(request.packet));
+
+      if (result == ESP_OK) {
+        // Espressif recommends waiting for the send callback before starting
+        // the next ESP-NOW transmission. This prevents burst traffic from
+        // exhausting the Wi-Fi transmit buffers.
+        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250)) == 0) {
+          Serial.println("ATLAS|ESP_NOW|SEND_TIMEOUT");
+        }
+        break;
+      }
+
+      if (result == ESP_ERR_ESPNOW_NO_MEM && retry < 4) {
+        ++retry;
+        vTaskDelay(pdMS_TO_TICKS(2U * retry));
+        continue;
+      }
+
+      Serial.print("ATLAS|ESP_NOW|SEND_ERROR|");
+      Serial.println(static_cast<int>(result));
+      break;
+    }
   }
 }
 
@@ -216,6 +292,17 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
 }
 
 void SigilBus::updateHelloInfo(SigilRecord &sigil, int32_t value) {
+  // Older Sigil firmware sent Hello.value = 0. Keep it fully compatible, but
+  // report its firmware as unknown instead of presenting a fake v0.0.0.
+  if (value == 0) {
+    sigil.helloInfoValid = false;
+    sigil.firmwareMajor = 0;
+    sigil.firmwareMinor = 0;
+    sigil.firmwarePatch = 0;
+    sigil.capabilities = 0;
+    return;
+  }
+
   const uint8_t major = TurnHubProtocol::helloFirmwareMajor(value);
   const uint8_t minor = TurnHubProtocol::helloFirmwareMinor(value);
   const uint8_t patch = TurnHubProtocol::helloFirmwarePatch(value);
@@ -281,19 +368,16 @@ bool SigilBus::sendToMac(
     PacketType type,
     uint8_t sigilId,
     int32_t value) {
-  if (!ensurePeer(mac)) {
+  if (txQueue_ == nullptr || !ensurePeer(mac)) {
     return false;
   }
 
-  const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
-  const esp_err_t result = esp_now_send(
-      mac,
-      reinterpret_cast<const uint8_t *>(&packet),
-      sizeof(packet));
+  TxRequest request;
+  memcpy(request.mac, mac, 6);
+  request.packet = TurnHubProtocol::makePacket(type, sigilId, value);
 
-  if (result != ESP_OK) {
-    Serial.print("ATLAS|ESP_NOW|SEND_ERROR|");
-    Serial.println(static_cast<int>(result));
+  if (xQueueSend(txQueue_, &request, 0) != pdTRUE) {
+    Serial.println("ATLAS|ESP_NOW|TX_QUEUE_FULL");
     return false;
   }
 
