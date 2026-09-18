@@ -25,6 +25,7 @@ class Lobby {
   uint8_t buildPlayers(PlayerSeat *out, uint8_t capacity) const;
 
   bool selectStarter(uint8_t moduleId, PlayerSeat &selected);
+  bool selectStarterSeat(uint8_t moduleId, uint8_t slot, PlayerSeat &selected);
   bool randomStarter(PlayerSeat &selected);
   bool starterOrDefault(PlayerSeat &selected) const;
   bool selectedStarter(PlayerSeat &selected) const;
