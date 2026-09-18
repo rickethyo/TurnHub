@@ -27,16 +27,24 @@ class LedRenderer {
 
  private:
   struct Cache {
-    bool valid = false;
+    bool blueValid = false;
+    bool redValid = false;
+    bool greenValid = false;
     uint8_t blue = 0;
     bool red = false;
     bool green = false;
+    uint32_t lastBlueTxMs = 0;
     bool displayValid = false;
     int32_t displayPayload = 0;
   };
 
-  void set(uint8_t sigilId, uint8_t blue, bool red, bool green);
-  void off(uint8_t sigilId);
+  void set(
+      uint8_t sigilId,
+      uint8_t blue,
+      bool red,
+      bool green,
+      uint32_t nowMs);
+  void off(uint8_t sigilId, uint32_t nowMs);
   void syncDisplay(
       uint8_t sigilId,
       HubState state,
