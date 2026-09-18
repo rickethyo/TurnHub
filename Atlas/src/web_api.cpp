@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "firmware_version.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
@@ -24,6 +25,8 @@ constexpr uint32_t CLAIM_TIMEOUT_MS = 30000;
 constexpr uint32_t SESSION_TIMEOUT_MS = 8UL * 60UL * 60UL * 1000UL;
 constexpr uint8_t MAX_PENDING_CLAIMS = 6;
 constexpr uint8_t MAX_WEB_SESSIONS = MAX_PLAYERS;
+constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
+constexpr char WIFI_PREF_KEY[] = "ap-pass";
 
 struct PendingClaim {
   bool used = false;
@@ -117,6 +120,21 @@ void sendJson(WebServer &server, int status, const String &body) {
   server.send(status, "application/json", body);
 }
 
+bool masterButtonPressed() {
+  return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
+}
+
+bool requireMasterButton(WebServer &server) {
+  if (masterButtonPressed()) {
+    return true;
+  }
+  sendJson(
+      server,
+      403,
+      "{\"ok\":false,\"error\":\"Hold the physical Atlas master button while saving this system setting\"}");
+  return false;
+}
+
 bool validSlot(int slot) {
   return slot == 1 || slot == 2;
 }
@@ -168,6 +186,16 @@ String profileKey(char prefix, const uint8_t mac[6], uint8_t slot) {
   return String(key);
 }
 
+String deviceNameKey(const uint8_t mac[6]) {
+  char key[14];
+  snprintf(
+      key,
+      sizeof(key),
+      "d%02X%02X%02X%02X%02X%02X",
+      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return String(key);
+}
+
 String profileName(uint8_t moduleId, uint8_t slot) {
   if (!preferencesReady) {
     return String();
@@ -179,6 +207,28 @@ String profileName(uint8_t moduleId, uint8_t slot) {
   }
   const String key = profileKey('n', record->mac, slot);
   return preferences.getString(key.c_str(), "");
+}
+
+String customDeviceName(uint8_t moduleId) {
+  if (!preferencesReady) {
+    return String();
+  }
+  SigilBus *bus = SigilBus::activeInstance();
+  const SigilRecord *record = bus != nullptr ? bus->record(moduleId) : nullptr;
+  if (record == nullptr) {
+    return String();
+  }
+  const String key = deviceNameKey(record->mac);
+  return preferences.getString(key.c_str(), "");
+}
+
+String deviceLabel(uint8_t moduleId) {
+  String label = customDeviceName(moduleId);
+  if (label.length() == 0) {
+    label = "Sigil ";
+    label += String(moduleId + 1);
+  }
+  return label;
 }
 
 String storedPinHash(uint8_t moduleId, uint8_t slot) {
@@ -291,8 +341,6 @@ WebSession *sessionForRequest(WebServer &server) {
 WebSession *createSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
   WebSession *target = nullptr;
 
-  // A session belongs to a logical seat, not merely a physical Sigil. This
-  // lets A and B on a shared Sigil authenticate independently.
   for (auto &session : sessions) {
     if (session.used &&
         session.moduleId == moduleId &&
@@ -350,7 +398,7 @@ void handleDevices(WebServer &server) {
   const uint32_t nowMs = millis();
 
   String json;
-  json.reserve(3000);
+  json.reserve(3800);
   json += "{\"atlas\":{\"hardwareId\":\"";
   json += atlasHardwareId();
   json += "\",\"firmware\":\"";
@@ -372,6 +420,8 @@ void handleDevices(WebServer &server) {
 
       const uint32_t ageMs = nowMs - record->lastSeenMs;
       const bool online = ageMs <= SigilBus::SIGIL_TIMEOUT_MS;
+      const String customName = customDeviceName(id);
+      const String label = deviceLabel(id);
 
       char firmware[24];
       if (record->helloInfoValid) {
@@ -388,8 +438,12 @@ void handleDevices(WebServer &server) {
 
       json += "{\"id\":";
       json += String(id);
-      json += ",\"label\":\"Sigil ";
+      json += ",\"label\":\"";
+      json += jsonEscape(label);
+      json += "\",\"defaultLabel\":\"Sigil ";
       json += String(id + 1);
+      json += "\",\"customName\":\"";
+      json += jsonEscape(customName);
       json += "\",\"hardwareId\":\"";
       json += sigilHardwareId(record->mac);
       json += "\",\"mac\":\"";
@@ -412,6 +466,124 @@ void handleDevices(WebServer &server) {
 
   json += "]}";
   sendJson(server, 200, json);
+}
+
+void handleDeviceName(WebServer &server) {
+  if (!requireMasterButton(server)) {
+    return;
+  }
+  if (!preferencesReady || !server.hasArg("module") || !server.hasArg("name")) {
+    sendJson(server, 400, "{\"ok\":false,\"error\":\"Module and name are required\"}");
+    return;
+  }
+
+  const int module = server.arg("module").toInt();
+  SigilBus *bus = SigilBus::activeInstance();
+  const SigilRecord *record =
+      bus != nullptr && module >= 0 && module < MAX_PHYSICAL_SIGILS
+      ? bus->record(static_cast<uint8_t>(module))
+      : nullptr;
+  if (record == nullptr) {
+    sendJson(server, 404, "{\"ok\":false,\"error\":\"Sigil is not known to Atlas\"}");
+    return;
+  }
+
+  String name = server.arg("name");
+  name.trim();
+  if (name.length() > 32) {
+    name.remove(32);
+  }
+
+  const String key = deviceNameKey(record->mac);
+  if (name.length() == 0) {
+    preferences.remove(key.c_str());
+  } else if (preferences.putString(key.c_str(), name) == 0) {
+    sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save Sigil name\"}");
+    return;
+  }
+
+  const String label = name.length() == 0
+      ? String("Sigil ") + String(module + 1)
+      : name;
+
+  Serial.print("ATLAS|SIGIL|NAME|");
+  Serial.print(module);
+  Serial.print("|");
+  Serial.println(label);
+
+  sendJson(
+      server,
+      200,
+      String("{\"ok\":true,\"label\":\"") + jsonEscape(label) + "\"}");
+}
+
+void handleNetworkInfo(WebServer &server) {
+  Preferences networkPrefs;
+  String password;
+  if (networkPrefs.begin(WIFI_PREF_NAMESPACE, true)) {
+    password = networkPrefs.getString(WIFI_PREF_KEY, "");
+    networkPrefs.end();
+  }
+
+  String response = "{\"ssid\":\"";
+  response += jsonEscape(String(AtlasConfig::WIFI_SSID));
+  response += "\",\"security\":\"WPA2-PSK\",\"passwordConfigured\":";
+  response += password.length() >= 8 ? "true" : "false";
+  response += ",\"passwordLength\":";
+  response += String(password.length());
+  response += ",\"stations\":";
+  response += String(WiFi.softAPgetStationNum());
+  response += ",\"masterButton\":";
+  response += masterButtonPressed() ? "true" : "false";
+  response += '}';
+  sendJson(server, 200, response);
+}
+
+void handleNetworkPassword(WebServer &server) {
+  if (!requireMasterButton(server)) {
+    return;
+  }
+  if (!server.hasArg("password")) {
+    sendJson(server, 400, "{\"ok\":false,\"error\":\"New password is required\"}");
+    return;
+  }
+
+  const String password = server.arg("password");
+  if (password.length() < 8 || password.length() > 63) {
+    sendJson(server, 400, "{\"ok\":false,\"error\":\"Wi-Fi password must be 8 to 63 characters\"}");
+    return;
+  }
+
+  Preferences networkPrefs;
+  if (!networkPrefs.begin(WIFI_PREF_NAMESPACE, false)) {
+    sendJson(server, 500, "{\"ok\":false,\"error\":\"Network settings storage unavailable\"}");
+    return;
+  }
+
+  const String existing = networkPrefs.getString(WIFI_PREF_KEY, "");
+  if (existing == password) {
+    networkPrefs.end();
+    sendJson(server, 200, "{\"ok\":true,\"changed\":false,\"message\":\"Wi-Fi password is already set to that value\"}");
+    return;
+  }
+
+  const size_t written = networkPrefs.putString(WIFI_PREF_KEY, password);
+  networkPrefs.end();
+  if (written == 0) {
+    sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save Wi-Fi password\"}");
+    return;
+  }
+
+  Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|UPDATED_FROM_PORTAL");
+  sendJson(
+      server,
+      200,
+      "{\"ok\":true,\"changed\":true,\"restarting\":true,\"message\":\"Password saved. Atlas is restarting.\"}");
+
+  // This is an intentional administrative restart. Give the HTTP response a
+  // moment to leave the socket before rebooting onto the new WPA2 credential.
+  delay(450);
+  ESP.restart();
 }
 
 void handleSeats(WebServer &server) {
@@ -807,6 +979,9 @@ void begin(WebServer &server) {
   server.collectHeaders(headerKeys, 1);
 
   server.on("/api/devices", HTTP_GET, [&server]() { handleDevices(server); });
+  server.on("/api/device/name", HTTP_POST, [&server]() { handleDeviceName(server); });
+  server.on("/api/network", HTTP_GET, [&server]() { handleNetworkInfo(server); });
+  server.on("/api/network/password", HTTP_POST, [&server]() { handleNetworkPassword(server); });
   server.on("/api/seats", HTTP_GET, [&server]() { handleSeats(server); });
   server.on("/api/session/request", HTTP_POST, [&server]() { handleSessionRequest(server); });
   server.on("/api/session/poll", HTTP_GET, [&server]() { handleSessionPoll(server); });
