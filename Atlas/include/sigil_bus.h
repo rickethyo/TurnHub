@@ -50,6 +50,14 @@ class SigilBus {
       TurnHubProtocol::PacketType type,
       int32_t value = 0);
 
+  // Web controls and future local integrations feed the same event queue as
+  // physical Sigils, keeping game behavior centralized in main.cpp.
+  bool injectEvent(
+      uint8_t sigilId,
+      TurnHubProtocol::PacketType type,
+      int32_t value = 0);
+
+  static SigilBus *activeInstance();
   static constexpr uint32_t SIGIL_TIMEOUT_MS = 7000;
 
  private:
