@@ -41,7 +41,20 @@ bool SigilBus::poll(SigilEvent &event) {
   if (eventQueue_ == nullptr) {
     return false;
   }
-  return xQueueReceive(eventQueue_, &event, 0) == pdTRUE;
+
+  if (xQueueReceive(eventQueue_, &event, 0) != pdTRUE) {
+    return false;
+  }
+
+  // Physical confirmation is deliberately handled in the main-loop consumer,
+  // not inside the ESP-NOW receive callback. That keeps web-session state on a
+  // single execution path and prevents synthetic browser events from proving
+  // possession of a Sigil.
+  if (event.physical && event.type == PacketType::ActionDown) {
+    TurnHubWebApi::notePhysicalAction(event.sigilId);
+  }
+
+  return true;
 }
 
 uint8_t SigilBus::activeCount(uint32_t nowMs) const {
@@ -99,6 +112,7 @@ bool SigilBus::injectEvent(uint8_t sigilId, PacketType type, int32_t value) {
   event.sigilId = sigilId;
   event.type = type;
   event.value = value;
+  event.physical = false;
   return xQueueSend(eventQueue_, &event, 0) == pdTRUE;
 }
 
@@ -145,13 +159,8 @@ void SigilBus::handleReceive(
       enqueue(*sigil, packet);
       break;
 
-    case PacketType::ActionDown:
-      TurnHubWebApi::notePhysicalAction(sigil->id);
-      sendAck(mac, *sigil, packet.type);
-      enqueue(*sigil, packet);
-      break;
-
     case PacketType::Pass:
+    case PacketType::ActionDown:
     case PacketType::ActionUp:
     case PacketType::ActionShort:
     case PacketType::ActionLong:
@@ -313,6 +322,7 @@ void SigilBus::enqueue(
   event.sigilId = sigil.id;
   event.type = packet.type;
   event.value = packet.value;
+  event.physical = true;
   xQueueSend(eventQueue_, &event, 0);
 }
 
