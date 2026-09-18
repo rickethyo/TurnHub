@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -38,6 +39,11 @@ using TurnHubWebApi::WebControl;
 constexpr uint32_t DEBOUNCE_MS = 25;
 constexpr uint32_t START_COUNTDOWN_MS = 3000;
 constexpr uint32_t DEFAULT_WARNING_MS = 0;
+constexpr uint8_t WIFI_PASSWORD_LENGTH = 16;
+constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
+constexpr char WIFI_PREF_KEY[] = "ap-pass";
+constexpr char WIFI_PASSWORD_CHARS[] =
+    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
 bool otaAllowed();
 
@@ -60,6 +66,39 @@ bool eliminationChord[MAX_PHYSICAL_SIGILS] = {};
 bool suppressEliminationShort[MAX_PHYSICAL_SIGILS] = {};
 uint8_t winArmedModule = INVALID_ID;
 uint8_t winArmedPlayer = 0;
+
+String generateWifiPassword() {
+  String password;
+  password.reserve(WIFI_PASSWORD_LENGTH);
+  constexpr size_t charCount = sizeof(WIFI_PASSWORD_CHARS) - 1;
+  for (uint8_t i = 0; i < WIFI_PASSWORD_LENGTH; ++i) {
+    password += WIFI_PASSWORD_CHARS[esp_random() % charCount];
+  }
+  return password;
+}
+
+String loadOrCreateWifiPassword() {
+  Preferences prefs;
+  if (!prefs.begin(WIFI_PREF_NAMESPACE, false)) {
+    Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|ERROR");
+    return generateWifiPassword();
+  }
+
+  String password = prefs.getString(WIFI_PREF_KEY, "");
+  if (password.length() < 8 || password.length() > 63) {
+    password = generateWifiPassword();
+    if (prefs.putString(WIFI_PREF_KEY, password) == 0) {
+      Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|WRITE_ERROR");
+    } else {
+      Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|GENERATED");
+    }
+  } else {
+    Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|LOADED");
+  }
+
+  prefs.end();
+  return password;
+}
 
 bool masterButtonPressed() {
   return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
@@ -1092,9 +1131,15 @@ void updateMasterButton() {
 void startNetworking() {
   WiFi.mode(WIFI_AP_STA);
 
+  const String wifiPassword = loadOrCreateWifiPassword();
+  if (wifiPassword.length() < 8) {
+    Serial.println("ATLAS|WIFI_AP|PASSWORD|ERROR");
+    return;
+  }
+
   const bool apStarted = WiFi.softAP(
       AtlasConfig::WIFI_SSID,
-      nullptr,
+      wifiPassword.c_str(),
       AtlasConfig::WIFI_CHANNEL,
       false,
       8);
@@ -1108,6 +1153,9 @@ void startNetworking() {
   Serial.print(AtlasConfig::WIFI_SSID);
   Serial.print("|");
   Serial.println(WiFi.softAPIP());
+  Serial.println("ATLAS|WIFI_AP|SECURITY|WPA2-PSK");
+  Serial.print("ATLAS|WIFI_AP|PASSWORD|");
+  Serial.println(wifiPassword);
 
   Serial.print("ATLAS|MAC|");
   Serial.println(WiFi.macAddress());
