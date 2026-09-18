@@ -33,6 +33,7 @@ constexpr uint32_t LONG_PRESS_MS = 2000;
 constexpr uint32_t WIN_HOLD_MS = 5000;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PASS_ACK_FLASH_MS = 250;
+constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
 
 constexpr uint8_t BROADCAST_MAC[6] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -56,7 +57,7 @@ SigilDisplay sigilDisplay;
 bool espNowReady = false;
 bool atlasKnown = false;
 uint8_t atlasMac[6] = {};
-uint8_t sigilId = UNASSIGNED_SIGIL_ID;
+volatile uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t greenFlashUntilMs = 0;
 uint32_t buzzerStopAtMs = 0;
@@ -64,6 +65,7 @@ bool commandedGreen = false;
 volatile bool displayNeedsRefresh = false;
 volatile int32_t displayPayload = 0;
 uint8_t displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
+TaskHandle_t displayTaskHandle = nullptr;
 
 void printMac(const uint8_t *mac) {
   Serial.printf(
@@ -159,21 +161,32 @@ void updateGreenFlash() {
   }
 }
 
+void notifyDisplayTask() {
+  if (displayTaskHandle != nullptr) {
+    xTaskNotifyGive(displayTaskHandle);
+  }
+}
+
 void queueReadyDisplay() {
   displayPayload = TurnHubProtocol::encodeDisplayState(
       DisplayMode::Ready, 0, 0, 0);
   displayNeedsRefresh = true;
+  notifyDisplayTask();
 }
 
 void updateDisplay() {
-  if (sigilId != UNASSIGNED_SIGIL_ID && displayRenderedSigilId != sigilId) {
-    displayRenderedSigilId = sigilId;
+  const uint8_t currentSigilId = sigilId;
+
+  if (
+      currentSigilId != UNASSIGNED_SIGIL_ID &&
+      displayRenderedSigilId != currentSigilId) {
+    displayRenderedSigilId = currentSigilId;
     displayPayload = TurnHubProtocol::encodeDisplayState(
         DisplayMode::Ready, 0, 0, 0);
     displayNeedsRefresh = false;
     Serial.print("SIGIL|DISPLAY|ASSIGNED|");
-    Serial.println(sigilId);
-    sigilDisplay.showReady(sigilId);
+    Serial.println(currentSigilId);
+    sigilDisplay.showReady(currentSigilId);
     return;
   }
 
@@ -183,7 +196,7 @@ void updateDisplay() {
 
   displayNeedsRefresh = false;
 
-  if (sigilId == UNASSIGNED_SIGIL_ID) {
+  if (currentSigilId == UNASSIGNED_SIGIL_ID) {
     displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
     sigilDisplay.showUnpaired();
     return;
@@ -193,22 +206,38 @@ void updateDisplay() {
   const DisplayMode mode = TurnHubProtocol::displayMode(payload);
 
   Serial.print("SIGIL|DISPLAY|STATE|");
-  Serial.print(sigilId);
+  Serial.print(currentSigilId);
   Serial.print("|");
   Serial.println(static_cast<unsigned>(mode));
 
   if (mode == DisplayMode::Ready) {
-    sigilDisplay.showReady(sigilId);
+    sigilDisplay.showReady(currentSigilId);
     return;
   }
 
   sigilDisplay.showState(
-      sigilId,
+      currentSigilId,
       mode,
       TurnHubProtocol::displayPrimaryPlayer(payload),
       TurnHubProtocol::displaySecondaryPlayer(payload),
       TurnHubProtocol::displayTurnNumber(payload),
       TurnHubProtocol::displayFlags(payload));
+}
+
+void displayTask(void *parameter) {
+  (void)parameter;
+  Serial.println("SIGIL|DISPLAY|TASK|READY");
+
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    updateDisplay();
+
+    // A newer display packet may have arrived while the e-paper was busy.
+    // Render the newest state immediately instead of waiting for another event.
+    if (displayNeedsRefresh) {
+      xTaskNotifyGive(displayTaskHandle);
+    }
+  }
 }
 
 void stopBuzzer() {
@@ -312,6 +341,7 @@ void handleEspNowReceive(
       if (displayPayload != packet.value) {
         displayPayload = packet.value;
         displayNeedsRefresh = true;
+        notifyDisplayTask();
       }
       break;
 
@@ -464,6 +494,20 @@ void setup() {
   sigilDisplay.begin();
   sigilDisplay.showUnpaired();
 
+  const BaseType_t displayTaskCreated = xTaskCreatePinnedToCore(
+      displayTask,
+      "sigil-display",
+      DISPLAY_TASK_STACK_BYTES,
+      nullptr,
+      1,
+      &displayTaskHandle,
+      1);
+
+  if (displayTaskCreated != pdPASS) {
+    displayTaskHandle = nullptr;
+    Serial.println("SIGIL|DISPLAY|TASK|ERROR");
+  }
+
   espNowReady = startEspNow();
 
   if (espNowReady) {
@@ -476,7 +520,11 @@ void loop() {
   updateActionButton();
   updateGreenFlash();
   updateBuzzer();
-  updateDisplay();
+
+  if (displayTaskHandle == nullptr) {
+    // Safe fallback if the display worker could not be created.
+    updateDisplay();
+  }
 
   if (espNowReady && millis() - lastHelloMs >= HELLO_INTERVAL_MS) {
     sendHello();
