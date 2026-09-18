@@ -11,368 +11,135 @@ const char PORTAL_HTML[] PROGMEM = R"HTML(
 <meta name="theme-color" content="#0b0d11">
 <title>TurnHub</title>
 <style>
-:root{
-  color-scheme:dark;
-  --bg:#0b0d11;
-  --panel:#141820;
-  --panel2:#1b202a;
-  --panel3:#11151c;
-  --line:#2b3240;
-  --text:#f3f5f7;
-  --muted:#9ca6b7;
-  --good:#62d58a;
-  --warn:#efc55a;
-  --bad:#ef6a6a;
-  --blue:#72a7ff;
-}
-*{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-body{padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
-.shell{width:min(1180px,100%);margin:0 auto}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
-.brand-wrap{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.brand{font-size:clamp(1.4rem,4vw,2rem);font-weight:900;letter-spacing:.025em}
-.brand-sub{font-size:.82rem;color:var(--muted);font-weight:700}
-.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.connection{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.88rem;font-weight:700}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 4px rgba(239,106,106,.1)}
-.dot.online{background:var(--good);box-shadow:0 0 0 4px rgba(98,213,138,.1)}
-.nav-button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:11px;padding:8px 11px;text-decoration:none;font-size:.82rem;font-weight:800}
-.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
-.card{grid-column:span 12;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 35px rgba(0,0,0,.18)}
-.hero{min-height:285px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;overflow:hidden}
-.hero:before{content:"";position:absolute;inset:auto -20% -70% -20%;height:85%;background:radial-gradient(circle,rgba(114,167,255,.12),transparent 65%);pointer-events:none}
-.eyebrow{color:var(--muted);font-size:.82rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
-.hero-title{margin:.28rem 0 .18rem;font-size:clamp(3rem,12vw,7rem);line-height:.94;font-weight:950;letter-spacing:-.045em;position:relative}
-.hero-sub{color:var(--muted);font-size:clamp(1rem,3vw,1.25rem);position:relative}
-.badges{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:16px;position:relative}
-.badge{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:7px 11px;color:var(--muted);font-size:.82rem;font-weight:800}
-.badge.good{color:var(--good);border-color:rgba(98,213,138,.35)}
-.badge.warn{color:var(--warn);border-color:rgba(239,197,90,.35)}
-.badge.bad{color:var(--bad);border-color:rgba(239,106,106,.35)}
-.badge.blue{color:var(--blue);border-color:rgba(114,167,255,.35)}
-.section-title{margin:0 0 12px;font-size:.84rem;color:var(--muted);text-transform:uppercase;letter-spacing:.11em}
-.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.metric{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px;min-width:0}
-.metric-label{color:var(--muted);font-size:.74rem;font-weight:800;letter-spacing:.065em;text-transform:uppercase}
-.metric-value{margin-top:5px;font-size:1.15rem;font-weight:850;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-.player{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px;transition:border-color .15s ease,opacity .15s ease,transform .15s ease}
-.player.active{border-color:var(--blue);box-shadow:0 0 0 1px rgba(114,167,255,.24) inset;transform:translateY(-1px)}
-.player.winner{border-color:var(--good);box-shadow:0 0 0 1px rgba(98,213,138,.18) inset}
-.player.target{border-color:var(--bad)}
-.player.confirm{border-color:var(--good)}
-.player-name{font-size:1.15rem;font-weight:900}
-.player-seat{color:var(--muted);font-size:.82rem;margin-top:4px}
-.player-status{margin-top:12px;font-size:.82rem;color:var(--muted);font-weight:800}
-.decision{border-left:3px solid var(--warn);background:var(--panel2);border-radius:12px;padding:13px 14px;color:var(--muted);line-height:1.45}
-.decision strong{color:var(--text)}
-.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
-.flow-step{border:1px solid var(--line);background:var(--panel3);border-radius:11px;padding:10px 8px;text-align:center;color:var(--muted);font-size:.72rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
-.flow-step.active{color:var(--text);border-color:var(--blue);background:rgba(114,167,255,.09)}
-.guide{display:grid;gap:8px}
-.guide-row{display:grid;grid-template-columns:minmax(88px,.8fr) 1.5fr;gap:10px;align-items:start;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
-.guide-key{font-weight:900;color:var(--text)}
-.guide-text{color:var(--muted);line-height:1.35;font-size:.86rem}
-.hardware{display:grid;gap:10px}
-.hardware-main{display:flex;justify-content:space-between;gap:12px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px}
-.hardware-count{font-size:2rem;font-weight:950;line-height:1}
-.hardware-label{color:var(--muted);font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-top:5px}
-.status-line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
-.status-line:last-child{border-bottom:0}
-.status-label{color:var(--muted);font-size:.84rem;font-weight:700}
-.status-value{font-size:.86rem;font-weight:850;text-align:right}
-.footer{color:var(--muted);text-align:center;font-size:.76rem;margin-top:15px}
-@media(min-width:800px){.hero-card{grid-column:span 8}.table-card{grid-column:span 4}.players-card{grid-column:span 8}.hardware-card{grid-column:span 4}.guide-card{grid-column:span 7}.flow-card{grid-column:span 5}}
-@media(max-width:620px){header{align-items:flex-start}.header-right{max-width:58%}.hero{min-height:235px}.card{padding:15px}.flow{grid-template-columns:1fr 1fr}.flow-step:last-child{grid-column:span 2}.guide-row{grid-template-columns:1fr}.guide-key{margin-bottom:-4px}}
+:root{color-scheme:dark;--bg:#0b0d11;--panel:#141820;--panel2:#1b202a;--line:#2b3240;--text:#f3f5f7;--muted:#9ca6b7;--good:#62d58a;--warn:#efc55a;--bad:#ef6a6a;--blue:#72a7ff}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{padding:16px}.shell{width:min(1180px,100%);margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}.brand{font-size:1.8rem;font-weight:950}.sub{color:var(--muted);font-size:.84rem;font-weight:700}.right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dot{width:10px;height:10px;border-radius:50%;background:var(--bad)}.dot.online{background:var(--good)}a.link,button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;text-decoration:none;font-weight:800;cursor:pointer}button.primary{background:#e7ebf2;color:#111318;border-color:#e7ebf2}button.good{border-color:rgba(98,213,138,.5);color:var(--good)}button.bad{border-color:rgba(239,106,106,.5);color:var(--bad)}button:disabled{opacity:.42;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}.card{grid-column:span 12;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}.hero{min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.eyebrow,.section{font-size:.78rem;color:var(--muted);font-weight:900;letter-spacing:.12em;text-transform:uppercase}.hero h1{font-size:clamp(3rem,10vw,6rem);margin:.2rem 0;line-height:.95}.hero p{color:var(--muted);font-size:1.05rem;margin:.35rem 0}.badges,.actions{display:flex;gap:8px;flex-wrap:wrap}.badges{justify-content:center;margin-top:12px}.badge{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:.78rem;font-weight:800}.badge.good{color:var(--good)}.badge.warn{color:var(--warn)}.badge.blue{color:var(--blue)}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.metric,.device,.session-box,.player{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px}.metric label{display:block;color:var(--muted);font-size:.72rem;font-weight:800;text-transform:uppercase}.metric strong{display:block;margin-top:4px;font-size:1.08rem}.players,.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}.player.active{border-color:var(--blue)}.player.winner{border-color:var(--good)}.player-name{font-size:1.1rem;font-weight:900}.small{font-size:.8rem;color:var(--muted);line-height:1.45}.device-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.device-name{font-weight:900;font-size:1.05rem}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.76rem;color:var(--muted);overflow-wrap:anywhere}.device-state{font-size:.74rem;font-weight:900}.online-text{color:var(--good)}.offline-text{color:var(--bad)}.device .actions{margin-top:11px}.session-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}.session-title{font-size:1.15rem;font-weight:900}.notice{border-left:3px solid var(--warn);background:var(--panel2);padding:12px 13px;border-radius:10px;color:var(--muted);line-height:1.45}.notice strong{color:var(--text)}#toast{min-height:24px;margin-top:10px;color:var(--muted);font-size:.85rem;font-weight:700}.status-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.status-row:last-child{border-bottom:0}.status-row span:first-child{color:var(--muted)}@media(min-width:820px){.hero-card{grid-column:span 8}.table-card{grid-column:span 4}.session-card{grid-column:span 5}.devices-card{grid-column:span 7}.players-card{grid-column:span 7}.system-card{grid-column:span 5}}@media(max-width:600px){body{padding:12px}.card{padding:14px}.hero{min-height:220px}}
 </style>
 </head>
 <body>
 <div class="shell">
-  <header>
-    <div class="brand-wrap"><div class="brand">TurnHub</div><div class="brand-sub">Atlas table console</div></div>
-    <div class="header-right">
-      <div class="connection"><span id="dot" class="dot"></span><span id="connection">Connecting</span></div>
-      <a class="nav-button" href="/dev">Dev</a>
-      <a class="nav-button" href="/update">Firmware</a>
+<header>
+  <div><div class="brand">TurnHub</div><div class="sub">Atlas table console</div></div>
+  <div class="right"><span id="dot" class="dot"></span><span id="connection" class="sub">Connecting</span><a class="link" href="/dev">Dev</a><a class="link" href="/update">Firmware</a></div>
+</header>
+<div class="grid">
+  <section class="card hero hero-card">
+    <div id="eyebrow" class="eyebrow">TURNHUB</div>
+    <h1 id="heroTitle">READY</h1>
+    <p id="heroSub">Waiting for Atlas</p>
+    <div id="heroBadges" class="badges"></div>
+  </section>
+
+  <section class="card table-card">
+    <div class="section">Table</div>
+    <div class="metrics" style="margin-top:12px">
+      <div class="metric"><label>Players</label><strong id="playersMetric">0</strong></div>
+      <div class="metric"><label>Sigils</label><strong id="sigilsMetric">0</strong></div>
+      <div class="metric"><label>Host</label><strong id="hostMetric">None</strong></div>
+      <div class="metric"><label>Starter</label><strong id="starterMetric">None</strong></div>
     </div>
-  </header>
+    <div style="margin-top:10px">
+      <div class="status-row"><span>State</span><strong id="stateMetric">—</strong></div>
+      <div class="status-row"><span>Atlas firmware</span><strong id="firmwareMetric">—</strong></div>
+      <div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div>
+    </div>
+  </section>
 
-  <div class="grid">
-    <section class="card hero hero-card">
-      <div id="eyebrow" class="eyebrow">TURNHUB</div>
-      <div id="heroTitle" class="hero-title">READY</div>
-      <div id="heroSub" class="hero-sub">Waiting for Atlas</div>
-      <div id="heroBadges" class="badges"></div>
-    </section>
-
-    <section class="card table-card">
-      <h2 class="section-title">Table</h2>
-      <div class="metrics">
-        <div class="metric"><div class="metric-label">Players</div><div id="playersMetric" class="metric-value">0</div></div>
-        <div class="metric"><div class="metric-label">Sigils</div><div id="sigilsMetric" class="metric-value">0</div></div>
-        <div class="metric"><div class="metric-label">Host</div><div id="hostMetric" class="metric-value">None</div></div>
-        <div class="metric"><div class="metric-label">Starter</div><div id="starterMetric" class="metric-value">None</div></div>
+  <section class="card session-card">
+    <div class="section">Browser session</div>
+    <div id="sessionBox" class="session-box" style="margin-top:12px">
+      <div class="session-head"><div><div id="sessionTitle" class="session-title">Not authenticated</div><div id="sessionMeta" class="small">Claim a physical Sigil below.</div></div><button id="logoutButton" class="bad" style="display:none" onclick="logoutSession()">Log out</button></div>
+      <div id="sessionControls" style="display:none">
+        <div class="actions">
+          <button class="primary" onclick="sendControl('pass')">Pass</button>
+          <button onclick="sendControl('action')">Action</button>
+          <button onclick="sendControl('hold')">Hold Action</button>
+          <button class="good" onclick="sendControl('win')">Claim Win</button>
+        </div>
+        <div class="small" style="margin-top:10px">These controls enter Atlas through the same game-event queue as the claimed physical Sigil.</div>
       </div>
-      <div style="margin-top:10px">
-        <div class="status-line"><span class="status-label">State</span><span id="stateMetric" class="status-value">—</span></div>
-        <div class="status-line"><span class="status-label">Firmware</span><span id="firmwareMetric" class="status-value">—</span></div>
-        <div class="status-line"><span class="status-label">ESP-NOW</span><span id="espMetric" class="status-value">—</span></div>
-      </div>
-    </section>
+      <div id="claimHelp" class="small">Authentication currently binds a browser to one physical Sigil. Profile/PIN authentication will layer on top of this session system later.</div>
+      <div id="toast"></div>
+    </div>
+  </section>
 
-    <section class="card players-card">
-      <h2 class="section-title">Players</h2>
-      <div id="players" class="players"></div>
-    </section>
+  <section class="card devices-card">
+    <div class="section">Device manager</div>
+    <div id="atlasDevice" class="notice" style="margin:12px 0">Loading Atlas identity...</div>
+    <div id="devices" class="devices"></div>
+  </section>
 
-    <section class="card hardware-card">
-      <h2 class="section-title">Hardware</h2>
-      <div class="hardware">
-        <div class="hardware-main"><div><div id="hardwareCount" class="hardware-count">0</div><div class="hardware-label">Online Sigils</div></div><span id="hardwareHealth" class="badge">Checking</span></div>
-        <div id="decision" class="decision">Physical Sigils control the table.</div>
-        <div class="status-line"><span class="status-label">Master button</span><span id="masterMetric" class="status-value">Released</span></div>
-        <div class="status-line"><span class="status-label">OTA state</span><span id="otaMetric" class="status-value">Locked</span></div>
-      </div>
-    </section>
+  <section class="card players-card">
+    <div class="section">Players</div>
+    <div id="players" class="players" style="margin-top:12px"></div>
+  </section>
 
-    <section class="card guide-card">
-      <h2 class="section-title">Current controls</h2>
-      <div id="guide" class="guide"></div>
-    </section>
-
-    <section class="card flow-card">
-      <h2 class="section-title">Game flow</h2>
-      <div class="flow">
-        <div id="flowLobby" class="flow-step">Lobby</div>
-        <div id="flowStarting" class="flow-step">Starting</div>
-        <div id="flowRunning" class="flow-step">Running</div>
-        <div id="flowPaused" class="flow-step">Paused</div>
-        <div id="flowGameOver" class="flow-step">Game over</div>
-      </div>
-      <div style="margin-top:12px;color:var(--muted);font-size:.84rem;line-height:1.45">The portal mirrors Atlas state. Physical Sigils remain authoritative while browser controls are migrated back in.</div>
-    </section>
-  </div>
-
-  <div class="footer">TurnHub Atlas · ESP32 portal migration</div>
+  <section class="card system-card">
+    <div class="section">System</div>
+    <div style="margin-top:10px">
+      <div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div>
+      <div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
+      <div class="status-row"><span>Master button</span><strong id="masterMetric">Released</strong></div>
+      <div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div>
+    </div>
+  </section>
+</div>
 </div>
 <script>
+let statusData=null,deviceData=null,pendingClaim=null,pendingTimer=null;
+let sessionToken=localStorage.getItem('turnhubSessionToken')||'';
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function badge(text,cls=''){return `<span class="badge ${cls}">${esc(text)}</span>`;}
-function playerName(n){return Number(n)>0?`Player ${Number(n)}`:'None';}
-function hostName(h){return Number(h)>=0?`Sigil ${Number(h)+1}`:'None';}
-function guideRow(key,text){return `<div class="guide-row"><div class="guide-key">${esc(key)}</div><div class="guide-text">${esc(text)}</div></div>`;}
+function pName(n){return Number(n)>0?`Player ${Number(n)}`:'None';}
+function hName(n){return Number(n)>=0?`Sigil ${Number(n)+1}`:'None';}
+function authHeaders(){return sessionToken?{'X-TurnHub-Token':sessionToken}:{}}
+function toast(msg,bad=false){const e=document.getElementById('toast');e.textContent=msg;e.style.color=bad?'var(--bad)':'var(--muted)'}
+function badge(t,c=''){return `<span class="badge ${c}">${esc(t)}</span>`}
 
-function renderHero(s){
-  const eye=document.getElementById('eyebrow');
-  const title=document.getElementById('heroTitle');
-  const sub=document.getElementById('heroSub');
-  const badges=document.getElementById('heroBadges');
-  let html='';
-
-  if(s.state==='LOBBY'){
-    eye.textContent='LOBBY';
-    title.textContent=Number(s.players)?`${s.players} PLAYER${Number(s.players)===1?'':'S'}`:'READY';
-    sub.textContent=s.starter?`${playerName(s.starter)} selected to start`:'Press Action on a Sigil to join';
-    if(s.starter) html+=badge(`Starter: ${playerName(s.starter)}`,'blue');
-    if(Number(s.host)>=0) html+=badge(`${hostName(s.host)} host`,'good');
-  }else if(s.state==='STARTING'){
-    eye.textContent='STARTING';
-    title.textContent='3 · 2 · 1';
-    sub.textContent=s.starter?`${playerName(s.starter)} goes first`:'Game countdown active';
-    html+=badge('Countdown','blue');
-  }else if(s.state==='RUNNING'){
-    eye.textContent='ACTIVE TURN';
-    title.textContent=s.active?playerName(s.active).toUpperCase():'RUNNING';
-    sub.textContent='Pass from the active Sigil to advance the turn';
-    html+=badge('Game running','good');
-  }else if(s.state==='PAUSED'){
-    if(s.winConfirm){
-      eye.textContent='VICTORY CLAIM';
-      title.textContent=playerName(s.winConfirm).toUpperCase();
-      sub.textContent='Waiting for this player to confirm or deny';
-      html+=badge('Action = confirm','good')+badge('Pass = deny','bad');
-    }else if(s.eliminationTarget){
-      eye.textContent='ELIMINATION';
-      title.textContent=playerName(s.eliminationTarget).toUpperCase();
-      sub.textContent='Selected player is awaiting confirmation';
-      html+=badge('Pass = confirm','bad');
-    }else{
-      eye.textContent='GAME PAUSED';
-      title.textContent='PAUSED';
-      sub.textContent=s.active?`${playerName(s.active)} remains the active seat`:'Game clock stopped';
-      html+=badge('Paused','warn');
-    }
-  }else if(s.state==='GAME_OVER'){
-    eye.textContent='GAME OVER';
-    title.textContent=s.winner?playerName(s.winner).toUpperCase():'COMPLETE';
-    sub.textContent=s.winner?`${playerName(s.winner)} wins`:'Game complete';
-    if(s.winner) html+=badge('Winner','good');
-  }else{
-    eye.textContent='TURNHUB';
-    title.textContent=s.state||'—';
-    sub.textContent='Atlas state unavailable';
-  }
-  badges.innerHTML=html;
+function renderStatus(s){
+ statusData=s;document.getElementById('dot').className='dot online';document.getElementById('connection').textContent='Connected';
+ playersMetric.textContent=s.players;sigilsMetric.textContent=s.sigils;hostMetric.textContent=hName(s.host);starterMetric.textContent=pName(s.starter);stateMetric.textContent=s.state;firmwareMetric.textContent='v'+s.firmware;espMetric.textContent=s.espNow?'Ready':'Error';activeMetric.textContent=pName(s.active);winnerMetric.textContent=pName(s.winner);masterMetric.textContent=s.masterButton?'Pressed':'Released';otaMetric.textContent=s.otaStateAllowed?'State ready':'Game locked';
+ let title='READY',sub='Press Action on a Sigil to join',eye=s.state,bs='';
+ if(s.state==='LOBBY'){title=s.players?`${s.players} PLAYER${Number(s.players)===1?'':'S'}`:'READY';sub=s.starter?`${pName(s.starter)} selected to start`:'Press Action on a Sigil to join';if(Number(s.host)>=0)bs+=badge(`${hName(s.host)} host`,'good');if(s.starter)bs+=badge(`${pName(s.starter)} starter`,'blue')}
+ else if(s.state==='STARTING'){title='3 · 2 · 1';sub=s.starter?`${pName(s.starter)} goes first`:'Starting game';bs+=badge('Countdown','blue')}
+ else if(s.state==='RUNNING'){eye='ACTIVE TURN';title=s.active?pName(s.active).toUpperCase():'RUNNING';sub='Table is live';bs+=badge('Running','good')}
+ else if(s.state==='PAUSED'){title='PAUSED';sub=s.winConfirm?`${pName(s.winConfirm)} must confirm or deny`:s.eliminationTarget?`${pName(s.eliminationTarget)} selected`:'Game clock stopped';bs+=badge('Paused','warn')}
+ else if(s.state==='GAME_OVER'){title=s.winner?pName(s.winner).toUpperCase():'COMPLETE';sub=s.winner?'Winner confirmed':'Game complete';bs+=badge('Game over','good')}
+ eyebrow.textContent=eye;heroTitle.textContent=title;heroSub.textContent=sub;heroBadges.innerHTML=bs;
+ const cards=[];for(let i=1;i<=Number(s.players);i++){let cls='player';if(i===Number(s.active))cls+=' active';if(i===Number(s.winner))cls+=' winner';let st=i===Number(s.active)?'Active turn':i===Number(s.winner)?'Winner':'At table';cards.push(`<div class="${cls}"><div class="player-name">Player ${i}</div><div class="small">${esc(st)}</div></div>`)}players.innerHTML=cards.length?cards.join(''):'<div class="small">No players have joined yet.</div>';
 }
 
-function renderPlayers(s){
-  const root=document.getElementById('players');
-  const count=Number(s.players)||0;
-  if(!count){
-    root.innerHTML='<div class="player"><div class="player-name">Waiting for players</div><div class="player-seat">Join from a physical Sigil</div><div class="player-status">Table is ready</div></div>';
-    return;
-  }
-
-  let html='';
-  for(let n=1;n<=count;n++){
-    const classes=['player'];
-    const statuses=[];
-    if(Number(s.active)===n){classes.push('active');statuses.push('Active turn');}
-    if(Number(s.winner)===n){classes.push('winner');statuses.push('Winner');}
-    if(Number(s.eliminationTarget)===n){classes.push('target');statuses.push('Elimination selected');}
-    if(Number(s.winConfirm)===n){classes.push('confirm');statuses.push('Awaiting victory vote');}
-    if(Number(s.starter)===n && (s.state==='LOBBY'||s.state==='STARTING')) statuses.push('Starter');
-    if(!statuses.length) statuses.push(s.state==='LOBBY'?'Ready':'Waiting');
-    html+=`<div class="${classes.join(' ')}"><div class="player-name">Player ${n}</div><div class="player-seat">Logical table seat</div><div class="player-status">${esc(statuses.join(' · '))}</div></div>`;
-  }
-  root.innerHTML=html;
+function renderDevices(d){
+ deviceData=d;atlasDevice.innerHTML=`<strong>Atlas</strong> · ${esc(d.atlas.hardwareId)} · firmware ${esc(d.atlas.firmware)}`;
+ devices.innerHTML=d.devices.length?d.devices.map(x=>{const current=sessionToken&&sessionInfo&&Number(sessionInfo.module)===Number(x.id);const state=x.online?'<span class="device-state online-text">ONLINE</span>':'<span class="device-state offline-text">OFFLINE</span>';const fw=x.metadata?`Firmware ${esc(x.firmware)}`:'Firmware metadata unavailable';return `<div class="device"><div class="device-top"><div><div class="device-name">${esc(x.label)}</div><div class="mono">${esc(x.hardwareId)}</div></div>${state}</div><div class="small" style="margin-top:8px">${fw}<br>Last seen ${Math.round(Number(x.ageMs)/100)/10}s ago<br>Capabilities 0x${Number(x.capabilities).toString(16).toUpperCase()}</div><div class="actions">${current?'<button disabled>Current session</button>':`<button ${x.online?'':'disabled'} onclick="claimDevice(${Number(x.id)})">Use this Sigil</button>`}</div></div>`}).join(''):'<div class="small">No Sigils discovered yet.</div>';
 }
 
-function renderDecision(s){
-  const el=document.getElementById('decision');
-  if(s.winConfirm){
-    el.innerHTML=`<strong>Victory claim:</strong> ${esc(playerName(s.winConfirm))} is next to vote.`;
-  }else if(s.eliminationTarget){
-    el.innerHTML=`<strong>Elimination:</strong> ${esc(playerName(s.eliminationTarget))} is selected.`;
-  }else if(s.state==='GAME_OVER'){
-    el.innerHTML='<strong>Game complete.</strong> The host can rematch or clear the table.';
-  }else if(s.state==='STARTING'){
-    el.innerHTML='<strong>Starting.</strong> Countdown is active on the table.';
-  }else if(s.state==='RUNNING'){
-    el.innerHTML=`<strong>Active:</strong> ${esc(playerName(s.active))}`;
-  }else{
-    el.textContent='Physical Sigils control the table.';
-  }
+let sessionInfo=null;
+async function refreshSession(){
+ if(!sessionToken){sessionInfo=null;renderSession();return}
+ try{const r=await fetch('/api/session/me',{headers:authHeaders(),cache:'no-store'});if(!r.ok)throw 0;sessionInfo=await r.json()}catch(_){sessionToken='';sessionInfo=null;localStorage.removeItem('turnhubSessionToken')}renderSession();if(deviceData)renderDevices(deviceData)
 }
-
-function renderGuide(s){
-  let html='';
-  if(s.state==='LOBBY'){
-    html+=guideRow('Action short','Join the lobby. Once joined, select that player as starter.');
-    html+=guideRow('Action + Pass','Add or remove the second logical player on that Sigil.');
-    html+=guideRow('Host Pass','Choose a random starter when at least two players are joined.');
-    html+=guideRow('Host Action long','Arm and begin the game countdown.');
-  }else if(s.state==='STARTING'){
-    html+=guideRow('Action','Cancel the countdown and return to the lobby.');
-    html+=guideRow('Wait','Atlas starts the game when the countdown completes.');
-  }else if(s.state==='RUNNING'){
-    html+=guideRow('Active Pass','Pass to the next living player.');
-    html+=guideRow('Action long','Pause the game. The active player can continue holding toward a win claim.');
-    html+=guideRow('Atlas button','Master-pass the active turn if a Sigil is unavailable.');
-  }else if(s.state==='PAUSED'){
-    if(s.winConfirm){
-      html+=guideRow('Action short','Confirm the current victory claim when your player is requested.');
-      html+=guideRow('Pass','Deny the victory claim when your player is requested.');
-    }else if(s.eliminationTarget){
-      html+=guideRow('Action short','Cycle the selected local player when a Sigil owns two players.');
-      html+=guideRow('Pass','Confirm elimination of the selected player.');
-      html+=guideRow('Action long','Cancel elimination selection.');
-    }else{
-      html+=guideRow('Action long','Resume the game.');
-      html+=guideRow('Action + Pass','Begin elimination selection for a player on that Sigil.');
-    }
-  }else if(s.state==='GAME_OVER'){
-    html+=guideRow('Host Action short','Return joined players to a rematch lobby.');
-    html+=guideRow('Host Action long','Clear the table and return to an empty lobby.');
-  }else{
-    html+=guideRow('Sigils','Use the physical modules to control TurnHub.');
-  }
-  document.getElementById('guide').innerHTML=html;
+function renderSession(){
+ const authed=!!(sessionInfo&&sessionInfo.authenticated);sessionTitle.textContent=authed?`Controlling Sigil ${Number(sessionInfo.module)+1}`:'Not authenticated';sessionMeta.textContent=authed?(sessionInfo.hardwareId||'Authorized physical Sigil'):'Claim a physical Sigil below.';sessionControls.style.display=authed?'block':'none';logoutButton.style.display=authed?'inline-block':'none';claimHelp.style.display=authed?'none':'block';
 }
-
-function renderFlow(s){
-  const map={LOBBY:'flowLobby',STARTING:'flowStarting',RUNNING:'flowRunning',PAUSED:'flowPaused',GAME_OVER:'flowGameOver'};
-  Object.values(map).forEach(id=>document.getElementById(id).classList.remove('active'));
-  if(map[s.state]) document.getElementById(map[s.state]).classList.add('active');
+async function claimDevice(module){
+ toast(`Waiting for authorization on Sigil ${module+1}...`);try{const r=await fetch(`/api/session/request?module=${module}`,{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Claim failed');pendingClaim=d.requestId;if(pendingTimer)clearInterval(pendingTimer);pendingTimer=setInterval(pollClaim,450);toast(`Press Action on Sigil ${module+1} within 30 seconds.`)}catch(e){toast(e.message,true)}
 }
+async function pollClaim(){
+ if(!pendingClaim)return;try{const r=await fetch(`/api/session/poll?id=${encodeURIComponent(pendingClaim)}`,{cache:'no-store'});const d=await r.json();if(r.status===404){clearInterval(pendingTimer);pendingClaim=null;toast('Authorization expired. Try again.',true);return}if(d.status==='approved'){clearInterval(pendingTimer);pendingClaim=null;sessionToken=d.token;localStorage.setItem('turnhubSessionToken',sessionToken);toast(`Browser authorized for Sigil ${Number(d.module)+1}.`);await refreshSession();await refreshDevices()}}catch(_){}}
+async function logoutSession(){try{await fetch('/api/session/logout',{method:'POST',headers:authHeaders()})}catch(_){}sessionToken='';sessionInfo=null;localStorage.removeItem('turnhubSessionToken');toast('Browser session ended.');renderSession();if(deviceData)renderDevices(deviceData)}
+async function sendControl(name){
+ if(!sessionToken){toast('Claim a Sigil first.',true);return}try{const r=await fetch(`/api/control/${name}`,{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Control rejected');toast(`${name==='hold'?'Hold Action':name==='win'?'Win claim':name[0].toUpperCase()+name.slice(1)} sent.`)}catch(e){toast(e.message,true);if(String(e.message).includes('authorized'))await refreshSession()}}
 
-function render(s){
-  document.getElementById('playersMetric').textContent=s.players;
-  document.getElementById('sigilsMetric').textContent=s.sigils;
-  document.getElementById('hardwareCount').textContent=s.sigils;
-  document.getElementById('hostMetric').textContent=hostName(s.host);
-  document.getElementById('starterMetric').textContent=playerName(s.starter);
-  document.getElementById('stateMetric').textContent=s.state||'—';
-  document.getElementById('firmwareMetric').textContent=`v${s.firmware||'?'}`;
-  document.getElementById('espMetric').textContent=s.espNow?'Ready':'Error';
-  document.getElementById('masterMetric').textContent=s.masterButton?'Pressed':'Released';
-  document.getElementById('otaMetric').textContent=s.otaStateAllowed?'Available with button':'Locked during game';
-
-  const health=document.getElementById('hardwareHealth');
-  if(!s.espNow){health.textContent='Radio error';health.className='badge bad';}
-  else if(Number(s.sigils)>0){health.textContent='Online';health.className='badge good';}
-  else{health.textContent='Waiting';health.className='badge warn';}
-
-  renderHero(s);
-  renderPlayers(s);
-  renderDecision(s);
-  renderGuide(s);
-  renderFlow(s);
-}
-
-async function refresh(){
-  try{
-    const response=await fetch('/api/status',{cache:'no-store'});
-    if(!response.ok) throw new Error('status');
-    const s=await response.json();
-    render(s);
-    document.getElementById('dot').classList.add('online');
-    document.getElementById('connection').textContent='Atlas online';
-  }catch(_){
-    document.getElementById('dot').classList.remove('online');
-    document.getElementById('connection').textContent='Reconnecting';
-  }
-}
-refresh();
-setInterval(refresh,400);
+async function refreshStatus(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw 0;renderStatus(await r.json())}catch(_){dot.className='dot';connection.textContent='Disconnected'}}
+async function refreshDevices(){try{const r=await fetch('/api/devices',{cache:'no-store'});if(!r.ok)throw 0;renderDevices(await r.json())}catch(_){devices.innerHTML='<div class="small">Device API unavailable.</div>'}}
+async function boot(){await refreshSession();await Promise.all([refreshStatus(),refreshDevices()]);setInterval(refreshStatus,500);setInterval(refreshDevices,1500);setInterval(refreshSession,5000)}
+boot();
 </script>
 </body>
 </html>
 )HTML";
 
 const char DEV_HTML[] PROGMEM = R"HTML(
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#111318">
-<title>TurnHub Atlas Dev</title>
-<style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:18px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#0b0d11;color:#f3f5f7}.shell{width:min(900px,100%);margin:auto}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.links{display:flex;gap:8px}.links a{color:#111318;background:#f3f5f7;padding:8px 11px;border-radius:9px;text-decoration:none;font-family:system-ui,sans-serif;font-weight:800}.card{margin-top:14px;background:#141820;border:1px solid #2b3240;border-radius:14px;padding:14px}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#cdd6e5}.ok{color:#62d58a}.bad{color:#ef6a6a}h1{font-family:system-ui,sans-serif;margin:0}
-</style>
-</head>
-<body>
-<div class="shell">
-  <div class="top"><div><h1>Atlas Dev</h1><div id="connection">Connecting...</div></div><div class="links"><a href="/portal">Portal</a><a href="/update">Firmware</a></div></div>
-  <div class="card"><pre id="json">Waiting for status...</pre></div>
-</div>
-<script>
-async function tick(){
-  const c=document.getElementById('connection');
-  try{
-    const r=await fetch('/api/status',{cache:'no-store'});
-    if(!r.ok)throw new Error('status');
-    const s=await r.json();
-    document.getElementById('json').textContent=JSON.stringify(s,null,2);
-    c.textContent='Atlas online';c.className='ok';
-  }catch(e){c.textContent='Disconnected';c.className='bad';}
-}
-tick();setInterval(tick,400);
-</script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0d11"><title>TurnHub Dev</title><style>:root{color-scheme:dark}body{margin:0;padding:18px;background:#0b0d11;color:#f3f5f7;font-family:system-ui,sans-serif}main{max-width:1000px;margin:auto}a{color:#9fc0ff}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#141820;border:1px solid #2b3240;border-radius:14px;padding:14px;color:#cbd3df}h1{margin-bottom:4px}.muted{color:#9ca6b7}</style></head><body><main><h1>TurnHub Dev</h1><p class="muted">Live Atlas status and device inventory.</p><p><a href="/portal">Back to portal</a> · <a href="/update">Firmware update</a></p><h2>Status</h2><pre id="status">Loading...</pre><h2>Devices</h2><pre id="devices">Loading...</pre><script>async function load(){try{const [s,d]=await Promise.all([fetch('/api/status',{cache:'no-store'}),fetch('/api/devices',{cache:'no-store'})]);status.textContent=JSON.stringify(await s.json(),null,2);devices.textContent=JSON.stringify(await d.json(),null,2)}catch(e){status.textContent='Disconnected';devices.textContent='Disconnected'}}load();setInterval(load,1000);</script></main></body></html>
 )HTML";
 
 }  // namespace TurnHubWeb
