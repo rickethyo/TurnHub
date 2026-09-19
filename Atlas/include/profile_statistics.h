@@ -4,15 +4,17 @@
 
 #include "game_engine.h"
 #include "profile_store.h"
-#include "sigil_bus.h"
 
 namespace TurnHubProfileStats {
 
-// Roll one completed game into the persistent profile attached to each seat.
-// Returns the number of player profiles successfully updated.
+using ResolveProfileIdCallback = String (*)(const TurnHub::PlayerSeat &seat);
+
+// Roll one completed game into the persistent profile attached to each logical
+// player seat. Resolution is deliberately abstracted from physical hardware so
+// virtual Sigils can participate without changing the statistics engine.
 uint8_t recordCompletedGame(
     const TurnHub::GameEngine &game,
-    const TurnHub::SigilBus &sigilBus);
+    ResolveProfileIdCallback resolveProfileId);
 
 const char *resultName(TurnHubProfiles::LastGameResult result);
 String formatDuration(uint64_t milliseconds);
