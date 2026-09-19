@@ -9,6 +9,9 @@ constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
+constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
+constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
+
 // Shared ESP-NOW message types. Keep the values stable once devices begin
 // shipping so newer Atlas firmware can identify older Sigil packets.
 enum class PacketType : uint8_t {
