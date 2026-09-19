@@ -21,6 +21,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
 - [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - historical transports, message concepts, current pairing direction, and protocol design rules.
 - [Verification Backlog](VERIFICATION_BACKLOG.md) - facts that should be confirmed against physical prototypes, commits, schematics, or future design decisions.
+- [Legal and IP Working Reference](../legal/README.md) - dependency provenance, third-party notices, licensing/trademark tracking, and IP hygiene rules.
 
 ## Current architectural rule
 
@@ -40,11 +41,14 @@ Before implementing a significant feature, define:
 4. Persistence owner, if any.
 5. Rendering/presentation clients.
 6. Shared protocol/contract changes, if any.
+7. Third-party dependency/asset impact, if any, and update `docs/legal` when applicable.
 
 If those boundaries are unclear, define them before implementation proceeds.
 
 ## Document maintenance rule
 
 When a hardware or software decision changes, update the relevant reference rather than relying on chat history alone. If an implemented experiment is abandoned, preserve it in the generation history and mark it historical instead of rewriting history to imply it never existed.
+
+When a new external dependency, asset, reference design, copied implementation, or third-party branding reference enters the project, update the legal/IP working reference in the same development cycle.
 
 Last reconstructed: 2026-09-19
