@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turnhub.local/schema/intent-result-v0.1.json",
+  "title": "TurnHub Intent Result v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requestId", "status", "revision"],
+  "properties": {
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ACCEPTED",
+        "REJECTED",
+        "UNSUPPORTED",
+        "INVALID_ACTOR",
+        "INVALID_STATE",
+        "UNAUTHORIZED",
+        "CONFLICT"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
