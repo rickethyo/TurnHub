@@ -7,6 +7,8 @@
 #include "config.h"
 #include "firmware_version.h"
 #include "game_engine.h"
+#include "intent.h"
+#include "intent_dispatcher.h"
 #include "led_renderer.h"
 #include "lobby.h"
 #include "ota_manager.h"
@@ -22,6 +24,12 @@ namespace {
 using TurnHub::AudioController;
 using TurnHub::GameEngine;
 using TurnHub::HubState;
+using TurnHub::Intent;
+using TurnHub::IntentDispatcher;
+using TurnHub::IntentOrigin;
+using TurnHub::IntentResult;
+using TurnHub::IntentStatus;
+using TurnHub::IntentType;
 using TurnHub::INVALID_ID;
 using TurnHub::LedRenderer;
 using TurnHub::Lobby;
@@ -52,6 +60,7 @@ bool otaAllowed();
 SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
 Lobby lobby;
 GameEngine game;
+IntentDispatcher intents;
 LedRenderer leds(sigilBus);
 AudioController audio(sigilBus);
 OtaManager ota(server, otaAllowed);
@@ -73,6 +82,7 @@ struct PendingPassState {
   bool active = false;
   PlayerSeat seat;
   uint32_t requestedAtMs = 0;
+  IntentOrigin origin = IntentOrigin::Unknown;
 };
 
 enum class PassRequestResult : uint8_t {
@@ -84,6 +94,20 @@ enum class PassRequestResult : uint8_t {
 PendingPassState pendingPass;
 bool suppressActionAfterPassCancel[MAX_PHYSICAL_SIGILS] = {};
 uint32_t suppressActionReleasedAtMs[MAX_PHYSICAL_SIGILS] = {};
+
+const char *intentOriginName(IntentOrigin origin) {
+  switch (origin) {
+    case IntentOrigin::PhysicalSigil: return "SIGIL";
+    case IntentOrigin::Browser: return "BROWSER";
+    case IntentOrigin::AndroidApp: return "ANDROID";
+    case IntentOrigin::AtlasHardware: return "ATLAS";
+    case IntentOrigin::Simulator: return "SIMULATOR";
+    case IntentOrigin::System: return "SYSTEM";
+    case IntentOrigin::Unknown:
+    default:
+      return "UNKNOWN";
+  }
+}
 
 String generateWifiPassword() {
   String password;
@@ -203,6 +227,8 @@ void clearPendingPass(const char *reason) {
 
   Serial.print("ATLAS|GAME|PASS|CANCEL|PLAYER|");
   Serial.print(pendingPass.seat.playerNumber);
+  Serial.print("|ORIGIN|");
+  Serial.print(intentOriginName(pendingPass.origin));
   if (reason != nullptr && reason[0] != '\0') {
     Serial.print("|REASON|");
     Serial.print(reason);
@@ -221,7 +247,10 @@ bool cancelPendingPassForModule(uint8_t sigilId, const char *reason) {
   return true;
 }
 
-PassRequestResult requestPass(const PlayerSeat &seat, uint32_t nowMs) {
+PassRequestResult requestPass(
+    const PlayerSeat &seat,
+    uint32_t nowMs,
+    IntentOrigin origin) {
   if (hubState != HubState::Running) {
     return PassRequestResult::Rejected;
   }
@@ -242,13 +271,80 @@ PassRequestResult requestPass(const PlayerSeat &seat, uint32_t nowMs) {
   pendingPass.active = true;
   pendingPass.seat = seat;
   pendingPass.requestedAtMs = nowMs;
+  pendingPass.origin = origin;
 
   Serial.print("ATLAS|GAME|PASS|PENDING|PLAYER|");
   Serial.print(seat.playerNumber);
+  Serial.print("|ORIGIN|");
+  Serial.print(intentOriginName(origin));
   Serial.print("|GRACE_MS|");
   Serial.println(PASS_GRACE_MS);
   leds.invalidateAll();
   return PassRequestResult::Armed;
+}
+
+IntentResult handlePassIntent(const Intent &intent, void *) {
+  if (hubState != HubState::Running) {
+    return IntentResult::reject(
+        IntentStatus::InvalidState,
+        "Pass is only available during a running game");
+  }
+
+  const PlayerSeat *active = game.activePlayer();
+  if (active == nullptr) {
+    return IntentResult::reject(
+        IntentStatus::InvalidState,
+        "There is no active player");
+  }
+
+  if (
+      intent.actor.playerNumber != active->playerNumber ||
+      intent.actor.moduleId != active->moduleId ||
+      intent.actor.slot != active->slot) {
+    return IntentResult::reject(
+        IntentStatus::Unauthorized,
+        "It is not this seat's turn");
+  }
+
+  Serial.print("ATLAS|INTENT|PASS|ORIGIN|");
+  Serial.print(intentOriginName(intent.actor.origin));
+  Serial.print("|PLAYER|");
+  Serial.println(active->playerNumber);
+
+  const PassRequestResult result = requestPass(
+      *active,
+      millis(),
+      intent.actor.origin);
+
+  if (result == PassRequestResult::Armed) {
+    return IntentResult::accept(
+        "Pass queued. Press Pass or Action within 3 seconds to cancel.");
+  }
+  if (result == PassRequestResult::Cancelled) {
+    return IntentResult::accept("Pending pass cancelled");
+  }
+
+  return IntentResult::reject(
+      IntentStatus::Conflict,
+      "Atlas rejected the pass");
+}
+
+IntentResult dispatchPassIntent(IntentOrigin origin, const PlayerSeat &seat) {
+  Intent intent;
+  intent.type = IntentType::Pass;
+  intent.actor.origin = origin;
+  intent.actor.moduleId = seat.moduleId;
+  intent.actor.slot = seat.slot;
+  intent.actor.playerNumber = seat.playerNumber;
+  return intents.dispatch(intent);
+}
+
+bool configureIntentHandlers() {
+  const bool passBound = intents.bind(IntentType::Pass, handlePassIntent);
+  Serial.println(passBound
+                     ? "ATLAS|INTENT|PASS|BOUND"
+                     : "ATLAS|INTENT|PASS|BIND_FAILED");
+  return passBound;
 }
 
 void updatePendingPass(uint32_t nowMs) {
@@ -280,7 +376,9 @@ void updatePendingPass(uint32_t nowMs) {
           DEFAULT_WARNING_MS,
           committing.requestedAtMs)) {
     Serial.print("ATLAS|GAME|PASS|COMMIT_REJECTED|PLAYER|");
-    Serial.println(committing.seat.playerNumber);
+    Serial.print(committing.seat.playerNumber);
+    Serial.print("|ORIGIN|");
+    Serial.println(intentOriginName(committing.origin));
     leds.invalidateAll();
     return;
   }
@@ -289,7 +387,9 @@ void updatePendingPass(uint32_t nowMs) {
   Serial.print("ATLAS|GAME|PASS|COMMIT|");
   Serial.print(committing.seat.playerNumber);
   Serial.print("->");
-  Serial.println(current != nullptr ? current->playerNumber : 0);
+  Serial.print(current != nullptr ? current->playerNumber : 0);
+  Serial.print("|ORIGIN|");
+  Serial.println(intentOriginName(committing.origin));
 
   if (current != nullptr) {
     if (committing.seat.moduleId == current->moduleId) {
@@ -599,28 +699,9 @@ bool handleWebControl(
     }
 
     case WebControl::Pass: {
-      if (hubState != HubState::Running) {
-        message = "Pass is only available during a running game";
-        return false;
-      }
-      const PlayerSeat *active = game.activePlayer();
-      if (active == nullptr || !active->sameSeat(seat)) {
-        message = "It is not this seat's turn";
-        return false;
-      }
-
-      const PassRequestResult result = requestPass(seat, nowMs);
-      if (result == PassRequestResult::Armed) {
-        message = "Pass queued. Press Pass or Action within 3 seconds to cancel.";
-        return true;
-      }
-      if (result == PassRequestResult::Cancelled) {
-        message = "Pending pass cancelled";
-        return true;
-      }
-
-      message = "Atlas rejected the pass";
-      return false;
+      const IntentResult result = dispatchPassIntent(IntentOrigin::Browser, seat);
+      message = result.message;
+      return result.accepted();
     }
 
     case WebControl::PauseResume: {
@@ -898,7 +979,7 @@ void handlePass(uint8_t sigilId) {
     return;
   }
 
-  requestPass(*active, millis());
+  dispatchPassIntent(IntentOrigin::PhysicalSigil, *active);
 }
 
 void handleActionDown(uint8_t sigilId) {
@@ -1266,11 +1347,18 @@ void updateMasterButton() {
   if (currentState == HIGH && hubState == HubState::Running) {
     const PlayerSeat *active = game.activePlayer();
     if (active != nullptr) {
-      const PassRequestResult result = requestPass(*active, millis());
-      if (result == PassRequestResult::Armed) {
-        Serial.println("ATLAS|MASTER_BUTTON|PASS_PENDING");
-      } else if (result == PassRequestResult::Cancelled) {
-        Serial.println("ATLAS|MASTER_BUTTON|PASS_CANCELLED");
+      const IntentResult result = dispatchPassIntent(
+          IntentOrigin::AtlasHardware,
+          *active);
+      if (result.accepted()) {
+        if (pendingPass.active && pendingPass.seat.sameSeat(*active)) {
+          Serial.println("ATLAS|MASTER_BUTTON|PASS_PENDING");
+        } else {
+          Serial.println("ATLAS|MASTER_BUTTON|PASS_CANCELLED");
+        }
+      } else {
+        Serial.print("ATLAS|MASTER_BUTTON|PASS_REJECTED|");
+        Serial.println(result.message);
       }
     }
   }
@@ -1336,6 +1424,7 @@ void setup() {
   Serial.print("ATLAS|BOOT|");
   Serial.println(TurnHubFirmware::VERSION);
 
+  configureIntentHandlers();
   startNetworking();
 
   Serial.println("ATLAS|READY");
