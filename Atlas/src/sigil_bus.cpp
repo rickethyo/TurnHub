@@ -1,5 +1,6 @@
 #include "sigil_bus.h"
 
+#include <Preferences.h>
 #include <WiFi.h>
 #include <cstring>
 
@@ -9,6 +10,34 @@ namespace TurnHub {
 
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
+
+namespace {
+
+String profileKeyForMac(char prefix, const uint8_t mac[6], uint8_t slot) {
+  char key[16];
+  snprintf(
+      key,
+      sizeof(key),
+      "%c%02X%02X%02X%02X%02X%02X%c",
+      prefix,
+      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+      slot == 1 ? 'A' : 'B');
+  return String(key);
+}
+
+String displaySafeName(const String &name) {
+  String safe;
+  safe.reserve(TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH);
+  for (size_t i = 0;
+       i < name.length() && safe.length() < TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH;
+       ++i) {
+    const uint8_t c = static_cast<uint8_t>(name[i]);
+    safe += (c >= 0x20 && c <= 0x7E) ? static_cast<char>(c) : '?';
+  }
+  return safe;
+}
+
+}  // namespace
 
 SigilBus *SigilBus::instance_ = nullptr;
 
@@ -60,6 +89,13 @@ bool SigilBus::poll(SigilEvent &event) {
 
   if (xQueueReceive(eventQueue_, &event, 0) != pdTRUE) {
     return false;
+  }
+
+  // Keep profile/NVS work out of the ESP-NOW callback. A Sigil asks for its
+  // display profile over ESP-NOW, then the main-loop consumer performs the
+  // Preferences read and queues the response packets here.
+  if (event.physical && event.type == PacketType::DisplayProfileRequest) {
+    syncDisplayProfile(event.sigilId);
   }
 
   // Physical confirmation is deliberately handled in the main-loop consumer,
@@ -170,7 +206,6 @@ void SigilBus::txTaskLoop() {
 
     uint8_t retry = 0;
     for (;;) {
-      // Clear a stale completion notification before beginning this send.
       ulTaskNotifyTake(pdTRUE, 0);
 
       const esp_err_t result = esp_now_send(
@@ -179,9 +214,6 @@ void SigilBus::txTaskLoop() {
           sizeof(request.packet));
 
       if (result == ESP_OK) {
-        // Espressif recommends waiting for the send callback before starting
-        // the next ESP-NOW transmission. This prevents burst traffic from
-        // exhausting the Wi-Fi transmit buffers.
         if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250)) == 0) {
           Serial.println("ATLAS|ESP_NOW|SEND_TIMEOUT");
         }
@@ -241,6 +273,7 @@ void SigilBus::handleReceive(
     case PacketType::ActionShort:
     case PacketType::ActionLong:
     case PacketType::ActionWin:
+    case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
       enqueue(*sigil, packet);
       break;
@@ -292,8 +325,6 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
 }
 
 void SigilBus::updateHelloInfo(SigilRecord &sigil, int32_t value) {
-  // Older Sigil firmware sent Hello.value = 0. Keep it fully compatible, but
-  // report its firmware as unknown instead of presenting a fake v0.0.0.
   if (value == 0) {
     sigil.helloInfoValid = false;
     sigil.firmwareMajor = 0;
@@ -408,6 +439,74 @@ void SigilBus::enqueue(
   event.value = packet.value;
   event.physical = true;
   xQueueSend(eventQueue_, &event, 0);
+}
+
+bool SigilBus::sendDisplayName(
+    uint8_t sigilId,
+    uint8_t slot,
+    const String &name) {
+  if (slot != 1 && slot != 2) {
+    return false;
+  }
+
+  const String safe = displaySafeName(name);
+  const uint8_t length = static_cast<uint8_t>(safe.length());
+  const uint8_t chunkCount = length == 0
+      ? 1
+      : static_cast<uint8_t>(
+          (length + TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS - 1) /
+          TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS);
+
+  bool ok = true;
+  for (uint8_t chunk = 0; chunk < chunkCount; ++chunk) {
+    const uint8_t offset = chunk * TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS;
+    char chars[TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS] = {};
+    for (uint8_t i = 0; i < TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS; ++i) {
+      const uint8_t index = offset + i;
+      if (index < length) {
+        chars[i] = safe[index];
+      }
+    }
+
+    const int32_t payload = TurnHubProtocol::encodeDisplayNameChunk(
+        slot,
+        chunk,
+        chunk + 1 == chunkCount,
+        chars[0],
+        chars[1],
+        chars[2]);
+    ok = send(sigilId, PacketType::DisplayNameChunk, payload) && ok;
+  }
+  return ok;
+}
+
+void SigilBus::syncDisplayProfile(uint8_t sigilId) {
+  const SigilRecord *sigil = record(sigilId);
+  if (sigil == nullptr) {
+    return;
+  }
+
+  Preferences prefs;
+  if (!prefs.begin("turnhub", true)) {
+    Serial.println("ATLAS|DISPLAY_PROFILE|PREFS_ERROR");
+    return;
+  }
+
+  const String nameA = prefs.getString(
+      profileKeyForMac('n', sigil->mac, 1).c_str(), "");
+  const String nameB = prefs.getString(
+      profileKeyForMac('n', sigil->mac, 2).c_str(), "");
+  prefs.end();
+
+  sendDisplayName(sigilId, 1, nameA);
+  sendDisplayName(sigilId, 2, nameB);
+
+  Serial.print("ATLAS|DISPLAY_PROFILE|SYNC|SIGIL|");
+  Serial.print(sigilId);
+  Serial.print("|A|");
+  Serial.print(displaySafeName(nameA));
+  Serial.print("|B|");
+  Serial.println(displaySafeName(nameB));
 }
 
 void SigilBus::printMac(const uint8_t *mac) {
