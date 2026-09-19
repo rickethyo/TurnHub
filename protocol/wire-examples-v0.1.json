@@ -1,0 +1,135 @@
+{
+  "protocolVersion": "0.1",
+  "examples": [
+    {
+      "name": "android_pass",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-pass-001",
+        "clientId": "android-demo-01",
+        "origin": "ANDROID_APP",
+        "expectedRevision": 42,
+        "type": "PASS",
+        "actor": {
+          "moduleId": 2,
+          "slot": 0,
+          "playerNumber": 3,
+          "sessionId": "session-demo-player-3"
+        },
+        "payload": {}
+      },
+      "result": {
+        "requestId": "req-pass-001",
+        "status": "ACCEPTED",
+        "message": "Pass queued",
+        "revision": 42
+      }
+    },
+    {
+      "name": "browser_pause",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-pause-001",
+        "clientId": "browser-demo-01",
+        "origin": "BROWSER",
+        "expectedRevision": 57,
+        "type": "PAUSE",
+        "actor": {
+          "moduleId": 1,
+          "slot": 0,
+          "playerNumber": 2,
+          "sessionId": "session-demo-player-2"
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "browser_resume",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-resume-001",
+        "clientId": "browser-demo-01",
+        "origin": "BROWSER",
+        "expectedRevision": 58,
+        "type": "RESUME",
+        "actor": {
+          "moduleId": 1,
+          "slot": 0,
+          "playerNumber": 2,
+          "sessionId": "session-demo-player-2"
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "sigil_concede",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-concede-001",
+        "clientId": "sigil-04",
+        "origin": "PHYSICAL_SIGIL",
+        "type": "CONCEDE",
+        "actor": {
+          "moduleId": 4,
+          "slot": 0,
+          "playerNumber": 5
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "android_claim_win",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-win-claim-001",
+        "clientId": "android-demo-02",
+        "origin": "ANDROID_APP",
+        "expectedRevision": 73,
+        "type": "CLAIM_WIN",
+        "actor": {
+          "moduleId": 3,
+          "slot": 0,
+          "playerNumber": 4,
+          "sessionId": "session-demo-player-4"
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "browser_confirm_win",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-win-confirm-001",
+        "clientId": "browser-demo-03",
+        "origin": "BROWSER",
+        "expectedRevision": 74,
+        "type": "CONFIRM_WIN",
+        "actor": {
+          "moduleId": 0,
+          "slot": 0,
+          "playerNumber": 1,
+          "sessionId": "session-demo-player-1"
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "browser_deny_win",
+      "intent": {
+        "protocolVersion": "0.1",
+        "requestId": "req-win-deny-001",
+        "clientId": "browser-demo-03",
+        "origin": "BROWSER",
+        "expectedRevision": 74,
+        "type": "DENY_WIN",
+        "actor": {
+          "moduleId": 0,
+          "slot": 0,
+          "playerNumber": 1,
+          "sessionId": "session-demo-player-1"
+        },
+        "payload": {}
+      }
+    }
+  ]
+}
