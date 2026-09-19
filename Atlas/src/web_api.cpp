@@ -833,6 +833,8 @@ void handleProfile(WebServer &server) {
     return;
   }
 
+  bool displayProfileChanged = false;
+
   if (server.hasArg("name")) {
     String name = server.arg("name");
     name.trim();
@@ -845,6 +847,7 @@ void handleProfile(WebServer &server) {
     } else {
       preferences.putString(key.c_str(), name);
     }
+    displayProfileChanged = true;
   }
 
   if (server.hasArg("pin")) {
@@ -865,6 +868,15 @@ void handleProfile(WebServer &server) {
   if (server.hasArg("clearPin") && server.arg("clearPin") == "1") {
     const String key = profileKey('p', record->mac, session->slot);
     preferences.remove(key.c_str());
+  }
+
+  if (
+      displayProfileChanged &&
+      record->helloInfoValid &&
+      (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE) != 0) {
+    bus->send(
+        session->moduleId,
+        TurnHubProtocol::PacketType::DisplayProfileRequest);
   }
 
   sendJson(server, 200, "{\"ok\":true}");

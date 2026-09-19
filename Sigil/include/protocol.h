@@ -9,6 +9,11 @@ constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
+constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
+constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
+
+// Shared ESP-NOW message types. Keep the values stable once devices begin
+// shipping so newer Atlas firmware can identify older Sigil packets.
 enum class PacketType : uint8_t {
   Hello = 1,
   Ack = 2,
@@ -67,6 +72,7 @@ inline int32_t encodeHelloInfo(
       (static_cast<uint32_t>(firmwareMinor) << 16) |
       (static_cast<uint32_t>(firmwareMajor) << 24));
 }
+
 inline uint8_t helloCapabilities(int32_t value) {
   return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
 }
@@ -128,6 +134,9 @@ inline uint8_t displayTurnNumber(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
 }
 
+// Player names are sent separately from fast-changing DisplayState packets.
+// Each packet carries three printable name bytes. Header layout:
+// bits 0..1 = seat (1=A, 2=B), bits 2..5 = chunk index, bit 7 = final chunk.
 inline int32_t encodeDisplayNameChunk(
     uint8_t slot,
     uint8_t chunkIndex,

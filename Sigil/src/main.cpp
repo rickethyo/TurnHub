@@ -26,7 +26,9 @@ constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 
 // All production Sigils use the same firmware and standard display hardware.
-constexpr uint8_t DEVICE_CAPABILITIES = 0x01;
+constexpr uint8_t DEVICE_CAPABILITIES =
+    TurnHubProtocol::CAPABILITY_DISPLAY |
+    TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t LONG_PRESS_MS = 2000;
@@ -34,6 +36,9 @@ constexpr uint32_t WIN_HOLD_MS = 5000;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PASS_ACK_FLASH_MS = 250;
 constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
+constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
+constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
+constexpr uint8_t PROFILE_SLOT_MASK = 0x03;
 
 constexpr uint8_t BROADCAST_MAC[6] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -66,6 +71,17 @@ volatile bool displayNeedsRefresh = false;
 volatile int32_t displayPayload = 0;
 uint8_t displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
 TaskHandle_t displayTaskHandle = nullptr;
+
+portMUX_TYPE displayProfileMux = portMUX_INITIALIZER_UNLOCKED;
+char pendingSeatNames[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+uint16_t receivedNameChunks[2] = {};
+uint8_t finalNameChunk[2] = {0xFF, 0xFF};
+volatile uint8_t pendingSeatNameMask = 0;
+volatile uint8_t completedProfileSlotMask = 0;
+volatile bool profileSyncStartPending = false;
+bool profileRequestActive = false;
+uint8_t profileRequestAttempts = 0;
+uint32_t lastProfileRequestMs = 0;
 
 void printMac(const uint8_t *mac) {
   Serial.printf(
@@ -174,7 +190,155 @@ void queueReadyDisplay() {
   notifyDisplayTask();
 }
 
+void startDisplayProfileSync() {
+  portENTER_CRITICAL(&displayProfileMux);
+  memset(pendingSeatNames, 0, sizeof(pendingSeatNames));
+  memset(receivedNameChunks, 0, sizeof(receivedNameChunks));
+  finalNameChunk[0] = 0xFF;
+  finalNameChunk[1] = 0xFF;
+  pendingSeatNameMask = 0;
+  completedProfileSlotMask = 0;
+  portEXIT_CRITICAL(&displayProfileMux);
+
+  profileRequestActive = true;
+  profileRequestAttempts = 0;
+  lastProfileRequestMs = 0;
+}
+
+bool applyPendingSeatNames() {
+  char localNames[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+  uint8_t mask = 0;
+
+  portENTER_CRITICAL(&displayProfileMux);
+  mask = pendingSeatNameMask;
+  for (uint8_t index = 0; index < 2; ++index) {
+    if ((mask & (1u << index)) != 0) {
+      memcpy(localNames[index], pendingSeatNames[index], sizeof(localNames[index]));
+    }
+  }
+  pendingSeatNameMask = 0;
+  portEXIT_CRITICAL(&displayProfileMux);
+
+  if ((mask & 0x01u) != 0) {
+    sigilDisplay.setSeatName(1, localNames[0]);
+  }
+  if ((mask & 0x02u) != 0) {
+    sigilDisplay.setSeatName(2, localNames[1]);
+  }
+
+  return mask != 0;
+}
+
+void handleDisplayNameChunk(int32_t value) {
+  const uint8_t slot = TurnHubProtocol::displayNameSlot(value);
+  if (slot != 1 && slot != 2) {
+    return;
+  }
+
+  const uint8_t chunkIndex = TurnHubProtocol::displayNameChunkIndex(value);
+  const uint8_t offset =
+      chunkIndex * TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS;
+  if (offset >= TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH) {
+    return;
+  }
+
+  const uint8_t index = slot - 1;
+  bool completed = false;
+
+  portENTER_CRITICAL(&displayProfileMux);
+  char *target = pendingSeatNames[index];
+
+  if (chunkIndex == 0) {
+    memset(target, 0, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1);
+    receivedNameChunks[index] = 0;
+    finalNameChunk[index] = 0xFF;
+  }
+
+  for (uint8_t i = 0; i < TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS; ++i) {
+    const uint8_t targetIndex = offset + i;
+    if (targetIndex >= TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH) {
+      break;
+    }
+    target[targetIndex] = TurnHubProtocol::displayNameChar(value, i);
+  }
+  target[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH] = '\0';
+
+  receivedNameChunks[index] |= static_cast<uint16_t>(1u << chunkIndex);
+  if (TurnHubProtocol::displayNameFinalChunk(value)) {
+    finalNameChunk[index] = chunkIndex;
+  }
+
+  if (finalNameChunk[index] != 0xFF) {
+    const uint16_t expectedMask = static_cast<uint16_t>(
+        (1u << (finalNameChunk[index] + 1u)) - 1u);
+    if ((receivedNameChunks[index] & expectedMask) == expectedMask) {
+      pendingSeatNameMask |= static_cast<uint8_t>(1u << index);
+      completedProfileSlotMask |= static_cast<uint8_t>(1u << index);
+      completed = true;
+    }
+  }
+  portEXIT_CRITICAL(&displayProfileMux);
+
+  if (completed) {
+    Serial.print("SIGIL|DISPLAY_PROFILE|SEAT|");
+    Serial.print(slot == 1 ? 'A' : 'B');
+    Serial.println("|READY");
+    displayNeedsRefresh = true;
+    notifyDisplayTask();
+  }
+}
+
+void updateDisplayProfileSync() {
+  if (profileSyncStartPending) {
+    profileSyncStartPending = false;
+    startDisplayProfileSync();
+  }
+
+  if (!profileRequestActive) {
+    return;
+  }
+
+  uint8_t completedMask = 0;
+  portENTER_CRITICAL(&displayProfileMux);
+  completedMask = completedProfileSlotMask;
+  portEXIT_CRITICAL(&displayProfileMux);
+
+  if ((completedMask & PROFILE_SLOT_MASK) == PROFILE_SLOT_MASK) {
+    profileRequestActive = false;
+    Serial.println("SIGIL|DISPLAY_PROFILE|SYNC|COMPLETE");
+    return;
+  }
+
+  if (!espNowReady || !atlasKnown || sigilId == UNASSIGNED_SIGIL_ID) {
+    return;
+  }
+
+  const uint32_t nowMs = millis();
+  if (
+      profileRequestAttempts != 0 &&
+      nowMs - lastProfileRequestMs < PROFILE_REQUEST_RETRY_MS) {
+    return;
+  }
+
+  if (profileRequestAttempts >= PROFILE_REQUEST_MAX_ATTEMPTS) {
+    profileRequestActive = false;
+    Serial.print("SIGIL|DISPLAY_PROFILE|SYNC|INCOMPLETE|MASK|0x");
+    Serial.println(completedMask, HEX);
+    return;
+  }
+
+  sendPacket(PacketType::DisplayProfileRequest);
+  ++profileRequestAttempts;
+  lastProfileRequestMs = nowMs;
+  Serial.print("SIGIL|DISPLAY_PROFILE|REQUEST|");
+  Serial.println(profileRequestAttempts);
+}
+
 void updateDisplay() {
+  if (applyPendingSeatNames()) {
+    displayNeedsRefresh = true;
+  }
+
   const uint8_t currentSigilId = sigilId;
 
   if (
@@ -293,6 +457,7 @@ void handleEspNowReceive(
 
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
+      profileSyncStartPending = true;
       queueReadyDisplay();
       Serial.print("SIGIL|ID|");
       Serial.println(sigilId);
@@ -335,6 +500,14 @@ void handleEspNowReceive(
 
     case PacketType::Buzzer:
       playBuzzerPayload(packet.value);
+      break;
+
+    case PacketType::DisplayProfileRequest:
+      profileSyncStartPending = true;
+      break;
+
+    case PacketType::DisplayNameChunk:
+      handleDisplayNameChunk(packet.value);
       break;
 
     case PacketType::DisplayState:
@@ -520,6 +693,7 @@ void loop() {
   updateActionButton();
   updateGreenFlash();
   updateBuzzer();
+  updateDisplayProfileSync();
 
   if (displayTaskHandle == nullptr) {
     // Safe fallback if the display worker could not be created.
