@@ -99,7 +99,7 @@ Rapid opposite-direction edits should be treated as **potential corrections** ra
 
 - affect the same player
 - come from the same actor or input source
-- occur within roughly two seconds
+- occur within one second
 - reverse direction
 - have no conflicting intervening life event
 - look like a small correction to the preceding edit
@@ -107,6 +107,19 @@ Rapid opposite-direction edits should be treated as **potential corrections** ra
 For example, `40 -> 48 -> 47` entered rapidly by the same player should normally aggregate as a net `+7` life gain rather than `+8 gained` and `1 lost`. The raw `+8` and `-1` events should still remain in the game log, marked as a correction relationship, so the audit history stays truthful.
 
 This distinction lets TurnHub later provide life graphs, per-game life gained/lost, Commander-damage history, undo/revert handling, and spectator timelines without rewriting the source data model.
+
+## First-run provisioning direction
+
+Atlas is moving toward an out-of-box setup flow rather than assuming a permanently preconfigured standalone access point. The detailed design is in [`OOBE.md`](OOBE.md).
+
+The intended direction is:
+
+- first boot enters a deliberate Setup Mode
+- setup creates the initial owner/admin profile using the same profile/permission system as normal users
+- the owner chooses Standalone mode or optional Home/LAN mode
+- Home/LAN mode lets Atlas join an existing 2.4 GHz Wi-Fi network
+- Atlas always retains a physical-button recovery path and local fallback network
+- home-network support is not enabled as a default until Sigils can dynamically follow Atlas to the infrastructure Wi-Fi channel required by ESP-NOW
 
 ## Build and upload
 
@@ -134,4 +147,4 @@ After boot, connect a phone or computer to the Atlas access point and browse to 
 
 The ESP32 port is being moved toward clear modules rather than one large firmware file. Current major boundaries include the game engine, lobby, ESP-NOW Sigil bus, LED/audio renderers, OTA manager, web API/pages, profile store, and profile statistics service.
 
-Next larger layers include virtual Sigil integration, richer gameplay data such as life totals and Commander damage, profile selection/rebinding in the portal, and continued efficiency/refactoring work.
+Next larger layers include virtual Sigil integration, richer gameplay data such as life totals and Commander damage, profile selection/rebinding in the portal, first-run provisioning/network modes, and continued efficiency/refactoring work.
