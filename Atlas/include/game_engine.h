@@ -15,7 +15,11 @@ enum class WarningPhase : uint8_t {
 
 class GameEngine {
  public:
+  using GameCompletedCallback = void (*)(const GameEngine &game);
+
   GameEngine();
+
+  static void setGameCompletedCallback(GameCompletedCallback callback);
 
   bool start(
       const PlayerSeat *players,
@@ -87,6 +91,8 @@ class GameEngine {
 
   void clearWinClaim();
   void finishGame(uint8_t winnerPlayer, uint32_t nowMs);
+
+  static GameCompletedCallback gameCompletedCallback_;
 
   PlayerSeat players_[MAX_PLAYERS];
   PlayerStats stats_[MAX_PLAYERS];
