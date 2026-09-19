@@ -38,6 +38,8 @@ using TurnHubWebApi::WebControl;
 
 constexpr uint32_t DEBOUNCE_MS = 25;
 constexpr uint32_t START_COUNTDOWN_MS = 3000;
+constexpr uint32_t PASS_GRACE_MS = 3000;
+constexpr uint32_t ACTION_CANCEL_RELEASE_CLEAR_MS = 250;
 constexpr uint32_t DEFAULT_WARNING_MS = 0;
 constexpr uint8_t WIFI_PASSWORD_LENGTH = 16;
 constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
@@ -66,6 +68,22 @@ bool eliminationChord[MAX_PHYSICAL_SIGILS] = {};
 bool suppressEliminationShort[MAX_PHYSICAL_SIGILS] = {};
 uint8_t winArmedModule = INVALID_ID;
 uint8_t winArmedPlayer = 0;
+
+struct PendingPassState {
+  bool active = false;
+  PlayerSeat seat;
+  uint32_t requestedAtMs = 0;
+};
+
+enum class PassRequestResult : uint8_t {
+  Rejected,
+  Armed,
+  Cancelled,
+};
+
+PendingPassState pendingPass;
+bool suppressActionAfterPassCancel[MAX_PHYSICAL_SIGILS] = {};
+uint32_t suppressActionReleasedAtMs[MAX_PHYSICAL_SIGILS] = {};
 
 String generateWifiPassword() {
   String password;
@@ -178,13 +196,134 @@ bool resolveWebSeat(
   return true;
 }
 
+void clearPendingPass(const char *reason) {
+  if (!pendingPass.active) {
+    return;
+  }
+
+  Serial.print("ATLAS|GAME|PASS|CANCEL|PLAYER|");
+  Serial.print(pendingPass.seat.playerNumber);
+  if (reason != nullptr && reason[0] != '\0') {
+    Serial.print("|REASON|");
+    Serial.print(reason);
+  }
+  Serial.println();
+
+  pendingPass = PendingPassState{};
+  leds.invalidateAll();
+}
+
+bool cancelPendingPassForModule(uint8_t sigilId, const char *reason) {
+  if (!pendingPass.active || pendingPass.seat.moduleId != sigilId) {
+    return false;
+  }
+  clearPendingPass(reason);
+  return true;
+}
+
+PassRequestResult requestPass(const PlayerSeat &seat, uint32_t nowMs) {
+  if (hubState != HubState::Running) {
+    return PassRequestResult::Rejected;
+  }
+
+  const PlayerSeat *active = game.activePlayer();
+  if (active == nullptr || !active->sameSeat(seat)) {
+    return PassRequestResult::Rejected;
+  }
+
+  if (pendingPass.active) {
+    if (pendingPass.seat.sameSeat(seat)) {
+      clearPendingPass("PASS");
+      return PassRequestResult::Cancelled;
+    }
+    return PassRequestResult::Rejected;
+  }
+
+  pendingPass.active = true;
+  pendingPass.seat = seat;
+  pendingPass.requestedAtMs = nowMs;
+
+  Serial.print("ATLAS|GAME|PASS|PENDING|PLAYER|");
+  Serial.print(seat.playerNumber);
+  Serial.print("|GRACE_MS|");
+  Serial.println(PASS_GRACE_MS);
+  leds.invalidateAll();
+  return PassRequestResult::Armed;
+}
+
+void updatePendingPass(uint32_t nowMs) {
+  if (!pendingPass.active) {
+    return;
+  }
+
+  const PlayerSeat *active = game.activePlayer();
+  if (
+      hubState != HubState::Running ||
+      active == nullptr ||
+      !active->sameSeat(pendingPass.seat)) {
+    clearPendingPass("STATE_CHANGE");
+    return;
+  }
+
+  if (nowMs - pendingPass.requestedAtMs < PASS_GRACE_MS) {
+    return;
+  }
+
+  const PendingPassState committing = pendingPass;
+  pendingPass = PendingPassState{};
+
+  // Commit the transition using the original pass timestamp. The outgoing
+  // player's recorded turn therefore ends when Pass was pressed, while the
+  // incoming player's clock includes the grace window that just elapsed.
+  if (!game.passTurn(
+          committing.seat.moduleId,
+          DEFAULT_WARNING_MS,
+          committing.requestedAtMs)) {
+    Serial.print("ATLAS|GAME|PASS|COMMIT_REJECTED|PLAYER|");
+    Serial.println(committing.seat.playerNumber);
+    leds.invalidateAll();
+    return;
+  }
+
+  const PlayerSeat *current = game.activePlayer();
+  Serial.print("ATLAS|GAME|PASS|COMMIT|");
+  Serial.print(committing.seat.playerNumber);
+  Serial.print("->");
+  Serial.println(current != nullptr ? current->playerNumber : 0);
+
+  if (current != nullptr) {
+    if (committing.seat.moduleId == current->moduleId) {
+      audio.sameModulePass(current->moduleId);
+    } else {
+      audio.turnPass(current->moduleId);
+    }
+  }
+  leds.invalidateAll();
+}
+
+void updateActionCancelSuppression(uint32_t nowMs) {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (
+        suppressActionAfterPassCancel[id] &&
+        suppressActionReleasedAtMs[id] != 0 &&
+        nowMs - suppressActionReleasedAtMs[id] >=
+            ACTION_CANCEL_RELEASE_CLEAR_MS) {
+      suppressActionAfterPassCancel[id] = false;
+      suppressActionReleasedAtMs[id] = 0;
+    }
+  }
+}
+
 void clearDecisionState() {
   eliminationTargetPlayer = 0;
   winArmedModule = INVALID_ID;
   winArmedPlayer = 0;
+  pendingPass = PendingPassState{};
   for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
     eliminationChord[i] = false;
     suppressEliminationShort[i] = false;
+    suppressActionAfterPassCancel[i] = false;
+    suppressActionReleasedAtMs[i] = 0;
   }
 }
 
@@ -213,6 +352,7 @@ void enterRematchLobby() {
 }
 
 void finishGameState() {
+  clearPendingPass("GAME_OVER");
   hubState = HubState::GameOver;
   eliminationTargetPlayer = 0;
   winArmedModule = INVALID_ID;
@@ -469,25 +609,18 @@ bool handleWebControl(
         return false;
       }
 
-      const PlayerSeat previous = *active;
-      if (!game.passTurn(moduleId, DEFAULT_WARNING_MS, nowMs)) {
-        message = "Atlas rejected the pass";
-        return false;
+      const PassRequestResult result = requestPass(seat, nowMs);
+      if (result == PassRequestResult::Armed) {
+        message = "Pass queued. Press Pass or Action within 3 seconds to cancel.";
+        return true;
       }
-      const PlayerSeat *current = game.activePlayer();
-      if (current != nullptr) {
-        if (previous.moduleId == current->moduleId) {
-          audio.sameModulePass(current->moduleId);
-        } else {
-          audio.turnPass(current->moduleId);
-        }
+      if (result == PassRequestResult::Cancelled) {
+        message = "Pending pass cancelled";
+        return true;
       }
-      Serial.print("ATLAS|WEB|PASS|");
-      Serial.print(previous.playerNumber);
-      Serial.print("->");
-      Serial.println(current != nullptr ? current->playerNumber : 0);
-      message = "Turn passed";
-      return true;
+
+      message = "Atlas rejected the pass";
+      return false;
     }
 
     case WebControl::PauseResume: {
@@ -497,6 +630,7 @@ bool handleWebControl(
       }
 
       if (hubState == HubState::Running) {
+        clearPendingPass("PAUSE");
         if (!game.pause(nowMs)) {
           message = "Could not pause the game";
           return false;
@@ -554,6 +688,7 @@ bool handleWebControl(
         return false;
       }
 
+      clearPendingPass("CONCEDE");
       const bool restoreRunning = hubState == HubState::Running;
       if (restoreRunning) {
         if (!game.pause(nowMs)) {
@@ -607,6 +742,7 @@ bool handleWebControl(
         return false;
       }
 
+      clearPendingPass("WIN_CLAIM");
       const bool restoreRunning = hubState == HubState::Running;
       if (!game.beginWinClaim(seat.playerNumber, restoreRunning, nowMs)) {
         message = "Could not start the win claim";
@@ -757,29 +893,12 @@ void handlePass(uint8_t sigilId) {
     return;
   }
 
-  const PlayerSeat *before = game.activePlayer();
-  PlayerSeat previous;
-  if (before != nullptr) {
-    previous = *before;
-  }
-
-  if (!game.passTurn(sigilId, DEFAULT_WARNING_MS, millis())) {
+  const PlayerSeat *active = game.activePlayer();
+  if (active == nullptr || active->moduleId != sigilId) {
     return;
   }
 
-  const PlayerSeat *current = game.activePlayer();
-  Serial.print("ATLAS|GAME|PASS|");
-  Serial.print(previous.playerNumber);
-  Serial.print("->");
-  Serial.println(current != nullptr ? current->playerNumber : 0);
-
-  if (current != nullptr) {
-    if (previous.moduleId == current->moduleId) {
-      audio.sameModulePass(current->moduleId);
-    } else {
-      audio.turnPass(current->moduleId);
-    }
-  }
+  requestPass(*active, millis());
 }
 
 void handleActionDown(uint8_t sigilId) {
@@ -787,6 +906,14 @@ void handleActionDown(uint8_t sigilId) {
   lobby.setActionLong(sigilId, false);
   lobby.setSharedChord(sigilId, false);
   eliminationChord[sigilId] = false;
+
+  if (
+      hubState == HubState::Running &&
+      cancelPendingPassForModule(sigilId, "ACTION")) {
+    suppressActionAfterPassCancel[sigilId] = true;
+    suppressActionReleasedAtMs[sigilId] = 0;
+    return;
+  }
 
   if (hubState == HubState::Starting) {
     cancelCountdown();
@@ -803,6 +930,11 @@ void handleActionUp(uint8_t sigilId) {
   lobby.setSharedChord(sigilId, false);
   eliminationChord[sigilId] = false;
   lobby.setActionLong(sigilId, false);
+
+  if (suppressActionAfterPassCancel[sigilId]) {
+    suppressActionReleasedAtMs[sigilId] = millis();
+    return;
+  }
 
   if (usedLobbyChord) {
     if (wasLong) {
@@ -827,6 +959,12 @@ void handleActionUp(uint8_t sigilId) {
 }
 
 void handleActionShort(uint8_t sigilId) {
+  if (suppressActionAfterPassCancel[sigilId]) {
+    suppressActionAfterPassCancel[sigilId] = false;
+    suppressActionReleasedAtMs[sigilId] = 0;
+    return;
+  }
+
   if (lobby.consumeSuppressNextShort(sigilId)) {
     return;
   }
@@ -872,6 +1010,10 @@ void handleActionShort(uint8_t sigilId) {
 }
 
 void handleActionLong(uint8_t sigilId) {
+  if (suppressActionAfterPassCancel[sigilId]) {
+    return;
+  }
+
   lobby.setActionLong(sigilId, true);
 
   if (
@@ -910,6 +1052,7 @@ void handleActionLong(uint8_t sigilId) {
   }
 
   if (hubState == HubState::Running) {
+    clearPendingPass("ACTION_LONG");
     const PlayerSeat *active = game.activePlayer();
     if (game.pause(millis())) {
       hubState = HubState::Paused;
@@ -959,6 +1102,10 @@ void handleActionLong(uint8_t sigilId) {
 }
 
 void handleActionWin(uint8_t sigilId) {
+  if (suppressActionAfterPassCancel[sigilId]) {
+    return;
+  }
+
   if (
       hubState == HubState::Lobby &&
       sigilId == lobby.hostModule() &&
@@ -1057,18 +1204,27 @@ void handleStatus() {
   const bool otaStateAllowed =
       hubState == HubState::Lobby ||
       hubState == HubState::GameOver;
+  const uint32_t nowMs = millis();
+  const uint32_t passElapsed = pendingPass.active
+      ? nowMs - pendingPass.requestedAtMs
+      : 0;
+  const uint32_t passGraceRemainingMs =
+      pendingPass.active && passElapsed < PASS_GRACE_MS
+      ? PASS_GRACE_MS - passElapsed
+      : 0;
 
-  char json[640];
+  char json[768];
   snprintf(
       json,
       sizeof(json),
       "{\"masterButton\":%s,\"sigils\":%u,\"players\":%u,"
       "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
-      "\"winConfirm\":%u,\"espNow\":%s,\"firmware\":\"%s\","
+      "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
+      "\"espNow\":%s,\"firmware\":\"%s\","
       "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
       masterButtonPressed() ? "true" : "false",
-      static_cast<unsigned>(sigilBus.activeCount(millis())),
+      static_cast<unsigned>(sigilBus.activeCount(nowMs)),
       static_cast<unsigned>(players),
       stateName(hubState),
       host == INVALID_ID ? -1 : static_cast<int>(host),
@@ -1077,6 +1233,8 @@ void handleStatus() {
       static_cast<unsigned>(game.winnerPlayerNumber()),
       static_cast<unsigned>(eliminationTargetPlayer),
       static_cast<unsigned>(game.nextWinConfirmationPlayerNumber()),
+      static_cast<unsigned>(pendingPass.active ? pendingPass.seat.playerNumber : 0),
+      static_cast<unsigned long>(passGraceRemainingMs),
       espNowReady ? "true" : "false",
       TurnHubFirmware::VERSION,
       TurnHubFirmware::BUILD_DATE,
@@ -1106,23 +1264,13 @@ void updateMasterButton() {
                      : "ATLAS|MASTER_BUTTON|UP");
 
   if (currentState == HIGH && hubState == HubState::Running) {
-    const PlayerSeat *before = game.activePlayer();
-    PlayerSeat previous;
-    if (before != nullptr) {
-      previous = *before;
-    }
-
-    const uint8_t activeModule = game.activeModule();
-    if (activeModule != INVALID_ID &&
-        game.passTurn(activeModule, DEFAULT_WARNING_MS, millis())) {
-      Serial.println("ATLAS|MASTER_BUTTON|PASS");
-      const PlayerSeat *current = game.activePlayer();
-      if (current != nullptr) {
-        if (previous.moduleId == current->moduleId) {
-          audio.sameModulePass(current->moduleId);
-        } else {
-          audio.turnPass(current->moduleId);
-        }
+    const PlayerSeat *active = game.activePlayer();
+    if (active != nullptr) {
+      const PassRequestResult result = requestPass(*active, millis());
+      if (result == PassRequestResult::Armed) {
+        Serial.println("ATLAS|MASTER_BUTTON|PASS_PENDING");
+      } else if (result == PassRequestResult::Cancelled) {
+        Serial.println("ATLAS|MASTER_BUTTON|PASS_CANCELLED");
       }
     }
   }
@@ -1198,6 +1346,8 @@ void loop() {
 
   processSigilEvents();
   updateMasterButton();
+  updatePendingPass(nowMs);
+  updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);
   audio.update(nowMs);
   leds.render(
