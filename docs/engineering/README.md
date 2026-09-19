@@ -14,6 +14,8 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 
 ## Reference set
 
+- [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
+- [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
@@ -24,7 +26,22 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 
 The Atlas is the authoritative owner of table and game state. Sigils, browser clients, and future applications are controllers and views of that state rather than independent game engines.
 
+Controller actions should converge on a semantic Intent before authoritative game behavior executes. Transport-specific code moves/authenticates requests; it does not own game semantics.
+
 This principle is intended to reduce duplicate logic, avoid state disagreement, and allow physical and virtual controllers to use the same higher-level actions.
+
+## Mandatory feature gate
+
+Before implementing a significant feature, define:
+
+1. State owner.
+2. Intent/request.
+3. Validator.
+4. Persistence owner, if any.
+5. Rendering/presentation clients.
+6. Shared protocol/contract changes, if any.
+
+If those boundaries are unclear, define them before implementation proceeds.
 
 ## Document maintenance rule
 
