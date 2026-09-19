@@ -75,6 +75,12 @@ When an item is verified, update the relevant reference document and mark the it
 ## Software architecture
 
 - [ ] Audit current Atlas migration code for any browser/Sigil logic that duplicates game-engine rules.
+- [x] Route running-game PASS requests from physical Sigils, browser controls, and the Atlas master button through the shared authoritative `IntentDispatcher`.
+- [ ] Investigate inconsistent PASS grace timing observed on hardware. PASS logging now records `ORIGIN` at request, cancel, reject, and commit so the affected input path can be identified without guessing.
+- [ ] Migrate Pause/Resume through authoritative Intent handlers and remove controller-specific state mutation.
+- [ ] Migrate Concede through an authoritative Intent handler.
+- [ ] Migrate ClaimWin/ConfirmWin/DenyWin through authoritative Intent handlers.
+- [ ] Migrate lobby/lifecycle actions through Intent handlers where they represent semantic requests rather than local input gestures.
 - [ ] Make physical and virtual Sigils use the same semantic action layer where practical.
 - [ ] Define a controller interface suitable for a simulator/test harness.
 - [ ] Add repeatable multi-player simulation scenarios.
