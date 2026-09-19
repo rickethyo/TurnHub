@@ -98,18 +98,23 @@ struct IntentResult {
   IntentStatus status = IntentStatus::Unsupported;
   const char *message = "Intent not handled";
 
+  IntentResult() = default;
+
+  IntentResult(IntentStatus resultStatus, const char *resultMessage)
+      : status(resultStatus), message(resultMessage) {}
+
   bool accepted() const {
     return status == IntentStatus::Accepted;
   }
 
   static IntentResult accept(const char *message = "Accepted") {
-    return IntentResult{IntentStatus::Accepted, message};
+    return IntentResult(IntentStatus::Accepted, message);
   }
 
   static IntentResult reject(
       IntentStatus status,
       const char *message) {
-    return IntentResult{status, message};
+    return IntentResult(status, message);
   }
 };
 
