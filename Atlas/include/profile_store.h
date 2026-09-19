@@ -5,6 +5,7 @@
 namespace TurnHubProfiles {
 
 constexpr uint16_t STATS_SCHEMA_VERSION = 1;
+constexpr size_t PROFILE_ID_LENGTH = 8;
 
 enum class LastGameResult : uint8_t {
   None = 0,
@@ -40,17 +41,35 @@ struct ProfileStats {
 bool begin();
 bool ready();
 
-// Seats currently bind to stable local profile IDs. The binding is separate
-// from the Sigil hardware identity so a later profile-picker can move a saved
-// person between seats without moving their statistics.
-String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
+// Profiles are durable local identities. Hardware and virtual seats only bind
+// to a profile ID; names, PINs and statistics belong to the profile itself.
+String createProfile();
+bool profileExists(const String &profileId);
 
+String nameForProfile(const String &profileId);
+bool setNameForProfile(const String &profileId, const String &name);
+
+String storedPinHashForProfile(const String &profileId);
+bool setPinHashForProfile(const String &profileId, const String &hash);
+bool clearPinForProfile(const String &profileId);
+bool hasPinForProfile(const String &profileId);
+
+bool loadStatsForProfile(const String &profileId, ProfileStats &stats);
+bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
+
+// Physical-seat binding adapter. This is deliberately separate from profile
+// storage so the same profile can later bind to a persistent virtual seat.
+String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
+bool bindSeatToProfile(
+    const uint8_t mac[6],
+    uint8_t slot,
+    const String &profileId);
+
+// Compatibility helpers for existing physical-seat call sites and migration.
 String nameForSeat(const uint8_t mac[6], uint8_t slot);
 bool setNameForSeat(const uint8_t mac[6], uint8_t slot, const String &name);
 
 // legacySource is set when the returned hash came from the old MAC+slot key.
-// A successful login can then transparently rewrite it under the stable
-// profile ID using the new profile-based hash material.
 String storedPinHashForSeat(
     const uint8_t mac[6],
     uint8_t slot,
