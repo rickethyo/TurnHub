@@ -6,6 +6,8 @@ namespace TurnHubProtocol {
 
 constexpr uint8_t VERSION = 1;
 constexpr uint8_t MAX_SIGILS = 8;
+constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
+constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
 enum class PacketType : uint8_t {
   Hello = 1,
@@ -16,11 +18,13 @@ enum class PacketType : uint8_t {
   ActionShort = 6,
   ActionLong = 7,
   ActionWin = 8,
+  DisplayProfileRequest = 9,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,
   Buzzer = 23,
   DisplayState = 30,
+  DisplayNameChunk = 31,
 };
 
 enum class DisplayMode : uint8_t {
@@ -48,18 +52,10 @@ struct __attribute__((packed)) Packet {
 
 static_assert(sizeof(Packet) == 7, "TurnHub ESP-NOW packet layout changed");
 
-inline Packet makePacket(
-    PacketType type,
-    uint8_t sigilId,
-    int32_t value = 0) {
+inline Packet makePacket(PacketType type, uint8_t sigilId, int32_t value = 0) {
   return Packet{VERSION, type, sigilId, value};
 }
 
-// Hello packets carry firmware identity in the existing 32-bit value field.
-// byte 0 = capabilities/reserved flags
-// byte 1 = firmware patch
-// byte 2 = firmware minor
-// byte 3 = firmware major
 inline int32_t encodeHelloInfo(
     uint8_t firmwareMajor,
     uint8_t firmwareMinor,
@@ -71,19 +67,15 @@ inline int32_t encodeHelloInfo(
       (static_cast<uint32_t>(firmwareMinor) << 16) |
       (static_cast<uint32_t>(firmwareMajor) << 24));
 }
-
 inline uint8_t helloCapabilities(int32_t value) {
   return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
 }
-
 inline uint8_t helloFirmwarePatch(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 8) & 0xFFu);
 }
-
 inline uint8_t helloFirmwareMinor(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 16) & 0xFFu);
 }
-
 inline uint8_t helloFirmwareMajor(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
 }
@@ -93,15 +85,11 @@ inline int32_t encodeTone(uint16_t frequencyHz, uint16_t durationMs) {
       (static_cast<uint32_t>(frequencyHz) << 16) |
       static_cast<uint32_t>(durationMs));
 }
-
 inline uint16_t toneFrequency(int32_t value) {
-  return static_cast<uint16_t>(
-      (static_cast<uint32_t>(value) >> 16) & 0xFFFFu);
+  return static_cast<uint16_t>((static_cast<uint32_t>(value) >> 16) & 0xFFFFu);
 }
-
 inline uint16_t toneDuration(int32_t value) {
-  return static_cast<uint16_t>(
-      static_cast<uint32_t>(value) & 0xFFFFu);
+  return static_cast<uint16_t>(static_cast<uint32_t>(value) & 0xFFFFu);
 }
 
 inline int32_t encodeDisplayState(
@@ -113,40 +101,62 @@ inline int32_t encodeDisplayState(
   const uint8_t header =
       (static_cast<uint8_t>(mode) & DISPLAY_MODE_MASK) |
       (flags & static_cast<uint8_t>(~DISPLAY_MODE_MASK));
-
   return static_cast<int32_t>(
       static_cast<uint32_t>(header) |
       (static_cast<uint32_t>(primaryPlayer) << 8) |
       (static_cast<uint32_t>(secondaryPlayer) << 16) |
       (static_cast<uint32_t>(turnNumber) << 24));
 }
-
 inline DisplayMode displayMode(int32_t value) {
   return static_cast<DisplayMode>(
-      static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu) &
-      DISPLAY_MODE_MASK);
+      static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu) & DISPLAY_MODE_MASK);
 }
-
 inline uint8_t displayFlags(int32_t value) {
-  return static_cast<uint8_t>(
-      static_cast<uint32_t>(value) & 0xFFu) &
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu) &
       static_cast<uint8_t>(~DISPLAY_MODE_MASK);
 }
-
 inline bool hasDisplayFlag(int32_t value, uint8_t flag) {
   return (displayFlags(value) & flag) != 0;
 }
-
 inline uint8_t displayPrimaryPlayer(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 8) & 0xFFu);
 }
-
 inline uint8_t displaySecondaryPlayer(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 16) & 0xFFu);
 }
-
 inline uint8_t displayTurnNumber(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
+}
+
+inline int32_t encodeDisplayNameChunk(
+    uint8_t slot,
+    uint8_t chunkIndex,
+    bool finalChunk,
+    char char0,
+    char char1,
+    char char2) {
+  const uint8_t header =
+      (slot & 0x03u) |
+      static_cast<uint8_t>((chunkIndex & 0x0Fu) << 2) |
+      (finalChunk ? 0x80u : 0u);
+  return static_cast<int32_t>(
+      static_cast<uint32_t>(header) |
+      (static_cast<uint32_t>(static_cast<uint8_t>(char0)) << 8) |
+      (static_cast<uint32_t>(static_cast<uint8_t>(char1)) << 16) |
+      (static_cast<uint32_t>(static_cast<uint8_t>(char2)) << 24));
+}
+inline uint8_t displayNameSlot(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x03u);
+}
+inline uint8_t displayNameChunkIndex(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 2) & 0x0Fu);
+}
+inline bool displayNameFinalChunk(int32_t value) {
+  return (static_cast<uint32_t>(value) & 0x80u) != 0;
+}
+inline char displayNameChar(int32_t value, uint8_t index) {
+  if (index >= DISPLAY_NAME_CHUNK_CHARS) return '\0';
+  return static_cast<char>((static_cast<uint32_t>(value) >> (8u * (index + 1u))) & 0xFFu);
 }
 
 }  // namespace TurnHubProtocol
