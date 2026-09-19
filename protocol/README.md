@@ -22,6 +22,17 @@ Simulator ---/
 
 A client may optimistically animate a button press, spinner, or pending indicator, but it must not treat a gameplay change as committed until Atlas accepts it and the authoritative state confirms it.
 
+## Versioned artifacts
+
+The v0.1 contract currently has four machine-readable/reference artifacts:
+
+- `intent-v0.1.schema.json` - client-to-Atlas Intent envelope.
+- `intent-result-v0.1.schema.json` - Atlas response to an Intent request.
+- `state-v0.1.schema.json` - authoritative Atlas state snapshot.
+- `wire-examples-v0.1.json` - shared serialization examples for firmware, browser, Android, simulator, and tests.
+
+The examples are protocol fixtures, not an independent game engine. Atlas remains responsible for determining whether any particular request is legal in the current state.
+
 ## Three separate layers
 
 ### 1. Internal Intent
@@ -80,7 +91,9 @@ Additional endpoints may exist for profiles, authentication, device management, 
 
 ## Intent result
 
-A network adapter translates the internal `IntentResult` into a transport response. The v0.1 result shape is conceptually:
+A network adapter translates the internal `IntentResult` into the transport-neutral result shape described by `intent-result-v0.1.schema.json`.
+
+Example:
 
 ```json
 {
@@ -102,6 +115,22 @@ Status vocabulary mirrors Atlas semantics:
 - `CONFLICT`
 
 Transport adapters may map these onto HTTP status codes, BLE acknowledgements, tones, LEDs, or UI messages. The semantic result remains the same.
+
+The returned `revision` is the authoritative Atlas revision associated with the response. A request may be accepted without immediately completing a later timed transition. For example, a queued PASS may be accepted while its grace/cancel window is still active. Clients must use Atlas state, not local assumption, to determine whether the turn transition has actually committed.
+
+## Shared wire examples
+
+`wire-examples-v0.1.json` exists so independently developed clients can serialize the same logical operations consistently.
+
+Initial fixtures cover:
+
+- Android `PASS`.
+- Browser `PAUSE` and `RESUME`.
+- Physical Sigil `CONCEDE`.
+- Android `CLAIM_WIN`.
+- Browser `CONFIRM_WIN` and `DENY_WIN`.
+
+These examples should eventually be consumed by automated firmware/client protocol tests. They intentionally do not encode game-rule decisions beyond illustrative result data because those rules belong to Atlas.
 
 ## Versioning rules
 
@@ -129,6 +158,8 @@ Authentication/seat assignment is a separate step. Client-supplied player number
 
 ## Current migration priority
 
-The first operation to migrate end to end is `PASS` because physical Sigils, the browser, and the Atlas master button already request it through separate entry paths. Once all three produce the same Intent and one handler owns the rule, the Android client can use that exact same semantic operation.
+`PASS` is the first operation being migrated end to end because physical Sigils, the browser, and the Atlas master button all need to converge on one authoritative Intent handler.
+
+After PASS is verified on hardware, the next migration targets are `PAUSE` / `RESUME`, followed by `CONCEDE` and the win-claim flow. Android can then consume the same contract without owning or duplicating game rules.
 
 Last established: 2026-09-19
