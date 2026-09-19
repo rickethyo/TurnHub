@@ -6,8 +6,6 @@ namespace {
 using TurnHub::GameEngine;
 using TurnHub::PlayerSeat;
 using TurnHub::PlayerStats;
-using TurnHub::SigilBus;
-using TurnHub::SigilRecord;
 using TurnHubProfiles::LastGameResult;
 using TurnHubProfiles::ProfileStats;
 
@@ -29,13 +27,18 @@ void appendNumber(String &out, const __FlashStringHelper *label, uint64_t value)
   out += '\n';
 }
 
+String recordDuration(uint32_t milliseconds) {
+  return milliseconds == 0 ? String("—") : formatDuration(milliseconds);
+}
+
 }  // namespace
 
-uint8_t recordCompletedGame(const GameEngine &game, const SigilBus &sigilBus) {
-  if (!game.gameOver()) {
+uint8_t recordCompletedGame(
+    const GameEngine &game,
+    ResolveProfileIdCallback resolveProfileId) {
+  if (!game.gameOver() || resolveProfileId == nullptr) {
     return 0;
   }
-
   if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
     return 0;
   }
@@ -51,13 +54,13 @@ uint8_t recordCompletedGame(const GameEngine &game, const SigilBus &sigilBus) {
       continue;
     }
 
-    const SigilRecord *record = sigilBus.record(seat->moduleId);
-    if (record == nullptr) {
+    const String profileId = resolveProfileId(*seat);
+    if (!TurnHubProfiles::profileExists(profileId)) {
       continue;
     }
 
     ProfileStats persistent{};
-    if (!TurnHubProfiles::loadStatsForSeat(record->mac, seat->slot, persistent)) {
+    if (!TurnHubProfiles::loadStatsForProfile(profileId, persistent)) {
       continue;
     }
 
@@ -85,7 +88,8 @@ uint8_t recordCompletedGame(const GameEngine &game, const SigilBus &sigilBus) {
 
     persistent.turnsCompleted += turns;
     persistent.totalTurnMs += turnMs;
-    if (fastest > 0 && (persistent.fastestTurnMs == 0 || fastest < persistent.fastestTurnMs)) {
+    if (fastest > 0 &&
+        (persistent.fastestTurnMs == 0 || fastest < persistent.fastestTurnMs)) {
       persistent.fastestTurnMs = fastest;
     }
     if (longest > persistent.longestTurnMs) {
@@ -98,7 +102,7 @@ uint8_t recordCompletedGame(const GameEngine &game, const SigilBus &sigilBus) {
     persistent.lastGameFastestTurnMs = fastest;
     persistent.lastGameLongestTurnMs = longest;
 
-    if (TurnHubProfiles::saveStatsForSeat(record->mac, seat->slot, persistent)) {
+    if (TurnHubProfiles::saveStatsForProfile(profileId, persistent)) {
       ++updated;
     }
   }
@@ -157,16 +161,16 @@ String buildTextReport(
   out += F("Lifetime\n--------\n");
   appendNumber(out, F("Games played: "), stats.gamesPlayed);
   appendNumber(out, F("Games won: "), stats.gamesWon);
-  appendNumber(out, F("Games lost: "), stats.gamesPlayed >= stats.gamesWon ? stats.gamesPlayed - stats.gamesWon : 0);
+  appendNumber(out, F("Non-wins: "), stats.gamesPlayed >= stats.gamesWon ? stats.gamesPlayed - stats.gamesWon : 0);
   appendNumber(out, F("Games started first: "), stats.gamesStarted);
   appendNumber(out, F("Games eliminated: "), stats.gamesEliminated);
   appendNumber(out, F("Completed turns: "), stats.turnsCompleted);
   appendLine(out, F("Total completed-turn time: "), formatDuration(stats.totalTurnMs));
-  appendLine(out, F("Average completed turn: "), formatDuration(averageMs(stats.totalTurnMs, stats.turnsCompleted)));
-  appendLine(out, F("Fastest completed turn: "), formatDuration(stats.fastestTurnMs));
-  appendLine(out, F("Longest completed turn: "), formatDuration(stats.longestTurnMs));
+  appendLine(out, F("Average completed turn: "), stats.turnsCompleted == 0 ? String("—") : formatDuration(averageMs(stats.totalTurnMs, stats.turnsCompleted)));
+  appendLine(out, F("Fastest completed turn: "), recordDuration(stats.fastestTurnMs));
+  appendLine(out, F("Longest completed turn: "), recordDuration(stats.longestTurnMs));
   appendLine(out, F("Total game time: "), formatDuration(stats.totalGameMs));
-  appendLine(out, F("Average game time: "), formatDuration(averageMs(stats.totalGameMs, stats.gamesPlayed)));
+  appendLine(out, F("Average game time: "), stats.gamesPlayed == 0 ? String("—") : formatDuration(averageMs(stats.totalGameMs, stats.gamesPlayed)));
 
   const uint32_t winRateTenths = stats.gamesPlayed == 0
       ? 0
@@ -179,12 +183,12 @@ String buildTextReport(
 
   out += F("\nMost Recent Game\n----------------\n");
   appendLine(out, F("Result: "), String(resultName(stats.lastGameResult)));
-  appendLine(out, F("Game duration: "), formatDuration(stats.lastGameDurationMs));
+  appendLine(out, F("Game duration: "), stats.gamesPlayed == 0 ? String("—") : formatDuration(stats.lastGameDurationMs));
   appendNumber(out, F("Completed turns: "), stats.lastGameTurns);
   appendLine(out, F("Completed-turn time: "), formatDuration(stats.lastGameTurnMs));
-  appendLine(out, F("Average completed turn: "), formatDuration(averageMs(stats.lastGameTurnMs, stats.lastGameTurns)));
-  appendLine(out, F("Fastest completed turn: "), formatDuration(stats.lastGameFastestTurnMs));
-  appendLine(out, F("Longest completed turn: "), formatDuration(stats.lastGameLongestTurnMs));
+  appendLine(out, F("Average completed turn: "), stats.lastGameTurns == 0 ? String("—") : formatDuration(averageMs(stats.lastGameTurnMs, stats.lastGameTurns)));
+  appendLine(out, F("Fastest completed turn: "), recordDuration(stats.lastGameFastestTurnMs));
+  appendLine(out, F("Longest completed turn: "), recordDuration(stats.lastGameLongestTurnMs));
   out += F("\nGenerated locally by TurnHub Atlas.\n");
   return out;
 }
