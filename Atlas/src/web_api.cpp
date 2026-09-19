@@ -9,7 +9,10 @@
 
 #include "config.h"
 #include "firmware_version.h"
+#include "profile_statistics.h"
+#include "profile_store.h"
 #include "sigil_bus.h"
+#include "stats_page.h"
 #include "turnhub_types.h"
 
 namespace TurnHubWebApi {
@@ -20,6 +23,7 @@ using TurnHub::MAX_PHYSICAL_SIGILS;
 using TurnHub::MAX_PLAYERS;
 using TurnHub::SigilBus;
 using TurnHub::SigilRecord;
+using TurnHubProfiles::ProfileStats;
 
 constexpr uint32_t CLAIM_TIMEOUT_MS = 30000;
 constexpr uint32_t SESSION_TIMEOUT_MS = 8UL * 60UL * 60UL * 1000UL;
@@ -43,6 +47,7 @@ struct WebSession {
   uint8_t moduleId = INVALID_ID;
   uint8_t slot = 1;
   char token[33] = {};
+  char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
   uint32_t lastSeenMs = 0;
 };
 
@@ -51,8 +56,7 @@ WebSession sessions[MAX_WEB_SESSIONS];
 WebServer *webServer = nullptr;
 ResolveSeatCallback resolveSeat = nullptr;
 ControlCallback controlHandler = nullptr;
-Preferences preferences;
-bool preferencesReady = false;
+bool profileStoreReady = false;
 
 uint64_t random64() {
   return (static_cast<uint64_t>(esp_random()) << 32) |
@@ -82,6 +86,12 @@ String requestIdText(uint64_t value) {
       "%08lX%08lX",
       static_cast<unsigned long>(value >> 32),
       static_cast<unsigned long>(value & 0xFFFFFFFFULL));
+  return String(text);
+}
+
+String uint64Text(uint64_t value) {
+  char text[32];
+  snprintf(text, sizeof(text), "%llu", static_cast<unsigned long long>(value));
   return String(text);
 }
 
@@ -147,6 +157,19 @@ bool resolveSeatNow(uint8_t moduleId, uint8_t slot, SeatSnapshot &snapshot) {
   return resolveSeat(moduleId, slot, snapshot) && snapshot.exists;
 }
 
+const SigilRecord *recordForModule(uint8_t moduleId) {
+  SigilBus *bus = SigilBus::activeInstance();
+  return bus != nullptr ? bus->record(moduleId) : nullptr;
+}
+
+String profileIdForPhysicalSeat(uint8_t moduleId, uint8_t slot) {
+  const SigilRecord *record = recordForModule(moduleId);
+  if (record == nullptr || !validSlot(slot)) {
+    return String();
+  }
+  return TurnHubProfiles::profileIdForSeat(record->mac, slot);
+}
+
 String macText(const uint8_t mac[6]) {
   char text[18];
   snprintf(
@@ -174,52 +197,14 @@ String atlasHardwareId() {
   return String("THA-") + mac;
 }
 
-String profileKey(char prefix, const uint8_t mac[6], uint8_t slot) {
-  char key[16];
-  snprintf(
-      key,
-      sizeof(key),
-      "%c%02X%02X%02X%02X%02X%02X%c",
-      prefix,
-      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-      slot == 1 ? 'A' : 'B');
-  return String(key);
-}
-
-String deviceNameKey(const uint8_t mac[6]) {
-  char key[14];
-  snprintf(
-      key,
-      sizeof(key),
-      "d%02X%02X%02X%02X%02X%02X",
-      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return String(key);
-}
-
 String profileName(uint8_t moduleId, uint8_t slot) {
-  if (!preferencesReady) {
-    return String();
-  }
-  SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = bus != nullptr ? bus->record(moduleId) : nullptr;
-  if (record == nullptr) {
-    return String();
-  }
-  const String key = profileKey('n', record->mac, slot);
-  return preferences.getString(key.c_str(), "");
+  const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+  return TurnHubProfiles::nameForProfile(profileId);
 }
 
 String customDeviceName(uint8_t moduleId) {
-  if (!preferencesReady) {
-    return String();
-  }
-  SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = bus != nullptr ? bus->record(moduleId) : nullptr;
-  if (record == nullptr) {
-    return String();
-  }
-  const String key = deviceNameKey(record->mac);
-  return preferences.getString(key.c_str(), "");
+  const SigilRecord *record = recordForModule(moduleId);
+  return record != nullptr ? TurnHubProfiles::deviceName(record->mac) : String();
 }
 
 String deviceLabel(uint8_t moduleId) {
@@ -231,21 +216,13 @@ String deviceLabel(uint8_t moduleId) {
   return label;
 }
 
-String storedPinHash(uint8_t moduleId, uint8_t slot) {
-  if (!preferencesReady) {
-    return String();
-  }
-  SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = bus != nullptr ? bus->record(moduleId) : nullptr;
-  if (record == nullptr) {
-    return String();
-  }
-  const String key = profileKey('p', record->mac, slot);
-  return preferences.getString(key.c_str(), "");
-}
-
 bool hasPin(uint8_t moduleId, uint8_t slot) {
-  return storedPinHash(moduleId, slot).length() == 64;
+  const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+  if (TurnHubProfiles::hasPinForProfile(profileId)) {
+    return true;
+  }
+  const SigilRecord *record = recordForModule(moduleId);
+  return record != nullptr && TurnHubProfiles::hasPinForSeat(record->mac, slot);
 }
 
 bool validPin(const String &pin) {
@@ -260,19 +237,7 @@ bool validPin(const String &pin) {
   return true;
 }
 
-String pinHash(uint8_t moduleId, uint8_t slot, const String &pin) {
-  SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = bus != nullptr ? bus->record(moduleId) : nullptr;
-  if (record == nullptr) {
-    return String();
-  }
-
-  String material = sigilHardwareId(record->mac);
-  material += ':';
-  material += String(slot);
-  material += ':';
-  material += pin;
-
+String sha256Hex(const String &material) {
   uint8_t digest[32] = {};
   mbedtls_sha256_context context;
   mbedtls_sha256_init(&context);
@@ -295,13 +260,64 @@ String pinHash(uint8_t moduleId, uint8_t slot, const String &pin) {
   return String(hex);
 }
 
+String profilePinHash(const String &profileId, const String &pin) {
+  if (!TurnHubProfiles::profileExists(profileId)) {
+    return String();
+  }
+  String material = "TurnHubProfile:";
+  material += profileId;
+  material += ':';
+  material += pin;
+  return sha256Hex(material);
+}
+
+String legacyPinHash(
+    const uint8_t mac[6],
+    uint8_t slot,
+    const String &pin) {
+  String material = sigilHardwareId(mac);
+  material += ':';
+  material += String(slot);
+  material += ':';
+  material += pin;
+  return sha256Hex(material);
+}
+
 bool pinMatches(uint8_t moduleId, uint8_t slot, const String &pin) {
-  const String stored = storedPinHash(moduleId, slot);
+  const SigilRecord *record = recordForModule(moduleId);
+  if (record == nullptr) {
+    return false;
+  }
+
+  const String profileId = TurnHubProfiles::profileIdForSeat(record->mac, slot);
+  if (!TurnHubProfiles::profileExists(profileId)) {
+    return false;
+  }
+
+  bool legacySource = false;
+  const String stored =
+      TurnHubProfiles::storedPinHashForSeat(record->mac, slot, &legacySource);
   if (stored.length() != 64) {
     return false;
   }
-  const String candidate = pinHash(moduleId, slot, pin);
-  return candidate.length() == 64 && stored.equalsIgnoreCase(candidate);
+
+  const String currentCandidate = profilePinHash(profileId, pin);
+  if (currentCandidate.length() == 64 && stored.equalsIgnoreCase(currentCandidate)) {
+    return true;
+  }
+
+  // Existing firmware hashed PINs against THS-MAC + seat. Accept that once,
+  // then rewrite it against the durable profile ID so the PIN can follow the
+  // player to another physical or future virtual seat.
+  const String legacyCandidate = legacyPinHash(record->mac, slot, pin);
+  if (legacyCandidate.length() != 64 || !stored.equalsIgnoreCase(legacyCandidate)) {
+    return false;
+  }
+
+  if (currentCandidate.length() == 64) {
+    TurnHubProfiles::setPinHashForSeat(record->mac, slot, currentCandidate);
+  }
+  return true;
 }
 
 void cleanup(uint32_t nowMs) {
@@ -339,6 +355,11 @@ WebSession *sessionForRequest(WebServer &server) {
 }
 
 WebSession *createSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
+  const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+  if (!TurnHubProfiles::profileExists(profileId)) {
+    return nullptr;
+  }
+
   WebSession *target = nullptr;
 
   for (auto &session : sessions) {
@@ -369,7 +390,17 @@ WebSession *createSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
   target->slot = slot;
   target->lastSeenMs = nowMs;
   makeToken(target->token);
+  strncpy(
+      target->profileId,
+      profileId.c_str(),
+      sizeof(target->profileId) - 1);
+  target->profileId[sizeof(target->profileId) - 1] = '\0';
   return target;
+}
+
+String sessionProfileId(const WebSession &session) {
+  const String profileId(session.profileId);
+  return TurnHubProfiles::profileExists(profileId) ? profileId : String();
 }
 
 bool seatHasSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
@@ -391,6 +422,74 @@ uint8_t moduleSessionCount(uint8_t moduleId, uint32_t nowMs) {
     }
   }
   return count;
+}
+
+uint32_t averageMs(uint64_t total, uint32_t count) {
+  return count == 0 ? 0 : static_cast<uint32_t>(total / count);
+}
+
+String winRateText(const ProfileStats &stats) {
+  const uint32_t tenths = stats.gamesPlayed == 0
+      ? 0
+      : static_cast<uint32_t>(
+          (static_cast<uint64_t>(stats.gamesWon) * 1000ULL) /
+          stats.gamesPlayed);
+  char text[16];
+  snprintf(
+      text,
+      sizeof(text),
+      "%lu.%lu%%",
+      static_cast<unsigned long>(tenths / 10),
+      static_cast<unsigned long>(tenths % 10));
+  return String(text);
+}
+
+String safeExportName(const String &name, const String &profileId) {
+  String safe;
+  safe.reserve(40);
+  for (size_t i = 0; i < name.length() && safe.length() < 24; ++i) {
+    const char c = name[i];
+    if ((c >= 'A' && c <= 'Z') ||
+        (c >= 'a' && c <= 'z') ||
+        (c >= '0' && c <= '9') ||
+        c == '-' || c == '_') {
+      safe += c;
+    } else if (c == ' ' && safe.length() > 0) {
+      safe += '_';
+    }
+  }
+  if (safe.length() == 0) {
+    safe = "profile_";
+    safe += profileId;
+  }
+  safe += "_turnhub_stats.txt";
+  return safe;
+}
+
+bool loadSessionStats(
+    WebServer &server,
+    WebSession *&session,
+    String &profileId,
+    String &name,
+    ProfileStats &stats) {
+  session = sessionForRequest(server);
+  if (session == nullptr) {
+    sendJson(server, 401, "{\"ok\":false,\"error\":\"Browser session is not authorized\"}");
+    return false;
+  }
+
+  profileId = sessionProfileId(*session);
+  if (profileId.length() == 0) {
+    sendJson(server, 409, "{\"ok\":false,\"error\":\"This session is not attached to a durable profile\"}");
+    return false;
+  }
+
+  name = TurnHubProfiles::nameForProfile(profileId);
+  if (!TurnHubProfiles::loadStatsForProfile(profileId, stats)) {
+    sendJson(server, 503, "{\"ok\":false,\"error\":\"Profile statistics storage unavailable\"}");
+    return false;
+  }
+  return true;
 }
 
 void handleDevices(WebServer &server) {
@@ -472,16 +571,15 @@ void handleDeviceName(WebServer &server) {
   if (!requireMasterButton(server)) {
     return;
   }
-  if (!preferencesReady || !server.hasArg("module") || !server.hasArg("name")) {
+  if (!profileStoreReady || !server.hasArg("module") || !server.hasArg("name")) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Module and name are required\"}");
     return;
   }
 
   const int module = server.arg("module").toInt();
-  SigilBus *bus = SigilBus::activeInstance();
   const SigilRecord *record =
-      bus != nullptr && module >= 0 && module < MAX_PHYSICAL_SIGILS
-      ? bus->record(static_cast<uint8_t>(module))
+      module >= 0 && module < MAX_PHYSICAL_SIGILS
+      ? recordForModule(static_cast<uint8_t>(module))
       : nullptr;
   if (record == nullptr) {
     sendJson(server, 404, "{\"ok\":false,\"error\":\"Sigil is not known to Atlas\"}");
@@ -494,10 +592,7 @@ void handleDeviceName(WebServer &server) {
     name.remove(32);
   }
 
-  const String key = deviceNameKey(record->mac);
-  if (name.length() == 0) {
-    preferences.remove(key.c_str());
-  } else if (preferences.putString(key.c_str(), name) == 0) {
+  if (!TurnHubProfiles::setDeviceName(record->mac, name)) {
     sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save Sigil name\"}");
     return;
   }
@@ -580,8 +675,6 @@ void handleNetworkPassword(WebServer &server) {
       200,
       "{\"ok\":true,\"changed\":true,\"restarting\":true,\"message\":\"Password saved. Atlas is restarting.\"}");
 
-  // This is an intentional administrative restart. Give the HTTP response a
-  // moment to leave the socket before rebooting onto the new WPA2 credential.
   delay(450);
   ESP.restart();
 }
@@ -589,7 +682,7 @@ void handleNetworkPassword(WebServer &server) {
 void handleSeats(WebServer &server) {
   const uint32_t nowMs = millis();
   String json = "{\"seats\":[";
-  json.reserve(3600);
+  json.reserve(4200);
   bool first = true;
 
   for (uint8_t moduleId = 0; moduleId < MAX_PHYSICAL_SIGILS; ++moduleId) {
@@ -604,7 +697,8 @@ void handleSeats(WebServer &server) {
       }
       first = false;
 
-      const String savedName = profileName(moduleId, slot);
+      const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+      const String savedName = TurnHubProfiles::nameForProfile(profileId);
       json += "{\"module\":";
       json += String(moduleId);
       json += ",\"slot\":";
@@ -617,7 +711,9 @@ void handleSeats(WebServer &server) {
       json += snapshot.active ? "true" : "false";
       json += ",\"eliminated\":";
       json += snapshot.eliminated ? "true" : "false";
-      json += ",\"name\":\"";
+      json += ",\"profileId\":\"";
+      json += jsonEscape(profileId);
+      json += "\",\"name\":\"";
       json += jsonEscape(savedName);
       json += "\",\"hasPin\":";
       json += hasPin(moduleId, slot) ? "true" : "false";
@@ -645,6 +741,13 @@ void handleSessionRequest(WebServer &server) {
       !bus->isOnline(static_cast<uint8_t>(module), millis()) ||
       !resolveSeatNow(static_cast<uint8_t>(module), static_cast<uint8_t>(slot), snapshot)) {
     sendJson(server, 404, "{\"ok\":false,\"error\":\"Seat is not available\"}");
+    return;
+  }
+
+  if (profileIdForPhysicalSeat(
+          static_cast<uint8_t>(module),
+          static_cast<uint8_t>(slot)).length() == 0) {
+    sendJson(server, 503, "{\"ok\":false,\"error\":\"Could not attach a durable profile to this seat\"}");
     return;
   }
 
@@ -772,7 +875,9 @@ void handleSessionLogin(WebServer &server) {
   response += String(module);
   response += ",\"slot\":";
   response += String(slot);
-  response += '}';
+  response += ",\"profileId\":\"";
+  response += jsonEscape(sessionProfileId(*session));
+  response += "\"}";
   sendJson(server, 200, response);
 }
 
@@ -790,9 +895,9 @@ void handleSessionMe(WebServer &server) {
     return;
   }
 
-  SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = bus != nullptr ? bus->record(session->moduleId) : nullptr;
-  const String savedName = profileName(session->moduleId, session->slot);
+  const SigilRecord *record = recordForModule(session->moduleId);
+  const String profileId = sessionProfileId(*session);
+  const String savedName = TurnHubProfiles::nameForProfile(profileId);
 
   String response = "{\"ok\":true,\"authenticated\":true,\"module\":";
   response += String(session->moduleId);
@@ -806,10 +911,12 @@ void handleSessionMe(WebServer &server) {
   response += snapshot.active ? "true" : "false";
   response += ",\"eliminated\":";
   response += snapshot.eliminated ? "true" : "false";
-  response += ",\"name\":\"";
+  response += ",\"profileId\":\"";
+  response += jsonEscape(profileId);
+  response += "\",\"statsUrl\":\"/stats\",\"name\":\"";
   response += jsonEscape(savedName);
   response += "\",\"hasPin\":";
-  response += hasPin(session->moduleId, session->slot) ? "true" : "false";
+  response += TurnHubProfiles::hasPinForProfile(profileId) ? "true" : "false";
   if (record != nullptr) {
     response += ",\"hardwareId\":\"";
     response += sigilHardwareId(record->mac);
@@ -826,13 +933,14 @@ void handleProfile(WebServer &server) {
     return;
   }
 
-  SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = bus != nullptr ? bus->record(session->moduleId) : nullptr;
-  if (!preferencesReady || record == nullptr) {
+  const String profileId = sessionProfileId(*session);
+  if (!profileStoreReady || profileId.length() == 0) {
     sendJson(server, 503, "{\"ok\":false,\"error\":\"Profile storage unavailable\"}");
     return;
   }
 
+  SigilBus *bus = SigilBus::activeInstance();
+  const SigilRecord *record = recordForModule(session->moduleId);
   bool displayProfileChanged = false;
 
   if (server.hasArg("name")) {
@@ -841,11 +949,9 @@ void handleProfile(WebServer &server) {
     if (name.length() > 32) {
       name.remove(32);
     }
-    const String key = profileKey('n', record->mac, session->slot);
-    if (name.length() == 0) {
-      preferences.remove(key.c_str());
-    } else {
-      preferences.putString(key.c_str(), name);
+    if (!TurnHubProfiles::setNameForProfile(profileId, name)) {
+      sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save player name\"}");
+      return;
     }
     displayProfileChanged = true;
   }
@@ -856,22 +962,31 @@ void handleProfile(WebServer &server) {
       sendJson(server, 400, "{\"ok\":false,\"error\":\"PIN must be 4 to 8 digits\"}");
       return;
     }
-    const String hash = pinHash(session->moduleId, session->slot, pin);
-    if (hash.length() != 64) {
-      sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not hash PIN\"}");
+    const String hash = profilePinHash(profileId, pin);
+    if (hash.length() != 64 ||
+        !TurnHubProfiles::setPinHashForProfile(profileId, hash)) {
+      sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save PIN\"}");
       return;
     }
-    const String key = profileKey('p', record->mac, session->slot);
-    preferences.putString(key.c_str(), hash);
+    if (record != nullptr) {
+      TurnHubProfiles::setPinHashForSeat(record->mac, session->slot, hash);
+    }
   }
 
   if (server.hasArg("clearPin") && server.arg("clearPin") == "1") {
-    const String key = profileKey('p', record->mac, session->slot);
-    preferences.remove(key.c_str());
+    if (!TurnHubProfiles::clearPinForProfile(profileId)) {
+      sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not remove PIN\"}");
+      return;
+    }
+    if (record != nullptr) {
+      TurnHubProfiles::clearPinForSeat(record->mac, session->slot);
+    }
   }
 
   if (
       displayProfileChanged &&
+      record != nullptr &&
+      bus != nullptr &&
       record->helloInfoValid &&
       (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE) != 0) {
     bus->send(
@@ -880,6 +995,66 @@ void handleProfile(WebServer &server) {
   }
 
   sendJson(server, 200, "{\"ok\":true}");
+}
+
+void handleProfileStats(WebServer &server) {
+  WebSession *session = nullptr;
+  String profileId;
+  String name;
+  ProfileStats stats{};
+  if (!loadSessionStats(server, session, profileId, name, stats)) {
+    return;
+  }
+
+  String response;
+  response.reserve(1100);
+  response += "{\"ok\":true,\"profileId\":\"";
+  response += jsonEscape(profileId);
+  response += "\",\"name\":\"";
+  response += jsonEscape(name);
+  response += "\",\"winRate\":\"";
+  response += winRateText(stats);
+  response += "\",\"lifetime\":{";
+  response += "\"gamesPlayed\":" + String(stats.gamesPlayed);
+  response += ",\"gamesWon\":" + String(stats.gamesWon);
+  response += ",\"gamesStarted\":" + String(stats.gamesStarted);
+  response += ",\"gamesEliminated\":" + String(stats.gamesEliminated);
+  response += ",\"turnsCompleted\":" + String(stats.turnsCompleted);
+  response += ",\"totalTurnMs\":" + uint64Text(stats.totalTurnMs);
+  response += ",\"averageTurnMs\":" + String(averageMs(stats.totalTurnMs, stats.turnsCompleted));
+  response += ",\"fastestTurnMs\":" + String(stats.fastestTurnMs);
+  response += ",\"longestTurnMs\":" + String(stats.longestTurnMs);
+  response += ",\"totalGameMs\":" + uint64Text(stats.totalGameMs);
+  response += ",\"averageGameMs\":" + String(averageMs(stats.totalGameMs, stats.gamesPlayed));
+  response += "},\"lastGame\":{\"result\":\"";
+  response += TurnHubProfileStats::resultName(stats.lastGameResult);
+  response += "\",\"durationMs\":" + String(stats.lastGameDurationMs);
+  response += ",\"turns\":" + String(stats.lastGameTurns);
+  response += ",\"turnMs\":" + String(stats.lastGameTurnMs);
+  response += ",\"averageTurnMs\":" + String(averageMs(stats.lastGameTurnMs, stats.lastGameTurns));
+  response += ",\"fastestTurnMs\":" + String(stats.lastGameFastestTurnMs);
+  response += ",\"longestTurnMs\":" + String(stats.lastGameLongestTurnMs);
+  response += "}}";
+  sendJson(server, 200, response);
+}
+
+void handleProfileStatsExport(WebServer &server) {
+  WebSession *session = nullptr;
+  String profileId;
+  String name;
+  ProfileStats stats{};
+  if (!loadSessionStats(server, session, profileId, name, stats)) {
+    return;
+  }
+
+  const String report =
+      TurnHubProfileStats::buildTextReport(profileId, name, stats);
+  const String filename = safeExportName(name, profileId);
+  server.sendHeader("Cache-Control", "no-store");
+  server.sendHeader(
+      "Content-Disposition",
+      String("attachment; filename=\"") + filename + "\"");
+  server.send(200, "text/plain; charset=utf-8", report);
 }
 
 void handleLogout(WebServer &server) {
@@ -977,7 +1152,9 @@ void notePhysicalAction(uint8_t sigilId) {
   Serial.print("ATLAS|WEB_SESSION|AUTHORIZED|SIGIL|");
   Serial.print(oldest->moduleId);
   Serial.print("|SLOT|");
-  Serial.println(oldest->slot == 1 ? 'A' : 'B');
+  Serial.print(oldest->slot == 1 ? 'A' : 'B');
+  Serial.print("|PROFILE|");
+  Serial.println(session->profileId);
 }
 
 void begin(WebServer &server) {
@@ -985,10 +1162,15 @@ void begin(WebServer &server) {
     return;
   }
   webServer = &server;
-  preferencesReady = preferences.begin("turnhub", false);
+  profileStoreReady = TurnHubProfiles::begin();
 
   static const char *headerKeys[] = {"X-TurnHub-Token"};
   server.collectHeaders(headerKeys, 1);
+
+  server.on("/stats", HTTP_GET, [&server]() {
+    server.sendHeader("Cache-Control", "no-store");
+    server.send_P(200, "text/html", TurnHubStatsPage::STATS_HTML);
+  });
 
   server.on("/api/devices", HTTP_GET, [&server]() { handleDevices(server); });
   server.on("/api/device/name", HTTP_POST, [&server]() { handleDeviceName(server); });
@@ -1000,6 +1182,8 @@ void begin(WebServer &server) {
   server.on("/api/session/login", HTTP_POST, [&server]() { handleSessionLogin(server); });
   server.on("/api/session/me", HTTP_GET, [&server]() { handleSessionMe(server); });
   server.on("/api/session/profile", HTTP_POST, [&server]() { handleProfile(server); });
+  server.on("/api/session/stats", HTTP_GET, [&server]() { handleProfileStats(server); });
+  server.on("/api/session/stats/export", HTTP_GET, [&server]() { handleProfileStatsExport(server); });
   server.on("/api/session/logout", HTTP_POST, [&server]() { handleLogout(server); });
 
   server.on("/api/control/pass", HTTP_POST, [&server]() { runControl(server, WebControl::Pass); });
@@ -1011,7 +1195,7 @@ void begin(WebServer &server) {
   server.on("/api/control/starter", HTTP_POST, [&server]() { runControl(server, WebControl::SelectStarter); });
 
   Serial.print("ATLAS|WEB_API|READY|PROFILES|");
-  Serial.println(preferencesReady ? "YES" : "NO");
+  Serial.println(profileStoreReady ? "YES" : "NO");
 }
 
 }  // namespace TurnHubWebApi
