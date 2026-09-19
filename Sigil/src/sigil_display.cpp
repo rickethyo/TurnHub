@@ -1,6 +1,7 @@
 #include "sigil_display.h"
 
 #include <SPI.h>
+#include <cstring>
 
 namespace TurnHubSigil {
 
@@ -16,6 +17,28 @@ void SigilDisplay::begin() {
   display_.setFullWindow();
 
   Serial.println("SIGIL|DISPLAY|READY|250x122");
+}
+
+void SigilDisplay::setSeatName(uint8_t slot, const char *name) {
+  char *target = slot == 1 ? seatNameA_ : slot == 2 ? seatNameB_ : nullptr;
+  if (target == nullptr) {
+    return;
+  }
+
+  memset(target, 0, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1);
+  if (name != nullptr) {
+    strncpy(target, name, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH);
+    target[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH] = '\0';
+  }
+}
+
+void SigilDisplay::printClipped(const char *text, uint8_t maxChars) {
+  if (text == nullptr || maxChars == 0) {
+    return;
+  }
+  for (uint8_t i = 0; i < maxChars && text[i] != '\0'; ++i) {
+    display_.print(text[i]);
+  }
 }
 
 void SigilDisplay::drawHeader(const char *title) {
@@ -57,6 +80,11 @@ void SigilDisplay::drawPlayerLabel(
         "P%u + P%u",
         static_cast<unsigned>(primaryPlayer),
         static_cast<unsigned>(secondaryPlayer));
+    return;
+  }
+
+  if (seatNameA_[0] != '\0') {
+    printClipped(seatNameA_, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH);
     return;
   }
 
@@ -108,7 +136,6 @@ void SigilDisplay::showState(
     display_.fillScreen(GxEPD_WHITE);
     drawHeader(header);
 
-    // Compact device metadata stays out of the player workspace.
     display_.setTextSize(1);
     display_.setCursor(199, 17);
     display_.printf("S%u", static_cast<unsigned>(sigilId + 1));
@@ -118,9 +145,6 @@ void SigilDisplay::showState(
     }
 
     if (shared) {
-      // Player numbering for a shared Sigil is always A then B. Atlas moves
-      // whichever seat currently matters into primaryPlayer, so recover the
-      // fixed physical seat labels from the lower/higher player number.
       const uint8_t playerA = primaryPlayer < secondaryPlayer
           ? primaryPlayer
           : secondaryPlayer;
@@ -129,10 +153,11 @@ void SigilDisplay::showState(
           : primaryPlayer;
       const bool focusA = focused && primaryPlayer == playerA;
       const bool focusB = focused && primaryPlayer == playerB;
+      const bool namedA = seatNameA_[0] != '\0';
+      const bool namedB = seatNameB_[0] != '\0';
 
       constexpr int16_t contentX = 6;
       constexpr int16_t contentY = 29;
-      constexpr int16_t contentW = 238;
       constexpr int16_t contentH = 68;
       constexpr int16_t gap = 4;
       constexpr int16_t footerY = 103;
@@ -160,36 +185,63 @@ void SigilDisplay::showState(
         display_.drawRect(rightX + 2, contentY + 2, rightW - 4, contentH - 4, GxEPD_BLACK);
       }
 
-      // Seat labels remain readable even when a seat is compressed to 30%.
       display_.setTextSize(1);
       display_.setCursor(leftX + 7, contentY + 12);
       display_.print("SEAT A");
       display_.setCursor(rightX + 7, contentY + 12);
       display_.print("SEAT B");
 
-      // The focused seat receives the large player treatment. The inactive
-      // seat deliberately preserves open space for future life totals/status.
       if (focusA) {
-        display_.setTextSize(4);
-        display_.setCursor(leftX + 18, contentY + 41);
-        display_.printf("P%u", static_cast<unsigned>(playerA));
+        if (namedA) {
+          display_.setTextSize(2);
+          display_.setCursor(leftX + 9, contentY + 22);
+          printClipped(seatNameA_, 12);
+          display_.setTextSize(3);
+          display_.setCursor(leftX + 18, contentY + 40);
+          display_.printf("P%u", static_cast<unsigned>(playerA));
+        } else {
+          display_.setTextSize(4);
+          display_.setCursor(leftX + 18, contentY + 41);
+          display_.printf("P%u", static_cast<unsigned>(playerA));
+        }
 
+        display_.setTextSize(1);
+        display_.setCursor(rightX + 7, contentY + 28);
+        if (namedB) printClipped(seatNameB_, 8);
         display_.setTextSize(2);
-        display_.setCursor(rightX + 11, contentY + 48);
+        display_.setCursor(rightX + 11, contentY + 45);
         display_.printf("P%u", static_cast<unsigned>(playerB));
       } else if (focusB) {
+        display_.setTextSize(1);
+        display_.setCursor(leftX + 7, contentY + 28);
+        if (namedA) printClipped(seatNameA_, 8);
         display_.setTextSize(2);
-        display_.setCursor(leftX + 11, contentY + 48);
+        display_.setCursor(leftX + 11, contentY + 45);
         display_.printf("P%u", static_cast<unsigned>(playerA));
 
-        display_.setTextSize(4);
-        display_.setCursor(rightX + 18, contentY + 41);
-        display_.printf("P%u", static_cast<unsigned>(playerB));
+        if (namedB) {
+          display_.setTextSize(2);
+          display_.setCursor(rightX + 9, contentY + 22);
+          printClipped(seatNameB_, 12);
+          display_.setTextSize(3);
+          display_.setCursor(rightX + 18, contentY + 40);
+          display_.printf("P%u", static_cast<unsigned>(playerB));
+        } else {
+          display_.setTextSize(4);
+          display_.setCursor(rightX + 18, contentY + 41);
+          display_.printf("P%u", static_cast<unsigned>(playerB));
+        }
       } else {
+        display_.setTextSize(1);
+        display_.setCursor(leftX + 8, contentY + 27);
+        if (namedA) printClipped(seatNameA_, 12);
+        display_.setCursor(rightX + 8, contentY + 27);
+        if (namedB) printClipped(seatNameB_, 12);
+
         display_.setTextSize(3);
-        display_.setCursor(leftX + 24, contentY + 49);
+        display_.setCursor(leftX + 24, contentY + 42);
         display_.printf("P%u", static_cast<unsigned>(playerA));
-        display_.setCursor(rightX + 24, contentY + 49);
+        display_.setCursor(rightX + 24, contentY + 42);
         display_.printf("P%u", static_cast<unsigned>(playerB));
       }
 
@@ -235,30 +287,37 @@ void SigilDisplay::showState(
 
       display_.setTextSize(1);
       display_.setCursor(10, 94);
-      switch (mode) {
-        case TurnHubProtocol::DisplayMode::Lobby:
-          display_.printf("Player %u", static_cast<unsigned>(primaryPlayer));
-          if (host) display_.print("  HOST");
-          if (starter) display_.print("  STARTER");
-          break;
-        case TurnHubProtocol::DisplayMode::Starting:
-          display_.print(starter ? "You start" : "Get ready...");
-          break;
-        case TurnHubProtocol::DisplayMode::Running:
-          display_.printf(active ? "Player %u - active" : "Player %u - waiting",
-              static_cast<unsigned>(primaryPlayer));
-          break;
-        case TurnHubProtocol::DisplayMode::Paused:
-          display_.printf(attention ? "Player %u - check table" : "Game paused",
-              static_cast<unsigned>(primaryPlayer));
-          break;
-        case TurnHubProtocol::DisplayMode::GameOver:
-          display_.printf(winner ? "Player %u wins" : "Game complete",
-              static_cast<unsigned>(primaryPlayer));
-          break;
-        case TurnHubProtocol::DisplayMode::Ready:
-        default:
-          break;
+      if (seatNameA_[0] != '\0') {
+        printClipped(seatNameA_, 12);
+        display_.printf("  P%u", static_cast<unsigned>(primaryPlayer));
+        if (mode == TurnHubProtocol::DisplayMode::Lobby && host) display_.print(" HOST");
+        if (mode == TurnHubProtocol::DisplayMode::Lobby && starter) display_.print(" START");
+      } else {
+        switch (mode) {
+          case TurnHubProtocol::DisplayMode::Lobby:
+            display_.printf("Player %u", static_cast<unsigned>(primaryPlayer));
+            if (host) display_.print("  HOST");
+            if (starter) display_.print("  STARTER");
+            break;
+          case TurnHubProtocol::DisplayMode::Starting:
+            display_.print(starter ? "You start" : "Get ready...");
+            break;
+          case TurnHubProtocol::DisplayMode::Running:
+            display_.printf(active ? "Player %u - active" : "Player %u - waiting",
+                static_cast<unsigned>(primaryPlayer));
+            break;
+          case TurnHubProtocol::DisplayMode::Paused:
+            display_.printf(attention ? "Player %u - check table" : "Game paused",
+                static_cast<unsigned>(primaryPlayer));
+            break;
+          case TurnHubProtocol::DisplayMode::GameOver:
+            display_.printf(winner ? "Player %u wins" : "Game complete",
+                static_cast<unsigned>(primaryPlayer));
+            break;
+          case TurnHubProtocol::DisplayMode::Ready:
+          default:
+            break;
+        }
       }
 
       if (turnNumber != 0) {
