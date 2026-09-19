@@ -1,4 +1,4 @@
 [wokwi]
 version = 1
-firmware = '.pio/build/sigil/firmware.bin'
-elf = '.pio/build/sigil/firmware.elf'
+firmware = '.pio/build/sigil-wokwi/firmware.bin'
+elf = '.pio/build/sigil-wokwi/firmware.elf'
