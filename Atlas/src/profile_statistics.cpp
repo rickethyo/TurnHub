@@ -32,7 +32,11 @@ void appendNumber(String &out, const __FlashStringHelper *label, uint64_t value)
 }  // namespace
 
 uint8_t recordCompletedGame(const GameEngine &game, const SigilBus &sigilBus) {
-  if (!game.gameOver() || !TurnHubProfiles::ready()) {
+  if (!game.gameOver()) {
+    return 0;
+  }
+
+  if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
     return 0;
   }
 
