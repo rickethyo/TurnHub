@@ -8,8 +8,14 @@ constexpr uint32_t WARNING_OFF_GREEN_MS = 300000;
 constexpr float WARNING_CAUTION_FRACTION = 0.75f;
 }
 
+GameEngine::GameCompletedCallback GameEngine::gameCompletedCallback_ = nullptr;
+
 GameEngine::GameEngine() {
   reset();
+}
+
+void GameEngine::setGameCompletedCallback(GameCompletedCallback callback) {
+  gameCompletedCallback_ = callback;
 }
 
 void GameEngine::reset() {
@@ -220,6 +226,10 @@ void GameEngine::clearWinClaim() {
 }
 
 void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
+  if (gameOver_) {
+    return;
+  }
+
   winnerPlayer_ = winnerPlayer;
   gameEndedAtMs_ = nowMs;
 
@@ -233,6 +243,10 @@ void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
   paused_ = false;
   gameOver_ = true;
   clearWinClaim();
+
+  if (gameCompletedCallback_ != nullptr) {
+    gameCompletedCallback_(*this);
+  }
 }
 
 bool GameEngine::beginWinClaim(
