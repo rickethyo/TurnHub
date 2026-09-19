@@ -97,6 +97,21 @@ String ensureProfileId(const uint8_t mac[6], uint8_t slot) {
   return profileId;
 }
 
+void migrateLegacyName(
+    const uint8_t mac[6],
+    uint8_t slot,
+    const String &profileId) {
+  if (!validProfileId(profileId) || nameForProfile(profileId).length() > 0) {
+    return;
+  }
+
+  const String legacyKey = seatKey('n', mac, slot);
+  const String legacy = preferences.getString(legacyKey.c_str(), "");
+  if (legacy.length() > 0 && setNameForProfile(profileId, legacy)) {
+    preferences.remove(legacyKey.c_str());
+  }
+}
+
 bool validStoredStats(const ProfileStats &stats) {
   return stats.schemaVersion == STATS_SCHEMA_VERSION;
 }
@@ -217,7 +232,9 @@ String profileIdForSeat(const uint8_t mac[6], uint8_t slot) {
   if (!preferencesReady && !begin()) {
     return String();
   }
-  return ensureProfileId(mac, slot);
+  const String profileId = ensureProfileId(mac, slot);
+  migrateLegacyName(mac, slot, profileId);
+  return profileId;
 }
 
 bool bindSeatToProfile(
@@ -231,25 +248,8 @@ bool bindSeatToProfile(
 }
 
 String nameForSeat(const uint8_t mac[6], uint8_t slot) {
-  if (!preferencesReady && !begin()) {
-    return String();
-  }
-
-  const String profileId = ensureProfileId(mac, slot);
-  if (validProfileId(profileId)) {
-    const String stored = nameForProfile(profileId);
-    if (stored.length() > 0) {
-      return stored;
-    }
-  }
-
-  const String legacyKey = seatKey('n', mac, slot);
-  const String legacy = preferences.getString(legacyKey.c_str(), "");
-  if (legacy.length() > 0 && validProfileId(profileId) &&
-      setNameForProfile(profileId, legacy)) {
-    preferences.remove(legacyKey.c_str());
-  }
-  return legacy;
+  const String profileId = profileIdForSeat(mac, slot);
+  return validProfileId(profileId) ? nameForProfile(profileId) : String();
 }
 
 bool setNameForSeat(const uint8_t mac[6], uint8_t slot, const String &name) {
@@ -275,7 +275,7 @@ String storedPinHashForSeat(
     return String();
   }
 
-  const String profileId = ensureProfileId(mac, slot);
+  const String profileId = profileIdForSeat(mac, slot);
   if (validProfileId(profileId)) {
     const String stored = storedPinHashForProfile(profileId);
     if (stored.length() == 64) {
