@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 
 #include "protocol.h"
 
@@ -23,11 +24,14 @@ using ReceiveCallback = void (*)(const uint8_t *, const uint8_t *, int);
 constexpr uint8_t FAKE_ATLAS_MAC[6] = {0x02, 0x54, 0x48, 0x41, 0x00, 0x01};
 constexpr uint8_t DEFAULT_SIGIL_ID = 0;
 
-inline ReceiveCallback receiveCallback = nullptr;
-inline TaskHandle_t consoleTaskHandle = nullptr;
-inline uint8_t assignedSigilId = DEFAULT_SIGIL_ID;
-inline String seatNameA = "Player A";
-inline String seatNameB = "Player B";
+// Static storage keeps this header C++11-compatible. The shim is used by
+// main.cpp; any unused copies produced by force-including the header elsewhere
+// are isolated to those translation units.
+static ReceiveCallback receiveCallback = nullptr;
+static TaskHandle_t consoleTaskHandle = nullptr;
+static uint8_t assignedSigilId = DEFAULT_SIGIL_ID;
+static String seatNameA = "Player A";
+static String seatNameB = "Player B";
 
 inline void injectPacket(PacketType type, int32_t value = 0) {
   if (receiveCallback == nullptr) {
@@ -366,15 +370,25 @@ inline esp_err_t espNowSend(
   return ESP_OK;
 }
 
+inline esp_err_t wifiSetPromiscuous(bool) {
+  return ESP_OK;
+}
+
+inline esp_err_t wifiSetChannel(uint8_t, wifi_second_chan_t) {
+  return ESP_OK;
+}
+
 }  // namespace TurnHubWokwi
 
-// These macros are defined only after the real ESP-NOW header has been parsed,
-// so the ESP-IDF declarations/types remain available while calls from main.cpp
-// are redirected to the Wokwi test harness.
+// These macros are defined only after the real ESP-NOW/ESP-WiFi headers have
+// been parsed, so their declarations/types remain available while calls from
+// main.cpp are redirected to the Wokwi test harness.
 #define esp_now_init TurnHubWokwi::espNowInit
 #define esp_now_is_peer_exist TurnHubWokwi::espNowIsPeerExist
 #define esp_now_add_peer TurnHubWokwi::espNowAddPeer
 #define esp_now_register_recv_cb TurnHubWokwi::espNowRegisterRecvCb
 #define esp_now_send TurnHubWokwi::espNowSend
+#define esp_wifi_set_promiscuous TurnHubWokwi::wifiSetPromiscuous
+#define esp_wifi_set_channel TurnHubWokwi::wifiSetChannel
 
 #endif  // TURNHUB_WOKWI
