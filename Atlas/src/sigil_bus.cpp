@@ -1,9 +1,9 @@
 #include "sigil_bus.h"
 
-#include <Preferences.h>
 #include <WiFi.h>
 #include <cstring>
 
+#include "profile_store.h"
 #include "web_api.h"
 
 namespace TurnHub {
@@ -12,18 +12,6 @@ using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
 
 namespace {
-
-String profileKeyForMac(char prefix, const uint8_t mac[6], uint8_t slot) {
-  char key[16];
-  snprintf(
-      key,
-      sizeof(key),
-      "%c%02X%02X%02X%02X%02X%02X%c",
-      prefix,
-      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-      slot == 1 ? 'A' : 'B');
-  return String(key);
-}
 
 String displaySafeName(const String &name) {
   String safe;
@@ -92,8 +80,8 @@ bool SigilBus::poll(SigilEvent &event) {
   }
 
   // Keep profile/NVS work out of the ESP-NOW callback. A Sigil asks for its
-  // display profile over ESP-NOW, then the main-loop consumer performs the
-  // Preferences read and queues the response packets here.
+  // display profile over ESP-NOW, then the main-loop consumer reads the
+  // durable profile bound to that seat and queues response packets here.
   if (event.physical && event.type == PacketType::DisplayProfileRequest) {
     syncDisplayProfile(event.sigilId);
   }
@@ -486,17 +474,13 @@ void SigilBus::syncDisplayProfile(uint8_t sigilId) {
     return;
   }
 
-  Preferences prefs;
-  if (!prefs.begin("turnhub", true)) {
-    Serial.println("ATLAS|DISPLAY_PROFILE|PREFS_ERROR");
+  if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
+    Serial.println("ATLAS|DISPLAY_PROFILE|STORE_ERROR");
     return;
   }
 
-  const String nameA = prefs.getString(
-      profileKeyForMac('n', sigil->mac, 1).c_str(), "");
-  const String nameB = prefs.getString(
-      profileKeyForMac('n', sigil->mac, 2).c_str(), "");
-  prefs.end();
+  const String nameA = TurnHubProfiles::nameForSeat(sigil->mac, 1);
+  const String nameB = TurnHubProfiles::nameForSeat(sigil->mac, 2);
 
   sendDisplayName(sigilId, 1, nameA);
   sendDisplayName(sigilId, 2, nameB);
