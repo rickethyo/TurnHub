@@ -18,6 +18,7 @@ The ESP32 Atlas currently provides:
 
 - ESP-NOW discovery and communication with physical Sigils
 - Lobby, shared-Sigil seats, starting-player selection, countdown, turn passing, pause/resume, elimination/concede, and confirmed win flow
+- Three-second cancellable pass grace for physical, browser, and Atlas-master turn passes
 - Local browser portal with authenticated player-seat sessions
 - Persistent WPA2 access-point password and local network administration
 - Physical Sigil naming and display-profile synchronization
@@ -77,6 +78,35 @@ GET /api/session/stats/export
 ```
 
 The portal links to `/stats`, where the authenticated player can view and download their own statistics.
+
+## Turn-pass grace
+
+A turn pass is now provisional for three seconds.
+
+When the active player presses Pass, Atlas records the original pass timestamp and arms a pending transition. During the grace window, another Pass or an Action press from that physical Sigil cancels the pending transition. Browser Pass and the Atlas master-button pass use the same pending-pass path.
+
+If the grace expires, the game engine commits the pass using the original request timestamp. This keeps the outgoing player's recorded turn from gaining an artificial extra three seconds, while the incoming player's clock includes the elapsed grace period. A cancelled pass leaves the original turn uninterrupted.
+
+The status API exposes the pending player and remaining grace time through `passPending` and `passGraceMs` for future portal/Sigil presentation.
+
+## Planned gameplay event model
+
+Richer gameplay data such as life totals should preserve raw events separately from derived statistics.
+
+For life changes, Atlas should record each input event with the affected profile, actor/source, timestamp, old value, new value, and delta. Lifetime statistics such as life gained and life lost should then be derived from those raw events.
+
+Rapid opposite-direction edits should be treated as **potential corrections** rather than automatically counted as independent gain/loss events. An initial heuristic should consider collapsing edits when they:
+
+- affect the same player
+- come from the same actor or input source
+- occur within roughly two seconds
+- reverse direction
+- have no conflicting intervening life event
+- look like a small correction to the preceding edit
+
+For example, `40 -> 48 -> 47` entered rapidly by the same player should normally aggregate as a net `+7` life gain rather than `+8 gained` and `1 lost`. The raw `+8` and `-1` events should still remain in the game log, marked as a correction relationship, so the audit history stays truthful.
+
+This distinction lets TurnHub later provide life graphs, per-game life gained/lost, Commander-damage history, undo/revert handling, and spectator timelines without rewriting the source data model.
 
 ## Build and upload
 
