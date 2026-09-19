@@ -65,11 +65,12 @@ inline String sanitizedName(const String &input) {
 
 inline void sendDisplayName(uint8_t slot, const String &name) {
   const String clean = sanitizedName(name);
-  const uint8_t chunkCount = max<uint8_t>(
-      1,
-      static_cast<uint8_t>(
-          (clean.length() + TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS - 1) /
-          TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS));
+  uint8_t chunkCount = static_cast<uint8_t>(
+      (clean.length() + TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS - 1) /
+      TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS);
+  if (chunkCount == 0) {
+    chunkCount = 1;
+  }
 
   for (uint8_t chunk = 0; chunk < chunkCount; ++chunk) {
     const uint8_t offset = chunk * TurnHubProtocol::DISPLAY_NAME_CHUNK_CHARS;
@@ -227,7 +228,7 @@ inline void handleConsoleCommand(String line) {
     unsigned primary = 0;
     unsigned secondary = 0;
     unsigned turn = 0;
-    unsigned flags = 0;
+    int flags = 0;
     if (sscanf(
             arguments.c_str(),
             "%15s %u %u %u %i",
@@ -235,8 +236,9 @@ inline void handleConsoleCommand(String line) {
             &primary,
             &secondary,
             &turn,
-            reinterpret_cast<int *>(&flags)) != 5 ||
-        primary > 255 || secondary > 255 || turn > 255 || flags > 255) {
+            &flags) != 5 ||
+        primary > 255 || secondary > 255 || turn > 255 ||
+        flags < 0 || flags > 255) {
       Serial.println("WOKWI|ERROR|state <mode> <primary> <secondary> <turn> <flags>");
       return;
     }
