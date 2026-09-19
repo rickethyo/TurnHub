@@ -121,6 +121,12 @@ bool GameEngine::passTurn(
   PlayerStats &stats = stats_[activeIndex_];
   ++stats.turnsCompleted;
   stats.totalTurnMs += elapsed;
+  if (stats.fastestTurnMs == 0 || elapsed < stats.fastestTurnMs) {
+    stats.fastestTurnMs = elapsed;
+  }
+  if (elapsed > stats.longestTurnMs) {
+    stats.longestTurnMs = elapsed;
+  }
 
   const int next = nextLivingIndex(activeIndex_);
   if (next < 0) {
