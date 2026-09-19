@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turnhub.local/schema/intent-v0.1.json",
+  "title": "TurnHub Intent Envelope v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocolVersion", "requestId", "clientId", "origin", "type", "actor", "payload"],
+  "properties": {
+    "protocolVersion": {
+      "const": "0.1"
+    },
+    "requestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "clientId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["PHYSICAL_SIGIL", "BROWSER", "ANDROID_APP", "ATLAS_HARDWARE", "SIMULATOR", "SYSTEM"]
+    },
+    "expectedRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PAUSE",
+        "RESUME",
+        "TOGGLE_PAUSE",
+        "CONCEDE",
+        "CLAIM_WIN",
+        "CONFIRM_WIN",
+        "DENY_WIN",
+        "JOIN",
+        "LEAVE",
+        "SELECT_STARTER",
+        "START_GAME",
+        "REMATCH",
+        "RESET_GAME",
+        "CHANGE_LIFE",
+        "CHANGE_COUNTER",
+        "NUDGE_PLAYER",
+        "NUDGE_TABLE",
+        "PAIR_REQUEST",
+        "PAIR_CONFIRM",
+        "FORGET_PAIRING"
+      ]
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "moduleId": {"type": "integer", "minimum": 0, "maximum": 255},
+        "slot": {"type": "integer", "minimum": 0, "maximum": 255},
+        "playerNumber": {"type": "integer", "minimum": 0, "maximum": 255},
+        "sessionId": {"type": "string", "maxLength": 64}
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
