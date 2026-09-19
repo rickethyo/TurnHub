@@ -52,8 +52,6 @@ class SigilBus {
       TurnHubProtocol::PacketType type,
       int32_t value = 0);
 
-  // Web controls and future local integrations feed the same event queue as
-  // physical Sigils, keeping game behavior centralized in main.cpp.
   bool injectEvent(
       uint8_t sigilId,
       TurnHubProtocol::PacketType type,
@@ -98,6 +96,10 @@ class SigilBus {
       const SigilRecord &sigil,
       TurnHubProtocol::PacketType receivedType);
   void enqueue(const SigilRecord &sigil, const TurnHubProtocol::Packet &packet);
+
+  void syncDisplayProfile(uint8_t sigilId);
+  bool sendDisplayName(uint8_t sigilId, uint8_t slot, const String &name);
+
   static void printMac(const uint8_t *mac);
 
   uint8_t wifiChannel_;
