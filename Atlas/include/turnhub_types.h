@@ -58,6 +58,8 @@ struct PlayerSeat {
 struct PlayerStats {
   uint32_t turnsCompleted = 0;
   uint32_t totalTurnMs = 0;
+  uint32_t fastestTurnMs = 0;
+  uint32_t longestTurnMs = 0;
 };
 
 }  // namespace TurnHub
