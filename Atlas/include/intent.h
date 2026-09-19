@@ -8,8 +8,9 @@ namespace TurnHub {
 //
 // An Intent describes what a controller wants to happen. It does NOT describe
 // transport details and it does NOT mutate game state by itself. Physical
-// Sigils, browser sessions, the Atlas master control, simulators, and future
-// applications should converge on these operations before game rules run.
+// Sigils, browser sessions, the Atlas master control, native applications,
+// simulators, and future clients should converge on these operations before
+// game rules run.
 enum class IntentType : uint8_t {
   None = 0,
 
@@ -52,6 +53,7 @@ enum class IntentOrigin : uint8_t {
   Unknown = 0,
   PhysicalSigil,
   Browser,
+  AndroidApp,
   AtlasHardware,
   Simulator,
   System,
