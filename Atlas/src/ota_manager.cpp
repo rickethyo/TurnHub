@@ -1,6 +1,7 @@
 #include "ota_manager.h"
 
 #include <Update.h>
+#include <esp_ota_ops.h>
 
 #include "web_api.h"
 #include "web_pages.h"
@@ -8,6 +9,40 @@
 namespace TurnHub {
 
 namespace {
+
+void printPartitionDiagnostic(
+    const char *role,
+    const esp_partition_t *partition) {
+  Serial.print("ATLAS|PARTITION|");
+  Serial.print(role);
+  Serial.print('|');
+
+  if (partition == nullptr) {
+    Serial.println("NONE");
+    return;
+  }
+
+  Serial.print(partition->label);
+  Serial.print("|ADDRESS|0x");
+  Serial.print(static_cast<unsigned long>(partition->address), HEX);
+  Serial.print("|SIZE|");
+  Serial.println(static_cast<unsigned long>(partition->size));
+}
+
+void printBootPartitionDiagnostics() {
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  const esp_partition_t *boot = esp_ota_get_boot_partition();
+  const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
+
+  printPartitionDiagnostic("RUNNING", running);
+  printPartitionDiagnostic("BOOT", boot);
+  printPartitionDiagnostic("NEXT_OTA", next);
+
+  if (running != nullptr && boot != nullptr) {
+    Serial.print("ATLAS|PARTITION|BOOT_MATCHES_RUNNING|");
+    Serial.println(running->address == boot->address ? "YES" : "NO");
+  }
+}
 
 const char UPDATE_HTML[] PROGMEM = R"HTML(
 <!doctype html>
@@ -206,6 +241,8 @@ OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
     : server_(server), allowedCallback_(allowedCallback) {}
 
 void OtaManager::begin() {
+  printBootPartitionDiagnostics();
+
   server_.on("/portal", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
     server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
