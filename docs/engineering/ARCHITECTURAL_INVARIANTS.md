@@ -110,25 +110,51 @@ Do not persist or continuously synchronize values that can be safely calculated 
 
 Examples include elapsed time, remaining time, warning phase, and many display-only labels.
 
-## Invariant 9: New features declare ownership before implementation
+## Invariant 9: The six-question feature gate is mandatory
 
-Before adding a significant feature, answer:
+Before implementation begins on any significant feature, the design MUST answer all six questions:
 
-1. Who owns its canonical state?
-2. What is the request/intent API?
-3. Which component validates it?
-4. Which component persists it, if needed?
-5. Which clients merely render it?
-6. What shared contract is required?
+1. **Who owns its canonical state?**
+2. **What intent changes or requests it?**
+3. **Which component validates that intent?**
+4. **Does it need persistence, and who owns that persistence?**
+5. **Which clients only render or present it?**
+6. **Does it require a shared protocol/contract change?**
 
-If ownership is unclear, implementation should wait until the boundary is defined.
+These questions are a feature gate, not optional design guidance.
 
-## Code review test
+If any answer is unclear, the feature boundary must be defined before implementation continues. Temporary prototypes may deliberately bypass the production boundary only when clearly marked experimental and prevented from becoming the canonical implementation by accident.
+
+A feature should not create a second state owner, a second semantic implementation, or a transport-specific version of a game rule merely because doing so is locally convenient.
+
+## Invariant 10: Controller inputs converge on semantic Intents
+
+Physical Sigils, browsers, Atlas controls, simulators, and future applications should converge on the same semantic Intent vocabulary before canonical game behavior is executed.
+
+Adapters may decode and authenticate their own transport, but canonical validation and mutation belong to the authoritative Atlas Intent handler/domain operation.
+
+For example:
+
+```text
+Physical Sigil PASS --\
+Browser Pass ----------+--> IntentType::Pass --> one Atlas handler
+Atlas button ----------/
+```
+
+The Intent layer is an application boundary. It does not replace the GameEngine and it does not create a second source of truth.
+
+## Code review tests
 
 For every new feature, ask:
 
 > If every Sigil and browser vanished and later reconnected, could Atlas reconstruct the correct game entirely from its own canonical state?
 
 For game/table behavior, the expected answer is **yes**.
+
+Also ask:
+
+> If the same action can be requested through two different controllers, do both paths converge on the same semantic Intent and authoritative handler?
+
+The expected answer is **yes**.
 
 Last established: 2026-09-19
