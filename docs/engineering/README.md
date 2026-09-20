@@ -46,6 +46,21 @@ Before implementing a significant feature, define:
 
 If those boundaries are unclear, define them before implementation proceeds.
 
+## Mandatory structural-change preflight
+
+Before making any structural change to TurnHub, review the current Git documentation first. This is a project rule, not optional process guidance.
+
+At minimum, review:
+
+1. This engineering index.
+2. `ARCHITECTURAL_INVARIANTS.md`.
+3. `STAGED_CHANGES.md`.
+4. The specific reference documents affected by the proposed change, such as the Intent model, software architecture, protocol/pairing, hardware reference, verification backlog, or legal/IP references.
+
+Structural changes include architecture boundaries, state ownership, persistence models, shared contracts/protocols, controller abstractions, major file/module organization, branch/workflow structure, and hardware/software interface boundaries.
+
+If the proposed change conflicts with the documented architecture, resolve the documentation and decision explicitly before changing structure. Do not silently make the codebase contradict the engineering record.
+
 ## Staging rule
 
 Planning and agreed near-term changes stay in `STAGED_CHANGES.md` on the active development branch rather than creating long-lived planning branches. Short-lived branches are reserved for code changes that genuinely need isolation, review, or experimental protection.
