@@ -90,6 +90,20 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Review e-ink update code for state-change/dirty-region opportunities.
 - [ ] Define the authoritative persistence format for paired devices separately from player profiles.
 
+## Profiles, statistics, and local storage
+
+- [x] Define player identity independently from physical/virtual controller identity. Existing profile store and [statistics/profile architecture](STATISTICS_AND_PROFILES.md) document this boundary.
+- [x] Define game-scoped statistics and default privacy classes before expanding the web stats surface. See [Statistics and Profiles](STATISTICS_AND_PROFILES.md).
+- [x] Define tiered local-storage ownership and a medium-independent storage boundary. See [Local Storage Architecture](LOCAL_STORAGE_ARCHITECTURE.md).
+- [ ] Introduce stable `gameProfileId` and a versioned game-profile record.
+- [ ] Add v2 per-player/per-game aggregates while preserving v1 compatibility during migration.
+- [ ] Add requester-aware API filtering so private/derived statistics are removed before serialization.
+- [ ] Add explicit profile sharing preferences for derived statistics.
+- [ ] Add a bounded versioned `GameSession` record and prevent duplicate completion/counting after reboot/retry.
+- [ ] Add machine-readable profile/stat export with stable IDs, schema versions, units, and privacy filtering.
+- [ ] Add storage capacity/health diagnostics and bounded retention behavior.
+- [ ] Evaluate expanded/removable local storage after the reproducible Atlas hardware revision and bus/GPIO budget are known.
+
 ## OTA
 
 - [ ] Re-test Atlas OTA after the recent migration issue where upload appeared accepted but application was uncertain.
@@ -113,8 +127,8 @@ When an item is verified, update the relevant reference document and mark the it
 
 - [ ] Add photos of each surviving prototype generation.
 - [ ] Add dated architecture diagrams for each generation.
-- [ ] Add a formal decision log for major product decisions and reversals.
+- [x] Add a formal decision log for major product decisions and reversals. See [Engineering Decision Log](DECISION_LOG.md).
 - [ ] Tag future docs with hardware revision and firmware/protocol version where applicable.
 - [ ] Update this backlog whenever a provisional claim is added elsewhere.
 
-Last reconstructed: 2026-09-19
+Last reconstructed: 2026-09-20
