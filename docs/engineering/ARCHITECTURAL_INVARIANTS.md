@@ -143,6 +143,23 @@ Atlas button ----------/
 
 The Intent layer is an application boundary. It does not replace the GameEngine and it does not create a second source of truth.
 
+## Invariant 11: Accessibility is a first-class system requirement
+
+No essential TurnHub state, warning, instruction, or action may depend on a single sensory characteristic or a single input method when a practical alternative exists.
+
+At minimum:
+
+- Color MUST NOT be the sole carrier of essential meaning.
+- Sound MUST NOT be the sole carrier of essential meaning.
+- Motion, flashing, or LED cadence MUST NOT be the sole carrier of essential meaning.
+- Essential digital controls MUST provide accessible input paths appropriate to the platform.
+- Physical actions that depend on timing, fine dexterity, or a specific gesture SHOULD have an authorized assistive path when practical.
+- Accessibility alternatives MUST converge on the same semantic Intent and Atlas authorization as the default controller path. They do not create a second game engine or state owner.
+
+Web and application surfaces SHOULD target WCAG 2.2 Level AA. Physical Atlas/Sigil design MUST follow the separate requirements in `ACCESSIBILITY.md`, including redundant cues and assistive-input considerations.
+
+A feature is not complete merely because its default interaction works for a user who can perceive every cue and perform every default gesture.
+
 ## Code review tests
 
 For every new feature, ask:
@@ -157,4 +174,10 @@ Also ask:
 
 The expected answer is **yes**.
 
-Last established: 2026-09-19
+For every user-facing feature, also ask:
+
+> If a user cannot perceive one of our cues or cannot perform the default input gesture, is there another practical way to obtain the same information or request the same authorized action?
+
+The expected answer is **yes** whenever a practical alternative exists.
+
+Last established: 2026-09-20
