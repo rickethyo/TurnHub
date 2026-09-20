@@ -46,6 +46,17 @@ enum class IntentType : uint8_t {
   PairConfirm,
   ForgetPairing,
 
+  // Atlas decision and deferred-transition requests (not radio packet IDs).
+  CancelPass,
+  CommitPass,
+  ArmStart,
+  CancelStart,
+  CompleteStart,
+  BeginElimination,
+  CycleElimination,
+  CancelElimination,
+  Eliminate,
+
   Count,
 };
 
@@ -75,6 +86,14 @@ struct IntentActor {
 // ClaimWin flag: complete an armed pause-to-claim gesture. Atlas verifies its
 // arm and restores running play on denial, unlike an ordinary paused claim.
 constexpr uint32_t CLAIM_FROM_ARMED_PAUSE = 1U;
+// Pause flag for a gesture that can continue into a win claim. This is semantic
+// gesture context, independent of transport or IntentOrigin.
+constexpr uint32_t ARM_WIN_ON_PAUSE = 1U;
+
+// SelectStarter payload.value: exact actor seat, cycle the module's seats,
+// or host-requested random choice. Join/Leave actor.slot: 1 = module, 2 =
+// secondary seat. Lifecycle module requests use playerNumber=0 (unresolved).
+enum class StarterSelection : int32_t { ExactSeat = 0, CycleModule = 1, Random = 2 };
 
 struct IntentPayload {
   uint8_t targetPlayer = 0;
@@ -146,6 +165,15 @@ inline const char *intentName(IntentType type) {
     case IntentType::PairRequest: return "PAIR_REQUEST";
     case IntentType::PairConfirm: return "PAIR_CONFIRM";
     case IntentType::ForgetPairing: return "FORGET_PAIRING";
+    case IntentType::CancelPass: return "CANCEL_PASS";
+    case IntentType::CommitPass: return "COMMIT_PASS";
+    case IntentType::ArmStart: return "ARM_START";
+    case IntentType::CancelStart: return "CANCEL_START";
+    case IntentType::CompleteStart: return "COMPLETE_START";
+    case IntentType::BeginElimination: return "BEGIN_ELIMINATION";
+    case IntentType::CycleElimination: return "CYCLE_ELIMINATION";
+    case IntentType::CancelElimination: return "CANCEL_ELIMINATION";
+    case IntentType::Eliminate: return "ELIMINATE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }
