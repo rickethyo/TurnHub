@@ -72,6 +72,10 @@ struct IntentActor {
 // Fixed-size generic payload keeps the application boundary transport-neutral
 // and heap-free. Each IntentType documents which fields it uses as it is
 // migrated into the dispatcher.
+// ClaimWin flag: complete an armed pause-to-claim gesture. Atlas verifies its
+// arm and restores running play on denial, unlike an ordinary paused claim.
+constexpr uint32_t CLAIM_FROM_ARMED_PAUSE = 1U;
+
 struct IntentPayload {
   uint8_t targetPlayer = 0;
   int32_t value = 0;

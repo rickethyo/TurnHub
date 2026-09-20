@@ -505,12 +505,111 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   return IntentResult::accept("Player conceded");
 }
 
+IntentResult handleClaimWinIntent(const Intent &intent, void *) {
+  const PlayerSeat *resolved = seatForIntentActor(intent);
+  if (resolved == nullptr) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "This seat is no longer at the table");
+  }
+  const PlayerSeat seat = *resolved;
+  const uint32_t nowMs = millis();
+  if (hubState != HubState::Running && hubState != HubState::Paused) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Win claim is unavailable right now");
+  }
+  if (game.hasWinClaim() || eliminationTargetPlayer != 0) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Another table decision is already pending");
+  }
+  const PlayerSeat *active = game.activePlayer();
+  if (active == nullptr || !active->sameSeat(seat) ||
+      game.isEliminated(seat.playerNumber)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Only the active player can claim a win");
+  }
+
+  const bool armedClaim = (intent.payload.flags & TurnHub::CLAIM_FROM_ARMED_PAUSE) != 0;
+  if (armedClaim && (hubState != HubState::Paused ||
+      winArmedModule != seat.moduleId || winArmedPlayer != seat.playerNumber)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Win claim is not armed");
+  }
+  clearPendingPass("WIN_CLAIM");
+  const bool restoreRunning = hubState == HubState::Running || armedClaim;
+  if (!game.beginWinClaim(seat.playerNumber, restoreRunning, nowMs)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Could not start the win claim");
+  }
+  winArmedModule = INVALID_ID;
+  winArmedPlayer = 0;
+  leds.invalidateAll();
+
+  if (game.gameOver()) {
+    finishGameState();
+  } else {
+    hubState = HubState::Paused;
+    audio.winClaimed(gameAudioMask());
+  }
+
+  Serial.print("ATLAS|INTENT|WIN|CLAIMED|PLAYER|");
+  Serial.println(seat.playerNumber);
+  return IntentResult::accept("Win claim sent to the table");
+}
+
+IntentResult handleConfirmWinIntent(const Intent &intent, void *) {
+  const PlayerSeat *resolved = seatForIntentActor(intent);
+  if (resolved == nullptr) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "This seat is no longer at the table");
+  }
+  const PlayerSeat seat = *resolved;
+  const uint32_t nowMs = millis();
+  if (hubState != HubState::Paused || !game.hasWinClaim()) {
+    return IntentResult::reject(IntentStatus::InvalidState, "There is no win claim to confirm");
+  }
+  if (game.nextWinConfirmationPlayerNumber() != seat.playerNumber) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Another player must respond first");
+  }
+
+  bool gameFinished = false;
+  if (!game.confirmWinClaim(seat.playerNumber, nowMs, gameFinished)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Could not confirm the win claim");
+  }
+  audio.winConfirmed(gameAudioMask());
+  leds.invalidateAll();
+  Serial.print("ATLAS|INTENT|WIN|CONFIRMED|PLAYER|");
+  Serial.println(seat.playerNumber);
+  if (gameFinished) {
+    finishGameState();
+  }
+  return IntentResult::accept("Win claim confirmed");
+}
+
+IntentResult handleDenyWinIntent(const Intent &intent, void *) {
+  const PlayerSeat *resolved = seatForIntentActor(intent);
+  if (resolved == nullptr) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "This seat is no longer at the table");
+  }
+  const PlayerSeat seat = *resolved;
+  const uint32_t nowMs = millis();
+  if (hubState != HubState::Paused || !game.hasWinClaim()) {
+    return IntentResult::reject(IntentStatus::InvalidState, "There is no win claim to deny");
+  }
+  if (game.nextWinConfirmationPlayerNumber() != seat.playerNumber) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Another player must respond first");
+  }
+  if (!game.denyWinClaim(seat.playerNumber, nowMs)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Could not deny the win claim");
+  }
+  hubState = game.paused() ? HubState::Paused : HubState::Running;
+  audio.winDenied(gameAudioMask());
+  leds.invalidateAll();
+  Serial.print("ATLAS|INTENT|WIN|DENIED|PLAYER|");
+  Serial.println(seat.playerNumber);
+  return IntentResult::accept("Win claim denied");
+}
+
 IntentResult dispatchSeatIntent(
     IntentType type,
     IntentOrigin origin,
-    const PlayerSeat &seat) {
+    const PlayerSeat &seat,
+    uint32_t flags = 0) {
   Intent intent;
   intent.type = type;
+  intent.payload.flags = flags;
   intent.actor.origin = origin;
   intent.actor.moduleId = seat.moduleId;
   intent.actor.slot = seat.slot;
@@ -541,7 +640,20 @@ bool configureIntentHandlers() {
                      ? "ATLAS|INTENT|CONCEDE|BOUND"
                      : "ATLAS|INTENT|CONCEDE|BIND_FAILED");
 
-  return passBound && pauseBound && resumeBound && concedeBound;
+  bool remainingBound = true;
+  const struct { IntentType type; IntentDispatcher::Handler handler; } bindings[] = {
+      {IntentType::ClaimWin, handleClaimWinIntent},
+      {IntentType::ConfirmWin, handleConfirmWinIntent},
+      {IntentType::DenyWin, handleDenyWinIntent},
+  };
+  for (const auto &binding : bindings) {
+    const bool bound = intents.bind(binding.type, binding.handler);
+    Serial.print("ATLAS|INTENT|");
+    Serial.print(TurnHub::intentName(binding.type));
+    Serial.println(bound ? "|BOUND" : "|BIND_FAILED");
+    remainingBound = bound && remainingBound;
+  }
+  return passBound && pauseBound && resumeBound && concedeBound && remainingBound;
 }
 
 void updatePendingPass(uint32_t nowMs) {
@@ -922,93 +1034,21 @@ bool handleWebControl(
     }
 
     case WebControl::ClaimWin: {
-      const uint32_t nowMs = millis();
-      if (hubState != HubState::Running && hubState != HubState::Paused) {
-        message = "Win claim is unavailable right now";
-        return false;
-      }
-      if (game.hasWinClaim() || eliminationTargetPlayer != 0) {
-        message = "Another table decision is already pending";
-        return false;
-      }
-      const PlayerSeat *active = game.activePlayer();
-      if (active == nullptr || !active->sameSeat(seat) ||
-          game.isEliminated(seat.playerNumber)) {
-        message = "Only the active player can claim a win";
-        return false;
-      }
-
-      clearPendingPass("WIN_CLAIM");
-      const bool restoreRunning = hubState == HubState::Running;
-      if (!game.beginWinClaim(seat.playerNumber, restoreRunning, nowMs)) {
-        message = "Could not start the win claim";
-        return false;
-      }
-      winArmedModule = INVALID_ID;
-      winArmedPlayer = 0;
-      leds.invalidateAll();
-
-      if (game.gameOver()) {
-        finishGameState();
-      } else {
-        hubState = HubState::Paused;
-        audio.winClaimed(gameAudioMask());
-      }
-
-      Serial.print("ATLAS|WEB|WIN|CLAIMED|PLAYER|");
-      Serial.println(seat.playerNumber);
-      message = "Win claim sent to the table";
-      return true;
+      const IntentResult result = dispatchSeatIntent(IntentType::ClaimWin, IntentOrigin::Browser, seat);
+      message = result.message;
+      return result.accepted();
     }
 
     case WebControl::ConfirmWin: {
-      const uint32_t nowMs = millis();
-      if (hubState != HubState::Paused || !game.hasWinClaim()) {
-        message = "There is no win claim to confirm";
-        return false;
-      }
-      if (game.nextWinConfirmationPlayerNumber() != seat.playerNumber) {
-        message = "Another player must respond first";
-        return false;
-      }
-
-      bool gameFinished = false;
-      if (!game.confirmWinClaim(seat.playerNumber, nowMs, gameFinished)) {
-        message = "Could not confirm the win claim";
-        return false;
-      }
-      audio.winConfirmed(gameAudioMask());
-      leds.invalidateAll();
-      Serial.print("ATLAS|WEB|WIN|CONFIRMED|PLAYER|");
-      Serial.println(seat.playerNumber);
-      if (gameFinished) {
-        finishGameState();
-      }
-      message = "Win claim confirmed";
-      return true;
+      const IntentResult result = dispatchSeatIntent(IntentType::ConfirmWin, IntentOrigin::Browser, seat);
+      message = result.message;
+      return result.accepted();
     }
 
     case WebControl::DenyWin: {
-      const uint32_t nowMs = millis();
-      if (hubState != HubState::Paused || !game.hasWinClaim()) {
-        message = "There is no win claim to deny";
-        return false;
-      }
-      if (game.nextWinConfirmationPlayerNumber() != seat.playerNumber) {
-        message = "Another player must respond first";
-        return false;
-      }
-      if (!game.denyWinClaim(seat.playerNumber, nowMs)) {
-        message = "Could not deny the win claim";
-        return false;
-      }
-      hubState = game.paused() ? HubState::Paused : HubState::Running;
-      audio.winDenied(gameAudioMask());
-      leds.invalidateAll();
-      Serial.print("ATLAS|WEB|WIN|DENIED|PLAYER|");
-      Serial.println(seat.playerNumber);
-      message = "Win claim denied";
-      return true;
+      const IntentResult result = dispatchSeatIntent(IntentType::DenyWin, IntentOrigin::Browser, seat);
+      message = result.message;
+      return result.accepted();
     }
   }
 
@@ -1064,13 +1104,7 @@ void handlePass(uint8_t sigilId) {
         return;
       }
 
-      if (game.denyWinClaim(expectedNumber, millis())) {
-        hubState = game.paused() ? HubState::Paused : HubState::Running;
-        audio.winDenied(gameAudioMask());
-        leds.invalidateAll();
-        Serial.print("ATLAS|GAME|WIN|DENIED|PLAYER|");
-        Serial.println(expectedNumber);
-      }
+      dispatchSeatIntent(IntentType::DenyWin, IntentOrigin::PhysicalSigil, *expected);
       return;
     }
 
@@ -1179,16 +1213,7 @@ void handleActionShort(uint8_t sigilId) {
       return;
     }
 
-    bool gameFinished = false;
-    if (game.confirmWinClaim(expectedNumber, millis(), gameFinished)) {
-      audio.winConfirmed(gameAudioMask());
-      leds.invalidateAll();
-      Serial.print("ATLAS|GAME|WIN|CONFIRMED|PLAYER|");
-      Serial.println(expectedNumber);
-      if (gameFinished) {
-        finishGameState();
-      }
-    }
+    dispatchSeatIntent(IntentType::ConfirmWin, IntentOrigin::PhysicalSigil, *expected);
     return;
   }
 
@@ -1334,22 +1359,8 @@ void handleActionWin(uint8_t sigilId) {
     return;
   }
 
-  if (!game.beginWinClaim(winArmedPlayer, true, millis())) {
-    return;
-  }
-
-  winArmedModule = INVALID_ID;
-  winArmedPlayer = 0;
-  leds.invalidateAll();
-
-  if (game.gameOver()) {
-    finishGameState();
-    return;
-  }
-
-  audio.winClaimed(gameAudioMask());
-  Serial.print("ATLAS|GAME|WIN|CLAIMED|PLAYER|");
-  Serial.println(game.winClaimPlayerNumber());
+  dispatchSeatIntent(IntentType::ClaimWin, IntentOrigin::PhysicalSigil, *active,
+      TurnHub::CLAIM_FROM_ARMED_PAUSE);
 }
 
 void processSigilEvents() {
