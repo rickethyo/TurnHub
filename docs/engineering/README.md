@@ -1,6 +1,6 @@
 # TurnHub Engineering Reference
 
-This directory is the working engineering record for TurnHub hardware, firmware, software architecture, protocols, and historical generations.
+This directory is the working engineering record for TurnHub hardware, firmware, software architecture, protocols, persistence, statistics, and historical generations.
 
 The documents are intentionally useful before they are perfect. Early TurnHub development moved quickly and some historical details were never formally recorded at the time. Rather than invent precision, these references use explicit confidence labels so older information can be corrected later without losing the development story.
 
@@ -15,7 +15,10 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 ## Reference set
 
 - [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
+- [Engineering Decision Log](DECISION_LOG.md) - dated architecture/product decisions and the rationale behind them.
 - [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
+- [Statistics and Profiles](STATISTICS_AND_PROFILES.md) - player/game profile separation, game-scoped stats, privacy classes, session records, and v1 migration direction.
+- [Local Storage Architecture](LOCAL_STORAGE_ARCHITECTURE.md) - persistence tiers, ownership, storage adapters, retention, migration, and local expansion direction.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
@@ -29,6 +32,8 @@ The Atlas is the authoritative owner of table and game state. Sigils, browser cl
 
 Controller actions should converge on a semantic Intent before authoritative game behavior executes. Transport-specific code moves/authenticates requests; it does not own game semantics.
 
+Persistent data follows the same ownership rule. Profiles, game profiles, statistics, paired-device records, and recovery data have defined owners and must not become competing controller-side sources of truth.
+
 This principle is intended to reduce duplicate logic, avoid state disagreement, and allow physical and virtual controllers to use the same higher-level actions.
 
 ## Mandatory feature gate
@@ -41,14 +46,19 @@ Before implementing a significant feature, define:
 4. Persistence owner, if any.
 5. Rendering/presentation clients.
 6. Shared protocol/contract changes, if any.
-7. Third-party dependency/asset impact, if any, and update `docs/legal` when applicable.
+7. Privacy/visibility class for any player or statistics data introduced.
+8. Third-party dependency/asset impact, if any, and update `docs/legal` when applicable.
 
 If those boundaries are unclear, define them before implementation proceeds.
+
+For persisted data, also define its stable ID/key, schema version, migration behavior, and retention policy where applicable.
 
 ## Document maintenance rule
 
 When a hardware or software decision changes, update the relevant reference rather than relying on chat history alone. If an implemented experiment is abandoned, preserve it in the generation history and mark it historical instead of rewriting history to imply it never existed.
 
+When a major architecture or product decision changes, add or supersede an entry in the engineering decision log.
+
 When a new external dependency, asset, reference design, copied implementation, or third-party branding reference enters the project, update the legal/IP working reference in the same development cycle.
 
-Last reconstructed: 2026-09-19
+Last reconstructed: 2026-09-20
