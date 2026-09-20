@@ -1,6 +1,6 @@
 # TurnHub Engineering Reference
 
-This directory is the working engineering record for TurnHub hardware, firmware, software architecture, protocols, and historical generations.
+This directory is the working engineering record for TurnHub hardware, firmware, software architecture, protocols, accessibility, and historical generations.
 
 The documents are intentionally useful before they are perfect. Early TurnHub development moved quickly and some historical details were never formally recorded at the time. Rather than invent precision, these references use explicit confidence labels so older information can be corrected later without losing the development story.
 
@@ -15,6 +15,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 ## Reference set
 
 - [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
+- [Accessibility Specification](ACCESSIBILITY.md) - cross-platform requirements for color, contrast, redundant cues, physical input, assistive controllers, digital accessibility, and accessibility testing.
 - [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
 - [Staged Changes](STAGED_CHANGES.md) - concise durable queue for agreed work that has not yet been implemented or fully verified.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
@@ -32,6 +33,8 @@ Controller actions should converge on a semantic Intent before authoritative gam
 
 This principle is intended to reduce duplicate logic, avoid state disagreement, and allow physical and virtual controllers to use the same higher-level actions.
 
+Accessibility is also a hard system requirement. Essential information and actions must not depend on one sensory cue or one input method when a practical alternative exists. Accessibility alternatives must still use the same Intent and authorization boundaries rather than creating parallel game logic.
+
 ## Mandatory feature gate
 
 Before implementing a significant feature, define:
@@ -43,6 +46,7 @@ Before implementing a significant feature, define:
 5. Rendering/presentation clients.
 6. Shared protocol/contract changes, if any.
 7. Third-party dependency/asset impact, if any, and update `docs/legal` when applicable.
+8. Accessibility impact and alternate presentation/input path, if user-facing.
 
 If those boundaries are unclear, define them before implementation proceeds.
 
@@ -55,7 +59,7 @@ At minimum, review:
 1. This engineering index.
 2. `ARCHITECTURAL_INVARIANTS.md`.
 3. `STAGED_CHANGES.md`.
-4. The specific reference documents affected by the proposed change, such as the Intent model, software architecture, protocol/pairing, hardware reference, verification backlog, or legal/IP references.
+4. The specific reference documents affected by the proposed change, such as the Accessibility specification, Intent model, software architecture, protocol/pairing, hardware reference, verification backlog, or legal/IP references.
 
 Structural changes include architecture boundaries, state ownership, persistence models, shared contracts/protocols, controller abstractions, major file/module organization, branch/workflow structure, and hardware/software interface boundaries.
 
@@ -70,5 +74,7 @@ Planning and agreed near-term changes stay in `STAGED_CHANGES.md` on the active 
 When a hardware or software decision changes, update the relevant reference rather than relying on chat history alone. If an implemented experiment is abandoned, preserve it in the generation history and mark it historical instead of rewriting history to imply it never existed.
 
 When a new external dependency, asset, reference design, copied implementation, or third-party branding reference enters the project, update the legal/IP working reference in the same development cycle.
+
+When a user-facing interaction, cue, display, timeout, or controller path changes, review `ACCESSIBILITY.md` in the same development cycle.
 
 Last reconstructed: 2026-09-20
