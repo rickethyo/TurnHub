@@ -66,6 +66,17 @@ Clients recover from reconnects by requesting a snapshot described by `state-v0.
 
 Snapshots carry a monotonically increasing Atlas `revision`. Incremental events are useful for responsiveness, but a client must always be able to discard local assumptions and rebuild from a current snapshot.
 
+## Additional shared data contracts
+
+Not every shared record is a gameplay message. Durable/profile-facing records use separate versioned schemas so the browser, Android client, export tools, and Atlas persistence layer can agree on meaning without coupling those records to transport.
+
+Current working contracts:
+
+- `game-profile-v0.1.schema.json` - stable game/format identity, capabilities, statistics capabilities, and starting-state metadata.
+- `stats-export-v0.1.schema.json` - versioned player statistics export partitioned by game profile, with requester-authorized derived values filtered before serialization.
+
+These schemas are working contracts, not proof that the corresponding persistence migration is complete. Firmware may continue to use the existing v1 profile/stat implementation while the v2 storage path is introduced incrementally.
+
 ## Initial client API shape
 
 The exact HTTP paths are not frozen, but the working v0.1 shape is:
@@ -76,7 +87,7 @@ POST /api/v1/intent
 WS   /api/v1/events
 ```
 
-Additional endpoints may exist for profiles, authentication, device management, firmware, diagnostics, and setup. Gameplay semantics should still enter Atlas through the Intent layer.
+Additional endpoints may exist for profiles, authentication, device management, firmware, diagnostics, setup, game profiles, and statistics. Gameplay semantics should still enter Atlas through the Intent layer.
 
 ## Intent result
 
@@ -111,6 +122,7 @@ Transport adapters may map these onto HTTP status codes, BLE acknowledgements, t
 4. Breaking changes require a new protocol version.
 5. Atlas should advertise supported protocol versions/capabilities during connection setup.
 6. Clients must fail clearly when there is no compatible protocol version.
+7. Durable exported records use their own explicit schema version when they are not part of the live client protocol envelope.
 
 ## State and event rules
 
@@ -127,8 +139,10 @@ A table QR or discovery mechanism identifies/reaches an Atlas. It must not by it
 
 Authentication/seat assignment is a separate step. Client-supplied player numbers are not trusted when Atlas can resolve identity from the authenticated session/device relationship.
 
+Profile/stat endpoints must apply authorization and visibility filtering before serialization. Private performance values and system/authentication fields must not be sent to an unauthorized client and merely hidden in presentation code.
+
 ## Current migration priority
 
-The first operation to migrate end to end is `PASS` because physical Sigils, the browser, and the Atlas master button already request it through separate entry paths. Once all three produce the same Intent and one handler owns the rule, the Android client can use that exact same semantic operation.
+Gameplay controller migration remains focused on converging all inputs on shared Intents. In parallel, the profile/statistics work should introduce stable game-profile identity before adding substantial new game-specific statistics or Android-only data shapes.
 
-Last established: 2026-09-19
+Last established: 2026-09-20
