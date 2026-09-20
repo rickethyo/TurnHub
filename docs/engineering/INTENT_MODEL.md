@@ -184,7 +184,8 @@ to the authoritative transitions.
 These additions are internal C++ application requests, not new ESP-NOW packet IDs or
 HTTP endpoints. The future JSON envelope is not currently decoded by this runtime;
 do not expose System origin or deferred-commit operations as caller-selected ingress.
-Unimplemented vocabulary (life/counters, nudges, pairing) still returns Unsupported.
+PairRequest now has a visual-only mock handler for the Atlas Pair button; it does
+not pair devices. Life/counters, nudges, PairConfirm, and ForgetPairing remain Unsupported.
 
 ## Result model
 

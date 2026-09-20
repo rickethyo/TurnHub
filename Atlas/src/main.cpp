@@ -71,6 +71,13 @@ bool lastButtonState = HIGH;
 uint32_t lastDebounceMs = 0;
 bool lastPairButtonState = HIGH;
 uint32_t lastPairDebounceMs = 0;
+constexpr uint32_t BOOT_BLINK_INTERVAL_MS = 150;
+constexpr uint32_t MOCK_PAIRING_DURATION_MS = 5000;
+constexpr uint32_t PAIR_BLINK_INTERVAL_MS = 250;
+bool bootBlinkActive = false;
+uint32_t bootBlinkStartedAtMs = 0;
+bool mockPairingActive = false;
+uint32_t mockPairingStartedAtMs = 0;
 uint32_t countdownStartedAtMs = 0;
 int8_t lastCountdownSecond = -1;
 
@@ -651,6 +658,20 @@ IntentResult dispatchSystemIntent(IntentType type) {
   return intents.dispatch(intent);
 }
 
+// Visual prototype only: no discovery, binding, transport, or persistence changes.
+IntentResult handleMockPairRequestIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Use the Atlas Pair button");
+  }
+  if (mockPairingActive) {
+    return IntentResult::accept("Mock pairing is already active");
+  }
+  mockPairingActive = true;
+  mockPairingStartedAtMs = millis();
+  Serial.println("ATLAS|PAIRING|MOCK|ENTER|DURATION_MS|5000");
+  return IntentResult::accept("Mock pairing started");
+}
+
 bool configureIntentHandlers() {
   const bool passBound = intents.bind(IntentType::Pass, handlePassIntent);
   const bool pauseBound = intents.bind(IntentType::Pause, handlePauseIntent);
@@ -691,6 +712,7 @@ bool configureIntentHandlers() {
       {IntentType::Eliminate, handleTableIntent},
       {IntentType::CancelPass, handleTableIntent},
       {IntentType::CommitPass, handleCommitPassIntent},
+      {IntentType::PairRequest, handleMockPairRequestIntent},
   };
   for (const auto &binding : bindings) {
     const bool bound = intents.bind(binding.type, binding.handler);
@@ -1639,6 +1661,30 @@ void updatePairButton() {
   Serial.println(currentState == LOW
                      ? "ATLAS|PAIR_BUTTON|DOWN"
                      : "ATLAS|PAIR_BUTTON|UP");
+  if (currentState == LOW) {
+    Intent intent;
+    intent.type = IntentType::PairRequest;
+    intent.actor.origin = IntentOrigin::AtlasHardware;
+    intents.dispatch(intent);
+  }
+}
+
+void updateFrontPanelLeds(uint32_t nowMs) {
+  const uint32_t bootElapsed = nowMs - bootBlinkStartedAtMs;
+  if (bootBlinkActive && bootElapsed >= 6 * BOOT_BLINK_INTERVAL_MS) {
+    bootBlinkActive = false;
+  }
+  // Three status flashes, then steady on. Pair LED is reserved for pairing.
+  digitalWrite(AtlasConfig::STATUS_LED_PIN,
+      !bootBlinkActive || (bootElapsed / BOOT_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
+
+  const uint32_t pairingElapsed = nowMs - mockPairingStartedAtMs;
+  if (mockPairingActive && pairingElapsed >= MOCK_PAIRING_DURATION_MS) {
+    mockPairingActive = false;
+    Serial.println("ATLAS|PAIRING|MOCK|EXIT");
+  }
+  digitalWrite(AtlasConfig::PAIR_LED_PIN,
+      mockPairingActive && (pairingElapsed / PAIR_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
 }
 
 void startNetworking() {
@@ -1703,16 +1749,19 @@ void setup() {
   lastPairButtonState = digitalRead(AtlasConfig::PAIR_BUTTON_PIN);
 
   digitalWrite(AtlasConfig::STATUS_LED_PIN, HIGH);
-  digitalWrite(AtlasConfig::PAIR_LED_PIN, HIGH);
+  digitalWrite(AtlasConfig::PAIR_LED_PIN, LOW);
 
   Serial.println();
   Serial.print("ATLAS|BOOT|");
   Serial.println(TurnHubFirmware::VERSION);
-  Serial.println("ATLAS|FRONT_PANEL|LEDS|ON");
+  Serial.println("ATLAS|FRONT_PANEL|LEDS|BOOT_BLINK");
 
   configureIntentHandlers();
   startNetworking();
 
+  // Start after synchronous network setup so all three flashes are visible.
+  bootBlinkStartedAtMs = millis();
+  bootBlinkActive = true;
   Serial.println("ATLAS|READY");
 }
 
@@ -1723,6 +1772,7 @@ void loop() {
   server.handleClient();
 
   const uint32_t nowMs = millis();
+  updateFrontPanelLeds(nowMs);
   updatePendingPass(nowMs);
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);

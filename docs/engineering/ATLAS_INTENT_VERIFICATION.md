@@ -56,8 +56,8 @@ persistence keep their existing owners; they are not alternate game-state mutato
 - Rematch retains joined seats; reset empties the lobby.
 - PASS still uses a three-second grace interval and the original request timestamp
   for committed turn statistics, with unsigned timer rollover arithmetic.
-- Unsupported future features (life/counters, nudges, pairing) remain unbound;
-  they have no current game-state mutation path to migrate.
+- Future life/counters, nudges, and actual device pairing remain unimplemented.
+  The follow-up below adds only a visual mock PairRequest handler.
 
 ## Optional Preferences/NVS reads
 
@@ -91,22 +91,41 @@ host restrictions, countdown cancellation, rematch/reset, elimination conflicts,
 concession pause restoration, PASS cancellation/grace/rollover, and NVS injected
 NOT_FOUND/type/handle/erase/commit failures. These are not hardware persistence tests.
 
-## Hardware verification still required
+<a id="hardware-verification-still-required"></a>
 
-- [ ] Flash Atlas only; confirm all implemented intents log BOUND and normal Wi-Fi,
+## Hardware verification — user reported complete
+
+- [x] Flash Atlas only; confirm all implemented intents log BOUND and normal Wi-Fi,
   ESP-NOW, web, front-panel LEDs, and both physical Sigils still initialize.
-- [ ] Poll portal/status/profile/statistics views with unnamed seats and no PINs;
+- [x] Poll portal/status/profile/statistics views with unnamed seats and no PINs;
   verify repeated NOT_FOUND messages are gone. Save/clear/reload values and reboot
   to verify persisted values and legacy migration still work.
-- [ ] Exercise physical, browser, and master-button PASS; wait three seconds,
+- [x] Exercise physical, browser, and master-button PASS; wait three seconds,
   cancel with PASS and Action, and verify turn audio including shared-seat passes.
-- [ ] Test physical/browser pause/resume and mixed-interface win confirmations and
+- [x] Test physical/browser pause/resume and mixed-interface win confirmations and
   denials, including a paused browser claim, armed physical claim, and shared seats.
-- [ ] Exercise join and secondary join/leave, starter cycle/exact/random selection,
+- [x] Exercise join and secondary join/leave, starter cycle/exact/random selection,
   host countdown, cancellation, start, game-over rematch, and empty reset.
-- [ ] Test elimination target cycle/cancel/confirm versus running/paused concession;
+- [x] Test elimination target cycle/cancel/confirm versus running/paused concession;
   verify winner, statistics, LEDs, and sounds once per completed game.
-- [ ] Recheck browser authentication, OTA gating/partition behavior, and reconnect.
+- [x] Recheck browser authentication, OTA gating/partition behavior, and reconnect.
 
 The prior conversation reports physical PASS timing/front-panel success on the
 pre-migration build. That evidence does not count as hardware validation of this patch.
+
+## Follow-up: front-panel LED prototype
+
+After supplying the hardware run above, the user confirmed that all remaining
+gameplay checks were tested. This is user-reported acceptance; no additional
+serial capture was supplied for those checks. The original automated build
+figures above refer to the intent migration before the LED follow-up.
+
+The LED follow-up binds PairRequest to an explicitly mock, Atlas-button-only
+handler: five seconds of pairing LED flashes, automatic exit, no actual pairing
+or persistence. Status flashes three times after startup and then stays on.
+
+LED follow-up validation: PlatformIO Atlas build passed (47,924 bytes RAM,
+924,797 bytes flash); all six existing native scenario groups and the adapter
+audit passed. These automated checks do not verify physical LED appearance.
+
+- [ ] Physically verify the new boot flashes and five-second mock pairing window.

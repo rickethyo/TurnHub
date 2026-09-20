@@ -143,6 +143,17 @@ C:\Users\ricke\.platformio\penv\Scripts\platformio.exe run -e atlas --target upl
 
 After boot, connect a phone or computer to the Atlas access point and browse to the IP printed in the serial monitor. The ESP32 SoftAP address will normally be `192.168.4.1`.
 
+## Atlas front-panel LEDs
+
+The status LED (GPIO25 / J8) flashes three times after startup, then stays on.
+The pairing LED (GPIO26 / J7) is off outside mock pairing mode. Press Pair
+(GPIO32 / J10) to flash it every 250 ms for five seconds; the mode then exits
+automatically. Repeated presses during that window do not extend it.
+
+This is a visual prototype only: no devices are paired or forgotten and nothing
+is persisted. Serial reports `ATLAS|PAIRING|MOCK|ENTER|DURATION_MS|5000` and
+`ATLAS|PAIRING|MOCK|EXIT`. LED timing is nonblocking.
+
 ## Regression verification
 
 Current gameplay controls enter Atlas's authoritative IntentDispatcher, including
@@ -151,8 +162,8 @@ Optional NVS absence returns existing defaults without silencing other errors.
 
 See [native regression tests](tests/host/README.md) for repeatable scenarios and
 [verification status / hardware checklist](../docs/engineering/ATLAS_INTENT_VERIFICATION.md)
-for exact build evidence and required post-flash checks. Hardware validation of this
-migration is still pending; remain on `atlas-esp32-port` until it passes.
+for exact build evidence and post-flash checks. The user reports the gameplay
+migration checks complete. The new LED behavior still needs a physical check.
 
 ## Migration direction
 
