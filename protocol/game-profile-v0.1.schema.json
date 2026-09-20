@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turnhub.local/schema/game-profile-v0.1.json",
+  "title": "TurnHub Game Profile v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "gameProfileId", "name", "capabilities", "statCapabilities", "startingState"],
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1"
+    },
+    "gameProfileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "statCapabilities": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "startingState": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}
