@@ -16,6 +16,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 
 - [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
 - [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
+- [Staged Changes](STAGED_CHANGES.md) - concise durable queue for agreed work that has not yet been implemented or fully verified.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
@@ -45,10 +46,14 @@ Before implementing a significant feature, define:
 
 If those boundaries are unclear, define them before implementation proceeds.
 
+## Staging rule
+
+Planning and agreed near-term changes stay in `STAGED_CHANGES.md` on the active development branch rather than creating long-lived planning branches. Short-lived branches are reserved for code changes that genuinely need isolation, review, or experimental protection.
+
 ## Document maintenance rule
 
 When a hardware or software decision changes, update the relevant reference rather than relying on chat history alone. If an implemented experiment is abandoned, preserve it in the generation history and mark it historical instead of rewriting history to imply it never existed.
 
 When a new external dependency, asset, reference design, copied implementation, or third-party branding reference enters the project, update the legal/IP working reference in the same development cycle.
 
-Last reconstructed: 2026-09-19
+Last reconstructed: 2026-09-20
