@@ -139,21 +139,52 @@ Migrate one semantic operation at a time:
 5. Convert physical/web/Atlas/simulator entry points into adapters that construct the same Intent.
 6. Verify behavior and delete the old duplicated direct paths.
 
-### First migration target: Pass
+### Current implemented boundary
 
-Pass is a good first target because the current firmware already has a mostly centralized `requestPass()` implementation, but it is invoked directly from multiple interfaces.
+PASS, pause/resume/toggle, concession, victory claim/confirm/deny, join/leave,
+starter selection, start arming/countdown/cancellation, rematch/reset, and
+elimination selection/cycle/cancel/confirmation now enter the dispatcher.
+Timers submit System intents for deferred PASS commitment and countdown completion.
+The current bindings and validation evidence are recorded in
+[Atlas intent verification](ATLAS_INTENT_VERIFICATION.md).
 
-Target architecture:
+Application handlers and their private transition helpers remain in `main.cpp`;
+this migration removes interface-owned mutations without a larger module rewrite.
+The native harness compiles those actual handlers with the real GameEngine/Lobby.
+Transport authentication, packet decoding, GPIO debounce, and held/chord/suppression
+bookkeeping remain outside the game rules. Presentation side effects remain adjacent
+to the authoritative transitions.
 
-```text
-Physical Sigil PASS packet ----\
-Browser Pass -------------------+--> IntentType::Pass --> handlePassIntent()
-Atlas master control ----------/
-```
+### Implemented payload meanings
 
-`handlePassIntent()` should resolve the actor, enforce turn/state rules once, and then call the existing pending-pass/game-engine mechanisms.
+- Game seat intents use `actor.moduleId`, `slot`, and `playerNumber`; Atlas validates
+  their agreement with the current canonical seat. Browser identities come from
+  authenticated sessions, not arbitrary form fields.
+- `Join`/`Leave`: slot 1 requests whole-module membership; slot 2 requests secondary
+  seat membership. Membership changes require Lobby state. Whole-module Leave is
+  bound but has no new physical gesture or HTTP endpoint in this patch.
+- `SelectStarter`: `payload.value` is `StarterSelection::ExactSeat` (0),
+  `CycleModule` (1), or `Random` (2). Random selection requires the host and two
+  players. Browser requests select the exact authenticated seat.
+- `Pause`: `payload.flags & ARM_WIN_ON_PAUSE` identifies a pause gesture that may
+  continue into a win claim. Atlas arms it only for the active player's module.
+- `ClaimWin`: `payload.flags & CLAIM_FROM_ARMED_PAUSE` requests completion of that
+  armed gesture. Atlas validates the arm and resumes play on denial. Without this
+  flag, denial restores the state before the claim. Neither flag is inferred from
+  transport/origin inside the semantic handler.
+- `ArmStart`, `StartGame`, `Rematch`, and `ResetGame` identify the requesting module;
+  Atlas validates host, state, player count, and start-arm constraints.
+- `BeginElimination`, `CycleElimination`, `CancelElimination`, and `Eliminate` refer
+  to Atlas's selected target. Eliminate is intentionally distinct from Concede:
+  a surviving elimination stays paused; concession restores prior running play.
+- `CancelPass` identifies the controller owning the pending pass. `CommitPass` and
+  `CompleteStart` are internal System-only intents; Atlas rechecks elapsed time and
+  current state and supplies the authoritative timestamps itself.
 
-After that migration is stable, use the same pattern for Pause/Resume, victory claims, concessions, and starter selection.
+These additions are internal C++ application requests, not new ESP-NOW packet IDs or
+HTTP endpoints. The future JSON envelope is not currently decoded by this runtime;
+do not expose System origin or deferred-commit operations as caller-selected ingress.
+Unimplemented vocabulary (life/counters, nudges, pairing) still returns Unsupported.
 
 ## Result model
 

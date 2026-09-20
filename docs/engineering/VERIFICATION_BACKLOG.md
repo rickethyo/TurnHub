@@ -74,16 +74,18 @@ When an item is verified, update the relevant reference document and mark the it
 
 ## Software architecture
 
-- [ ] Audit current Atlas migration code for any browser/Sigil logic that duplicates game-engine rules.
+- [x] Audit current Atlas migration code for any browser/Sigil logic that duplicates game-engine rules. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [x] Route running-game PASS requests from physical Sigils, browser controls, and the Atlas master button through the shared authoritative `IntentDispatcher`.
-- [ ] Investigate inconsistent PASS grace timing observed on hardware. PASS logging now records `ORIGIN` at request, cancel, reject, and commit so the affected input path can be identified without guessing.
-- [ ] Migrate Pause/Resume through authoritative Intent handlers and remove controller-specific state mutation.
-- [ ] Migrate Concede through an authoritative Intent handler.
-- [ ] Migrate ClaimWin/ConfirmWin/DenyWin through authoritative Intent handlers.
-- [ ] Migrate lobby/lifecycle actions through Intent handlers where they represent semantic requests rather than local input gestures.
+- [x] Investigate inconsistent PASS grace timing observed on hardware. The 2026-09-19 ESP32 Build Fix conversation reports three-second physical/browser pending-to-commit timing and Action cancellation on the pre-migration build. New native scenarios verify grace/cancellation/rollover; repeat the hardware test after this migration.
+- [x] Eliminate optional Preferences/NVS NOT_FOUND spam without reducing error logging. Native fault-injection policy tests and clean firmware build pass; see [verification record](ATLAS_INTENT_VERIFICATION.md).
+- [ ] Complete the [post-migration hardware checklist](ATLAS_INTENT_VERIFICATION.md#hardware-verification-still-required), including absent/persisted profile values and all input paths, before merging to master.
+- [x] Migrate Pause/Resume through authoritative Intent handlers and remove controller-specific state mutation. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
+- [x] Migrate Concede through an authoritative Intent handler. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
+- [x] Migrate ClaimWin/ConfirmWin/DenyWin through authoritative Intent handlers. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
+- [x] Migrate lobby/lifecycle actions through Intent handlers where they represent semantic requests rather than local input gestures. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [ ] Make physical and virtual Sigils use the same semantic action layer where practical.
 - [ ] Define a controller interface suitable for a simulator/test harness.
-- [ ] Add repeatable multi-player simulation scenarios.
+- [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [ ] Review timer implementation for timestamp/derived-state behavior rather than unnecessary repeated state mutation.
 - [ ] Review e-ink update code for state-change/dirty-region opportunities.
 - [ ] Define the authoritative persistence format for paired devices separately from player profiles.

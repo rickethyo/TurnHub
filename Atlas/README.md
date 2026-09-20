@@ -143,6 +143,17 @@ C:\Users\ricke\.platformio\penv\Scripts\platformio.exe run -e atlas --target upl
 
 After boot, connect a phone or computer to the Atlas access point and browse to the IP printed in the serial monitor. The ESP32 SoftAP address will normally be `192.168.4.1`.
 
+## Regression verification
+
+Current gameplay controls enter Atlas's authoritative IntentDispatcher, including
+win decisions, lobby/lifecycle, join/leave, elimination, and deferred timers.
+Optional NVS absence returns existing defaults without silencing other errors.
+
+See [native regression tests](tests/host/README.md) for repeatable scenarios and
+[verification status / hardware checklist](../docs/engineering/ATLAS_INTENT_VERIFICATION.md)
+for exact build evidence and required post-flash checks. Hardware validation of this
+migration is still pending; remain on `atlas-esp32-port` until it passes.
+
 ## Migration direction
 
 The ESP32 port is being moved toward clear modules rather than one large firmware file. Current major boundaries include the game engine, lobby, ESP-NOW Sigil bus, LED/audio renderers, OTA manager, web API/pages, profile store, and profile statistics service.
