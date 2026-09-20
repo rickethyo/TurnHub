@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turnhub.local/schema/stats-export-v0.1.json",
+  "title": "TurnHub Statistics Export v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schemaVersion", "scope", "player", "universal", "byGame", "recentSessions"],
+  "properties": {
+    "format": {
+      "const": "turnhub-stats"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["OWNER", "SHARED"]
+    },
+    "exportedAt": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerProfileId"],
+      "properties": {
+        "playerProfileId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 96
+        }
+      }
+    },
+    "universal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sessionsParticipated": {"type": "integer", "minimum": 0},
+        "completedSessions": {"type": "integer", "minimum": 0}
+      }
+    },
+    "byGame": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gameProfileId", "gamesPlayed"],
+        "properties": {
+          "gameProfileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "gameProfileName": {
+            "type": "string",
+            "maxLength": 96
+          },
+          "gamesPlayed": {"type": "integer", "minimum": 0},
+          "gamesWon": {"type": "integer", "minimum": 0},
+          "gamesStarted": {"type": "integer", "minimum": 0},
+          "gamesEliminated": {"type": "integer", "minimum": 0},
+          "turnsCompleted": {"type": "integer", "minimum": 0},
+          "totalTurnMs": {"type": "integer", "minimum": 0},
+          "fastestTurnMs": {"type": "integer", "minimum": 0},
+          "longestTurnMs": {"type": "integer", "minimum": 0},
+          "derived": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Optional requester-authorized derived values. Private/derived fields must be filtered before serialization."
+          },
+          "gameSpecific": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "recentSessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sessionId", "gameProfileId", "result"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "gameProfileId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "result": {
+            "type": "string",
+            "enum": ["WIN", "LOSS", "ELIMINATED", "COMPLETED", "ABANDONED", "UNKNOWN"]
+          },
+          "durationMs": {"type": "integer", "minimum": 0},
+          "turnsCompleted": {"type": "integer", "minimum": 0},
+          "totalTurnMs": {"type": "integer", "minimum": 0},
+          "fastestTurnMs": {"type": "integer", "minimum": 0},
+          "longestTurnMs": {"type": "integer", "minimum": 0},
+          "startedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "gameSpecific": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}
