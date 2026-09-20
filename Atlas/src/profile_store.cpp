@@ -1,6 +1,6 @@
 #include "profile_store.h"
 
-#include <Preferences.h>
+#include "optional_preferences.h"
 #include <esp_system.h>
 #include <string.h>
 
@@ -9,7 +9,7 @@ namespace {
 
 constexpr char PREF_NAMESPACE[] = "turnhub";
 
-Preferences preferences;
+TurnHub::OptionalPreferences preferences;
 bool preferencesReady = false;
 
 String seatKey(char prefix, const uint8_t mac[6], uint8_t slot) {

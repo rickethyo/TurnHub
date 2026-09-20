@@ -1,6 +1,6 @@
 #include "web_api.h"
 
-#include <Preferences.h>
+#include "optional_preferences.h"
 #include <WiFi.h>
 #include <esp_system.h>
 #include <mbedtls/sha256.h>
@@ -613,7 +613,7 @@ void handleDeviceName(WebServer &server) {
 }
 
 void handleNetworkInfo(WebServer &server) {
-  Preferences networkPrefs;
+  TurnHub::OptionalPreferences networkPrefs;
   String password;
   if (networkPrefs.begin(WIFI_PREF_NAMESPACE, true)) {
     password = networkPrefs.getString(WIFI_PREF_KEY, "");
@@ -649,7 +649,7 @@ void handleNetworkPassword(WebServer &server) {
     return;
   }
 
-  Preferences networkPrefs;
+  TurnHub::OptionalPreferences networkPrefs;
   if (!networkPrefs.begin(WIFI_PREF_NAMESPACE, false)) {
     sendJson(server, 500, "{\"ok\":false,\"error\":\"Network settings storage unavailable\"}");
     return;

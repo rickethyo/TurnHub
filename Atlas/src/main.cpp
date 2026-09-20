@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <Preferences.h>
+#include "optional_preferences.h"
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -122,7 +122,7 @@ String generateWifiPassword() {
 }
 
 String loadOrCreateWifiPassword() {
-  Preferences prefs;
+  TurnHub::OptionalPreferences prefs;
   if (!prefs.begin(WIFI_PREF_NAMESPACE, false)) {
     Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|ERROR");
     return generateWifiPassword();
