@@ -19,6 +19,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
 - [Statistics and Profiles](STATISTICS_AND_PROFILES.md) - player/game profile separation, game-scoped stats, privacy classes, session records, and v1 migration direction.
 - [Local Storage Architecture](LOCAL_STORAGE_ARCHITECTURE.md) - persistence tiers, ownership, storage adapters, retention, migration, and local expansion direction.
+- [Near-Term Implementation Sequence](IMPLEMENTATION_SEQUENCE.md) - ordered implementation phases and the merge gate for the active ESP32 development line.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
