@@ -69,6 +69,8 @@ HubState hubState = HubState::Lobby;
 bool espNowReady = false;
 bool lastButtonState = HIGH;
 uint32_t lastDebounceMs = 0;
+bool lastPairButtonState = HIGH;
+uint32_t lastPairDebounceMs = 0;
 uint32_t countdownStartedAtMs = 0;
 int8_t lastCountdownSecond = -1;
 
@@ -1480,6 +1482,25 @@ void updateMasterButton() {
   }
 }
 
+void updatePairButton() {
+  const bool currentState = digitalRead(AtlasConfig::PAIR_BUTTON_PIN);
+
+  if (currentState == lastPairButtonState) {
+    return;
+  }
+
+  if (millis() - lastPairDebounceMs < DEBOUNCE_MS) {
+    return;
+  }
+
+  lastPairDebounceMs = millis();
+  lastPairButtonState = currentState;
+
+  Serial.println(currentState == LOW
+                     ? "ATLAS|PAIR_BUTTON|DOWN"
+                     : "ATLAS|PAIR_BUTTON|UP");
+}
+
 void startNetworking() {
   WiFi.mode(WIFI_AP_STA);
 
@@ -1534,11 +1555,20 @@ void setup() {
   delay(250);
 
   pinMode(AtlasConfig::MASTER_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(AtlasConfig::PAIR_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(AtlasConfig::STATUS_LED_PIN, OUTPUT);
+  pinMode(AtlasConfig::PAIR_LED_PIN, OUTPUT);
+
   lastButtonState = digitalRead(AtlasConfig::MASTER_BUTTON_PIN);
+  lastPairButtonState = digitalRead(AtlasConfig::PAIR_BUTTON_PIN);
+
+  digitalWrite(AtlasConfig::STATUS_LED_PIN, HIGH);
+  digitalWrite(AtlasConfig::PAIR_LED_PIN, HIGH);
 
   Serial.println();
   Serial.print("ATLAS|BOOT|");
   Serial.println(TurnHubFirmware::VERSION);
+  Serial.println("ATLAS|FRONT_PANEL|LEDS|ON");
 
   configureIntentHandlers();
   startNetworking();
@@ -1549,6 +1579,7 @@ void setup() {
 void loop() {
   processSigilEvents();
   updateMasterButton();
+  updatePairButton();
   server.handleClient();
 
   const uint32_t nowMs = millis();
