@@ -81,5 +81,6 @@ Privacy direction:
 4. Keep `atlas-esp32-port` as the active product-development branch until its merge gate is satisfied.
 5. Do not merge to `master` until the ESP32 line is build-clean, host tests pass, required hardware regression checks pass, and the architecture references match implemented behavior.
 6. Important decisions should be reflected in repo documentation, not preserved only in chat.
+7. Before any structural change, review the engineering Git documentation first, including the architectural invariants, this staging document, and every reference document materially affected by the change. Resolve documentation conflicts before changing structure.
 
 Last updated: 2026-09-20
