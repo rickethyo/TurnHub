@@ -15,6 +15,54 @@ Current product rule: Atlas is authoritative for canonical game/table state. Phy
 
 Accessibility is a hard product requirement. User-facing features must follow `ACCESSIBILITY.md`; essential information or actions must not depend on a single sensory cue or input method when a practical alternative exists.
 
+## Prototype 1.0 field-test priority lane
+
+Prototype 1.0 is the near-term field-test build intended to leave the development
+bench and be usable by another person without a development computer. It does not
+need production-finished enclosures or batteries. USB power from known-good power
+banks is acceptable; setup reliability and recovery are higher priorities.
+
+Near-term order:
+
+1. **Complete physical profile selection/reusable Sigils.** Preserve duplicate-profile
+   protection while separating saved last-used preference from live assignment.
+2. **Freeze major web-portal features.** After profile selection, only first-run/setup,
+   recovery, accessibility, and blocker fixes should displace hardening work before
+   the field-test handoff.
+3. **Add interrupted-match recovery foundation.** Atlas should persist a compact,
+   versioned recovery record after accepted semantic transitions rather than timer
+   ticks. A reboot that finds an unfinished valid match should offer Resume or
+   Discard. Resume restores the match paused; downtime is never charged to a player.
+   Browser sessions still reauthenticate. Physical/browser controllers reattach to
+   Atlas-owned participants rather than becoming identity authority. Transient input
+   gestures, countdown animation state, button-down state, nudges, and other
+   presentation/adaptor state do not survive reboot. Introduce a durable MatchId and
+   completion receipt/marker before replaying completion so statistics cannot be
+   counted twice after an uncertain write or power loss.
+4. **Wire the auxiliary-button software path before final GPIO wiring.** `BTN_AUX`
+   remains a hardware abstraction. Its requests must resolve to existing semantic
+   actions/Intents instead of creating game rules tied to a button. Firmware may
+   compile with the auxiliary input disabled until the physical switch is installed.
+5. **Replace passive discovery with the real pairing state machine.** Prototype 1.0
+   pairing uses a deliberate 30-second pairing window and Atlas-owned trust state.
+   Until `BTN_PAIR` is physically wired, an unpaired Sigil may enter that same real
+   pairing window automatically at boot. The temporary boot trigger must not become
+   a separate pairing implementation. The physical Pair button may slip past the
+   field-test handoff; the pairing architecture may not.
+6. **Build and harden the three-Sigil field-test set.** Exercise cold boot, power loss,
+   reconnect, profile persistence, mixed phone/Sigil control, pairing/re-pairing,
+   recovery/discard, repeated games, and failure paths. Enclosures may be rough but
+   must protect wiring and expose required controls/connectors.
+7. **Prioritize out-of-box setup.** A tester should be able to power Atlas/Sigils,
+   join the local network, open the portal (preferably by QR), pair/assign controllers,
+   log in/create profiles, and start a game without PlatformIO, serial, SSH, or direct
+   developer intervention.
+
+Prototype 1.0 recovery is an attempt toward resilient session resume, not a claim
+of production-grade crash consistency. If recovery validation fails, Atlas must
+fail safe to a fresh lobby while preserving profiles/statistics rather than loading
+ambiguous or corrupt game state.
+
 ## Staged implementation order
 
 Identity/storage foundation precedes the remaining sequence below. The contract
@@ -105,6 +153,8 @@ Privacy direction:
 - Add bounded local game/session records after the storage boundary exists.
 - Session records should contain enough raw facts to rebuild aggregates where practical.
 - Define retention limits so Atlas storage cannot grow without bound.
+- Keep completed history separate from the smaller active-match recovery record;
+  Prototype 1.0 recovery must not require full historical-session persistence.
 
 ### 6. Android app
 
@@ -116,6 +166,8 @@ Privacy direction:
 
 - Implement real pairing/trusted-device persistence separately from the current
   five-second LED mock; define re-pair, forget and normal reconnect behavior.
+- Prototype 1.0 target: 30-second real pairing window; until the Sigil Pair button
+  is wired, unpaired Sigils may use boot as the temporary trigger for that same flow.
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
 - Choose the production Sigil transport and OTA strategy.
@@ -130,6 +182,7 @@ Privacy direction:
 - LED states remain understandable without color alone.
 - Atlas OTA after ESP32 migration.
 - Production wireless transport decision.
+- Prototype 1.0 interrupted-match recovery after abrupt Atlas power loss.
 
 ## Working rules
 
@@ -142,4 +195,4 @@ Privacy direction:
 7. Before any structural change, review the engineering Git documentation first, including the architectural invariants, this staging document, and every reference document materially affected by the change. Resolve documentation conflicts before changing structure.
 8. Before treating a user-facing feature as complete, review its accessibility impact against `ACCESSIBILITY.md`.
 
-Last updated: 2026-09-20
+Last updated: 2026-09-21
