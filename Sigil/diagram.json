@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "author": "TurnHub",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-v1",
+      "id": "esp",
+      "top": 40,
+      "left": 80,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "passBtn",
+      "top": 20,
+      "left": -120,
+      "attrs": {
+        "label": "PASS",
+        "key": "P"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "actionBtn",
+      "top": 110,
+      "left": -120,
+      "attrs": {
+        "label": "ACTION",
+        "key": "A"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "blueLed",
+      "top": 220,
+      "left": -105,
+      "attrs": {
+        "color": "blue",
+        "label": "BLUE GPIO27"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "greenLed",
+      "top": 280,
+      "left": -105,
+      "attrs": {
+        "color": "green",
+        "label": "GREEN GPIO14"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "redLed",
+      "top": 340,
+      "left": -105,
+      "attrs": {
+        "color": "red",
+        "label": "RED GPIO13"
+      }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "buzzer",
+      "top": 420,
+      "left": -95,
+      "attrs": {
+        "mode": "smooth",
+        "volume": "0.3"
+      }
+    },
+    {
+      "type": "board-epaper-2in9",
+      "id": "epd",
+      "top": -235,
+      "left": 30,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+
+    [ "passBtn:1.l", "esp:D26", "green", [] ],
+    [ "passBtn:2.l", "esp:GND.1", "black", [] ],
+
+    [ "actionBtn:1.l", "esp:D25", "green", [] ],
+    [ "actionBtn:2.l", "esp:GND.1", "black", [] ],
+
+    [ "blueLed:A", "esp:D27", "blue", [] ],
+    [ "blueLed:C", "esp:GND.2", "black", [] ],
+
+    [ "greenLed:A", "esp:D14", "green", [] ],
+    [ "greenLed:C", "esp:GND.2", "black", [] ],
+
+    [ "redLed:A", "esp:D13", "red", [] ],
+    [ "redLed:C", "esp:GND.2", "black", [] ],
+
+    [ "buzzer:2", "esp:D33", "orange", [] ],
+    [ "buzzer:1", "esp:GND.2", "black", [] ],
+
+    [ "epd:VCC", "esp:3V3", "red", [] ],
+    [ "epd:GND", "esp:GND.2", "black", [] ],
+    [ "epd:CLK", "esp:D18", "orange", [] ],
+    [ "epd:DIN", "esp:D23", "blue", [] ],
+    [ "epd:CS", "esp:D17", "white", [] ],
+    [ "epd:DC", "esp:D16", "purple", [] ],
+    [ "epd:RST", "esp:D22", "gray", [] ],
+    [ "epd:BUSY", "esp:D21", "yellow", [] ]
+  ],
+  "dependencies": {}
+}

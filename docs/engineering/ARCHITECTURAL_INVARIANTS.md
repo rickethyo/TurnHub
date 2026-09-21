@@ -1,0 +1,183 @@
+# TurnHub Architectural Invariants
+
+These are hard design rules for TurnHub. They are not suggestions. A proposed implementation that violates an invariant should be treated as an architectural regression unless the invariant itself is deliberately revised.
+
+## Invariant 1: Atlas is the sole authority for game and table state
+
+Only Atlas may create, validate, mutate, persist, recover, or resolve canonical game/table state.
+
+Canonical state includes, at minimum:
+
+- Player list and seat assignments.
+- Active player and turn order.
+- Turn number.
+- Game lifecycle state.
+- Pause/resume state.
+- Turn timing anchors and warning configuration.
+- Life totals and game-specific counters.
+- Elimination/concession state.
+- Victory claims, confirmations, denials, and winner.
+- Controller-to-player assignment.
+- Session recovery state.
+- Statistics derived from game events.
+
+Physical Sigils, Virtual Sigils, browsers, future apps, and simulated controllers MUST NOT independently decide or mutate canonical game state.
+
+They may:
+
+- Capture input.
+- Authenticate a user/controller where appropriate.
+- Send an intent/request to Atlas.
+- Cache presentation data.
+- Render state supplied by Atlas.
+- Perform local UI behavior such as debounce, animation, sound, vibration, display refresh, or connection indicators.
+
+They may not treat cached presentation state as authoritative.
+
+Conceptual rule:
+
+```text
+Controller -> request/intent -> Atlas -> validate/mutate -> canonical state -> render/update -> Controller
+```
+
+If a controller disconnects, restarts, or disagrees with Atlas, Atlas wins.
+
+## Invariant 2: One semantic implementation per game action
+
+A game action must have one authoritative semantic implementation.
+
+For example, physical Pass and browser Pass may arrive through different transports, but both must converge on the same Atlas operation rather than maintaining separate pass logic.
+
+This applies to:
+
+- Pass.
+- Pause/resume.
+- Concede/eliminate.
+- Claim/confirm/deny victory.
+- Life/counter changes.
+- Turn progression.
+- Timer behavior.
+- Game completion.
+
+Transport adapters may validate transport-specific concerns, but must not reimplement game rules.
+
+## Invariant 3: Transport does not own semantics
+
+BLE, Wi-Fi, HTTP, USB/serial, or any future transport is responsible for moving messages, not deciding what they mean for the game.
+
+Changing transport should not require rewriting the game engine.
+
+## Invariant 4: Shared contracts have one source of truth
+
+Definitions consumed by multiple firmware targets should originate from one canonical source wherever the toolchain permits it.
+
+Examples:
+
+- Protocol message types.
+- Protocol version.
+- Capability flags.
+- Shared IDs and limits.
+- Common semantic enums.
+
+Do not maintain hand-copied Atlas and Sigil versions of the same contract long-term.
+
+## Invariant 5: Hardware details stop at the hardware boundary
+
+GPIO numbers, electrical polarity, board-specific quirks, and display-driver details must not leak into game-rule logic.
+
+Hardware code should translate physical behavior into semantic events such as `PASS_REQUEST`, `ACTION_PRESSED`, or `PAIR_REQUEST`.
+
+## Invariant 6: Presentation state is disposable
+
+LED patterns, e-ink contents, browser rendering, animation state, and local caches may be reconstructed from Atlas state.
+
+Loss of presentation state must not corrupt a game.
+
+## Invariant 7: Persistence has an owner
+
+Each persistent fact must have one defined owner and storage location. Multiple components should not independently persist competing copies of the same canonical fact.
+
+Examples:
+
+- Game/session recovery: Atlas.
+- Pairing relationship: Atlas is authoritative; Sigil may retain the minimum identity needed to reconnect.
+- Player profiles/statistics: Atlas.
+- Device-local calibration or hardware configuration: the device that requires it, unless promoted to table-level configuration.
+
+## Invariant 8: Derived values should stay derived
+
+Do not persist or continuously synchronize values that can be safely calculated from authoritative anchors.
+
+Examples include elapsed time, remaining time, warning phase, and many display-only labels.
+
+## Invariant 9: The six-question feature gate is mandatory
+
+Before implementation begins on any significant feature, the design MUST answer all six questions:
+
+1. **Who owns its canonical state?**
+2. **What intent changes or requests it?**
+3. **Which component validates that intent?**
+4. **Does it need persistence, and who owns that persistence?**
+5. **Which clients only render or present it?**
+6. **Does it require a shared protocol/contract change?**
+
+These questions are a feature gate, not optional design guidance.
+
+If any answer is unclear, the feature boundary must be defined before implementation continues. Temporary prototypes may deliberately bypass the production boundary only when clearly marked experimental and prevented from becoming the canonical implementation by accident.
+
+A feature should not create a second state owner, a second semantic implementation, or a transport-specific version of a game rule merely because doing so is locally convenient.
+
+## Invariant 10: Controller inputs converge on semantic Intents
+
+Physical Sigils, browsers, Atlas controls, simulators, and future applications should converge on the same semantic Intent vocabulary before canonical game behavior is executed.
+
+Adapters may decode and authenticate their own transport, but canonical validation and mutation belong to the authoritative Atlas Intent handler/domain operation.
+
+For example:
+
+```text
+Physical Sigil PASS --\
+Browser Pass ----------+--> IntentType::Pass --> one Atlas handler
+Atlas button ----------/
+```
+
+The Intent layer is an application boundary. It does not replace the GameEngine and it does not create a second source of truth.
+
+## Invariant 11: Accessibility is a first-class system requirement
+
+No essential TurnHub state, warning, instruction, or action may depend on a single sensory characteristic or a single input method when a practical alternative exists.
+
+At minimum:
+
+- Color MUST NOT be the sole carrier of essential meaning.
+- Sound MUST NOT be the sole carrier of essential meaning.
+- Motion, flashing, or LED cadence MUST NOT be the sole carrier of essential meaning.
+- Essential digital controls MUST provide accessible input paths appropriate to the platform.
+- Physical actions that depend on timing, fine dexterity, or a specific gesture SHOULD have an authorized assistive path when practical.
+- Accessibility alternatives MUST converge on the same semantic Intent and Atlas authorization as the default controller path. They do not create a second game engine or state owner.
+
+Web and application surfaces SHOULD target WCAG 2.2 Level AA. Physical Atlas/Sigil design MUST follow the separate requirements in `ACCESSIBILITY.md`, including redundant cues and assistive-input considerations.
+
+A feature is not complete merely because its default interaction works for a user who can perceive every cue and perform every default gesture.
+
+## Code review tests
+
+For every new feature, ask:
+
+> If every Sigil and browser vanished and later reconnected, could Atlas reconstruct the correct game entirely from its own canonical state?
+
+For game/table behavior, the expected answer is **yes**.
+
+Also ask:
+
+> If the same action can be requested through two different controllers, do both paths converge on the same semantic Intent and authoritative handler?
+
+The expected answer is **yes**.
+
+For every user-facing feature, also ask:
+
+> If a user cannot perceive one of our cues or cannot perform the default input gesture, is there another practical way to obtain the same information or request the same authorized action?
+
+The expected answer is **yes** whenever a practical alternative exists.
+
+Last established: 2026-09-20
