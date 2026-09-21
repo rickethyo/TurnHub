@@ -57,6 +57,10 @@ enum class IntentType : uint8_t {
   CancelElimination,
   Eliminate,
 
+  JoinProfile,
+  LeaveProfile,
+  BindProfile,
+
   Count,
 };
 
@@ -75,7 +79,7 @@ enum class IntentOrigin : uint8_t {
 // device/session identity to the canonical Player where required.
 struct IntentActor {
   IntentOrigin origin = IntentOrigin::Unknown;
-  uint8_t moduleId = 0xFF;
+  uint8_t controllerId = 0xFF;
   uint8_t slot = 0;
   uint8_t playerNumber = 0;
 };
@@ -99,6 +103,7 @@ struct IntentPayload {
   uint8_t targetPlayer = 0;
   int32_t value = 0;
   uint32_t flags = 0;
+  char profileId[9] = {}; // Only populated by trusted Atlas authentication adapters.
 };
 
 struct Intent {
@@ -174,6 +179,9 @@ inline const char *intentName(IntentType type) {
     case IntentType::CycleElimination: return "CYCLE_ELIMINATION";
     case IntentType::CancelElimination: return "CANCEL_ELIMINATION";
     case IntentType::Eliminate: return "ELIMINATE";
+    case IntentType::JoinProfile: return "JOIN_PROFILE";
+    case IntentType::LeaveProfile: return "LEAVE_PROFILE";
+    case IntentType::BindProfile: return "BIND_PROFILE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

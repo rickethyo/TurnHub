@@ -104,6 +104,16 @@ The vocabulary is expected to evolve. Adding an enum is not the same as implemen
 
 ## Actor model
 
+In Atlas `0.6.0-dev`, internal `IntentActor.controllerId` replaces the old
+`moduleId` name. The physical radio prefix is retained for adapter compatibility;
+browser registrations use a separate logical handle range. Authenticated browser
+profiles resolve to current participation before constructing game Intents.
+`JoinProfile`, `LeaveProfile` and physically confirmed `BindProfile` are Atlas
+application requests carrying a trusted adapter-supplied `payload.profileId`.
+Clients cannot choose another actor by supplying a player/profile field to a
+game-control endpoint. Profile attachment is lobby-only and does not create a
+second participant when the profile already joined by phone.
+
 An adapter may know only a controller identity at first.
 
 For example, a physical packet may identify a Sigil/module and slot while an authenticated browser request may identify a browser session that Atlas maps to a player.

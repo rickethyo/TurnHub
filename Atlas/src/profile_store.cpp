@@ -1,6 +1,8 @@
 #include "profile_store.h"
 
 #include "optional_preferences.h"
+#include "nvs_blob_store.h"
+#include "profile_stats_storage.h"
 #include <esp_system.h>
 #include <string.h>
 
@@ -10,6 +12,7 @@ namespace {
 constexpr char PREF_NAMESPACE[] = "turnhub";
 
 TurnHub::OptionalPreferences preferences;
+TurnHubStorage::NvsBlobStore statsStorage;
 bool preferencesReady = false;
 
 String seatKey(char prefix, const uint8_t mac[6], uint8_t slot) {
@@ -43,20 +46,9 @@ String profileKey(char prefix, const String &profileId) {
 }
 
 bool validProfileId(const String &profileId) {
-  if (profileId.length() != PROFILE_ID_LENGTH) {
-    return false;
-  }
-  for (size_t i = 0; i < profileId.length(); ++i) {
-    const char c = profileId[i];
-    const bool hex =
-        (c >= '0' && c <= '9') ||
-        (c >= 'A' && c <= 'F') ||
-        (c >= 'a' && c <= 'f');
-    if (!hex) {
-      return false;
-    }
-  }
-  return true;
+  TurnHubIdentity::ProfileId parsed;
+  return profileId.length() == PROFILE_ID_LENGTH &&
+      TurnHubIdentity::ProfileId::parse(profileId.c_str(), parsed);
 }
 
 String makeProfileId() {
@@ -112,10 +104,6 @@ void migrateLegacyName(
   }
 }
 
-bool validStoredStats(const ProfileStats &stats) {
-  return stats.schemaVersion == STATS_SCHEMA_VERSION;
-}
-
 }  // namespace
 
 bool begin() {
@@ -149,6 +137,42 @@ bool profileExists(const String &profileId) {
     return false;
   }
   return preferences.isKey(profileKey('m', profileId).c_str());
+}
+
+size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity) {
+  if (!preferencesReady || ids == nullptr) return 0;
+  size_t count = 0;
+  nvs_iterator_t it = nvs_entry_find("nvs", PREF_NAMESPACE, NVS_TYPE_U8);
+  while (it != nullptr && count < capacity) {
+    nvs_entry_info_t info;
+    nvs_entry_info(it, &info);
+    if (info.key[0] == 'm' && validProfileId(String(info.key + 1))) {
+      memcpy(ids[count++], info.key + 1, PROFILE_ID_LENGTH + 1);
+    }
+    it = nvs_entry_next(it);
+  }
+  nvs_release_iterator(it);
+  return count;
+}
+
+String createProfileWithCredentials(const String &name, const String &pin, PinHasher hasher) {
+  if ((!preferencesReady && !begin()) || name.length() == 0 || name.length() > 32 || hasher == nullptr) return String();
+  char ids[MAX_LOGIN_PROFILES][PROFILE_ID_LENGTH + 1];
+  if (listProfileIds(ids, MAX_LOGIN_PROFILES) >= MAX_LOGIN_PROFILES) return String();
+  for (uint8_t attempt = 0; attempt < 16; ++attempt) {
+    const String id = makeProfileId();
+    if (profileExists(id)) continue;
+    const String hash = hasher(id, pin);
+    if (hash.length() != 64) return String();
+    const String nameKey = profileKey('n', id), pinKey = profileKey('p', id);
+    // Publish the profile marker last. Partial setup is never a login identity.
+    if (preferences.putString(nameKey.c_str(), name) > 0 &&
+        preferences.putString(pinKey.c_str(), hash) > 0 && ensureMarker(id)) return id;
+    preferences.remove(nameKey.c_str());
+    preferences.remove(pinKey.c_str());
+    return String();
+  }
+  return String();
 }
 
 String nameForProfile(const String &profileId) {
@@ -203,18 +227,12 @@ bool loadStatsForProfile(const String &profileId, ProfileStats &stats) {
   }
 
   const String key = profileKey('s', profileId);
-  if (preferences.getBytesLength(key.c_str()) != sizeof(ProfileStats)) {
-    return true;
-  }
-
-  ProfileStats stored{};
-  if (preferences.getBytes(key.c_str(), &stored, sizeof(stored)) != sizeof(stored) ||
-      !validStoredStats(stored)) {
-    return true;
-  }
-
-  stats = stored;
-  return true;
+  if (statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  const auto status = readStoredStats(statsStorage, key.c_str(), stats);
+  // A fresh profile has no statistics. All other failures must stop the
+  // completion callback from replacing an unreadable record with zero totals.
+  return status == TurnHubStorage::Status::Ok ||
+      status == TurnHubStorage::Status::NotFound;
 }
 
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats) {
@@ -222,10 +240,9 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats) {
     return false;
   }
 
-  ProfileStats stored = stats;
-  stored.schemaVersion = STATS_SCHEMA_VERSION;
   const String key = profileKey('s', profileId);
-  return preferences.putBytes(key.c_str(), &stored, sizeof(stored)) == sizeof(stored);
+  if (statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  return writeStoredStats(statsStorage, key.c_str(), stats) == TurnHubStorage::Status::Ok;
 }
 
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot) {

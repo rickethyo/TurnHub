@@ -6,5 +6,6 @@ struct WiFiStub {
   bool softAP(const char*,const char*,int,bool,int) { return true; }
   const char *softAPIP() { return "192.168.4.1"; }
   const char *macAddress() { return "test"; }
+  int softAPgetStationNum() { return 0; }
 };
-inline WiFiStub WiFi;
+extern WiFiStub WiFi;

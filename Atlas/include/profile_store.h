@@ -1,11 +1,12 @@
 #pragma once
 
 #include <Arduino.h>
+#include "identity.h"
 
 namespace TurnHubProfiles {
 
 constexpr uint16_t STATS_SCHEMA_VERSION = 1;
-constexpr size_t PROFILE_ID_LENGTH = 8;
+constexpr size_t PROFILE_ID_LENGTH = TurnHubIdentity::ProfileId::length;
 
 enum class LastGameResult : uint8_t {
   None = 0,
@@ -44,6 +45,10 @@ bool ready();
 // Profiles are durable local identities. Hardware and virtual seats only bind
 // to a profile ID; names, PINs and statistics belong to the profile itself.
 String createProfile();
+constexpr size_t MAX_LOGIN_PROFILES = 64;
+size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity);
+using PinHasher = String (*)(const String &profileId, const String &pin);
+String createProfileWithCredentials(const String &name, const String &pin, PinHasher hasher);
 bool profileExists(const String &profileId);
 
 String nameForProfile(const String &profileId);

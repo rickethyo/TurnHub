@@ -13,6 +13,13 @@ enum class WebControl : uint8_t {
   ConfirmWin,
   DenyWin,
   SelectStarter,
+  Start,
+  CancelStart,
+  Rematch,
+  Reset,
+  Join,
+  Leave,
+  AttachPhysical,
 };
 
 struct SeatSnapshot {
@@ -20,23 +27,31 @@ struct SeatSnapshot {
   uint8_t playerNumber = 0;
   bool active = false;
   bool eliminated = false;
+  bool host = false;
 };
 
 using ResolveSeatCallback = bool (*)(
-    uint8_t moduleId,
+    uint8_t controllerId,
     uint8_t slot,
     SeatSnapshot &snapshot);
 
 using ControlCallback = bool (*)(
-    uint8_t moduleId,
+    uint8_t controllerId,
     uint8_t slot,
     WebControl control,
     String &message);
 
+using ProfileControlCallback = bool (*)(const String &profileId, WebControl control,
+    uint8_t controllerId, uint8_t slot, String &message);
+using ResolveProfileCallback = bool (*)(const String &profileId,
+    uint8_t &controllerId, uint8_t &slot);
+
 // Connect the web layer to the authoritative Atlas lobby/game state.
 void configure(
     ResolveSeatCallback resolveSeatCallback,
-    ControlCallback controlCallback);
+    ControlCallback controlCallback,
+    ProfileControlCallback profileControlCallback,
+    ResolveProfileCallback resolveProfileCallback);
 
 // Register device-management, browser-session, profile, and authenticated
 // web-control endpoints on the Atlas WebServer.

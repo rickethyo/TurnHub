@@ -1,0 +1,43 @@
+#include "profile_fixture.h"
+namespace ProfileFixture {
+std::map<std::string,Profile> profiles;
+std::map<std::string,String> bindings;
+String key(const uint8_t *mac,uint8_t slot) { return String(mac[5])+":"+String(slot); }
+}
+namespace TurnHubProfiles {
+using namespace ProfileFixture;
+bool begin() { return true; }
+bool ready() { return true; }
+bool profileExists(const String &id) { return profiles.count(id)!=0; }
+String createProfile() {
+  char id[9]; do { snprintf(id,sizeof(id),"%08lX",static_cast<unsigned long>(esp_random())); } while(profileExists(id));
+  profiles[id]=Profile{}; return id;
+}
+String createProfileWithCredentials(const String &name,const String &pin,PinHasher hash) {
+  if(profiles.size()>=MAX_LOGIN_PROFILES) return String();
+  const String id=createProfile(); profiles[id].name=name; profiles[id].hash=hash(id,pin); return id;
+}
+size_t listProfileIds(char (*ids)[9],size_t capacity) {
+  size_t n=0; for(const auto &p:profiles) { if(n==capacity)break; memcpy(ids[n++],p.first.c_str(),9); } return n;
+}
+String profileIdForSeat(const uint8_t *mac,uint8_t slot) {
+  const String k=key(mac,slot); auto found=bindings.find(k);
+  if(found==bindings.end()) bindings[k]=createProfile();
+  return bindings[k];
+}
+bool bindSeatToProfile(const uint8_t *mac,uint8_t slot,const String &id) { if(!profileExists(id))return false; bindings[key(mac,slot)]=id; return true; }
+String nameForProfile(const String &id) { return profileExists(id)?profiles[id].name:String(); }
+bool setNameForProfile(const String &id,const String &name) { if(!profileExists(id))return false; profiles[id].name=name; return true; }
+String storedPinHashForProfile(const String &id) { return profileExists(id)?profiles[id].hash:String(); }
+bool hasPinForProfile(const String &id) { return storedPinHashForProfile(id).length()==64; }
+bool setPinHashForProfile(const String &id,const String &hash) { if(!profileExists(id))return false;profiles[id].hash=hash;return true; }
+bool clearPinForProfile(const String &id) { return setPinHashForProfile(id,""); }
+String storedPinHashForSeat(const uint8_t *mac,uint8_t slot,bool *legacy) { if(legacy)*legacy=false;return storedPinHashForProfile(profileIdForSeat(mac,slot)); }
+bool setPinHashForSeat(const uint8_t *mac,uint8_t slot,const String &hash) { return setPinHashForProfile(profileIdForSeat(mac,slot),hash); }
+bool clearPinForSeat(const uint8_t *mac,uint8_t slot) { return clearPinForProfile(profileIdForSeat(mac,slot)); }
+bool hasPinForSeat(const uint8_t *mac,uint8_t slot) { return hasPinForProfile(profileIdForSeat(mac,slot)); }
+String deviceName(const uint8_t *) { return String(); }
+bool setDeviceName(const uint8_t *,const String &) { return true; }
+bool loadStatsForProfile(const String &id,ProfileStats &stats) { if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
+bool saveStatsForProfile(const String &id,const ProfileStats &stats) { if(!profileExists(id))return false;profiles[id].stats=stats;return true; }
+}

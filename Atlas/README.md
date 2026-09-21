@@ -2,7 +2,40 @@
 
 This directory contains the ESP32 implementation of the TurnHub Atlas controller. The older Python controller in `Controller/` remains a behavioral reference while the ESP32 migration continues.
 
-Current development firmware: **0.5.5-dev**.
+Current development firmware: **0.6.0-dev**.
+
+## Profile login and phone play
+
+Open **Profiles** in the portal to create a local profile or sign in with its PIN.
+No physical Sigil is required. After signing in, choose **Join table**. The first
+participant is host and can start a game once two players have joined. Phones
+support starter selection, start/cancel countdown, pass/cancel pass, pause/resume,
+concession, win confirmation/denial, rematch and reset through Atlas's existing
+Intent handlers. Saved statistics remain profile-owned.
+
+Multiple phones can sign into one profile; they control the same participant.
+In the lobby, **System → Device manager → Attach to my profile**, followed by a
+physical Action press, attaches an unused Sigil to that participant. Phone and
+Sigil then both work. A phone-only participant keeps its table position and
+participant identity during attachment. Existing physical players can sign in
+with their profile PIN for companion control; shared A/B seats remain supported.
+New attachment currently targets the primary seat of an unjoined Sigil.
+
+Logout revokes that browser session without removing a player mid-game. Signing
+in again reconnects to the current participant. Profiles survive Atlas restart;
+sessions and current games remain RAM-only. Profiles without a saved PIN retain
+the existing physical sign-in path; set a PIN afterward for independent login.
+Legacy hardware-derived PIN hashes migrate through the existing physical-seat
+PIN login, or can be replaced after physically signing in.
+
+Current limits: 16 table participants, 32 browser sessions, 64 profiles in the
+login directory/new-registration path. The existing AP configuration permits
+eight Wi-Fi clients; table capacity is not a promise of 16 direct phone clients.
+PIN changes revoke other browser sessions for that profile. Five failed PIN
+attempts per profile within 30 seconds trigger temporary throttling.
+
+See [Profile login and virtual play](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md)
+for ownership, compatibility and acceptance checks.
 
 ## Current prototype hardware
 
@@ -45,7 +78,10 @@ A **profile** owns persistent player data such as:
 
 A physical Sigil seat stores only a binding to a profile ID. Existing MAC-and-seat profile data is migrated as compatibility data when first encountered.
 
-This separation is intentional groundwork for virtual Sigils. A future persistent or temporary virtual seat can bind to the same durable profile ID without moving, copying, or resetting the player's statistics. The current ESP game/lobby implementation still uses physical Sigil module IDs; virtual-Sigil gameplay integration remains future work.
+The lobby supports physical and browser controller registrations. Browser
+authentication identifies a profile independently of any seat; Atlas resolves it
+to one participant. The engine receives logical controller handles and a captured
+profile ID, and the statistics completion bridge never consults radio discovery.
 
 ## Statistics
 

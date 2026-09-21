@@ -111,7 +111,7 @@ bool GameEngine::start(
 }
 
 bool GameEngine::passTurn(
-    uint8_t moduleId,
+    uint8_t controllerId,
     uint32_t nextWarningMs,
     uint32_t nowMs) {
   if (!running_ || paused_ || gameOver_ || playerCount_ < 2 || winClaimActive_) {
@@ -119,7 +119,7 @@ bool GameEngine::passTurn(
   }
 
   const PlayerSeat *active = activePlayer();
-  if (active == nullptr || active->moduleId != moduleId || eliminated_[activeIndex_]) {
+  if (active == nullptr || active->controllerId != controllerId || eliminated_[activeIndex_]) {
     return false;
   }
 
@@ -271,21 +271,21 @@ bool GameEngine::beginWinClaim(
   winClaimPlayer_ = playerNumber;
   winRestoreRunning_ = restoreRunning;
 
-  const uint8_t claimantModule = players_[claimantIndex].moduleId;
+  const uint8_t claimantModule = players_[claimantIndex].controllerId;
 
-  uint8_t moduleOrder[MAX_PHYSICAL_SIGILS] = {};
+  uint8_t moduleOrder[MAX_CONTROLLERS] = {};
   uint8_t moduleCount = 0;
   for (uint8_t i = 0; i < playerCount_; ++i) {
-    const uint8_t moduleId = players_[i].moduleId;
+    const uint8_t controllerId = players_[i].controllerId;
     bool alreadyAdded = false;
     for (uint8_t m = 0; m < moduleCount; ++m) {
-      if (moduleOrder[m] == moduleId) {
+      if (moduleOrder[m] == controllerId) {
         alreadyAdded = true;
         break;
       }
     }
-    if (!alreadyAdded && moduleCount < MAX_PHYSICAL_SIGILS) {
-      moduleOrder[moduleCount++] = moduleId;
+    if (!alreadyAdded && moduleCount < MAX_CONTROLLERS) {
+      moduleOrder[moduleCount++] = controllerId;
     }
   }
 
@@ -305,10 +305,10 @@ bool GameEngine::beginWinClaim(
   for (uint8_t moduleOffset = 1; moduleOffset <= moduleCount; ++moduleOffset) {
     const uint8_t moduleIndex = static_cast<uint8_t>(
         (claimantModuleIndex + moduleOffset) % moduleCount);
-    const uint8_t moduleId = moduleOrder[moduleIndex];
+    const uint8_t controllerId = moduleOrder[moduleIndex];
 
     for (uint8_t i = 0; i < playerCount_; ++i) {
-      if (players_[i].moduleId != moduleId || eliminated_[i]) {
+      if (players_[i].controllerId != controllerId || eliminated_[i]) {
         continue;
       }
       if (players_[i].playerNumber == playerNumber) {
@@ -456,9 +456,9 @@ uint8_t GameEngine::activePlayerNumber() const {
   return active != nullptr ? active->playerNumber : 0;
 }
 
-uint8_t GameEngine::activeModule() const {
+uint8_t GameEngine::activeController() const {
   const PlayerSeat *active = activePlayer();
-  return active != nullptr ? active->moduleId : INVALID_ID;
+  return active != nullptr ? active->controllerId : INVALID_ID;
 }
 
 uint8_t GameEngine::starterPlayerNumber() const {
@@ -486,9 +486,9 @@ uint8_t GameEngine::nextWinConfirmationPlayerNumber() const {
   return 0;
 }
 
-bool GameEngine::moduleInGame(uint8_t moduleId) const {
+bool GameEngine::controllerInGame(uint8_t controllerId) const {
   for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (players_[i].moduleId == moduleId) {
+    if (players_[i].controllerId == controllerId) {
       return true;
     }
   }
@@ -500,8 +500,8 @@ bool GameEngine::isEliminated(uint8_t playerNumber) const {
   return index >= 0 ? eliminated_[index] : false;
 }
 
-uint8_t GameEngine::playersForModule(
-    uint8_t moduleId,
+uint8_t GameEngine::playersForController(
+    uint8_t controllerId,
     PlayerSeat *out,
     uint8_t capacity) const {
   if (out == nullptr || capacity == 0) {
@@ -510,15 +510,15 @@ uint8_t GameEngine::playersForModule(
 
   uint8_t count = 0;
   for (uint8_t i = 0; i < playerCount_ && count < capacity; ++i) {
-    if (players_[i].moduleId == moduleId) {
+    if (players_[i].controllerId == controllerId) {
       out[count++] = players_[i];
     }
   }
   return count;
 }
 
-uint8_t GameEngine::livingPlayersForModule(
-    uint8_t moduleId,
+uint8_t GameEngine::livingPlayersForController(
+    uint8_t controllerId,
     PlayerSeat *out,
     uint8_t capacity) const {
   if (out == nullptr || capacity == 0) {
@@ -527,7 +527,7 @@ uint8_t GameEngine::livingPlayersForModule(
 
   uint8_t count = 0;
   for (uint8_t i = 0; i < playerCount_ && count < capacity; ++i) {
-    if (players_[i].moduleId == moduleId && !eliminated_[i]) {
+    if (players_[i].controllerId == controllerId && !eliminated_[i]) {
       out[count++] = players_[i];
     }
   }

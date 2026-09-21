@@ -129,6 +129,11 @@ Authentication/seat assignment is a separate step. Client-supplied player number
 
 ## Current migration priority
 
-The first operation to migrate end to end is `PASS` because physical Sigils, the browser, and the Atlas master button already request it through separate entry paths. Once all three produce the same Intent and one handler owns the rule, the Android client can use that exact same semantic operation.
+Gameplay migration through Intents is implemented. Atlas `0.6.0-dev` adds profile
+login and phone-only/mixed participation through the same application handlers.
+See [implemented profile endpoints and ownership](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md).
+The generic v0.1 JSON envelope/routes above remain a working contract, not the
+live HTTP ingress. Internal `controllerId` naming does not silently change the
+draft JSON schema's `moduleId` field or the ESP-NOW wire packet.
 
 Last established: 2026-09-19

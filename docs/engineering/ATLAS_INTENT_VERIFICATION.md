@@ -1,7 +1,9 @@
 # Atlas intent migration verification
 
-Branch: `atlas-esp32-port`. Verification date: 2026-09-19 (local time).
-Do not merge to `master` before the hardware checks below are completed.
+Historical branch: `atlas-esp32-port`. Verification date: 2026-09-19 (local time).
+Merged into `master` in `6844f94`. On 2026-09-20 the owner confirmed the repository
+build and current installed hardware baseline. The records below describe that
+migration; they do not validate later identity/storage changes.
 
 ## Scope and ownership
 
@@ -128,4 +130,6 @@ LED follow-up validation: PlatformIO Atlas build passed (47,924 bytes RAM,
 924,797 bytes flash); all six existing native scenario groups and the adapter
 audit passed. These automated checks do not verify physical LED appearance.
 
-- [ ] Physically verify the new boot flashes and five-second mock pairing window.
+- [x] Owner accepted the current build/hardware baseline on 2026-09-20, including
+  the checked-in LED prototype. This is user-reported acceptance, not a new
+  instrumented capture or verification of real pairing (still unimplemented).

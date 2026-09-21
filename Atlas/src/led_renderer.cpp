@@ -105,7 +105,7 @@ void LedRenderer::syncDisplay(
   uint8_t turnNumber = 0;
   uint8_t flags = 0;
 
-  if (sigilId == lobby.hostModule()) {
+  if (sigilId == lobby.hostController()) {
     flags |= TurnHubProtocol::DISPLAY_FLAG_HOST;
   }
 
@@ -121,7 +121,7 @@ void LedRenderer::syncDisplay(
       }
 
       PlayerSeat starter;
-      if (lobby.selectedStarter(starter) && starter.moduleId == sigilId) {
+      if (lobby.selectedStarter(starter) && starter.controllerId == sigilId) {
         flags |= TurnHubProtocol::DISPLAY_FLAG_STARTER;
         if (starter.playerNumber == secondary && secondary != 0) {
           const uint8_t originalPrimary = primary;
@@ -130,7 +130,7 @@ void LedRenderer::syncDisplay(
         }
       }
     }
-  } else if (game.moduleInGame(sigilId)) {
+  } else if (game.controllerInGame(sigilId)) {
     switch (state) {
       case HubState::Running:
         mode = TurnHubProtocol::DisplayMode::Running;
@@ -147,7 +147,7 @@ void LedRenderer::syncDisplay(
     }
 
     PlayerSeat local[2];
-    const uint8_t count = game.playersForModule(sigilId, local, 2);
+    const uint8_t count = game.playersForController(sigilId, local, 2);
     if (count > 0) {
       primary = local[0].playerNumber;
     }
@@ -157,7 +157,7 @@ void LedRenderer::syncDisplay(
 
     const PlayerSeat *active = game.activePlayer();
     if ((state == HubState::Running || state == HubState::Paused) &&
-        active != nullptr && active->moduleId == sigilId) {
+        active != nullptr && active->controllerId == sigilId) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_ACTIVE;
       if (active->playerNumber == secondary && secondary != 0) {
         const uint8_t originalPrimary = primary;
@@ -167,12 +167,12 @@ void LedRenderer::syncDisplay(
     }
 
     const PlayerSeat *starter = game.playerByNumber(game.starterPlayerNumber());
-    if (starter != nullptr && starter->moduleId == sigilId) {
+    if (starter != nullptr && starter->controllerId == sigilId) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_STARTER;
     }
 
     const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
-    if (winner != nullptr && winner->moduleId == sigilId) {
+    if (winner != nullptr && winner->controllerId == sigilId) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_WINNER;
       if (state == HubState::GameOver &&
           winner->playerNumber == secondary && secondary != 0) {
@@ -185,7 +185,7 @@ void LedRenderer::syncDisplay(
     const PlayerSeat *elimination = game.playerByNumber(eliminationTargetPlayer);
     const PlayerSeat *confirmation = game.playerByNumber(winConfirmationPlayer);
     const PlayerSeat *attention = confirmation != nullptr ? confirmation : elimination;
-    if (attention != nullptr && attention->moduleId == sigilId) {
+    if (attention != nullptr && attention->controllerId == sigilId) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_ATTENTION;
       if (attention->playerNumber == secondary && secondary != 0) {
         const uint8_t originalPrimary = primary;
@@ -273,7 +273,7 @@ uint8_t LedRenderer::starterBlueValue(
     uint8_t sigilId,
     uint32_t nowMs) {
   PlayerSeat starter;
-  if (!lobby.selectedStarter(starter) || starter.moduleId != sigilId) {
+  if (!lobby.selectedStarter(starter) || starter.controllerId != sigilId) {
     return 0;
   }
 
@@ -309,7 +309,7 @@ void LedRenderer::renderLobby(
       sigilId,
       starterBlueValue(lobby, sigilId, nowMs),
       playerNumberRedOn(player, nowMs),
-      sigilId == lobby.hostModule(),
+      sigilId == lobby.hostController(),
       nowMs);
 }
 
@@ -337,12 +337,12 @@ void LedRenderer::renderRunning(
     uint8_t sigilId,
     const GameEngine &game,
     uint32_t nowMs) {
-  if (!game.moduleInGame(sigilId)) {
+  if (!game.controllerInGame(sigilId)) {
     off(sigilId, nowMs);
     return;
   }
 
-  if (sigilId != game.activeModule()) {
+  if (sigilId != game.activeController()) {
     set(sigilId, 255, false, false, nowMs);
     return;
   }
@@ -380,15 +380,15 @@ void LedRenderer::renderPaused(
     uint8_t eliminationTargetPlayer,
     uint8_t winConfirmationPlayer,
     uint32_t nowMs) {
-  if (!game.moduleInGame(sigilId)) {
+  if (!game.controllerInGame(sigilId)) {
     off(sigilId, nowMs);
     return;
   }
 
   const PlayerSeat *winTarget = game.playerByNumber(winConfirmationPlayer);
-  if (winTarget != nullptr && winTarget->moduleId == sigilId) {
+  if (winTarget != nullptr && winTarget->controllerId == sigilId) {
     PlayerSeat living[2];
-    const uint8_t count = game.livingPlayersForModule(sigilId, living, 2);
+    const uint8_t count = game.livingPlayersForController(sigilId, living, 2);
     set(
         sigilId,
         0,
@@ -399,9 +399,9 @@ void LedRenderer::renderPaused(
   }
 
   const PlayerSeat *eliminationTarget = game.playerByNumber(eliminationTargetPlayer);
-  if (eliminationTarget != nullptr && eliminationTarget->moduleId == sigilId) {
+  if (eliminationTarget != nullptr && eliminationTarget->controllerId == sigilId) {
     PlayerSeat living[2];
-    const uint8_t count = game.livingPlayersForModule(sigilId, living, 2);
+    const uint8_t count = game.livingPlayersForController(sigilId, living, 2);
     set(
         sigilId,
         0,
@@ -419,20 +419,20 @@ void LedRenderer::renderGameOver(
     const Lobby &lobby,
     const GameEngine &game,
     uint32_t nowMs) {
-  if (!game.moduleInGame(sigilId)) {
+  if (!game.controllerInGame(sigilId)) {
     off(sigilId, nowMs);
     return;
   }
 
   uint8_t blue = 0;
   const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
-  if (winner != nullptr && winner->moduleId == sigilId) {
+  if (winner != nullptr && winner->controllerId == sigilId) {
     PlayerSeat local[2];
-    const uint8_t count = game.playersForModule(sigilId, local, 2);
+    const uint8_t count = game.playersForController(sigilId, local, 2);
     blue = seatPulse(winner->slot, count > 1, nowMs) ? 255 : 0;
   }
 
-  set(sigilId, blue, false, sigilId == lobby.hostModule(), nowMs);
+  set(sigilId, blue, false, sigilId == lobby.hostController(), nowMs);
 }
 
 void LedRenderer::render(

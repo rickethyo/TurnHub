@@ -155,6 +155,13 @@ The display implementation may later use partial refresh or dirty-region strateg
 
 ## Physical and virtual controller parity
 
+Atlas `0.6.0-dev` implements hardware-independent profile login and browser
+participation, including concurrent physical/phone control of one participant.
+See [Profile login and virtual play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) for the
+implemented boundaries, compatibility coordinates and remaining work. Live
+participation now resolves from authenticated profile identity; the engine and
+statistics completion path do not require radio discovery for phone players.
+
 A physical Sigil and Virtual Sigil should map to the same semantic operations wherever practical.
 
 For example, both may produce a logical `PASS_REQUEST`, even though one comes from a GPIO button and the other from an authenticated HTTP/API action.
@@ -188,6 +195,13 @@ Atlas should ideally care about controller semantics, not whether the controller
 ---
 
 ## Persistence and recovery
+
+The identity/storage foundation is documented in
+[Identity and storage contracts](IDENTITY_AND_STORAGE.md). Existing profile
+statistics now use a repository over `BlobStore`, with an internal NVS backend
+that preserves deployed keys and the v1 image. Unknown/corrupt records fail
+without being replaced by empty totals. Other small Preferences owners remain
+in place; new match/controller lifecycles are not yet implemented.
 
 Persistent information and active-session recovery are separate concerns.
 

@@ -1,6 +1,8 @@
 #include <cassert>
 #include <iostream>
 #include <Arduino.h>
+#include "profile_fixture.h"
+#include "profile_statistics.h"
 #ifdef _MSC_VER
 // Keep the production packet's packed layout when compiling with MSVC.
 #define __attribute__(...)
@@ -12,14 +14,23 @@
 // Compile the actual application handlers and adapters, not copies of rules.
 #include "../../src/main.cpp"
 
+esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
+esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
+esp_err_t injectedCommitError = ESP_OK;
+
 // Only hardware/transport/presentation boundaries are replaced.
 namespace TurnHub {
-SigilBus::SigilBus(uint8_t channel) : wifiChannel_(channel) {}
+static SigilBus *fixtureBus=nullptr;
+static SigilRecord fixtureRecords[MAX_PHYSICAL_SIGILS];
+static bool fixtureRadio=false;
+SigilBus::SigilBus(uint8_t channel) : wifiChannel_(channel) { fixtureBus=this; }
+SigilBus *SigilBus::activeInstance() { return fixtureBus; }
 bool SigilBus::begin() { return true; }
 bool SigilBus::poll(SigilEvent&) { return false; }
 uint8_t SigilBus::activeCount(uint32_t) const { return 0; }
 bool SigilBus::isOnline(uint8_t,uint32_t) const { return true; }
-const SigilRecord *SigilBus::record(uint8_t) const { return nullptr; }
+const SigilRecord *SigilBus::record(uint8_t id) const { return fixtureRadio&&id<MAX_PHYSICAL_SIGILS?&fixtureRecords[id]:nullptr; }
+bool SigilBus::send(uint8_t,TurnHubProtocol::PacketType,int32_t) { return true; }
 AudioController::AudioController(SigilBus &bus) : bus_(bus) {}
 uint16_t AudioController::maskForSigil(uint8_t id) { return 1U << id; }
 void AudioController::update(uint32_t) {}
@@ -45,13 +56,11 @@ void OtaManager::begin() {}
 void OtaManager::update(uint32_t) {}
 bool OtaManager::inProgress() const { return false; }
 }
-namespace TurnHubWebApi {
-void configure(ResolveSeatCallback,ControlCallback) {}
-void notePhysicalAction(uint8_t) {}
-}
-
 static int completedGames=0;
-static void completed(const GameEngine&) { ++completedGames; }
+static void completed(const GameEngine &g) {
+  ++completedGames;
+  TurnHubProfileStats::recordCompletedGame(g,+[](const PlayerSeat &s){return String(s.profileId);});
+}
 static void freshLobby(int modules=3,bool shared=false) {
   // Fixture reset; all actions under test go through adapters/dispatcher.
   enterEmptyLobby();
@@ -88,13 +97,13 @@ static void dispatcherContract() {
 }
 static void lobbyLifecycle() {
   freshLobby(2,true);
-  assert(lobby.hostModule()==0);
+  assert(lobby.hostController()==0);
   assert(!dispatchModuleIntent(IntentType::Join,255).accepted());
   assert(!dispatchModuleIntent(IntentType::ArmStart,1).accepted());
   assert(web(0,2,WebControl::SelectStarter));
   PlayerSeat selected; assert(lobby.selectedStarter(selected)&&selected.slot==2);
   handleActionShort(0); assert(lobby.selectedStarter(selected)&&selected.slot==1);
-  handlePass(1); assert(lobby.selectedStarter(selected)&&selected.moduleId==0);
+  handlePass(1); assert(lobby.selectedStarter(selected)&&selected.controllerId==0);
   assert(dispatchModuleIntent(IntentType::Leave,0,2).accepted());
   assert(lobby.playerCount()==2&&!lobby.hasSecondary(0));
   assert(!dispatchModuleIntent(IntentType::Leave,0,2).accepted());
@@ -110,7 +119,7 @@ static void lobbyLifecycle() {
   handleActionDown(1); assert(hubState==HubState::Lobby); handleActionUp(1);
   assert(!dispatchModuleIntent(IntentType::StartGame,0).accepted());
   assert(dispatchModuleIntent(IntentType::Leave,0).accepted());
-  assert(lobby.hostModule()==1&&lobby.playerCount()==1);
+  assert(lobby.hostController()==1&&lobby.playerCount()==1);
   freshLobby(); startFromHost();
   assert(!dispatchModuleIntent(IntentType::Rematch,0).accepted());
   assert(!dispatchModuleIntent(IntentType::ResetGame,0).accepted());
@@ -204,6 +213,137 @@ static void optionalStorage() {
   eraseError=ESP_OK; injectedCommitError=ESP_ERR_NVS_INVALID_HANDLE; assert(!prefs.remove("present")); assert(loggedErrors==5);
   injectedCommitError=ESP_OK; assert(prefs.remove("present"));
 }
+
+static String responseField(const char *field) {
+  const std::string marker=std::string("\"")+field+"\":\"";
+  auto start=server.body.find(marker); assert(start!=std::string::npos);
+  start+=marker.size(); return server.body.substr(start,server.body.find('"',start)-start);
+}
+static int request(const char *path,const String &token=String(),
+    std::map<std::string,String> args={},int method=HTTP_POST) {
+  server.arguments=args; server.headers.clear(); server.headers["X-TurnHub-Token"]=token;
+  server.status=0; server.body.clear();
+  auto found=server.routes.find(std::to_string(method)+path); assert(found!=server.routes.end());
+  found->second(); return server.status;
+}
+static String registerPhone(const char *name,String &id) {
+  assert(request("/api/profiles/register","",{{"name",name},{"pin","1234"}})==200);
+  id=responseField("profileId"); return responseField("token");
+}
+static String loginPhone(const String &id) {
+  assert(request("/api/session/login","",{{"profileId",id},{"pin","1234"}})==200);
+  return responseField("token");
+}
+static void virtualProfileFlow() {
+  enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
+  TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
+  TurnHubWebApi::begin(server);
+  String firstId, secondId;
+  const String first=registerPhone("Phone One",firstId), second=registerPhone("Phone Two",secondId);
+  assert(request("/api/session/me",first,{},HTTP_GET)==200);
+  assert(server.body.find("\"participating\":false")!=std::string::npos);
+  assert(request("/api/control/pass",first)==409);
+  assert(request("/api/session/join","not-a-token")==401);
+  assert(request("/api/session/join",first)==200);
+  assert(request("/api/session/join",second)==200);
+  const String companion=loginPhone(firstId);
+  assert(request("/api/session/join",companion)==200 && lobby.playerCount()==2);
+  assert(request("/api/control/start",second)==409);
+  assert(request("/api/control/start",first)==200 && hubState==HubState::Starting);
+  assert(request("/api/session/leave",first)==409);
+  testNow+=3000; updateCountdown(testNow); assert(hubState==HubState::Running);
+  assert(game.playerCount()==2 && game.playerAt(0)->controllerId>=MAX_PHYSICAL_SIGILS);
+  assert(String(game.playerAt(0)->profileId)==firstId);
+  assert(request("/api/control/pass",second,{{"module","8"},{"profileId",firstId}})==409);
+  assert(request("/api/control/pass",first)==200 && pendingPass.active);
+  assert(request("/api/control/pass",companion)==200 && !pendingPass.active);
+  assert(request("/api/session/logout",first)==200);
+  assert(request("/api/control/pass",first)==401);
+  assert(request("/api/session/me",companion,{},HTTP_GET)==200);
+  const String returned=loginPhone(firstId);
+  assert(request("/api/session/me",returned,{},HTTP_GET)==200);
+  assert(server.body.find("\"participating\":true")!=std::string::npos);
+  assert(game.playerCount()==2);
+  assert(request("/api/control/win",returned)==200);
+  assert(request("/api/control/confirm",returned)==409);
+  assert(request("/api/control/confirm",second)==200 && hubState==HubState::GameOver);
+  assert(ProfileFixture::profiles[firstId].stats.gamesPlayed==1);
+  assert(ProfileFixture::profiles[secondId].stats.gamesPlayed==1);
+  assert(request("/api/control/confirm",second)==409);
+  assert(ProfileFixture::profiles[firstId].stats.gamesPlayed==1);
+  assert(request("/api/control/rematch",returned)==200 && lobby.playerCount()==2);
+  assert(request("/api/control/reset",second)==409);
+  assert(request("/api/control/reset",returned)==200 && lobby.playerCount()==0);
+  assert(request("/api/session/me",returned,{},HTTP_GET)==200);
+  assert(server.body.find("\"participating\":false")!=std::string::npos);
+  assert(request("/api/session/stats",returned,{{"profileId",secondId}},HTTP_GET)==200);
+  assert(responseField("profileId")==firstId);
+
+  for(int i=0;i<5;++i) assert(request("/api/session/login","",{{"profileId",firstId},{"pin","0000"}})==401);
+  assert(request("/api/session/login","",{{"profileId",firstId},{"pin","1234"}})==429);
+  testNow+=30000; const String afterLimit=loginPhone(firstId);
+  assert(request("/api/session/profile",afterLimit,{{"pin","5678"}})==200);
+  assert(request("/api/session/me",returned,{},HTTP_GET)==401);
+  assert(request("/api/session/me",companion,{},HTTP_GET)==401);
+  assert(request("/api/session/me",afterLimit,{},HTTP_GET)==200);
+}
+
+static void physicalCompanionFlow() {
+  enterEmptyLobby(); TurnHub::fixtureRadio=true;
+  for(uint8_t i=0;i<MAX_PHYSICAL_SIGILS;++i) {
+    TurnHub::fixtureRecords[i].id=i; TurnHub::fixtureRecords[i].mac[5]=i;
+  }
+  String id, otherId;
+  const String phone=registerPhone("Hybrid",id), other=registerPhone("Virtual opponent",otherId);
+  assert(request("/api/session/join",phone)==200);
+  assert(request("/api/session/join",other)==200);
+  PlayerSeat before[MAX_PLAYERS]; lobby.buildPlayers(before,MAX_PLAYERS);
+  assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
+  const String claim=responseField("requestId");
+  TurnHubWebApi::notePhysicalAction(0);
+  assert(request("/api/session/poll","",{{"id",claim}},HTTP_GET)==200);
+  assert(responseField("token")==phone);
+  PlayerSeat after[MAX_PLAYERS]; lobby.buildPlayers(after,MAX_PLAYERS);
+  assert(lobby.playerCount()==2 && lobby.hostController()==0);
+  assert(after[0].participantId==before[0].participantId && after[0].controllerId==0);
+  const String secondPhone=loginPhone(id);
+  assert(request("/api/session/join",secondPhone)==200 && lobby.playerCount()==2);
+  assert(request("/api/control/start",phone)==200);
+  testNow+=3000;updateCountdown(testNow);
+  handlePass(0); assert(pendingPass.active);
+  assert(request("/api/control/pass",secondPhone)==200 && !pendingPass.active);
+  assert(request("/api/control/pass",phone)==200);
+  testNow+=3000;updatePendingPass(testNow);
+  assert(game.activePlayerNumber()==2);
+  assert(request("/api/control/concede",other)==200 && hubState==HubState::GameOver);
+  assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
+  assert(ProfileFixture::profiles[id].stats.gamesWon==1);
+  assert(request("/api/session/me",secondPhone,{},HTTP_GET)==200);
+  assert(request("/api/control/reset",phone)==200);
+  assert(request("/api/session/join",phone)==200); // Can play by phone again.
+  assert(lobby.playerCount()==1);
+  handleActionShort(0); // Same persisted physical profile must not duplicate it.
+  assert(lobby.playerCount()==1);
+  TurnHub::fixtureRadio=false;
+}
+
+static void virtualCapacity() {
+  enterEmptyLobby();
+  for(uint8_t i=0;i<MAX_PLAYERS;++i) {
+    const String id=TurnHubProfiles::createProfile(); String message;
+    assert(handleProfileControl(id,WebControl::Join,INVALID_ID,1,message));
+  }
+  assert(lobby.playerCount()==MAX_PLAYERS);
+  const String extra=TurnHubProfiles::createProfile(); String message;
+  assert(!handleProfileControl(extra,WebControl::Join,INVALID_ID,1,message));
+  assert(!dispatchModuleIntent(IntentType::Join,MAX_PHYSICAL_SIGILS).accepted());
+  const uint8_t host=lobby.hostController();
+  assert(web(host,1,WebControl::Start));
+  testNow+=3000; updateCountdown(testNow);
+  assert(web(host,1,WebControl::ClaimWin));
+  for(uint8_t i=1;i<MAX_PLAYERS;++i) assert(web(MAX_PHYSICAL_SIGILS+i,1,WebControl::ConfirmWin));
+  assert(hubState==HubState::GameOver);
+}
 int main() {
   assert(configureIntentHandlers());
   GameEngine::setGameCompletedCallback(completed);
@@ -213,4 +353,7 @@ int main() {
   eliminationAndConcession(); std::cout<<"PASS elimination versus concession\n";
   passTimingAndActors(); std::cout<<"PASS pass timing, cancellation, rollover, actors\n";
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
+  virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
+  physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
+  virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
 }

@@ -1,5 +1,10 @@
 # TurnHub
 
+**Current ESP32 development:** see [Atlas](Atlas/README.md) for firmware
+`0.6.0-dev`, profile login, phone-only/mixed tables and simultaneous phone/Sigil
+control. The older Python/Raspberry Pi descriptions below remain historical
+reference and do not describe the current Atlas build in every detail.
+
 TurnHub is a local-first tabletop game-management platform for turn-based games. It began as a physical turn timer for Magic: The Gathering, but the current architecture supports fully virtual tables, official Atlas hardware with physical Sigils, and mixed tables where physical and browser-based controllers play together.
 
 TurnHub is still a prototype. The current development Atlas is a Raspberry Pi with prototype wired hardware, while the software is being structured so the game engine does not depend on any particular controller or host device.

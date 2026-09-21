@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 source = (Path(__file__).resolve().parents[2] / "src/main.cpp").read_text()
-adapters = ["handleWebControl", "handleLobbyShort", "handlePass", "handleActionDown",
+adapters = ["handleWebControl", "handleProfileControl", "handleLobbyShort", "handlePass", "handleActionDown",
             "handleActionUp", "handleActionShort", "handleActionLong", "handleActionWin",
             "processSigilEvents", "updateMasterButton", "updateCountdown", "updatePendingPass"]
 for name in adapters:

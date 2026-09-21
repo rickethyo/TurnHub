@@ -14,6 +14,9 @@
 #include "sigil_bus.h"
 #include "stats_page.h"
 #include "turnhub_types.h"
+#include "controller_profiles.h"
+#include "login_limiter.h"
+#include "profile_login_page.h"
 
 namespace TurnHubWebApi {
 namespace {
@@ -28,23 +31,25 @@ using TurnHubProfiles::ProfileStats;
 constexpr uint32_t CLAIM_TIMEOUT_MS = 30000;
 constexpr uint32_t SESSION_TIMEOUT_MS = 8UL * 60UL * 60UL * 1000UL;
 constexpr uint8_t MAX_PENDING_CLAIMS = 6;
-constexpr uint8_t MAX_WEB_SESSIONS = MAX_PLAYERS;
+constexpr uint8_t MAX_WEB_SESSIONS = MAX_PLAYERS * 2;
 constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
 constexpr char WIFI_PREF_KEY[] = "ap-pass";
 
 struct PendingClaim {
   bool used = false;
   uint64_t requestId = 0;
-  uint8_t moduleId = INVALID_ID;
+  uint8_t controllerId = INVALID_ID;
   uint8_t slot = 1;
   uint32_t createdMs = 0;
   bool approved = false;
   char token[33] = {};
+  char requestingToken[33] = {};
+  char error[100] = {};
 };
 
 struct WebSession {
   bool used = false;
-  uint8_t moduleId = INVALID_ID;
+  uint8_t controllerId = INVALID_ID;
   uint8_t slot = 1;
   char token[33] = {};
   char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
@@ -56,6 +61,9 @@ WebSession sessions[MAX_WEB_SESSIONS];
 WebServer *webServer = nullptr;
 ResolveSeatCallback resolveSeat = nullptr;
 ControlCallback controlHandler = nullptr;
+ProfileControlCallback profileControlHandler = nullptr;
+ResolveProfileCallback resolveProfile = nullptr;
+TurnHub::LoginLimiter loginLimiter;
 bool profileStoreReady = false;
 
 uint64_t random64() {
@@ -149,25 +157,21 @@ bool validSlot(int slot) {
   return slot == 1 || slot == 2;
 }
 
-bool resolveSeatNow(uint8_t moduleId, uint8_t slot, SeatSnapshot &snapshot) {
+bool resolveSeatNow(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot) {
   snapshot = SeatSnapshot{};
   if (resolveSeat == nullptr || !validSlot(slot)) {
     return false;
   }
-  return resolveSeat(moduleId, slot, snapshot) && snapshot.exists;
+  return resolveSeat(controllerId, slot, snapshot) && snapshot.exists;
 }
 
-const SigilRecord *recordForModule(uint8_t moduleId) {
+const SigilRecord *recordForModule(uint8_t controllerId) {
   SigilBus *bus = SigilBus::activeInstance();
-  return bus != nullptr ? bus->record(moduleId) : nullptr;
+  return bus != nullptr ? bus->record(controllerId) : nullptr;
 }
 
-String profileIdForPhysicalSeat(uint8_t moduleId, uint8_t slot) {
-  const SigilRecord *record = recordForModule(moduleId);
-  if (record == nullptr || !validSlot(slot)) {
-    return String();
-  }
-  return TurnHubProfiles::profileIdForSeat(record->mac, slot);
+String profileIdForPhysicalSeat(uint8_t controllerId, uint8_t slot) {
+  return TurnHubControllers::profileForSeat(controllerId, slot);
 }
 
 String macText(const uint8_t mac[6]) {
@@ -197,31 +201,26 @@ String atlasHardwareId() {
   return String("THA-") + mac;
 }
 
-String profileName(uint8_t moduleId, uint8_t slot) {
-  const String profileId = profileIdForPhysicalSeat(moduleId, slot);
-  return TurnHubProfiles::nameForProfile(profileId);
-}
-
-String customDeviceName(uint8_t moduleId) {
-  const SigilRecord *record = recordForModule(moduleId);
+String customDeviceName(uint8_t controllerId) {
+  const SigilRecord *record = recordForModule(controllerId);
   return record != nullptr ? TurnHubProfiles::deviceName(record->mac) : String();
 }
 
-String deviceLabel(uint8_t moduleId) {
-  String label = customDeviceName(moduleId);
+String deviceLabel(uint8_t controllerId) {
+  String label = customDeviceName(controllerId);
   if (label.length() == 0) {
     label = "Sigil ";
-    label += String(moduleId + 1);
+    label += String(controllerId + 1);
   }
   return label;
 }
 
-bool hasPin(uint8_t moduleId, uint8_t slot) {
-  const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+bool hasPin(uint8_t controllerId, uint8_t slot) {
+  const String profileId = profileIdForPhysicalSeat(controllerId, slot);
   if (TurnHubProfiles::hasPinForProfile(profileId)) {
     return true;
   }
-  const SigilRecord *record = recordForModule(moduleId);
+  const SigilRecord *record = recordForModule(controllerId);
   return record != nullptr && TurnHubProfiles::hasPinForSeat(record->mac, slot);
 }
 
@@ -261,7 +260,8 @@ String sha256Hex(const String &material) {
 }
 
 String profilePinHash(const String &profileId, const String &pin) {
-  if (!TurnHubProfiles::profileExists(profileId)) {
+  TurnHubIdentity::ProfileId parsed;
+  if (!TurnHubIdentity::ProfileId::parse(profileId.c_str(), parsed)) {
     return String();
   }
   String material = "TurnHubProfile:";
@@ -283,8 +283,8 @@ String legacyPinHash(
   return sha256Hex(material);
 }
 
-bool pinMatches(uint8_t moduleId, uint8_t slot, const String &pin) {
-  const SigilRecord *record = recordForModule(moduleId);
+bool pinMatches(uint8_t controllerId, uint8_t slot, const String &pin) {
+  const SigilRecord *record = recordForModule(controllerId);
   if (record == nullptr) {
     return false;
   }
@@ -322,7 +322,7 @@ bool pinMatches(uint8_t moduleId, uint8_t slot, const String &pin) {
 
 void cleanup(uint32_t nowMs) {
   for (auto &pending : pendingClaims) {
-    if (pending.used && !pending.approved &&
+    if (pending.used &&
         nowMs - pending.createdMs > CLAIM_TIMEOUT_MS) {
       pending = PendingClaim{};
     }
@@ -354,22 +354,13 @@ WebSession *sessionForRequest(WebServer &server) {
   return sessionForToken(server.header("X-TurnHub-Token"), millis());
 }
 
-WebSession *createSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
-  const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+WebSession *createProfileSession(const String &profileId, uint32_t nowMs) {
+  cleanup(nowMs);
   if (!TurnHubProfiles::profileExists(profileId)) {
     return nullptr;
   }
 
   WebSession *target = nullptr;
-
-  for (auto &session : sessions) {
-    if (session.used &&
-        session.moduleId == moduleId &&
-        session.slot == slot) {
-      target = &session;
-      break;
-    }
-  }
 
   if (target == nullptr) {
     for (auto &session : sessions) {
@@ -386,8 +377,6 @@ WebSession *createSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
 
   *target = WebSession{};
   target->used = true;
-  target->moduleId = moduleId;
-  target->slot = slot;
   target->lastSeenMs = nowMs;
   makeToken(target->token);
   strncpy(
@@ -398,26 +387,40 @@ WebSession *createSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
   return target;
 }
 
+WebSession *createSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs) {
+  auto *session = createProfileSession(profileIdForPhysicalSeat(controllerId, slot), nowMs);
+  if (session) { session->controllerId = controllerId; session->slot = slot; }
+  return session;
+}
+
+bool resolveSessionParticipant(WebSession &session) {
+  session.controllerId = INVALID_ID;
+  session.slot = 1;
+  return resolveProfile && resolveProfile(String(session.profileId), session.controllerId, session.slot);
+}
+
 String sessionProfileId(const WebSession &session) {
   const String profileId(session.profileId);
   return TurnHubProfiles::profileExists(profileId) ? profileId : String();
 }
 
-bool seatHasSession(uint8_t moduleId, uint8_t slot, uint32_t nowMs) {
+bool seatHasSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs) {
   cleanup(nowMs);
-  for (const auto &session : sessions) {
-    if (session.used && session.moduleId == moduleId && session.slot == slot) {
+  for (auto &session : sessions) {
+    if (session.used) resolveSessionParticipant(session);
+    if (session.used && session.controllerId == controllerId && session.slot == slot) {
       return true;
     }
   }
   return false;
 }
 
-uint8_t moduleSessionCount(uint8_t moduleId, uint32_t nowMs) {
+uint8_t moduleSessionCount(uint8_t controllerId, uint32_t nowMs) {
   cleanup(nowMs);
   uint8_t count = 0;
-  for (const auto &session : sessions) {
-    if (session.used && session.moduleId == moduleId) {
+  for (auto &session : sessions) {
+    if (session.used) resolveSessionParticipant(session);
+    if (session.used && session.controllerId == controllerId) {
       ++count;
     }
   }
@@ -679,16 +682,63 @@ void handleNetworkPassword(WebServer &server) {
   ESP.restart();
 }
 
+void handleProfiles(WebServer &server) {
+  if (!profileStoreReady) { sendJson(server, 503, "{\"error\":\"Profile storage unavailable\"}"); return; }
+  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
+  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+  String json = "{\"profiles\":[";
+  for (size_t i = 0; i < count; ++i) {
+    if (i) json += ',';
+    json += "{\"profileId\":\""; json += ids[i];
+    json += "\",\"name\":\""; json += jsonEscape(TurnHubProfiles::nameForProfile(ids[i]));
+    json += "\",\"hasPin\":"; json += TurnHubProfiles::hasPinForProfile(ids[i]) ? "true" : "false";
+    json += '}';
+  }
+  json += "]}";
+  sendJson(server, 200, json);
+}
+
+void sendLogin(WebServer &server, WebSession *session) {
+  if (!session) { sendJson(server, 503, "{\"error\":\"No session slots available\"}"); return; }
+  sendJson(server, 200, String("{\"ok\":true,\"token\":\"") + session->token +
+      "\",\"profileId\":\"" + session->profileId + "\"}");
+}
+
+void handleRegistration(WebServer &server) {
+  String name = server.arg("name"); name.trim();
+  const String pin = server.arg("pin");
+  if (name.length() == 0 || name.length() > 32 || !validPin(pin)) {
+    sendJson(server, 400, "{\"error\":\"A name (1-32 characters) and a 4-8 digit PIN are required\"}"); return;
+  }
+  cleanup(millis());
+  bool available = false;
+  for (const auto &session : sessions) if (!session.used) available = true;
+  if (!available) { sendJson(server, 503, "{\"error\":\"No session slots available\"}"); return; }
+  const String id = TurnHubProfiles::createProfileWithCredentials(name, pin, profilePinHash);
+  if (id.length() == 0) { sendJson(server, 503, "{\"error\":\"Could not create profile; storage may be full\"}"); return; }
+  sendLogin(server, createProfileSession(id, millis()));
+}
+
+void handleParticipation(WebServer &server, WebControl control) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) { sendJson(server, 401, "{\"error\":\"Sign in to a profile first\"}"); return; }
+  String message;
+  if (!profileControlHandler || !profileControlHandler(sessionProfileId(*session), control, INVALID_ID, 1, message)) {
+    sendJson(server, 409, String("{\"error\":\"") + jsonEscape(message) + "\"}"); return;
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"message\":\"") + jsonEscape(message) + "\"}");
+}
+
 void handleSeats(WebServer &server) {
   const uint32_t nowMs = millis();
   String json = "{\"seats\":[";
   json.reserve(4200);
   bool first = true;
 
-  for (uint8_t moduleId = 0; moduleId < MAX_PHYSICAL_SIGILS; ++moduleId) {
+  for (uint8_t controllerId = 0; controllerId < TurnHub::MAX_CONTROLLERS; ++controllerId) {
     for (uint8_t slot = 1; slot <= 2; ++slot) {
       SeatSnapshot snapshot;
-      if (!resolveSeatNow(moduleId, slot, snapshot)) {
+      if (!resolveSeatNow(controllerId, slot, snapshot)) {
         continue;
       }
 
@@ -697,10 +747,12 @@ void handleSeats(WebServer &server) {
       }
       first = false;
 
-      const String profileId = profileIdForPhysicalSeat(moduleId, slot);
+      const String profileId = profileIdForPhysicalSeat(controllerId, slot);
       const String savedName = TurnHubProfiles::nameForProfile(profileId);
       json += "{\"module\":";
-      json += String(moduleId);
+      json += String(controllerId);
+      json += ",\"virtual\":";
+      json += controllerId >= MAX_PHYSICAL_SIGILS ? "true" : "false";
       json += ",\"slot\":";
       json += String(slot);
       json += ",\"slotName\":\"";
@@ -716,9 +768,9 @@ void handleSeats(WebServer &server) {
       json += "\",\"name\":\"";
       json += jsonEscape(savedName);
       json += "\",\"hasPin\":";
-      json += hasPin(moduleId, slot) ? "true" : "false";
+      json += hasPin(controllerId, slot) ? "true" : "false";
       json += ",\"sessionClaimed\":";
-      json += seatHasSession(moduleId, slot, nowMs) ? "true" : "false";
+      json += seatHasSession(controllerId, slot, nowMs) ? "true" : "false";
       json += '}';
     }
   }
@@ -736,10 +788,11 @@ void handleSessionRequest(WebServer &server) {
 
   const int module = server.arg("module").toInt();
   const int slot = server.arg("slot").toInt();
+  WebSession *requester = sessionForRequest(server);
   SeatSnapshot snapshot;
   if (module < 0 || module >= MAX_PHYSICAL_SIGILS || !validSlot(slot) ||
       !bus->isOnline(static_cast<uint8_t>(module), millis()) ||
-      !resolveSeatNow(static_cast<uint8_t>(module), static_cast<uint8_t>(slot), snapshot)) {
+      (!requester && !resolveSeatNow(static_cast<uint8_t>(module), static_cast<uint8_t>(slot), snapshot))) {
     sendJson(server, 404, "{\"ok\":false,\"error\":\"Seat is not available\"}");
     return;
   }
@@ -756,7 +809,7 @@ void handleSessionRequest(WebServer &server) {
 
   for (auto &pending : pendingClaims) {
     if (pending.used &&
-        pending.moduleId == static_cast<uint8_t>(module) &&
+        pending.controllerId == static_cast<uint8_t>(module) &&
         pending.slot == static_cast<uint8_t>(slot)) {
       pending = PendingClaim{};
     }
@@ -783,9 +836,10 @@ void handleSessionRequest(WebServer &server) {
   *target = PendingClaim{};
   target->used = true;
   target->requestId = requestId;
-  target->moduleId = static_cast<uint8_t>(module);
+  target->controllerId = static_cast<uint8_t>(module);
   target->slot = static_cast<uint8_t>(slot);
   target->createdMs = nowMs;
+  if (requester) strncpy(target->requestingToken, requester->token, sizeof(target->requestingToken) - 1);
 
   String response = "{\"ok\":true,\"status\":\"pending\",\"requestId\":\"";
   response += requestIdText(requestId);
@@ -822,8 +876,13 @@ void handleSessionPoll(WebServer &server) {
       return;
     }
 
+    if (pending.error[0]) {
+      const String error(pending.error); pending = PendingClaim{};
+      sendJson(server, 409, String("{\"error\":\"") + jsonEscape(error) + "\"}"); return;
+    }
+
     String response = "{\"ok\":true,\"status\":\"approved\",\"module\":";
-    response += String(pending.moduleId);
+    response += String(pending.controllerId);
     response += ",\"slot\":";
     response += String(pending.slot);
     response += ",\"token\":\"";
@@ -838,6 +897,21 @@ void handleSessionPoll(WebServer &server) {
 }
 
 void handleSessionLogin(WebServer &server) {
+  if (server.hasArg("profileId")) {
+    const String id = server.arg("profileId"), pin = server.arg("pin");
+    if (!validPin(pin) || !TurnHubProfiles::profileExists(id)) {
+      sendJson(server, 401, "{\"error\":\"Profile or PIN was not accepted\"}"); return;
+    }
+    if (!loginLimiter.allow(id.c_str(), millis())) {
+      sendJson(server, 429, "{\"error\":\"Too many attempts. Wait 30 seconds and retry\"}"); return;
+    }
+    const String stored = TurnHubProfiles::storedPinHashForProfile(id);
+    if (stored.length() != 64 || !stored.equalsIgnoreCase(profilePinHash(id, pin))) {
+      sendJson(server, 401, "{\"error\":\"Profile or PIN was not accepted. Older profiles may need physical sign-in once\"}"); return;
+    }
+    loginLimiter.success(id.c_str());
+    sendLogin(server, createProfileSession(id, millis())); return;
+  }
   if (!server.hasArg("module") || !server.hasArg("slot") || !server.hasArg("pin")) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Module, slot, and PIN are required\"}");
     return;
@@ -852,13 +926,18 @@ void handleSessionLogin(WebServer &server) {
     return;
   }
 
-  if (!pinMatches(
+  const String loginProfile = profileIdForPhysicalSeat(static_cast<uint8_t>(module), static_cast<uint8_t>(slot));
+  if (!loginLimiter.allow(loginProfile.c_str(), millis())) {
+    sendJson(server, 429, "{\"error\":\"Too many attempts. Wait 30 seconds and retry\"}"); return;
+  }
+  if (!validPin(server.arg("pin")) || !pinMatches(
           static_cast<uint8_t>(module),
           static_cast<uint8_t>(slot),
           server.arg("pin"))) {
     sendJson(server, 401, "{\"ok\":false,\"error\":\"Incorrect PIN\"}");
     return;
   }
+  loginLimiter.success(loginProfile.c_str());
 
   WebSession *session = createSession(
       static_cast<uint8_t>(module),
@@ -889,18 +968,18 @@ void handleSessionMe(WebServer &server) {
   }
 
   SeatSnapshot snapshot;
-  if (!resolveSeatNow(session->moduleId, session->slot, snapshot)) {
-    *session = WebSession{};
-    sendJson(server, 409, "{\"ok\":false,\"authenticated\":false,\"error\":\"Seat is no longer at the table\"}");
-    return;
-  }
+  const bool participating = resolveSessionParticipant(*session) &&
+      resolveSeatNow(session->controllerId, session->slot, snapshot);
 
-  const SigilRecord *record = recordForModule(session->moduleId);
+  const SigilRecord *record = recordForModule(session->controllerId);
   const String profileId = sessionProfileId(*session);
   const String savedName = TurnHubProfiles::nameForProfile(profileId);
 
   String response = "{\"ok\":true,\"authenticated\":true,\"module\":";
-  response += String(session->moduleId);
+  response += String(session->controllerId);
+  response += ",\"participating\":"; response += participating ? "true" : "false";
+  response += ",\"host\":"; response += snapshot.host ? "true" : "false";
+  response += ",\"virtual\":"; response += session->controllerId >= MAX_PHYSICAL_SIGILS ? "true" : "false";
   response += ",\"slot\":";
   response += String(session->slot);
   response += ",\"slotName\":\"";
@@ -940,7 +1019,8 @@ void handleProfile(WebServer &server) {
   }
 
   SigilBus *bus = SigilBus::activeInstance();
-  const SigilRecord *record = recordForModule(session->moduleId);
+  resolveSessionParticipant(*session);
+  const SigilRecord *record = recordForModule(session->controllerId);
   bool displayProfileChanged = false;
 
   if (server.hasArg("name")) {
@@ -974,12 +1054,21 @@ void handleProfile(WebServer &server) {
   }
 
   if (server.hasArg("clearPin") && server.arg("clearPin") == "1") {
+    if (record == nullptr) {
+      sendJson(server, 409, "{\"error\":\"Keep a PIN for hardware-independent profile login\"}"); return;
+    }
     if (!TurnHubProfiles::clearPinForProfile(profileId)) {
       sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not remove PIN\"}");
       return;
     }
     if (record != nullptr) {
       TurnHubProfiles::clearPinForSeat(record->mac, session->slot);
+    }
+  }
+
+  if (server.hasArg("pin") || (server.hasArg("clearPin") && server.arg("clearPin") == "1")) {
+    for (auto &other : sessions) {
+      if (&other != session && other.used && String(other.profileId) == profileId) other = WebSession{};
     }
   }
 
@@ -990,7 +1079,7 @@ void handleProfile(WebServer &server) {
       record->helloInfoValid &&
       (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE) != 0) {
     bus->send(
-        session->moduleId,
+        session->controllerId,
         TurnHubProtocol::PacketType::DisplayProfileRequest);
   }
 
@@ -1076,7 +1165,7 @@ void runControl(WebServer &server, WebControl control) {
   }
 
   SeatSnapshot snapshot;
-  if (!resolveSeatNow(session->moduleId, session->slot, snapshot)) {
+  if (!resolveSessionParticipant(*session) || !resolveSeatNow(session->controllerId, session->slot, snapshot)) {
     sendJson(server, 409, "{\"ok\":false,\"error\":\"Seat is no longer at the table\"}");
     return;
   }
@@ -1087,7 +1176,7 @@ void runControl(WebServer &server, WebControl control) {
   }
 
   String message;
-  if (!controlHandler(session->moduleId, session->slot, control, message)) {
+  if (!controlHandler(session->controllerId, session->slot, control, message)) {
     if (message.length() == 0) {
       message = "Control is not available right now";
     }
@@ -1111,9 +1200,13 @@ void runControl(WebServer &server, WebControl control) {
 
 void configure(
     ResolveSeatCallback resolveSeatCallback,
-    ControlCallback controlCallback) {
+    ControlCallback controlCallback,
+    ProfileControlCallback profileControlCallback,
+    ResolveProfileCallback resolveProfileCallback) {
   resolveSeat = resolveSeatCallback;
   controlHandler = controlCallback;
+  profileControlHandler = profileControlCallback;
+  resolveProfile = resolveProfileCallback;
 }
 
 void notePhysicalAction(uint8_t sigilId) {
@@ -1122,7 +1215,7 @@ void notePhysicalAction(uint8_t sigilId) {
 
   PendingClaim *oldest = nullptr;
   for (auto &pending : pendingClaims) {
-    if (!pending.used || pending.approved || pending.moduleId != sigilId) {
+    if (!pending.used || pending.approved || pending.controllerId != sigilId) {
       continue;
     }
     if (oldest == nullptr || pending.createdMs < oldest->createdMs) {
@@ -1135,12 +1228,24 @@ void notePhysicalAction(uint8_t sigilId) {
   }
 
   SeatSnapshot snapshot;
-  if (!resolveSeatNow(oldest->moduleId, oldest->slot, snapshot)) {
+  WebSession *requester = oldest->requestingToken[0] ?
+      sessionForToken(String(oldest->requestingToken), nowMs) : nullptr;
+  if (oldest->requestingToken[0]) {
+    String message = "Sign-in expired; request attachment again";
+    if (!requester || !profileControlHandler ||
+        !profileControlHandler(sessionProfileId(*requester), WebControl::AttachPhysical,
+            oldest->controllerId, oldest->slot, message)) {
+      oldest->approved = true;
+      strncpy(oldest->error, message.c_str(), sizeof(oldest->error) - 1);
+      return;
+    }
+  }
+  if (!resolveSeatNow(oldest->controllerId, oldest->slot, snapshot)) {
     *oldest = PendingClaim{};
     return;
   }
 
-  WebSession *session = createSession(oldest->moduleId, oldest->slot, nowMs);
+  WebSession *session = requester ? requester : createSession(oldest->controllerId, oldest->slot, nowMs);
   if (session == nullptr) {
     return;
   }
@@ -1150,7 +1255,7 @@ void notePhysicalAction(uint8_t sigilId) {
   oldest->token[sizeof(oldest->token) - 1] = '\0';
 
   Serial.print("ATLAS|WEB_SESSION|AUTHORIZED|SIGIL|");
-  Serial.print(oldest->moduleId);
+  Serial.print(oldest->controllerId);
   Serial.print("|SLOT|");
   Serial.print(oldest->slot == 1 ? 'A' : 'B');
   Serial.print("|PROFILE|");
@@ -1171,12 +1276,20 @@ void begin(WebServer &server) {
     server.sendHeader("Cache-Control", "no-store");
     server.send_P(200, "text/html", TurnHubStatsPage::STATS_HTML);
   });
+  server.on("/login", HTTP_GET, [&server]() {
+    server.sendHeader("Cache-Control", "no-store");
+    server.send_P(200, "text/html", TurnHubLoginPage::HTML);
+  });
 
   server.on("/api/devices", HTTP_GET, [&server]() { handleDevices(server); });
   server.on("/api/device/name", HTTP_POST, [&server]() { handleDeviceName(server); });
   server.on("/api/network", HTTP_GET, [&server]() { handleNetworkInfo(server); });
   server.on("/api/network/password", HTTP_POST, [&server]() { handleNetworkPassword(server); });
   server.on("/api/seats", HTTP_GET, [&server]() { handleSeats(server); });
+  server.on("/api/profiles", HTTP_GET, [&server]() { handleProfiles(server); });
+  server.on("/api/profiles/register", HTTP_POST, [&server]() { handleRegistration(server); });
+  server.on("/api/session/join", HTTP_POST, [&server]() { handleParticipation(server, WebControl::Join); });
+  server.on("/api/session/leave", HTTP_POST, [&server]() { handleParticipation(server, WebControl::Leave); });
   server.on("/api/session/request", HTTP_POST, [&server]() { handleSessionRequest(server); });
   server.on("/api/session/poll", HTTP_GET, [&server]() { handleSessionPoll(server); });
   server.on("/api/session/login", HTTP_POST, [&server]() { handleSessionLogin(server); });
@@ -1193,6 +1306,10 @@ void begin(WebServer &server) {
   server.on("/api/control/confirm", HTTP_POST, [&server]() { runControl(server, WebControl::ConfirmWin); });
   server.on("/api/control/deny", HTTP_POST, [&server]() { runControl(server, WebControl::DenyWin); });
   server.on("/api/control/starter", HTTP_POST, [&server]() { runControl(server, WebControl::SelectStarter); });
+  server.on("/api/control/start", HTTP_POST, [&server]() { runControl(server, WebControl::Start); });
+  server.on("/api/control/cancel-start", HTTP_POST, [&server]() { runControl(server, WebControl::CancelStart); });
+  server.on("/api/control/rematch", HTTP_POST, [&server]() { runControl(server, WebControl::Rematch); });
+  server.on("/api/control/reset", HTTP_POST, [&server]() { runControl(server, WebControl::Reset); });
 
   Serial.print("ATLAS|WEB_API|READY|PROFILES|");
   Serial.println(profileStoreReady ? "YES" : "NO");

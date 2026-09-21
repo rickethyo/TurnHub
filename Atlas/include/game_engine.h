@@ -28,7 +28,7 @@ class GameEngine {
       uint32_t warningMs,
       uint32_t nowMs);
 
-  bool passTurn(uint8_t moduleId, uint32_t nextWarningMs, uint32_t nowMs);
+  bool passTurn(uint8_t controllerId, uint32_t nextWarningMs, uint32_t nowMs);
   bool pause(uint32_t nowMs);
   bool resume(uint32_t nowMs);
 
@@ -63,17 +63,17 @@ class GameEngine {
   const PlayerSeat *playerByNumber(uint8_t playerNumber) const;
   const PlayerSeat *activePlayer() const;
   uint8_t activePlayerNumber() const;
-  uint8_t activeModule() const;
+  uint8_t activeController() const;
   uint8_t starterPlayerNumber() const;
   uint8_t winnerPlayerNumber() const;
   uint8_t winClaimPlayerNumber() const;
   uint8_t nextWinConfirmationPlayerNumber() const;
 
-  bool moduleInGame(uint8_t moduleId) const;
+  bool controllerInGame(uint8_t controllerId) const;
   bool isEliminated(uint8_t playerNumber) const;
-  uint8_t playersForModule(uint8_t moduleId, PlayerSeat *out, uint8_t capacity) const;
-  uint8_t livingPlayersForModule(
-      uint8_t moduleId,
+  uint8_t playersForController(uint8_t controllerId, PlayerSeat *out, uint8_t capacity) const;
+  uint8_t livingPlayersForController(
+      uint8_t controllerId,
       PlayerSeat *out,
       uint8_t capacity) const;
 

@@ -8,32 +8,32 @@ Lobby::Lobby() {
   resetEmpty();
 }
 
-bool Lobby::validModule(uint8_t moduleId) const {
-  return moduleId < MAX_PHYSICAL_SIGILS;
+bool Lobby::validModule(uint8_t controllerId) const {
+  return controllerId < MAX_CONTROLLERS;
 }
 
-int Lobby::joinedIndex(uint8_t moduleId) const {
+int Lobby::joinedIndex(uint8_t controllerId) const {
   for (uint8_t i = 0; i < joinedCount_; ++i) {
-    if (joinedOrder_[i] == moduleId) {
+    if (joinedOrder_[i] == controllerId) {
       return i;
     }
   }
   return -1;
 }
 
-bool Lobby::isJoined(uint8_t moduleId) const {
-  return joinedIndex(moduleId) >= 0;
+bool Lobby::isJoined(uint8_t controllerId) const {
+  return joinedIndex(controllerId) >= 0;
 }
 
-bool Lobby::hasSecondary(uint8_t moduleId) const {
-  return validModule(moduleId) && secondary_[moduleId];
+bool Lobby::hasSecondary(uint8_t controllerId) const {
+  return validModule(controllerId) && secondary_[controllerId];
 }
 
-uint8_t Lobby::hostModule() const {
+uint8_t Lobby::hostController() const {
   return joinedCount_ > 0 ? joinedOrder_[0] : INVALID_ID;
 }
 
-uint8_t Lobby::joinedModuleCount() const {
+uint8_t Lobby::joinedControllerCount() const {
   return joinedCount_;
 }
 
@@ -49,26 +49,27 @@ uint8_t Lobby::playerCount() const {
   return count;
 }
 
-uint8_t Lobby::join(uint8_t moduleId) {
-  if (!validModule(moduleId)) {
+uint8_t Lobby::join(uint8_t controllerId) {
+  if (!validModule(controllerId)) {
     return 0;
   }
 
-  const uint8_t existing = playerNumber(moduleId, 1);
+  const uint8_t existing = playerNumber(controllerId, 1);
   if (existing != 0) {
     return existing;
   }
 
-  if (joinedCount_ >= MAX_PHYSICAL_SIGILS) {
+  if (joinedCount_ >= MAX_CONTROLLERS || playerCount() >= MAX_PLAYERS) {
     return 0;
   }
 
-  joinedOrder_[joinedCount_++] = moduleId;
-  return playerNumber(moduleId, 1);
+  participants_[controllerId][0] = nextParticipant_++;
+  joinedOrder_[joinedCount_++] = controllerId;
+  return playerNumber(controllerId, 1);
 }
 
-bool Lobby::leave(uint8_t moduleId) {
-  const int index = joinedIndex(moduleId);
+bool Lobby::leave(uint8_t controllerId) {
+  const int index = joinedIndex(controllerId);
   if (index < 0) {
     return false;
   }
@@ -78,22 +79,34 @@ bool Lobby::leave(uint8_t moduleId) {
   }
 
   --joinedCount_;
-  secondary_[moduleId] = false;
-  held_[moduleId] = false;
-  sharedChord_[moduleId] = false;
-  suppressNextShort_[moduleId] = false;
-  actionLong_[moduleId] = false;
+  secondary_[controllerId] = false;
+  held_[controllerId] = false;
+  sharedChord_[controllerId] = false;
+  suppressNextShort_[controllerId] = false;
+  actionLong_[controllerId] = false;
 
-  if (starterSelected_ && starterModule_ == moduleId) {
+  if (starterSelected_ && starterModule_ == controllerId) {
     starterSelected_ = false;
     starterModule_ = INVALID_ID;
     starterSlot_ = 1;
   }
 
-  if (startArmedBy_ == moduleId) {
+  if (startArmedBy_ == controllerId) {
     startArmedBy_ = INVALID_ID;
   }
 
+  return true;
+}
+
+bool Lobby::replaceController(uint8_t oldController, uint8_t newController) {
+  const int index = joinedIndex(oldController);
+  if (index < 0 || !validModule(newController) || isJoined(newController) ||
+      hasSecondary(oldController)) return false;
+  joinedOrder_[index] = newController;
+  participants_[newController][0] = participants_[oldController][0];
+  participants_[oldController][0] = 0;
+  if (starterSelected_ && starterModule_ == oldController) starterModule_ = newController;
+  clearStartArm();
   return true;
 }
 
@@ -107,47 +120,51 @@ uint8_t Lobby::buildPlayers(PlayerSeat *out, uint8_t capacity) const {
 
   for (uint8_t i = 0; i < joinedCount_ && count < capacity; ++i) {
     const uint8_t module = joinedOrder_[i];
-    out[count++] = PlayerSeat{number++, module, 1};
+    out[count] = PlayerSeat{number++, module, 1};
+    out[count++].participantId = participants_[module][0];
 
     if (secondary_[module] && count < capacity) {
-      out[count++] = PlayerSeat{number++, module, 2};
+      out[count] = PlayerSeat{number++, module, 2};
+      out[count++].participantId = participants_[module][1];
     }
   }
 
   return count;
 }
 
-uint8_t Lobby::playersForModule(
-    uint8_t moduleId,
+uint8_t Lobby::playersForController(
+    uint8_t controllerId,
     PlayerSeat *out,
     uint8_t capacity) const {
-  if (!isJoined(moduleId) || out == nullptr || capacity == 0) {
+  if (!isJoined(controllerId) || out == nullptr || capacity == 0) {
     return 0;
   }
 
   uint8_t count = 0;
-  const uint8_t primary = playerNumber(moduleId, 1);
+  const uint8_t primary = playerNumber(controllerId, 1);
   if (primary != 0 && count < capacity) {
-    out[count++] = PlayerSeat{primary, moduleId, 1};
+    out[count] = PlayerSeat{primary, controllerId, 1};
+    out[count++].participantId = participants_[controllerId][0];
   }
 
-  if (secondary_[moduleId] && count < capacity) {
-    const uint8_t second = playerNumber(moduleId, 2);
+  if (secondary_[controllerId] && count < capacity) {
+    const uint8_t second = playerNumber(controllerId, 2);
     if (second != 0) {
-      out[count++] = PlayerSeat{second, moduleId, 2};
+      out[count] = PlayerSeat{second, controllerId, 2};
+      out[count++].participantId = participants_[controllerId][1];
     }
   }
 
   return count;
 }
 
-uint8_t Lobby::playerNumber(uint8_t moduleId, uint8_t slot) const {
+uint8_t Lobby::playerNumber(uint8_t controllerId, uint8_t slot) const {
   uint8_t number = 1;
 
   for (uint8_t i = 0; i < joinedCount_; ++i) {
     const uint8_t module = joinedOrder_[i];
 
-    if (module == moduleId) {
+    if (module == controllerId) {
       if (slot == 1) {
         return number;
       }
@@ -167,20 +184,20 @@ uint8_t Lobby::playerNumber(uint8_t moduleId, uint8_t slot) const {
 }
 
 bool Lobby::toggleSecondary(
-    uint8_t moduleId,
+    uint8_t controllerId,
     bool &added,
     PlayerSeat &affected) {
-  if (!isJoined(moduleId)) {
+  if (!isJoined(controllerId)) {
     return false;
   }
 
-  if (secondary_[moduleId]) {
-    const uint8_t oldNumber = playerNumber(moduleId, 2);
-    affected = PlayerSeat{oldNumber, moduleId, 2};
-    secondary_[moduleId] = false;
+  if (secondary_[controllerId]) {
+    const uint8_t oldNumber = playerNumber(controllerId, 2);
+    affected = PlayerSeat{oldNumber, controllerId, 2};
+    secondary_[controllerId] = false;
     added = false;
 
-    if (starterSelected_ && starterModule_ == moduleId && starterSlot_ == 2) {
+    if (starterSelected_ && starterModule_ == controllerId && starterSlot_ == 2) {
       starterSelected_ = false;
       starterModule_ = INVALID_ID;
       starterSlot_ = 1;
@@ -189,9 +206,11 @@ bool Lobby::toggleSecondary(
     return true;
   }
 
-  secondary_[moduleId] = true;
+  if (controllerId >= MAX_PHYSICAL_SIGILS || playerCount() >= MAX_PLAYERS) return false;
+  participants_[controllerId][1] = nextParticipant_++;
+  secondary_[controllerId] = true;
   added = true;
-  affected = PlayerSeat{playerNumber(moduleId, 2), moduleId, 2};
+  affected = PlayerSeat{playerNumber(controllerId, 2), controllerId, 2};
   return true;
 }
 
@@ -209,36 +228,36 @@ bool Lobby::selectedStarter(PlayerSeat &selected) const {
   return true;
 }
 
-bool Lobby::selectStarter(uint8_t moduleId, PlayerSeat &selected) {
-  if (!isJoined(moduleId)) {
+bool Lobby::selectStarter(uint8_t controllerId, PlayerSeat &selected) {
+  if (!isJoined(controllerId)) {
     return false;
   }
 
   uint8_t nextSlot = 1;
-  if (starterSelected_ && starterModule_ == moduleId && secondary_[moduleId]) {
+  if (starterSelected_ && starterModule_ == controllerId && secondary_[controllerId]) {
     nextSlot = starterSlot_ == 1 ? 2 : 1;
   }
 
   starterSelected_ = true;
-  starterModule_ = moduleId;
+  starterModule_ = controllerId;
   starterSlot_ = nextSlot;
 
   return selectedStarter(selected);
 }
 
 bool Lobby::selectStarterSeat(
-    uint8_t moduleId,
+    uint8_t controllerId,
     uint8_t slot,
     PlayerSeat &selected) {
-  if (!isJoined(moduleId) || (slot != 1 && slot != 2)) {
+  if (!isJoined(controllerId) || (slot != 1 && slot != 2)) {
     return false;
   }
-  if (slot == 2 && !secondary_[moduleId]) {
+  if (slot == 2 && !secondary_[controllerId]) {
     return false;
   }
 
   starterSelected_ = true;
-  starterModule_ = moduleId;
+  starterModule_ = controllerId;
   starterSlot_ = slot;
   return selectedStarter(selected);
 }
@@ -253,7 +272,7 @@ bool Lobby::randomStarter(PlayerSeat &selected) {
   const uint32_t choice = esp_random() % count;
   selected = players[choice];
   starterSelected_ = true;
-  starterModule_ = selected.moduleId;
+  starterModule_ = selected.controllerId;
   starterSlot_ = selected.slot;
   return true;
 }
@@ -280,7 +299,7 @@ void Lobby::resetEmpty() {
   starterSlot_ = 1;
   startArmedBy_ = INVALID_ID;
 
-  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
+  for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
     joinedOrder_[i] = INVALID_ID;
     secondary_[i] = false;
     held_[i] = false;
@@ -296,7 +315,7 @@ void Lobby::resetForRematch() {
   starterSlot_ = 1;
   startArmedBy_ = INVALID_ID;
 
-  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
+  for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
     held_[i] = false;
     sharedChord_[i] = false;
     suppressNextShort_[i] = false;
@@ -304,27 +323,27 @@ void Lobby::resetForRematch() {
   }
 }
 
-void Lobby::setHeld(uint8_t moduleId, bool held) {
-  if (validModule(moduleId)) {
-    held_[moduleId] = held;
+void Lobby::setHeld(uint8_t controllerId, bool held) {
+  if (validModule(controllerId)) {
+    held_[controllerId] = held;
   }
 }
 
-bool Lobby::isHeld(uint8_t moduleId) const {
-  return validModule(moduleId) && held_[moduleId];
+bool Lobby::isHeld(uint8_t controllerId) const {
+  return validModule(controllerId) && held_[controllerId];
 }
 
-bool Lobby::anyOtherHeld(uint8_t moduleId) const {
-  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
-    if (i != moduleId && held_[i]) {
+bool Lobby::anyOtherHeld(uint8_t controllerId) const {
+  for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
+    if (i != controllerId && held_[i]) {
       return true;
     }
   }
   return false;
 }
 
-void Lobby::setStartArmedBy(uint8_t moduleId) {
-  startArmedBy_ = moduleId;
+void Lobby::setStartArmedBy(uint8_t controllerId) {
+  startArmedBy_ = controllerId;
 }
 
 void Lobby::clearStartArm() {
@@ -335,38 +354,38 @@ uint8_t Lobby::startArmedBy() const {
   return startArmedBy_;
 }
 
-void Lobby::setSharedChord(uint8_t moduleId, bool value) {
-  if (validModule(moduleId)) {
-    sharedChord_[moduleId] = value;
+void Lobby::setSharedChord(uint8_t controllerId, bool value) {
+  if (validModule(controllerId)) {
+    sharedChord_[controllerId] = value;
   }
 }
 
-bool Lobby::sharedChord(uint8_t moduleId) const {
-  return validModule(moduleId) && sharedChord_[moduleId];
+bool Lobby::sharedChord(uint8_t controllerId) const {
+  return validModule(controllerId) && sharedChord_[controllerId];
 }
 
-void Lobby::setSuppressNextShort(uint8_t moduleId, bool value) {
-  if (validModule(moduleId)) {
-    suppressNextShort_[moduleId] = value;
+void Lobby::setSuppressNextShort(uint8_t controllerId, bool value) {
+  if (validModule(controllerId)) {
+    suppressNextShort_[controllerId] = value;
   }
 }
 
-bool Lobby::consumeSuppressNextShort(uint8_t moduleId) {
-  if (!validModule(moduleId) || !suppressNextShort_[moduleId]) {
+bool Lobby::consumeSuppressNextShort(uint8_t controllerId) {
+  if (!validModule(controllerId) || !suppressNextShort_[controllerId]) {
     return false;
   }
-  suppressNextShort_[moduleId] = false;
+  suppressNextShort_[controllerId] = false;
   return true;
 }
 
-void Lobby::setActionLong(uint8_t moduleId, bool value) {
-  if (validModule(moduleId)) {
-    actionLong_[moduleId] = value;
+void Lobby::setActionLong(uint8_t controllerId, bool value) {
+  if (validModule(controllerId)) {
+    actionLong_[controllerId] = value;
   }
 }
 
-bool Lobby::actionLong(uint8_t moduleId) const {
-  return validModule(moduleId) && actionLong_[moduleId];
+bool Lobby::actionLong(uint8_t controllerId) const {
+  return validModule(controllerId) && actionLong_[controllerId];
 }
 
 }  // namespace TurnHub

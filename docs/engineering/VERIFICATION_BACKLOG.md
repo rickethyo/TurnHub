@@ -74,16 +74,29 @@ When an item is verified, update the relevant reference document and mark the it
 
 ## Software architecture
 
+- [x] Define identity/persistence ownership and introduce an NVS-backed statistics
+  storage boundary preserving existing data. Atlas build, native gameplay/storage
+  tests and adapter audit pass; see [contracts](IDENTITY_AND_STORAGE.md).
+- [ ] Physically verify the new storage path preserves an existing profile,
+  PIN/name and totals across update/reboot, and records one completed game once.
+
 - [x] Audit current Atlas migration code for any browser/Sigil logic that duplicates game-engine rules. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [x] Route running-game PASS requests from physical Sigils, browser controls, and the Atlas master button through the shared authoritative `IntentDispatcher`.
 - [x] Investigate inconsistent PASS grace timing observed on hardware. The 2026-09-19 ESP32 Build Fix conversation reports three-second physical/browser pending-to-commit timing and Action cancellation on the pre-migration build. New native scenarios verify grace/cancellation/rollover; repeat the hardware test after this migration.
 - [x] Eliminate optional Preferences/NVS NOT_FOUND spam without reducing error logging. Native fault-injection policy tests and clean firmware build pass; see [verification record](ATLAS_INTENT_VERIFICATION.md).
-- [x] User reports all gameplay migration checks tested after the supplied serial run. See the [post-migration hardware checklist](ATLAS_INTENT_VERIFICATION.md#hardware-verification-still-required). The subsequent LED prototype still needs a physical check; no merge to master has been performed.
+- [x] User reports gameplay migration checks tested after the supplied serial run.
+  The migration is now merged into master; on 2026-09-20 the owner also accepted
+  the repository build/current hardware baseline. See the
+  [post-migration hardware checklist](ATLAS_INTENT_VERIFICATION.md#hardware-verification-still-required).
 - [x] Migrate Pause/Resume through authoritative Intent handlers and remove controller-specific state mutation. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [x] Migrate Concede through an authoritative Intent handler. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [x] Migrate ClaimWin/ConfirmWin/DenyWin through authoritative Intent handlers. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [x] Migrate lobby/lifecycle actions through Intent handlers where they represent semantic requests rather than local input gestures. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [ ] Make physical and virtual Sigils use the same semantic action layer where practical.
+- [x] Phone-only and mixed participation use the same Intent handlers; profile
+  sessions resolve to a single participant shared with physical input. Native
+  HTTP/application regression checks pass; `0.6.0-dev` bench acceptance is pending.
+- [ ] Bench-check `0.6.0-dev`: old profiles, two-phone game with Sigils off,
+  concurrent phone/Sigil control, statistics once and persistence after reboot.
 - [ ] Define a controller interface suitable for a simulator/test harness.
 - [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [ ] Review timer implementation for timestamp/derived-state behavior rather than unnecessary repeated state mutation.

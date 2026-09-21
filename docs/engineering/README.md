@@ -21,6 +21,9 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
+- [Identity and Storage Contracts](IDENTITY_AND_STORAGE.md) - typed identities, persistence ownership, legacy compatibility and migration/failure rules.
+- [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables and simultaneous phone/Sigil control.
+- [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - planned two-button e-ink selection, reusable controllers, authorization decision and migration slices.
 - [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - historical transports, message concepts, current pairing direction, and protocol design rules.
 - [Verification Backlog](VERIFICATION_BACKLOG.md) - facts that should be confirmed against physical prototypes, commits, schematics, or future design decisions.
 - [Legal and IP Working Reference](../legal/README.md) - dependency provenance, third-party notices, licensing/trademark tracking, and IP hygiene rules.

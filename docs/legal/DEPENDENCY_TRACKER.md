@@ -23,6 +23,15 @@ The goal is simple: know what entered the project, where it came from, how it is
 
 ## Platform/toolchain follow-up
 
+Optional Windows native-test compiler: PlatformIO package
+`platformio/toolchain-gccmingw32` 1.50100.0 (GCC 5.1.0), used by
+`Atlas/tests/host/run-gcc.ps1`. Installed package provenance is recorded in its
+`package.json`; component license texts are in its `licenses/` directory.
+This is development-only tooling, not linked into ESP32 firmware. Compiler and
+native test binaries are not committed or distributed. Review the package's
+component/runtime redistribution terms before distributing either; MSVC remains
+an alternative via `run.cmd`.
+
 The high-level rows above are not yet a complete software bill of materials. Before release, generate the dependency list from the exact production builds and inventory:
 
 - Espressif SDK/framework components pulled into Atlas firmware.
