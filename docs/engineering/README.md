@@ -19,6 +19,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
 - [Staged Changes](STAGED_CHANGES.md) - concise durable queue for agreed work that has not yet been implemented or fully verified.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
+- [Size and Change History](SIZE_AND_CHANGE_HISTORY.md) - milestone source-size snapshots, firmware RAM/flash measurements, and notable change checkpoints.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
 - [Identity and Storage Contracts](IDENTITY_AND_STORAGE.md) - typed identities, persistence ownership, legacy compatibility and migration/failure rules.
@@ -80,4 +81,6 @@ When a new external dependency, asset, reference design, copied implementation, 
 
 When a user-facing interaction, cue, display, timeout, or controller path changes, review `ACCESSIBILITY.md` in the same development cycle.
 
-Last reconstructed: 2026-09-20
+At release candidates, firmware-version changes, major architecture milestones, and unusually large feature commits, update `SIZE_AND_CHANGE_HISTORY.md` with source-size and available compiled-footprint measurements. Preserve prior snapshots rather than overwriting them.
+
+Last reconstructed: 2026-09-21
