@@ -116,7 +116,7 @@ second participant when the profile already joined by phone.
 
 An adapter may know only a controller identity at first.
 
-For example, a physical packet may identify a Sigil/module and slot while an authenticated browser request may identify a browser session that Atlas maps to a player.
+For example, a physical packet may identify a Sigil/controller and slot while an authenticated browser request may identify a browser session that Atlas maps to a player.
 
 `IntentActor` therefore carries controller-facing identity fields, while Atlas remains responsible for resolving those into the canonical Player when required.
 
@@ -130,9 +130,10 @@ The initial payload is deliberately fixed-size:
 targetPlayer
 value
 flags
+profileId
 ```
 
-This keeps the boundary heap-free and transport-neutral while the intent set stabilizes.
+This keeps the boundary heap-free and transport-neutral while the intent set stabilizes. `profileId` is populated only by trusted Atlas authentication/application adapters for profile-scoped requests.
 
 As individual intents mature, payload semantics must be documented. If many unrelated meanings begin accumulating in generic fields, replace them with explicit typed payload structures rather than building an undocumented bit field.
 
@@ -167,22 +168,23 @@ to the authoritative transitions.
 
 ### Implemented payload meanings
 
-- Game seat intents use `actor.moduleId`, `slot`, and `playerNumber`; Atlas validates
+- Game-seat intents use `actor.controllerId`, `slot`, and `playerNumber`; Atlas validates
   their agreement with the current canonical seat. Browser identities come from
   authenticated sessions, not arbitrary form fields.
-- `Join`/`Leave`: slot 1 requests whole-module membership; slot 2 requests secondary
-  seat membership. Membership changes require Lobby state. Whole-module Leave is
+- `Join`/`Leave`: slot 1 requests whole-controller membership; slot 2 requests secondary
+  seat membership. Membership changes require Lobby state. Whole-controller Leave is
   bound but has no new physical gesture or HTTP endpoint in this patch.
 - `SelectStarter`: `payload.value` is `StarterSelection::ExactSeat` (0),
   `CycleModule` (1), or `Random` (2). Random selection requires the host and two
-  players. Browser requests select the exact authenticated seat.
+  players. Browser requests select the exact authenticated seat. `CycleModule`
+  retains its compatibility name while the internal actor field is controller-based.
 - `Pause`: `payload.flags & ARM_WIN_ON_PAUSE` identifies a pause gesture that may
-  continue into a win claim. Atlas arms it only for the active player's module.
+  continue into a win claim. Atlas arms it only for the active player's controller.
 - `ClaimWin`: `payload.flags & CLAIM_FROM_ARMED_PAUSE` requests completion of that
   armed gesture. Atlas validates the arm and resumes play on denial. Without this
   flag, denial restores the state before the claim. Neither flag is inferred from
   transport/origin inside the semantic handler.
-- `ArmStart`, `StartGame`, `Rematch`, and `ResetGame` identify the requesting module;
+- `ArmStart`, `StartGame`, `Rematch`, and `ResetGame` identify the requesting controller;
   Atlas validates host, state, player count, and start-arm constraints.
 - `BeginElimination`, `CycleElimination`, `CancelElimination`, and `Eliminate` refer
   to Atlas's selected target. Eliminate is intentionally distinct from Concede:
@@ -194,8 +196,11 @@ to the authoritative transitions.
 These additions are internal C++ application requests, not new ESP-NOW packet IDs or
 HTTP endpoints. The future JSON envelope is not currently decoded by this runtime;
 do not expose System origin or deferred-commit operations as caller-selected ingress.
-PairRequest now has a visual-only mock handler for the Atlas Pair button; it does
-not pair devices. Life/counters, nudges, PairConfirm, and ForgetPairing remain Unsupported.
+`PairRequest` currently has a visual-only mock handler for the Atlas Pair button; it
+does not pair devices. `PairConfirm` and `ForgetPairing` exist in the vocabulary but
+remain unsupported. Prototype 1.0 is staged to replace the mock/passive-discovery
+behavior with a real Atlas-owned pairing state machine. Life/counters and nudges also
+remain unsupported.
 
 ## Result model
 
@@ -248,4 +253,4 @@ An operation is fully migrated when:
 - Transport-specific code cannot bypass the handler.
 - Domain tests can exercise the behavior without HTTP, BLE, GPIO, or e-ink hardware.
 
-Last established: 2026-09-19
+Last updated: 2026-09-21
