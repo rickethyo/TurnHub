@@ -52,7 +52,7 @@ The ESP32 Atlas currently provides:
 - ESP-NOW discovery and communication with physical Sigils
 - Lobby, shared-Sigil seats, starting-player selection, countdown, turn passing, pause/resume, elimination/concede, and confirmed win flow
 - Three-second cancellable pass grace for physical, browser, and Atlas-master turn passes
-- Local browser portal with authenticated player-seat sessions
+- Local browser portal with authenticated profile sessions and phone-only table participation
 - Persistent WPA2 access-point password and local network administration
 - Physical Sigil naming and display-profile synchronization
 - Durable local player profiles with stable profile IDs
@@ -82,6 +82,12 @@ The lobby supports physical and browser controller registrations. Browser
 authentication identifies a profile independently of any seat; Atlas resolves it
 to one participant. The engine receives logical controller handles and a captured
 profile ID, and the statistics completion bridge never consults radio discovery.
+
+The known remaining physical-selection gap is documented in
+[Physical Profile Selection](../docs/engineering/PHYSICAL_PROFILE_SELECTION.md):
+a remembered physical binding is still the Sigil's only standalone join choice.
+The duplicate-participant guard is retained; Prototype 1.0 work will separate
+last-used preference from live assignment and add a physical e-ink picker.
 
 ## Statistics
 
@@ -114,6 +120,23 @@ GET /api/session/stats/export
 ```
 
 The portal links to `/stats`, where the authenticated player can view and download their own statistics.
+
+## Persistence and current recovery behavior
+
+Atlas is only partially persistent today.
+
+Profiles, names/PIN-related profile data, existing physical-seat bindings, deployed
+statistics, and explicitly stored configuration survive reboot. Browser sessions,
+current table participation, live controller assignments, and active game state
+remain RAM-only. A restart therefore returns to a fresh table while preserving the
+durable profile/statistics data.
+
+Prototype 1.0 work is staged to add an explicit versioned active-match recovery
+record. A valid interrupted match should offer Resume or Discard and must restore
+paused so downtime is never charged to a player. The design must also prevent a
+completed game/statistics update from being replayed twice after uncertain power
+loss. See [Software Architecture](../docs/engineering/SOFTWARE_ARCHITECTURE.md) and
+[Staged Changes](../docs/engineering/STAGED_CHANGES.md).
 
 ## Turn-pass grace
 
@@ -157,6 +180,8 @@ The intended direction is:
 - Atlas always retains a physical-button recovery path and local fallback network
 - home-network support is not enabled as a default until Sigils can dynamically follow Atlas to the infrastructure Wi-Fi channel required by ESP-NOW
 
+This provisioning flow is planned, not the current boot behavior.
+
 ## Build and upload
 
 This project uses PlatformIO with the Arduino ESP32 framework.
@@ -179,7 +204,7 @@ C:\Users\ricke\.platformio\penv\Scripts\platformio.exe run -e atlas --target upl
 
 After boot, connect a phone or computer to the Atlas access point and browse to the IP printed in the serial monitor. The ESP32 SoftAP address will normally be `192.168.4.1`.
 
-## Atlas front-panel LEDs
+## Atlas front-panel LEDs and pairing status
 
 The status LED (GPIO25 / J8) flashes three times after startup, then stays on.
 The pairing LED (GPIO26 / J7) is off outside mock pairing mode. Press Pair
@@ -190,19 +215,43 @@ This is a visual prototype only: no devices are paired or forgotten and nothing
 is persisted. Serial reports `ATLAS|PAIRING|MOCK|ENTER|DURATION_MS|5000` and
 `ATLAS|PAIRING|MOCK|EXIT`. LED timing is nonblocking.
 
+Current Sigils still use broadcast Hello/discovery behavior. Prototype 1.0 is
+staged to replace passive adoption with an Atlas-owned pairing/trust state machine
+using a deliberate 30-second pairing window. Until the physical Sigil Pair button
+is wired, an unpaired Sigil may use boot only as the temporary trigger for that
+same real pairing flow.
+
 ## Regression verification
 
 Current gameplay controls enter Atlas's authoritative IntentDispatcher, including
-win decisions, lobby/lifecycle, join/leave, elimination, and deferred timers.
-Optional NVS absence returns existing defaults without silencing other errors.
+win decisions, lobby/lifecycle, join/leave, elimination, deferred timers, and the
+phone-only/mixed participation paths added in `0.6.0-dev`. Optional NVS absence
+returns existing defaults without silencing other errors.
 
-See [native regression tests](tests/host/README.md) for repeatable scenarios and
-[verification status / hardware checklist](../docs/engineering/ATLAS_INTENT_VERIFICATION.md)
-for exact build evidence and post-flash checks. The user reports the gameplay
-migration checks complete. The new LED behavior still needs a physical check.
+Automated host validation covers gameplay, profile login/virtual participation,
+identity/storage fault cases, and browser smoke scenarios. The owner reports a
+successful compile/flash and working `0.6.0-dev` behavior. The documented targeted
+bench cases for persistence/reboot and mixed attachment still need a recorded pass
+before they should be treated as verified acceptance of the new storage/login path.
 
-## Migration direction
+The earlier five-second LED pairing mock was accepted as part of the current
+hardware baseline; it remains explicitly a mock and is not evidence of real pairing.
 
-The ESP32 port is being moved toward clear modules rather than one large firmware file. Current major boundaries include the game engine, lobby, ESP-NOW Sigil bus, LED/audio renderers, OTA manager, web API/pages, profile store, and profile statistics service.
+See [native regression tests](tests/host/README.md),
+[profile login and virtual play](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md),
+and [verification backlog](../docs/engineering/VERIFICATION_BACKLOG.md) for the
+current evidence and remaining physical checks.
 
-Next larger layers include virtual Sigil integration, richer gameplay data such as life totals and Commander damage, profile selection/rebinding in the portal, first-run provisioning/network modes, and continued efficiency/refactoring work.
+## Near-term Prototype 1.0 direction
+
+The browser/virtual participation layer is now implemented rather than future work.
+The immediate field-test priorities are:
+
+1. Standalone physical profile selection/reusable Sigils.
+2. Freeze major portal feature growth and focus on setup/blocker fixes.
+3. Interrupted-match recovery groundwork with safe paused resume/discard behavior.
+4. Auxiliary Action/Win software path before final GPIO wiring.
+5. Real pairing/trust state with the staged 30-second window and temporary boot trigger.
+6. Additional physical Sigils, rough protective enclosures, out-of-box setup, and hardening.
+
+The authoritative queue is [Staged Changes](../docs/engineering/STAGED_CHANGES.md).
