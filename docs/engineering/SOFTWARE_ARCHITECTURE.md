@@ -203,6 +203,12 @@ that preserves deployed keys and the v1 image. Unknown/corrupt records fail
 without being replaced by empty totals. Other small Preferences owners remain
 in place; new match/controller lifecycles are not yet implemented.
 
+**Current state:** profiles, names, PIN-related profile data, physical-seat bindings,
+and deployed statistics persist across Atlas restart. Browser sessions, current
+table participation, live controller assignments, and the active game remain
+RAM-only. An Atlas reboot therefore returns to a fresh table while retaining the
+durable profile/statistics data.
+
 Persistent information and active-session recovery are separate concerns.
 
 Persistent examples:
@@ -221,6 +227,32 @@ Recoverable session examples:
 - Life/counters.
 - Active player and turn number.
 - Pause state.
+
+### Prototype 1.0 recovery target
+
+Prototype 1.0 should begin real interrupted-match recovery without treating the
+entire in-memory engine object as a persistence format.
+
+- Atlas owns a compact, explicit, versioned active-match recovery record.
+- Save after accepted semantic transitions that change recoverable canonical state,
+  not on every timer/display tick.
+- A valid unfinished record at boot offers **Resume** or **Discard**.
+- Resume restores the match **paused**. Power-off time is never charged to a player.
+- Browser sessions reauthenticate after reboot; authentication tokens are not part
+  of the recovery record.
+- Controllers reattach to Atlas-owned participants. Physical device or browser
+  identity does not replace participant identity.
+- Do not restore transient adapter/presentation state such as button-down state,
+  pending long-presses, animations, nudges, or unseen menu selections.
+- Introduce a durable MatchId and a completion receipt/marker before automatic
+  completion replay so statistics cannot be incremented twice after an uncertain
+  write or crash.
+- Corrupt, unsupported, or ambiguous recovery data must fail safe. Preserve durable
+  profiles/statistics and return to a fresh lobby rather than guessing.
+
+Full completed-match history remains a separate later concern. Prototype recovery
+may use a small active-match record even before bounded session-history storage is
+implemented.
 
 On recovery after an unexpected restart, active timing should fail safe rather than silently charging downtime to a player.
 
@@ -256,4 +288,4 @@ Optimization effort should focus first on avoiding unnecessary work rather than 
 6. Shared semantics for physical, browser, simulated, and future controllers.
 7. Persistent configuration loaded once and updated only when changed.
 
-Last reconstructed: 2026-09-19
+Last updated: 2026-09-21
