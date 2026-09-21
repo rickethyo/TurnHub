@@ -46,6 +46,8 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Decide whether charging is onboard, external, or battery-swap based.
 - [ ] Add and assign GPIO for the planned Pair button.
 - [ ] Add and assign GPIO for the planned auxiliary Action/Win button.
+- [ ] Before GPIO wiring, verify the disabled/software-only `BTN_AUX` path maps to
+  semantic Atlas actions and does not introduce button-owned game rules.
 - [ ] Revisit whether the original Action long-press remains after the auxiliary control exists.
 
 ## Wireless and pairing
@@ -59,6 +61,13 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Define stable device-ID generation/storage.
 - [ ] Define how Atlas identifies itself to paired Sigils.
 - [ ] Decide whether pairing requires cryptographic authentication in prototype, production, or both.
+- [ ] Prototype 1.0: replace passive proximity adoption with one Atlas-owned pairing
+  state machine using a 30-second window.
+- [ ] Prototype 1.0: verify that an unpaired Sigil can temporarily use boot to enter
+  the same 30-second pairing flow until the physical Pair button is wired; there
+  must not be a separate auto-pair implementation.
+- [ ] Verify paired startup reconnects only to the retained Atlas relationship and
+  that re-pair/forget paths do not silently adopt a neighboring Atlas.
 
 ## Protocol
 
@@ -97,6 +106,17 @@ When an item is verified, update the relevant reference document and mark the it
   HTTP/application regression checks pass; `0.6.0-dev` bench acceptance is pending.
 - [ ] Bench-check `0.6.0-dev`: old profiles, two-phone game with Sigils off,
   concurrent phone/Sigil control, statistics once and persistence after reboot.
+- [ ] Prototype 1.0 recovery: define a compact versioned active-match record rather
+  than persisting the in-memory engine object.
+- [ ] Prototype 1.0 recovery: allocate/persist MatchId and a completion receipt or
+  equivalent idempotency marker before automatic replay of completion/stat updates.
+- [ ] Prototype 1.0 recovery: save only after accepted semantic state transitions;
+  verify timer/display ticks do not create continuous flash writes.
+- [ ] Prototype 1.0 recovery: abrupt-power test from lobby, running, paused,
+  mid-turn, after pass, after concession, and around game completion. A recovered
+  match must open paused and must not charge downtime to a player.
+- [ ] Prototype 1.0 recovery: verify Resume/Discard, re-login, physical/controller
+  reattachment, corrupt/unsupported snapshot rejection, and exactly-once statistics.
 - [ ] Define a controller interface suitable for a simulator/test harness.
 - [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [ ] Review timer implementation for timestamp/derived-state behavior rather than unnecessary repeated state mutation.
@@ -130,4 +150,4 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Tag future docs with hardware revision and firmware/protocol version where applicable.
 - [ ] Update this backlog whenever a provisional claim is added elsewhere.
 
-Last reconstructed: 2026-09-19
+Last updated: 2026-09-21
