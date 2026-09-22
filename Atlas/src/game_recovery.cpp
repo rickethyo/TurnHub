@@ -9,11 +9,13 @@ constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire byte
 constexpr uint32_t SCHEMA = 1;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
 struct Writer {
+  Writer(uint8_t *dataIn, size_t capacityIn) : data(dataIn), capacity(capacityIn) {}
   uint8_t *data; size_t capacity, at = 0; bool ok = true;
   void byte(uint8_t v) { if (at < capacity) data[at++] = v; else ok = false; }
   void word(uint32_t v) { for (uint8_t i=0;i<4;++i) byte(static_cast<uint8_t>(v >> (8*i))); }
 };
 struct Reader {
+  Reader(const uint8_t *dataIn, size_t sizeIn) : data(dataIn), size(sizeIn) {}
   const uint8_t *data; size_t size, at = 0; bool ok = true;
   uint8_t byte() { if (at < size) return data[at++]; ok = false; return 0; }
   uint32_t word() { uint32_t v=0; for (uint8_t i=0;i<4;++i) v |= uint32_t(byte()) << (8*i); return v; }
