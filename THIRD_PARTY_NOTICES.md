@@ -2,7 +2,7 @@
 
 TurnHub uses third-party open-source software and development tools. This file is the human-readable notice index for components currently known to the project.
 
-This is a working development record, not a substitute for the complete license texts or a release-time legal review. Before any commercial hardware or software distribution, the dependency tracker in `docs/legal/DEPENDENCY_TRACKER.md` must be reviewed and the required upstream notices/license texts must be included with the distributed product.
+This is a working development record, not a substitute for the complete license texts or a release-time legal review. Before any commercial hardware or software distribution, the dependency tracker in `Documentation/legal/DEPENDENCY_TRACKER.md` must be reviewed and the required upstream notices/license texts must be included with the distributed product.
 
 ## Current third-party software
 
@@ -40,7 +40,7 @@ The current root `LICENSE.txt` still contains placeholder copyright fields and m
 
 When adding a library, framework, font, icon set, image, sound, copied code snippet, CAD model, schematic source, SDK, sample implementation, or other externally sourced material:
 
-1. Record it in `docs/legal/DEPENDENCY_TRACKER.md` before or with the change.
+1. Record it in `Documentation/legal/DEPENDENCY_TRACKER.md` before or with the change.
 2. Record the source/owner and exact license or permission.
 3. Record whether it is merely a development tool or is shipped/linked/embedded with TurnHub.
 4. Preserve required notices and attribution.
