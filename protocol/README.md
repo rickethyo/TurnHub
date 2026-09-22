@@ -131,7 +131,7 @@ Authentication/seat assignment is a separate step. Client-supplied player number
 
 Gameplay migration through Intents is implemented. Atlas `0.6.0-dev` adds profile
 login and phone-only/mixed participation through the same application handlers.
-See [implemented profile endpoints and ownership](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md).
+See [implemented profile endpoints and ownership](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md).
 The generic v0.1 JSON envelope/routes above remain a working contract, not the
 live HTTP ingress. Internal `controllerId` naming does not silently change the
 draft JSON schema's `moduleId` field or the ESP-NOW wire packet.
