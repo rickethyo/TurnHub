@@ -8,6 +8,7 @@
 #include "firmware_version.h"
 #include "protocol.h"
 #include "sigil_display.h"
+#include "received_packet.h"
 
 namespace {
 
@@ -31,7 +32,8 @@ constexpr uint8_t PAIR_BUTTON = 19;
 // All production Sigils use the same firmware and standard display hardware.
 constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
-    TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE;
+    TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |
+    TurnHubProtocol::CAPABILITY_GAME_DISPLAY;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t LONG_PRESS_MS = 2000;
@@ -78,13 +80,15 @@ volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
 uint32_t lastPairRequestMs = 0;
-struct ReceivedPacket { uint8_t mac[6]; Packet packet; };
+using TurnHubSigil::ReceivedPacket;
 QueueHandle_t receiveQueue = nullptr;
 volatile bool displayNeedsRefresh = false;
 volatile int32_t displayPayload = 0;
 uint8_t displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
 TaskHandle_t displayTaskHandle = nullptr;
 
+TurnHubProtocol::GameDisplayPacket pendingGameDisplay{};
+bool gameDisplayValid = false;
 portMUX_TYPE displayProfileMux = portMUX_INITIALIZER_UNLOCKED;
 char pendingSeatNames[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
 uint16_t receivedNameChunks[2] = {};
@@ -198,6 +202,9 @@ void notifyDisplayTask() {
 }
 
 void queueReadyDisplay() {
+  portENTER_CRITICAL(&displayProfileMux);
+  gameDisplayValid = false;
+  portEXIT_CRITICAL(&displayProfileMux);
   displayPayload = TurnHubProtocol::encodeDisplayState(
       DisplayMode::Ready, 0, 0, 0);
   displayNeedsRefresh = true;
@@ -349,6 +356,26 @@ void updateDisplayProfileSync() {
 }
 
 void updateDisplay() {
+  static TurnHubProtocol::GameDisplayPacket renderedGame{};
+  static bool renderedGameValid = false;
+  TurnHubProtocol::GameDisplayPacket currentGame{};
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool hasGame = gameDisplayValid;
+  if (hasGame) currentGame = pendingGameDisplay;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (hasGame && currentGame.sigilId == sigilId) {
+    applyPendingSeatNames();
+    // Clear before drawing; packets arriving while the panel is busy wake us again.
+    displayNeedsRefresh = false;
+    if (!renderedGameValid || memcmp(&renderedGame, &currentGame, sizeof(currentGame))) {
+      sigilDisplay.showGame(currentGame);
+      renderedGame = currentGame;
+      renderedGameValid = true;
+    }
+    displayRenderedSigilId = sigilId;
+    return;
+  }
+  renderedGameValid = false;
   if (applyPendingSeatNames()) {
     displayNeedsRefresh = true;
   }
@@ -454,6 +481,20 @@ void handleEspNowReceive(
     const uint8_t *mac,
     const uint8_t *incomingData,
     int length) {
+  if (length == sizeof(TurnHubProtocol::GameDisplayPacket)) {
+    TurnHubProtocol::GameDisplayPacket snapshot{};
+    memcpy(&snapshot, incomingData, sizeof(snapshot));
+    if (!atlasKnown || memcmp(mac, atlasMac, 6) || snapshot.sigilId != sigilId ||
+        !TurnHubProtocol::validGameDisplay(snapshot) ||
+        TurnHubProtocol::displayMode(snapshot.state) != DisplayMode::Running) return;
+    portENTER_CRITICAL(&displayProfileMux);
+    const bool changed = !gameDisplayValid || memcmp(&snapshot, &pendingGameDisplay, sizeof(snapshot));
+    pendingGameDisplay = snapshot;
+    gameDisplayValid = true;
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
   if (length != sizeof(Packet)) {
     return;
   }
@@ -550,13 +591,18 @@ void handleEspNowReceive(
       handleDisplayNameChunk(packet.value);
       break;
 
-    case PacketType::DisplayState:
-      if (displayPayload != packet.value) {
+    case PacketType::DisplayState: {
+      portENTER_CRITICAL(&displayProfileMux);
+      const bool wasGame = gameDisplayValid;
+      gameDisplayValid = false;
+      portEXIT_CRITICAL(&displayProfileMux);
+      if (wasGame || displayPayload != packet.value) {
         displayPayload = packet.value;
         displayNeedsRefresh = true;
         notifyDisplayTask();
       }
       break;
+    }
 
     default:
       break;
@@ -726,10 +772,8 @@ bool startEspNow() {
   receiveQueue = xQueueCreate(32, sizeof(ReceivedPacket));
   if (!receiveQueue) return false;
   esp_now_register_recv_cb([](const uint8_t *mac, const uint8_t *data, int length) {
-    if (length != sizeof(Packet)) return;
-    ReceivedPacket received;
-    memcpy(received.mac, mac, 6);
-    memcpy(&received.packet, data, sizeof(Packet));
+    ReceivedPacket received{};
+    if (!received.assign(mac, data, length)) return;
     xQueueSend(receiveQueue, &received, 0);
   });
   Preferences prefs;
@@ -823,7 +867,7 @@ void loop() {
   for (uint8_t n = 0; receiveQueue && n < 32 &&
        xQueueReceive(receiveQueue, &received, 0) == pdTRUE; ++n) {
     handleEspNowReceive(received.mac,
-        reinterpret_cast<const uint8_t *>(&received.packet), sizeof(Packet));
+        received.data, received.length);
   }
   updatePassButton();
   updateActionButton();

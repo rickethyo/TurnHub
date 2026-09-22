@@ -66,6 +66,69 @@ Current/experimental packet concepts include:
 
 The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
 
+### Running-game Sigil display (2026-09-22)
+
+Sigils advertise `CAPABILITY_GAME_DISPLAY = 0x04` in Hello. Atlas sends those
+peers `GameDisplay = 32` while running; existing seven-byte packet meanings,
+protocol version 1, `DisplayState = 30`, and seat-name chunks (`31`) are unchanged.
+Older peers retain their existing display. Lobby, pairing, ready, pause, and
+game-over screens continue using the existing display/profile path.
+
+The new packed ESP-NOW datagram is 110 bytes, with little-endian integers:
+
+| Offset | Field |
+| --- | --- |
+| 0–2 | Version, type (32), target Sigil ID |
+| 3–6 | Existing encoded DisplayState |
+| 7–9 | Commander boolean, visible source count (0–3), omitted source count |
+| 10–26 | Focused participant: signed int32 life, 13-byte terminated name |
+| 27–43 | Secondary participant, same layout (zero when absent) |
+| 44–109 | Three sources: player number, 13-byte terminated name, two int32 damage values |
+
+Atlas's existing `LedRenderer::syncDisplay` resolves the focused and secondary
+players through `GameEngine::playersForController` and the existing focus rules.
+Life comes directly from `lifeTotal(playerNumber)`; names come from the profile
+ID captured in the game participant. Guest names fall back to `Player N`.
+Name reads reuse the display cache until existing Hello/lifecycle invalidation,
+so profile edits appear on the next Hello resynchronization. No life or damage
+is stored in profiles or calculated by Sigil.
+
+Commander rows contain `commanderDamage(focusedRecipient, source, 1/2)`.
+Sources with no damage and the recipient itself are omitted. The first three
+nonzero sources in player-number order are sent, including browser participants
+and eliminated sources with recorded damage. Further sources produce a `+N`
+indicator. Names are clipped to nine characters in rows. One commander appears
+as `Jaime 6`, two as `Jaime 6/3`; damage only from slot 2 appears as `Jaime 3 (C2)`.
+`CMD none received` distinguishes an empty Commander display from normal mode.
+
+The 250×122 running screen emphasizes the name and life total, retains Sigil/host
+and turn status, and removes P1/P2 badges. Large signed totals shrink to fit.
+Shared Sigils emphasize the existing focused participant (active local seat,
+otherwise the first local seat), with a smaller secondary name/life summary;
+Commander rows belong to the focused participant only.
+
+Snapshots use the existing serialized radio TX queue and paired MAC destination.
+Sigil validates exact size, version/type, target, bounds and terminated names,
+and accepts only its saved Atlas MAC. A critical section protects the rendering
+snapshot across radio/display tasks. Each datagram is complete, so loss cannot
+combine life from one update with damage or identity from another. No new
+pairing or trust mechanism is introduced.
+
+Atlas compares display snapshots before enqueueing. Existing Hello invalidation
+resends current values for reconnect/loss recovery; queue admission failure is
+retried by the next state comparison. Sigil compares both received and rendered
+snapshots, so identical recovery packets do not refresh the panel. Profile-name
+packets cannot force a running-game redraw. Updates received while the panel is
+busy wake the display task to render the latest snapshot. There is no periodic
+e-ink refresh timer. Delivery still depends on existing ESP-NOW/Hello recovery;
+there is no new application acknowledgement protocol.
+
+Host scenarios cover wire size/round-trip/validation, named recipients and
+sources, received-vs-dealt semantics, partner damage, shared focus, negative life,
+source overflow, unchanged snapshots, resynchronization and legacy peers.
+Physical acceptance remains required for readability/ghosting, radio loss and
+reconnect behavior, and updates arriving during a panel refresh.
+
 ### Important historical note
 
 The current branch contains ESP-NOW implementation code, including broadcast discovery and peer registration. This represents a real development stage and should remain documented.

@@ -15,22 +15,24 @@ constexpr char PREF_NAMESPACE[] = "turnhub";
 TurnHub::OptionalPreferences preferences;
 TurnHubStorage::NvsBlobStore statsStorage;
 bool preferencesReady = false;
-constexpr uint8_t TRANSIENT_SECONDARY_CAPACITY = 8;
-struct TransientSecondaryBinding {
+constexpr uint8_t TRANSIENT_SEAT_CAPACITY = 16;
+struct TransientSeatBinding {
   bool used = false;
   uint8_t mac[6] = {};
+  uint8_t slot = 0;
   String profileId;
 };
-TransientSecondaryBinding transientSecondaries[TRANSIENT_SECONDARY_CAPACITY];
+TransientSeatBinding transientSeats[TRANSIENT_SEAT_CAPACITY];
 
-TransientSecondaryBinding *transientSecondaryFor(const uint8_t mac[6], bool create) {
-  for (auto &binding : transientSecondaries) {
-    if (binding.used && memcmp(binding.mac, mac, 6) == 0) return &binding;
+TransientSeatBinding *transientSeatFor(const uint8_t mac[6], uint8_t slot, bool create) {
+  for (auto &binding : transientSeats) {
+    if (binding.used && binding.slot == slot && memcmp(binding.mac, mac, 6) == 0) return &binding;
   }
   if (!create) return nullptr;
-  for (auto &binding : transientSecondaries) {
+  for (auto &binding : transientSeats) {
     if (!binding.used) {
       binding.used = true;
+      binding.slot = slot;
       memcpy(binding.mac, mac, 6);
       binding.profileId = String();
       return &binding;
@@ -293,43 +295,35 @@ String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot) {
   if (slot != 1 && slot != 2) {
     return String();
   }
-  if (slot == 2) {
-    const TransientSecondaryBinding *binding = transientSecondaryFor(mac, false);
-    return binding != nullptr && validProfileId(binding->profileId) &&
-        profileExists(binding->profileId) ? binding->profileId : String();
-  }
-  const String profileId = preferences.getString(seatKey('b', mac, slot).c_str(), "");
-  return validProfileId(profileId) && profileExists(profileId) ? profileId : String();
+  const auto *binding = transientSeatFor(mac, slot, false);
+  return binding && validProfileId(binding->profileId) && profileExists(binding->profileId)
+      ? binding->profileId : String();
 }
 
 bool seatIsPersistent(const uint8_t mac[6], uint8_t slot) {
-  if (!preferencesReady && !begin()) return false;
-  if (slot != 1 || boundProfileIdForSeat(mac, slot).length() == 0) return false;
-  const String key = seatKey('r', mac, slot);
-  return preferences.isKey(key.c_str()) && preferences.getUChar(key.c_str(), 0) != 0;
+  (void)mac; (void)slot;
+  return false;
 }
 
 bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent) {
-  if (!preferencesReady && !begin()) return false;
-  if (slot != 1 || boundProfileIdForSeat(mac, slot).length() == 0) return false;
-  return preferences.putUChar(seatKey('r', mac, slot).c_str(), persistent ? 1 : 0) != 0;
+  (void)mac; (void)slot;
+  return !persistent;
 }
 
 bool resetTransientSeatBindings(const uint8_t mac[6]) {
   if (!preferencesReady && !begin()) return false;
   bool ok = true;
-  if (!seatIsPersistent(mac, 1)) {
-    const String primary = seatKey('b', mac, 1);
-    if (preferences.isKey(primary.c_str())) ok = preferences.remove(primary.c_str()) && ok;
-    preferences.remove(seatKey('r', mac, 1).c_str());
+  for (uint8_t slot : {1, 2}) {
+    if (auto *binding = transientSeatFor(mac, slot, false)) {
+      binding->used = false;
+      binding->profileId = String();
+    }
+    // Retire legacy remembered-seat keys, without deleting Atlas accounts/stats.
+    for (char prefix : {'b', 'r'}) {
+      const String key = seatKey(prefix, mac, slot);
+      if (preferences.isKey(key.c_str())) ok = preferences.remove(key.c_str()) && ok;
+    }
   }
-  if (TransientSecondaryBinding *binding = transientSecondaryFor(mac, false)) {
-    binding->used = false;
-    binding->profileId = String();
-  }
-  const String secondary = seatKey('b', mac, 2);
-  if (preferences.isKey(secondary.c_str())) ok = preferences.remove(secondary.c_str()) && ok;
-  preferences.remove(seatKey('r', mac, 2).c_str());
   return ok;
 }
 
@@ -337,39 +331,18 @@ bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, con
   if ((fromSlot != 1 && fromSlot != 2) || toSlot != 3 - fromSlot ||
       boundProfileIdForSeat(mac, fromSlot) != profileId ||
       boundProfileIdForSeat(mac, toSlot).length()) return false;
-  TransientSecondaryBinding *secondary = transientSecondaryFor(mac, true);
-  if (!secondary) return false;
-  if (toSlot == 2) {
-    // Reserve RAM first; failed flash removal leaves the source intact.
-    if (!preferences.remove(seatKey('b', mac, 1).c_str())) return false;
-    preferences.remove(seatKey('r', mac, 1).c_str());
-    secondary->profileId = profileId;
-  } else {
-    if (!bindSeatToProfile(mac, 1, profileId)) return false;
-    secondary->used = false;
-    secondary->profileId = String();
-  }
+  if (!bindSeatToProfile(mac, toSlot, profileId)) return false;
+  auto *source = transientSeatFor(mac, fromSlot, false);
+  source->used = false;
+  source->profileId = String();
   return true;
 }
 
-bool bindSeatToProfile(
-    const uint8_t mac[6],
-    uint8_t slot,
-    const String &profileId) {
-  if (!preferencesReady || (slot != 1 && slot != 2) || !profileExists(profileId)) {
-    return false;
-  }
-  if (slot == 2) {
-    TransientSecondaryBinding *binding = transientSecondaryFor(mac, true);
-    if (binding == nullptr) return false;
-    binding->profileId = profileId;
-    return true;
-  }
-  if (preferences.putString(seatKey('b', mac, slot).c_str(), profileId) == 0) return false;
-  if (slot == 1 && preferences.putUChar(seatKey('r', mac, slot).c_str(), 0) == 0) {
-    preferences.remove(seatKey('b', mac, slot).c_str());
-    return false;
-  }
+bool bindSeatToProfile(const uint8_t mac[6], uint8_t slot, const String &profileId) {
+  if (!preferencesReady || (slot != 1 && slot != 2) || !profileExists(profileId)) return false;
+  auto *binding = transientSeatFor(mac, slot, true);
+  if (!binding) return false;
+  binding->profileId = profileId;
   return true;
 }
 

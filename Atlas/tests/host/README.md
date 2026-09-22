@@ -14,7 +14,7 @@ test globals and `-mno-ms-bitfields` to preserve the packed radio layout.
 Both Windows runners execute gameplay and storage scenarios.
 They also compile the real `profile_store.cpp` against an in-memory NVS boundary
 and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
-guest reads/writes, persistent bindings and legacy placeholder filtering before
+guest reads/writes, temporary bindings, legacy remember-key cleanup and placeholder filtering before
 the account limit. No saved user records are deleted by this filtering.
 
 With GCC/Clang on another host, from this directory:
@@ -94,3 +94,8 @@ attachment and name edits push display names directly instead of requesting the
 Sigil reconnect handshake that clears transient bindings. On hardware, attach a
 named profile more than five seconds after boot and verify its name and player count
 remain stable, then sign into the same profile from a second browser.
+
+Sigil receive coverage copies both the 7-byte control packet and the 110-byte
+game display through the production receive buffer, rejecting incorrect sizes.
+The physical companion scenario checks game-end seat clearing, saved statistics,
+rematch restoration and guest behavior after reset.

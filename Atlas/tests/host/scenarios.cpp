@@ -13,6 +13,7 @@
 #include "main_internal_fwd.h"
 // Compile the actual application handlers and adapters, not copies of rules.
 #include "../../src/main.cpp"
+#include "../../../Sigil/include/received_packet.h"
 
 esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
@@ -35,6 +36,14 @@ static unsigned fixtureSends=0;
 static unsigned fixtureProfileSyncs=0;
 void SigilBus::syncDisplayProfile(uint8_t id) { assert(id<MAX_PHYSICAL_SIGILS); ++fixtureProfileSyncs; }
 bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType,int32_t) { assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;return fixtureRadio; }
+static TurnHubProtocol::GameDisplayPacket sentGameDisplays[MAX_PHYSICAL_SIGILS]{};
+static unsigned gameDisplaySends = 0;
+bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &p) {
+  assert(TurnHubProtocol::validGameDisplay(p));
+  sentGameDisplays[p.sigilId] = p;
+  ++gameDisplaySends;
+  return fixtureRadio;
+}
 bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlue,v); }
 bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
 bool SigilBus::setGreen(uint8_t id,bool v) { return send(id,PacketType::SetGreen,v); }
@@ -368,11 +377,16 @@ static void physicalCompanionFlow() {
   assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
   assert(ProfileFixture::profiles[id].stats.gamesWon==1);
   assert(request("/api/session/me",secondPhone,{},HTTP_GET)==200);
+  assert(TurnHubControllers::profileForSeat(0,1).length()==0);
+  assert(request("/api/control/rematch",phone)==200);
+  assert(TurnHubControllers::profileForSeat(0,1)==id);
+  assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
   assert(request("/api/control/reset",phone)==200);
   assert(request("/api/session/join",phone)==200); // Can play by phone again.
   assert(lobby.playerCount()==1);
-  handleActionShort(0); // Same persisted physical profile must not duplicate it.
-  assert(lobby.playerCount()==1);
+  handleActionShort(0); // Finished-game binding cleared: this is now a guest.
+  assert(lobby.playerCount()==2);
+  assert(TurnHubControllers::profileForSeat(0,1).length()==0);
   TurnHub::fixtureRadio=false;
 }
 
@@ -707,6 +721,9 @@ static void lifeApprovalsAndCommander() {
   testNow=beforeRollover;
   const auto damage=[&](const String &token,int source,int commander,int delta){return request("/api/control/commander",token,{{"source",String(source)},{"commander",String(commander)},{"delta",String(delta)},{"target","1"}});};
   assert(damage("",1,1,2)==401);
+  assert(damage(second,1,1,-2)==409);
+  assert(server.body.find("Cannot remove more Commander damage") != std::string::npos);
+  assert(game.commanderDamage(2,1,1)==0&&game.lifeTotal(2)==39);
   assert(damage(second,1,1,21)==200&&game.commanderDamage(2,1,1)==21&&game.lifeTotal(2)==18);
   assert(!game.isEliminated(2)); // No automatic rules adjudication.
   assert(damage(companion,1,2,3)==200&&game.commanderDamage(2,1,2)==3&&game.lifeTotal(2)==15);
@@ -748,7 +765,85 @@ static void lifeApprovalsAndCommander() {
   enterEmptyLobby();
 }
 
+static void physicalGameDisplay() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  fixtureRadio = true;
+  fixtureRecords[0].capabilities = CAPABILITY_GAME_DISPLAY;
+  GameEngine engine;
+  Lobby table;
+  PlayerSeat seats[6] = {{1,0,1},{2,0,2},{3,1,1},{4,2,1},{5,8,1},{6,9,1}};
+  ProfileFixture::profiles["d1500001"].name = "Ricky";
+  ProfileFixture::profiles["d1500003"].name = "Jaime";
+  strcpy(seats[0].profileId,"d1500001");
+  strcpy(seats[2].profileId,"d1500003");
+  GameSettings settings;
+  settings.profile = GameProfile::Commander;
+  settings.startingLife = 40;
+  assert(engine.start(seats,6,seats[0],30000,100,settings));
+  LedRenderer renderer(sigilBus);
+  auto render = [&]() { renderer.render(HubState::Running,table,engine,0,0,0,100); };
+  render();
+  auto first = sentGameDisplays[0];
+  assert(first.primary.life == 40 && first.secondary.life == 40 && first.commander);
+  assert(!first.sourceCount && !strcmp(first.primary.name,"Ricky"));
+  unsigned count = gameDisplaySends;
+  render(); assert(gameDisplaySends == count);
+  assert(engine.changeCommanderDamage(1,3,1,6));
+  assert(engine.changeCommanderDamage(1,3,2,3));
+  assert(engine.changeCommanderDamage(3,1,1,9)); // Opposite direction must not appear.
+  render();
+  auto snapshot = sentGameDisplays[0];
+  assert(!strcmp(snapshot.sources[0].name,"Jaime"));
+  assert(snapshot.primary.life == 31 && snapshot.sourceCount == 1);
+  assert(snapshot.sources[0].player == 3 && snapshot.sources[0].damage[0] == 6 && snapshot.sources[0].damage[1] == 3);
+  for (uint8_t source = 2; source <= 6; ++source)
+    if (source != 3) assert(engine.changeCommanderDamage(1,source,1,1));
+  render(); snapshot = sentGameDisplays[0];
+  assert(snapshot.sourceCount == 3 && snapshot.omittedSources == 2);
+  assert(snapshot.sources[0].player == 2 && snapshot.sources[2].player == 4);
+  uint8_t bytes[sizeof(snapshot)]; memcpy(bytes,&snapshot,sizeof(snapshot));
+  assert(bytes[0] == VERSION && bytes[1] == 32 && bytes[2] == 0);
+  GameDisplayPacket decoded{}; memcpy(&decoded,bytes,sizeof(decoded));
+  assert(validGameDisplay(decoded) && !memcmp(&decoded,&snapshot,sizeof(decoded)));
+  decoded.sourceCount = 4; assert(!validGameDisplay(decoded));
+  decoded = snapshot; decoded.primary.name[12] = 'x'; assert(!validGameDisplay(decoded));
+  decoded = snapshot; decoded.sources[0].damage[0] = -1; assert(!validGameDisplay(decoded));
+  assert(engine.changeLife(1,-100)); render(); assert(sentGameDisplays[0].primary.life < 0);
+  assert(engine.passTurn(0,30000,200)); render();
+  assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 2);
+  assert(sentGameDisplays[0].primary.life == 40 && sentGameDisplays[0].secondary.life < 0);
+  assert(!sentGameDisplays[0].sourceCount);
+  count = gameDisplaySends; renderer.invalidate(0); render(); assert(gameDisplaySends == count + 1);
+  engine.reset(); settings.profile = GameProfile::Magic; settings.startingLife = 20;
+  assert(engine.start(seats,6,seats[0],30000,100,settings));
+  renderer.invalidateAll(); render();
+  assert(!sentGameDisplays[0].commander && !sentGameDisplays[0].sourceCount && sentGameDisplays[0].primary.life == 20);
+  fixtureRecords[0].capabilities = 0; renderer.invalidateAll(); count = gameDisplaySends;
+  render(); assert(gameDisplaySends == count); // Legacy peers keep the seven-byte protocol.
+  fixtureRadio = false;
+}
+
+static void sigilReceivePackets() {
+  TurnHubSigil::ReceivedPacket received{};
+  const uint8_t mac[6] = {1,2,3,4,5,6};
+  const auto legacy = TurnHubProtocol::makePacket(PacketType::DisplayState, 0, 42);
+  assert(received.assign(mac, reinterpret_cast<const uint8_t *>(&legacy), sizeof(legacy)));
+  assert(received.length==sizeof(legacy) && !memcmp(received.data,&legacy,sizeof(legacy)));
+  TurnHubProtocol::GameDisplayPacket snapshot{};
+  snapshot.type=PacketType::GameDisplay;
+  snapshot.primary.life=37;
+  snapshot.sources[2].damage[1]=9; // Last bytes must survive queue copying.
+  assert(received.assign(mac, reinterpret_cast<const uint8_t *>(&snapshot), sizeof(snapshot)));
+  const auto queued=received;
+  assert(queued.length==sizeof(snapshot) && !memcmp(queued.data,&snapshot,sizeof(snapshot)));
+  assert(!memcmp(queued.mac,mac,6));
+  assert(!received.assign(mac,queued.data,sizeof(snapshot)-1));
+  assert(!received.assign(mac,queued.data,sizeof(snapshot)+1));
+}
+
 int main() {
+  sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
   GameEngine::setGameCompletedCallback(completed);
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
@@ -766,5 +861,6 @@ int main() {
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
+  physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
 }

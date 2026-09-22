@@ -32,6 +32,7 @@ class Lobby {
   bool selectedStarter(PlayerSeat &selected) const;
 
   void resetEmpty();
+  bool restorePlayers(const PlayerSeat *players, uint8_t count, uint8_t starter);
   void resetForRematch();
 
   void setHeld(uint8_t controllerId, bool held);

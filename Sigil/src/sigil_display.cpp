@@ -80,10 +80,9 @@ void SigilDisplay::drawPlayerLabel(
   }
 
   if (secondaryPlayer != 0) {
-    display_.printf(
-        "P%u + P%u",
-        static_cast<unsigned>(primaryPlayer),
-        static_cast<unsigned>(secondaryPlayer));
+    printClipped(seatNameA_[0] ? seatNameA_ : "Guest A", 8);
+    display_.print(" + ");
+    printClipped(seatNameB_[0] ? seatNameB_ : "Guest B", 8);
     return;
   }
 
@@ -103,6 +102,67 @@ void SigilDisplay::showReady(uint8_t sigilId) {
   char title[24];
   snprintf(title, sizeof(title), "Sigil %u", static_cast<unsigned>(sigilId + 1));
   drawStatus(title, "Ready for game");
+}
+
+void SigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
+  const bool shared = TurnHubProtocol::displaySecondaryPlayer(s.state) != 0;
+  const bool active = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_ACTIVE);
+  char life[16];
+  snprintf(life, sizeof(life), "%ld", static_cast<long>(s.primary.life));
+  const int width = shared ? 156 : 238;
+  uint8_t size = 4;
+  while (size > 1 && strlen(life) * 6 * size > static_cast<unsigned>(width)) --size;
+  display_.setFullWindow();
+  display_.firstPage();
+  do {
+    display_.fillScreen(GxEPD_WHITE);
+    // Built-in font cursors are top-left, not baselines.
+    display_.setTextSize(2);
+    display_.setCursor(6, 3);
+    display_.print(s.commander ? "Commander" : "Game");
+    display_.setTextSize(1);
+    display_.setCursor(194, 9);
+    display_.printf("S%u%s", s.sigilId + 1,
+        TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST) ? " HOST" : "");
+    display_.drawFastHLine(6, 23, 238, GxEPD_BLACK);
+    display_.setTextSize(2);
+    display_.setCursor(6, 27);
+    printClipped(s.primary.name, 12);
+    display_.setTextSize(size);
+    display_.setCursor(6 + (width - strlen(life) * 6 * size) / 2, 44);
+    display_.print(life);
+    display_.setTextSize(1);
+    display_.setCursor(6 + (width - 24) / 2, 76);
+    display_.print("LIFE");
+    if (shared) {
+      display_.setCursor(170, 45);
+      printClipped(s.secondary.name, 12);
+      display_.setCursor(170, 57);
+      display_.printf("%ld", static_cast<long>(s.secondary.life));
+      display_.setCursor(170, 69);
+      display_.print("LIFE");
+    }
+    if (s.commander && !s.sourceCount) {
+      display_.setCursor(6, 88);
+      display_.print("CMD none received");
+    }
+    for (uint8_t i = 0; i < s.sourceCount; ++i) {
+      const auto &entry = s.sources[i];
+      display_.setCursor(6, 84 + 8 * i);
+      display_.print("CMD ");
+      printClipped(entry.name, 9);
+      // Keep slot identity when only commander 2 has damage.
+      if (!entry.damage[0] && entry.damage[1]) display_.printf(" %ld (C2)", static_cast<long>(entry.damage[1]));
+      else if (entry.damage[1]) display_.printf(" %ld/%ld", static_cast<long>(entry.damage[0]), static_cast<long>(entry.damage[1]));
+      else display_.printf(" %ld", static_cast<long>(entry.damage[0]));
+      if (i == 2 && s.omittedSources) display_.printf(" +%u", s.omittedSources);
+    }
+    display_.drawFastHLine(6, 110, 238, GxEPD_BLACK);
+    display_.setCursor(6, 113);
+    display_.print(active ? "YOUR TURN" : "OTHER PLAYER'S TURN");
+    display_.setCursor(194, 113);
+    display_.printf("TURN %u", TurnHubProtocol::displayTurnNumber(s.state));
+  } while (display_.nextPage());
 }
 
 void SigilDisplay::showState(
@@ -195,59 +255,15 @@ void SigilDisplay::showState(
       display_.setCursor(rightX + 7, contentY + 12);
       display_.print("SEAT B");
 
-      if (focusA) {
-        if (namedA) {
-          display_.setTextSize(2);
-          display_.setCursor(leftX + 9, contentY + 22);
-          printClipped(seatNameA_, 12);
-          display_.setTextSize(3);
-          display_.setCursor(leftX + 18, contentY + 40);
-          display_.printf("P%u", static_cast<unsigned>(playerA));
-        } else {
-          display_.setTextSize(4);
-          display_.setCursor(leftX + 18, contentY + 41);
-          display_.printf("P%u", static_cast<unsigned>(playerA));
-        }
-
-        display_.setTextSize(1);
-        display_.setCursor(rightX + 7, contentY + 28);
-        if (namedB) printClipped(seatNameB_, 8);
-        display_.setTextSize(2);
-        display_.setCursor(rightX + 11, contentY + 45);
-        display_.printf("P%u", static_cast<unsigned>(playerB));
-      } else if (focusB) {
-        display_.setTextSize(1);
-        display_.setCursor(leftX + 7, contentY + 28);
-        if (namedA) printClipped(seatNameA_, 8);
-        display_.setTextSize(2);
-        display_.setCursor(leftX + 11, contentY + 45);
-        display_.printf("P%u", static_cast<unsigned>(playerA));
-
-        if (namedB) {
-          display_.setTextSize(2);
-          display_.setCursor(rightX + 9, contentY + 22);
-          printClipped(seatNameB_, 12);
-          display_.setTextSize(3);
-          display_.setCursor(rightX + 18, contentY + 40);
-          display_.printf("P%u", static_cast<unsigned>(playerB));
-        } else {
-          display_.setTextSize(4);
-          display_.setCursor(rightX + 18, contentY + 41);
-          display_.printf("P%u", static_cast<unsigned>(playerB));
-        }
-      } else {
-        display_.setTextSize(1);
-        display_.setCursor(leftX + 8, contentY + 27);
-        if (namedA) printClipped(seatNameA_, 12);
-        display_.setCursor(rightX + 8, contentY + 27);
-        if (namedB) printClipped(seatNameB_, 12);
-
-        display_.setTextSize(3);
-        display_.setCursor(leftX + 24, contentY + 42);
-        display_.printf("P%u", static_cast<unsigned>(playerA));
-        display_.setCursor(rightX + 24, contentY + 42);
-        display_.printf("P%u", static_cast<unsigned>(playerB));
-      }
+      // Names identify players; seat labels already identify the two controls.
+      auto drawName = [&](int16_t x, int16_t width, const char *name, bool named) {
+        const uint8_t size = width >= 110 ? 2 : 1;
+        display_.setTextSize(size);
+        display_.setCursor(x + 7, contentY + 32);
+        printClipped(named ? name : "Guest", (width - 14) / (6 * size));
+      };
+      drawName(leftX, leftW, seatNameA_, namedA);
+      drawName(rightX, rightW, seatNameB_, namedB);
 
       display_.drawFastHLine(6, 100, display_.width() - 12, GxEPD_BLACK);
       display_.setTextSize(1);
@@ -293,7 +309,6 @@ void SigilDisplay::showState(
       display_.setCursor(10, 94);
       if (seatNameA_[0] != '\0') {
         printClipped(seatNameA_, 12);
-        display_.printf("  P%u", static_cast<unsigned>(primaryPlayer));
         if (mode == TurnHubProtocol::DisplayMode::Lobby && host) display_.print(" HOST");
         if (mode == TurnHubProtocol::DisplayMode::Lobby && starter) display_.print(" START");
       } else {

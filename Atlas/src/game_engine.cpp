@@ -638,7 +638,7 @@ uint8_t GameEngine::livingPlayersForController(
 }
 
 uint32_t GameEngine::currentTurnElapsedMs(uint32_t nowMs) const {
-  if (!hasPlayers() || gameStartedAtMs_ == 0) {
+  if (!hasPlayers()) {
     return 0;
   }
 
@@ -653,7 +653,7 @@ uint32_t GameEngine::currentTurnElapsedMs(uint32_t nowMs) const {
 }
 
 uint32_t GameEngine::gameElapsedMs(uint32_t nowMs) const {
-  if (!hasPlayers() || gameStartedAtMs_ == 0) {
+  if (!hasPlayers()) {
     return 0;
   }
 

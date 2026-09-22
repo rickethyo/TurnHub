@@ -256,8 +256,8 @@ void SigilBus::txTaskLoop() {
 
       const esp_err_t result = esp_now_send(
           request.mac,
-          reinterpret_cast<const uint8_t *>(&request.packet),
-          sizeof(request.packet));
+          request.data,
+          request.length);
 
       if (result == ESP_OK) {
         if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250)) == 0) {
@@ -470,7 +470,9 @@ bool SigilBus::sendToMac(
 
   TxRequest request;
   memcpy(request.mac, mac, 6);
-  request.packet = TurnHubProtocol::makePacket(type, sigilId, value);
+  const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
+  memcpy(request.data, &packet, sizeof(packet));
+  request.length = sizeof(packet);
 
   if (xQueueSend(txQueue_, &request, 0) != pdTRUE) {
     Serial.println("ATLAS|ESP_NOW|TX_QUEUE_FULL");
@@ -478,6 +480,16 @@ bool SigilBus::sendToMac(
   }
 
   return true;
+}
+
+bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet) {
+  const SigilRecord *sigil = record(packet.sigilId);
+  if (!sigil || !txQueue_ || !ensurePeer(sigil->mac)) return false;
+  TxRequest request;
+  memcpy(request.mac, sigil->mac, 6);
+  memcpy(request.data, &packet, sizeof(packet));
+  request.length = sizeof(packet);
+  return xQueueSend(txQueue_, &request, 0) == pdTRUE;
 }
 
 void SigilBus::sendAck(

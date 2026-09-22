@@ -160,9 +160,9 @@ function renderDevices(d){
   }).join(''):'<div class="small">No seats have joined yet.</div>';
   const attach=sessionInfo&&sessionInfo.authenticated&&statusData&&statusData.state==='LOBBY'?`<button ${x.online?'':'disabled'} onclick="claimSeat(${x.id},1)">Attach seat A to my profile</button>`:'';
   const signIn=!sessionInfo||!sessionInfo.authenticated?'<a class="link" href="/login">Sign in to attach a Sigil</a>':'';
-  const remember=sessionInfo&&sessionInfo.authenticated&&x.profileA===sessionInfo.profileId?`<label class="small" style="display:block;margin-top:10px"><input type="checkbox" ${x.persistentA?'checked':''} ${sessionInfo.hasPin?'':'disabled'} onchange="setSeatPersistence(${x.id},this.checked)"> Remember my profile on Seat A${sessionInfo.hasPin?'':' (set a PIN first)'}</label>`:'';
+
   const defaultLine=x.customName?`<div class="small">${esc(x.defaultLabel)}</div>`:'';
-  return `<div class="device"><div class="device-top"><div><div class="device-name">${esc(x.label)}</div>${defaultLine}<div class="mono">${esc(x.hardwareId)}</div></div>${state}</div><div class="small" style="margin-top:8px">${fw}<br>Last seen ${Math.round(Number(x.ageMs)/100)/10}s ago · ${Number(x.sessionCount)} browser session${Number(x.sessionCount)===1?'':'s'}</div><div class="capabilities">${capabilityHtml(x)}</div><div class="actions" style="margin-top:10px">${attach}${signIn}</div>${remember}<div class="small" style="margin-top:8px">Seat B is always cleared when this Sigil reconnects.</div><div class="seats">${seatHtml}</div></div>`
+  return `<div class="device"><div class="device-top"><div><div class="device-name">${esc(x.label)}</div>${defaultLine}<div class="mono">${esc(x.hardwareId)}</div></div>${state}</div><div class="small" style="margin-top:8px">${fw}<br>Last seen ${Math.round(Number(x.ageMs)/100)/10}s ago · ${Number(x.sessionCount)} browser session${Number(x.sessionCount)===1?'':'s'}</div><div class="capabilities">${capabilityHtml(x)}</div><div class="actions" style="margin-top:10px">${attach}${signIn}</div><div class="small" style="margin-top:8px">Both seats clear on restart and at game end. Rematch restores the same players.</div><div class="seats">${seatHtml}</div></div>`
  }).join(''):'<div class="empty">No Sigils discovered yet.</div>'
 }
 

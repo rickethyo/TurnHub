@@ -35,6 +35,13 @@ uint8_t registerBrowser(const String &profileId) {
   }
   return TurnHub::INVALID_ID;
 }
+bool restoreBrowser(uint8_t controllerId, const char *profileId) {
+  if (controllerId < TurnHub::MAX_PHYSICAL_SIGILS || controllerId >= TurnHub::MAX_CONTROLLERS ||
+      !profileId || strlen(profileId) != TurnHubProfiles::PROFILE_ID_LENGTH) return false;
+  memcpy(browserProfiles[controllerId - TurnHub::MAX_PHYSICAL_SIGILS], profileId,
+      TurnHubProfiles::PROFILE_ID_LENGTH + 1);
+  return true;
+}
 void releaseBrowser(uint8_t controllerId) {
   if (controllerId >= TurnHub::MAX_PHYSICAL_SIGILS && controllerId < TurnHub::MAX_CONTROLLERS) {
     browserProfiles[controllerId - TurnHub::MAX_PHYSICAL_SIGILS][0] = '\0';

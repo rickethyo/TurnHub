@@ -36,6 +36,7 @@ class LedRenderer {
     uint32_t lastBlueTxMs = 0;
     bool displayValid = false;
     int32_t displayPayload = 0;
+    TurnHubProtocol::GameDisplayPacket gameDisplay{};
   };
 
   void set(

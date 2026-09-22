@@ -1,6 +1,8 @@
 #include "led_renderer.h"
 
 #include <math.h>
+#include <cstring>
+#include "profile_store.h"
 
 namespace TurnHub {
 
@@ -211,6 +213,71 @@ void LedRenderer::syncDisplay(
       flags);
 
   Cache &cache = cache_[sigilId];
+  const auto *record = bus_.record(sigilId);
+  if (mode == TurnHubProtocol::DisplayMode::Running && record &&
+      (record->capabilities & TurnHubProtocol::CAPABILITY_GAME_DISPLAY)) {
+    TurnHubProtocol::GameDisplayPacket snapshot{};
+    snapshot.version = TurnHubProtocol::VERSION;
+    snapshot.type = TurnHubProtocol::PacketType::GameDisplay;
+    snapshot.sigilId = sigilId;
+    snapshot.state = payload;
+    snapshot.commander = game.settings().profile == GameProfile::Commander;
+    auto name = [&](uint8_t player, char *out) {
+      const auto *seat = game.playerByNumber(player);
+      if (!seat) return;
+      // Names are stable within a captured game participant. Re-read on the
+      // existing Hello/profile/lifecycle invalidation, not every LED frame.
+      const char *cached = nullptr;
+      if (cache.displayValid && cache.gameDisplay.type == TurnHubProtocol::PacketType::GameDisplay) {
+        const auto &old = cache.gameDisplay;
+        if (player == TurnHubProtocol::displayPrimaryPlayer(old.state)) cached = old.primary.name;
+        else if (player == TurnHubProtocol::displaySecondaryPlayer(old.state)) cached = old.secondary.name;
+        else for (uint8_t i = 0; i < old.sourceCount; ++i)
+          if (old.sources[i].player == player) cached = old.sources[i].name;
+      }
+      if (cached) {
+        memcpy(out, cached, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1);
+        return;
+      }
+      const String value = TurnHubProfiles::nameForProfile(String(seat->profileId));
+      if (!value.length()) {
+        snprintf(out, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1, "Player %u", player);
+        return;
+      }
+      for (size_t i = 0; i < value.length() && i < TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH; ++i)
+        out[i] = value[i] >= 32 && value[i] <= 126 ? value[i] : '?';
+    };
+    snapshot.primary.life = game.lifeTotal(primary);
+    name(primary, snapshot.primary.name);
+    if (secondary) {
+      snapshot.secondary.life = game.lifeTotal(secondary);
+      name(secondary, snapshot.secondary.name);
+    }
+    // Deterministic player-number order; received by the focused local seat.
+    if (snapshot.commander) for (uint8_t source = 1; source <= MAX_PLAYERS; ++source) {
+      if (source == primary || !game.playerByNumber(source)) continue;
+      const int32_t a = game.commanderDamage(primary, source, 1);
+      const int32_t b = game.commanderDamage(primary, source, 2);
+      if (!a && !b) continue;
+      if (snapshot.sourceCount == TurnHubProtocol::DISPLAY_COMMANDER_SOURCES) {
+        ++snapshot.omittedSources;
+        continue;
+      }
+      auto &entry = snapshot.sources[snapshot.sourceCount++];
+      entry.player = source;
+      name(source, entry.name);
+      entry.damage[0] = a;
+      entry.damage[1] = b;
+    }
+    if (!cache.displayValid || memcmp(&snapshot, &cache.gameDisplay, sizeof(snapshot)) != 0) {
+      if (bus_.sendGameDisplay(snapshot)) {
+        cache.gameDisplay = snapshot;
+        cache.displayPayload = payload;
+        cache.displayValid = true;
+      }
+    }
+    return;
+  }
   if (cache.displayValid && cache.displayPayload == payload) {
     return;
   }

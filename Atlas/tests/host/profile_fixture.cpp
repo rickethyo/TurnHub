@@ -46,6 +46,7 @@ String boundProfileIdForSeat(const uint8_t *mac,uint8_t slot) {
 bool seatIsPersistent(const uint8_t *,uint8_t) { return false; }
 bool setSeatPersistent(const uint8_t *,uint8_t,bool) { return false; }
 bool resetTransientSeatBindings(const uint8_t *mac) {
+  bindings.erase(key(mac,1));
   bindings.erase(key(mac,2));
   return true;
 }

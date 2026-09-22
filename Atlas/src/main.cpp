@@ -729,8 +729,15 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
   if (intent.type == IntentType::ChangeCounter) {
     if (payload.targetPlayer != seat->playerNumber)
       return IntentResult::reject(IntentStatus::Unauthorized, "Record only your own received Commander damage");
+    if (game.settings().profile != TurnHub::GameProfile::Commander)
+      return IntentResult::reject(IntentStatus::Conflict, "Commander damage requires an MTG Commander game");
+    if (!game.playerByNumber(payload.counterSource) || payload.counterSlot < 1 || payload.counterSlot > TurnHub::COMMANDERS_PER_PLAYER)
+      return IntentResult::reject(IntentStatus::Conflict, "Select a valid commander owner and commander");
+    if (payload.value < 0 && static_cast<int64_t>(game.commanderDamage(seat->playerNumber,
+        payload.counterSource, payload.counterSlot)) + payload.value < 0)
+      return IntentResult::reject(IntentStatus::Conflict, "Cannot remove more Commander damage than recorded; use a positive number to add damage");
     if (!game.changeCommanderDamage(seat->playerNumber, payload.counterSource, payload.counterSlot, payload.value))
-      return IntentResult::reject(IntentStatus::Conflict, "Commander damage unavailable or a counter/life limit would be exceeded");
+      return IntentResult::reject(IntentStatus::Conflict, "Commander damage must be nonzero and keep damage and life within their limits");
     return IntentResult::accept("Commander damage and life updated");
   }
   return IntentResult::reject(IntentStatus::Unsupported, "Unknown counter action");
@@ -1045,7 +1052,17 @@ void clearDecisionState() {
   }
 }
 
+void clearPhysicalSeatProfiles() {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    const auto *record = sigilBus.record(id);
+    if (!record) continue;
+    TurnHubProfiles::resetTransientSeatBindings(record->mac);
+    sigilBus.syncDisplayProfile(id);
+  }
+}
+
 void enterEmptyLobby() {
+  clearPhysicalSeatProfiles();
   hubState = HubState::Lobby;
   lobby.resetEmpty();
   game.reset();
@@ -1061,6 +1078,12 @@ void enterEmptyLobby() {
 }
 
 void enterRematchLobby() {
+  // The completed match retains identities on Atlas until the rematch decision.
+  for (uint8_t i = 0; i < game.playerCount(); ++i) {
+    const auto *seat = game.playerAt(i);
+    if (seat && seat->controllerId < MAX_PHYSICAL_SIGILS && seat->profileId[0])
+      TurnHubControllers::bindPhysical(seat->controllerId, seat->slot, String(seat->profileId));
+  }
   hubState = HubState::Lobby;
   lobby.resetForRematch();
   game.reset();
@@ -1073,6 +1096,8 @@ void enterRematchLobby() {
 }
 
 void finishGameState() {
+  // GameEngine has already persisted results using its captured profile IDs.
+  clearPhysicalSeatProfiles();
   clearPendingPass("GAME_OVER");
   hubState = HubState::GameOver;
   eliminationTargetPlayer = 0;

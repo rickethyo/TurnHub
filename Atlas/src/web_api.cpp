@@ -612,8 +612,8 @@ void handleSeatPersistence(WebServer &server) {
     sendJson(server, 403, "{\"error\":\"This Sigil seat is not attached to your profile\"}");
     return;
   }
-  if (remember == "1" && !TurnHubProfiles::hasPinForProfile(bound)) {
-    sendJson(server, 409, "{\"error\":\"Set a PIN before remembering a profile on a Sigil\"}");
+  if (remember == "1") {
+    sendJson(server, 409, "{\"error\":\"Sigil seats are temporary; profiles are saved on Atlas\"}");
     return;
   }
   if (!TurnHubProfiles::setSeatPersistent(record->mac, 1, remember == "1")) {

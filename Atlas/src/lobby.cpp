@@ -309,6 +309,25 @@ void Lobby::resetEmpty() {
   }
 }
 
+bool Lobby::restorePlayers(const PlayerSeat *players, uint8_t count, uint8_t starter) {
+  if (!players || count < 2 || count > MAX_PLAYERS || !starter || starter > count) return false;
+  // Caller supplies the fully validated checkpoint; rebuild lobby ordering for
+  // host authority and rematch without allocating fresh participant identities.
+  resetEmpty();
+  for (uint8_t i = 0; i < count; ++i) {
+    const auto &p = players[i];
+    if (p.controllerId >= MAX_CONTROLLERS || p.slot < 1 || p.slot > 2) return false;
+    if (p.slot == 1) joinedOrder_[joinedCount_++] = p.controllerId;
+    else secondary_[p.controllerId] = true;
+    participants_[p.controllerId][p.slot-1] = p.participantId;
+    if (p.participantId >= nextParticipant_) nextParticipant_ = p.participantId + 1;
+  }
+  starterSelected_ = true;
+  starterModule_ = players[starter-1].controllerId;
+  starterSlot_ = players[starter-1].slot;
+  return true;
+}
+
 void Lobby::resetForRematch() {
   starterSelected_ = false;
   starterModule_ = INVALID_ID;

@@ -11,6 +11,7 @@ constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
+constexpr uint8_t CAPABILITY_GAME_DISPLAY = 0x04;
 
 // Shared ESP-NOW message types. Keep the values stable once devices begin
 // shipping so newer Atlas firmware can identify older Sigil packets.
@@ -32,6 +33,7 @@ enum class PacketType : uint8_t {
   Buzzer = 23,
   DisplayState = 30,
   DisplayNameChunk = 31,
+  GameDisplay = 32,
 };
 
 enum class DisplayMode : uint8_t {
@@ -58,6 +60,48 @@ struct __attribute__((packed)) Packet {
 };
 
 static_assert(sizeof(Packet) == 7, "TurnHub ESP-NOW packet layout changed");
+
+// Atomic rendering snapshot, little-endian like Packet. Never authoritative.
+constexpr uint8_t DISPLAY_COMMANDER_SOURCES = 3;
+struct __attribute__((packed)) DisplayParticipant {
+  int32_t life;
+  char name[DISPLAY_NAME_MAX_LENGTH + 1];
+};
+struct __attribute__((packed)) DisplayCommanderSource {
+  uint8_t player;
+  char name[DISPLAY_NAME_MAX_LENGTH + 1];
+  int32_t damage[2];
+};
+struct __attribute__((packed)) GameDisplayPacket {
+  uint8_t version;
+  PacketType type;
+  uint8_t sigilId;
+  int32_t state;
+  uint8_t commander;
+  uint8_t sourceCount;
+  uint8_t omittedSources;
+  DisplayParticipant primary;
+  DisplayParticipant secondary;
+  DisplayCommanderSource sources[DISPLAY_COMMANDER_SOURCES];
+};
+static_assert(sizeof(GameDisplayPacket) == 110, "Game display wire layout changed");
+inline bool validGameDisplay(const GameDisplayPacket &p) {
+  if (p.version != VERSION || p.type != PacketType::GameDisplay ||
+      p.sigilId >= MAX_SIGILS || p.commander > 1 ||
+      (static_cast<uint32_t>(p.state) & DISPLAY_MODE_MASK) != static_cast<uint8_t>(DisplayMode::Running) ||
+      p.primary.life < -1000000 || p.primary.life > 1000000 ||
+      p.secondary.life < -1000000 || p.secondary.life > 1000000 ||
+      (!p.commander && (p.sourceCount || p.omittedSources)) ||
+      p.sourceCount > DISPLAY_COMMANDER_SOURCES || p.omittedSources > 15 ||
+      p.primary.name[DISPLAY_NAME_MAX_LENGTH] || p.secondary.name[DISPLAY_NAME_MAX_LENGTH]) return false;
+  for (uint8_t i = 0; i < p.sourceCount; ++i) {
+    if (!p.sources[i].player || p.sources[i].player > 16 ||
+        p.sources[i].name[DISPLAY_NAME_MAX_LENGTH] ||
+        p.sources[i].damage[0] < 0 || p.sources[i].damage[1] < 0 ||
+        p.sources[i].damage[0] > 1000000 || p.sources[i].damage[1] > 1000000) return false;
+  }
+  return true;
+}
 
 inline Packet makePacket(PacketType type, uint8_t sigilId, int32_t value = 0) {
   return Packet{VERSION, type, sigilId, value};

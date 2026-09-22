@@ -59,7 +59,7 @@ match/controller records, not a claim that those repositories already exist.
 
 | Data | Owner | Current/planned location |
 | --- | --- | --- |
-| Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Existing `turnhub` NVS keys; `b<mac>A` is an optional remembered Seat A binding, `b<mac>B` is transient and cleared on Sigil reconnect |
+| Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Profile and device-label records use `turnhub` NVS; both physical-seat bindings are RAM-only and clear on restart/reconnect and game end |
 | Lifetime/latest-game statistics | Profile statistics repository | `BlobStore` -> `NvsBlobStore`, existing `turnhub` namespace and `s<profileId>` keys |
 | Physical-use and stats-privacy choices | Atlas profile repository | `a<profileId>` blob in `turnhub`: schema byte 1, allow-physical byte 0/1, hide-stats byte 0/1; implemented locally |
 | Network credentials | Network settings owner in web API | Existing Preferences namespace |
@@ -67,7 +67,7 @@ match/controller records, not a claim that those repositories already exist.
 | Next-game profile and starting life | Atlas game-settings repository | Six-byte schema-1 `gamecfg` blob in `turnhub`; match captures settings at start, life totals stay in RAM |
 | Match facts, membership, history and recovery | Planned Atlas match repository | Bounded versioned records; recovery separate from completed history |
 | Controller assignment/device trust | Planned controller/trust registries | Small critical records independent of statistics |
-| Sigil user/device settings and last-used preferences | Atlas device-settings owner | Seat A remember flag in `r<mac>A`; Seat B has no persistent binding; no Sigil-side user-settings persistence |
+| Sigil user/device settings and last-used preferences | Atlas device-settings owner | No remembered profile on either seat; legacy `b<mac>A/B` and `r<mac>A/B` keys are retired on reconnect; no Sigil-side profile persistence |
 | Shared accessibility preferences | Atlas profile owner | Versioned profile preferences; per-Sigil user adjustments belong to Atlas device settings |
 | Exports | Atlas authorized projection | Generated views, never a competing database |
 

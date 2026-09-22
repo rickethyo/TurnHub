@@ -75,11 +75,11 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
 // Read an existing binding without creating a profile for an unused seat.
 String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
-// Persistence is an Atlas-side choice and is supported only for primary seat A.
+// Legacy API: physical seats are temporary; enabling persistence is rejected.
 bool seatIsPersistent(const uint8_t mac[6], uint8_t slot);
 bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent);
-// Release non-persistent primary bindings and every secondary binding for a
-// Sigil boot/reconnect. Profile records themselves remain durable.
+// Release both seat bindings and remove legacy remembered-seat keys.
+// Atlas profile records and statistics remain durable.
 bool resetTransientSeatBindings(const uint8_t mac[6]);
 // Move a profile between this Sigil's seats, leaving the source as a guest.
 bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId);

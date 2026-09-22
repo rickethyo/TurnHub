@@ -49,6 +49,8 @@ class SigilBus {
   // Refresh names without requesting a reconnect handshake.
   void syncDisplayProfile(uint8_t sigilId);
 
+  bool sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet);
+
   bool setBlue(uint8_t sigilId, uint8_t brightness);
   bool setRed(uint8_t sigilId, bool on);
   bool setGreen(uint8_t sigilId, bool on);
@@ -75,7 +77,8 @@ class SigilBus {
   };
   struct TxRequest {
     uint8_t mac[6] = {};
-    TurnHubProtocol::Packet packet{};
+    uint8_t data[sizeof(TurnHubProtocol::GameDisplayPacket)] = {};
+    uint8_t length = 0;
   };
 
   static SigilBus *instance_;

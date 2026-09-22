@@ -55,32 +55,25 @@ and future display serialization. Portal controls render the owner choices.
 This slice adds no radio packets, Sigil persistence, game-engine rules, or external
 dependencies. Forms use native labeled controls and persistent status feedback.
 
-## Current slot persistence slice (2026-09-22)
+## Temporary Sigil seats (2026-09-22)
 
-- A profile record remains durable, but a physical slot binding is temporary by
-  default. Atlas stores the Seat A remember choice in `r<mac>A`; the Sigil
-  never owns this setting.
-- The Players device card lets the authenticated owner remember their profile on
-  Seat A. Setting a PIN is required before a profile can be remembered.
-- Seat B is always transient. Atlas clears its binding whenever the Sigil starts
-  a new display-profile handshake, and never offers a Seat B persistence choice.
-- Non-persistent Seat A bindings are also released at that handshake. Releasing
-  a binding does not delete the profile, credentials, permissions, or totals;
-  the profile can be attached again explicitly.
-- Existing bindings without a remember flag are treated as temporary, so the
-  first post-update Sigil handshake releases them. This is an intentional
-  migration to opt-in persistence.
+Both seat assignments live only in Atlas RAM. Restart/reconnect and game end
+clear them; legacy remembered-seat keys are removed without deleting accounts,
+credentials, or statistics. The portal no longer offers a remember-seat choice.
+Sigils cache display names only in RAM and retain only their radio pairing in NVS.
 
-Validation: native application/storage scenarios and portal smoke checks pass;
-Atlas firmware compiles. No hardware flashed. Bench-check settings across Atlas
-reboot, protected/unprotected primary and secondary joins, browser companion
-login, and statistics accumulation before accepting this slice on hardware.
+Game completion records statistics against the match's captured profile IDs
+before releasing seat assignments. Atlas retains the completed roster until the
+host chooses Reset or Rematch. Rematch restores the captured physical assignments;
+Reset opens an empty lobby. Neither operation records the same results twice.
+
+Native tests cover cleared bindings, preserved statistics and rematch restoration.
+Firmware builds pass; physical restart/display behavior still needs a bench check.
 
 ## Product contract
 
-Profiles belong to people, not controllers. A saved physical binding becomes a
-last-used preference. It neither reserves that Sigil nor authorizes arbitrary
-profile access. The live assignment is separate and scoped to table participation.
+Profiles belong to people, not controllers. Physical assignments are temporary
+and scoped to table participation; they do not survive a restart or reserve a Sigil.
 
 - One profile has one participant at the table.
 - A phone and physical Sigil may control the same participant concurrently.

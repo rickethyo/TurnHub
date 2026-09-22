@@ -26,6 +26,8 @@ enum class WarningPhase : uint8_t {
   OffGreen,
 };
 
+struct GameCheckpoint;
+
 class GameEngine {
  public:
   using GameCompletedCallback = void (*)(const GameEngine &game);
@@ -75,6 +77,9 @@ class GameEngine {
   bool cancelWinClaim(uint8_t claimantPlayer, uint32_t nowMs);
 
   void reset();
+  void checkpoint(GameCheckpoint &out, uint32_t nowMs) const;
+  // Validates before changing state. Active matches always recover paused.
+  bool restoreCheckpoint(const GameCheckpoint &saved, uint32_t nowMs);
 
   bool running() const;
   bool paused() const;
