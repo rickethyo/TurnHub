@@ -5,7 +5,7 @@ TurnHub is a local-first tabletop game-management platform built around an autho
 **Current development baseline:** ESP32 Atlas firmware **0.6.0-dev** on `master`.
 The older Python/Raspberry Pi implementation under `Controller/` remains a historical and behavioral reference. It is not the current runtime and some of its features have not yet been reimplemented on ESP32.
 
-See [Atlas/README.md](Atlas/README.md) for the current firmware/runtime details, [docs/engineering](docs/engineering/README.md) for the engineering record, staged work, architectural invariants, and verification backlog, and [Product Principles](docs/product/PRODUCT_PRINCIPLES.md) for the durable product values that guide design and commercialization decisions.
+See [Atlas/README.md](Atlas/README.md) for the current firmware/runtime details, [Documentation/engineering](Documentation/engineering/README.md) for the engineering record, staged work, architectural invariants, and verification backlog, and [Product Principles](docs/product/PRODUCT_PRINCIPLES.md) for the durable product values that guide design and commercialization decisions.
 
 ## Core architectural rule
 
@@ -35,18 +35,18 @@ Atlas `0.6.0-dev` currently provides:
 - ESP-NOW communication with development Sigils on the current prototype transport.
 - Physical and phone-only participation, including mixed physical/browser tables.
 - Local profile creation/login with PIN-based browser authentication.
-- Local account permissions for Admin, Game Master and Developer, with initial Admin setup and private moderation counters (implemented locally; hardware playtest pending). See [Accounts and moderation](docs/engineering/ACCOUNTS_AND_MODERATION.md).
+- Local account permissions for Admin, Game Master and Developer, with initial Admin setup and private moderation counters (implemented locally; hardware playtest pending). See [Accounts and moderation](Documentation/engineering/ACCOUNTS_AND_MODERATION.md).
 - Multiple browser sessions controlling the same participant.
 - Explicit browser-assisted attachment of an unused physical Sigil to the authenticated profile.
 - Shared physical A/B seats retained for compatibility.
 - Starter selection, start/cancel countdown, turn passing, three-second cancellable pass grace, pause/resume, concession/elimination, confirmed victory, rematch, and reset.
-- Game profile presets and custom starting life, with browser controls for each player's own life and public table totals (implemented locally; hardware playtest pending). See [Game profiles and life](docs/engineering/GAME_PROFILES_AND_LIFE.md).
+- Game profile presets and custom starting life, with browser controls for each player's own life and public table totals (implemented locally; hardware playtest pending). See [Game profiles and life](Documentation/engineering/GAME_PROFILES_AND_LIFE.md).
 - Atlas-authoritative profile statistics stored locally.
 - Persistent profile identity, names/PIN-related profile data, physical-seat bindings, and deployed statistics through Atlas local storage.
 - Browser and physical gameplay paths converging on the Atlas Intent layer.
 - Local web OTA with existing physical/state gating.
 
-Current implementation limits and acceptance details are documented in [Profile login and virtual play](docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) and [Atlas intent verification](docs/engineering/ATLAS_INTENT_VERIFICATION.md).
+Current implementation limits and acceptance details are documented in [Profile login and virtual play](Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) and [Atlas intent verification](Documentation/engineering/ATLAS_INTENT_VERIFICATION.md).
 
 ## Current persistence behavior
 
@@ -69,13 +69,13 @@ Does **not** currently survive reboot:
 - Active game/turn state.
 - Current life totals.
 
-A current Atlas reboot therefore returns to a fresh table while preserving durable profile/statistics data. Prototype 1.0 work is staged to add a compact, versioned interrupted-match recovery record with Resume/Discard behavior and paused recovery so power-off time is never charged to a player. See [Software Architecture](docs/engineering/SOFTWARE_ARCHITECTURE.md) and [Staged Changes](docs/engineering/STAGED_CHANGES.md).
+A current Atlas reboot therefore returns to a fresh table while preserving durable profile/statistics data. Prototype 1.0 work is staged to add a compact, versioned interrupted-match recovery record with Resume/Discard behavior and paused recovery so power-off time is never charged to a player. See [Software Architecture](Documentation/engineering/SOFTWARE_ARCHITECTURE.md) and [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 
 ## Physical Sigils
 
 The current development Sigil firmware uses an ESP32, two physical gameplay buttons, discrete status LEDs, buzzer output, a monochrome e-ink display, and ESP-NOW for the current experimental radio transport.
 
-The current verified development wiring is maintained in [Hardware Reference](docs/engineering/HARDWARE_REFERENCE.md). Planned Prototype 1.0 work includes:
+The current verified development wiring is maintained in [Hardware Reference](Documentation/engineering/HARDWARE_REFERENCE.md). Planned Prototype 1.0 work includes:
 
 - Physical profile selection on reusable Sigils.
 - A software path for a dedicated auxiliary Action/Win control before final GPIO wiring.
@@ -92,7 +92,7 @@ A player can create a local profile or sign in from the Atlas portal without own
 
 The first participant is host. Phone-only players can complete the supported game lifecycle through Atlas's existing Intent handlers. Multiple authenticated browser sessions may control the same participant, and a physical Sigil may be attached to that same participant in the lobby.
 
-A known remaining gap is standalone physical profile selection. A Sigil currently remembers its saved profile binding, which can conflict when that profile already joined by phone. Duplicate-participant protection is correct; the missing feature is choosing another profile on the reusable physical Sigil. The planned flow is documented in [Physical Profile Selection](docs/engineering/PHYSICAL_PROFILE_SELECTION.md).
+A known remaining gap is standalone physical profile selection. A Sigil currently remembers its saved profile binding, which can conflict when that profile already joined by phone. Duplicate-participant protection is correct; the missing feature is choosing another profile on the reusable physical Sigil. The planned flow is documented in [Physical Profile Selection](Documentation/engineering/PHYSICAL_PROFILE_SELECTION.md).
 
 ## Pairing status
 
@@ -117,25 +117,25 @@ Prototype 1.0 is the first system intended to leave the development bench for in
 
 For that milestone, reliability and independent setup matter more than cosmetic finish. Rough soldered hardware and simple 3D-printed enclosures are acceptable. Internal battery integration is not required; known-good USB power banks are acceptable if setup and operation are clear.
 
-The current critical path is maintained in [Staged Changes](docs/engineering/STAGED_CHANGES.md). It prioritizes reusable physical profile selection, web-portal feature freeze, interrupted-match recovery groundwork, auxiliary-button semantics, real pairing, three-Sigil field hardware, out-of-box setup, and hardening.
+The current critical path is maintained in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md). It prioritizes reusable physical profile selection, web-portal feature freeze, interrupted-match recovery groundwork, auxiliary-button semantics, real pairing, three-Sigil field hardware, out-of-box setup, and hardening.
 
 ## Engineering documentation
 
 TurnHub uses repository documentation as the durable engineering record. Before structural changes, review:
 
 - [Product Principles](docs/product/PRODUCT_PRINCIPLES.md)
-- [Architectural Invariants](docs/engineering/ARCHITECTURAL_INVARIANTS.md)
-- [Staged Changes](docs/engineering/STAGED_CHANGES.md)
-- [Intent Model](docs/engineering/INTENT_MODEL.md)
-- [Software Architecture](docs/engineering/SOFTWARE_ARCHITECTURE.md)
-- [Identity and Storage Contracts](docs/engineering/IDENTITY_AND_STORAGE.md)
-- [Protocol and Pairing](docs/engineering/PROTOCOL_AND_PAIRING.md)
-- [Hardware Reference](docs/engineering/HARDWARE_REFERENCE.md)
-- [Verification Backlog](docs/engineering/VERIFICATION_BACKLOG.md)
-- [Accessibility Specification](docs/engineering/ACCESSIBILITY.md)
-- [Legal/IP Working Reference](docs/legal/README.md)
+- [Architectural Invariants](Documentation/engineering/ARCHITECTURAL_INVARIANTS.md)
+- [Staged Changes](Documentation/engineering/STAGED_CHANGES.md)
+- [Intent Model](Documentation/engineering/INTENT_MODEL.md)
+- [Software Architecture](Documentation/engineering/SOFTWARE_ARCHITECTURE.md)
+- [Identity and Storage Contracts](Documentation/engineering/IDENTITY_AND_STORAGE.md)
+- [Protocol and Pairing](Documentation/engineering/PROTOCOL_AND_PAIRING.md)
+- [Hardware Reference](Documentation/engineering/HARDWARE_REFERENCE.md)
+- [Verification Backlog](Documentation/engineering/VERIFICATION_BACKLOG.md)
+- [Accessibility Specification](Documentation/engineering/ACCESSIBILITY.md)
+- [Legal/IP Working Reference](Documentation/legal/README.md)
 
-Near-term unimplemented work belongs in `docs/engineering/STAGED_CHANGES.md`. Historical implementations should remain documented as history rather than being mistaken for the current ESP32 runtime.
+Near-term unimplemented work belongs in `Documentation/engineering/STAGED_CHANGES.md`. Historical implementations should remain documented as history rather than being mistaken for the current ESP32 runtime.
 
 ## Status
 
