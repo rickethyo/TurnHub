@@ -48,7 +48,7 @@ Product convenience must not weaken the core architecture.
 
 Atlas owns canonical table and game state. Sigils, browser clients, future native applications, and assistive controllers request actions and render Atlas state. They do not become independent competing game engines or state authorities.
 
-Product features should preserve the architectural invariants documented in `docs/engineering/ARCHITECTURAL_INVARIANTS.md`.
+Product features should preserve the architectural invariants documented in `Documentation/engineering/ARCHITECTURAL_INVARIANTS.md`.
 
 ## 5. User choice is a feature
 
@@ -83,7 +83,7 @@ Essential information and actions should not rely on only one sensory cue or one
 
 Accessibility paths should use the same Atlas authorization and semantic Intent boundaries as standard controls rather than creating a separate or reduced game system.
 
-The detailed implementation requirements live in `docs/engineering/ACCESSIBILITY.md`.
+The detailed implementation requirements live in `Documentation/engineering/ACCESSIBILITY.md`.
 
 ## 8. Graceful degradation is better than unnecessary failure
 
@@ -112,7 +112,7 @@ Third-party software, assets, reference designs, trademarks, and libraries shoul
 
 A useful dependency is not automatically an acceptable shipping dependency. License obligations, replaceability, maintenance risk, security, and long-term availability should be considered before a dependency becomes difficult to remove.
 
-The current legal and dependency record lives under `docs/legal/`.
+The current legal and dependency record lives under `Documentation/legal/`.
 
 ## 11. Hardware and software should age gracefully
 
