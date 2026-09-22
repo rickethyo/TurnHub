@@ -5,7 +5,7 @@ TurnHub is a local-first tabletop game-management platform built around an autho
 **Current development baseline:** ESP32 Atlas firmware **0.6.0-dev** on `master`.
 The older Python/Raspberry Pi implementation under `Controller/` remains a historical and behavioral reference. It is not the current runtime and some of its features have not yet been reimplemented on ESP32.
 
-See [Atlas/README.md](Atlas/README.md) for the current firmware/runtime details and [docs/engineering](docs/engineering/README.md) for the engineering record, staged work, architectural invariants, and verification backlog.
+See [Atlas/README.md](Atlas/README.md) for the current firmware/runtime details, [docs/engineering](docs/engineering/README.md) for the engineering record, staged work, architectural invariants, and verification backlog, and [Product Principles](docs/product/PRODUCT_PRINCIPLES.md) for the durable product values that guide design and commercialization decisions.
 
 ## Core architectural rule
 
@@ -106,6 +106,8 @@ The near-term Prototype 1.0 target is to replace passive proximity adoption with
 
 TurnHub's core play path is intended to remain usable without a cloud service, subscription, or internet connection. Atlas serves the table locally, owns the game state locally, and stores supported persistent information locally.
 
+The broader ownership, repairability, privacy, accessibility, longevity, and anti-lock-in direction is recorded in [Product Principles](docs/product/PRODUCT_PRINCIPLES.md).
+
 First-run provisioning, optional home-network integration, fallback access, and recovery-mode direction are documented in [Atlas/OOBE.md](Atlas/OOBE.md). Home/LAN mode is not yet the current default and must account for ESP32 Wi-Fi/ESP-NOW channel constraints before being treated as production-ready.
 
 ## Prototype 1.0 field-test goal
@@ -120,6 +122,7 @@ The current critical path is maintained in [Staged Changes](docs/engineering/STA
 
 TurnHub uses repository documentation as the durable engineering record. Before structural changes, review:
 
+- [Product Principles](docs/product/PRODUCT_PRINCIPLES.md)
 - [Architectural Invariants](docs/engineering/ARCHITECTURAL_INVARIANTS.md)
 - [Staged Changes](docs/engineering/STAGED_CHANGES.md)
 - [Intent Model](docs/engineering/INTENT_MODEL.md)
