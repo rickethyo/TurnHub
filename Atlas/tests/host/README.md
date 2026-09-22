@@ -49,7 +49,7 @@ call canonical mutators or authoritative transition helpers directly.
 
 This is application regression coverage, not proof of radio delivery, GPIO
 debounce, flash persistence, buzzer/LED timing, browser authentication, or hardware
-behavior. See `docs/engineering/ATLAS_INTENT_VERIFICATION.md` for the hardware gate.
+behavior. See `Documentation/engineering/ATLAS_INTENT_VERIFICATION.md` for the hardware gate.
 
 The storage executable compiles the production NVS blob adapter and statistics
 repository against injectable NVS calls. It checks identity contracts, deployed
