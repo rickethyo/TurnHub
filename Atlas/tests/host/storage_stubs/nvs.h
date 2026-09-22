@@ -12,12 +12,16 @@ constexpr int ESP_OK = 0, ESP_ERR_NVS_NOT_FOUND = 1,
 constexpr int NVS_READWRITE = 1;
 namespace FakeNvs {
 extern std::map<std::string, std::vector<uint8_t>> blobs;
+extern std::map<std::string, std::string> strings;
+extern std::map<std::string, uint8_t> bytes;
 extern int openError, readError, setError, commitError;
 extern int writes, commits;
 extern int reads, failReadAt;
 extern const char *openedNamespace;
 inline void reset() {
   blobs.clear();
+  strings.clear();
+  bytes.clear();
   openError = readError = setError = commitError = ESP_OK;
   writes = commits = 0;
   reads = failReadAt = 0;
@@ -55,3 +59,34 @@ inline int nvs_commit(nvs_handle_t) {
   ++FakeNvs::commits;
   return FakeNvs::commitError;
 }
+inline int nvs_get_str(nvs_handle_t, const char *key, char *out, size_t *size) {
+  if (FakeNvs::readError != ESP_OK) return FakeNvs::readError;
+  auto found = FakeNvs::strings.find(key);
+  if (found == FakeNvs::strings.end()) return ESP_ERR_NVS_NOT_FOUND;
+  if (out) {
+    if (*size < found->second.size() + 1) return ESP_ERR_NVS_INVALID_HANDLE;
+    memcpy(out, found->second.c_str(), found->second.size() + 1);
+  }
+  *size = found->second.size() + 1;
+  return ESP_OK;
+}
+inline int nvs_erase_key(nvs_handle_t, const char *key) {
+  if (FakeNvs::setError != ESP_OK) return FakeNvs::setError;
+  const auto removed = FakeNvs::blobs.erase(key) + FakeNvs::strings.erase(key) + FakeNvs::bytes.erase(key);
+  if (removed) ++FakeNvs::writes;
+  return removed ? ESP_OK : ESP_ERR_NVS_NOT_FOUND;
+}
+constexpr int NVS_TYPE_U8 = 1;
+using nvs_iterator_t = std::map<std::string, uint8_t>::const_iterator *;
+struct nvs_entry_info_t { char key[16]; };
+inline nvs_iterator_t nvs_entry_find(const char *, const char *, int) {
+  return FakeNvs::bytes.empty() ? nullptr : new std::map<std::string, uint8_t>::const_iterator(FakeNvs::bytes.begin());
+}
+inline void nvs_entry_info(nvs_iterator_t it, nvs_entry_info_t *info) {
+  strncpy(info->key, (*it)->first.c_str(), sizeof(info->key));
+}
+inline nvs_iterator_t nvs_entry_next(nvs_iterator_t it) {
+  if (++(*it) == FakeNvs::bytes.end()) { delete it; return nullptr; }
+  return it;
+}
+inline void nvs_release_iterator(nvs_iterator_t it) { delete it; }

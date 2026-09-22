@@ -10,6 +10,10 @@ SigilDisplay::SigilDisplay()
 
 void SigilDisplay::begin() {
   SPI.begin(18, 19, 23, EPD_CS);
+  // This panel is write-only. Release MISO (GPIO 19) for the Pair button.
+  // The installed ESP32 core maps MISO=-1 back to its default GPIO 19,
+  // so explicitly detach it instead of relying on -1 to disable the input.
+  spiDetachMISO(SPI.bus(), 19);
 
   display_.init(115200);
   display_.setRotation(1);
@@ -92,7 +96,7 @@ void SigilDisplay::drawPlayerLabel(
 }
 
 void SigilDisplay::showUnpaired() {
-  drawStatus("Unpaired", "Waiting for Atlas...");
+  drawStatus("Unpaired", "Press Pair on both");
 }
 
 void SigilDisplay::showReady(uint8_t sigilId) {

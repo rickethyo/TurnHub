@@ -62,6 +62,9 @@ enum class IntentType : uint8_t {
   BindProfile,
   ConfigureGame,
   Moderate,
+  RequestLifeChange,
+  RespondLifeChange,
+  ExpireLifeChanges,
 
   Count,
 };
@@ -105,6 +108,9 @@ struct IntentPayload {
   uint8_t targetPlayer = 0;
   int32_t value = 0;
   uint32_t flags = 0;
+  uint32_t requestId = 0; // RespondLifeChange: exact pending approval.
+  uint8_t counterSource = 0; // ChangeCounter: owner of the commander.
+  uint8_t counterSlot = 1; // ChangeCounter: commander 1 or 2.
   char moderatorId[9] = {}; // Authenticated account issuing moderation.
   char profileId[9] = {}; // Only populated by trusted Atlas authentication adapters.
 };
@@ -167,6 +173,9 @@ inline const char *intentName(IntentType type) {
     case IntentType::Rematch: return "REMATCH";
     case IntentType::ResetGame: return "RESET_GAME";
     case IntentType::ChangeLife: return "CHANGE_LIFE";
+    case IntentType::RequestLifeChange: return "REQUEST_LIFE_CHANGE";
+    case IntentType::RespondLifeChange: return "RESPOND_LIFE_CHANGE";
+    case IntentType::ExpireLifeChanges: return "EXPIRE_LIFE_CHANGES";
     case IntentType::ChangeCounter: return "CHANGE_COUNTER";
     case IntentType::NudgePlayer: return "NUDGE_PLAYER";
     case IntentType::NudgeTable: return "NUDGE_TABLE";

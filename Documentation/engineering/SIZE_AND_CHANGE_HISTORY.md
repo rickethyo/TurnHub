@@ -87,6 +87,7 @@ silently compared across toolchain changes without noting the build environment.
 | Local profile-policy slice, 2026-09-21 | 51,628 bytes | 953,345 bytes | Uncommitted changes based on `0cbb707`, still `0.6.0-dev`; Atlas build only, no flash |
 | Local game profiles and life totals, 2026-09-21 | 51,748 bytes | 967,273 bytes | Includes profile-policy slice and diagnostics; same toolchain, uncommitted `0.6.0-dev` based on `0cbb707`; build only, no flash |
 | Local accounts, moderation and portal cleanup, 2026-09-21 | 51,764 bytes | 983,505 bytes | Includes prior local slices; same toolchain and baseline; focused tests/build passed, not flashed |
+| Local life approval and Commander counters, 2026-09-22 | 59,036 bytes | 1,012,233 bytes | Based on `34a0363`, branch `codex/manual-v02-gameplay`; same toolchain, native/storage/browser checks and adapter audit passed; not flashed |
 
 The local profile-policy build used Espressif32 7.1.3, Arduino ESP32
 `4.20017.260907+sha.dcc1105b`, and Xtensa toolchain `8.4.0+2021r2-patch5`.
@@ -138,4 +139,4 @@ The engineering record was brought into line with current `0.6.0-dev` behavior:
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-21
+Last updated: 2026-09-22

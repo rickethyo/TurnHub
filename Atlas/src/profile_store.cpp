@@ -92,31 +92,6 @@ bool ensureMarker(const String &profileId) {
   return preferences.putUChar(markerKey.c_str(), 1) != 0;
 }
 
-String ensureProfileId(const uint8_t mac[6], uint8_t slot) {
-  if (!preferencesReady || (slot != 1 && slot != 2)) {
-    return String();
-  }
-
-  const String bindingKey = seatKey('b', mac, slot);
-  String profileId = preferences.getString(bindingKey.c_str(), "");
-  if (validProfileId(profileId) && profileExists(profileId)) {
-    return profileId;
-  }
-
-  profileId = createProfile();
-  if (!validProfileId(profileId)) {
-    return String();
-  }
-  if (preferences.putString(bindingKey.c_str(), profileId) == 0) {
-    return String();
-  }
-  if (slot == 1 && preferences.putUChar(seatKey('r', mac, slot).c_str(), 0) == 0) {
-    preferences.remove(bindingKey.c_str());
-    return String();
-  }
-  return profileId;
-}
-
 void migrateLegacyName(
     const uint8_t mac[6],
     uint8_t slot,
@@ -175,7 +150,15 @@ size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity) {
     nvs_entry_info_t info;
     nvs_entry_info(it, &info);
     if (info.key[0] == 'm' && validProfileId(String(info.key + 1))) {
-      memcpy(ids[count++], info.key + 1, PROFILE_ID_LENGTH + 1);
+      // Older display syncs created marker-only profiles for unused seats.
+      // Keep their records/bindings intact, but do not let these placeholders
+      // crowd out real accounts or exhaust the registration limit.
+      const String id(info.key + 1);
+      bool configured = false;
+      for (const char prefix : {'n', 'p', 's', 'a', 'u'}) {
+        configured = configured || preferences.isKey(profileKey(prefix, id).c_str());
+      }
+      if (configured) memcpy(ids[count++], info.key + 1, PROFILE_ID_LENGTH + 1);
     }
     it = nvs_entry_next(it);
   }
@@ -296,18 +279,9 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats) {
 }
 
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot) {
-  if (!preferencesReady && !begin()) {
-    return String();
-  }
-  if (slot == 2) {
-    TransientSecondaryBinding *binding = transientSecondaryFor(mac, true);
-    if (binding == nullptr) return String();
-    if (!validProfileId(binding->profileId) || !profileExists(binding->profileId)) {
-      binding->profileId = createProfile();
-    }
-    return binding->profileId;
-  }
-  const String profileId = ensureProfileId(mac, slot);
+  // Looking up a Sigil, including its unused secondary seat, must never
+  // manufacture a durable account. Unbound seats are guests.
+  const String profileId = boundProfileIdForSeat(mac, slot);
   migrateLegacyName(mac, slot, profileId);
   return profileId;
 }
@@ -357,6 +331,25 @@ bool resetTransientSeatBindings(const uint8_t mac[6]) {
   if (preferences.isKey(secondary.c_str())) ok = preferences.remove(secondary.c_str()) && ok;
   preferences.remove(seatKey('r', mac, 2).c_str());
   return ok;
+}
+
+bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId) {
+  if ((fromSlot != 1 && fromSlot != 2) || toSlot != 3 - fromSlot ||
+      boundProfileIdForSeat(mac, fromSlot) != profileId ||
+      boundProfileIdForSeat(mac, toSlot).length()) return false;
+  TransientSecondaryBinding *secondary = transientSecondaryFor(mac, true);
+  if (!secondary) return false;
+  if (toSlot == 2) {
+    // Reserve RAM first; failed flash removal leaves the source intact.
+    if (!preferences.remove(seatKey('b', mac, 1).c_str())) return false;
+    preferences.remove(seatKey('r', mac, 1).c_str());
+    secondary->profileId = profileId;
+  } else {
+    if (!bindSeatToProfile(mac, 1, profileId)) return false;
+    secondary->used = false;
+    secondary->profileId = String();
+  }
+  return true;
 }
 
 bool bindSeatToProfile(

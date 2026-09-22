@@ -7,6 +7,18 @@
 
 namespace TurnHub {
 
+constexpr uint32_t LIFE_APPROVAL_MS = 15000;
+constexpr uint8_t COMMANDERS_PER_PLAYER = 2;
+enum class LifeChangeState : uint8_t { None, Pending, Accepted, Rejected, Automatic, Cancelled, Failed };
+struct LifeChangeRequest {
+  uint32_t id = 0;
+  uint32_t requestedAtMs = 0;
+  uint8_t actor = 0;
+  uint8_t target = 0;
+  int32_t delta = 0;
+  LifeChangeState state = LifeChangeState::None;
+};
+
 enum class WarningPhase : uint8_t {
   Normal,
   Caution,
@@ -33,6 +45,13 @@ class GameEngine {
   const GameSettings &settings() const { return settings_; }
   int32_t lifeTotal(uint8_t playerNumber) const;
   bool changeLife(uint8_t playerNumber, int32_t delta);
+  bool requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs);
+  bool respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs);
+  void expireLifeChanges(uint32_t nowMs);
+  void cancelLifeChanges(uint8_t involvedPlayer = 0);
+  const LifeChangeRequest *lifeChangeFor(uint8_t target) const;
+  int32_t commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const;
+  bool changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta);
 
   bool passTurn(uint8_t controllerId, uint32_t nextWarningMs, uint32_t nowMs);
   bool pause(uint32_t nowMs);
@@ -94,6 +113,8 @@ class GameEngine {
   int indexForSeat(const PlayerSeat &seat) const;
   int indexForPlayerNumber(uint8_t playerNumber) const;
   int nextLivingIndex(uint8_t startIndex) const;
+  bool canChangeLife(uint8_t player, int32_t delta) const;
+  void settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome);
 
   void clearWinClaim();
   void finishGame(uint8_t winnerPlayer, uint32_t nowMs);
@@ -103,6 +124,9 @@ class GameEngine {
   PlayerSeat players_[MAX_PLAYERS];
   GameSettings settings_{};
   int32_t life_[MAX_PLAYERS] = {};
+  int32_t commanderDamage_[MAX_PLAYERS][MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
+  LifeChangeRequest lifeChanges_[MAX_PLAYERS] = {};
+  uint32_t nextLifeRequestId_ = 0; // Deliberately survives reset/rematch in this boot.
   PlayerStats stats_[MAX_PLAYERS];
   bool eliminated_[MAX_PLAYERS] = {};
   uint8_t playerCount_ = 0;

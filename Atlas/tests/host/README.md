@@ -12,6 +12,10 @@ PlatformIO `platformio/toolchain-gccmingw32` package installed, or pass
 `-Compiler` with another Windows GCC path. This runner uses C++14-compatible
 test globals and `-mno-ms-bitfields` to preserve the packed radio layout.
 Both Windows runners execute gameplay and storage scenarios.
+They also compile the real `profile_store.cpp` against an in-memory NVS boundary
+and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
+guest reads/writes, persistent bindings and legacy placeholder filtering before
+the account limit. No saved user records are deleted by this filtering.
 
 With GCC/Clang on another host, from this directory:
 
@@ -28,6 +32,11 @@ c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
     storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp \
     ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios
 ./build/storage_scenarios
+c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
+    profile_store_scenarios.cpp test_globals.cpp ../../src/profile_store.cpp \
+    ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp \
+    ../../src/profile_policy.cpp -o build/profile_store_scenarios
+./build/profile_store_scenarios
 ```
 
 Six scenario groups cover dispatcher ownership; lobby and lifecycle restrictions;
@@ -65,3 +74,23 @@ It also checks policy saving/reloading and that polling preserves unsaved choice
 Game/life checks cover persisted setup, host-only edits, captured match settings,
 own-life authorization, bounds, companion sessions, negative life and rematches.
 The harness now links real LED/audio renderers and replaces the radio boundary.
+
+Life approval and Commander coverage: the native gameplay executable checks
+recipient-only acceptance/rejection, duplicate and stale IDs, Atlas's 15-second
+deadline including rollover, concurrent edits, lifecycle cancellation and atomic
+Commander/life bounds. `node counter_smoke.cjs` uses the same Playwright setup as
+the portal smoke check and opens two independent browser contexts to check the
+production UI, cross-tab prompts, keyboard focus, corrections and reconnects.
+These counter features still require a hardware table check after flashing.
+
+Manual pairing Intent scenarios cover origin authorization, radio unavailability,
+30-second timeout, clock rollover and rejection during gameplay. Radio transport
+and persistence still require the manual pairing bench checklist.
+
+Named-profile attachment scenarios cover adopting a joined guest, preserving its
+host and secondary seat, merging an already joined browser player, companion login
+without duplication, and rejecting replacement of another named account. Profile
+attachment and name edits push display names directly instead of requesting the
+Sigil reconnect handshake that clears transient bindings. On hardware, attach a
+named profile more than five seconds after boot and verify its name and player count
+remain stable, then sign into the same profile from a second browser.

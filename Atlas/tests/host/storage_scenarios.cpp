@@ -15,6 +15,8 @@ constexpr char key[] = "sAB12CD34";
 
 namespace FakeNvs {
 std::map<std::string, std::vector<uint8_t>> blobs;
+std::map<std::string, std::string> strings;
+std::map<std::string, uint8_t> bytes;
 int openError = ESP_OK, readError = ESP_OK, setError = ESP_OK, commitError = ESP_OK;
 int writes = 0, commits = 0;
 int reads = 0, failReadAt = 0;

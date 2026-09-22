@@ -12,6 +12,7 @@ const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
  const url=new URL(req.url,'http://localhost');
  if(url.pathname==='/'||url.pathname==='/login'){res.setHeader('Content-Type','text/html');res.end(url.pathname==='/'?portal:login);return}
+ if(url.pathname==='/portal-qr.js'){const header=fs.readFileSync(path.join(__dirname,'../../include/portal_qr_asset.h'),'utf8');const bytes=header.match(/= \{([\s\S]*?)\};/)[1].match(/\d+/g).map(Number);res.setHeader('Content-Type','application/javascript');res.setHeader('Content-Encoding','gzip');res.end(Buffer.from(bytes));return}
  res.setHeader('Content-Type','application/json');
  const status={state,players:joined?2:0,sigils:0,host:joined?8:-1,starter:joined?1:0,active:state==='RUNNING'?1:0,winner:0,winConfirm:0,eliminationTarget:0,firmware:'0.6.0-dev',espNow:true};
  let result={};
@@ -34,6 +35,7 @@ const api=http.createServer(async(req,res)=>{
    else result={...gameSettings,available:true,canEdit:authenticated&&joined&&state==='LOBBY'};
    break;
   case '/api/control/life':assert(authenticated&&state==='RUNNING');life+=Number(new URLSearchParams(body).get('delta'));result={ok:true};break;
+  case '/api/game/counters':result={available:joined,editable:state==='RUNNING',commanderEnabled:false,player:1,requests:[],damage:[]};break;
   case '/api/control/start':state='RUNNING';life=gameSettings.startingLife;result={ok:true};break;
   default:res.statusCode=404;
  }
@@ -44,7 +46,7 @@ const api=http.createServer(async(req,res)=>{
  const browser=await chromium.launch({headless:true,channel:'msedge'});
  try{
   const context=await browser.newContext({viewport:{width:390,height:844}}),tab=await context.newPage();
-  const errors=[];tab.on('pageerror',e=>errors.push(e.message));
+  const errors=[];tab.on('pageerror',e=>(console.error(e.message),errors.push(e.message)));
   const base='http://127.0.0.1:'+api.address().port;
   await tab.goto(base);await tab.getByRole('link',{name:'Sign in or create a profile'}).click();
   await tab.getByLabel('Display name',{exact:true}).fill('Phone Tester');
@@ -68,12 +70,13 @@ const api=http.createServer(async(req,res)=>{
   await tab.getByRole('button',{name:'Start game',exact:true}).click();
   await tab.getByRole('button',{name:'Pass turn',exact:true}).waitFor();
   await tab.waitForFunction(()=>document.getElementById('myLifeTotal').textContent==='25');
+  await tab.getByText('Custom and preset life changes',{exact:true}).click();
   await tab.getByRole('button',{name:'Subtract 5 life',exact:true}).click();
   await tab.waitForFunction(()=>document.getElementById('myLifeTotal').textContent==='20');
   await tab.getByLabel('Custom life change (negative to subtract)').fill('-21');
   await tab.getByRole('button',{name:'Apply life change',exact:true}).click();
   await tab.waitForFunction(()=>document.getElementById('myLifeTotal').textContent==='-1');
-  assert.equal(await tab.locator('#tableLifeTotals strong').textContent(),'-1');
+  assert.equal(await tab.locator('#tableLifeTotals .life-total').textContent(),'-1');
   await tab.screenshot({path:path.join(__dirname,'build','portal-life-mobile.png'),fullPage:true});
   assert(await tab.getByRole('button',{name:'Save game settings',exact:true}).isDisabled());
   await tab.getByRole('button',{name:'My Account',exact:true}).click();

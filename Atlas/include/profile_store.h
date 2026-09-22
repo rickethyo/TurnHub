@@ -47,6 +47,8 @@ bool ready();
 // to a profile ID; names, PINs and statistics belong to the profile itself.
 String createProfile();
 constexpr size_t MAX_LOGIN_PROFILES = 64;
+// List configured/historical profiles; skip legacy marker-only placeholders
+// before applying capacity. No profile records are deleted.
 size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity);
 using PinHasher = String (*)(const String &profileId, const String &pin);
 String createProfileWithCredentials(const String &name, const String &pin, PinHasher hasher);
@@ -68,6 +70,8 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
 
 // Physical-seat binding adapter. This is deliberately separate from profile
 // storage so the same profile can later bind to a persistent virtual seat.
+// Returns empty for guests; never creates a profile. Migrates names only for
+// an already-bound profile.
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
 // Read an existing binding without creating a profile for an unused seat.
 String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
@@ -77,6 +81,8 @@ bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent);
 // Release non-persistent primary bindings and every secondary binding for a
 // Sigil boot/reconnect. Profile records themselves remain durable.
 bool resetTransientSeatBindings(const uint8_t mac[6]);
+// Move a profile between this Sigil's seats, leaving the source as a guest.
+bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId);
 bool bindSeatToProfile(
     const uint8_t mac[6],
     uint8_t slot,

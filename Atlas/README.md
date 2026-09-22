@@ -21,6 +21,13 @@ participant identity during attachment. Existing physical players can sign in
 with their profile PIN for companion control; shared A/B seats remain supported.
 New attachment currently targets the primary seat of an unjoined Sigil.
 
+Unassigned Sigils play as guests, including shared seat B. Discovery, display
+sync, polling, reconnects and guest games do not create saved accounts. Create
+an account in the portal and attach it in the lobby to keep lifetime statistics.
+Existing PIN-less accounts still support physical sign-in. Empty placeholder
+records left by older firmware are omitted from account lists and the 64-account
+registration limit; records with names, PINs, settings or statistics are retained.
+
 Logout revokes that browser session without removing a player mid-game. Signing
 in again reconnects to the current participant. Profiles survive Atlas restart;
 sessions and current games remain RAM-only. Profiles without a saved PIN retain
@@ -32,7 +39,7 @@ Current limits: 16 table participants, 32 browser sessions, 64 profiles in the
 login directory/new-registration path. The existing AP configuration permits
 eight Wi-Fi clients; table capacity is not a promise of 16 direct phone clients.
 PIN changes revoke other browser sessions for that profile. Five failed PIN
-attempts per profile within 30 seconds trigger temporary throttling.
+attempts per profile within 15 seconds trigger temporary throttling.
 
 See [Profile login and virtual play](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md)
 for ownership, compatibility and acceptance checks.
@@ -129,7 +136,10 @@ After joining, the host can choose Generic, Magic, Commander, or Yu-Gi-Oh! and
 custom starting life under Settings. Atlas saves that setup and captures it when
 the game starts. Game shows everyone's life and controls for changing your own
 total, including negative totals without automatic elimination. Rematches reset
-life. Commander damage and cross-player edits are follow-ups. This has passed
+life. Commander damage with linked life adjustment and cross-player life requests
+with a 15-second recipient approval window are now implemented locally. See
+[Life approval and Commander damage](../Documentation/engineering/LIFE_APPROVAL_AND_COMMANDER.md).
+This has passed
 automated checks and an Atlas build; hardware acceptance remains pending.
 See [game profiles and life](../docs/engineering/GAME_PROFILES_AND_LIFE.md).
 
@@ -225,19 +235,21 @@ After boot, connect a phone or computer to the Atlas access point and browse to 
 ## Atlas front-panel LEDs and pairing status
 
 The status LED (GPIO25 / J8) flashes three times after startup, then stays on.
-The pairing LED (GPIO26 / J7) is off outside mock pairing mode. Press Pair
-(GPIO32 / J10) to flash it every 250 ms for five seconds; the mode then exits
-automatically. Repeated presses during that window do not extend it.
+In the lobby, press Atlas Pair (GPIO32 / J10), then Sigil Pair (GPIO19), within
+15 seconds. Atlas's pairing LED (GPIO26 / J7) and Sigil's red LED blink while their
+windows are open. Sigil logs `SIGIL|PAIR|SUCCESS` when its saved association is
+ready. Atlas remains open for the rest of its window so additional Sigils and
+lost-response retries can be accepted; pressing Atlas Pair restarts that window.
 
-This is a visual prototype only: no devices are paired or forgotten and nothing
-is persisted. Serial reports `ATLAS|PAIRING|MOCK|ENTER|DURATION_MS|5000` and
-`ATLAS|PAIRING|MOCK|EXIT`. LED timing is nonblocking.
+Both devices save the association. Unpaired Sigils stay silent at boot; paired
+Sigils send Hello directly to their saved Atlas. Unknown senders cannot trigger
+normal Atlas gameplay or adoption. Sigils accept normal commands only from their
+saved Atlas. Pairing is separate from joining a player to the lobby.
 
-Current Sigils still use broadcast Hello/discovery behavior. Prototype 1.0 is
-staged to replace passive adoption with an Atlas-owned pairing/trust state machine
-using a deliberate 30-second pairing window. Until the physical Sigil Pair button
-is wired, an unpaired Sigil may use boot only as the temporary trigger for that
-same real pairing flow.
+Update both Atlas and Sigil firmware for this transition. Existing automatic
+associations were volatile and require one deliberate pairing after this update.
+See [manual pairing](../Documentation/engineering/MANUAL_PAIRING.md) for behavior,
+re-pairing limits, and the hardware acceptance checklist.
 
 ## Regression verification
 
@@ -252,8 +264,8 @@ successful compile/flash and working `0.6.0-dev` behavior. The documented target
 bench cases for persistence/reboot and mixed attachment still need a recorded pass
 before they should be treated as verified acceptance of the new storage/login path.
 
-The earlier five-second LED pairing mock was accepted as part of the current
-hardware baseline; it remains explicitly a mock and is not evidence of real pairing.
+The hardware buttons are owner-verified. The new manual pairing firmware builds
+and host regressions pass; radio/persistence bench acceptance remains pending.
 
 See [native regression tests](tests/host/README.md),
 [profile login and virtual play](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md),
@@ -269,7 +281,7 @@ The immediate field-test priorities are:
 2. Freeze major portal feature growth and focus on setup/blocker fixes.
 3. Interrupted-match recovery groundwork with safe paused resume/discard behavior.
 4. Auxiliary Action/Win software path before final GPIO wiring.
-5. Real pairing/trust state with the staged 30-second window and temporary boot trigger.
+5. Bench verification of deliberate pairing/persistence and a future forget-device flow.
 6. Additional physical Sigils, rough protective enclosures, out-of-box setup, and hardening.
 
 The authoritative queue is [Staged Changes](../docs/engineering/STAGED_CHANGES.md).

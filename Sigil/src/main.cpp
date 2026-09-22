@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <Preferences.h>
+#include <freertos/queue.h>
 
 #include "firmware_version.h"
 #include "protocol.h"
@@ -24,6 +26,7 @@ constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
+constexpr uint8_t PAIR_BUTTON = 19;
 
 // All production Sigils use the same firmware and standard display hardware.
 constexpr uint8_t DEVICE_CAPABILITIES =
@@ -35,6 +38,8 @@ constexpr uint32_t LONG_PRESS_MS = 2000;
 constexpr uint32_t WIN_HOLD_MS = 5000;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PASS_ACK_FLASH_MS = 250;
+constexpr uint32_t PAIRING_DURATION_MS = 30000;
+constexpr uint32_t PAIRING_BLINK_MS = 250;
 constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
 constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
 constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
@@ -57,6 +62,7 @@ struct ButtonState {
 
 ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
+ButtonState pairButton(PAIR_BUTTON);
 SigilDisplay sigilDisplay;
 
 bool espNowReady = false;
@@ -67,6 +73,13 @@ uint32_t lastHelloMs = 0;
 uint32_t greenFlashUntilMs = 0;
 uint32_t buzzerStopAtMs = 0;
 bool commandedGreen = false;
+volatile bool commandedRed = false;
+volatile bool pairingActive = false;
+uint32_t pairingStartMs = 0;
+int32_t pairingToken = 0;
+uint32_t lastPairRequestMs = 0;
+struct ReceivedPacket { uint8_t mac[6]; Packet packet; };
+QueueHandle_t receiveQueue = nullptr;
 volatile bool displayNeedsRefresh = false;
 volatile int32_t displayPayload = 0;
 uint8_t displayRenderedSigilId = UNASSIGNED_SIGIL_ID;
@@ -128,7 +141,7 @@ void sendPacket(
     PacketType type,
     int32_t value = 0,
     bool forceBroadcast = false) {
-  if (!espNowReady) {
+  if (!espNowReady || (type != PacketType::PairRequest && !atlasKnown)) {
     return;
   }
 
@@ -152,12 +165,13 @@ void sendPacket(
 }
 
 void sendHello() {
+  if (!atlasKnown) return;
   const int32_t helloInfo = TurnHubProtocol::encodeHelloInfo(
       TurnHubSigilFirmware::MAJOR,
       TurnHubSigilFirmware::MINOR,
       TurnHubSigilFirmware::PATCH,
       DEVICE_CAPABILITIES);
-  sendPacket(PacketType::Hello, helloInfo, true);
+  sendPacket(PacketType::Hello, helloInfo);
   lastHelloMs = millis();
 }
 
@@ -451,9 +465,32 @@ void handleEspNowReceive(
     return;
   }
 
+  if (packet.type == PacketType::PairAccept) {
+    if (!pairingActive || millis() - pairingStartMs >= PAIRING_DURATION_MS ||
+        packet.value != pairingToken || packet.sigilId >= TurnHubProtocol::MAX_SIGILS) return;
+    uint8_t binding[7];
+    memcpy(binding, mac, 6);
+    binding[6] = packet.sigilId;
+    Preferences prefs;
+    if (!prefs.begin("th_pair_v1", false)) return;
+    const bool stored = prefs.putBytes("atlas", binding, sizeof(binding)) == sizeof(binding);
+    prefs.end();
+    if (!stored) { Serial.println("SIGIL|PAIR|STORE_ERROR"); return; }
+    rememberAtlas(mac);
+    sigilId = packet.sigilId;
+    pairingActive = false;
+    digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+    profileSyncStartPending = true;
+    queueReadyDisplay();
+    Serial.println("SIGIL|PAIR|SUCCESS");
+    sendHello();
+    return;
+  }
+  if (!atlasKnown || memcmp(mac, atlasMac, 6) != 0) return;
+
   if (packet.type == PacketType::Ack &&
       packet.value == static_cast<int32_t>(PacketType::Hello)) {
-    rememberAtlas(mac);
+    if (packet.sigilId >= TurnHubProtocol::MAX_SIGILS) return;
 
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
@@ -488,7 +525,10 @@ void handleEspNowReceive(
       break;
 
     case PacketType::SetRed:
-      digitalWrite(RED_LED, packet.value ? HIGH : LOW);
+      commandedRed = packet.value != 0;
+      if (!pairingActive) {
+        digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+      }
       break;
 
     case PacketType::SetGreen:
@@ -546,6 +586,64 @@ void updatePassButton() {
     Serial.print(sigilId);
     Serial.println("|PASS");
     sendPacket(PacketType::Pass);
+  }
+}
+
+// Only a physical Pair press enables broadcast association requests.
+void startPairing() {
+  if (pairingActive) {
+    return;
+  }
+
+  pairingToken = static_cast<int32_t>(esp_random());
+  lastPairRequestMs = millis() - HELLO_INTERVAL_MS;
+  pairingStartMs = millis();
+  pairingActive = true;
+  digitalWrite(RED_LED, HIGH);
+  Serial.println("SIGIL|PAIR|START|DURATION_MS|30000");
+}
+
+void updatePairing() {
+  if (!pairingActive) {
+    return;
+  }
+
+  const uint32_t elapsedMs = millis() - pairingStartMs;
+  if (elapsedMs >= PAIRING_DURATION_MS) {
+    pairingActive = false;
+    digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+    Serial.println("SIGIL|PAIR|TIMEOUT");
+    return;
+  }
+
+  if (millis() - lastPairRequestMs >= HELLO_INTERVAL_MS) {
+    sendPacket(PacketType::PairRequest, pairingToken, true);
+    lastPairRequestMs = millis();
+  }
+  digitalWrite(
+      RED_LED, (elapsedMs / PAIRING_BLINK_MS) % 2 == 0 ? HIGH : LOW);
+}
+
+void updatePairButton() {
+  const bool reading = digitalRead(pairButton.pin);
+  const uint32_t nowMs = millis();
+
+  if (reading != pairButton.rawState) {
+    pairButton.rawState = reading;
+    pairButton.lastDebounceMs = nowMs;
+  }
+
+  if (nowMs - pairButton.lastDebounceMs < DEBOUNCE_MS ||
+      pairButton.stableState == pairButton.rawState) {
+    return;
+  }
+
+  pairButton.stableState = pairButton.rawState;
+  if (pairButton.stableState == LOW) {
+    Serial.println("SIGIL|PAIR|BUTTON");
+    startPairing();
+  } else {
+    Serial.println("SIGIL|PAIR|BUTTON|UP");
   }
 }
 
@@ -625,7 +723,29 @@ bool startEspNow() {
     return false;
   }
 
-  esp_now_register_recv_cb(handleEspNowReceive);
+  receiveQueue = xQueueCreate(32, sizeof(ReceivedPacket));
+  if (!receiveQueue) return false;
+  esp_now_register_recv_cb([](const uint8_t *mac, const uint8_t *data, int length) {
+    if (length != sizeof(Packet)) return;
+    ReceivedPacket received;
+    memcpy(received.mac, mac, 6);
+    memcpy(&received.packet, data, sizeof(Packet));
+    xQueueSend(receiveQueue, &received, 0);
+  });
+  Preferences prefs;
+  if (prefs.begin("th_pair_v1", false)) {
+    uint8_t binding[7];
+    if (prefs.isKey("atlas") && prefs.getBytesLength("atlas") == sizeof(binding) &&
+        prefs.getBytes("atlas", binding, sizeof(binding)) == sizeof(binding) &&
+        binding[6] < TurnHubProtocol::MAX_SIGILS) {
+      rememberAtlas(binding);
+      sigilId = binding[6];
+      profileSyncStartPending = true;
+      queueReadyDisplay();
+      Serial.println("SIGIL|PAIR|LOADED");
+    }
+    prefs.end();
+  }
 
   if (!ensurePeer(BROADCAST_MAC)) {
     return false;
@@ -665,6 +785,15 @@ void setup() {
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
   sigilDisplay.begin();
+  // SPI startup configures its default MISO pin as INPUT; reclaim the pin
+  // only after the write-only display has initialized and detached MISO.
+  pinMode(PAIR_BUTTON, INPUT_PULLUP);
+  pairButton.rawState = digitalRead(PAIR_BUTTON);
+  pairButton.stableState = HIGH; // A button held at boot is still a press.
+  pairButton.lastDebounceMs = millis();
+  Serial.print("SIGIL|PAIR|READY|GPIO|");
+  Serial.print(PAIR_BUTTON);
+  Serial.println(pairButton.rawState == LOW ? "|DOWN" : "|UP");
   sigilDisplay.showUnpaired();
 
   const BaseType_t displayTaskCreated = xTaskCreatePinnedToCore(
@@ -686,11 +815,20 @@ void setup() {
   if (espNowReady) {
     sendHello();
   }
+  Serial.println("SIGIL|READY");
 }
 
 void loop() {
+  ReceivedPacket received;
+  for (uint8_t n = 0; receiveQueue && n < 32 &&
+       xQueueReceive(receiveQueue, &received, 0) == pdTRUE; ++n) {
+    handleEspNowReceive(received.mac,
+        reinterpret_cast<const uint8_t *>(&received.packet), sizeof(Packet));
+  }
   updatePassButton();
   updateActionButton();
+  updatePairButton();
+  updatePairing();
   updateGreenFlash();
   updateBuzzer();
   updateDisplayProfileSync();

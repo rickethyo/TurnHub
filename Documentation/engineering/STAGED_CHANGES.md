@@ -1,5 +1,11 @@
 # TurnHub Staged Changes
 
+Current pairing update (2026-09-22): physical buttons are owner-verified and manual
+30-second pairing with persistent MAC associations is now implemented. The boot
+pairing fallback and visual mock are superseded. Radio bench acceptance and
+forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
+
+
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
 
 Use this file instead of chat history for near-term changes. Keep it concise. Once an item is implemented and verified, move any lasting architectural facts into the appropriate reference document and remove it from here.
@@ -27,7 +33,11 @@ Near-term order:
 Play-test priority update (2026-09-21): Michael requested game profiles/life totals.
 The first local implementation is complete with automated checks and a firmware
 build; see [Game profiles and life counters](GAME_PROFILES_AND_LIFE.md). Hardware
-acceptance, Commander damage, cross-player edits, and game-scoped statistics remain.
+acceptance and game-scoped statistics remain. Commander damage and cross-player
+life approvals were added locally on 2026-09-22, with native/browser checks and
+an Atlas build; their own hardware acceptance is pending. See
+[Life approval and Commander damage](LIFE_APPROVAL_AND_COMMANDER.md) and the
+[Manual V0.2 review](MANUAL_V02_REVIEW.md) for the remaining manual gaps.
 Phone-only resets were reported twice; investigation is paused pending serial data.
 The subsequently supplied capture ended in a user-confirmed manual reset, so it
 does not diagnose those earlier reports.

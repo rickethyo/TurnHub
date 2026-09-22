@@ -24,6 +24,8 @@ enum class PacketType : uint8_t {
   ActionLong = 7,
   ActionWin = 8,
   DisplayProfileRequest = 9,
+  PairRequest = 10,
+  PairAccept = 11,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,

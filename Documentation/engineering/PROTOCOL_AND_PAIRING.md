@@ -1,5 +1,11 @@
 # TurnHub Protocol and Pairing
 
+Current pairing update (2026-09-22): physical buttons are owner-verified and manual
+30-second pairing with persistent MAC associations is now implemented. The boot
+pairing fallback and visual mock are superseded. Radio bench acceptance and
+forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
+
+
 This document separates three things that are easy to confuse during rapid prototyping:
 
 1. The **logical protocol** TurnHub wants controllers to speak.

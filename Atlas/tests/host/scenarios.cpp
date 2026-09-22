@@ -26,11 +26,14 @@ static bool fixtureRadio=false;
 SigilBus::SigilBus(uint8_t channel) : wifiChannel_(channel) { fixtureBus=this; }
 SigilBus *SigilBus::activeInstance() { return fixtureBus; }
 bool SigilBus::begin() { return true; }
+bool SigilBus::openPairing() { return fixtureRadio; }
 bool SigilBus::poll(SigilEvent&) { return false; }
 uint8_t SigilBus::activeCount(uint32_t) const { return 0; }
 bool SigilBus::isOnline(uint8_t id,uint32_t) const { return fixtureRadio && id < MAX_PHYSICAL_SIGILS; }
 const SigilRecord *SigilBus::record(uint8_t id) const { return fixtureRadio&&id<MAX_PHYSICAL_SIGILS?&fixtureRecords[id]:nullptr; }
 static unsigned fixtureSends=0;
+static unsigned fixtureProfileSyncs=0;
+void SigilBus::syncDisplayProfile(uint8_t id) { assert(id<MAX_PHYSICAL_SIGILS); ++fixtureProfileSyncs; }
 bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType,int32_t) { assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;return fixtureRadio; }
 bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlue,v); }
 bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
@@ -83,6 +86,28 @@ static void dispatcherContract() {
   assert(dispatcher.dispatch(intent).accepted());
   intent.type=IntentType::Count; assert(!dispatcher.dispatch(intent).accepted());
   intent.type=IntentType::ChangeLife; assert(!dispatcher.dispatch(intent).accepted());
+}
+static void deliberatePairing() {
+  freshLobby(2);
+  pairingActive = false;
+  Intent intent; intent.type = IntentType::PairRequest;
+  for (auto origin : {IntentOrigin::Browser, IntentOrigin::PhysicalSigil, IntentOrigin::System}) {
+    intent.actor.origin = origin;
+    assert(!intents.dispatch(intent).accepted());
+    assert(!pairingActive);
+  }
+  intent.actor.origin = IntentOrigin::AtlasHardware;
+  TurnHub::fixtureRadio = false;
+  assert(!intents.dispatch(intent).accepted());
+  TurnHub::fixtureRadio = true;
+  testNow = UINT32_MAX - 10000;
+  assert(intents.dispatch(intent).accepted() && pairingActive);
+  testNow += 29999; updateFrontPanelLeds(testNow); assert(pairingActive);
+  ++testNow; updateFrontPanelLeds(testNow); assert(!pairingActive);
+  assert(intents.dispatch(intent).accepted());
+  startFromHost(); updateFrontPanelLeds(testNow); assert(!pairingActive);
+  assert(!intents.dispatch(intent).accepted());
+  enterEmptyLobby();
 }
 static void lobbyLifecycle() {
   freshLobby(2,true);
@@ -145,8 +170,14 @@ static void winDecisions() {
 static void eliminationAndConcession() {
   freshLobby(3,true); startFromHost();
   assert(web(1,1,WebControl::PauseResume));
+  Intent request;
+  request.type=IntentType::RequestLifeChange;request.actor.origin=IntentOrigin::Simulator;
+  request.actor.controllerId=0;request.actor.slot=1;request.actor.playerNumber=1;
+  request.payload.targetPlayer=3;request.payload.value=-1;
+  assert(intents.dispatch(request).accepted());
   handleActionDown(0); handlePass(0); handleActionUp(0); handleActionShort(0);
   assert(eliminationTargetPlayer==1);
+  assert(game.lifeChangeFor(3)->state==TurnHub::LifeChangeState::Cancelled);
   handleActionShort(0); assert(eliminationTargetPlayer==2);
   handlePass(1); assert(!game.isEliminated(2));
   handlePass(0); assert(game.isEliminated(2)&&hubState==HubState::Paused);
@@ -227,6 +258,7 @@ static void virtualProfileFlow() {
   enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
   TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
   TurnHubWebApi::configureGameControls(readGameSettings,configureGame,changeLife);
+  TurnHubWebApi::configureCounterControls(readCounters,changeCounter);
   TurnHubWebApi::begin(server);
   String firstId, secondId;
   const String first=registerPhone("Phone One",firstId), second=registerPhone("Phone Two",secondId);
@@ -278,6 +310,30 @@ static void virtualProfileFlow() {
   assert(request("/api/session/me",afterLimit,{},HTTP_GET)==200);
 }
 
+static void guestSigilsDoNotCreateAccounts() {
+  ProfileFixture::bindings.clear();
+  const size_t saved = ProfileFixture::profiles.size();
+  freshLobby(2, true); // Primary and shared secondary guests can still play.
+  assert(lobby.playerCount() == 3);
+  for (int poll = 0; poll < 10; ++poll) {
+    assert(request("/api/seats", "", {}, HTTP_GET) == 200);
+    assert(server.body.find("\"profileId\":\"\"") != std::string::npos);
+    assert(request("/api/devices", "", {}, HTTP_GET) == 200);
+    assert(request("/api/profiles", "", {}, HTTP_GET) == 200);
+  }
+  assert(request("/api/session/request", "", {{"module", "0"}, {"slot", "1"}}) == 409);
+  assert(server.body.find("guest") != std::string::npos);
+  TurnHubWebApi::notePhysicalAction(0);
+  assert(ProfileFixture::profiles.size() == saved && ProfileFixture::bindings.empty());
+  startFromHost();
+  for (uint8_t i = 0; i < game.playerCount(); ++i) assert(game.playerAt(i)->profileId[0] == '\0');
+  assert(web(0, 2, WebControl::Concede));
+  assert(web(1, 1, WebControl::Concede));
+  assert(hubState == HubState::GameOver);
+  assert(ProfileFixture::profiles.size() == saved && ProfileFixture::bindings.empty());
+  enterEmptyLobby();
+}
+
 static void physicalCompanionFlow() {
   enterEmptyLobby(); TurnHub::fixtureRadio=true;
   for(uint8_t i=0;i<MAX_PHYSICAL_SIGILS;++i) {
@@ -288,11 +344,14 @@ static void physicalCompanionFlow() {
   assert(request("/api/session/join",phone)==200);
   assert(request("/api/session/join",other)==200);
   PlayerSeat before[MAX_PLAYERS]; lobby.buildPlayers(before,MAX_PLAYERS);
+  const size_t saved = ProfileFixture::profiles.size();
   assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
+  assert(ProfileFixture::profiles.size() == saved);
   const String claim=responseField("requestId");
   TurnHubWebApi::notePhysicalAction(0);
   assert(request("/api/session/poll","",{{"id",claim}},HTTP_GET)==200);
   assert(responseField("token")==phone);
+  assert(ProfileFixture::profiles.size() == saved);
   PlayerSeat after[MAX_PLAYERS]; lobby.buildPlayers(after,MAX_PLAYERS);
   assert(lobby.playerCount()==2 && lobby.hostController()==0);
   assert(after[0].participantId==before[0].participantId && after[0].controllerId==0);
@@ -315,6 +374,47 @@ static void physicalCompanionFlow() {
   handleActionShort(0); // Same persisted physical profile must not duplicate it.
   assert(lobby.playerCount()==1);
   TurnHub::fixtureRadio=false;
+}
+
+static void attachNamedProfileToGuest() {
+  ProfileFixture::bindings.clear();
+  freshLobby(2, true);
+  String id;
+  const String phone = registerPhone("Named guest", id);
+  PlayerSeat before[MAX_PLAYERS]; lobby.buildPlayers(before, MAX_PLAYERS);
+  const unsigned syncs = TurnHub::fixtureProfileSyncs;
+  assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
+  const String claim=responseField("requestId");
+  TurnHubWebApi::notePhysicalAction(0);
+  assert(request("/api/session/poll","",{{"id",claim}},HTTP_GET)==200);
+  assert(lobby.playerCount()==3 && lobby.hostController()==0 && lobby.hasSecondary(0));
+  assert(TurnHubControllers::profileForSeat(0,1)==id);
+  assert(TurnHub::fixtureProfileSyncs == syncs+1);
+  PlayerSeat after[MAX_PLAYERS]; lobby.buildPlayers(after,MAX_PLAYERS);
+  assert(after[0].participantId==before[0].participantId);
+  assert(request("/api/seats","",{},HTTP_GET)==200);
+  assert(server.body.find("Named guest")!=std::string::npos);
+  const String companion=loginPhone(id);
+  assert(request("/api/session/join",companion)==200 && lobby.playerCount()==3);
+
+  // Merge an already joined phone with the guest Sigil instead of duplicating it.
+  ProfileFixture::bindings.clear();
+  freshLobby(1);
+  assert(request("/api/session/join",phone)==200 && lobby.playerCount()==2);
+  assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
+  const String merge=responseField("requestId");
+  TurnHubWebApi::notePhysicalAction(0);
+  assert(request("/api/session/poll","",{{"id",merge}},HTTP_GET)==200);
+  assert(lobby.playerCount()==1 && lobby.hostController()==0);
+  assert(request("/api/session/join",companion)==200 && lobby.playerCount()==1);
+  String otherId; const String other=registerPhone("Different owner",otherId);
+  assert(request("/api/session/request",other,{{"module","0"},{"slot","1"}})==202);
+  const String conflict=responseField("requestId");
+  TurnHubWebApi::notePhysicalAction(0);
+  assert(request("/api/session/poll","",{{"id",conflict}},HTTP_GET)==409);
+  assert(TurnHubControllers::profileForSeat(0,1)==id && lobby.playerCount()==1);
+  enterEmptyLobby();
+  ProfileFixture::bindings.clear();
 }
 
 static void profilePolicyFlow() {
@@ -542,19 +642,129 @@ static void virtualCapacity() {
   for(uint8_t i=1;i<MAX_PLAYERS;++i) assert(web(MAX_PHYSICAL_SIGILS+i,1,WebControl::ConfirmWin));
   assert(hubState==HubState::GameOver);
 }
+static void lifeApprovalsAndCommander() {
+  using namespace TurnHub;
+  enterEmptyLobby(); fixtureRadio=false;
+  String firstId, secondId, thirdId;
+  const String first=registerPhone("Counter host",firstId),second=registerPhone("Counter recipient",secondId),
+      third=registerPhone("Counter observer",thirdId),companion=loginPhone(secondId);
+  assert(request("/api/session/join",first)==200);
+  assert(request("/api/session/join",second)==200);
+  assert(request("/api/session/join",third)==200);
+  assert(request("/api/game/settings",first,{{"gameProfile","mtg_commander"},{"startingLife","40"}})==200);
+  assert(request("/api/control/life/request",first,{{"target","2"},{"delta","-7"}})==409);
+  assert(request("/api/control/start",first)==200);
+  testNow+=3000;updateCountdown(testNow);
+  const auto propose=[&](int delta) {return request("/api/control/life/request",first,{{"target","2"},{"delta",String(delta)}});};
+  const auto respond=[&](const String &token,uint32_t id,bool accept) {return request("/api/control/life/respond",token,{{"requestId",String(id)},{"accept",accept?"1":"0"}});};
+  assert(request("/api/game/counters","",{},HTTP_GET)==401);
+  assert(request("/api/control/life/request","",{{"target","2"},{"delta","-7"}})==401);
+  for(const char *bad:{"0","17","-1","2x","256"})
+    assert(request("/api/control/life/request",first,{{"target",bad},{"delta","-7"}})==400);
+  assert(request("/api/control/life/request",first,{{"target","1"},{"delta","-7"}})==409);
+  assert(propose(-7)==200&&game.lifeTotal(2)==40);
+  auto id=game.lifeChangeFor(2)->id;
+  assert(propose(-7)==409); // One pending request per target.
+  assert(respond(third,id,true)==409&&respond(first,id,true)==409);
+  assert(request("/api/control/life",second,{{"delta","2"}})==200);
+  assert(respond(companion,id,true)==200&&game.lifeTotal(2)==35); // Delta, not stale total.
+  assert(respond(second,id,true)==409&&game.lifeTotal(2)==35);
+  assert(request("/api/game/counters",third,{},HTTP_GET)==200);
+  assert(server.body.find("\"requests\":[]")!=std::string::npos); // No unrelated requests.
+  assert(propose(-5)==200);
+  const auto replacement=game.lifeChangeFor(2)->id;
+  assert(replacement!=id&&respond(second,id,true)==409);
+  assert(respond(second,replacement,false)==200&&game.lifeTotal(2)==35);
+  assert(game.lifeChangeFor(2)->state==LifeChangeState::Rejected);
+  assert(propose(-3)==200);
+  testNow+=14999;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==35);
+  ++testNow;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==32);
+  dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==32);
+  assert(game.lifeChangeFor(2)->state==LifeChangeState::Automatic);
+  assert(propose(1)==200);id=game.lifeChangeFor(2)->id;
+  testNow+=15000;assert(respond(second,id,false)==409&&game.lifeTotal(2)==33); // Deadline race.
+  for(const char *bad:{"0","-1","1x","4294967296","99999999999999"})
+    assert(request("/api/control/life/respond",second,{{"requestId",bad},{"accept","1"}})==400);
+  Intent forged;forged.type=IntentType::ExpireLifeChanges;forged.actor.origin=IntentOrigin::Browser;
+  assert(!intents.dispatch(forged).accepted());
+  assert(request("/api/control/pause",first)==200);
+  assert(propose(2)==200);testNow+=15000;dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  assert(game.lifeTotal(2)==35&&hubState==HubState::Paused);
+  // Automatic application must revalidate after intervening changes.
+  assert(propose(1)==200);
+  assert(request("/api/control/life",second,{{"delta","999965"}})==200);
+  testNow+=15000;dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  assert(game.lifeTotal(2)==1000000&&game.lifeChangeFor(2)->state==LifeChangeState::Failed);
+  assert(request("/api/control/life",second,{{"delta","-999960"}})==200);
+  assert(propose(-1)==200);
+  const uint32_t beforeRollover=testNow;
+  game.cancelLifeChanges();
+  testNow=UINT32_MAX-10000;
+  IntentPayload payload;payload.targetPlayer=2;payload.value=-1;String message;
+  assert(changeCounter(game.playerByNumber(1)->controllerId,1,IntentType::RequestLifeChange,payload,message));
+  testNow+=14999;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==40);
+  ++testNow;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==39);
+  testNow=beforeRollover;
+  const auto damage=[&](const String &token,int source,int commander,int delta){return request("/api/control/commander",token,{{"source",String(source)},{"commander",String(commander)},{"delta",String(delta)},{"target","1"}});};
+  assert(damage("",1,1,2)==401);
+  assert(damage(second,1,1,21)==200&&game.commanderDamage(2,1,1)==21&&game.lifeTotal(2)==18);
+  assert(!game.isEliminated(2)); // No automatic rules adjudication.
+  assert(damage(companion,1,2,3)==200&&game.commanderDamage(2,1,2)==3&&game.lifeTotal(2)==15);
+  assert(damage(second,3,1,5)==200&&game.commanderDamage(2,3,1)==5&&game.lifeTotal(2)==10);
+  assert(game.lifeTotal(1)==40); // Forged target ignored: received damage belongs to caller.
+  assert(damage(second,1,1,-2)==200&&game.commanderDamage(2,1,1)==19&&game.lifeTotal(2)==12);
+  assert(damage(second,1,1,-20)==409&&game.commanderDamage(2,1,1)==19&&game.lifeTotal(2)==12);
+  assert(request("/api/control/life",second,{{"delta","999988"}})==200);
+  assert(damage(second,1,1,-1)==409&&game.lifeTotal(2)==1000000&&game.commanderDamage(2,1,1)==19);
+  assert(request("/api/control/life",second,{{"delta","-999988"}})==200);
+  assert(damage(second,16,1,2)==409);
+  assert(damage(second,1,3,2)==400);
+  assert(damage(second,1,1,0)==400);
+  assert(!game.changeCommanderDamage(2,1,1,INT32_MIN));
+  assert(request("/api/control/life",second,{{"delta","-1000000"}})==200);
+  assert(damage(second,1,1,13)==409&&game.lifeTotal(2)==-999988&&game.commanderDamage(2,1,1)==19);
+  assert(request("/api/control/life",second,{{"delta","1000000"}})==200);
+  assert(request("/api/game/counters",second,{},HTTP_GET)==200);
+  assert(server.body.find("\"commanders\":[19,3]")!=std::string::npos);
+  assert(propose(-1)==200);
+  assert(request("/api/control/win",first)==200);
+  assert(game.lifeChangeFor(2)->state==LifeChangeState::Cancelled);
+  assert(damage(second,1,1,1)==409&&propose(-1)==409);
+  assert(request("/api/control/deny",second)==200);
+  assert(propose(-1)==200);id=game.lifeChangeFor(2)->id;
+  assert(request("/api/control/concede",second)==200);
+  assert(game.lifeChangeFor(2)->state==LifeChangeState::Cancelled&&damage(second,1,1,1)==409);
+  assert(propose(-1)==409);
+  assert(request("/api/control/life/request",third,{{"target","1"},{"delta","-1"}})==200);
+  assert(request("/api/control/concede",third)==200&&hubState==HubState::GameOver);
+  assert(game.lifeChangeFor(1)->state==LifeChangeState::Cancelled);
+  assert(request("/api/control/rematch",first)==200);
+  assert(request("/api/game/settings",first,{{"gameProfile","mtg"},{"startingLife","20"}})==200);
+  assert(request("/api/control/start",first)==200);testNow+=3000;updateCountdown(testNow);
+  assert(game.lifeTotal(2)==20&&game.commanderDamage(2,1,1)==0&&!game.lifeChangeFor(2)->id);
+  assert(damage(second,1,1,1)==409); // Only Commander supports these counters.
+  assert(propose(-1)==200&&game.lifeChangeFor(2)->id>id);
+  assert(respond(second,id,true)==409&&game.lifeTotal(2)==20);
+  enterEmptyLobby();
+}
+
 int main() {
   assert(configureIntentHandlers());
   GameEngine::setGameCompletedCallback(completed);
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
+  deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
   lobbyLifecycle(); std::cout<<"PASS lobby and lifecycle\n";
   winDecisions(); std::cout<<"PASS win decisions and shared-seat order\n";
   eliminationAndConcession(); std::cout<<"PASS elimination versus concession\n";
   passTimingAndActors(); std::cout<<"PASS pass timing, cancellation, rollover, actors\n";
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
+  guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
+  attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
+  lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
 }

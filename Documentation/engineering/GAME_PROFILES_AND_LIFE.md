@@ -6,8 +6,11 @@ firmware build pass. Not flashed or bench-accepted.
 Implementation scope, 2026-09-21: Michael requested life counters and the Python
 game-profile selection flow. This first slice offers Generic (40), Magic (20),
 Commander (40), and Yu-Gi-Oh! (8000), with custom starting life from 0 to 1,000,000.
-Commander damage and cross-player edits with reversible notices remain separate
-follow-ups; choosing Commander here selects its life preset, not a full rules engine.
+The initial slice selected life presets only. Commander damage and cross-player
+life approvals were added locally on 2026-09-22; see
+[Life approval and Commander damage](LIFE_APPROVAL_AND_COMMANDER.md) for the
+extended behavior, shared Intent boundary, API and verification. It remains a
+bookkeeping tool, not a rules engine. The sections below record the original slice.
 
 ## Feature boundaries
 

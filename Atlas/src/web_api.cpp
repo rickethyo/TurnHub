@@ -67,6 +67,8 @@ ResolveProfileCallback resolveProfile = nullptr;
 GameSettingsCallback readGameConfiguration = nullptr;
 ConfigureGameCallback configureGameHandler = nullptr;
 ChangeLifeCallback changeLifeHandler = nullptr;
+ReadCountersCallback readCountersHandler = nullptr;
+CounterControlCallback counterControlHandler = nullptr;
 TurnHub::LoginLimiter loginLimiter;
 bool profileStoreReady = false;
 ModerateCallback moderateHandler = nullptr;
@@ -858,10 +860,10 @@ void handleSessionRequest(WebServer &server) {
     return;
   }
 
-  if (profileIdForPhysicalSeat(
+  if (!requester && profileIdForPhysicalSeat(
           static_cast<uint8_t>(module),
           static_cast<uint8_t>(slot)).length() == 0) {
-    sendJson(server, 503, "{\"ok\":false,\"error\":\"Could not attach a durable profile to this seat\"}");
+    sendJson(server, 409, "{\"ok\":false,\"error\":\"This seat is a guest. Create or sign into an account, then attach the Sigil from the lobby\"}");
     return;
   }
 
@@ -1174,9 +1176,7 @@ void handleProfile(WebServer &server) {
       bus != nullptr &&
       record->helloInfoValid &&
       (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE) != 0) {
-    bus->send(
-        session->controllerId,
-        TurnHubProtocol::PacketType::DisplayProfileRequest);
+    bus->syncDisplayProfile(session->controllerId);
   }
 
   sendJson(server, 200, "{\"ok\":true}");
@@ -1236,6 +1236,93 @@ void handleChangeLife(WebServer &server) {
     sendJson(server,409,String("{\"error\":\"")+jsonEscape(message)+"\"}");return;
   }
   sendJson(server,200,"{\"ok\":true}");
+}
+
+const char *lifeChangeStateName(TurnHub::LifeChangeState state) {
+  using TurnHub::LifeChangeState;
+  switch (state) {
+    case LifeChangeState::Pending: return "pending";
+    case LifeChangeState::Accepted: return "accepted";
+    case LifeChangeState::Rejected: return "rejected";
+    case LifeChangeState::Automatic: return "automatic";
+    case LifeChangeState::Cancelled: return "cancelled";
+    case LifeChangeState::Failed: return "failed";
+    default: return "none";
+  }
+}
+
+void handleCounters(WebServer &server) {
+  auto *session = sessionForRequest(server);
+  if (!session) { sendJson(server,401,"{\"error\":\"Sign in first\"}"); return; }
+  CounterSnapshot snapshot;
+  if (!resolveSessionParticipant(*session) || !readCountersHandler ||
+      !readCountersHandler(session->controllerId, session->slot, snapshot)) {
+    sendJson(server,200,"{\"available\":false,\"requests\":[],\"damage\":[]}"); return;
+  }
+  String json = String("{\"available\":true,\"editable\":") + (snapshot.editable ? "true" : "false") +
+      ",\"commanderEnabled\":" + (snapshot.commanderEnabled ? "true" : "false") +
+      ",\"player\":" + String(snapshot.player) + ",\"requests\":[";
+  bool first = true;
+  const uint32_t now = millis();
+  for (const auto &request : snapshot.requests) {
+    if (!request.id) continue;
+    if (!first) json += ',';
+    first = false;
+    const uint32_t age = now - request.requestedAtMs;
+    const uint32_t remaining = request.state == TurnHub::LifeChangeState::Pending && age < TurnHub::LIFE_APPROVAL_MS
+        ? TurnHub::LIFE_APPROVAL_MS - age : 0;
+    json += String("{\"id\":") + String(request.id) + ",\"actor\":" + String(request.actor) +
+        ",\"target\":" + String(request.target) + ",\"delta\":" + String(request.delta) +
+        ",\"state\":\"" + lifeChangeStateName(request.state) + "\",\"remainingMs\":" + String(remaining) + "}";
+  }
+  json += "],\"damage\":[";
+  if (snapshot.commanderEnabled) {
+    for (uint8_t i = 0; i < snapshot.playerCount; ++i) {
+      if (i) json += ',';
+      json += String("{\"source\":") + String(snapshot.sources[i]) + ",\"commanders\":[" +
+          String(snapshot.damage[i][0]) + "," + String(snapshot.damage[i][1]) + "]}";
+    }
+  }
+  json += "]}";
+  sendJson(server,200,json);
+}
+
+void handleCounterControl(WebServer &server, TurnHub::IntentType type) {
+  auto *session = sessionForRequest(server);
+  if (!session) { sendJson(server,401,"{\"error\":\"Sign in first\"}"); return; }
+  TurnHub::IntentPayload payload;
+  int32_t number = 0;
+  bool valid = true;
+  if (type == TurnHub::IntentType::RespondLifeChange) {
+    const String id = server.arg("requestId"), accept = server.arg("accept");
+    uint64_t parsed = 0;
+    valid = id.length() > 0 && id.length() <= 10 && (accept == "0" || accept == "1");
+    for (size_t i = 0; valid && i < id.length(); ++i) {
+      valid = id[i] >= '0' && id[i] <= '9';
+      if (valid) parsed = parsed * 10 + static_cast<uint8_t>(id[i] - '0');
+    }
+    valid = valid && parsed > 0 && parsed <= UINT32_MAX;
+    payload.requestId = static_cast<uint32_t>(parsed);
+    payload.flags = accept == "1" ? 1 : 0;
+  } else {
+    valid = parseLifeInteger(server.arg("delta"), payload.value, true) && payload.value != 0;
+    if (type == TurnHub::IntentType::RequestLifeChange) {
+      valid = valid && parseLifeInteger(server.arg("target"), number, false) && number >= 1 && number <= MAX_PLAYERS;
+      payload.targetPlayer = static_cast<uint8_t>(number);
+    } else {
+      valid = valid && parseLifeInteger(server.arg("source"), number, false) && number >= 1 && number <= MAX_PLAYERS;
+      payload.counterSource = static_cast<uint8_t>(number);
+      valid = valid && parseLifeInteger(server.arg("commander"), number, false) && number >= 1 && number <= TurnHub::COMMANDERS_PER_PLAYER;
+      payload.counterSlot = static_cast<uint8_t>(number);
+    }
+  }
+  if (!valid) { sendJson(server,400,"{\"error\":\"Invalid life or Commander request\"}"); return; }
+  String message = "Join the table first";
+  if (!resolveSessionParticipant(*session) || !counterControlHandler ||
+      !counterControlHandler(session->controllerId, session->slot, type, payload, message)) {
+    sendJson(server,409,String("{\"error\":\"") + jsonEscape(message) + "\"}"); return;
+  }
+  sendJson(server,200,String("{\"ok\":true,\"message\":\"") + jsonEscape(message) + "\"}");
 }
 
 void handleProfilePolicy(WebServer &server) {
@@ -1383,6 +1470,9 @@ bool profileAuthenticated(const String &profileId) {
 }
 
 bool physicalUseAllowed(const String &profileId) {
+  // Guest participation needs no durable identity. Bound accounts still use
+  // their saved authentication and moderation policy below.
+  if (profileId.length() == 0) return true;
   if(connectionBlocked(profileId))return false;
   TurnHubProfiles::ProfilePolicy policy;
   return TurnHubProfiles::loadPolicyForProfile(profileId, policy) &&
@@ -1397,6 +1487,11 @@ bool physicalStatsVisible(const String &profileId) {
 
 void configureGameControls(GameSettingsCallback read, ConfigureGameCallback configure, ChangeLifeCallback life) {
   readGameConfiguration=read;configureGameHandler=configure;changeLifeHandler=life;
+}
+
+void configureCounterControls(ReadCountersCallback read, CounterControlCallback control) {
+  readCountersHandler = read;
+  counterControlHandler = control;
 }
 
 void configure(
@@ -1598,6 +1693,10 @@ void begin(WebServer &server) {
   server.on("/api/game/settings", HTTP_GET, [&server]() { handleGameSettings(server); });
   server.on("/api/game/settings", HTTP_POST, [&server]() { handleSaveGameSettings(server); });
   server.on("/api/control/life", HTTP_POST, [&server]() { handleChangeLife(server); });
+  server.on("/api/game/counters", HTTP_GET, [&server]() { handleCounters(server); });
+  server.on("/api/control/life/request", HTTP_POST, [&server]() { handleCounterControl(server,TurnHub::IntentType::RequestLifeChange); });
+  server.on("/api/control/life/respond", HTTP_POST, [&server]() { handleCounterControl(server,TurnHub::IntentType::RespondLifeChange); });
+  server.on("/api/control/commander", HTTP_POST, [&server]() { handleCounterControl(server,TurnHub::IntentType::ChangeCounter); });
   server.on("/api/session/stats", HTTP_GET, [&server]() { handleProfileStats(server); });
   server.on("/api/session/stats/export", HTTP_GET, [&server]() { handleProfileStatsExport(server); });
   server.on("/api/session/logout", HTTP_POST, [&server]() { handleLogout(server); });

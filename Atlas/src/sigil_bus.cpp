@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "profile_store.h"
+#include "optional_preferences.h"
 #include "web_api.h"
 
 namespace TurnHub {
@@ -39,9 +40,28 @@ SigilBus *SigilBus::activeInstance() {
 bool SigilBus::begin() {
   instance_ = this;
 
+  OptionalPreferences prefs;
+  if (!prefs.begin("th_pair_v1", false)) return false;
+  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
+    const String key = String("s") + String(i);
+    if (!prefs.isKey(key.c_str())) continue;
+    uint8_t mac[6];
+    if (prefs.getBytesLength(key.c_str()) != sizeof(mac) ||
+        prefs.getBytes(key.c_str(), mac, sizeof(mac)) != sizeof(mac)) {
+      prefs.end();
+      Serial.println("ATLAS|PAIRING|STORE_ERROR");
+      return false;
+    }
+    records_[i].used = true;
+    records_[i].id = i;
+    memcpy(records_[i].mac, mac, 6);
+    records_[i].lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
+  }
+  prefs.end();
+  rxQueue_ = xQueueCreate(32, sizeof(RxRequest));
   eventQueue_ = xQueueCreate(32, sizeof(SigilEvent));
   txQueue_ = xQueueCreate(48, sizeof(TxRequest));
-  if (eventQueue_ == nullptr || txQueue_ == nullptr) {
+  if (rxQueue_ == nullptr || eventQueue_ == nullptr || txQueue_ == nullptr) {
     Serial.println("ATLAS|SIGIL_BUS|QUEUE_ERROR");
     return false;
   }
@@ -70,7 +90,27 @@ bool SigilBus::begin() {
   return true;
 }
 
+bool SigilBus::openPairing() {
+  if (rxQueue_ == nullptr || txTask_ == nullptr) return false;
+  pairingStartedMs_ = millis();
+  pairingOpen_ = true;
+  return true;
+}
+
+bool SigilBus::pairingActive() const {
+  return pairingOpen_ && millis() - pairingStartedMs_ < 30000;
+}
+
 bool SigilBus::poll(SigilEvent &event) {
+  if (pairingOpen_ && !pairingActive()) closePairing();
+  RxRequest request;
+  // Radio callbacks only copy packets; pairing, NVS and records belong to loop().
+  for (uint8_t n = 0; rxQueue_ && n < 32 &&
+       xQueueReceive(rxQueue_, &request, 0) == pdTRUE; ++n) {
+    if (request.packet.type == PacketType::PairRequest &&
+        (!pairingActive() || request.receivedAt - pairingStartedMs_ >= 30000)) continue;
+    handleReceive(request.mac, reinterpret_cast<const uint8_t *>(&request.packet), sizeof(Packet));
+  }
   if (eventQueue_ == nullptr) {
     return false;
   }
@@ -174,7 +214,12 @@ void SigilBus::receiveThunk(
     const uint8_t *incomingData,
     int length) {
   if (instance_ != nullptr) {
-    instance_->handleReceive(mac, incomingData, length);
+    if (length != sizeof(Packet) || instance_->rxQueue_ == nullptr) return;
+    RxRequest request;
+    memcpy(request.mac, mac, 6);
+    memcpy(&request.packet, incomingData, sizeof(Packet));
+    request.receivedAt = millis();
+    xQueueSend(instance_->rxQueue_, &request, 0);
   }
 }
 
@@ -253,12 +298,22 @@ void SigilBus::handleReceive(
     return;
   }
 
-  SigilRecord *sigil = remember(mac);
+  SigilRecord *sigil = findByMac(mac);
+  if (packet.type == PacketType::PairRequest) {
+    if (!pairingActive()) return;
+    if (!sigil) sigil = remember(mac);
+    if (!sigil) Serial.println("ATLAS|PAIRING|REJECT|CAPACITY_OR_STORAGE");
+    if (sigil) {
+      sendToMac(mac, PacketType::PairAccept, sigil->id, packet.value);
+      Serial.printf("ATLAS|PAIRING|ACCEPT|%u\n", sigil->id);
+    }
+    return;
+  }
   if (sigil == nullptr) {
-    Serial.println("ATLAS|SIGIL|TABLE_FULL");
     return;
   }
 
+  if (packet.type != PacketType::Hello && packet.sigilId != sigil->id) return;
   sigil->lastSeenMs = millis();
 
   switch (packet.type) {
@@ -305,10 +360,19 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
       continue;
     }
 
+    OptionalPreferences prefs;
+    const String key = String("s") + String(i);
+    if (!prefs.begin("th_pair_v1", false)) return nullptr;
+    const bool stored = prefs.putBytes(key.c_str(), mac, 6) == 6;
+    prefs.end();
+    if (!stored) {
+      Serial.println("ATLAS|PAIRING|STORE_ERROR");
+      return nullptr;
+    }
     candidate.used = true;
     candidate.id = i;
     memcpy(candidate.mac, mac, 6);
-    candidate.lastSeenMs = millis();
+    candidate.lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
 
     Serial.print("ATLAS|SIGIL|DISCOVERED|");
     Serial.print(candidate.id);

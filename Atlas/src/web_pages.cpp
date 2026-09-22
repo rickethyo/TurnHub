@@ -15,6 +15,12 @@ const char PORTAL_HTML[] PROGMEM = R"HTML(
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.shell{width:min(2000px,100%);margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}.brand{font-size:1.85rem;font-weight:950;letter-spacing:.02em}.sub,.small{color:var(--muted);font-size:.82rem;line-height:1.45}.right,.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dot{width:10px;height:10px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 4px rgba(239,106,106,.08)}.dot.online{background:var(--good);box-shadow:0 0 0 4px rgba(98,213,138,.08)}a.link,button,input,select{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 12px;font:inherit}a.link{text-decoration:none;font-weight:800}button{font-weight:800;cursor:pointer}button.primary{background:#e7ebf2;color:#111318;border-color:#e7ebf2}button.good{border-color:rgba(98,213,138,.5);color:var(--good)}button.warn{border-color:rgba(239,197,90,.5);color:var(--warn)}button.bad{border-color:rgba(239,106,106,.5);color:var(--bad)}button.blue{border-color:rgba(114,167,255,.5);color:var(--blue)}button:disabled{opacity:.4;cursor:not-allowed}.tabs{display:flex;gap:7px;overflow:auto;padding:5px;margin:0 0 12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;position:sticky;top:max(6px,env(safe-area-inset-top));z-index:20}.tab{flex:1;min-width:92px;border:0;background:transparent;color:var(--muted);padding:10px 13px}.tab.active{background:var(--panel2);color:var(--text);box-shadow:0 0 0 1px var(--line) inset}.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}.card{grid-column:span 12;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 12px 34px rgba(0,0,0,.12)}.hero{min-height:245px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.eyebrow,.section{font-size:.78rem;color:var(--muted);font-weight:900;letter-spacing:.12em;text-transform:uppercase}.hero h1{font-size:clamp(2.8rem,10vw,6rem);margin:.2rem 0;line-height:.95;overflow-wrap:anywhere}.hero p{color:var(--muted);font-size:1.05rem;margin:.35rem 0}.badges{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px}.badge{border:1px solid var(--line);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:.76rem;font-weight:800}.badge.good{color:var(--good);border-color:rgba(98,213,138,.35)}.badge.warn{color:var(--warn);border-color:rgba(239,197,90,.35)}.badge.bad{color:var(--bad);border-color:rgba(239,106,106,.35)}.badge.blue{color:var(--blue);border-color:rgba(114,167,255,.35)}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.metric,.device,.session-box,.player,.seat,.setting-box{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px}.metric label{display:block;color:var(--muted);font-size:.72rem;font-weight:800;text-transform:uppercase}.metric strong{display:block;margin-top:4px;font-size:1.08rem}.players,.devices{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.player.active,.seat.active{border-color:var(--blue);box-shadow:0 0 0 1px rgba(114,167,255,.2) inset}.player.winner{border-color:var(--good)}.player.eliminated{opacity:.55}.player-name,.device-name,.session-title{font-size:1.08rem;font-weight:900}.player-head,.device-top,.session-head,.setting-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.player-state{font-size:.72rem;font-weight:900;text-transform:uppercase}.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.75rem;color:var(--muted);overflow-wrap:anywhere}.device-state{font-size:.72rem;font-weight:900}.online-text{color:var(--good)}.offline-text{color:var(--bad)}.seats{display:grid;gap:8px;margin-top:10px}.seat{padding:10px}.seat-top{display:flex;justify-content:space-between;gap:8px}.slot{display:inline-flex;width:25px;height:25px;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--line);font-weight:950;margin-right:6px}.notice{border-left:3px solid var(--warn);background:var(--panel2);padding:12px 13px;border-radius:10px;color:var(--muted);line-height:1.45}.notice.good{border-left-color:var(--good)}.notice.blue{border-left-color:var(--blue)}.profile{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}.status-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}.status-row:last-child{border-bottom:0}.status-row strong{text-align:right}.control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.control-grid button{min-height:48px}.control-grid .wide{grid-column:1/-1}.settings-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:12px}.field{display:grid;gap:7px}.field label{color:var(--muted);font-size:.76rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.toggle-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.toggle-row:last-child{border-bottom:0}.switch{width:46px;height:26px;position:relative;display:inline-block}.switch input{display:none}.slider{position:absolute;inset:0;background:#303744;border-radius:999px;cursor:pointer}.slider:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s}.switch input:checked+.slider{background:#4178d0}.switch input:checked+.slider:before{transform:translateX(20px)}.capabilities{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.empty{color:var(--muted);padding:14px;border:1px dashed var(--line);border-radius:12px;text-align:center}.footer-note{color:var(--muted);font-size:.76rem;text-align:center;margin:14px 0 4px}.toast{position:fixed;z-index:80;left:50%;bottom:max(16px,env(safe-area-inset-bottom));transform:translateX(-50%) translateY(18px);width:min(540px,calc(100% - 24px));background:var(--panel3);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:0 18px 55px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:.18s}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast.bad{border-color:rgba(239,106,106,.55);color:var(--bad)}
 @media(min-width:820px){.hero-card{grid-column:span 8}.table-card{grid-column:span 4}.session-card{grid-column:span 6}.game-info-card{grid-column:span 6}.half{grid-column:span 6}.third{grid-column:span 4}.two-third{grid-column:span 8}.settings-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){body{padding-left:10px;padding-right:10px}.card{padding:14px}.hero{min-height:210px}.profile{grid-template-columns:1fr}.control-grid{grid-template-columns:1fr}.tabs{top:4px}.status-row{font-size:.92rem}}
 :focus-visible{outline:3px solid #ffda78;outline-offset:3px}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+[hidden]{display:none!important}fieldset{min-width:0}select,input{max-width:100%}
+.request-alert{position:sticky;top:72px;z-index:19;margin-bottom:12px;color:var(--text);box-shadow:0 8px 20px #0008}
+
+.hero.hero-card{grid-column:1/-1;min-height:0;flex-direction:row;justify-content:flex-start;gap:12px;padding:12px 18px;text-align:left;flex-wrap:wrap}.hero h1{font-size:clamp(1.5rem,4vw,2.2rem);margin:0;line-height:1.1}.hero p{font-size:.85rem;margin:0}.hero .badges{margin:0 0 0 auto}
+.life-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.life-player{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}.life-player.active{border-color:var(--blue)}.life-player h3{margin:0;font-size:1rem;overflow-wrap:anywhere}.life-total{font-size:2.3rem;font-weight:900;font-variant-numeric:tabular-nums}.life-buttons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.life-buttons button{padding:10px 4px;min-height:44px}.life-player.eliminated{opacity:.55}summary{cursor:pointer;font-weight:700;padding:10px 0}.qr-grid{display:flex;gap:24px;flex-wrap:wrap}.qr-box svg{display:block;width:192px;height:192px;max-width:100%;background:white}.qr-box a{display:inline-block;color:var(--blue);margin-top:8px}
+@media(min-width:820px){.session-card{grid-column:span 4;align-self:start}.life-card{grid-column:span 8}.game-info-card,.table-card{grid-column:span 6}}
 </style>
 </head>
 <body>
@@ -29,20 +35,37 @@ const char PORTAL_HTML[] PROGMEM = R"HTML(
   <button class="tab" data-tab="account" onclick="showTab('account')">My Account</button>
   <button id="deviceSettingsTab" class="tab" data-tab="settings" onclick="showTab('settings')" hidden>Device Settings</button>
 </nav>
+<section id="lifeRequestAlert" class="notice request-alert" hidden aria-label="Pending life change"><span id="lifeAlertText" role="status" aria-live="polite"></span> <button onclick="reviewLifeRequest()">Review life request</button></section>
 
 <section id="adminSetup" class="notice" hidden><strong>Set up this Atlas</strong><p>Create or sign into your account in My Account. Then hold the physical Atlas master button and select the button below to establish the initial Admin.</p><button onclick="setupAdmin()">Make my account the initial Admin</button></section>
 <main id="view-game" class="view active">
 <div class="grid">
   <section class="card hero hero-card"><div id="eyebrow" class="eyebrow">TURNHUB</div><h1 id="heroTitle">READY</h1><p id="heroSub">Waiting for Atlas</p><div id="heroBadges" class="badges"></div></section>
-  <section class="card table-card"><div class="section">Table</div><div class="metrics" style="margin-top:12px"><div class="metric"><label>Players</label><strong id="playersMetric">0</strong></div><div class="metric"><label>Sigils</label><strong id="sigilsMetric">0</strong></div><div class="metric"><label>Host</label><strong id="hostMetric">None</strong></div><div class="metric"><label>Starter</label><strong id="starterMetric">None</strong></div></div><div style="margin-top:10px"><div class="status-row"><span>State</span><strong id="stateMetric">—</strong></div><div class="status-row"><span>Active</span><strong id="activeMetricGame">None</strong></div></div></section>
-  <section class="card session-card"><div class="section">My seat</div><div id="sessionBox" class="session-box" style="margin-top:12px"><div class="session-head"><div><div id="sessionTitle" class="session-title">Not authenticated</div><div id="sessionMeta" class="small">Sign into your profile to join or reconnect.</div></div><button id="logoutButton" class="bad" style="display:none" onclick="logoutSession()">Log out</button></div><div id="sessionState" class="badges" style="justify-content:flex-start"></div><div id="sessionControls" class="control-grid" style="display:none"></div><div id="lifePanel" style="display:none;margin-top:16px">
+
+  <section class="card session-card"><div class="section">My seat</div><div id="sessionBox" class="session-box" style="margin-top:12px"><div class="session-head"><div><div id="sessionTitle" class="session-title">Not authenticated</div><div id="sessionMeta" class="small">Sign into your profile to join or reconnect.</div></div><button id="logoutButton" class="bad" style="display:none" onclick="logoutSession()">Log out</button></div><div id="sessionState" class="badges" style="justify-content:flex-start"></div><div id="sessionControls" class="control-grid" style="display:none"></div>
+<div id="claimHelp" class="notice blue" style="margin-top:12px"><a href="/login">Sign in or create a profile</a> to play from this phone. A physical Sigil is optional.</div></div></section>
+<section class="card life-card"><div class="section">Life</div><p id="gameProfileSummary" class="small"></p><p class="small">Your own changes apply immediately. Other players have 15 seconds to respond before Atlas accepts a request.</p><div id="tableLifeTotals" class="life-grid"></div><p id="lifeMessage" role="status" aria-live="polite"></p><div id="lifePanel" style="display:none;margin-top:16px">
 <h3>My life: <span id="myLifeTotal" aria-live="polite">—</span></h3>
-<fieldset id="lifeFields"><legend>Adjust your life</legend>
+<details><summary>Custom and preset life changes</summary><fieldset id="lifeFields"><legend>Adjust life</legend>
+<label for="lifeTarget">Player whose life changes</label><select id="lifeTarget" onchange="renderCounterControls()"></select>
+<p id="lifeTargetHelp" class="small">Your own changes apply immediately.</p>
 <div class="control-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button type="button" id="lifeMinusBig" onclick="adjustMyLife(-lifeBigStep)">−5</button><button type="button" id="lifePlusBig" onclick="adjustMyLife(lifeBigStep)">+5</button><button type="button" id="lifeMinus" onclick="adjustMyLife(-lifeStep)">−1</button><button type="button" id="lifePlus" onclick="adjustMyLife(lifeStep)">+1</button></div>
+<div id="lifeTens" class="control-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))" hidden><button type="button" aria-label="Subtract 10 life" onclick="adjustMyLife(-10)">−10</button><button type="button" aria-label="Add 10 life" onclick="adjustMyLife(10)">+10</button></div>
 <form onsubmit="event.preventDefault();adjustMyLife(Number(lifeDelta.value))" style="margin-top:10px">
-<label for="lifeDelta">Custom life change (negative to subtract)</label><div class="profile"><input id="lifeDelta" type="number" step="1" min="-1000000" max="1000000" required><button type="submit">Apply life change</button></div></form>
-</fieldset><p id="lifeMessage" role="status" aria-live="polite"></p></div><div id="claimHelp" class="notice blue" style="margin-top:12px"><a href="/login">Sign in or create a profile</a> to play from this phone. A physical Sigil is optional.</div></div></section>
-  <section class="card game-info-card"><div class="section">Game status</div><div style="margin-top:10px"><div class="status-row"><span>Starting player</span><strong id="starterGame">None</strong></div><div class="status-row"><span>Win response</span><strong id="confirmGame">None</strong></div><div class="status-row"><span>Elimination target</span><strong id="eliminationGame">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerGame">None</strong></div></div><h2>Life totals</h2><p id="gameProfileSummary" class="small"></p><div id="tableLifeTotals">Life totals appear when the game starts.</div></section>
+<label for="lifeDelta">Custom life change (negative to subtract)</label><div class="profile"><input id="lifeDelta" type="number" step="1" min="-1000000" max="1000000" required><button id="lifeSubmit" type="submit">Apply life change</button></div></form>
+</fieldset></details></div>
+<section id="lifeRequestsPanel" hidden style="margin-top:16px"><h3>Life change requests</h3><p id="lifeRequestNotice" role="status" aria-live="polite"></p><div id="lifeRequestActions"></div><p id="lifeRequestCountdown" class="small"></p><div id="outgoingLifeRequests" class="small"></div></section></section>
+
+<section id="commanderPanel" class="card" hidden><h2>My received Commander damage</h2>
+<p class="small">Record damage from each commander separately. Adding damage also subtracts life. A negative correction restores life. Players decide when to concede.</p>
+<div id="commanderTotals"></div>
+<form onsubmit="saveCommanderDamage(event)"><fieldset id="commanderFields"><legend>Record or correct damage received</legend>
+<div class="settings-grid"><div class="field"><label for="commanderSource">Commander owner</label><select id="commanderSource"></select></div>
+<div class="field"><label for="commanderSlot">Commander</label><select id="commanderSlot"><option value="1">Commander 1</option><option value="2">Commander 2</option></select></div>
+<div class="field"><label for="commanderDelta">Damage change (negative to correct)</label><input id="commanderDelta" type="number" step="1" min="-1000000" max="1000000" required></div></div>
+<button type="submit" style="margin-top:12px">Update damage and life</button></fieldset></form><p id="commanderMessage" role="status" aria-live="polite"></p></section>
+<section class="card game-info-card"><div class="section">Game status</div><div style="margin-top:10px"><div class="status-row"><span>Starting player</span><strong id="starterGame">None</strong></div><div class="status-row"><span>Win response</span><strong id="confirmGame">None</strong></div><div class="status-row"><span>Elimination target</span><strong id="eliminationGame">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerGame">None</strong></div></div></section>
+  <section class="card table-card"><div class="section">Table</div><div class="metrics" style="margin-top:12px"><div class="metric"><label>Players</label><strong id="playersMetric">0</strong></div><div class="metric"><label>Sigils</label><strong id="sigilsMetric">0</strong></div><div class="metric"><label>Host</label><strong id="hostMetric">None</strong></div><div class="metric"><label>Starter</label><strong id="starterMetric">None</strong></div></div><div style="margin-top:10px"><div class="status-row"><span>State</span><strong id="stateMetric">—</strong></div><div class="status-row"><span>Active</span><strong id="activeMetricGame">None</strong></div></div></section>
 <section class="card"><h2>Game profile and life</h2>
 <form onsubmit="saveGameSettings(event)"><fieldset id="gameSettingsFields"><legend>Game setup</legend>
 <label for="gameProfileSelect">Game profile</label>
@@ -50,14 +73,14 @@ const char PORTAL_HTML[] PROGMEM = R"HTML(
 <label for="startingLifeInput">Starting life</label><input id="startingLifeInput" type="number" min="0" max="1000000" step="1" required value="40" oninput="gameSettingsDirty=true">
 <button type="submit">Save game settings</button></fieldset></form>
 <p id="gameSettingsMessage" role="status" aria-live="polite">The table host can change settings in the lobby.</p>
-<p class="small">Life does not automatically eliminate a player. Commander damage and changing another player's life are not available yet.</p></section>
+<p class="small">Life and Commander damage do not automatically eliminate a player. Changes to another player's life need their approval; Atlas accepts unanswered requests after 15 seconds.</p></section>
 </div>
 </main>
 
 <main id="view-players" class="view">
 <div class="grid">
   <section class="card"><div class="player-head"><div><div class="section">Players</div><div class="small" style="margin-top:5px">Live table seats, browser links, turn state, and physical Sigil identity.</div></div><button onclick="refreshAll()">Refresh</button></div><div id="players" class="players" style="margin-top:14px"></div></section>
-<section class="card"><h2>Connect a Sigil</h2><p class="small">Sign into your account, then attach a Sigil. Account login and table participation are separate.</p><div id="devices" class="devices"></div></section><section class="card" id="gmPanel" hidden><h2>Game Master</h2><div id="gmAccounts"></div></section></div>
+<section class="card"><div class="section">Invite players</div><p class="small">Connect to the table’s Wi-Fi, then scan a code to open TurnHub.</p><div class="qr-grid"><div class="qr-box"><h3>Table portal</h3><div id="portalQr"></div><a id="portalQrLink">Open portal</a></div><div class="qr-box"><h3>Sign in / join</h3><div id="joinQr"></div><a id="joinQrLink">Open sign in</a></div></div></section><section class="card"><h2>Connect a Sigil</h2><p class="small">Sign into your account, then attach a Sigil. Account login and table participation are separate.</p><div id="devices" class="devices"></div></section><section class="card" id="gmPanel" hidden><h2>Game Master</h2><div id="gmAccounts"></div></section></div>
 </main>
 
 <main id="view-account" class="view"><div class="grid">  <section class="card half"><div class="section">My account</div><div id="profileSignedOut" class="notice blue" style="margin-top:12px">Sign into your profile to save a name or PIN.</div><div id="profileBox" style="display:none;margin-top:12px"><div class="setting-box"><div class="setting-head"><div><div class="session-title" id="profileSeatTitle">My seat</div><div class="small" id="profileSeatMeta"></div></div></div><label for="profileName">Display name</label><div class="profile"><input id="profileName" maxlength="32" placeholder="Player name"><button onclick="saveName()">Save name</button></div><label for="profilePin">New PIN</label><div class="profile"><input id="profilePin" type="password" inputmode="numeric" maxlength="8" placeholder="New 4-8 digit PIN"><button onclick="savePin()">Set PIN</button></div><form id="profilePolicyForm" style="margin-top:16px" onsubmit="saveProfilePolicy(event)">
@@ -87,9 +110,11 @@ const char PORTAL_HTML[] PROGMEM = R"HTML(
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <div class="footer-note">TurnHub runs locally on Atlas. No cloud connection is required for table control.</div>
 </div>
+<script src="/portal-qr.js"></script>
 <script>
 let refreshInFlight=null,gameSettingsData=null,gameSettingsDirty=false,gameSettingsSaving=false,lifeBusy=false,lifeStep=1,lifeBigStep=5;
 let profilePolicyDirty=false,profilePolicyOwner=null;
+let counterData=null,counterBusy=false,counterOwner=null;
 let statusData=null,deviceData={devices:[]},seatData={seats:[]},networkData=null,sessionInfo=null,pendingClaim=null,pendingTimer=null;
 let sessionToken=localStorage.getItem('turnhubSessionToken')||'';
 let lastObservedState=null,lastObservedActive=0,lastObservedConfirm=0,toastTimer=null;
@@ -161,7 +186,7 @@ function renderSession(){
  profileSeatTitle.textContent=name;profileSeatMeta.textContent=`Profile ${me.profileId}`;if(document.activeElement!==profileName)profileName.value=me.name||'';
  clearPinButton.style.display=me.hasPin&&joined&&!me.virtual?'inline-block':'none';
  sessionState.innerHTML=(me.host?badge('Table host','good'):'')+(me.active?badge('Your turn','blue'):'')+(me.eliminated?badge('Eliminated','bad'):'');
- const buttons=[`<button class="blue wide" onclick="location.href='/stats'">My statistics</button>`];
+ const buttons=[];
  if(!joined){buttons.push(`<button class="primary wide" ${state.state==='LOBBY'?'':'disabled'} onclick="participation('join')">Join table</button>`)}
  else if(state.state==='LOBBY'){
   buttons.push(`<button onclick="sendControl('starter')">I go first</button>`);
@@ -178,6 +203,7 @@ function renderSession(){
   if(Number(state.winConfirm)===Number(me.player)){buttons.push(`<button onclick="sendControl('confirm')">Confirm win</button><button onclick="sendControl('deny')">Deny claim</button>`)}
   else if(!state.winConfirm&&!state.eliminationTarget){buttons.push(`<button onclick="sendControl('pause')">Resume game</button>`);if(me.active)buttons.push(`<button onclick="sendControl('win')">Claim win</button>`);buttons.push(`<button class="bad" onclick="concede()">Concede</button>`)}
  }else if(state.state==='GAME_OVER'&&me.host){buttons.push(`<button class="primary" onclick="sendControl('rematch')">Rematch</button><button onclick="resetTable()">Reset table</button>`)}
+ buttons.push(`<button class="blue wide" onclick="location.href='/stats'">My statistics</button>`);
  const html=buttons.join('');if(sessionControls.innerHTML!==html){const action=document.activeElement&&document.activeElement.getAttribute('onclick');sessionControls.innerHTML=html;if(action){const replacement=[...sessionControls.querySelectorAll('button')].find(b=>b.getAttribute('onclick')===action);if(replacement)replacement.focus()}}
  sessionControls.style.display='grid';
 }
@@ -230,9 +256,10 @@ function refreshAll(){
    await refreshSession();
    const n=(sessionInfo&&sessionInfo.permissions&1)?await pollJson('/api/network',authHeaders()):null;
    gameSettingsData=await pollJson('/api/game/settings',authHeaders());
+   counterData=sessionInfo&&sessionInfo.participating&&sessionInfo.lifeAvailable?await pollJson('/api/game/counters',authHeaders()):null;
    deviceData=d;seatData=seats;networkData=n;
-   renderDevices(d);renderDeviceSettings(d);if(n)renderNetwork(n);renderStatus(s);renderGameLife();renderAccess();
-  }catch(_){dot.className='dot';connection.textContent='Disconnected';connectionMetric.textContent='Disconnected'}
+   renderDevices(d);renderDeviceSettings(d);if(n)renderNetwork(n);renderStatus(s);renderGameLife();renderCounterControls();renderAccess();
+  }catch(_){dot.className='dot';connection.textContent='Disconnected';connectionMetric.textContent='Disconnected';counterData=null;lifeFields.disabled=true;renderCounterControls()}
  })().finally(()=>{refreshInFlight=null});
  return refreshInFlight;
 }
@@ -240,8 +267,7 @@ function renderGameLife(){
  const settings=gameSettingsData,me=sessionInfo||{},state=statusData||{};
  const labels={generic:'Generic',mtg:'Magic: The Gathering',mtg_commander:'MTG Commander',yugioh:'Yu-Gi-Oh!'};
  gameProfileSummary.textContent=settings?`${labels[settings.gameProfile]||settings.gameProfile} · Starting life ${settings.startingLife}`:'';
- const totals=(seatData.seats||[]).filter(s=>s.lifeAvailable).map(s=>`<div class="status-row"><span>${esc(s.name||'Player '+s.player)}${s.eliminated?' (eliminated)':''}</span><strong>${Number(s.life)}</strong></div>`).join('');
- if(tableLifeTotals.innerHTML!==(totals||'Life totals appear when the game starts.'))tableLifeTotals.innerHTML=totals||'Life totals appear when the game starts.';
+ renderLifeCards();
  if(settings&&!gameSettingsDirty){gameProfileSelect.value=settings.gameProfile;startingLifeInput.value=settings.startingLife}
  gameSettingsFields.disabled=gameSettingsSaving||!settings||!settings.canEdit;
  const show=!!(me.authenticated&&me.lifeAvailable);
@@ -253,6 +279,7 @@ function renderGameLife(){
  lifeMinus.setAttribute('aria-label',`Subtract ${lifeStep} life`);lifePlus.setAttribute('aria-label',`Add ${lifeStep} life`);
  lifeMinusBig.setAttribute('aria-label',`Subtract ${lifeBigStep} life`);lifePlusBig.setAttribute('aria-label',`Add ${lifeBigStep} life`);
  lifeFields.disabled=lifeBusy||!show||me.eliminated||!['RUNNING','PAUSED'].includes(state.state)||!!state.winConfirm||!!state.eliminationTarget;
+ lifeTens.hidden=!settings||!['mtg','mtg_commander'].includes(settings.gameProfile);
  if(settings&&!settings.available)gameSettingsMessage.textContent='Game settings storage is unavailable.';
 }
 function chooseGameProfile(){gameSettingsDirty=true;startingLifeInput.value=({generic:40,mtg:20,mtg_commander:40,yugioh:8000})[gameProfileSelect.value]}
@@ -268,19 +295,92 @@ async function saveGameSettings(event){
  }catch(e){gameSettingsMessage.textContent=e.message}
  finally{gameSettingsSaving=false;renderGameLife()}
 }
-async function adjustMyLife(delta){
+async function adjustMyLife(delta,player=Number(lifeTarget.value)){
  if(lifeBusy)return;
  if(!Number.isInteger(delta)||!delta||Math.abs(delta)>1000000){lifeMessage.textContent='Enter a nonzero whole-number change up to 1000000.';return}
+ const target=Number(player),own=target===Number(sessionInfo&&sessionInfo.player);
+ if(!target||!counterData||!counterData.editable){lifeMessage.textContent='Refresh the current game before changing life.';return}
  lifeBusy=true;renderGameLife();
  try{
-  const r=await fetch('/api/control/life',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({delta})});
+  const r=await fetch(own?'/api/control/life':'/api/control/life/request',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(own?{delta}:{delta,target})});
   const d=await r.json();if(!r.ok)throw new Error(d.error||'Life change rejected');
-  lifeMessage.textContent='Life updated.';lifeDelta.value='';
+  lifeMessage.textContent=own?'Life updated.':d.message||'Life change requested.';lifeDelta.value='';
   await refreshAll();await refreshAll();
  }catch(e){lifeMessage.textContent=e.message+' Check the current total before retrying.'}
- finally{lifeBusy=false;renderGameLife()}
+ finally{lifeBusy=false;renderGameLife();renderCounterControls()}
 }
-portalAddress.textContent=location.host;loadBrowserPrefs();showTab(localStorage.getItem('turnhubPortalTab')||'game');refreshAll();setInterval(refreshAll,800);
+
+function updatePlayerOptions(select,seats,preferred){
+ const options=seats.map(s=>`<option value="${Number(s.player)}">${esc(s.name||'Player '+s.player)}${Number(s.player)===Number(sessionInfo&&sessionInfo.player)?' (me)':''}</option>`).join('');
+ if(select.innerHTML!==options){const previous=select.value;select.innerHTML=options;select.value=seats.some(s=>String(s.player)===previous)?previous:String(preferred);if(!select.value&&seats.length)select.value=String(seats[0].player)}
+}
+function renderLifeCards(){
+ const me=sessionInfo||{},data=counterData;
+ const editable=!!(me.authenticated&&!me.eliminated&&data&&data.available&&data.editable&&Number(data.player)===Number(me.player)&&['RUNNING','PAUSED'].includes(statusData?.state)&&!statusData.winConfirm&&!statusData.eliminationTarget);
+ const totals=(seatData.seats||[]).filter(s=>s.lifeAvailable).map(s=>{
+  const name=s.name||'Player '+s.player,id=Number(s.player),own=id===Number(me.player);
+  return `<article class="life-player${s.active?' active':''}${s.eliminated?' eliminated':''}" data-player="${id}" aria-label="${esc(name)} life"><div class="player-head"><h3>${esc(name)}${own?' (me)':''}</h3><span class="small">${s.eliminated?'Eliminated':s.active?'Active turn':''}</span></div><div class="life-total">${Number(s.life)}</div><div class="life-buttons">${[1,-1,10,-10].map(delta=>`<button data-delta="${delta}" aria-label="${delta>0?'Add':'Subtract'} ${Math.abs(delta)} life ${delta>0?'to':'from'} ${esc(name)}" onclick="adjustMyLife(${delta},${id})">${delta>0?'+':'−'}${Math.abs(delta)}</button>`).join('')}</div><p class="small">${own?'Applies immediately':'Requires approval · 15 seconds'}</p></article>`;
+ }).join('')||'Life totals appear when the game starts.';
+ if(tableLifeTotals.renderedCards!==totals){tableLifeTotals.renderedCards=totals;const focused=document.activeElement,player=focused?.closest('[data-player]')?.dataset.player,delta=focused?.dataset.delta;tableLifeTotals.innerHTML=totals;if(player&&delta)tableLifeTotals.querySelector(`[data-player="${player}"] [data-delta="${delta}"]`)?.focus({preventScroll:true})}
+ tableLifeTotals.querySelectorAll('button').forEach(b=>b.disabled=lifeBusy||!editable||b.closest('.life-player').classList.contains('eliminated'));
+}
+function renderCounterControls(){
+ renderLifeCards();
+ const me=sessionInfo||{},data=counterData,available=!!(me.authenticated&&data&&data.available&&Number(data.player)===Number(me.player));
+ const owner=me.profileId||'';
+ if(counterOwner!==owner){counterOwner=owner;lifeTarget.innerHTML='';commanderSource.innerHTML='';commanderDelta.value='';lifeDelta.value='';lifeMessage.textContent='';commanderMessage.textContent=''}
+ updatePlayerOptions(lifeTarget,(seatData.seats||[]).filter(s=>s.lifeAvailable&&!s.eliminated),me.player);
+ const own=Number(lifeTarget.value)===Number(me.player);
+ lifeTargetHelp.textContent=own?'Your own changes apply immediately.':'This sends a request. The recipient can accept or reject it; Atlas accepts it after 15 seconds without a response.';
+ lifeSubmit.textContent=own?'Apply life change':'Request life change';
+ if(!available||!data.editable)lifeFields.disabled=true;
+ const requests=available?data.requests||[]:[],incoming=requests.find(r=>Number(r.target)===Number(me.player));
+ lifeRequestsPanel.hidden=!me.authenticated||(!me.lifeAvailable&&!requests.length);
+ const outcomes={accepted:'Accepted',rejected:'Rejected',automatic:'Automatically accepted',cancelled:'Cancelled by a table decision or player departure',failed:'Not applied: life limits or player state changed'};
+ const describe=r=>`${playerLabel(r.actor)} requests ${Number(r.delta)>0?'+':''}${r.delta} life for ${playerLabel(r.target)}.`;
+ const notice=!available?'Request status unavailable. Reconnect to Atlas; its 15-second timer continues.':incoming?describe(incoming)+(incoming.state==='pending'?' Accept or reject this change.':' '+(outcomes[incoming.state]||incoming.state)+'.'):'No request awaiting your response.';
+ if(lifeRequestNotice.textContent!==notice)lifeRequestNotice.textContent=notice;
+ const pending=incoming&&incoming.state==='pending';
+ lifeRequestAlert.hidden=!pending;
+ const alertText=pending?`${playerLabel(incoming.actor)} requests ${Number(incoming.delta)>0?'+':''}${incoming.delta} life for you. Respond within 15 seconds or Atlas accepts it.`:'';
+ if(lifeAlertText.textContent!==alertText)lifeAlertText.textContent=alertText;
+ const controls=pending?`<div class="actions"><button class="good" onclick="respondLifeChange(${Number(incoming.id)},true)">Accept life change</button><button class="bad" onclick="respondLifeChange(${Number(incoming.id)},false)">Reject life change</button></div>`:'';
+ if(lifeRequestActions.innerHTML!==controls)lifeRequestActions.innerHTML=controls;
+ lifeRequestActions.querySelectorAll('button').forEach(button=>button.disabled=counterBusy||!available||!data.editable);
+ lifeRequestCountdown.textContent=pending?`Atlas automatically accepts in ${Math.ceil(Number(incoming.remainingMs)/1000)} seconds.`:'';
+ const outgoing=requests.filter(r=>Number(r.actor)===Number(me.player)).map(r=>`<p>${esc(describe(r))} ${esc(r.state==='pending'?'Awaiting response · '+Math.ceil(Number(r.remainingMs)/1000)+' seconds':outcomes[r.state]||r.state)}</p>`).join('');
+ if(outgoingLifeRequests.innerHTML!==outgoing)outgoingLifeRequests.innerHTML=outgoing;
+ commanderPanel.hidden=!available||!data.commanderEnabled;
+ commanderFields.disabled=counterBusy||!available||!data.editable;
+ if(available&&data.commanderEnabled){
+  updatePlayerOptions(commanderSource,seatData.seats||[],(seatData.seats||[]).find(s=>Number(s.player)!==Number(me.player))?.player||me.player);
+  const totals=(data.damage||[]).map(d=>`<div class="status-row"><span>${esc(playerLabel(d.source))}</span><strong>Commander 1: ${Number(d.commanders[0])}<br>Commander 2: ${Number(d.commanders[1])}</strong></div>`).join('');
+  if(commanderTotals.innerHTML!==totals)commanderTotals.innerHTML=totals;
+ }
+}
+async function sendCounterControl(path,values,messageElement){
+ if(counterBusy||!counterData||!counterData.editable)return;
+ counterBusy=true;renderCounterControls();
+ try{
+  const r=await fetch('/api/control/'+path,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(values)});
+  const result=await r.json();if(!r.ok)throw Error(result.error||'Change rejected');
+  messageElement.textContent=result.message||'Updated';
+  if(path==='commander')commanderDelta.value='';
+  await refreshAll();await refreshAll();
+ }catch(e){messageElement.textContent=e.message+' Check the current totals before retrying.';showToast(e.message,true);await refreshAll()}
+ finally{counterBusy=false;renderCounterControls()}
+}
+function respondLifeChange(requestId,accept){return sendCounterControl('life/respond',{requestId,accept:accept?'1':'0'},lifeMessage)}
+function reviewLifeRequest(){showTab('game');lifeRequestsPanel.scrollIntoView({block:'center'});const button=lifeRequestActions.querySelector('button');if(button)button.focus({preventScroll:true})}
+function saveCommanderDamage(event){event.preventDefault();return sendCounterControl('commander',{source:commanderSource.value,commander:commanderSlot.value,delta:commanderDelta.value},commanderMessage)}
+function renderInviteCodes(){
+ for(const [id,path] of [['portal','/portal'],['join','/login']]){
+  const url=location.origin+path,box=document.getElementById(id+'Qr'),link=document.getElementById(id+'QrLink');link.href=url;
+  try{const code=qrcode(0,'M');code.addData(url);code.make();box.innerHTML=code.createSvgTag({cellSize:4,margin:16,scalable:true});box.querySelector('svg').setAttribute('aria-label',id==='portal'?'Table portal QR code':'Sign in QR code')}
+  catch(_){box.textContent='QR code unavailable. Use the link below.'}
+ }
+}
+renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();showTab(localStorage.getItem('turnhubPortalTab')||'game');refreshAll();setInterval(refreshAll,800);
 
 let lastAccessKey='';
 function showTab(name){if(!['game','players','account','settings'].includes(name))name='game';if(name==='settings'&&!(sessionInfo&&sessionInfo.permissions&1))name='game';originalShowTab(name);if(['account','players','settings'].includes(name))refreshAccountList()}

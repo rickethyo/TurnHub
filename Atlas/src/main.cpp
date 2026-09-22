@@ -79,12 +79,12 @@ uint32_t lastDebounceMs = 0;
 bool lastPairButtonState = HIGH;
 uint32_t lastPairDebounceMs = 0;
 constexpr uint32_t BOOT_BLINK_INTERVAL_MS = 150;
-constexpr uint32_t MOCK_PAIRING_DURATION_MS = 5000;
+constexpr uint32_t PAIRING_DURATION_MS = 30000;
 constexpr uint32_t PAIR_BLINK_INTERVAL_MS = 250;
 bool bootBlinkActive = false;
 uint32_t bootBlinkStartedAtMs = 0;
-bool mockPairingActive = false;
-uint32_t mockPairingStartedAtMs = 0;
+bool pairingActive = false;
+uint32_t pairingStartedAtMs = 0;
 uint32_t countdownStartedAtMs = 0;
 int8_t lastCountdownSecond = -1;
 
@@ -702,6 +702,79 @@ IntentResult handleChangeLifeIntent(const Intent &intent, void *) {
   return IntentResult::accept("Life updated");
 }
 
+IntentResult handleCounterIntent(const Intent &intent, void *) {
+  if (intent.type == IntentType::ExpireLifeChanges) {
+    if (intent.actor.origin != IntentOrigin::System)
+      return IntentResult::reject(IntentStatus::Unauthorized, "Only Atlas expires life requests");
+    game.expireLifeChanges(millis());
+    return IntentResult::accept();
+  }
+  const auto *seat = seatForIntentActor(intent);
+  if (!seat || game.isEliminated(seat->playerNumber))
+    return IntentResult::reject(IntentStatus::InvalidActor, "A living participant is required");
+  if ((hubState != HubState::Running && hubState != HubState::Paused) ||
+      eliminationTargetPlayer || game.hasWinClaim())
+    return IntentResult::reject(IntentStatus::InvalidState, "Resolve the current table decision first");
+  const auto &payload = intent.payload;
+  if (intent.type == IntentType::RequestLifeChange) {
+    if (!game.requestLifeChange(seat->playerNumber, payload.targetPlayer, payload.value, millis()))
+      return IntentResult::reject(IntentStatus::Conflict, "Request unavailable: check the target, pending request and life limits");
+    return IntentResult::accept("Life change requested; Atlas accepts it after 30 seconds unless rejected");
+  }
+  if (intent.type == IntentType::RespondLifeChange) {
+    if (payload.flags > 1 || !game.respondLifeChange(seat->playerNumber, payload.requestId, payload.flags == 1, millis()))
+      return IntentResult::reject(IntentStatus::Conflict, "Request ended, changed or could not be applied; refresh the current total");
+    return IntentResult::accept(payload.flags ? "Life change accepted" : "Life change rejected");
+  }
+  if (intent.type == IntentType::ChangeCounter) {
+    if (payload.targetPlayer != seat->playerNumber)
+      return IntentResult::reject(IntentStatus::Unauthorized, "Record only your own received Commander damage");
+    if (!game.changeCommanderDamage(seat->playerNumber, payload.counterSource, payload.counterSlot, payload.value))
+      return IntentResult::reject(IntentStatus::Conflict, "Commander damage unavailable or a counter/life limit would be exceeded");
+    return IntentResult::accept("Commander damage and life updated");
+  }
+  return IntentResult::reject(IntentStatus::Unsupported, "Unknown counter action");
+}
+
+bool readCounters(uint8_t controller, uint8_t slot, TurnHubWebApi::CounterSnapshot &snapshot) {
+  PlayerSeat seat;
+  if (!game.hasPlayers() || !seatForModuleSlot(controller, slot, seat)) return false;
+  snapshot = TurnHubWebApi::CounterSnapshot{};
+  snapshot.player = seat.playerNumber;
+  snapshot.playerCount = game.playerCount();
+  snapshot.editable = (hubState == HubState::Running || hubState == HubState::Paused) &&
+      !game.isEliminated(seat.playerNumber) && !eliminationTargetPlayer && !game.hasWinClaim();
+  snapshot.commanderEnabled = game.settings().profile == TurnHub::GameProfile::Commander;
+  for (uint8_t i = 0; i < game.playerCount(); ++i) {
+    const auto source = game.playerAt(i)->playerNumber;
+    snapshot.sources[i] = source;
+    for (uint8_t c = 0; c < TurnHub::COMMANDERS_PER_PLAYER; ++c)
+      snapshot.damage[i][c] = game.commanderDamage(seat.playerNumber, source, c + 1);
+    const auto *request = game.lifeChangeFor(source);
+    if (request && (request->actor == seat.playerNumber || request->target == seat.playerNumber))
+      snapshot.requests[i] = *request;
+  }
+  return true;
+}
+
+bool changeCounter(uint8_t controller, uint8_t slot, IntentType type,
+    const TurnHub::IntentPayload &payload, String &message) {
+  PlayerSeat seat;
+  if (!seatForModuleSlot(controller, slot, seat)) { message = "Join the table first"; return false; }
+  Intent intent;
+  intent.type = type;
+  intent.actor.origin = IntentOrigin::Browser;
+  intent.actor.controllerId = controller;
+  intent.actor.slot = slot;
+  intent.actor.playerNumber = seat.playerNumber;
+  intent.payload = payload;
+  // Commander damage is always received by the authenticated participant.
+  if (type == IntentType::ChangeCounter) intent.payload.targetPlayer = seat.playerNumber;
+  const auto result = intents.dispatch(intent);
+  message = result.message;
+  return result.accepted();
+}
+
 bool readGameSettings(TurnHub::GameSettings &settings, bool &editable) {
   settings = game.hasPlayers() ? game.settings() : nextGameSettings;
   editable = hubState == HubState::Lobby;
@@ -748,18 +821,21 @@ IntentResult dispatchSystemIntent(IntentType type) {
   return intents.dispatch(intent);
 }
 
-// Visual prototype only: no discovery, binding, transport, or persistence changes.
-IntentResult handleMockPairRequestIntent(const Intent &intent, void *) {
+// Pairing is deliberately authorized by the Atlas hardware Intent.
+IntentResult handlePairRequestIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Use the Atlas Pair button");
   }
-  if (mockPairingActive) {
-    return IntentResult::accept("Mock pairing is already active");
+  if (hubState != HubState::Lobby) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Pair devices in the lobby");
   }
-  mockPairingActive = true;
-  mockPairingStartedAtMs = millis();
-  Serial.println("ATLAS|PAIRING|MOCK|ENTER|DURATION_MS|5000");
-  return IntentResult::accept("Mock pairing started");
+  if (!sigilBus.openPairing()) {
+    return IntentResult::reject(IntentStatus::Rejected, "Radio unavailable");
+  }
+  pairingActive = true;
+  pairingStartedAtMs = millis();
+  Serial.println("ATLAS|PAIRING|ENTER|DURATION_MS|30000");
+  return IntentResult::accept("Pairing window opened");
 }
 
 
@@ -865,7 +941,11 @@ bool configureIntentHandlers() {
       {IntentType::Eliminate, handleTableIntent},
       {IntentType::CancelPass, handleTableIntent},
       {IntentType::CommitPass, handleCommitPassIntent},
-      {IntentType::PairRequest, handleMockPairRequestIntent},
+      {IntentType::PairRequest, handlePairRequestIntent},
+      {IntentType::RequestLifeChange, handleCounterIntent},
+      {IntentType::RespondLifeChange, handleCounterIntent},
+      {IntentType::ExpireLifeChanges, handleCounterIntent},
+      {IntentType::ChangeCounter, handleCounterIntent},
   };
   for (const auto &binding : bindings) {
     const bool bound = intents.bind(binding.type, binding.handler);
@@ -1116,6 +1196,7 @@ void beginEliminationSelection(uint8_t sigilId) {
   }
 
   eliminationTargetPlayer = candidates[0].playerNumber;
+  game.cancelLifeChanges();
   winArmedModule = INVALID_ID;
   winArmedPlayer = 0;
   audio.eliminationArmed(sigilId);
@@ -1223,18 +1304,29 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
       }
       TurnHubControllers::releaseBrowser(existing);
     } else {
-      if (intent.actor.origin != IntentOrigin::PhysicalSigil || module >= MAX_PHYSICAL_SIGILS || slot != 1) {
-        return IntentResult::reject(IntentStatus::Unauthorized, "Physical primary-seat confirmation required");
+      if (intent.actor.origin != IntentOrigin::PhysicalSigil || module >= MAX_PHYSICAL_SIGILS || (slot != 1 && slot != 2)) {
+        return IntentResult::reject(IntentStatus::Unauthorized, "Physical seat confirmation required");
       }
       if (joined && existing == module && existingSlot == slot) return IntentResult::accept("Controller already attached");
-      if (lobby.isJoined(module)) return IntentResult::reject(IntentStatus::Conflict, "This Sigil already has a participant; leave it first");
-      if (joined && existing < MAX_PHYSICAL_SIGILS) return IntentResult::reject(IntentStatus::Conflict, "Profile already has a physical Sigil");
-      if (!joined && lobby.playerCount() >= MAX_PLAYERS) return IntentResult::reject(IntentStatus::Conflict, "Table is full");
+      if (slot == 2 && !lobby.hasSecondary(module))
+        return IntentResult::reject(IntentStatus::Conflict, "Join seat B on the Sigil first");
+      const bool occupied = slot == 1 ? lobby.isJoined(module) : lobby.hasSecondary(module);
+      // Physical confirmation can adopt a guest, but not another account.
+      const String targetProfile = TurnHubControllers::profileForSeat(module, slot);
+      if (targetProfile.length() && targetProfile != profile)
+        return IntentResult::reject(IntentStatus::Conflict, "This Sigil belongs to another profile; that player must leave first");
+      if (joined && existing < MAX_PHYSICAL_SIGILS && existing != module) return IntentResult::reject(IntentStatus::Conflict, "Profile already has a physical Sigil");
+      if (!joined && !occupied && lobby.playerCount() >= MAX_PLAYERS) return IntentResult::reject(IntentStatus::Conflict, "Table is full");
       if (!TurnHubControllers::bindPhysical(module, slot, profile)) return IntentResult::reject(IntentStatus::Rejected, "Could not save controller assignment");
-      if (joined) {
-        lobby.replaceController(existing, module);
+      if (joined && existing != module) {
+        if (occupied) {
+          // Keep the guest's table position, host and secondary seat.
+          lobby.leave(existing);
+        } else {
+          lobby.replaceController(existing, module);
+        }
         TurnHubControllers::releaseBrowser(existing);
-      } else {
+      } else if (!joined && !occupied) {
         lobby.join(module);
       }
     }
@@ -1792,6 +1884,7 @@ void handleActionWin(uint8_t sigilId) {
 }
 
 void processSigilEvents() {
+  if (hubState != HubState::Lobby) sigilBus.closePairing();
   SigilEvent event;
   while (sigilBus.poll(event)) {
     if (event.sigilId >= MAX_PHYSICAL_SIGILS) continue;
@@ -1997,13 +2090,13 @@ void updateFrontPanelLeds(uint32_t nowMs) {
   digitalWrite(AtlasConfig::STATUS_LED_PIN,
       !bootBlinkActive || (bootElapsed / BOOT_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
 
-  const uint32_t pairingElapsed = nowMs - mockPairingStartedAtMs;
-  if (mockPairingActive && pairingElapsed >= MOCK_PAIRING_DURATION_MS) {
-    mockPairingActive = false;
-    Serial.println("ATLAS|PAIRING|MOCK|EXIT");
+  const uint32_t pairingElapsed = nowMs - pairingStartedAtMs;
+  if (pairingActive && (pairingElapsed >= PAIRING_DURATION_MS || hubState != HubState::Lobby)) {
+    pairingActive = false;
+    Serial.println("ATLAS|PAIRING|EXIT");
   }
   digitalWrite(AtlasConfig::PAIR_LED_PIN,
-      mockPairingActive && (pairingElapsed / PAIR_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
+      pairingActive && (pairingElapsed / PAIR_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
 }
 
 void startNetworking() {
@@ -2042,6 +2135,7 @@ void startNetworking() {
 
   TurnHubWebApi::configure(resolveWebSeat, handleWebControl, handleProfileControl, resolveProfileParticipant);
   TurnHubWebApi::configureGameControls(readGameSettings, configureGame, changeLife);
+  TurnHubWebApi::configureCounterControls(readCounters, changeCounter);
   TurnHubWebApi::configureModeration(moderateAccount);
 
   server.on("/", HTTP_GET, handleRoot);
@@ -2112,6 +2206,7 @@ void loop() {
   updatePendingPass(nowMs);
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);
+  dispatchSystemIntent(IntentType::ExpireLifeChanges);
   audio.update(nowMs);
   leds.render(
       hubState,

@@ -19,6 +19,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Storage test compilation failed.' }
     & .\build\storage_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Storage scenarios failed.' }
+    & $Compiler @flags -Istorage_stubs -Istubs -I../../include profile_store_scenarios.cpp test_globals.cpp ../../src/profile_store.cpp ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/profile_store_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Profile store test compilation failed.' }
+    & .\build\profile_store_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Profile store scenarios failed.' }
 } finally {
     Pop-Location
     $env:PATH = $previousPath

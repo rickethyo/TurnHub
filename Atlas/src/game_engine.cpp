@@ -40,6 +40,10 @@ void GameEngine::reset() {
     stats_[i] = PlayerStats{};
     eliminated_[i] = false;
     life_[i] = 0;
+    lifeChanges_[i] = LifeChangeRequest{};
+    for (uint8_t source = 0; source < MAX_PLAYERS; ++source)
+      for (uint8_t commander = 0; commander < COMMANDERS_PER_PLAYER; ++commander)
+        commanderDamage_[i][source][commander] = 0;
   }
 }
 
@@ -48,12 +52,90 @@ int32_t GameEngine::lifeTotal(uint8_t playerNumber) const {
   return index < 0 ? 0 : life_[index];
 }
 
-bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
+bool GameEngine::canChangeLife(uint8_t playerNumber, int32_t delta) const {
   const int index = indexForPlayerNumber(playerNumber);
   if (index < 0 || gameOver_ || (!running_ && !paused_) || winClaimActive_ || eliminated_[index]) return false;
   const int64_t total = static_cast<int64_t>(life_[index]) + delta;
-  if (total < -1000000 || total > 1000000) return false;
-  life_[index] = static_cast<int32_t>(total);
+  return delta != 0 && delta >= -1000000 && delta <= 1000000 && total >= -1000000 && total <= 1000000;
+}
+
+bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
+  if (!canChangeLife(playerNumber, delta)) return false;
+  life_[indexForPlayerNumber(playerNumber)] += delta;
+  return true;
+}
+
+const LifeChangeRequest *GameEngine::lifeChangeFor(uint8_t target) const {
+  const int index = indexForPlayerNumber(target);
+  return index < 0 ? nullptr : &lifeChanges_[index];
+}
+
+bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs) {
+  const int from = indexForPlayerNumber(actor), to = indexForPlayerNumber(target);
+  if (from < 0 || to < 0 || actor == target || eliminated_[from] ||
+      !canChangeLife(target, delta) || lifeChanges_[to].state == LifeChangeState::Pending ||
+      nextLifeRequestId_ == UINT32_MAX) return false;
+  auto &request = lifeChanges_[to];
+  request = LifeChangeRequest{};
+  request.id = ++nextLifeRequestId_;
+  request.requestedAtMs = nowMs;
+  request.actor = actor;
+  request.target = target;
+  request.delta = delta;
+  request.state = LifeChangeState::Pending;
+  return true;
+}
+
+void GameEngine::settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome) {
+  if (outcome == LifeChangeState::Rejected) { request.state = outcome; return; }
+  const int from = indexForPlayerNumber(request.actor);
+  request.state = from >= 0 && !eliminated_[from] && changeLife(request.target, request.delta)
+      ? outcome : LifeChangeState::Failed;
+}
+
+bool GameEngine::respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs) {
+  const int index = indexForPlayerNumber(recipient);
+  if (index < 0) return false;
+  auto &request = lifeChanges_[index];
+  if (!requestId || request.id != requestId || request.state != LifeChangeState::Pending) return false;
+  if (nowMs - request.requestedAtMs >= LIFE_APPROVAL_MS) {
+    settleLifeChange(request, LifeChangeState::Automatic);
+    return false;
+  }
+  settleLifeChange(request, accept ? LifeChangeState::Accepted : LifeChangeState::Rejected);
+  return request.state != LifeChangeState::Failed;
+}
+
+void GameEngine::expireLifeChanges(uint32_t nowMs) {
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    auto &request = lifeChanges_[i];
+    if (request.state == LifeChangeState::Pending && nowMs - request.requestedAtMs >= LIFE_APPROVAL_MS)
+      settleLifeChange(request, LifeChangeState::Automatic);
+  }
+}
+
+void GameEngine::cancelLifeChanges(uint8_t involvedPlayer) {
+  for (auto &request : lifeChanges_)
+    if (request.state == LifeChangeState::Pending &&
+        (!involvedPlayer || request.actor == involvedPlayer || request.target == involvedPlayer))
+      request.state = LifeChangeState::Cancelled;
+}
+
+int32_t GameEngine::commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const {
+  const int to = indexForPlayerNumber(recipient), from = indexForPlayerNumber(source);
+  if (to < 0 || from < 0 || commander < 1 || commander > COMMANDERS_PER_PLAYER) return 0;
+  return commanderDamage_[to][from][commander - 1];
+}
+
+bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta) {
+  const int to = indexForPlayerNumber(recipient), from = indexForPlayerNumber(source);
+  if (settings_.profile != GameProfile::Commander || to < 0 || from < 0 ||
+      commander < 1 || commander > COMMANDERS_PER_PLAYER || delta == 0 ||
+      delta < -1000000 || delta > 1000000) return false;
+  const int64_t total = static_cast<int64_t>(commanderDamage_[to][from][commander - 1]) + delta;
+  if (total < 0 || total > 1000000 || !canChangeLife(recipient, -delta)) return false;
+  life_[to] -= delta;
+  commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
   return true;
 }
 
@@ -208,6 +290,7 @@ bool GameEngine::eliminatePlayer(
 
   const bool wasActive = static_cast<uint8_t>(index) == activeIndex_;
   eliminated_[index] = true;
+  cancelLifeChanges(playerNumber);
 
   if (wasActive) {
     const int next = nextLivingIndex(activeIndex_);
@@ -260,6 +343,7 @@ void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
   pauseStartedAtMs_ = 0;
   paused_ = false;
   gameOver_ = true;
+  cancelLifeChanges();
   clearWinClaim();
 
   if (gameCompletedCallback_ != nullptr) {
@@ -286,6 +370,7 @@ bool GameEngine::beginWinClaim(
 
   clearWinClaim();
   winClaimActive_ = true;
+  cancelLifeChanges();
   winClaimPlayer_ = playerNumber;
   winRestoreRunning_ = restoreRunning;
 

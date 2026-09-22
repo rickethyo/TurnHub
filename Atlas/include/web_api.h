@@ -4,6 +4,8 @@
 #include <WebServer.h>
 #include "game_profile.h"
 #include "account_access.h"
+#include "game_engine.h"
+#include "intent.h"
 
 namespace TurnHubWebApi {
 
@@ -55,6 +57,20 @@ using ConfigureGameCallback = bool (*)(uint8_t controllerId, uint8_t slot,
     const TurnHub::GameSettings &settings, String &message);
 using ChangeLifeCallback = bool (*)(uint8_t controllerId, uint8_t slot, int32_t delta, String &message);
 void configureGameControls(GameSettingsCallback read, ConfigureGameCallback configure, ChangeLifeCallback life);
+
+struct CounterSnapshot {
+  bool editable = false;
+  bool commanderEnabled = false;
+  uint8_t player = 0;
+  uint8_t playerCount = 0;
+  uint8_t sources[TurnHub::MAX_PLAYERS] = {};
+  int32_t damage[TurnHub::MAX_PLAYERS][TurnHub::COMMANDERS_PER_PLAYER] = {};
+  TurnHub::LifeChangeRequest requests[TurnHub::MAX_PLAYERS] = {};
+};
+using ReadCountersCallback = bool (*)(uint8_t controller, uint8_t slot, CounterSnapshot &snapshot);
+using CounterControlCallback = bool (*)(uint8_t controller, uint8_t slot, TurnHub::IntentType type,
+    const TurnHub::IntentPayload &payload, String &message);
+void configureCounterControls(ReadCountersCallback read, CounterControlCallback control);
 
 // Connect the web layer to the authoritative Atlas lobby/game state.
 void configure(

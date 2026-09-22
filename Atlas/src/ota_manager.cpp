@@ -5,6 +5,7 @@
 
 #include "web_api.h"
 #include "web_pages.h"
+#include "portal_qr_asset.h"
 
 namespace TurnHub {
 
@@ -243,6 +244,11 @@ OtaManager::OtaManager(WebServer &server, AllowedCallback allowedCallback)
 
 void OtaManager::begin() {
   printBootPartitionDiagnostics();
+
+  server_.on("/portal-qr.js", HTTP_GET, [this]() {
+    server_.sendHeader("Content-Encoding", "gzip");
+    server_.send_P(200, "application/javascript", reinterpret_cast<const char *>(TurnHubWeb::QR_SCRIPT_GZIP), sizeof(TurnHubWeb::QR_SCRIPT_GZIP));
+  });
 
   server_.on("/portal", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");

@@ -25,16 +25,19 @@ String createProfile() {
   profiles[id]=Profile{}; return id;
 }
 String createProfileWithCredentials(const String &name,const String &pin,PinHasher hash) {
-  if(profiles.size()>=MAX_LOGIN_PROFILES) return String();
+  char ids[MAX_LOGIN_PROFILES][9];
+  if(listProfileIds(ids,MAX_LOGIN_PROFILES)>=MAX_LOGIN_PROFILES) return String();
   const String id=createProfile(); profiles[id].name=name; profiles[id].hash=hash(id,pin); return id;
 }
 size_t listProfileIds(char (*ids)[9],size_t capacity) {
-  size_t n=0; for(const auto &p:profiles) { if(n==capacity)break; memcpy(ids[n++],p.first.c_str(),9); } return n;
+  size_t n=0; for(const auto &p:profiles) {
+    if(n==capacity)break;
+    if(p.second.name.empty() && p.second.hash.empty() && !p.second.stats.gamesPlayed)continue;
+    memcpy(ids[n++],p.first.c_str(),9);
+  } return n;
 }
 String profileIdForSeat(const uint8_t *mac,uint8_t slot) {
-  const String k=key(mac,slot); auto found=bindings.find(k);
-  if(found==bindings.end()) bindings[k]=createProfile();
-  return bindings[k];
+  return boundProfileIdForSeat(mac,slot);
 }
 String boundProfileIdForSeat(const uint8_t *mac,uint8_t slot) {
   const auto found=bindings.find(key(mac,slot));
@@ -47,6 +50,10 @@ bool resetTransientSeatBindings(const uint8_t *mac) {
   return true;
 }
 bool bindSeatToProfile(const uint8_t *mac,uint8_t slot,const String &id) { if(!profileExists(id))return false; bindings[key(mac,slot)]=id; return true; }
+bool moveSeatProfile(const uint8_t *mac,uint8_t from,uint8_t to,const String &id) {
+  if(boundProfileIdForSeat(mac,from)!=id || boundProfileIdForSeat(mac,to).length())return false;
+  bindings.erase(key(mac,from));bindings[key(mac,to)]=id;return true;
+}
 String nameForProfile(const String &id) { return profileExists(id)?profiles[id].name:String(); }
 bool setNameForProfile(const String &id,const String &name) { if(!profileExists(id))return false; profiles[id].name=name; return true; }
 String storedPinHashForProfile(const String &id) { return profileExists(id)?profiles[id].hash:String(); }

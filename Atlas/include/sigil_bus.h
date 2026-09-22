@@ -38,11 +38,16 @@ class SigilBus {
   explicit SigilBus(uint8_t wifiChannel);
 
   bool begin();
+  bool openPairing();
+  void closePairing() { pairingOpen_ = false; }
+  bool pairingActive() const;
   bool poll(SigilEvent &event);
 
   uint8_t activeCount(uint32_t nowMs) const;
   bool isOnline(uint8_t sigilId, uint32_t nowMs) const;
   const SigilRecord *record(uint8_t sigilId) const;
+  // Refresh names without requesting a reconnect handshake.
+  void syncDisplayProfile(uint8_t sigilId);
 
   bool setBlue(uint8_t sigilId, uint8_t brightness);
   bool setRed(uint8_t sigilId, bool on);
@@ -63,6 +68,11 @@ class SigilBus {
   static constexpr uint32_t SIGIL_TIMEOUT_MS = 7000;
 
  private:
+  struct RxRequest {
+    uint8_t mac[6];
+    TurnHubProtocol::Packet packet;
+    uint32_t receivedAt;
+  };
   struct TxRequest {
     uint8_t mac[6] = {};
     TurnHubProtocol::Packet packet{};
@@ -99,12 +109,14 @@ class SigilBus {
       TurnHubProtocol::PacketType receivedType);
   void enqueue(const SigilRecord &sigil, const TurnHubProtocol::Packet &packet);
 
-  void syncDisplayProfile(uint8_t sigilId);
   bool sendDisplayName(uint8_t sigilId, uint8_t slot, const String &name);
 
   static void printMac(const uint8_t *mac);
 
   uint8_t wifiChannel_;
+  bool pairingOpen_ = false;
+  uint32_t pairingStartedMs_ = 0;
+  QueueHandle_t rxQueue_ = nullptr;
   SigilRecord records_[MAX_PHYSICAL_SIGILS];
   QueueHandle_t eventQueue_ = nullptr;
   QueueHandle_t txQueue_ = nullptr;

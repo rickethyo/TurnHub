@@ -79,9 +79,9 @@ The current verified development wiring is maintained in [Hardware Reference](do
 
 - Physical profile selection on reusable Sigils.
 - A software path for a dedicated auxiliary Action/Win control before final GPIO wiring.
-- Real Atlas-owned pairing/trust state.
-- A 30-second deliberate pairing window.
-- Temporary boot-triggered pairing for unpaired prototype Sigils until the physical Pair button is wired.
+- Bench validation of the implemented Atlas-owned pairing records.
+- A 30-second deliberate pairing window triggered by physical Pair buttons.
+- No automatic pairing on boot; saved devices reconnect to their paired Atlas.
 - Additional field-test Sigils and protective prototype enclosures.
 
 The final production transport, power system, PCB revisions, battery design, and mechanical design are not frozen.
@@ -96,11 +96,12 @@ A known remaining gap is standalone physical profile selection. A Sigil currentl
 
 ## Pairing status
 
-Explicit production-style pairing is **not implemented yet**.
-
-The current ESP-NOW development Sigil broadcasts Hello/discovery traffic and the Atlas currently has only a five-second **visual mock** PairRequest mode on its front-panel controls. That mock does not create, persist, or forget device trust.
-
-The near-term Prototype 1.0 target is to replace passive proximity adoption with a real Atlas-owned pairing state machine. Pairing will use a deliberate 30-second window; an unpaired development Sigil may temporarily enter that same flow at boot until its physical Pair button is installed. See [Protocol and Pairing](docs/engineering/PROTOCOL_AND_PAIRING.md) and [Staged Changes](docs/engineering/STAGED_CHANGES.md).
+Manual prototype pairing is implemented, with hardware acceptance pending.
+Press Atlas Pair in the lobby and Sigil Pair within the 30-second window.
+Both devices persist their association; booting an unpaired Sigil no longer
+broadcasts discovery or creates an association. Saved devices reconnect directly.
+This is MAC-based association on the existing unencrypted experimental transport,
+not production cryptographic authentication. See [Manual Pairing](Documentation/engineering/MANUAL_PAIRING.md).
 
 ## Local-first direction
 

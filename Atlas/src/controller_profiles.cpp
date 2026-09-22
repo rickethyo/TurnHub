@@ -43,8 +43,12 @@ void releaseBrowser(uint8_t controllerId) {
 bool bindPhysical(uint8_t controllerId, uint8_t slot, const String &profileId) {
   auto *bus = TurnHub::SigilBus::activeInstance();
   const auto *record = controllerId < TurnHub::MAX_PHYSICAL_SIGILS && bus ? bus->record(controllerId) : nullptr;
-  if (!record || !TurnHubProfiles::bindSeatToProfile(record->mac, slot, profileId)) return false;
-  bus->send(controllerId, TurnHubProtocol::PacketType::DisplayProfileRequest);
+  if (!record || (slot != 1 && slot != 2)) return false;
+  const uint8_t other = slot == 1 ? 2 : 1;
+  const bool moving = TurnHubProfiles::boundProfileIdForSeat(record->mac, other) == profileId;
+  if (!(moving ? TurnHubProfiles::moveSeatProfile(record->mac, other, slot, profileId) :
+      TurnHubProfiles::bindSeatToProfile(record->mac, slot, profileId))) return false;
+  bus->syncDisplayProfile(controllerId);
   return true;
 }
 }  // namespace TurnHubControllers
