@@ -41,7 +41,7 @@ eight Wi-Fi clients; table capacity is not a promise of 16 direct phone clients.
 PIN changes revoke other browser sessions for that profile. Five failed PIN
 attempts per profile within 15 seconds trigger temporary throttling.
 
-See [Profile login and virtual play](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md)
+See [Profile login and virtual play](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md)
 for ownership, compatibility and acceptance checks.
 
 ## Current prototype hardware
@@ -91,7 +91,7 @@ to one participant. The engine receives logical controller handles and a capture
 profile ID, and the statistics completion bridge never consults radio discovery.
 
 The known remaining physical-selection gap is documented in
-[Physical Profile Selection](../docs/engineering/PHYSICAL_PROFILE_SELECTION.md):
+[Physical Profile Selection](../Documentation/engineering/PHYSICAL_PROFILE_SELECTION.md):
 a remembered physical binding is still the Sigil's only standalone join choice.
 The duplicate-participant guard is retained; Prototype 1.0 work will separate
 last-used preference from live assignment and add a physical e-ink picker.
@@ -141,7 +141,7 @@ with a 15-second recipient approval window are now implemented locally. See
 [Life approval and Commander damage](../Documentation/engineering/LIFE_APPROVAL_AND_COMMANDER.md).
 This has passed
 automated checks and an Atlas build; hardware acceptance remains pending.
-See [game profiles and life](../docs/engineering/GAME_PROFILES_AND_LIFE.md).
+See [game profiles and life](../Documentation/engineering/GAME_PROFILES_AND_LIFE.md).
 
 Local profile-policy implementation adds two choices in Settings: allow physical
 use without a PIN, and hide stats without authentication. Atlas persists these
@@ -149,7 +149,7 @@ independently. When physical use requires authentication, sign into that profile
 before joining through its Sigil. PIN-protected profiles always require their
 PIN for browser login. Existing matches continue when a browser logs out.
 Device Settings now groups Sigil naming; standalone profile selection and startup
-mode are still pending. See [implementation scope and bench checks](../docs/engineering/PHYSICAL_PROFILE_SELECTION.md).
+mode are still pending. See [implementation scope and bench checks](../Documentation/engineering/PHYSICAL_PROFILE_SELECTION.md).
 
 Atlas is only partially persistent today.
 
@@ -163,8 +163,8 @@ Prototype 1.0 work is staged to add an explicit versioned active-match recovery
 record. A valid interrupted match should offer Resume or Discard and must restore
 paused so downtime is never charged to a player. The design must also prevent a
 completed game/statistics update from being replayed twice after uncertain power
-loss. See [Software Architecture](../docs/engineering/SOFTWARE_ARCHITECTURE.md) and
-[Staged Changes](../docs/engineering/STAGED_CHANGES.md).
+loss. See [Software Architecture](../Documentation/engineering/SOFTWARE_ARCHITECTURE.md) and
+[Staged Changes](../Documentation/engineering/STAGED_CHANGES.md).
 
 ## Turn-pass grace
 
@@ -268,8 +268,8 @@ The hardware buttons are owner-verified. The new manual pairing firmware builds
 and host regressions pass; radio/persistence bench acceptance remains pending.
 
 See [native regression tests](tests/host/README.md),
-[profile login and virtual play](../docs/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md),
-and [verification backlog](../docs/engineering/VERIFICATION_BACKLOG.md) for the
+[profile login and virtual play](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md),
+and [verification backlog](../Documentation/engineering/VERIFICATION_BACKLOG.md) for the
 current evidence and remaining physical checks.
 
 ## Near-term Prototype 1.0 direction
@@ -284,4 +284,4 @@ The immediate field-test priorities are:
 5. Bench verification of deliberate pairing/persistence and a future forget-device flow.
 6. Additional physical Sigils, rough protective enclosures, out-of-box setup, and hardening.
 
-The authoritative queue is [Staged Changes](../docs/engineering/STAGED_CHANGES.md).
+The authoritative queue is [Staged Changes](../Documentation/engineering/STAGED_CHANGES.md).
