@@ -18,6 +18,8 @@
 #include "web_api.h"
 #include "controller_profiles.h"
 #include "profile_store.h"
+#include "game_settings_store.h"
+#include "runtime_diagnostics.h"
 
 WebServer server(AtlasConfig::HTTP_PORT);
 
@@ -63,6 +65,8 @@ bool otaAllowed();
 SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
 Lobby lobby;
 GameEngine game;
+TurnHub::GameSettings nextGameSettings;
+bool gameSettingsAvailable = true;
 IntentDispatcher intents;
 LedRenderer leds(sigilBus);
 AudioController audio(sigilBus);
@@ -248,6 +252,8 @@ bool resolveWebSeat(
   snapshot.active = false;
   snapshot.eliminated = false;
   snapshot.host = controllerId == lobby.hostController();
+  snapshot.lifeAvailable = game.hasPlayers();
+  snapshot.life = game.lifeTotal(seat.playerNumber);
 
   if (game.hasPlayers()) {
     snapshot.eliminated = game.isEliminated(seat.playerNumber);
@@ -666,6 +672,64 @@ IntentResult dispatchPassIntent(IntentOrigin origin, const PlayerSeat &seat) {
 IntentResult handleTableIntent(const Intent &intent, void *);
 IntentResult handleCommitPassIntent(const Intent &intent, void *);
 
+IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
+  PlayerSeat actor;
+  if (hubState != HubState::Lobby || lobby.playerCount() == 0 ||
+      intent.actor.controllerId != lobby.hostController() || intent.actor.slot != 1 ||
+      !seatForModuleSlot(intent.actor.controllerId, intent.actor.slot, actor) ||
+      actor.playerNumber != intent.actor.playerNumber)
+    return IntentResult::reject(IntentStatus::Unauthorized, "Only the table host can change game settings in the lobby");
+  TurnHub::GameSettings settings;
+  if (intent.payload.flags >= static_cast<uint32_t>(TurnHub::GameProfile::Count))
+    return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
+  settings.profile = static_cast<TurnHub::GameProfile>(intent.payload.flags);
+  settings.startingLife = intent.payload.value;
+  if (!TurnHub::validGameSettings(settings))
+    return IntentResult::reject(IntentStatus::Rejected, "Starting life must be between 0 and 1000000");
+  if (!gameSettingsAvailable || TurnHub::saveGameSettings(settings) != TurnHubStorage::Status::Ok)
+    return IntentResult::reject(IntentStatus::Rejected, "Game settings could not be saved");
+  nextGameSettings = settings;
+  return IntentResult::accept("Game settings saved on Atlas");
+}
+
+IntentResult handleChangeLifeIntent(const Intent &intent, void *) {
+  const PlayerSeat *seat = seatForIntentActor(intent);
+  if (!seat || intent.payload.targetPlayer != seat->playerNumber)
+    return IntentResult::reject(IntentStatus::Unauthorized, "You can change only your own life");
+  if ((hubState != HubState::Running && hubState != HubState::Paused) || eliminationTargetPlayer ||
+      !game.changeLife(seat->playerNumber, intent.payload.value))
+    return IntentResult::reject(IntentStatus::InvalidState, "Life cannot be changed now or exceeds its limits");
+  return IntentResult::accept("Life updated");
+}
+
+bool readGameSettings(TurnHub::GameSettings &settings, bool &editable) {
+  settings = game.hasPlayers() ? game.settings() : nextGameSettings;
+  editable = hubState == HubState::Lobby;
+  return gameSettingsAvailable;
+}
+
+bool configureGame(uint8_t controller, uint8_t slot, const TurnHub::GameSettings &settings, String &message) {
+  PlayerSeat seat;
+  if (!seatForModuleSlot(controller,slot,seat)) { message="Join the table first"; return false; }
+  Intent intent;
+  intent.type=IntentType::ConfigureGame;
+  intent.actor.origin=IntentOrigin::Browser; intent.actor.controllerId=controller;
+  intent.actor.slot=slot; intent.actor.playerNumber=seat.playerNumber;
+  intent.payload.flags=static_cast<uint32_t>(settings.profile); intent.payload.value=settings.startingLife;
+  const auto result=intents.dispatch(intent);message=result.message;return result.accepted();
+}
+
+bool changeLife(uint8_t controller, uint8_t slot, int32_t delta, String &message) {
+  PlayerSeat seat;
+  if (!seatForModuleSlot(controller,slot,seat)) { message="Join the table first"; return false; }
+  Intent intent;
+  intent.type=IntentType::ChangeLife;
+  intent.actor.origin=IntentOrigin::Browser; intent.actor.controllerId=controller;
+  intent.actor.slot=slot; intent.actor.playerNumber=seat.playerNumber;
+  intent.payload.targetPlayer=seat.playerNumber;intent.payload.value=delta;
+  const auto result=intents.dispatch(intent);message=result.message;return result.accepted();
+}
+
 IntentResult dispatchModuleIntent(IntentType type, uint8_t controllerId,
     uint8_t slot = 1, int32_t value = 0) {
   Intent intent;
@@ -698,7 +762,67 @@ IntentResult handleMockPairRequestIntent(const Intent &intent, void *) {
   return IntentResult::accept("Mock pairing started");
 }
 
+
+IntentResult handleModerateIntent(const Intent &intent,void *) {
+  using namespace TurnHubAccounts;
+  const String actor(intent.payload.moderatorId),target(intent.payload.profileId);
+  Account moderator,account;
+  if(intent.actor.origin!=IntentOrigin::Browser||!load(actor,moderator)||moderator.archived||!(moderator.permissions&GameMaster))return IntentResult::reject(IntentStatus::Unauthorized,"Game Master permission required");
+  if(!load(target,account)||account.archived)return IntentResult::reject(IntentStatus::InvalidActor,"Account unavailable or archived");
+  const int action=intent.payload.value; // 0 reset, 1 remove, 2 pass, 3 mute, 4 unmute
+  if(action<0||action>4)return IntentResult::reject(IntentStatus::Unsupported,"Unknown moderation action");
+  if(action==3||action==4){account.nudgeMuted=action==3;return save(target,account)?IntentResult::accept("Nudge preference saved"):IntentResult::reject(IntentStatus::Rejected,"Could not save account");}
+  if((action==0&&!(moderator.permissions&ResetConnections))||(action==1&&!(moderator.permissions&RemovePlayer)))return IntentResult::reject(IntentStatus::Unauthorized,"This moderation permission is disabled");
+  uint8_t controller=INVALID_ID,slot=1;PlayerSeat seat;
+  const bool joined=resolveProfileParticipant(target,controller,slot)&&seatForModuleSlot(controller,slot,seat);
+  if(action==2){
+    if(!joined||hubState!=HubState::Running||game.activePlayerNumber()!=seat.playerNumber)return IntentResult::reject(IntentStatus::InvalidState,"Target is not the active player");
+    if(game.hasWinClaim()||eliminationTargetPlayer)return IntentResult::reject(IntentStatus::Conflict,"Resolve table decisions first");
+    clearPendingPass("GAME_MASTER");
+    if(!game.passTurn(controller,DEFAULT_WARNING_MS,millis()))return IntentResult::reject(IntentStatus::InvalidState,"Pass rejected");
+    const PlayerSeat *next=game.activePlayer();if(next)audio.turnPass(next->controllerId);
+    leds.invalidateAll();return IntentResult::accept("Turn passed by Game Master");
+  }
+  if(!TurnHubProfiles::hasPinForProfile(target))return IntentResult::reject(IntentStatus::Conflict,"Target needs a PIN for secure reconnection; ask them to set one first");
+  if(action==0&&account.reconnectRequired)return IntentResult::reject(IntentStatus::Conflict,"Connections already reset");
+  if(action==1){
+    if(!joined)return IntentResult::reject(IntentStatus::InvalidState,"Target is not in this game");
+    if(hubState==HubState::Lobby){if(slot==1&&lobby.hasSecondary(controller))return IntentResult::reject(IntentStatus::Conflict,"Remove the secondary seat first");}
+    else if((hubState!=HubState::Running&&hubState!=HubState::Paused)||game.hasWinClaim()||eliminationTargetPlayer||game.isEliminated(seat.playerNumber))return IntentResult::reject(IntentStatus::InvalidState,"Resolve table decisions first, or target already removed");
+  }
+  Account previous=account;
+  if(action==0){if(account.connectionResets==UINT32_MAX)return IntentResult::reject(IntentStatus::Rejected,"Counter full");++account.connectionResets;}
+  else{if(account.gameRemovals==UINT32_MAX)return IntentResult::reject(IntentStatus::Rejected,"Counter full");++account.gameRemovals;}
+  account.reconnectRequired=true;
+  if(!save(target,account))return IntentResult::reject(IntentStatus::Rejected,"Could not persist moderation; no disconnection performed");
+  if(action==1){
+    Intent removal;removal.actor.origin=IntentOrigin::Browser;removal.actor.controllerId=controller;removal.actor.slot=slot;removal.actor.playerNumber=seat.playerNumber;
+    removal.type=hubState==HubState::Lobby?IntentType::LeaveProfile:IntentType::Concede;
+    strncpy(removal.payload.profileId,target.c_str(),8);
+    auto result=intents.dispatch(removal);
+    if(!result.accepted()){save(target,previous);return result;}
+  }
+  TurnHubWebApi::revokeConnections(target);
+  if(joined){lobby.setHeld(controller,false);clearPendingPass("CONNECTION_RESET");}
+  return IntentResult::accept(action==0?"Connections reset; sign in again to reconnect":"Removed from game");
+}
+bool moderateAccount(const String &actor,const String &target,const String &action,String &message){
+  Intent intent;intent.type=IntentType::Moderate;intent.actor.origin=IntentOrigin::Browser;
+  if(actor.length()!=8||target.length()!=8){message="Invalid account";return false;}
+  strncpy(intent.payload.moderatorId,actor.c_str(),8);strncpy(intent.payload.profileId,target.c_str(),8);
+  intent.payload.value=action=="reset"?0:action=="remove"?1:action=="pass"?2:action=="mute"?3:action=="unmute"?4:-1;
+  const auto result=intents.dispatch(intent);message=result.message;
+  TurnHub::recordActivity(
+      result.accepted() ? "moderation" : "moderation_rejected",
+      String("actor=") + actor + " target=" + target + " action=" + action +
+          " result=" + result.message);
+  return result.accepted();
+}
 bool configureIntentHandlers() {
+  const bool moderationBound=intents.bind(IntentType::Moderate,handleModerateIntent);
+
+  const bool settingsBound = intents.bind(IntentType::ConfigureGame, handleGameSettingsIntent);
+  const bool lifeBound = intents.bind(IntentType::ChangeLife, handleChangeLifeIntent);
   const bool passBound = intents.bind(IntentType::Pass, handlePassIntent);
   const bool pauseBound = intents.bind(IntentType::Pause, handlePauseIntent);
   const bool resumeBound = intents.bind(IntentType::Resume, handleResumeIntent);
@@ -750,7 +874,7 @@ bool configureIntentHandlers() {
     Serial.println(bound ? "|BOUND" : "|BIND_FAILED");
     remainingBound = bound && remainingBound;
   }
-  return passBound && pauseBound && resumeBound && concedeBound && remainingBound;
+  return moderationBound && settingsBound && lifeBound && passBound && pauseBound && resumeBound && concedeBound && remainingBound;
 }
 
 IntentResult handleCommitPassIntent(const Intent &intent, void *) {
@@ -882,7 +1006,7 @@ void finishGameState() {
 }
 
 void beginCountdown() {
-  if (lobby.playerCount() < 2) {
+  if (lobby.playerCount() < 2 || !gameSettingsAvailable) {
     return;
   }
 
@@ -928,7 +1052,7 @@ void startGame() {
           count,
           starter,
           DEFAULT_WARNING_MS,
-          millis())) {
+          millis(), nextGameSettings)) {
     cancelCountdown();
     return;
   }
@@ -966,8 +1090,18 @@ void updateCountdown(uint32_t nowMs) {
 }
 
 void handleLobbyShort(uint8_t sigilId) {
-  dispatchModuleIntent(lobby.isJoined(sigilId) ? IntentType::SelectStarter : IntentType::Join,
+  const auto result = dispatchModuleIntent(
+      lobby.isJoined(sigilId) ? IntentType::SelectStarter : IntentType::Join,
       sigilId, 1, static_cast<int32_t>(TurnHub::StarterSelection::CycleModule));
+  TurnHub::recordActivity(
+      result.accepted() ? "lobby_action" : "lobby_rejected",
+      String("sigil=") + String(sigilId) + " result=" + result.message);
+  if (!result.accepted()) {
+    Serial.print("ATLAS|LOBBY|JOIN|REJECTED|");
+    Serial.print(sigilId);
+    Serial.print("|");
+    Serial.println(result.message);
+  }
 }
 
 void beginEliminationSelection(uint8_t sigilId) {
@@ -1137,6 +1271,10 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
       const bool joining = intent.type == IntentType::Join;
       if (joining && lobby.playerNumber(module, slot) == 0) {
         const String profile = TurnHubControllers::profileForSeat(module, slot);
+        if (module < MAX_PHYSICAL_SIGILS && !TurnHubWebApi::physicalUseAllowed(profile)) {
+          return IntentResult::reject(IntentStatus::Unauthorized,
+              "Sign into this profile in the portal before using its Sigil");
+        }
         uint8_t current = INVALID_ID, currentSlot = 1;
         if (resolveProfileParticipant(profile, current, currentSlot)) {
           return IntentResult::reject(IntentStatus::Conflict, "Profile is already playing; attach this Sigil from its signed-in phone");
@@ -1206,6 +1344,7 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
     }
     case IntentType::ArmStart:
     case IntentType::StartGame:
+      if (!gameSettingsAvailable) return IntentResult::reject(IntentStatus::InvalidState, "Game settings storage is unavailable; restart Atlas after resolving the storage problem");
       if (hubState != HubState::Lobby || module != lobby.hostController() || lobby.playerCount() < 2) {
         return IntentResult::reject(IntentStatus::InvalidState, "Only the host can start a lobby with two players");
       }
@@ -1374,13 +1513,26 @@ void handlePass(uint8_t sigilId) {
       lobby.setSharedChord(sigilId, true);
       lobby.setSuppressNextShort(sigilId, true);
 
-      dispatchModuleIntent(lobby.hasSecondary(sigilId) ? IntentType::Leave : IntentType::Join,
+      const auto result = dispatchModuleIntent(
+          lobby.hasSecondary(sigilId) ? IntentType::Leave : IntentType::Join,
           sigilId, 2);
+      if (!result.accepted()) {
+        Serial.print("ATLAS|LOBBY|SECONDARY|REJECTED|");
+        Serial.print(sigilId);
+        Serial.print("|");
+        Serial.println(result.message);
+      }
       return;
     }
 
-    dispatchModuleIntent(IntentType::SelectStarter, sigilId, 1,
+    const auto result = dispatchModuleIntent(IntentType::SelectStarter, sigilId, 1,
         static_cast<int32_t>(TurnHub::StarterSelection::Random));
+    if (!result.accepted()) {
+      Serial.print("ATLAS|LOBBY|STARTER|REJECTED|");
+      Serial.print(sigilId);
+      Serial.print("|");
+      Serial.println(result.message);
+    }
     return;
   }
 
@@ -1418,7 +1570,13 @@ void handlePass(uint8_t sigilId) {
     return;
   }
 
-  dispatchPassIntent(IntentOrigin::PhysicalSigil, *active);
+  const auto result = dispatchPassIntent(IntentOrigin::PhysicalSigil, *active);
+  if (!result.accepted()) {
+    Serial.print("ATLAS|GAME|PASS|REJECTED|");
+    Serial.print(sigilId);
+    Serial.print("|");
+    Serial.println(result.message);
+  }
 }
 
 void handleActionDown(uint8_t sigilId) {
@@ -1637,6 +1795,47 @@ void processSigilEvents() {
   SigilEvent event;
   while (sigilBus.poll(event)) {
     if (event.sigilId >= MAX_PHYSICAL_SIGILS) continue;
+    if (event.type != PacketType::Hello) {
+      const char *kind = "sigil_event";
+      switch (event.type) {
+        case PacketType::Pass: kind = "sigil_pass"; break;
+        case PacketType::ActionDown: kind = "sigil_down"; break;
+        case PacketType::ActionUp: kind = "sigil_up"; break;
+        case PacketType::ActionShort: kind = "sigil_short"; break;
+        case PacketType::ActionLong: kind = "sigil_long"; break;
+        case PacketType::ActionWin: kind = "sigil_win"; break;
+        default: break;
+      }
+      TurnHub::recordActivity(kind, String("sigil=") + String(event.sigilId));
+    }
+    // Keep forced connection resets effective for an occupied Sigil, but let an
+    // unjoined Sigil reach the normal lobby join validator. That validator can
+    // return the policy/PIN reason instead of losing the button event silently.
+    if (event.type != PacketType::Hello &&
+        (hubState != HubState::Lobby || lobby.isJoined(event.sigilId))) {
+      bool blocked = false;
+      for (uint8_t slot = 1; slot <= 2; ++slot) {
+        // A saved secondary binding is not an active connection until that
+        // seat joins. Do not let an archived or reset placeholder disable the
+        // primary seat on the same physical Sigil.
+        if (lobby.playerNumber(event.sigilId, slot) == 0) continue;
+        const String id = TurnHubControllers::existingProfileForSeat(event.sigilId, slot);
+        if (id.length() && TurnHubWebApi::connectionBlocked(id)) {
+          Serial.print("ATLAS|SIGIL|CONNECTION_BLOCKED|");
+          Serial.print(event.sigilId);
+          Serial.print("|SLOT|");
+          Serial.print(slot);
+          Serial.print("|PROFILE|");
+          Serial.println(id);
+          TurnHub::recordActivity(
+              "connection_blocked",
+              String("sigil=") + String(event.sigilId) + " slot=" + String(slot) +
+                  " profile=" + id);
+          blocked = true;
+        }
+      }
+      if (blocked) continue;
+    }
     switch (event.type) {
       case PacketType::Hello:
         leds.invalidate(event.sigilId);
@@ -1842,9 +2041,19 @@ void startNetworking() {
   espNowReady = sigilBus.begin();
 
   TurnHubWebApi::configure(resolveWebSeat, handleWebControl, handleProfileControl, resolveProfileParticipant);
+  TurnHubWebApi::configureGameControls(readGameSettings, configureGame, changeLife);
+  TurnHubWebApi::configureModeration(moderateAccount);
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
+  server.on("/api/diagnostics", HTTP_GET, []() {
+    server.sendHeader("Cache-Control", "no-store");
+    if(TurnHubWebApi::requirePermission(server,TurnHubAccounts::Developer))server.send(200,"application/json",TurnHub::runtimeDiagnosticsJson());
+  });
+  server.on("/api/diagnostics/activity", HTTP_GET, []() {
+    server.sendHeader("Cache-Control", "no-store");
+    if(TurnHubWebApi::requirePermission(server,TurnHubAccounts::Developer))server.send(200,"application/json",TurnHub::activityJson());
+  });
   ota.begin();
   server.onNotFound([]() {
     server.send(404, "text/plain", "Not found");
@@ -1874,9 +2083,16 @@ void setup() {
   Serial.println();
   Serial.print("ATLAS|BOOT|");
   Serial.println(TurnHubFirmware::VERSION);
+  Serial.print("ATLAS|RESET_REASON|"); Serial.println(TurnHub::resetReason());
+  Serial.print("ATLAS|DIAGNOSTICS|"); Serial.println(TurnHub::runtimeDiagnosticsJson());
+  TurnHub::recordActivity("boot", TurnHub::resetReason());
   Serial.println("ATLAS|FRONT_PANEL|LEDS|BOOT_BLINK");
 
   configureIntentHandlers();
+  const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
+  gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
+      settingsStatus == TurnHubStorage::Status::NotFound;
+  if (!gameSettingsAvailable) Serial.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
   startNetworking();
 
   // Start after synchronous network setup so all three flashes are visible.

@@ -16,6 +16,12 @@ String profileForSeat(uint8_t controllerId, uint8_t slot) {
   const auto *record = bus ? bus->record(controllerId) : nullptr;
   return record ? TurnHubProfiles::profileIdForSeat(record->mac, slot) : String();
 }
+String existingProfileForSeat(uint8_t controllerId, uint8_t slot) {
+  if (controllerId >= TurnHub::MAX_PHYSICAL_SIGILS || (slot != 1 && slot != 2)) return String();
+  auto *bus = TurnHub::SigilBus::activeInstance();
+  const auto *record = bus ? bus->record(controllerId) : nullptr;
+  return record ? TurnHubProfiles::boundProfileIdForSeat(record->mac, slot) : String();
+}
 uint8_t registerBrowser(const String &profileId) {
   if (!TurnHubProfiles::profileExists(profileId)) return TurnHub::INVALID_ID;
   for (uint8_t i = 0; i < TurnHub::MAX_PLAYERS; ++i) {

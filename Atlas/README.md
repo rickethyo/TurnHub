@@ -123,6 +123,24 @@ The portal links to `/stats`, where the authenticated player can view and downlo
 
 ## Persistence and current recovery behavior
 
+### Game profiles and life (local implementation)
+
+After joining, the host can choose Generic, Magic, Commander, or Yu-Gi-Oh! and
+custom starting life under Settings. Atlas saves that setup and captures it when
+the game starts. Game shows everyone's life and controls for changing your own
+total, including negative totals without automatic elimination. Rematches reset
+life. Commander damage and cross-player edits are follow-ups. This has passed
+automated checks and an Atlas build; hardware acceptance remains pending.
+See [game profiles and life](../docs/engineering/GAME_PROFILES_AND_LIFE.md).
+
+Local profile-policy implementation adds two choices in Settings: allow physical
+use without a PIN, and hide stats without authentication. Atlas persists these
+independently. When physical use requires authentication, sign into that profile
+before joining through its Sigil. PIN-protected profiles always require their
+PIN for browser login. Existing matches continue when a browser logs out.
+Device Settings now groups Sigil naming; standalone profile selection and startup
+mode are still pending. See [implementation scope and bench checks](../docs/engineering/PHYSICAL_PROFILE_SELECTION.md).
+
 Atlas is only partially persistent today.
 
 Profiles, names/PIN-related profile data, existing physical-seat bindings, deployed

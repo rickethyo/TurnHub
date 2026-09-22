@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 #include "turnhub_types.h"
+#include "game_profile.h"
 
 namespace TurnHub {
 
@@ -26,7 +27,12 @@ class GameEngine {
       uint8_t playerCount,
       const PlayerSeat &starter,
       uint32_t warningMs,
-      uint32_t nowMs);
+      uint32_t nowMs,
+      const GameSettings &settings = GameSettings{});
+
+  const GameSettings &settings() const { return settings_; }
+  int32_t lifeTotal(uint8_t playerNumber) const;
+  bool changeLife(uint8_t playerNumber, int32_t delta);
 
   bool passTurn(uint8_t controllerId, uint32_t nextWarningMs, uint32_t nowMs);
   bool pause(uint32_t nowMs);
@@ -95,6 +101,8 @@ class GameEngine {
   static GameCompletedCallback gameCompletedCallback_;
 
   PlayerSeat players_[MAX_PLAYERS];
+  GameSettings settings_{};
+  int32_t life_[MAX_PLAYERS] = {};
   PlayerStats stats_[MAX_PLAYERS];
   bool eliminated_[MAX_PLAYERS] = {};
   uint8_t playerCount_ = 0;

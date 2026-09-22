@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "identity.h"
+#include "profile_policy.h"
 
 namespace TurnHubProfiles {
 
@@ -59,12 +60,23 @@ bool setPinHashForProfile(const String &profileId, const String &hash);
 bool clearPinForProfile(const String &profileId);
 bool hasPinForProfile(const String &profileId);
 
+bool loadPolicyForProfile(const String &profileId, ProfilePolicy &policy);
+bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
+
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats);
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
 
 // Physical-seat binding adapter. This is deliberately separate from profile
 // storage so the same profile can later bind to a persistent virtual seat.
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
+// Read an existing binding without creating a profile for an unused seat.
+String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
+// Persistence is an Atlas-side choice and is supported only for primary seat A.
+bool seatIsPersistent(const uint8_t mac[6], uint8_t slot);
+bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent);
+// Release non-persistent primary bindings and every secondary binding for a
+// Sigil boot/reconnect. Profile records themselves remain durable.
+bool resetTransientSeatBindings(const uint8_t mac[6]);
 bool bindSeatToProfile(
     const uint8_t mac[6],
     uint8_t slot,

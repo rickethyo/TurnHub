@@ -29,6 +29,8 @@ struct SigilRecord {
   uint8_t firmwareMinor = 0;
   uint8_t firmwarePatch = 0;
   uint8_t capabilities = 0;
+  bool profileRequestSeen = false;
+  uint32_t lastProfileRequestMs = 0;
 };
 
 class SigilBus {

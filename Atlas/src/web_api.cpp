@@ -44,6 +44,7 @@ struct PendingClaim {
   bool approved = false;
   char token[33] = {};
   char requestingToken[33] = {};
+  char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
   char error[100] = {};
 };
 
@@ -63,8 +64,12 @@ ResolveSeatCallback resolveSeat = nullptr;
 ControlCallback controlHandler = nullptr;
 ProfileControlCallback profileControlHandler = nullptr;
 ResolveProfileCallback resolveProfile = nullptr;
+GameSettingsCallback readGameConfiguration = nullptr;
+ConfigureGameCallback configureGameHandler = nullptr;
+ChangeLifeCallback changeLifeHandler = nullptr;
 TurnHub::LoginLimiter loginLimiter;
 bool profileStoreReady = false;
+ModerateCallback moderateHandler = nullptr;
 
 uint64_t random64() {
   return (static_cast<uint64_t>(esp_random()) << 32) |
@@ -343,6 +348,8 @@ WebSession *sessionForToken(const String &token, uint32_t nowMs) {
 
   for (auto &session : sessions) {
     if (session.used && token.equalsIgnoreCase(session.token)) {
+      TurnHubAccounts::Account account;
+      if(!TurnHubAccounts::load(String(session.profileId),account)||account.archived){session=WebSession{};return nullptr;}
       session.lastSeenMs = nowMs;
       return &session;
     }
@@ -356,6 +363,8 @@ WebSession *sessionForRequest(WebServer &server) {
 
 WebSession *createProfileSession(const String &profileId, uint32_t nowMs) {
   cleanup(nowMs);
+  TurnHubAccounts::Account account;
+  if(!TurnHubAccounts::load(profileId,account)||account.archived)return nullptr;
   if (!TurnHubProfiles::profileExists(profileId)) {
     return nullptr;
   }
@@ -524,6 +533,9 @@ void handleDevices(WebServer &server) {
       const bool online = ageMs <= SigilBus::SIGIL_TIMEOUT_MS;
       const String customName = customDeviceName(id);
       const String label = deviceLabel(id);
+      const String profileA = TurnHubProfiles::boundProfileIdForSeat(record->mac, 1);
+      const bool persistentA = profileA.length() > 0 &&
+          TurnHubProfiles::seatIsPersistent(record->mac, 1);
 
       char firmware[24];
       if (record->helloInfoValid) {
@@ -562,6 +574,10 @@ void handleDevices(WebServer &server) {
       json += String(record->capabilities);
       json += ",\"sessionCount\":";
       json += String(moduleSessionCount(id, nowMs));
+      json += ",\"profileA\":\"";
+      json += jsonEscape(profileA);
+      json += "\",\"persistentA\":";
+      json += persistentA ? "true" : "false";
       json += '}';
     }
   }
@@ -570,7 +586,44 @@ void handleDevices(WebServer &server) {
   sendJson(server, 200, json);
 }
 
+void handleSeatPersistence(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendJson(server, 401, "{\"error\":\"Sign in before changing Sigil persistence\"}");
+    return;
+  }
+  const int module = server.arg("module").toInt();
+  const int slot = server.arg("slot").toInt();
+  const String remember = server.arg("remember");
+  if (module < 0 || module >= MAX_PHYSICAL_SIGILS || slot != 1 ||
+      (remember != "0" && remember != "1")) {
+    sendJson(server, 400, "{\"error\":\"Only Seat A can have a persistence choice\"}");
+    return;
+  }
+  const SigilRecord *record = recordForModule(static_cast<uint8_t>(module));
+  if (!record) {
+    sendJson(server, 404, "{\"error\":\"Sigil is not known to Atlas\"}");
+    return;
+  }
+  const String bound = TurnHubProfiles::boundProfileIdForSeat(record->mac, 1);
+  if (bound.length() == 0 || bound != sessionProfileId(*session)) {
+    sendJson(server, 403, "{\"error\":\"This Sigil seat is not attached to your profile\"}");
+    return;
+  }
+  if (remember == "1" && !TurnHubProfiles::hasPinForProfile(bound)) {
+    sendJson(server, 409, "{\"error\":\"Set a PIN before remembering a profile on a Sigil\"}");
+    return;
+  }
+  if (!TurnHubProfiles::setSeatPersistent(record->mac, 1, remember == "1")) {
+    sendJson(server, 503, "{\"error\":\"Could not save the Seat A persistence choice\"}");
+    return;
+  }
+  sendJson(server, 200, String("{\"ok\":true,\"persistent\":") +
+      (remember == "1" ? "true}" : "false}"));
+}
+
 void handleDeviceName(WebServer &server) {
+  if(!requirePermission(server,TurnHubAccounts::Admin))return;
   if (!requireMasterButton(server)) {
     return;
   }
@@ -616,6 +669,7 @@ void handleDeviceName(WebServer &server) {
 }
 
 void handleNetworkInfo(WebServer &server) {
+  if(!requirePermission(server,TurnHubAccounts::Admin))return;
   TurnHub::OptionalPreferences networkPrefs;
   String password;
   if (networkPrefs.begin(WIFI_PREF_NAMESPACE, true)) {
@@ -638,6 +692,7 @@ void handleNetworkInfo(WebServer &server) {
 }
 
 void handleNetworkPassword(WebServer &server) {
+  if(!requirePermission(server,TurnHubAccounts::Admin))return;
   if (!requireMasterButton(server)) {
     return;
   }
@@ -687,8 +742,12 @@ void handleProfiles(WebServer &server) {
   char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
   const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
   String json = "{\"profiles\":[";
+  bool comma=false;
   for (size_t i = 0; i < count; ++i) {
-    if (i) json += ',';
+    TurnHubAccounts::Account account;
+    if(!TurnHubAccounts::load(String(ids[i]),account)||account.archived)continue;
+    if (comma) json += ',';
+    comma=true;
     json += "{\"profileId\":\""; json += ids[i];
     json += "\",\"name\":\""; json += jsonEscape(TurnHubProfiles::nameForProfile(ids[i]));
     json += "\",\"hasPin\":"; json += TurnHubProfiles::hasPinForProfile(ids[i]) ? "true" : "false";
@@ -763,6 +822,8 @@ void handleSeats(WebServer &server) {
       json += snapshot.active ? "true" : "false";
       json += ",\"eliminated\":";
       json += snapshot.eliminated ? "true" : "false";
+      json += ",\"lifeAvailable\":"; json += snapshot.lifeAvailable ? "true" : "false";
+      json += ",\"life\":"; json += String(snapshot.life);
       json += ",\"profileId\":\"";
       json += jsonEscape(profileId);
       json += "\",\"name\":\"";
@@ -804,6 +865,13 @@ void handleSessionRequest(WebServer &server) {
     return;
   }
 
+  // PIN-free physical play is not permission to obtain a browser credential.
+  // Profiles without a PIN retain the physical bootstrap path to set one.
+  if (!requester && hasPin(static_cast<uint8_t>(module), static_cast<uint8_t>(slot))) {
+    sendJson(server, 403, "{\"error\":\"Sign in with this profile's PIN to use it in a browser\"}");
+    return;
+  }
+
   const uint32_t nowMs = millis();
   cleanup(nowMs);
 
@@ -839,6 +907,8 @@ void handleSessionRequest(WebServer &server) {
   target->controllerId = static_cast<uint8_t>(module);
   target->slot = static_cast<uint8_t>(slot);
   target->createdMs = nowMs;
+  const String claimedProfile = profileIdForPhysicalSeat(target->controllerId, target->slot);
+  strncpy(target->profileId, claimedProfile.c_str(), sizeof(target->profileId) - 1);
   if (requester) strncpy(target->requestingToken, requester->token, sizeof(target->requestingToken) - 1);
 
   String response = "{\"ok\":true,\"status\":\"pending\",\"requestId\":\"";
@@ -910,6 +980,9 @@ void handleSessionLogin(WebServer &server) {
       sendJson(server, 401, "{\"error\":\"Profile or PIN was not accepted. Older profiles may need physical sign-in once\"}"); return;
     }
     loginLimiter.success(id.c_str());
+    TurnHubAccounts::Account reconnect;
+    if(!TurnHubAccounts::load(id,reconnect)||reconnect.archived){sendJson(server,403,"{\"error\":\"Account unavailable or archived\"}");return;}
+    if(reconnect.reconnectRequired){reconnect.reconnectRequired=false;if(!TurnHubAccounts::save(id,reconnect)){sendJson(server,503,"{\"error\":\"Could not reconnect\"}");return;}}
     sendLogin(server, createProfileSession(id, millis())); return;
   }
   if (!server.hasArg("module") || !server.hasArg("slot") || !server.hasArg("pin")) {
@@ -938,6 +1011,9 @@ void handleSessionLogin(WebServer &server) {
     return;
   }
   loginLimiter.success(loginProfile.c_str());
+  TurnHubAccounts::Account reconnect;
+  if(!TurnHubAccounts::load(loginProfile,reconnect)||reconnect.archived){sendJson(server,403,"{\"error\":\"Account unavailable or archived\"}");return;}
+  if(reconnect.reconnectRequired){reconnect.reconnectRequired=false;if(!TurnHubAccounts::save(loginProfile,reconnect)){sendJson(server,503,"{\"error\":\"Could not reconnect\"}");return;}}
 
   WebSession *session = createSession(
       static_cast<uint8_t>(module),
@@ -977,6 +1053,9 @@ void handleSessionMe(WebServer &server) {
 
   String response = "{\"ok\":true,\"authenticated\":true,\"module\":";
   response += String(session->controllerId);
+  TurnHubAccounts::Account account;
+  const bool accountReady=TurnHubAccounts::load(profileId,account);
+  response += ",\"permissions\":";response += String(accountReady?account.permissions:0);
   response += ",\"participating\":"; response += participating ? "true" : "false";
   response += ",\"host\":"; response += snapshot.host ? "true" : "false";
   response += ",\"virtual\":"; response += session->controllerId >= MAX_PHYSICAL_SIGILS ? "true" : "false";
@@ -990,12 +1069,21 @@ void handleSessionMe(WebServer &server) {
   response += snapshot.active ? "true" : "false";
   response += ",\"eliminated\":";
   response += snapshot.eliminated ? "true" : "false";
+  response += ",\"lifeAvailable\":"; response += snapshot.lifeAvailable ? "true" : "false";
+  response += ",\"life\":"; response += String(snapshot.life);
   response += ",\"profileId\":\"";
   response += jsonEscape(profileId);
   response += "\",\"statsUrl\":\"/stats\",\"name\":\"";
   response += jsonEscape(savedName);
   response += "\",\"hasPin\":";
   response += TurnHubProfiles::hasPinForProfile(profileId) ? "true" : "false";
+  TurnHubProfiles::ProfilePolicy policy;
+  const bool policyAvailable = TurnHubProfiles::loadPolicyForProfile(profileId, policy);
+  response += ",\"policyAvailable\":"; response += policyAvailable ? "true" : "false";
+  if (policyAvailable) {
+    response += ",\"allowPhysicalWithoutPin\":"; response += policy.allowPhysicalWithoutPin ? "true" : "false";
+    response += ",\"hideStatsWithoutAuthentication\":"; response += policy.hideStatsWithoutAuthentication ? "true" : "false";
+  }
   if (record != nullptr) {
     response += ",\"hardwareId\":\"";
     response += sigilHardwareId(record->mac);
@@ -1013,6 +1101,10 @@ void handleProfile(WebServer &server) {
   }
 
   const String profileId = sessionProfileId(*session);
+  if(server.hasArg("clearPin")){
+    TurnHubAccounts::Account account;
+    if(!TurnHubAccounts::load(profileId,account)||account.permissions||account.reconnectRequired){sendJson(server,403,"{\"error\":\"This account must keep a PIN\"}");return;}
+  }
   if (!profileStoreReady || profileId.length() == 0) {
     sendJson(server, 503, "{\"ok\":false,\"error\":\"Profile storage unavailable\"}");
     return;
@@ -1054,6 +1146,10 @@ void handleProfile(WebServer &server) {
   }
 
   if (server.hasArg("clearPin") && server.arg("clearPin") == "1") {
+    TurnHubProfiles::ProfilePolicy policy;
+    if (!TurnHubProfiles::loadPolicyForProfile(profileId, policy) || !policy.allowPhysicalWithoutPin) {
+      sendJson(server, 409, "{\"error\":\"Enable PIN-free physical use before removing the PIN\"}"); return;
+    }
     if (record == nullptr) {
       sendJson(server, 409, "{\"error\":\"Keep a PIN for hardware-independent profile login\"}"); return;
     }
@@ -1083,6 +1179,85 @@ void handleProfile(WebServer &server) {
         TurnHubProtocol::PacketType::DisplayProfileRequest);
   }
 
+  sendJson(server, 200, "{\"ok\":true}");
+}
+
+bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed) {
+  if (!text.length() || text.length() > 8) return false;
+  const bool negative = text[0] == '-';
+  size_t i = negative ? 1 : 0;
+  if ((negative && !negativeAllowed) || i == text.length()) return false;
+  uint32_t number=0;
+  for (; i<text.length(); ++i) {
+    if (text[i]<'0'||text[i]>'9') return false;
+    number=number*10+static_cast<uint32_t>(text[i]-'0');
+    if (number>1000000) return false;
+  }
+  value=negative?-static_cast<int32_t>(number):static_cast<int32_t>(number);return true;
+}
+
+void handleGameSettings(WebServer &server) {
+  TurnHub::GameSettings settings;bool editable=false;
+  const bool available=readGameConfiguration&&readGameConfiguration(settings,editable);
+  auto *session=sessionForRequest(server);SeatSnapshot seat;
+  const bool host=session&&resolveSessionParticipant(*session)&&resolveSeatNow(session->controllerId,session->slot,seat)&&seat.host&&session->slot==1;
+  String json=String("{\"gameProfile\":\"")+TurnHub::gameProfileKey(settings.profile)+
+      "\",\"startingLife\":"+String(settings.startingLife)+",\"available\":"+(available?"true":"false")+
+      ",\"canEdit\":"+(available&&editable&&host?"true":"false")+"}";
+  sendJson(server,200,json);
+}
+
+void handleSaveGameSettings(WebServer &server) {
+  auto *session=sessionForRequest(server);
+  if (!session) {sendJson(server,401,"{\"error\":\"Sign in first\"}");return;}
+  TurnHub::GameSettings settings;
+  if (!TurnHub::parseGameProfile(server.arg("gameProfile").c_str(),settings.profile)||
+      !parseLifeInteger(server.arg("startingLife"),settings.startingLife,false)) {
+    sendJson(server,400,"{\"error\":\"Choose a valid game profile and starting life from 0 to 1000000\"}");return;
+  }
+  String message="Join the table first";
+  if (!resolveSessionParticipant(*session)||!configureGameHandler||
+      !configureGameHandler(session->controllerId,session->slot,settings,message)) {
+    sendJson(server,409,String("{\"error\":\"")+jsonEscape(message)+"\"}");return;
+  }
+  sendJson(server,200,"{\"ok\":true}");
+}
+
+void handleChangeLife(WebServer &server) {
+  auto *session=sessionForRequest(server);
+  if (!session) {sendJson(server,401,"{\"error\":\"Sign in first\"}");return;}
+  int32_t delta=0;
+  if (!parseLifeInteger(server.arg("delta"),delta,true)||delta==0) {
+    sendJson(server,400,"{\"error\":\"Enter a nonzero life change between -1000000 and 1000000\"}");return;
+  }
+  String message="Join the table first";
+  if (!resolveSessionParticipant(*session)||!changeLifeHandler||
+      !changeLifeHandler(session->controllerId,session->slot,delta,message)) {
+    sendJson(server,409,String("{\"error\":\"")+jsonEscape(message)+"\"}");return;
+  }
+  sendJson(server,200,"{\"ok\":true}");
+}
+
+void handleProfilePolicy(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendJson(server, 401, "{\"error\":\"Sign into your profile to change its settings\"}"); return;
+  }
+  const String id = sessionProfileId(*session);
+  const String physical = server.arg("allowPhysicalWithoutPin");
+  const String stats = server.arg("hideStatsWithoutAuthentication");
+  if ((physical != "0" && physical != "1") || (stats != "0" && stats != "1")) {
+    sendJson(server, 400, "{\"error\":\"Both profile choices must be 0 or 1\"}"); return;
+  }
+  if (physical == "0" && !TurnHubProfiles::hasPinForProfile(id)) {
+    sendJson(server, 409, "{\"error\":\"Set a PIN before requiring authentication for physical use\"}"); return;
+  }
+  TurnHubProfiles::ProfilePolicy policy;
+  policy.allowPhysicalWithoutPin = physical == "1";
+  policy.hideStatsWithoutAuthentication = stats == "1";
+  if (!TurnHubProfiles::savePolicyForProfile(id, policy)) {
+    sendJson(server, 503, "{\"error\":\"Profile settings could not be saved; reload before retrying\"}"); return;
+  }
   sendJson(server, 200, "{\"ok\":true}");
 }
 
@@ -1198,6 +1373,32 @@ void runControl(WebServer &server, WebControl control) {
 
 }  // namespace
 
+bool profileAuthenticated(const String &profileId) {
+  cleanup(millis());
+  if (profileId.length() == 0) return false;
+  for (const auto &session : sessions) {
+    if (session.used && profileId == session.profileId) return true;
+  }
+  return false;
+}
+
+bool physicalUseAllowed(const String &profileId) {
+  if(connectionBlocked(profileId))return false;
+  TurnHubProfiles::ProfilePolicy policy;
+  return TurnHubProfiles::loadPolicyForProfile(profileId, policy) &&
+      (policy.allowPhysicalWithoutPin || profileAuthenticated(profileId));
+}
+
+bool physicalStatsVisible(const String &profileId) {
+  TurnHubProfiles::ProfilePolicy policy;
+  return TurnHubProfiles::loadPolicyForProfile(profileId, policy) &&
+      (!policy.hideStatsWithoutAuthentication || profileAuthenticated(profileId));
+}
+
+void configureGameControls(GameSettingsCallback read, ConfigureGameCallback configure, ChangeLifeCallback life) {
+  readGameConfiguration=read;configureGameHandler=configure;changeLifeHandler=life;
+}
+
 void configure(
     ResolveSeatCallback resolveSeatCallback,
     ControlCallback controlCallback,
@@ -1230,6 +1431,13 @@ void notePhysicalAction(uint8_t sigilId) {
   SeatSnapshot snapshot;
   WebSession *requester = oldest->requestingToken[0] ?
       sessionForToken(String(oldest->requestingToken), nowMs) : nullptr;
+  if (!oldest->requestingToken[0] &&
+      (hasPin(oldest->controllerId, oldest->slot) ||
+       profileIdForPhysicalSeat(oldest->controllerId, oldest->slot) != oldest->profileId)) {
+    oldest->approved = true;
+    strncpy(oldest->error, "Profile changed or requires PIN login; sign in again", sizeof(oldest->error) - 1);
+    return;
+  }
   if (oldest->requestingToken[0]) {
     String message = "Sign-in expired; request attachment again";
     if (!requester || !profileControlHandler ||
@@ -1262,7 +1470,97 @@ void notePhysicalAction(uint8_t sigilId) {
   Serial.println(session->profileId);
 }
 
+
+void configureModeration(ModerateCallback cb){moderateHandler=cb;}
+bool connectionBlocked(const String &id){TurnHubAccounts::Account a;return TurnHubAccounts::load(id,a)&&(a.archived||a.reconnectRequired);}
+void revokeConnections(const String &id){
+  for(auto &s:sessions)if(s.used&&id==s.profileId){
+    for(auto &p:pendingClaims)if(p.used&&String(p.requestingToken)==s.token)p=PendingClaim{};
+    s=WebSession{};
+  }
+  for(auto &p:pendingClaims)if(p.used&&id==p.profileId)p=PendingClaim{};
+}
+bool requirePermission(WebServer &server,uint8_t permission){
+  auto *s=sessionForRequest(server);
+  if(!s){sendJson(server,401,"{\"error\":\"Sign in first\"}");return false;}
+  if(!TurnHubAccounts::has(String(s->profileId),permission)){sendJson(server,403,"{\"error\":\"Account permission required\"}");return false;}
+  return true;
+}
+void serveRestrictedPage(WebServer &server,const char *html,uint8_t permission){
+  server.sendHeader("Cache-Control","no-store");
+  if(!server.header("X-TurnHub-Token").length()){
+    server.send(200,"text/html",R"HTML(<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><p id="m">Checking account access…</p><a href="/portal">Back to portal</a><script>fetch(location.pathname,{headers:{'X-TurnHub-Token':localStorage.getItem('turnhubSessionToken')||''}}).then(async r=>{if(!r.ok)throw Error('Access denied. Sign in with the required account permission.');const t=await r.text();if(!localStorage.getItem('turnhubSessionToken'))throw Error('Sign in first.');document.open();document.write(t);document.close()}).catch(e=>document.getElementById('m').textContent=e.message)</script>)HTML");return;
+  }
+  if(requirePermission(server,permission))server.send_P(200,"text/html",html);
+}
+void handleAccountSetup(WebServer &server,bool readOnly=false){
+  String primary;if(!TurnHubAccounts::primaryAdmin(primary)){sendJson(server,503,"{\"error\":\"Account storage unavailable\"}");return;}
+  if(readOnly){sendJson(server,200,String("{\"setupRequired\":")+(primary.length()?"false}":"true}"));return;}
+  if(primary.length()){sendJson(server,409,"{\"error\":\"Admin setup is already complete\"}");return;}
+  auto *s=sessionForRequest(server);if(!s){sendJson(server,401,"{\"error\":\"Create or sign into your account first\"}");return;}
+  if(!requireMasterButton(server))return;
+  if(!TurnHubAccounts::establishAdmin(String(s->profileId))){sendJson(server,503,"{\"error\":\"Could not establish Admin; a saved PIN is required\"}");return;}
+  sendJson(server,200,"{\"ok\":true}");
+}
+void handleAccounts(WebServer &server){
+  auto *s=sessionForRequest(server);if(!s){sendJson(server,401,"{\"error\":\"Sign in first\"}");return;}
+  TurnHubAccounts::Account actor;if(!TurnHubAccounts::load(String(s->profileId),actor)){sendJson(server,503,"{\"error\":\"Account unavailable\"}");return;}
+  const bool admin=actor.permissions&TurnHubAccounts::Admin,gm=actor.permissions&TurnHubAccounts::GameMaster;
+  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][9];const size_t count=TurnHubProfiles::listProfileIds(ids,TurnHubProfiles::MAX_LOGIN_PROFILES);
+  String json="{\"accounts\":[";bool comma=false;
+  for(size_t i=0;i<count;++i){
+    const String id(ids[i]);if(!admin&&!gm&&id!=s->profileId)continue;
+    TurnHubAccounts::Account a;if(!TurnHubAccounts::load(id,a))continue;
+    if(a.archived&&!admin)continue;
+    if(comma)json+=',';comma=true;
+    json+="{\"profileId\":\""+id+"\",\"name\":\""+jsonEscape(TurnHubProfiles::nameForProfile(id))+"\",\"permissions\":"+String(a.permissions);
+    json+=",\"archived\":";json+=a.archived?"true":"false";
+    if(gm||id==s->profileId){json+=",\"connectionResets\":"+String(a.connectionResets)+",\"gameRemovals\":"+String(a.gameRemovals)+",\"nudgeMuted\":"+(a.nudgeMuted?"true":"false");}
+    json+='}';
+  }json+="]}";sendJson(server,200,json);
+}
+void handleAccountPermissions(WebServer &server){
+  if(!requirePermission(server,TurnHubAccounts::Admin))return;
+  const String id=server.arg("profileId"),raw=server.arg("permissions");
+  const int flags=raw.toInt();
+  if(raw!=String(flags)||flags<0||flags>31||((flags&24)&&!(flags&TurnHubAccounts::GameMaster))){sendJson(server,400,"{\"error\":\"Invalid permissions\"}");return;}
+  String primary;TurnHubAccounts::Account a;
+  if(!TurnHubAccounts::primaryAdmin(primary)||!TurnHubAccounts::load(id,a)){sendJson(server,503,"{\"error\":\"Account unavailable\"}");return;}
+  if((id==primary&&!(flags&TurnHubAccounts::Admin))||(flags&&!TurnHubProfiles::hasPinForProfile(id))){sendJson(server,409,"{\"error\":\"Keep the initial Admin and a PIN on privileged accounts\"}");return;}
+  a.permissions=uint8_t(flags);if(!TurnHubAccounts::save(id,a)){sendJson(server,503,"{\"error\":\"Could not save permissions\"}");return;}
+  sendJson(server,200,"{\"ok\":true}");
+}
+void handleAccountArchive(WebServer &server){
+  if(!requirePermission(server,TurnHubAccounts::Admin))return;
+  const String id=server.arg("profileId"),value=server.arg("archived");
+  if(value!="0"&&value!="1"){sendJson(server,400,"{\"error\":\"Choose archive or restore\"}");return;}
+  String primary;TurnHubAccounts::Account account;
+  if(!TurnHubAccounts::primaryAdmin(primary)||!TurnHubAccounts::load(id,account)){sendJson(server,503,"{\"error\":\"Account unavailable\"}");return;}
+  const bool archive=value=="1";
+  if(archive&&id==primary){sendJson(server,409,"{\"error\":\"The initial Admin cannot be archived\"}");return;}
+  uint8_t controller=INVALID_ID,slot=1;
+  if(archive&&resolveProfile&&resolveProfile(id,controller,slot)){sendJson(server,409,"{\"error\":\"Account is still at the table. Leave the table or reset the completed game before archiving\"}");return;}
+  if(account.archived!=archive){
+    account.archived=archive;
+    if(!TurnHubAccounts::save(id,account)){sendJson(server,503,"{\"error\":\"Could not save archive state\"}");return;}
+  }
+  if(archive)revokeConnections(id);
+  sendJson(server,200,"{\"ok\":true}");
+}
+void handleModerate(WebServer &server){
+  if(!requirePermission(server,TurnHubAccounts::GameMaster))return;
+  auto *s=sessionForRequest(server);const String actor(s->profileId);String message;
+  if(!moderateHandler||!moderateHandler(actor,server.arg("profileId"),server.arg("action"),message)){sendJson(server,409,String("{\"error\":\"")+jsonEscape(message)+"\"}");return;}
+  sendJson(server,200,"{\"ok\":true}");
+}
 void begin(WebServer &server) {
+  server.on("/api/accounts/setup",HTTP_GET,[&server](){handleAccountSetup(server,true);});
+  server.on("/api/accounts/setup",HTTP_POST,[&server](){handleAccountSetup(server);});
+  server.on("/api/accounts",HTTP_GET,[&server](){handleAccounts(server);});
+  server.on("/api/accounts/permissions",HTTP_POST,[&server](){handleAccountPermissions(server);});
+  server.on("/api/accounts/archive",HTTP_POST,[&server](){handleAccountArchive(server);});
+  server.on("/api/accounts/moderate",HTTP_POST,[&server](){handleModerate(server);});
+
   if (webServer != nullptr) {
     return;
   }
@@ -1282,6 +1580,7 @@ void begin(WebServer &server) {
   });
 
   server.on("/api/devices", HTTP_GET, [&server]() { handleDevices(server); });
+  server.on("/api/device/persistence", HTTP_POST, [&server]() { handleSeatPersistence(server); });
   server.on("/api/device/name", HTTP_POST, [&server]() { handleDeviceName(server); });
   server.on("/api/network", HTTP_GET, [&server]() { handleNetworkInfo(server); });
   server.on("/api/network/password", HTTP_POST, [&server]() { handleNetworkPassword(server); });
@@ -1295,6 +1594,10 @@ void begin(WebServer &server) {
   server.on("/api/session/login", HTTP_POST, [&server]() { handleSessionLogin(server); });
   server.on("/api/session/me", HTTP_GET, [&server]() { handleSessionMe(server); });
   server.on("/api/session/profile", HTTP_POST, [&server]() { handleProfile(server); });
+  server.on("/api/session/policy", HTTP_POST, [&server]() { handleProfilePolicy(server); });
+  server.on("/api/game/settings", HTTP_GET, [&server]() { handleGameSettings(server); });
+  server.on("/api/game/settings", HTTP_POST, [&server]() { handleSaveGameSettings(server); });
+  server.on("/api/control/life", HTTP_POST, [&server]() { handleChangeLife(server); });
   server.on("/api/session/stats", HTTP_GET, [&server]() { handleProfileStats(server); });
   server.on("/api/session/stats/export", HTTP_GET, [&server]() { handleProfileStatsExport(server); });
   server.on("/api/session/logout", HTTP_POST, [&server]() { handleLogout(server); });

@@ -102,7 +102,10 @@ Examples:
 - Game/session recovery: Atlas.
 - Pairing relationship: Atlas is authoritative; Sigil may retain the minimum identity needed to reconnect.
 - Player profiles/statistics: Atlas.
-- Device-local calibration or hardware configuration: the device that requires it, unless promoted to table-level configuration.
+- Sigil user/device settings, including startup preference: Atlas, keyed to the
+  device. Sigils apply disposable runtime values and do not persist user settings.
+- Minimum device identity/pairing bootstrap material is distinct from user
+  settings and does not confer configuration or game-state authority.
 
 ## Invariant 8: Derived values should stay derived
 

@@ -3,8 +3,11 @@
 #include <iostream>
 #include <type_traits>
 #include "identity.h"
+#include "account_access.h"
 #include "nvs_blob_store.h"
 #include "profile_stats_storage.h"
+#include "profile_policy.h"
+#include "game_settings_store.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -140,10 +143,109 @@ void backendFailures() {
   assert(FakeNvs::commits == 1);  // Commit failure is never success.
 }
 
+void profilePolicyRecords() {
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub") == Status::Ok);
+  const char *policyKey = "aAB12CD34";
+  ProfilePolicy out;
+  assert(readStoredPolicy(store, policyKey, out) == Status::NotFound);
+  assert(out.allowPhysicalWithoutPin && out.hideStatsWithoutAuthentication);
+  for (bool physical : {false, true}) for (bool hidden : {false, true}) {
+    ProfilePolicy chosen; chosen.allowPhysicalWithoutPin=physical; chosen.hideStatsWithoutAuthentication=hidden;
+    assert(writeStoredPolicy(store, policyKey, chosen) == Status::Ok);
+    NvsBlobStore reopened;
+    assert(reopened.begin("turnhub") == Status::Ok);
+    assert(readStoredPolicy(reopened, policyKey, out) == Status::Ok);
+    assert(out.allowPhysicalWithoutPin==physical && out.hideStatsWithoutAuthentication==hidden);
+    const int before=FakeNvs::writes;
+    assert(writeStoredPolicy(reopened, policyKey, chosen) == Status::Ok);
+    assert(FakeNvs::writes==before);
+  }
+  for (const auto &bytes : {std::vector<uint8_t>{}, {1,1}, {1,1,1,0}, {1,2,1}, {1,1,2}, {2,1,1}}) {
+    FakeNvs::blobs[policyKey]=bytes;
+    const auto expected=bytes.size()==3&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    const int before=FakeNvs::writes;
+    assert(readStoredPolicy(store, policyKey, out)==expected);
+    assert(writeStoredPolicy(store, policyKey, ProfilePolicy{})==expected);
+    assert(FakeNvs::writes==before && FakeNvs::blobs[policyKey]==bytes);
+  }
+  FakeNvs::blobs.clear();
+  FakeNvs::readError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writeStoredPolicy(store, policyKey, ProfilePolicy{})==Status::IoError);
+  FakeNvs::readError=ESP_OK;
+  FakeNvs::setError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writeStoredPolicy(store, policyKey, ProfilePolicy{})==Status::IoError);
+  FakeNvs::setError=ESP_OK;
+  FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writeStoredPolicy(store, policyKey, ProfilePolicy{})==Status::IoError);
+}
+
+void gameSettingsRecords() {
+  using namespace TurnHub;
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub")==Status::Ok);
+  GameSettings settings;
+  assert(readGameSettings(store,settings)==Status::NotFound);
+  assert(settings.profile==GameProfile::Generic && settings.startingLife==40);
+  // Independent little-endian wire image: Yu-Gi-Oh!, 8000 life.
+  FakeNvs::blobs["gamecfg"]={1,3,0x40,0x1f,0,0};
+  assert(readGameSettings(store,settings)==Status::Ok);
+  assert(settings.profile==GameProfile::Yugioh && settings.startingLife==8000);
+  for (uint8_t profile=0;profile<4;++profile) for(int32_t life : {0,27,1000000}) {
+    settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;
+    assert(writeGameSettings(store,settings)==Status::Ok);
+    NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
+    GameSettings again;assert(readGameSettings(reopened,again)==Status::Ok);
+    assert(again.profile==settings.profile && again.startingLife==life);
+    const int before=FakeNvs::writes;
+    assert(writeGameSettings(reopened,settings)==Status::Ok && FakeNvs::writes==before);
+  }
+  settings.startingLife=-1;
+  assert(writeGameSettings(store,settings)==Status::InvalidArgument);
+  settings.startingLife=1000001;
+  assert(writeGameSettings(store,settings)==Status::InvalidArgument);
+  for(const auto &bytes : {std::vector<uint8_t>{}, {1,0,20}, {1,0,20,0,0,0,0},
+      {1,4,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}}) {
+    FakeNvs::blobs["gamecfg"]=bytes;
+    settings=GameSettings{};
+    const Status expected=bytes.size()==6&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    const int before=FakeNvs::writes;
+    assert(readGameSettings(store,settings)==expected && settings.startingLife==40);
+    assert(writeGameSettings(store,settings)==expected && FakeNvs::writes==before);
+    assert(FakeNvs::blobs["gamecfg"]==bytes);
+  }
+  FakeNvs::blobs.clear();
+  FakeNvs::readError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writeGameSettings(store,GameSettings{})==Status::IoError);
+  FakeNvs::readError=ESP_OK;FakeNvs::setError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writeGameSettings(store,GameSettings{})==Status::IoError);
+  FakeNvs::setError=ESP_OK;FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writeGameSettings(store,GameSettings{})==Status::IoError);
+}
+
+
+static void accountRecords(){
+  FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
+  NvsBlobStore store;assert(store.begin("turnhub")==Status::Ok);
+  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.reconnectRequired=true;a.connectionResets=513;a.gameRemovals=7;
+  assert(TurnHubAccounts::write(store,"u12345678",a)==Status::Ok);
+  assert(FakeNvs::blobs["u12345678"]==std::vector<uint8_t>({2,31,1,1,1,2,0,0,7,0,0,0}));
+  NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
+  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.connectionResets==513&&loaded.permissions==31);
+  FakeNvs::blobs["u12345678"][0]=3;assert(TurnHubAccounts::write(store,"u12345678",a)==Status::UnsupportedSchema);
+  FakeNvs::blobs["u12345678"]={1};assert(TurnHubAccounts::read(store,"u12345678",loaded)==Status::Corrupt);
+  FakeNvs::blobs.clear();FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(TurnHubAccounts::write(store,"u12345678",a)==Status::IoError);FakeNvs::commitError=ESP_OK;
+}
 int main() {
+  accountRecords();
   identityContracts();
   existingRecords();
   protectedRecords();
   backendFailures();
-  std::cout << "PASS: identity contracts, legacy statistics, protected records, NVS failures\n";
+  profilePolicyRecords();
+  gameSettingsRecords();
+  std::cout << "PASS: identity, statistics, profile policy, game settings and NVS failures\n";
 }

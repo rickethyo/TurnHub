@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 source = (Path(__file__).resolve().parents[2] / "src/main.cpp").read_text()
-adapters = ["handleWebControl", "handleProfileControl", "handleLobbyShort", "handlePass", "handleActionDown",
+adapters = ["handleWebControl", "handleProfileControl", "configureGame", "changeLife", "moderateAccount", "handleLobbyShort", "handlePass", "handleActionDown",
             "handleActionUp", "handleActionShort", "handleActionLong", "handleActionWin",
             "processSigilEvents", "updateMasterButton", "updateCountdown", "updatePendingPass"]
 for name in adapters:
@@ -16,7 +16,7 @@ for name in adapters:
         end += 1
     body = source[start:end - 1]
     forbidden = [
-        r"game\.(?:start|reset|passTurn|pause|resume|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
+        r"game\.(?:start|reset|passTurn|pause|resume|changeLife|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
         r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm)\s*\(",
         r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs)\s*=(?!=)",
         r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule|requestPass)\s*\(",

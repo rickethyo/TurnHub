@@ -28,29 +28,14 @@ SigilBus *SigilBus::activeInstance() { return fixtureBus; }
 bool SigilBus::begin() { return true; }
 bool SigilBus::poll(SigilEvent&) { return false; }
 uint8_t SigilBus::activeCount(uint32_t) const { return 0; }
-bool SigilBus::isOnline(uint8_t,uint32_t) const { return true; }
+bool SigilBus::isOnline(uint8_t id,uint32_t) const { return fixtureRadio && id < MAX_PHYSICAL_SIGILS; }
 const SigilRecord *SigilBus::record(uint8_t id) const { return fixtureRadio&&id<MAX_PHYSICAL_SIGILS?&fixtureRecords[id]:nullptr; }
-bool SigilBus::send(uint8_t,TurnHubProtocol::PacketType,int32_t) { return true; }
-AudioController::AudioController(SigilBus &bus) : bus_(bus) {}
-uint16_t AudioController::maskForSigil(uint8_t id) { return 1U << id; }
-void AudioController::update(uint32_t) {}
-void AudioController::clear() {}
-void AudioController::countdownTone(uint16_t,uint8_t) {}
-#define SOUND(name,type) void AudioController::name(type) {}
-SOUND(playerJoined,uint8_t) SOUND(sharedPlayerAdded,uint8_t)
-SOUND(sharedPlayerRemoved,uint8_t) SOUND(sameModulePass,uint8_t)
-SOUND(starterSelected,uint8_t) SOUND(randomStarter,uint8_t)
-SOUND(startArmed,uint8_t) SOUND(countdownCancelled,uint16_t)
-SOUND(turnPass,uint8_t) SOUND(pause,uint16_t) SOUND(resume,uint16_t)
-SOUND(gameStart,uint16_t) SOUND(gameOver,uint16_t)
-SOUND(eliminationArmed,uint8_t) SOUND(eliminationTargetChanged,uint8_t)
-SOUND(eliminationCancelled,uint8_t) SOUND(playerEliminated,uint8_t)
-SOUND(winClaimed,uint16_t) SOUND(winConfirmed,uint16_t) SOUND(winDenied,uint16_t)
-#undef SOUND
-LedRenderer::LedRenderer(SigilBus &bus) : bus_(bus) {}
-void LedRenderer::invalidate(uint8_t) {}
-void LedRenderer::invalidateAll() {}
-void LedRenderer::render(HubState,const Lobby&,const GameEngine&,uint32_t,uint8_t,uint8_t,uint32_t) {}
+static unsigned fixtureSends=0;
+bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType,int32_t) { assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;return fixtureRadio; }
+bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlue,v); }
+bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
+bool SigilBus::setGreen(uint8_t id,bool v) { return send(id,PacketType::SetGreen,v); }
+bool SigilBus::buzzer(uint8_t id,int32_t v) { return send(id,PacketType::Buzzer,v); }
 OtaManager::OtaManager(WebServer &webServer,AllowedCallback allowed) : server_(webServer),allowedCallback_(allowed) {}
 void OtaManager::begin() {}
 void OtaManager::update(uint32_t) {}
@@ -66,6 +51,10 @@ static void freshLobby(int modules=3,bool shared=false) {
   enterEmptyLobby();
   testNow=1000;
   completedGames=0;
+  TurnHub::fixtureRadio=true;
+  for(uint8_t i=0;i<MAX_PHYSICAL_SIGILS;++i) {
+    TurnHub::fixtureRecords[i].id=i; TurnHub::fixtureRecords[i].mac[5]=i;
+  }
   for(int i=0;i<modules;++i) handleActionShort(static_cast<uint8_t>(i));
   if(shared) {
     handleActionDown(0); handlePass(0); handleActionUp(0); handleActionShort(0);
@@ -237,6 +226,7 @@ static String loginPhone(const String &id) {
 static void virtualProfileFlow() {
   enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
   TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
+  TurnHubWebApi::configureGameControls(readGameSettings,configureGame,changeLife);
   TurnHubWebApi::begin(server);
   String firstId, secondId;
   const String first=registerPhone("Phone One",firstId), second=registerPhone("Phone Two",secondId);
@@ -327,6 +317,214 @@ static void physicalCompanionFlow() {
   TurnHub::fixtureRadio=false;
 }
 
+static void profilePolicyFlow() {
+  enterEmptyLobby(); TurnHub::fixtureRadio=true;
+  String id, otherId;
+  String owner=registerPhone("Policy owner",id), other=registerPhone("Other owner",otherId);
+  assert(TurnHubProfiles::bindSeatToProfile(TurnHub::fixtureRecords[0].mac,1,id));
+  assert(request("/api/session/policy","",{{"allowPhysicalWithoutPin","0"},{"hideStatsWithoutAuthentication","1"}})==401);
+  assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin","false"},{"hideStatsWithoutAuthentication","1"}})==400);
+  // Caller cannot change another profile by supplying its ID.
+  assert(request("/api/session/policy",other,{{"profileId",id},{"allowPhysicalWithoutPin","0"},{"hideStatsWithoutAuthentication","0"}})==200);
+  assert(ProfileFixture::profiles[id].policy.allowPhysicalWithoutPin);
+  assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin","0"},{"hideStatsWithoutAuthentication","1"}})==200);
+  assert(TurnHubWebApi::physicalUseAllowed(id) && TurnHubWebApi::physicalStatsVisible(id));
+  assert(request("/api/session/logout",owner)==200);
+  assert(!TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
+  assert(!dispatchModuleIntent(IntentType::Join,0).accepted());
+  assert(lobby.playerCount()==0);
+  owner=loginPhone(id);
+  assert(dispatchModuleIntent(IntentType::Join,0).accepted());
+  assert(request("/api/session/request","",{{"module","0"},{"slot","1"}})==403);
+  assert(request("/api/session/profile",owner,{{"clearPin","1"}})==409);
+  const String companion=loginPhone(id);
+  assert(request("/api/session/logout",owner)==200);
+  assert(TurnHubWebApi::physicalStatsVisible(id));
+  assert(request("/api/session/logout",companion)==200);
+  assert(!TurnHubWebApi::physicalStatsVisible(id));
+  assert(lobby.playerCount()==1); // Losing browser auth does not evict a player.
+  owner=loginPhone(id);
+  for (const char *physical : {"0","1"}) for (const char *hidden : {"0","1"}) {
+    assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin",physical},{"hideStatsWithoutAuthentication",hidden}})==200);
+    assert(request("/api/session/logout",owner)==200);
+    assert(TurnHubWebApi::physicalUseAllowed(id)==(physical[0]=='1'));
+    assert(TurnHubWebApi::physicalStatsVisible(id)==(hidden[0]=='0'));
+    owner=loginPhone(id);
+  }
+  assert(request("/api/session/me",owner,{},HTTP_GET)==200);
+  assert(server.body.find("\"policyAvailable\":true")!=std::string::npos);
+  assert(request("/api/session/join",other)==200);
+  assert(request("/api/control/start",owner)==200);
+  testNow+=3000;updateCountdown(testNow);
+  assert(request("/api/session/logout",owner)==200);
+  assert(!TurnHubWebApi::physicalStatsVisible(id));
+  assert(request("/api/control/concede",other)==200);
+  assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
+  assert(ProfileFixture::profiles[id].stats.gamesWon==1);
+  owner=loginPhone(id);
+  assert(request("/api/session/stats",owner,{},HTTP_GET)==200);
+  ProfileFixture::profiles[id].policyReadable=false;
+  assert(!TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
+  assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin","1"},{"hideStatsWithoutAuthentication","0"}})==503);
+  ProfileFixture::profiles[id].policyReadable=true;
+  testNow+=8UL*60*60*1000+1;
+  assert(!TurnHubWebApi::profileAuthenticated(id));
+  assert(!TurnHubWebApi::physicalStatsVisible(id));
+
+  // Legacy PIN-less profiles can bootstrap a browser session, but a PIN added
+  // while the physical claim is pending must not be bypassed at confirmation.
+  enterEmptyLobby();
+  const String legacy=TurnHubProfiles::createProfile();
+  assert(TurnHubProfiles::bindSeatToProfile(TurnHub::fixtureRecords[0].mac,1,legacy));
+  assert(dispatchModuleIntent(IntentType::Join,0).accepted());
+  assert(request("/api/session/request","",{{"module","0"},{"slot","1"}})==202);
+  const String claim=responseField("requestId");
+  TurnHubProfiles::setPinHashForProfile(legacy,String(std::string(64,'A')));
+  TurnHubWebApi::notePhysicalAction(0);
+  assert(request("/api/session/poll","",{{"id",claim}},HTTP_GET)==409);
+  assert(!TurnHubWebApi::profileAuthenticated(legacy));
+  TurnHub::fixtureRadio=false;
+}
+
+static void gameProfilesAndLife() {
+  using namespace TurnHub;
+  enterEmptyLobby(); TurnHub::fixtureRadio=false;
+  String firstId, secondId, thirdId;
+  const String first=registerPhone("Life host",firstId),second=registerPhone("Life opponent",secondId),
+      third=registerPhone("Third player",thirdId);
+  assert(request("/api/game/settings","",{},HTTP_GET)==200);
+  assert(server.body.find("\"canEdit\":false")!=std::string::npos);
+  const std::map<std::string,String> magic={{"gameProfile","mtg"},{"startingLife","20"}};
+  assert(request("/api/game/settings","",magic)==401);
+  assert(request("/api/game/settings",first,magic)==409); // Not joined yet.
+  assert(request("/api/session/join",first)==200);
+  assert(request("/api/session/join",second)==200);
+  assert(request("/api/session/join",third)==200);
+  assert(request("/api/game/settings",first,{},HTTP_GET)==200);
+  assert(server.body.find("\"canEdit\":true")!=std::string::npos);
+  assert(request("/api/game/settings",second,magic)==409);
+  for (const char *profile : {"generic","mtg","mtg_commander","yugioh"}) {
+    assert(request("/api/game/settings",first,{{"gameProfile",profile},{"startingLife","27"}})==200);
+    assert(request("/api/game/settings",first,{},HTTP_GET)==200);
+    assert(responseField("gameProfile")==profile);
+    GameSettings saved; assert(loadGameSettings(saved)==TurnHubStorage::Status::Ok);
+    assert(String(gameProfileKey(saved.profile))==profile && saved.startingLife==27);
+  }
+  assert(request("/api/game/settings",first,magic)==200);
+  for (const char *invalid : {"", "-1", "1.5", "20abc", "1000001", "999999999999999"})
+    assert(request("/api/game/settings",first,{{"gameProfile","mtg"},{"startingLife",invalid}})==400);
+  assert(request("/api/game/settings",first,{{"gameProfile","unknown"},{"startingLife","20"}})==400);
+  ProfileFixture::gameSettingsWritable=false;
+  assert(request("/api/game/settings",first,{{"gameProfile","yugioh"},{"startingLife","8000"}})==409);
+  assert(nextGameSettings.profile==GameProfile::Magic && nextGameSettings.startingLife==20);
+  ProfileFixture::gameSettingsWritable=true;
+  assert(request("/api/control/life",first,{{"delta","-1"}})==409); // Lobby.
+  gameSettingsAvailable=false;
+  assert(request("/api/control/start",first)==409 && hubState==HubState::Lobby);
+  gameSettingsAvailable=true;
+  assert(request("/api/control/start",first)==200);
+  assert(request("/api/game/settings",first,magic)==409); // Countdown is frozen.
+  testNow+=3000;updateCountdown(testNow);
+  assert(game.settings().profile==GameProfile::Magic && game.lifeTotal(1)==20 && game.lifeTotal(2)==20);
+  assert(request("/api/game/settings",first,magic)==409);
+  assert(request("/api/control/life","",{{"delta","-1"}})==401);
+  for (const char *invalid : {"", "0", "-", "1.5", "1abc", "1000001", "9999999999999"})
+    assert(request("/api/control/life",first,{{"delta",invalid}})==400);
+  assert(request("/api/control/life",first,{{"delta","-21"},{"player","2"},{"profileId",secondId}})==200);
+  assert(game.lifeTotal(1)==-1 && game.lifeTotal(2)==20 && !game.isEliminated(1));
+  const String companion=loginPhone(firstId);
+  assert(request("/api/control/life",companion,{{"delta","6"}})==200 && game.lifeTotal(1)==5);
+  assert(request("/api/session/me",first,{},HTTP_GET)==200);
+  assert(server.body.find("\"life\":5")!=std::string::npos);
+  assert(request("/api/seats","",{},HTTP_GET)==200);
+  assert(server.body.find("\"life\":5")!=std::string::npos && server.body.find("\"life\":20")!=std::string::npos);
+  assert(request("/api/control/life",first,{{"delta","999995"}})==200);
+  assert(request("/api/control/life",first,{{"delta","1"}})==409 && game.lifeTotal(1)==1000000);
+  assert(!game.changeLife(1,INT32_MAX) && game.lifeTotal(1)==1000000);
+  assert(request("/api/control/life",first,{{"delta","-1000000"}})==200);
+  assert(request("/api/control/life",first,{{"delta","-1000000"}})==200);
+  assert(request("/api/control/life",first,{{"delta","-1"}})==409 && game.lifeTotal(1)==-1000000);
+  assert(request("/api/control/pause",first)==200);
+  assert(request("/api/control/life",second,{{"delta","-5"}})==200 && game.lifeTotal(2)==15);
+  assert(request("/api/control/win",first)==200);
+  assert(request("/api/control/life",second,{{"delta","1"}})==409); // Pending win decision.
+  assert(request("/api/control/deny",second)==200);
+  assert(request("/api/control/concede",second)==200);
+  assert(request("/api/control/life",second,{{"delta","1"}})==409); // Eliminated, game continues.
+  assert(request("/api/control/concede",third)==200 && hubState==HubState::GameOver);
+  assert(request("/api/control/life",first,{{"delta","1"}})==409);
+  assert(request("/api/control/rematch",first)==200);
+  assert(request("/api/control/start",first)==200);
+  testNow+=3000;updateCountdown(testNow);
+  assert(game.lifeTotal(1)==20 && game.lifeTotal(2)==20 && !game.isEliminated(2));
+  assert(request("/api/control/concede",second)==200);
+  assert(request("/api/control/concede",third)==200);
+  assert(request("/api/control/reset",first)==200);
+  assert(request("/api/session/join",first)==200 && request("/api/session/join",second)==200);
+  assert(request("/api/game/settings",first,{{"gameProfile","generic"},{"startingLife","0"}})==200);
+  assert(request("/api/control/start",first)==200);
+  testNow+=3000;updateCountdown(testNow);
+  assert(game.lifeTotal(1)==0 && game.lifeTotal(2)==0 && game.livingPlayerCount()==2);
+}
+
+
+static void accountPermissionsAndModeration(){
+  using namespace TurnHubAccounts;
+  enterEmptyLobby();TurnHubWebApi::configureModeration(moderateAccount);
+  String adminId,gmId,playerId,devId;
+  const String admin=registerPhone("Administrator",adminId),gm=registerPhone("Moderator",gmId),player=registerPhone("Participant",playerId),dev=registerPhone("Developer",devId);
+  assert(request("/api/accounts/setup","",{},HTTP_GET)==200&&server.body.find("true")!=std::string::npos);
+  assert(request("/api/accounts/setup",admin)==403); // Physical confirmation needed.
+  testDigitalRead=LOW;assert(request("/api/accounts/setup",admin)==200);testDigitalRead=HIGH;
+  assert(request("/api/accounts/setup",gm)==409);
+  assert(request("/api/accounts/permissions",player,{{"profileId",playerId},{"permissions","31"}})==403);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","0"}})==409);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","26"}})==200);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","4"}})==200);
+  assert(request("/api/device/name",player,{{"module","0"},{"name","No"}})==403);
+  assert(request("/api/network",gm,{},HTTP_GET)==403);
+  assert(request("/api/network",dev,{},HTTP_GET)==403);
+  assert(request("/api/network",admin,{},HTTP_GET)==200);
+  assert(request("/api/session/profile",admin,{{"clearPin","1"}})==403);
+  assert(request("/api/accounts/moderate",admin,{{"profileId",playerId},{"action","reset"}})==403);
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","mute"}})==200);
+  Account stored;assert(load(playerId,stored)&&stored.nudgeMuted);
+  assert(request("/api/session/join",player)==200);
+  assert(request("/api/session/join",gm)==200);
+  assert(request("/api/session/join",dev)==200);
+  const String companion=loginPhone(playerId);
+  assert(request("/api/control/start",player)==200);testNow+=3000;updateCountdown(testNow);
+  const auto life=game.lifeTotal(1);
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","reset"}})==200);
+  assert(game.lifeTotal(1)==life&&game.livingPlayerCount()==3);
+  assert(request("/api/session/me",player,{},HTTP_GET)==401);
+  assert(request("/api/session/me",companion,{},HTTP_GET)==401);
+  assert(TurnHubWebApi::connectionBlocked(playerId));
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","reset"}})==409);
+  assert(load(playerId,stored)&&stored.connectionResets==1);
+  assert(request("/api/accounts",admin,{},HTTP_GET)==200);
+  // Admin sees only their own private count fields; other accounts do not expose them.
+  auto targetAt=server.body.find(std::string("\"profileId\":\"")+playerId.c_str());
+  auto targetEnd=server.body.find('}',targetAt);
+  assert(server.body.substr(targetAt,targetEnd-targetAt).find("connectionResets")==std::string::npos);
+  const String reconnected=loginPhone(playerId);assert(!TurnHubWebApi::connectionBlocked(playerId));
+  assert(request("/api/accounts",reconnected,{},HTTP_GET)==200&&server.body.find("\"connectionResets\":1")!=std::string::npos&&server.body.find(gmId)==std::string::npos);
+  assert(request("/api/accounts",gm,{},HTTP_GET)==200&&server.body.find("\"connectionResets\":1")!=std::string::npos);
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","pass"}})==200);
+  assert(game.activePlayerNumber()==2&&!pendingPass.active);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","2"}})==200);
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","26"}})==200);
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==200);
+  assert(game.isEliminated(1)&&game.livingPlayerCount()==2);
+  assert(load(playerId,stored)&&stored.gameRemovals==1&&stored.connectionResets==1);
+  assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","31"}})==200);
+  assert(has(adminId,Admin|GameMaster|Developer));
+  // Direct page requests with credentials must enforce the independent permission.
+  server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==200&&server.body=="dev-secret");
+  server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==403);
+}
 static void virtualCapacity() {
   enterEmptyLobby();
   for(uint8_t i=0;i<MAX_PLAYERS;++i) {
@@ -355,5 +553,8 @@ int main() {
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
+  profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
+  gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
+  accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
 }

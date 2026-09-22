@@ -18,7 +18,7 @@ With GCC/Clang on another host, from this directory:
 ```sh
 mkdir -p build
 c++ -std=c++17 -Wall -Wextra -Istubs -I../../include scenarios.cpp test_globals.cpp profile_fixture.cpp \
-    ../../src/controller_profiles.cpp ../../src/web_api.cpp \
+    ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp \
     ../../src/profile_statistics.cpp ../../src/stats_page.cpp \
     ../../src/profile_login_page.cpp \
     ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp \
@@ -26,7 +26,7 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include scenarios.cpp test_globals.
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
     storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp \
-    ../../src/profile_stats_storage.cpp -o build/storage_scenarios
+    ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios
 ./build/storage_scenarios
 ```
 
@@ -53,6 +53,15 @@ mixed physical/phone companion control, and 16-player capacity. `profile_fixture
 is an in-memory repository substitute; the SHA stub is a deterministic test double,
 not cryptography. Existing storage scenarios test the real statistics blob layer.
 
+Profile-policy scenarios cover all four owner choices, companion-session expiry,
+PIN-protected physical claim rejection, hidden-stat accumulation, and unavailable
+policy storage. The storage executable checks the real three-byte policy codec
+and NVS failure handling; gameplay scenarios use the profile repository fixture.
+
 Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolvable
 (or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed. It uses local
 HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
+It also checks policy saving/reloading and that polling preserves unsaved choices.
+Game/life checks cover persisted setup, host-only edits, captured match settings,
+own-life authorization, bounds, companion sessions, negative life and rematches.
+The harness now links real LED/audio renderers and replaces the radio boundary.

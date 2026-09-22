@@ -226,6 +226,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
       setMessage('Connection lost during upload before Atlas confirmed the image write.', 'error');
       button.disabled = false;
     };
+    xhr.setRequestHeader('X-TurnHub-Token',localStorage.getItem('turnhubSessionToken')||'');
     xhr.send(form);
   });
 
@@ -250,12 +251,12 @@ void OtaManager::begin() {
 
   server_.on("/dev", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
-    server_.send_P(200, "text/html", TurnHubWeb::DEV_HTML);
+    TurnHubWebApi::serveRestrictedPage(server_,TurnHubWeb::DEV_HTML,TurnHubAccounts::Developer);
   });
 
   server_.on("/update", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
-    server_.send_P(200, "text/html", UPDATE_HTML);
+    TurnHubWebApi::serveRestrictedPage(server_,UPDATE_HTML,TurnHubAccounts::Admin);
   });
 
   server_.on(
@@ -290,7 +291,7 @@ void OtaManager::handleUpload() {
     case UPLOAD_FILE_START:
       resetAttempt();
 
-      if (allowedCallback_ == nullptr || !allowedCallback_()) {
+      if (!TurnHubWebApi::requirePermission(server_,TurnHubAccounts::Admin) || allowedCallback_ == nullptr || !allowedCallback_()) {
         denied_ = true;
         Serial.println("ATLAS|OTA|DENIED");
         return;

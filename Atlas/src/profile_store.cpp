@@ -1,4 +1,5 @@
 #include "profile_store.h"
+#include "account_access.h"
 
 #include "optional_preferences.h"
 #include "nvs_blob_store.h"
@@ -14,6 +15,29 @@ constexpr char PREF_NAMESPACE[] = "turnhub";
 TurnHub::OptionalPreferences preferences;
 TurnHubStorage::NvsBlobStore statsStorage;
 bool preferencesReady = false;
+constexpr uint8_t TRANSIENT_SECONDARY_CAPACITY = 8;
+struct TransientSecondaryBinding {
+  bool used = false;
+  uint8_t mac[6] = {};
+  String profileId;
+};
+TransientSecondaryBinding transientSecondaries[TRANSIENT_SECONDARY_CAPACITY];
+
+TransientSecondaryBinding *transientSecondaryFor(const uint8_t mac[6], bool create) {
+  for (auto &binding : transientSecondaries) {
+    if (binding.used && memcmp(binding.mac, mac, 6) == 0) return &binding;
+  }
+  if (!create) return nullptr;
+  for (auto &binding : transientSecondaries) {
+    if (!binding.used) {
+      binding.used = true;
+      memcpy(binding.mac, mac, 6);
+      binding.profileId = String();
+      return &binding;
+    }
+  }
+  return nullptr;
+}
 
 String seatKey(char prefix, const uint8_t mac[6], uint8_t slot) {
   char key[16];
@@ -84,6 +108,10 @@ String ensureProfileId(const uint8_t mac[6], uint8_t slot) {
     return String();
   }
   if (preferences.putString(bindingKey.c_str(), profileId) == 0) {
+    return String();
+  }
+  if (slot == 1 && preferences.putUChar(seatKey('r', mac, slot).c_str(), 0) == 0) {
+    preferences.remove(bindingKey.c_str());
     return String();
   }
   return profileId;
@@ -220,6 +248,28 @@ bool hasPinForProfile(const String &profileId) {
   return storedPinHashForProfile(profileId).length() == 64;
 }
 
+bool loadPolicyForProfile(const String &profileId, ProfilePolicy &policy) {
+  // Fail closed. Only a genuinely absent record receives compatibility defaults.
+  policy.allowPhysicalWithoutPin = false;
+  policy.hideStatsWithoutAuthentication = true;
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  const auto status = readStoredPolicy(statsStorage, profileKey('a', profileId).c_str(), policy);
+  if (status == TurnHubStorage::Status::NotFound) {
+    policy = ProfilePolicy{};
+    return true;
+  }
+  return status == TurnHubStorage::Status::Ok;
+}
+
+bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy) {
+  if (!preferencesReady || !profileExists(profileId) ||
+      (!policy.allowPhysicalWithoutPin && !hasPinForProfile(profileId)) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  return writeStoredPolicy(statsStorage, profileKey('a', profileId).c_str(), policy) ==
+      TurnHubStorage::Status::Ok;
+}
+
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats) {
   stats = ProfileStats{};
   if (!preferencesReady || !profileExists(profileId)) {
@@ -249,9 +299,64 @@ String profileIdForSeat(const uint8_t mac[6], uint8_t slot) {
   if (!preferencesReady && !begin()) {
     return String();
   }
+  if (slot == 2) {
+    TransientSecondaryBinding *binding = transientSecondaryFor(mac, true);
+    if (binding == nullptr) return String();
+    if (!validProfileId(binding->profileId) || !profileExists(binding->profileId)) {
+      binding->profileId = createProfile();
+    }
+    return binding->profileId;
+  }
   const String profileId = ensureProfileId(mac, slot);
   migrateLegacyName(mac, slot, profileId);
   return profileId;
+}
+
+String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot) {
+  if (!preferencesReady && !begin()) {
+    return String();
+  }
+  if (slot != 1 && slot != 2) {
+    return String();
+  }
+  if (slot == 2) {
+    const TransientSecondaryBinding *binding = transientSecondaryFor(mac, false);
+    return binding != nullptr && validProfileId(binding->profileId) &&
+        profileExists(binding->profileId) ? binding->profileId : String();
+  }
+  const String profileId = preferences.getString(seatKey('b', mac, slot).c_str(), "");
+  return validProfileId(profileId) && profileExists(profileId) ? profileId : String();
+}
+
+bool seatIsPersistent(const uint8_t mac[6], uint8_t slot) {
+  if (!preferencesReady && !begin()) return false;
+  if (slot != 1 || boundProfileIdForSeat(mac, slot).length() == 0) return false;
+  const String key = seatKey('r', mac, slot);
+  return preferences.isKey(key.c_str()) && preferences.getUChar(key.c_str(), 0) != 0;
+}
+
+bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent) {
+  if (!preferencesReady && !begin()) return false;
+  if (slot != 1 || boundProfileIdForSeat(mac, slot).length() == 0) return false;
+  return preferences.putUChar(seatKey('r', mac, slot).c_str(), persistent ? 1 : 0) != 0;
+}
+
+bool resetTransientSeatBindings(const uint8_t mac[6]) {
+  if (!preferencesReady && !begin()) return false;
+  bool ok = true;
+  if (!seatIsPersistent(mac, 1)) {
+    const String primary = seatKey('b', mac, 1);
+    if (preferences.isKey(primary.c_str())) ok = preferences.remove(primary.c_str()) && ok;
+    preferences.remove(seatKey('r', mac, 1).c_str());
+  }
+  if (TransientSecondaryBinding *binding = transientSecondaryFor(mac, false)) {
+    binding->used = false;
+    binding->profileId = String();
+  }
+  const String secondary = seatKey('b', mac, 2);
+  if (preferences.isKey(secondary.c_str())) ok = preferences.remove(secondary.c_str()) && ok;
+  preferences.remove(seatKey('r', mac, 2).c_str());
+  return ok;
 }
 
 bool bindSeatToProfile(
@@ -261,7 +366,18 @@ bool bindSeatToProfile(
   if (!preferencesReady || (slot != 1 && slot != 2) || !profileExists(profileId)) {
     return false;
   }
-  return preferences.putString(seatKey('b', mac, slot).c_str(), profileId) > 0;
+  if (slot == 2) {
+    TransientSecondaryBinding *binding = transientSecondaryFor(mac, true);
+    if (binding == nullptr) return false;
+    binding->profileId = profileId;
+    return true;
+  }
+  if (preferences.putString(seatKey('b', mac, slot).c_str(), profileId) == 0) return false;
+  if (slot == 1 && preferences.putUChar(seatKey('r', mac, slot).c_str(), 0) == 0) {
+    preferences.remove(seatKey('b', mac, slot).c_str());
+    return false;
+  }
+  return true;
 }
 
 String nameForSeat(const uint8_t mac[6], uint8_t slot) {
@@ -371,3 +487,34 @@ bool saveStatsForSeat(
 }
 
 }  // namespace TurnHubProfiles
+
+namespace TurnHubAccounts {
+bool load(const String &id,Account &a){
+  if(!TurnHubProfiles::profileExists(id))return false;
+  TurnHubStorage::NvsBlobStore store;if(store.begin("turnhub")!=TurnHubStorage::Status::Ok)return false;
+  auto s=read(store,(String("u")+id).c_str(),a);
+  if(s==TurnHubStorage::Status::NotFound)a=Account{};
+  else if(s!=TurnHubStorage::Status::Ok)return false;
+  String primary;if(!primaryAdmin(primary))return false;
+  if(id==primary)a.permissions|=Admin;
+  return true;
+}
+bool save(const String &id,const Account &a){
+  if(!TurnHubProfiles::profileExists(id))return false;
+  TurnHubStorage::NvsBlobStore store;return store.begin("turnhub")==TurnHubStorage::Status::Ok&&write(store,(String("u")+id).c_str(),a)==TurnHubStorage::Status::Ok;
+}
+bool primaryAdmin(String &id){
+  id="";TurnHubStorage::NvsBlobStore store;if(store.begin("turnhub")!=TurnHubStorage::Status::Ok)return false;
+  size_t n=0;auto s=store.read("acctadmin",nullptr,0,n);
+  if(s==TurnHubStorage::Status::NotFound)return true;
+  if(s!=TurnHubStorage::Status::Ok||n!=9)return false;
+  char b[9]={};s=store.read("acctadmin",b,sizeof(b),n);
+  if(s!=TurnHubStorage::Status::Ok||n!=9||b[8]!=0||!TurnHubProfiles::profileExists(String(b)))return false;
+  id=String(b);return true;
+}
+bool establishAdmin(const String &id){
+  String current;if(!primaryAdmin(current)||current.length()||!TurnHubProfiles::hasPinForProfile(id))return false;
+  Account a;if(!load(id,a))return false;
+  TurnHubStorage::NvsBlobStore store;return store.begin("turnhub")==TurnHubStorage::Status::Ok&&store.write("acctadmin",id.c_str(),9)==TurnHubStorage::Status::Ok;
+}
+}

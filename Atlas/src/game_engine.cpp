@@ -19,6 +19,7 @@ void GameEngine::setGameCompletedCallback(GameCompletedCallback callback) {
 }
 
 void GameEngine::reset() {
+  settings_ = GameSettings{};
   playerCount_ = 0;
   activeIndex_ = 0;
   starterPlayer_ = 0;
@@ -38,7 +39,22 @@ void GameEngine::reset() {
     players_[i] = PlayerSeat{};
     stats_[i] = PlayerStats{};
     eliminated_[i] = false;
+    life_[i] = 0;
   }
+}
+
+int32_t GameEngine::lifeTotal(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index < 0 ? 0 : life_[index];
+}
+
+bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || gameOver_ || (!running_ && !paused_) || winClaimActive_ || eliminated_[index]) return false;
+  const int64_t total = static_cast<int64_t>(life_[index]) + delta;
+  if (total < -1000000 || total > 1000000) return false;
+  life_[index] = static_cast<int32_t>(total);
+  return true;
 }
 
 int GameEngine::indexForSeat(const PlayerSeat &seat) const {
@@ -80,16 +96,18 @@ bool GameEngine::start(
     uint8_t playerCount,
     const PlayerSeat &starter,
     uint32_t warningMs,
-    uint32_t nowMs) {
-  if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS) {
+    uint32_t nowMs, const GameSettings &settings) {
+  if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings)) {
     return false;
   }
 
   reset();
+  settings_ = settings;
   playerCount_ = playerCount;
 
   for (uint8_t i = 0; i < playerCount_; ++i) {
     players_[i] = players[i];
+    life_[i] = settings_.startingLife;
     eliminated_[i] = false;
   }
 

@@ -35,10 +35,12 @@ Atlas `0.6.0-dev` currently provides:
 - ESP-NOW communication with development Sigils on the current prototype transport.
 - Physical and phone-only participation, including mixed physical/browser tables.
 - Local profile creation/login with PIN-based browser authentication.
+- Local account permissions for Admin, Game Master and Developer, with initial Admin setup and private moderation counters (implemented locally; hardware playtest pending). See [Accounts and moderation](docs/engineering/ACCOUNTS_AND_MODERATION.md).
 - Multiple browser sessions controlling the same participant.
 - Explicit browser-assisted attachment of an unused physical Sigil to the authenticated profile.
 - Shared physical A/B seats retained for compatibility.
 - Starter selection, start/cancel countdown, turn passing, three-second cancellable pass grace, pause/resume, concession/elimination, confirmed victory, rematch, and reset.
+- Game profile presets and custom starting life, with browser controls for each player's own life and public table totals (implemented locally; hardware playtest pending). See [Game profiles and life](docs/engineering/GAME_PROFILES_AND_LIFE.md).
 - Atlas-authoritative profile statistics stored locally.
 - Persistent profile identity, names/PIN-related profile data, physical-seat bindings, and deployed statistics through Atlas local storage.
 - Browser and physical gameplay paths converging on the Atlas Intent layer.
@@ -56,6 +58,7 @@ Survives reboot/power loss:
 - PIN-related profile data.
 - Existing physical-seat/profile bindings or preferences.
 - Deployed profile statistics.
+- Selected game profile and starting-life preference.
 - Other explicitly stored Atlas configuration such as the current AP settings.
 
 Does **not** currently survive reboot:
@@ -64,6 +67,7 @@ Does **not** currently survive reboot:
 - Current table participation.
 - Live controller assignments.
 - Active game/turn state.
+- Current life totals.
 
 A current Atlas reboot therefore returns to a fresh table while preserving durable profile/statistics data. Prototype 1.0 work is staged to add a compact, versioned interrupted-match recovery record with Resume/Discard behavior and paused recovery so power-off time is never charged to a player. See [Software Architecture](docs/engineering/SOFTWARE_ARCHITECTURE.md) and [Staged Changes](docs/engineering/STAGED_CHANGES.md).
 

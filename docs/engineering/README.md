@@ -14,6 +14,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 
 ## Reference set
 
+- [Accounts and Moderation](ACCOUNTS_AND_MODERATION.md) - initial Admin setup, independent permissions, private moderation counts and portal organization.
 - [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
 - [Accessibility Specification](ACCESSIBILITY.md) - cross-platform requirements for color, contrast, redundant cues, physical input, assistive controllers, digital accessibility, and accessibility testing.
 - [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
@@ -24,6 +25,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
 - [Identity and Storage Contracts](IDENTITY_AND_STORAGE.md) - typed identities, persistence ownership, legacy compatibility and migration/failure rules.
 - [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables and simultaneous phone/Sigil control.
+- [Game Profiles and Life Counters](GAME_PROFILES_AND_LIFE.md) - format selection, starting life, own-life controls, storage boundaries and bench acceptance.
 - [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - planned two-button e-ink selection, reusable controllers, authorization decision and migration slices.
 - [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - historical transports, message concepts, current pairing direction, and protocol design rules.
 - [Verification Backlog](VERIFICATION_BACKLOG.md) - facts that should be confirmed against physical prototypes, commits, schematics, or future design decisions.

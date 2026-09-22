@@ -59,18 +59,27 @@ match/controller records, not a claim that those repositories already exist.
 
 | Data | Owner | Current/planned location |
 | --- | --- | --- |
-| Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Existing `turnhub` NVS keys |
+| Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Existing `turnhub` NVS keys; `b<mac>A` is an optional remembered Seat A binding, `b<mac>B` is transient and cleared on Sigil reconnect |
 | Lifetime/latest-game statistics | Profile statistics repository | `BlobStore` -> `NvsBlobStore`, existing `turnhub` namespace and `s<profileId>` keys |
+| Physical-use and stats-privacy choices | Atlas profile repository | `a<profileId>` blob in `turnhub`: schema byte 1, allow-physical byte 0/1, hide-stats byte 0/1; implemented locally |
 | Network credentials | Network settings owner in web API | Existing Preferences namespace |
 | Game definitions/rulesets | Planned game-definition repository | Versioned records through storage boundary |
+| Next-game profile and starting life | Atlas game-settings repository | Six-byte schema-1 `gamecfg` blob in `turnhub`; match captures settings at start, life totals stay in RAM |
 | Match facts, membership, history and recovery | Planned Atlas match repository | Bounded versioned records; recovery separate from completed history |
 | Controller assignment/device trust | Planned controller/trust registries | Small critical records independent of statistics |
-| Shared accessibility preferences | Atlas profile owner | Versioned profile preferences; device calibration stays device-local |
+| Sigil user/device settings and last-used preferences | Atlas device-settings owner | Seat A remember flag in `r<mac>A`; Seat B has no persistent binding; no Sigil-side user-settings persistence |
+| Shared accessibility preferences | Atlas profile owner | Versioned profile preferences; per-Sigil user adjustments belong to Atlas device settings |
 | Exports | Atlas authorized projection | Generated views, never a competing database |
 
 The engine knows game facts, not NVS keys or SD paths. Backends know bytes, not
 rules or permissions. Repository/service callers authorize client access. A new
 backend must not widen access or create a competing state owner.
+
+Owner decision, 2026-09-21: the planned Device Settings area is per Sigil, but
+Atlas owns persistence and validation. Sigils consume disposable runtime values
+from Atlas. Minimum device identity/pairing bootstrap material is separate from
+user settings; retaining it does not grant configuration or gameplay authority.
+See [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md).
 
 ## Implemented storage boundary
 

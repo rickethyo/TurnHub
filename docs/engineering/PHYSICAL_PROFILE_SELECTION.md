@@ -1,8 +1,8 @@
 # Physical profile selection and controller assignment
 
-Status: **Planned**, not implemented. Next identity milestone, before game-scoped
-statistics. Recorded after the owner's successful compile/flash report and
-physical-controller reuse observation on 2026-09-20.
+Status: **Partially implemented locally**: Atlas profile-policy settings,
+authorization checks, and Atlas-owned primary-seat persistence. The physical
+picker and selectable startup remain planned.
 
 ## Observed gap
 
@@ -25,6 +25,57 @@ Current implementation evidence:
   The display currently uses full-window rendering; do not assume partial
   refresh performance or introduce animation as a requirement.
 
+## First implementation slice: profile policy (2026-09-21)
+
+- Settings exposes independent physical-use and stats-privacy choices, saved by
+  the authenticated owner through `POST /api/session/policy`. Caller-supplied
+  profile IDs cannot select another owner's settings.
+- Atlas stores an explicit three-byte versioned policy at `a<profileId>` in its
+  existing `turnhub` namespace. Missing records preserve physical play and hide
+  unauthenticated stats by default. Corrupt/unreadable/future records fail closed
+  and are not overwritten. Existing profile IDs, bindings and stats remain intact.
+- Disabling PIN-free physical use requires a saved PIN. New physical primary or
+  secondary joins require a live same-profile browser session when that choice
+  is disabled. Existing participation continues after logout/expiry or a policy
+  change; authentication loss never ejects a player or interrupts a match.
+- Protected profiles require PIN login for browser access even when PIN-free
+  physical play is allowed. PIN-less legacy profiles retain physical browser
+  bootstrap; pending claims recheck credentials and profile identity at approval.
+- Atlas exposes a stats-visibility policy query for the future physical renderer:
+  same-profile authentication unlocks it; any remaining live companion session
+  keeps it unlocked; logout/revocation/expiry of the last session removes access.
+  This query does not refresh session lifetime. Hidden statistics still accumulate.
+  No Sigil stats screen or new unauthenticated stats endpoint is added in this slice.
+- Device Settings now groups existing Atlas-persisted Sigil naming in the portal.
+  Startup mode is not exposed until the coordinated Atlas/Sigil picker is ready.
+
+Feature boundary: profile repository owns policy persistence; owner-authenticated
+settings requests change policy; Atlas authorization queries gate join Intents
+and future display serialization. Portal controls render the owner choices.
+This slice adds no radio packets, Sigil persistence, game-engine rules, or external
+dependencies. Forms use native labeled controls and persistent status feedback.
+
+## Current slot persistence slice (2026-09-22)
+
+- A profile record remains durable, but a physical slot binding is temporary by
+  default. Atlas stores the Seat A remember choice in `r<mac>A`; the Sigil
+  never owns this setting.
+- The Players device card lets the authenticated owner remember their profile on
+  Seat A. Setting a PIN is required before a profile can be remembered.
+- Seat B is always transient. Atlas clears its binding whenever the Sigil starts
+  a new display-profile handshake, and never offers a Seat B persistence choice.
+- Non-persistent Seat A bindings are also released at that handshake. Releasing
+  a binding does not delete the profile, credentials, permissions, or totals;
+  the profile can be attached again explicitly.
+- Existing bindings without a remember flag are treated as temporary, so the
+  first post-update Sigil handshake releases them. This is an intentional
+  migration to opt-in persistence.
+
+Validation: native application/storage scenarios and portal smoke checks pass;
+Atlas firmware compiles. No hardware flashed. Bench-check settings across Atlas
+reboot, protected/unprotected primary and secondary joins, browser companion
+login, and statistics accumulation before accepting this slice on hardware.
+
 ## Product contract
 
 Profiles belong to people, not controllers. A saved physical binding becomes a
@@ -42,13 +93,19 @@ profile access. The live assignment is separate and scoped to table participatio
   rejection until a separate transfer flow is designed. Never silently steal it.
 - Shared Sigil seats A and B select identities independently. Changing B must
   not change A. Leave/reassignment must respect existing shared-seat constraints.
-- Guests, if implemented, have temporary participation with no durable profile
-  statistics. Never attribute guest results to the last-used person.
+- Guests have temporary slot participation. A released guest profile record is
+  not treated as a remembered owner; cleanup/guest-directory presentation is
+  separate from releasing the slot binding.
 
 ## Proposed physical interaction
 
-In the lobby, an unjoined Sigil opens a picker rather than immediately joining
-its remembered identity. Show the last-used name first, plus Change player,
+Startup behavior is user-selectable: last-used profile or profile selector.
+Remembering a profile never bypasses its physical-use policy or creates a second
+participant. Startup mode belongs to that Sigil's Atlas-owned Device Settings.
+The default and whether last-profile startup
+selects or also confirms joining remain interaction decisions to settle.
+Always provide a route to change player. In the picker, show the last-used name
+first, plus Change player,
 Guest (when supported), and Cancel. Pass cycles choices and Action selects;
 display those labels on every menu. All essential actions use short presses.
 
@@ -73,31 +130,79 @@ must not queue invisible choices. Measure responsiveness on the actual hardware.
 The browser remains an accessible equivalent through the same application
 service, including keyboard and assistive-technology support.
 
-## Authorization decision still open
+## Owner-selected access and privacy policy
 
-The owner has not chosen whether physical possession is sufficient to select a
-saved profile, or whether a protected profile requires its PIN on the Sigil.
-Do not silently adopt either policy or broaden existing physical approval into
-permission to impersonate any profile.
+Product decision, 2026-09-21: profile owners choose independently in the portal
+or future app:
 
-Keep browsing separate from authorization. An authenticated browser can already
-authorize attaching its own profile with physical confirmation. For standalone
-physical selection, define a policy service before enabling protected-profile
-confirmation. A conservative implementation can keep that confirmation disabled
-until the policy is settled; that is not completion of standalone profile login.
+- **Allow physical use without a PIN?** Permission to use that profile from a
+  physical Sigil without entering its PIN. This does not authenticate a browser
+  or authorize changes to profile credentials/settings.
+- **Hide stats without authentication?** Whether statistics remain hidden on
+  unauthenticated presentation surfaces, including a Sigil if it gains a stats
+  display. This controls visibility, never statistics accumulation.
 
-If PIN entry is chosen, use the two buttons to select digits and explicit
+Allowing PIN-free physical use and hiding unauthenticated stats is a supported
+combination: play and statistics recording continue, but the physical display
+does not reveal protected statistics. Atlas enforces visibility before sending
+data; merely hiding received values on the Sigil is insufficient. This decision
+does not itself require adding a Sigil statistics screen.
+
+Physical selection must never block browser login or companion control. Login
+as the same profile enables full profile/statistics display on its connected
+Sigil, including when physical play began without a PIN. Another profile's login
+does not unlock that display. All controllers still share one participant and
+one statistics attribution.
+
+Keep browsing, gameplay permission, and authenticated display permission
+separate. When PIN-free physical use is disabled, require authentication before
+physical join/attachment. Browser-assisted authorization remains a supported
+path; direct two-button PIN entry is not yet a decided requirement.
+
+The first slice defines missing-policy defaults and session-based display
+authorization above. A disconnected browser's session remains valid until logout,
+revocation, or its existing eight-hour inactivity expiry. Before adding a physical
+stats display, define removal of previously rendered private data on e-ink when
+authorization ends or assignment changes, including loss of Atlas connectivity.
+Profile policy edits require owner authentication. User choice should govern
+these product preferences even when supporting alternatives takes more work;
+the same Atlas ownership and validation rules apply to every option.
+
+If direct PIN entry is chosen, use the two buttons to select digits and explicit
 Back/Cancel controls, mask completed digits, and rate-limit at Atlas per profile
 across transports. Never put hashes in directory/menu responses or log PINs.
 Review the actual ESP-NOW pairing/encryption configuration before transporting
 credentials. Do not treat the browser's current hash format as a radio protocol.
+
+## Device Settings ownership
+
+Product decision, 2026-09-21: provide an Atlas-owned Device Settings area for
+per-Sigil preferences. The Seat A remember choice is exposed from the Players
+device card because it is an owner-authorized binding action; Seat B has no
+persistence setting. Startup mode remains planned. Atlas stores and validates
+device settings keyed to the physical device; profile access and stats-privacy
+choices remain profile settings.
+
+Sigils do not persist user settings. They render and apply the current settings
+supplied by Atlas as disposable runtime state. Setting changes are requests to
+Atlas, never local authoritative writes. After reconnect/reboot, Atlas supplies
+the effective configuration before profile selection or attachment proceeds.
+An unavailable Atlas cannot be replaced by a Sigil's remembered settings.
+
+Minimum device identity and pairing bootstrap material needed to reconnect are
+separate from user settings and remain subject to the pairing contract; they do
+not authorize the Sigil to choose profiles, permissions, or game state. Device
+Settings editing permissions, defaults, and reset/re-pair behavior still need
+definition before implementation.
 
 ## Mandatory feature boundaries
 
 | Concern | Owner and boundary |
 | --- | --- |
 | Profiles, credentials, totals | Existing Atlas repositories; IDs and statistics formats remain unchanged. |
-| Last-used preference | Controller preference persistence, keyed by physical device and slot; advisory only. |
+| Device settings and last-used preference | Atlas device-settings owner; startup mode keyed by device, last-used profile keyed by device/slot; no Sigil-side settings persistence. |
+| Physical-use and stats-visibility settings | Atlas profile repository; independently persisted owner choices, validated by Atlas policy/authentication services. |
+| Authenticated Sigil display | Atlas resolves same-profile authentication and live assignment before serializing permitted data; authorization is not a remembered profile preference. |
 | Participant identity and live assignment | Atlas application service; canonical profile-to-participant and controller-to-participant associations. |
 | Browse/menu state | Bounded selection service on Atlas; Sigil renders a revisioned view and sends navigation/confirmation requests. |
 | Authorization | Atlas policy/authentication service validates actor, profile, proof and request lifetime. |
@@ -157,3 +262,13 @@ testing expansion unless a failure calls for it.
    live assignment. An old Sigil remains usable with the new Atlas.
 6. E-ink latency does not select an unseen item; menu presses do not trigger
    gameplay; accessible browser attachment reaches the same validated outcome.
+7. Exercise all combinations of PIN-free physical use and authenticated-only
+   stats visibility. Hidden stats still accumulate once; unauthorized responses
+   contain no protected values.
+8. Same-profile browser login after physical joining enables the connected
+   Sigil's full display without replacing the participant. Other-profile login
+   does not. Verify display revocation against the agreed lifetime policy.
+9. Both startup choices preserve access to Change player, authorization checks,
+   duplicate prevention, and simultaneous browser/physical use.
+10. Device settings survive through Atlas storage; Sigil restart/reconnect uses
+    Atlas's configuration and never publishes a local preference as authority.

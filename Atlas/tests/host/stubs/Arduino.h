@@ -36,7 +36,9 @@ extern uint32_t testNow;
 inline uint32_t millis() { return testNow; }
 inline void delay(uint32_t ms) { testNow += ms; }
 constexpr int HIGH=1, LOW=0, INPUT_PULLUP=2, OUTPUT=3;
-inline int digitalRead(int) { return HIGH; }
+constexpr float PI=3.14159265358979323846f;
+extern int testDigitalRead;
+inline int digitalRead(int) { return testDigitalRead; }
 inline void digitalWrite(int,int) {}
 inline void pinMode(int,int) {}
 struct SerialStub {

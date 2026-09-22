@@ -62,6 +62,15 @@ requires a separate bench acceptance run after automated checks.
 
 ## Implemented boundaries and compatibility
 
+Local follow-up (2026-09-21): Settings adds owner-authenticated
+`POST /api/session/policy` with explicit `0`/`1` choices for
+`allowPhysicalWithoutPin` and `hideStatsWithoutAuthentication`.
+`/api/session/me` reports `policyAvailable` and the two choices when readable.
+PIN-protected profiles require PIN authentication to obtain a browser session;
+physical confirmation alone remains available only to bootstrap PIN-less profiles.
+New physical joins respect the owner policy without disrupting existing matches.
+See [physical-selection implementation scope](PHYSICAL_PROFILE_SELECTION.md).
+
 - `profile_store` owns profile creation/listing and persistence. Credential
   initialization publishes the existing marker last. Existing IDs and v1 stats
   remain unchanged. New profiles require a name and PIN.

@@ -199,8 +199,11 @@ do not expose System origin or deferred-commit operations as caller-selected ing
 `PairRequest` currently has a visual-only mock handler for the Atlas Pair button; it
 does not pair devices. `PairConfirm` and `ForgetPairing` exist in the vocabulary but
 remain unsupported. Prototype 1.0 is staged to replace the mock/passive-discovery
-behavior with a real Atlas-owned pairing state machine. Life/counters and nudges also
-remain unsupported.
+behavior with a real Atlas-owned pairing state machine. General counters and nudges
+remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
+must match the validated actor, and `value` is the signed delta. `ConfigureGame`
+requires the primary host seat in the lobby; `flags` is the game-profile enum and
+`value` is starting life. See [Game profiles and life](GAME_PROFILES_AND_LIFE.md).
 
 ## Result model
 

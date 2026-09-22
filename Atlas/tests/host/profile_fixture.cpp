@@ -1,5 +1,16 @@
 #include "profile_fixture.h"
+#include "account_access.h"
+#include "game_settings_store.h"
+namespace TurnHub {
+GameSettings fixtureSettings;
+TurnHubStorage::Status loadGameSettings(GameSettings &value) {value=fixtureSettings;return TurnHubStorage::Status::Ok;}
+TurnHubStorage::Status saveGameSettings(const GameSettings &value) {
+  if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
+  fixtureSettings=value;return TurnHubStorage::Status::Ok;
+}
+}
 namespace ProfileFixture {
+bool gameSettingsWritable = true;
 std::map<std::string,Profile> profiles;
 std::map<std::string,String> bindings;
 String key(const uint8_t *mac,uint8_t slot) { return String(mac[5])+":"+String(slot); }
@@ -25,11 +36,29 @@ String profileIdForSeat(const uint8_t *mac,uint8_t slot) {
   if(found==bindings.end()) bindings[k]=createProfile();
   return bindings[k];
 }
+String boundProfileIdForSeat(const uint8_t *mac,uint8_t slot) {
+  const auto found=bindings.find(key(mac,slot));
+  return found==bindings.end() ? String() : found->second;
+}
+bool seatIsPersistent(const uint8_t *,uint8_t) { return false; }
+bool setSeatPersistent(const uint8_t *,uint8_t,bool) { return false; }
+bool resetTransientSeatBindings(const uint8_t *mac) {
+  bindings.erase(key(mac,2));
+  return true;
+}
 bool bindSeatToProfile(const uint8_t *mac,uint8_t slot,const String &id) { if(!profileExists(id))return false; bindings[key(mac,slot)]=id; return true; }
 String nameForProfile(const String &id) { return profileExists(id)?profiles[id].name:String(); }
 bool setNameForProfile(const String &id,const String &name) { if(!profileExists(id))return false; profiles[id].name=name; return true; }
 String storedPinHashForProfile(const String &id) { return profileExists(id)?profiles[id].hash:String(); }
 bool hasPinForProfile(const String &id) { return storedPinHashForProfile(id).length()==64; }
+bool loadPolicyForProfile(const String &id,ProfilePolicy &policy) {
+  if(!profileExists(id)||!profiles[id].policyReadable)return false;
+  policy=profiles[id].policy;return true;
+}
+bool savePolicyForProfile(const String &id,const ProfilePolicy &policy) {
+  if(!profileExists(id)||!profiles[id].policyReadable)return false;
+  profiles[id].policy=policy;return true;
+}
 bool setPinHashForProfile(const String &id,const String &hash) { if(!profileExists(id))return false;profiles[id].hash=hash;return true; }
 bool clearPinForProfile(const String &id) { return setPinHashForProfile(id,""); }
 String storedPinHashForSeat(const uint8_t *mac,uint8_t slot,bool *legacy) { if(legacy)*legacy=false;return storedPinHashForProfile(profileIdForSeat(mac,slot)); }
@@ -40,4 +69,13 @@ String deviceName(const uint8_t *) { return String(); }
 bool setDeviceName(const uint8_t *,const String &) { return true; }
 bool loadStatsForProfile(const String &id,ProfileStats &stats) { if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
 bool saveStatsForProfile(const String &id,const ProfileStats &stats) { if(!profileExists(id))return false;profiles[id].stats=stats;return true; }
+}
+
+namespace TurnHubAccounts {
+std::map<std::string,Account> accounts;
+String primary;
+bool load(const String &id,Account &a){if(!TurnHubProfiles::profileExists(id))return false;a=accounts[id];return true;}
+bool save(const String &id,const Account &a){if(!TurnHubProfiles::profileExists(id))return false;accounts[id]=a;return true;}
+bool primaryAdmin(String &id){id=primary;return true;}
+bool establishAdmin(const String &id){if(primary.length()||!TurnHubProfiles::hasPinForProfile(id))return false;accounts[id].permissions|=Admin;primary=id;return true;}
 }

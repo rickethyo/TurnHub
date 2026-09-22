@@ -84,6 +84,13 @@ silently compared across toolchain changes without noting the build environment.
 | Pairing-LED mock follow-up | 47,924 bytes | 924,797 bytes | Five-second visual PairRequest mock added |
 | Identity/storage foundation | 47,940 bytes | 925,265 bytes | Blob/NVS statistics boundary and identity groundwork |
 | Current `0.6.0-dev` profile-login build | not yet recorded here | not yet recorded here | Record next confirmed PlatformIO build output |
+| Local profile-policy slice, 2026-09-21 | 51,628 bytes | 953,345 bytes | Uncommitted changes based on `0cbb707`, still `0.6.0-dev`; Atlas build only, no flash |
+| Local game profiles and life totals, 2026-09-21 | 51,748 bytes | 967,273 bytes | Includes profile-policy slice and diagnostics; same toolchain, uncommitted `0.6.0-dev` based on `0cbb707`; build only, no flash |
+| Local accounts, moderation and portal cleanup, 2026-09-21 | 51,764 bytes | 983,505 bytes | Includes prior local slices; same toolchain and baseline; focused tests/build passed, not flashed |
+
+The local profile-policy build used Espressif32 7.1.3, Arduino ESP32
+`4.20017.260907+sha.dcc1105b`, and Xtensa toolchain `8.4.0+2021r2-patch5`.
+It is not a measurement of the unchanged profile-login baseline above.
 
 A future automated build should capture RAM/flash usage directly into CI or a generated
 artifact so this ledger does not depend on manual transcription.

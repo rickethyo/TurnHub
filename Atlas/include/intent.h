@@ -60,6 +60,8 @@ enum class IntentType : uint8_t {
   JoinProfile,
   LeaveProfile,
   BindProfile,
+  ConfigureGame,
+  Moderate,
 
   Count,
 };
@@ -103,6 +105,7 @@ struct IntentPayload {
   uint8_t targetPlayer = 0;
   int32_t value = 0;
   uint32_t flags = 0;
+  char moderatorId[9] = {}; // Authenticated account issuing moderation.
   char profileId[9] = {}; // Only populated by trusted Atlas authentication adapters.
 };
 
@@ -182,6 +185,8 @@ inline const char *intentName(IntentType type) {
     case IntentType::JoinProfile: return "JOIN_PROFILE";
     case IntentType::LeaveProfile: return "LEAVE_PROFILE";
     case IntentType::BindProfile: return "BIND_PROFILE";
+    case IntentType::ConfigureGame: return "CONFIGURE_GAME";
+    case IntentType::Moderate: return "MODERATE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

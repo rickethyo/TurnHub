@@ -83,6 +83,19 @@ bool SigilBus::poll(SigilEvent &event) {
   // display profile over ESP-NOW, then the main-loop consumer reads the
   // durable profile bound to that seat and queues response packets here.
   if (event.physical && event.type == PacketType::DisplayProfileRequest) {
+    SigilRecord *record = const_cast<SigilRecord *>(this->record(event.sigilId));
+    const uint32_t nowMs = millis();
+    if (record != nullptr &&
+        (!record->profileRequestSeen || nowMs - record->lastProfileRequestMs > 5000)) {
+      if (TurnHubProfiles::resetTransientSeatBindings(record->mac)) {
+        Serial.print("ATLAS|PROFILE|TRANSIENT_SEATS|CLEARED|");
+        Serial.println(event.sigilId);
+      }
+    }
+    if (record != nullptr) {
+      record->profileRequestSeen = true;
+      record->lastProfileRequestMs = nowMs;
+    }
     syncDisplayProfile(event.sigilId);
   }
 

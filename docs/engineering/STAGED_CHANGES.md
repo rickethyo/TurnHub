@@ -24,6 +24,20 @@ banks is acceptable; setup reliability and recovery are higher priorities.
 
 Near-term order:
 
+Play-test priority update (2026-09-21): Michael requested game profiles/life totals.
+The first local implementation is complete with automated checks and a firmware
+build; see [Game profiles and life counters](GAME_PROFILES_AND_LIFE.md). Hardware
+acceptance, Commander damage, cross-player edits, and game-scoped statistics remain.
+Phone-only resets were reported twice; investigation is paused pending serial data.
+The subsequently supplied capture ended in a user-confirmed manual reset, so it
+does not diagnose those earlier reports.
+
+Local account/portal slice: initial Admin setup, independent Admin/Game Master/
+Developer permissions, configurable disconnect actions and private persistent
+counts are implemented. See [Accounts and moderation](ACCOUNTS_AND_MODERATION.md).
+Hardware acceptance and enforcement of saved mute preferences when nudges are
+implemented remain; no account reset or firmware flash has been performed.
+
 1. **Complete physical profile selection/reusable Sigils.** Preserve duplicate-profile
    protection while separating saved last-used preference from live assignment.
 2. **Freeze major web-portal features.** After profile selection, only first-run/setup,
@@ -98,8 +112,21 @@ identity. Preserve duplicate-profile protection, separate last-used preference
 from live assignment, and add a two-button e-ink picker through Atlas's shared
 application/Intent boundary. See [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md)
 for the concrete flow, compatibility slices and focused acceptance cases.
-Standalone physical authorization (possession versus PIN) remains undecided.
-This needs coordinated Atlas/Sigil changes; the picker is not implemented.
+Owner decision (2026-09-21): independent profile settings for allowing physical
+use without a PIN and hiding stats without authentication. Hidden stats still
+accumulate. Same-profile browser login enables full display on an attached Sigil;
+physical selection never blocks browser use. Startup offers last-profile or
+selector behavior as a per-Sigil preference in an Atlas-owned Device Settings
+area. Sigils do not persist user settings; Atlas supplies their runtime
+configuration. The first local slice implements the two profile choices,
+Atlas-side physical-join authorization and session-based stats-visibility policy,
+with native/storage/browser checks and a firmware build. Existing naming is now
+under Device Settings. Missing-policy defaults preserve physical use and hide
+stats; the last active same-profile session controls authenticated visibility.
+No hardware acceptance yet. Startup behavior and the picker still need coordinated
+Atlas/Sigil changes, live-assignment separation and e-ink verification; they are
+not implemented. Device-settings editing permissions beyond existing physical
+Atlas confirmation for naming remain to be defined.
 
 Follow-through remains: durable session/recovery policy, richer role/capability
 administration, temporary browser guest profiles, broader controller handoff,
@@ -137,6 +164,9 @@ Privacy direction:
 - Private by default: derived performance statistics such as win rate, average turn time, and similar comparative metrics.
 - Allow explicit opt-in sharing of private/derived statistics.
 - Enforce visibility on Atlas before serialization, not only in the browser UI.
+- The profile owner's hide-without-authentication choice also covers physical
+  displays; hiding stats never disables recording. See the physical-selection
+  policy for same-profile browser authentication and Sigil display access.
 
 ### 4. Extend local storage repositories
 
