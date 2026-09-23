@@ -119,6 +119,7 @@ Current firmware also creates a local access point named `TurnHub-Atlas`.
 | Pass button | 26 | Current development wiring |
 | Action button | 25 | Current development wiring |
 | Buzzer | 33 | Current development wiring |
+| Pair button | 19 | Verified working firmware and rear-photo socket A12; closes to A13/GND, INPUT_PULLUP |
 
 ### E-ink interface
 
@@ -128,6 +129,10 @@ Current firmware also creates a local access point named `TurnHub-Atlas`.
 | EPD DC | 16 | Verified in display class |
 | EPD RST | 22 | Verified in display class |
 | EPD BUSY | 21 | Verified in display class |
+| EPD SCLK | 18 | Explicit SPI.begin configuration; socket A11 |
+| EPD MOSI | 23 | Explicit SPI.begin configuration; socket A18 |
+
+GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view: J1 is top-left, A1 top-right; A12 is GPIO19 and A13 is GND.
 
 The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-ink target in the present implementation.
 
@@ -147,9 +152,9 @@ The current product direction adds dedicated controls beyond the original two-bu
 - **Pass** - primary turn-pass input.
 - **Action** - contextual action with existing short/long behavior retained as needed.
 - **Action/Win auxiliary button** - short press can represent the prior Action-long semantic while a long hold can initiate a victory claim, reducing the need to pause automatically before a win claim.
-- **Pair button** - deliberate first-time pairing/re-pairing control.
+- **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-Exact names, ergonomics, GPIO assignments, debounce rules, and hold times should be finalized after physical playtesting.
+The additional Action/Win auxiliary control remains planned and has no current firmware GPIO assignment. Do not treat the old schematic's GPIO4 auxiliary or GPIO32 display-detect labels as implemented wiring. Remaining ergonomics and future control assignments should be finalized after physical playtesting.
 
 ### Display orientation direction
 
