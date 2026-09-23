@@ -11,6 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * An in-memory stand-in for a real Atlas connection.
@@ -35,7 +36,7 @@ class MockAtlasRepository : AtlasRepository {
     override suspend fun connect() {
         if (_connectionState.value != AtlasConnectionState.DISCONNECTED) return
         _connectionState.value = AtlasConnectionState.CONNECTING
-        delay(CONNECT_DELAY_MS)
+        delay(CONNECT_DELAY_MS.milliseconds)
         _tableSummary.value = mockTableSummary()
         _sigils.value = mockSigils()
         _connectionState.value = AtlasConnectionState.CONNECTED
@@ -79,8 +80,7 @@ class MockAtlasRepository : AtlasRepository {
     )
 
     // moduleId 0-7 are physical Sigil handles; 8-23 are virtual (protocol/http-v1.md,
-    // "Revisions and reconnect"). These mocks previously used 8/9/10, which would have
-    // represented virtual handles as physical Sigils.
+    // "Revisions and reconnect").
     private fun mockSigils(): List<Sigil> = listOf(
         Sigil(id = "SIGIL-01", name = "Sigil 1", moduleId = 0, connected = true, assignedPlayerNumber = 1),
         Sigil(id = "SIGIL-02", name = "Sigil 2", moduleId = 1, connected = true, assignedPlayerNumber = 2),
