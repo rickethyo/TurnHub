@@ -25,7 +25,7 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include scenarios.cpp test_globals.
     ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp \
     ../../src/profile_statistics.cpp ../../src/stats_page.cpp \
     ../../src/profile_login_page.cpp \
-    ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp \
+    ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
@@ -99,3 +99,13 @@ Sigil receive coverage copies both the 7-byte control packet and the 110-byte
 game display through the production receive buffer, rejecting incorrect sizes.
 The physical companion scenario checks game-end seat clearing, saved statistics,
 rematch restoration and guest behavior after reset.
+
+Native-client scenarios exercise the live state/info handlers, session-resolved
+PASS, boot/revision conflicts, no-op revisions, deferred commits, life approval
+expiry including clock rollover, Commander serialization, full 16-player matrices
+and reconnect. They emit `build/client-*.json`. After running the host suite, run
+`python check_client_contract.py` to check these actual responses and the shared
+`protocol/examples` fixtures against the contract schemas (standard library only).
+The checker supports only the schema keywords used here and rejects unknown ones.
+Display-name tests cover repeated deliveries, truncation, shortening and clearing;
+profile-store tests assert identical saves do not add NVS writes.

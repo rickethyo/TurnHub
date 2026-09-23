@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "error": "Fetch a fresh state snapshot",
+  "status": "CONFLICT",
+  "revision": 5,
+  "bootId": "0123456789ABCDEF0123456789ABCDEF"
+}

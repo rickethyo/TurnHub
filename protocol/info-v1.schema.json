@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TurnHub HTTP API v1 metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "product",
+    "deviceType",
+    "atlasId",
+    "firmwareVersion",
+    "apiVersion",
+    "protocolVersion",
+    "radioProtocolVersion",
+    "bootId",
+    "revision",
+    "capabilities"
+  ],
+  "properties": {
+    "product": {
+      "const": "TurnHub"
+    },
+    "deviceType": {
+      "const": "Atlas"
+    },
+    "atlasId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "firmwareVersion": {
+      "type": "string"
+    },
+    "apiVersion": {
+      "const": "1"
+    },
+    "protocolVersion": {
+      "const": "0.1"
+    },
+    "radioProtocolVersion": {
+      "const": 1
+    },
+    "bootId": {
+      "type": "string",
+      "pattern": "^[0-9A-F]{32}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stateSnapshot",
+        "sessionControls",
+        "intentEnvelope",
+        "events",
+        "requestDeduplication"
+      ],
+      "properties": {
+        "stateSnapshot": {
+          "type": "boolean"
+        },
+        "sessionControls": {
+          "type": "boolean"
+        },
+        "intentEnvelope": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "boolean"
+        },
+        "requestDeduplication": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

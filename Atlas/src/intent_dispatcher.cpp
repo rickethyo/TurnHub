@@ -60,7 +60,9 @@ IntentResult IntentDispatcher::dispatch(const Intent &intent) const {
         "Intent has no authoritative handler");
   }
 
-  return binding.handler(intent, binding.context);
+  const auto result = binding.handler(intent, binding.context);
+  if (observer_) observer_(intent);
+  return result;
 }
 
 }  // namespace TurnHub

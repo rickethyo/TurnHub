@@ -240,14 +240,15 @@ bool applyPendingSeatNames() {
   pendingSeatNameMask = 0;
   portEXIT_CRITICAL(&displayProfileMux);
 
+  bool changed = false;
   if ((mask & 0x01u) != 0) {
-    sigilDisplay.setSeatName(1, localNames[0]);
+    changed |= sigilDisplay.setSeatName(1, localNames[0]);
   }
   if ((mask & 0x02u) != 0) {
-    sigilDisplay.setSeatName(2, localNames[1]);
+    changed |= sigilDisplay.setSeatName(2, localNames[1]);
   }
 
-  return mask != 0;
+  return changed;
 }
 
 void handleDisplayNameChunk(int32_t value) {
@@ -304,7 +305,7 @@ void handleDisplayNameChunk(int32_t value) {
     Serial.print("SIGIL|DISPLAY_PROFILE|SEAT|");
     Serial.print(slot == 1 ? 'A' : 'B');
     Serial.println("|READY");
-    displayNeedsRefresh = true;
+    // The display worker compares completed names before requesting a refresh.
     notifyDisplayTask();
   }
 }

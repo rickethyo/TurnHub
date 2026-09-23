@@ -20,6 +20,7 @@
 #include "profile_store.h"
 #include "game_settings_store.h"
 #include "runtime_diagnostics.h"
+#include "client_state.h"
 
 WebServer server(AtlasConfig::HTTP_PORT);
 
@@ -108,6 +109,33 @@ enum class PassRequestResult : uint8_t {
 };
 
 PendingPassState pendingPass;
+TurnHub::ClientState clientState;
+
+void observeClientState() {
+  TurnHub::ClientPending pending;
+  pending.passPlayer = pendingPass.active ? pendingPass.seat.playerNumber : 0;
+  pending.passStartedMs = pendingPass.active ? pendingPass.requestedAtMs : 0;
+  pending.countdownStartedMs = hubState == HubState::Starting ? countdownStartedAtMs : 0;
+  pending.eliminationTarget = eliminationTargetPlayer;
+  clientState.observe(hubState, lobby, game, nextGameSettings, pending);
+}
+
+uint32_t clientRevision() {
+  observeClientState();
+  return clientState.revision();
+}
+
+String clientSnapshot(const String &atlasId, const char *bootId) {
+  observeClientState();
+  return clientState.json(atlasId, bootId, game, millis(), PASS_GRACE_MS);
+}
+
+void observeIntent(const Intent &intent) {
+  // The loop dispatches expiry every frame. Its no-op path must not rebuild
+  // the complete Commander matrix. Other completed handlers are infrequent.
+  if (intent.type != IntentType::ExpireLifeChanges || clientState.expirationDue(millis()))
+    observeClientState();
+}
 bool suppressActionAfterPassCancel[MAX_PHYSICAL_SIGILS] = {};
 uint32_t suppressActionReleasedAtMs[MAX_PHYSICAL_SIGILS] = {};
 
@@ -2162,6 +2190,7 @@ void startNetworking() {
   TurnHubWebApi::configureGameControls(readGameSettings, configureGame, changeLife);
   TurnHubWebApi::configureCounterControls(readCounters, changeCounter);
   TurnHubWebApi::configureModeration(moderateAccount);
+  TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
@@ -2208,6 +2237,8 @@ void setup() {
   Serial.println("ATLAS|FRONT_PANEL|LEDS|BOOT_BLINK");
 
   configureIntentHandlers();
+  observeClientState();
+  intents.setObserver(observeIntent);
   const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;

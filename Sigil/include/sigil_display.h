@@ -14,7 +14,7 @@ class SigilDisplay {
   void begin();
   void showUnpaired();
   void showReady(uint8_t sigilId);
-  void setSeatName(uint8_t slot, const char *name);
+  bool setSeatName(uint8_t slot, const char *name);
   void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot);
   void showState(
       uint8_t sigilId,

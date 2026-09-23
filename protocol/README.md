@@ -64,19 +64,24 @@ Example:
 
 Clients recover from reconnects by requesting a snapshot described by `state-v0.1.schema.json`.
 
-Snapshots carry a monotonically increasing Atlas `revision`. Incremental events are useful for responsiveness, but a client must always be able to discard local assumptions and rebuild from a current snapshot.
+Snapshots carry an Atlas `revision` scoped to `atlasId` and `bootId`. The revision
+versions the published gameplay projection; clock samples can change without a
+revision change. See [http-v1.md](http-v1.md) for live revision and reconnect rules.
 
 ## Initial client API shape
 
-The exact HTTP paths are not frozen, but the working v0.1 shape is:
+The implemented HTTP surface is documented in [http-v1.md](http-v1.md):
 
 ```text
 GET  /api/v1/state
-POST /api/v1/intent
-WS   /api/v1/events
+GET  /api/v1/info
+POST /api/control/pass   (authenticated session adapter; other controls also exist)
 ```
 
 Additional endpoints may exist for profiles, authentication, device management, firmware, diagnostics, and setup. Gameplay semantics should still enter Atlas through the Intent layer.
+
+`POST /api/v1/intent` and `WS /api/v1/events` remain unimplemented proposals.
+The JSON envelope above is a draft, not a body accepted by `/api/control/pass`.
 
 ## Intent result
 
@@ -132,8 +137,8 @@ Authentication/seat assignment is a separate step. Client-supplied player number
 Gameplay migration through Intents is implemented. Atlas `0.6.0-dev` adds profile
 login and phone-only/mixed participation through the same application handlers.
 See [implemented profile endpoints and ownership](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md).
-The generic v0.1 JSON envelope/routes above remain a working contract, not the
-live HTTP ingress. Internal `controllerId` naming does not silently change the
+The generic v0.1 JSON envelope remains a draft. State/info routes and revision-aware
+session controls are live. Internal `controllerId` naming does not silently change the
 draft JSON schema's `moduleId` field or the ESP-NOW wire packet.
 
 Last established: 2026-09-19

@@ -14,16 +14,16 @@ using TurnHubProtocol::PacketType;
 
 namespace {
 
-String displaySafeName(const String &name) {
-  String safe;
-  safe.reserve(TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH);
+void displaySafeName(const String &name,
+    char (&safe)[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1]) {
+  size_t length = 0;
   for (size_t i = 0;
-       i < name.length() && safe.length() < TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH;
+       i < name.length() && length < TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH;
        ++i) {
     const uint8_t c = static_cast<uint8_t>(name[i]);
-    safe += (c >= 0x20 && c <= 0x7E) ? static_cast<char>(c) : '?';
+    safe[length++] = (c >= 0x20 && c <= 0x7E) ? static_cast<char>(c) : '?';
   }
-  return safe;
+  safe[length] = '\0';
 }
 
 }  // namespace
@@ -526,8 +526,9 @@ bool SigilBus::sendDisplayName(
     return false;
   }
 
-  const String safe = displaySafeName(name);
-  const uint8_t length = static_cast<uint8_t>(safe.length());
+  char safe[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
+  displaySafeName(name, safe);
+  const uint8_t length = static_cast<uint8_t>(strlen(safe));
   const uint8_t chunkCount = length == 0
       ? 1
       : static_cast<uint8_t>(
@@ -577,9 +578,12 @@ void SigilBus::syncDisplayProfile(uint8_t sigilId) {
   Serial.print("ATLAS|DISPLAY_PROFILE|SYNC|SIGIL|");
   Serial.print(sigilId);
   Serial.print("|A|");
-  Serial.print(displaySafeName(nameA));
+  char safe[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
+  displaySafeName(nameA, safe);
+  Serial.print(safe);
   Serial.print("|B|");
-  Serial.println(displaySafeName(nameB));
+  displaySafeName(nameB, safe);
+  Serial.println(safe);
 }
 
 void SigilBus::printMac(const uint8_t *mac) {

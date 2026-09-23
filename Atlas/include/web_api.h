@@ -9,6 +9,10 @@
 
 namespace TurnHubWebApi {
 
+using StateCallback = String (*)(const String &atlasId, const char *bootId);
+using RevisionCallback = uint32_t (*)();
+void configureClientState(StateCallback state, RevisionCallback revision);
+
 enum class WebControl : uint8_t {
   Pass,
   PauseResume,

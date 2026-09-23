@@ -1,0 +1,26 @@
+{
+  "protocolVersion": "0.1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 0,
+  "state": "LOBBY",
+  "hostModuleId": null,
+  "starterPlayer": null,
+  "activePlayer": null,
+  "winnerPlayer": null,
+  "settings": {
+    "profile": "generic",
+    "startingLife": 40
+  },
+  "sampledAtMs": 1000,
+  "gameElapsedMs": 0,
+  "turnElapsedMs": 0,
+  "pending": {
+    "passPlayer": null,
+    "passGraceRemainingMs": 0,
+    "winClaimPlayer": null,
+    "winConfirmationPlayer": null,
+    "eliminationTargetPlayer": null
+  },
+  "players": []
+}

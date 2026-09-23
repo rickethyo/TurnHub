@@ -204,6 +204,7 @@ bool setNameForProfile(const String &profileId, const String &name) {
     preferences.remove(key.c_str());
     return true;
   }
+  if (preferences.getString(key.c_str(), "") == name) return true;
   return preferences.putString(key.c_str(), name) > 0;
 }
 
@@ -218,7 +219,9 @@ bool setPinHashForProfile(const String &profileId, const String &hash) {
   if (!preferencesReady || !profileExists(profileId) || hash.length() != 64) {
     return false;
   }
-  return preferences.putString(profileKey('p', profileId).c_str(), hash) > 0;
+  const String key = profileKey('p', profileId);
+  if (preferences.getString(key.c_str(), "") == hash) return true;
+  return preferences.putString(key.c_str(), hash) > 0;
 }
 
 bool clearPinForProfile(const String &profileId) {
@@ -433,6 +436,7 @@ bool setDeviceName(const uint8_t mac[6], const String &name) {
     preferences.remove(key.c_str());
     return true;
   }
+  if (preferences.getString(key.c_str(), "") == name) return true;
   return preferences.putString(key.c_str(), name) > 0;
 }
 

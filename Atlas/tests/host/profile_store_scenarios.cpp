@@ -59,6 +59,20 @@ static void existingAccounts() {
   assert(profileExists(id) && nameForProfile(id) == "Owner" && hasPinForProfile(id));
   assert(loadStatsForProfile(id, stats) && stats.gamesPlayed == 3);
   assert(FakeNvs::writes == writes);
+  // Identical non-empty values must not commit NVS again. Failed reads must
+  // still attempt the write rather than treating a fallback as stored data.
+  assert(setNameForProfile(id, "Owner"));
+  assert(setPinHashForProfile(id, hashPin("", "")));
+  assert(FakeNvs::writes == writes);
+  assert(setDeviceName(mac, "Table Sigil"));
+  const int namedWrites = FakeNvs::writes;
+  assert(setDeviceName(mac, "Table Sigil"));
+  assert(FakeNvs::writes == namedWrites);
+  assert(setNameForProfile(id, "Renamed"));
+  assert(nameForProfile(id) == "Renamed" && FakeNvs::writes == namedWrites + 1);
+  FakeNvs::setError = ESP_ERR_NVS_INVALID_HANDLE;
+  assert(!setDeviceName(mac, "New name"));
+  FakeNvs::setError = ESP_OK;
 }
 
 static void legacyPlaceholders() {

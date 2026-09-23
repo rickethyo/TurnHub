@@ -1,5 +1,6 @@
 #include <cassert>
 #include <iostream>
+#include <fstream>
 #include <Arduino.h>
 #include "profile_fixture.h"
 #include "profile_statistics.h"
@@ -14,6 +15,7 @@
 // Compile the actual application handlers and adapters, not copies of rules.
 #include "../../src/main.cpp"
 #include "../../../Sigil/include/received_packet.h"
+#include "../../../Sigil/include/display_name.h"
 
 esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
@@ -825,6 +827,15 @@ static void physicalGameDisplay() {
 }
 
 static void sigilReceivePackets() {
+  char name[13] = {};
+  assert(!TurnHubSigil::updateDisplayName(name, nullptr));
+  assert(TurnHubSigil::updateDisplayName(name, "Player Alice long"));
+  assert(!strcmp(name, "Player Alice"));
+  assert(!TurnHubSigil::updateDisplayName(name, "Player Alice different suffix"));
+  assert(TurnHubSigil::updateDisplayName(name, "Bob"));
+  assert(!strcmp(name, "Bob") && name[4] == 0);
+  assert(TurnHubSigil::updateDisplayName(name, nullptr));
+  assert(!TurnHubSigil::updateDisplayName(name, ""));
   TurnHubSigil::ReceivedPacket received{};
   const uint8_t mac[6] = {1,2,3,4,5,6};
   const auto legacy = TurnHubProtocol::makePacket(PacketType::DisplayState, 0, 42);
@@ -842,9 +853,117 @@ static void sigilReceivePackets() {
   assert(!received.assign(mac,queued.data,sizeof(snapshot)+1));
 }
 
+static void saveClientFixture(const char *name, const String &json) {
+  std::ofstream file(std::string("build/client-") + name + ".json");
+  assert(file); file << json.c_str();
+}
+
+static void nativeClientBoundary() {
+  TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
+  enterEmptyLobby(); testNow = 1000;
+  nextGameSettings = TurnHub::GameSettings{};
+  assert(request("/api/v1/info", "", {}, HTTP_GET) == 200);
+  const String epoch = responseField("bootId");
+  assert(epoch.length() == 32);
+  assert(server.body.find("\"intentEnvelope\":false") != std::string::npos);
+  assert(server.body.find("password") == std::string::npos);
+  saveClientFixture("info", server.body);
+  assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"players\":[]") != std::string::npos);
+  saveClientFixture("lobby", server.body);
+  const auto emptyRevision = clientRevision();
+  ++testNow; assert(clientRevision() == emptyRevision);
+  String firstId, secondId;
+  const String first = registerPhone("Native first", firstId);
+  const String second = registerPhone("Native second", secondId);
+  assert(request("/api/session/join", first) == 200);
+  assert(clientRevision() > emptyRevision);
+  const auto joinedRevision = clientRevision();
+  assert(request("/api/session/join", first) == 200);
+  assert(clientRevision() == joinedRevision); // Accepted no-op.
+  assert(request("/api/session/join", second) == 200);
+  assert(request("/api/control/start", first) == 200);
+  testNow += 3000; updateCountdown(testNow);
+  assert(hubState == HubState::Running);
+  const auto runningRevision = clientRevision();
+  testNow += 100; dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  assert(clientRevision() == runningRevision); // Clock samples are not mutations.
+  assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
+  saveClientFixture("running", server.body);
+  assert(request("/api/control/pass", "") == 401);
+  assert(request("/api/control/pass", second) == 409);
+  assert(clientRevision() == runningRevision);
+  for (const char *bad : {"", "-1", "01", "1x", "4294967296", "99999999999999999999"})
+    assert(request("/api/control/pass", first, {{"expectedRevision", bad}, {"expectedBootId", epoch}}) == 400);
+  assert(request("/api/control/pass", first, {{"expectedRevision", String(runningRevision)}, {"expectedBootId", "old-boot"}}) == 409);
+  assert(!pendingPass.active);
+  assert(request("/api/control/pass", first, {{"expectedRevision", String(runningRevision)}, {"expectedBootId", epoch}}) == 200);
+  assert(pendingPass.active && clientRevision() > runningRevision);
+  saveClientFixture("pass-result", server.body);
+  const auto armedRevision = clientRevision();
+  // Retry with the old revision cannot toggle/cancel the pending PASS.
+  assert(request("/api/control/pass", first, {{"expectedRevision", String(runningRevision)}, {"expectedBootId", epoch}}) == 409);
+  assert(pendingPass.active && clientRevision() == armedRevision);
+  saveClientFixture("conflict", server.body);
+  testNow += 3000; updatePendingPass(testNow);
+  assert(game.activePlayerNumber() == 2 && clientRevision() > armedRevision);
+  const String reconnected = loginPhone(firstId);
+  assert(request("/api/session/me", reconnected, {}, HTTP_GET) == 200);
+  assert(request("/api/v1/state", reconnected, {}, HTTP_GET) == 200);
+  assert(server.body.find("\"activePlayer\":2") != std::string::npos);
+  saveClientFixture("reconnected", server.body);
+
+  freshLobby(2);
+  nextGameSettings.profile = TurnHub::GameProfile::Commander;
+  startFromHost();
+  String message;
+  TurnHub::IntentPayload payload;
+  payload.counterSource = 2; payload.counterSlot = 2; payload.value = 3;
+  assert(changeCounter(0, 1, IntentType::ChangeCounter, payload, message));
+  const auto damageRevision = clientRevision();
+  payload = TurnHub::IntentPayload{}; payload.targetPlayer = 2; payload.value = -2;
+  assert(changeCounter(0, 1, IntentType::RequestLifeChange, payload, message));
+  assert(clientRevision() > damageRevision);
+  assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
+  saveClientFixture("commander", server.body);
+  const auto pendingRevision = clientRevision();
+  testNow += TurnHub::LIFE_APPROVAL_MS;
+  dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  assert(clientState.revision() > pendingRevision && game.lifeTotal(2) == 38);
+  const auto settledRevision = clientState.revision();
+  dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  assert(clientState.revision() == settledRevision);
+  testNow = UINT32_MAX - 10000;
+  assert(changeCounter(0, 1, IntentType::RequestLifeChange, payload, message));
+  const auto rolloverRevision = clientState.revision();
+  testNow += TurnHub::LIFE_APPROVAL_MS;
+  dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  assert(clientState.revision() > rolloverRevision && game.lifeTotal(2) == 36);
+
+  // Exercise the largest snapshot with every Commander source populated.
+  GameEngine fullGame; Lobby fullLobby; TurnHub::ClientState full;
+  PlayerSeat seats[MAX_PLAYERS];
+  for (uint8_t i = 0; i < MAX_PLAYERS; ++i)
+    seats[i] = PlayerSeat(i + 1, i / 2, i % 2 + 1);
+  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], 0, testNow, nextGameSettings));
+  for (uint8_t i = 1; i <= MAX_PLAYERS; ++i)
+    for (uint8_t j = 1; j <= MAX_PLAYERS; ++j)
+      for (uint8_t c = 1; c <= 2; ++c)
+        assert(fullGame.changeCommanderDamage(i, j, c, 1));
+  full.observe(HubState::Running, fullLobby, fullGame, nextGameSettings, {});
+  const auto fullRevision = full.revision();
+  full.observe(HubState::Running, fullLobby, fullGame, nextGameSettings, {});
+  assert(full.revision() == fullRevision);
+  const String fullJson = full.json("THA-TEST", epoch.c_str(), fullGame, testNow, PASS_GRACE_MS);
+  assert(fullJson.length() > 10000);
+  saveClientFixture("full", fullJson);
+  enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
+  observeClientState(); intents.setObserver(observeIntent);
   GameEngine::setGameCompletedCallback(completed);
   dispatcherContract(); std::cout<<"PASS dispatcher contract\n";
   deliberatePairing(); std::cout<<"PASS deliberate pairing authorization, radio failure, timeout, rollover and gameplay exclusion\n";
@@ -854,6 +973,7 @@ int main() {
   passTimingAndActors(); std::cout<<"PASS pass timing, cancellation, rollover, actors\n";
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
+  nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";

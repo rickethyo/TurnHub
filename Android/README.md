@@ -82,7 +82,7 @@ The first useful app build should do only enough to prove the architecture:
 3. Fetch `/api/v1/state`.
 4. Render Atlas/table state.
 5. Bind to one player seat/session.
-6. Send `PASS` through `/api/v1/intent`.
+6. Send semantic `PASS`, currently mapped by the adapter to `/api/control/pass`.
 7. Observe the resulting authoritative revision/state.
 8. Disconnect/reconnect and rebuild from a fresh snapshot.
 
@@ -118,8 +118,17 @@ Game-rule tests stay with Atlas/domain code. Android tests verify client behavio
 
 ## Current milestone
 
-**Foundation 0:** establish shared Intent and state contracts and begin migrating real Atlas entry points through the dispatcher.
+**Foundation 1:** Atlas exposes `/api/v1/info` and `/api/v1/state` with boot-scoped
+gameplay revisions. Authenticated session controls use the shared dispatcher,
+return revision metadata and accept optional concurrency checks. See the
+[implemented HTTP contract](../protocol/http-v1.md) and
+[machine-readable examples](../protocol/examples/).
 
-The first firmware migration target is `PASS` because it is currently requested by physical Sigils, browser controls, and the Atlas master button.
+The first Android adapter should map `PASS` to the existing form-based
+`/api/control/pass` endpoint and use the existing login/join/session endpoints.
+The generic JSON Intent envelope and event stream are not live. Poll snapshots,
+rebuild on reconnect, and never automatically retry ambiguous PASS requests.
+No Android project, application ID, Wi-Fi automation or second game engine has
+been introduced.
 
-Last established: 2026-09-19
+Last established: 2026-09-22

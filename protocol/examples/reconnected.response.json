@@ -1,0 +1,49 @@
+{
+  "protocolVersion": "0.1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 6,
+  "state": "RUNNING",
+  "hostModuleId": 8,
+  "starterPlayer": 1,
+  "activePlayer": 2,
+  "winnerPlayer": null,
+  "settings": {
+    "profile": "generic",
+    "startingLife": 40
+  },
+  "sampledAtMs": 7101,
+  "gameElapsedMs": 3100,
+  "turnElapsedMs": 3000,
+  "pending": {
+    "passPlayer": null,
+    "passGraceRemainingMs": 0,
+    "winClaimPlayer": null,
+    "winConfirmationPlayer": null,
+    "eliminationTargetPlayer": null
+  },
+  "players": [
+    {
+      "playerNumber": 1,
+      "moduleId": 8,
+      "slot": 1,
+      "participantId": 28,
+      "turnsCompleted": 1,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 2,
+      "moduleId": 9,
+      "slot": 1,
+      "participantId": 29,
+      "turnsCompleted": 0,
+      "eliminated": false,
+      "life": 40,
+      "commanderDamage": [],
+      "lifeRequest": null
+    }
+  ]
+}

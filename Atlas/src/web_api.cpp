@@ -72,6 +72,9 @@ CounterControlCallback counterControlHandler = nullptr;
 TurnHub::LoginLimiter loginLimiter;
 bool profileStoreReady = false;
 ModerateCallback moderateHandler = nullptr;
+StateCallback readClientState = nullptr;
+RevisionCallback readClientRevision = nullptr;
+char bootId[33] = {};
 
 uint64_t random64() {
   return (static_cast<uint64_t>(esp_random()) << 32) |
@@ -1419,6 +1422,19 @@ void handleLogout(WebServer &server) {
   sendJson(server, 200, "{\"ok\":true}");
 }
 
+void sendControlResult(WebServer &server, int httpStatus, const char *status, const String &message) {
+  const bool ok = httpStatus == 200;
+  String response = ok ? "{\"ok\":true,\"message\":\"" : "{\"ok\":false,\"error\":\"";
+  response += jsonEscape(message);
+  response += "\",\"status\":\""; response += status; response += '"';
+  if (readClientRevision) {
+    response += ",\"revision\":"; response += String(readClientRevision());
+    response += ",\"bootId\":\""; response += bootId; response += '"';
+  }
+  response += '}';
+  sendJson(server, httpStatus, response);
+}
+
 void runControl(WebServer &server, WebControl control) {
   WebSession *session = sessionForRequest(server);
   if (session == nullptr) {
@@ -1437,28 +1453,42 @@ void runControl(WebServer &server, WebControl control) {
     return;
   }
 
+  if (server.hasArg("expectedRevision")) {
+    const String raw = server.arg("expectedRevision");
+    char *end = nullptr;
+    const unsigned long value = strtoul(raw.c_str(), &end, 10);
+    if (!raw.length() || raw != String(value) || value > UINT32_MAX || !end || *end) {
+      sendJson(server, 400, "{\"ok\":false,\"error\":\"Invalid expectedRevision\"}");
+      return;
+    }
+    if (!readClientRevision || server.arg("expectedBootId") != bootId ||
+        value != readClientRevision()) {
+      sendControlResult(server, 409, "CONFLICT", "Fetch a fresh state snapshot");
+      return;
+    }
+  }
+
   String message;
   if (!controlHandler(session->controllerId, session->slot, control, message)) {
     if (message.length() == 0) {
       message = "Control is not available right now";
     }
-    sendJson(
-        server,
-        409,
-        String("{\"ok\":false,\"error\":\"") + jsonEscape(message) + "\"}");
+    sendControlResult(server, 409, "REJECTED", message);
     return;
   }
 
   if (message.length() == 0) {
     message = "Control accepted";
   }
-  sendJson(
-      server,
-      200,
-      String("{\"ok\":true,\"message\":\"") + jsonEscape(message) + "\"}");
+  sendControlResult(server, 200, "ACCEPTED", message);
 }
 
 }  // namespace
+
+void configureClientState(StateCallback state, RevisionCallback revision) {
+  readClientState = state;
+  readClientRevision = revision;
+}
 
 bool profileAuthenticated(const String &profileId) {
   cleanup(millis());
@@ -1570,7 +1600,7 @@ void configureModeration(ModerateCallback cb){moderateHandler=cb;}
 bool connectionBlocked(const String &id){TurnHubAccounts::Account a;return TurnHubAccounts::load(id,a)&&(a.archived||a.reconnectRequired);}
 void revokeConnections(const String &id){
   for(auto &s:sessions)if(s.used&&id==s.profileId){
-    for(auto &p:pendingClaims)if(p.used&&String(p.requestingToken)==s.token)p=PendingClaim{};
+    for(auto &p:pendingClaims)if(p.used&&!strcmp(p.requestingToken,s.token))p=PendingClaim{};
     s=WebSession{};
   }
   for(auto &p:pendingClaims)if(p.used&&id==p.profileId)p=PendingClaim{};
@@ -1660,10 +1690,34 @@ void begin(WebServer &server) {
     return;
   }
   webServer = &server;
+  makeToken(bootId); // Public boot epoch, not an authentication credential.
   profileStoreReady = TurnHubProfiles::begin();
 
   static const char *headerKeys[] = {"X-TurnHub-Token"};
   server.collectHeaders(headerKeys, 1);
+
+  server.on("/api/v1/info", HTTP_GET, [&server]() {
+    String json;
+    json.reserve(640);
+    json = "{\"product\":\"TurnHub\",\"deviceType\":\"Atlas\",\"atlasId\":\"";
+    json += atlasHardwareId(); json += "\",\"firmwareVersion\":\"";
+    json += TurnHubFirmware::VERSION;
+    json += "\",\"apiVersion\":\"1\",\"protocolVersion\":\"0.1\",\"radioProtocolVersion\":";
+    json += String(TurnHubProtocol::VERSION);
+    json += ",\"bootId\":\""; json += bootId; json += "\",\"revision\":";
+    json += String(readClientRevision ? readClientRevision() : 0);
+    json += ",\"capabilities\":{\"stateSnapshot\":";
+    json += readClientState && readClientRevision ? "true" : "false";
+    json += ",\"sessionControls\":true,\"intentEnvelope\":false,\"events\":false,\"requestDeduplication\":false}}";
+    sendJson(server, 200, json);
+  });
+  server.on("/api/v1/state", HTTP_GET, [&server]() {
+    if (!readClientState || !readClientRevision) {
+      sendJson(server, 503, "{\"error\":\"State snapshot is not configured\"}");
+      return;
+    }
+    sendJson(server, 200, readClientState(atlasHardwareId(), bootId));
+  });
 
   server.on("/stats", HTTP_GET, [&server]() {
     server.sendHeader("Cache-Control", "no-store");

@@ -1,4 +1,5 @@
 #include "sigil_display.h"
+#include "display_name.h"
 
 #include <SPI.h>
 #include <cstring>
@@ -23,17 +24,10 @@ void SigilDisplay::begin() {
   Serial.println("SIGIL|DISPLAY|READY|250x122");
 }
 
-void SigilDisplay::setSeatName(uint8_t slot, const char *name) {
-  char *target = slot == 1 ? seatNameA_ : slot == 2 ? seatNameB_ : nullptr;
-  if (target == nullptr) {
-    return;
-  }
-
-  memset(target, 0, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1);
-  if (name != nullptr) {
-    strncpy(target, name, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH);
-    target[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH] = '\0';
-  }
+bool SigilDisplay::setSeatName(uint8_t slot, const char *name) {
+  if (slot == 1) return updateDisplayName(seatNameA_, name);
+  if (slot == 2) return updateDisplayName(seatNameB_, name);
+  return false;
 }
 
 void SigilDisplay::printClipped(const char *text, uint8_t maxChars) {

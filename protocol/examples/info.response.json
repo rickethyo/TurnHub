@@ -1,0 +1,18 @@
+{
+  "product": "TurnHub",
+  "deviceType": "Atlas",
+  "atlasId": "THA-025448410001",
+  "firmwareVersion": "0.6.0-dev",
+  "apiVersion": "1",
+  "protocolVersion": "0.1",
+  "radioProtocolVersion": 1,
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 0,
+  "capabilities": {
+    "stateSnapshot": true,
+    "sessionControls": true,
+    "intentEnvelope": false,
+    "events": false,
+    "requestDeduplication": false
+  }
+}
