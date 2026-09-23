@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Minimal launch/manifest theme. Actual Material3 theming (colors, typography)
+      is defined in Kotlin under ui/theme/Theme.kt and applied by TurnHubTheme; this
+      XML theme only needs to give the system a sane window background before Compose
+      takes over, matching the standard Compose-project pattern.
+    -->
+    <style name="Theme.TurnHub" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
