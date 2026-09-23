@@ -1,9 +1,9 @@
 package com.turnhub.android.ui.home
 
 import com.turnhub.android.data.AtlasRepository
+import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.Sigil
-import com.turnhub.android.protocol.TableSummary
 
 /**
  * Everything the Home screen needs to render, derived from [AtlasRepository]

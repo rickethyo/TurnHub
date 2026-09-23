@@ -1,12 +1,12 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.Player
 import com.turnhub.android.protocol.Sigil
 import com.turnhub.android.protocol.TableSettings
 import com.turnhub.android.protocol.TableState
-import com.turnhub.android.protocol.TableSummary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,7 +57,7 @@ class MockAtlasRepository : AtlasRepository {
         players = listOf(
             Player(
                 playerNumber = 1,
-                moduleId = 8,
+                moduleId = 0,
                 slot = 1,
                 profileId = "A1B2C3D4",
                 displayName = "Ricky",
@@ -67,7 +67,7 @@ class MockAtlasRepository : AtlasRepository {
             ),
             Player(
                 playerNumber = 2,
-                moduleId = 9,
+                moduleId = 1,
                 slot = 1,
                 profileId = null,
                 displayName = "Guest",
@@ -78,10 +78,13 @@ class MockAtlasRepository : AtlasRepository {
         ),
     )
 
+    // moduleId 0-7 are physical Sigil handles; 8-23 are virtual (protocol/http-v1.md,
+    // "Revisions and reconnect"). These mocks previously used 8/9/10, which would have
+    // represented virtual handles as physical Sigils.
     private fun mockSigils(): List<Sigil> = listOf(
-        Sigil(id = "SIGIL-01", name = "Sigil 1", moduleId = 8, connected = true, assignedPlayerNumber = 1),
-        Sigil(id = "SIGIL-02", name = "Sigil 2", moduleId = 9, connected = true, assignedPlayerNumber = 2),
-        Sigil(id = "SIGIL-03", name = "Sigil 3", moduleId = 10, connected = false, assignedPlayerNumber = null),
+        Sigil(id = "SIGIL-01", name = "Sigil 1", moduleId = 0, connected = true, assignedPlayerNumber = 1),
+        Sigil(id = "SIGIL-02", name = "Sigil 2", moduleId = 1, connected = true, assignedPlayerNumber = 2),
+        Sigil(id = "SIGIL-03", name = "Sigil 3", moduleId = 2, connected = false, assignedPlayerNumber = null),
     )
 
     private companion object {

@@ -1,8 +1,8 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.Sigil
-import com.turnhub.android.protocol.TableSummary
 import kotlinx.coroutines.flow.StateFlow
 
 /**
