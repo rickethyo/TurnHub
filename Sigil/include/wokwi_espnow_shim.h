@@ -33,6 +33,27 @@ static uint8_t assignedSigilId = DEFAULT_SIGIL_ID;
 static String seatNameA = "Player A";
 static String seatNameB = "Player B";
 
+// Mirrors the real Atlas (Atlas/src/sigil_bus.cpp): a Sigil is unknown until it
+// pairs; pairing is accepted only while Atlas's 15-second window is open (the
+// console `pair` command stands in for Atlas's Pair button); afterwards only
+// Hello and control packets from the paired Sigil are acknowledged.
+static bool sigilPaired = false;
+static bool pairingOpen = false;
+static uint32_t pairingOpenedMs = 0;
+// Hold thresholds Atlas sends (InputTiming) to Sigils that advertise support;
+// the real Atlas takes them from the seated players' accessibility settings.
+static uint16_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+static uint16_t winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
+static bool sigilSupportsTiming = false;
+
+inline bool pairingWindowActive() {
+  if (pairingOpen && millis() - pairingOpenedMs >= TurnHubProtocol::PAIRING_WINDOW_MS) {
+    pairingOpen = false;
+    Serial.println("WOKWI|ATLAS|PAIRING|CLOSED");
+  }
+  return pairingOpen;
+}
+
 inline void injectPacket(PacketType type, int32_t value = 0) {
   if (receiveCallback == nullptr) {
     return;
@@ -51,6 +72,14 @@ inline void sendAck(PacketType acknowledgedType) {
 
 inline void sendHelloAck() {
   sendAck(PacketType::Hello);
+}
+
+inline void sendInputTiming() {
+  if (!sigilSupportsTiming) {
+    Serial.println("WOKWI|ATLAS|TIMING|SKIPPED|SIGIL_HAS_NO_CAPABILITY");
+    return;
+  }
+  injectPacket(PacketType::InputTiming, TurnHubProtocol::encodeInputTiming(longPressMs, winHoldMs));
 }
 
 inline String sanitizedName(const String &input) {
@@ -120,7 +149,9 @@ inline void printHelp() {
   Serial.println();
   Serial.println("WOKWI ATLAS COMMANDS");
   Serial.println("  help");
-  Serial.println("  id <0-7>");
+  Serial.println("  pair                  open Atlas's 15 s pairing window (then press the Sigil's PAIR)");
+  Serial.println("  id <0-7>              Sigil ID the next pairing assigns");
+  Serial.println("  timing <longMs> <winMs>  hold thresholds, e.g. timing 3000 6000");
   Serial.println("  blue <0-255>");
   Serial.println("  red <0|1>");
   Serial.println("  green <0|1>");
@@ -150,16 +181,42 @@ inline void handleConsoleCommand(String line) {
     return;
   }
 
+  if (command == "pair") {
+    pairingOpen = true;
+    pairingOpenedMs = millis();
+    Serial.print("WOKWI|ATLAS|PAIRING|OPEN|");
+    Serial.println(TurnHubProtocol::PAIRING_WINDOW_MS);
+    return;
+  }
+
   if (command == "id") {
     const int value = arguments.toInt();
     if (value < 0 || value >= TurnHubProtocol::MAX_SIGILS) {
       Serial.println("WOKWI|ERROR|ID must be 0-7");
       return;
     }
+    if (sigilPaired) {
+      // A real Atlas keeps a paired Sigil's ID; changing it here would strand it.
+      Serial.println("WOKWI|ERROR|already paired; restart the simulation to pair with another ID");
+      return;
+    }
     assignedSigilId = static_cast<uint8_t>(value);
-    Serial.print("WOKWI|ATLAS|ASSIGN_ID|");
+    Serial.print("WOKWI|ATLAS|NEXT_ID|");
     Serial.println(assignedSigilId);
-    sendHelloAck();
+    return;
+  }
+
+  if (command == "timing") {
+    unsigned longMs = 0;
+    unsigned winMs = 0;
+    if (sscanf(arguments.c_str(), "%u %u", &longMs, &winMs) != 2 || longMs > 65535 || winMs > 65535 ||
+        !TurnHubProtocol::validInputTiming(static_cast<uint16_t>(longMs), static_cast<uint16_t>(winMs))) {
+      Serial.println("WOKWI|ERROR|timing <1000-4000> <3000-10000>, 250 ms steps, win >= long + 1000");
+      return;
+    }
+    longPressMs = static_cast<uint16_t>(longMs);
+    winHoldMs = static_cast<uint16_t>(winMs);
+    sendInputTiming();
     return;
   }
 
@@ -354,17 +411,57 @@ inline esp_err_t espNowSend(
     return ESP_OK;
   }
 
-  if (packet.type == PacketType::Hello) {
-    sendHelloAck();
+  if (packet.type == PacketType::PairRequest) {
+    if (!pairingWindowActive()) {
+      Serial.println("WOKWI|ATLAS|PAIRING|IGNORED|WINDOW_CLOSED (type 'pair' first)");
+      return ESP_OK;
+    }
+    sigilPaired = true;
+    Serial.print("WOKWI|ATLAS|PAIRING|ACCEPT|");
+    Serial.println(assignedSigilId);
+    injectPacket(PacketType::PairAccept, packet.value);
     return ESP_OK;
   }
 
-  // The real Atlas ACKs Sigil control packets. Mirror that behavior so the
-  // existing Sigil ACK handling is exercised in simulation.
-  sendAck(packet.type);
+  // Like the real Atlas, ignore Sigils that have not paired, and packets that
+  // do not carry the paired Sigil's ID (Hello aside).
+  if (!sigilPaired) {
+    Serial.println("WOKWI|ATLAS|IGNORED|NOT_PAIRED");
+    return ESP_OK;
+  }
+  if (packet.type != PacketType::Hello && packet.sigilId != assignedSigilId) {
+    return ESP_OK;
+  }
 
-  if (packet.type == PacketType::DisplayProfileRequest) {
-    sendProfile();
+  switch (packet.type) {
+    case PacketType::Hello: {
+      const uint8_t capabilities = TurnHubProtocol::helloCapabilities(packet.value);
+      const bool timing = (capabilities & TurnHubProtocol::CAPABILITY_INPUT_TIMING) != 0;
+      Serial.printf("WOKWI|ATLAS|HELLO|FIRMWARE|%u.%u.%u|CAPABILITIES|0x%02X\n",
+          TurnHubProtocol::helloFirmwareMajor(packet.value),
+          TurnHubProtocol::helloFirmwareMinor(packet.value),
+          TurnHubProtocol::helloFirmwarePatch(packet.value), capabilities);
+      sendHelloAck();
+      if (timing && !sigilSupportsTiming) {
+        sigilSupportsTiming = true;
+        sendInputTiming();  // The real Atlas sends timing to capable Sigils.
+      }
+      break;
+    }
+    case PacketType::Pass:
+    case PacketType::ActionDown:
+    case PacketType::ActionUp:
+    case PacketType::ActionShort:
+    case PacketType::ActionLong:
+    case PacketType::ActionWin:
+      sendAck(packet.type);
+      break;
+    case PacketType::DisplayProfileRequest:
+      sendAck(packet.type);
+      sendProfile();
+      break;
+    default:
+      break;  // The real Atlas acknowledges nothing else.
   }
 
   return ESP_OK;

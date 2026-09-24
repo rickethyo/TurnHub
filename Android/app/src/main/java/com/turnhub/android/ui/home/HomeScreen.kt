@@ -35,8 +35,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.ui.components.ConnectionStateBadge
 import com.turnhub.android.ui.components.PhysicalSigilRow
+import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.ui.components.PlayerCard
 import com.turnhub.android.ui.components.TableHeader
@@ -59,6 +61,12 @@ fun HomeScreen(
     onUseCurrentWifi: () -> Unit,
     onWifiPromptDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    playerActions: PlayerPanelActions = PlayerPanelActions(),
+    onSignInSubmit: (ProfileSummary, String) -> Unit = { _, _ -> },
+    onSignInDismiss: () -> Unit = {},
+    onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) -> Unit =
+        { _, _, _, _ -> },
+    onAccessibilityDismiss: () -> Unit = {},
 ) {
     uiState.wifiPrompt?.let { prompt ->
         WifiPasswordDialog(
@@ -67,6 +75,12 @@ fun HomeScreen(
             onUseCurrentWifi = onUseCurrentWifi,
             onDismiss = onWifiPromptDismiss,
         )
+    }
+    uiState.signIn?.let { prompt ->
+        SignInDialog(prompt = prompt, onSubmit = onSignInSubmit, onDismiss = onSignInDismiss)
+    }
+    uiState.accessibility?.let { prompt ->
+        AccessibilityDialog(prompt = prompt, onSave = onAccessibilitySave, onDismiss = onAccessibilityDismiss)
     }
     Scaffold(
         modifier = modifier,
@@ -150,6 +164,9 @@ fun HomeScreen(
                 }
             } else {
                 item(span = fullWidth) { TableHeader(summary = summary, nowMs = nowMs, labelFor = labelFor) }
+                uiState.player?.let { panel ->
+                    item(span = fullWidth) { PlayerPanelCard(panel = panel, actions = playerActions) }
+                }
 
                 if (summary.players.isEmpty()) {
                     item(span = fullWidth) {

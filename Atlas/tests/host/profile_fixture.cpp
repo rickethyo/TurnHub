@@ -67,6 +67,17 @@ bool savePolicyForProfile(const String &id,const ProfilePolicy &policy) {
   if(!profileExists(id)||!profiles[id].policyReadable)return false;
   profiles[id].policy=policy;return true;
 }
+bool loadAccessibilityForProfile(const String &id,AccessibilityPrefs &prefs) {
+  prefs=AccessibilityPrefs{};
+  if(!profileExists(id))return false;
+  prefs=profiles[id].accessibility;
+  return true;
+}
+bool saveAccessibilityForProfile(const String &id,const AccessibilityPrefs &prefs) {
+  if(!profileExists(id)||!validAccessibilityPrefs(prefs))return false;
+  profiles[id].accessibility=prefs;
+  return true;
+}
 bool setPinHashForProfile(const String &id,const String &hash) { if(!profileExists(id))return false;profiles[id].hash=hash;return true; }
 bool clearPinForProfile(const String &id) { return setPinHashForProfile(id,""); }
 String storedPinHashForSeat(const uint8_t *mac,uint8_t slot,bool *legacy) { if(legacy)*legacy=false;return storedPinHashForProfile(profileIdForSeat(mac,slot)); }
@@ -77,6 +88,8 @@ String deviceName(const uint8_t *) { return String(); }
 bool setDeviceName(const uint8_t *,const String &) { return true; }
 bool loadStatsForProfile(const String &id,ProfileStats &stats) { if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
 bool saveStatsForProfile(const String &id,const ProfileStats &stats) { if(!profileExists(id))return false;profiles[id].stats=stats;return true; }
+bool loadModerationStatsForProfile(const String &id,ModerationStats &stats) { if(!profileExists(id))return false;stats=profiles[id].moderation;return true; }
+bool saveModerationStatsForProfile(const String &id,const ModerationStats &stats) { if(!profileExists(id))return false;profiles[id].moderation=stats;return true; }
 }
 
 namespace TurnHubAccounts {

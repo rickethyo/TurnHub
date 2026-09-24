@@ -1,10 +1,13 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.protocol.AccessibilitySettings
+import com.turnhub.android.protocol.LedStyle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.turnhub.android.data.ActionFeedback
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasException
 import com.turnhub.android.data.AtlasFailure
@@ -18,6 +21,7 @@ import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +64,7 @@ class HomeViewModel(
         val wifiPrompt: WifiPrompt? = null,
         val joiningSsid: String? = null,
         val signIn: SignInPrompt? = null,
+        val accessibilityOpen: Boolean = false,
     )
 
     private val local = MutableStateFlow(LocalState())
@@ -67,7 +72,22 @@ class HomeViewModel(
     /** The endpoint a pending Wi-Fi prompt will connect to once answered. */
     private var pendingEndpoint: AtlasEndpoint? = null
 
-    private val sessionFlows = combine(playerSession.state, playerSession.busy, playerSession.feedback, ::Triple)
+    private data class SessionView(
+        val session: PlayerSessionState,
+        val busy: Boolean,
+        val feedback: ActionFeedback?,
+        val gameSettings: GameSettingsInfo?,
+        val accessibility: AccessibilitySettings?,
+    )
+
+    private val sessionFlows = combine(
+        playerSession.state,
+        playerSession.busy,
+        playerSession.feedback,
+        playerSession.gameSettings,
+        playerSession.accessibility,
+        ::SessionView,
+    )
 
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
@@ -75,7 +95,7 @@ class HomeViewModel(
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback) ->
+    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback, gameSettings, accessibility) ->
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
@@ -86,8 +106,17 @@ class HomeViewModel(
             offerAppSettings = shown is AtlasFailure.LocalNetworkPermissionDenied,
             joiningSsid = screen.joiningSsid,
             wifiPrompt = screen.wifiPrompt,
-            player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback) },
+            player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback, gameSettings) },
             signIn = screen.signIn,
+            accessibility = if (screen.accessibilityOpen && session is PlayerSessionState.SignedIn) {
+                AccessibilityPrompt(
+                    settings = accessibility,
+                    busy = busy,
+                    error = feedback?.takeIf { it.isError }?.message,
+                )
+            } else {
+                null
+            },
         )
     }.stateIn(
         scope = viewModelScope,
@@ -173,6 +202,30 @@ class HomeViewModel(
     fun onPassClicked() = sendControl(ControlAction.PASS)
 
     fun onPauseResumeClicked() = sendControl(ControlAction.PAUSE_RESUME)
+
+    /** Host only; Atlas re-validates the value and the host/lobby rule. */
+    fun onTurnTimerChosen(turnTimerMs: Long) {
+        viewModelScope.launch { playerSession.setTurnTimer(turnTimerMs) }
+    }
+
+    /** Opens the Sigil accessibility editor and reads the profile's current choices from Atlas. */
+    fun onAccessibilityClicked() {
+        playerSession.clearFeedback()
+        local.update { it.copy(accessibilityOpen = true) }
+        viewModelScope.launch { playerSession.loadAccessibility() }
+    }
+
+    /** Atlas validates and stores the choices; the editor closes once Atlas accepts them. */
+    fun onAccessibilitySaved(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) {
+        viewModelScope.launch {
+            playerSession.saveAccessibility(sigilSound, ledStyle, longPressMs, winHoldMs)
+            if (playerSession.feedback.value?.isError != true) local.update { it.copy(accessibilityOpen = false) }
+        }
+    }
+
+    fun onAccessibilityDismissed() {
+        local.update { it.copy(accessibilityOpen = false) }
+    }
 
     fun onSignOutClicked() {
         viewModelScope.launch { playerSession.signOut() }

@@ -5,6 +5,9 @@
 
 namespace TurnHub {
 
+// Serves the portal pages and the Atlas firmware upload endpoint (Admin
+// permission, and only while allowedCallback reports a safe table state), and
+// registers the web API routes. update() restarts Atlas after a successful upload.
 class OtaManager {
  public:
   using AllowedCallback = bool (*)();

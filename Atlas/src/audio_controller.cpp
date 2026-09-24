@@ -1,22 +1,13 @@
 #include "audio_controller.h"
 
 #include "protocol.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 namespace TurnHub {
 
 namespace {
-
-struct AudioNote {
-  uint16_t frequencyHz;
-  uint16_t durationMs;
-  uint16_t gapMs;
-};
-
-struct PatternView {
-  const AudioNote *notes;
-  uint8_t count;
-};
-
 constexpr AudioNote PLAYER_JOINED[] = {
     {800, 60, 35},
     {1100, 90, 0},
@@ -75,7 +66,18 @@ constexpr AudioNote RESUME[] = {
     {1000, 140, 0},
 };
 
-constexpr AudioNote WARNING[] = {{500, 180, 0}};
+// Turn timer: one short chirp for the warning, and a distinct two-note low
+// figure when time runs out. Rhythm differs, not only pitch.
+constexpr AudioNote TURN_WARNING[] = {{1600, 40, 0}};
+constexpr AudioNote TIMER_EXPIRED[] = {
+    {620, 150, 80},
+    {620, 150, 0},
+};
+
+constexpr AudioNote ACTION_REQUIRED[] = {
+    {1150, 60, 60},
+    {1150, 60, 0},
+};
 
 constexpr AudioNote GAME_START[] = {
     {700, 100, 50},
@@ -144,47 +146,56 @@ constexpr AudioNote WIN_CANCELLED[] = {
 };
 
 template <size_t N>
-constexpr PatternView pattern(const AudioNote (&notes)[N]) {
-  return PatternView{notes, static_cast<uint8_t>(N)};
+constexpr AudioPattern pattern(const AudioNote (&notes)[N]) {
+  return AudioPattern{notes, static_cast<uint8_t>(N)};
 }
 
-PatternView patternFor(SoundId sound) {
-  switch (sound) {
-    case SoundId::PlayerJoined: return pattern(PLAYER_JOINED);
-    case SoundId::SharedPlayerAdded: return pattern(SHARED_ADDED);
-    case SoundId::SharedPlayerRemoved: return pattern(SHARED_REMOVED);
-    case SoundId::SameModulePass: return pattern(SAME_MODULE_PASS);
-    case SoundId::StarterSelected: return pattern(STARTER_SELECTED);
-    case SoundId::RandomStarter: return pattern(RANDOM_STARTER);
-    case SoundId::StartArmed: return pattern(START_ARMED);
-    case SoundId::CountdownCancelled: return pattern(COUNTDOWN_CANCELLED);
-    case SoundId::Countdown1: return pattern(COUNTDOWN_1);
-    case SoundId::Countdown2: return pattern(COUNTDOWN_2);
-    case SoundId::Countdown3: return pattern(COUNTDOWN_3);
-    case SoundId::TurnPass: return pattern(TURN_PASS);
-    case SoundId::Pause: return pattern(PAUSE);
-    case SoundId::Resume: return pattern(RESUME);
-    case SoundId::Warning: return pattern(WARNING);
-    case SoundId::GameStart: return pattern(GAME_START);
-    case SoundId::GameOver: return pattern(GAME_OVER);
-    case SoundId::Nudge: return pattern(NUDGE);
-    case SoundId::NudgeTable: return pattern(NUDGE_TABLE);
-    case SoundId::EliminationArmed: return pattern(ELIMINATION_ARMED);
-    case SoundId::EliminationChanged: return pattern(ELIMINATION_CHANGED);
-    case SoundId::EliminationCancelled: return pattern(ELIMINATION_CANCELLED);
-    case SoundId::PlayerEliminated: return pattern(PLAYER_ELIMINATED);
-    case SoundId::WinClaimed: return pattern(WIN_CLAIMED);
-    case SoundId::WinConfirmed: return pattern(WIN_CONFIRMED);
-    case SoundId::WinDenied: return pattern(WIN_DENIED);
-    case SoundId::WinCancelled: return pattern(WIN_CANCELLED);
-    default: return PatternView{nullptr, 0};
-  }
-}
+constexpr AudioPattern SILENT{nullptr, 0};
 
 }  // namespace
 
+const AudioCueProfile &defaultAudioCueProfile() {
+  static const AudioCueProfile profile = [] {
+    AudioCueProfile p{};
+    p.enabled = true;
+    auto set = [&p](AudioCue cue, AudioPattern value) { p.patterns[static_cast<uint8_t>(cue)] = value; };
+    set(AudioCue::PlayerJoined, pattern(PLAYER_JOINED));
+    set(AudioCue::SharedPlayerAdded, pattern(SHARED_ADDED));
+    set(AudioCue::SharedPlayerRemoved, pattern(SHARED_REMOVED));
+    set(AudioCue::SameModulePass, pattern(SAME_MODULE_PASS));
+    set(AudioCue::StarterSelected, pattern(STARTER_SELECTED));
+    set(AudioCue::RandomStarter, pattern(RANDOM_STARTER));
+    set(AudioCue::StartArmed, pattern(START_ARMED));
+    set(AudioCue::CountdownCancelled, pattern(COUNTDOWN_CANCELLED));
+    set(AudioCue::Countdown1, pattern(COUNTDOWN_1));
+    set(AudioCue::Countdown2, pattern(COUNTDOWN_2));
+    set(AudioCue::Countdown3, pattern(COUNTDOWN_3));
+    set(AudioCue::TurnStarted, pattern(TURN_PASS));
+    set(AudioCue::TurnPassed, SILENT);  // Existing behavior: only the new player hears the pass.
+    set(AudioCue::Pause, pattern(PAUSE));
+    set(AudioCue::Resume, pattern(RESUME));
+    set(AudioCue::TurnWarning, pattern(TURN_WARNING));
+    set(AudioCue::TimerExpired, pattern(TIMER_EXPIRED));
+    set(AudioCue::ActionRequired, pattern(ACTION_REQUIRED));
+    set(AudioCue::GameStart, pattern(GAME_START));
+    set(AudioCue::GameOver, pattern(GAME_OVER));
+    set(AudioCue::Nudge, pattern(NUDGE));
+    set(AudioCue::NudgeTable, pattern(NUDGE_TABLE));
+    set(AudioCue::EliminationArmed, pattern(ELIMINATION_ARMED));
+    set(AudioCue::EliminationChanged, pattern(ELIMINATION_CHANGED));
+    set(AudioCue::EliminationCancelled, pattern(ELIMINATION_CANCELLED));
+    set(AudioCue::PlayerEliminated, pattern(PLAYER_ELIMINATED));
+    set(AudioCue::WinClaimed, pattern(WIN_CLAIMED));
+    set(AudioCue::WinConfirmed, pattern(WIN_CONFIRMED));
+    set(AudioCue::WinDenied, pattern(WIN_DENIED));
+    set(AudioCue::WinCancelled, pattern(WIN_CANCELLED));
+    return p;
+  }();
+  return profile;
+}
+
 AudioController::AudioController(SigilBus &bus)
-    : bus_(bus) {}
+    : bus_(bus), profile_(&defaultAudioCueProfile()) {}
 
 uint16_t AudioController::maskForSigil(uint8_t sigilId) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) {
@@ -193,17 +204,25 @@ uint16_t AudioController::maskForSigil(uint8_t sigilId) {
   return static_cast<uint16_t>(1u << sigilId);
 }
 
-bool AudioController::play(SoundId sound, uint16_t targetMask) {
-  if (targetMask == 0) {
+void AudioController::setProfile(const AudioCueProfile &profile) {
+  profile_ = &profile;
+  if (!profile.enabled) {
+    clear();  // Muting takes effect immediately, including queued cues.
+  }
+}
+
+bool AudioController::play(AudioCue cue, uint16_t targetMask) {
+  targetMask = static_cast<uint16_t>(targetMask & ~mutedMask_);
+  if (targetMask == 0 || !profile_->enabled || profile_->pattern(cue).count == 0) {
     return false;
   }
 
   if (queueCount_ >= QUEUE_CAPACITY) {
-    Serial.println("ATLAS|AUDIO|QUEUE_FULL");
+    serialLog.println("ATLAS|AUDIO|QUEUE_FULL");
     return false;
   }
 
-  queue_[queueTail_] = Job{sound, targetMask};
+  queue_[queueTail_] = Job{cue, targetMask};
   queueTail_ = static_cast<uint8_t>((queueTail_ + 1) % QUEUE_CAPACITY);
   ++queueCount_;
   return true;
@@ -242,7 +261,7 @@ void AudioController::update(uint32_t nowMs) {
     return;
   }
 
-  const PatternView view = patternFor(current_.sound);
+  const AudioPattern &view = profile_->pattern(current_.cue);
   if (view.notes == nullptr || noteIndex_ >= view.count) {
     active_ = false;
     beginNext(nowMs);
@@ -261,6 +280,7 @@ void AudioController::sendTone(
     uint16_t durationMs) {
   const int32_t payload = TurnHubProtocol::encodeTone(frequencyHz, durationMs);
 
+  targetMask = static_cast<uint16_t>(targetMask & ~mutedMask_);
   for (uint8_t sigilId = 0; sigilId < MAX_PHYSICAL_SIGILS; ++sigilId) {
     if ((targetMask & maskForSigil(sigilId)) == 0) {
       continue;
@@ -269,102 +289,43 @@ void AudioController::sendTone(
   }
 }
 
-void AudioController::playerJoined(uint8_t sigilId) {
-  play(SoundId::PlayerJoined, maskForSigil(sigilId));
-}
-
-void AudioController::sharedPlayerAdded(uint8_t sigilId) {
-  play(SoundId::SharedPlayerAdded, maskForSigil(sigilId));
-}
-
-void AudioController::sharedPlayerRemoved(uint8_t sigilId) {
-  play(SoundId::SharedPlayerRemoved, maskForSigil(sigilId));
-}
-
-void AudioController::sameModulePass(uint8_t sigilId) {
-  play(SoundId::SameModulePass, maskForSigil(sigilId));
-}
-
-void AudioController::starterSelected(uint8_t sigilId) {
-  play(SoundId::StarterSelected, maskForSigil(sigilId));
-}
-
-void AudioController::randomStarter(uint8_t sigilId) {
-  play(SoundId::RandomStarter, maskForSigil(sigilId));
-}
-
-void AudioController::startArmed(uint8_t sigilId) {
-  play(SoundId::StartArmed, maskForSigil(sigilId));
-}
-
-void AudioController::countdownCancelled(uint16_t targetMask) {
-  play(SoundId::CountdownCancelled, targetMask);
-}
+void AudioController::actionRequired(uint8_t sigilId) { play(AudioCue::ActionRequired, maskForSigil(sigilId)); }
+void AudioController::playerJoined(uint8_t sigilId) { play(AudioCue::PlayerJoined, maskForSigil(sigilId)); }
+void AudioController::sharedPlayerAdded(uint8_t sigilId) { play(AudioCue::SharedPlayerAdded, maskForSigil(sigilId)); }
+void AudioController::sharedPlayerRemoved(uint8_t sigilId) { play(AudioCue::SharedPlayerRemoved, maskForSigil(sigilId)); }
+void AudioController::sameModulePass(uint8_t sigilId) { play(AudioCue::SameModulePass, maskForSigil(sigilId)); }
+void AudioController::starterSelected(uint8_t sigilId) { play(AudioCue::StarterSelected, maskForSigil(sigilId)); }
+void AudioController::randomStarter(uint8_t sigilId) { play(AudioCue::RandomStarter, maskForSigil(sigilId)); }
+void AudioController::startArmed(uint8_t sigilId) { play(AudioCue::StartArmed, maskForSigil(sigilId)); }
+void AudioController::countdownCancelled(uint16_t targetMask) { play(AudioCue::CountdownCancelled, targetMask); }
 
 void AudioController::countdownTone(uint16_t targetMask, uint8_t secondIndex) {
-  if (secondIndex == 0) {
-    play(SoundId::Countdown1, targetMask);
-  } else if (secondIndex == 1) {
-    play(SoundId::Countdown2, targetMask);
-  } else {
-    play(SoundId::Countdown3, targetMask);
+  play(secondIndex == 0 ? AudioCue::Countdown1 :
+       secondIndex == 1 ? AudioCue::Countdown2 : AudioCue::Countdown3, targetMask);
+}
+
+void AudioController::turnPassed(uint8_t fromSigilId, uint8_t toSigilId) {
+  if (fromSigilId == toSigilId) {
+    play(AudioCue::SameModulePass, maskForSigil(toSigilId));
+    return;
   }
+  play(AudioCue::TurnPassed, maskForSigil(fromSigilId));
+  play(AudioCue::TurnStarted, maskForSigil(toSigilId));
 }
 
-void AudioController::turnPass(uint8_t sigilId) {
-  play(SoundId::TurnPass, maskForSigil(sigilId));
-}
-
-void AudioController::pause(uint16_t targetMask) {
-  play(SoundId::Pause, targetMask);
-}
-
-void AudioController::resume(uint16_t targetMask) {
-  play(SoundId::Resume, targetMask);
-}
-
-void AudioController::warning(uint8_t sigilId) {
-  play(SoundId::Warning, maskForSigil(sigilId));
-}
-
-void AudioController::gameStart(uint16_t targetMask) {
-  play(SoundId::GameStart, targetMask);
-}
-
-void AudioController::gameOver(uint16_t targetMask) {
-  play(SoundId::GameOver, targetMask);
-}
-
-void AudioController::eliminationArmed(uint8_t sigilId) {
-  play(SoundId::EliminationArmed, maskForSigil(sigilId));
-}
-
-void AudioController::eliminationTargetChanged(uint8_t sigilId) {
-  play(SoundId::EliminationChanged, maskForSigil(sigilId));
-}
-
-void AudioController::eliminationCancelled(uint8_t sigilId) {
-  play(SoundId::EliminationCancelled, maskForSigil(sigilId));
-}
-
-void AudioController::playerEliminated(uint8_t sigilId) {
-  play(SoundId::PlayerEliminated, maskForSigil(sigilId));
-}
-
-void AudioController::winClaimed(uint16_t targetMask) {
-  play(SoundId::WinClaimed, targetMask);
-}
-
-void AudioController::winConfirmed(uint16_t targetMask) {
-  play(SoundId::WinConfirmed, targetMask);
-}
-
-void AudioController::winDenied(uint16_t targetMask) {
-  play(SoundId::WinDenied, targetMask);
-}
-
-void AudioController::winCancelled(uint16_t targetMask) {
-  play(SoundId::WinCancelled, targetMask);
-}
+void AudioController::pause(uint16_t targetMask) { play(AudioCue::Pause, targetMask); }
+void AudioController::resume(uint16_t targetMask) { play(AudioCue::Resume, targetMask); }
+void AudioController::turnWarning(uint8_t sigilId) { play(AudioCue::TurnWarning, maskForSigil(sigilId)); }
+void AudioController::timerExpired(uint8_t sigilId) { play(AudioCue::TimerExpired, maskForSigil(sigilId)); }
+void AudioController::gameStart(uint16_t targetMask) { play(AudioCue::GameStart, targetMask); }
+void AudioController::gameOver(uint16_t targetMask) { play(AudioCue::GameOver, targetMask); }
+void AudioController::eliminationArmed(uint8_t sigilId) { play(AudioCue::EliminationArmed, maskForSigil(sigilId)); }
+void AudioController::eliminationTargetChanged(uint8_t sigilId) { play(AudioCue::EliminationChanged, maskForSigil(sigilId)); }
+void AudioController::eliminationCancelled(uint8_t sigilId) { play(AudioCue::EliminationCancelled, maskForSigil(sigilId)); }
+void AudioController::playerEliminated(uint8_t sigilId) { play(AudioCue::PlayerEliminated, maskForSigil(sigilId)); }
+void AudioController::winClaimed(uint16_t targetMask) { play(AudioCue::WinClaimed, targetMask); }
+void AudioController::winConfirmed(uint16_t targetMask) { play(AudioCue::WinConfirmed, targetMask); }
+void AudioController::winDenied(uint16_t targetMask) { play(AudioCue::WinDenied, targetMask); }
+void AudioController::winCancelled(uint16_t targetMask) { play(AudioCue::WinCancelled, targetMask); }
 
 }  // namespace TurnHub

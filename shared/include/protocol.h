@@ -15,6 +15,23 @@ constexpr uint32_t PAIRING_WINDOW_MS = 15000;
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
 constexpr uint8_t CAPABILITY_GAME_DISPLAY = 0x04;
+// The Sigil applies InputTiming packets (adjustable hold thresholds).
+constexpr uint8_t CAPABILITY_INPUT_TIMING = 0x08;
+
+// Action-button hold thresholds. Atlas chooses them from the seated players'
+// accessibility preferences and sends them in InputTiming; the Sigil applies
+// them at runtime only and uses the defaults until Atlas says otherwise.
+// Changing a threshold never changes what the resulting Intent means.
+constexpr uint16_t DEFAULT_LONG_PRESS_MS = 2000;
+constexpr uint16_t DEFAULT_WIN_HOLD_MS = 5000;
+constexpr uint16_t MIN_LONG_PRESS_MS = 1000;
+constexpr uint16_t MAX_LONG_PRESS_MS = 4000;
+constexpr uint16_t MIN_WIN_HOLD_MS = 3000;
+constexpr uint16_t MAX_WIN_HOLD_MS = 10000;
+// A win hold always outlasts the long press by at least this much, so the
+// pause gesture stays reachable without claiming a win.
+constexpr uint16_t MIN_HOLD_GAP_MS = 1000;
+constexpr uint16_t HOLD_STEP_MS = 250;
 
 // Shared ESP-NOW message types. Keep the values stable once devices begin
 // shipping so newer Atlas firmware can identify older Sigil packets.
@@ -34,6 +51,7 @@ enum class PacketType : uint8_t {
   SetRed = 21,
   SetGreen = 22,
   Buzzer = 23,
+  InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -215,6 +233,24 @@ inline bool displayNameFinalChunk(int32_t value) {
 inline char displayNameChar(int32_t value, uint8_t index) {
   if (index >= DISPLAY_NAME_CHUNK_CHARS) return '\0';
   return static_cast<char>((static_cast<uint32_t>(value) >> (8u * (index + 1u))) & 0xFFu);
+}
+
+// InputTiming value: long-press ms in bits 0..15, win-hold ms in bits 16..31.
+inline bool validInputTiming(uint16_t longPressMs, uint16_t winHoldMs) {
+  return longPressMs >= MIN_LONG_PRESS_MS && longPressMs <= MAX_LONG_PRESS_MS &&
+      winHoldMs >= MIN_WIN_HOLD_MS && winHoldMs <= MAX_WIN_HOLD_MS &&
+      longPressMs % HOLD_STEP_MS == 0 && winHoldMs % HOLD_STEP_MS == 0 &&
+      static_cast<uint32_t>(winHoldMs) >= static_cast<uint32_t>(longPressMs) + MIN_HOLD_GAP_MS;
+}
+inline int32_t encodeInputTiming(uint16_t longPressMs, uint16_t winHoldMs) {
+  return static_cast<int32_t>(
+      static_cast<uint32_t>(longPressMs) | (static_cast<uint32_t>(winHoldMs) << 16));
+}
+inline uint16_t inputTimingLongPress(int32_t value) {
+  return static_cast<uint16_t>(static_cast<uint32_t>(value) & 0xFFFFu);
+}
+inline uint16_t inputTimingWinHold(int32_t value) {
+  return static_cast<uint16_t>((static_cast<uint32_t>(value) >> 16) & 0xFFFFu);
 }
 
 }  // namespace TurnHubProtocol

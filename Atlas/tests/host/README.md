@@ -1,7 +1,8 @@
 # Atlas native regression scenarios
 
-These tests compile the **actual** `main.cpp` handlers/adapters, `GameEngine`,
-`Lobby`, and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
+These tests compile the **actual** Atlas application modules (`main.cpp` plus the
+handler and adapter modules declared in `atlas_app.h`), `GameEngine`, `Lobby`,
+and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command
@@ -22,11 +23,13 @@ With GCC/Clang on another host, from this directory:
 ```sh
 mkdir -p build
 c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
-    ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp \
+    ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp \
+    ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/sigil_accessibility.cpp \
+    ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_admin_api.cpp \
     ../../src/profile_statistics.cpp ../../src/stats_page.cpp \
     ../../src/profile_login_page.cpp \
     ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp \
-    ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp \
+    ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
@@ -69,7 +72,8 @@ policy storage. The storage executable checks the real three-byte policy codec
 and NVS failure handling; gameplay scenarios use the profile repository fixture.
 
 Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolvable
-(or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed. It uses local
+(or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed (or set
+`PLAYWRIGHT_CHANNEL=` to use Playwright's bundled Chromium, e.g. on Linux/CI). It uses local
 HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
 It also checks policy saving/reloading and that polling preserves unsaved choices.
 Game/life checks cover persisted setup, host-only edits, captured match settings,

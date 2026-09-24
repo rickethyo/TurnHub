@@ -20,6 +20,7 @@ rows = [
  ('PAIR',19,'A12','PAIR','PAIR_BUTTON'),
  ('Pass',26,'J10','BTN_PASS','PASS_BUTTON'),
  ('Action',25,'J11','BTN_ACTION','ACTION_BUTTON'),
+ ('Pause / Win',32,'J13','BTN_PAUSE','PAUSE_WIN_BUTTON'),
  ('Red LED',13,'J5','LED_RED','RED_LED'),
  ('Green LED',14,'J8','LED_GREEN','GREEN_LED'),
  ('Blue LED',27,'J9','LED_BLUE','BLUE_LED'),
@@ -45,11 +46,11 @@ for function,gpio,pos,net,definition in rows:
         assert re.search(r'\b'+definition+r'\s*=\s*'+str(gpio)+r'\s*;',main+'\n'+header)
     assert mapping[pos]=='GPIO'+str(gpio)
     assert by_pin[('U1',pos)]=='/'+net
-for definition in ['PASS_BUTTON','ACTION_BUTTON','PAIR_BUTTON']:
+for definition in ['PASS_BUTTON','ACTION_BUTTON','PAUSE_WIN_BUTTON','PAIR_BUTTON']:
     assert f'pinMode({definition}, INPUT_PULLUP)' in main
 assert 'spiDetachMISO(SPI.bus(), 19)' in display
 assert main.index('sigilDisplay.begin()') < main.index('pinMode(PAIR_BUTTON, INPUT_PULLUP)')
-for ref,net in [('SW1','BTN_PASS'),('SW2','BTN_ACTION'),('SW4','PAIR')]:
+for ref,net in [('SW1','BTN_PASS'),('SW2','BTN_ACTION'),('SW4','PAIR'),('SW5','BTN_PAUSE')]:
     assert by_pin[(ref,'1')]=='/'+net and by_pin[(ref,'2')]=='/GND'
 for pos in ['A13','A19','J6']: assert by_pin[('U1',pos)]=='/GND'
 assert by_pin[('U1','J19')]=='/+3V3'
@@ -64,7 +65,7 @@ for pin,net in zip(['VCC','GND','DIN','CLK','CS','DC','RST','BUSY'],['+3V3','GND
 assert by_pin[('J3','SIG')]=='/BUZZER' and by_pin[('J3','GND')]=='/GND'
 used={r[2] for r in rows}|{'A13','A19','J6','J19'}
 for p in set(mapping)-used: assert 'no_connect' in actual[p].get('pintype')
-assert len(nets['/PAIR'])==2
+assert len(nets['/PAIR'])==2 and len(nets['/BTN_PAUSE'])==2
 for n,pins in nets.items():
     if not n.startswith('unconnected-'): assert len(pins)>=2,(n,pins)
 assert xml.find("components/comp[@ref='U1']/footprint") is None
@@ -74,12 +75,13 @@ report = ['# Sigil Rev A cross-check tables','',
 for f,g,p,n,d in rows: report.append(f'| {f} | GPIO{g} | {p} | {n} | `{d}`'+(f' = {g}' if not d.startswith('SPI') else '')+' | YES |')
 report += ['| Ground | — | A13, A19, J6 | GND | Hardware ground | YES |', '| 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |','',
  '**PAIR: A12 / GPIO19 / PAIR; SW4 closes to GND, including A13. INPUT_PULLUP: released HIGH, pressed LOW. GPIO19 is detached from SPI MISO.**','',
+ '**Pause / Win: J13 / GPIO32 / BTN_PAUSE; SW5 closes to GND. INPUT_PULLUP: released HIGH, pressed LOW. SW3 stays retired (it was the old GPIO4 auxiliary).**','',
  '## Table 2','', '| Socket position | DevKit silkscreen pin | Connected Sigil function | Used/Unused |', '|---|---|---|---|']
 functions={r[2]:r[0] for r in rows}
 for p,n in mapping.items():
     f=functions.get(p, 'Ground' if p in ('A13','A19','J6') else '3.3 V rail' if p=='J19' else '—')
     report.append(f'| {p} | {n} | {f} | {"Used" if p in used else "Unused (carrier NC)"} |')
 report += ['', 'Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.', '',
- 'Validation: 38 unique socket positions; 13 firmware signal mappings; all three active-low switches; three 330R resistor/anode/cathode chains; all display logical signals; buzzer logical interface; all unused carrier pins explicitly NC. No dangling named nets. Peripheral interfaces remain unresolved; see README.md.','']
+ 'Validation: 38 unique socket positions; 14 firmware signal mappings; all four active-low switches; three 330R resistor/anode/cathode chains; all display logical signals; buzzer logical interface; all unused carrier pins explicitly NC. No dangling named nets. Peripheral interfaces remain unresolved; see README.md.','']
 (ROOT/'CROSS_CHECK.md').write_text('\n'.join(report), encoding='utf-8')
 print('PASS: socket mapping, firmware, netlist topology, polarity, NC pins and empty DevKit footprint')

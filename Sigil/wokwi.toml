@@ -2,3 +2,10 @@
 version = 1
 firmware = '.pio/build/sigil-wokwi/firmware.bin'
 elf = '.pio/build/sigil-wokwi/firmware.elf'
+
+# The real Sigil's 2.13" SSD1680 panel (GDEM0213B74: 128 RAM columns, 122 visible,
+# 250 lines). Local copy of bonnyr/wokwi-ws29v2-custom-chip v0.0.5 (MIT) with the
+# 2.13" geometry; see wokwi/chips/.
+[[chip]]
+name = 'epaper-2in13'
+binary = 'wokwi/chips/epaper-2in13.chip.wasm'

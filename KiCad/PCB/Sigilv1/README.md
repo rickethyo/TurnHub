@@ -17,7 +17,7 @@ The old U1 was a bare ESP32-WROOM-32E symbol with labels on incorrect electrical
 
 PAIR was described as future work in old schematic/hardware notes. It is implemented: `PAIR_BUTTON = 19`, U1 A12, net PAIR, SW4 to common GND including U1 A13. Firmware detaches SPI MISO from GPIO19 and configures INPUT_PULLUP after display initialization. Released is HIGH; pressed is LOW. Pass and Action also close to GND with internal pull-ups.
 
-The old GPIO4 Action/Win auxiliary and GPIO32 DISPLAY_DETECT assignments have no current firmware implementation. They were removed from the active circuit, with A7 and J13 explicitly NC. SW3's reference is intentionally retired rather than renumbering the existing Pair switch SW4.
+The old GPIO4 Action/Win auxiliary and GPIO32 DISPLAY_DETECT assignments have no current firmware implementation and were removed; A7 is explicitly NC. GPIO32 / J13 is now the Pause / Win button (`PAUSE_WIN_BUTTON = 32`): net BTN_PAUSE, SW5 to GND, INPUT_PULLUP like the other buttons. The owner first added the BTN_PAUSE label by hand in KiCad without a switch; the script now draws the complete circuit. SW3's reference stays retired (it was the old GPIO4 auxiliary) rather than renumbering the existing Pair switch SW4.
 
 All three ground positions A13, A19, and J6 connect to GND. J19 supplies the +3V3 rail. This draft assumes power through the DevKit's own USB connector; J1/5V has no carrier connection. No additional regulator, USB-UART, BOOT, EN/reset, or other DevKit support circuitry is reproduced.
 
@@ -44,8 +44,8 @@ Use two 1x19 female socket rows so the complete DevKit remains removable. The ev
 
 ## Validation and editing
 
-KiCad 10 CLI ERC: **0 errors, 0 warnings**, without adding ERC exclusions. Exported netlist checks verify all 38 socket names, all 13 firmware signal mappings, ground positions, button topology, LED chains, logical peripheral connections and unused-pin NC markers. A rendered schematic was visually reviewed. These checks do not resolve the electrical or mechanical holds above.
+KiCad 10.0.6 CLI ERC (standard `Device`/`Switch` libraries installed): **0 errors, 0 warnings**, without adding ERC exclusions (2026-09-24, after adding SW5). Exported netlist checks verify all 38 socket names, all 14 firmware signal mappings, ground positions, button topology, LED chains, logical peripheral connections and unused-pin NC markers. A rendered schematic was visually reviewed. These checks do not resolve the electrical or mechanical holds above.
 
 Open `Sigilv1.kicad_sch` in KiCad. The project had existing editor lock files during this update; reload the schematic from disk before editing so an older open copy does not overwrite it.
 
-`tools/build_schematic.py` rebuilds the draft deterministically, preserving embedded standard R/LED/SW_Push definitions. It overwrites schematic and custom library; do not rerun it after manual edits unless those edits have been incorporated into the script. To validate an edited schematic, export KiCad XML netlist and run `python tools/verify_schematic.py path/to/export.xml`; this refreshes CROSS_CHECK.md only after checks pass.
+`tools/build_schematic.py` rebuilds the draft deterministically, preserving embedded standard R/LED/SW_Push definitions. When `kicad-cli` is on PATH it then re-saves the file with `kicad-cli sch upgrade --force`, so the output is byte-identical to what the KiCad editor writes (pin UUIDs are generated deterministically too). It overwrites schematic and custom library; do not rerun it after manual edits unless those edits have been incorporated into the script. To validate an edited schematic, export KiCad XML netlist and run `python tools/verify_schematic.py path/to/export.xml` (for example after `kicad-cli sch export netlist --format kicadxml -o export.xml Sigilv1.kicad_sch`); this refreshes CROSS_CHECK.md only after checks pass.

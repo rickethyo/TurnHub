@@ -46,8 +46,6 @@ static void existingAccounts() {
   assert(saveStatsForProfile(id, stats));
   assert(bindSeatToProfile(mac, 1, id));
   assert(bindSeatToProfile(mac, 2, id));
-  assert(!setSeatPersistent(mac, 1, true));
-  assert(!seatIsPersistent(mac, 1));
   FakeNvs::strings["b010203040506A"] = id;
   FakeNvs::bytes["r010203040506A"] = 1;
   assert(resetTransientSeatBindings(mac));
@@ -107,10 +105,58 @@ static void legacyPlaceholders() {
   assert(listProfileIds(ids, MAX_LOGIN_PROFILES) == 7);
 }
 
+// Counts that older firmware kept in u<id> move once into o<id>. A power loss
+// between the two writes must neither lose nor double them, and an unreadable
+// o<id> record fails closed instead of being overwritten.
+static void moderationMigration() {
+  const String id = createProfileWithCredentials("Moderated", "1234", hashPin);
+  assert(id.length() == 8);
+  const std::string account = std::string("u") + id.c_str(), history = std::string("o") + id.c_str();
+  const std::vector<uint8_t> legacy{2, 0, 0, 1, 5, 0, 0, 0, 2, 0, 0, 0};
+  const std::vector<uint8_t> cleared{2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  FakeNvs::blobs[account] = legacy;
+
+  ModerationStats stats;
+  assert(loadModerationStatsForProfile(id, stats) && stats.connectionResets == 5 && stats.gameRemovals == 2);
+  assert(FakeNvs::blobs[account] == cleared);
+  TurnHubAccounts::Account loaded;
+  assert(TurnHubAccounts::load(id, loaded) && loaded.reconnectRequired && !loaded.legacyConnectionResets);
+
+  // Interrupted after o<id> was written: the account is cleared, not re-added.
+  FakeNvs::blobs[account] = legacy;
+  assert(loadModerationStatsForProfile(id, stats) && stats.connectionResets == 5 && stats.gameRemovals == 2);
+  assert(FakeNvs::blobs[account] == cleared);
+
+  stats.gameRemovals = 3;
+  assert(saveModerationStatsForProfile(id, stats));
+  assert(loadModerationStatsForProfile(id, stats) && stats.gameRemovals == 3);
+
+  FakeNvs::blobs[history] = {9, 0, 0, 0, 0, 0, 0, 0, 0};
+  FakeNvs::blobs[account] = legacy;
+  assert(!TurnHubAccounts::load(id, loaded) && !loadModerationStatsForProfile(id, stats));
+  assert(FakeNvs::blobs[account] == legacy && FakeNvs::blobs[history][0] == 9);
+}
+
+static void accessibilityPreferences() {
+  const String id = createProfileWithCredentials("Access", "1234", hashPin);
+  AccessibilityPrefs prefs;
+  assert(loadAccessibilityForProfile(id, prefs) && prefs.sigilSound);  // Missing: defaults.
+  prefs.sigilSound = false; prefs.ledStyle = LedStyle::ReducedMotion; prefs.longPressMs = 3500; prefs.winHoldMs = 8000;
+  assert(saveAccessibilityForProfile(id, prefs));
+  AccessibilityPrefs again;
+  assert(loadAccessibilityForProfile(id, again) && sameAccessibilityPrefs(prefs, again));
+  assert(!saveAccessibilityForProfile("FFFFFFFF", prefs));  // Unknown profile.
+  prefs.winHoldMs = 3000;
+  assert(!saveAccessibilityForProfile(id, prefs));  // Invalid timing is never stored.
+  assert(loadAccessibilityForProfile(id, again) && again.winHoldMs == 8000);
+}
+
 int main() {
   assert(begin());
   guestLookups();
   existingAccounts();
   legacyPlaceholders();
-  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings and legacy placeholder filtering\n";
+  moderationMigration();
+  accessibilityPreferences();
+  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, moderation-count migration and accessibility preferences\n";
 }

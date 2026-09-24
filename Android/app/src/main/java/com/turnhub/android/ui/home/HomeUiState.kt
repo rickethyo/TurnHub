@@ -1,11 +1,14 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.data.ActionFeedback
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.PlayerSessionState
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
+import com.turnhub.android.protocol.TableState
 
 /**
  * Everything the Home screen needs to render, derived from
@@ -29,6 +32,8 @@ data class HomeUiState(
     val wifiPrompt: WifiPrompt? = null,
     val player: PlayerPanel? = null,
     val signIn: SignInPrompt? = null,
+    /** The Sigil accessibility editor, while open. */
+    val accessibility: AccessibilityPrompt? = null,
 ) {
     /** The endpoint can only be changed while nothing is open or opening. */
     val endpointEditable: Boolean
@@ -41,24 +46,118 @@ data class HomeUiState(
 /** The Atlas Wi-Fi password prompt: which network, and why we're asking. */
 data class WifiPrompt(val ssid: String, val message: String)
 
+/**
+ * Playing from this phone: who is signed in and which controls make sense
+ * right now. Game facts (whose turn, pending pass, pause) come from Atlas's
+ * snapshot; the session only says who this phone is. Enabling a button is a
+ * courtesy, not a rule: Atlas validates every control and may still refuse it.
+ */
 data class PlayerPanel(
     val session: PlayerSessionState = PlayerSessionState.SignedOut,
     val busy: Boolean = false,
     val feedback: ActionFeedback? = null,
+    /** One line describing where this phone stands, for sighted and screen-reader users alike. */
+    val status: String = "",
+    val canJoin: Boolean = false,
+    val canPass: Boolean = false,
+    val passLabel: String = "Pass",
+    val canPauseResume: Boolean = false,
+    val pauseResumeLabel: String = "Pause",
+    /** Shown only to the host in the lobby, when Atlas says the settings are editable. */
+    val timerEditor: TurnTimerEditor? = null,
 ) {
+    val signedIn: Boolean get() = session is PlayerSessionState.SignedIn
+
     companion object {
         fun from(
-            _tableSummary: TableSummary,
+            summary: TableSummary,
             session: PlayerSessionState,
             busy: Boolean,
             feedback: ActionFeedback?,
-        ): PlayerPanel = PlayerPanel(
-            session = session,
-            busy = busy,
-            feedback = feedback,
-        )
+            gameSettings: GameSettingsInfo? = null,
+        ): PlayerPanel {
+            val signedIn = session as? PlayerSessionState.SignedIn
+                ?: return PlayerPanel(session = session, busy = busy, feedback = feedback)
+            val info = signedIn.info
+            val me = summary.players.firstOrNull { info?.participating == true && it.playerNumber == info.playerNumber }
+            val name = signedIn.name ?: "this profile"
+            if (me == null) {
+                return PlayerPanel(
+                    session = session,
+                    busy = busy,
+                    feedback = feedback,
+                    status = if (summary.state == TableState.LOBBY) {
+                        "Signed in as $name. Join the table to play from this phone."
+                    } else {
+                        "Signed in as $name. A game is in progress; you can join in the lobby."
+                    },
+                    canJoin = !busy && summary.state == TableState.LOBBY,
+                )
+            }
+
+            val running = summary.state == TableState.RUNNING
+            val paused = summary.state == TableState.PAUSED
+            val myTurn = summary.activePlayerNumber == me.playerNumber && !me.eliminated
+            val passPending = summary.pending.passPlayer == me.playerNumber
+            val decisionPending = summary.pending.winClaimPlayer != null || summary.pending.eliminationTargetPlayer != null
+            return PlayerPanel(
+                session = session,
+                busy = busy,
+                feedback = feedback,
+                status = buildString {
+                    append("You are ${me.label}")
+                    when {
+                        me.eliminated -> append(" (out of this game)")
+                        running && myTurn -> append(". It's your turn.")
+                        paused -> append(". The game is paused.")
+                        else -> append('.')
+                    }
+                },
+                canPass = !busy && running && myTurn,
+                passLabel = if (passPending) "Cancel pass" else "Pass",
+                canPauseResume = !busy && !me.eliminated && (running || (paused && !decisionPending)),
+                pauseResumeLabel = if (paused) "Resume" else "Pause",
+                timerEditor = gameSettings
+                    ?.takeIf { it.canEdit && summary.state == TableState.LOBBY }
+                    ?.let {
+                        TurnTimerEditor(
+                            currentMs = it.settings.turnTimerMs,
+                            presetsMs = it.turnTimerPresetsMs,
+                            minMs = it.turnTimerMinMs,
+                            maxMs = it.turnTimerMaxMs,
+                        )
+                    },
+            )
+        }
     }
 }
+
+/** The host's turn-timer choice. Values are Atlas's; custom input is checked against its range. */
+data class TurnTimerEditor(
+    val currentMs: Long,
+    val presetsMs: List<Long>,
+    val minMs: Long,
+    val maxMs: Long,
+) {
+    val currentIsPreset: Boolean get() = currentMs in presetsMs
+
+    /** Whole seconds within Atlas's range, or null with nothing sent. */
+    fun customMs(secondsText: String): Long? {
+        val seconds = secondsText.trim().toLongOrNull() ?: return null
+        val ms = seconds * 1000
+        return ms.takeIf { seconds > 0 && it in minMs..maxMs }
+    }
+}
+
+/**
+ * Editing the signed-in player's Sigil accessibility. [settings] is Atlas's
+ * copy (null while it loads or if reading failed; see [error]).
+ */
+data class AccessibilityPrompt(
+    val settings: AccessibilitySettings? = null,
+    val busy: Boolean = false,
+    val error: String? = null,
+)
 
 data class SignInPrompt(
     val loading: Boolean = false,

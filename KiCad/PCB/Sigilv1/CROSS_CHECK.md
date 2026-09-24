@@ -9,6 +9,7 @@ Verified against exported KiCad netlist, current working firmware, and the user-
 | PAIR | GPIO19 | A12 | PAIR | `PAIR_BUTTON` = 19 | YES |
 | Pass | GPIO26 | J10 | BTN_PASS | `PASS_BUTTON` = 26 | YES |
 | Action | GPIO25 | J11 | BTN_ACTION | `ACTION_BUTTON` = 25 | YES |
+| Pause / Win | GPIO32 | J13 | BTN_PAUSE | `PAUSE_WIN_BUTTON` = 32 | YES |
 | Red LED | GPIO13 | J5 | LED_RED | `RED_LED` = 13 | YES |
 | Green LED | GPIO14 | J8 | LED_GREEN | `GREEN_LED` = 14 | YES |
 | Blue LED | GPIO27 | J9 | LED_BLUE | `BLUE_LED` = 27 | YES |
@@ -23,6 +24,8 @@ Verified against exported KiCad netlist, current working firmware, and the user-
 | 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |
 
 **PAIR: A12 / GPIO19 / PAIR; SW4 closes to GND, including A13. INPUT_PULLUP: released HIGH, pressed LOW. GPIO19 is detached from SPI MISO.**
+
+**Pause / Win: J13 / GPIO32 / BTN_PAUSE; SW5 closes to GND. INPUT_PULLUP: released HIGH, pressed LOW. SW3 stays retired (it was the old GPIO4 auxiliary).**
 
 ## Table 2
 
@@ -59,7 +62,7 @@ Verified against exported KiCad netlist, current working firmware, and the user-
 | J10 | GPIO26 | Pass | Used |
 | J11 | GPIO25 | Action | Used |
 | J12 | GPIO33 | Buzzer signal | Used |
-| J13 | GPIO32 | — | Unused (carrier NC) |
+| J13 | GPIO32 | Pause / Win | Used |
 | J14 | GPIO35 | — | Unused (carrier NC) |
 | J15 | GPIO34 | — | Unused (carrier NC) |
 | J16 | SVN | — | Unused (carrier NC) |
@@ -69,4 +72,4 @@ Verified against exported KiCad netlist, current working firmware, and the user-
 
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
-Validation: 38 unique socket positions; 13 firmware signal mappings; all three active-low switches; three 330R resistor/anode/cathode chains; all display logical signals; buzzer logical interface; all unused carrier pins explicitly NC. No dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+Validation: 38 unique socket positions; 14 firmware signal mappings; all four active-low switches; three 330R resistor/anode/cathode chains; all display logical signals; buzzer logical interface; all unused carrier pins explicitly NC. No dangling named nets. Peripheral interfaces remain unresolved; see README.md.

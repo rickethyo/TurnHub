@@ -3,6 +3,7 @@
 #include <map>
 #include <functional>
 constexpr int HTTP_GET=0, HTTP_POST=1;
+using HTTPMethod = int;  // ESP32 core: enum from HTTP_Method.h
 class WebServer {
  public:
   std::map<std::string,String> arguments, headers;

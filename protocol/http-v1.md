@@ -72,6 +72,44 @@ period; it does not mean the next turn has started. State confirms the later com
 - Never automatically replay an ambiguous timed-out control. Request IDs are not
   deduplicated. Reconcile from state, then let the user issue a new action.
 
+## Turn timer
+
+Atlas owns the turn timer; clients display it. `settings.turnTimerMs` is the
+captured per-turn countdown (0 = off; otherwise 15,000-3,600,000 in whole
+seconds). `turnTimer.phase` is `NORMAL`, `WARNING` (10 s or less left), `EXPIRED`
+(time ran out; the turn continues and Atlas never passes it) or `LONG_TURN`
+(timer off, turn past five minutes). `turnTimer.remainingMs` is null when the
+timer is off or no turn runs. Both are clock samples like `turnElapsedMs`: they
+may change at the same revision, and clients may count down locally between
+snapshots. Firmware before the timer omits both fields; treat that as off.
+
+`GET /api/game/settings` (authenticated) returns `turnTimerMs` and
+`turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
+existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
+keep their current values. Only the host's primary seat may change settings, and
+only in the lobby (409 otherwise); invalid values return 400. See
+[Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
+
+## Sigil accessibility preferences
+
+`GET /api/session/accessibility` and `POST /api/session/accessibility`
+(authenticated with the session token) read and change the signed-in
+profile's own Sigil accessibility preferences: `sigilSound` (form `0`/`1`),
+`ledStyle` (`standard`, `reduced-motion`, `monochrome-safe`), `longPressMs` and
+`winHoldMs`. Omitted POST fields keep their saved values. Hold times are whole
+multiples of `stepMs` (250) within the returned `limits`, and the win hold must
+be at least `minGapMs` (1000) longer than the long press; anything else returns
+400 and nothing is stored. No session returns 401; an unreadable or unwritable
+record returns 503. Both methods return the saved values plus `limits` and
+`stored` (false when Atlas could not read the saved record and is showing the
+defaults) - see [accessibility-v1.schema.json](accessibility-v1.schema.json) and
+[the example](examples/accessibility.response.json).
+
+These are profile settings, like `/api/session/policy`, not table state: they
+change no Intent's meaning and take no revision check. Atlas applies them to
+the player's physical Sigil within about two seconds (see
+[Accessibility](../Documentation/engineering/ACCESSIBILITY.md#implemented-accessibility-settings)).
+
 ## Optional concurrency check on session controls
 
 The existing `runControl` adapter accepts `expectedRevision` (canonical unsigned

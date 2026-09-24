@@ -9,7 +9,7 @@ migration; they do not validate later identity/storage changes.
 
 Atlas remains the only owner of game, lobby, and decision state. `IntentDispatcher`
 binds exactly one handler per implemented intent. The application handlers in
-`Atlas/src/main.cpp` validate requests and call the existing game/lobby operations;
+`Atlas/src/main.cpp` (since split into the modules listed in `Atlas/include/atlas_app.h`) validate requests and call the existing game/lobby operations;
 the engine's rules and statistics completion callback are unchanged.
 
 The six architectural gate answers for this migration are:

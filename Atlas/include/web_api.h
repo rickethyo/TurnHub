@@ -92,6 +92,10 @@ bool connectionBlocked(const String &id);
 void revokeConnections(const String &id);
 using ModerateCallback = bool (*)(const String &actor,const String &target,const String &action,String &message);
 void configureModeration(ModerateCallback callback);
+// Told after a profile's accessibility preferences were saved, so Atlas can
+// restyle that player's Sigil straight away.
+using AccessibilityChangedCallback = void (*)();
+void configureAccessibility(AccessibilityChangedCallback callback);
 
 
 // Called only for real physical Sigil button activity. A pending browser claim

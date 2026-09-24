@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "identity.h"
+#include "accessibility_prefs.h"
 #include "profile_policy.h"
 
 namespace TurnHubProfiles {
@@ -40,6 +41,15 @@ struct ProfileStats {
   uint8_t reserved = 0;
 };
 
+// Private moderation history: Game Master actions taken against this profile.
+// Stored with the statistics, but served only to the profile's own
+// PIN-authenticated session. Never shown to other accounts (including Game
+// Masters), in statistics exports, on seats or on Sigil displays.
+struct ModerationStats {
+  uint32_t connectionResets = 0;
+  uint32_t gameRemovals = 0;
+};
+
 bool begin();
 bool ready();
 
@@ -65,8 +75,17 @@ bool hasPinForProfile(const String &profileId);
 bool loadPolicyForProfile(const String &profileId, ProfilePolicy &policy);
 bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
 
+// Per-player accessibility preferences (accessibility_prefs.h). A missing
+// record loads the defaults and succeeds.
+bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs);
+bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs);
+
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats);
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
+// A missing record reads as zero counts. Loading also migrates counts that
+// older firmware kept in the account record.
+bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats);
+bool saveModerationStatsForProfile(const String &profileId, const ModerationStats &stats);
 
 // Physical-seat binding adapter. This is deliberately separate from profile
 // storage so the same profile can later bind to a persistent virtual seat.
@@ -75,9 +94,6 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
 // Read an existing binding without creating a profile for an unused seat.
 String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
-// Legacy API: physical seats are temporary; enabling persistence is rejected.
-bool seatIsPersistent(const uint8_t mac[6], uint8_t slot);
-bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent);
 // Release both seat bindings and remove legacy remembered-seat keys.
 // Atlas profile records and statistics remain durable.
 bool resetTransientSeatBindings(const uint8_t mac[6]);

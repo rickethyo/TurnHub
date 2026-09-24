@@ -1,3 +1,12 @@
+// Sigil player controller firmware. Buttons become ESP-NOW packets for
+// Atlas; Atlas's packets drive the LEDs, buzzer and e-ink display. Sigil
+// decides nothing about the game (ARCHITECTURAL_INVARIANTS.md, Invariant 1):
+// it only persists the minimum pairing binding needed to find Atlas again.
+//
+// Threads: ESP-NOW receive callbacks only enqueue packets; loop() handles
+// them. E-ink rendering runs on its own task (displayTask) because a refresh
+// blocks for seconds; state shared with it is guarded by displayProfileMux.
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -34,11 +43,10 @@ constexpr uint8_t PAIR_BUTTON = 19;
 constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
     TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |
-    TurnHubProtocol::CAPABILITY_GAME_DISPLAY;
+    TurnHubProtocol::CAPABILITY_GAME_DISPLAY |
+    TurnHubProtocol::CAPABILITY_INPUT_TIMING;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
-constexpr uint32_t LONG_PRESS_MS = 2000;
-constexpr uint32_t WIN_HOLD_MS = 5000;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PASS_ACK_FLASH_MS = 250;
 constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
@@ -47,10 +55,17 @@ constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
 constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
 constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
 constexpr uint8_t PROFILE_SLOT_MASK = 0x03;
+constexpr uint8_t RECEIVE_QUEUE_LENGTH = 32;
+
+// NVS pairing binding: Atlas MAC (6 bytes) followed by the assigned Sigil ID.
+constexpr char PAIRING_NAMESPACE[] = "th_pair_v1";
+constexpr char PAIRING_KEY[] = "atlas";
+constexpr size_t PAIRING_BINDING_SIZE = 7;
 
 constexpr uint8_t BROADCAST_MAC[6] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+// Active-low INPUT_PULLUP button with debounce and hold tracking.
 struct ButtonState {
   explicit ButtonState(uint8_t buttonPin) : pin(buttonPin) {}
 
@@ -82,6 +97,11 @@ volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
 uint32_t lastPairRequestMs = 0;
+// Hold thresholds: Atlas sends them from the seated players' accessibility
+// preferences (InputTiming). Runtime only; a reboot returns to the defaults
+// until Atlas resends them.
+uint32_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+uint32_t winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
 using TurnHubSigil::ReceivedPacket;
 QueueHandle_t receiveQueue = nullptr;
 volatile bool displayNeedsRefresh = false;
@@ -195,6 +215,25 @@ void updateGreenFlash() {
     greenFlashUntilMs = 0;
     digitalWrite(GREEN_LED, commandedGreen ? HIGH : LOW);
   }
+}
+
+// The pairing blink temporarily owns the red LED; this hands it back to Atlas.
+void restoreRedLed() {
+  digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+}
+
+// Returns true once each time the button settles in a new state.
+bool debouncedEdge(ButtonState &button, uint32_t nowMs) {
+  const bool reading = digitalRead(button.pin);
+  if (reading != button.rawState) {
+    button.rawState = reading;
+    button.lastDebounceMs = nowMs;
+  }
+  if (nowMs - button.lastDebounceMs < DEBOUNCE_MS || button.stableState == button.rawState) {
+    return false;
+  }
+  button.stableState = button.rawState;
+  return true;
 }
 
 void notifyDisplayTask() {
@@ -512,18 +551,18 @@ void handleEspNowReceive(
   if (packet.type == PacketType::PairAccept) {
     if (!pairingActive || millis() - pairingStartMs >= PAIRING_DURATION_MS ||
         packet.value != pairingToken || packet.sigilId >= TurnHubProtocol::MAX_SIGILS) return;
-    uint8_t binding[7];
+    uint8_t binding[PAIRING_BINDING_SIZE];
     memcpy(binding, mac, 6);
     binding[6] = packet.sigilId;
     Preferences prefs;
-    if (!prefs.begin("th_pair_v1", false)) return;
-    const bool stored = prefs.putBytes("atlas", binding, sizeof(binding)) == sizeof(binding);
+    if (!prefs.begin(PAIRING_NAMESPACE, false)) return;
+    const bool stored = prefs.putBytes(PAIRING_KEY, binding, sizeof(binding)) == sizeof(binding);
     prefs.end();
     if (!stored) { Serial.println("SIGIL|PAIR|STORE_ERROR"); return; }
     rememberAtlas(mac);
     sigilId = packet.sigilId;
     pairingActive = false;
-    digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+    restoreRedLed();
     profileSyncStartPending = true;
     queueReadyDisplay();
     Serial.println("SIGIL|PAIR|SUCCESS");
@@ -570,9 +609,7 @@ void handleEspNowReceive(
 
     case PacketType::SetRed:
       commandedRed = packet.value != 0;
-      if (!pairingActive) {
-        digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
-      }
+      if (!pairingActive) restoreRedLed();
       break;
 
     case PacketType::SetGreen:
@@ -585,6 +622,21 @@ void handleEspNowReceive(
     case PacketType::Buzzer:
       playBuzzerPayload(packet.value);
       break;
+
+    case PacketType::InputTiming: {
+      const uint16_t longMs = TurnHubProtocol::inputTimingLongPress(packet.value);
+      const uint16_t winMs = TurnHubProtocol::inputTimingWinHold(packet.value);
+      if (!TurnHubProtocol::validInputTiming(longMs, winMs)) break;
+      if (longMs != longPressMs || winMs != winHoldMs) {
+        longPressMs = longMs;
+        winHoldMs = winMs;
+        Serial.print("SIGIL|INPUT_TIMING|");
+        Serial.print(longPressMs);
+        Serial.print("|");
+        Serial.println(winHoldMs);
+      }
+      break;
+    }
 
     case PacketType::DisplayProfileRequest:
       profileSyncStartPending = true;
@@ -612,24 +664,9 @@ void handleEspNowReceive(
   }
 }
 
+// PASS is sent on release.
 void updatePassButton() {
-  const bool reading = digitalRead(passButton.pin);
-
-  if (reading != passButton.rawState) {
-    passButton.rawState = reading;
-    passButton.lastDebounceMs = millis();
-  }
-
-  if (millis() - passButton.lastDebounceMs < DEBOUNCE_MS) {
-    return;
-  }
-
-  if (passButton.stableState == passButton.rawState) {
-    return;
-  }
-
-  passButton.stableState = passButton.rawState;
-
+  if (!debouncedEdge(passButton, millis())) return;
   if (passButton.stableState == HIGH) {
     Serial.print("SIGIL|");
     Serial.print(sigilId);
@@ -661,7 +698,7 @@ void updatePairing() {
   const uint32_t elapsedMs = millis() - pairingStartMs;
   if (elapsedMs >= PAIRING_DURATION_MS) {
     pairingActive = false;
-    digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+    restoreRedLed();
     Serial.println("SIGIL|PAIR|TIMEOUT");
     return;
   }
@@ -675,20 +712,7 @@ void updatePairing() {
 }
 
 void updatePairButton() {
-  const bool reading = digitalRead(pairButton.pin);
-  const uint32_t nowMs = millis();
-
-  if (reading != pairButton.rawState) {
-    pairButton.rawState = reading;
-    pairButton.lastDebounceMs = nowMs;
-  }
-
-  if (nowMs - pairButton.lastDebounceMs < DEBOUNCE_MS ||
-      pairButton.stableState == pairButton.rawState) {
-    return;
-  }
-
-  pairButton.stableState = pairButton.rawState;
+  if (!debouncedEdge(pairButton, millis())) return;
   if (pairButton.stableState == LOW) {
     Serial.println("SIGIL|PAIR|BUTTON");
     startPairing();
@@ -705,20 +729,15 @@ void sendAction(PacketType type, const char *name) {
   sendPacket(type);
 }
 
+// Action: Down on press, then Long at longPressMs (default 2 s) and Win at
+// winHoldMs (default 5 s) while held; Up on release, preceded by Short if no
+// Long was sent. The dedicated Pause/Win button (pauseWin) sends Long on a tap
+// and waits winHoldMs before Long + Win.
 void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
-  const bool reading = digitalRead(actionButton.pin);
-
-  if (reading != actionButton.rawState) {
-    actionButton.rawState = reading;
-    actionButton.lastDebounceMs = millis();
-  }
-
-  if (millis() - actionButton.lastDebounceMs >= DEBOUNCE_MS &&
-      actionButton.stableState != actionButton.rawState) {
-    actionButton.stableState = actionButton.rawState;
-
+  const uint32_t nowMs = millis();
+  if (debouncedEdge(actionButton, nowMs)) {
     if (actionButton.stableState == LOW) {
-      actionButton.pressStartMs = millis();
+      actionButton.pressStartMs = nowMs;
       actionButton.longSent = false;
       actionButton.winSent = false;
       sendAction(PacketType::ActionDown, "ACTION_DOWN");
@@ -743,16 +762,16 @@ void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
     return;
   }
 
-  const uint32_t heldMs = millis() - actionButton.pressStartMs;
+  const uint32_t heldMs = nowMs - actionButton.pressStartMs;
 
   // A dedicated win hold arms the claim immediately before sending it,
   // rather than pausing at the original Action button's 2-second threshold.
-  if (!actionButton.longSent && heldMs >= (pauseWin ? WIN_HOLD_MS : LONG_PRESS_MS)) {
+  if (!actionButton.longSent && heldMs >= (pauseWin ? winHoldMs : longPressMs)) {
     actionButton.longSent = true;
     sendAction(PacketType::ActionLong, "ACTION_LONG");
   }
 
-  if (!actionButton.winSent && heldMs >= WIN_HOLD_MS) {
+  if (!actionButton.winSent && heldMs >= winHoldMs) {
     actionButton.winSent = true;
     sendAction(PacketType::ActionWin, "ACTION_WIN");
   }
@@ -760,10 +779,10 @@ void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
 
 void loadSavedPairing() {
   Preferences prefs;
-  if (prefs.begin("th_pair_v1", false)) {
-    uint8_t binding[7];
-    if (prefs.isKey("atlas") && prefs.getBytesLength("atlas") == sizeof(binding) &&
-        prefs.getBytes("atlas", binding, sizeof(binding)) == sizeof(binding) &&
+  if (prefs.begin(PAIRING_NAMESPACE, false)) {
+    uint8_t binding[PAIRING_BINDING_SIZE];
+    if (prefs.isKey(PAIRING_KEY) && prefs.getBytesLength(PAIRING_KEY) == sizeof(binding) &&
+        prefs.getBytes(PAIRING_KEY, binding, sizeof(binding)) == sizeof(binding) &&
         binding[6] < TurnHubProtocol::MAX_SIGILS) {
       // Read before the first screen, but register the peer only after ESP-NOW
       // starts. A saved binding remains paired even if radio startup fails.
@@ -797,7 +816,7 @@ bool startEspNow() {
     return false;
   }
 
-  receiveQueue = xQueueCreate(32, sizeof(ReceivedPacket));
+  receiveQueue = xQueueCreate(RECEIVE_QUEUE_LENGTH, sizeof(ReceivedPacket));
   if (!receiveQueue) return false;
   esp_now_register_recv_cb([](const uint8_t *mac, const uint8_t *data, int length) {
     ReceivedPacket received{};
@@ -890,7 +909,8 @@ void setup() {
 
 void loop() {
   ReceivedPacket received;
-  for (uint8_t n = 0; receiveQueue && n < 32 &&
+  // Bounded so a packet burst cannot starve the buttons.
+  for (uint8_t n = 0; receiveQueue && n < RECEIVE_QUEUE_LENGTH &&
        xQueueReceive(receiveQueue, &received, 0) == pdTRUE; ++n) {
     handleEspNowReceive(received.mac,
         received.data, received.length);

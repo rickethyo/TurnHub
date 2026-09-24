@@ -5,6 +5,7 @@ import com.turnhub.android.protocol.LifeRequest
 import com.turnhub.android.protocol.PendingDecisions
 import com.turnhub.android.protocol.TableSettings
 import com.turnhub.android.protocol.TableState
+import com.turnhub.android.protocol.TurnTimer
 
 /**
  * A UI-oriented summary of one authoritative state snapshot
@@ -32,6 +33,8 @@ data class TableSummary(
     /** Atlas-sampled clocks; may change while [revision] stays the same. */
     val gameElapsedMs: Long,
     val turnElapsedMs: Long,
+    /** Atlas's turn-timer phase and countdown sample; null from older firmware. */
+    val turnTimer: TurnTimer?,
     /**
      * Local monotonic time (ms) when this snapshot arrived. Lets the UI render
      * clocks between polls as `sampled + (now - receivedAtMs)`; the next

@@ -1,0 +1,45 @@
+{
+  "name": "2.13\" ePaper module (SSD1680, GDEM0213B74 geometry)",
+  "author": "Bonny Rais (chip model); TurnHub (2.13\" geometry)",
+  "docs": "https://github.com/bonnyr/wokwi-ws29v2-custom-chip/blob/main/README.md",
+  "pins": [
+    "BUSY",
+    "RST",
+    "DC",
+    "CS",
+    "CLK",
+    "DIN",
+    "VCC",
+    "GND"
+  ],
+  "display": {
+    "width": 128,
+    "height": 250
+  },
+  "controls": [
+    {
+      "id": "red",
+      "label": "Red",
+      "type": "range",
+      "min": 0,
+      "max": 255,
+      "step": 1
+    },
+    {
+      "id": "green",
+      "label": "Green",
+      "type": "range",
+      "min": 0,
+      "max": 255,
+      "step": 1
+    },
+    {
+      "id": "blue",
+      "label": "Blue",
+      "type": "range",
+      "min": 0,
+      "max": 255,
+      "step": 1
+    }
+  ]
+}

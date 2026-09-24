@@ -222,6 +222,40 @@ or `|LOADED`, and the portal shows "Factory default (change it)" while the
 default is in use. Older firmware generated a random password instead; units
 that already stored one keep it.
 
+## Serial log and browser download
+
+Atlas writes pipe-separated `ATLAS|...` lines to the USB serial port (115200
+baud). The same output is also kept in a 16 KB RAM ring buffer
+(`serial_log.h`), with each line stamped with Atlas uptime (`[     12.345]`).
+A Developer account can download it without a USB cable from the
+Developer page (`/dev` → **Download serial log**), or directly:
+
+```text
+GET /api/diagnostics/log     (X-TurnHub-Token; Developer permission)
+```
+
+The file starts with a header naming the Atlas ID, boot ID, firmware version
+and uptime, and says how many bytes were dropped when older output no longer
+fit. The buffer is RAM-only: it clears on every restart and is never written
+to flash. The Wi-Fi password line appears as `<redacted>` in the download,
+though the USB port still shows it. Framework messages such as
+`[E][Preferences.cpp:...]` (Arduino `log_e`/ESP-IDF logging) don't go through
+the Atlas log and are not captured.
+
+Lines that make a log readable on its own:
+
+```text
+ATLAS|GAME|START|<starter>|PROFILE|<generic|mtg|mtg_commander|yugioh>|LIFE|<n>|TIMER_MS|<0=off>|PLAYERS|<n>
+ATLAS|LOBBY|JOIN|BROWSER|<controller>|PLAYER|<n>|PROFILE|<profileId>
+ATLAS|LOBBY|LEAVE|BROWSER|<controller>|SLOT|<1|2>|PROFILE|<profileId>
+ATLAS|LOBBY|EMPTY|RESET|ORIGIN|<SIGIL|BROWSER|SYSTEM|...>[|CONTROLLER|<id>]|FROM|<state>
+ATLAS|TIMER|<WARNING|EXPIRED>|PLAYER|<n>
+```
+
+Browser and phone seats use controller IDs from 8 upward (shown as "Sigil 8A"
+in `GAME|START`). A host Sigil pressing Win while the start is armed resets the
+lobby, which logs `LOBBY|EMPTY|RESET|ORIGIN|SIGIL|...|FROM|LOBBY`.
+
 ## Build and upload
 
 This project uses PlatformIO with the Arduino ESP32 framework.

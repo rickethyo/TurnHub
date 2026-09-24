@@ -1,6 +1,7 @@
 """Rebuild Rev A's electrical draft. No mechanical geometry is inferred here."""
 from pathlib import Path
-import re
+import shutil
+import subprocess
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,7 @@ SIGNALS = {
     'J5': ('LED_RED', 'RED_LED', 13), 'J8': ('LED_GREEN', 'GREEN_LED', 14),
     'J9': ('LED_BLUE', 'BLUE_LED', 27), 'J10': ('BTN_PASS', 'PASS_BUTTON', 26),
     'J11': ('BTN_ACTION', 'ACTION_BUTTON', 25), 'J12': ('BUZZER', 'BUZZER_PIN', 33),
+    'J13': ('BTN_PAUSE', 'PAUSE_WIN_BUTTON', 32),
     'A12': ('PAIR', 'PAIR_BUTTON', 19), 'A8': ('EPD_DC', 'EPD_DC', 16),
     'A9': ('EPD_CS', 'EPD_CS', 17), 'A11': ('EPD_SCLK', 'SPI.begin clock', 18),
     'A14': ('EPD_BUSY', 'EPD_BUSY', 21), 'A17': ('EPD_RST', 'EPD_RST', 22),
@@ -59,7 +61,7 @@ for row, names, x, angle in [('J', J, -43.18, 0), ('A', A, 43.18, 180)]:
     for i, name in enumerate(names):
         pos = f'{row}{i+1}'
         kind = 'power_out' if pos == 'J19' else 'passive'
-        if pos in SIGNALS: kind = 'input' if pos in ('J10','J11','A12','A14') else 'output'
+        if pos in SIGNALS: kind = 'input' if pos in ('J10','J11','J13','A12','A14') else 'output'
         pins.append(pin(pos, name + (' / ' + NETS[pos] if pos in SIGNALS else ''), x, round(45.72-i*5.08, 2), angle, kind))
 devkit = custom('ESP32_DevKit_38_RearReference', pins, 38.1, 50.8, -50.8)
 libs.append(devkit)
@@ -81,14 +83,21 @@ def wire(x,y,x2,y2):
 def label(net,x,y):
     out.append(f'(label {q(net)} (at {x} {y} 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "{uid(net+str((x,y)))}"))')
 def nc(x,y): out.append(f'(no_connect (at {x} {y}) (uuid "{uid("nc"+str((x,y)))}"))')
+PIN_NUMBERS = {
+    'Sigil:ESP32_DevKit_38_RearReference': [f'{r}{i}' for r in 'JA' for i in range(1, 20)],
+    'Sigil:EPD_Logical_Interface': epd_names, 'Sigil:Buzzer_Logical_Interface': ['SIG', 'GND'],
+    'Switch:SW_Push': ['1', '2'], 'Device:R': ['1', '2'], 'Device:LED': ['1', '2'],
+}
 def instance(lib,ref,value,x,y,angle=0,top=8,on=True):
     px = x+8.89 if ref.startswith(('R','D')) else x
     py = y-2.54 if ref.startswith(('R','D')) else y-top
     fields = prop('Reference',ref,px,py) + prop('Value',value,px,py+2.54)
     if angle == 90:
         fields = fields.replace(f'{py} 0)', f'{py} 90)').replace(f'{py+2.54} 0)', f'{py+2.54} 90)')
+    # Explicit pin UUIDs; KiCad would otherwise invent random ones on every load.
+    pin_uuids = ''.join(f'(pin {q(n)} (uuid "{uid(ref+"/"+n)}"))' for n in PIN_NUMBERS[lib])
     out.append(f'''(symbol (lib_id "{lib}") (at {x} {y} {angle}) (unit 1) (in_bom {"yes" if on else "no"}) (on_board {"yes" if on else "no"}) (dnp no)
-      (uuid "{uid(ref)}") {fields} {prop('Footprint','',x,y,True)}
+      (uuid "{uid(ref)}") {fields} {prop('Footprint','',x,y,True)} {pin_uuids}
       (instances (project "Sigilv1" (path "/{NS}" (reference "{ref}") (unit 1)))))''')
 instance('Sigil:ESP32_DevKit_38_RearReference','U1','REMOVABLE ESP32 DEVKIT / 2 x 19',88.9,101.6,top=58.42)
 for row,names,x in [('J',J,45.72),('A',A,132.08)]:
@@ -101,11 +110,11 @@ for row,names,x in [('J',J,45.72),('A',A,132.08)]:
 note('BACK / REAR PHOTO VIEW\nJ1 top-left; A1 top-right\nSocket IDs are immutable; this is NOT a footprint view.',28,21,1.5)
 note('USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.',28,157)
 note('CONTROLS - INPUT_PULLUP',175,40,1.5)
-for ref,net,y in [('SW1','BTN_PASS',60.96),('SW2','BTN_ACTION',81.28),('SW4','PAIR',101.6)]:
+for ref,net,y in [('SW1','BTN_PASS',60.96),('SW2','BTN_ACTION',81.28),('SW4','PAIR',101.6),('SW5','BTN_PAUSE',121.92)]:
     instance('Switch:SW_Push',ref,net,193.04,y)
     wire(187.96,y,175.26,y); label(net,175.26,y)
     wire(198.12,y,205.74,y); label('GND',205.74,y)
-note('PAIR: A12 / GPIO19 to A13 / GND\nReleased HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry.',175,114)
+note('PAIR: A12 / GPIO19 to A13 / GND\nPAUSE/WIN: J13 / GPIO32 to GND (SW3 retired)\nAll released HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry.',175,130)
 note('STATUS LEDS - active HIGH',248,40,1.5)
 for i,net in enumerate(['LED_RED','LED_GREEN','LED_BLUE'],1):
     x=round(254+(i-1)*35.56,2)
@@ -123,7 +132,11 @@ instance('Sigil:Buzzer_Logical_Interface','J3','BUZZER LOGICAL ONLY',238.76,152.
 wire(218.44,152.4,198.12,152.4); label('BUZZER',198.12,152.4)
 wire(218.44,162.56,198.12,162.56); label('GND',198.12,162.56)
 note('J3 is an unresolved load interface.\nConfirm transducer/driver, current and protection.\nNo direct-drive suitability is assumed.',175,178)
-note('SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. GPIO4 auxiliary / GPIO32 display-detect removed: not implemented in current firmware.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed.',28,211)
+note('SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. Old GPIO4 auxiliary and GPIO32 display-detect removed; GPIO32 / J13 is now the Pause/Win button (SW5).\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed.',28,211)
 out.append('(embedded_fonts no))')
 (ROOT/'Sigilv1.kicad_sch').write_text('\n'.join(out)+'\n')
+# Re-save in KiCad's own layout so the file matches what the editor writes and
+# later hand edits diff cleanly. Skipped (compact output) without kicad-cli.
+if shutil.which('kicad-cli'):
+    subprocess.run(['kicad-cli', 'sch', 'upgrade', '--force', str(ROOT/'Sigilv1.kicad_sch')], check=True)
 

@@ -26,6 +26,7 @@ import com.turnhub.android.data.PreferencesWifiCredentialStore
 import com.turnhub.android.data.TargetedAtlasWifiLink
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
+import com.turnhub.android.ui.home.PlayerPanelActions
 import com.turnhub.android.ui.theme.TurnHubTheme
 
 /**
@@ -95,6 +96,20 @@ class MainActivity : ComponentActivity() {
                         onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
                         onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
                         onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
+                        playerActions = PlayerPanelActions(
+                            onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
+                            onJoin = homeViewModel::onJoinClicked,
+                            onPass = homeViewModel::onPassClicked,
+                            onPauseResume = homeViewModel::onPauseResumeClicked,
+                            onTurnTimerChosen = homeViewModel::onTurnTimerChosen,
+                            onAccessibility = homeViewModel::onAccessibilityClicked,
+                            onSignOut = homeViewModel::onSignOutClicked,
+                            onFeedbackDismiss = homeViewModel::onFeedbackDismissed,
+                        ),
+                        onSignInSubmit = homeViewModel::onSignInSubmitted,
+                        onSignInDismiss = homeViewModel::onSignInDismissed,
+                        onAccessibilitySave = homeViewModel::onAccessibilitySaved,
+                        onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
                     )
                 }
             }

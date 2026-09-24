@@ -1,27 +1,128 @@
 #include "led_renderer.h"
 
-#include <math.h>
 #include <cstring>
 #include "profile_store.h"
 
 namespace TurnHub {
 
 namespace {
-constexpr uint32_t LOBBY_IDLE_LED_MS = 500;
-constexpr uint32_t LOBBY_FLASH_ON_MS = 180;
-constexpr uint32_t LOBBY_FLASH_OFF_MS = 180;
-constexpr uint32_t LOBBY_FLASH_GAP_MS = 3000;
-constexpr uint32_t START_COUNTDOWN_FLASH_MS = 250;
-constexpr uint32_t NEW_TURN_FLASH_MS = 3000;
-constexpr uint32_t NEW_TURN_FLASH_INTERVAL_MS = 200;
-constexpr uint32_t BREATHE_PERIOD_MS = 2600;
-constexpr uint32_t WARNING_BLINK_INTERVAL_MS = 500;
+// How long a turn that just arrived counts as "TurnStarted" rather than "YourTurn".
+constexpr uint32_t TURN_STARTED_CUE_MS = 3000;
 constexpr uint32_t BLUE_REFRESH_MS = 40;
+
+void setSeat(SigilLedState &cue, const GameEngine &game, uint8_t sigilId, const PlayerSeat &seat,
+    bool livingOnly) {
+  PlayerSeat local[2];
+  const uint8_t count = livingOnly ? game.livingPlayersForController(sigilId, local, 2)
+                                   : game.playersForController(sigilId, local, 2);
+  cue.seatSlot = seat.slot;
+  cue.sharedSeat = count > 1;
+}
+
+void addTimerOverlay(SigilLedState &cue, const GameEngine &game, uint32_t nowMs) {
+  switch (game.turnTimerPhase(nowMs)) {
+    case TurnTimerPhase::Warning: cue.overlays |= ledOverlayBit(LedOverlay::TurnWarning); break;
+    case TurnTimerPhase::Expired: cue.overlays |= ledOverlayBit(LedOverlay::TimerExpired); break;
+    case TurnTimerPhase::LongTurn: cue.overlays |= ledOverlayBit(LedOverlay::LongTurn); break;
+    case TurnTimerPhase::Normal: break;
+  }
+}
+}  // namespace
+
+SigilLedState selectSigilLedState(
+    uint8_t sigilId,
+    HubState state,
+    const Lobby &lobby,
+    const GameEngine &game,
+    uint32_t countdownStartedAtMs,
+    uint8_t eliminationTargetPlayer,
+    uint8_t winConfirmationPlayer,
+    uint32_t nowMs) {
+  SigilLedState cue;
+  const bool host = sigilId == lobby.hostController();
+
+  if (state == HubState::Lobby || state == HubState::Starting) {
+    if (!lobby.isJoined(sigilId)) {
+      cue.cue = LedCue::Unassigned;
+      return cue;
+    }
+    if (state == HubState::Starting) {
+      cue.cue = LedCue::Starting;
+      cue.anchorMs = countdownStartedAtMs;
+      return cue;
+    }
+    cue.cue = LedCue::Joined;
+    cue.playerNumber = lobby.playerNumber(sigilId, 1);
+    if (host) cue.overlays |= ledOverlayBit(LedOverlay::Host);
+    PlayerSeat starter;
+    if (lobby.selectedStarter(starter) && starter.controllerId == sigilId) {
+      cue.overlays |= ledOverlayBit(LedOverlay::Starter);
+      cue.seatSlot = starter.slot;
+      cue.sharedSeat = lobby.hasSecondary(sigilId);
+    }
+    return cue;
+  }
+
+  if (!game.controllerInGame(sigilId)) {
+    return cue;  // Off.
+  }
+
+  if (state == HubState::Running) {
+    if (sigilId != game.activeController()) {
+      cue.cue = LedCue::Waiting;
+      return cue;
+    }
+    const uint32_t turnElapsed = game.currentTurnElapsedMs(nowMs);
+    cue.cue = turnElapsed < TURN_STARTED_CUE_MS ? LedCue::TurnStarted : LedCue::YourTurn;
+    cue.anchorMs = nowMs - turnElapsed;
+    addTimerOverlay(cue, game, nowMs);
+    return cue;
+  }
+
+  if (state == HubState::Paused) {
+    const PlayerSeat *confirm = game.playerByNumber(winConfirmationPlayer);
+    const PlayerSeat *eliminate = game.playerByNumber(eliminationTargetPlayer);
+    if (confirm != nullptr && confirm->controllerId == sigilId) {
+      cue.cue = LedCue::ConfirmationNeeded;
+      setSeat(cue, game, sigilId, *confirm, true);
+    } else if (eliminate != nullptr && eliminate->controllerId == sigilId) {
+      cue.cue = LedCue::EliminationSelect;
+      setSeat(cue, game, sigilId, *eliminate, true);
+    } else {
+      cue.cue = LedCue::Paused;
+    }
+    return cue;
+  }
+
+  // Game over.
+  cue.cue = LedCue::GameOver;
+  if (host) cue.overlays |= ledOverlayBit(LedOverlay::Host);
+  const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
+  if (winner != nullptr && winner->controllerId == sigilId) {
+    cue.overlays |= ledOverlayBit(LedOverlay::Winner);
+    setSeat(cue, game, sigilId, *winner, false);
+  }
+  return cue;
 }
 
 LedRenderer::LedRenderer(SigilBus &bus)
     : bus_(bus) {
+  for (auto &profile : profiles_) profile = &defaultLedCueProfile();
   invalidateAll();
+}
+
+void LedRenderer::setProfile(const LedCueProfile &profile) {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) setProfile(id, profile);
+}
+
+void LedRenderer::setProfile(uint8_t sigilId, const LedCueProfile &profile) {
+  if (sigilId >= MAX_PHYSICAL_SIGILS || profiles_[sigilId] == &profile) return;
+  profiles_[sigilId] = &profile;
+  // Levels are recomputed every frame; cached channel values need no reset.
+}
+
+const LedCueProfile &LedRenderer::profile(uint8_t sigilId) const {
+  return *profiles_[sigilId < MAX_PHYSICAL_SIGILS ? sigilId : 0];
 }
 
 void LedRenderer::invalidate(uint8_t sigilId) {
@@ -42,16 +143,14 @@ void LedRenderer::invalidateAll() {
   }
 }
 
-void LedRenderer::set(
-    uint8_t sigilId,
-    uint8_t blue,
-    bool red,
-    bool green,
-    uint32_t nowMs) {
+void LedRenderer::set(uint8_t sigilId, const LedLevels &levels, uint32_t nowMs) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) {
     return;
   }
 
+  const uint8_t blue = levels.blue;
+  const bool red = levels.red;
+  const bool green = levels.green;
   Cache &cache = cache_[sigilId];
 
   if (!cache.blueValid || cache.blue != blue) {
@@ -84,10 +183,6 @@ void LedRenderer::set(
       cache.greenValid = true;
     }
   }
-}
-
-void LedRenderer::off(uint8_t sigilId, uint32_t nowMs) {
-  set(sigilId, 0, false, false, nowMs);
 }
 
 void LedRenderer::syncDisplay(
@@ -288,220 +383,6 @@ void LedRenderer::syncDisplay(
   }
 }
 
-uint8_t LedRenderer::breatheValue(uint32_t nowMs) {
-  const float phase = static_cast<float>(nowMs % BREATHE_PERIOD_MS)
-      / static_cast<float>(BREATHE_PERIOD_MS);
-  const float sine = (sinf(phase * 2.0f * PI - PI / 2.0f) + 1.0f) / 2.0f;
-  const float shaped = powf(sine, 2.2f);
-  return static_cast<uint8_t>(shaped * 255.0f);
-}
-
-bool LedRenderer::playerNumberRedOn(
-    uint8_t playerNumber,
-    uint32_t nowMs) {
-  if (playerNumber == 0) {
-    return false;
-  }
-
-  const uint32_t flashBlock = LOBBY_FLASH_ON_MS + LOBBY_FLASH_OFF_MS;
-  const uint32_t sequenceLength =
-      static_cast<uint32_t>(playerNumber) * flashBlock + LOBBY_FLASH_GAP_MS;
-  const uint32_t position = nowMs % sequenceLength;
-
-  for (uint8_t i = 0; i < playerNumber; ++i) {
-    const uint32_t start = static_cast<uint32_t>(i) * flashBlock;
-    if (position >= start && position < start + LOBBY_FLASH_ON_MS) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool LedRenderer::seatPulse(uint8_t slot, bool shared, uint32_t nowMs) {
-  if (!shared) {
-    return true;
-  }
-
-  constexpr uint32_t pulseOn = 180;
-  constexpr uint32_t pulseOff = 180;
-  const uint32_t position = nowMs % 1800;
-
-  if (slot == 1) {
-    return position < pulseOn;
-  }
-
-  const uint32_t secondStart = pulseOn + pulseOff;
-  return position < pulseOn ||
-      (position >= secondStart && position < secondStart + pulseOn);
-}
-
-uint8_t LedRenderer::starterBlueValue(
-    const Lobby &lobby,
-    uint8_t sigilId,
-    uint32_t nowMs) {
-  PlayerSeat starter;
-  if (!lobby.selectedStarter(starter) || starter.controllerId != sigilId) {
-    return 0;
-  }
-
-  return seatPulse(starter.slot, lobby.hasSecondary(sigilId), nowMs)
-      ? 255
-      : 0;
-}
-
-void LedRenderer::renderUnjoined(uint8_t sigilId, uint32_t nowMs) {
-  const uint32_t cycle = LOBBY_IDLE_LED_MS * 3;
-  const uint32_t position = nowMs % cycle;
-
-  if (position < LOBBY_IDLE_LED_MS) {
-    set(sigilId, 255, false, false, nowMs);
-  } else if (position < LOBBY_IDLE_LED_MS * 2) {
-    set(sigilId, 0, false, true, nowMs);
-  } else {
-    set(sigilId, 0, true, false, nowMs);
-  }
-}
-
-void LedRenderer::renderLobby(
-    uint8_t sigilId,
-    const Lobby &lobby,
-    uint32_t nowMs) {
-  if (!lobby.isJoined(sigilId)) {
-    renderUnjoined(sigilId, nowMs);
-    return;
-  }
-
-  const uint8_t player = lobby.playerNumber(sigilId, 1);
-  set(
-      sigilId,
-      starterBlueValue(lobby, sigilId, nowMs),
-      playerNumberRedOn(player, nowMs),
-      sigilId == lobby.hostController(),
-      nowMs);
-}
-
-void LedRenderer::renderStarting(
-    uint8_t sigilId,
-    const Lobby &lobby,
-    uint32_t countdownStartedAtMs,
-    uint32_t nowMs) {
-  if (!lobby.isJoined(sigilId)) {
-    renderUnjoined(sigilId, nowMs);
-    return;
-  }
-
-  const uint32_t elapsed = nowMs - countdownStartedAtMs;
-  const uint32_t withinSecond = elapsed % 1000;
-  set(
-      sigilId,
-      withinSecond < START_COUNTDOWN_FLASH_MS ? 255 : 0,
-      false,
-      false,
-      nowMs);
-}
-
-void LedRenderer::renderRunning(
-    uint8_t sigilId,
-    const GameEngine &game,
-    uint32_t nowMs) {
-  if (!game.controllerInGame(sigilId)) {
-    off(sigilId, nowMs);
-    return;
-  }
-
-  if (sigilId != game.activeController()) {
-    set(sigilId, 255, false, false, nowMs);
-    return;
-  }
-
-  const uint32_t turnElapsed = game.currentTurnElapsedMs(nowMs);
-  uint8_t blue = 0;
-
-  if (turnElapsed < NEW_TURN_FLASH_MS) {
-    blue = ((turnElapsed / NEW_TURN_FLASH_INTERVAL_MS) % 2 == 0) ? 255 : 0;
-  } else {
-    blue = breatheValue(nowMs);
-  }
-
-  bool red = false;
-  bool green = false;
-
-  switch (game.warningPhase(nowMs)) {
-    case WarningPhase::Normal:
-      break;
-    case WarningPhase::Caution:
-    case WarningPhase::OffGreen:
-      green = true;
-      break;
-    case WarningPhase::Warning:
-      red = ((nowMs / WARNING_BLINK_INTERVAL_MS) % 2) == 0;
-      break;
-  }
-
-  set(sigilId, blue, red, green, nowMs);
-}
-
-void LedRenderer::renderPaused(
-    uint8_t sigilId,
-    const GameEngine &game,
-    uint8_t eliminationTargetPlayer,
-    uint8_t winConfirmationPlayer,
-    uint32_t nowMs) {
-  if (!game.controllerInGame(sigilId)) {
-    off(sigilId, nowMs);
-    return;
-  }
-
-  const PlayerSeat *winTarget = game.playerByNumber(winConfirmationPlayer);
-  if (winTarget != nullptr && winTarget->controllerId == sigilId) {
-    PlayerSeat living[2];
-    const uint8_t count = game.livingPlayersForController(sigilId, living, 2);
-    set(
-        sigilId,
-        0,
-        false,
-        seatPulse(winTarget->slot, count > 1, nowMs),
-        nowMs);
-    return;
-  }
-
-  const PlayerSeat *eliminationTarget = game.playerByNumber(eliminationTargetPlayer);
-  if (eliminationTarget != nullptr && eliminationTarget->controllerId == sigilId) {
-    PlayerSeat living[2];
-    const uint8_t count = game.livingPlayersForController(sigilId, living, 2);
-    set(
-        sigilId,
-        0,
-        seatPulse(eliminationTarget->slot, count > 1, nowMs),
-        false,
-        nowMs);
-    return;
-  }
-
-  set(sigilId, breatheValue(nowMs), false, false, nowMs);
-}
-
-void LedRenderer::renderGameOver(
-    uint8_t sigilId,
-    const Lobby &lobby,
-    const GameEngine &game,
-    uint32_t nowMs) {
-  if (!game.controllerInGame(sigilId)) {
-    off(sigilId, nowMs);
-    return;
-  }
-
-  uint8_t blue = 0;
-  const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
-  if (winner != nullptr && winner->controllerId == sigilId) {
-    PlayerSeat local[2];
-    const uint8_t count = game.playersForController(sigilId, local, 2);
-    blue = seatPulse(winner->slot, count > 1, nowMs) ? 255 : 0;
-  }
-
-  set(sigilId, blue, false, sigilId == lobby.hostController(), nowMs);
-}
-
 void LedRenderer::render(
     HubState state,
     const Lobby &lobby,
@@ -512,10 +393,7 @@ void LedRenderer::render(
     uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (!bus_.isOnline(id, nowMs)) {
-      cache_[id].blueValid = false;
-      cache_[id].redValid = false;
-      cache_[id].greenValid = false;
-      cache_[id].displayValid = false;
+      invalidate(id);
       continue;
     }
 
@@ -527,28 +405,10 @@ void LedRenderer::render(
         eliminationTargetPlayer,
         winConfirmationPlayer);
 
-    switch (state) {
-      case HubState::Lobby:
-        renderLobby(id, lobby, nowMs);
-        break;
-      case HubState::Starting:
-        renderStarting(id, lobby, countdownStartedAtMs, nowMs);
-        break;
-      case HubState::Running:
-        renderRunning(id, game, nowMs);
-        break;
-      case HubState::Paused:
-        renderPaused(
-            id,
-            game,
-            eliminationTargetPlayer,
-            winConfirmationPlayer,
-            nowMs);
-        break;
-      case HubState::GameOver:
-        renderGameOver(id, lobby, game, nowMs);
-        break;
-    }
+    const SigilLedState cue = selectSigilLedState(
+        id, state, lobby, game, countdownStartedAtMs,
+        eliminationTargetPlayer, winConfirmationPlayer, nowMs);
+    set(id, ledLevels(*profiles_[id], cue, nowMs), nowMs);
   }
 }
 

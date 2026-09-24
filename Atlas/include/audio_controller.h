@@ -7,11 +7,14 @@
 
 namespace TurnHub {
 
-enum class SoundId : uint8_t {
+// Semantic audio events. Game handlers name what happened; the active
+// AudioCueProfile decides whether and how it sounds. Audio is always
+// supplementary: every cue has a visual/text equivalent (ACCESSIBILITY.md).
+enum class AudioCue : uint8_t {
   PlayerJoined,
   SharedPlayerAdded,
   SharedPlayerRemoved,
-  SameModulePass,
+  SameModulePass,      // Turn moved to the other seat on the same Sigil.
   StarterSelected,
   RandomStarter,
   StartArmed,
@@ -19,10 +22,13 @@ enum class SoundId : uint8_t {
   Countdown1,
   Countdown2,
   Countdown3,
-  TurnPass,
+  TurnStarted,         // Heard by the Sigil whose turn begins (the pass sound).
+  TurnPassed,          // Heard by the Sigil that passed. Silent by default.
   Pause,
   Resume,
-  Warning,
+  TurnWarning,         // Turn timer: TURN_TIMER_WARNING_MS left. A subtle chirp.
+  TimerExpired,        // Turn timer reached zero. No turn change follows.
+  ActionRequired,      // A decision waits on this Sigil: win confirmation or life approval.
   GameStart,
   GameOver,
   Nudge,
@@ -35,7 +41,32 @@ enum class SoundId : uint8_t {
   WinConfirmed,
   WinDenied,
   WinCancelled,
+  Count
 };
+
+struct AudioNote {
+  uint16_t frequencyHz;
+  uint16_t durationMs;
+  uint16_t gapMs;
+};
+
+// An empty pattern (count 0) silences that cue.
+struct AudioPattern {
+  const AudioNote *notes;
+  uint8_t count;
+};
+
+// The one audio configuration boundary. `enabled` silences every cue without
+// touching LEDs or displays; individual cues can be silenced or restyled.
+struct AudioCueProfile {
+  bool enabled;
+  AudioPattern patterns[static_cast<uint8_t>(AudioCue::Count)];
+
+  const AudioPattern &pattern(AudioCue cue) const { return patterns[static_cast<uint8_t>(cue)]; }
+};
+
+// The prototype's established sounds plus the turn-timer cues.
+const AudioCueProfile &defaultAudioCueProfile();
 
 class AudioController {
  public:
@@ -43,9 +74,20 @@ class AudioController {
 
   static uint16_t maskForSigil(uint8_t sigilId);
 
+  // The profile must outlive the controller (static or owned by the caller).
+  void setProfile(const AudioCueProfile &profile);
+  const AudioCueProfile &profile() const { return *profile_; }
+
+  // Sigils whose seated players turned Sigil sound off (per-player
+  // accessibility preference). Muted Sigils are skipped when a cue plays,
+  // including notes already queued; other Sigils still hear the cue.
+  void setMutedSigils(uint16_t mask) { mutedMask_ = mask; }
+  uint16_t mutedSigils() const { return mutedMask_; }
+
   void update(uint32_t nowMs);
   void clear();
-  bool play(SoundId sound, uint16_t targetMask);
+  // Queues a cue for the Sigils in targetMask. False when silenced or full.
+  bool play(AudioCue cue, uint16_t targetMask);
 
   void playerJoined(uint8_t sigilId);
   void sharedPlayerAdded(uint8_t sigilId);
@@ -56,10 +98,13 @@ class AudioController {
   void startArmed(uint8_t sigilId);
   void countdownCancelled(uint16_t targetMask);
   void countdownTone(uint16_t targetMask, uint8_t secondIndex);
-  void turnPass(uint8_t sigilId);
+  // A pass committed: the new active Sigil hears TurnStarted, the passer TurnPassed.
+  void turnPassed(uint8_t fromSigilId, uint8_t toSigilId);
   void pause(uint16_t targetMask);
   void resume(uint16_t targetMask);
-  void warning(uint8_t sigilId);
+  void turnWarning(uint8_t sigilId);
+  void timerExpired(uint8_t sigilId);
+  void actionRequired(uint8_t sigilId);
   void gameStart(uint16_t targetMask);
   void gameOver(uint16_t targetMask);
 
@@ -74,12 +119,12 @@ class AudioController {
 
  private:
   struct Job {
-    SoundId sound = SoundId::TurnPass;
+    AudioCue cue = AudioCue::TurnStarted;
     uint16_t targetMask = 0;
 
     Job() = default;
-    Job(SoundId soundValue, uint16_t maskValue)
-        : sound(soundValue), targetMask(maskValue) {}
+    Job(AudioCue cueValue, uint16_t maskValue)
+        : cue(cueValue), targetMask(maskValue) {}
   };
 
   static constexpr uint8_t QUEUE_CAPACITY = 16;
@@ -88,6 +133,8 @@ class AudioController {
   void sendTone(uint16_t targetMask, uint16_t frequencyHz, uint16_t durationMs);
 
   SigilBus &bus_;
+  const AudioCueProfile *profile_;
+  uint16_t mutedMask_ = 0;
   Job queue_[QUEUE_CAPACITY];
   uint8_t queueHead_ = 0;
   uint8_t queueTail_ = 0;

@@ -6,6 +6,24 @@ pairing fallback and visual mock are superseded. Radio bench acceptance and
 forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
 
 
+Turn timer and cue layers (2026-09-24): the Atlas-owned turn timer, LED cue
+profile, audio cue profile and Android player controls are implemented locally with
+host/Android tests and an Atlas build; hardware acceptance is pending. See
+[Turn timer and cues](TURN_TIMER_AND_CUES.md). Staged follow-ups:
+
+- Sigil e-ink timer state needs a radio-contract field and a reflash of all Sigils.
+- Route Sigil-local Pairing/Disconnected/Error LEDs through a shared cue profile
+  (and so through the player's light style).
+
+Sigil accessibility preferences (2026-09-24): the owner chose per-player settings
+that follow the profile. Sigil sound, light style (Standard, Reduced motion,
+Monochrome-safe) and adjustable Action hold times are implemented with host,
+browser and Android tests and firmware builds (Atlas, Sigil 0.5.4); `ActionRequired`
+now sounds for win confirmations and life-change recipients. Hardware acceptance
+is pending: see the bench list in [Accessibility](ACCESSIBILITY.md#implemented-accessibility-settings).
+Remaining accessibility items are listed there under "Not yet implemented".
+
+
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
 
 Use this file instead of chat history for near-term changes. Keep it concise. Once an item is implemented and verified, move any lasting architectural facts into the appropriate reference document and remove it from here.
@@ -187,12 +205,19 @@ retain profile companion control.
 - Treat WCAG 2.2 Level AA as the design baseline for web/app surfaces without claiming conformance until tested.
 - Define reusable accessible UI patterns before the portal and Android surfaces diverge.
 - Ensure essential states are not represented by color alone; pair color with text, icons, pattern/cadence, or another practical cue.
-- Add high-contrast and monochrome-safe presentation options.
-- Define player-level accessibility preferences separately from game profiles.
-- Determine which accessibility settings follow a player versus remain device-local.
+- Add high-contrast and monochrome-safe presentation options. The web portal has a
+  High contrast theme (automatic when the device asks for more contrast) and honours
+  `forced-colors`; Android switches to high-contrast colours when the system
+  contrast is raised; Sigil lights have a Monochrome-safe style (all 2026-09-24).
+  A monochrome-safe portal theme separate from High contrast remains open.
+- Player-level accessibility preferences exist for the Sigil (sound, light style,
+  hold times) and follow the profile; browser presentation stays per-browser.
+  Further preferences (LED intensity, volume, e-ink text scale) remain open.
 - Provide keyboard and assistive-technology semantics for essential web controls.
-- Add reduced-motion behavior and avoid rapid/seizure-risk flashing.
-- Make long-press and other timing-sensitive physical interactions adjustable where practical without changing game semantics.
+- Reduced motion: portal (OS setting or per-browser switch) and Sigil lights
+  (Reduced motion style) are implemented; avoid rapid/seizure-risk flashing.
+- Long-press and win-hold times are adjustable per player (Sigil 0.5.4). The
+  15-second life-approval and pairing windows are not adjustable yet.
 - Preserve an authorized assistive-companion path for players when a table policy otherwise requires physical Sigils.
 - Add accessibility checks to feature verification and future hardware review.
 
@@ -224,6 +249,9 @@ Privacy direction:
   migrations before replacing the deployed v1 statistics representation.
 - Store player profiles, game profiles, session history, and exports independently from game-engine logic.
 - Design for optional expanded local storage later without changing game semantics.
+- Planned: once SD storage exists, serve optional portal theme packs from it as
+  extra token sets; built-in themes stay in flash (see
+  [Web Portal Design System](WEB_PORTAL_DESIGN.md)).
 - Version stored schemas and define migrations before changing persistent formats.
 
 ### 5. Session history
@@ -265,6 +293,15 @@ Privacy direction:
   entry stays open until an actual power-loss-and-reboot bench test confirms
   it on hardware, and until the Resume/Discard decision UI exists.
 
+- Serial-log browser download (`GET /api/diagnostics/log`, Developer page
+  button). *Needs verification* on hardware: host scenarios cover capture,
+  redaction, overflow and the permission gate, but the ESP32 build, the
+  cross-task spinlock and the 16 KB DRAM cost have not been confirmed on a
+  flashed Atlas yet.
+- *Planned* follow-up: capture framework `log_e`/ESP-IDF output as well (for
+  example via a vprintf hook). Today only the Atlas `serialLog` stream is kept.
+  Persisting logs across reboots needs storage that Atlas does not have yet.
+
 ## Working rules
 
 1. Do not create a new long-lived branch for planning/documentation alone.
@@ -276,4 +313,4 @@ Privacy direction:
 7. Before any structural change, review the engineering Git documentation first, including the architectural invariants, this staging document, and every reference document materially affected by the change. Resolve documentation conflicts before changing structure.
 8. Before treating a user-facing feature as complete, review its accessibility impact against `ACCESSIBILITY.md`.
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24

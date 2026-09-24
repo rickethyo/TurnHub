@@ -159,8 +159,10 @@ Timers submit System intents for deferred PASS commitment and countdown completi
 The current bindings and validation evidence are recorded in
 [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md).
 
-Application handlers and their private transition helpers remain in `main.cpp`;
-this migration removes interface-owned mutations without a larger module rewrite.
+Application handlers and their private transition helpers live in the Atlas
+application modules declared by `Atlas/include/atlas_app.h` (`gameplay_intents.cpp`,
+`table_intents.cpp`, `moderation_intent.cpp`); `main.cpp` binds them. Adapters live in
+`sigil_input.cpp`, `web_adapters.cpp` and `front_panel.cpp`.
 The native harness compiles those actual handlers with the real GameEngine/Lobby.
 Transport authentication, packet decoding, GPIO debounce, and held/chord/suppression
 bookkeeping remain outside the game rules. Presentation side effects remain adjacent
@@ -202,8 +204,11 @@ remain unsupported. Prototype 1.0 is staged to replace the mock/passive-discover
 behavior with a real Atlas-owned pairing state machine. General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
-requires the primary host seat in the lobby; `flags` is the game-profile enum and
-`value` is starting life. See [Game profiles and life](GAME_PROFILES_AND_LIFE.md).
+requires the primary host seat in the lobby; `flags` is the game-profile enum,
+`value` is starting life and `durationMs` is the turn timer (0 = off). See
+[Game profiles and life](GAME_PROFILES_AND_LIFE.md) and
+[Turn timer and cues](TURN_TIMER_AND_CUES.md). Turn-timer expiry has no Intent:
+it is a derived presentation cue and never changes game state.
 
 ## Result model
 

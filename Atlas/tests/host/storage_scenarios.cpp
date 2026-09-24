@@ -8,6 +8,7 @@
 #include "profile_stats_storage.h"
 #include "profile_policy.h"
 #include "game_settings_store.h"
+#include "accessibility_prefs.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -194,25 +195,36 @@ void gameSettingsRecords() {
   // Independent little-endian wire image: Yu-Gi-Oh!, 8000 life.
   FakeNvs::blobs["gamecfg"]={1,3,0x40,0x1f,0,0};
   assert(readGameSettings(store,settings)==Status::Ok);
-  assert(settings.profile==GameProfile::Yugioh && settings.startingLife==8000);
-  for (uint8_t profile=0;profile<4;++profile) for(int32_t life : {0,27,1000000}) {
-    settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;
+  // Schema 1 predates the turn timer and reads as OFF.
+  assert(settings.profile==GameProfile::Yugioh && settings.startingLife==8000 &&
+      settings.turnTimerMs==TURN_TIMER_OFF);
+  for (uint8_t profile=0;profile<4;++profile) for(int32_t life : {0,27,1000000})
+      for(uint32_t timer : {TURN_TIMER_OFF,TURN_TIMER_MIN_MS,120000u,TURN_TIMER_MAX_MS}) {
+    settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;settings.turnTimerMs=timer;
     assert(writeGameSettings(store,settings)==Status::Ok);
+    assert(FakeNvs::blobs["gamecfg"].size()==10 && FakeNvs::blobs["gamecfg"][0]==2);
     NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
     GameSettings again;assert(readGameSettings(reopened,again)==Status::Ok);
-    assert(again.profile==settings.profile && again.startingLife==life);
+    assert(again.profile==settings.profile && again.startingLife==life && again.turnTimerMs==timer);
     const int before=FakeNvs::writes;
     assert(writeGameSettings(reopened,settings)==Status::Ok && FakeNvs::writes==before);
   }
-  settings.startingLife=-1;
+  // Independent schema 2 image: Generic, 40 life, 90-second timer.
+  FakeNvs::blobs["gamecfg"]={2,0,40,0,0,0,0x90,0x5f,0x01,0};
+  assert(readGameSettings(store,settings)==Status::Ok && settings.turnTimerMs==90000);
+  settings.turnTimerMs=0;settings.startingLife=-1;
   assert(writeGameSettings(store,settings)==Status::InvalidArgument);
   settings.startingLife=1000001;
   assert(writeGameSettings(store,settings)==Status::InvalidArgument);
+  settings.startingLife=40;
+  for(uint32_t timer : {1u,14000u,15500u,TURN_TIMER_MAX_MS+1000})
+    {settings.turnTimerMs=timer;assert(writeGameSettings(store,settings)==Status::InvalidArgument);}
   for(const auto &bytes : {std::vector<uint8_t>{}, {1,0,20}, {1,0,20,0,0,0,0},
-      {1,4,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}}) {
+      {1,4,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}, {1,0,20,0,0,0,0,0,0,0},
+      {2,0,20,0,0,0,0xe8,0x03,0,0}, {3,0,20,0,0,0}}) {
     FakeNvs::blobs["gamecfg"]=bytes;
     settings=GameSettings{};
-    const Status expected=bytes.size()==6&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    const Status expected=bytes.size()==6&&bytes[0]==3?Status::UnsupportedSchema:Status::Corrupt;
     const int before=FakeNvs::writes;
     assert(readGameSettings(store,settings)==expected && settings.startingLife==40);
     assert(writeGameSettings(store,settings)==expected && FakeNvs::writes==before);
@@ -231,23 +243,81 @@ void gameSettingsRecords() {
 static void accountRecords(){
   FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
   NvsBlobStore store;assert(store.begin("turnhub")==Status::Ok);
-  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.reconnectRequired=true;a.connectionResets=513;a.gameRemovals=7;
+  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.reconnectRequired=true;a.legacyConnectionResets=513;a.legacyGameRemovals=7;
   assert(TurnHubAccounts::write(store,"u12345678",a)==Status::Ok);
   assert(FakeNvs::blobs["u12345678"]==std::vector<uint8_t>({2,31,1,1,1,2,0,0,7,0,0,0}));
   NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
-  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.connectionResets==513&&loaded.permissions==31);
+  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.legacyConnectionResets==513&&loaded.permissions==31);
   FakeNvs::blobs["u12345678"][0]=3;assert(TurnHubAccounts::write(store,"u12345678",a)==Status::UnsupportedSchema);
   FakeNvs::blobs["u12345678"]={1};assert(TurnHubAccounts::read(store,"u12345678",loaded)==Status::Corrupt);
   FakeNvs::blobs.clear();FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
   assert(TurnHubAccounts::write(store,"u12345678",a)==Status::IoError);FakeNvs::commitError=ESP_OK;
 }
+
+// o<profileId>: schema byte then two little-endian counts; never clobbered.
+static void moderationRecords(){
+  using TurnHubProfiles::ModerationStats;
+  FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
+  NvsBlobStore store;assert(store.begin("turnhub")==Status::Ok);
+  ModerationStats stats;
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",stats)==Status::NotFound);
+  stats.connectionResets=258;stats.gameRemovals=3;
+  assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::Ok);
+  assert(FakeNvs::blobs["o12345678"]==std::vector<uint8_t>({1,2,1,0,0,3,0,0,0}));
+  ModerationStats loaded;
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",loaded)==Status::Ok&&
+      loaded.connectionResets==258&&loaded.gameRemovals==3);
+  FakeNvs::blobs["o12345678"][0]=2;
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",loaded)==Status::UnsupportedSchema);
+  assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::UnsupportedSchema);
+  FakeNvs::blobs["o12345678"]={1,0};
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",loaded)==Status::Corrupt);
+  assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::Corrupt);
+}
+
+void accessibilityRecords() {
+  using namespace TurnHubProfiles;
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub")==Status::Ok);
+  AccessibilityPrefs prefs;
+  assert(readAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::NotFound);
+  assert(prefs.sigilSound && prefs.ledStyle==LedStyle::Standard && prefs.longPressMs==2000 && prefs.winHoldMs==5000);
+  // Independent wire image: sound off, reduced motion, 3000 ms / 6000 ms.
+  FakeNvs::blobs["xABCDEF01"]={1,0,1,0xb8,0x0b,0x70,0x17};
+  assert(readAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok);
+  assert(!prefs.sigilSound && prefs.ledStyle==LedStyle::ReducedMotion && prefs.longPressMs==3000 && prefs.winHoldMs==6000);
+  prefs.ledStyle=LedStyle::MonochromeSafe; prefs.winHoldMs=10000;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok);
+  assert((FakeNvs::blobs["xABCDEF01"]==std::vector<uint8_t>{1,0,2,0xb8,0x0b,0x10,0x27}));
+  const int before=FakeNvs::writes;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok && FakeNvs::writes==before);
+  AccessibilityPrefs bad=prefs; bad.longPressMs=4000; bad.winHoldMs=4500;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",bad)==Status::InvalidArgument);
+  bad=prefs; bad.ledStyle=static_cast<LedStyle>(3);
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",bad)==Status::InvalidArgument);
+  for(const auto &bytes : {std::vector<uint8_t>{}, {1,1,0,0xd0,0x07,0x88},
+      {1,2,0,0xd0,0x07,0x88,0x13}, {1,1,3,0xd0,0x07,0x88,0x13}, {1,1,0,0xe8,0x03,0xe8,0x03},
+      {1,1,0,0xd1,0x07,0x88,0x13}, {2,1,0,0xd0,0x07,0x88,0x13}, {1,1,0,0xd0,0x07,0x88,0x13,0}}) {
+    FakeNvs::blobs["xABCDEF01"]=bytes;
+    AccessibilityPrefs read;
+    const Status expected=bytes.size()==7&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    const int writes=FakeNvs::writes;
+    assert(readAccessibilityPrefs(store,"xABCDEF01",read)==expected && read.sigilSound && read.longPressMs==2000);
+    assert(writeAccessibilityPrefs(store,"xABCDEF01",AccessibilityPrefs{})==expected && FakeNvs::writes==writes);
+    assert(FakeNvs::blobs["xABCDEF01"]==bytes);
+  }
+}
+
 int main() {
   accountRecords();
+  moderationRecords();
   identityContracts();
   existingRecords();
   protectedRecords();
   backendFailures();
   profilePolicyRecords();
   gameSettingsRecords();
-  std::cout << "PASS: identity, statistics, profile policy, game settings and NVS failures\n";
+  accessibilityRecords();
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences and NVS failures\n";
 }

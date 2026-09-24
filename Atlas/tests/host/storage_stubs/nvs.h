@@ -9,7 +9,7 @@ using esp_err_t = int;
 using nvs_handle_t = uint32_t;
 constexpr int ESP_OK = 0, ESP_ERR_NVS_NOT_FOUND = 1,
     ESP_ERR_NVS_TYPE_MISMATCH = 2, ESP_ERR_NVS_INVALID_HANDLE = 3;
-constexpr int NVS_READWRITE = 1;
+constexpr int NVS_READONLY = 0, NVS_READWRITE = 1;
 namespace FakeNvs {
 extern std::map<std::string, std::vector<uint8_t>> blobs;
 extern std::map<std::string, std::string> strings;

@@ -14,24 +14,74 @@ pio run -e sigil-wokwi
 
 Then run **Wokwi: Start Simulator**. `wokwi.toml` loads the `sigil-wokwi` firmware and ELF files.
 
-The simulated Atlas automatically acknowledges the Sigil Hello packet, assigns Sigil ID 0, acknowledges Sigil control packets, and responds to a display-profile request with default names for Seat A and Seat B.
+## Hardware in the diagram
 
-The Wokwi diagram maps:
+`diagram.json` follows the Sigil Rev A schematic (`KiCad/PCB/Sigilv1`) and
+`Documentation/engineering/HARDWARE_REFERENCE.md`:
 
-- `P` to the PASS button on GPIO 26
-- `A` to the ACTION button on GPIO 25
-- `W` to the PAUSE / WIN button on GPIO 32 (breadboard J13)
-- blue LED to GPIO 27
-- green LED to GPIO 14
-- red LED to GPIO 13
-- buzzer to GPIO 33
-- e-paper SPI/control wiring to the production Sigil pins
+| Part | Wokwi part | Wiring (DevKit socket from the schematic) |
+| --- | --- | --- |
+| ESP32 DevKit, 38 pins | `board-esp32-devkit-c-v4` | Same 38-pin layout as the real carrier socket |
+| PASS button (`P`) | pushbutton | GPIO26 (J10) to GND (J6), INPUT_PULLUP |
+| ACTION button (`A`) | pushbutton | GPIO25 (J11) to GND (J6) |
+| PAUSE / WIN button (`W`) | pushbutton | GPIO32 (J13) to GND (J6) |
+| PAIR button (`R`) | pushbutton | GPIO19 (A12) to GND (A13) |
+| Red, green, blue LEDs (D1-D3) | LED + 330 ohm resistor (R1-R3) | GPIO13 (J5), GPIO14 (J8), GPIO27 (J9) -> 330R -> anode; cathode to GND (A19) |
+| Buzzer | `wokwi-buzzer` | GPIO33 (J12) to GND (A19) |
+| 2.13" e-paper | `chip-epaper-2in13` (local custom chip) | CLK 18, DIN 23, CS 17, DC 16, RST 22, BUSY 21, VCC 3V3, GND |
+
+The e-paper is a local copy of Bonny Rais's SSD1680 e-paper chip model
+(`wokwi/chips/`, MIT, release v0.0.5, the same binary Wokwi's own 2.9" board
+uses) with its panel set to the real GDEM0213B74's controller geometry: 128 RAM
+columns by 250 lines, portrait. The firmware drives it with the production
+`GxEPD2_213_B74` driver, unchanged. The model ignores the temperature-sensor
+command (`0x18`), which has no visible effect.
+
+## Differences from the real devices
+
+- **Radio:** ESP-NOW is replaced by the in-process fake Atlas, so range, packet
+  loss, channel and real Atlas interoperability are not simulated.
+- **Atlas:** the fake Atlas follows the real one's pairing and acknowledgement
+  rules (`Atlas/src/sigil_bus.cpp`) but runs no game: LEDs, sounds and screens
+  change only when you type console commands.
+- **Display:** the 6 RAM columns the real panel does not show (122 of 128 are
+  visible) appear here as a blank strip, and there is no e-ink ghosting or
+  refresh flashing.
+- **Buzzer:** the physical transducer on the Sigil is still unconfirmed
+  (schematic J3); Wokwi's buzzer plays the tones directly.
+- **Storage:** Wokwi normally starts each run from freshly flashed firmware, so
+  the Sigil behaves like a new, unpaired device and must be paired every time.
+
+## Pairing, as on real hardware
+
+A new Sigil is unpaired: the screen says so and it ignores everything until it
+pairs. As with a real Atlas, both sides must be in pairing mode:
+
+1. Type `pair` in the serial console. This stands in for pressing Atlas's Pair
+   button and opens the fake Atlas's 15-second window.
+2. Press the Sigil's PAIR button (`R`) within those 15 seconds. The red LED
+   blinks while the Sigil broadcasts `PairRequest`.
+3. The fake Atlas answers `PairAccept` with the Sigil ID set by `id` (default 0).
+   The Sigil stores it (`SIGIL|PAIR|SUCCESS`), sends Hello, and asks for player
+   names.
+
+Pressing PAIR without an open window ends in `SIGIL|PAIR|TIMEOUT`, as on real
+hardware. After pairing the fake Atlas only acknowledges Hello, PASS, the
+ACTION family and profile requests from that Sigil, exactly like the real one,
+and sends Sigil 0.5.4+ its hold thresholds (`InputTiming`, default 2 s / 5 s).
+
+## Buttons
 
 PAUSE / WIN switches GPIO 32 to GND and uses the internal pull-up. Tap to
-pause/resume (the existing ACTION-long semantic), or hold 5 seconds to claim
-a win. A win hold sends ACTION_LONG followed by ACTION_WIN at 5 seconds;
-it does not pause at 2 seconds or send ACTION_SHORT on release. GPIO 25
-retains its existing ACTION behavior, including short-press win confirmation.
+pause/resume (the existing ACTION-long semantic), or hold for the win hold
+(5 seconds by default) to claim a win. A win hold sends ACTION_LONG followed by
+ACTION_WIN; it does not pause at the long-press threshold or send ACTION_SHORT
+on release. GPIO 25 retains its existing ACTION behavior, including short-press
+win confirmation. `timing 3000 6000` changes the thresholds the way a player's
+accessibility setting does on a real table.
+
+PAIR also switches to GND with the internal pull-up; the firmware takes GPIO 19
+back from SPI MISO after the display starts.
 
 ## Atlas console commands
 
@@ -39,7 +89,9 @@ Type commands into the Wokwi serial console and press Enter:
 
 ```text
 help
+pair
 id 3
+timing 3000 6000
 blue 128
 red 1
 green 1
@@ -75,7 +127,7 @@ Flags can be combined, for example `0x18` means active + host.
 
 ## What this tests
 
-The simulation exercises the production Sigil's button debounce and hold timing, packet creation, packet receive handling, ACK behavior, LED commands, buzzer commands, profile-name chunk assembly, display-state decoding, and display-task scheduling.
+The simulation exercises the production Sigil's button debounce and hold timing (including Atlas-sent thresholds), the manual pairing handshake and its 15-second window, packet creation, packet receive handling, ACK behavior, LED commands, buzzer commands, profile-name chunk assembly, display-state decoding, display-task scheduling, and the production 2.13" display driver against an SSD1680 model.
 
 It does **not** test the ESP-NOW radio itself, RF behavior, peer discovery, packet loss, or real Atlas/Sigil wireless interoperability. Those still require physical ESP32 hardware.
 

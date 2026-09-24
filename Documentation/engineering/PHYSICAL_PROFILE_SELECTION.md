@@ -18,7 +18,7 @@ silently assigning a guest, clearing his profile, or moving his browser session.
 Current implementation evidence:
 
 - `controller_profiles.cpp::profileForSeat` reads persisted physical bindings.
-- `main.cpp::handleTableIntent` rejects Join when that profile already participates.
+- `table_intents.cpp::handleSeatMembershipIntent` rejects Join when that profile already participates.
 - Physical attachment from an authenticated browser can replace an unjoined
   Sigil's binding today, but a standalone physical picker does not exist.
 - Sigil has Pass and Action buttons and a 250x122 monochrome e-ink display.
@@ -170,9 +170,11 @@ credentials. Do not treat the browser's current hash format as a radio protocol.
 ## Device Settings ownership
 
 Product decision, 2026-09-21: provide an Atlas-owned Device Settings area for
-per-Sigil preferences. The Seat A remember choice is exposed from the Players
+per-Sigil preferences. The Seat A remember choice was exposed from the Players
 device card because it is an owner-authorized binding action; Seat B has no
-persistence setting. Startup mode remains planned. Atlas stores and validates
+persistence setting. *Superseded 2026-09-22 by "Temporary Sigil seats" above;
+the unused portal function, the `/api/device/persistence` endpoint and the
+`persistentA` device field were removed on 2026-09-24.* Startup mode remains planned. Atlas stores and validates
 device settings keyed to the physical device; profile access and stats-privacy
 choices remain profile settings.
 

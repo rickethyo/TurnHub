@@ -37,11 +37,90 @@ class AtlasWireParserTest {
 
     @Test
     fun `parses every state fixture`() {
-        listOf("lobby", "running", "reconnected", "commander").forEach { name ->
+        listOf("lobby", "running", "reconnected", "commander", "timer-warning").forEach { name ->
             val state = AtlasWireParser.parseState(Fixtures.text("$name.response.json"))
             assertEquals(name, "THA-025448410001", state.atlasId)
             assertEquals(name, Fixtures.BOOT_ID, state.bootId)
         }
+    }
+
+    @Test
+    fun `parses Atlas's turn timer`() {
+        val state = Fixtures.state("timer-warning.response.json")
+
+        assertEquals(TableSettings(GameProfile.MTG, 20, turnTimerMs = 90_000), state.settings)
+        assertEquals(TurnTimer(TurnTimerPhase.WARNING, remainingMs = 9_000), state.turnTimer)
+        assertEquals(TurnTimer(TurnTimerPhase.NORMAL, remainingMs = null), Fixtures.state("lobby.response.json").turnTimer)
+    }
+
+    @Test
+    fun `firmware without the turn timer reads as off`() {
+        val state = Fixtures.state("running.response.json") {
+            remove("turnTimer")
+            getJSONObject("settings").remove("turnTimerMs")
+        }
+
+        assertEquals(0L, state.settings.turnTimerMs)
+        assertEquals(false, state.settings.turnTimerEnabled)
+        assertNull(state.turnTimer)
+    }
+
+    @Test
+    fun `an unknown timer phase or bad remaining time is malformed`() {
+        listOf<JSONObject.() -> Unit>(
+            { getJSONObject("turnTimer").put("phase", "PANIC") },
+            { getJSONObject("turnTimer").remove("remainingMs") },
+            { getJSONObject("turnTimer").put("remainingMs", -1) },
+            { getJSONObject("settings").put("turnTimerMs", "90s") },
+        ).forEach { edit ->
+            assertThrows(AtlasWireException.Malformed::class.java) {
+                Fixtures.state("timer-warning.response.json", edit)
+            }
+        }
+    }
+
+    @Test
+    fun `parses the shared accessibility fixture`() {
+        val settings = AtlasWireParser.parseAccessibility(Fixtures.text("accessibility.response.json"))
+
+        assertEquals(false, settings.sigilSound)
+        assertEquals(LedStyle.REDUCED_MOTION, settings.ledStyle)
+        assertEquals(3000 to 6000, settings.longPressMs to settings.winHoldMs)
+        assertTrue(settings.stored)
+        assertEquals((1000..4000 step 250).toList(), settings.limits.longPressChoices())
+        assertTrue(settings.limits.allows(2000, 5000))
+        assertEquals(false, settings.limits.allows(4000, 4500))
+    }
+
+    @Test
+    fun `rejects unknown light styles and impossible hold times`() {
+        val fixture = Fixtures.json("accessibility.response.json")
+        for (edit in listOf<(org.json.JSONObject) -> Unit>(
+            { it.put("ledStyle", "sparkly") },
+            { it.put("winHoldMs", 3500) },
+            { it.remove("limits") },
+        )) {
+            val body = org.json.JSONObject(fixture.toString()).also(edit).toString()
+            assertThrows(AtlasWireException.Malformed::class.java) { AtlasWireParser.parseAccessibility(body) }
+        }
+    }
+
+    @Test
+    fun `parses game settings with timer choices`() {
+        val body = """{"gameProfile":"mtg","startingLife":20,"turnTimerMs":120000,
+            "turnTimer":{"presetsMs":[0,60000,120000,180000,300000],"minMs":15000,"maxMs":3600000,
+            "warningMs":10000,"longTurnMs":300000},"available":true,"canEdit":false}"""
+
+        val settings = AtlasWireParser.parseGameSettings(body)
+
+        assertEquals(TableSettings(GameProfile.MTG, 20, 120_000), settings.settings)
+        assertEquals(listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L), settings.turnTimerPresetsMs)
+        assertEquals(15_000L to 3_600_000L, settings.turnTimerMinMs to settings.turnTimerMaxMs)
+        assertEquals(true to false, settings.available to settings.canEdit)
+
+        val older = AtlasWireParser.parseGameSettings("""{"gameProfile":"generic","startingLife":40,"available":true,"canEdit":true}""")
+        assertEquals(0L, older.settings.turnTimerMs)
+        assertTrue(older.turnTimerPresetsMs.isEmpty())
     }
 
     @Test

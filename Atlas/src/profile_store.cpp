@@ -157,7 +157,7 @@ size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity) {
       // crowd out real accounts or exhaust the registration limit.
       const String id(info.key + 1);
       bool configured = false;
-      for (const char prefix : {'n', 'p', 's', 'a', 'u'}) {
+      for (const char prefix : {'n', 'p', 's', 'a', 'u', MODERATION_STATS_PREFIX, ACCESSIBILITY_PREFIX}) {
         configured = configured || preferences.isKey(profileKey(prefix, id).c_str());
       }
       if (configured) memcpy(ids[count++], info.key + 1, PROFILE_ID_LENGTH + 1);
@@ -258,6 +258,26 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy) 
       TurnHubStorage::Status::Ok;
 }
 
+bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs) {
+  // A missing record means the defaults; an unreadable one keeps the defaults
+  // for presentation but reports failure so the portal can say so.
+  prefs = AccessibilityPrefs{};
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  const auto status = readAccessibilityPrefs(statsStorage,
+      profileKey(ACCESSIBILITY_PREFIX, profileId).c_str(), prefs);
+  if (status == TurnHubStorage::Status::NotFound) return true;
+  if (status != TurnHubStorage::Status::Ok) prefs = AccessibilityPrefs{};
+  return status == TurnHubStorage::Status::Ok;
+}
+
+bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs) {
+  if (!preferencesReady || !profileExists(profileId) || !validAccessibilityPrefs(prefs) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  return writeAccessibilityPrefs(statsStorage,
+      profileKey(ACCESSIBILITY_PREFIX, profileId).c_str(), prefs) == TurnHubStorage::Status::Ok;
+}
+
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats) {
   stats = ProfileStats{};
   if (!preferencesReady || !profileExists(profileId)) {
@@ -283,6 +303,24 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats) {
   return writeStoredStats(statsStorage, key.c_str(), stats) == TurnHubStorage::Status::Ok;
 }
 
+bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats) {
+  stats = ModerationStats{};
+  // Loading the account first migrates any counts it still holds.
+  TurnHubAccounts::Account account;
+  if (!preferencesReady || !TurnHubAccounts::load(profileId, account)) return false;
+  if (statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  const String key = profileKey(MODERATION_STATS_PREFIX, profileId);
+  const auto status = readStoredModerationStats(statsStorage, key.c_str(), stats);
+  return status == TurnHubStorage::Status::Ok || status == TurnHubStorage::Status::NotFound;
+}
+
+bool saveModerationStatsForProfile(const String &profileId, const ModerationStats &stats) {
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  const String key = profileKey(MODERATION_STATS_PREFIX, profileId);
+  return writeStoredModerationStats(statsStorage, key.c_str(), stats) == TurnHubStorage::Status::Ok;
+}
+
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot) {
   // Looking up a Sigil, including its unused secondary seat, must never
   // manufacture a durable account. Unbound seats are guests.
@@ -301,16 +339,6 @@ String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot) {
   const auto *binding = transientSeatFor(mac, slot, false);
   return binding && validProfileId(binding->profileId) && profileExists(binding->profileId)
       ? binding->profileId : String();
-}
-
-bool seatIsPersistent(const uint8_t mac[6], uint8_t slot) {
-  (void)mac; (void)slot;
-  return false;
-}
-
-bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent) {
-  (void)mac; (void)slot;
-  return !persistent;
 }
 
 bool resetTransientSeatBindings(const uint8_t mac[6]) {
@@ -459,20 +487,64 @@ bool saveStatsForSeat(
 }  // namespace TurnHubProfiles
 
 namespace TurnHubAccounts {
-bool load(const String &id,Account &a){
-  if(!TurnHubProfiles::profileExists(id))return false;
-  TurnHubStorage::NvsBlobStore store;if(store.begin("turnhub")!=TurnHubStorage::Status::Ok)return false;
-  auto s=read(store,(String("u")+id).c_str(),a);
-  if(s==TurnHubStorage::Status::NotFound)a=Account{};
-  else if(s!=TurnHubStorage::Status::Ok)return false;
-  String primary;if(!primaryAdmin(primary))return false;
-  if(id==primary)a.permissions|=Admin;
+
+namespace {
+
+using TurnHubStorage::Status;
+
+String accountKey(const String &id) {
+  return String("u") + id;
+}
+
+// Moves counts that older firmware kept in the account record into the
+// profile's moderation statistics, then clears them from the account. The
+// statistics record is written first; if power fails before the account is
+// cleared, the next load sees an existing record and only clears the account.
+bool migrateLegacyModerationCounts(TurnHubStorage::BlobStore &store, const String &id, Account &account) {
+  String statsKey;
+  statsKey += TurnHubProfiles::MODERATION_STATS_PREFIX;
+  statsKey += id;
+  TurnHubProfiles::ModerationStats stats;
+  const Status status = TurnHubProfiles::readStoredModerationStats(store, statsKey.c_str(), stats);
+  if (status == Status::NotFound) {
+    stats.connectionResets = account.legacyConnectionResets;
+    stats.gameRemovals = account.legacyGameRemovals;
+    if (TurnHubProfiles::writeStoredModerationStats(store, statsKey.c_str(), stats) != Status::Ok) return false;
+  } else if (status != Status::Ok) {
+    return false;  // Never guess over an unreadable record.
+  }
+  account.legacyConnectionResets = 0;
+  account.legacyGameRemovals = 0;
+  return write(store, accountKey(id).c_str(), account) == Status::Ok;
+}
+
+}  // namespace
+
+bool load(const String &id, Account &account) {
+  if (!TurnHubProfiles::profileExists(id)) return false;
+  TurnHubStorage::NvsBlobStore store;
+  if (store.begin("turnhub") != Status::Ok) return false;
+  const Status status = read(store, accountKey(id).c_str(), account);
+  if (status == Status::NotFound) {
+    account = Account{};
+  } else if (status != Status::Ok) {
+    return false;
+  } else if ((account.legacyConnectionResets || account.legacyGameRemovals) &&
+      !migrateLegacyModerationCounts(store, id, account)) {
+    return false;
+  }
+  String primary;
+  if (!primaryAdmin(primary)) return false;
+  if (id == primary) account.permissions |= Admin;
   return true;
 }
-bool save(const String &id,const Account &a){
-  if(!TurnHubProfiles::profileExists(id))return false;
-  TurnHubStorage::NvsBlobStore store;return store.begin("turnhub")==TurnHubStorage::Status::Ok&&write(store,(String("u")+id).c_str(),a)==TurnHubStorage::Status::Ok;
+
+bool save(const String &id, const Account &account) {
+  if (!TurnHubProfiles::profileExists(id)) return false;
+  TurnHubStorage::NvsBlobStore store;
+  return store.begin("turnhub") == Status::Ok && write(store, accountKey(id).c_str(), account) == Status::Ok;
 }
+
 bool primaryAdmin(String &id){
   id="";TurnHubStorage::NvsBlobStore store;if(store.begin("turnhub")!=TurnHubStorage::Status::Ok)return false;
   size_t n=0;auto s=store.read("acctadmin",nullptr,0,n);

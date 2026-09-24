@@ -8,7 +8,7 @@ using esp_err_t=int;
 using nvs_handle_t=uint32_t;
 constexpr int ESP_OK=0, ESP_ERR_NVS_NOT_FOUND=1, ESP_ERR_NVS_TYPE_MISMATCH=2,
     ESP_ERR_NVS_INVALID_HANDLE=3;
-constexpr int NVS_READWRITE = 1;
+constexpr int NVS_READONLY = 0, NVS_READWRITE = 1;
 extern esp_err_t readError, eraseError, injectedCommitError;
 // Fault injection for the raw blob open/write path used by NvsBlobStore
 // (game recovery). Defaults to success so existing Preferences-based fault

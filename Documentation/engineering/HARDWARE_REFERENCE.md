@@ -140,8 +140,12 @@ The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-i
 ### Current control timing
 
 - Debounce: 30 ms.
-- Action long press: 2 seconds.
-- Action win hold: 5 seconds.
+- Action long press: 2 seconds by default; 1-4 seconds per player (Sigil firmware 0.5.4+).
+- Action win hold: 5 seconds by default; 3-10 seconds per player, always at least
+  1 second longer than the long press. The Pause / Win button uses the same win hold.
+  Atlas sends the seated players' choice (`InputTiming`, see
+  [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)); the Sigil keeps it in RAM only.
+  *Needs verification* on hardware; host tests only cover Atlas's side.
 - Pass acknowledgement green flash: 250 ms.
 
 ### Auxiliary control revision
@@ -155,7 +159,7 @@ The current controls extend the original two-button layout:
 - **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
 - **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. Older schematic GPIO4 auxiliary or GPIO32 display-detect labels do not describe this firmware wiring. Remaining ergonomics should be finalized after physical playtesting.
+The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. The Rev A schematic now carries it as net BTN_PAUSE with switch SW5 to GND (2026-09-24, checked against firmware by `verify_schematic.py`; not a hardware check). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
 
 ### Display orientation direction
 

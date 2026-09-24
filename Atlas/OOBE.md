@@ -216,7 +216,7 @@ Recommended recovery controls:
 
 ## Implementation sequence
 
-1. Introduce a dedicated provisioning/network configuration service instead of keeping Wi-Fi preferences inside `main.cpp` and `web_api.cpp`.
+1. Introduce a dedicated provisioning/network configuration service. (Partial, 2026-09-24: the stored AP password is now read through one helper, `wifi_password_store.h`, shared by startup and `web_admin_api.cpp`; writes still live in the admin endpoint.)
 2. Add an explicit provisioned/unprovisioned boot state.
 3. Build the first-run setup wizard and owner-profile creation.
 4. Refactor browser sessions from seat identity to profile identity and capability checks.

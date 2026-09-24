@@ -2,6 +2,9 @@
 #include "profile_statistics.h"
 #include "profile_store.h"
 #include "turnhub_types.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 namespace {
 
@@ -14,8 +17,8 @@ String resolveProfileId(const TurnHub::PlayerSeat &seat) {
 void persistCompletedGame(const TurnHub::GameEngine &game) {
   const uint8_t updated =
       TurnHubProfileStats::recordCompletedGame(game, resolveProfileId);
-  Serial.print("ATLAS|PROFILE_STATS|GAME_RECORDED|");
-  Serial.println(updated);
+  serialLog.print("ATLAS|PROFILE_STATS|GAME_RECORDED|");
+  serialLog.println(updated);
 }
 
 struct ProfileStatsBridgeRegistration {
