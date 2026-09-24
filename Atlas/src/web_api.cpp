@@ -28,6 +28,7 @@ ChangeLifeCallback changeLifeHandler = nullptr;
 ReadCountersCallback readCountersHandler = nullptr;
 CounterControlCallback counterControlHandler = nullptr;
 ModerateCallback moderateHandler = nullptr;
+AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
 
@@ -90,6 +91,10 @@ void configureModeration(ModerateCallback callback) {
   moderateHandler = callback;
 }
 
+void configureAccessibility(AccessibilityChangedCallback callback) {
+  accessibilityChanged = callback;
+}
+
 // --- Routes ---------------------------------------------------------------------------
 
 void begin(WebServer &server) {
@@ -150,6 +155,8 @@ void begin(WebServer &server) {
   route("/api/session/me", HTTP_GET, handleSessionMe);
   route("/api/session/profile", HTTP_POST, handleProfile);
   route("/api/session/policy", HTTP_POST, handleProfilePolicy);
+  route("/api/session/accessibility", HTTP_GET, handleAccessibility);
+  route("/api/session/accessibility", HTTP_POST, handleSaveAccessibility);
   route("/api/session/stats", HTTP_GET, handleProfileStats);
   route("/api/session/stats/export", HTTP_GET, handleProfileStatsExport);
   route("/api/session/logout", HTTP_POST, handleLogout);

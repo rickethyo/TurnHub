@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "identity.h"
+#include "accessibility_prefs.h"
 #include "profile_policy.h"
 
 namespace TurnHubProfiles {
@@ -73,6 +74,11 @@ bool hasPinForProfile(const String &profileId);
 
 bool loadPolicyForProfile(const String &profileId, ProfilePolicy &policy);
 bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
+
+// Per-player accessibility preferences (accessibility_prefs.h). A missing
+// record loads the defaults and succeeds.
+bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs);
+bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs);
 
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats);
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);

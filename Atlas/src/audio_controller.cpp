@@ -212,6 +212,7 @@ void AudioController::setProfile(const AudioCueProfile &profile) {
 }
 
 bool AudioController::play(AudioCue cue, uint16_t targetMask) {
+  targetMask = static_cast<uint16_t>(targetMask & ~mutedMask_);
   if (targetMask == 0 || !profile_->enabled || profile_->pattern(cue).count == 0) {
     return false;
   }
@@ -279,6 +280,7 @@ void AudioController::sendTone(
     uint16_t durationMs) {
   const int32_t payload = TurnHubProtocol::encodeTone(frequencyHz, durationMs);
 
+  targetMask = static_cast<uint16_t>(targetMask & ~mutedMask_);
   for (uint8_t sigilId = 0; sigilId < MAX_PHYSICAL_SIGILS; ++sigilId) {
     if ((targetMask & maskForSigil(sigilId)) == 0) {
       continue;
@@ -287,6 +289,7 @@ void AudioController::sendTone(
   }
 }
 
+void AudioController::actionRequired(uint8_t sigilId) { play(AudioCue::ActionRequired, maskForSigil(sigilId)); }
 void AudioController::playerJoined(uint8_t sigilId) { play(AudioCue::PlayerJoined, maskForSigil(sigilId)); }
 void AudioController::sharedPlayerAdded(uint8_t sigilId) { play(AudioCue::SharedPlayerAdded, maskForSigil(sigilId)); }
 void AudioController::sharedPlayerRemoved(uint8_t sigilId) { play(AudioCue::SharedPlayerRemoved, maskForSigil(sigilId)); }

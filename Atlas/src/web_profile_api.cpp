@@ -273,6 +273,102 @@ void handleProfilePolicy(WebServer &server) {
   sendJson(server, 200, "{\"ok\":true}");
 }
 
+namespace {
+void sendAccessibility(WebServer &server, const TurnHubProfiles::AccessibilityPrefs &prefs,
+    bool stored) {
+  String body;
+  body.reserve(420);
+  body += "{\"ok\":true,\"stored\":";
+  body += stored ? "true" : "false";
+  body += ",\"sigilSound\":";
+  body += prefs.sigilSound ? "true" : "false";
+  body += ",\"ledStyle\":\"";
+  body += TurnHubProfiles::ledStyleKey(prefs.ledStyle);
+  body += "\",\"longPressMs\":";
+  body += String(prefs.longPressMs);
+  body += ",\"winHoldMs\":";
+  body += String(prefs.winHoldMs);
+  body += ",\"limits\":{\"longPressMinMs\":";
+  body += String(TurnHubProtocol::MIN_LONG_PRESS_MS);
+  body += ",\"longPressMaxMs\":";
+  body += String(TurnHubProtocol::MAX_LONG_PRESS_MS);
+  body += ",\"winHoldMinMs\":";
+  body += String(TurnHubProtocol::MIN_WIN_HOLD_MS);
+  body += ",\"winHoldMaxMs\":";
+  body += String(TurnHubProtocol::MAX_WIN_HOLD_MS);
+  body += ",\"minGapMs\":";
+  body += String(TurnHubProtocol::MIN_HOLD_GAP_MS);
+  body += ",\"stepMs\":";
+  body += String(TurnHubProtocol::HOLD_STEP_MS);
+  body += "}}";
+  sendJson(server, 200, body);
+}
+}  // namespace
+
+// Per-player accessibility preferences. Like the profile policy, these are
+// profile settings rather than table state: only the signed-in profile reads
+// or changes its own, and the portal and Android use this same endpoint.
+void handleAccessibility(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendError(server, 401, "Sign into your profile to see its accessibility settings");
+    return;
+  }
+  TurnHubProfiles::AccessibilityPrefs prefs;
+  const bool stored = TurnHubProfiles::loadAccessibilityForProfile(sessionProfileId(*session), prefs);
+  sendAccessibility(server, prefs, stored);
+}
+
+// Omitted fields keep their saved value, so a client can change one setting.
+void handleSaveAccessibility(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendError(server, 401, "Sign into your profile to change its accessibility settings");
+    return;
+  }
+  const String id = sessionProfileId(*session);
+  TurnHubProfiles::AccessibilityPrefs prefs;
+  if (!TurnHubProfiles::loadAccessibilityForProfile(id, prefs)) {
+    sendError(server, 503, "Accessibility settings could not be read; reload before retrying");
+    return;
+  }
+  const auto wholeMs = [](const String &text, uint16_t &out) {
+    if (text.length() == 0 || text.length() > 5) return false;
+    for (size_t i = 0; i < text.length(); ++i) {
+      if (text[i] < '0' || text[i] > '9') return false;
+    }
+    const long value = text.toInt();
+    if (value > 65535) return false;
+    out = static_cast<uint16_t>(value);
+    return true;
+  };
+  if (server.hasArg("sigilSound")) {
+    const String sound = server.arg("sigilSound");
+    if (sound != "0" && sound != "1") {
+      sendError(server, 400, "sigilSound must be 0 or 1");
+      return;
+    }
+    prefs.sigilSound = sound == "1";
+  }
+  if (server.hasArg("ledStyle") &&
+      !TurnHubProfiles::parseLedStyle(server.arg("ledStyle").c_str(), prefs.ledStyle)) {
+    sendError(server, 400, "Unknown light style");
+    return;
+  }
+  if ((server.hasArg("longPressMs") && !wholeMs(server.arg("longPressMs"), prefs.longPressMs)) ||
+      (server.hasArg("winHoldMs") && !wholeMs(server.arg("winHoldMs"), prefs.winHoldMs)) ||
+      !TurnHubProfiles::validAccessibilityPrefs(prefs)) {
+    sendError(server, 400, "Hold times are out of range, or the win hold is not at least one second longer than the long press");
+    return;
+  }
+  if (!TurnHubProfiles::saveAccessibilityForProfile(id, prefs)) {
+    sendError(server, 503, "Accessibility settings could not be saved; reload before retrying");
+    return;
+  }
+  if (accessibilityChanged) accessibilityChanged();
+  sendAccessibility(server, prefs, true);
+}
+
 void handleProfileStats(WebServer &server) {
   String profileId;
   String name;

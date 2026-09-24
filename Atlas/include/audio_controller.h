@@ -28,7 +28,7 @@ enum class AudioCue : uint8_t {
   Resume,
   TurnWarning,         // Turn timer: TURN_TIMER_WARNING_MS left. A subtle chirp.
   TimerExpired,        // Turn timer reached zero. No turn change follows.
-  ActionRequired,      // A decision waits on this Sigil. Defined, not yet emitted.
+  ActionRequired,      // A decision waits on this Sigil: win confirmation or life approval.
   GameStart,
   GameOver,
   Nudge,
@@ -78,6 +78,12 @@ class AudioController {
   void setProfile(const AudioCueProfile &profile);
   const AudioCueProfile &profile() const { return *profile_; }
 
+  // Sigils whose seated players turned Sigil sound off (per-player
+  // accessibility preference). Muted Sigils are skipped when a cue plays,
+  // including notes already queued; other Sigils still hear the cue.
+  void setMutedSigils(uint16_t mask) { mutedMask_ = mask; }
+  uint16_t mutedSigils() const { return mutedMask_; }
+
   void update(uint32_t nowMs);
   void clear();
   // Queues a cue for the Sigils in targetMask. False when silenced or full.
@@ -98,6 +104,7 @@ class AudioController {
   void resume(uint16_t targetMask);
   void turnWarning(uint8_t sigilId);
   void timerExpired(uint8_t sigilId);
+  void actionRequired(uint8_t sigilId);
   void gameStart(uint16_t targetMask);
   void gameOver(uint16_t targetMask);
 
@@ -127,6 +134,7 @@ class AudioController {
 
   SigilBus &bus_;
   const AudioCueProfile *profile_;
+  uint16_t mutedMask_ = 0;
   Job queue_[QUEUE_CAPACITY];
   uint8_t queueHead_ = 0;
   uint8_t queueTail_ = 0;

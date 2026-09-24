@@ -44,7 +44,13 @@ const SigilRecord *SigilBus::record(uint8_t id) const { return fixtureRadio&&id<
 static unsigned fixtureSends=0;
 static unsigned fixtureProfileSyncs=0;
 void SigilBus::syncDisplayProfile(uint8_t id) { assert(id<MAX_PHYSICAL_SIGILS); ++fixtureProfileSyncs; }
-bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType,int32_t) { assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;return fixtureRadio; }
+static int32_t fixtureInputTiming[MAX_PHYSICAL_SIGILS]{};
+static unsigned fixtureInputTimingSends=0;
+bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
+  assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;
+  if(type==TurnHubProtocol::PacketType::InputTiming&&fixtureRadio) { fixtureInputTiming[id]=value; ++fixtureInputTimingSends; }
+  return fixtureRadio;
+}
 static TurnHubProtocol::GameDisplayPacket sentGameDisplays[MAX_PHYSICAL_SIGILS]{};
 static unsigned gameDisplaySends = 0;
 bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &p) {
@@ -57,7 +63,8 @@ bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlu
 bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
 bool SigilBus::setGreen(uint8_t id,bool v) { return send(id,PacketType::SetGreen,v); }
 static unsigned fixtureBuzzes[MAX_PHYSICAL_SIGILS]{};
-bool SigilBus::buzzer(uint8_t id,int32_t v) { ++fixtureBuzzes[id]; return send(id,PacketType::Buzzer,v); }
+static std::vector<int32_t> fixtureTones[MAX_PHYSICAL_SIGILS];
+bool SigilBus::buzzer(uint8_t id,int32_t v) { ++fixtureBuzzes[id]; fixtureTones[id].push_back(v); return send(id,PacketType::Buzzer,v); }
 OtaManager::OtaManager(WebServer &webServer,AllowedCallback allowed) : server_(webServer),allowedCallback_(allowed) {}
 void OtaManager::begin() {}
 void OtaManager::update(uint32_t) {}
@@ -1073,6 +1080,156 @@ static void turnTimerCuesAndMute() {
   enterEmptyLobby();
 }
 
+// ActionRequired is two 60 ms notes at 1150 Hz; no other cue uses that tone.
+static bool heardActionRequired(uint8_t id) {
+  const int32_t tone = TurnHubProtocol::encodeTone(1150, 60);
+  for (int32_t v : TurnHub::fixtureTones[id]) if (v == tone) return true;
+  return false;
+}
+static void clearTones() { drainAudio(); for (auto &tones : TurnHub::fixtureTones) tones.clear(); }
+
+static bool onlyPatterns(const TurnHub::CueStyle &style, bool (*ok)(const TurnHub::ChannelStyle &)) {
+  return ok(style.blue) && ok(style.red) && ok(style.green);
+}
+
+static void accessibilityPreferences() {
+  using namespace TurnHub;
+  using TurnHubProfiles::AccessibilityPrefs;
+  using TurnHubProfiles::LedStyle;
+  // Reduced motion: only steady, dim or slow (>= 4 s) blinking lights.
+  const auto calm = +[](const ChannelStyle &c) {
+    return c.pattern == LedPattern::Off || c.pattern == LedPattern::Solid || c.pattern == LedPattern::Dim ||
+        (c.pattern == LedPattern::Blink && c.periodMs >= 4000 && c.onMs >= 1000);
+  };
+  const LedCueProfile &calmProfile = reducedMotionLedCueProfile();
+  for (const auto &style : calmProfile.cues) assert(onlyPatterns(style, calm));
+  for (const auto &style : calmProfile.overlays) assert(onlyPatterns(style, calm));
+  // Your turn and waiting differ by brightness, not only by colour.
+  SigilLedState yours; yours.cue = LedCue::YourTurn;
+  SigilLedState waiting; waiting.cue = LedCue::Waiting;
+  assert(ledLevels(calmProfile, yours, 1000).blue == 255 && ledLevels(calmProfile, waiting, 1000).blue > 0 &&
+      ledLevels(calmProfile, waiting, 1000).blue < 128);
+  // Monochrome-safe: cues sharing a situation differ in cadence, not only hue.
+  const LedCueProfile &mono = monochromeSafeLedCueProfile();
+  const auto sameCadence = [](const CueStyle &a, const CueStyle &b) {
+    const auto lit = [](const CueStyle &c) {
+      return c.blue.pattern != LedPattern::Off ? c.blue : c.red.pattern != LedPattern::Off ? c.red : c.green;
+    };
+    const ChannelStyle x = lit(a), y = lit(b);
+    return x.pattern == y.pattern && x.periodMs == y.periodMs && x.onMs == y.onMs;
+  };
+  assert(!sameCadence(mono.overlay(LedOverlay::TimerExpired), mono.overlay(LedOverlay::LongTurn)));
+  assert(!sameCadence(mono.cue(LedCue::ConfirmationNeeded), mono.cue(LedCue::EliminationSelect)));
+  assert(!sameCadence(calmProfile.overlay(LedOverlay::TimerExpired), calmProfile.overlay(LedOverlay::LongTurn)));
+  assert(!sameCadence(calmProfile.cue(LedCue::ConfirmationNeeded), calmProfile.cue(LedCue::EliminationSelect)));
+  assert(sameCadence(defaultLedCueProfile().overlay(LedOverlay::TimerExpired),
+      defaultLedCueProfile().overlay(LedOverlay::LongTurn)));  // Why the alternatives exist.
+
+  // Sharing a Sigil keeps each player's accommodation.
+  AccessibilityPrefs a, b;
+  a.sigilSound = false; a.ledStyle = LedStyle::MonochromeSafe; a.longPressMs = 3000; a.winHoldMs = 6000;
+  b.ledStyle = LedStyle::ReducedMotion; b.longPressMs = 2500; b.winHoldMs = 7000;
+  const AccessibilityPrefs merged = TurnHubProfiles::mergeSeatPrefs(a, b);
+  assert(!merged.sigilSound && merged.ledStyle == LedStyle::ReducedMotion &&
+      merged.longPressMs == 3000 && merged.winHoldMs == 7000 && validAccessibilityPrefs(merged));
+  assert(TurnHubProfiles::mergeSeatPrefs(AccessibilityPrefs{}, AccessibilityPrefs{}).sigilSound);
+
+  // HTTP: only the signed-in profile reads or changes its own preferences.
+  enterEmptyLobby(); testNow = 1000; TurnHub::fixtureRadio = true;
+  registerWebCallbacks();  // Production wiring, including the save -> restyle callback.
+  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) { fixtureRecords[i].id = i; fixtureRecords[i].mac[5] = i; }
+  String aliceId, bobId;
+  const String alice = registerPhone("Access A", aliceId), bob = registerPhone("Access B", bobId);
+  assert(request("/api/session/accessibility", "", {}, HTTP_GET) == 401);
+  assert(request("/api/session/accessibility", "", {{"sigilSound", "0"}}) == 401);
+  assert(request("/api/session/accessibility", alice, {}, HTTP_GET) == 200);
+  assert(server.body.find("\"sigilSound\":true") != std::string::npos);
+  assert(server.body.find("\"ledStyle\":\"standard\"") != std::string::npos);
+  assert(server.body.find("\"longPressMs\":2000") != std::string::npos);
+  assert(server.body.find("\"winHoldMs\":5000") != std::string::npos);
+  for (const auto &bad : std::vector<std::map<std::string, String>>{
+           {{"sigilSound", "yes"}}, {{"ledStyle", "sparkly"}}, {{"longPressMs", "500"}},
+           {{"longPressMs", "2100"}}, {{"winHoldMs", "99999"}}, {{"longPressMs", "4000"}, {"winHoldMs", "4500"}},
+           {{"longPressMs", "-2000"}}, {{"winHoldMs", "abc"}}})
+    assert(request("/api/session/accessibility", alice, bad) == 400);
+  assert(ProfileFixture::profiles[aliceId.c_str()].accessibility.longPressMs == 2000);
+  // Partial updates keep the other fields.
+  assert(request("/api/session/accessibility", alice, {{"ledStyle", "monochrome-safe"}}) == 200);
+  assert(request("/api/session/accessibility", alice,
+      {{"sigilSound", "0"}, {"longPressMs", "3000"}, {"winHoldMs", "6000"}}) == 200);
+  assert(server.body.find("\"ledStyle\":\"monochrome-safe\"") != std::string::npos);
+  const AccessibilityPrefs saved = ProfileFixture::profiles[aliceId.c_str()].accessibility;
+  assert(!saved.sigilSound && saved.ledStyle == LedStyle::MonochromeSafe &&
+      saved.longPressMs == 3000 && saved.winHoldMs == 6000);
+  assert(ProfileFixture::profiles[bobId.c_str()].accessibility.sigilSound);
+
+  // Applying: Alice is bound to Sigil 1; Sigil 1 supports InputTiming, Sigil 2 does not.
+  ProfileFixture::bindings.clear();
+  ProfileFixture::bindings[ProfileFixture::key(fixtureRecords[1].mac, 1).c_str()] = aliceId;
+  ProfileFixture::bindings[ProfileFixture::key(fixtureRecords[2].mac, 1).c_str()] = aliceId;
+  fixtureRecords[1].helloInfoValid = true;
+  fixtureRecords[1].capabilities = TurnHubProtocol::CAPABILITY_INPUT_TIMING;
+  fixtureRecords[2].helloInfoValid = true; fixtureRecords[2].capabilities = 0;
+  fixtureInputTiming[1] = fixtureInputTiming[2] = 0;
+  applyAllSigilAccessibility(testNow);
+  assert(&leds.profile(1) == &monochromeSafeLedCueProfile() && &leds.profile(0) == &defaultLedCueProfile());
+  assert(audio.mutedSigils() == static_cast<uint16_t>((1u << 1) | (1u << 2)));
+  assert(fixtureInputTiming[1] == TurnHubProtocol::encodeInputTiming(3000, 6000));
+  assert(fixtureInputTiming[2] == 0);  // Older Sigil firmware keeps its defaults.
+  // Not resent until the keepalive interval, then resent.
+  const unsigned sends = fixtureInputTimingSends;
+  applyAllSigilAccessibility(testNow + 1000); assert(fixtureInputTimingSends == sends);
+  applyAllSigilAccessibility(testNow + 10000); assert(fixtureInputTimingSends == sends + 1);
+  // A muted Sigil hears nothing, including queued notes; others still do.
+  clearTones(); resetBuzzes();
+  audio.actionRequired(1); audio.actionRequired(0); drainAudio();
+  assert(fixtureBuzzes[1] == 0 && heardActionRequired(0));
+  // Bob shares Sigil 1 with reduced motion: the merged style applies at once after his save.
+  ProfileFixture::bindings[ProfileFixture::key(fixtureRecords[1].mac, 2).c_str()] = bobId;
+  assert(request("/api/session/accessibility", bob,
+      {{"ledStyle", "reduced-motion"}, {"longPressMs", "2500"}, {"winHoldMs", "7000"}}) == 200);
+  assert(&leds.profile(1) == &reducedMotionLedCueProfile());
+  assert(fixtureInputTiming[1] == TurnHubProtocol::encodeInputTiming(3000, 7000));
+  assert(audio.mutedSigils() & (1u << 1));
+  // Unbinding restores the defaults (and sound) on the next refresh.
+  ProfileFixture::bindings.clear();
+  for (uint32_t t = 0; t < 8 * 250 + 250; t += 250) updateSigilAccessibility(testNow + 20000 + t);
+  assert(audio.mutedSigils() == 0 && &leds.profile(1) == &defaultLedCueProfile());
+  assert(fixtureInputTiming[1] == TurnHubProtocol::encodeInputTiming(2000, 5000));
+  fixtureRecords[1] = SigilRecord{}; fixtureRecords[2] = SigilRecord{};
+  assert(request("/api/session/logout", alice) == 200 && request("/api/session/logout", bob) == 200);
+  enterEmptyLobby();
+}
+
+static void actionRequiredCues() {
+  // Win claim: the next responder's Sigil hears ActionRequired, then the next.
+  freshLobby(3); startFromHost();
+  clearTones();
+  assert(web(0,1,WebControl::ClaimWin)); drainAudio();
+  const uint8_t first = player(game.nextWinConfirmationPlayerNumber()).controllerId;
+  assert(heardActionRequired(first) && !heardActionRequired(0));
+  for (uint8_t id = 0; id < 3; ++id) if (id != first) assert(!heardActionRequired(id));
+  clearTones();
+  handleActionShort(first); drainAudio();
+  const uint8_t second = player(game.nextWinConfirmationPlayerNumber()).controllerId;
+  assert(second != first && heardActionRequired(second) && !heardActionRequired(first));
+  clearTones();
+  handleActionShort(second); drainAudio();
+  assert(game.gameOver());
+  for (uint8_t id = 0; id < 3; ++id) assert(!heardActionRequired(id));  // Nothing left to decide.
+  // A life change request reaches only the recipient, who must approve it.
+  handleActionShort(0); assert(hubState == HubState::Lobby);
+  startFromHost();
+  clearTones();
+  TurnHub::IntentPayload payload; payload.targetPlayer = 2; payload.value = -3; String message;
+  const uint8_t requester = game.playerByNumber(1)->controllerId;
+  const uint8_t recipient = game.playerByNumber(2)->controllerId;
+  assert(changeCounter(requester, 1, IntentType::RequestLifeChange, payload, message)); drainAudio();
+  assert(heardActionRequired(recipient) && !heardActionRequired(requester));
+  game.cancelLifeChanges();
+  enterEmptyLobby();
+}
+
 static void turnTimerSettingsHttp() {
   enterEmptyLobby(); TurnHub::fixtureRadio = false; testNow = 1000;
   nextGameSettings = TurnHub::GameSettings{};
@@ -1330,6 +1487,8 @@ int main() {
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
+  accessibilityPreferences(); std::cout<<"PASS per-player accessibility: LED profiles, merge rules, API, Sigil mute, hold-timing radio\n";
+  actionRequiredCues(); std::cout<<"PASS ActionRequired reaches only the Sigil whose win confirmation is next\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
   serialLogCapture(); std::cout<<"PASS serial log capture, redaction, ring overflow and self-describing log lines\n";
   // Must run last: see the comment on gameRecoveryLifecycle().

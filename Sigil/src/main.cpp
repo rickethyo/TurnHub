@@ -43,11 +43,10 @@ constexpr uint8_t PAIR_BUTTON = 19;
 constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
     TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |
-    TurnHubProtocol::CAPABILITY_GAME_DISPLAY;
+    TurnHubProtocol::CAPABILITY_GAME_DISPLAY |
+    TurnHubProtocol::CAPABILITY_INPUT_TIMING;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
-constexpr uint32_t LONG_PRESS_MS = 2000;
-constexpr uint32_t WIN_HOLD_MS = 5000;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PASS_ACK_FLASH_MS = 250;
 constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
@@ -98,6 +97,11 @@ volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
 uint32_t lastPairRequestMs = 0;
+// Hold thresholds: Atlas sends them from the seated players' accessibility
+// preferences (InputTiming). Runtime only; a reboot returns to the defaults
+// until Atlas resends them.
+uint32_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+uint32_t winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
 using TurnHubSigil::ReceivedPacket;
 QueueHandle_t receiveQueue = nullptr;
 volatile bool displayNeedsRefresh = false;
@@ -619,6 +623,21 @@ void handleEspNowReceive(
       playBuzzerPayload(packet.value);
       break;
 
+    case PacketType::InputTiming: {
+      const uint16_t longMs = TurnHubProtocol::inputTimingLongPress(packet.value);
+      const uint16_t winMs = TurnHubProtocol::inputTimingWinHold(packet.value);
+      if (!TurnHubProtocol::validInputTiming(longMs, winMs)) break;
+      if (longMs != longPressMs || winMs != winHoldMs) {
+        longPressMs = longMs;
+        winHoldMs = winMs;
+        Serial.print("SIGIL|INPUT_TIMING|");
+        Serial.print(longPressMs);
+        Serial.print("|");
+        Serial.println(winHoldMs);
+      }
+      break;
+    }
+
     case PacketType::DisplayProfileRequest:
       profileSyncStartPending = true;
       break;
@@ -710,9 +729,10 @@ void sendAction(PacketType type, const char *name) {
   sendPacket(type);
 }
 
-// Action: Down on press, then Long at 2 s and Win at 5 s while held; Up on
-// release, preceded by Short if no Long was sent. The dedicated Pause/Win
-// button (pauseWin) sends Long on a tap and waits 5 s before Long + Win.
+// Action: Down on press, then Long at longPressMs (default 2 s) and Win at
+// winHoldMs (default 5 s) while held; Up on release, preceded by Short if no
+// Long was sent. The dedicated Pause/Win button (pauseWin) sends Long on a tap
+// and waits winHoldMs before Long + Win.
 void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
   const uint32_t nowMs = millis();
   if (debouncedEdge(actionButton, nowMs)) {
@@ -746,12 +766,12 @@ void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
 
   // A dedicated win hold arms the claim immediately before sending it,
   // rather than pausing at the original Action button's 2-second threshold.
-  if (!actionButton.longSent && heldMs >= (pauseWin ? WIN_HOLD_MS : LONG_PRESS_MS)) {
+  if (!actionButton.longSent && heldMs >= (pauseWin ? winHoldMs : longPressMs)) {
     actionButton.longSent = true;
     sendAction(PacketType::ActionLong, "ACTION_LONG");
   }
 
-  if (!actionButton.winSent && heldMs >= WIN_HOLD_MS) {
+  if (!actionButton.winSent && heldMs >= winHoldMs) {
     actionButton.winSent = true;
     sendAction(PacketType::ActionWin, "ACTION_WIN");
   }

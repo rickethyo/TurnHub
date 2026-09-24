@@ -157,7 +157,7 @@ size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity) {
       // crowd out real accounts or exhaust the registration limit.
       const String id(info.key + 1);
       bool configured = false;
-      for (const char prefix : {'n', 'p', 's', 'a', 'u', MODERATION_STATS_PREFIX}) {
+      for (const char prefix : {'n', 'p', 's', 'a', 'u', MODERATION_STATS_PREFIX, ACCESSIBILITY_PREFIX}) {
         configured = configured || preferences.isKey(profileKey(prefix, id).c_str());
       }
       if (configured) memcpy(ids[count++], info.key + 1, PROFILE_ID_LENGTH + 1);
@@ -256,6 +256,26 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy) 
       statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
   return writeStoredPolicy(statsStorage, profileKey('a', profileId).c_str(), policy) ==
       TurnHubStorage::Status::Ok;
+}
+
+bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs) {
+  // A missing record means the defaults; an unreadable one keeps the defaults
+  // for presentation but reports failure so the portal can say so.
+  prefs = AccessibilityPrefs{};
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  const auto status = readAccessibilityPrefs(statsStorage,
+      profileKey(ACCESSIBILITY_PREFIX, profileId).c_str(), prefs);
+  if (status == TurnHubStorage::Status::NotFound) return true;
+  if (status != TurnHubStorage::Status::Ok) prefs = AccessibilityPrefs{};
+  return status == TurnHubStorage::Status::Ok;
+}
+
+bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs) {
+  if (!preferencesReady || !profileExists(profileId) || !validAccessibilityPrefs(prefs) ||
+      statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
+  return writeAccessibilityPrefs(statsStorage,
+      profileKey(ACCESSIBILITY_PREFIX, profileId).c_str(), prefs) == TurnHubStorage::Status::Ok;
 }
 
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats) {

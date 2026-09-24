@@ -89,6 +89,7 @@ extern ChangeLifeCallback changeLifeHandler;
 extern ReadCountersCallback readCountersHandler;
 extern CounterControlCallback counterControlHandler;
 extern ModerateCallback moderateHandler;
+extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
 
@@ -145,6 +146,8 @@ void handleRegistration(WebServer &server);
 void handleParticipation(WebServer &server, WebControl control);
 void handleProfile(WebServer &server);
 void handleProfilePolicy(WebServer &server);
+void handleAccessibility(WebServer &server);
+void handleSaveAccessibility(WebServer &server);
 void handleProfileStats(WebServer &server);
 void handleProfileStatsExport(WebServer &server);
 

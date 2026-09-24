@@ -14,6 +14,16 @@ TurnTimerCueState turnTimerCue;
 
 namespace {
 
+// The player whose answer the table now waits for hears ActionRequired on
+// their own Sigil. Supplementary only: the portal/app and e-ink show the
+// same request as text. Browser-only seats have no Sigil to sound.
+void cueActionRequired(uint8_t playerNumber) {
+  const PlayerSeat *seat = game.playerByNumber(playerNumber);
+  if (seat != nullptr && seat->controllerId < MAX_PHYSICAL_SIGILS) {
+    audio.actionRequired(seat->controllerId);
+  }
+}
+
 // ATLAS|INTENT|<name>|ORIGIN|<origin>|PLAYER|<n>
 void logIntent(const char *name, IntentOrigin origin, uint8_t playerNumber) {
   serialLog.print("ATLAS|INTENT|");
@@ -312,6 +322,7 @@ IntentResult handleClaimWinIntent(const Intent &intent, void *) {
   } else {
     hubState = HubState::Paused;
     audio.winClaimed(gameAudioMask());
+    cueActionRequired(game.nextWinConfirmationPlayerNumber());
   }
 
   serialLog.print("ATLAS|INTENT|WIN|CLAIMED|PLAYER|");
@@ -354,7 +365,11 @@ IntentResult handleConfirmWinIntent(const Intent &intent, void *) {
   leds.invalidateAll();
   serialLog.print("ATLAS|INTENT|WIN|CONFIRMED|PLAYER|");
   serialLog.println(player);
-  if (gameFinished) finishGameState();
+  if (gameFinished) {
+    finishGameState();
+  } else {
+    cueActionRequired(game.nextWinConfirmationPlayerNumber());
+  }
   return IntentResult::accept("Win claim confirmed");
 }
 
@@ -449,6 +464,7 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
         return IntentResult::reject(IntentStatus::Conflict,
             "Request unavailable: check the target, pending request and life limits");
       }
+      cueActionRequired(payload.targetPlayer);
       return IntentResult::accept(
           "Life change requested; Atlas accepts it after 15 seconds unless rejected");
     case IntentType::RespondLifeChange:

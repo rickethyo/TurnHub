@@ -106,8 +106,23 @@ SigilLedState selectSigilLedState(
 }
 
 LedRenderer::LedRenderer(SigilBus &bus)
-    : bus_(bus), profile_(&defaultLedCueProfile()) {
+    : bus_(bus) {
+  for (auto &profile : profiles_) profile = &defaultLedCueProfile();
   invalidateAll();
+}
+
+void LedRenderer::setProfile(const LedCueProfile &profile) {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) setProfile(id, profile);
+}
+
+void LedRenderer::setProfile(uint8_t sigilId, const LedCueProfile &profile) {
+  if (sigilId >= MAX_PHYSICAL_SIGILS || profiles_[sigilId] == &profile) return;
+  profiles_[sigilId] = &profile;
+  // Levels are recomputed every frame; cached channel values need no reset.
+}
+
+const LedCueProfile &LedRenderer::profile(uint8_t sigilId) const {
+  return *profiles_[sigilId < MAX_PHYSICAL_SIGILS ? sigilId : 0];
 }
 
 void LedRenderer::invalidate(uint8_t sigilId) {
@@ -393,7 +408,7 @@ void LedRenderer::render(
     const SigilLedState cue = selectSigilLedState(
         id, state, lobby, game, countdownStartedAtMs,
         eliminationTargetPlayer, winConfirmationPlayer, nowMs);
-    set(id, ledLevels(*profile_, cue, nowMs), nowMs);
+    set(id, ledLevels(*profiles_[id], cue, nowMs), nowMs);
   }
 }
 

@@ -17,6 +17,8 @@
 //   sigil_input.cpp        ESP-NOW event adapter and physical gesture state
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
 //   front_panel.cpp        Atlas master/pair buttons and front-panel LEDs
+//   sigil_accessibility.cpp  seated players' accessibility preferences ->
+//                          each Sigil's LED style, sound and hold timing
 //
 // Ownership rule (ARCHITECTURAL_INVARIANTS.md, Invariants 2 and 10):
 // handle*Intent functions are the only code that validates and mutates
@@ -26,6 +28,7 @@
 #include <Arduino.h>
 #include <WebServer.h>
 
+#include "accessibility_prefs.h"
 #include "audio_controller.h"
 #include "client_state.h"
 #include "game_engine.h"
@@ -212,6 +215,16 @@ void handleActionWin(uint8_t sigilId);
 void updateActionCancelSuppression(uint32_t nowMs);
 // Forgets held/chord/suppression bookkeeping for every physical Sigil.
 void resetGestureState();
+
+// --- sigil_accessibility.cpp -------------------------------------------------
+
+// The merged preferences of the players seated at (or last bound to) a Sigil.
+TurnHubProfiles::AccessibilityPrefs seatedAccessibility(uint8_t sigilId);
+// Restyle one Sigil / every Sigil now (after a preference or seat change).
+void applySigilAccessibility(uint8_t sigilId, uint32_t nowMs);
+void applyAllSigilAccessibility(uint32_t nowMs);
+// Loop tick: revisits one Sigil per tick and resends hold timing.
+void updateSigilAccessibility(uint32_t nowMs);
 
 // --- web_adapters.cpp --------------------------------------------------------
 

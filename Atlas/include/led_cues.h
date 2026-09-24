@@ -72,6 +72,7 @@ enum class LedPattern : uint8_t {
   PlayerCount,  // playerNumber flashes (onMs on, periodMs-onMs off), then delayMs dark.
   SeatPulse,    // One (seat A) or two (seat B) onMs pulses per periodMs; steady if unshared.
   Window,       // On from delayMs for onMs within each periodMs.
+  Dim,          // Steady at level onMs (0-255). PWM (blue) only; digital channels read it as off.
 };
 
 // Plain aggregate (value-initialized = Off) so styles can be brace-built.
@@ -111,6 +112,7 @@ constexpr ChannelStyle seatPulse(uint16_t period, uint16_t on) {
 constexpr ChannelStyle window(uint16_t period, uint16_t start, uint16_t on) {
   return ChannelStyle{LedPattern::Window, period, on, start, false};
 }
+constexpr ChannelStyle dim(uint8_t level) { return ChannelStyle{LedPattern::Dim, 0, level, 0, false}; }
 }  // namespace LedStyles
 
 // The prototype's established behavior. Cadences stay at or below 2.5 Hz.
@@ -143,6 +145,58 @@ inline const LedCueProfile &defaultLedCueProfile() {
     overlay(LedOverlay::TurnWarning) = {off(), blink(1500, 750), off()};
     overlay(LedOverlay::TimerExpired) = {off(), solid(), off()};
     overlay(LedOverlay::LongTurn) = {off(), off(), solid()};
+    return p;
+  }();
+  return profile;
+}
+
+// Reduced motion: no breathing, pulsing or counting flashes. Lights are steady
+// or blink slowly (at most one 2-second change per 4 seconds), and your turn
+// versus waiting is bright versus dim blue. Cues that share a situation also
+// differ without colour (steady versus slow blink), so this style is
+// monochrome-safe too. Details a slow light cannot carry (player number, which
+// shared seat) remain on the e-ink display and in the portal/app.
+inline const LedCueProfile &reducedMotionLedCueProfile() {
+  using namespace LedStyles;
+  static const LedCueProfile profile = [] {
+    LedCueProfile p{};
+    auto cue = [&p](LedCue c) -> CueStyle & { return p.cues[static_cast<uint8_t>(c)]; };
+    auto overlay = [&p](LedOverlay o) -> CueStyle & { return p.overlays[static_cast<uint8_t>(o)]; };
+    const ChannelStyle slow = blink(4000, 2000);
+    cue(LedCue::Unassigned) = {off(), off(), slow};
+    cue(LedCue::Joined) = {dim(40), off(), off()};
+    cue(LedCue::Starting) = {solid(), off(), off()};
+    cue(LedCue::TurnStarted) = {solid(), off(), off()};
+    cue(LedCue::YourTurn) = {solid(), off(), off()};
+    cue(LedCue::Waiting) = {dim(40), off(), off()};
+    cue(LedCue::Paused) = {slow, off(), off()};
+    cue(LedCue::ConfirmationNeeded) = {off(), solid(), off()};
+    cue(LedCue::EliminationSelect) = {off(), off(), slow};
+    cue(LedCue::GameOver) = {off(), off(), off()};
+    cue(LedCue::Pairing) = {off(), solid(), off()};
+    cue(LedCue::Disconnected) = {off(), off(), off()};
+    cue(LedCue::Error) = {off(), slow, off()};
+    overlay(LedOverlay::Host) = {off(), off(), solid()};
+    overlay(LedOverlay::Starter) = {solid(), off(), off()};
+    overlay(LedOverlay::Winner) = {solid(), off(), off()};
+    overlay(LedOverlay::TurnWarning) = {off(), slow, off()};
+    overlay(LedOverlay::TimerExpired) = {off(), solid(), off()};
+    overlay(LedOverlay::LongTurn) = {off(), off(), slow};
+    return p;
+  }();
+  return profile;
+}
+
+// Monochrome-safe: the standard cadences, changed only where two cues that can
+// appear in the same situation differed by colour alone. Timer expired (steady
+// red) versus long turn (was steady green) now differ by cadence, and a win
+// confirmation (short pulses) versus choosing an elimination (long pulses).
+inline const LedCueProfile &monochromeSafeLedCueProfile() {
+  using namespace LedStyles;
+  static const LedCueProfile profile = [] {
+    LedCueProfile p = defaultLedCueProfile();
+    p.cues[static_cast<uint8_t>(LedCue::EliminationSelect)] = {off(), seatPulse(1800, 600), off()};
+    p.overlays[static_cast<uint8_t>(LedOverlay::LongTurn)] = {off(), off(), blink(4000, 250)};
     return p;
   }();
   return profile;
@@ -181,6 +235,8 @@ inline uint8_t ledChannelLevel(const ChannelStyle &style, const SigilLedState &s
           (state.seatSlot == 2 && position >= second && position < second + style.onMs);
       return on ? 255 : 0;
     }
+    case LedPattern::Dim:
+      return static_cast<uint8_t>(style.onMs > 255 ? 255 : style.onMs);
     case LedPattern::Window:
       if (style.periodMs == 0) return 0;
       return t % style.periodMs >= style.delayMs && t % style.periodMs < style.delayMs + style.onMs ? 255 : 0;

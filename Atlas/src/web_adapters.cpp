@@ -201,6 +201,7 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureGameControls(readGameSettings, configureGame, changeLife);
   TurnHubWebApi::configureCounterControls(readCounters, changeCounter);
   TurnHubWebApi::configureModeration(moderateAccount);
+  TurnHubWebApi::configureAccessibility([]() { applyAllSigilAccessibility(millis()); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
 }
 

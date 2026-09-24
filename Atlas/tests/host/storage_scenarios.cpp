@@ -8,6 +8,7 @@
 #include "profile_stats_storage.h"
 #include "profile_policy.h"
 #include "game_settings_store.h"
+#include "accessibility_prefs.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -274,6 +275,40 @@ static void moderationRecords(){
   assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::Corrupt);
 }
 
+void accessibilityRecords() {
+  using namespace TurnHubProfiles;
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub")==Status::Ok);
+  AccessibilityPrefs prefs;
+  assert(readAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::NotFound);
+  assert(prefs.sigilSound && prefs.ledStyle==LedStyle::Standard && prefs.longPressMs==2000 && prefs.winHoldMs==5000);
+  // Independent wire image: sound off, reduced motion, 3000 ms / 6000 ms.
+  FakeNvs::blobs["xABCDEF01"]={1,0,1,0xb8,0x0b,0x70,0x17};
+  assert(readAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok);
+  assert(!prefs.sigilSound && prefs.ledStyle==LedStyle::ReducedMotion && prefs.longPressMs==3000 && prefs.winHoldMs==6000);
+  prefs.ledStyle=LedStyle::MonochromeSafe; prefs.winHoldMs=10000;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok);
+  assert((FakeNvs::blobs["xABCDEF01"]==std::vector<uint8_t>{1,0,2,0xb8,0x0b,0x10,0x27}));
+  const int before=FakeNvs::writes;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok && FakeNvs::writes==before);
+  AccessibilityPrefs bad=prefs; bad.longPressMs=4000; bad.winHoldMs=4500;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",bad)==Status::InvalidArgument);
+  bad=prefs; bad.ledStyle=static_cast<LedStyle>(3);
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",bad)==Status::InvalidArgument);
+  for(const auto &bytes : {std::vector<uint8_t>{}, {1,1,0,0xd0,0x07,0x88},
+      {1,2,0,0xd0,0x07,0x88,0x13}, {1,1,3,0xd0,0x07,0x88,0x13}, {1,1,0,0xe8,0x03,0xe8,0x03},
+      {1,1,0,0xd1,0x07,0x88,0x13}, {2,1,0,0xd0,0x07,0x88,0x13}, {1,1,0,0xd0,0x07,0x88,0x13,0}}) {
+    FakeNvs::blobs["xABCDEF01"]=bytes;
+    AccessibilityPrefs read;
+    const Status expected=bytes.size()==7&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    const int writes=FakeNvs::writes;
+    assert(readAccessibilityPrefs(store,"xABCDEF01",read)==expected && read.sigilSound && read.longPressMs==2000);
+    assert(writeAccessibilityPrefs(store,"xABCDEF01",AccessibilityPrefs{})==expected && FakeNvs::writes==writes);
+    assert(FakeNvs::blobs["xABCDEF01"]==bytes);
+  }
+}
+
 int main() {
   accountRecords();
   moderationRecords();
@@ -283,5 +318,6 @@ int main() {
   backendFailures();
   profilePolicyRecords();
   gameSettingsRecords();
-  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings and NVS failures\n";
+  accessibilityRecords();
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences and NVS failures\n";
 }

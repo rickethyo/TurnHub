@@ -137,11 +137,26 @@ static void moderationMigration() {
   assert(FakeNvs::blobs[account] == legacy && FakeNvs::blobs[history][0] == 9);
 }
 
+static void accessibilityPreferences() {
+  const String id = createProfileWithCredentials("Access", "1234", hashPin);
+  AccessibilityPrefs prefs;
+  assert(loadAccessibilityForProfile(id, prefs) && prefs.sigilSound);  // Missing: defaults.
+  prefs.sigilSound = false; prefs.ledStyle = LedStyle::ReducedMotion; prefs.longPressMs = 3500; prefs.winHoldMs = 8000;
+  assert(saveAccessibilityForProfile(id, prefs));
+  AccessibilityPrefs again;
+  assert(loadAccessibilityForProfile(id, again) && sameAccessibilityPrefs(prefs, again));
+  assert(!saveAccessibilityForProfile("FFFFFFFF", prefs));  // Unknown profile.
+  prefs.winHoldMs = 3000;
+  assert(!saveAccessibilityForProfile(id, prefs));  // Invalid timing is never stored.
+  assert(loadAccessibilityForProfile(id, again) && again.winHoldMs == 8000);
+}
+
 int main() {
   assert(begin());
   guestLookups();
   existingAccounts();
   legacyPlaceholders();
   moderationMigration();
-  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering and moderation-count migration\n";
+  accessibilityPreferences();
+  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, moderation-count migration and accessibility preferences\n";
 }

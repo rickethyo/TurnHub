@@ -30,8 +30,11 @@ class LedRenderer {
   void invalidateAll();
 
   // The one presentation/config boundary: swap styles without game changes.
-  void setProfile(const LedCueProfile &profile) { profile_ = &profile; }
-  const LedCueProfile &profile() const { return *profile_; }
+  // setProfile() styles every Sigil; the per-Sigil overload applies one
+  // player's accessibility choice (profiles must outlive the renderer).
+  void setProfile(const LedCueProfile &profile);
+  void setProfile(uint8_t sigilId, const LedCueProfile &profile);
+  const LedCueProfile &profile(uint8_t sigilId = 0) const;
 
   void render(
       HubState state,
@@ -66,7 +69,7 @@ class LedRenderer {
       uint8_t winConfirmationPlayer);
 
   SigilBus &bus_;
-  const LedCueProfile *profile_;
+  const LedCueProfile *profiles_[MAX_PHYSICAL_SIGILS];
   Cache cache_[MAX_PHYSICAL_SIGILS];
 };
 

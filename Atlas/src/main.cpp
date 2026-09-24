@@ -361,6 +361,7 @@ void loop() {
   updateTurnTimerCues(nowMs);
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
   updateGameRecoveryClock(nowMs);
+  updateSigilAccessibility(nowMs);
   audio.update(nowMs);
   leds.render(hubState, lobby, game, countdownStartedAtMs, eliminationTargetPlayer,
       game.nextWinConfirmationPlayerNumber(), nowMs);
