@@ -10,13 +10,9 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
-import java.net.ConnectException
 import java.net.HttpURLConnection
-import java.net.NoRouteToHostException
-import java.net.PortUnreachableException
 import java.net.SocketTimeoutException
 import java.net.URL
-import java.net.UnknownHostException
 import java.net.UnknownServiceException
 
 /** Opens the connection for a URL; lets Android pick which network carries it. */
@@ -128,21 +124,20 @@ class HttpAtlasTransport(
         return out.toString(Charsets.UTF_8.name())
     }
 
-    private fun classify(e: IOException): AtlasException = AtlasException(
-        when (e) {
-            is SocketTimeoutException -> AtlasFailure.Timeout
-            is UnknownServiceException ->
-                if (e.message.orEmpty().contains("CLEARTEXT", ignoreCase = true)) {
+    private fun classify(e: IOException): AtlasException {
+        // e.g. "SocketTimeoutException: failed to connect to /192.168.4.1 (port 80) from /192.168.4.2 ..."
+        val detail = "${e.javaClass.simpleName}: ${e.message}"
+        return AtlasException(
+            when {
+                // Also what Android 17 local-network blocking looks like for TCP.
+                e is SocketTimeoutException -> AtlasFailure.Timeout(detail)
+                e is UnknownServiceException && e.message.orEmpty().contains("CLEARTEXT", ignoreCase = true) ->
                     AtlasFailure.CleartextBlocked(endpoint.host)
-                } else {
-                    AtlasFailure.Unreachable(e.message)
-                }
-            is ConnectException, is NoRouteToHostException, is PortUnreachableException ->
-                AtlasFailure.Unreachable("connection refused or no route")
-            is UnknownHostException -> AtlasFailure.Unreachable("unknown host ${endpoint.host}")
-            else -> AtlasFailure.Unreachable(e.message)
-        },
-    )
+                // Refused, no route, unknown host, reset, ...
+                else -> AtlasFailure.Unreachable(detail)
+            },
+        )
+    }
 
     private companion object {
         /** A full 16-player snapshot is a few KiB; anything huge is not Atlas. */

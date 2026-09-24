@@ -66,6 +66,7 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 - **Test fixtures:** tests load the shared fixtures from `protocol/examples/` via `testing/Fixtures.kt`, so changing those files affects Android tests too.
 - **Layering:** wire DTOs and the strict parser live in `protocol/`, UI aggregates in `domain/`, and networking only below `AtlasRepository` in `data/`. Production uses `HttpAtlasRepository`; there is no mock repository.
 - **Cleartext HTTP:** `res/xml/network_security_config.xml` allows it only to `192.168.4.1`.
+- **Android 17 local network permission:** apps targeting API 37 need the `ACCESS_LOCAL_NETWORK` ("Nearby devices") runtime permission for any LAN traffic. Without it, connections to Atlas just time out with no clear error. `MainActivity` requests it on Connect.
 
 ### PiLogger
 `python -m turnhub_logger.main --config config.toml` (copy from `config.example.toml`).

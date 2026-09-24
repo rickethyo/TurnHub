@@ -169,7 +169,7 @@ class HttpAtlasRepository(
     } catch (e: AtlasException) {
         throw e
     } catch (e: Exception) {
-        throw AtlasException(AtlasFailure.Unexpected(e.message))
+        throw AtlasException(AtlasFailure.Unexpected("${e.javaClass.simpleName}: ${e.message}"))
     }
 
     private fun drop(connection: Long, failure: AtlasFailure) {

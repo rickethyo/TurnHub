@@ -91,12 +91,16 @@ class HttpAtlasTransportTest {
     @Test
     fun `connection refused is unreachable`() {
         val closedPort = ServerSocket(0).use { it.localPort }
-        assertTrue(failureOf { transport(port = closedPort).getInfo() } is AtlasFailure.Unreachable)
+        val failure = failureOf { transport(port = closedPort).getInfo() }
+        assertTrue(failure is AtlasFailure.Unreachable)
+        assertTrue(failure.technicalDetail!!.startsWith("ConnectException"))
     }
 
     @Test
     fun `a stalled Atlas times out`() {
         routes["/api/v1/state"] = Triple(200, Fixtures.text("running.response.json"), 1_500)
-        assertSame(AtlasFailure.Timeout, failureOf { transport(readTimeoutMs = 200).getState() })
+        val failure = failureOf { transport(readTimeoutMs = 200).getState() }
+        assertTrue(failure is AtlasFailure.Timeout)
+        assertTrue(failure.technicalDetail!!.startsWith("SocketTimeoutException"))
     }
 }

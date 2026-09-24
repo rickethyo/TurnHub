@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasException
+import com.turnhub.android.data.AtlasFailure
 import com.turnhub.android.data.AtlasRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,20 +33,25 @@ class HomeViewModel(
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
     private val endpointText = MutableStateFlow(AtlasEndpoint.DEFAULT.baseUrl)
-    private val inputError = MutableStateFlow<String?>(null)
+
+    /** Problems found before any request is made (bad address, missing permission). */
+    private val localFailure = MutableStateFlow<AtlasFailure?>(null)
 
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
         repository.tableSummary,
         repository.failure,
         endpointText,
-        inputError,
-    ) { connectionState, tableSummary, failure, endpoint, endpointError ->
+        localFailure,
+    ) { connectionState, tableSummary, repositoryFailure, endpoint, local ->
+        val shown = local ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
             endpointText = endpoint,
             tableSummary = tableSummary,
-            errorMessage = endpointError ?: failure?.userMessage,
+            errorMessage = shown?.userMessage,
+            errorDetail = shown?.technicalDetail,
+            offerAppSettings = shown is AtlasFailure.LocalNetworkPermissionDenied,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -55,19 +61,28 @@ class HomeViewModel(
 
     fun onEndpointChanged(text: String) {
         endpointText.value = text
-        inputError.value = null
+        localFailure.value = null
     }
 
+    /**
+     * Connects to the entered endpoint. The Activity calls this only once the
+     * platform's local-network permission is granted (or not required).
+     */
     fun onConnectClicked() {
         AtlasEndpoint.parse(endpointText.value)
             .onSuccess { endpoint ->
-                inputError.value = null
+                localFailure.value = null
                 endpointText.value = endpoint.baseUrl
                 viewModelScope.launch { repository.connect(endpoint) }
             }
             .onFailure { error ->
-                inputError.value = (error as? AtlasException)?.failure?.userMessage ?: error.message
+                localFailure.value = (error as? AtlasException)?.failure ?: AtlasFailure.Unexpected(error.message)
             }
+    }
+
+    /** The user declined Android 17's local-network ("Nearby devices") permission. */
+    fun onLocalNetworkPermissionDenied() {
+        localFailure.value = AtlasFailure.LocalNetworkPermissionDenied
     }
 
     fun onDisconnectClicked() {

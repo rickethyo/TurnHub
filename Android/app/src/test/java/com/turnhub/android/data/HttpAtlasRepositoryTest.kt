@@ -44,6 +44,7 @@ private class FakeAtlasTransport : AtlasTransport {
 class HttpAtlasRepositoryTest {
 
     private val transport = FakeAtlasTransport()
+    private val timeout = AtlasFailure.Timeout("SocketTimeoutException: test")
     private val endpoints = mutableListOf<AtlasEndpoint>()
 
     private fun TestScope.repository(scope: CoroutineScope = backgroundScope) = HttpAtlasRepository(
@@ -104,13 +105,13 @@ class HttpAtlasRepositoryTest {
 
     @Test
     fun `network failure while connecting leaves a useful error`() = runTest {
-        transport.info = { fail(AtlasFailure.Timeout) }
+        transport.info = { fail(timeout) }
         val repository = repository()
 
         repository.connect(AtlasEndpoint.DEFAULT)
 
         assertEquals(DISCONNECTED, repository.connectionState.value)
-        assertSame(AtlasFailure.Timeout, repository.failure.value)
+        assertSame(timeout, repository.failure.value)
         assertNull(repository.tableSummary.value)
         assertEquals(0, transport.stateCalls)
     }
@@ -296,10 +297,10 @@ class HttpAtlasRepositoryTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
 
-        transport.state = { fail(AtlasFailure.Timeout) }
+        transport.state = { fail(timeout) }
         advance(1_000)
         assertEquals(CONNECTED, repository.connectionState.value)
-        assertSame(AtlasFailure.Timeout, repository.failure.value)
+        assertSame(timeout, repository.failure.value)
         assertNotNull(repository.tableSummary.value)
 
         transport.state = { Fixtures.state("reconnected.response.json") }

@@ -1,8 +1,15 @@
 package com.turnhub.android
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +40,31 @@ class MainActivity : ComponentActivity() {
         HomeViewModel.factory { scope -> HttpAtlasRepository(transports, scope) }
     }
 
+    // Android 17 blocks local-network traffic (so every Atlas request would just
+    // time out) until the user grants ACCESS_LOCAL_NETWORK ("Nearby devices").
+    // Asked for at the moment it's needed: when the user taps Connect.
+    private val localNetworkPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) homeViewModel.onConnectClicked() else homeViewModel.onLocalNetworkPermissionDenied()
+        }
+
+    private fun connectToAtlas() {
+        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK &&
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+        ) {
+            localNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        } else {
+            homeViewModel.onConnectClicked()
+        }
+    }
+
+    /** After a permanent denial Android shows no dialog; the user must allow it here. */
+    private fun openAppSettings() {
+        startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)),
+        )
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -45,11 +77,15 @@ class MainActivity : ComponentActivity() {
                     HomeScreen(
                         uiState = uiState,
                         onEndpointChange = homeViewModel::onEndpointChanged,
-                        onConnectClick = homeViewModel::onConnectClicked,
+                        onConnectClick = ::connectToAtlas,
                         onDisconnectClick = homeViewModel::onDisconnectClicked,
+                        onOpenAppSettings = ::openAppSettings,
                     )
                 }
             }
         }
     }
 }
+
+/** Android 17 (API 37), where ACCESS_LOCAL_NETWORK is enforced for apps targeting it. */
+private const val LOCAL_NETWORK_PERMISSION_SDK = 37

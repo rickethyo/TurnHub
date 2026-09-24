@@ -184,6 +184,12 @@ production always uses `HttpAtlasRepository`.
 
 Networking notes:
 
+- Android 17 enforces local network protection for apps targeting API 37:
+  without the `ACCESS_LOCAL_NETWORK` runtime permission ("Nearby devices"),
+  every TCP connection to Atlas silently times out. `MainActivity` requests it
+  when the user taps Connect (Android 17+ only); if denied, Home explains why
+  and offers "Open app settings". Verified on a Pixel Fold running Android 17.
+
 - Cleartext HTTP is allowed only for `192.168.4.1`
   (`res/xml/network_security_config.xml`). Other addresses are refused by
   Android until that file is deliberately extended (e.g. for Home/LAN mode).

@@ -87,15 +87,35 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `denied local network permission explains itself and offers settings`() = runTest {
+        val viewModel = HomeViewModel { repository }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+        viewModel.onLocalNetworkPermissionDenied()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.errorMessage!!.contains("Nearby devices"))
+        assertTrue(state.offerAppSettings)
+        assertTrue(repository.connects.isEmpty())
+
+        // Granted later: connecting clears the message.
+        viewModel.onConnectClicked()
+        assertNull(viewModel.uiState.value.errorMessage)
+        assertEquals(false, viewModel.uiState.value.offerAppSettings)
+        assertEquals(1, repository.connects.size)
+    }
+
+    @Test
     fun `repository failures are shown and editing is locked while connected`() = runTest {
         val viewModel = HomeViewModel { repository }
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
         repository.connectionState.value = AtlasConnectionState.CONNECTED
-        repository.failure.value = AtlasFailure.Timeout
+        repository.failure.value = AtlasFailure.Timeout("SocketTimeoutException: test")
 
         val state = viewModel.uiState.value
-        assertEquals(AtlasFailure.Timeout.userMessage, state.errorMessage)
+        assertEquals(repository.failure.value!!.userMessage, state.errorMessage)
+        assertEquals("SocketTimeoutException: test", state.errorDetail)
         assertTrue(state.isRetrying)
         assertEquals(false, state.endpointEditable)
 

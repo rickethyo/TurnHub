@@ -16,6 +16,10 @@ data class HomeUiState(
     val tableSummary: TableSummary? = null,
     /** A failure to show the user, if any. */
     val errorMessage: String? = null,
+    /** The underlying exception text for that failure, for diagnosis. */
+    val errorDetail: String? = null,
+    /** The failure can only be fixed from the app's system settings page. */
+    val offerAppSettings: Boolean = false,
 ) {
     /** The endpoint can only be changed while no connection is open or opening. */
     val endpointEditable: Boolean get() = connectionState == AtlasConnectionState.DISCONNECTED

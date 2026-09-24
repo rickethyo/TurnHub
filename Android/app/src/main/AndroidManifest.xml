@@ -9,6 +9,13 @@
       Read-only: the app never changes Wi-Fi or network settings.
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!--
+      Android 17+ blocks all local-network traffic (including HTTP to
+      192.168.4.1) for apps targeting API 37 unless this runtime permission
+      ("Nearby devices") is granted; blocked TCP connections just time out.
+      Requested when the user taps Connect. Older Android ignores it.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <application
         android:allowBackup="true"

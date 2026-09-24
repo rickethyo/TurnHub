@@ -45,6 +45,7 @@ fun HomeScreen(
     onEndpointChange: (String) -> Unit,
     onConnectClick: () -> Unit,
     onDisconnectClick: () -> Unit,
+    onOpenAppSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -81,7 +82,14 @@ fun HomeScreen(
             }
 
             uiState.errorMessage?.let { message ->
-                item { ErrorCard(message = message, retrying = uiState.isRetrying) }
+                item {
+                    ErrorCard(
+                        message = message,
+                        detail = uiState.errorDetail,
+                        retrying = uiState.isRetrying,
+                        onOpenAppSettings = onOpenAppSettings.takeIf { uiState.offerAppSettings },
+                    )
+                }
             }
 
             val summary = uiState.tableSummary
@@ -126,7 +134,12 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ErrorCard(message: String, retrying: Boolean) {
+private fun ErrorCard(
+    message: String,
+    detail: String?,
+    retrying: Boolean,
+    onOpenAppSettings: (() -> Unit)?,
+) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -142,6 +155,14 @@ private fun ErrorCard(message: String, retrying: Boolean) {
                 style = MaterialTheme.typography.titleSmall,
             )
             Text(text = message, style = MaterialTheme.typography.bodyMedium)
+            detail?.let {
+                Text(text = it, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+            }
+            onOpenAppSettings?.let { open ->
+                OutlinedButton(onClick = open, modifier = Modifier.padding(top = 8.dp)) {
+                    Text("Open app settings")
+                }
+            }
         }
     }
 }
