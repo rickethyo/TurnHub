@@ -10,6 +10,24 @@ constexpr size_t GAME_CHECKPOINT_CAPACITY = 4096;
 size_t encodeCheckpoint(const GameCheckpoint &saved, uint8_t *bytes, size_t capacity);
 TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameCheckpoint &saved);
 
+// Shared, greppable spelling for diagnostic logging. Hardware testing needs to
+// tell these statuses apart on the serial console (NotFound vs Corrupt vs
+// UnsupportedSchema vs IoError vs a clean Ok), so every recovery log line goes
+// through this one helper instead of ad hoc strings.
+inline const char *storageStatusName(TurnHubStorage::Status status) {
+  using TurnHubStorage::Status;
+  switch (status) {
+    case Status::Ok: return "OK";
+    case Status::NotFound: return "NOT_FOUND";
+    case Status::Unavailable: return "UNAVAILABLE";
+    case Status::InvalidArgument: return "INVALID_ARGUMENT";
+    case Status::Corrupt: return "CORRUPT";
+    case Status::UnsupportedSchema: return "UNSUPPORTED_SCHEMA";
+    case Status::IoError: return "IO_ERROR";
+    default: return "UNKNOWN";
+  }
+}
+
 // Serialized on the Atlas application task. Buffers live with this service,
 // never on the small ESP32 task stack. This is a persistence cache, not gameplay.
 class GameRecovery {

@@ -1,0 +1,16 @@
+## Android/Gradle/Kotlin build tooling
+## The rest of the repo's ignore rules live in the root .gitignore; this file
+## only covers what the Gradle/Android toolchain generates under Android/.
+
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+**/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.hprof
+.kotlin/

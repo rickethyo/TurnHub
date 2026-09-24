@@ -25,6 +25,7 @@ constexpr uint8_t GREEN_LED = 14;
 constexpr uint8_t RED_LED = 13;
 constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
+constexpr uint8_t PAUSE_WIN_BUTTON = 32; // Breadboard J13; switch to GND.
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 constexpr uint8_t PAIR_BUTTON = 19;
@@ -64,6 +65,7 @@ struct ButtonState {
 
 ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
+ButtonState pauseWinButton(PAUSE_WIN_BUTTON);
 ButtonState pairButton(PAIR_BUTTON);
 SigilDisplay sigilDisplay;
 
@@ -702,7 +704,7 @@ void sendAction(PacketType type, const char *name) {
   sendPacket(type);
 }
 
-void updateActionButton() {
+void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
   const bool reading = digitalRead(actionButton.pin);
 
   if (reading != actionButton.rawState) {
@@ -720,9 +722,13 @@ void updateActionButton() {
       actionButton.winSent = false;
       sendAction(PacketType::ActionDown, "ACTION_DOWN");
     } else {
+      // The dedicated Pause / Win tap uses the existing long-action semantic.
+      if (pauseWin && !actionButton.longSent) {
+        sendAction(PacketType::ActionLong, "ACTION_LONG");
+      }
       sendAction(PacketType::ActionUp, "ACTION_UP");
 
-      if (!actionButton.longSent) {
+      if (!pauseWin && !actionButton.longSent) {
         sendAction(PacketType::ActionShort, "ACTION_SHORT");
       }
 
@@ -738,7 +744,9 @@ void updateActionButton() {
 
   const uint32_t heldMs = millis() - actionButton.pressStartMs;
 
-  if (!actionButton.longSent && heldMs >= LONG_PRESS_MS) {
+  // A dedicated win hold arms the claim immediately before sending it,
+  // rather than pausing at the original Action button's 2-second threshold.
+  if (!actionButton.longSent && heldMs >= (pauseWin ? WIN_HOLD_MS : LONG_PRESS_MS)) {
     actionButton.longSent = true;
     sendAction(PacketType::ActionLong, "ACTION_LONG");
   }
@@ -746,6 +754,24 @@ void updateActionButton() {
   if (!actionButton.winSent && heldMs >= WIN_HOLD_MS) {
     actionButton.winSent = true;
     sendAction(PacketType::ActionWin, "ACTION_WIN");
+  }
+}
+
+void loadSavedPairing() {
+  Preferences prefs;
+  if (prefs.begin("th_pair_v1", false)) {
+    uint8_t binding[7];
+    if (prefs.isKey("atlas") && prefs.getBytesLength("atlas") == sizeof(binding) &&
+        prefs.getBytes("atlas", binding, sizeof(binding)) == sizeof(binding) &&
+        binding[6] < TurnHubProtocol::MAX_SIGILS) {
+      // Read before the first screen, but register the peer only after ESP-NOW
+      // starts. A saved binding remains paired even if radio startup fails.
+      memcpy(atlasMac, binding, sizeof(atlasMac));
+      atlasKnown = true;
+      sigilId = binding[6];
+      Serial.println("SIGIL|PAIR|LOADED");
+    }
+    prefs.end();
   }
 }
 
@@ -777,19 +803,10 @@ bool startEspNow() {
     if (!received.assign(mac, data, length)) return;
     xQueueSend(receiveQueue, &received, 0);
   });
-  Preferences prefs;
-  if (prefs.begin("th_pair_v1", false)) {
-    uint8_t binding[7];
-    if (prefs.isKey("atlas") && prefs.getBytesLength("atlas") == sizeof(binding) &&
-        prefs.getBytes("atlas", binding, sizeof(binding)) == sizeof(binding) &&
-        binding[6] < TurnHubProtocol::MAX_SIGILS) {
-      rememberAtlas(binding);
-      sigilId = binding[6];
-      profileSyncStartPending = true;
-      queueReadyDisplay();
-      Serial.println("SIGIL|PAIR|LOADED");
-    }
-    prefs.end();
+  if (atlasKnown) {
+    rememberAtlas(atlasMac);
+    profileSyncStartPending = true;
+    queueReadyDisplay();
   }
 
   if (!ensurePeer(BROADCAST_MAC)) {
@@ -815,6 +832,7 @@ void setup() {
   pinMode(RED_LED, OUTPUT);
   pinMode(PASS_BUTTON, INPUT_PULLUP);
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
+  pinMode(PAUSE_WIN_BUTTON, INPUT_PULLUP);
 
   analogWrite(BLUE_LED, 0);
   digitalWrite(GREEN_LED, LOW);
@@ -826,9 +844,11 @@ void setup() {
 
   passButton.rawState = passButton.stableState = digitalRead(PASS_BUTTON);
   actionButton.rawState = actionButton.stableState = digitalRead(ACTION_BUTTON);
+  pauseWinButton.rawState = pauseWinButton.stableState = digitalRead(PAUSE_WIN_BUTTON);
 
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
+  loadSavedPairing();
   sigilDisplay.begin();
   // SPI startup configures its default MISO pin as INPUT; reclaim the pin
   // only after the write-only display has initialized and detached MISO.
@@ -839,7 +859,11 @@ void setup() {
   Serial.print("SIGIL|PAIR|READY|GPIO|");
   Serial.print(PAIR_BUTTON);
   Serial.println(pairButton.rawState == LOW ? "|DOWN" : "|UP");
-  sigilDisplay.showUnpaired();
+  if (atlasKnown) {
+    sigilDisplay.showBooting();
+  } else {
+    sigilDisplay.showUnpaired();
+  }
 
   const BaseType_t displayTaskCreated = xTaskCreatePinnedToCore(
       displayTask,
@@ -871,7 +895,8 @@ void loop() {
         received.data, received.length);
   }
   updatePassButton();
-  updateActionButton();
+  updateActionButton(actionButton);
+  updateActionButton(pauseWinButton, true);
   updatePairButton();
   updatePairing();
   updateGreenFlash();

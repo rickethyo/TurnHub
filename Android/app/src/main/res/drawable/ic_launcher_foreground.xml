@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Placeholder mark: a simple ring/dial motif standing in for "TurnHub" until a
+  real product mark is designed. Intentionally minimal, no external asset.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M24,54 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0 z M36,54 a18,18 0 1,0 36,0 a18,18 0 1,0 -36,0 z" />
+</vector>

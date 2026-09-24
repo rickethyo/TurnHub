@@ -7,6 +7,7 @@
 #include "config.h"
 #include "firmware_version.h"
 #include "game_engine.h"
+#include "game_recovery.h"
 #include "intent.h"
 #include "intent_dispatcher.h"
 #include "led_renderer.h"
@@ -135,6 +136,25 @@ void observeIntent(const Intent &intent) {
   // the complete Commander matrix. Other completed handlers are infrequent.
   if (intent.type != IntentType::ExpireLifeChanges || clientState.expirationDue(millis()))
     observeClientState();
+  // Persist a checkpoint after every dispatched intent. GameRecovery::save()
+  // only actually touches NVS when the encoded game state changed or the
+  // periodic clock checkpoint is due, so this is cheap to call unconditionally
+  // -- including after a rejected intent, where nothing changed and it is a
+  // no-op. This is the "after accepted semantic transitions" hook the
+  // interrupted-match recovery design calls for.
+  TurnHub::checkpointGame(game, millis());
+}
+
+// Catches the "periodically checkpoint elapsed clocks" requirement for a long
+// turn with no dispatched intents in between: GameRecovery::save() only
+// writes when >=60s have passed since the last save of a running match, so
+// polling this once a second is cheap (no encode-vs-previous work happens
+// between checkpoints) and never spams NVS.
+uint32_t lastRecoveryPollMs = 0;
+void updateGameRecoveryClock(uint32_t nowMs) {
+  if (nowMs - lastRecoveryPollMs < 1000) return;
+  lastRecoveryPollMs = nowMs;
+  TurnHub::checkpointGame(game, nowMs);
 }
 bool suppressActionAfterPassCancel[MAX_PHYSICAL_SIGILS] = {};
 uint32_t suppressActionReleasedAtMs[MAX_PHYSICAL_SIGILS] = {};
@@ -2239,6 +2259,41 @@ void setup() {
   configureIntentHandlers();
   observeClientState();
   intents.setObserver(observeIntent);
+
+  // Recover an interrupted match, if any, before the portal/radio boundary
+  // opens up. A reboot always finds Atlas in an empty Lobby unless a valid,
+  // unfinished checkpoint says otherwise; any storage problem fails safe to
+  // that same empty Lobby rather than risking ambiguous game state. Existing
+  // profiles/statistics are untouched either way -- this only concerns the
+  // small active-match cache.
+  {
+    using TurnHubStorage::Status;
+    const auto recoveryStatus = TurnHub::beginGameRecovery(game, lobby, millis());
+    if (recoveryStatus == Status::Ok && game.hasPlayers()) {
+      // A restored match is always paused (never running) and never charges
+      // downtime -- GameEngine::restoreCheckpoint() already rebased the
+      // elapsed clocks into this boot's millis() domain. From here the
+      // existing Pause/Resume controls (physical and browser) are exactly
+      // the "Resume" side of recovery: no separate resume step is needed.
+      // There is deliberately no "Discard" affordance yet -- see the
+      // STAGED_CHANGES note on interrupted-match recovery.
+      hubState = game.gameOver() ? HubState::GameOver : HubState::Paused;
+      leds.invalidateAll();
+      Serial.print("ATLAS|RECOVERY|OUTCOME|RESTORED|STATE|");
+      Serial.println(stateName(hubState));
+    } else if (recoveryStatus == Status::NotFound) {
+      Serial.println("ATLAS|RECOVERY|OUTCOME|NO_SAVED_MATCH");
+    } else if (recoveryStatus == Status::Ok) {
+      // A valid record was found and decoded, but it held no active match
+      // (e.g. checkpointed while Atlas was sitting in an empty Lobby).
+      Serial.println("ATLAS|RECOVERY|OUTCOME|EMPTY_RECORD");
+    } else {
+      Serial.print("ATLAS|RECOVERY|OUTCOME|FAILSAFE|");
+      Serial.println(TurnHub::storageStatusName(recoveryStatus));
+    }
+    observeClientState();
+  }
+
   const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;
@@ -2263,6 +2318,7 @@ void loop() {
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
+  updateGameRecoveryClock(nowMs);
   audio.update(nowMs);
   leds.render(
       hubState,

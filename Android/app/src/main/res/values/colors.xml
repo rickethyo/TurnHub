@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher icon background only; in-app Material3 colors live in ui/theme/Theme.kt -->
+    <color name="ic_launcher_background">#1B2430</color>
+</resources>

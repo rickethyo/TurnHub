@@ -1,6 +1,6 @@
 # TurnHub Android
 
-This directory is reserved for the native TurnHub Android client.
+This directory holds the native TurnHub Android client.
 
 The Android app is a controller and presentation client. It is not a second TurnHub game engine.
 
@@ -46,32 +46,63 @@ State flows back in the opposite direction.
 - DataStore later for local preferences
 - QR scanning / Android connection bootstrap later
 
-The current Android project should be created from the contemporary official Compose template rather than hand-locking old Gradle/plugin versions into the repository. As of this foundation pass, protocol and architecture are being established first so Android Studio project generation can happen without inventing a separate backend contract.
+## Current source layout
 
-## Proposed source layout
+The Gradle/Kotlin project was bootstrapped as a single `:app` module (Kotlin +
+Jetpack Compose, Material3, no other UI framework). Current layout:
 
 ```text
 Android/
   app/
-    src/main/java/.../
+    src/main/java/com/turnhub/android/
+      MainActivity.kt
       protocol/
-        IntentEnvelope
-        IntentResult
-        StateSnapshot
-        TurnHubEvent
+        AtlasConnectionState.kt
+        AtlasInfo.kt
+        GameProfile.kt
+        Player.kt
+        Sigil.kt
+        TableState.kt
+      domain/
+        TableSummary.kt
       data/
-        AtlasRepository
-        AtlasConnection
+        AtlasRepository.kt        (interface -- the future networking seam)
+        MockAtlasRepository.kt    (in-memory implementation, no transport)
       ui/
-        lobby/
-        game/
-        player/
-        settings/
-      scanner/
-        AtlasJoinParser
+        home/
+          HomeScreen.kt
+          HomeUiState.kt
+          HomeViewModel.kt
+        components/
+          ConnectionStateBadge.kt
+          PlayerRow.kt
+          SigilListItem.kt
+          TableSummaryCard.kt
+        theme/
+          Color.kt
+          Theme.kt
+          Type.kt
+    src/test/java/com/turnhub/android/data/
+      MockAtlasRepositoryTest.kt
 ```
 
-The exact Java/Kotlin package/application ID is intentionally not frozen yet. That identifier becomes externally important once the application is published, so it should be chosen deliberately rather than inherited accidentally from a prototype.
+`protocol/` holds Kotlin data models that mirror the JSON shapes in `/protocol`
+(`state-v0.1.schema.json`, `info-v1.schema.json`) and the concepts in
+`Documentation/engineering/` -- not the ESP32 C++ types, and not a claim that
+the wire format is frozen. `domain/` holds UI-oriented models that combine more
+than one wire response (`TableSummary` merges `/api/v1/info` identity fields
+with an `/api/v1/state` snapshot) and so aren't a 1:1 mirror of any single
+schema; it lives apart from `protocol/` for that reason. `data/AtlasRepository`
+is the only seam the UI talks through; today `MockAtlasRepository` is the only
+implementation. As lobby/game/player/settings/scanner screens are added, `ui/`
+should grow one subpackage per screen alongside `ui/home`, following the same
+pattern.
+
+The exact Java/Kotlin package/application ID (`com.turnhub.android`) is a
+development placeholder, not a frozen choice -- see `app/build.gradle.kts`.
+That identifier becomes externally important once the application is
+published, so it should be chosen deliberately rather than inherited
+accidentally from this bootstrap.
 
 ## First vertical slice
 
@@ -116,19 +147,29 @@ Android tests should eventually include:
 
 Game-rule tests stay with Atlas/domain code. Android tests verify client behavior, not whether TurnHub rules are correct.
 
+`app/src/test/.../data/MockAtlasRepositoryTest.kt` is the first of these: a
+plain JVM test (no Robolectric/instrumentation) exercising the mock repository
+through the same `AtlasRepository` interface a real implementation will
+satisfy. It is a starting seam, not coverage of the points above.
+
 ## Current milestone
 
-**Foundation 1:** Atlas exposes `/api/v1/info` and `/api/v1/state` with boot-scoped
-gameplay revisions. Authenticated session controls use the shared dispatcher,
-return revision metadata and accept optional concurrency checks. See the
-[implemented HTTP contract](../protocol/http-v1.md) and
-[machine-readable examples](../protocol/examples/).
+**Bootstrap 1 (UI shell, mocked data):** the Gradle/Compose project now exists
+and builds a single Home screen: Atlas connection state (Disconnected/
+Connecting/Connected), a mocked table summary, a mocked paired-Sigil list, and
+a connect/disconnect action -- all backed by `MockAtlasRepository`. No HTTP,
+Bluetooth, discovery, or device control is implemented; `AtlasRepository` is
+the seam a real implementation will fill in later.
 
-The first Android adapter should map `PASS` to the existing form-based
-`/api/control/pass` endpoint and use the existing login/join/session endpoints.
-The generic JSON Intent envelope and event stream are not live. Poll snapshots,
-rebuild on reconnect, and never automatically retry ambiguous PASS requests.
-No Android project, application ID, Wi-Fi automation or second game engine has
-been introduced.
+Foundation 1 remains the current Atlas baseline this app will eventually talk
+to: Atlas exposes `/api/v1/info` and `/api/v1/state` with boot-scoped gameplay
+revisions, and authenticated session controls that return revision metadata.
+See the [implemented HTTP contract](../protocol/http-v1.md) and
+[machine-readable examples](../protocol/examples/). The next Android slice
+should still map `PASS` to the existing form-based `/api/control/pass`
+endpoint and use the existing login/join/session endpoints once real
+networking begins; the generic JSON Intent envelope and event stream are not
+live yet. No Wi-Fi automation, discovery, or second game engine has been
+introduced.
 
-Last established: 2026-09-22
+Last established: 2026-09-23

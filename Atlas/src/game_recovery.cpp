@@ -1,6 +1,7 @@
 #include "game_recovery.h"
 #include "game_engine.h"
 #include "lobby.h"
+#include <Arduino.h>
 #include <cstring>
 
 namespace TurnHub {
@@ -85,16 +86,24 @@ TurnHubStorage::Status GameRecovery::load(GameEngine &game, Lobby &lobby, uint32
   writable_=false; previousSize_=0;
   size_t size=0;
   status_=store_.read("checkpoint",bytes_,sizeof(bytes_),size);
+  Serial.print("ATLAS|RECOVERY|READ|STATUS|"); Serial.print(storageStatusName(status_));
+  Serial.print("|SIZE|"); Serial.println(size);
   if (status_==Status::NotFound) { writable_=true; return status_; }
   if (status_!=Status::Ok) return status_;
   status_=decodeCheckpoint(bytes_,size,scratch_);
+  Serial.print("ATLAS|RECOVERY|DECODE|STATUS|"); Serial.println(storageStatusName(status_));
   if (status_!=Status::Ok) return status_; // Preserve unreadable/future records.
-  if (!game.restoreCheckpoint(scratch_,nowMs)) return status_=Status::Corrupt;
+  if (!game.restoreCheckpoint(scratch_,nowMs)) {
+    Serial.println("ATLAS|RECOVERY|VALIDATE|FAILED");
+    return status_=Status::Corrupt;
+  }
   if (scratch_.count) lobby.restorePlayers(scratch_.players,scratch_.count,scratch_.starter);
   else lobby.resetEmpty();
   scratch_.gameElapsed=0; scratch_.turnElapsed=0;
   previousSize_=encodeCheckpoint(scratch_,previous_,sizeof(previous_));
   lastSavedMs_=nowMs; writable_=true;
+  Serial.print("ATLAS|RECOVERY|RESTORE|OK|PLAYERS|"); Serial.print(scratch_.count);
+  Serial.print("|OVER|"); Serial.println(scratch_.over ? 1 : 0);
   return status_;
 }
 TurnHubStorage::Status GameRecovery::save(const GameEngine &game, uint32_t nowMs) {
@@ -112,6 +121,9 @@ TurnHubStorage::Status GameRecovery::save(const GameEngine &game, uint32_t nowMs
   scratch_.gameElapsed=gameTime; scratch_.turnElapsed=turnTime;
   const size_t size=encodeCheckpoint(scratch_,bytes_,sizeof(bytes_));
   status_=store_.write("checkpoint",bytes_,size);
+  Serial.print("ATLAS|RECOVERY|WRITE|REASON|"); Serial.print(changed?"CHANGED":"CLOCK");
+  Serial.print("|STATUS|"); Serial.print(storageStatusName(status_));
+  Serial.print("|SIZE|"); Serial.println(size);
   if (status_==Status::Ok) {
     scratch_.gameElapsed=0; scratch_.turnElapsed=0;
     previousSize_=encodeCheckpoint(scratch_,previous_,sizeof(previous_));

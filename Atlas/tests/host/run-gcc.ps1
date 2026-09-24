@@ -11,7 +11,7 @@ try {
     New-Item -ItemType Directory -Force build | Out-Null
     # MinGW needs GCC layout rules for the production packed radio packet.
     $flags = @('-std=c++14', '-Wall', '-Wextra', '-mno-ms-bitfields', '-static')
-    & $Compiler @flags -Istubs -I../../include scenarios.cpp test_globals.cpp profile_fixture.cpp ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/profile_statistics.cpp ../../src/stats_page.cpp ../../src/profile_login_page.cpp ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp -o build/scenarios.exe
+    & $Compiler @flags -Istubs -I../../include scenarios.cpp test_globals.cpp profile_fixture.cpp ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/profile_statistics.cpp ../../src/stats_page.cpp ../../src/profile_login_page.cpp ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp -o build/scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Gameplay test compilation failed.' }
     & .\build\scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Gameplay scenarios failed.' }

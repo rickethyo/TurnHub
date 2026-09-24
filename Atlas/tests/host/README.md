@@ -26,6 +26,7 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include scenarios.cpp test_globals.
     ../../src/profile_statistics.cpp ../../src/stats_page.cpp \
     ../../src/profile_login_page.cpp \
     ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp \
+    ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp \
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
@@ -109,3 +110,23 @@ and reconnect. They emit `build/client-*.json`. After running the host suite, ru
 The checker supports only the schema keywords used here and rejects unknown ones.
 Display-name tests cover repeated deliveries, truncation, shortening and clearing;
 profile-store tests assert identical saves do not add NVS writes.
+
+Interrupted-match recovery: the gameplay executable now also compiles
+`game_checkpoint.cpp`, `game_recovery.cpp`, `game_recovery_store.cpp` and
+`nvs_blob_store.cpp`, and runs a `gameRecoveryLifecycle` scenario against the
+real `beginGameRecovery()`/`checkpointGame()` entry points main.cpp calls
+(`stubs/nvs.h` gained a real in-memory blob backing for this, opt-in via
+`useRealNvsBlobs` so the pre-existing `OptionalPreferences` error-injection
+scenarios keep their original pure-error-code contract; this scenario runs
+last for the same reason -- opening the recovery store is a one-way,
+process-wide singleton latch). It checks: `NotFound` on a fresh store; a
+checkpoint is written after a dispatched intent with no direct call to
+`checkpointGame()` from the test, i.e. through the same observer hook
+main.cpp uses; a simulated reboot (fresh `GameEngine`/`Lobby`, same
+in-memory "flash") restores a paused, unfinished match with the elapsed game
+clock unaffected by the simulated downtime and without replaying the
+game-completed statistics callback; and a corrupted record fails safe to
+`Corrupt` with no players restored rather than loading ambiguous state. This
+does not simulate real flash power loss mid-write; see
+`Documentation/engineering/STAGED_CHANGES.md` for the remaining hardware
+acceptance item and the Resume/Discard UI gap noted there.

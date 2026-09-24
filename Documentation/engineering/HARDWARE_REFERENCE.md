@@ -118,6 +118,7 @@ Current firmware also creates a local access point named `TurnHub-Atlas`.
 | Red LED | 13 | Current development wiring |
 | Pass button | 26 | Current development wiring |
 | Action button | 25 | Current development wiring |
+| Pause / Win button | 32 | Breadboard J13; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
 | Buzzer | 33 | Current development wiring |
 | Pair button | 19 | Verified working firmware and rear-photo socket A12; closes to A13/GND, INPUT_PULLUP |
 
@@ -143,34 +144,43 @@ The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-i
 - Action win hold: 5 seconds.
 - Pass acknowledgement green flash: 250 ms.
 
-### Planned control revision
+### Auxiliary control revision
 
-**Status:** Planned, not yet represented by the verified pin table above
+**Status:** Pause / Win implemented in firmware on GPIO32; physical operation awaits a bench check
 
-The current product direction adds dedicated controls beyond the original two-button layout:
+The current controls extend the original two-button layout:
 
 - **Pass** - primary turn-pass input.
 - **Action** - contextual action with existing short/long behavior retained as needed.
-- **Action/Win auxiliary button** - short press can represent the prior Action-long semantic while a long hold can initiate a victory claim, reducing the need to pause automatically before a win claim.
+- **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
 - **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-The additional Action/Win auxiliary control remains planned and has no current firmware GPIO assignment. Do not treat the old schematic's GPIO4 auxiliary or GPIO32 display-detect labels as implemented wiring. Remaining ergonomics and future control assignments should be finalized after physical playtesting.
+The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. Older schematic GPIO4 auxiliary or GPIO32 display-detect labels do not describe this firmware wiring. Remaining ergonomics should be finalized after physical playtesting.
 
 ### Display orientation direction
 
-**Status:** Planned
+**Status:** Portrait firmware implemented; physical mounting direction awaits a bench check.
 
-The current hardware/software originated with a landscape-oriented display concept. Product direction is now portrait orientation so the Sigil can remain narrow while showing player identity, turn state, life/game information, and at-a-glance statistics vertically.
+The `GxEPD2_213_B74` driver targets GDEM0213B74 / SSD1680 with a **122 x 250**
+visible portrait area (128 controller RAM columns). Sigil now uses library
+rotation **0**, replacing rotation 1's 250 x 122 landscape layout. If the rewired
+panel is upside down, rotation **2** is the opposite portrait orientation.
 
-The eventual display reference should document:
+The screen stacks player identity, life, shared-player information, received
+Commander damage and turn status. Other lifecycle screens stack shared seats
+vertically and retain host/starter/attention/winner indicators. Full refreshes
+are currently enabled for all screens: the partial-update bench trial caused
+progressive contrast loss. The owner identifies an unmarked Inland module from
+Micro Center; the panel revision remains unconfirmed. The FPC-A002 marking and
+the similar Keyestudio module's GDEM0213B74 example give conflicting identification
+leads; verify the panel and rear switch settings before another partial trial.
+The configured driver still targets GDEM0213B74. The pin mapping
+above is unchanged. See
+[Sigil portrait layout and verification](../../Sigil/DISPLAY.md).
 
-- Exact panel model.
-- Active resolution.
-- Physical dimensions.
-- Rotation used in firmware.
-- Full vs partial refresh behavior.
-- SPI pin mapping including shared/default clock/data pins.
-- Power requirements and sleep current.
+Exact physical panel dimensions, supply requirements and sleep current still
+need a hardware verification pass. At-a-glance statistics remain future display
+content; the current protocol does not supply them.
 
 ---
 
