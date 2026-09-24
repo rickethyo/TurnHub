@@ -25,6 +25,7 @@ constexpr uint8_t GREEN_LED = 14;
 constexpr uint8_t RED_LED = 13;
 constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
+constexpr uint8_t PAUSE_WIN_BUTTON = 32; // Breadboard J13; switch to GND.
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 constexpr uint8_t PAIR_BUTTON = 19;
@@ -64,6 +65,7 @@ struct ButtonState {
 
 ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
+ButtonState pauseWinButton(PAUSE_WIN_BUTTON);
 ButtonState pairButton(PAIR_BUTTON);
 SigilDisplay sigilDisplay;
 
@@ -702,7 +704,7 @@ void sendAction(PacketType type, const char *name) {
   sendPacket(type);
 }
 
-void updateActionButton() {
+void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
   const bool reading = digitalRead(actionButton.pin);
 
   if (reading != actionButton.rawState) {
@@ -720,9 +722,13 @@ void updateActionButton() {
       actionButton.winSent = false;
       sendAction(PacketType::ActionDown, "ACTION_DOWN");
     } else {
+      // The dedicated Pause / Win tap uses the existing long-action semantic.
+      if (pauseWin && !actionButton.longSent) {
+        sendAction(PacketType::ActionLong, "ACTION_LONG");
+      }
       sendAction(PacketType::ActionUp, "ACTION_UP");
 
-      if (!actionButton.longSent) {
+      if (!pauseWin && !actionButton.longSent) {
         sendAction(PacketType::ActionShort, "ACTION_SHORT");
       }
 
@@ -738,7 +744,9 @@ void updateActionButton() {
 
   const uint32_t heldMs = millis() - actionButton.pressStartMs;
 
-  if (!actionButton.longSent && heldMs >= LONG_PRESS_MS) {
+  // A dedicated win hold arms the claim immediately before sending it,
+  // rather than pausing at the original Action button's 2-second threshold.
+  if (!actionButton.longSent && heldMs >= (pauseWin ? WIN_HOLD_MS : LONG_PRESS_MS)) {
     actionButton.longSent = true;
     sendAction(PacketType::ActionLong, "ACTION_LONG");
   }
@@ -815,6 +823,7 @@ void setup() {
   pinMode(RED_LED, OUTPUT);
   pinMode(PASS_BUTTON, INPUT_PULLUP);
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
+  pinMode(PAUSE_WIN_BUTTON, INPUT_PULLUP);
 
   analogWrite(BLUE_LED, 0);
   digitalWrite(GREEN_LED, LOW);
@@ -826,6 +835,7 @@ void setup() {
 
   passButton.rawState = passButton.stableState = digitalRead(PASS_BUTTON);
   actionButton.rawState = actionButton.stableState = digitalRead(ACTION_BUTTON);
+  pauseWinButton.rawState = pauseWinButton.stableState = digitalRead(PAUSE_WIN_BUTTON);
 
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
@@ -871,7 +881,8 @@ void loop() {
         received.data, received.length);
   }
   updatePassButton();
-  updateActionButton();
+  updateActionButton(actionButton);
+  updateActionButton(pauseWinButton, true);
   updatePairButton();
   updatePairing();
   updateGreenFlash();

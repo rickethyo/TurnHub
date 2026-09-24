@@ -63,6 +63,7 @@ Android/
         Player.kt
         Sigil.kt
         TableState.kt
+      domain/
         TableSummary.kt
       data/
         AtlasRepository.kt        (interface -- the future networking seam)
@@ -88,10 +89,14 @@ Android/
 `protocol/` holds Kotlin data models that mirror the JSON shapes in `/protocol`
 (`state-v0.1.schema.json`, `info-v1.schema.json`) and the concepts in
 `Documentation/engineering/` -- not the ESP32 C++ types, and not a claim that
-the wire format is frozen. `data/AtlasRepository` is the only seam the UI talks
-through; today `MockAtlasRepository` is the only implementation. As lobby/game/
-player/settings/scanner screens are added, `ui/` should grow one subpackage per
-screen alongside `ui/home`, following the same pattern.
+the wire format is frozen. `domain/` holds UI-oriented models that combine more
+than one wire response (`TableSummary` merges `/api/v1/info` identity fields
+with an `/api/v1/state` snapshot) and so aren't a 1:1 mirror of any single
+schema; it lives apart from `protocol/` for that reason. `data/AtlasRepository`
+is the only seam the UI talks through; today `MockAtlasRepository` is the only
+implementation. As lobby/game/player/settings/scanner screens are added, `ui/`
+should grow one subpackage per screen alongside `ui/home`, following the same
+pattern.
 
 The exact Java/Kotlin package/application ID (`com.turnhub.android`) is a
 development placeholder, not a frozen choice -- see `app/build.gradle.kts`.

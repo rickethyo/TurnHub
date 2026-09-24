@@ -118,6 +118,7 @@ Current firmware also creates a local access point named `TurnHub-Atlas`.
 | Red LED | 13 | Current development wiring |
 | Pass button | 26 | Current development wiring |
 | Action button | 25 | Current development wiring |
+| Pause / Win button | 32 | Breadboard J13; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
 | Buzzer | 33 | Current development wiring |
 | Pair button | 19 | Verified working firmware and rear-photo socket A12; closes to A13/GND, INPUT_PULLUP |
 
@@ -143,18 +144,18 @@ The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-i
 - Action win hold: 5 seconds.
 - Pass acknowledgement green flash: 250 ms.
 
-### Planned control revision
+### Auxiliary control revision
 
-**Status:** Planned, not yet represented by the verified pin table above
+**Status:** Pause / Win implemented in firmware on GPIO32; physical operation awaits a bench check
 
-The current product direction adds dedicated controls beyond the original two-button layout:
+The current controls extend the original two-button layout:
 
 - **Pass** - primary turn-pass input.
 - **Action** - contextual action with existing short/long behavior retained as needed.
-- **Action/Win auxiliary button** - short press can represent the prior Action-long semantic while a long hold can initiate a victory claim, reducing the need to pause automatically before a win claim.
+- **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
 - **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-The additional Action/Win auxiliary control remains planned and has no current firmware GPIO assignment. Do not treat the old schematic's GPIO4 auxiliary or GPIO32 display-detect labels as implemented wiring. Remaining ergonomics and future control assignments should be finalized after physical playtesting.
+The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. Older schematic GPIO4 auxiliary or GPIO32 display-detect labels do not describe this firmware wiring. Remaining ergonomics should be finalized after physical playtesting.
 
 ### Display orientation direction
 
