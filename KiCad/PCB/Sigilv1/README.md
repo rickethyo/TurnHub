@@ -1,11 +1,11 @@
 # Sigil Rev A electrical draft
 
-U1 is the removable, complete 38-pin ESP32 DevKit carrier interface. Its custom symbol and local symbol library use **A1–A19 and J1–J19 as pin numbers**, not ESP32 module pad numbers. No DevKit footprint is assigned. The PCB file has not been routed or changed.
+U1 is the removable, complete 38-pin ESP32 DevKit carrier interface. Its custom symbol and local symbol library use **A11–A29 and J11–J29 as pin numbers** (breadboard positions after the owner rotated the breadboard 180° on 2026-09-24: old A*n* is now J*(30−n)*, old J*n* is now A*(30−n)*), not ESP32 module pad numbers. No DevKit footprint is assigned. The PCB file has not been routed or changed.
 
 ## Authority and orientation
 
 - GPIO functions: `Sigil/src/main.cpp`, `Sigil/include/sigil_display.h`, and explicit SPI configuration in `Sigil/src/sigil_display.cpp`.
-- Socket identity: user-supplied [SigilBackMarked.png](reference/SigilBackMarked.png), photographed from the **BACK**, and the user's transcribed sequence. The schematic deliberately shows J1 top-left and A1 top-right in that rear-reference view.
+- Socket identity: user-supplied [SigilBackMarked.png](reference/SigilBackMarked.png), photographed from the **BACK**, and the user's transcribed sequence. The photo still carries the pre-rotation A1–A19 / J1–J19 labels; apply the mapping above to read it. The schematic shows A29 top-left and J29 top-right in that rear-reference view.
 - Existing values: R1–R3 remain **330R**, as specified in the previous schematic. The hardware reference contains no additional verified passive values or peripheral part numbers.
 - [Both cross-check tables](CROSS_CHECK.md) are verified from the exported netlist and firmware by `tools/verify_schematic.py`.
 
@@ -13,13 +13,13 @@ The schematic's rear-reference arrangement is **not** a carrier component-side f
 
 ## Electrical corrections and discrepancies
 
-The old U1 was a bare ESP32-WROOM-32E symbol with labels on incorrect electrical pins. For example its exported netlist assigned LED_BLUE to IO5, LED_GREEN to IO25, and LED_RED to IO23, contrary to the working firmware's GPIO27, GPIO14, and GPIO13. These now terminate on J9, J8, and J5 respectively. The old LED resistor outputs and LED cathodes were unconnected; the new circuits connect GPIO → 330R → LED anode, with cathode → GND.
+The old U1 was a bare ESP32-WROOM-32E symbol with labels on incorrect electrical pins. For example its exported netlist assigned LED_BLUE to IO5, LED_GREEN to IO25, and LED_RED to IO23, contrary to the working firmware's GPIO27, GPIO14, and GPIO13. These now terminate on A21, A22, and A25 respectively. The old LED resistor outputs and LED cathodes were unconnected; the new circuits connect GPIO → 330R → LED anode, with cathode → GND.
 
-PAIR was described as future work in old schematic/hardware notes. It is implemented: `PAIR_BUTTON = 19`, U1 A12, net PAIR, SW4 to common GND including U1 A13. Firmware detaches SPI MISO from GPIO19 and configures INPUT_PULLUP after display initialization. Released is HIGH; pressed is LOW. Pass and Action also close to GND with internal pull-ups.
+PAIR was described as future work in old schematic/hardware notes. It is implemented: `PAIR_BUTTON = 19`, U1 J18, net PAIR, SW4 to common GND including U1 J17. Firmware detaches SPI MISO from GPIO19 and configures INPUT_PULLUP after display initialization. Released is HIGH; pressed is LOW. Pass and Action also close to GND with internal pull-ups.
 
-The old GPIO4 Action/Win auxiliary and GPIO32 DISPLAY_DETECT assignments have no current firmware implementation and were removed; A7 is explicitly NC. GPIO32 / J13 is now the Pause / Win button (`PAUSE_WIN_BUTTON = 32`): net BTN_PAUSE, SW5 to GND, INPUT_PULLUP like the other buttons. The owner first added the BTN_PAUSE label by hand in KiCad without a switch; the script now draws the complete circuit. SW3's reference stays retired (it was the old GPIO4 auxiliary) rather than renumbering the existing Pair switch SW4.
+The old GPIO4 Action/Win auxiliary and GPIO32 DISPLAY_DETECT assignments have no current firmware implementation and were removed; J23 is explicitly NC. GPIO32 / A17 is now the Pause / Win button (`PAUSE_WIN_BUTTON = 32`): net BTN_PAUSE, SW5 to GND, INPUT_PULLUP like the other buttons. The owner first added the BTN_PAUSE label by hand in KiCad without a switch; the script now draws the complete circuit. SW3's reference stays retired (it was the old GPIO4 auxiliary) rather than renumbering the existing Pair switch SW4.
 
-All three ground positions A13, A19, and J6 connect to GND. J19 supplies the +3V3 rail. This draft assumes power through the DevKit's own USB connector; J1/5V has no carrier connection. No additional regulator, USB-UART, BOOT, EN/reset, or other DevKit support circuitry is reproduced.
+All three ground positions J17, J11, and A24 connect to GND. A11 supplies the +3V3 rail. This draft assumes power through the DevKit's own USB connector; A29/5V has no carrier connection. No additional regulator, USB-UART, BOOT, EN/reset, or other DevKit support circuitry is reproduced.
 
 ## Unresolved electrical details
 
@@ -40,7 +40,7 @@ No reliable dimensional drawing or measured dimensions were found in the reposit
 - Female socket dimensions/height, insertion depth, underside and component keepouts.
 - BOOT and EN/reset access plus antenna clearance requirements for the exact installed DevKit.
 
-Use two 1x19 female socket rows so the complete DevKit remains removable. The eventual silkscreen must make A1/J1 and insertion orientation obvious. Keep USB-C accessible for flashing/debugging and leave BOOT and EN/reset operable. **No fabrication-ready DevKit footprint exists in this revision.**
+Use two 1x19 female socket rows so the complete DevKit remains removable. The eventual silkscreen must make A29/J29 and insertion orientation obvious. Keep USB-C accessible for flashing/debugging and leave BOOT and EN/reset operable. **No fabrication-ready DevKit footprint exists in this revision.**
 
 ## Validation and editing
 

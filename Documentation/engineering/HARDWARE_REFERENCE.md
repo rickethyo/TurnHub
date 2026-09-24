@@ -178,9 +178,9 @@ really is common-anode.
 | Red LED | 13 | Current development wiring |
 | Pass button | 26 | Current development wiring |
 | Action button | 25 | Current development wiring |
-| Pause / Win button | 32 | Breadboard J13; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
+| Pause / Win button | 32 | Breadboard A17; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
 | Buzzer | 33 | Current development wiring |
-| Pair button | 19 | Verified working firmware and rear-photo socket A12; closes to A13/GND, INPUT_PULLUP |
+| Pair button | 19 | Verified working firmware and rear-photo socket J18; closes to J17/GND, INPUT_PULLUP |
 
 ### E-ink interface
 
@@ -190,10 +190,10 @@ really is common-anode.
 | EPD DC | 16 | Verified in display class |
 | EPD RST | 22 | Verified in display class |
 | EPD BUSY | 21 | Verified in display class |
-| EPD SCLK | 18 | Explicit SPI.begin configuration; socket A11 |
-| EPD MOSI | 23 | Explicit SPI.begin configuration; socket A18 |
+| EPD SCLK | 18 | Explicit SPI.begin configuration; socket J19 |
+| EPD MOSI | 23 | Explicit SPI.begin configuration; socket J12 |
 
-GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view: J1 is top-left, A1 top-right; A12 is GPIO19 and A13 is GND.
+GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view. Socket positions follow the breadboard rotated 180° (2026-09-24; *Needs verification* on the rewired board): A29 is top-left, J29 top-right; J18 is GPIO19 and J17 is GND. The photo still shows the pre-rotation labels (old A*n* = J*(30−n)*, old J*n* = A*(30−n)*).
 
 The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-ink target in the present implementation.
 
@@ -221,7 +221,7 @@ The current controls extend the original two-button layout:
 - **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
 - **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. The Rev A schematic now carries it as net BTN_PAUSE with switch SW5 to GND (2026-09-24, checked against firmware by `verify_schematic.py`; not a hardware check). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
+The Pause / Win auxiliary control uses GPIO32 / A17 on the breadboard. The Rev A schematic now carries it as net BTN_PAUSE with switch SW5 to GND (2026-09-24, checked against firmware by `verify_schematic.py`; not a hardware check). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
 
 ### Display orientation direction
 

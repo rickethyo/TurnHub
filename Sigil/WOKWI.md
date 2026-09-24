@@ -22,12 +22,12 @@ Then run **Wokwi: Start Simulator**. `wokwi.toml` loads the `sigil-wokwi` firmwa
 | Part | Wokwi part | Wiring (DevKit socket from the schematic) |
 | --- | --- | --- |
 | ESP32 DevKit, 38 pins | `board-esp32-devkit-c-v4` | Same 38-pin layout as the real carrier socket |
-| PASS button (`P`) | pushbutton | GPIO26 (J10) to GND (J6), INPUT_PULLUP |
-| ACTION button (`A`) | pushbutton | GPIO25 (J11) to GND (J6) |
-| PAUSE / WIN button (`W`) | pushbutton | GPIO32 (J13) to GND (J6) |
-| PAIR button (`R`) | pushbutton | GPIO19 (A12) to GND (A13) |
-| Red, green, blue LEDs (D1-D3) | LED + 330 ohm resistor (R1-R3) | GPIO13 (J5), GPIO14 (J8), GPIO27 (J9) -> 330R -> anode; cathode to GND (A19) |
-| Buzzer | `wokwi-buzzer` | GPIO33 (J12) to GND (A19) |
+| PASS button (`P`) | pushbutton | GPIO26 (A20) to GND (A24), INPUT_PULLUP |
+| ACTION button (`A`) | pushbutton | GPIO25 (A19) to GND (A24) |
+| PAUSE / WIN button (`W`) | pushbutton | GPIO32 (A17) to GND (A24) |
+| PAIR button (`R`) | pushbutton | GPIO19 (J18) to GND (J17) |
+| Red, green, blue LEDs (D1-D3) | LED + 330 ohm resistor (R1-R3) | GPIO13 (A25), GPIO14 (A22), GPIO27 (A21) -> 330R -> anode; cathode to GND (J11) |
+| Buzzer | `wokwi-buzzer` | GPIO33 (A18) to GND (J11) |
 | 2.13" e-paper | `chip-epaper-2in13` (local custom chip) | CLK 18, DIN 23, CS 17, DC 16, RST 22, BUSY 21, VCC 3V3, GND |
 
 The e-paper is a local copy of Bonny Rais's SSD1680 e-paper chip model

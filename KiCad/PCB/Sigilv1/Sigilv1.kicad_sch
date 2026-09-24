@@ -765,190 +765,10 @@
 				)
 			)
 			(symbol "ESP32_DevKit_38_RearReference_1_1"
-				(pin passive line
-					(at 43.18 45.72 180)
+				(pin power_out line
+					(at -43.18 -45.72 0)
 					(length 5.08)
-					(name "CLK"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A1"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 40.64 180)
-					(length 5.08)
-					(name "SD0"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A2"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 35.56 180)
-					(length 5.08)
-					(name "SD1"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A3"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 30.48 180)
-					(length 5.08)
-					(name "GPIO15"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A4"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 25.4 180)
-					(length 5.08)
-					(name "GPIO2"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A5"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 20.32 180)
-					(length 5.08)
-					(name "GPIO0"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A6"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 15.24 180)
-					(length 5.08)
-					(name "GPIO4"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A7"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 43.18 10.16 180)
-					(length 5.08)
-					(name "GPIO16_/_EPD_DC"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A8"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 43.18 5.08 180)
-					(length 5.08)
-					(name "GPIO17_/_EPD_CS"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A9"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 0 180)
-					(length 5.08)
-					(name "GPIO5"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A10"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 43.18 -5.08 180)
-					(length 5.08)
-					(name "GPIO18_/_EPD_SCLK"
+					(name "3V3"
 						(effects
 							(font
 								(size 1 1)
@@ -956,456 +776,6 @@
 						)
 					)
 					(number "A11"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at 43.18 -10.16 180)
-					(length 5.08)
-					(name "GPIO19_/_PAIR"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A12"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 -15.24 180)
-					(length 5.08)
-					(name "GND"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A13"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at 43.18 -20.32 180)
-					(length 5.08)
-					(name "GPIO21_/_EPD_BUSY"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A14"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 -25.4 180)
-					(length 5.08)
-					(name "RXD0"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A15"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 -30.48 180)
-					(length 5.08)
-					(name "TXD0"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A16"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 43.18 -35.56 180)
-					(length 5.08)
-					(name "GPIO22_/_EPD_RST"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A17"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at 43.18 -40.64 180)
-					(length 5.08)
-					(name "GPIO23_/_EPD_MOSI"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A18"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 43.18 -45.72 180)
-					(length 5.08)
-					(name "GND"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "A19"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 45.72 0)
-					(length 5.08)
-					(name "5V"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J1"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 40.64 0)
-					(length 5.08)
-					(name "CMD"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J2"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 35.56 0)
-					(length 5.08)
-					(name "SD3"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J3"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 30.48 0)
-					(length 5.08)
-					(name "SD2"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J4"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at -43.18 25.4 0)
-					(length 5.08)
-					(name "GPIO13_/_LED_RED"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J5"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 20.32 0)
-					(length 5.08)
-					(name "GND"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J6"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 15.24 0)
-					(length 5.08)
-					(name "GPIO12"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J7"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at -43.18 10.16 0)
-					(length 5.08)
-					(name "GPIO14_/_LED_GREEN"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J8"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at -43.18 5.08 0)
-					(length 5.08)
-					(name "GPIO27_/_LED_BLUE"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J9"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -43.18 0 0)
-					(length 5.08)
-					(name "GPIO26_/_BTN_PASS"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J10"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -43.18 -5.08 0)
-					(length 5.08)
-					(name "GPIO25_/_BTN_ACTION"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J11"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin output line
-					(at -43.18 -10.16 0)
-					(length 5.08)
-					(name "GPIO33_/_BUZZER"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J12"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin input line
-					(at -43.18 -15.24 0)
-					(length 5.08)
-					(name "GPIO32_/_BTN_PAUSE"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J13"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 -20.32 0)
-					(length 5.08)
-					(name "GPIO35"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J14"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 -25.4 0)
-					(length 5.08)
-					(name "GPIO34"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J15"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 -30.48 0)
-					(length 5.08)
-					(name "SVN"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J16"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -43.18 -35.56 0)
-					(length 5.08)
-					(name "SVP"
-						(effects
-							(font
-								(size 1 1)
-							)
-						)
-					)
-					(number "J17"
 						(effects
 							(font
 								(size 1 1)
@@ -1423,6 +793,456 @@
 							)
 						)
 					)
+					(number "A12"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 -35.56 0)
+					(length 5.08)
+					(name "SVP"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A13"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 -30.48 0)
+					(length 5.08)
+					(name "SVN"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A14"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 -25.4 0)
+					(length 5.08)
+					(name "GPIO34"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A15"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 -20.32 0)
+					(length 5.08)
+					(name "GPIO35"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A16"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -43.18 -15.24 0)
+					(length 5.08)
+					(name "GPIO32_/_BTN_PAUSE"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A17"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -43.18 -10.16 0)
+					(length 5.08)
+					(name "GPIO33_/_BUZZER"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A18"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -43.18 -5.08 0)
+					(length 5.08)
+					(name "GPIO25_/_BTN_ACTION"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A19"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -43.18 0 0)
+					(length 5.08)
+					(name "GPIO26_/_BTN_PASS"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A20"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -43.18 5.08 0)
+					(length 5.08)
+					(name "GPIO27_/_LED_BLUE"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A21"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -43.18 10.16 0)
+					(length 5.08)
+					(name "GPIO14_/_LED_GREEN"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A22"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 15.24 0)
+					(length 5.08)
+					(name "GPIO12"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A23"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 20.32 0)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A24"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -43.18 25.4 0)
+					(length 5.08)
+					(name "GPIO13_/_LED_RED"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A25"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 30.48 0)
+					(length 5.08)
+					(name "SD2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A26"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 35.56 0)
+					(length 5.08)
+					(name "SD3"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A27"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 40.64 0)
+					(length 5.08)
+					(name "CMD"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A28"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -43.18 45.72 0)
+					(length 5.08)
+					(name "5V"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "A29"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 -45.72 180)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J11"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 43.18 -40.64 180)
+					(length 5.08)
+					(name "GPIO23_/_EPD_MOSI"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J12"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 43.18 -35.56 180)
+					(length 5.08)
+					(name "GPIO22_/_EPD_RST"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J13"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 -30.48 180)
+					(length 5.08)
+					(name "TXD0"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J14"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 -25.4 180)
+					(length 5.08)
+					(name "RXD0"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J15"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 43.18 -20.32 180)
+					(length 5.08)
+					(name "GPIO21_/_EPD_BUSY"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J16"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 -15.24 180)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J17"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 43.18 -10.16 180)
+					(length 5.08)
+					(name "GPIO19_/_PAIR"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
 					(number "J18"
 						(effects
 							(font
@@ -1431,10 +1251,10 @@
 						)
 					)
 				)
-				(pin power_out line
-					(at -43.18 -45.72 0)
+				(pin output line
+					(at 43.18 -5.08 180)
 					(length 5.08)
-					(name "3V3"
+					(name "GPIO18_/_EPD_SCLK"
 						(effects
 							(font
 								(size 1 1)
@@ -1442,6 +1262,186 @@
 						)
 					)
 					(number "J19"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 0 180)
+					(length 5.08)
+					(name "GPIO5"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J20"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 43.18 5.08 180)
+					(length 5.08)
+					(name "GPIO17_/_EPD_CS"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J21"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 43.18 10.16 180)
+					(length 5.08)
+					(name "GPIO16_/_EPD_DC"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J22"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 15.24 180)
+					(length 5.08)
+					(name "GPIO4"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J23"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 20.32 180)
+					(length 5.08)
+					(name "GPIO0"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J24"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 25.4 180)
+					(length 5.08)
+					(name "GPIO2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J25"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 30.48 180)
+					(length 5.08)
+					(name "GPIO15"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J26"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 35.56 180)
+					(length 5.08)
+					(name "SD1"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J27"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 40.64 180)
+					(length 5.08)
+					(name "SD0"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J28"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 43.18 45.72 180)
+					(length 5.08)
+					(name "CLK"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "J29"
 						(effects
 							(font
 								(size 1 1)
@@ -1628,17 +1628,6 @@
 		)
 		(uuid "0a78ce2c-8e30-596b-8ada-eae2e8b936bf")
 	)
-	(text "BACK / REAR PHOTO VIEW\nJ1 top-left; A1 top-right\nSocket IDs are immutable; this is NOT a footprint view."
-		(exclude_from_sim no)
-		(at 28 21 0)
-		(effects
-			(font
-				(size 1.5 1.5)
-			)
-			(justify left top)
-		)
-		(uuid "18d9eb95-c115-5100-aa69-e6c3584e6999")
-	)
 	(text "330R retained from existing schematic;\nLED part/current verification remains open."
 		(exclude_from_sim no)
 		(at 248 110 0)
@@ -1672,18 +1661,7 @@
 		)
 		(uuid "34279590-7e74-56f2-8eba-52055d29ad12")
 	)
-	(text "USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained."
-		(exclude_from_sim no)
-		(at 28 157 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "367f7b73-6288-5090-896d-7c81b8097f0b")
-	)
-	(text "PAIR: A12 / GPIO19 to A13 / GND\nPAUSE/WIN: J13 / GPIO32 to GND (SW3 retired)\nAll released HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry."
+	(text "PAIR: J18 / GPIO19 to J17 / GND\nPAUSE/WIN: A17 / GPIO32 to GND (SW3 retired)\nAll released HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry."
 		(exclude_from_sim no)
 		(at 175 130 0)
 		(effects
@@ -1692,9 +1670,20 @@
 			)
 			(justify left top)
 		)
-		(uuid "6d9e2789-cf4b-5b85-818d-3aaca8f5e605")
+		(uuid "7bb0d28b-8889-5f81-9854-1fac01618af9")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. Old GPIO4 auxiliary and GPIO32 display-detect removed; GPIO32 / J13 is now the Pause/Win button (SW5).\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+	(text "USB-powered DevKit; A29 / 5V unused on carrier.\nA11 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained."
+		(exclude_from_sim no)
+		(at 28 157 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "9174f72d-0f3f-5874-a260-66b2ca63e2b2")
+	)
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A11-A29 / J11-J29 after the 180-degree breadboard rotation (old An = J(30-n), old Jn = A(30-n)).\n   SigilBackMarked.png (BACK view) still shows the pre-rotation A1-A19 / J1-J19 labels.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A29/J29 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. Old GPIO4 auxiliary and GPIO32 display-detect removed; GPIO32 / A17 is now the Pause/Win button (SW5).\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
 		(exclude_from_sim no)
 		(at 28 211 0)
 		(effects
@@ -1703,7 +1692,7 @@
 			)
 			(justify left top)
 		)
-		(uuid "95d26e46-55d7-5517-9943-17b42b09c84d")
+		(uuid "97ec84fc-1d1c-5f7c-9e99-cd9b4bba4554")
 	)
 	(text "CONTROLS - INPUT_PULLUP"
 		(exclude_from_sim no)
@@ -1715,6 +1704,17 @@
 			(justify left top)
 		)
 		(uuid "ac8aac61-e461-58d3-b10a-72aa21c67e8d")
+	)
+	(text "BACK / REAR PHOTO VIEW\nA29 top-left; J29 top-right (breadboard rotated 180 degrees)\nThis is NOT a footprint view."
+		(exclude_from_sim no)
+		(at 28 21 0)
+		(effects
+			(font
+				(size 1.5 1.5)
+			)
+			(justify left top)
+		)
+		(uuid "b79e4be9-7711-506d-b933-1cd9f1cdba7f")
 	)
 	(no_connect
 		(at 45.72 66.04)
@@ -2882,119 +2882,119 @@
 				)
 			)
 		)
-		(pin "J1"
-			(uuid "6ac4a7dd-8aff-594b-b1ee-75987a344d3f")
+		(pin "A29"
+			(uuid "ff5ccd99-fe78-5140-96b5-0e5e8da1cf77")
 		)
-		(pin "J2"
-			(uuid "228b5439-c008-5314-9d78-5e2e2d2f18d3")
+		(pin "A28"
+			(uuid "d0c59a06-3bb0-5dd3-bd46-0f3eb7f10270")
 		)
-		(pin "J3"
-			(uuid "081c5f59-ca6f-51a6-8f67-eac3f29a43cf")
+		(pin "A27"
+			(uuid "f3410633-fc36-545b-bedc-64e0de1d0794")
 		)
-		(pin "J4"
-			(uuid "267bd303-833e-512e-9417-690dbe24233f")
+		(pin "A26"
+			(uuid "9d8e597a-4e96-561a-bf86-92704cf8052c")
 		)
-		(pin "J5"
-			(uuid "7d30d0ab-9554-5271-b4dd-f261f62fd323")
+		(pin "A25"
+			(uuid "8e2c4a58-c65f-58b9-9627-a96f80515c93")
 		)
-		(pin "J6"
-			(uuid "9819e85c-d4b3-5cbe-9928-2d6b61a5d1dc")
+		(pin "A24"
+			(uuid "ec21a209-4b6b-5e8a-b4b6-25df11e39f2d")
 		)
-		(pin "J7"
-			(uuid "7e3cefc5-fbce-5745-bcd0-f2633bbff3a3")
+		(pin "A23"
+			(uuid "c582d6e2-8e66-5dea-99a1-205066eb7196")
 		)
-		(pin "J8"
-			(uuid "8141f984-8ea8-5218-af8f-8a9a2ef416a1")
+		(pin "A22"
+			(uuid "101adfe2-0f3c-5558-aea9-c40d3f1bc725")
 		)
-		(pin "J9"
-			(uuid "70bca43d-f785-5260-ba1c-a00720ad9869")
+		(pin "A21"
+			(uuid "6f99817d-7de1-5f81-b212-88beaee514a7")
 		)
-		(pin "J10"
-			(uuid "9d660a32-f78e-56be-8efa-799c6b31e808")
+		(pin "A20"
+			(uuid "53d6d166-42b1-525d-8fd9-f6095bf36bc0")
 		)
-		(pin "J11"
-			(uuid "d5cf5e17-a5ee-5f03-a76d-bc7dbf797c7d")
-		)
-		(pin "J12"
-			(uuid "9ad44b8d-9422-572e-a49b-76054812eda7")
-		)
-		(pin "J13"
-			(uuid "50abba87-35cc-54d9-a67e-eb0205331f93")
-		)
-		(pin "J14"
-			(uuid "d045fec0-7bd3-5917-a0a9-29824308730e")
-		)
-		(pin "J15"
-			(uuid "fbade598-7933-5ed8-b466-2159b786991c")
-		)
-		(pin "J16"
-			(uuid "cc888201-6780-50f0-8e2e-976048f9aae0")
-		)
-		(pin "J17"
-			(uuid "fe625cd5-f22a-52f9-929b-cedc88957e8b")
-		)
-		(pin "J18"
-			(uuid "ec45b0d4-deb4-56a2-bb69-39403a80f65f")
-		)
-		(pin "J19"
-			(uuid "52aade52-aa9e-50e1-90f6-92e0daff6c18")
-		)
-		(pin "A1"
-			(uuid "2b8ec2d4-7f61-511d-91ea-c5b04f704742")
-		)
-		(pin "A2"
-			(uuid "9cce216a-fffa-54c0-aa8e-a3cab9eb0607")
-		)
-		(pin "A3"
-			(uuid "4f1e2f19-dbe3-516f-a054-2ce2ee7b0f30")
-		)
-		(pin "A4"
-			(uuid "ccac282c-2bd0-5b49-9e09-a59700a79e2b")
-		)
-		(pin "A5"
-			(uuid "e9193a9a-0597-56e9-8053-e767fc154f94")
-		)
-		(pin "A6"
-			(uuid "59cc2c37-88f6-5dd0-8127-02ba3827685b")
-		)
-		(pin "A7"
-			(uuid "57d7a8bd-e256-5be4-aa8a-63e4e3b56fc6")
-		)
-		(pin "A8"
-			(uuid "ad36fa87-e3b5-5f52-b536-dc5aa26c19e8")
-		)
-		(pin "A9"
-			(uuid "d47f1937-cbec-5a38-acce-9de08684814f")
-		)
-		(pin "A10"
-			(uuid "8d49cd57-8059-5157-91ca-0e0c685c0080")
-		)
-		(pin "A11"
-			(uuid "65b112c6-7b11-5d2e-8868-a072ef241f5b")
-		)
-		(pin "A12"
-			(uuid "90897e39-af87-5819-ba0a-afa49d9d593b")
-		)
-		(pin "A13"
-			(uuid "8fc12fd2-687b-5308-a6b2-086b276feed7")
-		)
-		(pin "A14"
-			(uuid "03ec8455-86e0-527a-8d49-419c56d04292")
-		)
-		(pin "A15"
-			(uuid "65c5e677-b640-5f7b-83ea-eafcf1740d15")
-		)
-		(pin "A16"
-			(uuid "6a16608d-0aff-5e78-9b42-81fe52ba3ecf")
-		)
-		(pin "A17"
-			(uuid "3df90349-7a5f-5a95-89b7-565111d59c29")
+		(pin "A19"
+			(uuid "e6b7501f-888d-5e99-8867-54b3b5643c9f")
 		)
 		(pin "A18"
 			(uuid "20bcbea1-e055-5f6d-9537-f2901e142e77")
 		)
-		(pin "A19"
-			(uuid "e6b7501f-888d-5e99-8867-54b3b5643c9f")
+		(pin "A17"
+			(uuid "3df90349-7a5f-5a95-89b7-565111d59c29")
+		)
+		(pin "A16"
+			(uuid "6a16608d-0aff-5e78-9b42-81fe52ba3ecf")
+		)
+		(pin "A15"
+			(uuid "65c5e677-b640-5f7b-83ea-eafcf1740d15")
+		)
+		(pin "A14"
+			(uuid "03ec8455-86e0-527a-8d49-419c56d04292")
+		)
+		(pin "A13"
+			(uuid "8fc12fd2-687b-5308-a6b2-086b276feed7")
+		)
+		(pin "A12"
+			(uuid "90897e39-af87-5819-ba0a-afa49d9d593b")
+		)
+		(pin "A11"
+			(uuid "65b112c6-7b11-5d2e-8868-a072ef241f5b")
+		)
+		(pin "J29"
+			(uuid "9daf1a45-13b0-547b-9234-76cf44b416cd")
+		)
+		(pin "J28"
+			(uuid "aed1aa21-8132-5cef-8c19-fa4d81882b53")
+		)
+		(pin "J27"
+			(uuid "e8224457-4b88-54ba-9fb9-51463c612425")
+		)
+		(pin "J26"
+			(uuid "850c973a-6abf-5d0d-9a98-4213cd9aae61")
+		)
+		(pin "J25"
+			(uuid "1933a3e6-ea0e-5c06-ba64-b20a89536901")
+		)
+		(pin "J24"
+			(uuid "3f2e9431-b664-5753-b62d-52508d4144d2")
+		)
+		(pin "J23"
+			(uuid "e1a28f91-44b4-5ddc-9ce0-b3497819c3d9")
+		)
+		(pin "J22"
+			(uuid "fc43df47-d1ec-5ec3-8b54-6f90548c29be")
+		)
+		(pin "J21"
+			(uuid "fa4f3ec5-4de1-5d11-925a-485b302b2db1")
+		)
+		(pin "J20"
+			(uuid "2774d08f-2392-56c6-8df3-d099bc083878")
+		)
+		(pin "J19"
+			(uuid "52aade52-aa9e-50e1-90f6-92e0daff6c18")
+		)
+		(pin "J18"
+			(uuid "ec45b0d4-deb4-56a2-bb69-39403a80f65f")
+		)
+		(pin "J17"
+			(uuid "fe625cd5-f22a-52f9-929b-cedc88957e8b")
+		)
+		(pin "J16"
+			(uuid "cc888201-6780-50f0-8e2e-976048f9aae0")
+		)
+		(pin "J15"
+			(uuid "fbade598-7933-5ed8-b466-2159b786991c")
+		)
+		(pin "J14"
+			(uuid "d045fec0-7bd3-5917-a0a9-29824308730e")
+		)
+		(pin "J13"
+			(uuid "50abba87-35cc-54d9-a67e-eb0205331f93")
+		)
+		(pin "J12"
+			(uuid "9ad44b8d-9422-572e-a49b-76054812eda7")
+		)
+		(pin "J11"
+			(uuid "d5cf5e17-a5ee-5f03-a76d-bc7dbf797c7d")
 		)
 		(instances
 			(project "Sigilv1"

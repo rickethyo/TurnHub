@@ -27,21 +27,23 @@ def fx(size=1.27): return f'(effects (font (size {size} {size})))'
 def prop(name, value, x, y, hide=False):
     return f'(property {q(name)} {q(value)} (at {x} {y} 0) {"(hide yes)" if hide else ""} {fx()})'
 
-A = 'CLK SD0 SD1 GPIO15 GPIO2 GPIO0 GPIO4 GPIO16 GPIO17 GPIO5 GPIO18 GPIO19 GND GPIO21 RXD0 TXD0 GPIO22 GPIO23 GND'.split()
-J = '5V CMD SD3 SD2 GPIO13 GND GPIO12 GPIO14 GPIO27 GPIO26 GPIO25 GPIO33 GPIO32 GPIO35 GPIO34 SVN SVP EN 3V3'.split()
+# Breadboard rotated 180 degrees: column A holds the 5V..3V3 side, J the CLK..GND side,
+# and each row runs 29 (top of the rear view) down to 11.
+J = 'CLK SD0 SD1 GPIO15 GPIO2 GPIO0 GPIO4 GPIO16 GPIO17 GPIO5 GPIO18 GPIO19 GND GPIO21 RXD0 TXD0 GPIO22 GPIO23 GND'.split()
+A = '5V CMD SD3 SD2 GPIO13 GND GPIO12 GPIO14 GPIO27 GPIO26 GPIO25 GPIO33 GPIO32 GPIO35 GPIO34 SVN SVP EN 3V3'.split()
 # position: net, firmware definition, GPIO
 SIGNALS = {
-    'J5': ('LED_RED', 'RED_LED', 13), 'J8': ('LED_GREEN', 'GREEN_LED', 14),
-    'J9': ('LED_BLUE', 'BLUE_LED', 27), 'J10': ('BTN_PASS', 'PASS_BUTTON', 26),
-    'J11': ('BTN_ACTION', 'ACTION_BUTTON', 25), 'J12': ('BUZZER', 'BUZZER_PIN', 33),
-    'J13': ('BTN_PAUSE', 'PAUSE_WIN_BUTTON', 32),
-    'A12': ('PAIR', 'PAIR_BUTTON', 19), 'A8': ('EPD_DC', 'EPD_DC', 16),
-    'A9': ('EPD_CS', 'EPD_CS', 17), 'A11': ('EPD_SCLK', 'SPI.begin clock', 18),
-    'A14': ('EPD_BUSY', 'EPD_BUSY', 21), 'A17': ('EPD_RST', 'EPD_RST', 22),
-    'A18': ('EPD_MOSI', 'SPI.begin MOSI', 23),
+    'A25': ('LED_RED', 'RED_LED', 13), 'A22': ('LED_GREEN', 'GREEN_LED', 14),
+    'A21': ('LED_BLUE', 'BLUE_LED', 27), 'A20': ('BTN_PASS', 'PASS_BUTTON', 26),
+    'A19': ('BTN_ACTION', 'ACTION_BUTTON', 25), 'A18': ('BUZZER', 'BUZZER_PIN', 33),
+    'A17': ('BTN_PAUSE', 'PAUSE_WIN_BUTTON', 32),
+    'J18': ('PAIR', 'PAIR_BUTTON', 19), 'J22': ('EPD_DC', 'EPD_DC', 16),
+    'J21': ('EPD_CS', 'EPD_CS', 17), 'J19': ('EPD_SCLK', 'SPI.begin clock', 18),
+    'J16': ('EPD_BUSY', 'EPD_BUSY', 21), 'J13': ('EPD_RST', 'EPD_RST', 22),
+    'J12': ('EPD_MOSI', 'SPI.begin MOSI', 23),
 }
 NETS = {p: data[0] for p, data in SIGNALS.items()}
-NETS.update({'A13': 'GND', 'A19': 'GND', 'J6': 'GND', 'J19': '+3V3'})
+NETS.update({'J17': 'GND', 'J11': 'GND', 'A24': 'GND', 'A11': '+3V3'})
 
 def pin(num, name, x, y, angle, kind='passive'):
     return f'(pin {kind} line (at {x} {y} {angle}) (length 5.08) (name {q(name)} {fx(1.0)}) (number {q(num)} {fx(1.0)}))'
@@ -57,11 +59,11 @@ lib = next(b for b in children(old) if b.startswith('(lib_symbols'))
 libs = [b for b in children(lib) if any(b.startswith(f'(symbol "{n}"') for n in ('Device:LED', 'Device:R', 'Switch:SW_Push'))]
 assert len(libs) == 3
 pins = []
-for row, names, x, angle in [('J', J, -43.18, 0), ('A', A, 43.18, 180)]:
+for row, names, x, angle in [('A', A, -43.18, 0), ('J', J, 43.18, 180)]:
     for i, name in enumerate(names):
-        pos = f'{row}{i+1}'
-        kind = 'power_out' if pos == 'J19' else 'passive'
-        if pos in SIGNALS: kind = 'input' if pos in ('J10','J11','J13','A12','A14') else 'output'
+        pos = f'{row}{29-i}'
+        kind = 'power_out' if pos == 'A11' else 'passive'
+        if pos in SIGNALS: kind = 'input' if pos in ('A20','A19','A17','J18','J16') else 'output'
         pins.append(pin(pos, name + (' / ' + NETS[pos] if pos in SIGNALS else ''), x, round(45.72-i*5.08, 2), angle, kind))
 devkit = custom('ESP32_DevKit_38_RearReference', pins, 38.1, 50.8, -50.8)
 libs.append(devkit)
@@ -84,7 +86,7 @@ def label(net,x,y):
     out.append(f'(label {q(net)} (at {x} {y} 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "{uid(net+str((x,y)))}"))')
 def nc(x,y): out.append(f'(no_connect (at {x} {y}) (uuid "{uid("nc"+str((x,y)))}"))')
 PIN_NUMBERS = {
-    'Sigil:ESP32_DevKit_38_RearReference': [f'{r}{i}' for r in 'JA' for i in range(1, 20)],
+    'Sigil:ESP32_DevKit_38_RearReference': [f'{r}{i}' for r in 'AJ' for i in range(29, 10, -1)],
     'Sigil:EPD_Logical_Interface': epd_names, 'Sigil:Buzzer_Logical_Interface': ['SIG', 'GND'],
     'Switch:SW_Push': ['1', '2'], 'Device:R': ['1', '2'], 'Device:LED': ['1', '2'],
 }
@@ -100,21 +102,21 @@ def instance(lib,ref,value,x,y,angle=0,top=8,on=True):
       (uuid "{uid(ref)}") {fields} {prop('Footprint','',x,y,True)} {pin_uuids}
       (instances (project "Sigilv1" (path "/{NS}" (reference "{ref}") (unit 1)))))''')
 instance('Sigil:ESP32_DevKit_38_RearReference','U1','REMOVABLE ESP32 DEVKIT / 2 x 19',88.9,101.6,top=58.42)
-for row,names,x in [('J',J,45.72),('A',A,132.08)]:
+for row,names,x in [('A',A,45.72),('J',J,132.08)]:
     for i,name in enumerate(names):
-        y=round(55.88+i*5.08,2); pos=f'{row}{i+1}'
+        y=round(55.88+i*5.08,2); pos=f'{row}{29-i}'
         if pos in NETS:
-            end = round(x+(-20.32 if row=='J' else 5.08),2)
+            end = round(x+(-20.32 if row=='A' else 5.08),2)
             wire(x,y,end,y); label(NETS[pos],end,y)
         else: nc(x,y)
-note('BACK / REAR PHOTO VIEW\nJ1 top-left; A1 top-right\nSocket IDs are immutable; this is NOT a footprint view.',28,21,1.5)
-note('USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.',28,157)
+note('BACK / REAR PHOTO VIEW\nA29 top-left; J29 top-right (breadboard rotated 180 degrees)\nThis is NOT a footprint view.',28,21,1.5)
+note('USB-powered DevKit; A29 / 5V unused on carrier.\nA11 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.',28,157)
 note('CONTROLS - INPUT_PULLUP',175,40,1.5)
 for ref,net,y in [('SW1','BTN_PASS',60.96),('SW2','BTN_ACTION',81.28),('SW4','PAIR',101.6),('SW5','BTN_PAUSE',121.92)]:
     instance('Switch:SW_Push',ref,net,193.04,y)
     wire(187.96,y,175.26,y); label(net,175.26,y)
     wire(198.12,y,205.74,y); label('GND',205.74,y)
-note('PAIR: A12 / GPIO19 to A13 / GND\nPAUSE/WIN: J13 / GPIO32 to GND (SW3 retired)\nAll released HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry.',175,130)
+note('PAIR: J18 / GPIO19 to J17 / GND\nPAUSE/WIN: A17 / GPIO32 to GND (SW3 retired)\nAll released HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry.',175,130)
 note('STATUS LEDS - active HIGH',248,40,1.5)
 for i,net in enumerate(['LED_RED','LED_GREEN','LED_BLUE'],1):
     x=round(254+(i-1)*35.56,2)
@@ -132,7 +134,7 @@ instance('Sigil:Buzzer_Logical_Interface','J3','BUZZER LOGICAL ONLY',238.76,152.
 wire(218.44,152.4,198.12,152.4); label('BUZZER',198.12,152.4)
 wire(218.44,162.56,198.12,162.56); label('GND',198.12,162.56)
 note('J3 is an unresolved load interface.\nConfirm transducer/driver, current and protection.\nNo direct-drive suitability is assumed.',175,178)
-note('SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. Old GPIO4 auxiliary and GPIO32 display-detect removed; GPIO32 / J13 is now the Pause/Win button (SW5).\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed.',28,211)
+note('SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A11-A29 / J11-J29 after the 180-degree breadboard rotation (old An = J(30-n), old Jn = A(30-n)).\n   SigilBackMarked.png (BACK view) still shows the pre-rotation A1-A19 / J1-J19 labels.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A29/J29 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. Old GPIO4 auxiliary and GPIO32 display-detect removed; GPIO32 / A17 is now the Pause/Win button (SW5).\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed.',28,211)
 out.append('(embedded_fonts no))')
 (ROOT/'Sigilv1.kicad_sch').write_text('\n'.join(out)+'\n')
 # Re-save in KiCad's own layout so the file matches what the editor writes and
