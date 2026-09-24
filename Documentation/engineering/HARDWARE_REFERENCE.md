@@ -141,13 +141,28 @@ Buttons are at least 60 px tall. A pressed button inverts and gets a heavier
 border, so the press does not rely on color alone. The screen gives no player
 names yet, only player numbers.
 
-Touch calibration lives in `config.h` (`TOUCH_RAW_*`, `TOUCH_SWAP_XY`,
-`TOUCH_INVERT_*`, `TOUCH_PRESSURE_MIN`). The starting values come from similar
-2.8" ESP32 boards. Each new touch logs `ATLAS|TOUCH|RAW|x|y|SCREEN|x|y`; tap
-the four corners and adjust.
+**Touch calibration.** Resistive panels vary from unit to unit. On the first
+E32R28T, the borrowed defaults registered touches about one button-height
+below the drawn button. So Atlas calibrates on the device:
+
+- If no calibration is saved, a 4-point calibration runs after the splash,
+  before any button is offered. Press and release each cross; the targets are
+  inset 24 px from the corners.
+- To recalibrate, hold anywhere on the screen for 10 seconds while the table is
+  in the lobby (`touchCalibrationAllowed()`). The hold never triggers the
+  button under it.
+- `touch_calibration.h` (host-tested) works out whether the axes are swapped
+  or inverted, plus each axis's raw range extended to the screen edges. It
+  refuses presses that don't span the panel or whose axes don't separate,
+  then asks again.
+- The result is saved in NVS (`atlas-touch/cal`). The `config.h` values
+  (`TOUCH_RAW_*`, `TOUCH_SWAP_XY`, `TOUCH_INVERT_*`) are only the fallback when
+  nothing valid is saved or calibration times out (30 s without a touch).
+- Serial logs `ATLAS|TOUCH|CALIBRATION|LOADED/DEFAULT/SAVED|...` with the
+  values, and each new press logs `ATLAS|TOUCH|RAW|x|y|SCREEN|x|y`.
 
 **Needs verification on hardware:** panel orientation (rotation 3 puts the
-pigtail at the top), touch calibration and axis direction, color inversion and
+pigtail at the top), the on-device calibration and the accuracy it gives, color inversion and
 RGB/BGR order; 40 MHz TFT write clock; the pin table
 above, especially the small 3-pin header (silkscreen appears to read IO35/IO22/GND).
 Also confirm that GPIO0 reads high when BOOT is released and that the RGB LED

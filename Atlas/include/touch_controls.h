@@ -62,6 +62,9 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen);
 // dispatches Intents; audit_adapters.py checks it.
 void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 
+// Touch calibration may only take over the screen between games, in the lobby.
+bool touchCalibrationAllowed();
+
 // Clears press and notice state (tests, and boot).
 void resetTouchControls();
 

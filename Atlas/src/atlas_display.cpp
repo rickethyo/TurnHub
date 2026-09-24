@@ -10,7 +10,9 @@
 
 #include "config.h"
 #include "firmware_version.h"
+#include "optional_preferences.h"
 #include "serial_log.h"
+#include "touch_calibration.h"
 #include "touch_controls.h"
 
 using TurnHub::serialLog;
@@ -22,6 +24,21 @@ namespace {
 constexpr uint32_t SPLASH_MS = 2000;
 constexpr uint32_t TOUCH_POLL_MS = 15;
 constexpr uint32_t SCREEN_POLL_MS = 50;
+// Holding anywhere on the lobby screen this long starts touch calibration.
+constexpr uint32_t CALIBRATE_HOLD_MS = 10000;
+// Samples in the first part of a calibration press are discarded while the
+// finger settles.
+constexpr uint32_t CALIBRATE_SETTLE_MS = 100;
+constexpr uint8_t CALIBRATE_MIN_SAMPLES = 3;
+// Calibration gives up after this long without a touch (e.g. a board without
+// a touch panel) and keeps the calibration it had.
+constexpr uint32_t CALIBRATE_IDLE_MS = 30000;
+constexpr uint32_t CALIBRATE_RESULT_MS = 1500;
+
+constexpr char TOUCH_PREF_NAMESPACE[] = "atlas-touch";
+constexpr char TOUCH_PREF_KEY[] = "cal";
+
+enum class DisplayMode : uint8_t { Splash, Status, Calibrate, CalibrateResult };
 
 class AtlasPanel : public lgfx::LGFX_Device {
  public:
@@ -239,15 +256,10 @@ uint16_t median3(uint16_t a, uint16_t b, uint16_t c) {
   return a > b ? a : b;
 }
 
-int16_t mapAxis(uint16_t raw, uint16_t rawMin, uint16_t rawMax, int16_t size, bool invert) {
-  const int32_t clamped = raw < rawMin ? rawMin : raw > rawMax ? rawMax : raw;
-  int32_t value = (clamped - rawMin) * (size - 1) / (rawMax - rawMin);
-  if (invert) value = size - 1 - value;
-  return static_cast<int16_t>(value);
-}
+TouchCalibration touchCal;
 
-// Reads one touch sample in screen coordinates.
-bool readTouch(int16_t &x, int16_t &y, uint16_t &rawX, uint16_t &rawY) {
+// Reads one raw touch sample (median of three per axis).
+bool readTouchRaw(uint16_t &rawX, uint16_t &rawY) {
   using namespace AtlasConfig;
   if (digitalRead(TOUCH_IRQ_PIN) == HIGH) return false;
 
@@ -262,14 +274,38 @@ bool readTouch(int16_t &x, int16_t &y, uint16_t &rawX, uint16_t &rawY) {
 
   const int32_t pressure = static_cast<int32_t>(z1) + 4095 - static_cast<int32_t>(z2);
   if (pressure < TOUCH_PRESSURE_MIN) return false;
-
   rawX = median3(a0, a1, a2);
   rawY = median3(b0, b1, b2);
-  const uint16_t alongX = TOUCH_SWAP_XY ? rawY : rawX;
-  const uint16_t alongY = TOUCH_SWAP_XY ? rawX : rawY;
-  x = mapAxis(alongX, TOUCH_RAW_X_MIN, TOUCH_RAW_X_MAX, ATLAS_SCREEN_WIDTH, TOUCH_INVERT_X);
-  y = mapAxis(alongY, TOUCH_RAW_Y_MIN, TOUCH_RAW_Y_MAX, ATLAS_SCREEN_HEIGHT, TOUCH_INVERT_Y);
   return true;
+}
+
+// Loads the saved calibration, falling back to the config.h values.
+bool loadTouchCalibration() {
+  touchCal = defaultTouchCalibration();
+  TurnHub::OptionalPreferences prefs;
+  if (!prefs.begin(TOUCH_PREF_NAMESPACE, true)) return false;
+  TouchCalibration saved;
+  const bool ok = prefs.getBytesLength(TOUCH_PREF_KEY) == sizeof(saved) &&
+      prefs.getBytes(TOUCH_PREF_KEY, &saved, sizeof(saved)) == sizeof(saved) &&
+      validTouchCalibration(saved);
+  prefs.end();
+  if (ok) touchCal = saved;
+  return ok;
+}
+
+bool saveTouchCalibration(const TouchCalibration &cal) {
+  TurnHub::OptionalPreferences prefs;
+  if (!prefs.begin(TOUCH_PREF_NAMESPACE, false)) return false;
+  const bool ok = prefs.putBytes(TOUCH_PREF_KEY, &cal, sizeof(cal)) == sizeof(cal);
+  prefs.end();
+  return ok;
+}
+
+void logCalibration(const char *event, const TouchCalibration &cal) {
+  char line[96];
+  snprintf(line, sizeof(line), "ATLAS|TOUCH|CALIBRATION|%s|swap=%u|x=%d..%d|y=%d..%d", event,
+      static_cast<unsigned>(cal.swapXY), cal.xAtFirst, cal.xAtLast, cal.yAtFirst, cal.yAtLast);
+  serialLog.println(line);
 }
 
 void beginTouch() {
@@ -290,13 +326,136 @@ void beginTouch() {
 uint32_t displayStartedAtMs = 0;
 uint32_t lastTouchPollMs = 0;
 uint32_t lastScreenPollMs = 0;
-bool wasTouched = false;
+uint32_t lastTouchedAtMs = 0;
+uint32_t touchHeldSinceMs = 0;
+DisplayMode mode = DisplayMode::Splash;
+bool calibrationSaved = false;
+
+// --- Touch calibration screen ------------------------------------------------
+
+struct CalibrationRun {
+  uint8_t point = 0;
+  bool awaitRelease = true;  // A finger still down from the trigger must lift first.
+  bool contact = false;
+  uint32_t contactAtMs = 0;
+  uint32_t lastContactAtMs = 0;
+  uint32_t lastActivityAtMs = 0;
+  uint32_t sumX = 0;
+  uint32_t sumY = 0;
+  uint8_t samples = 0;
+  uint16_t rawX[TOUCH_CAL_POINTS] = {};
+  uint16_t rawY[TOUCH_CAL_POINTS] = {};
+  uint32_t resultAtMs = 0;
+};
+CalibrationRun cal;
+
+void drawCalibrationPoint(const char *message) {
+  tft.fillScreen(BACKGROUND);
+  tft.setTextDatum(lgfx::middle_center);
+  tft.setTextColor(WORDMARK, BACKGROUND);
+  tft.setFont(&fonts::DejaVu18);
+  tft.drawString("Touch calibration", ATLAS_SCREEN_WIDTH / 2, 84);
+  char line[48];
+  snprintf(line, sizeof(line), "Press and release the cross (%u of %u)",
+      static_cast<unsigned>(cal.point + 1), static_cast<unsigned>(TOUCH_CAL_POINTS));
+  tft.setTextColor(DETAIL, BACKGROUND);
+  tft.setFont(&fonts::DejaVu12);
+  tft.drawString(line, ATLAS_SCREEN_WIDTH / 2, 116);
+  if (message != nullptr) {
+    tft.setTextColor(ACCENT, BACKGROUND);
+    tft.drawString(message, ATLAS_SCREEN_WIDTH / 2, 140);
+  }
+  int16_t x = 0, y = 0;
+  touchCalibrationTarget(cal.point, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT, x, y);
+  tft.drawFastHLine(x - 14, y, 29, WORDMARK);
+  tft.drawFastVLine(x, y - 14, 29, WORDMARK);
+  tft.drawCircle(x, y, 8, ACCENT);
+  tft.drawCircle(x, y, 9, ACCENT);
+}
+
+void startCalibration(uint32_t nowMs) {
+  cal = CalibrationRun();
+  cal.lastActivityAtMs = nowMs;
+  mode = DisplayMode::Calibrate;
+  resetTouchControls();
+  serialLog.println("ATLAS|TOUCH|CALIBRATION|START");
+  drawCalibrationPoint(nullptr);
+}
+
+void finishCalibrationMessage(uint32_t nowMs, const char *message) {
+  tft.fillScreen(BACKGROUND);
+  tft.setTextDatum(lgfx::middle_center);
+  tft.setTextColor(WORDMARK, BACKGROUND);
+  tft.setFont(&fonts::DejaVu18);
+  tft.drawString(message, ATLAS_SCREEN_WIDTH / 2, ATLAS_SCREEN_HEIGHT / 2);
+  cal.resultAtMs = nowMs;
+  mode = DisplayMode::CalibrateResult;
+}
+
+void serviceCalibration(uint32_t nowMs, bool touched, uint16_t rawX, uint16_t rawY) {
+  if (touched) {
+    cal.lastActivityAtMs = nowMs;
+    cal.lastContactAtMs = nowMs;
+    if (cal.awaitRelease) return;
+    if (!cal.contact) {
+      cal.contact = true;
+      cal.contactAtMs = nowMs;
+      cal.sumX = cal.sumY = 0;
+      cal.samples = 0;
+    }
+    if (nowMs - cal.contactAtMs >= CALIBRATE_SETTLE_MS && cal.samples < 255) {
+      cal.sumX += rawX;
+      cal.sumY += rawY;
+      ++cal.samples;
+    }
+    return;
+  }
+
+  if (nowMs - cal.lastActivityAtMs >= CALIBRATE_IDLE_MS) {
+    serialLog.println("ATLAS|TOUCH|CALIBRATION|TIMEOUT");
+    finishCalibrationMessage(nowMs, "Calibration cancelled");
+    return;
+  }
+  if (nowMs - cal.lastContactAtMs < TOUCH_RELEASE_MS) return;
+  if (cal.awaitRelease) {
+    cal.awaitRelease = false;
+    return;
+  }
+  if (!cal.contact) return;
+  cal.contact = false;
+  if (cal.samples < CALIBRATE_MIN_SAMPLES) {
+    drawCalibrationPoint("Hold a little longer");
+    return;
+  }
+  cal.rawX[cal.point] = static_cast<uint16_t>(cal.sumX / cal.samples);
+  cal.rawY[cal.point] = static_cast<uint16_t>(cal.sumY / cal.samples);
+  if (++cal.point < TOUCH_CAL_POINTS) {
+    drawCalibrationPoint(nullptr);
+    return;
+  }
+
+  TouchCalibration solved;
+  if (!solveTouchCalibration(cal.rawX, cal.rawY, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT,
+          solved)) {
+    serialLog.println("ATLAS|TOUCH|CALIBRATION|REJECTED");
+    cal.point = 0;
+    drawCalibrationPoint("Those presses did not line up; try again");
+    return;
+  }
+  touchCal = solved;
+  calibrationSaved = saveTouchCalibration(solved);
+  logCalibration(calibrationSaved ? "SAVED" : "STORAGE_ERROR", solved);
+  finishCalibrationMessage(nowMs, calibrationSaved ? "Touch calibrated" :
+      "Calibrated (not saved)");
+}
 
 }  // namespace
 
 void beginAtlasDisplay() {
   beginTouch();
   resetTouchControls();
+  calibrationSaved = loadTouchCalibration();
+  logCalibration(calibrationSaved ? "LOADED" : "DEFAULT", touchCal);
   if (!tft.init()) {
     serialLog.println("ATLAS|DISPLAY|INIT_FAILED");
     return;
@@ -312,25 +471,57 @@ void beginAtlasDisplay() {
 void serviceAtlasDisplay(uint32_t nowMs) {
   if (nowMs - lastTouchPollMs >= TOUCH_POLL_MS) {
     lastTouchPollMs = nowMs;
-    int16_t x = 0, y = 0;
     uint16_t rawX = 0, rawY = 0;
-    const bool touched = readTouch(x, y, rawX, rawY);
-    if (touched && !wasTouched) {
-      char line[64];
-      snprintf(line, sizeof(line), "ATLAS|TOUCH|RAW|%u|%u|SCREEN|%d|%d",
-          rawX, rawY, x, y);
-      serialLog.println(line);
+    const bool touched = readTouchRaw(rawX, rawY);
+    int16_t x = 0, y = 0;
+    if (touched) mapTouch(touchCal, rawX, rawY, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT, x, y);
+    if (touched) {
+      // A new press, not a resistive drop-out within one.
+      if (nowMs - lastTouchedAtMs >= TOUCH_RELEASE_MS) {
+        touchHeldSinceMs = nowMs;
+        char line[64];
+        snprintf(line, sizeof(line), "ATLAS|TOUCH|RAW|%u|%u|SCREEN|%d|%d", rawX, rawY, x, y);
+        serialLog.println(line);
+      }
+      lastTouchedAtMs = nowMs;
     }
-    wasTouched = touched;
-    // Touches during the splash are ignored rather than acting on an unseen screen.
-    const bool splash = displayReady && !statusDrawn && nowMs - displayStartedAtMs < SPLASH_MS;
-    if (!splash) updateTouchControls(nowMs, touched, x, y);
+
+    switch (mode) {
+      case DisplayMode::Calibrate:
+        serviceCalibration(nowMs, touched, rawX, rawY);
+        break;
+      case DisplayMode::Status:
+        // A long hold anywhere, only while the table is in the lobby, recalibrates.
+        if (touched && nowMs - touchHeldSinceMs >= CALIBRATE_HOLD_MS &&
+            touchCalibrationAllowed()) {
+          startCalibration(nowMs);
+          break;
+        }
+        updateTouchControls(nowMs, touched, x, y);
+        break;
+      case DisplayMode::Splash:
+      case DisplayMode::CalibrateResult:
+        // Touches here are ignored rather than acting on an unseen screen.
+        break;
+    }
   }
 
-  if (!displayReady || nowMs - displayStartedAtMs < SPLASH_MS ||
-      nowMs - lastScreenPollMs < SCREEN_POLL_MS) {
-    return;
+  if (!displayReady) return;
+  if (mode == DisplayMode::Splash) {
+    if (nowMs - displayStartedAtMs < SPLASH_MS) return;
+    // Without a saved calibration, calibrate before offering any buttons.
+    if (!calibrationSaved) {
+      startCalibration(nowMs);
+      return;
+    }
+    mode = DisplayMode::Status;
   }
+  if (mode == DisplayMode::CalibrateResult) {
+    if (nowMs - cal.resultAtMs < CALIBRATE_RESULT_MS) return;
+    mode = DisplayMode::Status;
+    statusDrawn = false;
+  }
+  if (mode != DisplayMode::Status || nowMs - lastScreenPollMs < SCREEN_POLL_MS) return;
   lastScreenPollMs = nowMs;
   AtlasScreen screen;
   buildAtlasScreen(nowMs, screen);
