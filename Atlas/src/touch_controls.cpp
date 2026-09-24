@@ -288,6 +288,10 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
   pressInside = false;
 }
 
+bool touchCalibrationAllowed() {
+  return hubState == HubState::Lobby;
+}
+
 void resetTouchControls() {
   touchDown = false;
   pressInside = false;

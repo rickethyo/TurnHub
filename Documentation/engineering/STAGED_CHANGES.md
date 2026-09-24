@@ -54,8 +54,8 @@ flashed) now replaces them: Pair a Sigil, Pass, Pause/Resume, a hold to end the
 match as a draw, and an on-screen countdown for the BOOT hold (see
 [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)). Staged follow-ups:
 
-- **Bench acceptance:** screen orientation, touch calibration, and each touch
-  button against a real table.
+- **Bench acceptance:** screen orientation, on-device touch calibration (first
+  boot, and the 10 s lobby hold), and each touch button against a real table.
 - **microSD storage:** move bulk records (profiles, statistics, possibly
   logs) from NVS to the card and keep NVS for small or critical settings. Before
   starting, run the feature gate: persistence owner, a card-missing/corrupt

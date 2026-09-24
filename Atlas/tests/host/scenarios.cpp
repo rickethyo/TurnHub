@@ -17,6 +17,7 @@
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
+#include "touch_calibration.h"
 #include "touch_controls.h"
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
@@ -1440,6 +1441,43 @@ static void pressButton(TouchAction action) {
 }
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
 
+// Touch calibration math: solve from four simulated presses, then map.
+static void touchCalibrationMath() {
+  const int16_t W=ATLAS_SCREEN_WIDTH, H=ATLAS_SCREEN_HEIGHT;
+  // Simulated panels: raw = offset + scale * pixel on each channel, optionally
+  // swapped. The second has a different Y offset and scale from the shipped
+  // defaults, like the first E32R28T, whose touches landed low.
+  struct Panel { bool swap; int32_t x0,xStep100,y0,yStep100; };
+  for (const Panel &p : {Panel{false,3700,-1094,3800,-1483}, Panel{false,3700,-1094,3500,-1400},
+                         Panel{true,300,1100,3900,-1500}}) {
+    uint16_t rawX[TOUCH_CAL_POINTS], rawY[TOUCH_CAL_POINTS];
+    auto rawAt=[&](int16_t sx,int16_t sy,uint16_t &rx,uint16_t &ry){
+      const int32_t a=p.x0+p.xStep100*sx/100, b=p.y0+p.yStep100*sy/100;
+      rx=static_cast<uint16_t>(p.swap?b:a); ry=static_cast<uint16_t>(p.swap?a:b);
+    };
+    for (uint8_t i=0;i<TOUCH_CAL_POINTS;++i) {
+      int16_t tx,ty; touchCalibrationTarget(i,W,H,tx,ty); rawAt(tx,ty,rawX[i],rawY[i]);
+    }
+    TouchCalibration cal; assert(solveTouchCalibration(rawX,rawY,W,H,cal));
+    assert(cal.swapXY==(p.swap?1:0) && validTouchCalibration(cal));
+    for (int16_t sy : {0,60,104,134,164,239}) for (int16_t sx : {0,8,160,311,319}) {
+      uint16_t rx,ry; rawAt(sx,sy,rx,ry); int16_t mx,my; mapTouch(cal,rx,ry,W,H,mx,my);
+      assert(abs(mx-sx)<=2 && abs(my-sy)<=2);
+    }
+  }
+  // Presses that do not span the panel, or axes that do not separate, are refused.
+  uint16_t same[TOUCH_CAL_POINTS]={2000,2000,2000,2000};
+  TouchCalibration untouched; assert(!solveTouchCalibration(same,same,W,H,untouched));
+  uint16_t diagX[TOUCH_CAL_POINTS]={500,3500,3500,500}, diagY[TOUCH_CAL_POINTS]={500,3500,3500,500};
+  assert(!solveTouchCalibration(diagX,diagY,W,H,untouched));
+  // The shipped defaults are a valid fallback, and mapping clamps to the screen.
+  const TouchCalibration fallback=defaultTouchCalibration(); assert(validTouchCalibration(fallback));
+  int16_t mx,my; mapTouch(fallback,0,65535,W,H,mx,my); assert(mx>=0&&mx<W&&my>=0&&my<H);
+  // Recalibration may only take over the screen in the lobby.
+  freshLobby(2); assert(touchCalibrationAllowed());
+  startFromHost(); assert(!touchCalibrationAllowed()); enterEmptyLobby();
+}
+
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
@@ -1727,6 +1765,7 @@ int main() {
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS master-button hold ends a match as a draw: authorization, short press, overrides, stats once, recovery\n";
+  touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, Pass, Pause/Resume, end-match hold, BOOT-hold countdown, slide-off, drop-out, stale press\n";
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
