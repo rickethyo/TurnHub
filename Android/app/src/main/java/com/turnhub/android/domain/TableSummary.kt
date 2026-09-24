@@ -32,16 +32,28 @@ data class TableSummary(
     /** Atlas-sampled clocks; may change while [revision] stays the same. */
     val gameElapsedMs: Long,
     val turnElapsedMs: Long,
+    /**
+     * Local monotonic time (ms) when this snapshot arrived. Lets the UI render
+     * clocks between polls as `sampled + (now - receivedAtMs)`; the next
+     * snapshot always replaces that estimate (protocol/README.md allows
+     * locally rendered time-sensitive display between snapshots).
+     */
+    val receivedAtMs: Long,
     val players: List<TablePlayer>,
     /** Physical Sigils currently represented at the table, derived from [players]. */
     val physicalSigils: List<PhysicalSigilAtTable>,
 )
 
+/** A controller seat: handle + slot. How `/api/seats` names are matched to players. */
+data class SeatKey(val moduleId: Int, val slot: Int)
+
 /** One participant as the Home screen renders it. */
 data class TablePlayer(
     val playerNumber: Int,
-    /** Atlas-provided display name, or a neutral "Player N" when Atlas sent none. */
+    /** Atlas-provided name (state, else `/api/seats`), or a neutral "Player N". */
     val label: String,
+    /** True when [label] came from Atlas rather than the "Player N" fallback. */
+    val hasName: Boolean,
     val controller: ControllerHandle,
     val slot: Int,
     val participantId: Long,

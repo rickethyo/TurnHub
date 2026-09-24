@@ -1,5 +1,7 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.domain.SeatKey
+import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.domain.TableSummaryMapper
 import com.turnhub.android.protocol.AtlasConnectionState
@@ -42,6 +44,10 @@ class HttpAtlasRepository(
     private val scope: CoroutineScope,
     private val pollIntervalMs: Long = 1_000,
     private val maxConsecutivePollFailures: Int = 3,
+    /** Upper bound on polls between `/api/seats` name refreshes. */
+    private val nameRefreshPolls: Int = 5,
+    /** Local monotonic clock (ms), stamped on each summary so the UI can tick between polls. */
+    private val clock: () -> Long = TableClock::nowMs,
 ) : AtlasRepository {
 
     private val _connectionState = MutableStateFlow(AtlasConnectionState.DISCONNECTED)
@@ -61,7 +67,12 @@ class HttpAtlasRepository(
     private var session: Job? = null
 
     /** The info a summary was built from; needed to remap later snapshots of the same boot. */
-    private class Live(val info: AtlasInfo, val summary: TableSummary)
+    private class Live(
+        val info: AtlasInfo,
+        val summary: TableSummary,
+        val names: Map<SeatKey, String>,
+        val pollsSinceNames: Int,
+    )
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
         val settled = CompletableDeferred<Unit>()
@@ -135,15 +146,24 @@ class HttpAtlasRepository(
         AtlasCompatibility.requireCompatible(snapshot)
         val current = live.summary
         val sameEpoch = snapshot.atlasId == current.atlasId && snapshot.bootId == current.bootId
-        return if (sameEpoch && snapshot.revision >= current.revision) {
-            Live(live.info, TableSummaryMapper.map(live.info, snapshot))
-        } else {
+        if (!sameEpoch || snapshot.revision < current.revision) {
             // Different Atlas, new boot, or revision went backwards: start over.
-            handshake(transport)
+            return handshake(transport)
         }
+        // Names aren't versioned by revision: refresh them when membership may
+        // have changed (any revision change) and periodically otherwise.
+        val refreshNames = snapshot.revision != current.revision ||
+            live.pollsSinceNames + 1 >= nameRefreshPolls
+        val names = if (refreshNames) fetchSeatNames(transport) else null
+        return Live(
+            info = live.info,
+            summary = map(live.info, snapshot, names ?: live.names),
+            names = names ?: live.names,
+            pollsSinceNames = if (names != null) 0 else live.pollsSinceNames + 1,
+        )
     }
 
-    /** info -> compatibility -> state, retried once if Atlas restarted in between. */
+    /** info -> compatibility -> state (+ names), retried once if Atlas restarted in between. */
     private suspend fun handshake(transport: AtlasTransport): Live {
         repeat(2) {
             val info = call { transport.getInfo() }
@@ -151,11 +171,26 @@ class HttpAtlasRepository(
             val snapshot: StateSnapshot = call { transport.getState() }
             AtlasCompatibility.requireCompatible(snapshot)
             if (snapshot.atlasId == info.atlasId && snapshot.bootId == info.bootId) {
-                return Live(info, TableSummaryMapper.map(info, snapshot))
+                val names = fetchSeatNames(transport).orEmpty()
+                return Live(info, map(info, snapshot, names), names, pollsSinceNames = 0)
             }
         }
         throw AtlasException(AtlasFailure.Malformed("Atlas identity changed while connecting; try again"))
     }
+
+    /** Seat names are presentation only: any failure just keeps the names we have. */
+    private suspend fun fetchSeatNames(transport: AtlasTransport): Map<SeatKey, String>? = try {
+        transport.getSeats()
+            .mapNotNull { seat -> seat.name?.let { SeatKey(seat.moduleId, seat.slot) to it } }
+            .toMap()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun map(info: AtlasInfo, snapshot: StateSnapshot, names: Map<SeatKey, String>) =
+        TableSummaryMapper.map(info, snapshot, names, receivedAtMs = clock())
 
     /**
      * Normalizes anything thrown below this repository into [AtlasException],

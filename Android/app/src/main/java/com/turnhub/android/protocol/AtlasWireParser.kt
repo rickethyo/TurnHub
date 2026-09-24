@@ -87,6 +87,21 @@ object AtlasWireParser {
         }
     }
 
+    /** `GET /api/seats`: names per seat. Blank names are reported as null. */
+    fun parseSeats(body: String): List<SeatEntry> {
+        val root = parseObject(body) { AtlasWireException.Malformed("Seats response is not JSON") }
+        return wrap {
+            root.array("seats").objects().map { seat ->
+                SeatEntry(
+                    moduleId = seat.int("module"),
+                    slot = seat.int("slot"),
+                    playerNumber = seat.int("player"),
+                    name = seat.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() },
+                )
+            }
+        }
+    }
+
     private fun parsePending(pending: JSONObject) = PendingDecisions(
         passPlayer = pending.optionalInt("passPlayer"),
         passGraceRemainingMs = if (pending.isAbsentOrNull("passGraceRemainingMs")) 0L

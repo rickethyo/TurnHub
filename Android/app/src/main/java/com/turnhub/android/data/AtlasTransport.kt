@@ -1,6 +1,7 @@
 package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AtlasInfo
+import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.StateSnapshot
 
 /**
@@ -19,6 +20,9 @@ interface AtlasTransport {
 
     /** `GET /api/v1/state`. */
     suspend fun getState(): StateSnapshot
+
+    /** `GET /api/seats`: display names, which the v1 state snapshot doesn't carry. */
+    suspend fun getSeats(): List<SeatEntry>
 }
 
 /** Builds a transport for the endpoint the user chose. */

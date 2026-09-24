@@ -4,6 +4,7 @@ import com.turnhub.android.protocol.AtlasConnectionState.CONNECTED
 import com.turnhub.android.protocol.AtlasConnectionState.CONNECTING
 import com.turnhub.android.protocol.AtlasConnectionState.DISCONNECTED
 import com.turnhub.android.protocol.AtlasInfo
+import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.StateSnapshot
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.testing.Fixtures
@@ -26,8 +27,10 @@ import org.junit.Test
 private class FakeAtlasTransport : AtlasTransport {
     var info: suspend () -> AtlasInfo = { Fixtures.info() }
     var state: suspend () -> StateSnapshot = { Fixtures.state("running.response.json") }
+    var seats: suspend () -> List<SeatEntry> = { emptyList() }
     var infoCalls = 0
     var stateCalls = 0
+    var seatCalls = 0
 
     override suspend fun getInfo(): AtlasInfo {
         infoCalls++
@@ -37,6 +40,11 @@ private class FakeAtlasTransport : AtlasTransport {
     override suspend fun getState(): StateSnapshot {
         stateCalls++
         return state()
+    }
+
+    override suspend fun getSeats(): List<SeatEntry> {
+        seatCalls++
+        return seats()
     }
 }
 
@@ -351,6 +359,76 @@ class HttpAtlasRepositoryTest {
         assertEquals(CONNECTED, repository.connectionState.value)
         assertEquals(2, transport.infoCalls)
         assertEquals(Fixtures.OTHER_BOOT_ID, repository.tableSummary.value!!.bootId)
+    }
+
+    @Test
+    fun `players are named from seats by handle and slot`() = runTest {
+        transport.seats = { listOf(SeatEntry(moduleId = 8, slot = 1, playerNumber = 1, name = "Ricky")) }
+        val repository = repository()
+
+        repository.connect(AtlasEndpoint.DEFAULT)
+
+        val players = repository.tableSummary.value!!.players
+        assertEquals(listOf("Ricky", "Player 2"), players.map { it.label })
+        assertEquals(listOf(true, false), players.map { it.hasName })
+    }
+
+    @Test
+    fun `a failing seats request never breaks the connection`() = runTest {
+        transport.seats = { fail(timeout) }
+        val repository = repository()
+
+        repository.connect(AtlasEndpoint.DEFAULT)
+        advance(3_000)
+
+        assertEquals(CONNECTED, repository.connectionState.value)
+        assertNull(repository.failure.value)
+        assertEquals(listOf("Player 1", "Player 2"), repository.tableSummary.value!!.players.map { it.label })
+    }
+
+    @Test
+    fun `names are kept when a later seats refresh fails`() = runTest {
+        transport.seats = { listOf(SeatEntry(8, 1, 1, "Ricky")) }
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+
+        transport.seats = { fail(timeout) }
+        transport.state = { Fixtures.state("reconnected.response.json") } // Revision change forces a refresh.
+        advance(1_000)
+
+        assertEquals("Ricky", repository.tableSummary.value!!.players[0].label)
+    }
+
+    @Test
+    fun `names refresh on revision changes and at least every five polls`() = runTest {
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        assertEquals(1, transport.seatCalls)
+
+        advance(4_000) // Same revision: four polls, no refresh yet.
+        assertEquals(1, transport.seatCalls)
+        advance(1_000) // Fifth poll refreshes.
+        assertEquals(2, transport.seatCalls)
+
+        transport.state = { Fixtures.state("reconnected.response.json") }
+        advance(1_000) // Revision changed: refresh immediately.
+        assertEquals(3, transport.seatCalls)
+    }
+
+    @Test
+    fun `summaries are stamped with the local receive time`() = runTest {
+        var now = 10_000L
+        val repository = HttpAtlasRepository(
+            transportFactory = { transport },
+            scope = backgroundScope,
+            clock = { now },
+        )
+        repository.connect(AtlasEndpoint.DEFAULT)
+        assertEquals(10_000L, repository.tableSummary.value!!.receivedAtMs)
+
+        now = 11_000L
+        advance(1_000)
+        assertEquals(11_000L, repository.tableSummary.value!!.receivedAtMs)
     }
 
     @Test

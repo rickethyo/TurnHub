@@ -180,6 +180,30 @@ class AtlasWireParserTest {
     }
 
     @Test
+    fun `parses seats as emitted by Atlas handleSeats`() {
+        // Shape of Atlas/src/web_api.cpp handleSeats(); extra fields are ignored.
+        val body = """{"seats":[
+            {"module":0,"virtual":false,"slot":1,"slotName":"A","player":1,"active":true,"eliminated":false,
+             "lifeAvailable":true,"life":40,"profileId":"A1B2C3D4","name":"Ricky","hasPin":true,"sessionClaimed":false},
+            {"module":0,"virtual":false,"slot":2,"slotName":"B","player":2,"active":false,"eliminated":false,
+             "lifeAvailable":true,"life":40,"profileId":"","name":"  ","hasPin":false,"sessionClaimed":false},
+            {"module":9,"virtual":true,"slot":1,"slotName":"A","player":3,"active":false,"eliminated":false,
+             "lifeAvailable":false,"life":0,"profileId":"","name":"","hasPin":false,"sessionClaimed":true}
+        ]}"""
+
+        assertEquals(
+            listOf(
+                SeatEntry(moduleId = 0, slot = 1, playerNumber = 1, name = "Ricky"),
+                SeatEntry(moduleId = 0, slot = 2, playerNumber = 2, name = null),
+                SeatEntry(moduleId = 9, slot = 1, playerNumber = 3, name = null),
+            ),
+            AtlasWireParser.parseSeats(body),
+        )
+        assertTrue(AtlasWireParser.parseSeats("""{"seats":[]}""").isEmpty())
+        assertThrows(AtlasWireException.Malformed::class.java) { AtlasWireParser.parseSeats("""{"nope":1}""") }
+    }
+
+    @Test
     fun `non-TurnHub responders are rejected`() {
         val notTurnHub = listOf(
             "<html><body>Router login</body></html>",

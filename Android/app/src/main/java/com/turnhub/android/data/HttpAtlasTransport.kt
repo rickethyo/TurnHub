@@ -1,6 +1,7 @@
 package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AtlasInfo
+import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.AtlasWireException
 import com.turnhub.android.protocol.AtlasWireParser
 import com.turnhub.android.protocol.StateSnapshot
@@ -63,6 +64,14 @@ class HttpAtlasTransport(
             throw AtlasException(AtlasFailure.HttpStatus(response.code, detail))
         }
         return parse { AtlasWireParser.parseState(response.body) }
+    }
+
+    override suspend fun getSeats(): List<SeatEntry> {
+        val response = request("GET", "/api/seats")
+        if (response.code != HttpURLConnection.HTTP_OK) {
+            throw AtlasException(AtlasFailure.HttpStatus(response.code, "Atlas seats request failed"))
+        }
+        return parse { AtlasWireParser.parseSeats(response.body) }
     }
 
     private inline fun <T> parse(block: () -> T): T = try {
