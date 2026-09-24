@@ -6,8 +6,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -21,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -31,7 +37,10 @@ import androidx.compose.ui.unit.dp
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.ui.components.ConnectionStateBadge
 import com.turnhub.android.ui.components.PhysicalSigilRow
-import com.turnhub.android.ui.components.TableSummaryCard
+import com.turnhub.android.protocol.TableState
+import com.turnhub.android.ui.components.PlayerCard
+import com.turnhub.android.ui.components.TableHeader
+import com.turnhub.android.ui.components.rememberNowMs
 
 /**
  * The app's one screen for this milestone: Atlas address, connection state, and
@@ -63,38 +72,65 @@ fun HomeScreen(
         modifier = modifier,
         topBar = { TopAppBar(title = { Text("TurnHub") }) },
     ) { innerPadding ->
-        LazyColumn(
+        val summary = uiState.tableSummary
+        // Tick only while an Atlas clock can be moving; otherwise nothing re-renders.
+        val nowMs = rememberNowMs(
+            ticking = summary != null &&
+                (summary.state == TableState.RUNNING || summary.pending.passPlayer != null),
+        )
+        val labels = summary?.players?.associate { it.playerNumber to it.label }.orEmpty()
+        val labelFor: (Int) -> String = { number -> labels[number] ?: "Player $number" }
+        val fullWidth: LazyGridItemSpanScope.() -> GridItemSpan = { GridItemSpan(maxLineSpan) }
+
+        LazyVerticalGrid(
+            // Two cards across a phone; more on the Fold's inner screen or tablets.
+            columns = GridCells.Adaptive(minSize = 160.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ConnectionStateBadge(state = uiState.connectionState)
-                    OutlinedTextField(
-                        value = uiState.endpointText,
-                        onValueChange = onEndpointChange,
-                        enabled = uiState.endpointEditable,
-                        singleLine = true,
-                        label = { Text("Atlas address") },
-                        supportingText = { Text("TurnHub joins the Atlas Wi-Fi for you when you connect.") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = { onConnectClick() }),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    ConnectionAction(
-                        connectionState = uiState.connectionState,
-                        joiningSsid = uiState.joiningSsid,
-                        onConnectClick = onConnectClick,
-                        onDisconnectClick = onDisconnectClick,
-                    )
+            item(span = fullWidth) {
+                if (uiState.connectionState == AtlasConnectionState.DISCONNECTED) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ConnectionStateBadge(state = uiState.connectionState)
+                        OutlinedTextField(
+                            value = uiState.endpointText,
+                            onValueChange = onEndpointChange,
+                            enabled = uiState.endpointEditable,
+                            singleLine = true,
+                            label = { Text("Atlas address") },
+                            supportingText = { Text("TurnHub joins the Atlas Wi-Fi for you when you connect.") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+                            keyboardActions = KeyboardActions(onGo = { onConnectClick() }),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        ConnectionAction(
+                            connectionState = uiState.connectionState,
+                            joiningSsid = uiState.joiningSsid,
+                            onConnectClick = onConnectClick,
+                            onDisconnectClick = onDisconnectClick,
+                        )
+                    }
+                } else {
+                    // Connected or connecting: keep the table in view.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ConnectionStateBadge(state = uiState.connectionState)
+                        Spacer(Modifier.weight(1f))
+                        ConnectionAction(
+                            connectionState = uiState.connectionState,
+                            joiningSsid = uiState.joiningSsid,
+                            onConnectClick = onConnectClick,
+                            onDisconnectClick = onDisconnectClick,
+                        )
+                    }
                 }
             }
 
             uiState.errorMessage?.let { message ->
-                item {
+                item(span = fullWidth) {
                     ErrorCard(
                         message = message,
                         detail = uiState.errorDetail,
@@ -104,9 +140,8 @@ fun HomeScreen(
                 }
             }
 
-            val summary = uiState.tableSummary
             if (summary == null) {
-                item {
+                item(span = fullWidth) {
                     Text(
                         text = "Connect to an Atlas to see the table.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -114,10 +149,24 @@ fun HomeScreen(
                     )
                 }
             } else {
-                item { TableSummaryCard(summary = summary) }
+                item(span = fullWidth) { TableHeader(summary = summary, nowMs = nowMs, labelFor = labelFor) }
 
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (summary.players.isEmpty()) {
+                    item(span = fullWidth) {
+                        Text(
+                            text = "No players have joined. Press Action on a Sigil, or join from the portal.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    items(summary.players, key = { it.participantId }) { player ->
+                        PlayerCard(player = player, summary = summary, nowMs = nowMs, labelFor = labelFor)
+                    }
+                }
+
+                item(span = fullWidth) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 8.dp)) {
                         Text(text = "Physical Sigils at this table", style = MaterialTheme.typography.titleMedium)
                         Text(
                             text = "Only Sigils seated in the current table are listed. " +
@@ -128,7 +177,7 @@ fun HomeScreen(
                     }
                 }
                 if (summary.physicalSigils.isEmpty()) {
-                    item {
+                    item(span = fullWidth) {
                         Text(
                             text = "No physical Sigils are seated.",
                             style = MaterialTheme.typography.bodyMedium,
@@ -136,7 +185,7 @@ fun HomeScreen(
                         )
                     }
                 } else {
-                    items(summary.physicalSigils, key = { it.controller.id }) { sigil ->
+                    items(summary.physicalSigils, key = { "sigil-${it.controller.id}" }, span = { fullWidth() }) { sigil ->
                         PhysicalSigilRow(sigil = sigil)
                     }
                 }
