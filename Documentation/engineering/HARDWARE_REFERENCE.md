@@ -158,19 +158,22 @@ The additional Action/Win auxiliary control remains planned and has no current f
 
 ### Display orientation direction
 
-**Status:** Planned
+**Status:** Portrait firmware implemented; physical mounting direction awaits a bench check.
 
-The current hardware/software originated with a landscape-oriented display concept. Product direction is now portrait orientation so the Sigil can remain narrow while showing player identity, turn state, life/game information, and at-a-glance statistics vertically.
+The `GxEPD2_213_B74` driver targets GDEM0213B74 / SSD1680 with a **122 x 250**
+visible portrait area (128 controller RAM columns). Sigil now uses library
+rotation **0**, replacing rotation 1's 250 x 122 landscape layout. If the rewired
+panel is upside down, rotation **2** is the opposite portrait orientation.
 
-The eventual display reference should document:
+The screen stacks player identity, life, shared-player information, received
+Commander damage and turn status. Other lifecycle screens stack shared seats
+vertically and retain host/starter/attention/winner indicators. Existing
+full-window refresh and the pin mapping above are unchanged. See
+[Sigil portrait layout and verification](../../Sigil/DISPLAY.md).
 
-- Exact panel model.
-- Active resolution.
-- Physical dimensions.
-- Rotation used in firmware.
-- Full vs partial refresh behavior.
-- SPI pin mapping including shared/default clock/data pins.
-- Power requirements and sleep current.
+Exact physical panel dimensions, supply requirements and sleep current still
+need a hardware verification pass. At-a-glance statistics remain future display
+content; the current protocol does not supply them.
 
 ---
 
