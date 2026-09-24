@@ -161,6 +161,39 @@ Compiled RAM/flash was **not measured** for this change: no PlatformIO build was
 possible in the authoring environment. Record a `pio run -e atlas` figure before
 treating the ~3-point flash increase over 80.4% as confirmed.
 
+### 2026-09-24 - code review and module reorganization (`claude/code-review-cleanup-cn4zoy`)
+
+Major architecture milestone; firmware version unchanged (`0.6.0-dev`). Behavior,
+Intents, storage schemas and the radio contract are unchanged, apart from removing
+the unused `/api/device/persistence` endpoint and the always-false `persistentA`
+device field (see [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md)).
+
+- `main.cpp` split along the Intent boundary into the modules declared in
+  `atlas_app.h`; `handleTableIntent` becomes focused per-IntentType handlers.
+  `main_internal_fwd.h` and its `-include` flag are gone.
+- `web_api.cpp` split into session, profile, game and admin modules behind
+  `web_api_internal.h`; shared JSON escaping in `json_text.h`.
+- Duplicates merged (debounce, Wi-Fi password store, JSON escapers, reconnect,
+  error responses, life bound `LIFE_LIMIT`); unused `SigilBus::injectEvent` removed.
+- `audit_adapters.py` now scans the adapter modules and rejects direct handler calls.
+
+Measured against the branch base `fdd8659` (Git blob bytes):
+
+| Scope | `fdd8659` | This change |
+| --- | ---: | ---: |
+| `Atlas/src` | 25 files, 433,424 B | 36 files, 443,177 B |
+| `Atlas/include` | 36 files, 116,388 B | 39 files, 142,494 B |
+| `Sigil/src` | 2 files, 38,058 B | 2 files, 38,882 B |
+| `Atlas/src/main.cpp` | 91,005 B | 14,803 B |
+| `Atlas/src/web_api.cpp` | 72,178 B | 7,477 B |
+
+The largest logic file is now `table_intents.cpp` (27,131 B); `web_pages.cpp`
+(115,176 B of embedded portal text) is unchanged apart from one dead function.
+Source growth is interface documentation and one-statement-per-line formatting.
+Compiled RAM/flash was **not measured**: PlatformIO could not reach its registry
+in the authoring environment. Record a `pio run -e atlas` and `pio run -e sigil`
+figure before relying on this change on hardware.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
