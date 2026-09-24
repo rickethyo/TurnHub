@@ -10,11 +10,16 @@
   "winnerPlayer": null,
   "settings": {
     "profile": "generic",
-    "startingLife": 40
+    "startingLife": 40,
+    "turnTimerMs": 0
   },
   "sampledAtMs": 1000,
   "gameElapsedMs": 0,
   "turnElapsedMs": 0,
+  "turnTimer": {
+    "phase": "NORMAL",
+    "remainingMs": null
+  },
   "pending": {
     "passPlayer": null,
     "passGraceRemainingMs": 0,

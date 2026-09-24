@@ -1,5 +1,6 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SessionInfo
 import kotlinx.coroutines.CancellationException
@@ -45,6 +46,10 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private val _feedback = MutableStateFlow<ActionFeedback?>(null)
     val feedback: StateFlow<ActionFeedback?> = _feedback.asStateFlow()
 
+    /** The next match's setup, read only while this session is the table host. */
+    private val _gameSettings = MutableStateFlow<GameSettingsInfo?>(null)
+    val gameSettings: StateFlow<GameSettingsInfo?> = _gameSettings.asStateFlow()
+
     private val mutex = Mutex()
     private var endpoint: AtlasEndpoint? = null
     private var token: String? = null
@@ -67,6 +72,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             token = login.token
             _feedback.value = null
             _state.value = PlayerSessionState.SignedIn(login.profileId, info?.name ?: profile.name, info)
+            refreshGameSettings(transport, login.token, info)
         }
     }
 
@@ -89,6 +95,12 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
                 ActionFeedback("The table changed before Atlas got that. Check it and try again.", isError = true)
             else -> ActionFeedback(result.message ?: "Atlas refused that.", isError = true)
         }
+    }
+
+    /** Host only, in the lobby: Atlas validates and stores it for the next match. */
+    suspend fun setTurnTimer(turnTimerMs: Long) = act {
+        val message = transports.create(it.first).setTurnTimer(it.second, turnTimerMs)
+        ActionFeedback(message ?: "Turn timer saved on Atlas.", isError = false)
     }
 
     /** Revokes the token on Atlas (best effort) and forgets it here. */
@@ -121,6 +133,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     private fun clear() {
         endpoint = null
         token = null
+        _gameSettings.value = null
         _state.value = PlayerSessionState.SignedOut
     }
 
@@ -157,14 +170,32 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         val token = token ?: return
         val signedIn = _state.value as? PlayerSessionState.SignedIn ?: return
         try {
-            val info = call { transports.create(endpoint).me(token) }
+            val transport = transports.create(endpoint)
+            val info = call { transport.me(token) }
             _state.value = signedIn.copy(name = info.name ?: signedIn.name, info = info)
+            refreshGameSettings(transport, token, info)
         } catch (e: AtlasException) {
             if (e.failure == AtlasFailure.SessionExpired) {
                 clear()
                 _feedback.value = ActionFeedback(e.failure.userMessage, isError = true)
             }
             // Other failures: keep the last known info; the state poll reports connectivity.
+        }
+    }
+
+    /**
+     * Settings only feed the host's editor, so a failed read just hides it. An
+     * ended session is reported by the next `/api/session/me`, not from here.
+     */
+    private suspend fun refreshGameSettings(transport: AtlasSessionTransport, token: String, info: SessionInfo?) {
+        _gameSettings.value = if (info?.host == true && info.participating) {
+            try {
+                call { transport.getGameSettings(token) }
+            } catch (_: AtlasException) {
+                null
+            }
+        } else {
+            null
         }
     }
 

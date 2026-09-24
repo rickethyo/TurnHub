@@ -27,6 +27,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables and simultaneous phone/Sigil control.
 - [Game Profiles and Life Counters](GAME_PROFILES_AND_LIFE.md) - format selection, starting life, own-life controls, storage boundaries and bench acceptance.
 - [Life Approval and Commander Damage](LIFE_APPROVAL_AND_COMMANDER.md) - recipient approvals, Atlas deadlines and linked damage/life counters.
+- [Turn Timer and Cues](TURN_TIMER_AND_CUES.md) - Atlas-owned turn timer, warning/expiry semantics, and the LED and audio cue layers.
 - [Manual V0.2 Review](MANUAL_V02_REVIEW.md) - intended prototype behavior compared with current implementation and remaining gaps.
 - [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - planned two-button e-ink selection, reusable controllers, authorization decision and migration slices.
 - [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - historical transports, message concepts, current pairing direction, and protocol design rules.

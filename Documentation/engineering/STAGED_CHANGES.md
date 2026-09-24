@@ -6,6 +6,20 @@ pairing fallback and visual mock are superseded. Radio bench acceptance and
 forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
 
 
+Turn timer and cue layers (2026-09-24): the Atlas-owned turn timer, LED cue
+profile, audio cue profile and Android player controls are implemented locally with
+host/Android tests and an Atlas build; hardware acceptance is pending. See
+[Turn timer and cues](TURN_TIMER_AND_CUES.md). Staged follow-ups:
+
+- Owner decision: where an audio on/off (and later LED palette) setting lives:
+  table-level, or a per-player accessibility preference that follows the profile.
+  The runtime profile boundary exists; persistence and UI do not.
+- Sigil e-ink timer state needs a radio-contract field and a reflash of all Sigils.
+- `ActionRequired` audio is defined but not emitted; choose its triggers
+  (for example the player whose win confirmation or life approval is needed).
+- Route Sigil-local Pairing/Disconnected/Error LEDs through a shared cue profile.
+
+
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
 
 Use this file instead of chat history for near-term changes. Keep it concise. Once an item is implemented and verified, move any lasting architectural facts into the appropriate reference document and remove it from here.
@@ -276,4 +290,4 @@ Privacy direction:
 7. Before any structural change, review the engineering Git documentation first, including the architectural invariants, this staging document, and every reference document materially affected by the change. Resolve documentation conflicts before changing structure.
 8. Before treating a user-facing feature as complete, review its accessibility impact against `ACCESSIBILITY.md`.
 
-Last updated: 2026-09-23
+Last updated: 2026-09-24

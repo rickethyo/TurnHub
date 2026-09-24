@@ -51,6 +51,7 @@ object TableSummaryMapper {
             pending = snapshot.pending,
             gameElapsedMs = snapshot.gameElapsedMs,
             turnElapsedMs = snapshot.turnElapsedMs,
+            turnTimer = snapshot.turnTimer,
             receivedAtMs = receivedAtMs,
             players = players,
             physicalSigils = players

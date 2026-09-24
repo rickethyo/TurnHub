@@ -290,6 +290,40 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 1000000
+        },
+        "turnTimerMs": {
+          "description": "Per-turn countdown captured for the match (lobby: the next match). 0 = OFF; otherwise 15000-3600000 in whole seconds. Absent from Atlas firmware before the turn timer; treat as 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        }
+      }
+    },
+    "turnTimer": {
+      "description": "Sampled like turnElapsedMs: may change without a revision change. Absent from older firmware.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "remainingMs"
+      ],
+      "properties": {
+        "phase": {
+          "enum": [
+            "NORMAL",
+            "WARNING",
+            "EXPIRED",
+            "LONG_TURN"
+          ]
+        },
+        "remainingMs": {
+          "description": "Countdown left in the current turn; null when the timer is OFF or no turn is running. 0 once expired; expiry never passes the turn.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 3600000
         }
       }
     },

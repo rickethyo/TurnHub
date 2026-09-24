@@ -45,7 +45,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
   out.winner = winnerPlayer_; out.paused = paused_; out.over = gameOver_;
   out.gameElapsed = gameElapsedMs(nowMs); out.turnElapsed = currentTurnElapsedMs(nowMs);
-  out.warningMs = currentWarningMs_; out.nextRequestId = nextLifeRequestId_;
+  out.nextRequestId = nextLifeRequestId_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
     out.players[i] = players_[i]; out.stats[i] = stats_[i];
     out.eliminated[i] = eliminated_[i]; out.life[i] = life_[i];
@@ -61,7 +61,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   settings_ = s.settings; playerCount_ = s.count; activeIndex_ = s.active;
   starterPlayer_ = s.starter; winnerPlayer_ = s.winner;
   running_ = true; gameOver_ = s.over; paused_ = !s.over;
-  nextLifeRequestId_ = s.nextRequestId; currentWarningMs_ = s.warningMs;
+  nextLifeRequestId_ = s.nextRequestId;
   // Rebase durations into the new boot's millis domain, excluding downtime.
   gameStartedAtMs_ = nowMs - s.gameElapsed;
   turnStartedAtMs_ = nowMs - s.turnElapsed;

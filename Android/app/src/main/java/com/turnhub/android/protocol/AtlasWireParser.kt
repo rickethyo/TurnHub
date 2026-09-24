@@ -74,13 +74,11 @@ object AtlasWireParser {
                 starterPlayer = root.optionalInt("starterPlayer"),
                 activePlayer = root.optionalInt("activePlayer"),
                 winnerPlayer = root.optionalInt("winnerPlayer"),
-                settings = TableSettings(
-                    profile = GameProfile.fromWire(profileKey) ?: malformed("Unknown game profile '$profileKey'"),
-                    startingLife = settings.int("startingLife"),
-                ),
+                settings = parseSettings(settings, profileKey),
                 sampledAtMs = root.uint32("sampledAtMs"),
                 gameElapsedMs = root.uint32("gameElapsedMs"),
                 turnElapsedMs = root.uint32("turnElapsedMs"),
+                turnTimer = if (root.isAbsentOrNull("turnTimer")) null else parseTurnTimer(root.obj("turnTimer")),
                 pending = parsePending(root.obj("pending")),
                 players = root.array("players").objects().map(::parsePlayer),
             )
@@ -137,6 +135,30 @@ object AtlasWireParser {
         }
     }
 
+    /** `GET /api/game/settings`. The timer fields are optional for older firmware. */
+    fun parseGameSettings(body: String): GameSettingsInfo {
+        val root = parseObject(body) { AtlasWireException.Malformed("Game settings response is not JSON") }
+        return wrap {
+            val timer = if (root.isAbsentOrNull("turnTimer")) null else root.obj("turnTimer")
+            GameSettingsInfo(
+                settings = TableSettings(
+                    profile = root.string("gameProfile").let {
+                        GameProfile.fromWire(it) ?: malformed("Unknown game profile '$it'")
+                    },
+                    startingLife = root.int("startingLife"),
+                    turnTimerMs = if (root.isAbsentOrNull("turnTimerMs")) 0L else root.uint32("turnTimerMs"),
+                ),
+                available = root.boolean("available"),
+                canEdit = root.boolean("canEdit"),
+                turnTimerPresetsMs = timer?.array("presetsMs")?.let { presets ->
+                    List(presets.length()) { index -> wholeNumber(presets.get(index), "presetsMs[$index]") }
+                }.orEmpty(),
+                turnTimerMinMs = timer?.uint32("minMs") ?: 0L,
+                turnTimerMaxMs = timer?.uint32("maxMs") ?: 0L,
+            )
+        }
+    }
+
     /** Control results and plain `{"ok":..,"error":..}` bodies; lenient because error shapes vary. */
     fun parseControlResult(body: String): ControlResult {
         val root = parseObject(body) { AtlasWireException.Malformed("Control response is not JSON") }
@@ -156,6 +178,21 @@ object AtlasWireParser {
         JSONObject(body.trim()).optString("error").takeIf { it.isNotBlank() }
     } catch (_: JSONException) {
         null
+    }
+
+    private fun parseSettings(settings: JSONObject, profileKey: String) = TableSettings(
+        profile = GameProfile.fromWire(profileKey) ?: malformed("Unknown game profile '$profileKey'"),
+        startingLife = settings.int("startingLife"),
+        turnTimerMs = if (settings.isAbsentOrNull("turnTimerMs")) 0L else settings.uint32("turnTimerMs"),
+    )
+
+    private fun parseTurnTimer(timer: JSONObject): TurnTimer {
+        val phaseKey = timer.string("phase")
+        timer.require("remainingMs") // Required, but may be null.
+        return TurnTimer(
+            phase = TurnTimerPhase.fromWire(phaseKey) ?: malformed("Unknown turn timer phase '$phaseKey'"),
+            remainingMs = if (timer.isNull("remainingMs")) null else timer.uint32("remainingMs"),
+        )
     }
 
     private fun parsePending(pending: JSONObject) = PendingDecisions(

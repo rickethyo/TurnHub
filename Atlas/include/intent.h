@@ -111,6 +111,7 @@ struct IntentPayload {
   uint32_t requestId = 0; // RespondLifeChange: exact pending approval.
   uint8_t counterSource = 0; // ChangeCounter: owner of the commander.
   uint8_t counterSlot = 1; // ChangeCounter: commander 1 or 2.
+  uint32_t durationMs = 0; // ConfigureGame: turn timer (0 = OFF).
   char moderatorId[9] = {}; // Authenticated account issuing moderation.
   char profileId[9] = {}; // Only populated by trusted Atlas authentication adapters.
 };

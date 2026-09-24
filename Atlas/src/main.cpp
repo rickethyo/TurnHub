@@ -55,7 +55,6 @@ constexpr uint32_t DEBOUNCE_MS = 25;
 constexpr uint32_t START_COUNTDOWN_MS = 3000;
 constexpr uint32_t PASS_GRACE_MS = 3000;
 constexpr uint32_t ACTION_CANCEL_RELEASE_CLEAR_MS = 250;
-constexpr uint32_t DEFAULT_WARNING_MS = 0;
 constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
 constexpr char WIFI_PREF_KEY[] = "ap-pass";
 
@@ -556,7 +555,6 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   bool gameFinished = false;
   if (!game.eliminatePlayer(
           seat->playerNumber,
-          DEFAULT_WARNING_MS,
           nowMs,
           gameFinished)) {
     if (restoreRunning && game.resume(nowMs)) {
@@ -714,6 +712,9 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
   settings.profile = static_cast<TurnHub::GameProfile>(intent.payload.flags);
   settings.startingLife = intent.payload.value;
+  settings.turnTimerMs = intent.payload.durationMs;
+  if (!TurnHub::validTurnTimerMs(settings.turnTimerMs))
+    return IntentResult::reject(IntentStatus::Rejected, "Turn timer must be off or 15 seconds to 60 minutes in whole seconds");
   if (!TurnHub::validGameSettings(settings))
     return IntentResult::reject(IntentStatus::Rejected, "Starting life must be between 0 and 1000000");
   if (!gameSettingsAvailable || TurnHub::saveGameSettings(settings) != TurnHubStorage::Status::Ok)
@@ -826,6 +827,7 @@ bool configureGame(uint8_t controller, uint8_t slot, const TurnHub::GameSettings
   intent.actor.origin=IntentOrigin::Browser; intent.actor.controllerId=controller;
   intent.actor.slot=slot; intent.actor.playerNumber=seat.playerNumber;
   intent.payload.flags=static_cast<uint32_t>(settings.profile); intent.payload.value=settings.startingLife;
+  intent.payload.durationMs=settings.turnTimerMs;
   const auto result=intents.dispatch(intent);message=result.message;return result.accepted();
 }
 
@@ -893,8 +895,8 @@ IntentResult handleModerateIntent(const Intent &intent,void *) {
     if(!joined||hubState!=HubState::Running||game.activePlayerNumber()!=seat.playerNumber)return IntentResult::reject(IntentStatus::InvalidState,"Target is not the active player");
     if(game.hasWinClaim()||eliminationTargetPlayer)return IntentResult::reject(IntentStatus::Conflict,"Resolve table decisions first");
     clearPendingPass("GAME_MASTER");
-    if(!game.passTurn(controller,DEFAULT_WARNING_MS,millis()))return IntentResult::reject(IntentStatus::InvalidState,"Pass rejected");
-    const PlayerSeat *next=game.activePlayer();if(next)audio.turnPass(next->controllerId);
+    if(!game.passTurn(controller,millis()))return IntentResult::reject(IntentStatus::InvalidState,"Pass rejected");
+    const PlayerSeat *next=game.activePlayer();if(next)audio.turnPassed(controller,next->controllerId);
     leds.invalidateAll();return IntentResult::accept("Turn passed by Game Master");
   }
   if(!TurnHubProfiles::hasPinForProfile(target))return IntentResult::reject(IntentStatus::Conflict,"Target needs a PIN for secure reconnection; ask them to set one first");
@@ -1022,7 +1024,6 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
 
   if (!game.passTurn(
           committing.seat.controllerId,
-          DEFAULT_WARNING_MS,
           committing.requestedAtMs)) {
     Serial.print("ATLAS|GAME|PASS|COMMIT_REJECTED|PLAYER|");
     Serial.print(committing.seat.playerNumber);
@@ -1041,11 +1042,7 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
   Serial.println(intentOriginName(committing.origin));
 
   if (current != nullptr) {
-    if (committing.seat.controllerId == current->controllerId) {
-      audio.sameModulePass(current->controllerId);
-    } else {
-      audio.turnPass(current->controllerId);
-    }
+    audio.turnPassed(committing.seat.controllerId, current->controllerId);
   }
   leds.invalidateAll();
   return IntentResult::accept("Pass committed");
@@ -1055,6 +1052,48 @@ void updatePendingPass(uint32_t nowMs) {
   if (pendingPass.active && nowMs - pendingPass.requestedAtMs >= PASS_GRACE_MS) {
     dispatchSystemIntent(IntentType::CommitPass);
   }
+}
+
+// Turn-timer phases are derived from the turn anchor (never stored). This only
+// turns a phase *transition* on the running turn into a one-shot semantic cue;
+// LEDs render the phase continuously through LedRenderer. Expiry never passes
+// the turn. A new turn (player or completed-turn count changes) re-arms it, and
+// a paused game keeps its last phase so resuming does not repeat a cue.
+struct TurnTimerCueState {
+  uint8_t player = 0;
+  uint32_t turnsCompleted = 0;
+  TurnHub::TurnTimerPhase phase = TurnHub::TurnTimerPhase::Normal;
+} turnTimerCue;
+
+void updateTurnTimerCues(uint32_t nowMs) {
+  using TurnHub::TurnTimerPhase;
+  if (hubState == HubState::Paused) return;
+  const PlayerSeat *active = hubState == HubState::Running ? game.activePlayer() : nullptr;
+  if (active == nullptr) {
+    turnTimerCue = TurnTimerCueState{};
+    return;
+  }
+  const TurnHub::PlayerStats *stats = game.statsForPlayer(active->playerNumber);
+  const uint32_t turns = stats != nullptr ? stats->turnsCompleted : 0;
+  if (active->playerNumber != turnTimerCue.player || turns != turnTimerCue.turnsCompleted) {
+    turnTimerCue = TurnTimerCueState{};
+    turnTimerCue.player = active->playerNumber;
+    turnTimerCue.turnsCompleted = turns;
+  }
+  const TurnTimerPhase phase = game.turnTimerPhase(nowMs);
+  if (phase == turnTimerCue.phase) return;
+  turnTimerCue.phase = phase;
+  if (phase == TurnTimerPhase::Warning) {
+    audio.turnWarning(active->controllerId);
+  } else if (phase == TurnTimerPhase::Expired) {
+    audio.timerExpired(active->controllerId);
+  } else {
+    return;  // LongTurn stays a quiet visual cue; Normal needs nothing.
+  }
+  Serial.print("ATLAS|TIMER|");
+  Serial.print(TurnHub::turnTimerPhaseName(phase));
+  Serial.print("|PLAYER|");
+  Serial.println(active->playerNumber);
 }
 
 void updateActionCancelSuppression(uint32_t nowMs) {
@@ -1187,7 +1226,6 @@ void startGame() {
           players,
           count,
           starter,
-          DEFAULT_WARNING_MS,
           millis(), nextGameSettings)) {
     cancelCountdown();
     return;
@@ -1311,7 +1349,6 @@ void confirmElimination(uint8_t sigilId) {
   bool gameFinished = false;
   if (!game.eliminatePlayer(
           eliminatedNumber,
-          DEFAULT_WARNING_MS,
           millis(),
           gameFinished)) {
     return;
@@ -2042,7 +2079,7 @@ void handleStatus() {
       ? PASS_GRACE_MS - passElapsed
       : 0;
 
-  char json[768];
+  char json[1024];
   snprintf(
       json,
       sizeof(json),
@@ -2050,6 +2087,7 @@ void handleStatus() {
       "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
       "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
+      "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
       "\"espNow\":%s,\"firmware\":\"%s\","
       "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
       masterButtonPressed() ? "true" : "false",
@@ -2064,6 +2102,10 @@ void handleStatus() {
       static_cast<unsigned>(game.nextWinConfirmationPlayerNumber()),
       static_cast<unsigned>(pendingPass.active ? pendingPass.seat.playerNumber : 0),
       static_cast<unsigned long>(passGraceRemainingMs),
+      static_cast<unsigned long>(game.hasPlayers() ? game.turnTimerMs() : nextGameSettings.turnTimerMs),
+      static_cast<unsigned long>(game.currentTurnElapsedMs(nowMs)),
+      static_cast<unsigned long>(game.turnRemainingMs(nowMs)),
+      TurnHub::turnTimerPhaseName(game.turnTimerPhase(nowMs)),
       espNowReady ? "true" : "false",
       TurnHubFirmware::VERSION,
       TurnHubFirmware::BUILD_DATE,
@@ -2300,6 +2342,7 @@ void loop() {
   updatePendingPass(nowMs);
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);
+  updateTurnTimerCues(nowMs);
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
   updateGameRecoveryClock(nowMs);
   audio.update(nowMs);

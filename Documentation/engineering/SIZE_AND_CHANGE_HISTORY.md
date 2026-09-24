@@ -127,6 +127,24 @@ The engineering record was brought into line with current `0.6.0-dev` behavior:
 - pairing/recovery verification items added
 - root and Atlas READMEs updated to stop describing the Raspberry Pi as the current Atlas
 
+### 2026-09-24 - turn timer and LED/audio cue layers (`android/testing`, uncommitted)
+
+Large feature change; firmware version unchanged (`0.6.0-dev`).
+
+- Atlas-owned turn timer (Off/presets/custom), 10 s warning, non-gameplay expiry cue
+- LED selection separated from styling (`led_cues.h`); audio cue profile with mute
+- `gamecfg` schema 2; HTTP state/settings additions; no radio-contract change
+- Android player slice UI (sign in, join, PASS, pause/resume, sign out, host timer)
+
+Atlas `pio run -e atlas`, same toolchain, measured against the parent commit `cac3a68`:
+
+| Build | RAM | Flash |
+|---|---:|---:|
+| `cac3a68` (before) | 73,860 B (22.5%) | 1,046,965 B (79.9%) |
+| This change | 74,780 B (22.8%) | 1,053,261 B (80.4%) |
+
+The RAM growth is the two static default cue tables.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -139,4 +157,4 @@ The engineering record was brought into line with current `0.6.0-dev` behavior:
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-22
+Last updated: 2026-09-24

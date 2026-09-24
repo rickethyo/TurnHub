@@ -19,10 +19,20 @@ class HttpAtlasTransportTest {
     private lateinit var server: HttpServer
     private val routes = mutableMapOf<String, Triple<Int, String, Long>>()
 
+    /** "METHOD path token body" for each request the server received. */
+    private val received = mutableListOf<String>()
+
     @Before
     fun start() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
+            val requestBody = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
+            received += listOf(
+                exchange.requestMethod,
+                exchange.requestURI.path,
+                exchange.requestHeaders.getFirst("X-TurnHub-Token").orEmpty(),
+                requestBody,
+            ).joinToString(" ").trim()
             val (code, body, delayMs) = routes[exchange.requestURI.path] ?: Triple(404, "Not found", 0L)
             if (delayMs > 0) Thread.sleep(delayMs)
             val bytes = body.toByteArray()
@@ -94,6 +104,33 @@ class HttpAtlasTransportTest {
         val failure = failureOf { transport(port = closedPort).getInfo() }
         assertTrue(failure is AtlasFailure.Unreachable)
         assertTrue(failure.technicalDetail!!.startsWith("ConnectException"))
+    }
+
+    @Test
+    fun `reads game settings and sends only the turn timer`() = runBlocking {
+        routes["/api/game/settings"] = Triple(
+            200,
+            """{"gameProfile":"generic","startingLife":40,"turnTimerMs":60000,"turnTimer":{"presetsMs":[0,60000],""" +
+                """"minMs":15000,"maxMs":3600000,"warningMs":10000,"longTurnMs":300000},"available":true,"canEdit":true}""",
+            0,
+        )
+        assertEquals(60_000L, transport().getGameSettings("secret").settings.turnTimerMs)
+
+        routes["/api/game/settings"] = Triple(200, """{"ok":true}""", 0)
+        transport().setTurnTimer("secret", 120_000)
+
+        assertEquals(
+            listOf("GET /api/game/settings secret", "POST /api/game/settings secret turnTimerMs=120000"),
+            received,
+        )
+    }
+
+    @Test
+    fun `a refused turn timer carries Atlas's reason`() {
+        routes["/api/game/settings"] = Triple(409, """{"error":"Only the table host can change game settings in the lobby"}""", 0)
+        val failure = failureOf { transport().setTurnTimer("secret", 60_000) }
+        assertTrue(failure is AtlasFailure.Rejected)
+        assertTrue(failure.userMessage.contains("table host"))
     }
 
     @Test

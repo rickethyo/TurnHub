@@ -3,11 +3,24 @@
 #include <Arduino.h>
 
 #include "game_engine.h"
+#include "led_cues.h"
 #include "lobby.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
 
 namespace TurnHub {
+
+// Game semantics -> semantic LED state for one physical Sigil. Pure: reads
+// Atlas state only, knows nothing about colors, cadences or transport.
+SigilLedState selectSigilLedState(
+    uint8_t sigilId,
+    HubState state,
+    const Lobby &lobby,
+    const GameEngine &game,
+    uint32_t countdownStartedAtMs,
+    uint8_t eliminationTargetPlayer,
+    uint8_t winConfirmationPlayer,
+    uint32_t nowMs);
 
 class LedRenderer {
  public:
@@ -15,6 +28,10 @@ class LedRenderer {
 
   void invalidate(uint8_t sigilId);
   void invalidateAll();
+
+  // The one presentation/config boundary: swap styles without game changes.
+  void setProfile(const LedCueProfile &profile) { profile_ = &profile; }
+  const LedCueProfile &profile() const { return *profile_; }
 
   void render(
       HubState state,
@@ -39,13 +56,7 @@ class LedRenderer {
     TurnHubProtocol::GameDisplayPacket gameDisplay{};
   };
 
-  void set(
-      uint8_t sigilId,
-      uint8_t blue,
-      bool red,
-      bool green,
-      uint32_t nowMs);
-  void off(uint8_t sigilId, uint32_t nowMs);
+  void set(uint8_t sigilId, const LedLevels &levels, uint32_t nowMs);
   void syncDisplay(
       uint8_t sigilId,
       HubState state,
@@ -54,35 +65,8 @@ class LedRenderer {
       uint8_t eliminationTargetPlayer,
       uint8_t winConfirmationPlayer);
 
-  void renderUnjoined(uint8_t sigilId, uint32_t nowMs);
-  void renderLobby(uint8_t sigilId, const Lobby &lobby, uint32_t nowMs);
-  void renderStarting(
-      uint8_t sigilId,
-      const Lobby &lobby,
-      uint32_t countdownStartedAtMs,
-      uint32_t nowMs);
-  void renderRunning(uint8_t sigilId, const GameEngine &game, uint32_t nowMs);
-  void renderPaused(
-      uint8_t sigilId,
-      const GameEngine &game,
-      uint8_t eliminationTargetPlayer,
-      uint8_t winConfirmationPlayer,
-      uint32_t nowMs);
-  void renderGameOver(
-      uint8_t sigilId,
-      const Lobby &lobby,
-      const GameEngine &game,
-      uint32_t nowMs);
-
-  static uint8_t breatheValue(uint32_t nowMs);
-  static bool playerNumberRedOn(uint8_t playerNumber, uint32_t nowMs);
-  static bool seatPulse(uint8_t slot, bool shared, uint32_t nowMs);
-  static uint8_t starterBlueValue(
-      const Lobby &lobby,
-      uint8_t sigilId,
-      uint32_t nowMs);
-
   SigilBus &bus_;
+  const LedCueProfile *profile_;
   Cache cache_[MAX_PHYSICAL_SIGILS];
 };
 

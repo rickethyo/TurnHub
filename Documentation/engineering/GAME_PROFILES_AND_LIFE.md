@@ -51,9 +51,11 @@ host-authenticated `POST /api/game/settings` takes `gameProfile` and `startingLi
 `POST /api/control/life` takes `delta` and resolves its target from authentication.
 `/api/session/me` and `/api/seats` report `lifeAvailable` and `life`.
 
-Storage: `gamecfg` in Atlas's `turnhub` namespace is six bytes: schema 1, profile
-enum 0..3, unsigned 32-bit little-endian starting life. Missing records use Generic
-40; corrupt/unsupported records block setup/start rather than overwrite data.
+Storage: `gamecfg` in Atlas's `turnhub` namespace. Schema 1 is six bytes: profile
+enum 0..3, unsigned 32-bit little-endian starting life (reads as turn timer off).
+Schema 2 (written since 2026-09-24) appends the 32-bit turn timer; see
+[Turn timer and cues](TURN_TIMER_AND_CUES.md). Missing records use Generic 40, timer
+off; corrupt/unsupported records block setup/start rather than overwrite data.
 Life deltas never write flash. Existing statistics remain unchanged and unpartitioned.
 
 Validation covers owner/host authorization, numeric bounds, storage errors,

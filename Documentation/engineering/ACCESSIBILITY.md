@@ -72,6 +72,12 @@ Examples:
 
 No row may rely on color alone.
 
+The turn-timer cues follow this table: a slow pulse for the ten-second warning,
+a steady light when time has run out, and the same states as text in the portal
+and app. LED and audio styles live in replaceable cue profiles, so palettes,
+reduced-motion patterns and muting can change presentation without touching game
+logic. See [Turn timer and cues](TURN_TIMER_AND_CUES.md).
+
 ## Color-vision requirements
 
 TurnHub MUST remain usable when users cannot reliably distinguish commonly confused color pairs.

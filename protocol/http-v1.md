@@ -72,6 +72,24 @@ period; it does not mean the next turn has started. State confirms the later com
 - Never automatically replay an ambiguous timed-out control. Request IDs are not
   deduplicated. Reconcile from state, then let the user issue a new action.
 
+## Turn timer
+
+Atlas owns the turn timer; clients display it. `settings.turnTimerMs` is the
+captured per-turn countdown (0 = off; otherwise 15,000-3,600,000 in whole
+seconds). `turnTimer.phase` is `NORMAL`, `WARNING` (10 s or less left), `EXPIRED`
+(time ran out; the turn continues and Atlas never passes it) or `LONG_TURN`
+(timer off, turn past five minutes). `turnTimer.remainingMs` is null when the
+timer is off or no turn runs. Both are clock samples like `turnElapsedMs`: they
+may change at the same revision, and clients may count down locally between
+snapshots. Firmware before the timer omits both fields; treat that as off.
+
+`GET /api/game/settings` (authenticated) returns `turnTimerMs` and
+`turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
+existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
+keep their current values. Only the host's primary seat may change settings, and
+only in the lobby (409 otherwise); invalid values return 400. See
+[Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
+
 ## Optional concurrency check on session controls
 
 The existing `runControl` adapter accepts `expectedRevision` (canonical unsigned

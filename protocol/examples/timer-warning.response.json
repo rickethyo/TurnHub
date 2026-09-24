@@ -2,23 +2,23 @@
   "protocolVersion": "0.1",
   "atlasId": "THA-025448410001",
   "bootId": "0123456789ABCDEF0123456789ABCDEF",
-  "revision": 6,
+  "revision": 9,
   "state": "RUNNING",
   "hostModuleId": 8,
   "starterPlayer": 1,
-  "activePlayer": 2,
+  "activePlayer": 1,
   "winnerPlayer": null,
   "settings": {
-    "profile": "generic",
-    "startingLife": 40,
-    "turnTimerMs": 0
+    "profile": "mtg",
+    "startingLife": 20,
+    "turnTimerMs": 90000
   },
-  "sampledAtMs": 7101,
-  "gameElapsedMs": 3100,
-  "turnElapsedMs": 3000,
+  "sampledAtMs": 85000,
+  "gameElapsedMs": 81000,
+  "turnElapsedMs": 81000,
   "turnTimer": {
-    "phase": "NORMAL",
-    "remainingMs": null
+    "phase": "WARNING",
+    "remainingMs": 9000
   },
   "pending": {
     "passPlayer": null,
@@ -33,9 +33,9 @@
       "moduleId": 8,
       "slot": 1,
       "participantId": 28,
-      "turnsCompleted": 1,
+      "turnsCompleted": 0,
       "eliminated": false,
-      "life": 40,
+      "life": 20,
       "commanderDamage": [],
       "lifeRequest": null
     },
@@ -46,7 +46,7 @@
       "participantId": 29,
       "turnsCompleted": 0,
       "eliminated": false,
-      "life": 40,
+      "life": 20,
       "commanderDamage": [],
       "lifeRequest": null
     }
