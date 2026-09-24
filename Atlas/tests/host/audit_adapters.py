@@ -20,7 +20,7 @@ ADAPTERS = {
     "web_adapters.cpp": ["handleWebControl", "handleProfileControl", "configureGame",
                          "changeLife", "changeCounter", "moderateAccount", "manageDevices",
                          "dispatchBrowserSeatIntent"],
-    "front_panel.cpp": ["updateMasterButton", "updatePairButton"],
+    "front_panel.cpp": ["updateMasterButton"],
     "gameplay_intents.cpp": ["updatePendingPass"],
     "table_intents.cpp": ["updateCountdown"],
 }

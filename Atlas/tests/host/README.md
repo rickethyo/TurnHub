@@ -18,6 +18,9 @@ and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
 guest reads/writes, temporary bindings, legacy remember-key cleanup and placeholder filtering before
 the account limit. No saved user records are deleted by this filtering.
 
+`src/atlas_display.cpp` is firmware-only (it needs LovyanGFX), so it is not in
+any runner's source list. `test_globals.cpp` provides a no-op `beginAtlasDisplay()`.
+
 With GCC/Clang on another host, from this directory:
 
 ```sh

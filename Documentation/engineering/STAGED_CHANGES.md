@@ -44,6 +44,29 @@ now sounds for win confirmations and life-change recipients. Hardware acceptance
 is pending: see the bench list in [Accessibility](ACCESSIBILITY.md#implemented-accessibility-settings).
 Remaining accessibility items are listed there under "Not yet implemented".
 
+Atlas display board (2026-09-24): Atlas now targets the LCDwiki E32R28T 2.8"
+ESP32-32E display module (see [Hardware reference](HARDWARE_REFERENCE.md#generation-2-development-atlas)).
+Implemented and built, but not flashed: the new pin map, the splash screen,
+BOOT (IO0) as the master button (presence check, PASS on release, 5 s hold
+to end a match as a draw), and the `min_spiffs` partition table. The Pair button
+and the status/Pair LEDs were dropped. Staged follow-ups:
+
+- **Pairing control (blocking for Sigil setup):** `handlePairRequestIntent`
+  accepts only `IntentOrigin::AtlasHardware`, and the Pair button was its only
+  source. Add a touchscreen Pair control that dispatches `PairRequest`
+  through a thin adapter listed in `audit_adapters.py`.
+- **microSD storage:** move bulk records (profiles, statistics, possibly
+  logs) from NVS to the card and keep NVS for small or critical settings. Before
+  starting, run the feature gate: persistence owner, a card-missing/corrupt
+  fail-safe (gameplay must never require the card), migration from NVS, atomic
+  writes, PIN-hash exposure on a removable card, and host-test storage stubs.
+- The master-button end-match hold has lost its fast-blink warning (it used the
+  status LED). Give it a non-color cue on the TFT (text or a countdown).
+- Touch input, the on-board RGB LED and speaker as cue outputs, a battery
+  gauge, and a live table-status screen, each through the Intent and
+  presentation paths.
+- Update the user manual: the master button is now BOOT, and pairing moves
+  to the touchscreen.
 
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
 

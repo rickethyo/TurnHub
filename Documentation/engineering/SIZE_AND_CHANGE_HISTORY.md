@@ -259,6 +259,27 @@ toolchain (it reproduces the previous entry's Atlas and Sigil figures):
 
 Build only; nothing was flashed.
 
+### 2026-09-24 - Atlas moves to the E32R28T display board (`android/testing`)
+
+Large hardware change. Atlas stays `0.6.0-dev`, and the radio protocol is unchanged.
+
+- New board pin map in `config.h`; Pair button and front-panel LEDs removed;
+  BOOT (IO0) is the master button
+- New `Atlas/src/atlas_display.cpp` (LovyanGFX 1.2.30, DejaVu fonts): TurnHub
+  splash
+- Partition table `default.csv` -> `min_spiffs.csv` (app slot 1,310,720 B ->
+  1,966,080 B), so the percentages below use different denominators
+
+Same PlatformIO toolchain as the entry above. "Before" is that entry's "after":
+
+| Build | Before | After |
+| --- | ---: | ---: |
+| Atlas RAM | 92,780 B (28.3%) | 94,728 B (28.9%) |
+| Atlas flash | 1,119,653 B (85.4% of 1.25 MB) | 1,220,625 B (62.1% of 1.875 MB) |
+
+About 100 KB of the growth is LovyanGFX plus the two fonts. Build only; nothing
+was flashed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

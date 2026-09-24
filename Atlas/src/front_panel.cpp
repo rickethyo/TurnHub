@@ -1,5 +1,7 @@
-// Atlas front panel: the master and Pair buttons (hardware adapters that only
-// dispatch Intents) and the status/Pair indicator LEDs.
+// Atlas front panel: the master button (the on-board BOOT button, a hardware
+// adapter that only dispatches Intents and proves physical presence) and the
+// pairing window timer. The E32R28T board has no Pair button or front-panel
+// LEDs; its RGB LED and speaker amplifier are parked off.
 
 #include "atlas_app.h"
 #include "config.h"
@@ -14,13 +16,6 @@ bool pairingActive = false;
 namespace {
 
 constexpr uint32_t DEBOUNCE_MS = 25;
-constexpr uint32_t BOOT_BLINK_INTERVAL_MS = 150;
-constexpr uint32_t BOOT_BLINK_PHASES = 6;  // Three on/off flashes.
-constexpr uint32_t PAIR_BLINK_INTERVAL_MS = 250;
-// A match-time master hold blinks the status LED fast from this point on, so
-// the person holding it can see a hold is counting toward ending the match.
-constexpr uint32_t END_MATCH_WARNING_MS = 1000;
-constexpr uint32_t END_MATCH_BLINK_INTERVAL_MS = 100;
 
 // Edge detector for an active-low INPUT_PULLUP button.
 struct DebouncedButton {
@@ -47,10 +42,7 @@ struct DebouncedButton {
 };
 
 DebouncedButton masterButton{AtlasConfig::MASTER_BUTTON_PIN, "ATLAS|MASTER_BUTTON"};
-DebouncedButton pairButton{AtlasConfig::PAIR_BUTTON_PIN, "ATLAS|PAIR_BUTTON"};
 
-bool bootBlinkActive = false;
-uint32_t bootBlinkStartedAtMs = 0;
 uint32_t pairingStartedAtMs = 0;
 uint32_t pairingIndicatorMs = TurnHubProtocol::PAIRING_WINDOW_MS;
 
@@ -68,20 +60,18 @@ bool matchInProgress() {
 
 void beginFrontPanel() {
   pinMode(AtlasConfig::MASTER_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(AtlasConfig::PAIR_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(AtlasConfig::STATUS_LED_PIN, OUTPUT);
-  pinMode(AtlasConfig::PAIR_LED_PIN, OUTPUT);
-
   masterButton.lastState = digitalRead(AtlasConfig::MASTER_BUTTON_PIN);
-  pairButton.lastState = digitalRead(AtlasConfig::PAIR_BUTTON_PIN);
 
-  digitalWrite(AtlasConfig::STATUS_LED_PIN, HIGH);
-  digitalWrite(AtlasConfig::PAIR_LED_PIN, LOW);
-}
-
-void startBootBlink(uint32_t nowMs) {
-  bootBlinkStartedAtMs = nowMs;
-  bootBlinkActive = true;
+  // Park the on-board peripherals Atlas does not drive yet: RGB LED off
+  // (active low) and the speaker amplifier disabled (enable is active low).
+  pinMode(AtlasConfig::RGB_RED_PIN, OUTPUT);
+  pinMode(AtlasConfig::RGB_GREEN_PIN, OUTPUT);
+  pinMode(AtlasConfig::RGB_BLUE_PIN, OUTPUT);
+  digitalWrite(AtlasConfig::RGB_RED_PIN, HIGH);
+  digitalWrite(AtlasConfig::RGB_GREEN_PIN, HIGH);
+  digitalWrite(AtlasConfig::RGB_BLUE_PIN, HIGH);
+  pinMode(AtlasConfig::AUDIO_ENABLE_PIN, OUTPUT);
+  digitalWrite(AtlasConfig::AUDIO_ENABLE_PIN, HIGH);
 }
 
 void startPairingIndicator(uint32_t nowMs) {
@@ -136,37 +126,13 @@ void updateMasterButton() {
   }
 }
 
-void updatePairButton() {
-  bool state;
-  if (!pairButton.changed(state) || state != LOW) return;
-  Intent intent;
-  intent.type = IntentType::PairRequest;
-  intent.actor.origin = IntentOrigin::AtlasHardware;
-  intents.dispatch(intent);
-}
-
-void updateFrontPanelLeds(uint32_t nowMs) {
-  // Three status flashes after boot, then steady on.
-  const uint32_t bootElapsed = nowMs - bootBlinkStartedAtMs;
-  if (bootBlinkActive && bootElapsed >= BOOT_BLINK_PHASES * BOOT_BLINK_INTERVAL_MS) {
-    bootBlinkActive = false;
-  }
-  const uint32_t heldMs = nowMs - masterPressedAtMs;
-  const bool endMatchWarning = masterHeldInMatch && !endMatchSent &&
-      matchInProgress() && heldMs >= END_MATCH_WARNING_MS;
-  bool statusOn = !bootBlinkActive || (bootElapsed / BOOT_BLINK_INTERVAL_MS) % 2 == 0;
-  if (endMatchWarning) statusOn = (heldMs / END_MATCH_BLINK_INTERVAL_MS) % 2 == 0;
-  digitalWrite(AtlasConfig::STATUS_LED_PIN, statusOn ? HIGH : LOW);
-
-  // The Pair LED is reserved for the pairing window, which leaving the lobby ends.
-  const uint32_t pairingElapsed = nowMs - pairingStartedAtMs;
+// The pairing window closes after its configured length or when the lobby ends.
+void updatePairingWindow(uint32_t nowMs) {
   if (pairingActive &&
-      (pairingElapsed >= pairingIndicatorMs || hubState != HubState::Lobby)) {
+      (nowMs - pairingStartedAtMs >= pairingIndicatorMs || hubState != HubState::Lobby)) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }
-  digitalWrite(AtlasConfig::PAIR_LED_PIN,
-      pairingActive && (pairingElapsed / PAIR_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
 }
 
 }  // namespace TurnHubAtlas

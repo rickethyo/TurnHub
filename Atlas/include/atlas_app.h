@@ -17,7 +17,7 @@
 //   moderation_intent.cpp  Game Master moderation
 //   sigil_input.cpp        ESP-NOW event adapter and physical gesture state
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
-//   front_panel.cpp        Atlas master/pair buttons and front-panel LEDs
+//   front_panel.cpp        master (BOOT) button, pairing window
 //   sigil_accessibility.cpp  seated players' accessibility preferences ->
 //                          each Sigil's LED style, sound and hold timing
 //
@@ -253,19 +253,16 @@ bool manageDevices(const String &actor, IntentType type, int32_t value, String &
 
 // --- front_panel.cpp ---------------------------------------------------------
 
-// True while the pairing window's Pair LED is blinking. Exposed for host tests.
+// True while the pairing window is open. Exposed for host tests.
 extern bool pairingActive;
 
 void beginFrontPanel();
-// Starts the three-flash status blink once boot has finished.
-void startBootBlink(uint32_t nowMs);
 void startPairingIndicator(uint32_t nowMs);
 // OTA is allowed only between games and while the master button is held.
 bool otaAllowed();
 // Holding the master button this long during a match ends it as a draw.
 constexpr uint32_t MASTER_END_MATCH_HOLD_MS = 5000;
 void updateMasterButton();
-void updatePairButton();
-void updateFrontPanelLeds(uint32_t nowMs);
+void updatePairingWindow(uint32_t nowMs);
 
 }  // namespace TurnHubAtlas

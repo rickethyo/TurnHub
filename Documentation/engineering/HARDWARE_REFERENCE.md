@@ -69,44 +69,69 @@ The exact ESP32 wired-module pinout should be recovered from the surviving `ESP3
 
 ## Generation 2 development Atlas
 
-**Confidence:** Verified from current migration source where noted
+**Confidence:** Pin map *Reconstructed* from the vendor pin allocation table
+(LCDwiki "2.8inch ESP32-32E Display", E32R28T) and the board silkscreen; owner
+photo 2026-09-24. Nothing below is hardware-verified yet.
 
-### Controller
+### Controller board
 
-PlatformIO environment currently targets:
+Atlas now targets the LCDwiki **2.8" ESP32-32E display module, E32R28T**
+(resistive touch; the E32N28T is the same board without touch). It replaces the
+earlier bare `esp32dev` prototype and its external Pair button, master button,
+status LED and Pair LED, none of which are carried over.
 
-- Platform: Espressif32.
-- Board definition: `esp32dev`.
-- Framework: Arduino.
-- Serial monitor: 115200 baud.
+- Module: ESP32-32E N4, 4 MB QSPI flash, no PSRAM.
+- USB-C through a CH340C USB-serial bridge (not CP210x like the Sigil boards).
+- 2.8" 240x320 ILI9341V TFT, XPT2046 resistive touch controller.
+- microSD slot, common-anode RGB LED, speaker amplifier with connector,
+  battery connector with charging circuit and a battery-voltage ADC.
+- RESET (EN) and BOOT (IO0) buttons.
 
-The physical development Atlas board model is known to differ from the Sigil development board. The exact commercial board model and board-specific header mapping should be added after a physical verification pass.
+PlatformIO (`Atlas/platformio.ini`): Espressif32, board `esp32dev`, Arduino,
+115200 baud, partition table `min_spiffs.csv` (two 1.9 MB OTA app slots, NVS at
+the default `0x9000`). Flashing a new partition table needs one USB upload; OTA
+cannot change it. Display library: LovyanGFX.
 
-### Current Atlas I/O
+### Atlas I/O (E32R28T)
 
-| Function | GPIO | Confidence |
+| Function | GPIO | Notes |
 |---|---:|---|
-| Master button | 33 | Per `Atlas/include/config.h` (`MASTER_BUTTON_PIN`); this row said 32 before 2026-09-24 |
-| Pair button | 32 | Per `config.h` (`PAIR_BUTTON_PIN`); see [Manual Pairing](MANUAL_PAIRING.md) |
+| Master button | 0 | On-board BOOT button, active low. Firmware only samples it after boot. |
+| TFT SCK / MOSI / MISO | 14 / 13 / 12 | HSPI, display only |
+| TFT CS / DC | 15 / 2 | Reset is the shared EN line |
+| TFT backlight | 21 | Active high (PWM) |
+| Touch SCK / MOSI / MISO | 25 / 32 / 39 | XPT2046, separate bus. Not used yet |
+| Touch CS / IRQ | 33 / 36 | Active low. Not used yet |
+| microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Not used yet |
+| SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
+| RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot |
+| Speaker amp enable | 4 | Active low. Held disabled at boot |
+| Speaker audio (DAC) | 26 | Not used yet |
+| Battery voltage ADC | 34 | Input only. Not used yet |
 
-Master button: releasing it passes for the active player. Holding it for 5 seconds
-(`MASTER_END_MATCH_HOLD_MS`) during a running or paused match ends the match as a
-draw; from 1 second into such a hold the status LED blinks fast so the holder can
-see it counting. Holding it while saving system settings or during OTA is
-unchanged (Lobby/Game Over only, so it never ends a match). *Needs verification*
-on hardware.
+Master button (BOOT): holding it proves physical presence for system settings
+and OTA (Lobby/Game Over only). Releasing it passes for the active player.
+Holding it for 5 seconds (`MASTER_END_MATCH_HOLD_MS`) during a running or paused
+match ends the match as a draw. The fast-blink hold warning used the old status
+LED and has no output on this board yet. The Pair button is gone, so Atlas
+cannot open a pairing window until a replacement control exists (see
+`STAGED_CHANGES.md`). *Needs verification* on hardware.
 
-Current firmware also creates a local access point named `TurnHub-Atlas`.
+Current firmware shows a TurnHub splash on the TFT and creates the
+`TurnHub-Atlas` access point.
+
+**Needs verification on hardware:** panel orientation (`setRotation(1)`),
+color inversion and RGB/BGR order; 40 MHz TFT write clock; the pin table
+above, especially the small 3-pin header (silkscreen appears to read IO35/IO22/GND).
+Also confirm that GPIO0 reads high when BOOT is released and that the RGB LED
+really is common-anode.
 
 ### Future Atlas hardware items to define
 
-- Final ESP32-family module/SoC.
-- USB-C power connector.
-- USB-C data/firmware connector if kept as a separate port.
-- Status indicator(s).
-- Pairing/management control strategy.
-- Power regulation.
-- Optional battery/backup-power strategy.
+- Final ESP32-family module/SoC (the E32R28T is a development board).
+- Status indicator(s) (on-board RGB LED and TFT available).
+- Pairing/management control strategy (touchscreen Pair control staged).
+- Battery/backup-power strategy (board has a battery connector and charger).
 - Venue-display interface if required.
 - Secure device identity hardware if retained for production authenticity.
 - Docking/power contacts for Sigils if pursued.

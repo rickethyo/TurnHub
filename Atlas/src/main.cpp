@@ -8,6 +8,7 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "atlas_display.h"
 #include "config.h"
 #include "firmware_version.h"
 #include "game_recovery.h"
@@ -325,6 +326,7 @@ void setup() {
   Serial.begin(115200);
   delay(250);
   beginFrontPanel();
+  beginAtlasDisplay();
 
   serialLog.println();
   serialLog.print("ATLAS|BOOT|");
@@ -334,7 +336,6 @@ void setup() {
   serialLog.print("ATLAS|DIAGNOSTICS|");
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
-  serialLog.println("ATLAS|FRONT_PANEL|LEDS|BOOT_BLINK");
 
   configureIntentHandlers();
   observeClientState();
@@ -352,20 +353,16 @@ void setup() {
     serialLog.println("ATLAS|PAIRING|WINDOW|STORAGE_ERROR");
   }
   startNetworking();
-
-  // Start after synchronous network setup so all three flashes are visible.
-  startBootBlink(millis());
   serialLog.println("ATLAS|READY");
 }
 
 void loop() {
   processSigilEvents();
   updateMasterButton();
-  updatePairButton();
   server.handleClient();
 
   const uint32_t nowMs = millis();
-  updateFrontPanelLeds(nowMs);
+  updatePairingWindow(nowMs);
   updatePendingPass(nowMs);
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);

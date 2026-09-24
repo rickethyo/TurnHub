@@ -139,10 +139,10 @@ static void deliberatePairing() {
   TurnHub::fixtureRadio = true;
   testNow = UINT32_MAX - 10000;
   assert(intents.dispatch(intent).accepted() && pairingActive);
-  testNow += TurnHubProtocol::PAIRING_WINDOW_MS - 1; updateFrontPanelLeds(testNow); assert(pairingActive);
-  ++testNow; updateFrontPanelLeds(testNow); assert(!pairingActive);
+  testNow += TurnHubProtocol::PAIRING_WINDOW_MS - 1; updatePairingWindow(testNow); assert(pairingActive);
+  ++testNow; updatePairingWindow(testNow); assert(!pairingActive);
   assert(intents.dispatch(intent).accepted());
-  startFromHost(); updateFrontPanelLeds(testNow); assert(!pairingActive);
+  startFromHost(); updatePairingWindow(testNow); assert(!pairingActive);
   assert(!intents.dispatch(intent).accepted());
   enterEmptyLobby();
 }
@@ -1559,8 +1559,8 @@ static void deviceManagement() {
   freshLobby(2); pairingActive=false;
   Intent pair; pair.type=IntentType::PairRequest; pair.actor.origin=IntentOrigin::AtlasHardware;
   assert(intents.dispatch(pair).accepted() && TurnHub::fixturePairingWindowMs==30000);
-  testNow+=29999; updateFrontPanelLeds(testNow); assert(pairingActive);
-  ++testNow; updateFrontPanelLeds(testNow); assert(!pairingActive);
+  testNow+=29999; updatePairingWindow(testNow); assert(pairingActive);
+  ++testNow; updatePairingWindow(testNow); assert(!pairingActive);
   assert(request("/api/pairing",admin,{{"windowMs","15000"}})==200 && pairingWindowMs==15000);
   enterEmptyLobby();
 }
