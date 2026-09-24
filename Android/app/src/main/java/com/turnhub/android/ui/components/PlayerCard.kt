@@ -54,7 +54,10 @@ fun PlayerCard(
         ControllerHandle.Kind.VIRTUAL -> "Phone / browser"
         ControllerHandle.Kind.UNKNOWN -> "Controller ${player.controller.id}"
     }
-    val lifeText = player.life?.toString() ?: "—"
+    // Lobby life is null until Atlas captures it at start; preview Atlas's
+    // configured starting life instead, visibly muted and labeled as such.
+    val lifeText = player.life?.toString() ?: summary.settings.startingLife.toString()
+    val lifeLabel = if (player.life == null) "starting life" else "life"
     val extras = buildList {
         player.commanderDamage.forEach { entry ->
             add("Cmdr from ${labelFor(entry.sourcePlayer)}: ${entry.damage.joinToString(" / ")}")
@@ -67,7 +70,7 @@ fun PlayerCard(
     val description = buildString {
         append(player.label)
         status?.let { append(", ").append(it.removePrefix("▶ ").removePrefix("🏆 ")) }
-        player.life?.let { append(", $it life") }
+        append(", $lifeText $lifeLabel")
         append(", $controller, ${player.turnsCompleted} turns completed")
         extras.forEach { append(", ").append(it) }
     }
@@ -104,9 +107,14 @@ fun PlayerCard(
                 text = lifeText,
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
+                color = if (player.life == null) {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
             )
             Text(
-                text = if (player.life == null) "life set at start" else "life",
+                text = lifeLabel,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
