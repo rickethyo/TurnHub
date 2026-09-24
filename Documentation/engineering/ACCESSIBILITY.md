@@ -197,6 +197,108 @@ State ownership:
 - Device-specific calibration or hardware limitations remain device-local unless promoted to a table-level setting.
 - Clients render the applicable preferences but do not become authoritative for player/game state.
 
+## Implemented accessibility settings
+
+Inventory as of 2026-09-24. *Implemented* means in source with host, browser
+and Android unit tests passing; none of the Sigil-side behavior has hardware
+acceptance yet (*Needs verification* on the bench list below).
+
+| Setting | Where it is chosen | Stored by | Default |
+| --- | --- | --- | --- |
+| Sigil sound on/off | Portal My Account > Sigil accessibility; Android > Sigil accessibility | Atlas, with the profile (`x<profileId>`) | On |
+| Sigil light style: Standard, Reduced motion, Monochrome-safe | Same | Same | Standard |
+| Action long-press (pause) hold, 1-4 s | Same | Same | 2 s |
+| Action win hold, 3-10 s, at least 1 s longer than the long press | Same | Same | 5 s |
+| Portal theme, including High contrast | Portal My Account > Appearance | This browser (`localStorage`) | High contrast when the device asks for more contrast (`prefers-contrast: more`), otherwise Brass |
+| Portal reduce motion | Portal My Account > Appearance | This browser | Off, but the device's reduced-motion setting always applies |
+| Windows high contrast (`forced-colors`) | Operating system | - | Follows the OS |
+| Browser feedback sound, vibration and volume | Portal My Account > Browser feedback | This browser | Sound and vibration on, medium volume |
+| Android high contrast | Android 14+ Settings > Accessibility > Contrast | Operating system | Follows the OS; a raised level switches the app to fixed high-contrast colours |
+| Android text size, TalkBack, live announcements | Operating system | - | Follows the OS |
+
+The four Sigil settings are *per-player* (owner decision, 2026-09-24): they follow
+the player to whichever Sigil they sit at. Browser presentation choices stay
+per-browser because they describe the device in hand, not the player.
+
+### Feature gate (Sigil accessibility preferences)
+
+1. **State owner:** Atlas profile repository (`AccessibilityPrefs`,
+   `accessibility_prefs.h`). Not table or game state.
+2. **Intent:** none. Like the physical-use/privacy policy these are profile
+   settings, changed through `GET/POST /api/session/accessibility` by the
+   signed-in profile only. The portal and Android use that one endpoint and its
+   one validator. Nothing here changes what a gameplay Intent means: a longer
+   hold still produces the same `ActionLong`/`ActionWin` and the same Intent.
+3. **Validator:** `validAccessibilityPrefs()` in Atlas (ranges, 250 ms steps,
+   1 s gap), shared with the radio contract (`validInputTiming()` in `protocol.h`)
+   and re-checked by the Sigil before applying.
+4. **Persistence:** Atlas NVS, `x<profileId>`, schema 1. Sigils keep the applied
+   values in RAM only (Invariant 7).
+5. **Rendering clients:** Sigil LEDs (`LedRenderer` per-Sigil profile), buzzer
+   (`AudioController` mute mask), Sigil buttons (`InputTiming`); portal and
+   Android only edit them.
+6. **Contract change:** new HTTP endpoint and `accessibility-v1.schema.json`;
+   radio `InputTiming = 24` and `CAPABILITY_INPUT_TIMING = 0x08` (backward
+   compatible; Sigil firmware 0.5.4 needed for adjustable holds).
+7. **Dependencies:** none added.
+8. **Accessibility:** this is the accessibility path. Every option also has a
+   non-Sigil route (the portal/app show all state as text and offer pause and
+   win claims as buttons).
+
+### Sharing a Sigil
+
+When two players share a Sigil (seats A and B), Atlas merges their choices so
+sharing never removes an accommodation either one asked for: sound is off if
+either turned it off; Reduced motion beats Monochrome-safe beats Standard; the
+longer hold times apply. During a match Atlas uses the profiles captured at the
+start; otherwise the Sigil's current seat bindings. Atlas revisits each Sigil
+about every two seconds and immediately after a save.
+
+### Light styles
+
+- **Standard:** the prototype's cadences (TURN_TIMER_AND_CUES.md).
+- **Reduced motion:** no breathing, pulsing or counting flashes. Lights are
+  steady, dim, or blink no faster than one 2-second change per 4 seconds. Your
+  turn is bright blue and waiting is dim blue. Cues that can appear together also
+  differ by cadence, so this style is monochrome-safe as well. The player number
+  and which shared seat is meant are left to the e-ink display and portal/app.
+- **Monochrome-safe:** Standard, except where two cues in the same situation
+  differed only by colour: time over (steady red) versus a long untimed turn (now
+  a short green blink every 4 s), and confirming a win (short pulses) versus
+  choosing a player to eliminate (now long pulses).
+
+### Decision-needed sound
+
+`ActionRequired` (two short 1,150 Hz notes) now plays on the Sigil of the player
+whose win confirmation is next, and on the recipient of a life-change request.
+It respects that Sigil's sound setting. The same request is always shown as text
+in the portal/app, and win confirmations on the Sigil display.
+
+### Not yet implemented (see STAGED_CHANGES.md)
+
+- Sigil-local Pairing/Disconnected/Error lights still use fixed firmware
+  patterns, not the player's light style (Atlas cannot style an unpaired Sigil).
+- LED intensity, buzzer volume, text/display scale on the e-ink screen,
+  extended life-approval (15 s) and pairing (15 s) windows, and a
+  monochrome-safe portal theme separate from High contrast.
+- Accessibility preferences for players without a profile (guests).
+
+### Bench acceptance (Needs verification)
+
+1. Flash Atlas and one Sigil with 0.5.4; a second Sigil stays on older firmware.
+2. Sign in on a phone, bind to the new Sigil, choose Reduced motion, sound off,
+   3 s / 6 s. Within a few seconds: no breathing or pulsing, no buzzer, and
+   pause needs a 3 s hold and a win claim 6 s (also on the Pause / Win button).
+3. Reboot only the Sigil: it returns to 2 s / 5 s until Atlas resends (≤ 10 s).
+4. Share the Sigil with a second profile that keeps defaults: the merged rules
+   above apply. Leave: defaults return.
+5. On the older Sigil, the same profile gets the light style and mute but
+   keeps 2 s / 5 s holds.
+6. Claim a win: only the next confirmer's Sigil plays the two-note decision cue.
+7. Monochrome-safe and Reduced motion: check time over versus long turn, and
+   win confirmation versus elimination, in a monochrome photo or with a
+   colour-blind tester.
+
 ## Physical, digital, and hybrid participation policies
 
 TurnHub may support GM/host policies such as physical-only, digital-only, hybrid, or physical-plus-companion sessions.
@@ -268,4 +370,4 @@ For every user-facing feature, ask:
 
 The expected answer is **yes** whenever a practical alternative exists.
 
-Last established: 2026-09-20
+Last established: 2026-09-20; implemented settings added 2026-09-24

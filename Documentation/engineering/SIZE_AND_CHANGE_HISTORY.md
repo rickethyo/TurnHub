@@ -207,6 +207,32 @@ which had been measured, so it is not a pure delta for the reorganization:
 
 Build only; nothing was flashed.
 
+### 2026-09-24 - per-player Sigil accessibility (`claude/code-review-cleanup-cn4zoy`)
+
+Large feature change. Sigil firmware `0.5.3-dev` -> `0.5.4-dev` (adjustable hold
+timing needs a Sigil reflash); Atlas stays `0.6.0-dev`; radio protocol version 1
+with a new backward-compatible `InputTiming = 24` packet.
+
+- Per-player Sigil sound, light style and hold times stored with the profile
+  (`x<profileId>`), merged per Sigil; reduced-motion and monochrome-safe LED
+  profiles; per-Sigil mute; `ActionRequired` emitted
+- `GET/POST /api/session/accessibility`; portal Sigil accessibility card,
+  reduce-motion switch and OS-contrast default; Android editor and high-contrast theme
+- New `Atlas/src/sigil_accessibility.cpp`, `Atlas/include/accessibility_prefs.h`
+
+Same toolchain as the reorganization entry above, measured before and after:
+
+| Build | Before | After |
+| --- | ---: | ---: |
+| Atlas RAM | 91,340 B (27.9%) | 92,724 B (28.3%) |
+| Atlas flash | 1,097,033 B (83.7%) | 1,111,241 B (84.8%) |
+| Sigil RAM | 48,360 B (14.8%) | 48,360 B (14.8%) |
+| Sigil flash | 769,037 B (58.7%) | 769,285 B (58.7%) |
+| Sigil (Wokwi) flash | 793,713 B (60.6%) | 793,957 B (60.6%) |
+
+The Atlas RAM growth is the two extra static LED profiles and per-Sigil state;
+the flash growth is mostly portal text. Build only; nothing was flashed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

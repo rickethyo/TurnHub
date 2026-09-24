@@ -90,6 +90,26 @@ keep their current values. Only the host's primary seat may change settings, and
 only in the lobby (409 otherwise); invalid values return 400. See
 [Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
 
+## Sigil accessibility preferences
+
+`GET /api/session/accessibility` and `POST /api/session/accessibility`
+(authenticated with the session token) read and change the signed-in
+profile's own Sigil accessibility preferences: `sigilSound` (form `0`/`1`),
+`ledStyle` (`standard`, `reduced-motion`, `monochrome-safe`), `longPressMs` and
+`winHoldMs`. Omitted POST fields keep their saved values. Hold times are whole
+multiples of `stepMs` (250) within the returned `limits`, and the win hold must
+be at least `minGapMs` (1000) longer than the long press; anything else returns
+400 and nothing is stored. No session returns 401; an unreadable or unwritable
+record returns 503. Both methods return the saved values plus `limits` and
+`stored` (false when Atlas could not read the saved record and is showing the
+defaults) - see [accessibility-v1.schema.json](accessibility-v1.schema.json) and
+[the example](examples/accessibility.response.json).
+
+These are profile settings, like `/api/session/policy`, not table state: they
+change no Intent's meaning and take no revision check. Atlas applies them to
+the player's physical Sigil within about two seconds (see
+[Accessibility](../Documentation/engineering/ACCESSIBILITY.md#implemented-accessibility-settings)).
+
 ## Optional concurrency check on session controls
 
 The existing `runControl` adapter accepts `expectedRevision` (canonical unsigned

@@ -66,6 +66,22 @@ Current/experimental packet concepts include:
 
 The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
 
+### Hold timing (2026-09-24)
+
+Sigils from firmware 0.5.4 advertise `CAPABILITY_INPUT_TIMING = 0x08` in Hello.
+Atlas sends those peers `InputTiming = 24` in the existing seven-byte packet:
+the long-press threshold in bits 0-15 and the win-hold threshold in bits 16-31
+of `value`, both in milliseconds. `protocol.h` holds the defaults (2,000 and
+5,000 ms), the limits (1,000-4,000 and 3,000-10,000 ms, 250 ms steps, win hold
+at least 1,000 ms longer) and `validInputTiming()`, which both sides use. The
+Sigil ignores invalid values and keeps them in RAM only, so a rebooted Sigil
+uses the defaults until Atlas resends (every 10 s, or on change). Older Sigils
+ignore the unknown type and keep their fixed thresholds. Protocol version stays
+1. The thresholds only change when a gesture is recognized; the resulting
+packets (`ActionLong`, `ActionWin`) and their Intents mean the same thing.
+Atlas picks the values from the seated players' accessibility preferences
+(ACCESSIBILITY.md).
+
 ### Running-game Sigil display (2026-09-22)
 
 Sigils advertise `CAPABILITY_GAME_DISPLAY = 0x04` in Hello. Atlas sends those

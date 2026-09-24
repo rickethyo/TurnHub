@@ -91,9 +91,12 @@ Atlas state --selectSigilLedState()--> SigilLedState --LedCueProfile--> blue/red
 - Default timer styles: warning = slow red pulse (1.5 s cycle), expired = steady red,
   long turn = steady green, all layered over the active player's blue breathe.
   Warning versus expiry differ by cadence. Every cadence is at or below 2.5 Hz.
-- `LedRenderer::setProfile()` is the single configuration boundary. A future setting
-  (palette, reduced motion, monochrome-safe) supplies another profile; selection
-  and game logic do not change. There is no editor or persistence yet.
+- `LedRenderer::setProfile()` is the single configuration boundary, now per Sigil.
+  `reducedMotionLedCueProfile()` and `monochromeSafeLedCueProfile()` are the
+  alternatives, chosen by the seated players' accessibility preferences
+  (`sigil_accessibility.cpp`; see ACCESSIBILITY.md, "Implemented accessibility
+  settings"). Selection and game logic do not change. A `Dim` pattern (steady
+  partial blue) lets Reduced motion tell your turn from waiting by brightness.
 - `Pairing`, `Disconnected` and `Error` are in the vocabulary with styles, but Sigil
   firmware still renders them locally (Atlas cannot drive an unpaired or offline
   Sigil). Routing them through a shared profile needs a Sigil-side change.
@@ -107,14 +110,16 @@ Atlas state --selectSigilLedState()--> SigilLedState --LedCueProfile--> blue/red
   `TurnStarted` (heard by the new active Sigil, as before); `TurnPassed` (the
   passer's confirmation) exists but is silent by default, preserving behavior.
 - New: `TurnWarning` (one short 1.6 kHz chirp), `TimerExpired` (two low notes; rhythm
-  differs from the warning, not only pitch), `ActionRequired` (defined, not yet
-  emitted by any handler).
+  differs from the warning, not only pitch), `ActionRequired` (two short notes on the
+  Sigil whose win confirmation is next, or that received a life-change request;
+  added 2026-09-24).
 - Timer cues are one-shot: `updateTurnTimerCues()` in `gameplay_intents.cpp` watches phase
   transitions of the running turn and plays each cue once per turn on the active
   Sigil. Pause keeps the last phase, so resuming does not repeat a cue.
-- **Not implemented:** a persisted or user-facing audio on/off setting. Whether it
-  is table-level or a per-player accessibility preference that follows the profile
-  (ACCESSIBILITY.md, "Accessibility profiles") is an owner decision.
+- **Sigil sound setting (2026-09-24):** a per-player accessibility preference that
+  follows the profile (owner decision). `AudioController::setMutedSigils()` skips
+  muted Sigils, including notes already queued; other Sigils still hear the cue,
+  and LEDs are untouched. The profile-wide `enabled` flag remains for tests.
 
 ## Clients
 

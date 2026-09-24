@@ -140,8 +140,12 @@ The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-i
 ### Current control timing
 
 - Debounce: 30 ms.
-- Action long press: 2 seconds.
-- Action win hold: 5 seconds.
+- Action long press: 2 seconds by default; 1-4 seconds per player (Sigil firmware 0.5.4+).
+- Action win hold: 5 seconds by default; 3-10 seconds per player, always at least
+  1 second longer than the long press. The Pause / Win button uses the same win hold.
+  Atlas sends the seated players' choice (`InputTiming`, see
+  [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)); the Sigil keeps it in RAM only.
+  *Needs verification* on hardware; host tests only cover Atlas's side.
 - Pass acknowledgement green flash: 250 ms.
 
 ### Auxiliary control revision

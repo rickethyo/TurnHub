@@ -11,13 +11,17 @@ profile, audio cue profile and Android player controls are implemented locally w
 host/Android tests and an Atlas build; hardware acceptance is pending. See
 [Turn timer and cues](TURN_TIMER_AND_CUES.md). Staged follow-ups:
 
-- Owner decision: where an audio on/off (and later LED palette) setting lives:
-  table-level, or a per-player accessibility preference that follows the profile.
-  The runtime profile boundary exists; persistence and UI do not.
 - Sigil e-ink timer state needs a radio-contract field and a reflash of all Sigils.
-- `ActionRequired` audio is defined but not emitted; choose its triggers
-  (for example the player whose win confirmation or life approval is needed).
-- Route Sigil-local Pairing/Disconnected/Error LEDs through a shared cue profile.
+- Route Sigil-local Pairing/Disconnected/Error LEDs through a shared cue profile
+  (and so through the player's light style).
+
+Sigil accessibility preferences (2026-09-24): the owner chose per-player settings
+that follow the profile. Sigil sound, light style (Standard, Reduced motion,
+Monochrome-safe) and adjustable Action hold times are implemented with host,
+browser and Android tests and firmware builds (Atlas, Sigil 0.5.4); `ActionRequired`
+now sounds for win confirmations and life-change recipients. Hardware acceptance
+is pending: see the bench list in [Accessibility](ACCESSIBILITY.md#implemented-accessibility-settings).
+Remaining accessibility items are listed there under "Not yet implemented".
 
 
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
@@ -202,14 +206,18 @@ retain profile companion control.
 - Define reusable accessible UI patterns before the portal and Android surfaces diverge.
 - Ensure essential states are not represented by color alone; pair color with text, icons, pattern/cadence, or another practical cue.
 - Add high-contrast and monochrome-safe presentation options. The web portal has a
-  High contrast theme and honours `forced-colors` (implemented 2026-09-24; see
-  [Web Portal Design System](WEB_PORTAL_DESIGN.md)). Android and monochrome-safe
-  modes remain open.
-- Define player-level accessibility preferences separately from game profiles.
-- Determine which accessibility settings follow a player versus remain device-local.
+  High contrast theme (automatic when the device asks for more contrast) and honours
+  `forced-colors`; Android switches to high-contrast colours when the system
+  contrast is raised; Sigil lights have a Monochrome-safe style (all 2026-09-24).
+  A monochrome-safe portal theme separate from High contrast remains open.
+- Player-level accessibility preferences exist for the Sigil (sound, light style,
+  hold times) and follow the profile; browser presentation stays per-browser.
+  Further preferences (LED intensity, volume, e-ink text scale) remain open.
 - Provide keyboard and assistive-technology semantics for essential web controls.
-- Add reduced-motion behavior and avoid rapid/seizure-risk flashing.
-- Make long-press and other timing-sensitive physical interactions adjustable where practical without changing game semantics.
+- Reduced motion: portal (OS setting or per-browser switch) and Sigil lights
+  (Reduced motion style) are implemented; avoid rapid/seizure-risk flashing.
+- Long-press and win-hold times are adjustable per player (Sigil 0.5.4). The
+  15-second life-approval and pairing windows are not adjustable yet.
 - Preserve an authorized assistive-companion path for players when a table policy otherwise requires physical Sigils.
 - Add accessibility checks to feature verification and future hardware review.
 

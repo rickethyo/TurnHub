@@ -35,7 +35,10 @@ Components never hard-code colours, so adding a theme means adding one token blo
 
 The choice is a per-browser presentation preference stored in `localStorage`
 (`turnhubTheme`) and chosen in My Account → Appearance. It is never sent to Atlas
-and never changes gameplay. Missing or unknown values fall back to Brass.
+and never changes gameplay. With no saved choice, a device that asks for more
+contrast (`prefers-contrast: more`) gets High contrast; otherwise Brass. Loading a
+page never saves a theme, so that default keeps following the device until the
+user picks one. Unknown values fall back to Brass.
 
 ## Visual language
 
@@ -70,7 +73,7 @@ Placement follows common web conventions so people find things without hunting.
 | Game setup (profile, starting life, turn timer) | Game view main column, directly under the stage in the lobby; locked during a game |
 | Life totals, approvals, Commander damage | Game view main column, shown once a game has totals |
 | Roster, invite QR codes, Sigil attachment, Game Master tools | Players tab |
-| Name, PIN, privacy, theme, sound/vibration, moderation history | My Account tab |
+| Name, PIN, privacy, theme, reduce motion, sound/vibration, Sigil accessibility, moderation history | My Account tab |
 | Wi-Fi, device names, permissions, firmware update | Device Settings tab (Admin), with firmware under the Atlas card |
 | Connection | Pill at top right; on phones a dot while connected, words when it is not |
 
@@ -88,8 +91,15 @@ Placement follows common web conventions so people find things without hunting.
 
 - Every state shown by colour also carries text (badges, player-state labels,
   "Active turn", "Time's up"). Switches show state by knob position as well as colour.
-- High contrast theme and `forced-colors` support. `prefers-reduced-motion` disables
-  gear rotation, needle easing and other transitions.
+- High contrast theme (automatic when the device asks for more contrast) and
+  `forced-colors` support. `prefers-reduced-motion`, or the per-browser Reduce
+  motion switch in Appearance (`turnhubReduceMotion`, `html[data-motion=reduce]`,
+  applied by every page's head script), disables gear rotation, needle easing and
+  other transitions.
+- My Account → Sigil accessibility edits the signed-in player's Sigil sound, light
+  style and hold times, which Atlas stores with the profile (see
+  [Accessibility](ACCESSIBILITY.md#implemented-accessibility-settings)). The form
+  checks the 1-second win-hold gap before sending; Atlas re-validates.
 - Touch targets are at least 44 px. Focus rings use the theme's focus token. The
   page has a skip link. The active tab carries `aria-current="page"`.
 - All checkboxes remain real `<input>` elements with their own `<label>`. Help text

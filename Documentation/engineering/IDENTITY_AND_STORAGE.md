@@ -70,7 +70,8 @@ match/controller records, not a claim that those repositories already exist.
 | Match facts, membership, history and recovery | Planned Atlas match repository | Bounded versioned records; recovery separate from completed history |
 | Controller assignment/device trust | Planned controller/trust registries | Small critical records independent of statistics |
 | Sigil user/device settings and last-used preferences | Atlas device-settings owner | No remembered profile on either seat; legacy `b<mac>A/B` and `r<mac>A/B` keys are retired on reconnect; no Sigil-side profile persistence |
-| Shared accessibility preferences | Atlas profile owner | Versioned profile preferences; per-Sigil user adjustments belong to Atlas device settings |
+| Per-player Sigil accessibility (sound, light style, hold times) | Atlas profile repository | `x<profileId>` blob in `turnhub` (2026-09-24): schema byte 1, sound 0/1, light style 0-2, long press and win hold as little-endian uint16 ms (7 bytes). Missing reads as defaults; Corrupt/unsupported records are never overwritten silently. Sigils hold the applied values in RAM only |
+| Other shared accessibility preferences | Atlas profile owner | Versioned profile preferences; per-Sigil user adjustments belong to Atlas device settings |
 | Exports | Atlas authorized projection | Generated views, never a competing database |
 
 The engine knows game facts, not NVS keys or SD paths. Backends know bytes, not
