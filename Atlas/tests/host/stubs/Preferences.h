@@ -7,7 +7,12 @@ class Preferences {
   uint32_t _handle=1;
   bool _started=false, _readOnly=false;
  public:
-  bool begin(const char*,bool readOnly=false) { _started=true; _readOnly=readOnly; return true; }
+  // Like the framework, a failed nvs_open (including NOT_FOUND) is logged.
+  bool begin(const char *name,bool readOnly=false) {
+    if(_started) return false;
+    if(nvs_open(name,readOnly?NVS_READONLY:NVS_READWRITE,&_handle)!=ESP_OK) { log_e("open"); return false; }
+    _started=true; _readOnly=readOnly; return true;
+  }
   void end() { _started=false; }
   String getString(const char*,String fallback=String()) {
     if(readError!=ESP_OK) { log_e("read"); return fallback; }

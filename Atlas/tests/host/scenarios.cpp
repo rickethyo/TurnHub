@@ -247,6 +247,17 @@ static void optionalStorage() {
   eraseError=ESP_ERR_NVS_INVALID_HANDLE; assert(!prefs.remove("broken")); assert(loggedErrors==4);
   eraseError=ESP_OK; injectedCommitError=ESP_ERR_NVS_INVALID_HANDLE; assert(!prefs.remove("present")); assert(loggedErrors==5);
   injectedCommitError=ESP_OK; assert(prefs.remove("present"));
+  prefs.end();
+  // A never-written namespace polled read-only (GET /api/network) is quiet.
+  loggedErrors=0; openError=ESP_ERR_NVS_NOT_FOUND;
+  for(int i=0;i<100;++i) { TurnHub::OptionalPreferences absent; assert(!absent.begin("absent",true)); }
+  assert(loggedErrors==0);
+  { TurnHub::OptionalPreferences absent; assert(!absent.begin("absent",false)); } assert(loggedErrors==1);
+  openError=ESP_ERR_NVS_INVALID_HANDLE;
+  { TurnHub::OptionalPreferences broken; assert(!broken.begin("broken",true)); } assert(loggedErrors==2);
+  openError=ESP_OK;
+  { TurnHub::OptionalPreferences present; assert(present.begin("present",true)); assert(!present.begin("present",true)); present.end(); }
+  assert(loggedErrors==2);
 }
 
 static String responseField(const char *field) {

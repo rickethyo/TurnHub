@@ -11,6 +11,27 @@ namespace TurnHub {
 // type mismatches, invalid handles, read errors, and write/commit failures.
 class OptionalPreferences : public Preferences {
  public:
+  // A namespace never written (e.g. no owner Wi-Fi password yet) is absent,
+  // not broken. Preferences::begin logs every read-only open of one, and the
+  // admin portal polls /api/network, so a read-only NOT_FOUND returns false
+  // quietly. Other open failures still go through Preferences and log.
+  bool begin(const char *name, bool readOnly = false) {
+    if (readOnly && !_started && name != nullptr) {
+      nvs_handle_t handle = 0;
+      const esp_err_t error = nvs_open(name, NVS_READONLY, &handle);
+      if (error == ESP_ERR_NVS_NOT_FOUND) {
+        return false;
+      }
+      if (error == ESP_OK) {
+        _handle = handle;
+        _readOnly = true;
+        _started = true;
+        return true;
+      }
+    }
+    return Preferences::begin(name, readOnly);
+  }
+
   String getString(const char *key, String fallback = String()) {
     size_t length = 0;
     if (_started && key != nullptr &&
