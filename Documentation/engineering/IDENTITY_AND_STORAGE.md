@@ -14,7 +14,8 @@ baseline, not hardware validation of subsequent changes.
 This foundation preserves gameplay, controller addressing, HTTP/ESP-NOW payloads,
 profile IDs, PIN hash inputs, NVS keys and the deployed statistics format. Existing
 profile statistics are the first storage consumer. Other small settings retain
-their existing Preferences owners. There is no SD dependency.
+their existing Preferences owners. There is no SD dependency; the optional
+microSD store described below holds no authoritative records yet.
 
 ## Identity contracts
 
@@ -111,6 +112,40 @@ unsupported data. Existing bool helpers retain their signatures: absent stats
 load as zero defaults; other read failures return false. The completion callback
 then skips that profile instead of replacing totals. Failed completions are not
 yet queued for replay.
+
+## Optional microSD storage
+
+Status (2026-09-24): *Implemented* in firmware and host tests; *Needs
+verification* on the board. No repository uses the card yet, so every record
+listed above still lives in NVS and gameplay never depends on the card.
+
+- `sd_card.cpp` (firmware-only, Arduino `SD` library on VSPI) mounts the card
+  once at boot with `format_if_empty = false`: an unreadable or unformatted
+  card is reported as `no_card`, never wiped. It then writes and reads back
+  `/turnhub/selftest` through the same store the repositories will use.
+  Serial log lines are `ATLAS|SD|NO_CARD`, `ATLAS|SD|MOUNTED|<type>|<size>MB`
+  and `ATLAS|SD|SELF_TEST|<status>`; `GET /api/diagnostics` (Developer) adds an
+  `sdCard` object with state, type, capacity, usage and the self-test result.
+- `SdBlobStore` implements `BlobStore` over a small `FileSystem` interface, so
+  host tests run it against an in-memory, fault-injecting fake. Keys follow the
+  NVS rules (1-15 characters) restricted to letters, digits, `_` and `-`.
+  Records are at most 4096 bytes. Each file holds a 16-byte header (`THSD`
+  magic, format 1, little-endian payload length, CRC-32 of the payload) and
+  then the payload. A bad magic, length or checksum reads as `Corrupt`; another
+  format number reads as `UnsupportedSchema`.
+- Writes go to `<key>.tmp`, are read back and compared, then replace `<key>`
+  via `<key>.bak` (FAT cannot rename over a file). A read that finds no `<key>`
+  but a `<key>.bak` returns the backup, so power loss leaves the old or the new
+  record, never a torn one. A damaged `<key>` is reported, not silently rolled
+  back to the backup. A leftover `.tmp` is never read.
+- `sdBlobStore()` returns `nullptr` unless the card mounted and the directory
+  exists; callers treat that and every error as "card unavailable". A card
+  removed while running makes operations fail with `IoError`; remount needs a
+  restart.
+
+Not decided yet (see [Staged changes](STAGED_CHANGES.md)): which records move,
+PIN hashes on removable media, migration and rollback from NVS, and how a card
+moved to another Atlas is treated.
 
 ## Schema and migration rules
 

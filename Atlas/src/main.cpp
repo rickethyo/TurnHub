@@ -15,6 +15,7 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "runtime_diagnostics.h"
+#include "sd_card.h"
 #include "serial_log.h"
 #include "wifi_password_store.h"
 
@@ -306,7 +307,11 @@ void startNetworking() {
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/diagnostics", HTTP_GET, []() {
-    serveDeveloperJson(TurnHub::runtimeDiagnosticsJson());
+    // Runtime figures plus the optional microSD card's state.
+    String json = TurnHub::runtimeDiagnosticsJson();
+    json = json.substring(0, json.length() - 1) + ",\"sdCard\":" +
+           sdCardDiagnosticsJson() + "}";
+    serveDeveloperJson(json);
   });
   server.on("/api/diagnostics/activity", HTTP_GET, []() {
     serveDeveloperJson(TurnHub::activityJson());
@@ -336,6 +341,8 @@ void setup() {
   serialLog.print("ATLAS|DIAGNOSTICS|");
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
+  // Optional storage: a missing or failed card is logged and never blocks play.
+  beginSdCard();
 
   configureIntentHandlers();
   observeClientState();

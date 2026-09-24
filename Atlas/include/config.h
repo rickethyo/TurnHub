@@ -51,6 +51,8 @@ constexpr int8_t SD_SCLK_PIN = 18;
 constexpr int8_t SD_MOSI_PIN = 23;
 constexpr int8_t SD_MISO_PIN = 19;
 constexpr int8_t SD_CS_PIN = 5;
+// Conservative clock for bring-up; raise once cards are proven on the bench.
+constexpr uint32_t SD_SPI_HZ = 4000000;
 
 // Common-anode RGB LED: each channel is active low.
 constexpr uint8_t RGB_RED_PIN = 22;

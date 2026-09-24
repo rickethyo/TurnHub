@@ -15,7 +15,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Gameplay test compilation failed.' }
     & .\build\scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Gameplay scenarios failed.' }
-    & $Compiler @flags -Istorage_stubs -Istubs -I../../include -I../../../shared/include storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios.exe
+    & $Compiler @flags -Istorage_stubs -Istubs -I../../include -I../../../shared/include storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp ../../src/sd_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Storage test compilation failed.' }
     & .\build\storage_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Storage scenarios failed.' }

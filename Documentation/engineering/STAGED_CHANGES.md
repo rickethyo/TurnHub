@@ -56,11 +56,17 @@ match as a draw, and an on-screen countdown for the BOOT hold (see
 
 - **Bench acceptance:** screen orientation, on-device touch calibration (first
   boot, and the 10 s lobby hold), and each touch button against a real table.
-- **microSD storage:** move bulk records (profiles, statistics, possibly
-  logs) from NVS to the card and keep NVS for small or critical settings. Before
-  starting, run the feature gate: persistence owner, a card-missing/corrupt
-  fail-safe (gameplay must never require the card), migration from NVS, atomic
-  writes, PIN-hash exposure on a removable card, and host-test storage stubs.
+- **microSD storage:** step 1 is built and host-tested but not flashed
+  (2026-09-24): Atlas mounts the card at boot, runs a write/read-back self-test
+  and reports it in Developer diagnostics; `SdBlobStore` provides checksummed,
+  crash-safe records (see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage)).
+  Nothing authoritative is on the card yet. Bench check: boot with and without
+  a FAT32 card and confirm `ATLAS|SD|...` lines and `sdCard` in `/api/diagnostics`.
+  Before moving bulk records (profiles, statistics, possibly logs) off NVS, the
+  owner decides: which records move, whether PIN hashes may sit on a removable
+  card, the NVS migration and rollback, what happens when the card is missing
+  mid-session (hot-plug is not handled; a card inserted after boot needs a
+  restart), and whether a card may be moved between Atlases.
 - Player names on the status screen; more touch actions (Start, Rematch,
   starter selection) once the owner decides which host-only actions the table
   device may take; the on-board RGB LED and speaker as cue outputs; a battery

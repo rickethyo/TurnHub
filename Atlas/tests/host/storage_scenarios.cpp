@@ -10,6 +10,7 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "accessibility_prefs.h"
+#include "sd_blob_store.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -350,6 +351,140 @@ void accessibilityRecords() {
   }
 }
 
+// In-memory FAT-like file system: rename refuses to overwrite, and each
+// operation can be made to fail or to damage what it writes.
+struct FakeFs final : FileSystem {
+  std::map<std::string, std::vector<uint8_t>> files;
+  std::map<std::string, bool> dirs;
+  bool failRead = false, failWrite = false, flipOnWrite = false;
+  int failRenamesTo = 0;  // how many renames onto renameTarget fail
+  std::string renameTarget;
+  bool exists(const char *path) override { return files.count(path) || dirs.count(path); }
+  bool readFile(const char *path, void *data, size_t capacity, size_t &size) override {
+    size = 0;
+    auto it = files.find(path);
+    if (failRead || it == files.end() || it->second.size() > capacity) return false;
+    memcpy(data, it->second.data(), it->second.size());
+    size = it->second.size();
+    return true;
+  }
+  bool writeFile(const char *path, const void *data, size_t size) override {
+    if (failWrite) return false;
+    auto &file = files[path];
+    file.assign(static_cast<const uint8_t *>(data), static_cast<const uint8_t *>(data) + size);
+    if (flipOnWrite) file.back() ^= 0x01;
+    return true;
+  }
+  bool rename(const char *from, const char *to) override {
+    if (failRenamesTo > 0 && renameTarget == to) { --failRenamesTo; return false; }
+    if (!files.count(from) || exists(to)) return false;
+    files[to] = files[from];
+    files.erase(from);
+    return true;
+  }
+  bool remove(const char *path) override { return files.erase(path) == 1; }
+  bool mkdir(const char *path) override { dirs[path] = true; return true; }
+};
+
+void sdRecords() {
+  FakeFs fs;
+  SdBlobStore store;
+  char out[16] = {};
+  size_t size = 99;
+  assert(store.read("rec", out, sizeof(out), size) == Status::Unavailable && size == 0);
+  assert(store.write("rec", "x", 1) == Status::Unavailable);
+  assert(store.begin(fs, "turnhub") == Status::InvalidArgument && !store.ready());
+  assert(store.begin(fs, "/turnhub") == Status::Ok && fs.dirs.count("/turnhub"));
+
+  // Fresh, round trip, size query and a too-small buffer.
+  assert(store.read("rec", out, sizeof(out), size) == Status::NotFound);
+  assert(store.write("rec", "first", 6) == Status::Ok);
+  assert(fs.files.size() == 1 && fs.files.count("/turnhub/rec"));
+  assert(fs.files["/turnhub/rec"].size() == SdBlobStore::HEADER_BYTES + 6);
+  assert(store.read("rec", nullptr, 0, size) == Status::Ok && size == 6);
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && size == 6 && !strcmp(out, "first"));
+  assert(store.read("rec", out, 3, size) == Status::Corrupt);
+
+  // Replacing leaves only the new record behind.
+  assert(store.write("rec", "second", 7) == Status::Ok);
+  assert(fs.files.size() == 1);
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "second"));
+
+  // Invalid keys and sizes never touch the card.
+  for (const char *bad : {"", "../rec", "a/b", "a.b", "sixteen_chars_xx"}) {
+    assert(store.write(bad, "x", 1) == Status::InvalidArgument);
+    assert(store.read(bad, out, sizeof(out), size) == Status::InvalidArgument);
+  }
+  static uint8_t big[SdBlobStore::MAX_RECORD_BYTES + 1] = {};
+  assert(store.write("rec", big, sizeof(big)) == Status::InvalidArgument);
+  assert(store.write("rec", big, SdBlobStore::MAX_RECORD_BYTES) == Status::Ok);
+  assert(store.write("rec", "x", 0) == Status::InvalidArgument);
+  assert(store.read("rec", nullptr, 4, size) == Status::InvalidArgument);
+  assert(store.write("rec", "second", 7) == Status::Ok);
+
+  // Damaged files read as Corrupt or UnsupportedSchema, never as data.
+  const std::vector<uint8_t> good = fs.files["/turnhub/rec"];
+  fs.files["/turnhub/rec"].back() ^= 0x40;
+  assert(store.read("rec", out, sizeof(out), size) == Status::Corrupt);
+  fs.files["/turnhub/rec"] = good; fs.files["/turnhub/rec"][0] = 'X';
+  assert(store.read("rec", out, sizeof(out), size) == Status::Corrupt);
+  fs.files["/turnhub/rec"] = good; fs.files["/turnhub/rec"].pop_back();
+  assert(store.read("rec", out, sizeof(out), size) == Status::Corrupt);
+  fs.files["/turnhub/rec"] = std::vector<uint8_t>(good.begin(), good.begin() + 5);
+  assert(store.read("rec", out, sizeof(out), size) == Status::Corrupt);
+  fs.files["/turnhub/rec"] = good; fs.files["/turnhub/rec"][4] = 2;
+  assert(store.read("rec", out, sizeof(out), size) == Status::UnsupportedSchema);
+  // A damaged current record does not fall back to an older backup.
+  fs.files["/turnhub/rec"] = good; fs.files["/turnhub/rec"].back() ^= 0x40;
+  fs.files["/turnhub/rec.bak"] = good;
+  assert(store.read("rec", out, sizeof(out), size) == Status::Corrupt);
+  fs.files.erase("/turnhub/rec.bak");
+  fs.files["/turnhub/rec"] = good;
+  fs.failRead = true;
+  assert(store.read("rec", out, sizeof(out), size) == Status::IoError);
+  fs.failRead = false;
+
+  // Power lost between the two renames: the backup is the committed record.
+  fs.files["/turnhub/rec.bak"] = good;
+  fs.files.erase("/turnhub/rec");
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "second"));
+  assert(store.write("rec", "third", 6) == Status::Ok);
+  assert(fs.files.size() == 1 && store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "third"));
+  // A leftover backup next to a current record (lost before its removal).
+  fs.files["/turnhub/rec.bak"] = good;
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "third"));
+  assert(store.write("rec", "fourth", 7) == Status::Ok && fs.files.size() == 1);
+  // A leftover temporary file is never read, and the next write replaces it.
+  fs.files["/turnhub/new.tmp"] = good;
+  assert(store.read("new", out, sizeof(out), size) == Status::NotFound);
+  assert(store.write("new", "n", 2) == Status::Ok && !fs.files.count("/turnhub/new.tmp"));
+
+  // Failed writes keep the previous record readable.
+  fs.failWrite = true;
+  assert(store.write("rec", "lost", 5) == Status::IoError);
+  fs.failWrite = false;
+  fs.flipOnWrite = true;
+  assert(store.write("rec", "lost", 5) == Status::IoError);
+  fs.flipOnWrite = false;
+  // The new record cannot be renamed into place: the old one is put back.
+  fs.renameTarget = "/turnhub/rec"; fs.failRenamesTo = 1;
+  assert(store.write("rec", "lost", 5) == Status::IoError);
+  assert(!fs.files.count("/turnhub/rec.bak") && fs.files.count("/turnhub/rec"));
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "fourth"));
+  // Putting it back fails too: reads still find it as the backup.
+  fs.failRenamesTo = 2;
+  assert(store.write("rec", "lost", 5) == Status::IoError);
+  assert(fs.files.count("/turnhub/rec.bak") && !fs.files.count("/turnhub/rec"));
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "fourth"));
+  assert(store.write("rec", "fifth", 6) == Status::Ok);
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "fifth"));
+
+  // The checksum is standard CRC-32 (IEEE), so records can be checked off-device.
+  assert(crc32("123456789", 9) == 0xCBF43926u);
+  store.end();
+  assert(!store.ready() && store.read("rec", out, sizeof(out), size) == Status::Unavailable);
+}
+
 int main() {
   accountRecords();
   moderationRecords();
@@ -361,5 +496,6 @@ int main() {
   gameSettingsRecords();
   pairingWindowRecords();
   accessibilityRecords();
-  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences and NVS failures\n";
+  sdRecords();
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences, NVS failures and SD records\n";
 }

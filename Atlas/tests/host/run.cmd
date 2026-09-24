@@ -11,7 +11,7 @@ cl /nologo /std:c++17 /EHsc /W4 /Istubs /I../../include /I../../../shared/includ
 if errorlevel 1 (popd & exit /b 1)
 build\scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
-cl /nologo /std:c++17 /EHsc /W4 /Istorage_stubs /Istubs /I../../include /I../../../shared/include storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp /Fo:build/ /Fe:build/storage_scenarios.exe
+cl /nologo /std:c++17 /EHsc /W4 /Istorage_stubs /Istubs /I../../include /I../../../shared/include storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp ../../src/sd_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp /Fo:build/ /Fe:build/storage_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
 build\storage_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)

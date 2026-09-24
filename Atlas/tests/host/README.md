@@ -36,7 +36,7 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include s
     -o build/scenarios
 ./build/scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
-    storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp \
+    storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp ../../src/sd_blob_store.cpp \
     ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios
 ./build/storage_scenarios
 c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \

@@ -102,7 +102,7 @@ cannot change it. Display library: LovyanGFX.
 | TFT backlight | 21 | Active high (PWM) |
 | Touch SCK / MOSI / MISO | 25 / 32 / 39 | XPT2046, read by bit-banged SPI (HSPI is the TFT's, VSPI is kept for microSD) |
 | Touch CS / IRQ | 33 / 36 | Active low |
-| microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Not used yet |
+| microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Mounted at boot at 4 MHz (`SD_SPI_HZ`), never formatted; FAT32 cards only. Optional storage, see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage). Built and host-tested, not yet tried on the board |
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
 | RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot |
 | Speaker amp enable | 4 | Active low. Held disabled at boot |
