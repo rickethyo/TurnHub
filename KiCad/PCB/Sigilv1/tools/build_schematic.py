@@ -1,6 +1,5 @@
 """Rebuild Rev A's electrical draft. No mechanical geometry is inferred here."""
 from pathlib import Path
-import re
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]

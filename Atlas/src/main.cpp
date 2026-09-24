@@ -12,9 +12,9 @@
 #include "firmware_version.h"
 #include "game_recovery.h"
 #include "game_settings_store.h"
-#include "optional_preferences.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
+#include "wifi_password_store.h"
 
 using TurnHub::serialLog;
 
@@ -58,14 +58,8 @@ void updateGameRecoveryClock(uint32_t nowMs) {
 // default. The default is never written to NVS, so a stored password always
 // means the owner chose it, and erasing NVS returns Atlas to the default.
 String loadWifiPassword() {
-  TurnHub::OptionalPreferences prefs;
-  String password;
-  if (prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, true)) {
-    password = prefs.getString(AtlasConfig::WIFI_PREF_KEY, "");
-    prefs.end();
-  }
-  if (password.length() >= AtlasConfig::WIFI_PASSWORD_MIN_LENGTH &&
-      password.length() <= AtlasConfig::WIFI_PASSWORD_MAX_LENGTH) {
+  const String password = TurnHub::readStoredWifiPassword();
+  if (TurnHub::validWifiPassword(password)) {
     serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|LOADED");
     return password;
   }

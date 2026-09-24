@@ -8,6 +8,7 @@
 #include "config.h"
 #include "firmware_version.h"
 #include "optional_preferences.h"
+#include "wifi_password_store.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
 
@@ -47,16 +48,6 @@ String firmwareText(const SigilRecord &record) {
       static_cast<unsigned>(record.firmwareMinor),
       static_cast<unsigned>(record.firmwarePatch));
   return String(firmware);
-}
-
-String storedWifiPassword() {
-  TurnHub::OptionalPreferences prefs;
-  String password;
-  if (prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, true)) {
-    password = prefs.getString(AtlasConfig::WIFI_PREF_KEY, "");
-    prefs.end();
-  }
-  return password;
 }
 
 // Loads the initial Admin's ID and the target account, or sends 503.
@@ -205,7 +196,7 @@ void handleDeviceName(WebServer &server) {
 
 void handleNetworkInfo(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
-  const String password = storedWifiPassword();
+  const String password = TurnHub::readStoredWifiPassword();
   // No owner-set password means Atlas is running on the shipped default.
   const bool ownerSet = password.length() >= AtlasConfig::WIFI_PASSWORD_MIN_LENGTH;
   String response = "{\"ssid\":\"";
@@ -234,8 +225,7 @@ void handleNetworkPassword(WebServer &server) {
   }
 
   const String password = server.arg("password");
-  if (password.length() < AtlasConfig::WIFI_PASSWORD_MIN_LENGTH ||
-      password.length() > AtlasConfig::WIFI_PASSWORD_MAX_LENGTH) {
+  if (!TurnHub::validWifiPassword(password)) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Wi-Fi password must be 8 to 63 characters\"}");
     return;
   }
