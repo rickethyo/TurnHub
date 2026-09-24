@@ -363,6 +363,7 @@ void loop() {
 
   const uint32_t nowMs = millis();
   updatePairingWindow(nowMs);
+  serviceAtlasDisplay(nowMs);
   updatePendingPass(nowMs);
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);

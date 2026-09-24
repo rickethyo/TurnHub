@@ -29,6 +29,23 @@ constexpr int8_t TOUCH_MISO_PIN = 39;
 constexpr int8_t TOUCH_CS_PIN = 33;
 constexpr int8_t TOUCH_IRQ_PIN = 36;  // Active low.
 
+// Screen rotation: 3 is landscape with the board's left-edge connector
+// pigtails leaving from the top of the screen (1 would point them at the user).
+constexpr uint8_t TFT_ROTATION = 3;
+
+// Touch calibration: raw 12-bit XPT2046 readings at the screen edges, and
+// how the raw axes map onto the rotated screen. Starting values from common
+// ESP32 2.8" boards; confirm them with the ATLAS|TOUCH|RAW serial lines.
+constexpr uint16_t TOUCH_RAW_X_MIN = 200;
+constexpr uint16_t TOUCH_RAW_X_MAX = 3700;
+constexpr uint16_t TOUCH_RAW_Y_MIN = 240;
+constexpr uint16_t TOUCH_RAW_Y_MAX = 3800;
+constexpr bool TOUCH_SWAP_XY = false;
+constexpr bool TOUCH_INVERT_X = true;
+constexpr bool TOUCH_INVERT_Y = true;
+// Minimum pressure (Z) that counts as a touch.
+constexpr uint16_t TOUCH_PRESSURE_MIN = 400;
+
 // microSD slot on VSPI, shared with the "SPI" expansion header (CS IO27).
 constexpr int8_t SD_SCLK_PIN = 18;
 constexpr int8_t SD_MOSI_PIN = 23;

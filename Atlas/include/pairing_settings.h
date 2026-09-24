@@ -4,10 +4,10 @@
 
 namespace TurnHub {
 
-// How long Atlas's pairing window stays open after its Pair button. Admins
-// can lengthen it for players who need more time to reach the Sigil. Only
+// How long Atlas's pairing window stays open after Pair a Sigil is tapped on
+// its screen. Admins can lengthen it for players who need more time to reach the Sigil. Only
 // Atlas's window changes: a Sigil's own window stays PAIRING_WINDOW_MS, so
-// with a longer setting press Atlas's Pair button first.
+// with a longer setting tap Pair on Atlas first.
 constexpr uint8_t PAIRING_WINDOW_CHOICES_S[] = {15, 30, 60};
 constexpr uint32_t DEFAULT_PAIRING_WINDOW_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
 

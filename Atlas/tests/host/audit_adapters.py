@@ -1,7 +1,7 @@
 """Regression guard for the Atlas controller/application boundary.
 
 Transport adapters (Sigil radio events, browser callbacks, front-panel
-buttons, loop timers) must only build Intents and dispatch them. This check
+buttons, touchscreen buttons, loop timers) must only build Intents and dispatch them. This check
 fails if an adapter body mutates canonical game/lobby state, assigns
 table-decision state, calls a lifecycle transition helper, or calls an
 Intent handler directly instead of going through the dispatcher.
@@ -21,6 +21,7 @@ ADAPTERS = {
                          "changeLife", "changeCounter", "moderateAccount", "manageDevices",
                          "dispatchBrowserSeatIntent"],
     "front_panel.cpp": ["updateMasterButton"],
+    "touch_controls.cpp": ["updateTouchControls", "dispatchTouchAction"],
     "gameplay_intents.cpp": ["updatePendingPass"],
     "table_intents.cpp": ["updateCountdown"],
 }

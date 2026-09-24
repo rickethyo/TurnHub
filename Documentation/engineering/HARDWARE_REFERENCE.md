@@ -100,8 +100,8 @@ cannot change it. Display library: LovyanGFX.
 | TFT SCK / MOSI / MISO | 14 / 13 / 12 | HSPI, display only |
 | TFT CS / DC | 15 / 2 | Reset is the shared EN line |
 | TFT backlight | 21 | Active high (PWM) |
-| Touch SCK / MOSI / MISO | 25 / 32 / 39 | XPT2046, separate bus. Not used yet |
-| Touch CS / IRQ | 33 / 36 | Active low. Not used yet |
+| Touch SCK / MOSI / MISO | 25 / 32 / 39 | XPT2046, read by bit-banged SPI (HSPI is the TFT's, VSPI is kept for microSD) |
+| Touch CS / IRQ | 33 / 36 | Active low |
 | microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Not used yet |
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
 | RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot |
@@ -112,16 +112,43 @@ cannot change it. Display library: LovyanGFX.
 Master button (BOOT): holding it proves physical presence for system settings
 and OTA (Lobby/Game Over only). Releasing it passes for the active player.
 Holding it for 5 seconds (`MASTER_END_MATCH_HOLD_MS`) during a running or paused
-match ends the match as a draw. The fast-blink hold warning used the old status
-LED and has no output on this board yet. The Pair button is gone, so Atlas
-cannot open a pairing window until a replacement control exists (see
-`STAGED_CHANGES.md`). *Needs verification* on hardware.
+match ends the match as a draw. From 1 second into such a hold, the TFT shows
+"Keep holding BOOT to end match: N s" (this replaces the old status-LED blink).
+*Needs verification* on hardware.
 
-Current firmware shows a TurnHub splash on the TFT and creates the
-`TurnHub-Atlas` access point.
+### Atlas touchscreen
 
-**Needs verification on hardware:** panel orientation (`setRotation(1)`),
-color inversion and RGB/BGR order; 40 MHz TFT write clock; the pin table
+The TFT is landscape, rotation 3 (`TFT_ROTATION`), so the connector pigtails on
+the board's left edge leave from the top of the screen. The firmware shows the
+TurnHub splash for 2 seconds and then a status screen: table state, a detail
+line (pairing countdown, player and Sigil counts, whose turn it is, time left,
+a pending pass, or the result), a line for action messages, and touch buttons.
+The display (`atlas_display.cpp`) only draws. `touch_controls.cpp` builds the
+screen and holds the touch adapter, which dispatches Intents with
+`IntentOrigin::AtlasHardware`, just as the master button does:
+
+| State | Buttons | Intent |
+|---|---|---|
+| Lobby | Pair a Sigil | `PairRequest` (replaces the Pair button) |
+| Running | Pass, Pause | `Pass` / `Pause` for the active seat |
+| Paused | Resume | `Resume` for the active seat |
+| Running, Paused | Hold to end match (draw) | `EndMatch` after `MASTER_END_MATCH_HOLD_MS`, with an on-screen countdown |
+
+Taps act on release inside the same button, and sliding off cancels. A contact
+gap shorter than `TOUCH_RELEASE_MS` (60 ms) counts as the same press, because
+resistive panels drop out briefly. Touches during the splash are ignored.
+Buttons are at least 60 px tall. A pressed button inverts and gets a heavier
+border, so the press does not rely on color alone. The screen gives no player
+names yet, only player numbers.
+
+Touch calibration lives in `config.h` (`TOUCH_RAW_*`, `TOUCH_SWAP_XY`,
+`TOUCH_INVERT_*`, `TOUCH_PRESSURE_MIN`). The starting values come from similar
+2.8" ESP32 boards. Each new touch logs `ATLAS|TOUCH|RAW|x|y|SCREEN|x|y`; tap
+the four corners and adjust.
+
+**Needs verification on hardware:** panel orientation (rotation 3 puts the
+pigtail at the top), touch calibration and axis direction, color inversion and
+RGB/BGR order; 40 MHz TFT write clock; the pin table
 above, especially the small 3-pin header (silkscreen appears to read IO35/IO22/GND).
 Also confirm that GPIO0 reads high when BOOT is released and that the RGB LED
 really is common-anode.

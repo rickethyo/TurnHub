@@ -280,6 +280,22 @@ Same PlatformIO toolchain as the entry above. "Before" is that entry's "after":
 About 100 KB of the growth is LovyanGFX plus the two fonts. Build only; nothing
 was flashed.
 
+### 2026-09-24 - Atlas touchscreen controls (`android/testing`)
+
+Feature change; Atlas stays `0.6.0-dev`, radio protocol unchanged.
+
+- Screen flipped to rotation 3; status screen after the splash
+- New `Atlas/src/touch_controls.cpp` (host-tested adapter + screen model):
+  Pair, Pass, Pause/Resume, end-match hold, BOOT-hold countdown
+- Bit-banged XPT2046 reads in `atlas_display.cpp`
+
+| Build | Before | After |
+| --- | ---: | ---: |
+| Atlas RAM | 94,728 B (28.9%) | 95,000 B (29.0%) |
+| Atlas flash | 1,220,625 B (62.1%) | 1,233,741 B (62.8%) |
+
+Build only; nothing was flashed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

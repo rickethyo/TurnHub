@@ -17,6 +17,7 @@
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
+#include "touch_controls.h"
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
@@ -1424,6 +1425,91 @@ static void masterDown() { testDigitalRead=LOW; testNow+=30; updateMasterButton(
 static void masterUp() { testDigitalRead=HIGH; testNow+=30; updateMasterButton(); }
 static void holdMaster(uint32_t ms) { testNow+=ms; updateMasterButton(); }
 
+// Drives the touchscreen adapter with screen-coordinate samples.
+static const TouchButton *screenButton(const AtlasScreen &screen, TouchAction action) {
+  for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action) return &screen.buttons[i];
+  return nullptr;
+}
+static bool startsWith(const char *text,const char *prefix) { return strncmp(text,prefix,strlen(prefix))==0; }
+static AtlasScreen currentScreen() { AtlasScreen s; buildAtlasScreen(testNow,s); return s; }
+static void touchAt(int16_t x,int16_t y) { updateTouchControls(testNow,true,x,y); }
+static void touchRelease() { testNow+=TOUCH_RELEASE_MS; updateTouchControls(testNow,false,0,0); }
+static void pressButton(TouchAction action) {
+  const TouchButton *b=screenButton(currentScreen(),action); assert(b!=nullptr);
+  touchAt(b->x+b->w/2,b->y+b->h/2);
+}
+static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
+
+static void touchControls() {
+  resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
+  AtlasScreen s=currentScreen();
+  assert(String(s.title)=="Lobby" && s.buttonCount==1 && screenButton(s,TouchAction::Pair));
+  // Every button fits on screen and meets the 44 px minimum target size.
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+
+  // Touches outside a button, or sliding off one, do nothing.
+  touchAt(4,4); touchRelease(); assert(!pairingActive);
+  pressButton(TouchAction::Pair); touchAt(4,4); touchRelease(); assert(!pairingActive);
+  // A brief resistive drop-out is not a release; the tap acts once on release.
+  pressButton(TouchAction::Pair); updateTouchControls(testNow+TOUCH_RELEASE_MS-1,false,0,0);
+  assert(!pairingActive && currentScreen().pressed==TouchAction::Pair);
+  pressButton(TouchAction::Pair); touchRelease();
+  assert(pairingActive && currentScreen().pressed==TouchAction::None);
+  s=currentScreen();
+  assert(startsWith(s.detail,"Pairing open: ") && String(s.notice)=="Pairing window opened");
+  testNow+=TOUCH_NOTICE_MS; assert(currentScreen().notice[0]=='\0');
+  testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);
+  assert(String(currentScreen().detail)=="2 players, 0 Sigils");
+  // Pairing still goes through its handler: a radio failure is reported, not hidden.
+  TurnHub::fixtureRadio=false; tapButton(TouchAction::Pair);
+  assert(!pairingActive && String(currentScreen().notice)=="Radio unavailable");
+  TurnHub::fixtureRadio=true;
+
+  // Running: Pass (for the active seat), Pause, and a hold-only End match.
+  startFromHost(); s=currentScreen();
+  assert(startsWith(s.title,"Player ") && s.buttonCount==3 &&
+      screenButton(s,TouchAction::Pass) && screenButton(s,TouchAction::Pause) &&
+      screenButton(s,TouchAction::EndMatch)->hold);
+  const uint8_t first=game.activePlayerNumber();
+  tapButton(TouchAction::Pass); assert(pendingPass.active);
+  assert(String(currentScreen().detail)=="Pass pending: tap Pass to undo");
+  tapButton(TouchAction::Pass); assert(!pendingPass.active && game.activePlayerNumber()==first);
+  tapButton(TouchAction::Pass); testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
+  assert(game.activePlayerNumber()!=first);
+  tapButton(TouchAction::Pause); assert(hubState==HubState::Paused);
+  s=currentScreen();
+  assert(String(s.title)=="Paused" && s.buttonCount==2 && screenButton(s,TouchAction::Resume) && !screenButton(s,TouchAction::Pass));
+  tapButton(TouchAction::Resume); assert(hubState==HubState::Running);
+
+  // A master (BOOT) hold shows its countdown on screen after the first second.
+  testNow+=TOUCH_NOTICE_MS;
+  masterDown(); holdMaster(500); assert(currentScreen().notice[0]=='\0');
+  holdMaster(1000); assert(startsWith(currentScreen().notice,"Keep holding BOOT to end match: 4 s"));
+  masterUp(); assert(pendingPass.active && currentScreen().notice[0]=='\0');
+  tapButton(TouchAction::Pass); assert(!pendingPass.active);
+
+  // End match needs the full hold, shows a countdown, and acts once.
+  tapButton(TouchAction::EndMatch);
+  assert(hubState==HubState::Running && startsWith(currentScreen().notice,"Keep holding"));
+  completedGames=0;
+  pressButton(TouchAction::EndMatch); testNow+=MASTER_END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
+  s=currentScreen(); assert(s.pressed==TouchAction::EndMatch && s.holdSecondsLeft==1);
+  assert(hubState==HubState::Running);
+  testNow+=1; pressButton(TouchAction::EndMatch);
+  assert(hubState==HubState::GameOver && game.endedInDraw() && completedGames==1);
+  touchAt(160,200); testNow+=5000; touchAt(160,200); touchRelease();
+  assert(completedGames==1);
+  s=currentScreen();
+  assert(String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" && s.buttonCount==0);
+
+  // A press whose button disappears before release does nothing.
+  enterEmptyLobby(); freshLobby(2); startFromHost();
+  pressButton(TouchAction::Pause); assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
+  touchRelease(); assert(hubState==HubState::Paused);
+  resetTouchControls(); enterEmptyLobby();
+}
+
 static void endMatchAsDraw() {
   using TurnHubProfiles::LastGameResult;
   // Only a match in progress, and only the Atlas hardware, can end it.
@@ -1641,6 +1727,7 @@ int main() {
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS master-button hold ends a match as a draw: authorization, short press, overrides, stats once, recovery\n";
+  touchControls(); std::cout<<"PASS touchscreen: Pair, Pass, Pause/Resume, end-match hold, BOOT-hold countdown, slide-off, drop-out, stale press\n";
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";

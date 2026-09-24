@@ -18,6 +18,8 @@
 //   sigil_input.cpp        ESP-NOW event adapter and physical gesture state
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
 //   front_panel.cpp        master (BOOT) button, pairing window
+//   touch_controls.cpp     touchscreen buttons (adapter) and the TFT's
+//                          screen model (touch_controls.h)
 //   sigil_accessibility.cpp  seated players' accessibility preferences ->
 //                          each Sigil's LED style, sound and hold timing
 //
@@ -263,6 +265,11 @@ bool otaAllowed();
 // Holding the master button this long during a match ends it as a draw.
 constexpr uint32_t MASTER_END_MATCH_HOLD_MS = 5000;
 void updateMasterButton();
+// Time left before a match-time master hold ends the match, or 0 when no such
+// hold is counting.
+uint32_t masterEndMatchRemainingMs(uint32_t nowMs);
 void updatePairingWindow(uint32_t nowMs);
+// Time left in the open pairing window, or 0 when it is closed.
+uint32_t pairingRemainingMs(uint32_t nowMs);
 
 }  // namespace TurnHubAtlas

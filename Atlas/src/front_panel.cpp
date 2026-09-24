@@ -126,6 +126,18 @@ void updateMasterButton() {
   }
 }
 
+uint32_t masterEndMatchRemainingMs(uint32_t nowMs) {
+  if (!masterHeldInMatch || endMatchSent || !matchInProgress()) return 0;
+  const uint32_t heldMs = nowMs - masterPressedAtMs;
+  return heldMs < MASTER_END_MATCH_HOLD_MS ? MASTER_END_MATCH_HOLD_MS - heldMs : 0;
+}
+
+uint32_t pairingRemainingMs(uint32_t nowMs) {
+  if (!pairingActive) return 0;
+  const uint32_t elapsed = nowMs - pairingStartedAtMs;
+  return elapsed < pairingIndicatorMs ? pairingIndicatorMs - elapsed : 0;
+}
+
 // The pairing window closes after its configured length or when the lobby ends.
 void updatePairingWindow(uint32_t nowMs) {
   if (pairingActive &&

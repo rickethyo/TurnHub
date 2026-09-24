@@ -1,0 +1,68 @@
+#pragma once
+
+// Atlas touchscreen: what the built-in TFT shows and what its touch buttons
+// do. Hardware-independent so host tests drive it: atlas_display.cpp feeds
+// touch samples in and draws the AtlasScreen this module builds.
+//
+// The touch adapter only builds Intents with IntentOrigin::AtlasHardware (the
+// screen is part of the Atlas, like its master button); Atlas's handlers
+// decide every outcome.
+
+#include <Arduino.h>
+
+namespace TurnHubAtlas {
+
+// Landscape screen size in pixels.
+constexpr int16_t ATLAS_SCREEN_WIDTH = 320;
+constexpr int16_t ATLAS_SCREEN_HEIGHT = 240;
+
+// A touch counts as released only after this long without contact, because
+// resistive panels drop out briefly during a press.
+constexpr uint32_t TOUCH_RELEASE_MS = 60;
+// How long an action message stays on screen.
+constexpr uint32_t TOUCH_NOTICE_MS = 4000;
+
+enum class TouchAction : uint8_t { None, Pair, Pass, Pause, Resume, EndMatch };
+
+struct TouchButton {
+  TouchAction action = TouchAction::None;
+  const char *label = "";
+  int16_t x = 0;
+  int16_t y = 0;
+  int16_t w = 0;
+  int16_t h = 0;
+  // Hold buttons act after MASTER_END_MATCH_HOLD_MS; the others act on release.
+  bool hold = false;
+
+  bool contains(int16_t px, int16_t py) const {
+    return px >= x && px < x + w && py >= y && py < y + h;
+  }
+};
+
+constexpr uint8_t MAX_TOUCH_BUTTONS = 3;
+
+// Everything the TFT shows. Equal screens need no redraw.
+struct AtlasScreen {
+  char title[32] = {};
+  char detail[48] = {};
+  char notice[48] = {};
+  TouchButton buttons[MAX_TOUCH_BUTTONS];
+  uint8_t buttonCount = 0;
+  // The button under a finger right now, and a hold's whole seconds left.
+  TouchAction pressed = TouchAction::None;
+  uint8_t holdSecondsLeft = 0;
+};
+
+bool sameButtons(const AtlasScreen &a, const AtlasScreen &b);
+bool sameScreen(const AtlasScreen &a, const AtlasScreen &b);
+
+void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen);
+
+// Touch adapter: one sample per poll, in screen coordinates. It only
+// dispatches Intents; audit_adapters.py checks it.
+void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
+
+// Clears press and notice state (tests, and boot).
+void resetTouchControls();
+
+}  // namespace TurnHubAtlas

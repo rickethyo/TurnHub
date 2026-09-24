@@ -146,6 +146,12 @@ Design goals:
 - Essential long-press actions should have an equivalent accessible Intent route through an authorized companion interface.
 - Debounce and hold thresholds should tolerate realistic motor variability without making accidental activation unsafe.
 
+The Atlas touchscreen follows the same rules: buttons at least 60 px tall with
+text labels, a pressed state that changes luminance and border rather than hue
+alone, and a visible seconds countdown for the end-match hold (and for the
+master-button hold). Touch actions use the same Intents as the master button
+and Sigils.
+
 Accessibility settings MUST NOT bypass authorization for protected actions. They provide alternate input paths to the same validated Intent.
 
 ## Digital input and assistive technology

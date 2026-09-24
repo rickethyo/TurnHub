@@ -13,3 +13,4 @@ EspStub ESP;
 
 // The TFT is firmware-only presentation; host builds draw nothing.
 void TurnHubAtlas::beginAtlasDisplay() {}
+void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
