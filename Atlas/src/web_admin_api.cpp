@@ -282,7 +282,8 @@ void handleAccountSetup(WebServer &server, bool readOnly) {
 }
 
 // Admins and Game Masters see every account; others see only their own.
-// Moderation counts are visible to Game Masters and the account itself.
+// Moderation counts are not listed here: they are private statistics served
+// only to their owner (see /api/session/stats).
 void handleAccounts(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
@@ -314,9 +315,8 @@ void handleAccounts(WebServer &server) {
     json += ",\"archived\":";
     json += jsonBool(account.archived);
     if (gameMaster || self) {
-      json += ",\"connectionResets\":" + String(account.connectionResets) +
-          ",\"gameRemovals\":" + String(account.gameRemovals) +
-          ",\"nudgeMuted\":" + jsonBool(account.nudgeMuted);
+      json += ",\"nudgeMuted\":";
+      json += jsonBool(account.nudgeMuted);
     }
     json += '}';
   }

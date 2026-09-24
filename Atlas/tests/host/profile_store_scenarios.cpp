@@ -105,10 +105,43 @@ static void legacyPlaceholders() {
   assert(listProfileIds(ids, MAX_LOGIN_PROFILES) == 7);
 }
 
+// Counts that older firmware kept in u<id> move once into o<id>. A power loss
+// between the two writes must neither lose nor double them, and an unreadable
+// o<id> record fails closed instead of being overwritten.
+static void moderationMigration() {
+  const String id = createProfileWithCredentials("Moderated", "1234", hashPin);
+  assert(id.length() == 8);
+  const std::string account = std::string("u") + id.c_str(), history = std::string("o") + id.c_str();
+  const std::vector<uint8_t> legacy{2, 0, 0, 1, 5, 0, 0, 0, 2, 0, 0, 0};
+  const std::vector<uint8_t> cleared{2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  FakeNvs::blobs[account] = legacy;
+
+  ModerationStats stats;
+  assert(loadModerationStatsForProfile(id, stats) && stats.connectionResets == 5 && stats.gameRemovals == 2);
+  assert(FakeNvs::blobs[account] == cleared);
+  TurnHubAccounts::Account loaded;
+  assert(TurnHubAccounts::load(id, loaded) && loaded.reconnectRequired && !loaded.legacyConnectionResets);
+
+  // Interrupted after o<id> was written: the account is cleared, not re-added.
+  FakeNvs::blobs[account] = legacy;
+  assert(loadModerationStatsForProfile(id, stats) && stats.connectionResets == 5 && stats.gameRemovals == 2);
+  assert(FakeNvs::blobs[account] == cleared);
+
+  stats.gameRemovals = 3;
+  assert(saveModerationStatsForProfile(id, stats));
+  assert(loadModerationStatsForProfile(id, stats) && stats.gameRemovals == 3);
+
+  FakeNvs::blobs[history] = {9, 0, 0, 0, 0, 0, 0, 0, 0};
+  FakeNvs::blobs[account] = legacy;
+  assert(!TurnHubAccounts::load(id, loaded) && !loadModerationStatsForProfile(id, stats));
+  assert(FakeNvs::blobs[account] == legacy && FakeNvs::blobs[history][0] == 9);
+}
+
 int main() {
   assert(begin());
   guestLookups();
   existingAccounts();
   legacyPlaceholders();
-  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings and legacy placeholder filtering\n";
+  moderationMigration();
+  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering and moderation-count migration\n";
 }

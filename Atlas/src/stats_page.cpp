@@ -88,6 +88,15 @@ const char STATS_HTML[] PROGMEM = R"HTML(
       <div class="status-row"><span>Fastest turn</span><strong id="lastFastestTurn">—</strong></div>
       <div class="status-row"><span>Longest turn</span><strong id="lastLongestTurn">—</strong></div>
     </section>
+
+    <section class="card" aria-labelledby="moderationHeading">
+      <div class="card-head"><div><h2 id="moderationHeading" class="eyebrow">Private moderation history</h2><p class="small">Only you can see this, and only after signing in with your PIN. It is never included in downloads or shown to Game Masters.</p></div></div>
+      <div id="moderationCounts" class="hidden">
+        <div class="status-row"><span>Connection resets by a Game Master</span><strong id="connectionResets">0</strong></div>
+        <div class="status-row"><span>Removals from a game by a Game Master</span><strong id="gameRemovals">0</strong></div>
+      </div>
+      <p id="moderationLocked" class="small hidden"></p>
+    </section>
   </main>
   <p class="foot">Statistics are stored on this Atlas and stay with your profile, not with a physical Sigil.</p>
 </div>
@@ -101,6 +110,7 @@ function authHeaders(){return token?{'X-TurnHub-Token':token}:{}}
 function duration(ms,hasRecord=true){if(!hasRecord)return '—';ms=Number(ms)||0;const total=Math.floor(ms/1000);const h=Math.floor(total/3600);const m=Math.floor((total%3600)/60);const s=total%60;return h?`${h}h ${m}m ${s}s`:`${m}m ${s}s`}
 function setText(id,value){document.getElementById(id).textContent=value}
 async function load(){if(!token){signedOut.classList.remove('hidden');return}try{const r=await fetch('/api/session/stats',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load statistics');const l=d.lifetime||{},g=d.lastGame||{};setText('profileName',d.name||'Unnamed profile');setText('profileMeta',`Profile ${d.profileId} · statistics stay with this profile, not with a physical Sigil`);setText('gamesPlayed',l.gamesPlayed||0);setText('gamesWon',l.gamesWon||0);setText('winRate',d.winRate||'0.0%');setText('gamesStarted',l.gamesStarted||0);setText('gamesEliminated',l.gamesEliminated||0);setText('turnsCompleted',l.turnsCompleted||0);setText('totalTurnTime',duration(l.totalTurnMs,true));setText('averageTurn',duration(l.averageTurnMs,Number(l.turnsCompleted)>0));setText('fastestTurn',duration(l.fastestTurnMs,Number(l.fastestTurnMs)>0));setText('longestTurn',duration(l.longestTurnMs,Number(l.longestTurnMs)>0));setText('totalGameTime',duration(l.totalGameMs,true));setText('averageGame',duration(l.averageGameMs,Number(l.gamesPlayed)>0));setText('lastResult',g.result||'None');setText('lastDuration',duration(g.durationMs,Number(l.gamesPlayed)>0));setText('lastTurns',g.turns||0);setText('lastAverageTurn',duration(g.averageTurnMs,Number(g.turns)>0));setText('lastFastestTurn',duration(g.fastestTurnMs,Number(g.fastestTurnMs)>0));setText('lastLongestTurn',duration(g.longestTurnMs,Number(g.longestTurnMs)>0));
+const m=d.moderation||{};document.getElementById('moderationCounts').classList.toggle('hidden',!m.visible);const locked=document.getElementById('moderationLocked');locked.classList.toggle('hidden',!!m.visible);if(m.visible){setText('connectionResets',m.connectionResets||0);setText('gameRemovals',m.gameRemovals||0)}else{locked.innerHTML='';locked.append(m.reason||'Sign in with your PIN to see your private moderation history.',' ');const a=document.createElement('a');a.href='/login';a.textContent='Sign in with PIN';locked.append(a)}
 const rate=Number(l.gamesPlayed)>0?Math.max(0,Math.min(100,100*Number(l.gamesWon)/Number(l.gamesPlayed))):0;setText('dialRate',Math.round(rate)+'%');root.classList.remove('hidden');exportButton.classList.remove('hidden');requestAnimationFrame(()=>document.getElementById('winDial').setAttribute('stroke-dasharray',rate.toFixed(1)+' 100'))}catch(e){errorBox.textContent=e.message;errorBox.classList.remove('hidden')}}
 async function exportStats(){try{const r=await fetch('/api/session/stats/export',{headers:authHeaders(),cache:'no-store'});if(!r.ok){let msg='Could not export statistics';try{const d=await r.json();msg=d.error||msg}catch(_){}throw new Error(msg)}const blob=await r.blob();const cd=r.headers.get('Content-Disposition')||'';const match=cd.match(/filename="([^"]+)"/);const name=match?match[1]:'turnhub-stats.txt';const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){errorBox.textContent=e.message;errorBox.classList.remove('hidden')}}
 load();

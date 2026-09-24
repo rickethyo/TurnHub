@@ -57,23 +57,37 @@ String safeExportName(const String &name, const String &profileId) {
 }
 
 // Loads the signed-in profile's statistics or sends the error response.
-bool loadSessionStats(WebServer &server, String &profileId, String &name, ProfileStats &stats) {
+WebSession *loadSessionStats(WebServer &server, String &profileId, String &name, ProfileStats &stats) {
   WebSession *session = sessionForRequest(server);
   if (session == nullptr) {
     sendJson(server, 401, "{\"ok\":false,\"error\":\"Browser session is not authorized\"}");
-    return false;
+    return nullptr;
   }
   profileId = sessionProfileId(*session);
   if (profileId.length() == 0) {
     sendJson(server, 409, "{\"ok\":false,\"error\":\"This session is not attached to a durable profile\"}");
-    return false;
+    return nullptr;
   }
   name = TurnHubProfiles::nameForProfile(profileId);
   if (!TurnHubProfiles::loadStatsForProfile(profileId, stats)) {
     sendJson(server, 503, "{\"ok\":false,\"error\":\"Profile statistics storage unavailable\"}");
-    return false;
+    return nullptr;
   }
-  return true;
+  return session;
+}
+
+// "moderation": the private history for a PIN-verified owner only; otherwise
+// just the reason it is hidden. Counts never appear for anyone else.
+String moderationJson(const WebSession &session, const String &profileId) {
+  if (!session.pinVerified) {
+    return "{\"visible\":false,\"reason\":\"Sign in with your PIN to see your private moderation history\"}";
+  }
+  TurnHubProfiles::ModerationStats moderation;
+  if (!TurnHubProfiles::loadModerationStatsForProfile(profileId, moderation)) {
+    return "{\"visible\":false,\"reason\":\"Moderation history is unavailable\"}";
+  }
+  return String("{\"visible\":true,\"connectionResets\":") + String(moderation.connectionResets) +
+      ",\"gameRemovals\":" + String(moderation.gameRemovals) + "}";
 }
 
 bool hasFreeSessionSlot() {
@@ -134,7 +148,8 @@ void handleRegistration(WebServer &server) {
     sendError(server, 503, "Could not create profile; storage may be full");
     return;
   }
-  sendLogin(server, createProfileSession(id, millis()));
+  // The new profile's PIN was just entered, so the session is PIN-verified.
+  sendLogin(server, createProfileSession(id, millis(), true));
 }
 
 void handleParticipation(WebServer &server, WebControl control) {
@@ -199,6 +214,7 @@ void handleProfile(WebServer &server) {
       return;
     }
     if (record != nullptr) TurnHubProfiles::setPinHashForSeat(record->mac, session->slot, hash);
+    session->pinVerified = true;  // It now knows the profile's PIN.
   }
 
   if (clearPin) {
@@ -216,6 +232,7 @@ void handleProfile(WebServer &server) {
       return;
     }
     TurnHubProfiles::clearPinForSeat(record->mac, session->slot);
+    session->pinVerified = false;
   }
 
   if (server.hasArg("pin") || clearPin) endOtherSessions(*session, profileId);
@@ -260,7 +277,8 @@ void handleProfileStats(WebServer &server) {
   String profileId;
   String name;
   ProfileStats stats{};
-  if (!loadSessionStats(server, profileId, name, stats)) return;
+  const WebSession *session = loadSessionStats(server, profileId, name, stats);
+  if (!session) return;
 
   String response;
   response.reserve(1100);
@@ -290,7 +308,8 @@ void handleProfileStats(WebServer &server) {
   response += ",\"averageTurnMs\":" + String(averageMs(stats.lastGameTurnMs, stats.lastGameTurns));
   response += ",\"fastestTurnMs\":" + String(stats.lastGameFastestTurnMs);
   response += ",\"longestTurnMs\":" + String(stats.lastGameLongestTurnMs);
-  response += "}}";
+  response += "},\"moderation\":" + moderationJson(*session, profileId);
+  response += '}';
   sendJson(server, 200, response);
 }
 
@@ -300,6 +319,7 @@ void handleProfileStatsExport(WebServer &server) {
   ProfileStats stats{};
   if (!loadSessionStats(server, profileId, name, stats)) return;
 
+  // Exports are meant to be shared, so they never include moderation history.
   const String report = TurnHubProfileStats::buildTextReport(profileId, name, stats);
   server.sendHeader("Cache-Control", "no-store");
   server.sendHeader("Content-Disposition",

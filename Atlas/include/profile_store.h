@@ -40,6 +40,15 @@ struct ProfileStats {
   uint8_t reserved = 0;
 };
 
+// Private moderation history: Game Master actions taken against this profile.
+// Stored with the statistics, but served only to the profile's own
+// PIN-authenticated session. Never shown to other accounts (including Game
+// Masters), in statistics exports, on seats or on Sigil displays.
+struct ModerationStats {
+  uint32_t connectionResets = 0;
+  uint32_t gameRemovals = 0;
+};
+
 bool begin();
 bool ready();
 
@@ -67,6 +76,10 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
 
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats);
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
+// A missing record reads as zero counts. Loading also migrates counts that
+// older firmware kept in the account record.
+bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats);
+bool saveModerationStatsForProfile(const String &profileId, const ModerationStats &stats);
 
 // Physical-seat binding adapter. This is deliberately separate from profile
 // storage so the same profile can later bind to a persistent virtual seat.

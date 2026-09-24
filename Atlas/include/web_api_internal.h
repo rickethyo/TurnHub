@@ -65,6 +65,10 @@ struct WebSession {
   char token[TOKEN_LENGTH + 1] = {};
   char profileId[TurnHubProfiles::PROFILE_ID_LENGTH + 1] = {};
   uint32_t lastSeenMs = 0;
+  // True when this browser proved knowledge of the profile's PIN (PIN login,
+  // registration or setting a PIN). Sigil-press claims are not PIN-verified.
+  // Gates the private moderation history.
+  bool pinVerified = false;
 };
 
 // --- Shared state (defined in web_api.cpp / web_session.cpp) -----------------
@@ -111,7 +115,7 @@ void makeToken(char out[TOKEN_LENGTH + 1]);
 void cleanup(uint32_t nowMs);
 WebSession *sessionForToken(const String &token, uint32_t nowMs);
 WebSession *sessionForRequest(WebServer &server);
-WebSession *createProfileSession(const String &profileId, uint32_t nowMs);
+WebSession *createProfileSession(const String &profileId, uint32_t nowMs, bool pinVerified);
 // {"ok":true,"token":...,"profileId":...}, or 503 when no session slot is free.
 void sendLogin(WebServer &server, WebSession *session);
 bool resolveSessionParticipant(WebSession &session);

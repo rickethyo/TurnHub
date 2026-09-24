@@ -13,6 +13,7 @@
 #endif
 #include "controller_profiles.h"
 #include "profile_store.h"
+#include "web_api_internal.h"
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
@@ -635,15 +636,25 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/session/me",companion,{},HTTP_GET)==401);
   assert(TurnHubWebApi::connectionBlocked(playerId));
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","reset"}})==409);
-  assert(load(playerId,stored)&&stored.connectionResets==1);
-  assert(request("/api/accounts",admin,{},HTTP_GET)==200);
-  // Admin sees only their own private count fields; other accounts do not expose them.
-  auto targetAt=server.body.find(std::string("\"profileId\":\"")+playerId.c_str());
-  auto targetEnd=server.body.find('}',targetAt);
-  assert(server.body.substr(targetAt,targetEnd-targetAt).find("connectionResets")==std::string::npos);
+  TurnHubProfiles::ModerationStats history;
+  assert(TurnHubProfiles::loadModerationStatsForProfile(playerId,history)&&history.connectionResets==1);
+  // Moderation counts are private statistics: no account listing exposes them,
+  // not even to Game Masters or the account itself.
+  for (const String &reader : {admin,gm}) {
+    assert(request("/api/accounts",reader,{},HTTP_GET)==200&&server.body.find("connectionResets")==std::string::npos);
+  }
   const String reconnected=loginPhone(playerId);assert(!TurnHubWebApi::connectionBlocked(playerId));
-  assert(request("/api/accounts",reconnected,{},HTTP_GET)==200&&server.body.find("\"connectionResets\":1")!=std::string::npos&&server.body.find(gmId)==std::string::npos);
-  assert(request("/api/accounts",gm,{},HTTP_GET)==200&&server.body.find("\"connectionResets\":1")!=std::string::npos);
+  assert(request("/api/accounts",reconnected,{},HTTP_GET)==200&&server.body.find("connectionResets")==std::string::npos&&server.body.find(gmId)==std::string::npos);
+  // Only the owner's PIN-verified session sees them, on its statistics.
+  assert(request("/api/session/stats",reconnected,{},HTTP_GET)==200&&
+      server.body.find("\"moderation\":{\"visible\":true,\"connectionResets\":1,\"gameRemovals\":0}")!=std::string::npos);
+  assert(request("/api/session/stats",gm,{},HTTP_GET)==200&&server.body.find("\"connectionResets\":0")!=std::string::npos);
+  for (auto &session : TurnHubWebApi::internal::sessions) {
+    if (session.used && reconnected == session.token) session.pinVerified = false;  // As after a Sigil-press claim.
+  }
+  assert(request("/api/session/stats",reconnected,{},HTTP_GET)==200&&
+      server.body.find("\"visible\":false")!=std::string::npos&&server.body.find("connectionResets")==std::string::npos);
+  assert(request("/api/session/stats/export",reconnected,{},HTTP_GET)==200&&server.body.find("esets")==std::string::npos);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","pass"}})==200);
   assert(game.activePlayerNumber()==2&&!pendingPass.active);
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","2"}})==200);
@@ -651,7 +662,7 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","26"}})==200);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==200);
   assert(game.isEliminated(1)&&game.livingPlayerCount()==2);
-  assert(load(playerId,stored)&&stored.gameRemovals==1&&stored.connectionResets==1);
+  assert(TurnHubProfiles::loadModerationStatsForProfile(playerId,history)&&history.gameRemovals==1&&history.connectionResets==1);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","31"}})==200);
   assert(has(adminId,Admin|GameMaster|Developer));

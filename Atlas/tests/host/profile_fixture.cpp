@@ -77,6 +77,8 @@ String deviceName(const uint8_t *) { return String(); }
 bool setDeviceName(const uint8_t *,const String &) { return true; }
 bool loadStatsForProfile(const String &id,ProfileStats &stats) { if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
 bool saveStatsForProfile(const String &id,const ProfileStats &stats) { if(!profileExists(id))return false;profiles[id].stats=stats;return true; }
+bool loadModerationStatsForProfile(const String &id,ModerationStats &stats) { if(!profileExists(id))return false;stats=profiles[id].moderation;return true; }
+bool saveModerationStatsForProfile(const String &id,const ModerationStats &stats) { if(!profileExists(id))return false;profiles[id].moderation=stats;return true; }
 }
 
 namespace TurnHubAccounts {

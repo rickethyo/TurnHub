@@ -61,6 +61,8 @@ match/controller records, not a claim that those repositories already exist.
 | --- | --- | --- |
 | Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Profile and device-label records use `turnhub` NVS; both physical-seat bindings are RAM-only and clear on restart/reconnect and game end |
 | Lifetime/latest-game statistics | Profile statistics repository | `BlobStore` -> `NvsBlobStore`, existing `turnhub` namespace and `s<profileId>` keys |
+| Private moderation history (connection resets, game removals) | Profile statistics repository | `o<profileId>` blob in `turnhub`: schema byte 1, then two little-endian uint32 counts. Served only to the owner's PIN-verified session; never exported. Counts older firmware kept in `u<profileId>` migrate on first account load (2026-09-24) |
+| Account access control (permissions, archived, nudge mute, reconnect-required) | Atlas account repository | `u<profileId>` blob in `turnhub` (12 bytes, schema 2); its count bytes are legacy and read only for migration |
 | Physical-use and stats-privacy choices | Atlas profile repository | `a<profileId>` blob in `turnhub`: schema byte 1, allow-physical byte 0/1, hide-stats byte 0/1; implemented locally |
 | Network credentials | Network settings owner in web API | Existing Preferences namespace |
 | Game definitions/rulesets | Planned game-definition repository | Versioned records through storage boundary |

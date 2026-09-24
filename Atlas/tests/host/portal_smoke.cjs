@@ -22,7 +22,7 @@ const api=http.createServer(async(req,res)=>{
  switch(url.pathname){
 
   case '/api/accounts/setup':if(req.method==='POST'){permissions=1;setupRequired=false}result={setupRequired};break;
-  case '/api/accounts':result={accounts:[{profileId:'AB12CD34',name:'Phone Tester',permissions,connectionResets:1,gameRemovals:0}]};break;
+  case '/api/accounts':result={accounts:[{profileId:'AB12CD34',name:'Phone Tester',permissions}]};break;
   case '/api/accounts/permissions':permissions=Number(new URLSearchParams(body).get('permissions'));result={ok:true};break;
   case '/api/status':result=status;break;
   case '/api/devices':result={atlas:{hardwareId:'TEST-ATLAS',firmware:'0.6.0-dev'},devices:[]};break;

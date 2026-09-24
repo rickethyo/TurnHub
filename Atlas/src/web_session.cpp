@@ -103,8 +103,9 @@ bool pinMatches(uint8_t controllerId, uint8_t slot, const String &pin) {
   return true;
 }
 
-WebSession *createSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs) {
-  WebSession *session = createProfileSession(profileIdForPhysicalSeat(controllerId, slot), nowMs);
+WebSession *createSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs, bool pinVerified) {
+  WebSession *session =
+      createProfileSession(profileIdForPhysicalSeat(controllerId, slot), nowMs, pinVerified);
   if (session) {
     session->controllerId = controllerId;
     session->slot = slot;
@@ -150,7 +151,7 @@ void handleProfileLogin(WebServer &server) {
   }
   loginLimiter.success(id.c_str());
   if (!admitAccount(server, id)) return;
-  sendLogin(server, createProfileSession(id, millis()));
+  sendLogin(server, createProfileSession(id, millis(), true));
 }
 
 // Legacy seat login: the PIN is checked against the physical seat binding.
@@ -179,7 +180,7 @@ void handleSeatLogin(WebServer &server) {
   loginLimiter.success(loginProfile.c_str());
   if (!admitAccount(server, loginProfile)) return;
 
-  WebSession *session = createSession(controllerId, seatSlot, millis());
+  WebSession *session = createSession(controllerId, seatSlot, millis(), true);
   if (session == nullptr) {
     sendJson(server, 503, "{\"ok\":false,\"error\":\"No session slots available\"}");
     return;
@@ -240,7 +241,7 @@ WebSession *sessionForRequest(WebServer &server) {
   return sessionForToken(server.header(TOKEN_HEADER), millis());
 }
 
-WebSession *createProfileSession(const String &profileId, uint32_t nowMs) {
+WebSession *createProfileSession(const String &profileId, uint32_t nowMs, bool pinVerified) {
   cleanup(nowMs);
   TurnHubAccounts::Account account;
   if (!TurnHubAccounts::load(profileId, account) || account.archived) return nullptr;
@@ -251,6 +252,7 @@ WebSession *createProfileSession(const String &profileId, uint32_t nowMs) {
     session = WebSession{};
     session.used = true;
     session.lastSeenMs = nowMs;
+    session.pinVerified = pinVerified;
     makeToken(session.token);
     strncpy(session.profileId, profileId.c_str(), sizeof(session.profileId) - 1);
     return &session;
@@ -584,7 +586,9 @@ void notePhysicalAction(uint8_t sigilId) {
     return;
   }
 
-  WebSession *session = requester ? requester : createSession(oldest->controllerId, oldest->slot, nowMs);
+  // A Sigil press proves possession, not knowledge of a PIN.
+  WebSession *session = requester ? requester :
+      createSession(oldest->controllerId, oldest->slot, nowMs, false);
   if (session == nullptr) return;
 
   oldest->approved = true;

@@ -242,23 +242,46 @@ void gameSettingsRecords() {
 static void accountRecords(){
   FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
   NvsBlobStore store;assert(store.begin("turnhub")==Status::Ok);
-  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.reconnectRequired=true;a.connectionResets=513;a.gameRemovals=7;
+  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.reconnectRequired=true;a.legacyConnectionResets=513;a.legacyGameRemovals=7;
   assert(TurnHubAccounts::write(store,"u12345678",a)==Status::Ok);
   assert(FakeNvs::blobs["u12345678"]==std::vector<uint8_t>({2,31,1,1,1,2,0,0,7,0,0,0}));
   NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
-  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.connectionResets==513&&loaded.permissions==31);
+  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.legacyConnectionResets==513&&loaded.permissions==31);
   FakeNvs::blobs["u12345678"][0]=3;assert(TurnHubAccounts::write(store,"u12345678",a)==Status::UnsupportedSchema);
   FakeNvs::blobs["u12345678"]={1};assert(TurnHubAccounts::read(store,"u12345678",loaded)==Status::Corrupt);
   FakeNvs::blobs.clear();FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
   assert(TurnHubAccounts::write(store,"u12345678",a)==Status::IoError);FakeNvs::commitError=ESP_OK;
 }
+
+// o<profileId>: schema byte then two little-endian counts; never clobbered.
+static void moderationRecords(){
+  using TurnHubProfiles::ModerationStats;
+  FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
+  NvsBlobStore store;assert(store.begin("turnhub")==Status::Ok);
+  ModerationStats stats;
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",stats)==Status::NotFound);
+  stats.connectionResets=258;stats.gameRemovals=3;
+  assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::Ok);
+  assert(FakeNvs::blobs["o12345678"]==std::vector<uint8_t>({1,2,1,0,0,3,0,0,0}));
+  ModerationStats loaded;
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",loaded)==Status::Ok&&
+      loaded.connectionResets==258&&loaded.gameRemovals==3);
+  FakeNvs::blobs["o12345678"][0]=2;
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",loaded)==Status::UnsupportedSchema);
+  assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::UnsupportedSchema);
+  FakeNvs::blobs["o12345678"]={1,0};
+  assert(TurnHubProfiles::readStoredModerationStats(store,"o12345678",loaded)==Status::Corrupt);
+  assert(TurnHubProfiles::writeStoredModerationStats(store,"o12345678",stats)==Status::Corrupt);
+}
+
 int main() {
   accountRecords();
+  moderationRecords();
   identityContracts();
   existingRecords();
   protectedRecords();
   backendFailures();
   profilePolicyRecords();
   gameSettingsRecords();
-  std::cout << "PASS: identity, statistics, profile policy, game settings and NVS failures\n";
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings and NVS failures\n";
 }

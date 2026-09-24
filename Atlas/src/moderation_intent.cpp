@@ -1,7 +1,8 @@
 // Game Master moderation: reset a player's connections, remove them from the
 // table, pass for them, or change their nudge preference. Every action is
-// authorized against the moderator's persisted account permissions, and the
-// private moderation counters are saved before any disconnection happens.
+// authorized against the moderator's persisted account permissions. Resets
+// and removals are counted in the target's private moderation statistics,
+// saved before any disconnection happens.
 
 #include "atlas_app.h"
 #include "account_access.h"
@@ -117,19 +118,31 @@ IntentResult handleModerateIntent(const Intent &intent, void *) {
     if (!removable.accepted()) return removable;
   }
 
+  // Record the private history and the reconnect requirement before
+  // disconnecting anyone; any storage failure rolls both back.
+  TurnHubProfiles::ModerationStats history;
+  if (!TurnHubProfiles::loadModerationStatsForProfile(target, history)) {
+    return IntentResult::reject(IntentStatus::Rejected,
+        "Could not read moderation history; no disconnection performed");
+  }
+  const TurnHubProfiles::ModerationStats previousHistory = history;
   const Account previous = account;
-  uint32_t &counter = isReset ? account.connectionResets : account.gameRemovals;
+  uint32_t &counter = isReset ? history.connectionResets : history.gameRemovals;
   if (counter == UINT32_MAX) return IntentResult::reject(IntentStatus::Rejected, "Counter full");
   ++counter;
   account.reconnectRequired = true;
+  const IntentResult notPersisted = IntentResult::reject(IntentStatus::Rejected,
+      "Could not persist moderation; no disconnection performed");
+  if (!TurnHubProfiles::saveModerationStatsForProfile(target, history)) return notPersisted;
   if (!save(target, account)) {
-    return IntentResult::reject(IntentStatus::Rejected,
-        "Could not persist moderation; no disconnection performed");
+    TurnHubProfiles::saveModerationStatsForProfile(target, previousHistory);
+    return notPersisted;
   }
   if (isRemoval) {
     const IntentResult removed = removeFromTable(target, controller, slot, seat);
     if (!removed.accepted()) {
-      save(target, previous);  // Roll back the counter and reconnect flag.
+      save(target, previous);
+      TurnHubProfiles::saveModerationStatsForProfile(target, previousHistory);
       return removed;
     }
   }

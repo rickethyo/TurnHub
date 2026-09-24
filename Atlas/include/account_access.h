@@ -25,13 +25,16 @@ struct Account {
   bool archived = false;
   // Set by moderation; the owner must sign in again before reconnecting.
   bool reconnectRequired = false;
-  uint32_t connectionResets = 0;
-  uint32_t gameRemovals = 0;
+  // Moderation counts written by firmware before 2026-09-24. They now live in
+  // the profile's moderation statistics (profile_store.h); these fields exist
+  // only so TurnHubAccounts::load() can migrate them, after which they are 0.
+  uint32_t legacyConnectionResets = 0;
+  uint32_t legacyGameRemovals = 0;
 };
 
 // Record layout (12 bytes, little-endian counters):
 //   [0] schema (1 or 2)   [1] permissions   [2] flags   [3] reconnectRequired
-//   [4..7] connectionResets                 [8..11] gameRemovals
+//   [4..7] legacy connectionResets          [8..11] legacy gameRemovals
 // Schema 1 flags hold only nudgeMuted (bit 0); schema 2 adds archived (bit 1).
 constexpr size_t ACCOUNT_RECORD_SIZE = 12;
 constexpr uint8_t ACCOUNT_SCHEMA = 2;
@@ -56,8 +59,8 @@ inline TurnHubStorage::Status read(TurnHubStorage::BlobStore &store, const char 
   account.archived = b[2] & 2;
   account.reconnectRequired = b[3];
   for (unsigned i = 0; i < 4; ++i) {
-    account.connectionResets |= uint32_t(b[4 + i]) << (i * 8);
-    account.gameRemovals |= uint32_t(b[8 + i]) << (i * 8);
+    account.legacyConnectionResets |= uint32_t(b[4 + i]) << (i * 8);
+    account.legacyGameRemovals |= uint32_t(b[8 + i]) << (i * 8);
   }
   return Status::Ok;
 }
@@ -78,8 +81,8 @@ inline TurnHubStorage::Status write(TurnHubStorage::BlobStore &store, const char
       uint8_t(account.reconnectRequired),
   };
   for (unsigned i = 0; i < 4; ++i) {
-    b[4 + i] = uint8_t(account.connectionResets >> (i * 8));
-    b[8 + i] = uint8_t(account.gameRemovals >> (i * 8));
+    b[4 + i] = uint8_t(account.legacyConnectionResets >> (i * 8));
+    b[8 + i] = uint8_t(account.legacyGameRemovals >> (i * 8));
   }
   return store.write(key, b, sizeof(b));
 }
