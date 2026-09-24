@@ -10,7 +10,7 @@ const char STATS_HTML[] PROGMEM = R"HTML(
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#110d09">
 <title>TurnHub Statistics</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem('turnhubTheme')||'brass'}catch(_){}</script>
+<script>try{const h=document.documentElement;h.dataset.theme=localStorage.getItem('turnhubTheme')||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass');if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}</script>
 <link rel="stylesheet" href="/theme.css">
 <style>
 .hidden{display:none!important}

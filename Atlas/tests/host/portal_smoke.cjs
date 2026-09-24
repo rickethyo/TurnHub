@@ -8,6 +8,8 @@ const portal=page('web_pages.cpp','PORTAL_HTML'),login=page('profile_login_page.
 const theme=fs.readFileSync(path.join(root,'src','web_pages.cpp'),'utf8').match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
 let authenticated=false,joined=false,state='LOBBY',permissions=0,setupRequired=true;
 let policy={allowPhysicalWithoutPin:true,hideStatsWithoutAuthentication:true};
+let access={sigilSound:true,ledStyle:'standard',longPressMs:2000,winHoldMs:5000};
+const accessLimits={longPressMinMs:1000,longPressMaxMs:4000,winHoldMinMs:3000,winHoldMaxMs:10000,minGapMs:1000,stepMs:250};
 let gameSettings={gameProfile:'generic',startingLife:40,turnTimerMs:0},life=40;
 const turnTimer={presetsMs:[0,60000,120000,180000,300000],minMs:15000,maxMs:3600000,warningMs:10000,longTurnMs:300000};
 const api=http.createServer(async(req,res)=>{
@@ -32,6 +34,9 @@ const api=http.createServer(async(req,res)=>{
   case '/api/profiles/register':assert(!url.search.includes('pin'));assert.equal(new URLSearchParams(body).get('pin'),'1234');authenticated=true;result={token:'T'.repeat(32),profileId:'AB12CD34'};break;
   case '/api/session/me':if(!authenticated){res.statusCode=401;break}result={authenticated:true,permissions,participating:joined,host:joined,virtual:true,name:'Phone Tester',profileId:'AB12CD34',hasPin:true,module:joined?8:255,slot:1,player:joined?1:0,active:state==='RUNNING',policyAvailable:true,lifeAvailable:state==='RUNNING',life,...policy};break;
   case '/api/session/policy':assert(authenticated);assert.equal(req.headers['x-turnhub-token'],'T'.repeat(32));{const args=new URLSearchParams(body);policy={allowPhysicalWithoutPin:args.get('allowPhysicalWithoutPin')==='1',hideStatsWithoutAuthentication:args.get('hideStatsWithoutAuthentication')==='1'};}result={ok:true};break;
+  case '/api/session/accessibility':assert(authenticated);assert.equal(req.headers['x-turnhub-token'],'T'.repeat(32));
+   if(req.method==='POST'){const args=new URLSearchParams(body);access={sigilSound:args.get('sigilSound')==='1',ledStyle:args.get('ledStyle'),longPressMs:Number(args.get('longPressMs')),winHoldMs:Number(args.get('winHoldMs'))};assert(access.winHoldMs>=access.longPressMs+1000)}
+   result={ok:true,stored:true,...access,limits:accessLimits};break;
   case '/api/session/join':joined=true;result={ok:true,message:'Joined'};break;
   case '/api/game/settings':
    if(req.method==='POST'){assert(authenticated&&joined&&state==='LOBBY');const args=new URLSearchParams(body);gameSettings={gameProfile:args.get('gameProfile'),startingLife:Number(args.get('startingLife')),turnTimerMs:Number(args.get('turnTimerMs')||0)};result={ok:true};}
@@ -100,6 +105,32 @@ const api=http.createServer(async(req,res)=>{
   await tab.reload();await tab.getByRole('button',{name:'My Account',exact:true}).click();
   await tab.waitForFunction(()=>document.getElementById('allowPhysicalWithoutPin').checked===false&&sessionInfo?.policyAvailable);
   assert(await hidden.isChecked());
+  // Sigil accessibility: saved with the profile through the Atlas API.
+  const sound=tab.getByLabel('Sigil sound',{exact:true});
+  await sound.waitFor();await tab.waitForFunction(()=>!document.getElementById('sigilAccessFields').disabled);
+  assert(await sound.isChecked());
+  assert(await tab.getByRole('radio',{name:/^Standard/}).isChecked());
+  assert.equal(await tab.getByLabel('Hold Action to pause',{exact:true}).inputValue(),'2000');
+  await sound.uncheck();
+  await tab.getByRole('radio',{name:/^Reduced motion/}).check();
+  await tab.getByLabel('Hold Action to pause',{exact:true}).selectOption('3000');
+  await tab.getByLabel('Hold Action to claim a win',{exact:true}).selectOption('3500');
+  await tab.getByRole('button',{name:'Save Sigil accessibility',exact:true}).click();
+  await tab.getByText('Choose a win hold at least one second longer than the pause hold.',{exact:true}).waitFor();
+  assert.equal(access.longPressMs,2000); // Nothing was sent.
+  await tab.getByLabel('Hold Action to claim a win',{exact:true}).selectOption('6000');
+  await tab.getByRole('button',{name:'Save Sigil accessibility',exact:true}).click();
+  await tab.getByText('Saved. Your Sigil updates within a few seconds.',{exact:true}).waitFor();
+  assert.deepEqual(access,{sigilSound:false,ledStyle:'reduced-motion',longPressMs:3000,winHoldMs:6000});
+  // Per-browser reduce motion, remembered across reloads and pages.
+  await tab.getByLabel('Reduce motion',{exact:true}).check();
+  assert.equal(await tab.evaluate(()=>document.documentElement.dataset.motion),'reduce');
+  await tab.reload();
+  assert.equal(await tab.evaluate(()=>document.documentElement.dataset.motion),'reduce');
+  await tab.getByRole('button',{name:'My Account',exact:true}).click();
+  assert(await tab.getByLabel('Reduce motion',{exact:true}).isChecked());
+  await tab.waitForFunction(()=>document.querySelector('input[name=ledStyle][value=reduced-motion]').checked);
+  assert.equal(await tab.getByLabel('Hold Action to claim a win',{exact:true}).inputValue(),'6000');
   assert(await tab.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile horizontal overflow');
   await tab.screenshot({path:path.join(__dirname,'build','portal-mobile.png'),fullPage:true});
   await tab.setViewportSize({width:1920,height:1080});
@@ -119,6 +150,19 @@ const api=http.createServer(async(req,res)=>{
   await tab.getByRole('button',{name:'Force pass',exact:true}).waitFor();
   assert.equal(await tab.getByRole('link',{name:'Atlas firmware',exact:true}).count(),0);
   assert.deepEqual(errors,[]);
-  console.log('PASS portal smoke: profiles, game setup, life controls/totals, policy save, mobile/desktop fit, no JS errors');
+  // A device that asks for more contrast gets High contrast until a theme is chosen.
+  const contrastContext=await browser.newContext({contrast:'more'}),contrastTab=await contrastContext.newPage();
+  await contrastTab.goto(base);
+  assert.equal(await contrastTab.evaluate(()=>document.documentElement.dataset.theme),'contrast');
+  await contrastTab.getByRole('button',{name:'My Account',exact:true}).click();
+  assert(await contrastTab.getByRole('radio',{name:/^High contrast/}).isChecked());
+  assert.equal(await contrastTab.evaluate(()=>localStorage.getItem('turnhubTheme')),null);
+  await contrastTab.getByRole('radio',{name:/^Parchment/}).check();
+  await contrastTab.reload();
+  assert.equal(await contrastTab.evaluate(()=>document.documentElement.dataset.theme),'parchment');
+  await contrastContext.close();
+  const plainTab=await (await browser.newContext()).newPage();await plainTab.goto(base);
+  assert.equal(await plainTab.evaluate(()=>document.documentElement.dataset.theme),'brass');
+  console.log('PASS portal smoke: profiles, game setup, life controls/totals, policy save, Sigil accessibility, reduce motion, OS contrast default, mobile/desktop fit, no JS errors');
  }finally{await browser.close();api.close()}
 })().catch(e=>{console.error(e);api.close();process.exitCode=1});

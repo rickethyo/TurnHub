@@ -192,6 +192,7 @@ dialog .actions{justify-content:flex-start;flex-direction:row-reverse;margin-top
 pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font:.78rem/1.55 ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--muted);background:var(--inset);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;max-height:420px;overflow:auto}
 .foot{color:var(--faint);font-size:.78rem;text-align:center;margin:26px 0 8px;letter-spacing:.02em}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+[data-motion=reduce] *,[data-motion=reduce] *::before,[data-motion=reduce] *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 @media (forced-colors:active){.card::before{display:none}input[type=checkbox]{appearance:auto;width:22px;height:22px}input[type=checkbox]::before{display:none}.brand-mark,.cog{forced-color-adjust:none}}
 )CSS";
 
@@ -203,7 +204,7 @@ const char PORTAL_HTML[] PROGMEM = R"HTML(
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#110d09">
 <title>TurnHub</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem('turnhubTheme')||'brass'}catch(_){}</script>
+<script>try{const h=document.documentElement;h.dataset.theme=localStorage.getItem('turnhubTheme')||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass');if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}</script>
 <link rel="stylesheet" href="/theme.css">
 <style>
 body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
@@ -548,12 +549,29 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
     <label class="theme-opt"><input type="radio" name="theme" value="brass" onchange="setTheme(this.value)"><strong>Brass</strong><span class="swatch" aria-hidden="true"><i style="background:#110d09"></i><i style="background:#30251a"></i><i style="background:#e2ae4a"></i><i style="background:#62d6b2"></i></span><small>Steampunk gold, rivets and gauges.</small></label>
     <label class="theme-opt"><input type="radio" name="theme" value="midnight" onchange="setTheme(this.value)"><strong>Midnight</strong><span class="swatch" aria-hidden="true"><i style="background:#0a0d14"></i><i style="background:#202a40"></i><i style="background:#e8b44f"></i><i style="background:#5ad8ca"></i></span><small>Clean modern dark with gold.</small></label>
     <label class="theme-opt"><input type="radio" name="theme" value="parchment" onchange="setTheme(this.value)"><strong>Parchment</strong><span class="swatch" aria-hidden="true"><i style="background:#ece2cd"></i><i style="background:#fbf6ea"></i><i style="background:#8e5f0c"></i><i style="background:#0d7560"></i></span><small>Light sepia for bright rooms.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="contrast" onchange="setTheme(this.value)"><strong>High contrast</strong><span class="swatch" aria-hidden="true"><i style="background:#000"></i><i style="background:#fff"></i><i style="background:#ffd400"></i><i style="background:#00f0d8"></i></span><small>Maximum legibility.</small></label>
+    <label class="theme-opt"><input type="radio" name="theme" value="contrast" onchange="setTheme(this.value)"><strong>High contrast</strong><span class="swatch" aria-hidden="true"><i style="background:#000"></i><i style="background:#fff"></i><i style="background:#ffd400"></i><i style="background:#00f0d8"></i></span><small>Maximum legibility. Chosen automatically when your device asks for more contrast.</small></label>
    </div></fieldset>
+  <div class="switch-row" style="margin-top:14px"><div><label for="reduceMotionToggle">Reduce motion</label><small id="reduceMotionHelp">Stops the turning gear, gauge sweeps and other animation in this browser. Your device's reduced-motion setting also does this.</small></div><input id="reduceMotionToggle" type="checkbox" aria-describedby="reduceMotionHelp" onchange="setReduceMotion(this.checked)"></div>
   <h3 style="margin:22px 0 4px">Browser feedback</h3>
   <div class="switch-row"><div><label for="soundToggle">Browser sound</label><small id="soundToggleHelp">Play lightweight feedback tones on this device.</small></div><input id="soundToggle" type="checkbox" aria-describedby="soundToggleHelp" onchange="saveBrowserPrefs()"></div>
   <div class="switch-row"><div><label for="vibrationToggle">Vibration</label><small id="vibrationToggleHelp">Use haptics when supported by the browser.</small></div><input id="vibrationToggle" type="checkbox" aria-describedby="vibrationToggleHelp" onchange="saveBrowserPrefs()"></div>
   <div class="inline" style="margin-top:6px;align-items:end"><div class="field"><label for="volumeSelect" style="margin-top:8px">Feedback volume</label><select id="volumeSelect" onchange="saveBrowserPrefs()"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><button class="blue" onclick="playFeedback('test',true)">Test feedback</button></div>
+ </section>
+ <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Sigil accessibility</h2><p class="small">Saved with your profile on Atlas. Follows you to whichever Sigil you sit at.</p></div></div>
+  <div id="sigilAccessSignedOut" class="notice info"><p>Sign in to choose how your Sigil sounds, how its lights behave and how long its buttons must be held.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
+  <form id="sigilAccessForm" hidden onsubmit="saveSigilAccess(event)"><fieldset id="sigilAccessFields"><legend class="sr-only">Sigil accessibility</legend>
+   <div class="switch-row"><div><label for="sigilSoundToggle">Sigil sound</label><small id="sigilSoundHelp">Buzzer tones on your Sigil. Everything a tone means also shows as text here and on the Sigil screen. A shared Sigil stays quiet if either player turns sound off.</small></div><input id="sigilSoundToggle" type="checkbox" aria-describedby="sigilSoundHelp"></div>
+   <fieldset style="margin-top:14px"><legend>Sigil lights</legend>
+    <div class="themes">
+     <label class="theme-opt"><input type="radio" name="ledStyle" value="standard"><strong>Standard</strong><small>Breathing and pulsing lights, as before.</small></label>
+     <label class="theme-opt"><input type="radio" name="ledStyle" value="reduced-motion"><strong>Reduced motion</strong><small>Steady lights and slow blinks only; your turn is bright, waiting is dim. Also safe without colour.</small></label>
+     <label class="theme-opt"><input type="radio" name="ledStyle" value="monochrome-safe"><strong>Monochrome-safe</strong><small>Standard lights, but no two signals differ by colour alone.</small></label>
+    </div></fieldset>
+   <label for="longPressSelect">Hold Action to pause</label><select id="longPressSelect" aria-describedby="holdHelp"></select>
+   <label for="winHoldSelect">Hold Action to claim a win</label><select id="winHoldSelect" aria-describedby="holdHelp"></select>
+   <p id="holdHelp" class="hint">The win hold must be at least one second longer than the pause hold. On a shared Sigil the longer times apply. Needs Sigil firmware 0.5.4 or newer; older Sigils keep 2 and 5 seconds. You can always pause or claim a win from this portal instead.</p>
+   <button type="submit" class="primary" style="margin-top:10px">Save Sigil accessibility</button></fieldset>
+   <p id="sigilAccessStatus" class="msg" role="status" aria-live="polite"></p></form>
  </section>
  <section id="moderationCard" class="card" hidden><div class="card-head"><div><h2 class="eyebrow">Private moderation history</h2><p class="small">Kept with your statistics and shown only to you after you sign in with your PIN. Game Masters and other accounts cannot see it.</p></div></div><a class="btn" href="/stats">View on my statistics</a></section>
 </div>
@@ -612,7 +630,7 @@ function initials(name){const w=String(name||'?').trim().split(/\s+/).filter(Boo
 function hue(n){return [38,168,12,205,95,280,330,60][(Number(n)||0)%8]}
 function avatar(name,n,cls=''){return `<span class="avatar ${cls}" style="--hue:${hue(n)}" aria-hidden="true">${initials(name)}</span>`}
 function showToast(msg,bad=false){const e=document.getElementById('toast');e.textContent=msg;e.className='toast show'+(bad?' bad':'');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.className='toast',3500)}
-function setTheme(name){if(!['brass','midnight','parchment','contrast'].includes(name))name='brass';document.documentElement.dataset.theme=name;try{localStorage.setItem('turnhubTheme',name)}catch(_){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--meta').trim()||'#110d09';document.querySelectorAll('input[name=theme]').forEach(r=>r.checked=r.value===name)}
+function setTheme(name,save=true){if(!['brass','midnight','parchment','contrast'].includes(name))name='brass';document.documentElement.dataset.theme=name;if(save)try{localStorage.setItem('turnhubTheme',name)}catch(_){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--meta').trim()||'#110d09';document.querySelectorAll('input[name=theme]').forEach(r=>r.checked=r.value===name)}
 
 // Modal confirm/prompt that matches the portal; falls back to the browser's own.
 function uiAsk({title,text,ok='Confirm',danger=false,input=null}){
@@ -640,6 +658,17 @@ function showTab(name){
  if(name!=='game')refreshAccountList();
 }
 
+function loadMotionPref(){let on=false;try{on=localStorage.getItem('turnhubReduceMotion')==='1'}catch(_){}reduceMotionToggle.checked=on;if(on)document.documentElement.dataset.motion='reduce';else delete document.documentElement.dataset.motion}
+function setReduceMotion(on){try{if(on)localStorage.setItem('turnhubReduceMotion','1');else localStorage.removeItem('turnhubReduceMotion')}catch(_){}loadMotionPref();showToast(on?'Motion reduced in this browser.':'Motion restored in this browser.')}
+let sigilAccessOwner=null,sigilAccessLimits=null;
+function holdChoices(select,min,max,step,value,defaultMs){select.innerHTML='';for(let ms=min;ms<=max;ms+=step){const o=document.createElement('option');o.value=ms;o.textContent=(ms/1000).toLocaleString(undefined,{maximumFractionDigits:2})+' seconds'+(ms===defaultMs?' (default)':'');select.appendChild(o)}select.value=String(value)}
+function renderSigilAccess(d){sigilAccessLimits=d.limits;sigilSoundToggle.checked=!!d.sigilSound;document.querySelectorAll('input[name=ledStyle]').forEach(r=>r.checked=r.value===d.ledStyle);
+ holdChoices(longPressSelect,d.limits.longPressMinMs,d.limits.longPressMaxMs,d.limits.stepMs,d.longPressMs,2000);holdChoices(winHoldSelect,d.limits.winHoldMinMs,d.limits.winHoldMaxMs,d.limits.stepMs,d.winHoldMs,5000);
+ sigilAccessStatus.textContent=d.stored?'':'Your saved Sigil settings could not be read, so defaults are shown. Saving replaces them.'}
+async function loadSigilAccess(){sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sigil settings are unavailable');renderSigilAccess(d);sigilAccessFields.disabled=false}catch(e){sigilAccessStatus.textContent=e.message}}
+async function saveSigilAccess(event){event.preventDefault();const style=document.querySelector('input[name=ledStyle]:checked');const longMs=Number(longPressSelect.value),winMs=Number(winHoldSelect.value);
+ if(sigilAccessLimits&&winMs<longMs+sigilAccessLimits.minGapMs){sigilAccessStatus.textContent='Choose a win hold at least one second longer than the pause hold.';winHoldSelect.focus();return}
+ sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({sigilSound:sigilSoundToggle.checked?'1':'0',ledStyle:style?style.value:'standard',longPressMs:String(longMs),winHoldMs:String(winMs)})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');renderSigilAccess(d);sigilAccessStatus.textContent='Saved. Your Sigil updates within a few seconds.';showToast('Sigil accessibility saved.')}catch(e){sigilAccessStatus.textContent=e.message}finally{sigilAccessFields.disabled=false}}
 function loadBrowserPrefs(){soundToggle.checked=!!browserPrefs.sound;vibrationToggle.checked=!!browserPrefs.vibration;volumeSelect.value=browserPrefs.volume||'medium'}
 function saveBrowserPrefs(){browserPrefs={sound:soundToggle.checked,vibration:vibrationToggle.checked,volume:volumeSelect.value};localStorage.setItem('turnhubBrowserPrefs',JSON.stringify(browserPrefs));showToast('Browser feedback settings saved.')}
 function playFeedback(kind,force=false){if((browserPrefs.vibration||force)&&navigator.vibrate){const p=kind==='turn'?[70,35,70]:kind==='alert'?[100,50,100]:kind==='gameover'?[130,60,130]:[55];try{navigator.vibrate(p)}catch(_){}}
@@ -707,9 +736,10 @@ function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—
 
 function renderSession(){
  const authed=!!(sessionInfo&&sessionInfo.authenticated);
- if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';return}
+ if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;sigilAccessOwner=null;sigilAccessForm.hidden=true;sigilAccessSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';return}
  const policyOwnerChanged=profilePolicyOwner!==sessionInfo.profileId;
  if(policyOwnerChanged){profilePolicyDirty=false;profilePolicyOwner=sessionInfo.profileId}
+ if(sigilAccessOwner!==sessionInfo.profileId){sigilAccessOwner=sessionInfo.profileId;sigilAccessForm.hidden=false;sigilAccessSignedOut.hidden=true;loadSigilAccess()}
  profilePolicyFields.disabled=!sessionInfo.policyAvailable;
  if(!profilePolicyDirty&&sessionInfo.policyAvailable){
    allowPhysicalWithoutPin.checked=!!sessionInfo.allowPhysicalWithoutPin;
@@ -965,8 +995,9 @@ async function savePermissions(event,id){event.preventDefault();const form=event
 async function archiveAccount(id,archived){if(!await uiAsk({title:archived?'Archive account?':'Restore account?',text:id+': '+(archived?'Sign-in and Sigil use will be blocked; statistics stay saved. The account must first leave the table.':'Restore this account and its existing permissions?'),ok:archived?'Archive':'Restore',danger:archived}))return;try{await accountPost('archive',{profileId:id,archived:archived?'1':'0'});await refreshAll();await refreshAccountList();showToast(archived?'Account archived':'Account restored')}catch(e){showToast(e.message,true)}}
 async function moderate(id,action){const meaning={reset:'Invalidate all browser sessions and suspend Sigil controls until this account signs in again? The seat and life totals stay.',remove:'Remove this player from the game and invalidate their connections?',pass:'Immediately pass this player’s turn?',mute:'Block this account from sending future nudges?',unmute:'Allow this account to send future nudges?'};if(!await uiAsk({title:'Game Master action',text:id+': '+meaning[action],ok:'Apply',danger:action==='remove'||action==='reset'}))return;try{await accountPost('moderate',{profileId:id,action});await refreshAll();await refreshAccountList();showToast('Moderation applied')}catch(e){showToast(e.message,true)}}
 
-let savedTheme='brass';try{savedTheme=localStorage.getItem('turnhubTheme')||'brass'}catch(_){}
-setTheme(savedTheme);buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();
+// With no saved choice, follow the operating system's increased-contrast setting.
+let savedTheme=null;try{savedTheme=localStorage.getItem('turnhubTheme')}catch(_){}
+setTheme(savedTheme||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass'),false);loadMotionPref();buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();
 let savedTab='game';try{savedTab=localStorage.getItem('turnhubPortalTab')||'game'}catch(_){}
 showTab(savedTab);refreshAll();setInterval(refreshAll,800);loadSetup();
 </script>
@@ -976,7 +1007,7 @@ showTab(savedTab);refreshAll();setInterval(refreshAll,800);loadSetup();
 
 const char DEV_HTML[] PROGMEM = R"HTML(
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#110d09"><title>TurnHub Dev</title>
-<script>try{document.documentElement.dataset.theme=localStorage.getItem('turnhubTheme')||'brass'}catch(_){}</script>
+<script>try{const h=document.documentElement;h.dataset.theme=localStorage.getItem('turnhubTheme')||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass');if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}</script>
 <link rel="stylesheet" href="/theme.css">
 <style>.activity{max-height:440px;overflow:auto;background:var(--inset);border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px 14px}.event{display:grid;grid-template-columns:78px auto 1fr;gap:10px;align-items:baseline;border-bottom:1px dashed var(--line);padding:8px 0;font:.8rem/1.45 ui-monospace,"SF Mono",Menlo,Consolas,monospace}.event:last-child{border-bottom:0}.time{color:var(--faint)}.kind{color:var(--accent-hi);font-weight:700}[data-theme=parchment] .kind{color:var(--accent)}.message{overflow-wrap:anywhere}@media(max-width:560px){.event{grid-template-columns:1fr}}</style>
 </head><body><div class="page">

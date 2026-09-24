@@ -56,7 +56,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#110d09">
   <title>TurnHub Atlas Update</title>
-  <script>try{document.documentElement.dataset.theme=localStorage.getItem('turnhubTheme')||'brass'}catch(_){}</script>
+  <script>try{const h=document.documentElement;h.dataset.theme=localStorage.getItem('turnhubTheme')||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass');if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}</script>
   <link rel="stylesheet" href="/theme.css">
   <style>
     .status { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .85rem; color: var(--muted); background: var(--inset); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin: 16px 0; }
