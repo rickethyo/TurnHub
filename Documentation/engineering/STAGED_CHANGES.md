@@ -201,7 +201,10 @@ retain profile companion control.
 - Treat WCAG 2.2 Level AA as the design baseline for web/app surfaces without claiming conformance until tested.
 - Define reusable accessible UI patterns before the portal and Android surfaces diverge.
 - Ensure essential states are not represented by color alone; pair color with text, icons, pattern/cadence, or another practical cue.
-- Add high-contrast and monochrome-safe presentation options.
+- Add high-contrast and monochrome-safe presentation options. The web portal has a
+  High contrast theme and honours `forced-colors` (implemented 2026-09-24; see
+  [Web Portal Design System](WEB_PORTAL_DESIGN.md)). Android and monochrome-safe
+  modes remain open.
 - Define player-level accessibility preferences separately from game profiles.
 - Determine which accessibility settings follow a player versus remain device-local.
 - Provide keyboard and assistive-technology semantics for essential web controls.
@@ -238,6 +241,9 @@ Privacy direction:
   migrations before replacing the deployed v1 statistics representation.
 - Store player profiles, game profiles, session history, and exports independently from game-engine logic.
 - Design for optional expanded local storage later without changing game semantics.
+- Planned: once SD storage exists, serve optional portal theme packs from it as
+  extra token sets; built-in themes stay in flash (see
+  [Web Portal Design System](WEB_PORTAL_DESIGN.md)).
 - Version stored schemas and define migrations before changing persistent formats.
 
 ### 5. Session history

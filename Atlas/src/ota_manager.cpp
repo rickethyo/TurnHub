@@ -53,81 +53,44 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#111318">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#110d09">
   <title>TurnHub Atlas Update</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('turnhubTheme')||'brass'}catch(_){}</script>
+  <link rel="stylesheet" href="/theme.css">
   <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 18px;
-      font-family: system-ui, sans-serif;
-      background: #0b0d11;
-      color: #f3f5f7;
-    }
-    main {
-      width: min(620px, 100%);
-      padding: 28px;
-      border: 1px solid #2b3240;
-      border-radius: 18px;
-      background: #141820;
-    }
-    h1 { margin: 0 0 8px; }
-    p { color: #aeb7c6; line-height: 1.5; }
-    .notice {
-      padding: 14px;
-      border: 1px solid #384153;
-      border-radius: 12px;
-      background: #1a202b;
-      margin: 18px 0;
-    }
-    .status {
-      padding: 12px;
-      border: 1px solid #2b3240;
-      border-radius: 10px;
-      margin: 12px 0 18px;
-      font-family: ui-monospace, monospace;
-      color: #cbd3df;
-    }
-    input[type=file] { width: 100%; margin: 12px 0; }
-    button, a.button {
-      display: inline-block;
-      border: 0;
-      border-radius: 10px;
-      padding: 11px 16px;
-      background: #e7ebf2;
-      color: #111318;
-      font-weight: 800;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-    progress { width: 100%; height: 16px; margin-top: 16px; }
-    #message { min-height: 48px; font-weight: 700; }
-    .ok { color: #62d58a !important; }
-    .warn { color: #f2c66d !important; }
-    .error { color: #ff7d7d !important; }
-    .back { margin-top: 18px; display: inline-block; color: #9fc0ff; }
+    .status { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .85rem; color: var(--muted); background: var(--inset); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; margin: 16px 0; }
+    .drop { display: grid; gap: 10px; padding: 18px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); background: var(--inset); }
+    .drop label { margin: 0; }
+    input[type=file] { min-height: 0; padding: 10px; }
+    input[type=file]::file-selector-button { font: inherit; font-weight: 650; margin-right: 12px; border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px 12px; background: var(--surface-2); color: var(--text); cursor: pointer; }
+    #upload { width: 100%; margin-top: 16px; min-height: 50px; }
+    progress { -webkit-appearance: none; appearance: none; width: 100%; height: 12px; margin-top: 18px; border: 1px solid var(--line-strong); border-radius: 99px; overflow: hidden; background: var(--inset); }
+    progress::-webkit-progress-bar { background: var(--inset); }
+    progress::-webkit-progress-value { background: var(--accent-grad); }
+    progress::-moz-progress-bar { background: var(--accent); }
+    #message { min-height: 48px; font-weight: 650; margin-top: 14px; }
+    .ok { color: var(--good) !important; }
+    .warn { color: var(--warn) !important; }
+    .error { color: var(--bad) !important; }
   </style>
 </head>
 <body>
-  <main>
+<div class="page narrow">
+  <header class="page-head"><a class="brand" href="/portal"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Firmware</span></span></a><a class="btn small ghost" href="/portal">← Back to TurnHub</a></header>
+  <main class="card">
     <h1>Atlas Firmware Update</h1>
-    <p>Upload the Atlas <code>firmware.bin</code> produced by PlatformIO.</p>
-    <div class="notice">
+    <p class="small">Upload the Atlas <code>firmware.bin</code> produced by PlatformIO.</p>
+    <div class="notice" style="margin-top:14px">
       For safety, start updates only from Lobby or Game Over and <strong>hold the physical Atlas master button while clicking Upload</strong>. Atlas will restart automatically after the image is written.
     </div>
     <div id="current" class="status">Reading current firmware...</div>
-    <input id="file" type="file" accept=".bin,application/octet-stream">
-    <button id="upload" disabled>Upload &amp; Verify</button>
-    <progress id="progress" max="100" value="0"></progress>
-    <p id="message"></p>
-    <a class="back" href="/portal">← Back to TurnHub</a>
+    <div class="drop"><label for="file">Firmware image</label><input id="file" type="file" accept=".bin,application/octet-stream"></div>
+    <button id="upload" class="primary" disabled>Upload &amp; Verify</button>
+    <progress id="progress" max="100" value="0" aria-label="Upload progress"></progress>
+    <p id="message" role="status" aria-live="polite"></p>
   </main>
+</div>
 <script>
   const file = document.getElementById('file');
   const button = document.getElementById('upload');
@@ -251,6 +214,11 @@ void OtaManager::begin() {
   server_.on("/portal-qr.js", HTTP_GET, [this]() {
     server_.sendHeader("Content-Encoding", "gzip");
     server_.send_P(200, "application/javascript", reinterpret_cast<const char *>(TurnHubWeb::QR_SCRIPT_GZIP), sizeof(TurnHubWeb::QR_SCRIPT_GZIP));
+  });
+
+  server_.on("/theme.css", HTTP_GET, [this]() {
+    server_.sendHeader("Cache-Control", "no-cache");
+    server_.send_P(200, "text/css", TurnHubWeb::THEME_CSS);
   });
 
   server_.on("/portal", HTTP_GET, [this]() {

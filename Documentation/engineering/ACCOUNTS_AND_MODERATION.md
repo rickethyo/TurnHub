@@ -68,8 +68,8 @@ a power-failure transaction journal.
 
 - Game: game setup, turns and life totals.
 - Players: table roster, physical Sigil sign-in/attachment, Game Master controls.
-- My Account: name, PIN, privacy, personal statistics, browser feedback and private
-  moderation counts.
+- My Account: name, PIN, privacy, appearance (per-browser theme), personal
+  statistics, browser feedback and private moderation counts.
 - Device Settings (Admin): device names, network, firmware and account permissions.
 - Developer link (Developer): protected diagnostics.
 

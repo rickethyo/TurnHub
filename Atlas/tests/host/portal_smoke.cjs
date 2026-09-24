@@ -5,13 +5,16 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=path.resolve(__dirname,'../..');
 const page=(file,name)=>fs.readFileSync(path.join(root,'src',file),'utf8').match(new RegExp('const char '+name+'\\[\\].*?R"HTML\\(([\\s\\S]*?)\\)HTML";'))[1];
 const portal=page('web_pages.cpp','PORTAL_HTML'),login=page('profile_login_page.cpp','HTML');
+const theme=fs.readFileSync(path.join(root,'src','web_pages.cpp'),'utf8').match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
 let authenticated=false,joined=false,state='LOBBY',permissions=0,setupRequired=true;
 let policy={allowPhysicalWithoutPin:true,hideStatsWithoutAuthentication:true};
-let gameSettings={gameProfile:'generic',startingLife:40},life=40;
+let gameSettings={gameProfile:'generic',startingLife:40,turnTimerMs:0},life=40;
+const turnTimer={presetsMs:[0,60000,120000,180000,300000],minMs:15000,maxMs:3600000,warningMs:10000,longTurnMs:300000};
 const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
  const url=new URL(req.url,'http://localhost');
  if(url.pathname==='/'||url.pathname==='/login'){res.setHeader('Content-Type','text/html');res.end(url.pathname==='/'?portal:login);return}
+ if(url.pathname==='/theme.css'){res.setHeader('Content-Type','text/css');res.end(theme);return}
  if(url.pathname==='/portal-qr.js'){const header=fs.readFileSync(path.join(__dirname,'../../include/portal_qr_asset.h'),'utf8');const bytes=header.match(/= \{([\s\S]*?)\};/)[1].match(/\d+/g).map(Number);res.setHeader('Content-Type','application/javascript');res.setHeader('Content-Encoding','gzip');res.end(Buffer.from(bytes));return}
  res.setHeader('Content-Type','application/json');
  const status={state,players:joined?2:0,sigils:0,host:joined?8:-1,starter:joined?1:0,active:state==='RUNNING'?1:0,winner:0,winConfirm:0,eliminationTarget:0,firmware:'0.6.0-dev',espNow:true};
@@ -31,8 +34,8 @@ const api=http.createServer(async(req,res)=>{
   case '/api/session/policy':assert(authenticated);assert.equal(req.headers['x-turnhub-token'],'T'.repeat(32));{const args=new URLSearchParams(body);policy={allowPhysicalWithoutPin:args.get('allowPhysicalWithoutPin')==='1',hideStatsWithoutAuthentication:args.get('hideStatsWithoutAuthentication')==='1'};}result={ok:true};break;
   case '/api/session/join':joined=true;result={ok:true,message:'Joined'};break;
   case '/api/game/settings':
-   if(req.method==='POST'){assert(authenticated&&joined&&state==='LOBBY');const args=new URLSearchParams(body);gameSettings={gameProfile:args.get('gameProfile'),startingLife:Number(args.get('startingLife'))};result={ok:true};}
-   else result={...gameSettings,available:true,canEdit:authenticated&&joined&&state==='LOBBY'};
+   if(req.method==='POST'){assert(authenticated&&joined&&state==='LOBBY');const args=new URLSearchParams(body);gameSettings={gameProfile:args.get('gameProfile'),startingLife:Number(args.get('startingLife')),turnTimerMs:Number(args.get('turnTimerMs')||0)};result={ok:true};}
+   else result={...gameSettings,turnTimer,available:true,canEdit:authenticated&&joined&&state==='LOBBY'};
    break;
   case '/api/control/life':assert(authenticated&&state==='RUNNING');life+=Number(new URLSearchParams(body).get('delta'));result={ok:true};break;
   case '/api/game/counters':result={available:joined,editable:state==='RUNNING',commanderEnabled:false,player:1,requests:[],damage:[]};break;

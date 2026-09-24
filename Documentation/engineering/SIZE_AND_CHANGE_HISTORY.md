@@ -145,6 +145,22 @@ Atlas `pio run -e atlas`, same toolchain, measured against the parent commit `ca
 
 The RAM growth is the two static default cue tables.
 
+### 2026-09-24 - web portal redesign and selectable themes (`claude/tender-cerf-84yd8v`)
+
+Large presentation change; firmware version unchanged (`0.6.0-dev`). No gameplay,
+Intent, storage or protocol change.
+
+- New shared `/theme.css` (`THEME_CSS`) linked by portal, login, stats, dev and update pages
+- Four per-browser themes: Brass (default steampunk), Midnight, Parchment, High contrast
+- Portal relayout: brass turn gauge, life tiles, phone bottom tab bar, themed dialogs
+- See [Web Portal Design System](WEB_PORTAL_DESIGN.md)
+
+Embedded page text (raw-string literals in `web_pages.cpp`, `profile_login_page.cpp`,
+`stats_page.cpp`, `ota_manager.cpp`): 92,995 B → 131,098 B (+38,103 B, all in flash).
+Compiled RAM/flash was **not measured** for this change: no PlatformIO build was
+possible in the authoring environment. Record a `pio run -e atlas` figure before
+treating the ~3-point flash increase over 80.4% as confirmed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
