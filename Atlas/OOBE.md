@@ -45,6 +45,17 @@ ProvisioningState
 
 The owner profile is a normal durable TurnHub profile with elevated system permissions, not a separate login subsystem.
 
+### Current pre-setup credentials (implemented)
+
+Until provisioning exists, an Atlas with no owner-set password hosts
+`TurnHub-Atlas` with the shipped passphrase `TurnHub-Setup`
+(`AtlasConfig::WIFI_DEFAULT_PASSWORD`). The Android app uses it to join
+automatically through Android's targeted Wi-Fi request, and prompts for the
+password if it fails. The passphrase is public, so the setup wizard below
+must replace it as part of provisioning. The app is the intended OOBE client,
+and its Wi-Fi link already accepts any SSID and passphrase, so a future
+`TurnHub-Setup-A1B2` network (e.g. from a QR code) can use the same path.
+
 ### 2. Start a temporary setup network
 
 An unprovisioned Atlas advertises a temporary setup SSID such as:

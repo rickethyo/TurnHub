@@ -56,45 +56,47 @@ Android/
   app/
     src/main/java/com/turnhub/android/
       MainActivity.kt
-      protocol/
+      protocol/                     wire DTOs + parser, 1:1 with /protocol schemas
         AtlasConnectionState.kt
-        AtlasInfo.kt
+        AtlasInfo.kt                /api/v1/info
+        StateSnapshot.kt            /api/v1/state (+ PendingDecisions)
+        Player.kt                   players[] (+ CommanderDamage, LifeRequest)
         GameProfile.kt
-        Player.kt
-        Sigil.kt
         TableState.kt
+        AtlasWireParser.kt          strict org.json parsing, fails closed
       domain/
-        TableSummary.kt
+        TableSummary.kt             UI aggregate (+ TablePlayer, ControllerHandle,
+                                    PhysicalSigilAtTable)
+        TableSummaryMapper.kt       info + state -> TableSummary
       data/
-        AtlasRepository.kt        (interface -- the future networking seam)
-        MockAtlasRepository.kt    (in-memory implementation, no transport)
+        AtlasRepository.kt          the only seam the UI talks through
+        HttpAtlasRepository.kt      connect handshake, polling, reconnect rules
+        AtlasTransport.kt           getInfo()/getState() seam (+ factory)
+        HttpAtlasTransport.kt       HttpURLConnection implementation
+        WifiPreferringConnectionOpener.kt
+        AtlasEndpoint.kt            user-editable http://host[:port]
+        AtlasCompatibility.kt       API "1" / protocol "0.1" / stateSnapshot
+        AtlasFailure.kt             user-facing failure types
       ui/
-        home/
-          HomeScreen.kt
-          HomeUiState.kt
-          HomeViewModel.kt
-        components/
-          ConnectionStateBadge.kt
-          PlayerRow.kt
-          SigilListItem.kt
-          TableSummaryCard.kt
+        home/                       HomeScreen, HomeUiState, HomeViewModel
+        components/                 ConnectionStateBadge, TableSummaryCard,
+                                    PlayerRow, PhysicalSigilRow
         theme/
-          Color.kt
-          Theme.kt
-          Type.kt
-    src/test/java/com/turnhub/android/data/
-      MockAtlasRepositoryTest.kt
+    src/main/res/xml/network_security_config.xml
+    src/test/java/com/turnhub/android/
+      testing/Fixtures.kt           loads ../protocol/examples/*.json
+      protocol/  domain/  data/  ui/home/
 ```
 
-`protocol/` holds Kotlin data models that mirror the JSON shapes in `/protocol`
-(`state-v0.1.schema.json`, `info-v1.schema.json`) and the concepts in
-`Documentation/engineering/` -- not the ESP32 C++ types, and not a claim that
-the wire format is frozen. `domain/` holds UI-oriented models that combine more
-than one wire response (`TableSummary` merges `/api/v1/info` identity fields
-with an `/api/v1/state` snapshot) and so aren't a 1:1 mirror of any single
-schema; it lives apart from `protocol/` for that reason. `data/AtlasRepository`
-is the only seam the UI talks through; today `MockAtlasRepository` is the only
-implementation. As lobby/game/player/settings/scanner screens are added, `ui/`
+`protocol/` holds Kotlin wire models that mirror the JSON shapes in `/protocol`
+(`state-v0.1.schema.json`, `info-v1.schema.json`) -- not the ESP32 C++ types,
+and not a claim that the wire format is frozen. Unsigned 32-bit Atlas values
+(revision, participant IDs, turn counts, `*Ms` clocks) are `Long`. `domain/`
+holds UI-oriented models that combine more than one wire response
+(`TableSummary` merges `/api/v1/info` identity fields with an `/api/v1/state`
+snapshot) and so aren't a 1:1 mirror of any single schema.
+`data/AtlasRepository` is the only seam the UI talks through; networking stays
+below it. As lobby/game/player/settings/scanner screens are added, `ui/`
 should grow one subpackage per screen alongside `ui/home`, following the same
 pattern.
 
@@ -108,14 +110,14 @@ accidentally from this bootstrap.
 
 The first useful app build should do only enough to prove the architecture:
 
-1. Launch natively.
-2. Accept an Atlas endpoint manually or from a test QR payload.
-3. Fetch `/api/v1/state`.
-4. Render Atlas/table state.
+1. Launch natively. *(done)*
+2. Accept an Atlas endpoint manually or from a test QR payload. *(manual entry done)*
+3. Fetch `/api/v1/state`. *(done)*
+4. Render Atlas/table state. *(done, polled)*
 5. Bind to one player seat/session.
 6. Send semantic `PASS`, currently mapped by the adapter to `/api/control/pass`.
 7. Observe the resulting authoritative revision/state.
-8. Disconnect/reconnect and rebuild from a fresh snapshot.
+8. Disconnect/reconnect and rebuild from a fresh snapshot. *(done)*
 
 If this works without duplicating game logic in Android, the architecture is doing its job.
 
@@ -147,29 +149,89 @@ Android tests should eventually include:
 
 Game-rule tests stay with Atlas/domain code. Android tests verify client behavior, not whether TurnHub rules are correct.
 
-`app/src/test/.../data/MockAtlasRepositoryTest.kt` is the first of these: a
-plain JVM test (no Robolectric/instrumentation) exercising the mock repository
-through the same `AtlasRepository` interface a real implementation will
-satisfy. It is a starting seam, not coverage of the points above.
+The current suite is plain JVM tests (no Robolectric/instrumentation). They
+parse the real `protocol/examples/` fixtures, drive `HttpAtlasRepository`
+through a scripted fake `AtlasTransport` in virtual time, and exercise
+`HttpAtlasTransport` against the JDK's local HTTP server. `org.json` is a
+test-only dependency because the unit-test `android.jar` only has stubs.
+
+Build and test from `Android/` (Android Studio's bundled JDK works):
+
+```text
+./gradlew assembleDebug
+./gradlew testDebugUnitTest
+./gradlew testDebugUnitTest --tests "com.turnhub.android.data.HttpAtlasRepositoryTest"
+```
 
 ## Current milestone
 
-**Bootstrap 1 (UI shell, mocked data):** the Gradle/Compose project now exists
-and builds a single Home screen: Atlas connection state (Disconnected/
-Connecting/Connected), a mocked table summary, a mocked paired-Sigil list, and
-a connect/disconnect action -- all backed by `MockAtlasRepository`. No HTTP,
-Bluetooth, discovery, or device control is implemented; `AtlasRepository` is
-the seam a real implementation will fill in later.
+**Live read-only Atlas (first real integration):** the installed app talks to
+a physical Atlas over its existing HTTP API. `MockAtlasRepository` is gone;
+production always uses `HttpAtlasRepository`.
 
-Foundation 1 remains the current Atlas baseline this app will eventually talk
-to: Atlas exposes `/api/v1/info` and `/api/v1/state` with boot-scoped gameplay
-revisions, and authenticated session controls that return revision metadata.
-See the [implemented HTTP contract](../protocol/http-v1.md) and
-[machine-readable examples](../protocol/examples/). The next Android slice
-should still map `PASS` to the existing form-based `/api/control/pass`
-endpoint and use the existing login/join/session endpoints once real
-networking begins; the generic JSON Intent envelope and event stream are not
-live yet. No Wi-Fi automation, discovery, or second game engine has been
-introduced.
+1. Open the app and tap Connect. The address defaults to `http://192.168.4.1`
+   and stays editable. For that address the app first joins Atlas's Wi-Fi
+   itself (see "Targeted Wi-Fi" below); other addresses must already be
+   reachable.
+2. `GET /api/v1/info` must be a TurnHub Atlas with API `1`, protocol `0.1`
+   and state snapshots; anything else fails with a clear message.
+3. `GET /api/v1/state` is mapped into the Home screen; only then is the app
+   CONNECTED. State is then polled about once per second.
+4. Every poll replaces the view (clocks change at the same revision). A new
+   `atlasId`, new `bootId` or a lower `revision` discards the view and
+   re-runs info + state. Three failed polls in a row drop the live view to
+   DISCONNECTED; Connect again loads a fresh snapshot. Disconnect stops polling
+   and clears state. A match Atlas recovered after a reboot is simply shown
+   as `PAUSED`.
 
-Last established: 2026-09-23
+Targeted Wi-Fi (no trip to Android settings):
+
+- `TargetedAtlasWifiLink` asks Android for `TurnHub-Atlas` with a
+  `WifiNetworkSpecifier` (no internet capability). The network is used only
+  by TurnHub: the phone keeps its normal Wi-Fi/mobile connection. The Pixel
+  Fold even stayed on home Wi-Fi at the same time. The link is also the
+  `HttpConnectionOpener`, so Atlas requests go over that network.
+- Password order: the saved password for the SSID, else the shipped default
+  `TurnHub-Setup` (protocol/http-v1.md), else the "Atlas Wi-Fi" prompt. The
+  prompt allows editing the SSID and has an "I've joined this Wi-Fi already"
+  option for the manual path. Only credentials that actually joined are saved
+  (`PreferencesWifiCredentialStore`, app-private, excluded from backup and
+  device transfer).
+- Android shows its approval dialog at most once per access point, then
+  remembers it. Disconnect, a lost connection or a failed handshake gives the
+  network back. A joined network is dropped when Atlas reboots, so the view
+  drops to DISCONNECTED and Connect rejoins.
+- Needs Android 10+ (API 29). On older phones the prompt points to the manual path.
+- Verified on a Pixel Fold (Android 17): the default fails against an Atlas
+  with an owner-set password, the prompt appears, Join connects, Disconnect
+  releases, and the next Connect reuses the saved password with no prompt.
+
+Networking notes:
+
+- Android 17 enforces local network protection for apps targeting API 37:
+  without the `ACCESS_LOCAL_NETWORK` runtime permission ("Nearby devices"),
+  every TCP connection to Atlas silently times out. `MainActivity` requests it
+  when the user taps Connect (Android 17+ only); if denied, Home explains why
+  and offers "Open app settings". Verified on a Pixel Fold running Android 17.
+
+- Cleartext HTTP is allowed only for `192.168.4.1`
+  (`res/xml/network_security_config.xml`). Other addresses are refused by
+  Android until that file is deliberately extended (e.g. for Home/LAN mode).
+- For the manual path (phone joined to Atlas in settings), Android often
+  keeps mobile data as the default route because Atlas has no internet.
+  `WifiPreferringConnectionOpener` sends Atlas requests over the current Wi-Fi
+  network (needs `ACCESS_NETWORK_STATE`).
+- `/api/v1/state` carries no player names today, so players show as
+  `Player N`. The "Physical Sigils at this table" list only covers handles
+  0-7 seated in `players[]`; Atlas publishes no paired-device inventory, so
+  none is shown or invented.
+
+Next milestone, prepared by `HttpAtlasTransport.request()` (form bodies and
+`X-TurnHub-Token` already supported): profiles -> login -> join ->
+`/api/session/me` -> authenticated `PASS` via the form-based
+`/api/control/pass` -> fetch state again. Never auto-replay a timed-out
+control. `/api/v1/intent`, events, BLE and QR discovery remain out of
+scope. OOBE setup networks and QR-provided credentials can reuse
+`AtlasWifiLink` as-is.
+
+Last established: 2026-09-24

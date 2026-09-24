@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Atlas serves plain HTTP on its own standalone Wi-Fi (no TLS on the ESP32).
+  Cleartext is allowed only for Atlas's SoftAP address; everything else keeps
+  the platform default (HTTPS only). A different Atlas address, such as a
+  future Home/LAN mode, must be added here deliberately.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">192.168.4.1</domain>
+    </domain-config>
+</network-security-config>

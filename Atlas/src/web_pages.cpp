@@ -166,7 +166,7 @@ function renderDevices(d){
  }).join(''):'<div class="empty">No Sigils discovered yet.</div>'
 }
 
-function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—';wifiSecuritySetting.textContent=n.security||'—';wifiClientsSetting.textContent=String(n.stations??'—');wifiPasswordState.textContent=n.passwordConfigured?`${n.passwordLength} characters`:'Not configured';wifiSsidSystem.textContent=n.ssid||'—';wifiSecuritySystem.textContent=n.security||'—';wifiClientsSystem.textContent=String(n.stations??'—')}
+function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—';wifiSecuritySetting.textContent=n.security||'—';wifiClientsSetting.textContent=String(n.stations??'—');wifiPasswordState.textContent=n.passwordIsDefault?'Factory default (change it)':n.passwordConfigured?`${n.passwordLength} characters`:'Not configured';wifiSsidSystem.textContent=n.ssid||'—';wifiSecuritySystem.textContent=n.security||'—';wifiClientsSystem.textContent=String(n.stations??'—')}
 
 function renderSession(){
  const authed=!!(sessionInfo&&sessionInfo.authenticated);
