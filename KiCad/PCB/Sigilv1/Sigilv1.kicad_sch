@@ -698,8 +698,8 @@
 			(on_board yes)
 			(in_pos_files yes)
 			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "U1"
-				(at 0 58.42 0)
+			(property "Reference" "U"
+				(at 0 55.8 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -708,8 +708,8 @@
 					)
 				)
 			)
-			(property "Value" "REMOVABLE ESP32 DEVKIT / 2 x 19"
-				(at 0 55.88 0)
+			(property "Value" "ESP32_DevKit_38_RearReference"
+				(at 0 53.3 0)
 				(show_name no)
 				(do_not_autoplace no)
 				(effects
@@ -733,6 +733,7 @@
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
+				(hide yes)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -743,6 +744,7 @@
 				(at 0 0 0)
 				(show_name no)
 				(do_not_autoplace no)
+				(hide yes)
 				(effects
 					(font
 						(size 1.27 1.27)
@@ -1681,18 +1683,18 @@
 		)
 		(uuid "367f7b73-6288-5090-896d-7c81b8097f0b")
 	)
-	(text "PAIR: A12 / GPIO19 to A13 / GND\nReleased HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry."
+	(text "PAIR: A12 / GPIO19 to A13 / GND\nPAUSE/WIN: J13 / GPIO32 to GND (SW3 retired)\nAll released HIGH; pressed LOW.\nNo carrier BOOT or reset circuitry."
 		(exclude_from_sim no)
-		(at 175 114 0)
+		(at 175 130 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left top)
 		)
-		(uuid "3bbfe0bb-48dc-5dda-ae82-4305092096af")
+		(uuid "6d9e2789-cf4b-5b85-818d-3aaca8f5e605")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. GPIO4 auxiliary / GPIO32 display-detect removed: not implemented in current firmware.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display connector and buzzer circuit are unresolved logical interfaces, excluded from PCB and BOM.\n6. Old GPIO4 auxiliary and GPIO32 display-detect removed; GPIO32 / J13 is now the Pause/Win button (SW5).\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
 		(exclude_from_sim no)
 		(at 28 211 0)
 		(effects
@@ -1701,7 +1703,7 @@
 			)
 			(justify left top)
 		)
-		(uuid "7152a581-9412-5959-9379-47b9fab2d5ec")
+		(uuid "95d26e46-55d7-5517-9943-17b42b09c84d")
 	)
 	(text "CONTROLS - INPUT_PULLUP"
 		(exclude_from_sim no)
@@ -1737,10 +1739,6 @@
 	(no_connect
 		(at 45.72 86.36)
 		(uuid "385faf96-f9a9-5ad8-9a64-04a34fb0e467")
-	)
-	(no_connect
-		(at 45.72 116.84)
-		(uuid "3e212ed3-fbc8-52db-9161-b458d2f932ac")
 	)
 	(no_connect
 		(at 132.08 127)
@@ -1960,6 +1958,26 @@
 	)
 	(wire
 		(pts
+			(xy 198.12 121.92) (xy 205.74 121.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "63871f3a-d01b-5674-9d0f-017b4d775797")
+	)
+	(wire
+		(pts
+			(xy 45.72 116.84) (xy 25.4 116.84)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "63fd634a-e6d5-5a9a-931d-20f357d032c0")
+	)
+	(wire
+		(pts
 			(xy 198.12 101.6) (xy 205.74 101.6)
 		)
 		(stroke
@@ -2070,16 +2088,6 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 116.84) (xy 25.4 116.84)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "be400190-6ce5-42cd-9c55-a643c81a76f1")
-	)
-	(wire
-		(pts
 			(xy 218.44 152.4) (xy 198.12 152.4)
 		)
 		(stroke
@@ -2147,6 +2155,16 @@
 			(type default)
 		)
 		(uuid "df5042b1-ec44-55d1-a5ae-e09d1f9aa2b3")
+	)
+	(wire
+		(pts
+			(xy 187.96 121.92) (xy 175.26 121.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dffed991-9721-52d2-8286-a92d24ad7801")
 	)
 	(wire
 		(pts
@@ -2249,6 +2267,16 @@
 		(uuid "26f71e10-ef95-5640-b102-1c19ee39c778")
 	)
 	(label "GND"
+		(at 205.74 121.92 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2d355b45-903e-5ad7-8879-3bbce3d55d43")
+	)
+	(label "GND"
 		(at 137.16 116.84 0)
 		(effects
 			(font
@@ -2287,16 +2315,6 @@
 			(justify left bottom)
 		)
 		(uuid "4288348d-b40a-5b42-af05-f3afd83cfc0b")
-	)
-	(label "BTN_PAUSE"
-		(at 25.4 116.84 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "454f4ff9-c2a8-4438-a73f-db9a58911f6c")
 	)
 	(label "GND"
 		(at 137.16 147.32 0)
@@ -2398,6 +2416,16 @@
 		)
 		(uuid "6a9e356b-23e7-54d8-beee-2e47ea8ed7f5")
 	)
+	(label "BTN_PAUSE"
+		(at 25.4 116.84 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "770c15f7-6a9b-596f-81bf-322a13365e86")
+	)
 	(label "EPD_MOSI"
 		(at 304.8 147.32 0)
 		(effects
@@ -2417,6 +2445,16 @@
 			(justify left bottom)
 		)
 		(uuid "7d2debb7-90ff-566a-a86a-d01320a8de62")
+	)
+	(label "BTN_PAUSE"
+		(at 175.26 121.92 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7ed4df7e-c175-5ce3-99fc-32a37845ad9a")
 	)
 	(label "EPD_RST"
 		(at 304.8 167.64 0)
@@ -2691,10 +2729,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "d3c38d12-6c4d-41e6-a1ee-fbf787a3a1d3")
+			(uuid "99709e14-4ec3-56ef-9232-ce4f3f7b4d92")
 		)
 		(pin "2"
-			(uuid "57706bed-2634-44d9-8145-c47649029683")
+			(uuid "ab88e657-161c-53ac-a99b-41b6db114ab4")
 		)
 		(instances
 			(project "Sigilv1"
@@ -2767,11 +2805,11 @@
 				)
 			)
 		)
-		(pin "2"
-			(uuid "627f977c-2917-4d87-b31e-7c83738ecd3e")
-		)
 		(pin "1"
-			(uuid "3852a39f-0a94-46d6-b122-b27d9d30ac81")
+			(uuid "429d8a94-7ba8-53b8-aa68-b5c3d4178053")
+		)
+		(pin "2"
+			(uuid "f2126be3-ee69-5adf-832d-98bb194a278f")
 		)
 		(instances
 			(project "Sigilv1"
@@ -2844,119 +2882,119 @@
 				)
 			)
 		)
-		(pin "A17"
-			(uuid "11c78206-4afd-4527-ad01-59501b297586")
-		)
-		(pin "J6"
-			(uuid "a57e9e24-2a06-42e5-8588-4bd66a12b95b")
-		)
-		(pin "A11"
-			(uuid "98fe9790-d36f-4aa5-8b29-b91cff75f740")
-		)
-		(pin "J8"
-			(uuid "48f592d8-40fe-44a4-b34b-0f2b9b0763e8")
-		)
-		(pin "A19"
-			(uuid "3ed618d1-5d7b-4abd-9d0b-cb811295ccd2")
-		)
-		(pin "J7"
-			(uuid "a69ae88c-03a9-4e7f-8d92-179faee6bf91")
-		)
-		(pin "J12"
-			(uuid "5af32bc3-560b-46c0-99ae-8858dc8bd83e")
-		)
-		(pin "J3"
-			(uuid "87e6accb-47bf-4c8b-b82b-1e19c3a2e713")
-		)
-		(pin "A16"
-			(uuid "f801cb90-ee85-4443-9e2b-c8e61d8600d2")
-		)
-		(pin "A15"
-			(uuid "b3ab5d9f-fef7-47b5-9a20-39c6b135756e")
-		)
-		(pin "J14"
-			(uuid "793af35b-c80a-48d9-bf9b-8a9fac4a3bb7")
-		)
-		(pin "A18"
-			(uuid "5bad13e8-bc00-4bb0-b763-ffd7551de862")
-		)
-		(pin "J17"
-			(uuid "d27c5f9a-247e-4ff9-a7a2-14e09259436d")
-		)
-		(pin "J11"
-			(uuid "75d00048-aa28-49ad-9f10-3863f99eb16c")
-		)
-		(pin "J4"
-			(uuid "798dcee1-e808-4a1b-a615-7b7c97f55a8b")
-		)
-		(pin "A13"
-			(uuid "c704c09c-c40d-4b9f-a26e-442dae03befd")
-		)
-		(pin "J13"
-			(uuid "b79af134-b37b-42d5-8821-d8957d6cf0df")
-		)
 		(pin "J1"
-			(uuid "abcbf791-6ab4-49cd-b1ab-c328499cf09f")
-		)
-		(pin "J16"
-			(uuid "472e141d-ea8f-4b60-b0be-f2dd231d82a6")
+			(uuid "6ac4a7dd-8aff-594b-b1ee-75987a344d3f")
 		)
 		(pin "J2"
-			(uuid "6b9c3b1a-b17d-4ec4-acda-378998fb58a4")
+			(uuid "228b5439-c008-5314-9d78-5e2e2d2f18d3")
 		)
-		(pin "A14"
-			(uuid "7b1e15bd-0b0c-40a8-9841-90e6bb84ab22")
+		(pin "J3"
+			(uuid "081c5f59-ca6f-51a6-8f67-eac3f29a43cf")
 		)
-		(pin "A12"
-			(uuid "80e6abb8-dc9b-4dbe-b5b9-2b80611d1a88")
-		)
-		(pin "J9"
-			(uuid "2e854c4e-e2de-48e4-86b8-d8776f6656ee")
-		)
-		(pin "J15"
-			(uuid "2c7d4d0c-ae09-401c-93e7-c9d588d09715")
+		(pin "J4"
+			(uuid "267bd303-833e-512e-9417-690dbe24233f")
 		)
 		(pin "J5"
-			(uuid "2fad1e96-7c1c-464c-af5c-358c6f5ee78b")
+			(uuid "7d30d0ab-9554-5271-b4dd-f261f62fd323")
+		)
+		(pin "J6"
+			(uuid "9819e85c-d4b3-5cbe-9928-2d6b61a5d1dc")
+		)
+		(pin "J7"
+			(uuid "7e3cefc5-fbce-5745-bcd0-f2633bbff3a3")
+		)
+		(pin "J8"
+			(uuid "8141f984-8ea8-5218-af8f-8a9a2ef416a1")
+		)
+		(pin "J9"
+			(uuid "70bca43d-f785-5260-ba1c-a00720ad9869")
 		)
 		(pin "J10"
-			(uuid "05683f69-3263-4f26-b0ce-4ad6059b76d1")
+			(uuid "9d660a32-f78e-56be-8efa-799c6b31e808")
 		)
-		(pin "J19"
-			(uuid "b2bfe520-bec5-490f-aaf9-44ea197266c6")
+		(pin "J11"
+			(uuid "d5cf5e17-a5ee-5f03-a76d-bc7dbf797c7d")
+		)
+		(pin "J12"
+			(uuid "9ad44b8d-9422-572e-a49b-76054812eda7")
+		)
+		(pin "J13"
+			(uuid "50abba87-35cc-54d9-a67e-eb0205331f93")
+		)
+		(pin "J14"
+			(uuid "d045fec0-7bd3-5917-a0a9-29824308730e")
+		)
+		(pin "J15"
+			(uuid "fbade598-7933-5ed8-b466-2159b786991c")
+		)
+		(pin "J16"
+			(uuid "cc888201-6780-50f0-8e2e-976048f9aae0")
+		)
+		(pin "J17"
+			(uuid "fe625cd5-f22a-52f9-929b-cedc88957e8b")
 		)
 		(pin "J18"
-			(uuid "125c1c10-e342-43ea-9f27-f85bc98b8339")
+			(uuid "ec45b0d4-deb4-56a2-bb69-39403a80f65f")
 		)
-		(pin "A5"
-			(uuid "7d3b8179-52d8-4f81-bbb1-a3a3cbcda523")
-		)
-		(pin "A10"
-			(uuid "1a57f799-35a3-4aee-8085-0daac203d27d")
-		)
-		(pin "A3"
-			(uuid "f8860211-24b3-41dd-abfa-ddc25b9f48aa")
+		(pin "J19"
+			(uuid "52aade52-aa9e-50e1-90f6-92e0daff6c18")
 		)
 		(pin "A1"
-			(uuid "5fa0b8e2-0855-454d-a046-1c42514b4f35")
-		)
-		(pin "A4"
-			(uuid "2092293e-91b6-4625-841c-096a440e1b6b")
-		)
-		(pin "A7"
-			(uuid "866c3bdc-10cd-4aa3-8694-28f0c0ec7d43")
-		)
-		(pin "A9"
-			(uuid "b06c4453-7659-479e-ab0d-f5db201544f9")
-		)
-		(pin "A6"
-			(uuid "c53e9852-a5f2-40f7-85bc-d669fe897da9")
-		)
-		(pin "A8"
-			(uuid "c12d744c-a17d-44d7-a0eb-ee921c092de0")
+			(uuid "2b8ec2d4-7f61-511d-91ea-c5b04f704742")
 		)
 		(pin "A2"
-			(uuid "6545f35b-6af3-4007-8ad8-615f74a73ee5")
+			(uuid "9cce216a-fffa-54c0-aa8e-a3cab9eb0607")
+		)
+		(pin "A3"
+			(uuid "4f1e2f19-dbe3-516f-a054-2ce2ee7b0f30")
+		)
+		(pin "A4"
+			(uuid "ccac282c-2bd0-5b49-9e09-a59700a79e2b")
+		)
+		(pin "A5"
+			(uuid "e9193a9a-0597-56e9-8053-e767fc154f94")
+		)
+		(pin "A6"
+			(uuid "59cc2c37-88f6-5dd0-8127-02ba3827685b")
+		)
+		(pin "A7"
+			(uuid "57d7a8bd-e256-5be4-aa8a-63e4e3b56fc6")
+		)
+		(pin "A8"
+			(uuid "ad36fa87-e3b5-5f52-b536-dc5aa26c19e8")
+		)
+		(pin "A9"
+			(uuid "d47f1937-cbec-5a38-acce-9de08684814f")
+		)
+		(pin "A10"
+			(uuid "8d49cd57-8059-5157-91ca-0e0c685c0080")
+		)
+		(pin "A11"
+			(uuid "65b112c6-7b11-5d2e-8868-a072ef241f5b")
+		)
+		(pin "A12"
+			(uuid "90897e39-af87-5819-ba0a-afa49d9d593b")
+		)
+		(pin "A13"
+			(uuid "8fc12fd2-687b-5308-a6b2-086b276feed7")
+		)
+		(pin "A14"
+			(uuid "03ec8455-86e0-527a-8d49-419c56d04292")
+		)
+		(pin "A15"
+			(uuid "65c5e677-b640-5f7b-83ea-eafcf1740d15")
+		)
+		(pin "A16"
+			(uuid "6a16608d-0aff-5e78-9b42-81fe52ba3ecf")
+		)
+		(pin "A17"
+			(uuid "3df90349-7a5f-5a95-89b7-565111d59c29")
+		)
+		(pin "A18"
+			(uuid "20bcbea1-e055-5f6d-9537-f2901e142e77")
+		)
+		(pin "A19"
+			(uuid "e6b7501f-888d-5e99-8867-54b3b5643c9f")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3029,34 +3067,111 @@
 				)
 			)
 		)
-		(pin "CLK"
-			(uuid "4cfbb142-6e9d-48a4-836a-4a81ac04f32d")
-		)
-		(pin "BUSY"
-			(uuid "ce6daba4-7ae9-4b05-b526-826f9b5039aa")
+		(pin "VCC"
+			(uuid "a23eb6f5-227a-58d7-ba72-b6e7bf6e2482")
 		)
 		(pin "GND"
-			(uuid "3fd13bc1-43b7-46df-b42b-6d9de86fbe6f")
+			(uuid "2a723203-7d9c-5ab0-aee7-461865ba3806")
 		)
 		(pin "DIN"
-			(uuid "9a0d908e-9829-48f1-a692-e786f2a1e8bf")
+			(uuid "ba4e0d14-1d6c-5beb-8388-3ee10ceb558e")
 		)
-		(pin "RST"
-			(uuid "b3792ff6-4145-494b-9911-5efe3ecf0579")
-		)
-		(pin "VCC"
-			(uuid "e44d2db2-b720-4e14-9b89-d779b51221b3")
-		)
-		(pin "DC"
-			(uuid "357bb043-1b83-4c6a-8ddf-c497fdd5f21c")
+		(pin "CLK"
+			(uuid "b6c3bdbd-22fd-5869-ae76-767668713635")
 		)
 		(pin "CS"
-			(uuid "143dcdd5-cab1-4143-bbd6-4dd04d39e7b7")
+			(uuid "1b5d124c-0bda-5fee-b112-9219b2b07a27")
+		)
+		(pin "DC"
+			(uuid "0c4f2b1f-6a1a-581e-b2e3-edc8b840cdc3")
+		)
+		(pin "RST"
+			(uuid "bffa3ba9-c9bf-5a3d-bc33-0e001d01c534")
+		)
+		(pin "BUSY"
+			(uuid "4f68a8cc-fa6e-5250-a770-601ed2e23356")
 		)
 		(instances
 			(project "Sigilv1"
 				(path "/f3084516-8a7e-4624-9c15-ca3477e318b9"
 					(reference "J2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Switch:SW_Push")
+		(at 193.04 121.92 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "825a0be2-559a-5a8f-8767-0836b89b81f0")
+		(property "Reference" "SW5"
+			(at 193.04 113.92 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "BTN_PAUSE"
+			(at 193.04 116.46 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 193.04 121.92 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 193.04 121.92 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 193.04 121.92 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "5d5bd83d-9f26-5195-b3d0-1e5e086d30b4")
+		)
+		(pin "2"
+			(uuid "18d93170-2819-5363-bb44-9f9be19de7b4")
+		)
+		(instances
+			(project "Sigilv1"
+				(path "/f3084516-8a7e-4624-9c15-ca3477e318b9"
+					(reference "SW5")
 					(unit 1)
 				)
 			)
@@ -3125,10 +3240,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "8d5ac8aa-9629-4409-8641-b8f8676ba1b4")
+			(uuid "7af05713-2d94-5fb5-9181-16925278f18c")
 		)
 		(pin "2"
-			(uuid "35be0c35-6558-4111-8e07-0c798309930e")
+			(uuid "9d48dde9-3d43-57e1-a326-5aaa63843ec4")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3202,10 +3317,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "f21aef1c-153e-42e6-8b8c-9183f54f01af")
+			(uuid "d32cbe35-119f-5c12-9408-9b79b2c4a389")
 		)
 		(pin "2"
-			(uuid "f88ae2e2-f859-419e-8b24-4c4f2b375de1")
+			(uuid "b35aa73e-e7f2-5a6a-935d-be06030eafc3")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3279,10 +3394,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "2f19ee3d-98b3-4cd3-a226-9498d1464295")
+			(uuid "7547bac8-f7f8-5249-8d66-ee1bbe0d107f")
 		)
 		(pin "2"
-			(uuid "8fb9befd-df9f-4066-bbc4-03247601248a")
+			(uuid "41cc16f9-b566-5824-97e5-159c84281134")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3356,10 +3471,10 @@
 			)
 		)
 		(pin "SIG"
-			(uuid "e82617a7-cb3f-4d42-8401-81aece6871b0")
+			(uuid "60d2b64c-4570-5bdc-84ea-d41660f21c7a")
 		)
 		(pin "GND"
-			(uuid "73866819-c8ee-4161-9eff-5008e0bf6436")
+			(uuid "d8741ff2-ea80-5cad-96e2-43f02a5d544e")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3433,10 +3548,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "44aabe32-05f7-4662-9bb7-620d3f8ba518")
+			(uuid "76b3fae3-a047-5631-add4-e14cfe51b03f")
 		)
 		(pin "2"
-			(uuid "ae421af4-a0a5-4c05-853d-903314b8da4e")
+			(uuid "02da1a8d-067b-522a-a9e6-ea49b5b9d8d7")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3510,10 +3625,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "1f80d701-271d-45d1-b284-d7090d5a8492")
+			(uuid "c1bdc73b-c351-5f05-b192-f6c91259183e")
 		)
 		(pin "2"
-			(uuid "2850156a-bc6c-4de4-9b64-92714873a171")
+			(uuid "c7ce0e1b-8d92-5e65-90d5-e9c89df98cd3")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3586,11 +3701,11 @@
 				)
 			)
 		)
-		(pin "2"
-			(uuid "0c57642f-c70d-4270-90b2-59cf42ab4aef")
-		)
 		(pin "1"
-			(uuid "82ad3ba2-2d61-4b1d-a6de-9bdfcc8b9307")
+			(uuid "48164a32-3cd4-55d3-b716-e1d40ba8c84e")
+		)
+		(pin "2"
+			(uuid "8cf3bf56-c2f9-5a1c-a6dd-c900a545b724")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3664,10 +3779,10 @@
 			)
 		)
 		(pin "1"
-			(uuid "ac5e87b0-1ed7-4965-9966-c354500f4b5c")
+			(uuid "d6fa7d26-fbcf-53d6-8891-daed622cf8ee")
 		)
 		(pin "2"
-			(uuid "8f463d34-652b-4925-b315-3eb2ed1f88f5")
+			(uuid "96690861-1a21-5471-b87e-6c6905f06372")
 		)
 		(instances
 			(project "Sigilv1"
@@ -3678,10 +3793,4 @@
 			)
 		)
 	)
-	(sheet_instances
-		(path "/"
-			(page "1")
-		)
-	)
-	(embedded_fonts no)
 )

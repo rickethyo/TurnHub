@@ -155,7 +155,7 @@ The current controls extend the original two-button layout:
 - **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
 - **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. Older schematic GPIO4 auxiliary or GPIO32 display-detect labels do not describe this firmware wiring. Remaining ergonomics should be finalized after physical playtesting.
+The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. The Rev A schematic now carries it as net BTN_PAUSE with switch SW5 to GND (2026-09-24, checked against firmware by `verify_schematic.py`; not a hardware check). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
 
 ### Display orientation direction
 
