@@ -35,8 +35,6 @@ constexpr uint32_t CLAIM_TIMEOUT_MS = 30000;
 constexpr uint32_t SESSION_TIMEOUT_MS = 8UL * 60UL * 60UL * 1000UL;
 constexpr uint8_t MAX_PENDING_CLAIMS = 6;
 constexpr uint8_t MAX_WEB_SESSIONS = MAX_PLAYERS * 2;
-constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
-constexpr char WIFI_PREF_KEY[] = "ap-pass";
 
 struct PendingClaim {
   bool used = false;
@@ -151,12 +149,8 @@ void sendJson(WebServer &server, int status, const String &body) {
   server.send(status, "application/json", body);
 }
 
-bool masterButtonPressed() {
-  return digitalRead(AtlasConfig::MASTER_BUTTON_PIN) == LOW;
-}
-
 bool requireMasterButton(WebServer &server) {
-  if (masterButtonPressed()) {
+  if (AtlasConfig::masterButtonPressed()) {
     return true;
   }
   sendJson(
@@ -680,13 +674,13 @@ void handleNetworkInfo(WebServer &server) {
   if(!requirePermission(server,TurnHubAccounts::Admin))return;
   TurnHub::OptionalPreferences networkPrefs;
   String password;
-  if (networkPrefs.begin(WIFI_PREF_NAMESPACE, true)) {
-    password = networkPrefs.getString(WIFI_PREF_KEY, "");
+  if (networkPrefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, true)) {
+    password = networkPrefs.getString(AtlasConfig::WIFI_PREF_KEY, "");
     networkPrefs.end();
   }
 
   // No owner-set password means Atlas is running on the shipped default.
-  const bool ownerSet = password.length() >= 8;
+  const bool ownerSet = password.length() >= AtlasConfig::WIFI_PASSWORD_MIN_LENGTH;
   String response = "{\"ssid\":\"";
   response += jsonEscape(String(AtlasConfig::WIFI_SSID));
   response += "\",\"security\":\"WPA2-PSK\",\"passwordConfigured\":";
@@ -698,7 +692,7 @@ void handleNetworkInfo(WebServer &server) {
   response += ",\"stations\":";
   response += String(WiFi.softAPgetStationNum());
   response += ",\"masterButton\":";
-  response += masterButtonPressed() ? "true" : "false";
+  response += AtlasConfig::masterButtonPressed() ? "true" : "false";
   response += '}';
   sendJson(server, 200, response);
 }
@@ -714,25 +708,26 @@ void handleNetworkPassword(WebServer &server) {
   }
 
   const String password = server.arg("password");
-  if (password.length() < 8 || password.length() > 63) {
+  if (password.length() < AtlasConfig::WIFI_PASSWORD_MIN_LENGTH ||
+      password.length() > AtlasConfig::WIFI_PASSWORD_MAX_LENGTH) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Wi-Fi password must be 8 to 63 characters\"}");
     return;
   }
 
   TurnHub::OptionalPreferences networkPrefs;
-  if (!networkPrefs.begin(WIFI_PREF_NAMESPACE, false)) {
+  if (!networkPrefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, false)) {
     sendJson(server, 500, "{\"ok\":false,\"error\":\"Network settings storage unavailable\"}");
     return;
   }
 
-  const String existing = networkPrefs.getString(WIFI_PREF_KEY, "");
+  const String existing = networkPrefs.getString(AtlasConfig::WIFI_PREF_KEY, "");
   if (existing == password) {
     networkPrefs.end();
     sendJson(server, 200, "{\"ok\":true,\"changed\":false,\"message\":\"Wi-Fi password is already set to that value\"}");
     return;
   }
 
-  const size_t written = networkPrefs.putString(WIFI_PREF_KEY, password);
+  const size_t written = networkPrefs.putString(AtlasConfig::WIFI_PREF_KEY, password);
   networkPrefs.end();
   if (written == 0) {
     sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save Wi-Fi password\"}");

@@ -11,8 +11,10 @@
 #include "protocol.h"
 #pragma pack(pop)
 #endif
-#include "main_internal_fwd.h"
-// Compile the actual application handlers and adapters, not copies of rules.
+#include "controller_profiles.h"
+#include "profile_store.h"
+// Compile the actual application entry point; the handler and adapter
+// modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"

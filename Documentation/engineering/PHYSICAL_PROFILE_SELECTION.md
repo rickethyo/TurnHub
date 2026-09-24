@@ -18,7 +18,7 @@ silently assigning a guest, clearing his profile, or moving his browser session.
 Current implementation evidence:
 
 - `controller_profiles.cpp::profileForSeat` reads persisted physical bindings.
-- `main.cpp::handleTableIntent` rejects Join when that profile already participates.
+- `table_intents.cpp::handleSeatMembershipIntent` rejects Join when that profile already participates.
 - Physical attachment from an authenticated browser can replace an unjoined
   Sigil's binding today, but a standalone physical picker does not exist.
 - Sigil has Pass and Action buttons and a 250x122 monochrome e-ink display.

@@ -22,6 +22,8 @@ With GCC/Clang on another host, from this directory:
 ```sh
 mkdir -p build
 c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
+    ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp \
+    ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp \
     ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp \
     ../../src/profile_statistics.cpp ../../src/stats_page.cpp \
     ../../src/profile_login_page.cpp \

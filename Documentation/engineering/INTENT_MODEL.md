@@ -159,8 +159,10 @@ Timers submit System intents for deferred PASS commitment and countdown completi
 The current bindings and validation evidence are recorded in
 [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md).
 
-Application handlers and their private transition helpers remain in `main.cpp`;
-this migration removes interface-owned mutations without a larger module rewrite.
+Application handlers and their private transition helpers live in the Atlas
+application modules declared by `Atlas/include/atlas_app.h` (`gameplay_intents.cpp`,
+`table_intents.cpp`, `moderation_intent.cpp`); `main.cpp` binds them. Adapters live in
+`sigil_input.cpp`, `web_adapters.cpp` and `front_panel.cpp`.
 The native harness compiles those actual handlers with the real GameEngine/Lobby.
 Transport authentication, packet decoding, GPIO debounce, and held/chord/suppression
 bookkeeping remain outside the game rules. Presentation side effects remain adjacent

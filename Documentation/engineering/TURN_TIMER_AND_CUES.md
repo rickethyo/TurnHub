@@ -109,7 +109,7 @@ Atlas state --selectSigilLedState()--> SigilLedState --LedCueProfile--> blue/red
 - New: `TurnWarning` (one short 1.6 kHz chirp), `TimerExpired` (two low notes; rhythm
   differs from the warning, not only pitch), `ActionRequired` (defined, not yet
   emitted by any handler).
-- Timer cues are one-shot: `updateTurnTimerCues()` in `main.cpp` watches phase
+- Timer cues are one-shot: `updateTurnTimerCues()` in `gameplay_intents.cpp` watches phase
   transitions of the running turn and plays each cue once per turn on the active
   Sigil. Pause keeps the last phase, so resuming does not repeat a cue.
 - **Not implemented:** a persisted or user-facing audio on/off setting. Whether it

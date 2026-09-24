@@ -104,6 +104,15 @@ constexpr uint32_t ARM_WIN_ON_PAUSE = 1U;
 // secondary seat. Lifecycle module requests use playerNumber=0 (unresolved).
 enum class StarterSelection : int32_t { ExactSeat = 0, CycleModule = 1, Random = 2 };
 
+// Moderate payload.value. moderatorId and profileId name the accounts.
+enum class ModerationAction : int32_t {
+  ResetConnections = 0,  // Force the target to sign in again.
+  RemovePlayer = 1,      // Leave the lobby, or concede an active game.
+  PassTurn = 2,          // Pass for the active player immediately.
+  MuteNudges = 3,
+  UnmuteNudges = 4,
+};
+
 struct IntentPayload {
   uint8_t targetPlayer = 0;
   int32_t value = 0;

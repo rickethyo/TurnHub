@@ -22,7 +22,19 @@ constexpr uint8_t WIFI_CHANNEL = 6;
 // WifiCredentials.DEFAULT_ATLAS_PASSPHRASE in the Android app and
 // protocol/http-v1.md.
 constexpr char WIFI_DEFAULT_PASSWORD[] = "TurnHub-Setup";
+// NVS location of the owner-set AP password. The default above is never
+// written here, so erasing NVS returns Atlas to the shipped default.
+constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
+constexpr char WIFI_PREF_KEY[] = "ap-pass";
+// WPA2-PSK passphrase length limits.
+constexpr size_t WIFI_PASSWORD_MIN_LENGTH = 8;
+constexpr size_t WIFI_PASSWORD_MAX_LENGTH = 63;
 
 constexpr uint16_t HTTP_PORT = 80;
+
+// The master button is active-low (INPUT_PULLUP).
+inline bool masterButtonPressed() {
+  return digitalRead(MASTER_BUTTON_PIN) == LOW;
+}
 
 }  // namespace AtlasConfig

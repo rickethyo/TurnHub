@@ -83,13 +83,13 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 transport adapter (ESP-NOW packet / HTTP handler / GPIO)
   -> TurnHub::Intent {type, actor, payload}        include/intent.h
   -> IntentDispatcher (fixed table, one handler per IntentType; a second bind is rejected)
-  -> handle*Intent in main.cpp  -> GameEngine / Lobby mutation
+  -> handle*Intent (Atlas/src/*_intents.cpp) -> GameEngine / Lobby mutation
   -> observer hook -> checkpointGame() (recovery record)
 ```
-- **Adapters stay thin.** Adapters such as `handleWebControl`, `handlePass` and `processSigilEvents` must only build Intents. `audit_adapters.py` fails if an adapter calls `game.*`/`lobby.*` mutators, assigns `hubState`/`pendingPass` and similar state, or calls transition helpers directly. New gameplay actions need an `IntentType`, a handler bound in `main.cpp` setup, and host scenarios.
-- **Ownership layout:** handler bindings live in `main.cpp` (the large, still-monolithic translation unit). `GameEngine` owns turn, timer, life and win state. `Lobby` owns participants, seats and starter selection. `web_api.cpp` holds the HTTP surface, and `sigil_bus.cpp` holds the ESP-NOW transport.
+- **Adapters stay thin.** Adapters such as `handleWebControl`, `handlePass` and `processSigilEvents` must only build Intents. `audit_adapters.py` fails if an adapter calls `game.*`/`lobby.*` mutators, assigns `hubState`/`pendingPass` and similar state, or calls transition helpers directly. Adapters live in `sigil_input.cpp`, `web_adapters.cpp` and `front_panel.cpp`; list any new one in `audit_adapters.py`. New gameplay actions need an `IntentType`, a handler bound in `main.cpp`'s `configureIntentHandlers()`, and host scenarios.
+- **Ownership layout:** `include/atlas_app.h` declares the shared runtime objects and table-decision state (`namespace TurnHubAtlas`) and maps each module: `main.cpp` (object definitions, handler bindings, networking, `setup`/`loop`), `app_context.cpp` (seat lookups, Intent builders), `gameplay_intents.cpp` (PASS, pause, concede, win, life/Commander, timer cues), `table_intents.cpp` (lobby, start, reset, elimination, pairing, settings, lifecycle transitions) and `moderation_intent.cpp`. `GameEngine` owns turn, timer, life and win state. `Lobby` owns participants, seats and starter selection. `web_api.cpp` holds the HTTP surface, and `sigil_bus.cpp` holds the ESP-NOW transport.
 - **Serial output:** Atlas code logs through `TurnHub::serialLog` (`serial_log.h`), not `Serial.print*`, so every line also reaches the RAM log a Developer can download (`GET /api/diagnostics/log`). Keep secrets out of it with `printlnRedacted`.
-- **Forward declarations:** `main_internal_fwd.h` is force-included via `build_src_flags` so handlers can reference helpers defined later in `main.cpp`.
+- **Host tests and `main.cpp`:** `scenarios.cpp` `#include`s `main.cpp` and links the other application modules, so tests see the same `TurnHubAtlas` globals as firmware.
 
 **Identity model:** Profile (persistent: ID, name, PIN hash, stats) → Participant (one per person at the current table) → controller assignments (physical Sigil seat A/B, browser sessions, future app). Hardware identity is never player identity. Changing controllers must not replace the participant or move its stats. Multiple browser sessions can control one participant.
 

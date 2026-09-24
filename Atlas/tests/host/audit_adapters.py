@@ -1,26 +1,56 @@
-"""Regression guard for the current Atlas controller/application boundary."""
+"""Regression guard for the Atlas controller/application boundary.
+
+Transport adapters (Sigil radio events, browser callbacks, front-panel
+buttons, loop timers) must only build Intents and dispatch them. This check
+fails if an adapter body mutates canonical game/lobby state, assigns
+table-decision state, calls a lifecycle transition helper, or calls an
+Intent handler directly instead of going through the dispatcher.
+"""
 from pathlib import Path
 import re
 
-source = (Path(__file__).resolve().parents[2] / "src/main.cpp").read_text()
-adapters = ["handleWebControl", "handleProfileControl", "configureGame", "changeLife", "changeCounter", "moderateAccount", "handleLobbyShort", "handlePass", "handleActionDown",
-            "handleActionUp", "handleActionShort", "handleActionLong", "handleActionWin",
-            "processSigilEvents", "updateMasterButton", "updateCountdown", "updatePendingPass"]
-for name in adapters:
-    match = re.search(r"\b(?:void|bool) " + name + r"\([^)]*\)\s*\{", source)
-    assert match, name
-    start = match.end()
+SRC = Path(__file__).resolve().parents[2] / "src"
+
+# Adapter functions, grouped by the module that must define them.
+ADAPTERS = {
+    "sigil_input.cpp": ["handleLobbyShort", "handlePass", "handleActionDown", "handleActionUp",
+                        "handleActionShort", "handleActionLong", "handleActionWin",
+                        "processSigilEvents", "respondToWinClaim", "dispatchPauseOrResume",
+                        "connectionBlocked"],
+    "web_adapters.cpp": ["handleWebControl", "handleProfileControl", "configureGame",
+                         "changeLife", "changeCounter", "moderateAccount",
+                         "dispatchBrowserSeatIntent"],
+    "front_panel.cpp": ["updateMasterButton", "updatePairButton"],
+    "gameplay_intents.cpp": ["updatePendingPass"],
+    "table_intents.cpp": ["updateCountdown"],
+}
+
+FORBIDDEN = [
+    r"game\.(?:start|reset|passTurn|pause|resume|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
+    r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm|replaceController)\s*\(",
+    r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs|nextGameSettings)\s*=(?!=)",
+    r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|finishGameState|clearDecisionState|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule)\s*\(",
+    r"\bhandle\w+Intent\s*\(",
+]
+
+
+def function_body(source: str, name: str) -> str:
+    matches = list(re.finditer(r"\b(?:void|bool) " + name + r"\([^)]*\)\s*\{", source))
+    assert len(matches) == 1, f"{name}: expected one definition, found {len(matches)}"
+    start = matches[0].end()
     depth, end = 1, start
     while depth:
         depth += (source[end] == "{") - (source[end] == "}")
         end += 1
-    body = source[start:end - 1]
-    forbidden = [
-        r"game\.(?:start|reset|passTurn|pause|resume|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
-        r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm)\s*\(",
-        r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs)\s*=(?!=)",
-        r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule|requestPass)\s*\(",
-    ]
-    for pattern in forbidden:
-        assert not re.search(pattern, body), f"{name} bypasses dispatcher: {pattern}"
-print(f"PASS: {len(adapters)} adapters have no direct canonical mutations or transition calls")
+    return source[start:end - 1]
+
+
+count = 0
+for filename, names in ADAPTERS.items():
+    source = (SRC / filename).read_text()
+    for name in names:
+        body = function_body(source, name)
+        for pattern in FORBIDDEN:
+            assert not re.search(pattern, body), f"{filename}:{name} bypasses dispatcher: {pattern}"
+        count += 1
+print(f"PASS: {count} adapters have no direct canonical mutations or transition calls")

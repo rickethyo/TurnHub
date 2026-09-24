@@ -7,7 +7,7 @@ Observed during Atlas intent-foundation play testing on 2026-09-19:
 
 ## Current code-path finding
 
-A successful PASS commit always reaches the audio request path in `Atlas/src/main.cpp`:
+A successful PASS commit always reaches the audio request path in `handleCommitPassIntent` (`Atlas/src/gameplay_intents.cpp`; `main.cpp` at the time of this observation):
 
 - `audio.sameModulePass(...)` when the next player shares the same Sigil module.
 - `audio.turnPass(...)` otherwise.
