@@ -134,6 +134,22 @@ class HttpAtlasTransportTest {
     }
 
     @Test
+    fun `reads and saves Sigil accessibility for the session`() = runBlocking {
+        routes["/api/session/accessibility"] = Triple(200, Fixtures.text("accessibility.response.json"), 0)
+        assertEquals(3000, transport().getAccessibility("secret").longPressMs)
+
+        transport().saveAccessibility("secret", true, com.turnhub.android.protocol.LedStyle.MONOCHROME_SAFE, 2500, 7000)
+
+        assertEquals(
+            listOf(
+                "GET /api/session/accessibility secret",
+                "POST /api/session/accessibility secret sigilSound=1&ledStyle=monochrome-safe&longPressMs=2500&winHoldMs=7000",
+            ),
+            received,
+        )
+    }
+
+    @Test
     fun `a stalled Atlas times out`() {
         routes["/api/v1/state"] = Triple(200, Fixtures.text("running.response.json"), 1_500)
         val failure = failureOf { transport(readTimeoutMs = 200).getState() }

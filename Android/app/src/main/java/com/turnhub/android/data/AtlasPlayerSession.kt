@@ -1,6 +1,8 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.protocol.GameSettingsInfo
+import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SessionInfo
 import kotlinx.coroutines.CancellationException
@@ -49,6 +51,10 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     /** The next match's setup, read only while this session is the table host. */
     private val _gameSettings = MutableStateFlow<GameSettingsInfo?>(null)
     val gameSettings: StateFlow<GameSettingsInfo?> = _gameSettings.asStateFlow()
+
+    /** The signed-in player's Sigil accessibility preferences, once read with [loadAccessibility]. */
+    private val _accessibility = MutableStateFlow<AccessibilitySettings?>(null)
+    val accessibility: StateFlow<AccessibilitySettings?> = _accessibility.asStateFlow()
 
     private val mutex = Mutex()
     private var endpoint: AtlasEndpoint? = null
@@ -103,6 +109,19 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         ActionFeedback(message ?: "Turn timer saved on Atlas.", isError = false)
     }
 
+    /** Reads the profile's Sigil accessibility preferences from Atlas into [accessibility]. */
+    suspend fun loadAccessibility() = act {
+        _accessibility.value = transports.create(it.first).getAccessibility(it.second)
+        null
+    }
+
+    /** Atlas validates, stores them with the profile and restyles the player's Sigil. */
+    suspend fun saveAccessibility(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) = act {
+        _accessibility.value = transports.create(it.first)
+            .saveAccessibility(it.second, sigilSound, ledStyle, longPressMs, winHoldMs)
+        ActionFeedback("Sigil accessibility saved. Your Sigil updates within a few seconds.", isError = false)
+    }
+
     /** Revokes the token on Atlas (best effort) and forgets it here. */
     suspend fun signOut() {
         mutex.withLock {
@@ -134,11 +153,12 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         endpoint = null
         token = null
         _gameSettings.value = null
+        _accessibility.value = null
         _state.value = PlayerSessionState.SignedOut
     }
 
-    /** Runs one authenticated action: serialized, never retried, outcome -> [feedback]. */
-    private suspend fun act(block: suspend (Pair<AtlasEndpoint, String>) -> ActionFeedback) {
+    /** Runs one authenticated action: serialized, never retried, outcome -> [feedback] (null clears it). */
+    private suspend fun act(block: suspend (Pair<AtlasEndpoint, String>) -> ActionFeedback?) {
         if (!mutex.tryLock()) return // Another action is in flight: ignore the extra tap.
         try {
             val endpoint = endpoint ?: return

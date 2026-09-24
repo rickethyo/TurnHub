@@ -1,5 +1,6 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.data.ActionFeedback
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.PlayerSessionState
@@ -31,6 +32,8 @@ data class HomeUiState(
     val wifiPrompt: WifiPrompt? = null,
     val player: PlayerPanel? = null,
     val signIn: SignInPrompt? = null,
+    /** The Sigil accessibility editor, while open. */
+    val accessibility: AccessibilityPrompt? = null,
 ) {
     /** The endpoint can only be changed while nothing is open or opening. */
     val endpointEditable: Boolean
@@ -145,6 +148,16 @@ data class TurnTimerEditor(
         return ms.takeIf { seconds > 0 && it in minMs..maxMs }
     }
 }
+
+/**
+ * Editing the signed-in player's Sigil accessibility. [settings] is Atlas's
+ * copy (null while it loads or if reading failed; see [error]).
+ */
+data class AccessibilityPrompt(
+    val settings: AccessibilitySettings? = null,
+    val busy: Boolean = false,
+    val error: String? = null,
+)
 
 data class SignInPrompt(
     val loading: Boolean = false,

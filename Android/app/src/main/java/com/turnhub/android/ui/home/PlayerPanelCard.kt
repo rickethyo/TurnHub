@@ -38,6 +38,7 @@ data class PlayerPanelActions(
     val onPass: () -> Unit = {},
     val onPauseResume: () -> Unit = {},
     val onTurnTimerChosen: (Long) -> Unit = {},
+    val onAccessibility: () -> Unit = {},
     val onSignOut: () -> Unit = {},
     val onFeedbackDismiss: () -> Unit = {},
 )
@@ -66,6 +67,7 @@ fun PlayerPanelCard(panel: PlayerPanel, actions: PlayerPanelActions, modifier: M
                 )
                 ControlButtons(panel, actions)
                 panel.timerEditor?.let { TurnTimerSetting(it, enabled = !panel.busy, onChosen = actions.onTurnTimerChosen) }
+                OutlinedButton(onClick = actions.onAccessibility, enabled = !panel.busy) { Text("Sigil accessibility") }
                 TextButton(onClick = actions.onSignOut, enabled = !panel.busy) {
                     Text(signOutLabel(panel.session))
                 }

@@ -1158,6 +1158,7 @@ static void accessibilityPreferences() {
   assert(request("/api/session/accessibility", alice,
       {{"sigilSound", "0"}, {"longPressMs", "3000"}, {"winHoldMs", "6000"}}) == 200);
   assert(server.body.find("\"ledStyle\":\"monochrome-safe\"") != std::string::npos);
+  saveClientFixture("accessibility", server.body);
   const AccessibilityPrefs saved = ProfileFixture::profiles[aliceId.c_str()].accessibility;
   assert(!saved.sigilSound && saved.ledStyle == LedStyle::MonochromeSafe &&
       saved.longPressMs == 3000 && saved.winHoldMs == 6000);

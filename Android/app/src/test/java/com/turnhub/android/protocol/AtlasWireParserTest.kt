@@ -80,6 +80,32 @@ class AtlasWireParserTest {
     }
 
     @Test
+    fun `parses the shared accessibility fixture`() {
+        val settings = AtlasWireParser.parseAccessibility(Fixtures.text("accessibility.response.json"))
+
+        assertEquals(false, settings.sigilSound)
+        assertEquals(LedStyle.REDUCED_MOTION, settings.ledStyle)
+        assertEquals(3000 to 6000, settings.longPressMs to settings.winHoldMs)
+        assertTrue(settings.stored)
+        assertEquals((1000..4000 step 250).toList(), settings.limits.longPressChoices())
+        assertTrue(settings.limits.allows(2000, 5000))
+        assertEquals(false, settings.limits.allows(4000, 4500))
+    }
+
+    @Test
+    fun `rejects unknown light styles and impossible hold times`() {
+        val fixture = Fixtures.json("accessibility.response.json")
+        for (edit in listOf<(org.json.JSONObject) -> Unit>(
+            { it.put("ledStyle", "sparkly") },
+            { it.put("winHoldMs", 3500) },
+            { it.remove("limits") },
+        )) {
+            val body = org.json.JSONObject(fixture.toString()).also(edit).toString()
+            assertThrows(AtlasWireException.Malformed::class.java) { AtlasWireParser.parseAccessibility(body) }
+        }
+    }
+
+    @Test
     fun `parses game settings with timer choices`() {
         val body = """{"gameProfile":"mtg","startingLife":20,"turnTimerMs":120000,
             "turnTimer":{"presetsMs":[0,60000,120000,180000,300000],"minMs":15000,"maxMs":3600000,

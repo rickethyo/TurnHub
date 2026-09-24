@@ -1,8 +1,10 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.ControlResult
 import com.turnhub.android.protocol.GameSettingsInfo
+import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SeatEntry
@@ -82,6 +84,22 @@ interface AtlasSessionTransport {
      * in the lobby. Returns Atlas's message; a refusal throws [AtlasFailure.Rejected].
      */
     suspend fun setTurnTimer(token: String, turnTimerMs: Long): String?
+
+    /** `GET /api/session/accessibility`: the signed-in profile's Sigil accessibility preferences. */
+    suspend fun getAccessibility(token: String): AccessibilitySettings
+
+    /**
+     * `POST /api/session/accessibility`. Atlas validates and stores them with
+     * the profile, then restyles the player's Sigil. Returns what Atlas saved;
+     * a refusal throws [AtlasFailure.Rejected].
+     */
+    suspend fun saveAccessibility(
+        token: String,
+        sigilSound: Boolean,
+        ledStyle: LedStyle,
+        longPressMs: Int,
+        winHoldMs: Int,
+    ): AccessibilitySettings
 
     /** `POST /api/session/logout`: revokes this token on Atlas. */
     suspend fun logout(token: String)

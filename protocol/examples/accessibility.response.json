@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "stored": true,
+  "sigilSound": false,
+  "ledStyle": "reduced-motion",
+  "longPressMs": 3000,
+  "winHoldMs": 6000,
+  "limits": {
+    "longPressMinMs": 1000,
+    "longPressMaxMs": 4000,
+    "winHoldMinMs": 3000,
+    "winHoldMaxMs": 10000,
+    "minGapMs": 1000,
+    "stepMs": 250
+  }
+}

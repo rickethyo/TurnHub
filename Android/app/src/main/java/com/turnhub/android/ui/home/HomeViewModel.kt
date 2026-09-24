@@ -1,5 +1,7 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.protocol.AccessibilitySettings
+import com.turnhub.android.protocol.LedStyle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -62,6 +64,7 @@ class HomeViewModel(
         val wifiPrompt: WifiPrompt? = null,
         val joiningSsid: String? = null,
         val signIn: SignInPrompt? = null,
+        val accessibilityOpen: Boolean = false,
     )
 
     private val local = MutableStateFlow(LocalState())
@@ -74,6 +77,7 @@ class HomeViewModel(
         val busy: Boolean,
         val feedback: ActionFeedback?,
         val gameSettings: GameSettingsInfo?,
+        val accessibility: AccessibilitySettings?,
     )
 
     private val sessionFlows = combine(
@@ -81,6 +85,7 @@ class HomeViewModel(
         playerSession.busy,
         playerSession.feedback,
         playerSession.gameSettings,
+        playerSession.accessibility,
         ::SessionView,
     )
 
@@ -90,7 +95,7 @@ class HomeViewModel(
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback, gameSettings) ->
+    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback, gameSettings, accessibility) ->
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
@@ -103,6 +108,15 @@ class HomeViewModel(
             wifiPrompt = screen.wifiPrompt,
             player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback, gameSettings) },
             signIn = screen.signIn,
+            accessibility = if (screen.accessibilityOpen && session is PlayerSessionState.SignedIn) {
+                AccessibilityPrompt(
+                    settings = accessibility,
+                    busy = busy,
+                    error = feedback?.takeIf { it.isError }?.message,
+                )
+            } else {
+                null
+            },
         )
     }.stateIn(
         scope = viewModelScope,
@@ -192,6 +206,25 @@ class HomeViewModel(
     /** Host only; Atlas re-validates the value and the host/lobby rule. */
     fun onTurnTimerChosen(turnTimerMs: Long) {
         viewModelScope.launch { playerSession.setTurnTimer(turnTimerMs) }
+    }
+
+    /** Opens the Sigil accessibility editor and reads the profile's current choices from Atlas. */
+    fun onAccessibilityClicked() {
+        playerSession.clearFeedback()
+        local.update { it.copy(accessibilityOpen = true) }
+        viewModelScope.launch { playerSession.loadAccessibility() }
+    }
+
+    /** Atlas validates and stores the choices; the editor closes once Atlas accepts them. */
+    fun onAccessibilitySaved(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) {
+        viewModelScope.launch {
+            playerSession.saveAccessibility(sigilSound, ledStyle, longPressMs, winHoldMs)
+            if (playerSession.feedback.value?.isError != true) local.update { it.copy(accessibilityOpen = false) }
+        }
+    }
+
+    fun onAccessibilityDismissed() {
+        local.update { it.copy(accessibilityOpen = false) }
     }
 
     fun onSignOutClicked() {

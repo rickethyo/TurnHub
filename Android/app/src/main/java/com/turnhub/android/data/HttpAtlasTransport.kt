@@ -1,8 +1,10 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.ControlResult
 import com.turnhub.android.protocol.GameSettingsInfo
+import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SeatEntry
@@ -148,6 +150,34 @@ class HttpAtlasTransport(
         )
         requireOk(response, "Atlas did not save the turn timer")
         return parse { AtlasWireParser.parseControlResult(response.body).message }
+    }
+
+    override suspend fun getAccessibility(token: String): AccessibilitySettings {
+        val response = request("GET", "/api/session/accessibility", headers = auth(token))
+        requireOk(response, "Could not read your Sigil accessibility settings")
+        return parse { AtlasWireParser.parseAccessibility(response.body) }
+    }
+
+    override suspend fun saveAccessibility(
+        token: String,
+        sigilSound: Boolean,
+        ledStyle: LedStyle,
+        longPressMs: Int,
+        winHoldMs: Int,
+    ): AccessibilitySettings {
+        val response = request(
+            "POST",
+            "/api/session/accessibility",
+            headers = auth(token),
+            formBody = form(
+                "sigilSound" to if (sigilSound) "1" else "0",
+                "ledStyle" to ledStyle.wire,
+                "longPressMs" to longPressMs.toString(),
+                "winHoldMs" to winHoldMs.toString(),
+            ),
+        )
+        requireOk(response, "Atlas did not save your Sigil accessibility settings")
+        return parse { AtlasWireParser.parseAccessibility(response.body) }
     }
 
     override suspend fun logout(token: String) {

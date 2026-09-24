@@ -102,11 +102,14 @@ class MainActivity : ComponentActivity() {
                             onPass = homeViewModel::onPassClicked,
                             onPauseResume = homeViewModel::onPauseResumeClicked,
                             onTurnTimerChosen = homeViewModel::onTurnTimerChosen,
+                            onAccessibility = homeViewModel::onAccessibilityClicked,
                             onSignOut = homeViewModel::onSignOutClicked,
                             onFeedbackDismiss = homeViewModel::onFeedbackDismissed,
                         ),
                         onSignInSubmit = homeViewModel::onSignInSubmitted,
                         onSignInDismiss = homeViewModel::onSignInDismissed,
+                        onAccessibilitySave = homeViewModel::onAccessibilitySaved,
+                        onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
                     )
                 }
             }

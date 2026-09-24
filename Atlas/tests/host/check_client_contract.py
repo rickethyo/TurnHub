@@ -50,6 +50,7 @@ def check(value, schema):
 def validate(path):
     value = json.loads(path.read_text())
     schema_name = ("info-v1" if "deviceType" in value else
+                   "accessibility-v1" if "ledStyle" in value else
                    "control-result-v1" if "ok" in value else "state-v0.1")
     check(value, json.loads((PROTOCOL / (schema_name + ".schema.json")).read_text()))
     if schema_name == "state-v0.1":
@@ -59,13 +60,17 @@ def validate(path):
             assert value[field] is None or value[field] in numbers
         for player in value["players"]:
             assert all(d["sourcePlayer"] in numbers for d in player["commanderDamage"])
+    elif schema_name == "accessibility-v1":
+        limits = value["limits"]
+        assert value["winHoldMs"] >= value["longPressMs"] + limits["minGapMs"]
+        assert value["longPressMs"] % limits["stepMs"] == 0 == value["winHoldMs"] % limits["stepMs"]
     elif schema_name == "control-result-v1":
         assert value["ok"] == (value["status"] == "ACCEPTED")
         assert ("message" if value["ok"] else "error") in value
 
 
 generated = sorted((Path(__file__).parent / "build").glob("client-*.json"))
-assert len(generated) >= 7, "Run native scenarios first"
+assert len(generated) >= 8, "Run native scenarios first"
 examples = sorted((PROTOCOL / "examples").glob("*.response.json"))
 for path in generated + examples:
     validate(path)

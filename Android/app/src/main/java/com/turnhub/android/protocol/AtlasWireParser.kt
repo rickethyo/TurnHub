@@ -159,6 +159,33 @@ object AtlasWireParser {
         }
     }
 
+    /** `GET/POST /api/session/accessibility`. */
+    fun parseAccessibility(body: String): AccessibilitySettings {
+        val root = parseObject(body) { AtlasWireException.Malformed("Accessibility response is not JSON") }
+        return wrap {
+            val limits = root.obj("limits")
+            val holdLimits = HoldLimits(
+                longPressMinMs = limits.int("longPressMinMs"),
+                longPressMaxMs = limits.int("longPressMaxMs"),
+                winHoldMinMs = limits.int("winHoldMinMs"),
+                winHoldMaxMs = limits.int("winHoldMaxMs"),
+                minGapMs = limits.int("minGapMs"),
+                stepMs = limits.int("stepMs"),
+            )
+            if (holdLimits.stepMs <= 0) malformed("Hold step must be positive")
+            val settings = AccessibilitySettings(
+                sigilSound = root.boolean("sigilSound"),
+                ledStyle = root.string("ledStyle").let { LedStyle.fromWire(it) ?: malformed("Unknown light style '$it'") },
+                longPressMs = root.int("longPressMs"),
+                winHoldMs = root.int("winHoldMs"),
+                stored = root.boolean("stored"),
+                limits = holdLimits,
+            )
+            if (!holdLimits.allows(settings.longPressMs, settings.winHoldMs)) malformed("Hold times are out of range")
+            settings
+        }
+    }
+
     /** Control results and plain `{"ok":..,"error":..}` bodies; lenient because error shapes vary. */
     fun parseControlResult(body: String): ControlResult {
         val root = parseObject(body) { AtlasWireException.Malformed("Control response is not JSON") }

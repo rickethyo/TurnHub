@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TurnHub per-player Sigil accessibility preferences (GET/POST /api/session/accessibility)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "stored",
+    "sigilSound",
+    "ledStyle",
+    "longPressMs",
+    "winHoldMs",
+    "limits"
+  ],
+  "properties": {
+    "ok": {
+      "const": true
+    },
+    "stored": {
+      "type": "boolean",
+      "description": "False when the saved record could not be read and defaults are shown."
+    },
+    "sigilSound": {
+      "type": "boolean"
+    },
+    "ledStyle": {
+      "enum": [
+        "standard",
+        "reduced-motion",
+        "monochrome-safe"
+      ]
+    },
+    "longPressMs": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 4000
+    },
+    "winHoldMs": {
+      "type": "integer",
+      "minimum": 3000,
+      "maximum": 10000
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "longPressMinMs",
+        "longPressMaxMs",
+        "winHoldMinMs",
+        "winHoldMaxMs",
+        "minGapMs",
+        "stepMs"
+      ],
+      "properties": {
+        "longPressMinMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "longPressMaxMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "winHoldMinMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "winHoldMaxMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "minGapMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "stepMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      }
+    }
+  }
+}

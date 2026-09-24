@@ -1,5 +1,8 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.protocol.AccessibilitySettings
+import com.turnhub.android.protocol.AtlasWireParser
+import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasFailure
 import com.turnhub.android.data.AtlasPlayerSession
@@ -126,6 +129,26 @@ private class FakeSessionTransport : AtlasSessionTransport {
     override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? {
         calls += "timer $turnTimerMs"
         return null
+    }
+    var accessibility = AtlasWireParser.parseAccessibility(Fixtures.text("accessibility.response.json"))
+    var accessibilityFailure: AtlasException? = null
+    override suspend fun getAccessibility(token: String): AccessibilitySettings {
+        calls += "read accessibility"
+        return accessibility
+    }
+    override suspend fun saveAccessibility(
+        token: String,
+        sigilSound: Boolean,
+        ledStyle: LedStyle,
+        longPressMs: Int,
+        winHoldMs: Int,
+    ): AccessibilitySettings {
+        calls += "save accessibility $sigilSound ${ledStyle.wire} $longPressMs $winHoldMs"
+        accessibilityFailure?.let { throw it }
+        accessibility = accessibility.copy(
+            sigilSound = sigilSound, ledStyle = ledStyle, longPressMs = longPressMs, winHoldMs = winHoldMs,
+        )
+        return accessibility
     }
     override suspend fun logout(token: String) {
         calls += "logout"
@@ -443,6 +466,48 @@ class HomeViewModelTest {
 
         assertEquals("timer 120000", sessionTransport.calls.last())
         assertEquals("Turn timer saved on Atlas.", viewModel.uiState.value.player!!.feedback!!.message)
+    }
+
+    @Test
+    fun `a signed-in player edits Sigil accessibility through Atlas`() = runTest {
+        val viewModel = connectedViewModel(seatedLobby(2))
+        viewModel.signIn()
+
+        viewModel.onAccessibilityClicked()
+        val prompt = viewModel.uiState.value.accessibility!!
+        assertEquals(LedStyle.REDUCED_MOTION, prompt.settings!!.ledStyle)
+        assertEquals("read accessibility", sessionTransport.calls.last())
+
+        viewModel.onAccessibilitySaved(true, LedStyle.MONOCHROME_SAFE, 2500, 7000)
+
+        assertEquals("save accessibility true monochrome-safe 2500 7000", sessionTransport.calls.last())
+        assertNull(viewModel.uiState.value.accessibility) // Closed once Atlas accepted it.
+        assertEquals(false, viewModel.uiState.value.player!!.feedback!!.isError)
+    }
+
+    @Test
+    fun `a refused accessibility save stays open with Atlas's reason`() = runTest {
+        val viewModel = connectedViewModel(seatedLobby(2))
+        viewModel.signIn()
+        viewModel.onAccessibilityClicked()
+        sessionTransport.accessibilityFailure = AtlasException(AtlasFailure.Rejected("Hold times are out of range"))
+
+        viewModel.onAccessibilitySaved(true, LedStyle.STANDARD, 2000, 5000)
+
+        val prompt = viewModel.uiState.value.accessibility!!
+        assertEquals("Hold times are out of range", prompt.error)
+        assertEquals(LedStyle.REDUCED_MOTION, prompt.settings!!.ledStyle) // Atlas's copy is unchanged.
+        viewModel.onAccessibilityDismissed()
+        assertNull(viewModel.uiState.value.accessibility)
+    }
+
+    @Test
+    fun `signing out closes the accessibility editor`() = runTest {
+        val viewModel = connectedViewModel(seatedLobby(2))
+        viewModel.signIn()
+        viewModel.onAccessibilityClicked()
+        viewModel.onSignOutClicked()
+        assertNull(viewModel.uiState.value.accessibility)
     }
 
     @Test
