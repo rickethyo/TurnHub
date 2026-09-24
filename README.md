@@ -3,7 +3,7 @@
 TurnHub is a local-first tabletop game-management platform built around an authoritative **Atlas** table controller and player-facing **Sigils**. It began as a physical turn timer and is evolving into a mixed hardware/software platform where physical Sigils, browser controllers, and future native apps all request the same semantic actions from Atlas.
 
 **Current development baseline:** ESP32 Atlas firmware **0.6.0-dev** on `master`.
-The older Python/Raspberry Pi implementation under `Controller/` remains a historical and behavioral reference. It is not the current runtime and some of its features have not yet been reimplemented on ESP32.
+Earlier Python/Raspberry Pi generations are recorded in [Generation History](Documentation/engineering/GENERATION_HISTORY.md). They are not part of this repository or the current runtime.
 
 See [Atlas/README.md](Atlas/README.md) for the current firmware/runtime details, [Documentation/engineering](Documentation/engineering/README.md) for the engineering record, staged work, architectural invariants, and verification backlog, and [Product Principles](Documentation/PRODUCT_PRINCIPLES.md) for the durable product values that guide design and commercialization decisions.
 
@@ -80,7 +80,7 @@ The current verified development wiring is maintained in [Hardware Reference](Do
 - Physical profile selection on reusable Sigils.
 - A software path for a dedicated auxiliary Action/Win control before final GPIO wiring.
 - Bench validation of the implemented Atlas-owned pairing records.
-- A 30-second deliberate pairing window triggered by physical Pair buttons.
+- A 15-second deliberate pairing window triggered by physical Pair buttons.
 - No automatic pairing on boot; saved devices reconnect to their paired Atlas.
 - Additional field-test Sigils and protective prototype enclosures.
 
@@ -97,7 +97,7 @@ A known remaining gap is standalone physical profile selection. A Sigil currentl
 ## Pairing status
 
 Manual prototype pairing is implemented, with hardware acceptance pending.
-Press Atlas Pair in the lobby and Sigil Pair within the 30-second window.
+Press Atlas Pair in the lobby and Sigil Pair within the 15-second window.
 Both devices persist their association; booting an unpaired Sigil no longer
 broadcasts discovery or creates an association. Saved devices reconnect directly.
 This is MAC-based association on the existing unencrypted experimental transport,

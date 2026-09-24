@@ -1,7 +1,7 @@
 # TurnHub Protocol and Pairing
 
 Current pairing update (2026-09-22): physical buttons are owner-verified and manual
-30-second pairing with persistent MAC associations is now implemented. The boot
+15-second pairing with persistent MAC associations is now implemented. The boot
 pairing fallback and visual mock are superseded. Radio bench acceptance and
 forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
 
@@ -51,7 +51,7 @@ This protocol was simple, debuggable, and appropriate for a bench prototype, but
 
 **Status:** Implemented experimental transport/protocol on the current migration branch
 
-The migration introduced compact binary packets and a shared `protocol.h` used by Atlas and Sigil firmware.
+The migration introduced compact binary packets and a shared `protocol.h` used by Atlas and Sigil firmware. Its single source is `shared/include/protocol.h`; both PlatformIO projects and the Atlas host tests add `shared/include` to their include path.
 
 Current/experimental packet concepts include:
 
@@ -78,12 +78,12 @@ The new packed ESP-NOW datagram is 110 bytes, with little-endian integers:
 
 | Offset | Field |
 | --- | --- |
-| 0–2 | Version, type (32), target Sigil ID |
-| 3–6 | Existing encoded DisplayState |
-| 7–9 | Commander boolean, visible source count (0–3), omitted source count |
-| 10–26 | Focused participant: signed int32 life, 13-byte terminated name |
-| 27–43 | Secondary participant, same layout (zero when absent) |
-| 44–109 | Three sources: player number, 13-byte terminated name, two int32 damage values |
+| 0ï¿½2 | Version, type (32), target Sigil ID |
+| 3ï¿½6 | Existing encoded DisplayState |
+| 7ï¿½9 | Commander boolean, visible source count (0ï¿½3), omitted source count |
+| 10ï¿½26 | Focused participant: signed int32 life, 13-byte terminated name |
+| 27ï¿½43 | Secondary participant, same layout (zero when absent) |
+| 44ï¿½109 | Three sources: player number, 13-byte terminated name, two int32 damage values |
 
 Atlas's existing `LedRenderer::syncDisplay` resolves the focused and secondary
 players through `GameEngine::playersForController` and the existing focus rules.
@@ -101,7 +101,7 @@ indicator. Names are clipped to nine characters in rows. One commander appears
 as `Jaime 6`, two as `Jaime 6/3`; damage only from slot 2 appears as `Jaime 3 (C2)`.
 `CMD none received` distinguishes an empty Commander display from normal mode.
 
-The 250×122 running screen emphasizes the name and life total, retains Sigil/host
+The 250ï¿½122 running screen emphasizes the name and life total, retains Sigil/host
 and turn status, and removes P1/P2 badges. Large signed totals shrink to fit.
 Shared Sigils emphasize the existing focused participant (active local seat,
 otherwise the first local seat), with a smaller secondary name/life summary;

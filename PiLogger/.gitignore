@@ -1,0 +1,8 @@
+# Local configuration and recorded telemetry
+config.toml
+*.db
+*.sqlite
+*.sqlite3
+.venv/
+venv/
+data/

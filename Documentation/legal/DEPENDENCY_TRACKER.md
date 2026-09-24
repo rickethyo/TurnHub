@@ -18,7 +18,6 @@ The goal is simple: know what entered the project, where it came from, how it is
 | Arduino-ESP32 | PlatformIO `espressif32`, Arduino framework | Atlas + Sigil | LGPL-2.1 | Yes, firmware build | YELLOW | Confirm exact release version/components and satisfy LGPL distribution/relinking/source obligations for the chosen firmware distribution model. Preserve notices. |
 | GxEPD2 | `zinggjm/GxEPD2`, current PlatformIO dependency | Sigil e-ink | GPL-3.0 | Yes if current Sigil firmware ships | RED | Decide before production whether to comply with GPLv3 for the resulting firmware or replace with a suitably licensed display driver. Legal review before commercial release. |
 | Adafruit GFX Library | Transitive GxEPD2 dependency | Sigil e-ink graphics | BSD-style | Yes if linked into shipped firmware | GREEN | Preserve copyright, conditions, and disclaimer in release notices/materials as required. |
-| pySerial | `pyserial>=3.5` | Legacy Python controller/tooling | BSD-3-Clause | Only if legacy tooling is distributed | GREEN | Preserve notice/disclaimer if distributed. Remove from production manifest if no longer shipped. |
 | PlatformIO Core | Build environment | Development | Apache-2.0 | No, currently build tooling only | GREEN | Track tool version for reproducibility. No product notice expected unless redistributed. |
 
 ## Platform/toolchain follow-up

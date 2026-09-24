@@ -117,7 +117,7 @@ static void deliberatePairing() {
   TurnHub::fixtureRadio = true;
   testNow = UINT32_MAX - 10000;
   assert(intents.dispatch(intent).accepted() && pairingActive);
-  testNow += 29999; updateFrontPanelLeds(testNow); assert(pairingActive);
+  testNow += TurnHubProtocol::PAIRING_WINDOW_MS - 1; updateFrontPanelLeds(testNow); assert(pairingActive);
   ++testNow; updateFrontPanelLeds(testNow); assert(!pairingActive);
   assert(intents.dispatch(intent).accepted());
   startFromHost(); updateFrontPanelLeds(testNow); assert(!pairingActive);
