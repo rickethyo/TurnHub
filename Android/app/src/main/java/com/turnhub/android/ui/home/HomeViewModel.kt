@@ -42,6 +42,7 @@ class HomeViewModel(
     repositoryFactory: (CoroutineScope) -> AtlasRepository,
     private val wifiLink: AtlasWifiLink,
     private val credentialStore: WifiCredentialStore,
+    private val playerSession: AtlasPlayerSession,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -53,6 +54,7 @@ class HomeViewModel(
         val failure: AtlasFailure? = null,
         val wifiPrompt: WifiPrompt? = null,
         val joiningSsid: String? = null,
+        val signIn: SignInPrompt? = null,
     )
 
     private val local = MutableStateFlow(LocalState())
@@ -60,12 +62,15 @@ class HomeViewModel(
     /** The endpoint a pending Wi-Fi prompt will connect to once answered. */
     private var pendingEndpoint: AtlasEndpoint? = null
 
+    private val sessionFlows = combine(playerSession.state, playerSession.busy, playerSession.feedback, ::Triple)
+
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
         repository.tableSummary,
         repository.failure,
         local,
-    ) { connectionState, tableSummary, repositoryFailure, screen ->
+        sessionFlows,
+    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback) ->
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
@@ -76,6 +81,8 @@ class HomeViewModel(
             offerAppSettings = shown is AtlasFailure.LocalNetworkPermissionDenied,
             joiningSsid = screen.joiningSsid,
             wifiPrompt = screen.wifiPrompt,
+            player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback) },
+            signIn = screen.signIn,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -95,6 +102,83 @@ class HomeViewModel(
                 previous = state
             }
         }
+        // Atlas sessions are RAM-only: drop ours when the connection ends or
+        // Atlas's identity/boot changes; re-read it when the table changes.
+        viewModelScope.launch {
+            var previous: TableSummary? = null
+            repository.tableSummary.collect { summary ->
+                val last = previous
+                when {
+                    summary == null || (last != null &&
+                        (summary.atlasId != last.atlasId || summary.bootId != last.bootId)) -> {
+                        playerSession.forget()
+                        if (summary == null) local.update { it.copy(signIn = null) }
+                    }
+                    last != null && summary.revision != last.revision -> launch { playerSession.refresh() }
+                }
+                previous = summary
+            }
+        }
+    }
+
+    // --- playing from this phone ------------------------------------------------
+
+    /** Opens the sign-in picker with Atlas's profile list. */
+    fun onPlayFromPhoneClicked() {
+        val endpoint = repository.endpoint.value ?: return
+        local.update { it.copy(signIn = SignInPrompt(loading = true)) }
+        viewModelScope.launch {
+            val prompt = try {
+                SignInPrompt(profiles = playerSession.profiles(endpoint))
+            } catch (e: AtlasException) {
+                SignInPrompt(error = e.failure.userMessage)
+            }
+            local.update { state -> state.copy(signIn = state.signIn?.let { prompt }) }
+        }
+    }
+
+    fun onSignInSubmitted(profile: ProfileSummary, pin: String) {
+        val endpoint = repository.endpoint.value ?: return
+        val prompt = local.value.signIn ?: return
+        if (!pin.matches(PIN_PATTERN)) {
+            local.update { it.copy(signIn = prompt.copy(error = "PINs are 4 to 8 digits.")) }
+            return
+        }
+        local.update { it.copy(signIn = prompt.copy(submitting = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                playerSession.signIn(endpoint, profile, pin)
+                local.update { it.copy(signIn = null) }
+            } catch (e: AtlasException) {
+                local.update { state ->
+                    state.copy(signIn = state.signIn?.copy(submitting = false, error = e.failure.userMessage))
+                }
+            }
+        }
+    }
+
+    fun onSignInDismissed() {
+        local.update { it.copy(signIn = null) }
+    }
+
+    fun onJoinClicked() {
+        viewModelScope.launch { playerSession.join() }
+    }
+
+    fun onPassClicked() = sendControl(ControlAction.PASS)
+
+    fun onPauseResumeClicked() = sendControl(ControlAction.PAUSE_RESUME)
+
+    fun onSignOutClicked() {
+        viewModelScope.launch { playerSession.signOut() }
+    }
+
+    fun onFeedbackDismissed() = playerSession.clearFeedback()
+
+    /** Sends once, pinned to the snapshot the player was looking at. */
+    private fun sendControl(action: ControlAction) {
+        val summary = repository.tableSummary.value ?: return
+        viewModelScope.launch { playerSession.control(action, summary.revision, summary.bootId) }
     }
 
     fun onEndpointChanged(text: String) {
