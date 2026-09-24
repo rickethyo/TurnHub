@@ -48,7 +48,7 @@ const api=http.createServer(async(req,res)=>{
 (async()=>{
  fs.mkdirSync(path.join(__dirname,'build'),{recursive:true});
  await new Promise(resolve=>api.listen(0,'127.0.0.1',resolve));
- const browser=await chromium.launch({headless:true,channel:'msedge'}),errors=[];
+ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL??'msedge'}),errors=[];
  try{
   const tabs=[];
   for(const player of [1,2]){

@@ -13,9 +13,7 @@ namespace internal {
 
 namespace {
 
-constexpr int32_t MAX_LIFE_MAGNITUDE = 1000000;
-
-// Parses a decimal life value or delta within +/-1,000,000.
+// Parses a decimal life value or delta within +/-LIFE_LIMIT.
 bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed) {
   if (!text.length() || text.length() > 8) return false;
   const bool negative = text[0] == '-';
@@ -25,7 +23,7 @@ bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed) 
   for (; i < text.length(); ++i) {
     if (text[i] < '0' || text[i] > '9') return false;
     number = number * 10 + static_cast<uint32_t>(text[i] - '0');
-    if (number > static_cast<uint32_t>(MAX_LIFE_MAGNITUDE)) return false;
+    if (number > static_cast<uint32_t>(TurnHub::LIFE_LIMIT)) return false;
   }
   value = negative ? -static_cast<int32_t>(number) : static_cast<int32_t>(number);
   return true;

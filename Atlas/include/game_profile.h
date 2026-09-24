@@ -5,6 +5,10 @@
 namespace TurnHub {
 enum class GameProfile : uint8_t { Generic, Magic, Commander, Yugioh, Count };
 
+// Bound on starting life, life totals, life deltas and Commander damage.
+// Life totals may go negative down to -LIFE_LIMIT.
+constexpr int32_t LIFE_LIMIT = 1000000;
+
 // Turn timer. 0 means OFF: no countdown, only the gentle long-turn cue after
 // TURN_TIMER_LONG_TURN_MS. Any other value is a per-turn countdown in whole
 // seconds. Presets are UI shortcuts only; the wire/storage value is always the
@@ -29,7 +33,7 @@ struct GameSettings {
 };
 inline bool validGameSettings(const GameSettings &settings) {
   return settings.profile < GameProfile::Count &&
-      settings.startingLife >= 0 && settings.startingLife <= 1000000 &&
+      settings.startingLife >= 0 && settings.startingLife <= LIFE_LIMIT &&
       validTurnTimerMs(settings.turnTimerMs);
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {

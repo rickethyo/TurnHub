@@ -37,6 +37,8 @@ class GameRecovery {
   TurnHubStorage::Status save(const GameEngine &game, uint32_t nowMs);
   TurnHubStorage::Status status() const { return status_; }
  private:
+  void rememberSaved(uint32_t nowMs);
+
   TurnHubStorage::BlobStore &store_;
   GameCheckpoint scratch_{};
   uint8_t bytes_[GAME_CHECKPOINT_CAPACITY]{};

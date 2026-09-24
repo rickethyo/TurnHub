@@ -46,7 +46,7 @@ const api=http.createServer(async(req,res)=>{
 });
 (async()=>{
  await new Promise(resolve=>api.listen(0,'127.0.0.1',resolve));
- const browser=await chromium.launch({headless:true,channel:'msedge'});
+ const browser=await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL??'msedge'});
  try{
   const context=await browser.newContext({viewport:{width:390,height:844}}),tab=await context.newPage();
   const errors=[];tab.on('pageerror',e=>(console.error(e.message),errors.push(e.message)));

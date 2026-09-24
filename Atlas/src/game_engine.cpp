@@ -49,7 +49,8 @@ bool GameEngine::canChangeLife(uint8_t playerNumber, int32_t delta) const {
   const int index = indexForPlayerNumber(playerNumber);
   if (index < 0 || gameOver_ || (!running_ && !paused_) || winClaimActive_ || eliminated_[index]) return false;
   const int64_t total = static_cast<int64_t>(life_[index]) + delta;
-  return delta != 0 && delta >= -1000000 && delta <= 1000000 && total >= -1000000 && total <= 1000000;
+  return delta != 0 && delta >= -LIFE_LIMIT && delta <= LIFE_LIMIT &&
+      total >= -LIFE_LIMIT && total <= LIFE_LIMIT;
 }
 
 bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
@@ -124,9 +125,9 @@ bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_
   const int to = indexForPlayerNumber(recipient), from = indexForPlayerNumber(source);
   if (settings_.profile != GameProfile::Commander || to < 0 || from < 0 ||
       commander < 1 || commander > COMMANDERS_PER_PLAYER || delta == 0 ||
-      delta < -1000000 || delta > 1000000) return false;
+      delta < -LIFE_LIMIT || delta > LIFE_LIMIT) return false;
   const int64_t total = static_cast<int64_t>(commanderDamage_[to][from][commander - 1]) + delta;
-  if (total < 0 || total > 1000000 || !canChangeLife(recipient, -delta)) return false;
+  if (total < 0 || total > LIFE_LIMIT || !canChangeLife(recipient, -delta)) return false;
   life_[to] -= delta;
   commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
   return true;

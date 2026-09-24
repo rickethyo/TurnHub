@@ -71,7 +71,8 @@ policy storage. The storage executable checks the real three-byte policy codec
 and NVS failure handling; gameplay scenarios use the profile repository fixture.
 
 Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolvable
-(or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed. It uses local
+(or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed (or set
+`PLAYWRIGHT_CHANNEL=` to use Playwright's bundled Chromium, e.g. on Linux/CI). It uses local
 HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
 It also checks policy saving/reloading and that polling preserves unsaved choices.
 Game/life checks cover persisted setup, host-only edits, captured match settings,
