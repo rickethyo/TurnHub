@@ -279,6 +279,15 @@ Privacy direction:
   entry stays open until an actual power-loss-and-reboot bench test confirms
   it on hardware, and until the Resume/Discard decision UI exists.
 
+- Serial-log browser download (`GET /api/diagnostics/log`, Developer page
+  button). *Needs verification* on hardware: host scenarios cover capture,
+  redaction, overflow and the permission gate, but the ESP32 build, the
+  cross-task spinlock and the 16 KB DRAM cost have not been confirmed on a
+  flashed Atlas yet.
+- *Planned* follow-up: capture framework `log_e`/ESP-IDF output as well (for
+  example via a vprintf hook). Today only the Atlas `serialLog` stream is kept.
+  Persisting logs across reboots needs storage that Atlas does not have yet.
+
 ## Working rules
 
 1. Do not create a new long-lived branch for planning/documentation alone.

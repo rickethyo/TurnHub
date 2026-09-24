@@ -6,6 +6,9 @@
 #include "profile_store.h"
 #include "optional_preferences.h"
 #include "web_api.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 namespace TurnHub {
 
@@ -49,7 +52,7 @@ bool SigilBus::begin() {
     if (prefs.getBytesLength(key.c_str()) != sizeof(mac) ||
         prefs.getBytes(key.c_str(), mac, sizeof(mac)) != sizeof(mac)) {
       prefs.end();
-      Serial.println("ATLAS|PAIRING|STORE_ERROR");
+      serialLog.println("ATLAS|PAIRING|STORE_ERROR");
       return false;
     }
     records_[i].used = true;
@@ -62,12 +65,12 @@ bool SigilBus::begin() {
   eventQueue_ = xQueueCreate(32, sizeof(SigilEvent));
   txQueue_ = xQueueCreate(48, sizeof(TxRequest));
   if (rxQueue_ == nullptr || eventQueue_ == nullptr || txQueue_ == nullptr) {
-    Serial.println("ATLAS|SIGIL_BUS|QUEUE_ERROR");
+    serialLog.println("ATLAS|SIGIL_BUS|QUEUE_ERROR");
     return false;
   }
 
   if (esp_now_init() != ESP_OK) {
-    Serial.println("ATLAS|ESP_NOW|ERROR");
+    serialLog.println("ATLAS|ESP_NOW|ERROR");
     return false;
   }
 
@@ -82,11 +85,11 @@ bool SigilBus::begin() {
           2,
           &txTask_) != pdPASS) {
     txTask_ = nullptr;
-    Serial.println("ATLAS|ESP_NOW|TX_TASK_ERROR");
+    serialLog.println("ATLAS|ESP_NOW|TX_TASK_ERROR");
     return false;
   }
 
-  Serial.println("ATLAS|ESP_NOW|READY");
+  serialLog.println("ATLAS|ESP_NOW|READY");
   return true;
 }
 
@@ -128,8 +131,8 @@ bool SigilBus::poll(SigilEvent &event) {
     if (record != nullptr &&
         (!record->profileRequestSeen || nowMs - record->lastProfileRequestMs > 5000)) {
       if (TurnHubProfiles::resetTransientSeatBindings(record->mac)) {
-        Serial.print("ATLAS|PROFILE|TRANSIENT_SEATS|CLEARED|");
-        Serial.println(event.sigilId);
+        serialLog.print("ATLAS|PROFILE|TRANSIENT_SEATS|CLEARED|");
+        serialLog.println(event.sigilId);
       }
     }
     if (record != nullptr) {
@@ -261,7 +264,7 @@ void SigilBus::txTaskLoop() {
 
       if (result == ESP_OK) {
         if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250)) == 0) {
-          Serial.println("ATLAS|ESP_NOW|SEND_TIMEOUT");
+          serialLog.println("ATLAS|ESP_NOW|SEND_TIMEOUT");
         }
         break;
       }
@@ -272,8 +275,8 @@ void SigilBus::txTaskLoop() {
         continue;
       }
 
-      Serial.print("ATLAS|ESP_NOW|SEND_ERROR|");
-      Serial.println(static_cast<int>(result));
+      serialLog.print("ATLAS|ESP_NOW|SEND_ERROR|");
+      serialLog.println(static_cast<int>(result));
       break;
     }
   }
@@ -284,7 +287,7 @@ void SigilBus::handleReceive(
     const uint8_t *incomingData,
     int length) {
   if (length != sizeof(Packet)) {
-    Serial.printf("ATLAS|ESP_NOW|BAD_LENGTH|%d\n", length);
+    serialLog.printf("ATLAS|ESP_NOW|BAD_LENGTH|%d\n", length);
     return;
   }
 
@@ -292,7 +295,7 @@ void SigilBus::handleReceive(
   memcpy(&packet, incomingData, sizeof(packet));
 
   if (packet.version != TurnHubProtocol::VERSION) {
-    Serial.printf(
+    serialLog.printf(
         "ATLAS|ESP_NOW|BAD_VERSION|%u\n",
         static_cast<unsigned>(packet.version));
     return;
@@ -302,10 +305,10 @@ void SigilBus::handleReceive(
   if (packet.type == PacketType::PairRequest) {
     if (!pairingActive()) return;
     if (!sigil) sigil = remember(mac);
-    if (!sigil) Serial.println("ATLAS|PAIRING|REJECT|CAPACITY_OR_STORAGE");
+    if (!sigil) serialLog.println("ATLAS|PAIRING|REJECT|CAPACITY_OR_STORAGE");
     if (sigil) {
       sendToMac(mac, PacketType::PairAccept, sigil->id, packet.value);
-      Serial.printf("ATLAS|PAIRING|ACCEPT|%u\n", sigil->id);
+      serialLog.printf("ATLAS|PAIRING|ACCEPT|%u\n", sigil->id);
     }
     return;
   }
@@ -366,7 +369,7 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
     const bool stored = prefs.putBytes(key.c_str(), mac, 6) == 6;
     prefs.end();
     if (!stored) {
-      Serial.println("ATLAS|PAIRING|STORE_ERROR");
+      serialLog.println("ATLAS|PAIRING|STORE_ERROR");
       return nullptr;
     }
     candidate.used = true;
@@ -374,15 +377,15 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
     memcpy(candidate.mac, mac, 6);
     candidate.lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
 
-    Serial.print("ATLAS|SIGIL|DISCOVERED|");
-    Serial.print(candidate.id);
-    Serial.print("|THS-");
+    serialLog.print("ATLAS|SIGIL|DISCOVERED|");
+    serialLog.print(candidate.id);
+    serialLog.print("|THS-");
     for (uint8_t byte : candidate.mac) {
-      Serial.printf("%02X", byte);
+      serialLog.printf("%02X", byte);
     }
-    Serial.print("|");
+    serialLog.print("|");
     printMac(candidate.mac);
-    Serial.println();
+    serialLog.println();
     return &candidate;
   }
 
@@ -421,20 +424,20 @@ void SigilBus::updateHelloInfo(SigilRecord &sigil, int32_t value) {
     return;
   }
 
-  Serial.print("ATLAS|SIGIL|INFO|");
-  Serial.print(sigil.id);
-  Serial.print("|THS-");
+  serialLog.print("ATLAS|SIGIL|INFO|");
+  serialLog.print(sigil.id);
+  serialLog.print("|THS-");
   for (uint8_t byte : sigil.mac) {
-    Serial.printf("%02X", byte);
+    serialLog.printf("%02X", byte);
   }
-  Serial.print("|FW|");
-  Serial.print(static_cast<unsigned>(major));
-  Serial.print(".");
-  Serial.print(static_cast<unsigned>(minor));
-  Serial.print(".");
-  Serial.print(static_cast<unsigned>(patch));
-  Serial.print("|CAPS|0x");
-  Serial.println(static_cast<unsigned>(capabilities), HEX);
+  serialLog.print("|FW|");
+  serialLog.print(static_cast<unsigned>(major));
+  serialLog.print(".");
+  serialLog.print(static_cast<unsigned>(minor));
+  serialLog.print(".");
+  serialLog.print(static_cast<unsigned>(patch));
+  serialLog.print("|CAPS|0x");
+  serialLog.println(static_cast<unsigned>(capabilities), HEX);
 }
 
 bool SigilBus::ensurePeer(const uint8_t *mac) {
@@ -449,10 +452,10 @@ bool SigilBus::ensurePeer(const uint8_t *mac) {
 
   const esp_err_t result = esp_now_add_peer(&peer);
   if (result != ESP_OK) {
-    Serial.print("ATLAS|ESP_NOW|PEER_ERROR|");
+    serialLog.print("ATLAS|ESP_NOW|PEER_ERROR|");
     printMac(mac);
-    Serial.print("|");
-    Serial.println(static_cast<int>(result));
+    serialLog.print("|");
+    serialLog.println(static_cast<int>(result));
     return false;
   }
 
@@ -475,7 +478,7 @@ bool SigilBus::sendToMac(
   request.length = sizeof(packet);
 
   if (xQueueSend(txQueue_, &request, 0) != pdTRUE) {
-    Serial.println("ATLAS|ESP_NOW|TX_QUEUE_FULL");
+    serialLog.println("ATLAS|ESP_NOW|TX_QUEUE_FULL");
     return false;
   }
 
@@ -565,7 +568,7 @@ void SigilBus::syncDisplayProfile(uint8_t sigilId) {
   }
 
   if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
-    Serial.println("ATLAS|DISPLAY_PROFILE|STORE_ERROR");
+    serialLog.println("ATLAS|DISPLAY_PROFILE|STORE_ERROR");
     return;
   }
 
@@ -575,19 +578,19 @@ void SigilBus::syncDisplayProfile(uint8_t sigilId) {
   sendDisplayName(sigilId, 1, nameA);
   sendDisplayName(sigilId, 2, nameB);
 
-  Serial.print("ATLAS|DISPLAY_PROFILE|SYNC|SIGIL|");
-  Serial.print(sigilId);
-  Serial.print("|A|");
+  serialLog.print("ATLAS|DISPLAY_PROFILE|SYNC|SIGIL|");
+  serialLog.print(sigilId);
+  serialLog.print("|A|");
   char safe[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
   displaySafeName(nameA, safe);
-  Serial.print(safe);
-  Serial.print("|B|");
+  serialLog.print(safe);
+  serialLog.print("|B|");
   displaySafeName(nameB, safe);
-  Serial.println(safe);
+  serialLog.println(safe);
 }
 
 void SigilBus::printMac(const uint8_t *mac) {
-  Serial.printf(
+  serialLog.printf(
       "%02X:%02X:%02X:%02X:%02X:%02X",
       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }

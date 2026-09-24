@@ -1,6 +1,9 @@
 #include "audio_controller.h"
 
 #include "protocol.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 namespace TurnHub {
 
@@ -214,7 +217,7 @@ bool AudioController::play(AudioCue cue, uint16_t targetMask) {
   }
 
   if (queueCount_ >= QUEUE_CAPACITY) {
-    Serial.println("ATLAS|AUDIO|QUEUE_FULL");
+    serialLog.println("ATLAS|AUDIO|QUEUE_FULL");
     return false;
   }
 

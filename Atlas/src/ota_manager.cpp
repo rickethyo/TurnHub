@@ -6,6 +6,9 @@
 #include "web_api.h"
 #include "web_pages.h"
 #include "portal_qr_asset.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 namespace TurnHub {
 
@@ -14,20 +17,20 @@ namespace {
 void printPartitionDiagnostic(
     const char *role,
     const esp_partition_t *partition) {
-  Serial.print("ATLAS|PARTITION|");
-  Serial.print(role);
-  Serial.print('|');
+  serialLog.print("ATLAS|PARTITION|");
+  serialLog.print(role);
+  serialLog.print('|');
 
   if (partition == nullptr) {
-    Serial.println("NONE");
+    serialLog.println("NONE");
     return;
   }
 
-  Serial.print(partition->label);
-  Serial.print("|ADDRESS|0x");
-  Serial.print(static_cast<unsigned long>(partition->address), HEX);
-  Serial.print("|SIZE|");
-  Serial.println(static_cast<unsigned long>(partition->size));
+  serialLog.print(partition->label);
+  serialLog.print("|ADDRESS|0x");
+  serialLog.print(static_cast<unsigned long>(partition->address), HEX);
+  serialLog.print("|SIZE|");
+  serialLog.println(static_cast<unsigned long>(partition->size));
 }
 
 void printBootPartitionDiagnostics() {
@@ -40,8 +43,8 @@ void printBootPartitionDiagnostics() {
   printPartitionDiagnostic("NEXT_OTA", next);
 
   if (running != nullptr && boot != nullptr) {
-    Serial.print("ATLAS|PARTITION|BOOT_MATCHES_RUNNING|");
-    Serial.println(running->address == boot->address ? "YES" : "NO");
+    serialLog.print("ATLAS|PARTITION|BOOT_MATCHES_RUNNING|");
+    serialLog.println(running->address == boot->address ? "YES" : "NO");
   }
 }
 
@@ -286,8 +289,8 @@ void OtaManager::fail(uint8_t errorCode) {
   inProgress_ = false;
   success_ = false;
   errorCode_ = errorCode;
-  Serial.print("ATLAS|OTA|ERROR|");
-  Serial.println(errorCode_);
+  serialLog.print("ATLAS|OTA|ERROR|");
+  serialLog.println(errorCode_);
 }
 
 void OtaManager::handleUpload() {
@@ -299,7 +302,7 @@ void OtaManager::handleUpload() {
 
       if (!TurnHubWebApi::requirePermission(server_,TurnHubAccounts::Admin) || allowedCallback_ == nullptr || !allowedCallback_()) {
         denied_ = true;
-        Serial.println("ATLAS|OTA|DENIED");
+        serialLog.println("ATLAS|OTA|DENIED");
         return;
       }
 
@@ -310,8 +313,8 @@ void OtaManager::handleUpload() {
       }
 
       inProgress_ = true;
-      Serial.print("ATLAS|OTA|START|");
-      Serial.println(upload.filename);
+      serialLog.print("ATLAS|OTA|START|");
+      serialLog.println(upload.filename);
       break;
 
     case UPLOAD_FILE_WRITE:
@@ -342,8 +345,8 @@ void OtaManager::handleUpload() {
 
       inProgress_ = false;
       success_ = true;
-      Serial.print("ATLAS|OTA|IMAGE_WRITTEN|");
-      Serial.println(bytesWritten_);
+      serialLog.print("ATLAS|OTA|IMAGE_WRITTEN|");
+      serialLog.println(bytesWritten_);
       break;
 
     case UPLOAD_FILE_ABORTED:
@@ -352,7 +355,7 @@ void OtaManager::handleUpload() {
       }
       inProgress_ = false;
       success_ = false;
-      Serial.println("ATLAS|OTA|ABORTED");
+      serialLog.println("ATLAS|OTA|ABORTED");
       break;
 
     default:
@@ -402,7 +405,7 @@ void OtaManager::update(uint32_t nowMs) {
     return;
   }
 
-  Serial.println("ATLAS|OTA|RESTART_FOR_VERIFICATION");
+  serialLog.println("ATLAS|OTA|RESTART_FOR_VERIFICATION");
   delay(50);
   ESP.restart();
 }

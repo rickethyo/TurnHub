@@ -1,6 +1,9 @@
 #include "game_recovery.h"
 #include "nvs_blob_store.h"
 #include <Arduino.h>
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 TurnHubStorage::NvsBlobStore store;
@@ -8,9 +11,9 @@ GameRecovery recovery(store);
 TurnHubStorage::Status openStatus = TurnHubStorage::Status::Unavailable;
 }
 TurnHubStorage::Status beginGameRecovery(GameEngine &game, Lobby &lobby, uint32_t nowMs) {
-  Serial.println("ATLAS|RECOVERY|INIT");
+  serialLog.println("ATLAS|RECOVERY|INIT");
   openStatus=store.begin("th_game_v1");
-  Serial.print("ATLAS|RECOVERY|OPEN|STATUS|"); Serial.println(storageStatusName(openStatus));
+  serialLog.print("ATLAS|RECOVERY|OPEN|STATUS|"); serialLog.println(storageStatusName(openStatus));
   if (openStatus!=TurnHubStorage::Status::Ok) return openStatus;
   return recovery.load(game,lobby,nowMs);
 }

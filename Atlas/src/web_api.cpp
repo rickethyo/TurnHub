@@ -17,6 +17,9 @@
 #include "controller_profiles.h"
 #include "login_limiter.h"
 #include "profile_login_page.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 namespace TurnHubWebApi {
 namespace {
@@ -662,10 +665,10 @@ void handleDeviceName(WebServer &server) {
       ? String("Sigil ") + String(module + 1)
       : name;
 
-  Serial.print("ATLAS|SIGIL|NAME|");
-  Serial.print(module);
-  Serial.print("|");
-  Serial.println(label);
+  serialLog.print("ATLAS|SIGIL|NAME|");
+  serialLog.print(module);
+  serialLog.print("|");
+  serialLog.println(label);
 
   sendJson(
       server,
@@ -736,7 +739,7 @@ void handleNetworkPassword(WebServer &server) {
     return;
   }
 
-  Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|UPDATED_FROM_PORTAL");
+  serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|UPDATED_FROM_PORTAL");
   sendJson(
       server,
       200,
@@ -1442,6 +1445,39 @@ void handleProfileStatsExport(WebServer &server) {
   server.send(200, "text/plain; charset=utf-8", report);
 }
 
+// Recent serial output as a text file, so a table without a USB cable can
+// still hand over a log. The ring is RAM-only (see serial_log.h).
+void handleSerialLogDownload(WebServer &server) {
+  server.sendHeader("Cache-Control", "no-store");
+  if (!requirePermission(server, TurnHubAccounts::Developer)) return;
+  const String atlasId = atlasHardwareId();
+  const String captured = serialLog.snapshot();
+  String body;
+  body.reserve(captured.length() + 256);
+  body = "# TurnHub Atlas serial log\n# atlasId=";
+  body += atlasId;
+  body += " bootId=";
+  body += bootId;
+  body += " firmware=";
+  body += TurnHubFirmware::VERSION;
+  body += " uptimeMs=";
+  body += String(millis());
+  body += "\n# Lines are stamped with Atlas uptime in seconds. RAM only: cleared on reboot.\n";
+  const uint32_t dropped = serialLog.droppedBytes();
+  if (dropped > 0) {
+    body += "# Earlier output dropped: ";
+    body += String(dropped);
+    body += " bytes did not fit in the ";
+    body += String(static_cast<uint32_t>(TurnHub::SerialLog::CAPACITY));
+    body += "-byte buffer.\n";
+  }
+  body += captured;
+  server.sendHeader(
+      "Content-Disposition",
+      String("attachment; filename=\"turnhub-") + atlasId + "-" + String(bootId).substring(0, 8) + ".log\"");
+  server.send(200, "text/plain; charset=utf-8", body);
+}
+
 void handleLogout(WebServer &server) {
   const String token = server.header("X-TurnHub-Token");
   for (auto &session : sessions) {
@@ -1618,12 +1654,12 @@ void notePhysicalAction(uint8_t sigilId) {
   strncpy(oldest->token, session->token, sizeof(oldest->token) - 1);
   oldest->token[sizeof(oldest->token) - 1] = '\0';
 
-  Serial.print("ATLAS|WEB_SESSION|AUTHORIZED|SIGIL|");
-  Serial.print(oldest->controllerId);
-  Serial.print("|SLOT|");
-  Serial.print(oldest->slot == 1 ? 'A' : 'B');
-  Serial.print("|PROFILE|");
-  Serial.println(session->profileId);
+  serialLog.print("ATLAS|WEB_SESSION|AUTHORIZED|SIGIL|");
+  serialLog.print(oldest->controllerId);
+  serialLog.print("|SLOT|");
+  serialLog.print(oldest->slot == 1 ? 'A' : 'B');
+  serialLog.print("|PROFILE|");
+  serialLog.println(session->profileId);
 }
 
 
@@ -1750,6 +1786,7 @@ void begin(WebServer &server) {
     sendJson(server, 200, readClientState(atlasHardwareId(), bootId));
   });
 
+  server.on("/api/diagnostics/log", HTTP_GET, [&server]() { handleSerialLogDownload(server); });
   server.on("/stats", HTTP_GET, [&server]() {
     server.sendHeader("Cache-Control", "no-store");
     server.send_P(200, "text/html", TurnHubStatsPage::STATS_HTML);
@@ -1798,8 +1835,8 @@ void begin(WebServer &server) {
   server.on("/api/control/rematch", HTTP_POST, [&server]() { runControl(server, WebControl::Rematch); });
   server.on("/api/control/reset", HTTP_POST, [&server]() { runControl(server, WebControl::Reset); });
 
-  Serial.print("ATLAS|WEB_API|READY|PROFILES|");
-  Serial.println(profileStoreReady ? "YES" : "NO");
+  serialLog.print("ATLAS|WEB_API|READY|PROFILES|");
+  serialLog.println(profileStoreReady ? "YES" : "NO");
 }
 
 }  // namespace TurnHubWebApi

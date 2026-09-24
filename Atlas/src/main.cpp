@@ -22,6 +22,9 @@
 #include "game_settings_store.h"
 #include "runtime_diagnostics.h"
 #include "client_state.h"
+#include "serial_log.h"
+
+using TurnHub::serialLog;
 
 WebServer server(AtlasConfig::HTTP_PORT);
 
@@ -180,10 +183,10 @@ String loadWifiPassword() {
     prefs.end();
   }
   if (password.length() >= 8 && password.length() <= 63) {
-    Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|LOADED");
+    serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|LOADED");
     return password;
   }
-  Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|DEFAULT");
+  serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|DEFAULT");
   return String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
 }
 
@@ -219,11 +222,11 @@ uint16_t gameAudioMask() {
 }
 
 void printPlayer(const PlayerSeat &player) {
-  Serial.print("Player ");
-  Serial.print(player.playerNumber);
-  Serial.print(" / Sigil ");
-  Serial.print(player.controllerId);
-  Serial.print(player.slotName());
+  serialLog.print("Player ");
+  serialLog.print(player.playerNumber);
+  serialLog.print(" / Sigil ");
+  serialLog.print(player.controllerId);
+  serialLog.print(player.slotName());
 }
 
 bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat) {
@@ -320,15 +323,15 @@ void clearPendingPass(const char *reason) {
     return;
   }
 
-  Serial.print("ATLAS|GAME|PASS|CANCEL|PLAYER|");
-  Serial.print(pendingPass.seat.playerNumber);
-  Serial.print("|ORIGIN|");
-  Serial.print(intentOriginName(pendingPass.origin));
+  serialLog.print("ATLAS|GAME|PASS|CANCEL|PLAYER|");
+  serialLog.print(pendingPass.seat.playerNumber);
+  serialLog.print("|ORIGIN|");
+  serialLog.print(intentOriginName(pendingPass.origin));
   if (reason != nullptr && reason[0] != '\0') {
-    Serial.print("|REASON|");
-    Serial.print(reason);
+    serialLog.print("|REASON|");
+    serialLog.print(reason);
   }
-  Serial.println();
+  serialLog.println();
 
   pendingPass = PendingPassState{};
   leds.invalidateAll();
@@ -368,12 +371,12 @@ PassRequestResult requestPass(
   pendingPass.requestedAtMs = nowMs;
   pendingPass.origin = origin;
 
-  Serial.print("ATLAS|GAME|PASS|PENDING|PLAYER|");
-  Serial.print(seat.playerNumber);
-  Serial.print("|ORIGIN|");
-  Serial.print(intentOriginName(origin));
-  Serial.print("|GRACE_MS|");
-  Serial.println(PASS_GRACE_MS);
+  serialLog.print("ATLAS|GAME|PASS|PENDING|PLAYER|");
+  serialLog.print(seat.playerNumber);
+  serialLog.print("|ORIGIN|");
+  serialLog.print(intentOriginName(origin));
+  serialLog.print("|GRACE_MS|");
+  serialLog.println(PASS_GRACE_MS);
   leds.invalidateAll();
   return PassRequestResult::Armed;
 }
@@ -401,10 +404,10 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
         "It is not this seat's turn");
   }
 
-  Serial.print("ATLAS|INTENT|PASS|ORIGIN|");
-  Serial.print(intentOriginName(intent.actor.origin));
-  Serial.print("|PLAYER|");
-  Serial.println(active->playerNumber);
+  serialLog.print("ATLAS|INTENT|PASS|ORIGIN|");
+  serialLog.print(intentOriginName(intent.actor.origin));
+  serialLog.print("|PLAYER|");
+  serialLog.println(active->playerNumber);
 
   const PassRequestResult result = requestPass(
       *active,
@@ -460,10 +463,10 @@ IntentResult handlePauseIntent(const Intent &intent, void *) {
 
   audio.pause(gameAudioMask());
   leds.invalidateAll();
-  Serial.print("ATLAS|INTENT|PAUSE|ORIGIN|");
-  Serial.print(intentOriginName(intent.actor.origin));
-  Serial.print("|PLAYER|");
-  Serial.println(seat->playerNumber);
+  serialLog.print("ATLAS|INTENT|PAUSE|ORIGIN|");
+  serialLog.print(intentOriginName(intent.actor.origin));
+  serialLog.print("|PLAYER|");
+  serialLog.println(seat->playerNumber);
   return IntentResult::accept("Game paused");
 }
 
@@ -501,10 +504,10 @@ IntentResult handleResumeIntent(const Intent &intent, void *) {
   winArmedPlayer = 0;
   audio.resume(gameAudioMask());
   leds.invalidateAll();
-  Serial.print("ATLAS|INTENT|RESUME|ORIGIN|");
-  Serial.print(intentOriginName(intent.actor.origin));
-  Serial.print("|PLAYER|");
-  Serial.println(seat->playerNumber);
+  serialLog.print("ATLAS|INTENT|RESUME|ORIGIN|");
+  serialLog.print(intentOriginName(intent.actor.origin));
+  serialLog.print("|PLAYER|");
+  serialLog.println(seat->playerNumber);
   return IntentResult::accept("Game resumed");
 }
 
@@ -567,10 +570,10 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
 
   audio.playerEliminated(seat->controllerId);
   leds.invalidateAll();
-  Serial.print("ATLAS|INTENT|CONCEDE|ORIGIN|");
-  Serial.print(intentOriginName(intent.actor.origin));
-  Serial.print("|PLAYER|");
-  Serial.println(seat->playerNumber);
+  serialLog.print("ATLAS|INTENT|CONCEDE|ORIGIN|");
+  serialLog.print(intentOriginName(intent.actor.origin));
+  serialLog.print("|PLAYER|");
+  serialLog.println(seat->playerNumber);
 
   if (gameFinished) {
     finishGameState();
@@ -621,8 +624,8 @@ IntentResult handleClaimWinIntent(const Intent &intent, void *) {
     audio.winClaimed(gameAudioMask());
   }
 
-  Serial.print("ATLAS|INTENT|WIN|CLAIMED|PLAYER|");
-  Serial.println(seat.playerNumber);
+  serialLog.print("ATLAS|INTENT|WIN|CLAIMED|PLAYER|");
+  serialLog.println(seat.playerNumber);
   return IntentResult::accept("Win claim sent to the table");
 }
 
@@ -646,8 +649,8 @@ IntentResult handleConfirmWinIntent(const Intent &intent, void *) {
   }
   audio.winConfirmed(gameAudioMask());
   leds.invalidateAll();
-  Serial.print("ATLAS|INTENT|WIN|CONFIRMED|PLAYER|");
-  Serial.println(seat.playerNumber);
+  serialLog.print("ATLAS|INTENT|WIN|CONFIRMED|PLAYER|");
+  serialLog.println(seat.playerNumber);
   if (gameFinished) {
     finishGameState();
   }
@@ -673,8 +676,8 @@ IntentResult handleDenyWinIntent(const Intent &intent, void *) {
   hubState = game.paused() ? HubState::Paused : HubState::Running;
   audio.winDenied(gameAudioMask());
   leds.invalidateAll();
-  Serial.print("ATLAS|INTENT|WIN|DENIED|PLAYER|");
-  Serial.println(seat.playerNumber);
+  serialLog.print("ATLAS|INTENT|WIN|DENIED|PLAYER|");
+  serialLog.println(seat.playerNumber);
   return IntentResult::accept("Win claim denied");
 }
 
@@ -873,8 +876,8 @@ IntentResult handlePairRequestIntent(const Intent &intent, void *) {
   }
   pairingActive = true;
   pairingStartedAtMs = millis();
-  Serial.print("ATLAS|PAIRING|ENTER|DURATION_MS|");
-  Serial.println(PAIRING_DURATION_MS);
+  serialLog.print("ATLAS|PAIRING|ENTER|DURATION_MS|");
+  serialLog.println(PAIRING_DURATION_MS);
   return IntentResult::accept("Pairing window opened");
 }
 
@@ -944,16 +947,16 @@ bool configureIntentHandlers() {
   const bool resumeBound = intents.bind(IntentType::Resume, handleResumeIntent);
   const bool concedeBound = intents.bind(IntentType::Concede, handleConcedeIntent);
 
-  Serial.println(passBound
+  serialLog.println(passBound
                      ? "ATLAS|INTENT|PASS|BOUND"
                      : "ATLAS|INTENT|PASS|BIND_FAILED");
-  Serial.println(pauseBound
+  serialLog.println(pauseBound
                      ? "ATLAS|INTENT|PAUSE|BOUND"
                      : "ATLAS|INTENT|PAUSE|BIND_FAILED");
-  Serial.println(resumeBound
+  serialLog.println(resumeBound
                      ? "ATLAS|INTENT|RESUME|BOUND"
                      : "ATLAS|INTENT|RESUME|BIND_FAILED");
-  Serial.println(concedeBound
+  serialLog.println(concedeBound
                      ? "ATLAS|INTENT|CONCEDE|BOUND"
                      : "ATLAS|INTENT|CONCEDE|BIND_FAILED");
 
@@ -989,9 +992,9 @@ bool configureIntentHandlers() {
   };
   for (const auto &binding : bindings) {
     const bool bound = intents.bind(binding.type, binding.handler);
-    Serial.print("ATLAS|INTENT|");
-    Serial.print(TurnHub::intentName(binding.type));
-    Serial.println(bound ? "|BOUND" : "|BIND_FAILED");
+    serialLog.print("ATLAS|INTENT|");
+    serialLog.print(TurnHub::intentName(binding.type));
+    serialLog.println(bound ? "|BOUND" : "|BIND_FAILED");
     remainingBound = bound && remainingBound;
   }
   return moderationBound && settingsBound && lifeBound && passBound && pauseBound && resumeBound && concedeBound && remainingBound;
@@ -1025,21 +1028,21 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
   if (!game.passTurn(
           committing.seat.controllerId,
           committing.requestedAtMs)) {
-    Serial.print("ATLAS|GAME|PASS|COMMIT_REJECTED|PLAYER|");
-    Serial.print(committing.seat.playerNumber);
-    Serial.print("|ORIGIN|");
-    Serial.println(intentOriginName(committing.origin));
+    serialLog.print("ATLAS|GAME|PASS|COMMIT_REJECTED|PLAYER|");
+    serialLog.print(committing.seat.playerNumber);
+    serialLog.print("|ORIGIN|");
+    serialLog.println(intentOriginName(committing.origin));
     leds.invalidateAll();
     return IntentResult::reject(IntentStatus::InvalidState, "Pending pass is not ready");
   }
 
   const PlayerSeat *current = game.activePlayer();
-  Serial.print("ATLAS|GAME|PASS|COMMIT|");
-  Serial.print(committing.seat.playerNumber);
-  Serial.print("->");
-  Serial.print(current != nullptr ? current->playerNumber : 0);
-  Serial.print("|ORIGIN|");
-  Serial.println(intentOriginName(committing.origin));
+  serialLog.print("ATLAS|GAME|PASS|COMMIT|");
+  serialLog.print(committing.seat.playerNumber);
+  serialLog.print("->");
+  serialLog.print(current != nullptr ? current->playerNumber : 0);
+  serialLog.print("|ORIGIN|");
+  serialLog.println(intentOriginName(committing.origin));
 
   if (current != nullptr) {
     audio.turnPassed(committing.seat.controllerId, current->controllerId);
@@ -1090,10 +1093,10 @@ void updateTurnTimerCues(uint32_t nowMs) {
   } else {
     return;  // LongTurn stays a quiet visual cue; Normal needs nothing.
   }
-  Serial.print("ATLAS|TIMER|");
-  Serial.print(TurnHub::turnTimerPhaseName(phase));
-  Serial.print("|PLAYER|");
-  Serial.println(active->playerNumber);
+  serialLog.print("ATLAS|TIMER|");
+  serialLog.print(TurnHub::turnTimerPhaseName(phase));
+  serialLog.print("|PLAYER|");
+  serialLog.println(active->playerNumber);
 }
 
 void updateActionCancelSuppression(uint32_t nowMs) {
@@ -1131,7 +1134,8 @@ void clearPhysicalSeatProfiles() {
   }
 }
 
-void enterEmptyLobby() {
+void enterEmptyLobby(const Intent *cause = nullptr) {
+  const HubState previous = hubState;
   clearPhysicalSeatProfiles();
   hubState = HubState::Lobby;
   lobby.resetEmpty();
@@ -1144,7 +1148,14 @@ void enterEmptyLobby() {
   clearDecisionState();
   audio.clear();
   leds.invalidateAll();
-  Serial.println("ATLAS|LOBBY|EMPTY");
+  serialLog.print("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|");
+  serialLog.print(intentOriginName(cause ? cause->actor.origin : IntentOrigin::System));
+  if (cause) {
+    serialLog.print("|CONTROLLER|");
+    serialLog.print(cause->actor.controllerId);
+  }
+  serialLog.print("|FROM|");
+  serialLog.println(TurnHub::stateName(previous));
 }
 
 void enterRematchLobby() {
@@ -1162,7 +1173,7 @@ void enterRematchLobby() {
   clearDecisionState();
   audio.clear();
   leds.invalidateAll();
-  Serial.println("ATLAS|LOBBY|REMATCH");
+  serialLog.println("ATLAS|LOBBY|REMATCH");
 }
 
 void finishGameState() {
@@ -1176,8 +1187,8 @@ void finishGameState() {
   leds.invalidateAll();
   audio.gameOver(gameAudioMask());
 
-  Serial.print("ATLAS|GAME|OVER|WINNER|");
-  Serial.println(game.winnerPlayerNumber());
+  serialLog.print("ATLAS|GAME|OVER|WINNER|");
+  serialLog.println(game.winnerPlayerNumber());
 }
 
 void beginCountdown() {
@@ -1189,7 +1200,7 @@ void beginCountdown() {
   countdownStartedAtMs = millis();
   lastCountdownSecond = -1;
   lobby.clearStartArm();
-  Serial.println("ATLAS|LOBBY|COUNTDOWN|START");
+  serialLog.println("ATLAS|LOBBY|COUNTDOWN|START");
 }
 
 void cancelCountdown() {
@@ -1204,7 +1215,7 @@ void cancelCountdown() {
   lobby.clearStartArm();
   audio.clear();
   audio.countdownCancelled(targets);
-  Serial.println("ATLAS|LOBBY|COUNTDOWN|CANCEL");
+  serialLog.println("ATLAS|LOBBY|COUNTDOWN|CANCEL");
 }
 
 void startGame() {
@@ -1238,9 +1249,17 @@ void startGame() {
   leds.invalidateAll();
   audio.gameStart(gameAudioMask());
 
-  Serial.print("ATLAS|GAME|START|");
+  serialLog.print("ATLAS|GAME|START|");
   printPlayer(starter);
-  Serial.println();
+  const TurnHub::GameSettings &settings = game.settings();
+  serialLog.print("|PROFILE|");
+  serialLog.print(TurnHub::gameProfileKey(settings.profile));
+  serialLog.print("|LIFE|");
+  serialLog.print(settings.startingLife);
+  serialLog.print("|TIMER_MS|");
+  serialLog.print(settings.turnTimerMs);
+  serialLog.print("|PLAYERS|");
+  serialLog.println(count);
 }
 
 void updateCountdown(uint32_t nowMs) {
@@ -1253,8 +1272,8 @@ void updateCountdown(uint32_t nowMs) {
 
   if (second >= 0 && second < 3 && second != lastCountdownSecond) {
     lastCountdownSecond = second;
-    Serial.print("ATLAS|LOBBY|COUNTDOWN|");
-    Serial.println(3 - second);
+    serialLog.print("ATLAS|LOBBY|COUNTDOWN|");
+    serialLog.println(3 - second);
     audio.countdownTone(lobbyAudioMask(), static_cast<uint8_t>(second));
   }
 
@@ -1271,10 +1290,10 @@ void handleLobbyShort(uint8_t sigilId) {
       result.accepted() ? "lobby_action" : "lobby_rejected",
       String("sigil=") + String(sigilId) + " result=" + result.message);
   if (!result.accepted()) {
-    Serial.print("ATLAS|LOBBY|JOIN|REJECTED|");
-    Serial.print(sigilId);
-    Serial.print("|");
-    Serial.println(result.message);
+    serialLog.print("ATLAS|LOBBY|JOIN|REJECTED|");
+    serialLog.print(sigilId);
+    serialLog.print("|");
+    serialLog.println(result.message);
   }
 }
 
@@ -1296,8 +1315,8 @@ void beginEliminationSelection(uint8_t sigilId) {
   audio.eliminationArmed(sigilId);
   leds.invalidateAll();
 
-  Serial.print("ATLAS|GAME|ELIMINATION|ARMED|PLAYER|");
-  Serial.println(eliminationTargetPlayer);
+  serialLog.print("ATLAS|GAME|ELIMINATION|ARMED|PLAYER|");
+  serialLog.println(eliminationTargetPlayer);
 }
 
 void cycleEliminationTarget(uint8_t sigilId) {
@@ -1325,8 +1344,8 @@ void cycleEliminationTarget(uint8_t sigilId) {
   audio.eliminationTargetChanged(sigilId);
   leds.invalidateAll();
 
-  Serial.print("ATLAS|GAME|ELIMINATION|TARGET|");
-  Serial.println(eliminationTargetPlayer);
+  serialLog.print("ATLAS|GAME|ELIMINATION|TARGET|");
+  serialLog.println(eliminationTargetPlayer);
 }
 
 void cancelEliminationSelection() {
@@ -1336,7 +1355,7 @@ void cancelEliminationSelection() {
   }
   eliminationTargetPlayer = 0;
   leds.invalidateAll();
-  Serial.println("ATLAS|GAME|ELIMINATION|CANCEL");
+  serialLog.println("ATLAS|GAME|ELIMINATION|CANCEL");
 }
 
 void confirmElimination(uint8_t sigilId) {
@@ -1358,8 +1377,8 @@ void confirmElimination(uint8_t sigilId) {
   audio.playerEliminated(sigilId);
   leds.invalidateAll();
 
-  Serial.print("ATLAS|GAME|ELIMINATED|PLAYER|");
-  Serial.println(eliminatedNumber);
+  serialLog.print("ATLAS|GAME|ELIMINATED|PLAYER|");
+  serialLog.println(eliminatedNumber);
 
   if (gameFinished) {
     finishGameState();
@@ -1382,10 +1401,17 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
       if (intent.actor.origin != IntentOrigin::Browser) return IntentResult::reject(IntentStatus::Unauthorized, "Profile login required");
       if (joined) return IntentResult::accept("Already at the table; this browser controls your existing player");
       const uint8_t controller = TurnHubControllers::registerBrowser(profile);
-      if (controller == INVALID_ID || lobby.join(controller) == 0) {
+      const uint8_t player = controller == INVALID_ID ? 0 : lobby.join(controller);
+      if (player == 0) {
         TurnHubControllers::releaseBrowser(controller);
         return IntentResult::reject(IntentStatus::Conflict, "Table is full");
       }
+      serialLog.print("ATLAS|LOBBY|JOIN|BROWSER|");
+      serialLog.print(controller);
+      serialLog.print("|PLAYER|");
+      serialLog.print(player);
+      serialLog.print("|PROFILE|");
+      serialLog.println(profile);
     } else if (intent.type == IntentType::LeaveProfile) {
       if (intent.actor.origin != IntentOrigin::Browser || !joined) return IntentResult::reject(IntentStatus::InvalidActor, "No participant to leave");
       if (existingSlot == 2) {
@@ -1396,6 +1422,12 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
         lobby.leave(existing);
       }
       TurnHubControllers::releaseBrowser(existing);
+      serialLog.print("ATLAS|LOBBY|LEAVE|BROWSER|");
+      serialLog.print(existing);
+      serialLog.print("|SLOT|");
+      serialLog.print(existingSlot);
+      serialLog.print("|PROFILE|");
+      serialLog.println(profile);
     } else {
       if (intent.actor.origin != IntentOrigin::PhysicalSigil || module >= MAX_PHYSICAL_SIGILS || (slot != 1 && slot != 2)) {
         return IntentResult::reject(IntentStatus::Unauthorized, "Physical seat confirmation required");
@@ -1477,27 +1509,27 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
         }
         if (added) audio.sharedPlayerAdded(module);
         else audio.sharedPlayerRemoved(module);
-        Serial.print("ATLAS|LOBBY|SECONDARY|");
-        Serial.print(module);
-        Serial.print(added ? "|ADDED|PLAYER|" : "|REMOVED|PLAYER|");
-        Serial.println(affected.playerNumber);
+        serialLog.print("ATLAS|LOBBY|SECONDARY|");
+        serialLog.print(module);
+        serialLog.print(added ? "|ADDED|PLAYER|" : "|REMOVED|PLAYER|");
+        serialLog.println(affected.playerNumber);
       } else if (joining) {
         if (lobby.isJoined(module)) return IntentResult::accept("Already joined");
         const uint8_t player = lobby.join(module);
         if (player == 0) return IntentResult::reject(IntentStatus::InvalidState, "Could not join");
-        Serial.print("ATLAS|LOBBY|JOIN|SIGIL|");
-        Serial.print(module);
-        Serial.print("|PLAYER|");
-        Serial.println(player);
+        serialLog.print("ATLAS|LOBBY|JOIN|SIGIL|");
+        serialLog.print(module);
+        serialLog.print("|PLAYER|");
+        serialLog.println(player);
         if (module == lobby.hostController()) {
-          Serial.print("ATLAS|LOBBY|HOST|");
-          Serial.println(module);
+          serialLog.print("ATLAS|LOBBY|HOST|");
+          serialLog.println(module);
         }
         audio.playerJoined(module);
       } else {
         if (!lobby.leave(module)) return IntentResult::reject(IntentStatus::InvalidActor, "Module is not joined");
-        Serial.print("ATLAS|LOBBY|LEAVE|SIGIL|");
-        Serial.println(module);
+        serialLog.print("ATLAS|LOBBY|LEAVE|SIGIL|");
+        serialLog.println(module);
       }
       leds.invalidateAll();
       return IntentResult::accept(joining ? "Joined" : "Left");
@@ -1523,8 +1555,8 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
       if (selection == TurnHub::StarterSelection::Random) audio.randomStarter(selected.controllerId);
       else audio.starterSelected(selected.controllerId);
       leds.invalidateAll();
-      Serial.print("ATLAS|INTENT|SELECT_STARTER|PLAYER|");
-      Serial.println(selected.playerNumber);
+      serialLog.print("ATLAS|INTENT|SELECT_STARTER|PLAYER|");
+      serialLog.println(selected.playerNumber);
       return IntentResult::accept("Selected as starting player");
     }
     case IntentType::ArmStart:
@@ -1537,8 +1569,8 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
         if (lobby.anyOtherHeld(module)) return IntentResult::reject(IntentStatus::Conflict, "Another controller is held");
         lobby.setStartArmedBy(module);
         audio.startArmed(module);
-        Serial.print("ATLAS|LOBBY|START_ARM|");
-        Serial.println(module);
+        serialLog.print("ATLAS|LOBBY|START_ARM|");
+        serialLog.println(module);
       } else {
         if (intent.actor.origin != IntentOrigin::Browser && lobby.startArmedBy() != module) return IntentResult::reject(IntentStatus::InvalidState, "Start is not armed");
         beginCountdown();
@@ -1560,7 +1592,7 @@ IntentResult handleTableIntent(const Intent &intent, void *) {
             !(hubState == HubState::Lobby && (lobby.startArmedBy() == module || intent.actor.origin == IntentOrigin::Browser))) {
           return IntentResult::reject(IntentStatus::InvalidState, "Reset is not available");
         }
-        enterEmptyLobby();
+        enterEmptyLobby(&intent);
       }
       return IntentResult::accept();
     case IntentType::CancelPass:
@@ -1702,10 +1734,10 @@ void handlePass(uint8_t sigilId) {
           lobby.hasSecondary(sigilId) ? IntentType::Leave : IntentType::Join,
           sigilId, 2);
       if (!result.accepted()) {
-        Serial.print("ATLAS|LOBBY|SECONDARY|REJECTED|");
-        Serial.print(sigilId);
-        Serial.print("|");
-        Serial.println(result.message);
+        serialLog.print("ATLAS|LOBBY|SECONDARY|REJECTED|");
+        serialLog.print(sigilId);
+        serialLog.print("|");
+        serialLog.println(result.message);
       }
       return;
     }
@@ -1713,10 +1745,10 @@ void handlePass(uint8_t sigilId) {
     const auto result = dispatchModuleIntent(IntentType::SelectStarter, sigilId, 1,
         static_cast<int32_t>(TurnHub::StarterSelection::Random));
     if (!result.accepted()) {
-      Serial.print("ATLAS|LOBBY|STARTER|REJECTED|");
-      Serial.print(sigilId);
-      Serial.print("|");
-      Serial.println(result.message);
+      serialLog.print("ATLAS|LOBBY|STARTER|REJECTED|");
+      serialLog.print(sigilId);
+      serialLog.print("|");
+      serialLog.println(result.message);
     }
     return;
   }
@@ -1757,10 +1789,10 @@ void handlePass(uint8_t sigilId) {
 
   const auto result = dispatchPassIntent(IntentOrigin::PhysicalSigil, *active);
   if (!result.accepted()) {
-    Serial.print("ATLAS|GAME|PASS|REJECTED|");
-    Serial.print(sigilId);
-    Serial.print("|");
-    Serial.println(result.message);
+    serialLog.print("ATLAS|GAME|PASS|REJECTED|");
+    serialLog.print(sigilId);
+    serialLog.print("|");
+    serialLog.println(result.message);
   }
 }
 
@@ -1890,8 +1922,8 @@ void handleActionLong(uint8_t sigilId) {
   if (hubState == HubState::Running) {
     PlayerSeat actor;
     if (!firstLivingSeatForModule(sigilId, actor)) {
-      Serial.print("ATLAS|INTENT|PAUSE|REJECTED_MODULE|");
-      Serial.println(sigilId);
+      serialLog.print("ATLAS|INTENT|PAUSE|REJECTED_MODULE|");
+      serialLog.println(sigilId);
       return;
     }
     const IntentResult result = dispatchSeatIntent(
@@ -1899,15 +1931,15 @@ void handleActionLong(uint8_t sigilId) {
         IntentOrigin::PhysicalSigil,
         actor, TurnHub::ARM_WIN_ON_PAUSE);
     if (!result.accepted()) {
-      Serial.print("ATLAS|INTENT|PAUSE|REJECTED|");
-      Serial.println(result.message);
+      serialLog.print("ATLAS|INTENT|PAUSE|REJECTED|");
+      serialLog.println(result.message);
     }
     return;
   }
 
   if (hubState == HubState::Paused) {
     if (game.hasWinClaim()) {
-      Serial.println("ATLAS|GAME|RESUME|DENIED_WIN_CLAIM");
+      serialLog.println("ATLAS|GAME|RESUME|DENIED_WIN_CLAIM");
       return;
     }
 
@@ -1918,8 +1950,8 @@ void handleActionLong(uint8_t sigilId) {
 
     PlayerSeat actor;
     if (!firstLivingSeatForModule(sigilId, actor)) {
-      Serial.print("ATLAS|INTENT|RESUME|REJECTED_MODULE|");
-      Serial.println(sigilId);
+      serialLog.print("ATLAS|INTENT|RESUME|REJECTED_MODULE|");
+      serialLog.println(sigilId);
       return;
     }
     const IntentResult result = dispatchSeatIntent(
@@ -1927,8 +1959,8 @@ void handleActionLong(uint8_t sigilId) {
         IntentOrigin::PhysicalSigil,
         actor);
     if (!result.accepted()) {
-      Serial.print("ATLAS|INTENT|RESUME|REJECTED|");
-      Serial.println(result.message);
+      serialLog.print("ATLAS|INTENT|RESUME|REJECTED|");
+      serialLog.println(result.message);
     }
     return;
   }
@@ -1967,8 +1999,8 @@ void handleActionWin(uint8_t sigilId) {
       active->controllerId != sigilId ||
       active->playerNumber != winArmedPlayer ||
       game.isEliminated(active->playerNumber)) {
-    Serial.print("ATLAS|GAME|WIN|IGNORED|SIGIL|");
-    Serial.println(sigilId);
+    serialLog.print("ATLAS|GAME|WIN|IGNORED|SIGIL|");
+    serialLog.println(sigilId);
     return;
   }
 
@@ -2007,12 +2039,12 @@ void processSigilEvents() {
         if (lobby.playerNumber(event.sigilId, slot) == 0) continue;
         const String id = TurnHubControllers::existingProfileForSeat(event.sigilId, slot);
         if (id.length() && TurnHubWebApi::connectionBlocked(id)) {
-          Serial.print("ATLAS|SIGIL|CONNECTION_BLOCKED|");
-          Serial.print(event.sigilId);
-          Serial.print("|SLOT|");
-          Serial.print(slot);
-          Serial.print("|PROFILE|");
-          Serial.println(id);
+          serialLog.print("ATLAS|SIGIL|CONNECTION_BLOCKED|");
+          serialLog.print(event.sigilId);
+          serialLog.print("|SLOT|");
+          serialLog.print(slot);
+          serialLog.print("|PROFILE|");
+          serialLog.println(id);
           TurnHub::recordActivity(
               "connection_blocked",
               String("sigil=") + String(event.sigilId) + " slot=" + String(slot) +
@@ -2130,7 +2162,7 @@ void updateMasterButton() {
   lastDebounceMs = millis();
   lastButtonState = currentState;
 
-  Serial.println(currentState == LOW
+  serialLog.println(currentState == LOW
                      ? "ATLAS|MASTER_BUTTON|DOWN"
                      : "ATLAS|MASTER_BUTTON|UP");
 
@@ -2142,13 +2174,13 @@ void updateMasterButton() {
           *active);
       if (result.accepted()) {
         if (pendingPass.active && pendingPass.seat.sameSeat(*active)) {
-          Serial.println("ATLAS|MASTER_BUTTON|PASS_PENDING");
+          serialLog.println("ATLAS|MASTER_BUTTON|PASS_PENDING");
         } else {
-          Serial.println("ATLAS|MASTER_BUTTON|PASS_CANCELLED");
+          serialLog.println("ATLAS|MASTER_BUTTON|PASS_CANCELLED");
         }
       } else {
-        Serial.print("ATLAS|MASTER_BUTTON|PASS_REJECTED|");
-        Serial.println(result.message);
+        serialLog.print("ATLAS|MASTER_BUTTON|PASS_REJECTED|");
+        serialLog.println(result.message);
       }
     }
   }
@@ -2168,7 +2200,7 @@ void updatePairButton() {
   lastPairDebounceMs = millis();
   lastPairButtonState = currentState;
 
-  Serial.println(currentState == LOW
+  serialLog.println(currentState == LOW
                      ? "ATLAS|PAIR_BUTTON|DOWN"
                      : "ATLAS|PAIR_BUTTON|UP");
   if (currentState == LOW) {
@@ -2191,7 +2223,7 @@ void updateFrontPanelLeds(uint32_t nowMs) {
   const uint32_t pairingElapsed = nowMs - pairingStartedAtMs;
   if (pairingActive && (pairingElapsed >= PAIRING_DURATION_MS || hubState != HubState::Lobby)) {
     pairingActive = false;
-    Serial.println("ATLAS|PAIRING|EXIT");
+    serialLog.println("ATLAS|PAIRING|EXIT");
   }
   digitalWrite(AtlasConfig::PAIR_LED_PIN,
       pairingActive && (pairingElapsed / PAIR_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
@@ -2202,7 +2234,7 @@ void startNetworking() {
 
   const String wifiPassword = loadWifiPassword();
   if (wifiPassword.length() < 8) {
-    Serial.println("ATLAS|WIFI_AP|PASSWORD|ERROR");
+    serialLog.println("ATLAS|WIFI_AP|PASSWORD|ERROR");
     return;
   }
 
@@ -2214,20 +2246,23 @@ void startNetworking() {
       8);
 
   if (!apStarted) {
-    Serial.println("ATLAS|WIFI_AP|ERROR");
+    serialLog.println("ATLAS|WIFI_AP|ERROR");
     return;
   }
 
-  Serial.print("ATLAS|WIFI_AP|READY|");
-  Serial.print(AtlasConfig::WIFI_SSID);
-  Serial.print("|");
-  Serial.println(WiFi.softAPIP());
-  Serial.println("ATLAS|WIFI_AP|SECURITY|WPA2-PSK");
-  Serial.print("ATLAS|WIFI_AP|PASSWORD|");
-  Serial.println(wifiPassword);
+  serialLog.print("ATLAS|WIFI_AP|READY|");
+  serialLog.print(AtlasConfig::WIFI_SSID);
+  serialLog.print("|");
+  serialLog.println(WiFi.softAPIP());
+  serialLog.println("ATLAS|WIFI_AP|SECURITY|WPA2-PSK");
+  // The port keeps showing the password for the owner at the table; the
+  // downloadable copy never contains it.
+  serialLog.printlnRedacted(
+      (String("ATLAS|WIFI_AP|PASSWORD|") + wifiPassword).c_str(),
+      "ATLAS|WIFI_AP|PASSWORD|<redacted>");
 
-  Serial.print("ATLAS|MAC|");
-  Serial.println(WiFi.macAddress());
+  serialLog.print("ATLAS|MAC|");
+  serialLog.println(WiFi.macAddress());
 
   espNowReady = sigilBus.begin();
 
@@ -2253,7 +2288,7 @@ void startNetworking() {
   });
   server.begin();
 
-  Serial.println("ATLAS|WEB|READY");
+  serialLog.println("ATLAS|WEB|READY");
 }
 
 }  // namespace
@@ -2273,13 +2308,13 @@ void setup() {
   digitalWrite(AtlasConfig::STATUS_LED_PIN, HIGH);
   digitalWrite(AtlasConfig::PAIR_LED_PIN, LOW);
 
-  Serial.println();
-  Serial.print("ATLAS|BOOT|");
-  Serial.println(TurnHubFirmware::VERSION);
-  Serial.print("ATLAS|RESET_REASON|"); Serial.println(TurnHub::resetReason());
-  Serial.print("ATLAS|DIAGNOSTICS|"); Serial.println(TurnHub::runtimeDiagnosticsJson());
+  serialLog.println();
+  serialLog.print("ATLAS|BOOT|");
+  serialLog.println(TurnHubFirmware::VERSION);
+  serialLog.print("ATLAS|RESET_REASON|"); serialLog.println(TurnHub::resetReason());
+  serialLog.print("ATLAS|DIAGNOSTICS|"); serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
-  Serial.println("ATLAS|FRONT_PANEL|LEDS|BOOT_BLINK");
+  serialLog.println("ATLAS|FRONT_PANEL|LEDS|BOOT_BLINK");
 
   configureIntentHandlers();
   observeClientState();
@@ -2304,17 +2339,17 @@ void setup() {
       // STAGED_CHANGES note on interrupted-match recovery.
       hubState = game.gameOver() ? HubState::GameOver : HubState::Paused;
       leds.invalidateAll();
-      Serial.print("ATLAS|RECOVERY|OUTCOME|RESTORED|STATE|");
-      Serial.println(stateName(hubState));
+      serialLog.print("ATLAS|RECOVERY|OUTCOME|RESTORED|STATE|");
+      serialLog.println(stateName(hubState));
     } else if (recoveryStatus == Status::NotFound) {
-      Serial.println("ATLAS|RECOVERY|OUTCOME|NO_SAVED_MATCH");
+      serialLog.println("ATLAS|RECOVERY|OUTCOME|NO_SAVED_MATCH");
     } else if (recoveryStatus == Status::Ok) {
       // A valid record was found and decoded, but it held no active match
       // (e.g. checkpointed while Atlas was sitting in an empty Lobby).
-      Serial.println("ATLAS|RECOVERY|OUTCOME|EMPTY_RECORD");
+      serialLog.println("ATLAS|RECOVERY|OUTCOME|EMPTY_RECORD");
     } else {
-      Serial.print("ATLAS|RECOVERY|OUTCOME|FAILSAFE|");
-      Serial.println(TurnHub::storageStatusName(recoveryStatus));
+      serialLog.print("ATLAS|RECOVERY|OUTCOME|FAILSAFE|");
+      serialLog.println(TurnHub::storageStatusName(recoveryStatus));
     }
     observeClientState();
   }
@@ -2322,13 +2357,13 @@ void setup() {
   const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;
-  if (!gameSettingsAvailable) Serial.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
+  if (!gameSettingsAvailable) serialLog.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
   startNetworking();
 
   // Start after synchronous network setup so all three flashes are visible.
   bootBlinkStartedAtMs = millis();
   bootBlinkActive = true;
-  Serial.println("ATLAS|READY");
+  serialLog.println("ATLAS|READY");
 }
 
 void loop() {

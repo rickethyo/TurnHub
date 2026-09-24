@@ -95,6 +95,8 @@ fail closed. The single bootstrap record establishes the initial Admin atomicall
 - `/api/session/me`: effective permissions for navigation.
 - Protected system routes: device naming, network information/password, developer
   HTML/runtime diagnostics, firmware HTML and upload.
+- GET `/api/diagnostics/log` (Developer): RAM serial-log download as text. The
+  Wi-Fi password line is redacted in the download.
 
 Focused checks cover setup confirmation, combined/independent permissions,
 unauthorized access, last-initial-Admin protection, force pass, session revocation,

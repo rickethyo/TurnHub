@@ -656,6 +656,47 @@ static void accountPermissionsAndModeration(){
   // Direct page requests with credentials must enforce the independent permission.
   server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==200&&server.body=="dev-secret");
   server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==403);
+  // The serial log download is a Developer diagnostic, like /api/diagnostics.
+  assert(request("/api/diagnostics/log","",{},HTTP_GET)==401);
+  assert(request("/api/diagnostics/log",gm,{},HTTP_GET)==403);
+  assert(request("/api/diagnostics/log",dev,{},HTTP_GET)==200);
+  assert(server.body.rfind("# TurnHub Atlas serial log\n# atlasId=THA-",0)==0);
+  assert(server.body.find(std::string("ATLAS|LOBBY|JOIN|BROWSER|"))!=std::string::npos);
+  assert(server.body.find(std::string("|PROFILE|")+devId.c_str()+"\n")!=std::string::npos);
+}
+static bool logHas(const char *text) {
+  return TurnHub::serialLog.snapshot().find(text)!=std::string::npos;
+}
+static void serialLogCapture() {
+  using TurnHub::serialLog;
+  serialLog.clear(); testNow=12345;
+  serialLog.print("ATLAS|A|"); serialLog.println(7); serialLog.println('B');
+  serialLog.printf("ATLAS|HEX|%02X\n",0xAB);
+  assert(serialLog.snapshot()=="[     12.345] ATLAS|A|7\n[     12.345] B\n[     12.345] ATLAS|HEX|AB\n");
+  // The port can show a secret; the downloadable copy never does.
+  serialLog.printlnRedacted("ATLAS|WIFI_AP|PASSWORD|hunter22","ATLAS|WIFI_AP|PASSWORD|<redacted>");
+  assert(!logHas("hunter22") && logHas("ATLAS|WIFI_AP|PASSWORD|<redacted>\n"));
+  // Filling the ring drops the oldest lines, starts on a whole line and reports the loss.
+  assert(serialLog.droppedBytes()==0);
+  for(int i=0;i<2000;++i) { serialLog.print("ATLAS|FILL|"); serialLog.println(i); }
+  const String wrapped=serialLog.snapshot();
+  assert(serialLog.droppedBytes()>0 && wrapped.size()<=TurnHub::SerialLog::CAPACITY);
+  assert(wrapped.rfind("[",0)==0 && wrapped.back()=='\n');
+  assert(wrapped.find("ATLAS|A|7")==std::string::npos && wrapped.find("ATLAS|FILL|1999\n")!=std::string::npos);
+  serialLog.clear(); assert(serialLog.snapshot().empty() && serialLog.droppedBytes()==0);
+
+  // Log lines that make a downloaded log self-explanatory.
+  freshLobby(2);
+  assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|SYSTEM|FROM|"));
+  nextGameSettings.turnTimerMs=60000;
+  startFromHost();
+  assert(logHas("|PROFILE|generic|LIFE|40|TIMER_MS|60000|PLAYERS|2\n"));
+  assert(web(0,1,WebControl::Concede) && hubState==HubState::GameOver);
+  serialLog.clear();
+  assert(web(0,1,WebControl::Reset) && hubState==HubState::Lobby);
+  assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|BROWSER|CONTROLLER|0|FROM|GAME_OVER\n"));
+  nextGameSettings=TurnHub::GameSettings{};
+  enterEmptyLobby();
 }
 static void virtualCapacity() {
   enterEmptyLobby();
@@ -1277,6 +1318,7 @@ int main() {
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
+  serialLogCapture(); std::cout<<"PASS serial log capture, redaction, ring overflow and self-describing log lines\n";
   // Must run last: see the comment on gameRecoveryLifecycle().
   gameRecoveryLifecycle(); std::cout<<"PASS interrupted-match recovery: boot load, checkpoint-after-intent, downtime exclusion, corrupt fail-safe\n";
 }

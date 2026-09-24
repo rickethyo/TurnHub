@@ -88,6 +88,7 @@ transport adapter (ESP-NOW packet / HTTP handler / GPIO)
 ```
 - **Adapters stay thin.** Adapters such as `handleWebControl`, `handlePass` and `processSigilEvents` must only build Intents. `audit_adapters.py` fails if an adapter calls `game.*`/`lobby.*` mutators, assigns `hubState`/`pendingPass` and similar state, or calls transition helpers directly. New gameplay actions need an `IntentType`, a handler bound in `main.cpp` setup, and host scenarios.
 - **Ownership layout:** handler bindings live in `main.cpp` (the large, still-monolithic translation unit). `GameEngine` owns turn, timer, life and win state. `Lobby` owns participants, seats and starter selection. `web_api.cpp` holds the HTTP surface, and `sigil_bus.cpp` holds the ESP-NOW transport.
+- **Serial output:** Atlas code logs through `TurnHub::serialLog` (`serial_log.h`), not `Serial.print*`, so every line also reaches the RAM log a Developer can download (`GET /api/diagnostics/log`). Keep secrets out of it with `printlnRedacted`.
 - **Forward declarations:** `main_internal_fwd.h` is force-included via `build_src_flags` so handlers can reference helpers defined later in `main.cpp`.
 
 **Identity model:** Profile (persistent: ID, name, PIN hash, stats) → Participant (one per person at the current table) → controller assignments (physical Sigil seat A/B, browser sessions, future app). Hardware identity is never player identity. Changing controllers must not replace the participant or move its stats. Multiple browser sessions can control one participant.
