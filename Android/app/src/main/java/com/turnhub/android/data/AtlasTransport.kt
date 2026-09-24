@@ -34,7 +34,7 @@ fun interface AtlasTransportFactory {
     fun create(endpoint: AtlasEndpoint): AtlasTransport
 }
 
-/** The session controls the app can send (form-based `/api/control/*` adapters). */
+/** The session controls the app can send (Atlas's form-based control routes, e.g. `/api/control/pass`). */
 enum class ControlAction(val path: String) {
     PASS("/api/control/pass"),
     PAUSE_RESUME("/api/control/pause"),
