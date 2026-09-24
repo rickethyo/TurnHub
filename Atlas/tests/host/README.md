@@ -1,7 +1,8 @@
 # Atlas native regression scenarios
 
-These tests compile the **actual** `main.cpp` handlers/adapters, `GameEngine`,
-`Lobby`, and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
+These tests compile the **actual** Atlas application modules (`main.cpp` plus the
+handler and adapter modules declared in `atlas_app.h`), `GameEngine`, `Lobby`,
+and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command

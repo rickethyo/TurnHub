@@ -34,7 +34,7 @@ pio device monitor                    # serial, 115200 baud
 Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
 
 ### Atlas host regression tests (no hardware)
-These compile the **real** `main.cpp`, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
+These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
 ```
 Atlas\tests\host\run-gcc.ps1          # PowerShell, uses PlatformIO's toolchain-gccmingw32 (or -Compiler <g++>)
 Atlas\tests\host\run.cmd              # from an x64 VS Native Tools prompt (MSVC)
