@@ -1,7 +1,11 @@
 package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AtlasInfo
+import com.turnhub.android.protocol.ControlResult
+import com.turnhub.android.protocol.LoginResult
+import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SeatEntry
+import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.AtlasWireException
 import com.turnhub.android.protocol.AtlasWireParser
 import com.turnhub.android.protocol.StateSnapshot
@@ -14,6 +18,7 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
+import java.net.URLEncoder
 import java.net.UnknownServiceException
 
 /** Opens the connection for a URL; lets Android pick which network carries it. */
@@ -30,8 +35,8 @@ fun interface HttpConnectionOpener {
  * [AtlasTransport] over Atlas's existing local HTTP API (protocol/http-v1.md),
  * using the platform [HttpURLConnection] -- no HTTP client dependency.
  *
- * All requests go through [request], which already supports the form bodies
- * and `X-TurnHub-Token` header the next milestone's session calls need.
+ * Also the [AtlasSessionTransport]: all requests go through [request], which
+ * handles form bodies and the `X-TurnHub-Token` session header.
  */
 class HttpAtlasTransport(
     private val endpoint: AtlasEndpoint,
@@ -39,7 +44,7 @@ class HttpAtlasTransport(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val connectTimeoutMs: Int = 3_000,
     private val readTimeoutMs: Int = 3_000,
-) : AtlasTransport {
+) : AtlasTransport, AtlasSessionTransport {
 
     override suspend fun getInfo(): AtlasInfo {
         val response = request("GET", "/api/v1/info")
@@ -72,6 +77,84 @@ class HttpAtlasTransport(
             throw AtlasException(AtlasFailure.HttpStatus(response.code, "Atlas seats request failed"))
         }
         return parse { AtlasWireParser.parseSeats(response.body) }
+    }
+
+    // --- authenticated profile/session routes -------------------------------
+
+    override suspend fun getProfiles(): List<ProfileSummary> {
+        val response = request("GET", "/api/profiles")
+        requireOk(response, "Atlas profiles request failed")
+        return parse { AtlasWireParser.parseProfiles(response.body) }
+    }
+
+    override suspend fun login(profileId: String, pin: String): LoginResult {
+        val response = request("POST", "/api/session/login", formBody = form("profileId" to profileId, "pin" to pin))
+        if (response.code == HttpURLConnection.HTTP_UNAUTHORIZED) {
+            // Here 401 means the profile/PIN was refused, not an expired session.
+            throw AtlasException(
+                AtlasFailure.Rejected(AtlasWireParser.errorMessage(response.body) ?: "Profile or PIN was not accepted"),
+            )
+        }
+        requireOk(response, "Sign-in failed")
+        return parse { AtlasWireParser.parseLogin(response.body) }
+    }
+
+    override suspend fun me(token: String): SessionInfo {
+        val response = request("GET", "/api/session/me", headers = auth(token))
+        requireOk(response, "Could not read your session")
+        return parse { AtlasWireParser.parseSessionMe(response.body) }
+    }
+
+    override suspend fun join(token: String): String? {
+        val response = request("POST", "/api/session/join", headers = auth(token), formBody = "")
+        requireOk(response, "Could not join the table")
+        return parse { AtlasWireParser.parseControlResult(response.body).message }
+    }
+
+    override suspend fun control(
+        token: String,
+        action: ControlAction,
+        expectedRevision: Long?,
+        expectedBootId: String?,
+    ): ControlResult {
+        val fields = buildList {
+            if (expectedRevision != null && expectedBootId != null) {
+                add("expectedRevision" to expectedRevision.toString())
+                add("expectedBootId" to expectedBootId)
+            }
+        }
+        val response = request("POST", action.path, headers = auth(token), formBody = form(*fields.toTypedArray()))
+        if (response.code == HttpURLConnection.HTTP_CONFLICT) {
+            // REJECTED / CONFLICT: a normal outcome carrying Atlas's reason.
+            return parse { AtlasWireParser.parseControlResult(response.body) }
+        }
+        requireOk(response, "Atlas did not accept the request")
+        return parse { AtlasWireParser.parseControlResult(response.body) }
+    }
+
+    override suspend fun logout(token: String) {
+        val response = request("POST", "/api/session/logout", headers = auth(token), formBody = "")
+        if (response.code != HttpURLConnection.HTTP_UNAUTHORIZED) requireOk(response, "Sign-out failed")
+    }
+
+    private fun auth(token: String) = mapOf(TOKEN_HEADER to token)
+
+    private fun form(vararg fields: Pair<String, String>): String =
+        fields.joinToString("&") { (name, value) ->
+            URLEncoder.encode(name, "UTF-8") + "=" + URLEncoder.encode(value, "UTF-8")
+        }
+
+    /** Maps Atlas's error statuses to failures, using Atlas's own `error` text when present. */
+    private fun requireOk(response: Response, fallback: String) {
+        if (response.code in 200..299) return
+        val reason = AtlasWireParser.errorMessage(response.body)
+        throw AtlasException(
+            when (response.code) {
+                HttpURLConnection.HTTP_UNAUTHORIZED -> AtlasFailure.SessionExpired
+                in 400..499 -> AtlasFailure.Rejected(reason ?: "$fallback (HTTP ${response.code})")
+                else -> AtlasFailure.HttpStatus(response.code, reason ?: fallback)
+            },
+        )
     }
 
     private inline fun <T> parse(block: () -> T): T = try {
@@ -151,5 +234,8 @@ class HttpAtlasTransport(
     private companion object {
         /** A full 16-player snapshot is a few KiB; anything huge is not Atlas. */
         const val MAX_BODY_BYTES = 256 * 1024
+
+        /** Session token header (protocol/http-v1.md). */
+        const val TOKEN_HEADER = "X-TurnHub-Token"
     }
 }

@@ -39,6 +39,12 @@ sealed class AtlasFailure(val userMessage: String, val technicalDetail: String? 
 
     class Unexpected(technicalDetail: String?) : AtlasFailure("Unexpected error.", technicalDetail)
 
+    /** Atlas refused a sign-in, join or control, with its own reason. */
+    class Rejected(reason: String) : AtlasFailure(reason)
+
+    /** Atlas no longer knows this session (expired, logged out, or Atlas restarted). */
+    data object SessionExpired : AtlasFailure("Your sign-in on Atlas ended. Sign in again to play from this phone.")
+
     /** Polling kept failing, so the live view was dropped rather than shown stale. */
     class LostConnection(val cause: AtlasFailure) : AtlasFailure(
         "Lost connection to Atlas. ${cause.userMessage} Reconnect to load fresh state.",

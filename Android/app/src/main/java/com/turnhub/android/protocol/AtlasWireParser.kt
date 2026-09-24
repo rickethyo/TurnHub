@@ -102,6 +102,62 @@ object AtlasWireParser {
         }
     }
 
+    fun parseProfiles(body: String): List<ProfileSummary> {
+        val root = parseObject(body) { AtlasWireException.Malformed("Profiles response is not JSON") }
+        return wrap {
+            root.array("profiles").objects().map { profile ->
+                ProfileSummary(
+                    profileId = profile.nonEmptyString("profileId"),
+                    name = profile.string("name"),
+                    hasPin = profile.boolean("hasPin"),
+                )
+            }
+        }
+    }
+
+    fun parseLogin(body: String): LoginResult {
+        val root = parseObject(body) { AtlasWireException.Malformed("Login response is not JSON") }
+        return wrap { LoginResult(token = root.nonEmptyString("token"), profileId = root.string("profileId")) }
+    }
+
+    fun parseSessionMe(body: String): SessionInfo {
+        val root = parseObject(body) { AtlasWireException.Malformed("Session response is not JSON") }
+        return wrap {
+            SessionInfo(
+                profileId = root.string("profileId"),
+                name = root.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() },
+                moduleId = root.int("module"),
+                slot = root.int("slot"),
+                playerNumber = root.int("player"),
+                participating = root.boolean("participating"),
+                host = root.boolean("host"),
+                active = root.boolean("active"),
+                eliminated = root.boolean("eliminated"),
+            )
+        }
+    }
+
+    /** Control results and plain `{"ok":..,"error":..}` bodies; lenient because error shapes vary. */
+    fun parseControlResult(body: String): ControlResult {
+        val root = parseObject(body) { AtlasWireException.Malformed("Control response is not JSON") }
+        return wrap {
+            ControlResult(
+                ok = root.optBoolean("ok", false),
+                status = root.optionalString("status"),
+                message = root.optionalString("message") ?: root.optionalString("error"),
+                revision = if (root.isAbsentOrNull("revision")) null else root.uint32("revision"),
+                bootId = root.optionalString("bootId"),
+            )
+        }
+    }
+
+    /** The `error` text of an Atlas error body, if it has one. */
+    fun errorMessage(body: String): String? = try {
+        JSONObject(body.trim()).optString("error").takeIf { it.isNotBlank() }
+    } catch (_: JSONException) {
+        null
+    }
+
     private fun parsePending(pending: JSONObject) = PendingDecisions(
         passPlayer = pending.optionalInt("passPlayer"),
         passGraceRemainingMs = if (pending.isAbsentOrNull("passGraceRemainingMs")) 0L
