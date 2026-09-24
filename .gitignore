@@ -345,3 +345,6 @@ statistics/*.txt
 
 # Codex temporary working attachments
 .codex-remote-attachments/
+
+# Local AI assistant scratch output
+Claude outputs/
