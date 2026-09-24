@@ -168,8 +168,14 @@ panel is upside down, rotation **2** is the opposite portrait orientation.
 
 The screen stacks player identity, life, shared-player information, received
 Commander damage and turn status. Other lifecycle screens stack shared seats
-vertically and retain host/starter/attention/winner indicators. Existing
-full-window refresh and the pin mapping above are unchanged. See
+vertically and retain host/starter/attention/winner indicators. Full refreshes
+are currently enabled for all screens: the partial-update bench trial caused
+progressive contrast loss. The owner identifies an unmarked Inland module from
+Micro Center; the panel revision remains unconfirmed. The FPC-A002 marking and
+the similar Keyestudio module's GDEM0213B74 example give conflicting identification
+leads; verify the panel and rear switch settings before another partial trial.
+The configured driver still targets GDEM0213B74. The pin mapping
+above is unchanged. See
 [Sigil portrait layout and verification](../../Sigil/DISPLAY.md).
 
 Exact physical panel dimensions, supply requirements and sleep current still

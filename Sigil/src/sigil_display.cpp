@@ -21,6 +21,8 @@ void SigilDisplay::begin() {
   spiDetachMISO(SPI.bus(), 19);
 
   display_.init(115200);
+  gameFrameValid_ = false;
+  partialRefreshCount_ = 0;
   display_.setRotation(DISPLAY_ROTATION);
   display_.setTextWrap(false);
   display_.setTextColor(GxEPD_BLACK);
@@ -28,6 +30,9 @@ void SigilDisplay::begin() {
 
   Serial.printf("SIGIL|DISPLAY|READY|%dx%d|ROTATION|%u\n",
       display_.width(), display_.height(), DISPLAY_ROTATION);
+  Serial.printf("SIGIL|DISPLAY|POLICY|%s\n",
+      ENABLE_GAME_PARTIAL_REFRESH && GxEPD2_213_B74::hasFastPartialUpdate
+          ? "PARTIAL_TRIAL" : "FULL_ONLY");
 }
 
 bool SigilDisplay::setSeatName(uint8_t slot, const char *name) {
@@ -97,6 +102,8 @@ void SigilDisplay::drawHeader(
 }
 
 void SigilDisplay::drawStatus(const char *line1, const char *line2) {
+  gameFrameValid_ = false;
+  partialRefreshCount_ = 0;
   display_.setFullWindow();
   display_.firstPage();
   do {
@@ -120,6 +127,10 @@ void SigilDisplay::drawSeat(
   display_.drawFastHLine(MARGIN, y + height - 1, width, GxEPD_BLACK);
 }
 
+void SigilDisplay::showBooting() {
+  drawStatus("Booting");
+}
+
 void SigilDisplay::showUnpaired() {
   drawStatus("Unpaired", "Press Pair on both");
 }
@@ -140,7 +151,19 @@ void SigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   char life[16];
   snprintf(life, sizeof(life), "%ld", static_cast<long>(s.primary.life));
 
-  display_.setFullWindow();
+  const bool partial = ENABLE_GAME_PARTIAL_REFRESH &&
+      GxEPD2_213_B74::hasFastPartialUpdate && gameFrameValid_ &&
+      gameFrameSigilId_ == s.sigilId && gameFrameShared_ == shared &&
+      gameFrameCommander_ == static_cast<bool>(s.commander) &&
+      partialRefreshCount_ < MAX_PARTIAL_REFRESHES;
+  const uint32_t refreshStartMs = millis();
+  if (partial) {
+    // Redraw one complete snapshot using the differential waveform. GxEPD2
+    // aligns the 122 visible columns to RAM bytes and syncs both image buffers.
+    display_.setPartialWindow(0, 0, display_.width(), display_.height());
+  } else {
+    display_.setFullWindow();
+  }
   display_.firstPage();
   do {
     display_.fillScreen(GxEPD_WHITE);
@@ -204,6 +227,18 @@ void SigilDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     }
 
   } while (display_.nextPage());
+  // Unlike the full path, GxEPD2's partial path leaves panel power enabled.
+  // Power off after both RAM images are synchronized; do not reset/hibernate.
+  display_.powerOff();
+  partialRefreshCount_ = partial ? partialRefreshCount_ + 1 : 0;
+  gameFrameValid_ = true;
+  gameFrameSigilId_ = s.sigilId;
+  gameFrameShared_ = shared;
+  gameFrameCommander_ = s.commander != 0;
+  Serial.printf("SIGIL|DISPLAY|REFRESH|%s|MS|%lu|PARTIALS|%u\n",
+      partial ? "PARTIAL" : "FULL",
+      static_cast<unsigned long>(millis() - refreshStartMs),
+      static_cast<unsigned>(partialRefreshCount_));
 }
 
 void SigilDisplay::showState(
@@ -257,6 +292,8 @@ void SigilDisplay::showState(
   const bool focused = active || starter || winner || attention;
   const bool focusA = focused && primaryPlayer < secondaryPlayer;
   const bool focusB = focused && primaryPlayer > secondaryPlayer;
+  gameFrameValid_ = false;
+  partialRefreshCount_ = 0;
   display_.setFullWindow();
   display_.firstPage();
   do {

@@ -757,6 +757,24 @@ void updateActionButton(ButtonState &actionButton, bool pauseWin = false) {
   }
 }
 
+void loadSavedPairing() {
+  Preferences prefs;
+  if (prefs.begin("th_pair_v1", false)) {
+    uint8_t binding[7];
+    if (prefs.isKey("atlas") && prefs.getBytesLength("atlas") == sizeof(binding) &&
+        prefs.getBytes("atlas", binding, sizeof(binding)) == sizeof(binding) &&
+        binding[6] < TurnHubProtocol::MAX_SIGILS) {
+      // Read before the first screen, but register the peer only after ESP-NOW
+      // starts. A saved binding remains paired even if radio startup fails.
+      memcpy(atlasMac, binding, sizeof(atlasMac));
+      atlasKnown = true;
+      sigilId = binding[6];
+      Serial.println("SIGIL|PAIR|LOADED");
+    }
+    prefs.end();
+  }
+}
+
 bool startEspNow() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
@@ -785,19 +803,10 @@ bool startEspNow() {
     if (!received.assign(mac, data, length)) return;
     xQueueSend(receiveQueue, &received, 0);
   });
-  Preferences prefs;
-  if (prefs.begin("th_pair_v1", false)) {
-    uint8_t binding[7];
-    if (prefs.isKey("atlas") && prefs.getBytesLength("atlas") == sizeof(binding) &&
-        prefs.getBytes("atlas", binding, sizeof(binding)) == sizeof(binding) &&
-        binding[6] < TurnHubProtocol::MAX_SIGILS) {
-      rememberAtlas(binding);
-      sigilId = binding[6];
-      profileSyncStartPending = true;
-      queueReadyDisplay();
-      Serial.println("SIGIL|PAIR|LOADED");
-    }
-    prefs.end();
+  if (atlasKnown) {
+    rememberAtlas(atlasMac);
+    profileSyncStartPending = true;
+    queueReadyDisplay();
   }
 
   if (!ensurePeer(BROADCAST_MAC)) {
@@ -839,6 +848,7 @@ void setup() {
 
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
+  loadSavedPairing();
   sigilDisplay.begin();
   // SPI startup configures its default MISO pin as INPUT; reclaim the pin
   // only after the write-only display has initialized and detached MISO.
@@ -849,7 +859,11 @@ void setup() {
   Serial.print("SIGIL|PAIR|READY|GPIO|");
   Serial.print(PAIR_BUTTON);
   Serial.println(pairButton.rawState == LOW ? "|DOWN" : "|UP");
-  sigilDisplay.showUnpaired();
+  if (atlasKnown) {
+    sigilDisplay.showBooting();
+  } else {
+    sigilDisplay.showUnpaired();
+  }
 
   const BaseType_t displayTaskCreated = xTaskCreatePinnedToCore(
       displayTask,
