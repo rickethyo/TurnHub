@@ -198,10 +198,9 @@ to the authoritative transitions.
 These additions are internal C++ application requests, not new ESP-NOW packet IDs or
 HTTP endpoints. The future JSON envelope is not currently decoded by this runtime;
 do not expose System origin or deferred-commit operations as caller-selected ingress.
-`PairRequest` currently has a visual-only mock handler for the Atlas Pair button; it
-does not pair devices. `PairConfirm` and `ForgetPairing` exist in the vocabulary but
-remain unsupported. Prototype 1.0 is staged to replace the mock/passive-discovery
-behavior with a real Atlas-owned pairing state machine. General counters and nudges
+`PairRequest` (Atlas Pair button only) opens the real 15-second pairing window; see
+[Manual Pairing](MANUAL_PAIRING.md). `PairConfirm` and `ForgetPairing` exist in the
+vocabulary but remain unsupported (a forget-device flow is staged). General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
 requires the primary host seat in the lobby; `flags` is the game-profile enum,

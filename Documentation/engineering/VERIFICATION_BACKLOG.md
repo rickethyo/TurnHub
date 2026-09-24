@@ -44,10 +44,10 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Measure approximate Sigil current draw during idle, radio activity, buzzer operation, and display refresh.
 - [ ] Decide final battery chemistry/form factor for portable Sigils.
 - [ ] Decide whether charging is onboard, external, or battery-swap based.
-- [ ] Add and assign GPIO for the planned Pair button.
-- [ ] Add and assign GPIO for the planned auxiliary Action/Win button.
-- [ ] Before GPIO wiring, verify the disabled/software-only `BTN_AUX` path maps to
-  semantic Atlas actions and does not introduce button-owned game rules.
+- [x] Add and assign GPIO for the Pair button (GPIO19, verified working firmware).
+- [x] Add and assign GPIO for the auxiliary Pause / Win button (GPIO32; bench check pending).
+- [x] Verify the auxiliary path maps to semantic Atlas actions and introduces no
+  button-owned game rules (it reuses Action-long and Action-win).
 - [ ] Revisit whether the original Action long-press remains after the auxiliary control exists.
 
 ## Wireless and pairing
@@ -61,11 +61,11 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Define stable device-ID generation/storage.
 - [ ] Define how Atlas identifies itself to paired Sigils.
 - [ ] Decide whether pairing requires cryptographic authentication in prototype, production, or both.
-- [ ] Prototype 1.0: replace passive proximity adoption with one Atlas-owned pairing
-  state machine using a 15-second window.
-- [ ] Prototype 1.0: verify that an unpaired Sigil can temporarily use boot to enter
-  the same 15-second pairing flow until the physical Pair button is wired; there
-  must not be a separate auto-pair implementation.
+- [x] Prototype 1.0: replace passive proximity adoption with one Atlas-owned pairing
+  state machine using a 15-second window. See [Manual Pairing](MANUAL_PAIRING.md);
+  radio bench acceptance is still pending.
+- [x] ~~Prototype 1.0: temporary boot-triggered pairing~~ - superseded; the Pair
+  button was wired first, so no boot trigger was built.
 - [ ] Verify paired startup reconnects only to the retained Atlas relationship and
   that re-pair/forget paths do not silently adopt a neighboring Atlas.
 

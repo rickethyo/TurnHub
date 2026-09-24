@@ -119,16 +119,15 @@ implemented remain; no account reset or firmware flash has been performed.
    change, so it was left as a follow-up rather than guessed at here. Until
    it exists, an unwanted recovered match can only be cleared by playing it
    out (Concede down to a winner) or by erasing NVS.
-4. **Wire the auxiliary-button software path before final GPIO wiring.** `BTN_AUX`
-   remains a hardware abstraction. Its requests must resolve to existing semantic
-   actions/Intents instead of creating game rules tied to a button. Firmware may
-   compile with the auxiliary input disabled until the physical switch is installed.
-5. **Replace passive discovery with the real pairing state machine.** Prototype 1.0
-   pairing uses a deliberate 15-second pairing window and Atlas-owned trust state.
-   Until `BTN_PAIR` is physically wired, an unpaired Sigil may enter that same real
-   pairing window automatically at boot. The temporary boot trigger must not become
-   a separate pairing implementation. The physical Pair button may slip past the
-   field-test handoff; the pairing architecture may not.
+4. **Auxiliary button software path.** Done (2026-09-24): the Pause / Win button
+   (Sigil GPIO32) sends the existing Action-long and Action-win semantics, so it
+   adds no button-owned game rules. Physical operation awaits a bench check; see
+   [Hardware reference](HARDWARE_REFERENCE.md#auxiliary-control-revision).
+5. **Real pairing state machine.** Done (2026-09-22): manual 15-second pairing on
+   both devices with persistent MAC associations replaced passive discovery; the
+   Pair button (Sigil GPIO19) is wired, so the temporary boot trigger was never
+   needed. Radio bench acceptance and a forget-device flow remain; see
+   [Manual Pairing](MANUAL_PAIRING.md).
 6. **Build and harden the three-Sigil field-test set.** Exercise cold boot, power loss,
    reconnect, profile persistence, mixed phone/Sigil control, pairing/re-pairing,
    recovery/discard, repeated games, and failure paths. Enclosures may be rough but
@@ -270,10 +269,9 @@ Privacy direction:
 
 ### 7. OTA and hardware hardening
 
-- Implement real pairing/trusted-device persistence separately from the current
-  five-second LED mock; define re-pair, forget and normal reconnect behavior.
-- Prototype 1.0 target: 15-second real pairing window; until the Sigil Pair button
-  is wired, unpaired Sigils may use boot as the temporary trigger for that same flow.
+- Real pairing with persistent associations is implemented (see
+  [Manual Pairing](MANUAL_PAIRING.md)); still to do: a forget-device flow
+  (`ForgetPairing` is reserved but unbound) and authenticated device trust.
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
 - Choose the production Sigil transport and OTA strategy.
