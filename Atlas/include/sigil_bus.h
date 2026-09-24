@@ -11,13 +11,14 @@
 
 namespace TurnHub {
 
+// A decoded button/hello packet from a known Sigil, delivered by poll().
 struct SigilEvent {
   uint8_t sigilId = INVALID_ID;
   TurnHubProtocol::PacketType type = TurnHubProtocol::PacketType::Hello;
   int32_t value = 0;
-  bool physical = false;
 };
 
+// What Atlas knows about a paired Sigil. IDs index MAX_PHYSICAL_SIGILS slots.
 struct SigilRecord {
   bool used = false;
   uint8_t id = INVALID_ID;
@@ -33,6 +34,10 @@ struct SigilRecord {
   uint32_t lastProfileRequestMs = 0;
 };
 
+// ESP-NOW transport to the physical Sigils. The radio callback only queues
+// packets; poll() hands them to the application loop and a dedicated task
+// sends outgoing packets, so neither side blocks the other. It moves bytes
+// and pairing handshakes only; it never interprets game meaning.
 class SigilBus {
  public:
   explicit SigilBus(uint8_t wifiChannel);
@@ -41,6 +46,7 @@ class SigilBus {
   bool openPairing();
   void closePairing() { pairingOpen_ = false; }
   bool pairingActive() const;
+  // Next received event, if any. Call from the application loop.
   bool poll(SigilEvent &event);
 
   uint8_t activeCount(uint32_t nowMs) const;
@@ -61,11 +67,7 @@ class SigilBus {
       TurnHubProtocol::PacketType type,
       int32_t value = 0);
 
-  bool injectEvent(
-      uint8_t sigilId,
-      TurnHubProtocol::PacketType type,
-      int32_t value = 0);
-
+  // The bus constructed in main.cpp, for modules without a reference to it.
   static SigilBus *activeInstance();
   static constexpr uint32_t SIGIL_TIMEOUT_MS = 7000;
 

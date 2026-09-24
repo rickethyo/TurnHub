@@ -122,10 +122,13 @@ bool SigilBus::poll(SigilEvent &event) {
     return false;
   }
 
+  // Every queued event came from a real radio packet (enqueue() is the only
+  // producer), so button events here prove physical possession of the Sigil.
+  //
   // Keep profile/NVS work out of the ESP-NOW callback. A Sigil asks for its
   // display profile over ESP-NOW, then the main-loop consumer reads the
   // durable profile bound to that seat and queues response packets here.
-  if (event.physical && event.type == PacketType::DisplayProfileRequest) {
+  if (event.type == PacketType::DisplayProfileRequest) {
     SigilRecord *record = const_cast<SigilRecord *>(this->record(event.sigilId));
     const uint32_t nowMs = millis();
     if (record != nullptr &&
@@ -146,7 +149,7 @@ bool SigilBus::poll(SigilEvent &event) {
   // not inside the ESP-NOW receive callback. That keeps web-session state on a
   // single execution path and prevents synthetic browser events from proving
   // possession of a Sigil.
-  if (event.physical && event.type == PacketType::ActionDown) {
+  if (event.type == PacketType::ActionDown) {
     TurnHubWebApi::notePhysicalAction(event.sigilId);
   }
 
@@ -197,19 +200,6 @@ bool SigilBus::send(uint8_t sigilId, PacketType type, int32_t value) {
     return false;
   }
   return sendToMac(sigil->mac, type, sigilId, value);
-}
-
-bool SigilBus::injectEvent(uint8_t sigilId, PacketType type, int32_t value) {
-  if (eventQueue_ == nullptr || !isOnline(sigilId, millis())) {
-    return false;
-  }
-
-  SigilEvent event;
-  event.sigilId = sigilId;
-  event.type = type;
-  event.value = value;
-  event.physical = false;
-  return xQueueSend(eventQueue_, &event, 0) == pdTRUE;
 }
 
 void SigilBus::receiveThunk(
@@ -517,7 +507,6 @@ void SigilBus::enqueue(
   event.sigilId = sigil.id;
   event.type = packet.type;
   event.value = packet.value;
-  event.physical = true;
   xQueueSend(eventQueue_, &event, 0);
 }
 

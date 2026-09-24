@@ -1,5 +1,10 @@
 #pragma once
 
+// Atlas's authoritative game rules: turn order and timing, pause, life and
+// Commander damage, elimination, win claims and per-turn statistics. Player
+// numbers are 1-based table positions; 0 means "none". All mutators validate
+// and return false without changing anything when the request is invalid.
+
 #include <Arduino.h>
 
 #include "turnhub_types.h"
@@ -7,9 +12,17 @@
 
 namespace TurnHub {
 
+// A requested change to another player's life is applied automatically if
+// the target neither accepts nor rejects it within this window.
 constexpr uint32_t LIFE_APPROVAL_MS = 15000;
 constexpr uint8_t COMMANDERS_PER_PLAYER = 2;
+
+// Automatic: accepted by timeout. Failed: accepted but could not be applied
+// (limits, or the requester was eliminated). Cancelled: a table decision or
+// the end of the game superseded it.
 enum class LifeChangeState : uint8_t { None, Pending, Accepted, Rejected, Automatic, Cancelled, Failed };
+
+// The latest request aimed at one target player; one may be pending at a time.
 struct LifeChangeRequest {
   uint32_t id = 0;
   uint32_t requestedAtMs = 0;
@@ -47,8 +60,11 @@ class GameEngine {
 
   GameEngine();
 
+  // Called exactly once per finished match (statistics commit). Never called
+  // by restoreCheckpoint().
   static void setGameCompletedCallback(GameCompletedCallback callback);
 
+  // Starts a running match. Needs 2..MAX_PLAYERS seats and a starter among them.
   bool start(
       const PlayerSeat *players,
       uint8_t playerCount,
@@ -57,29 +73,47 @@ class GameEngine {
       const GameSettings &settings = GameSettings{});
 
   const GameSettings &settings() const { return settings_; }
+
+  // --- Life and Commander damage (running or paused, no win claim) ---
   int32_t lifeTotal(uint8_t playerNumber) const;
+  // Applies delta to a living player; totals stay within +/-LIFE_LIMIT.
   bool changeLife(uint8_t playerNumber, int32_t delta);
+  // Asks target to approve a change to their life (see LIFE_APPROVAL_MS).
   bool requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs);
+  // The target answers its pending request. A late answer settles it as
+  // Automatic and returns false.
   bool respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs);
   void expireLifeChanges(uint32_t nowMs);
+  // Cancels pending requests involving the player, or all when 0.
   void cancelLifeChanges(uint8_t involvedPlayer = 0);
   const LifeChangeRequest *lifeChangeFor(uint8_t target) const;
+  // Damage recipient has taken from source's commander (1 or 2).
   int32_t commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const;
+  // Commander profile only. Adjusts damage and the recipient's life together.
   bool changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta);
 
+  // --- Turns ---
+  // Ends the active turn if controllerId owns it; records its duration.
   bool passTurn(uint8_t controllerId, uint32_t nowMs);
+  // Paused time is excluded from turn and game clocks.
   bool pause(uint32_t nowMs);
   bool resume(uint32_t nowMs);
 
+  // --- Leaving and winning ---
+  // Paused games only. Sets gameFinished when one living player remains.
   bool eliminatePlayer(
       uint8_t playerNumber,
       uint32_t nowMs,
       bool &gameFinished);
 
+  // Pauses and asks every other living player, in controller order after the
+  // claimant's, to confirm. A denial resumes play when restoreRunning is set.
   bool beginWinClaim(
       uint8_t playerNumber,
       bool restoreRunning,
       uint32_t nowMs);
+  // Only nextWinConfirmationPlayerNumber() may answer. The last confirmation
+  // finishes the game and sets gameFinished.
   bool confirmWinClaim(
       uint8_t playerNumber,
       uint32_t nowMs,
@@ -87,7 +121,9 @@ class GameEngine {
   bool denyWinClaim(uint8_t playerNumber, uint32_t nowMs);
   bool cancelWinClaim(uint8_t claimantPlayer, uint32_t nowMs);
 
+  // Clears the match (settings return to defaults).
   void reset();
+  // Snapshot for interrupted-match recovery (game_recovery.h).
   void checkpoint(GameCheckpoint &out, uint32_t nowMs) const;
   // Validates before changing state. Active matches always recover paused.
   bool restoreCheckpoint(const GameCheckpoint &saved, uint32_t nowMs);
@@ -112,6 +148,7 @@ class GameEngine {
 
   bool controllerInGame(uint8_t controllerId) const;
   bool isEliminated(uint8_t playerNumber) const;
+  // Copies the controller's seats (A then B) into out; returns the count.
   uint8_t playersForController(uint8_t controllerId, PlayerSeat *out, uint8_t capacity) const;
   uint8_t livingPlayersForController(
       uint8_t controllerId,
