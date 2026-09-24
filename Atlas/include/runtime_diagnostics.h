@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <string.h>
+#include "json_text.h"
 #if defined(ARDUINO_ARCH_ESP32)
 #include <esp_system.h>
 #include <esp_heap_caps.h>
@@ -41,21 +42,6 @@ inline void recordActivity(const char *kind, const String &message) {
   entry.message[ACTIVITY_MESSAGE_LENGTH - 1] = '\0';
   log.next = static_cast<uint8_t>((log.next + 1) % ACTIVITY_CAPACITY);
   if (log.count < ACTIVITY_CAPACITY) ++log.count;
-}
-
-inline String jsonEscape(const char *text) {
-  String escaped;
-  if (text == nullptr) return escaped;
-  for (const char *p = text; *p; ++p) {
-    switch (*p) {
-      case '\\': escaped += "\\\\"; break;
-      case '"': escaped += "\\\""; break;
-      case '\n': escaped += "\\n"; break;
-      case '\r': escaped += "\\r"; break;
-      default: escaped += *p; break;
-    }
-  }
-  return escaped;
 }
 
 inline String activityJson() {
