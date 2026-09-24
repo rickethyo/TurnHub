@@ -5,6 +5,17 @@ must not implement game rules. Responses use `Cache-Control: no-store`. Connect
 to Atlas's existing Wi-Fi network first. Discovery, automatic Wi-Fi connection,
 BLE, events and the generic JSON Intent envelope remain unimplemented.
 
+## Joining Atlas's network
+
+Standalone Atlas serves this API at `http://192.168.4.1` on its own WPA2
+access point, SSID `TurnHub-Atlas` (channel 6, no internet). A new or
+factory-reset Atlas, with no owner-set password stored, uses the shipped
+pre-setup passphrase `TurnHub-Setup` (`AtlasConfig::WIFI_DEFAULT_PASSWORD`).
+It is public by design so a client can join before setup; setup must replace
+it. Once the owner sets a password in the portal, the default no longer
+applies. Clients must therefore fall back to asking the user. The Android app
+does this: it tries a saved password, then this default, then prompts.
+
 ## Connection and first PASS
 
 1. `GET /api/v1/info` returns public device identity (`THA-` plus station MAC),

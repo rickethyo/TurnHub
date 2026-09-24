@@ -210,6 +210,18 @@ The intended direction is:
 
 This provisioning flow is planned, not the current boot behavior.
 
+## Wi-Fi access point password
+
+Atlas hosts `TurnHub-Atlas` (WPA2, channel 6). Until an owner sets a password
+in the portal (System → Wi-Fi security, holding the master button), Atlas
+uses the shipped pre-setup passphrase `TurnHub-Setup` from `config.h`. This
+lets the Android app join a new Atlas without asking. The default is never
+written to NVS, so erasing NVS returns Atlas to it. An owner-set password is
+kept across firmware updates. Boot logs `ATLAS|WIFI_AP|PASSWORD_STORE|DEFAULT`
+or `|LOADED`, and the portal shows "Factory default (change it)" while the
+default is in use. Older firmware generated a random password instead; units
+that already stored one keep it.
+
 ## Build and upload
 
 This project uses PlatformIO with the Arduino ESP32 framework.

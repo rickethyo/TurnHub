@@ -682,12 +682,16 @@ void handleNetworkInfo(WebServer &server) {
     networkPrefs.end();
   }
 
+  // No owner-set password means Atlas is running on the shipped default.
+  const bool ownerSet = password.length() >= 8;
   String response = "{\"ssid\":\"";
   response += jsonEscape(String(AtlasConfig::WIFI_SSID));
   response += "\",\"security\":\"WPA2-PSK\",\"passwordConfigured\":";
-  response += password.length() >= 8 ? "true" : "false";
+  response += ownerSet ? "true" : "false";
+  response += ",\"passwordIsDefault\":";
+  response += ownerSet ? "false" : "true";
   response += ",\"passwordLength\":";
-  response += String(password.length());
+  response += String(ownerSet ? password.length() : sizeof(AtlasConfig::WIFI_DEFAULT_PASSWORD) - 1);
   response += ",\"stations\":";
   response += String(WiFi.softAPgetStationNum());
   response += ",\"masterButton\":";

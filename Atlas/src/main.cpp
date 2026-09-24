@@ -56,11 +56,8 @@ constexpr uint32_t START_COUNTDOWN_MS = 3000;
 constexpr uint32_t PASS_GRACE_MS = 3000;
 constexpr uint32_t ACTION_CANCEL_RELEASE_CLEAR_MS = 250;
 constexpr uint32_t DEFAULT_WARNING_MS = 0;
-constexpr uint8_t WIFI_PASSWORD_LENGTH = 16;
 constexpr char WIFI_PREF_NAMESPACE[] = "atlas-net";
 constexpr char WIFI_PREF_KEY[] = "ap-pass";
-constexpr char WIFI_PASSWORD_CHARS[] =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
 bool otaAllowed();
 
@@ -173,37 +170,22 @@ const char *intentOriginName(IntentOrigin origin) {
   }
 }
 
-String generateWifiPassword() {
-  String password;
-  password.reserve(WIFI_PASSWORD_LENGTH);
-  constexpr size_t charCount = sizeof(WIFI_PASSWORD_CHARS) - 1;
-  for (uint8_t i = 0; i < WIFI_PASSWORD_LENGTH; ++i) {
-    password += WIFI_PASSWORD_CHARS[esp_random() % charCount];
-  }
-  return password;
-}
-
-String loadOrCreateWifiPassword() {
+// The owner-set password if one is stored, otherwise the shipped pre-setup
+// default. The default is never written to NVS, so a stored password always
+// means the owner chose it, and erasing NVS returns Atlas to the default.
+String loadWifiPassword() {
   TurnHub::OptionalPreferences prefs;
-  if (!prefs.begin(WIFI_PREF_NAMESPACE, false)) {
-    Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|ERROR");
-    return generateWifiPassword();
+  String password;
+  if (prefs.begin(WIFI_PREF_NAMESPACE, true)) {
+    password = prefs.getString(WIFI_PREF_KEY, "");
+    prefs.end();
   }
-
-  String password = prefs.getString(WIFI_PREF_KEY, "");
-  if (password.length() < 8 || password.length() > 63) {
-    password = generateWifiPassword();
-    if (prefs.putString(WIFI_PREF_KEY, password) == 0) {
-      Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|WRITE_ERROR");
-    } else {
-      Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|GENERATED");
-    }
-  } else {
+  if (password.length() >= 8 && password.length() <= 63) {
     Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|LOADED");
+    return password;
   }
-
-  prefs.end();
-  return password;
+  Serial.println("ATLAS|WIFI_AP|PASSWORD_STORE|DEFAULT");
+  return String(AtlasConfig::WIFI_DEFAULT_PASSWORD);
 }
 
 bool masterButtonPressed() {
@@ -2176,7 +2158,7 @@ void updateFrontPanelLeds(uint32_t nowMs) {
 void startNetworking() {
   WiFi.mode(WIFI_AP_STA);
 
-  const String wifiPassword = loadOrCreateWifiPassword();
+  const String wifiPassword = loadWifiPassword();
   if (wifiPassword.length() < 8) {
     Serial.println("ATLAS|WIFI_AP|PASSWORD|ERROR");
     return;
