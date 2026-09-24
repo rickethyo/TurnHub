@@ -41,6 +41,16 @@
       }
     },
     {
+      "type": "wokwi-pushbutton",
+      "id": "pairBtn",
+      "top": 250,
+      "left": -240,
+      "attrs": {
+        "label": "PAIR",
+        "key": "R"
+      }
+    },
+    {
       "type": "wokwi-led",
       "id": "blueLed",
       "top": 220,
@@ -100,6 +110,9 @@
 
     [ "pauseWinBtn:1.l", "esp:D32", "green", [] ],
     [ "pauseWinBtn:2.l", "esp:GND.1", "black", [] ],
+
+    [ "pairBtn:1.l", "esp:D19", "green", [] ],
+    [ "pairBtn:2.l", "esp:GND.1", "black", [] ],
 
     [ "blueLed:A", "esp:D27", "blue", [] ],
     [ "blueLed:C", "esp:GND.2", "black", [] ],

@@ -21,6 +21,7 @@ The Wokwi diagram maps:
 - `P` to the PASS button on GPIO 26
 - `A` to the ACTION button on GPIO 25
 - `W` to the PAUSE / WIN button on GPIO 32 (breadboard J13)
+- `R` to the PAIR button on GPIO 19 (socket A12)
 - blue LED to GPIO 27
 - green LED to GPIO 14
 - red LED to GPIO 13
@@ -32,6 +33,14 @@ pause/resume (the existing ACTION-long semantic), or hold 5 seconds to claim
 a win. A win hold sends ACTION_LONG followed by ACTION_WIN at 5 seconds;
 it does not pause at 2 seconds or send ACTION_SHORT on release. GPIO 25
 retains its existing ACTION behavior, including short-press win confirmation.
+
+PAIR also switches to GND with the internal pull-up; the firmware takes GPIO 19
+back from SPI MISO after the display starts. Pressing it opens the 15-second
+pairing window: the red LED blinks and the Sigil broadcasts `PairRequest`
+(visible as `WOKWI|SIGIL_TX|10|...`). The simulated Atlas only acknowledges
+those requests and never sends `PairAccept`, so the window ends with
+`SIGIL|PAIR|TIMEOUT`. This checks the button, the window timing and the LED,
+not the pairing handshake.
 
 ## Atlas console commands
 
