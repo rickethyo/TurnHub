@@ -20,6 +20,10 @@
 esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t injectedCommitError = ESP_OK;
+esp_err_t openError = ESP_OK;
+esp_err_t setError = ESP_OK;
+std::map<std::string, std::vector<uint8_t>> testBlobs;
+bool useRealNvsBlobs = false;
 
 // Only hardware/transport/presentation boundaries are replaced.
 namespace TurnHub {
@@ -960,6 +964,66 @@ static void nativeClientBoundary() {
   enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
 }
 
+// Interrupted-match recovery: beginGameRecovery()/checkpointGame() live in a
+// process-wide singleton (game_recovery_store.cpp), so this scenario must run
+// last -- once it opens that store, every dispatched intent's observer starts
+// persisting checkpoints for the rest of the process (matching production;
+// see main.cpp's observeIntent()). Earlier scenarios never call
+// beginGameRecovery(), so they are unaffected either way.
+static void gameRecoveryLifecycle() {
+  using TurnHubStorage::Status;
+
+  testBlobs.clear();
+  useRealNvsBlobs = true;
+  readError = ESP_OK; openError = ESP_OK; setError = ESP_OK;
+
+  // 1) First boot ever: nothing has been saved.
+  freshLobby(2);
+  testNow = 5000;
+  assert(TurnHub::beginGameRecovery(game, lobby, testNow) == Status::NotFound);
+  assert(!game.hasPlayers());
+
+  // 2) Start a match and accept a semantic transition (a committed pass).
+  // main.cpp's observer persists a checkpoint after every dispatched intent;
+  // no code here calls checkpointGame() directly.
+  startFromHost();
+  handlePass(0);
+  testNow += PASS_GRACE_MS; updatePendingPass(testNow);
+  assert(!pendingPass.active && game.activePlayerNumber() == 2);
+  assert(testBlobs.count("checkpoint") == 1);
+  testNow += 45000; // 45s of real play before "power loss".
+  handlePass(1);
+  testNow += PASS_GRACE_MS; updatePendingPass(testNow);
+  const uint32_t elapsedBeforeLoss = game.gameElapsedMs(testNow);
+  assert(elapsedBeforeLoss >= 45000);
+
+  // 3) Simulate a reboot: fresh in-RAM objects standing in for cleared RAM,
+  // reading back whatever step 2 left in "flash" (testBlobs). Ten minutes of
+  // downtime must never be charged to a player, and restoring never replays
+  // the game-completed statistics callback.
+  const uint32_t rebootAtMs = testNow + 600000;
+  const int completedBeforeReboot = completedGames;
+  GameEngine rebooted; Lobby rebootedLobby;
+  assert(TurnHub::beginGameRecovery(rebooted, rebootedLobby, rebootAtMs) == Status::Ok);
+  assert(rebooted.hasPlayers() && rebooted.paused() && !rebooted.gameOver());
+  assert(rebooted.gameElapsedMs(rebootAtMs) == elapsedBeforeLoss);
+  assert(rebootedLobby.playerCount() == 2 && rebootedLobby.hostController() == 0);
+  assert(completedGames == completedBeforeReboot);
+
+  // 4) A damaged record must fail safe -- Atlas boots to a fresh, empty lobby
+  // rather than loading ambiguous state -- instead of crashing or guessing.
+  assert(testBlobs.count("checkpoint") == 1);
+  testBlobs["checkpoint"][0] ^= 0xFF; // flip a magic byte
+  GameEngine corrupt; Lobby corruptLobby;
+  assert(TurnHub::beginGameRecovery(corrupt, corruptLobby, rebootAtMs) == Status::Corrupt);
+  assert(!corrupt.hasPlayers() && corruptLobby.playerCount() == 0);
+
+  useRealNvsBlobs = false;
+  readError = ESP_ERR_NVS_NOT_FOUND;
+  testBlobs.clear();
+  enterEmptyLobby();
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -983,4 +1047,6 @@ int main() {
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
+  // Must run last: see the comment on gameRecoveryLifecycle().
+  gameRecoveryLifecycle(); std::cout<<"PASS interrupted-match recovery: boot load, checkpoint-after-intent, downtime exclusion, corrupt fail-safe\n";
 }

@@ -63,6 +63,44 @@ implemented remain; no account reset or firmware flash has been performed.
    presentation/adaptor state do not survive reboot. Introduce a durable MatchId and
    completion receipt/marker before replaying completion so statistics cannot be
    counted twice after an uncertain write or power loss.
+
+   Audit update (2026-09-23, Claude): the codec/store/checkpoint files
+   (`game_checkpoint.*`, `game_recovery.*`, `nvs_blob_store.*`) were already
+   sound, but `beginGameRecovery()`/`checkpointGame()` were never called from
+   `main.cpp` -- this is the actual reason hardware testing saw no restore
+   after power loss, not a bug in the recovery logic itself (matches the
+   "retained without activation" note in `STABILIZATION_2026_09_22.md`). Now
+   wired: `setup()` calls `beginGameRecovery()` before the portal/radio
+   boundary opens and sets `hubState` from the result (`Paused` or
+   `GameOver`, matching what was actually saved); `checkpointGame()` is
+   called from the dispatcher's existing intent observer (persists after
+   every accepted semantic transition, a no-op on rejection) and once a
+   second from `loop()` (covers the periodic elapsed-clock case with no
+   intents in between). Diagnostic `ATLAS|RECOVERY|...` serial lines cover
+   open, read, decode, validate and write outcomes, distinguishing
+   NotFound/Corrupt/UnsupportedSchema/IoError from a clean restore. A
+   `gameRecoveryLifecycle` host scenario (`Atlas/tests/host/scenarios.cpp`)
+   now exercises the real entry points end to end: first-boot `NotFound`,
+   checkpoint-after-intent with no direct test call to `checkpointGame()`,
+   a simulated reboot restoring paused with downtime excluded and no
+   statistics replay, and a corrupted record failing safe. All Windows host
+   scenarios pass (verified via an equivalent Linux/g++ build here; PlatformIO
+   firmware and hardware acceptance still need the owner's bench).
+
+   Deliberately not done: there is still no Resume/Discard *decision* UI.
+   "Resume" needs no new code -- a restored match lands in the existing
+   `Paused` state, so the current Pause/Resume controls (physical and
+   browser) already continue it. "Discard" has nothing to hook into yet:
+   `ResetGame` is intentionally only reachable from `GameOver` or an
+   unstarted `Lobby` today, specifically so it can't be used to nuke an
+   ordinary in-progress paused game, and a freshly-recovered match is
+   indistinguishable from that once `hubState` is `Paused`. Building this
+   safely needs a real decision (a new `HubState`, a boot-scoped "still
+   exactly what was recovered" guard, and a place to trigger it physically
+   for a table with no phone in reach) rather than a quick guard-clause
+   change, so it was left as a follow-up rather than guessed at here. Until
+   it exists, an unwanted recovered match can only be cleared by playing it
+   out (Concede down to a winner) or by erasing NVS.
 4. **Wire the auxiliary-button software path before final GPIO wiring.** `BTN_AUX`
    remains a hardware abstraction. Its requests must resolve to existing semantic
    actions/Intents instead of creating game rules tied to a button. Firmware may
@@ -222,7 +260,10 @@ Privacy direction:
 - LED states remain understandable without color alone.
 - Atlas OTA after ESP32 migration.
 - Production wireless transport decision.
-- Prototype 1.0 interrupted-match recovery after abrupt Atlas power loss.
+- Prototype 1.0 interrupted-match recovery after abrupt Atlas power loss. The
+  load/save wiring and diagnostic logging are in now (see item 3 above); this
+  entry stays open until an actual power-loss-and-reboot bench test confirms
+  it on hardware, and until the Resume/Discard decision UI exists.
 
 ## Working rules
 
@@ -235,4 +276,4 @@ Privacy direction:
 7. Before any structural change, review the engineering Git documentation first, including the architectural invariants, this staging document, and every reference document materially affected by the change. Resolve documentation conflicts before changing structure.
 8. Before treating a user-facing feature as complete, review its accessibility impact against `ACCESSIBILITY.md`.
 
-Last updated: 2026-09-21
+Last updated: 2026-09-23
