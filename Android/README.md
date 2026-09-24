@@ -169,8 +169,10 @@ Build and test from `Android/` (Android Studio's bundled JDK works):
 a physical Atlas over its existing HTTP API. `MockAtlasRepository` is gone;
 production always uses `HttpAtlasRepository`.
 
-1. Join the `TurnHub-Atlas` Wi-Fi manually, open the app, tap Connect. The
-   address defaults to `http://192.168.4.1` and stays editable.
+1. Open the app and tap Connect. The address defaults to `http://192.168.4.1`
+   and stays editable. For that address the app first joins Atlas's Wi-Fi
+   itself (see "Targeted Wi-Fi" below); other addresses must already be
+   reachable.
 2. `GET /api/v1/info` must be a TurnHub Atlas with API `1`, protocol `0.1`
    and state snapshots; anything else fails with a clear message.
 3. `GET /api/v1/state` is mapped into the Home screen; only then is the app
@@ -181,6 +183,28 @@ production always uses `HttpAtlasRepository`.
    DISCONNECTED; Connect again loads a fresh snapshot. Disconnect stops polling
    and clears state. A match Atlas recovered after a reboot is simply shown
    as `PAUSED`.
+
+Targeted Wi-Fi (no trip to Android settings):
+
+- `TargetedAtlasWifiLink` asks Android for `TurnHub-Atlas` with a
+  `WifiNetworkSpecifier` (no internet capability). The network is used only
+  by TurnHub: the phone keeps its normal Wi-Fi/mobile connection. The Pixel
+  Fold even stayed on home Wi-Fi at the same time. The link is also the
+  `HttpConnectionOpener`, so Atlas requests go over that network.
+- Password order: the saved password for the SSID, else the shipped default
+  `TurnHub-Setup` (protocol/http-v1.md), else the "Atlas Wi-Fi" prompt. The
+  prompt allows editing the SSID and has an "I've joined this Wi-Fi already"
+  option for the manual path. Only credentials that actually joined are saved
+  (`PreferencesWifiCredentialStore`, app-private, excluded from backup and
+  device transfer).
+- Android shows its approval dialog at most once per access point, then
+  remembers it. Disconnect, a lost connection or a failed handshake gives the
+  network back. A joined network is dropped when Atlas reboots, so the view
+  drops to DISCONNECTED and Connect rejoins.
+- Needs Android 10+ (API 29). On older phones the prompt points to the manual path.
+- Verified on a Pixel Fold (Android 17): the default fails against an Atlas
+  with an owner-set password, the prompt appears, Join connects, Disconnect
+  releases, and the next Connect reuses the saved password with no prompt.
 
 Networking notes:
 
@@ -193,10 +217,10 @@ Networking notes:
 - Cleartext HTTP is allowed only for `192.168.4.1`
   (`res/xml/network_security_config.xml`). Other addresses are refused by
   Android until that file is deliberately extended (e.g. for Home/LAN mode).
-- Atlas's access point has no internet, so Android often keeps mobile data as
-  the default route. `WifiPreferringConnectionOpener` sends Atlas requests over
-  the joined Wi-Fi network (needs `ACCESS_NETWORK_STATE`); it never changes
-  Wi-Fi settings.
+- For the manual path (phone joined to Atlas in settings), Android often
+  keeps mobile data as the default route because Atlas has no internet.
+  `WifiPreferringConnectionOpener` sends Atlas requests over the current Wi-Fi
+  network (needs `ACCESS_NETWORK_STATE`).
 - `/api/v1/state` carries no player names today, so players show as
   `Player N`. The "Physical Sigils at this table" list only covers handles
   0-7 seated in `players[]`; Atlas publishes no paired-device inventory, so
@@ -206,7 +230,8 @@ Next milestone, prepared by `HttpAtlasTransport.request()` (form bodies and
 `X-TurnHub-Token` already supported): profiles -> login -> join ->
 `/api/session/me` -> authenticated `PASS` via the form-based
 `/api/control/pass` -> fetch state again. Never auto-replay a timed-out
-control. `/api/v1/intent`, events, BLE, QR discovery and Wi-Fi automation
-remain out of scope.
+control. `/api/v1/intent`, events, BLE and QR discovery remain out of
+scope. OOBE setup networks and QR-provided credentials can reuse
+`AtlasWifiLink` as-is.
 
-Last established: 2026-09-23
+Last established: 2026-09-24

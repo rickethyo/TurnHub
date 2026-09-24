@@ -67,6 +67,9 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 - **Layering:** wire DTOs and the strict parser live in `protocol/`, UI aggregates in `domain/`, and networking only below `AtlasRepository` in `data/`. Production uses `HttpAtlasRepository`; there is no mock repository.
 - **Cleartext HTTP:** `res/xml/network_security_config.xml` allows it only to `192.168.4.1`.
 - **Android 17 local network permission:** apps targeting API 37 need the `ACCESS_LOCAL_NETWORK` ("Nearby devices") runtime permission for any LAN traffic. Without it, connections to Atlas just time out with no clear error. `MainActivity` requests it on Connect.
+- **Joining Atlas's Wi-Fi:** the app joins it itself via `TargetedAtlasWifiLink` (`WifiNetworkSpecifier`, API 29+). It tries a saved password, then the shipped default, then prompts. The default passphrase `TurnHub-Setup` exists in two places that must stay in sync: `Atlas/include/config.h` (`WIFI_DEFAULT_PASSWORD`) and `WifiCredentials.DEFAULT_ATLAS_PASSPHRASE`. It's documented in `protocol/http-v1.md`.
+- **Phone testing:** with USB debugging on, `adb` is at `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`. Drive the UI with `uiautomator dump` plus `input tap`. `screencap` needs a display ID on the Pixel Fold. Never type passwords for the user.
+- **Identifying boards:** Atlas and Sigil both use CP210x USB bridges. Tell them apart by MAC with `pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac`; Atlas's MAC is its `THA-` ID. Reading the MAC resets the board.
 
 ### PiLogger
 `python -m turnhub_logger.main --config config.toml` (copy from `config.example.toml`).

@@ -46,8 +46,19 @@ fun HomeScreen(
     onConnectClick: () -> Unit,
     onDisconnectClick: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onWifiPasswordSubmit: (ssid: String, passphrase: String) -> Unit,
+    onUseCurrentWifi: () -> Unit,
+    onWifiPromptDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    uiState.wifiPrompt?.let { prompt ->
+        WifiPasswordDialog(
+            prompt = prompt,
+            onSubmit = onWifiPasswordSubmit,
+            onUseCurrentWifi = onUseCurrentWifi,
+            onDismiss = onWifiPromptDismiss,
+        )
+    }
     Scaffold(
         modifier = modifier,
         topBar = { TopAppBar(title = { Text("TurnHub") }) },
@@ -68,13 +79,14 @@ fun HomeScreen(
                         enabled = uiState.endpointEditable,
                         singleLine = true,
                         label = { Text("Atlas address") },
-                        supportingText = { Text("Join the TurnHub-Atlas Wi-Fi first.") },
+                        supportingText = { Text("TurnHub joins the Atlas Wi-Fi for you when you connect.") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
                         keyboardActions = KeyboardActions(onGo = { onConnectClick() }),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     ConnectionAction(
                         connectionState = uiState.connectionState,
+                        joiningSsid = uiState.joiningSsid,
                         onConnectClick = onConnectClick,
                         onDisconnectClick = onDisconnectClick,
                     )
@@ -170,12 +182,17 @@ private fun ErrorCard(
 @Composable
 private fun ConnectionAction(
     connectionState: AtlasConnectionState,
+    joiningSsid: String?,
     onConnectClick: () -> Unit,
     onDisconnectClick: () -> Unit,
 ) {
     when (connectionState) {
         AtlasConnectionState.DISCONNECTED -> {
-            Button(onClick = onConnectClick) { Text("Connect to Atlas") }
+            if (joiningSsid != null) {
+                Button(onClick = {}, enabled = false) { Text("Joining $joiningSsid Wi-Fi…") }
+            } else {
+                Button(onClick = onConnectClick) { Text("Connect to Atlas") }
+            }
         }
         AtlasConnectionState.CONNECTING -> {
             Button(onClick = {}, enabled = false) { Text("Connecting…") }

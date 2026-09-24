@@ -19,6 +19,7 @@ The goal is simple: know what entered the project, where it came from, how it is
 | GxEPD2 | `zinggjm/GxEPD2`, current PlatformIO dependency | Sigil e-ink | GPL-3.0 | Yes if current Sigil firmware ships | RED | Decide before production whether to comply with GPLv3 for the resulting firmware or replace with a suitably licensed display driver. Legal review before commercial release. |
 | Adafruit GFX Library | Transitive GxEPD2 dependency | Sigil e-ink graphics | BSD-style | Yes if linked into shipped firmware | GREEN | Preserve copyright, conditions, and disclaimer in release notices/materials as required. |
 | PlatformIO Core | Build environment | Development | Apache-2.0 | No, currently build tooling only | GREEN | Track tool version for reproducibility. No product notice expected unless redistributed. |
+| org.json (JSON-java) | `org.json:json:20260814`, Android `testImplementation` only | Android JVM unit tests (the app itself uses Android's built-in `org.json`) | Public Domain (per its Maven POM) | No, test classpath only | GREEN | None while test-only. Re-review if it ever moves to an `implementation` dependency. |
 
 ## Platform/toolchain follow-up
 
@@ -69,6 +70,10 @@ The high-level rows above are not yet a complete software bill of materials. Bef
 - [ ] Perform a final third-party asset audit before public release.
 
 ## Change log
+
+### 2026-09-24
+
+Added the test-only `org.json:json` dependency introduced with the Android live-Atlas integration. The broader Android dependency inventory (AndroidX, Compose, coroutines, JUnit) remains the open task above.
 
 ### 2026-09-19
 

@@ -20,7 +20,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.turnhub.android.data.AtlasTransportFactory
 import com.turnhub.android.data.HttpAtlasRepository
 import com.turnhub.android.data.HttpAtlasTransport
-import com.turnhub.android.data.WifiPreferringConnectionOpener
+import com.turnhub.android.data.PreferencesWifiCredentialStore
+import com.turnhub.android.data.TargetedAtlasWifiLink
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
@@ -35,9 +36,15 @@ class MainActivity : ComponentActivity() {
     // ViewModel so polling survives rotation. The endpoint is chosen by the
     // user on the Home screen and passed in at connect time.
     private val homeViewModel: HomeViewModel by viewModels {
-        val opener = WifiPreferringConnectionOpener(applicationContext)
-        val transports = AtlasTransportFactory { endpoint -> HttpAtlasTransport(endpoint, opener) }
-        HomeViewModel.factory { scope -> HttpAtlasRepository(transports, scope) }
+        // One link both joins the Atlas Wi-Fi and routes Atlas requests over it
+        // (falling back to a manually joined Wi-Fi when it holds no network).
+        val wifiLink = TargetedAtlasWifiLink(applicationContext)
+        val transports = AtlasTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
+        HomeViewModel.factory(
+            repositoryFactory = { scope -> HttpAtlasRepository(transports, scope) },
+            wifiLink = wifiLink,
+            credentialStore = PreferencesWifiCredentialStore(applicationContext),
+        )
     }
 
     // Android 17 blocks local-network traffic (so every Atlas request would just
@@ -80,6 +87,9 @@ class MainActivity : ComponentActivity() {
                         onConnectClick = ::connectToAtlas,
                         onDisconnectClick = homeViewModel::onDisconnectClicked,
                         onOpenAppSettings = ::openAppSettings,
+                        onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
+                        onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
+                        onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
                     )
                 }
             }
