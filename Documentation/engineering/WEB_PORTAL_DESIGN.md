@@ -58,6 +58,22 @@ and never changes gameplay. Missing or unknown values fall back to Brass.
   the theme, falling back to the browser's own `confirm`/`prompt` where `<dialog>`
   is unsupported.
 
+## Where things live
+
+Placement follows common web conventions so people find things without hunting.
+
+| Need | Location |
+|---|---|
+| Sign in / create account | Gold **Sign in** button at the top right of every portal view (plus a contextual button in My seat while signed out) |
+| Who am I, log out | Top-right account button (avatar + name) opens a menu: Account settings, My statistics, Developer (Developer permission only), Log out |
+| Table actions (join, go first, start, pass, pause, concede, rematch) | My seat card only |
+| Game setup (profile, starting life, turn timer) | Game view main column, directly under the stage in the lobby; locked during a game |
+| Life totals, approvals, Commander damage | Game view main column, shown once a game has totals |
+| Roster, invite QR codes, Sigil attachment, Game Master tools | Players tab |
+| Name, PIN, privacy, theme, sound/vibration, moderation history | My Account tab |
+| Wi-Fi, device names, permissions, firmware update | Device Settings tab (Admin), with firmware under the Atlas card |
+| Connection | Pill at top right; on phones a dot while connected, words when it is not |
+
 ## Layout
 
 - Phones: single column, with a bottom tab bar in thumb reach and the primary action

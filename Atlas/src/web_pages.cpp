@@ -213,6 +213,20 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 .conn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:.8rem;font-weight:650;color:var(--muted);background:var(--inset);white-space:nowrap}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 22%,transparent)}
 .dot.online{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
+.signin{min-height:40px;padding:8px 16px}
+.menu-wrap{position:relative}
+.acct-btn{min-height:44px;padding:4px 12px 4px 4px;border-radius:99px;gap:9px;background:var(--inset)}
+.acct-btn .avatar{width:34px;height:34px;font-size:.8rem;box-shadow:none}
+.acct-name{max-width:14ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.caret{width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-2px) rotate(45deg);transition:transform .15s}
+.acct-btn[aria-expanded=true] .caret{transform:translateY(1px) rotate(-135deg)}
+.menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:240px;padding:6px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:0 24px 50px -16px rgba(0,0,0,.75)}
+.menu-head{display:grid;padding:10px 12px 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.menu-head strong{font-family:var(--font-display);font-size:1.05rem}
+.menu-head span{color:var(--muted);font-size:.8rem}
+.menu-item{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font-weight:600;font-size:.95rem;text-decoration:none}
+.menu-item:hover:not(:disabled){background:var(--surface-3);border-color:transparent}
+.menu-item.danger{color:var(--bad)}
 .tabs{display:flex;gap:4px;padding:4px;background:var(--inset);border:1px solid var(--line);border-radius:15px}
 .tab{min-height:40px;border:1px solid transparent;background:transparent;color:var(--muted);padding:8px 14px;border-radius:11px;font-weight:650;white-space:nowrap}
 .tab:hover:not(:disabled){background:var(--surface-2);border-color:var(--line)}
@@ -222,7 +236,7 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 #adminSetup{margin-bottom:14px}
 .board{display:grid;gap:16px}
 .board>.col{display:contents}
-.stage{order:1}.seat-card{order:2}.life-card{order:3}#commanderPanel{order:4}.table-card{order:5}.setup-card{order:6}
+.stage{order:1}.seat-card{order:2}.life-card{order:3}#commanderPanel{order:4}.setup-card{order:5}.table-card{order:6}
 .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
 .grid>*{grid-column:span 12}
 /* Stage: the turn, told by a brass gauge and in words. */
@@ -265,7 +279,6 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 .control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:16px}
 .control-grid .wide{grid-column:1/-1}
 .control-grid .xl{min-height:64px;font-size:1.15rem;font-family:var(--font-display);letter-spacing:.02em}
-.control-grid .stats-link{grid-column:1/-1}
 #claimHelp{margin-top:14px}
 #claimHelp .btn{width:100%}
 /* Life */
@@ -347,7 +360,11 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
  .tab .i{width:22px;height:22px}
  .toast{bottom:calc(88px + env(safe-area-inset-bottom))}
  .req-alert{top:70px;grid-template-columns:1fr}
- #devLink span{display:none}
+ .acct-name{display:none}
+ .acct-btn{padding:4px 10px 4px 4px}
+ /* When connected, the dot is enough on a phone; problems always show in words. */
+ .conn.ok .conn-text{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+ .conn.ok{padding:9px}
  .conn{padding:6px 10px}
 }
 @media (min-width:820px){
@@ -371,6 +388,8 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 <symbol id="i-account" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.9-4.1 3.9-6.4 7.5-6.4s6.6 2.3 7.5 6.4"/></symbol>
 <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></symbol>
 <symbol id="i-dev" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7.5 10l2.5 2.5-2.5 2.5M12.5 15h4"/></symbol>
+<symbol id="i-stats" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></symbol>
+<symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 16l-4-4 4-4M6 12h10"/></symbol>
 <symbol id="i-life" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/></symbol>
 </svg>
 <a class="skip" href="#main">Skip to content</a>
@@ -384,8 +403,18 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
   <button id="deviceSettingsTab" class="tab" data-tab="settings" onclick="showTab('settings')" hidden><svg class="i" aria-hidden="true"><use href="#i-settings"/></svg><span>Device Settings</span></button>
  </nav>
  <div class="appbar-end">
-  <span class="conn"><span id="dot" class="dot"></span><span id="connection">Connecting</span></span>
-  <a id="devLink" class="btn ghost small" href="/dev" hidden><svg class="i" aria-hidden="true"><use href="#i-dev"/></svg><span>Developer</span></a>
+  <span id="connPill" class="conn"><span id="dot" class="dot"></span><span id="connection" class="conn-text">Connecting</span></span>
+  <a id="signInButton" class="btn primary signin" href="/login"><svg class="i" aria-hidden="true"><use href="#i-account"/></svg><span>Sign in</span></a>
+  <div id="accountMenuWrap" class="menu-wrap" hidden>
+   <button id="accountButton" class="acct-btn" aria-expanded="false" aria-controls="accountMenu" aria-label="Account menu" onclick="toggleAccountMenu()"><span id="accountAvatar" class="avatar" aria-hidden="true">?</span><span id="accountName" class="acct-name"></span><span class="caret" aria-hidden="true"></span></button>
+   <div id="accountMenu" class="menu" hidden>
+    <div class="menu-head"><strong id="menuName"></strong><span id="menuMeta"></span></div>
+    <button class="menu-item" onclick="closeAccountMenu();showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-account"/></svg>Account settings</button>
+    <a class="menu-item" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-stats"/></svg>My statistics</a>
+    <a id="devLink" class="menu-item" href="/dev" hidden><svg class="i" aria-hidden="true"><use href="#i-dev"/></svg>Developer</a>
+    <button class="menu-item danger" onclick="closeAccountMenu();logoutSession()"><svg class="i" aria-hidden="true"><use href="#i-exit"/></svg>Log out</button>
+   </div>
+  </div>
  </div>
 </header>
 
@@ -415,7 +444,7 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
   <div class="stage-text"><div id="eyebrow" class="eyebrow">TurnHub</div><h2 id="heroTitle">READY</h2><p id="heroSub">Waiting for Atlas</p><div id="heroBadges" class="badges"></div></div>
  </section>
 
- <section class="card life-card">
+ <section id="lifeCard" class="card life-card" hidden>
   <div class="card-head"><div style="flex:1"><h2 class="eyebrow">Life</h2><p id="gameProfileSummary" class="small"></p></div></div>
   <div id="tableLifeTotals" class="life-grid"></div>
   <p id="lifeMessage" class="msg" role="status" aria-live="polite"></p>
@@ -443,12 +472,26 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
    <button type="submit" class="primary" style="margin-top:14px">Update damage and life</button></fieldset></form>
   <p id="commanderMessage" class="msg" role="status" aria-live="polite"></p>
  </section>
+
+ <section class="card setup-card">
+  <div class="card-head"><h2 class="eyebrow">Game setup</h2></div>
+  <form onsubmit="saveGameSettings(event)"><fieldset id="gameSettingsFields"><legend class="sr-only">Game setup</legend>
+   <div class="field"><label for="gameProfileSelect">Game profile</label>
+   <select id="gameProfileSelect" onchange="chooseGameProfile()"><option value="generic">Generic</option><option value="mtg">Magic: The Gathering</option><option value="mtg_commander">MTG Commander</option><option value="yugioh">Yu-Gi-Oh!</option></select></div>
+   <label for="startingLifeInput">Starting life</label><input id="startingLifeInput" type="number" min="0" max="1000000" step="1" required value="40" oninput="gameSettingsDirty=true">
+   <label for="turnTimerSelect">Turn timer</label><select id="turnTimerSelect" onchange="gameSettingsDirty=true;turnTimerCustomRow.hidden=this.value!=='custom'"></select>
+   <div id="turnTimerCustomRow" hidden><label for="turnTimerCustom">Custom turn length in seconds (15 to 3600)</label><input id="turnTimerCustom" type="number" min="15" max="3600" step="1" value="90" oninput="gameSettingsDirty=true"></div>
+   <p class="hint">Off: no countdown; a gentle cue appears after 5 minutes. With a timer, Atlas warns 10 seconds before time runs out. Running out of time never passes the turn.</p>
+   <button type="submit" class="primary" style="width:100%;margin-top:6px">Save game settings</button></fieldset></form>
+  <p id="gameSettingsMessage" class="msg" role="status" aria-live="polite">The table host can change settings in the lobby.</p>
+  <p class="hint">Life and Commander damage do not automatically eliminate a player. Changes to another player's life need their approval; Atlas accepts unanswered requests after 15 seconds.</p>
+ </section>
 </div>
 
 <div class="col">
  <section id="sessionBox" class="card seat-card">
   <div class="card-head"><h2 class="eyebrow">My seat</h2></div>
-  <div class="who"><span id="sessionAvatar" class="avatar lg" aria-hidden="true">?</span><div class="who-text"><div id="sessionTitle" class="who-name">Not signed in</div><div id="sessionMeta" class="small">Sign into your profile to join or reconnect.</div></div><button id="logoutButton" class="ghost small" hidden onclick="logoutSession()">Log out</button></div>
+  <div class="who"><span id="sessionAvatar" class="avatar lg" aria-hidden="true">?</span><div class="who-text"><div id="sessionTitle" class="who-name">Not signed in</div><div id="sessionMeta" class="small">Sign into your profile to join or reconnect.</div></div></div>
   <div id="sessionState" class="badges"></div>
   <div id="sessionControls" class="control-grid" hidden></div>
   <div id="claimHelp" class="notice info"><p>Sign in to play from this phone. A physical Sigil is optional.</p><a class="btn primary" href="/login">Sign in or create a profile</a></div>
@@ -467,19 +510,6 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
   </div>
  </section>
 
- <section class="card setup-card">
-  <div class="card-head"><h2 class="eyebrow">Game setup</h2></div>
-  <form onsubmit="saveGameSettings(event)"><fieldset id="gameSettingsFields"><legend class="sr-only">Game setup</legend>
-   <div class="field"><label for="gameProfileSelect">Game profile</label>
-   <select id="gameProfileSelect" onchange="chooseGameProfile()"><option value="generic">Generic</option><option value="mtg">Magic: The Gathering</option><option value="mtg_commander">MTG Commander</option><option value="yugioh">Yu-Gi-Oh!</option></select></div>
-   <label for="startingLifeInput">Starting life</label><input id="startingLifeInput" type="number" min="0" max="1000000" step="1" required value="40" oninput="gameSettingsDirty=true">
-   <label for="turnTimerSelect">Turn timer</label><select id="turnTimerSelect" onchange="gameSettingsDirty=true;turnTimerCustomRow.hidden=this.value!=='custom'"></select>
-   <div id="turnTimerCustomRow" hidden><label for="turnTimerCustom">Custom turn length in seconds (15 to 3600)</label><input id="turnTimerCustom" type="number" min="15" max="3600" step="1" value="90" oninput="gameSettingsDirty=true"></div>
-   <p class="hint">Off: no countdown; a gentle cue appears after 5 minutes. With a timer, Atlas warns 10 seconds before time runs out. Running out of time never passes the turn.</p>
-   <button type="submit" class="primary" style="width:100%;margin-top:6px">Save game settings</button></fieldset></form>
-  <p id="gameSettingsMessage" class="msg" role="status" aria-live="polite">The table host can change settings in the lobby.</p>
-  <p class="hint">Life and Commander damage do not automatically eliminate a player. Changes to another player's life need their approval; Atlas accepts unanswered requests after 15 seconds.</p>
- </section>
 </div>
 </div>
 </section>
@@ -498,9 +528,10 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 <h1 class="sr-only">My Account</h1>
 <div class="grid">
  <section class="card half"><div class="card-head"><h2 class="eyebrow">My account</h2></div>
-  <div id="profileSignedOut" class="notice info"><p>Sign into your profile to save a name or PIN.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
+  <div id="profileSignedOut" class="notice info"><p>Sign in to save your name, PIN, privacy choices and statistics. New here? Create an account on the same page.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
   <div id="profileBox" hidden>
    <div class="who"><span id="profileAvatar" class="avatar lg" aria-hidden="true">?</span><div class="who-text"><div class="who-name" id="profileSeatTitle">My seat</div><div class="mono" id="profileSeatMeta"></div></div></div>
+   <div class="actions" style="margin-top:14px"><a class="btn small" href="/stats">My statistics</a><button class="small bad" onclick="logoutSession()">Log out</button></div>
    <label for="profileName">Display name</label><div class="inline"><input id="profileName" maxlength="32" placeholder="Player name" autocomplete="nickname"><button onclick="saveName()">Save name</button></div>
    <label for="profilePin">New PIN</label><div class="inline"><input id="profilePin" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digits" autocomplete="new-password"><button onclick="savePin()">Set PIN</button></div>
    <button id="clearPinButton" class="bad small" style="margin-top:10px" hidden onclick="clearPin()">Remove PIN</button>
@@ -511,7 +542,7 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
     <p id="profilePolicyStatus" class="msg" role="status" aria-live="polite"></p></form>
   </div>
  </section>
- <section class="card half"><div class="card-head"><h2 class="eyebrow">Appearance</h2></div>
+ <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Appearance and feedback</h2><p class="small">Saved in this browser only. No sign-in needed.</p></div></div>
   <fieldset><legend class="sr-only">Portal theme</legend><p class="small" style="margin-top:0">Themes change only how this browser looks. They never change the game.</p>
    <div class="themes">
     <label class="theme-opt"><input type="radio" name="theme" value="brass" onchange="setTheme(this.value)"><strong>Brass</strong><span class="swatch" aria-hidden="true"><i style="background:#110d09"></i><i style="background:#30251a"></i><i style="background:#e2ae4a"></i><i style="background:#62d6b2"></i></span><small>Steampunk gold, rivets and gauges.</small></label>
@@ -524,7 +555,7 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
   <div class="switch-row"><div><label for="vibrationToggle">Vibration</label><small id="vibrationToggleHelp">Use haptics when supported by the browser.</small></div><input id="vibrationToggle" type="checkbox" aria-describedby="vibrationToggleHelp" onchange="saveBrowserPrefs()"></div>
   <div class="inline" style="margin-top:6px;align-items:end"><div class="field"><label for="volumeSelect" style="margin-top:8px">Feedback volume</label><select id="volumeSelect" onchange="saveBrowserPrefs()"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><button class="blue" onclick="playFeedback('test',true)">Test feedback</button></div>
  </section>
- <section class="card"><div class="card-head"><h2 class="eyebrow">Records</h2></div><div class="actions"><a class="btn" href="/login">Sign in / create account</a><a class="btn primary" href="/stats">My statistics</a></div><h3 style="margin:20px 0 6px">Private moderation history</h3><div id="myModeration" class="small">Sign in to view your counts.</div></section>
+ <section id="moderationCard" class="card" hidden><div class="card-head"><div><h2 class="eyebrow">Private moderation history</h2><p class="small">Visible only to you and Game Masters.</p></div></div><div id="myModeration" class="small">Sign in to view your counts.</div></section>
 </div>
 </section>
 
@@ -539,10 +570,11 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas</h2></div>
   <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Master button</span><strong id="masterMetric">Released</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
+  <div class="actions" style="margin-top:12px"><a class="btn" href="/update">Atlas firmware</a><span class="small">Update from Lobby or Game Over.</span></div>
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Portal &amp; network</h2></div>
   <div class="status-row"><span>Address</span><strong id="portalAddress" class="mono"></strong></div><div class="status-row"><span>Wi-Fi</span><strong id="wifiSsidSystem">—</strong></div><div class="status-row"><span>Security</span><strong id="wifiSecuritySystem">—</strong></div><div class="status-row"><span>Wi-Fi clients</span><strong id="wifiClientsSystem">—</strong></div><div class="status-row"><span>Browser seat</span><strong id="browserSeatMetric">Not signed in</strong></div><div class="status-row"><span>Connection</span><strong id="connectionMetric">Connecting</strong></div>
-  <div class="actions" style="margin-top:12px"><button onclick="refreshAll()">Refresh now</button><a class="btn" href="/update">Atlas firmware</a></div>
+  <div class="actions" style="margin-top:12px"><button onclick="refreshAll()">Refresh now</button></div>
  </section>
  <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Device names</h2><p class="small">Hold the Atlas master button while renaming a device.</p></div></div><div id="atlasDevice"></div><div id="deviceSettingsList" class="stack" style="margin-top:10px;gap:10px"></div></section>
  <section class="card"><div class="card-head"><div><h2 class="eyebrow">Account permissions</h2><p class="small">Permissions can be combined. The initial Admin must remain an Admin. Privileged accounts require a PIN.</p></div><button class="small" onclick="refreshAccountList()">Refresh accounts</button></div><div id="adminAccounts"></div></section>
@@ -594,6 +626,11 @@ function uiAsk({title,text,ok='Confirm',danger=false,input=null}){
  });
 }
 
+function toggleAccountMenu(force){const open=typeof force==='boolean'?force:accountMenu.hidden;accountMenu.hidden=!open;accountButton.setAttribute('aria-expanded',String(open));if(open)accountMenu.querySelector('.menu-item')?.focus()}
+function closeAccountMenu(){if(!accountMenu.hidden){accountMenu.hidden=true;accountButton.setAttribute('aria-expanded','false')}}
+document.addEventListener('click',e=>{if(!accountMenuWrap.contains(e.target))closeAccountMenu()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!accountMenu.hidden){closeAccountMenu();accountButton.focus()}});
+
 function showTab(name){
  if(!TABS.includes(name))name='game';
  if(name==='settings'&&!(sessionInfo&&sessionInfo.permissions&1))name='game';
@@ -630,7 +667,7 @@ function renderGauge(s){
  gaugeValue.textContent=value;gaugeCaption.textContent=caption;stage.dataset.phase=phase;stage.dataset.state=s.state||'';
 }
 
-function renderStatus(s){statusData=s;dot.className='dot online';connection.textContent='Connected';connectionMetric.textContent='Connected';playersMetric.textContent=s.players;sigilsMetric.textContent=s.sigils;hostMetric.textContent=Number(s.host)>=0?sigilLabel(s.host):'None';starterMetric.textContent=playerLabel(s.starter);stateMetric.textContent=s.state;stateMetricSystem.textContent=s.state;firmwareMetric.textContent='v'+s.firmware;buildMetric.textContent=s.build||'—';espMetric.textContent=s.espNow?'Ready':'Error';activeMetric.textContent=playerLabel(s.active);activeMetricGame.textContent=playerLabel(s.active);winnerMetric.textContent=playerLabel(s.winner);masterMetric.textContent=s.masterButton?'Pressed':'Released';otaMetric.textContent=s.otaStateAllowed?'State ready':'Game locked';starterGame.textContent=playerLabel(s.starter);confirmGame.textContent=playerLabel(s.winConfirm);eliminationGame.textContent=playerLabel(s.eliminationTarget);winnerGame.textContent=playerLabel(s.winner);
+function renderStatus(s){statusData=s;dot.className='dot online';connPill.className='conn ok';connection.textContent='Connected';connectionMetric.textContent='Connected';playersMetric.textContent=s.players;sigilsMetric.textContent=s.sigils;hostMetric.textContent=Number(s.host)>=0?sigilLabel(s.host):'None';starterMetric.textContent=playerLabel(s.starter);stateMetric.textContent=s.state;stateMetricSystem.textContent=s.state;firmwareMetric.textContent='v'+s.firmware;buildMetric.textContent=s.build||'—';espMetric.textContent=s.espNow?'Ready':'Error';activeMetric.textContent=playerLabel(s.active);activeMetricGame.textContent=playerLabel(s.active);winnerMetric.textContent=playerLabel(s.winner);masterMetric.textContent=s.masterButton?'Pressed':'Released';otaMetric.textContent=s.otaStateAllowed?'State ready':'Game locked';starterGame.textContent=playerLabel(s.starter);confirmGame.textContent=playerLabel(s.winConfirm);eliminationGame.textContent=playerLabel(s.eliminationTarget);winnerGame.textContent=playerLabel(s.winner);
  let title='Ready',sub='Sign in and join from your phone, or press Action on a Sigil',eye='Lobby',bs='';
  if(s.state==='LOBBY'){title=s.players?`${s.players} player${Number(s.players)===1?'':'s'} seated`:'Ready';sub=s.starter?`${playerLabel(s.starter)} goes first`:'Sign in and join from your phone, or press Action on a Sigil';if(Number(s.host)>=0)bs+=badge(`${sigilLabel(s.host)} host`,'good');if(s.starter)bs+=badge(`${playerLabel(s.starter)} starter`,'blue')}
  else if(s.state==='STARTING'){eye='Countdown';title='3 · 2 · 1';sub=`${playerLabel(s.starter)} starts`;bs+=badge('Countdown','blue')}
@@ -670,7 +707,7 @@ function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—
 
 function renderSession(){
  const authed=!!(sessionInfo&&sessionInfo.authenticated);
- if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;logoutButton.hidden=true;claimHelp.hidden=false;profileBox.hidden=true;profileSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';return}
+ if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';return}
  const policyOwnerChanged=profilePolicyOwner!==sessionInfo.profileId;
  if(policyOwnerChanged){profilePolicyDirty=false;profilePolicyOwner=sessionInfo.profileId}
  profilePolicyFields.disabled=!sessionInfo.policyAvailable;
@@ -682,8 +719,9 @@ function renderSession(){
  else if(policyOwnerChanged)profilePolicyStatus.textContent='';
  const me=sessionInfo, joined=!!me.participating, name=me.name||'Unnamed profile', state=statusData||{};
  sessionTitle.textContent=name;sessionMeta.textContent=joined?`Player ${me.player} · ${me.virtual?'Phone play':sigilLabel(me.module)+' + phone'}`:'Signed in · not at the table';
- for(const a of [sessionAvatar,profileAvatar]){a.innerHTML=initials(name);a.style.setProperty('--hue',hue(joined?me.player:0))}
- browserSeatMetric.textContent=joined?`${name} · Player ${me.player}`:name+' · signed in';logoutButton.hidden=false;claimHelp.hidden=true;profileBox.hidden=false;profileSignedOut.hidden=true;
+ accountName.textContent=name;menuName.textContent=name;menuMeta.textContent=joined?`Player ${me.player} · at the table`:'Signed in · not at the table';accountButton.setAttribute('aria-label',`Account menu, ${name}`);
+ for(const a of [sessionAvatar,profileAvatar,accountAvatar]){a.innerHTML=initials(name);a.style.setProperty('--hue',hue(joined?me.player:0))}
+ browserSeatMetric.textContent=joined?`${name} · Player ${me.player}`:name+' · signed in';claimHelp.hidden=true;signInButton.hidden=true;accountMenuWrap.hidden=false;moderationCard.hidden=false;profileBox.hidden=false;profileSignedOut.hidden=true;
  profileSeatTitle.textContent=name;profileSeatMeta.textContent=`Profile ${me.profileId}`;if(document.activeElement!==profileName)profileName.value=me.name||'';
  clearPinButton.hidden=!(me.hasPin&&joined&&!me.virtual);
  const stateHtml=(me.host?badge('Table host','good'):'')+(me.active?badge('Your turn','active'):'')+(me.eliminated?badge('Eliminated','bad'):'');
@@ -705,7 +743,6 @@ function renderSession(){
   if(Number(state.winConfirm)===Number(me.player)){buttons.push(`<button class="primary" onclick="sendControl('confirm')">Confirm win</button><button onclick="sendControl('deny')">Deny claim</button>`)}
   else if(!state.winConfirm&&!state.eliminationTarget){buttons.push(`<button class="primary wide xl" onclick="sendControl('pause')">Resume game</button>`);if(me.active)buttons.push(`<button onclick="sendControl('win')">Claim win</button>`);buttons.push(`<button class="bad" onclick="concede()">Concede</button>`)}
  }else if(state.state==='GAME_OVER'&&me.host){buttons.push(`<button class="primary" onclick="sendControl('rematch')">Rematch</button><button onclick="resetTable()">Reset table</button>`)}
- buttons.push(`<button class="ghost stats-link" onclick="location.href='/stats'">My statistics</button>`);
  const html=buttons.join('');if(sessionControls.innerHTML!==html){const action=document.activeElement&&document.activeElement.getAttribute('onclick');sessionControls.innerHTML=html;if(action){const replacement=[...sessionControls.querySelectorAll('button')].find(b=>b.getAttribute('onclick')===action);if(replacement)replacement.focus()}}
  sessionControls.hidden=false;
 }
@@ -761,7 +798,7 @@ function refreshAll(){
    counterData=sessionInfo&&sessionInfo.participating&&sessionInfo.lifeAvailable?await pollJson('/api/game/counters',authHeaders()):null;
    deviceData=d;seatData=seats;networkData=n;
    renderDevices(d);renderDeviceSettings(d);if(n)renderNetwork(n);renderStatus(s);renderGameLife();renderCounterControls();renderAccess();
-  }catch(_){dot.className='dot';connection.textContent='Reconnecting';connectionMetric.textContent='Disconnected';counterData=null;lifeFields.disabled=true;renderCounterControls()}
+  }catch(_){dot.className='dot';connPill.className='conn';connection.textContent='Reconnecting';connectionMetric.textContent='Disconnected';counterData=null;lifeFields.disabled=true;renderCounterControls()}
  })().finally(()=>{refreshInFlight=null});
  return refreshInFlight;
 }
@@ -831,6 +868,7 @@ function updatePlayerOptions(select,seats,preferred){
 // A short-lived +/- marker beside a total that just changed (visual echo only; the total itself is the record).
 function lifeDeltaChip(id,life){const now=Date.now(),seen=lifeSeen[id];if(!seen){lifeSeen[id]={life,delta:0,until:0};return ''}if(seen.life!==life){seen.delta=(now<seen.until?seen.delta:0)+(life-seen.life);seen.life=life;seen.until=now+2600}if(now>=seen.until||!seen.delta)return '';return `<span class="life-delta ${seen.delta>0?'up':'down'}" aria-hidden="true">${seen.delta>0?'+':'−'}${Math.abs(seen.delta)}</span>`}
 function renderLifeCards(){
+ lifeCard.hidden=!(seatData.seats||[]).some(s=>s.lifeAvailable);
  const me=sessionInfo||{},data=counterData;
  const editable=!!(me.authenticated&&!me.eliminated&&data&&data.available&&data.editable&&Number(data.player)===Number(me.player)&&['RUNNING','PAUSED'].includes(statusData?.state)&&!statusData.winConfirm&&!statusData.eliminationTarget);
  const steps=gameSettingsData&&gameSettingsData.gameProfile==='yugioh'?[100,1000]:[1,10];

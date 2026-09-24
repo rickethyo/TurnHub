@@ -38,7 +38,7 @@ const char STATS_HTML[] PROGMEM = R"HTML(
   </header>
   <h1 class="sr-only">TurnHub Statistics</h1>
 
-  <div id="signedOut" class="notice info hidden">No authenticated TurnHub seat is linked to this browser. Return to the portal and sign into a player seat first.</div>
+  <div id="signedOut" class="notice info hidden"><p>Sign in to see your statistics. They stay with your profile on this Atlas.</p><a class="btn primary" href="/login">Sign in</a></div>
   <div id="errorBox" class="notice bad hidden"></div>
 
   <main id="statsRoot" class="stack hidden">

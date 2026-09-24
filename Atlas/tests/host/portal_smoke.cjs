@@ -51,11 +51,16 @@ const api=http.createServer(async(req,res)=>{
   const context=await browser.newContext({viewport:{width:390,height:844}}),tab=await context.newPage();
   const errors=[];tab.on('pageerror',e=>(console.error(e.message),errors.push(e.message)));
   const base='http://127.0.0.1:'+api.address().port;
-  await tab.goto(base);await tab.getByRole('link',{name:'Sign in or create a profile'}).click();
+  await tab.goto(base);
+  // Sign in is a header button; the seat card keeps a contextual link too.
+  assert.equal(await tab.getByRole('link',{name:'Sign in or create a profile'}).count(),1);
+  await tab.getByRole('link',{name:'Sign in',exact:true}).click();
   await tab.getByLabel('Display name',{exact:true}).fill('Phone Tester');
   await tab.getByLabel('Choose a PIN').fill('1234');await tab.getByLabel('Confirm PIN').fill('1234');
   await tab.getByRole('button',{name:'Create account',exact:true}).click();
   await tab.getByRole('button',{name:'Join table',exact:true}).click();
+  assert.equal(await tab.getByRole('link',{name:'Sign in',exact:true}).count(),0);
+  await tab.getByRole('button',{name:'Account menu, Phone Tester',exact:true}).waitFor();
   assert.equal(await tab.getByRole('button',{name:'Device Settings',exact:true}).count(),0);
   await tab.getByRole('button',{name:'Game',exact:true}).click();
   await tab.getByLabel('Game profile',{exact:true}).selectOption('yugioh');
@@ -106,7 +111,10 @@ const api=http.createServer(async(req,res)=>{
   await tab.getByLabel('Game Master',{exact:true}).check();
   await tab.getByLabel('Developer',{exact:true}).check();
   await tab.getByRole('button',{name:'Save permissions',exact:true}).click();
+  await tab.getByRole('button',{name:'Account menu, Phone Tester',exact:true}).click();
   await tab.getByRole('link',{name:'Developer',exact:true}).waitFor();
+  await tab.keyboard.press('Escape');
+  assert(await tab.locator('#accountMenu').isHidden());
   await tab.getByRole('button',{name:'Players',exact:true}).click();
   await tab.getByRole('button',{name:'Force pass',exact:true}).waitFor();
   assert.equal(await tab.getByRole('link',{name:'Atlas firmware',exact:true}).count(),0);
