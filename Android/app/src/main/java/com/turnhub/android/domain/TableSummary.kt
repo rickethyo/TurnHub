@@ -1,6 +1,8 @@
 package com.turnhub.android.domain
 
-import com.turnhub.android.protocol.Player
+import com.turnhub.android.protocol.CommanderDamage
+import com.turnhub.android.protocol.LifeRequest
+import com.turnhub.android.protocol.PendingDecisions
 import com.turnhub.android.protocol.TableSettings
 import com.turnhub.android.protocol.TableState
 
@@ -9,18 +11,85 @@ import com.turnhub.android.protocol.TableState
  * (protocol/state-v0.1.schema.json), combined with the identity fields Atlas
  * reports from `GET /api/v1/info` (protocol/http-v1.md).
  *
- * This lives in `domain/`, not `protocol/`, because it isn't a wire-format
- * object: no single Atlas response looks like this. A real implementation
- * builds it by combining an `/api/v1/info` response and an `/api/v1/state`
- * response inside `AtlasRepository`; for this milestone, `MockAtlasRepository`
- * fabricates it directly so the UI has something realistic to render.
+ * This lives in `domain/`, not `protocol/`, because no single Atlas response
+ * looks like this. It is always rebuilt whole from the latest snapshot
+ * ([TableSummaryMapper]); nothing in it is advanced locally, so it is a cache
+ * of Atlas state for rendering, never a second source of truth.
  */
 data class TableSummary(
     val atlasId: String,
+    val bootId: String,
     val firmwareVersion: String,
+    /** Unsigned 32-bit revision of the snapshot this summary was built from. */
     val revision: Long,
     val state: TableState,
     val settings: TableSettings,
+    val host: ControllerHandle?,
+    val starterPlayerNumber: Int?,
     val activePlayerNumber: Int?,
-    val players: List<Player>,
+    val winnerPlayerNumber: Int?,
+    val pending: PendingDecisions,
+    /** Atlas-sampled clocks; may change while [revision] stays the same. */
+    val gameElapsedMs: Long,
+    val turnElapsedMs: Long,
+    val players: List<TablePlayer>,
+    /** Physical Sigils currently represented at the table, derived from [players]. */
+    val physicalSigils: List<PhysicalSigilAtTable>,
 )
+
+/** One participant as the Home screen renders it. */
+data class TablePlayer(
+    val playerNumber: Int,
+    /** Atlas-provided display name, or a neutral "Player N" when Atlas sent none. */
+    val label: String,
+    val controller: ControllerHandle,
+    val slot: Int,
+    val participantId: Long,
+    val eliminated: Boolean,
+    /** Null in the lobby. */
+    val life: Int?,
+    val turnsCompleted: Long,
+    val commanderDamage: List<CommanderDamage>,
+    val lifeRequest: LifeRequest?,
+)
+
+/**
+ * A physical Sigil that is seated at the current table, and which seats it
+ * holds. Built only from `players[]`: it says nothing about pairing,
+ * connectivity or Sigils that are paired but not seated.
+ */
+data class PhysicalSigilAtTable(
+    val controller: ControllerHandle,
+    val seats: List<Seat>,
+) {
+    data class Seat(val slot: Int, val playerNumber: Int, val label: String)
+}
+
+/**
+ * Atlas's controller handle (`moduleId` on the wire). Physical Sigil handles are
+ * 0-7 and virtual/browser handles 8-23 (protocol/http-v1.md). A handle is not a
+ * durable device ID.
+ */
+@JvmInline
+value class ControllerHandle(val id: Int) {
+    val kind: Kind
+        get() = when (id) {
+            in PHYSICAL -> Kind.PHYSICAL
+            in VIRTUAL -> Kind.VIRTUAL
+            else -> Kind.UNKNOWN
+        }
+
+    enum class Kind { PHYSICAL, VIRTUAL, UNKNOWN }
+
+    companion object {
+        val PHYSICAL = 0..7
+        val VIRTUAL = 8..23
+    }
+}
+
+/** Seat letter used by Atlas and the portal: slot 1 = A, slot 2 = B. */
+fun seatLabel(slot: Int): String = when (slot) {
+    1 -> "A"
+    2 -> "B"
+    else -> "slot $slot"
+}

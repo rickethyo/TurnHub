@@ -5,7 +5,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.turnhub.android.data.AtlasEndpoint
+import com.turnhub.android.data.AtlasException
 import com.turnhub.android.data.AtlasRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -13,26 +17,35 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Combines [AtlasRepository] state into [HomeUiState] and exposes the two user
- * actions the Home screen offers this milestone: connect/disconnect.
+ * Combines [AtlasRepository] state and the user's endpoint input into
+ * [HomeUiState], and exposes the Home screen's actions.
  *
- * This class knows nothing about HTTP, ESP-NOW, or Compose; it depends only on
- * the [AtlasRepository] interface, so swapping [com.turnhub.android.data.MockAtlasRepository]
- * for a real implementation later should not require changing this file.
+ * The repository is built from [repositoryFactory] with this ViewModel's scope,
+ * so its polling lives exactly as long as the screen's ViewModel (surviving
+ * rotation, stopping when the screen is finished). This class knows nothing
+ * about HTTP; it depends only on the [AtlasRepository] interface.
  */
 class HomeViewModel(
-    private val repository: AtlasRepository,
+    repositoryFactory: (CoroutineScope) -> AtlasRepository,
 ) : ViewModel() {
+
+    private val repository: AtlasRepository = repositoryFactory(viewModelScope)
+
+    private val endpointText = MutableStateFlow(AtlasEndpoint.DEFAULT.baseUrl)
+    private val inputError = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
         repository.tableSummary,
-        repository.sigils,
-    ) { connectionState, tableSummary, sigils ->
+        repository.failure,
+        endpointText,
+        inputError,
+    ) { connectionState, tableSummary, failure, endpoint, endpointError ->
         HomeUiState(
             connectionState = connectionState,
+            endpointText = endpoint,
             tableSummary = tableSummary,
-            sigils = sigils,
+            errorMessage = endpointError ?: failure?.userMessage,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -40,8 +53,21 @@ class HomeViewModel(
         initialValue = HomeUiState(),
     )
 
+    fun onEndpointChanged(text: String) {
+        endpointText.value = text
+        inputError.value = null
+    }
+
     fun onConnectClicked() {
-        viewModelScope.launch { repository.connect() }
+        AtlasEndpoint.parse(endpointText.value)
+            .onSuccess { endpoint ->
+                inputError.value = null
+                endpointText.value = endpoint.baseUrl
+                viewModelScope.launch { repository.connect(endpoint) }
+            }
+            .onFailure { error ->
+                inputError.value = (error as? AtlasException)?.failure?.userMessage ?: error.message
+            }
     }
 
     fun onDisconnectClicked() {
@@ -50,12 +76,12 @@ class HomeViewModel(
 
     companion object {
         /**
-         * Minimal manual-DI factory: no framework is introduced for one ViewModel
-         * with one constructor argument. Revisit if/when the dependency graph
-         * actually grows past what this can comfortably express.
+         * Minimal manual-DI factory: no framework is introduced for one ViewModel.
+         * Revisit if/when the dependency graph actually grows past this.
          */
-        fun factory(repository: AtlasRepository): ViewModelProvider.Factory = viewModelFactory {
-            initializer { HomeViewModel(repository) }
-        }
+        fun factory(repositoryFactory: (CoroutineScope) -> AtlasRepository): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer { HomeViewModel(repositoryFactory) }
+            }
     }
 }

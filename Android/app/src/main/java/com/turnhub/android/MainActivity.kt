@@ -10,27 +10,27 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.turnhub.android.data.AtlasRepository
-import com.turnhub.android.data.MockAtlasRepository
+import com.turnhub.android.data.AtlasTransportFactory
+import com.turnhub.android.data.HttpAtlasRepository
+import com.turnhub.android.data.HttpAtlasTransport
+import com.turnhub.android.data.WifiPreferringConnectionOpener
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
 
 /**
  * Single-Activity host for this milestone's one screen. A later milestone may
- * introduce navigation between lobby/game/settings screens; see Android/README.md's
- * proposed source layout (`ui/lobby`, `ui/game`, `ui/player`, `ui/settings`).
+ * introduce navigation between lobby/game/settings screens; see Android/README.md.
  */
 class MainActivity : ComponentActivity() {
 
-    // Manual, minimal composition root: one repository instance for the life of
-    // the Activity. The app is intentionally small enough that a DI framework
-    // is not yet justified -- revisit once a real repository has its own
-    // dependencies (an HTTP client, credentials storage, etc).
-    private val repository: AtlasRepository by lazy { MockAtlasRepository() }
-
+    // Manual, minimal composition root: the live HTTP repository, owned by the
+    // ViewModel so polling survives rotation. The endpoint is chosen by the
+    // user on the Home screen and passed in at connect time.
     private val homeViewModel: HomeViewModel by viewModels {
-        HomeViewModel.factory(repository)
+        val opener = WifiPreferringConnectionOpener(applicationContext)
+        val transports = AtlasTransportFactory { endpoint -> HttpAtlasTransport(endpoint, opener) }
+        HomeViewModel.factory { scope -> HttpAtlasRepository(transports, scope) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
                     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                     HomeScreen(
                         uiState = uiState,
+                        onEndpointChange = homeViewModel::onEndpointChanged,
                         onConnectClick = homeViewModel::onConnectClicked,
                         onDisconnectClick = homeViewModel::onDisconnectClicked,
                     )
