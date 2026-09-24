@@ -25,6 +25,10 @@ struct DebouncedButton {
   bool lastState = HIGH;
   uint32_t lastChangeMs = 0;
 
+  // A constructor, not brace aggregate init: the ESP32 toolchain builds as
+  // C++11, where default member initializers make this a non-aggregate.
+  DebouncedButton(uint8_t buttonPin, const char *prefix) : pin(buttonPin), logPrefix(prefix) {}
+
   // Returns true once per debounced edge and reports the new level.
   bool changed(bool &state) {
     const bool current = digitalRead(pin);

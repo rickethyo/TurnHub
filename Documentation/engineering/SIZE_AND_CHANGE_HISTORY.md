@@ -160,6 +160,8 @@ Embedded page text (raw-string literals in `web_pages.cpp`, `profile_login_page.
 Compiled RAM/flash was **not measured** for this change: no PlatformIO build was
 possible in the authoring environment. Record a `pio run -e atlas` figure before
 treating the ~3-point flash increase over 80.4% as confirmed.
+The first measured build that contains this change is in the reorganization
+entry below (83.7% flash).
 
 ### 2026-09-24 - code review and module reorganization (`claude/code-review-cleanup-cn4zoy`)
 
@@ -190,9 +192,20 @@ Measured against the branch base `fdd8659` (Git blob bytes):
 The largest logic file is now `table_intents.cpp` (27,131 B); `web_pages.cpp`
 (115,176 B of embedded portal text) is unchanged apart from one dead function.
 Source growth is interface documentation and one-statement-per-line formatting.
-Compiled RAM/flash was **not measured**: PlatformIO could not reach its registry
-in the authoring environment. Record a `pio run -e atlas` and `pio run -e sigil`
-figure before relying on this change on hardware.
+Compiled RAM/flash, measured afterwards on the same branch (after a C++11
+constructor fix in `front_panel.cpp`, the only compile error the reorganization
+left), with the same toolchain as above (Espressif32 7.1.3, Arduino ESP32
+`4.20017.260907+sha.dcc1105b`, Xtensa `8.4.0+2021r2-patch5`). The Atlas figure
+also includes the portal redesign and the 16 KB serial-log ring, neither of
+which had been measured, so it is not a pure delta for the reorganization:
+
+| Build | RAM | Flash |
+|---|---:|---:|
+| Atlas `pio run -e atlas` | 91,340 B (27.9%) | 1,097,033 B (83.7%) |
+| Sigil `pio run -e sigil` | 48,360 B (14.8%) | 769,037 B (58.7%) |
+| Sigil `pio run -e sigil-wokwi` | 48,336 B (14.8%) | 793,713 B (60.6%) |
+
+Build only; nothing was flashed.
 
 ## Tracking rules
 
