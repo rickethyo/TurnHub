@@ -28,6 +28,8 @@ ChangeLifeCallback changeLifeHandler = nullptr;
 ReadCountersCallback readCountersHandler = nullptr;
 CounterControlCallback counterControlHandler = nullptr;
 ModerateCallback moderateHandler = nullptr;
+DeviceIntentCallback deviceHandler = nullptr;
+PairingWindowCallback readPairingWindow = nullptr;
 AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
@@ -91,6 +93,11 @@ void configureModeration(ModerateCallback callback) {
   moderateHandler = callback;
 }
 
+void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window) {
+  deviceHandler = manage;
+  readPairingWindow = window;
+}
+
 void configureAccessibility(AccessibilityChangedCallback callback) {
   accessibilityChanged = callback;
 }
@@ -140,6 +147,9 @@ void begin(WebServer &server) {
   route("/api/diagnostics/log", HTTP_GET, handleSerialLogDownload);
   route("/api/devices", HTTP_GET, handleDevices);
   route("/api/device/name", HTTP_POST, handleDeviceName);
+  route("/api/device/forget", HTTP_POST, handleForgetDevice);
+  route("/api/pairing", HTTP_GET, handlePairingSettings);
+  route("/api/pairing", HTTP_POST, handleSavePairingSettings);
   route("/api/network", HTTP_GET, handleNetworkInfo);
   route("/api/network/password", HTTP_POST, handleNetworkPassword);
 

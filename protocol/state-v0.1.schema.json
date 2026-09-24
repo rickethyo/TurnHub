@@ -66,6 +66,7 @@
       "maximum": 255
     },
     "winnerPlayer": {
+      "description": "Winning player. null in GAME_OVER means the match ended as a draw (Atlas master-button hold).",
       "type": [
         "integer",
         "null"

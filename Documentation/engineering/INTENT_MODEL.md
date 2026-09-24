@@ -198,9 +198,17 @@ to the authoritative transitions.
 These additions are internal C++ application requests, not new ESP-NOW packet IDs or
 HTTP endpoints. The future JSON envelope is not currently decoded by this runtime;
 do not expose System origin or deferred-commit operations as caller-selected ingress.
-`PairRequest` (Atlas Pair button only) opens the real 15-second pairing window; see
-[Manual Pairing](MANUAL_PAIRING.md). `PairConfirm` and `ForgetPairing` exist in the
-vocabulary but remain unsupported (a forget-device flow is staged). General counters and nudges
+`PairRequest` (Atlas Pair button only) opens Atlas's pairing window (15 s by
+default; see [Manual Pairing](MANUAL_PAIRING.md)). `ForgetPairing` and
+`ConfigurePairing` come from the admin portal: `payload.moderatorId` carries the
+signed-in account, and the handler re-checks its Admin permission. `ForgetPairing`
+takes a Sigil ID or `FORGET_ALL_SIGILS` (-1) in `value`, works only in the lobby
+and refuses Sigils with seated players. `ConfigurePairing` takes Atlas's window in
+milliseconds (15,000, 30,000 or 60,000). `EndMatch` is Atlas-hardware only (a
+5-second master-button hold): it ends a running or paused match as a draw,
+overriding a queued PASS, a win claim or an elimination selection, and commits
+statistics once through the normal game-completed callback. `PairConfirm` remains
+unsupported. General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
 requires the primary host seat in the lobby; `flags` is the game-profile enum,

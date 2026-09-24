@@ -8,6 +8,7 @@
 #include "profile_stats_storage.h"
 #include "profile_policy.h"
 #include "game_settings_store.h"
+#include "pairing_settings.h"
 #include "accessibility_prefs.h"
 
 using namespace TurnHubStorage;
@@ -78,6 +79,18 @@ void existingRecords() {
   assert(again.gamesPlayed == 18 && again.gamesWon == 4);
   assert(again.totalTurnMs == out.totalTurnMs);
   assert(FakeNvs::writes == 1 && FakeNvs::commits == 1);
+  // Draw reuses byte 4 (formerly the never-written "Completed"), so a draw
+  // result stays a valid v1 image; 5 and above remain corrupt.
+  static_assert(static_cast<uint8_t>(LastGameResult::Draw) == 4, "v1 result byte changed");
+  again.lastGameResult = LastGameResult::Draw;
+  assert(writeStoredStats(store, key, again) == Status::Ok);
+  assert(FakeNvs::blobs[key][66] == 4);
+  assert(readStoredStats(store, key, out) == Status::Ok && out.lastGameResult == LastGameResult::Draw);
+  std::vector<uint8_t> future = FakeNvs::blobs[key];
+  future[66] = 5;
+  FakeNvs::blobs[key] = future;
+  assert(readStoredStats(store, key, out) == Status::Corrupt);
+  FakeNvs::blobs[key] = legacy;
   assert(writeStoredStats(store, "s12345678", ProfileStats{}) == Status::Ok);
 }
 
@@ -182,6 +195,34 @@ void profilePolicyRecords() {
   FakeNvs::setError=ESP_OK;
   FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
   assert(writeStoredPolicy(store, policyKey, ProfilePolicy{})==Status::IoError);
+}
+
+void pairingWindowRecords() {
+  using namespace TurnHub;
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub")==Status::Ok);
+  uint32_t windowMs=DEFAULT_PAIRING_WINDOW_MS;
+  assert(readPairingWindow(store,windowMs)==Status::NotFound && windowMs==15000);
+  for (uint32_t choice : {15000u,30000u,60000u}) {
+    assert(writePairingWindow(store,choice)==Status::Ok);
+    assert((FakeNvs::blobs["pairwin"]==std::vector<uint8_t>{1,static_cast<uint8_t>(choice/1000)}));
+    uint32_t again=0; assert(readPairingWindow(store,again)==Status::Ok && again==choice);
+  }
+  for (uint32_t bad : {0u,1000u,14999u,20000u,45000u,61000u,255000u}) {
+    assert(writePairingWindow(store,bad)==Status::InvalidArgument);
+  }
+  assert((FakeNvs::blobs["pairwin"]==std::vector<uint8_t>{1,60}));
+  for (const auto &bytes : {std::vector<uint8_t>{}, {1}, {1,30,0}, {1,20}, {1,0}, {2,30}}) {
+    FakeNvs::blobs["pairwin"]=bytes;
+    windowMs=15000;
+    const Status expected=bytes.size()==2&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    assert(readPairingWindow(store,windowMs)==expected && windowMs==15000);
+  }
+  FakeNvs::blobs.clear();
+  FakeNvs::setError=ESP_ERR_NVS_INVALID_HANDLE;
+  assert(writePairingWindow(store,30000)==Status::IoError);
+  FakeNvs::setError=ESP_OK;
 }
 
 void gameSettingsRecords() {
@@ -318,6 +359,7 @@ int main() {
   backendFailures();
   profilePolicyRecords();
   gameSettingsRecords();
+  pairingWindowRecords();
   accessibilityRecords();
   std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences and NVS failures\n";
 }

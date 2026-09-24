@@ -45,7 +45,14 @@ data class TableSummary(
     val players: List<TablePlayer>,
     /** Physical Sigils currently represented at the table, derived from [players]. */
     val physicalSigils: List<PhysicalSigilAtTable>,
-)
+) {
+    /**
+     * A finished match with no winner: the table ended it as a draw by holding
+     * the Atlas master button (protocol/http-v1.md). Derived, never stored.
+     */
+    val endedInDraw: Boolean
+        get() = state == TableState.GAME_OVER && winnerPlayerNumber == null
+}
 
 /** A controller seat: handle + slot. How `/api/seats` names are matched to players. */
 data class SeatKey(val moduleId: Int, val slot: Int)

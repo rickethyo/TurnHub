@@ -35,6 +35,25 @@ class TableSummaryMapperTest {
     }
 
     @Test
+    fun `game over without a winner is a draw`() {
+        val draw = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json") {
+            put("state", "GAME_OVER")
+            put("activePlayer", JSONObject.NULL)
+            put("winnerPlayer", JSONObject.NULL)
+        })
+        assertTrue(draw.endedInDraw)
+        assertNull(draw.winnerPlayerNumber)
+
+        val won = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json") {
+            put("state", "GAME_OVER")
+            put("activePlayer", JSONObject.NULL)
+            put("winnerPlayer", 1)
+        })
+        assertEquals(false, won.endedInDraw)
+        assertEquals(false, TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json")).endedInDraw)
+    }
+
+    @Test
     fun `unnamed players get neutral labels`() {
         val summary = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"))
         assertEquals(listOf("Player 1", "Player 2"), summary.players.map { it.label })

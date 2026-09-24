@@ -56,7 +56,7 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Compare BLE and other local/offline options against latency, power, OTA, multi-Sigil count, venue interference, and implementation complexity.
 - [ ] Define first-time pairing UX on Atlas.
 - [ ] Define first-time pairing UX on Sigil.
-- [ ] Define re-pair/unpair behavior.
+- [x] Define re-pair/unpair behavior. See [Manual Pairing](MANUAL_PAIRING.md#forgetting-a-pairing-2026-09-24); bench acceptance pending.
 - [ ] Define factory-reset behavior for pairing data.
 - [ ] Define stable device-ID generation/storage.
 - [ ] Define how Atlas identifies itself to paired Sigils.
@@ -115,7 +115,7 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Prototype 1.0 recovery: abrupt-power test from lobby, running, paused,
   mid-turn, after pass, after concession, and around game completion. A recovered
   match must open paused and must not charge downtime to a player.
-- [ ] Prototype 1.0 recovery: verify Resume/Discard, re-login, physical/controller
+- [ ] Prototype 1.0 recovery (Discard = 5 s master-button draw hold, 2026-09-24): verify Resume/Discard, re-login, physical/controller
   reattachment, corrupt/unsupported snapshot rejection, and exactly-once statistics.
 - [ ] Define a controller interface suitable for a simulator/test harness.
 - [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.

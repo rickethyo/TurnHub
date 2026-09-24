@@ -17,6 +17,10 @@ constexpr uint32_t DEBOUNCE_MS = 25;
 constexpr uint32_t BOOT_BLINK_INTERVAL_MS = 150;
 constexpr uint32_t BOOT_BLINK_PHASES = 6;  // Three on/off flashes.
 constexpr uint32_t PAIR_BLINK_INTERVAL_MS = 250;
+// A match-time master hold blinks the status LED fast from this point on, so
+// the person holding it can see a hold is counting toward ending the match.
+constexpr uint32_t END_MATCH_WARNING_MS = 1000;
+constexpr uint32_t END_MATCH_BLINK_INTERVAL_MS = 100;
 
 // Edge detector for an active-low INPUT_PULLUP button.
 struct DebouncedButton {
@@ -48,6 +52,17 @@ DebouncedButton pairButton{AtlasConfig::PAIR_BUTTON_PIN, "ATLAS|PAIR_BUTTON"};
 bool bootBlinkActive = false;
 uint32_t bootBlinkStartedAtMs = 0;
 uint32_t pairingStartedAtMs = 0;
+uint32_t pairingIndicatorMs = TurnHubProtocol::PAIRING_WINDOW_MS;
+
+// Master hold that started during a match; endMatchSent suppresses the
+// release PASS once the hold has asked to end the match.
+bool masterHeldInMatch = false;
+bool endMatchSent = false;
+uint32_t masterPressedAtMs = 0;
+
+bool matchInProgress() {
+  return hubState == HubState::Running || hubState == HubState::Paused;
+}
 
 }  // namespace
 
@@ -72,6 +87,7 @@ void startBootBlink(uint32_t nowMs) {
 void startPairingIndicator(uint32_t nowMs) {
   pairingActive = true;
   pairingStartedAtMs = nowMs;
+  pairingIndicatorMs = pairingWindowMs;
 }
 
 bool otaAllowed() {
@@ -80,11 +96,32 @@ bool otaAllowed() {
 }
 
 // Releasing the master button passes (or cancels a queued pass) for the
-// active player, like a PASS press on that player's Sigil.
+// active player, like a PASS press on that player's Sigil. Holding it for
+// MASTER_END_MATCH_HOLD_MS during a match ends the match as a draw instead.
 void updateMasterButton() {
   bool state;
-  if (!masterButton.changed(state)) return;
-  if (state != HIGH || hubState != HubState::Running) return;
+  if (!masterButton.changed(state)) {
+    if (!masterHeldInMatch || endMatchSent ||
+        millis() - masterPressedAtMs < MASTER_END_MATCH_HOLD_MS) return;
+    endMatchSent = true;
+    Intent intent;
+    intent.type = IntentType::EndMatch;
+    intent.actor.origin = IntentOrigin::AtlasHardware;
+    const IntentResult result = intents.dispatch(intent);
+    serialLog.print("ATLAS|MASTER_BUTTON|END_MATCH|");
+    serialLog.println(result.accepted() ? "ACCEPTED" : result.message);
+    return;
+  }
+  if (state == LOW) {
+    masterHeldInMatch = matchInProgress();
+    endMatchSent = false;
+    masterPressedAtMs = millis();
+    return;
+  }
+  const bool heldToEnd = endMatchSent;
+  masterHeldInMatch = false;
+  endMatchSent = false;
+  if (heldToEnd || hubState != HubState::Running) return;
 
   const PlayerSeat *active = game.activePlayer();
   if (active == nullptr) return;
@@ -114,13 +151,17 @@ void updateFrontPanelLeds(uint32_t nowMs) {
   if (bootBlinkActive && bootElapsed >= BOOT_BLINK_PHASES * BOOT_BLINK_INTERVAL_MS) {
     bootBlinkActive = false;
   }
-  digitalWrite(AtlasConfig::STATUS_LED_PIN,
-      !bootBlinkActive || (bootElapsed / BOOT_BLINK_INTERVAL_MS) % 2 == 0 ? HIGH : LOW);
+  const uint32_t heldMs = nowMs - masterPressedAtMs;
+  const bool endMatchWarning = masterHeldInMatch && !endMatchSent &&
+      matchInProgress() && heldMs >= END_MATCH_WARNING_MS;
+  bool statusOn = !bootBlinkActive || (bootElapsed / BOOT_BLINK_INTERVAL_MS) % 2 == 0;
+  if (endMatchWarning) statusOn = (heldMs / END_MATCH_BLINK_INTERVAL_MS) % 2 == 0;
+  digitalWrite(AtlasConfig::STATUS_LED_PIN, statusOn ? HIGH : LOW);
 
   // The Pair LED is reserved for the pairing window, which leaving the lobby ends.
   const uint32_t pairingElapsed = nowMs - pairingStartedAtMs;
   if (pairingActive &&
-      (pairingElapsed >= TurnHubProtocol::PAIRING_WINDOW_MS || hubState != HubState::Lobby)) {
+      (pairingElapsed >= pairingIndicatorMs || hubState != HubState::Lobby)) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }

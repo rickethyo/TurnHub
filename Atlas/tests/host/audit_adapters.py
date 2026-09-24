@@ -18,7 +18,7 @@ ADAPTERS = {
                         "processSigilEvents", "respondToWinClaim", "dispatchPauseOrResume",
                         "connectionBlocked"],
     "web_adapters.cpp": ["handleWebControl", "handleProfileControl", "configureGame",
-                         "changeLife", "changeCounter", "moderateAccount",
+                         "changeLife", "changeCounter", "moderateAccount", "manageDevices",
                          "dispatchBrowserSeatIntent"],
     "front_panel.cpp": ["updateMasterButton", "updatePairButton"],
     "gameplay_intents.cpp": ["updatePendingPass"],
@@ -26,11 +26,13 @@ ADAPTERS = {
 }
 
 FORBIDDEN = [
-    r"game\.(?:start|reset|passTurn|pause|resume|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
+    r"game\.(?:start|reset|passTurn|pause|resume|endInDraw|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
     r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm|replaceController)\s*\(",
     r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs|nextGameSettings)\s*=(?!=)",
     r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|finishGameState|clearDecisionState|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule)\s*\(",
     r"\bhandle\w+Intent\s*\(",
+    r"sigilBus\.(?:forget|openPairing)\s*\(",
+    r"\bpairingWindowMs\s*=(?!=)",
 ]
 
 

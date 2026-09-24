@@ -2,8 +2,10 @@
 
 Current pairing update (2026-09-22): physical buttons are owner-verified and manual
 15-second pairing with persistent MAC associations is now implemented. The boot
-pairing fallback and visual mock are superseded. Radio bench acceptance and
-forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
+pairing fallback and visual mock are superseded. Forgetting (Sigil 10-second Pair
+hold; admin Forget on Atlas with an `Unpair = 12` packet) and an admin-adjustable
+Atlas window were added 2026-09-24. Radio bench acceptance remains pending. See
+[Manual Pairing](MANUAL_PAIRING.md).
 
 
 This document separates three things that are easy to confuse during rapid prototyping:
@@ -65,6 +67,15 @@ Current/experimental packet concepts include:
 - Firmware/capability information.
 
 The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
+
+### Unpair (2026-09-24)
+
+`Unpair = 12` (Atlas -> Sigil, `value` 0) tells a Sigil that Atlas forgot it. The
+Sigil honours it only from its saved Atlas MAC with its own Sigil ID, then erases
+its pairing. It is best effort and unacknowledged. Older Sigils ignore it.
+`FORGET_PAIRING_HOLD_MS` (10 s) is the Sigil's Pair hold that forgets locally.
+`PAIRING_WINDOW_MS` stays 15 s: it is the Sigil's window and Atlas's default.
+Protocol version stays 1.
 
 ### Hold timing (2026-09-24)
 

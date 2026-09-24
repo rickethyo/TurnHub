@@ -195,12 +195,32 @@ bool moderateAccount(const String &actor, const String &target,
   return result.accepted();
 }
 
+bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
+  if (actor.length() != 8 ||
+      (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing)) {
+    message = "Invalid request";
+    return false;
+  }
+  Intent intent;
+  intent.type = type;
+  intent.actor.origin = IntentOrigin::Browser;
+  strncpy(intent.payload.moderatorId, actor.c_str(), sizeof(intent.payload.moderatorId) - 1);
+  intent.payload.value = value;
+  const IntentResult result = intents.dispatch(intent);
+  message = result.message;
+  TurnHub::recordActivity(result.accepted() ? "devices" : "devices_rejected",
+      String("actor=") + actor + " intent=" + TurnHub::intentName(type) +
+          " value=" + String(value) + " result=" + result.message);
+  return result.accepted();
+}
+
 void registerWebCallbacks() {
   TurnHubWebApi::configure(resolveWebSeat, handleWebControl, handleProfileControl,
       resolveProfileParticipant);
   TurnHubWebApi::configureGameControls(readGameSettings, configureGame, changeLife);
   TurnHubWebApi::configureCounterControls(readCounters, changeCounter);
   TurnHubWebApi::configureModeration(moderateAccount);
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configureAccessibility([]() { applyAllSigilAccessibility(millis()); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
 }

@@ -120,6 +120,9 @@ class GameEngine {
       bool &gameFinished);
   bool denyWinClaim(uint8_t playerNumber, uint32_t nowMs);
   bool cancelWinClaim(uint8_t claimantPlayer, uint32_t nowMs);
+  // Ends a running or paused match with no winner (a draw). Cancels any win
+  // claim or life request and fires the game-completed callback once.
+  bool endInDraw(uint32_t nowMs);
 
   // Clears the match (settings return to defaults).
   void reset();
@@ -143,6 +146,8 @@ class GameEngine {
   uint8_t activeController() const;
   uint8_t starterPlayerNumber() const;
   uint8_t winnerPlayerNumber() const;
+  // A finished match without a winner. Only endInDraw() produces one.
+  bool endedInDraw() const { return gameOver_ && winnerPlayer_ == 0; }
   uint8_t winClaimPlayerNumber() const;
   uint8_t nextWinConfirmationPlayerNumber() const;
 

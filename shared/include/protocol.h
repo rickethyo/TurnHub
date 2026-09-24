@@ -9,8 +9,11 @@ constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
-// Deliberate manual-pairing window, shared so Atlas and Sigil time out together.
+// Deliberate manual-pairing window. It is the Sigil's window and Atlas's
+// default; an Atlas admin may lengthen Atlas's own window (pairing_settings.h).
 constexpr uint32_t PAIRING_WINDOW_MS = 15000;
+// Holding a Sigil's Pair button this long erases its saved Atlas pairing.
+constexpr uint32_t FORGET_PAIRING_HOLD_MS = 10000;
 
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
@@ -47,6 +50,9 @@ enum class PacketType : uint8_t {
   DisplayProfileRequest = 9,
   PairRequest = 10,
   PairAccept = 11,
+  // Atlas -> Sigil: Atlas forgot this Sigil; it erases its saved pairing.
+  // Best effort: a Sigil that misses it stays paired until re-paired or reset.
+  Unpair = 12,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,

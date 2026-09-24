@@ -6,12 +6,33 @@ pairing fallback and visual mock are superseded. Radio bench acceptance and
 forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
 
 
+Owner decisions and follow-through (2026-09-24, later the same day):
+
+- **End a match as a draw:** implemented. Holding the Atlas master button for 5 s
+  during a running or paused match (including a recovered one) sends `EndMatch`,
+  which ends it with no winner and records a Draw for every player. This is the
+  "Discard" path for a recovered match that item 3 below lacked.
+- **Forget pairings:** implemented. A 10 s Sigil Pair hold erases the Sigil's
+  pairing; admins forget one or all Sigils in Device Settings, and Atlas sends
+  `Unpair`. See [Manual Pairing](MANUAL_PAIRING.md#forgetting-a-pairing-2026-09-24).
+- **Pairing window:** Atlas's window is admin-adjustable (15/30/60 s).
+- **On hold:** the physical profile picker (waits for a D-pad on the Sigil), LED
+  brightness and buzzer volume (current hardware cannot vary them).
+- **Not planned on e-ink:** the turn timer on the Sigil screen; it will be tried
+  on an LCD Sigil model.
+- **Long-term goal:** game-scoped statistics and session history (sections 3-5).
+
+All of the above: host scenarios, the portal browser smoke, and PlatformIO
+builds of Atlas, `sigil` and `sigil-wokwi` pass (Sigil firmware 0.5.5-dev). The
+Android "Draw" label has a unit test that was not run. Nothing was flashed;
+hardware acceptance is pending.
+
 Turn timer and cue layers (2026-09-24): the Atlas-owned turn timer, LED cue
 profile, audio cue profile and Android player controls are implemented locally with
 host/Android tests and an Atlas build; hardware acceptance is pending. See
 [Turn timer and cues](TURN_TIMER_AND_CUES.md). Staged follow-ups:
 
-- Sigil e-ink timer state needs a radio-contract field and a reflash of all Sigils.
+- Timer on the Sigil screen: not on e-ink (owner decision); revisit on an LCD Sigil.
 - Route Sigil-local Pairing/Disconnected/Error LEDs through a shared cue profile
   (and so through the player's light style).
 
@@ -105,20 +126,22 @@ implemented remain; no account reset or firmware flash has been performed.
    scenarios pass (verified via an equivalent Linux/g++ build here; PlatformIO
    firmware and hardware acceptance still need the owner's bench).
 
-   Deliberately not done: there is still no Resume/Discard *decision* UI.
+   Update (2026-09-24): the owner chose a 5-second Atlas master-button hold that
+   ends the match as a draw (`EndMatch`). That is the Discard path: it works on a
+   restored (paused) match and records a Draw, not a discarded game. Resume
+   remains the ordinary Pause/Resume control. The history below is kept for
+   context.
+
+   Earlier note: there was no Resume/Discard *decision* UI.
    "Resume" needs no new code -- a restored match lands in the existing
    `Paused` state, so the current Pause/Resume controls (physical and
    browser) already continue it. "Discard" has nothing to hook into yet:
    `ResetGame` is intentionally only reachable from `GameOver` or an
    unstarted `Lobby` today, specifically so it can't be used to nuke an
    ordinary in-progress paused game, and a freshly-recovered match is
-   indistinguishable from that once `hubState` is `Paused`. Building this
-   safely needs a real decision (a new `HubState`, a boot-scoped "still
-   exactly what was recovered" guard, and a place to trigger it physically
-   for a table with no phone in reach) rather than a quick guard-clause
-   change, so it was left as a follow-up rather than guessed at here. Until
-   it exists, an unwanted recovered match can only be cleared by playing it
-   out (Concede down to a winner) or by erasing NVS.
+   indistinguishable from that once `hubState` is `Paused`. The master-button
+   hold answers this without a new `HubState`: it needs someone at the table and
+   applies to any match, recovered or not.
 4. **Auxiliary button software path.** Done (2026-09-24): the Pause / Win button
    (Sigil GPIO32) sends the existing Action-long and Action-win semantics, so it
    adds no button-owned game rules. Physical operation awaits a bench check; see
@@ -170,7 +193,10 @@ reports compiling/flashing the current changes successfully and that everything
 works (2026-09-20); this is general bench feedback, not a recorded pass of each
 persistence/reboot acceptance case.
 
-**Next: physical profile selection and reusable Sigils.** The owner found that
+**On hold (owner, 2026-09-24): the two-button e-ink picker waits for a D-pad on
+the Sigil.** The notes below stay as the design record.
+
+**Physical profile selection and reusable Sigils.** The owner found that
 Michael joining by phone prevents his last-used, unjoined Sigil from joining as
 another person through its buttons. Saved bindings still supply physical join
 identity. Preserve duplicate-profile protection, separate last-used preference
@@ -215,12 +241,18 @@ retain profile companion control.
 - Provide keyboard and assistive-technology semantics for essential web controls.
 - Reduced motion: portal (OS setting or per-browser switch) and Sigil lights
   (Reduced motion style) are implemented; avoid rapid/seizure-risk flashing.
-- Long-press and win-hold times are adjustable per player (Sigil 0.5.4). The
-  15-second life-approval and pairing windows are not adjustable yet.
+- Long-press and win-hold times are adjustable per player (Sigil 0.5.4). Atlas's
+  pairing window is admin-adjustable (15/30/60 s); the 15-second life-approval
+  window is not adjustable yet. LED intensity and buzzer volume are on hold
+  (hardware).
 - Preserve an authorized assistive-companion path for players when a table policy otherwise requires physical Sigils.
 - Add accessibility checks to feature verification and future hardware review.
 
 ### 3. Game profiles and statistics separation
+
+Owner direction (2026-09-24): long-term statistics are the goal for this lane.
+Draws now reach the v1 statistics (last result `Draw`); a draw counter needs the
+versioned statistics migration below.
 
 - Introduce a stable `gameProfileId` so statistics are partitioned by game/format instead of one global lifetime bucket.
 - Keep player identity independent from physical or virtual controllers.
@@ -269,9 +301,9 @@ Privacy direction:
 
 ### 7. OTA and hardware hardening
 
-- Real pairing with persistent associations is implemented (see
-  [Manual Pairing](MANUAL_PAIRING.md)); still to do: a forget-device flow
-  (`ForgetPairing` is reserved but unbound) and authenticated device trust.
+- Real pairing with persistent associations, forgetting (Sigil hold and admin
+  portal) and an adjustable Atlas window are implemented (see
+  [Manual Pairing](MANUAL_PAIRING.md)); authenticated device trust remains.
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
 - Choose the production Sigil transport and OTA strategy.
@@ -289,7 +321,11 @@ Privacy direction:
 - Prototype 1.0 interrupted-match recovery after abrupt Atlas power loss. The
   load/save wiring and diagnostic logging are in now (see item 3 above); this
   entry stays open until an actual power-loss-and-reboot bench test confirms
-  it on hardware, and until the Resume/Discard decision UI exists.
+  it on hardware, including ending a restored match with the master-button hold.
+- Master-button draw hold: 5 s during a match, status LED blinks fast from 1 s,
+  a shorter press still passes, statistics record Draw once.
+- Forgetting pairings: 10 s Sigil Pair hold; admin Forget one/all with `Unpair`
+  reaching an in-range Sigil; the 30/60 s Atlas pairing window.
 
 - Serial-log browser download (`GET /api/diagnostics/log`, Developer page
   button). *Needs verification* on hardware: host scenarios cover capture,

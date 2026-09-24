@@ -8,11 +8,12 @@
 //   main.cpp               runtime object definitions, handler bindings,
 //                          networking/HTTP bring-up, setup() and loop()
 //   app_context.cpp        seat resolution, audio masks, Intent builders
-//   gameplay_intents.cpp   PASS, pause/resume, concede, win claims,
-//                          life/Commander counters, turn-timer cues
+//   gameplay_intents.cpp   PASS, pause/resume, concede, win claims, ending
+//                          a match as a draw, life/Commander counters,
+//                          turn-timer cues
 //   table_intents.cpp      lobby participation, starter selection, start
-//                          countdown, rematch/reset, elimination, pairing,
-//                          game settings
+//                          countdown, rematch/reset, elimination, pairing
+//                          (open, forget, window), game settings
 //   moderation_intent.cpp  Game Master moderation
 //   sigil_input.cpp        ESP-NOW event adapter and physical gesture state
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
@@ -94,6 +95,8 @@ extern TurnHub::GameSettings nextGameSettings;
 // False when the settings store failed to load; starting a game is refused.
 extern bool gameSettingsAvailable;
 extern bool espNowReady;
+// Atlas's pairing window; admins choose it (pairing_settings.h).
+extern uint32_t pairingWindowMs;
 
 // --- Canonical table-decision state (mutated only by Intent handlers) -------
 
@@ -169,6 +172,7 @@ IntentResult handleDenyWinIntent(const Intent &intent, void *);
 IntentResult handleChangeLifeIntent(const Intent &intent, void *);
 IntentResult handleExpireLifeChangesIntent(const Intent &intent, void *);
 IntentResult handleCounterIntent(const Intent &intent, void *);
+IntentResult handleEndMatchIntent(const Intent &intent, void *);
 
 void clearPendingPass(const char *reason);
 bool cancelPendingPassForModule(uint8_t sigilId, const char *reason);
@@ -189,6 +193,8 @@ IntentResult handleCancelPassIntent(const Intent &intent, void *);
 IntentResult handleEliminationIntent(const Intent &intent, void *);
 IntentResult handlePairRequestIntent(const Intent &intent, void *);
 IntentResult handleGameSettingsIntent(const Intent &intent, void *);
+IntentResult handleForgetPairingIntent(const Intent &intent, void *);
+IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 
 // Clears Atlas-owned decisions and the physical gesture bookkeeping.
 void clearDecisionState();
@@ -243,6 +249,7 @@ bool changeCounter(uint8_t controller, uint8_t slot, IntentType type,
     const TurnHub::IntentPayload &payload, String &message);
 bool moderateAccount(const String &actor, const String &target,
     const String &action, String &message);
+bool manageDevices(const String &actor, IntentType type, int32_t value, String &message);
 
 // --- front_panel.cpp ---------------------------------------------------------
 
@@ -255,6 +262,8 @@ void startBootBlink(uint32_t nowMs);
 void startPairingIndicator(uint32_t nowMs);
 // OTA is allowed only between games and while the master button is held.
 bool otaAllowed();
+// Holding the master button this long during a match ends it as a draw.
+constexpr uint32_t MASTER_END_MATCH_HOLD_MS = 5000;
 void updateMasterButton();
 void updatePairButton();
 void updateFrontPanelLeds(uint32_t nowMs);

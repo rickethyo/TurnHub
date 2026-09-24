@@ -130,8 +130,10 @@ Atlas state --selectSigilLedState()--> SigilLedState --LedCueProfile--> blue/red
   with a text notice (live region) for warning, expiry and long turn; the countdown
   is extrapolated between 1 s polls and replaced by every snapshot. The host sees
   preset chips and a custom-seconds field in the lobby.
-- **Sigil e-ink:** unchanged. Showing timer state on e-ink needs a radio-contract
-  field (both display packets are full) and a reflash of every Sigil; staged.
+- **Sigil e-ink:** unchanged, by owner decision (2026-09-24): e-ink refresh is
+  not suited to a live timer. Timer display will be tried on a future LCD Sigil
+  model instead; it will still need a radio-contract field (both display packets
+  are full).
 
 ## Bench acceptance (Needs verification)
 

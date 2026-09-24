@@ -70,6 +70,16 @@ hardware. After pairing the fake Atlas only acknowledges Hello, PASS, the
 ACTION family and profile requests from that Sigil, exactly like the real one,
 and sends Sigil 0.5.4+ its hold thresholds (`InputTiming`, default 2 s / 5 s).
 
+### Forgetting a pairing
+
+- Hold PAIR (`R`) for 10 seconds: the Sigil erases its saved pairing
+  (`SIGIL|PAIR|FORGOTTEN|BUTTON`) and shows "Unpaired". A short press still
+  only opens the pairing window. The fake Atlas keeps its record, as a real
+  Atlas does until an admin forgets the Sigil in the portal.
+- Type `forget`: the fake Atlas forgets the Sigil and sends `Unpair`, as an
+  admin's Forget does on a real Atlas. Sigil 0.5.5+ erases its pairing
+  (`SIGIL|PAIR|FORGOTTEN|ATLAS`). Type `pair` and press PAIR to pair again.
+
 ## Buttons
 
 PAUSE / WIN switches GPIO 32 to GND and uses the internal pull-up. Tap to
@@ -91,6 +101,7 @@ Type commands into the Wokwi serial console and press Enter:
 help
 pair
 id 3
+forget
 timing 3000 6000
 blue 128
 red 1

@@ -241,6 +241,28 @@ IntentResult handleTogglePauseIntent(const Intent &intent, void *) {
   return intents.dispatch(resolved);
 }
 
+// --- Ending a match as a draw ---------------------------------------------------
+
+// The table's way out of a match nobody can or wants to finish, including one
+// restored after a power loss. Only the Atlas master button can ask, so it
+// needs someone at the table. It overrides open table decisions (a win claim,
+// an elimination selection, a queued PASS); statistics record a draw once.
+IntentResult handleEndMatchIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Hold the Atlas master button to end the match");
+  }
+  if (!gameInProgress()) {
+    return IntentResult::reject(IntentStatus::InvalidState, "No match is in progress");
+  }
+  // finishGameState() then clears the queued PASS and table decisions.
+  if (!game.endInDraw(millis())) {
+    return IntentResult::reject(IntentStatus::Conflict, "Atlas could not end the match");
+  }
+  logIntent("END_MATCH", intent.actor.origin, 0);
+  finishGameState();
+  return IntentResult::accept("Match ended as a draw");
+}
+
 // --- Concession -----------------------------------------------------------------
 
 // Unlike Eliminate, a concession restores running play if the match continues.

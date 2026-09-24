@@ -93,15 +93,44 @@ bool SigilBus::begin() {
   return true;
 }
 
-bool SigilBus::openPairing() {
+bool SigilBus::openPairing(uint32_t windowMs) {
   if (rxQueue_ == nullptr || txTask_ == nullptr) return false;
   pairingStartedMs_ = millis();
+  pairingWindowMs_ = windowMs;
   pairingOpen_ = true;
   return true;
 }
 
 bool SigilBus::pairingActive() const {
-  return pairingOpen_ && millis() - pairingStartedMs_ < TurnHubProtocol::PAIRING_WINDOW_MS;
+  return pairingOpen_ && millis() - pairingStartedMs_ < pairingWindowMs_;
+}
+
+bool SigilBus::forget(uint8_t sigilId) {
+  if (sigilId >= MAX_PHYSICAL_SIGILS || !records_[sigilId].used) return false;
+  SigilRecord &sigil = records_[sigilId];
+
+  OptionalPreferences prefs;
+  const String key = String("s") + String(sigilId);
+  if (!prefs.begin("th_pair_v1", false)) {
+    serialLog.println("ATLAS|PAIRING|STORE_ERROR");
+    return false;
+  }
+  const bool removed = !prefs.isKey(key.c_str()) || prefs.remove(key.c_str());
+  prefs.end();
+  if (!removed) {
+    serialLog.println("ATLAS|PAIRING|STORE_ERROR");
+    return false;
+  }
+
+  // Queued before the record goes; the TX task only needs the MAC.
+  sendToMac(sigil.mac, PacketType::Unpair, sigil.id, 0);
+  serialLog.print("ATLAS|SIGIL|FORGOTTEN|");
+  serialLog.print(sigil.id);
+  serialLog.print("|");
+  printMac(sigil.mac);
+  serialLog.println();
+  sigil = SigilRecord{};
+  return true;
 }
 
 bool SigilBus::poll(SigilEvent &event) {
@@ -111,7 +140,7 @@ bool SigilBus::poll(SigilEvent &event) {
   for (uint8_t n = 0; rxQueue_ && n < 32 &&
        xQueueReceive(rxQueue_, &request, 0) == pdTRUE; ++n) {
     if (request.packet.type == PacketType::PairRequest &&
-        (!pairingActive() || request.receivedAt - pairingStartedMs_ >= TurnHubProtocol::PAIRING_WINDOW_MS)) continue;
+        (!pairingActive() || request.receivedAt - pairingStartedMs_ >= pairingWindowMs_)) continue;
     handleReceive(request.mac, reinterpret_cast<const uint8_t *>(&request.packet), sizeof(Packet));
   }
   if (eventQueue_ == nullptr) {

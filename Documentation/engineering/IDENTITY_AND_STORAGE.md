@@ -60,7 +60,7 @@ match/controller records, not a claim that those repositories already exist.
 | Data | Owner | Current/planned location |
 | --- | --- | --- |
 | Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Profile and device-label records use `turnhub` NVS; both physical-seat bindings are RAM-only and clear on restart/reconnect and game end |
-| Lifetime/latest-game statistics | Profile statistics repository | `BlobStore` -> `NvsBlobStore`, existing `turnhub` namespace and `s<profileId>` keys |
+| Lifetime/latest-game statistics | Profile statistics repository | `BlobStore` -> `NvsBlobStore`, existing `turnhub` namespace and `s<profileId>` keys. Last-game result byte 4 is `Draw` (2026-09-24; it was the never-written `Completed`), so the v1 image and older firmware still accept draws |
 | Private moderation history (connection resets, game removals) | Profile statistics repository | `o<profileId>` blob in `turnhub`: schema byte 1, then two little-endian uint32 counts. Served only to the owner's PIN-verified session; never exported. Counts older firmware kept in `u<profileId>` migrate on first account load (2026-09-24) |
 | Account access control (permissions, archived, nudge mute, reconnect-required) | Atlas account repository | `u<profileId>` blob in `turnhub` (12 bytes, schema 2); its count bytes are legacy and read only for migration |
 | Physical-use and stats-privacy choices | Atlas profile repository | `a<profileId>` blob in `turnhub`: schema byte 1, allow-physical byte 0/1, hide-stats byte 0/1; implemented locally |
@@ -68,7 +68,8 @@ match/controller records, not a claim that those repositories already exist.
 | Game definitions/rulesets | Planned game-definition repository | Versioned records through storage boundary |
 | Next-game profile, starting life and turn timer | Atlas game-settings repository | `gamecfg` blob in `turnhub` (schema 2, ten bytes; schema 1 still read); match captures settings at start, life totals stay in RAM |
 | Match facts, membership, history and recovery | Planned Atlas match repository | Bounded versioned records; recovery separate from completed history |
-| Controller assignment/device trust | Planned controller/trust registries | Small critical records independent of statistics |
+| Controller assignment/device trust | Sigil bus (pairing) | `th_pair_v1/s0`-`s7` MACs on Atlas, `th_pair_v1/atlas` on each Sigil; admins forget Atlas records, a 10 s Pair hold forgets the Sigil's (see [Manual Pairing](MANUAL_PAIRING.md)) |
+| Atlas pairing window | Atlas table settings | `pairwin` blob in `turnhub` (2026-09-24): schema byte 1, seconds (15/30/60); missing or unreadable reads as 15 s |
 | Sigil user/device settings and last-used preferences | Atlas device-settings owner | No remembered profile on either seat; legacy `b<mac>A/B` and `r<mac>A/B` keys are retired on reconnect; no Sigil-side profile persistence |
 | Per-player Sigil accessibility (sound, light style, hold times) | Atlas profile repository | `x<profileId>` blob in `turnhub` (2026-09-24): schema byte 1, sound 0/1, light style 0-2, long press and win hold as little-endian uint16 ms (7 bytes). Missing reads as defaults; Corrupt/unsupported records are never overwritten silently. Sigils hold the applied values in RAM only |
 | Other shared accessibility preferences | Atlas profile owner | Versioned profile preferences; per-Sigil user adjustments belong to Atlas device settings |

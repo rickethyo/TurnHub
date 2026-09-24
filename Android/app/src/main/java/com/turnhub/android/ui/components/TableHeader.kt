@@ -64,6 +64,10 @@ fun TableHeader(
             summary.winnerPlayerNumber?.let {
                 Text("Winner: ${labelFor(it)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
+            if (summary.endedInDraw) {
+                Text("Draw: the match was ended at Atlas with no winner",
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
 
             PendingBanners(summary, nowMs, labelFor, timerNotice = timer?.notice)
 

@@ -11,6 +11,8 @@ let policy={allowPhysicalWithoutPin:true,hideStatsWithoutAuthentication:true};
 let access={sigilSound:true,ledStyle:'standard',longPressMs:2000,winHoldMs:5000};
 const accessLimits={longPressMinMs:1000,longPressMaxMs:4000,winHoldMinMs:3000,winHoldMaxMs:10000,minGapMs:1000,stepMs:250};
 let gameSettings={gameProfile:'generic',startingLife:40,turnTimerMs:0},life=40;
+let sigils=[{id:2,label:'Sigil 3',defaultLabel:'Sigil 3',customName:'',hardwareId:'THS-000000000002',mac:'00:00:00:00:00:02',online:true,ageMs:100,firmware:'0.5.5',metadata:true,capabilities:15,sessionCount:0,profileA:''}];
+let pairingWindowMs=15000;const forgetRequests=[];
 const turnTimer={presetsMs:[0,60000,120000,180000,300000],minMs:15000,maxMs:3600000,warningMs:10000,longTurnMs:300000};
 const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
@@ -27,7 +29,9 @@ const api=http.createServer(async(req,res)=>{
   case '/api/accounts':result={accounts:[{profileId:'AB12CD34',name:'Phone Tester',permissions}]};break;
   case '/api/accounts/permissions':permissions=Number(new URLSearchParams(body).get('permissions'));result={ok:true};break;
   case '/api/status':result=status;break;
-  case '/api/devices':result={atlas:{hardwareId:'TEST-ATLAS',firmware:'0.6.0-dev'},devices:[]};break;
+  case '/api/devices':result={atlas:{hardwareId:'TEST-ATLAS',firmware:'0.6.0-dev'},devices:sigils};break;
+  case '/api/device/forget':assert.equal(permissions&1,1);forgetRequests.push(url.search);{const id=url.searchParams.get('module');sigils=url.searchParams.get('all')==='1'?[]:sigils.filter(s=>String(s.id)!==id);}result={ok:true,message:'Sigil forgotten'};break;
+  case '/api/pairing':assert.equal(permissions&1,1);if(req.method==='POST'){pairingWindowMs=Number(url.searchParams.get('windowMs'));result={ok:true,message:'Pairing window saved'}}else result={windowMs:pairingWindowMs,sigilWindowMs:15000,choicesMs:[15000,30000,60000]};break;
   case '/api/seats':result={seats:joined?[{module:8,slot:1,slotName:'A',player:1,name:'Phone Tester',profileId:'AB12CD34',virtual:true,hasPin:true,lifeAvailable:state==='RUNNING',life}]:[]};break;
   case '/api/network':result={ssid:'Test fixture',security:'WPA2-PSK',stations:0};break;
   case '/api/profiles':result={profiles:[]};break;
@@ -149,6 +153,28 @@ const api=http.createServer(async(req,res)=>{
   await tab.getByRole('button',{name:'Players',exact:true}).click();
   await tab.getByRole('button',{name:'Force pass',exact:true}).waitFor();
   assert.equal(await tab.getByRole('link',{name:'Atlas firmware',exact:true}).count(),0);
+  // Paired Sigils: admins set Atlas's pairing window and forget a Sigil.
+  await tab.getByRole('button',{name:'Device Settings',exact:true}).click();
+  const windowSelect=tab.getByLabel('Atlas pairing window',{exact:true});
+  await tab.waitForFunction(()=>document.getElementById('pairingWindowSelect').options.length===3);
+  assert.equal(await windowSelect.inputValue(),'15000');
+  await windowSelect.selectOption('30000');
+  await tab.getByText('Atlas pairing window: 30 seconds.',{exact:true}).waitFor();
+  assert.equal(pairingWindowMs,30000);
+  await tab.getByRole('button',{name:'Forget Sigil 3',exact:true}).click();
+  await tab.getByRole('button',{name:'Forget Sigil',exact:true}).click();
+  await tab.waitForFunction(()=>!document.querySelector('#deviceSettingsList [aria-label="Forget Sigil 3"]'));
+  assert.deepEqual(forgetRequests,['?module=2']);
+  await tab.getByRole('button',{name:'Forget all Sigils',exact:true}).click();
+  await tab.getByRole('button',{name:'Forget all',exact:true}).click();
+  for(let i=0;i<100&&forgetRequests.length<2;++i)await tab.waitForTimeout(20);
+  assert.deepEqual(forgetRequests,['?module=2','?all=1']);
+  // A match ended from the Atlas master button shows as a draw, not a winner.
+  state='GAME_OVER';await tab.evaluate(()=>refreshAll());
+  await tab.getByRole('button',{name:'Game',exact:true}).click();
+  await tab.waitForFunction(()=>document.getElementById('heroTitle').textContent==='Draw');
+  assert.equal(await tab.locator('#winnerGame').textContent(),'Draw (no winner)');
+  state='RUNNING';
   assert.deepEqual(errors,[]);
   // A device that asks for more contrast gets High contrast until a theme is chosen.
   const contrastContext=await browser.newContext({contrast:'more'}),contrastTab=await contrastContext.newPage();
@@ -163,6 +189,6 @@ const api=http.createServer(async(req,res)=>{
   await contrastContext.close();
   const plainTab=await (await browser.newContext()).newPage();await plainTab.goto(base);
   assert.equal(await plainTab.evaluate(()=>document.documentElement.dataset.theme),'brass');
-  console.log('PASS portal smoke: profiles, game setup, life controls/totals, policy save, Sigil accessibility, reduce motion, OS contrast default, mobile/desktop fit, no JS errors');
+  console.log('PASS portal smoke: profiles, game setup, life controls/totals, policy save, Sigil accessibility, reduce motion, pairing window, forget Sigils, draw result, OS contrast default, mobile/desktop fit, no JS errors');
  }finally{await browser.close();api.close()}
 })().catch(e=>{console.error(e);api.close();process.exitCode=1});

@@ -20,6 +20,7 @@
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
+namespace TurnHub { extern uint32_t fixturePairingWindowSaved; }
 esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t injectedCommitError = ESP_OK;
@@ -36,11 +37,20 @@ static bool fixtureRadio=false;
 SigilBus::SigilBus(uint8_t channel) : wifiChannel_(channel) { fixtureBus=this; }
 SigilBus *SigilBus::activeInstance() { return fixtureBus; }
 bool SigilBus::begin() { return true; }
-bool SigilBus::openPairing() { return fixtureRadio; }
+static uint32_t fixturePairingWindowMs=0;
+bool SigilBus::openPairing(uint32_t windowMs) { fixturePairingWindowMs=windowMs; return fixtureRadio; }
+// Forgotten slots read as unpaired until the next freshLobby() re-pairs them.
+static bool fixtureForgotten[MAX_PHYSICAL_SIGILS]{};
+static unsigned fixtureUnpairs[MAX_PHYSICAL_SIGILS]{};
+static bool fixtureForgetFails=false;
+bool SigilBus::forget(uint8_t id) {
+  if(id>=MAX_PHYSICAL_SIGILS||!fixtureRadio||fixtureForgotten[id]||fixtureForgetFails) return false;
+  ++fixtureUnpairs[id]; fixtureForgotten[id]=true; return true;
+}
 bool SigilBus::poll(SigilEvent&) { return false; }
 uint8_t SigilBus::activeCount(uint32_t) const { return 0; }
 bool SigilBus::isOnline(uint8_t id,uint32_t) const { return fixtureRadio && id < MAX_PHYSICAL_SIGILS; }
-const SigilRecord *SigilBus::record(uint8_t id) const { return fixtureRadio&&id<MAX_PHYSICAL_SIGILS?&fixtureRecords[id]:nullptr; }
+const SigilRecord *SigilBus::record(uint8_t id) const { return fixtureRadio&&id<MAX_PHYSICAL_SIGILS&&!fixtureForgotten[id]?&fixtureRecords[id]:nullptr; }
 static unsigned fixtureSends=0;
 static unsigned fixtureProfileSyncs=0;
 void SigilBus::syncDisplayProfile(uint8_t id) { assert(id<MAX_PHYSICAL_SIGILS); ++fixtureProfileSyncs; }
@@ -82,6 +92,7 @@ static void freshLobby(int modules=3,bool shared=false) {
   completedGames=0;
   TurnHub::fixtureRadio=true;
   for(uint8_t i=0;i<MAX_PHYSICAL_SIGILS;++i) {
+    TurnHub::fixtureForgotten[i]=false;
     TurnHub::fixtureRecords[i].id=i; TurnHub::fixtureRecords[i].mac[5]=i;
   }
   for(int i=0;i<modules;++i) handleActionShort(static_cast<uint8_t>(i));
@@ -1408,6 +1419,152 @@ static void nativeClientBoundary() {
 // persisting checkpoints for the rest of the process (matching production;
 // see main.cpp's observeIntent()). Earlier scenarios never call
 // beginGameRecovery(), so they are unaffected either way.
+// Presses and releases the Atlas master button through its real debounced adapter.
+static void masterDown() { testDigitalRead=LOW; testNow+=30; updateMasterButton(); }
+static void masterUp() { testDigitalRead=HIGH; testNow+=30; updateMasterButton(); }
+static void holdMaster(uint32_t ms) { testNow+=ms; updateMasterButton(); }
+
+static void endMatchAsDraw() {
+  using TurnHubProfiles::LastGameResult;
+  // Only a match in progress, and only the Atlas hardware, can end it.
+  freshLobby(2);
+  Intent end; end.type=IntentType::EndMatch; end.actor.origin=IntentOrigin::AtlasHardware;
+  assert(!intents.dispatch(end).accepted() && hubState==HubState::Lobby);
+  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS); masterUp();
+  assert(hubState==HubState::Lobby && lobby.playerCount()==2);
+  startFromHost();
+  for (auto origin : {IntentOrigin::Browser, IntentOrigin::AndroidApp, IntentOrigin::PhysicalSigil,
+                      IntentOrigin::Simulator, IntentOrigin::System}) {
+    Intent other=end; other.actor.origin=origin;
+    assert(intents.dispatch(other).status==IntentStatus::Unauthorized);
+  }
+  assert(hubState==HubState::Running && !game.gameOver());
+
+  // A short press still passes; a hold just short of the threshold also passes.
+  masterDown(); holdMaster(1000); masterUp();
+  assert(pendingPass.active && hubState==HubState::Running);
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(game.activePlayerNumber()==2);
+  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS-60); masterUp();
+  assert(pendingPass.active && hubState==HubState::Running);
+
+  // The full hold overrides a queued PASS and ends the match once, as a draw.
+  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS-1);
+  assert(hubState==HubState::Running && pendingPass.active);
+  holdMaster(1);
+  assert(hubState==HubState::GameOver && game.endedInDraw() && game.winnerPlayerNumber()==0);
+  assert(!pendingPass.active && completedGames==1);
+  holdMaster(10000); masterUp();
+  assert(hubState==HubState::GameOver && completedGames==1 && !pendingPass.active);
+  assert(!intents.dispatch(end).accepted() && completedGames==1);
+
+  // A draw survives recovery validation (it used to be rejected as corrupt,
+  // which would have locked the recovery store) and restores as a draw.
+  TurnHub::GameCheckpoint saved; game.checkpoint(saved,testNow);
+  assert(saved.over && saved.winner==0 && TurnHub::validCheckpoint(saved));
+  GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow));
+  assert(restored.gameOver() && restored.endedInDraw());
+  saved.over=false; saved.winner=1; assert(!TurnHub::validCheckpoint(saved));
+
+  // It overrides an open win claim, and works from a paused (e.g. recovered) match.
+  freshLobby(2); startFromHost();
+  assert(web(0,1,WebControl::ClaimWin) && game.hasWinClaim() && hubState==HubState::Paused);
+  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS);
+  assert(game.endedInDraw() && !game.hasWinClaim() && completedGames==1); masterUp();
+
+  // Statistics: every player gets a game played and a Draw, not a win or loss;
+  // a player who conceded first keeps Eliminated.
+  enterEmptyLobby(); TurnHub::fixtureRadio=false; completedGames=0;
+  String aId,bId,cId;
+  const String a=registerPhone("Draw one",aId),b=registerPhone("Draw two",bId),c=registerPhone("Draw three",cId);
+  assert(request("/api/session/join",a)==200 && request("/api/session/join",b)==200 &&
+      request("/api/session/join",c)==200);
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  assert(hubState==HubState::Running);
+  assert(request("/api/control/concede",c)==200 && hubState==HubState::Running);
+  assert(request("/api/control/pause",b)==200 && hubState==HubState::Paused);
+  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS); masterUp();
+  assert(hubState==HubState::GameOver && game.endedInDraw() && completedGames==1);
+  for (const String *id : {&aId,&bId,&cId}) {
+    const auto &stats=ProfileFixture::profiles[id->c_str()].stats;
+    assert(stats.gamesPlayed==1 && stats.gamesWon==0);
+  }
+  assert(ProfileFixture::profiles[aId.c_str()].stats.lastGameResult==LastGameResult::Draw);
+  assert(ProfileFixture::profiles[bId.c_str()].stats.lastGameResult==LastGameResult::Draw);
+  assert(ProfileFixture::profiles[cId.c_str()].stats.lastGameResult==LastGameResult::Eliminated);
+  assert(String(TurnHubProfileStats::resultName(LastGameResult::Draw))=="Draw");
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200);
+  assert(server.body.find("\"state\":\"GAME_OVER\"")!=std::string::npos &&
+      server.body.find("\"winnerPlayer\":null")!=std::string::npos);
+  assert(request("/api/control/rematch",a)==200 && hubState==HubState::Lobby);
+  assert(request("/api/control/reset",a)==200);
+  enterEmptyLobby();
+}
+
+static void deviceManagement() {
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  freshLobby(2);
+  String adminId,playerId;
+  const String admin=registerPhone("Device admin",adminId),player=registerPhone("Device player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+
+  // Admin only, re-checked by the Intent handler as well as the route.
+  assert(request("/api/device/forget",player,{{"module","3"}})==403 && sigilBus.record(3));
+  assert(request("/api/pairing",player,{},HTTP_GET)==403);
+  assert(request("/api/pairing",player,{{"windowMs","30000"}})==403);
+  Intent forged; forged.type=IntentType::ForgetPairing; forged.actor.origin=IntentOrigin::Browser;
+  strncpy(forged.payload.moderatorId,playerId.c_str(),8); forged.payload.value=3;
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && sigilBus.record(3));
+  strncpy(forged.payload.moderatorId,adminId.c_str(),8); forged.actor.origin=IntentOrigin::PhysicalSigil;
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && sigilBus.record(3));
+
+  // A Sigil with seated players is kept, alone or in "forget all".
+  assert(request("/api/device/forget",admin,{{"module","0"}})==409 && sigilBus.record(0));
+  assert(request("/api/device/forget",admin,{{"all","1"}})==409);
+  for (uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) assert(sigilBus.record(id));
+  assert(request("/api/device/forget",admin)==400);
+  assert(request("/api/device/forget",admin,{{"module","99"}})==409);
+
+  // An idle Sigil is forgotten and told so; a second request finds nothing.
+  assert(request("/api/device/forget",admin,{{"module","3"}})==200);
+  assert(!sigilBus.record(3) && TurnHub::fixtureUnpairs[3]==1);
+  assert(request("/api/device/forget",admin,{{"module","3"}})==409 && TurnHub::fixtureUnpairs[3]==1);
+
+  // Never during a match; a storage failure keeps the pairing.
+  startFromHost();
+  assert(request("/api/device/forget",admin,{{"module","4"}})==409 && sigilBus.record(4));
+  enterEmptyLobby();
+  TurnHub::fixtureForgetFails=true;
+  assert(request("/api/device/forget",admin,{{"module","4"}})==409 && sigilBus.record(4));
+  TurnHub::fixtureForgetFails=false;
+  assert(request("/api/device/forget",admin,{{"all","1"}})==200);
+  for (uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) assert(!sigilBus.record(id));
+  assert(request("/api/device/forget",admin,{{"all","1"}})==409);
+
+  // Pairing window: 15 s default, admins choose 15/30/60 s, Atlas uses it.
+  assert(request("/api/pairing",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"windowMs\":15000")!=std::string::npos &&
+      server.body.find("\"sigilWindowMs\":15000")!=std::string::npos &&
+      server.body.find("\"choicesMs\":[15000,30000,60000]")!=std::string::npos);
+  for (const char *bad : {"20000","0","-15000","600000","abc"}) {
+    assert(request("/api/pairing",admin,{{"windowMs",bad}})==409 && pairingWindowMs==15000);
+  }
+  assert(request("/api/pairing",admin)==400);
+  assert(request("/api/pairing",admin,{{"windowMs","30000"}})==200 && pairingWindowMs==30000);
+  assert(TurnHub::fixturePairingWindowSaved==30000);
+  ProfileFixture::gameSettingsWritable=false;
+  assert(request("/api/pairing",admin,{{"windowMs","60000"}})==409 && pairingWindowMs==30000);
+  ProfileFixture::gameSettingsWritable=true;
+
+  freshLobby(2); pairingActive=false;
+  Intent pair; pair.type=IntentType::PairRequest; pair.actor.origin=IntentOrigin::AtlasHardware;
+  assert(intents.dispatch(pair).accepted() && TurnHub::fixturePairingWindowMs==30000);
+  testNow+=29999; updateFrontPanelLeds(testNow); assert(pairingActive);
+  ++testNow; updateFrontPanelLeds(testNow); assert(!pairingActive);
+  assert(request("/api/pairing",admin,{{"windowMs","15000"}})==200 && pairingWindowMs==15000);
+  enterEmptyLobby();
+}
+
 static void gameRecoveryLifecycle() {
   using TurnHubStorage::Status;
 
@@ -1483,6 +1640,8 @@ int main() {
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
+  endMatchAsDraw(); std::cout<<"PASS master-button hold ends a match as a draw: authorization, short press, overrides, stats once, recovery\n";
+  deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";

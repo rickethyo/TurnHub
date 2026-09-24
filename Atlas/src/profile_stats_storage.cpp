@@ -24,7 +24,7 @@ Status readStoredStats(TurnHubStorage::BlobStore &store, const char *key,
   if (size != sizeof(stored)) return Status::Corrupt;
   if (stored.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
   if (static_cast<uint8_t>(stored.lastGameResult) >
-      static_cast<uint8_t>(LastGameResult::Completed)) return Status::Corrupt;
+      static_cast<uint8_t>(LastGameResult::Draw)) return Status::Corrupt;
   stats = stored;
   return Status::Ok;
 }
@@ -33,7 +33,7 @@ Status writeStoredStats(TurnHubStorage::BlobStore &store, const char *key,
                         const ProfileStats &stats) {
   if (stats.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
   if (static_cast<uint8_t>(stats.lastGameResult) >
-      static_cast<uint8_t>(LastGameResult::Completed)) return Status::Corrupt;
+      static_cast<uint8_t>(LastGameResult::Draw)) return Status::Corrupt;
   ProfileStats existing{};
   const Status status = readStoredStats(store, key, existing);
   if (status != Status::Ok && status != Status::NotFound) return status;

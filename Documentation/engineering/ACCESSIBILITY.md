@@ -278,9 +278,17 @@ in the portal/app, and win confirmations on the Sigil display.
 
 - Sigil-local Pairing/Disconnected/Error lights still use fixed firmware
   patterns, not the player's light style (Atlas cannot style an unpaired Sigil).
-- LED intensity, buzzer volume, text/display scale on the e-ink screen,
-  extended life-approval (15 s) and pairing (15 s) windows, and a
-  monochrome-safe portal theme separate from High contrast.
+- Text/display scale on the e-ink screen, an extended life-approval window
+  (15 s), and a monochrome-safe portal theme separate from High contrast.
+- On hold (owner, 2026-09-24): LED intensity and buzzer volume. The current
+  Sigil hardware cannot vary them.
+
+Atlas's pairing window is adjustable (15, 30 or 60 s, admin Device Settings,
+2026-09-24). The Sigil's own window stays 15 s, so with a longer setting press
+Atlas's Pair first. Forgetting a pairing has a remote path (admin portal) as
+well as the 10-second Sigil Pair hold, and ending a match as a draw (5-second
+Atlas master hold) is signalled by a fast status-LED blink during the hold and
+by "Draw" text in the portal and Android app.
 - Accessibility preferences for players without a profile (guests).
 
 ### Bench acceptance (Needs verification)

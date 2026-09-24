@@ -8,7 +8,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
   if (!s.count) return !s.over && !s.winner;
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
-      s.winner > s.count || (s.over != (s.winner != 0))) return false;
+      s.winner > s.count || (!s.over && s.winner)) return false;
   uint8_t living = 0;
   for (uint8_t i = 0; i < s.count; ++i) {
     const auto &p = s.players[i];
@@ -34,7 +34,8 @@ bool validCheckpoint(const GameCheckpoint &s) {
       if (s.damage[i][j][c] < 0 || s.damage[i][j][c] > LIFE_LIMIT ||
           (s.settings.profile != GameProfile::Commander && s.damage[i][j][c])) return false;
   }
-  return living && (s.over ? !s.eliminated[s.winner-1] :
+  // A finished match without a winner is a draw (GameEngine::endInDraw).
+  return living && (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
       (living >= 2 && !s.eliminated[s.active]));
 }
 

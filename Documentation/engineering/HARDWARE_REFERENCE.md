@@ -86,7 +86,15 @@ The physical development Atlas board model is known to differ from the Sigil dev
 
 | Function | GPIO | Confidence |
 |---|---:|---|
-| Master button | 32 | Verified |
+| Master button | 33 | Per `Atlas/include/config.h` (`MASTER_BUTTON_PIN`); this row said 32 before 2026-09-24 |
+| Pair button | 32 | Per `config.h` (`PAIR_BUTTON_PIN`); see [Manual Pairing](MANUAL_PAIRING.md) |
+
+Master button: releasing it passes for the active player. Holding it for 5 seconds
+(`MASTER_END_MATCH_HOLD_MS`) during a running or paused match ends the match as a
+draw; from 1 second into such a hold the status LED blinks fast so the holder can
+see it counting. Holding it while saving system settings or during OTA is
+unchanged (Lobby/Game Over only, so it never ends a match). *Needs verification*
+on hardware.
 
 Current firmware also creates a local access point named `TurnHub-Atlas`.
 
@@ -147,6 +155,8 @@ The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-i
   [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)); the Sigil keeps it in RAM only.
   *Needs verification* on hardware; host tests only cover Atlas's side.
 - Pass acknowledgement green flash: 250 ms.
+- Pair: a press opens the 15-second pairing window; holding it for 10 seconds
+  erases the Sigil's saved pairing (Sigil 0.5.5+). *Needs verification* on hardware.
 
 ### Auxiliary control revision
 

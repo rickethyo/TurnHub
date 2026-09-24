@@ -89,6 +89,8 @@ extern ChangeLifeCallback changeLifeHandler;
 extern ReadCountersCallback readCountersHandler;
 extern CounterControlCallback counterControlHandler;
 extern ModerateCallback moderateHandler;
+extern DeviceIntentCallback deviceHandler;
+extern PairingWindowCallback readPairingWindow;
 extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
@@ -167,6 +169,9 @@ void runControl(WebServer &server, WebControl control);
 
 void handleDevices(WebServer &server);
 void handleDeviceName(WebServer &server);
+void handleForgetDevice(WebServer &server);
+void handlePairingSettings(WebServer &server);
+void handleSavePairingSettings(WebServer &server);
 void handleNetworkInfo(WebServer &server);
 void handleNetworkPassword(WebServer &server);
 void handleSerialLogDownload(WebServer &server);

@@ -12,6 +12,7 @@
 #include "firmware_version.h"
 #include "game_recovery.h"
 #include "game_settings_store.h"
+#include "pairing_settings.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
 #include "wifi_password_store.h"
@@ -36,6 +37,7 @@ TurnHub::ClientState clientState;
 TurnHub::GameSettings nextGameSettings;
 bool gameSettingsAvailable = true;
 bool espNowReady = false;
+uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
 
 namespace {
 
@@ -194,6 +196,9 @@ bool configureIntentHandlers() {
       {IntentType::RespondLifeChange, handleCounterIntent},
       {IntentType::ExpireLifeChanges, handleExpireLifeChangesIntent},
       {IntentType::ChangeCounter, handleCounterIntent},
+      {IntentType::EndMatch, handleEndMatchIntent},
+      {IntentType::ForgetPairing, handleForgetPairingIntent},
+      {IntentType::ConfigurePairing, handleConfigurePairingIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {
@@ -340,6 +345,12 @@ void setup() {
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;
   if (!gameSettingsAvailable) serialLog.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
+  // A missing or unreadable setting keeps the 15-second default.
+  const auto pairingStatus = TurnHub::loadPairingWindow(pairingWindowMs);
+  if (pairingStatus != TurnHubStorage::Status::Ok &&
+      pairingStatus != TurnHubStorage::Status::NotFound) {
+    serialLog.println("ATLAS|PAIRING|WINDOW|STORAGE_ERROR");
+  }
   startNetworking();
 
   // Start after synchronous network setup so all three flashes are visible.

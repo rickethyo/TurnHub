@@ -78,6 +78,8 @@ uint8_t recordCompletedGame(
     } else if (game.isEliminated(seat->playerNumber)) {
       ++persistent.gamesEliminated;
       persistent.lastGameResult = LastGameResult::Eliminated;
+    } else if (game.endedInDraw()) {
+      persistent.lastGameResult = LastGameResult::Draw;
     } else {
       persistent.lastGameResult = LastGameResult::Loss;
     }
@@ -115,7 +117,7 @@ const char *resultName(LastGameResult result) {
     case LastGameResult::Win: return "Win";
     case LastGameResult::Loss: return "Loss";
     case LastGameResult::Eliminated: return "Eliminated";
-    case LastGameResult::Completed: return "Completed";
+    case LastGameResult::Draw: return "Draw";
     default: return "None";
   }
 }

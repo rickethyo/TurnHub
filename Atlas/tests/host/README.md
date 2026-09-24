@@ -76,6 +76,13 @@ Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolv
 `PLAYWRIGHT_CHANNEL=` to use Playwright's bundled Chromium, e.g. on Linux/CI). It uses local
 HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
 It also checks policy saving/reloading and that polling preserves unsaved choices.
+The gameplay executable also covers ending a match as a draw through the real
+master-button adapter (hold threshold, short-press PASS, overrides, statistics
+once, recovery validation) and admin device management (forget one/all Sigils,
+seated/in-game refusal, storage failure, the 15/30/60-second pairing window). The
+storage executable checks the `pairwin` codec and the v1 `Draw` result byte.
+The portal smoke also covers the Paired Sigils card and the Draw label.
+
 Game/life checks cover persisted setup, host-only edits, captured match settings,
 own-life authorization, bounds, companion sessions, negative life and rematches.
 The harness now links real LED/audio renderers and replaces the radio boundary.

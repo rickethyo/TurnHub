@@ -15,7 +15,9 @@ enum class LastGameResult : uint8_t {
   Win = 1,
   Loss = 2,
   Eliminated = 3,
-  Completed = 4,
+  // Value 4 was reserved as "Completed" but never written; draws reuse it,
+  // so the v1 statistics image and older firmware still accept it.
+  Draw = 4,
 };
 
 struct ProfileStats {

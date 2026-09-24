@@ -8,6 +8,7 @@
 #include "config.h"
 #include "firmware_version.h"
 #include "optional_preferences.h"
+#include "pairing_settings.h"
 #include "wifi_password_store.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
@@ -152,6 +153,57 @@ void handleDeviceName(WebServer &server) {
   serialLog.print("|");
   serialLog.println(label);
   sendJson(server, 200, String("{\"ok\":true,\"label\":\"") + jsonEscape(label) + "\"}");
+}
+
+// Forgets one Sigil (module=<id>) or every Sigil (all=1). Admin only; the
+// pairing trust store is table state, so Atlas decides through an Intent.
+void handleForgetDevice(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const bool all = server.arg("all") == "1";
+  if (!all && !server.hasArg("module")) {
+    sendError(server, 400, "Choose a Sigil or all Sigils");
+    return;
+  }
+  const int32_t target = all ? TurnHub::FORGET_ALL_SIGILS : server.arg("module").toInt();
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::ForgetPairing, target, message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
+void handlePairingSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  String json = "{\"windowMs\":";
+  json += String(readPairingWindow ? readPairingWindow() : TurnHub::DEFAULT_PAIRING_WINDOW_MS);
+  json += ",\"sigilWindowMs\":";
+  json += String(TurnHubProtocol::PAIRING_WINDOW_MS);
+  json += ",\"choicesMs\":[";
+  bool first = true;
+  for (uint8_t seconds : TurnHub::PAIRING_WINDOW_CHOICES_S) {
+    if (!first) json += ',';
+    first = false;
+    json += String(seconds * 1000UL);
+  }
+  json += "]}";
+  sendJson(server, 200, json);
+}
+
+void handleSavePairingSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!server.hasArg("windowMs")) {
+    sendError(server, 400, "windowMs is required");
+    return;
+  }
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::ConfigurePairing, server.arg("windowMs").toInt(), message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
 }
 
 // --- Network ------------------------------------------------------------------------------

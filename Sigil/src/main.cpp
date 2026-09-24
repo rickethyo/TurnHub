@@ -519,6 +519,44 @@ void updateBuzzer() {
   }
 }
 
+// Erases the saved Atlas pairing and returns to the unpaired screen, from a
+// long Pair hold or Atlas's Unpair. Atlas keeps its own record until an admin
+// forgets this Sigil there (which also sends Unpair if the Sigil is in range).
+void forgetPairing(const char *reason) {
+  Preferences prefs;
+  bool erased = false;
+  if (prefs.begin(PAIRING_NAMESPACE, false)) {
+    erased = !prefs.isKey(PAIRING_KEY) || prefs.remove(PAIRING_KEY);
+    prefs.end();
+  }
+  if (!erased) {
+    Serial.println("SIGIL|PAIR|FORGET|STORE_ERROR");
+    return;
+  }
+  if (atlasKnown && esp_now_is_peer_exist(atlasMac)) esp_now_del_peer(atlasMac);
+  atlasKnown = false;
+  memset(atlasMac, 0, sizeof(atlasMac));
+  sigilId = UNASSIGNED_SIGIL_ID;
+  pairingActive = false;
+  profileRequestActive = false;
+  longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+  winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
+  commandedRed = false;
+  commandedGreen = false;
+  greenFlashUntilMs = 0;
+  analogWrite(BLUE_LED, 0);
+  digitalWrite(RED_LED, LOW);
+  digitalWrite(GREEN_LED, LOW);
+  stopBuzzer();
+  portENTER_CRITICAL(&displayProfileMux);
+  gameDisplayValid = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+  Serial.print("SIGIL|PAIR|FORGOTTEN|");
+  Serial.println(reason);
+}
+
 void handleEspNowReceive(
     const uint8_t *mac,
     const uint8_t *incomingData,
@@ -642,6 +680,11 @@ void handleEspNowReceive(
       profileSyncStartPending = true;
       break;
 
+    case PacketType::Unpair:
+      // Only the saved Atlas, addressing this Sigil's ID, gets here.
+      forgetPairing("ATLAS");
+      break;
+
     case PacketType::DisplayNameChunk:
       handleDisplayNameChunk(packet.value);
       break;
@@ -711,13 +754,26 @@ void updatePairing() {
       RED_LED, (elapsedMs / PAIRING_BLINK_MS) % 2 == 0 ? HIGH : LOW);
 }
 
+// A press opens the pairing window; keeping Pair held for
+// FORGET_PAIRING_HOLD_MS (10 s) erases the saved pairing instead.
 void updatePairButton() {
-  if (!debouncedEdge(pairButton, millis())) return;
-  if (pairButton.stableState == LOW) {
-    Serial.println("SIGIL|PAIR|BUTTON");
-    startPairing();
-  } else {
-    Serial.println("SIGIL|PAIR|BUTTON|UP");
+  const uint32_t nowMs = millis();
+  if (debouncedEdge(pairButton, nowMs)) {
+    if (pairButton.stableState == LOW) {
+      pairButton.pressStartMs = nowMs;
+      pairButton.longSent = false;
+      Serial.println("SIGIL|PAIR|BUTTON");
+      startPairing();
+    } else {
+      pairButton.pressStartMs = 0;
+      Serial.println("SIGIL|PAIR|BUTTON|UP");
+    }
+    return;
+  }
+  if (pairButton.stableState == LOW && pairButton.pressStartMs != 0 && !pairButton.longSent &&
+      nowMs - pairButton.pressStartMs >= TurnHubProtocol::FORGET_PAIRING_HOLD_MS) {
+    pairButton.longSent = true;
+    forgetPairing("BUTTON");
   }
 }
 

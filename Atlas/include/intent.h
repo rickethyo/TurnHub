@@ -65,6 +65,10 @@ enum class IntentType : uint8_t {
   RequestLifeChange,
   RespondLifeChange,
   ExpireLifeChanges,
+  // Atlas master-button hold: end the running or paused match as a draw.
+  EndMatch,
+  // Admin: payload.value = pairing window in milliseconds.
+  ConfigurePairing,
 
   Count,
 };
@@ -103,6 +107,10 @@ constexpr uint32_t ARM_WIN_ON_PAUSE = 1U;
 // or host-requested random choice. Join/Leave actor.slot: 1 = module, 2 =
 // secondary seat. Lifecycle module requests use playerNumber=0 (unresolved).
 enum class StarterSelection : int32_t { ExactSeat = 0, CycleModule = 1, Random = 2 };
+
+// ForgetPairing payload.value: one Sigil ID, or FORGET_ALL_SIGILS. The
+// admin's account ID travels in payload.moderatorId (as for ConfigurePairing).
+constexpr int32_t FORGET_ALL_SIGILS = -1;
 
 // Moderate payload.value. moderatorId and profileId name the accounts.
 enum class ModerationAction : int32_t {
@@ -206,6 +214,8 @@ inline const char *intentName(IntentType type) {
     case IntentType::BindProfile: return "BIND_PROFILE";
     case IntentType::ConfigureGame: return "CONFIGURE_GAME";
     case IntentType::Moderate: return "MODERATE";
+    case IntentType::EndMatch: return "END_MATCH";
+    case IntentType::ConfigurePairing: return "CONFIGURE_PAIRING";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

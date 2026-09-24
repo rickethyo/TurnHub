@@ -6,13 +6,16 @@ This supersedes the five-second visual mock and the planned temporary boot trigg
 ## Operation
 
 1. Install the updated firmware on Atlas and each Sigil.
-2. In the Atlas lobby, press Atlas Pair (GPIO32). Its Pair LED blinks for 15 seconds.
+2. In the Atlas lobby, press Atlas Pair (GPIO32). Its Pair LED blinks for the
+   pairing window: 15 seconds by default, or 30/60 seconds if an admin chose that
+   under Device Settings (2026-09-24).
 3. Press the Sigil Pair button (GPIO19). Its red LED blinks while requesting pairing.
 4. Sigil logs `SIGIL|PAIR|SUCCESS`, stops blinking, and requests its Atlas state/profile.
    Joining the table still uses the existing Action/profile workflow.
 
-Either button may be pressed first if the windows overlap. Atlas stays open for
-15 seconds and can accept multiple Sigils; only enable pairing on the intended
+Either button may be pressed first if the windows overlap. The Sigil's own
+window is always 15 seconds, so with a longer Atlas window press Atlas first,
+then the Sigil. Atlas stays open for its window and can accept multiple Sigils; only enable pairing on the intended
 Atlas nearby. Repeated Atlas presses restart its window. Repeated Sigil presses
 while pairing do not extend its window. Sigil retries every two seconds. Timeout
 restores its previous red LED state and preserves any previous association.
@@ -38,15 +41,40 @@ traffic arrives. An unknown device cannot consume a slot through Hello/gameplay.
 
 Pressing Pair again on both devices can replace the Sigil's saved Atlas. Failed
 or timed-out attempts keep its previous pairing. The previous Atlas retains its
-record; a targeted forget-device flow is still pending. Capacity is eight saved
+record until an admin forgets it (below). Capacity is eight saved
 Sigils, including offline ones. Capacity/storage failure does not grant association
 and reports a serial rejection/error. If an acceptance is lost, retries during
 the Atlas window are idempotent; after expiry, reopen both windows to retry.
 
 This is deliberate prototype association, not encrypted or authenticated device
 trust: ESP-NOW remains unencrypted and MAC spoofing is not prevented. The token
-correlates responses; it is not a cryptographic identity proof. Production trust,
-factory-reset integration, and a forget-device UI remain future work.
+correlates responses; it is not a cryptographic identity proof. Production trust
+and factory-reset integration remain future work.
+
+## Forgetting a pairing (2026-09-24)
+
+- **On a Sigil:** hold its Pair button for 10 seconds
+  (`FORGET_PAIRING_HOLD_MS`). The press first opens the pairing window as usual;
+  at 10 seconds the Sigil erases its saved `atlas` binding, turns its LEDs off,
+  returns to the defaults for hold timing and shows "Unpaired"
+  (`SIGIL|PAIR|FORGOTTEN|BUTTON`). Atlas keeps its record; forget it there too,
+  or pair the Sigil again (the same MAC reuses its slot).
+- **On Atlas (admins):** Device Settings -> Paired Sigils has Forget for each
+  Sigil and Forget all Sigils (`POST /api/device/forget`). This is the
+  `ForgetPairing` Intent: Admin permission re-checked, lobby only, refused while
+  anyone is seated on that Sigil. Atlas removes `th_pair_v1/s<N>`, frees the slot,
+  releases that Sigil's saved seat bindings (its custom name stays) and sends a
+  best-effort `Unpair = 12` packet. A Sigil on 0.5.5+ that hears it from its saved
+  Atlas erases its own pairing (`SIGIL|PAIR|FORGOTTEN|ATLAS`); one that misses it
+  stays paired to a record Atlas no longer has, so its packets are ignored until
+  it is re-paired or held-to-forget. A storage failure keeps the pairing.
+- **Pairing window:** Device Settings also has the Atlas pairing window (15, 30 or
+  60 seconds; `GET/POST /api/pairing`, `ConfigurePairing` Intent), stored in NVS
+  `turnhub/pairwin` as `{schema 1, seconds}`. Missing or unreadable values mean 15 s.
+
+*Needs verification* on hardware: host scenarios cover the Atlas handlers, HTTP
+routes, storage codec and portal; the Sigil hold and `Unpair` handling were built
+(`sigil`, `sigil-wokwi`) but not flashed.
 
 ## Verification
 

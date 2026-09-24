@@ -151,6 +151,7 @@ inline void printHelp() {
   Serial.println("  help");
   Serial.println("  pair                  open Atlas's 15 s pairing window (then press the Sigil's PAIR)");
   Serial.println("  id <0-7>              Sigil ID the next pairing assigns");
+  Serial.println("  forget                Atlas forgets the Sigil and sends it Unpair");
   Serial.println("  timing <longMs> <winMs>  hold thresholds, e.g. timing 3000 6000");
   Serial.println("  blue <0-255>");
   Serial.println("  red <0|1>");
@@ -186,6 +187,20 @@ inline void handleConsoleCommand(String line) {
     pairingOpenedMs = millis();
     Serial.print("WOKWI|ATLAS|PAIRING|OPEN|");
     Serial.println(TurnHubProtocol::PAIRING_WINDOW_MS);
+    return;
+  }
+
+  if (command == "forget") {
+    if (!sigilPaired) {
+      Serial.println("WOKWI|ERROR|no Sigil is paired");
+      return;
+    }
+    // Like an admin's Forget in the real portal: Atlas drops the record and
+    // tells the Sigil, which erases its saved pairing.
+    injectPacket(PacketType::Unpair);
+    sigilPaired = false;
+    sigilSupportsTiming = false;
+    Serial.println("WOKWI|ATLAS|FORGOTTEN");
     return;
   }
 

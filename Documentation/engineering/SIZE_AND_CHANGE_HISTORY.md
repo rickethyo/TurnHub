@@ -233,6 +233,32 @@ Same toolchain as the reorganization entry above, measured before and after:
 The Atlas RAM growth is the two extra static LED profiles and per-Sigil state;
 the flash growth is mostly portal text. Build only; nothing was flashed.
 
+### 2026-09-24 - draw ending, forgetting pairings, pairing window (`android/testing`)
+
+Sigil firmware `0.5.4-dev` -> `0.5.5-dev` (10-second Pair hold forgets; honours
+`Unpair`); Atlas stays `0.6.0-dev`; radio protocol version 1 with a new
+backward-compatible `Unpair = 12` packet.
+
+- `EndMatch` (5 s master-button hold ends a match as a draw), `ForgetPairing`
+  and `ConfigurePairing` Intents; `Draw` last-game result (byte 4, v1-compatible);
+  recovery validator accepts a finished match without a winner
+- `POST /api/device/forget`, `GET/POST /api/pairing`; portal Paired Sigils card;
+  new header `Atlas/include/pairing_settings.h`
+
+PlatformIO on Linux; "before" is `master` at `af5d770` built with the same
+toolchain (it reproduces the previous entry's Atlas and Sigil figures):
+
+| Build | Before | After |
+| --- | ---: | ---: |
+| Atlas RAM | 92,724 B (28.3%) | 92,780 B (28.3%) |
+| Atlas flash | 1,111,241 B (84.8%) | 1,119,653 B (85.4%) |
+| Sigil RAM | 48,360 B (14.8%) | 48,360 B (14.8%) |
+| Sigil flash | 769,285 B (58.7%) | 770,509 B (58.8%) |
+| Sigil (Wokwi) RAM | 48,368 B (14.8%) | 48,440 B (14.8%) |
+| Sigil (Wokwi) flash | 795,441 B (60.7%) | 798,109 B (60.9%) |
+
+Build only; nothing was flashed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

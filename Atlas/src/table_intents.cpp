@@ -4,8 +4,10 @@
 // transitions (empty lobby, rematch lobby, game start, game over).
 
 #include "atlas_app.h"
+#include "account_access.h"
 #include "controller_profiles.h"
 #include "game_settings_store.h"
+#include "pairing_settings.h"
 #include "profile_store.h"
 #include "serial_log.h"
 
@@ -198,8 +200,12 @@ void finishGameState() {
   leds.invalidateAll();
   audio.gameOver(gameAudioMask());
 
-  serialLog.print("ATLAS|GAME|OVER|WINNER|");
-  serialLog.println(game.winnerPlayerNumber());
+  if (game.endedInDraw()) {
+    serialLog.println("ATLAS|GAME|OVER|DRAW");
+  } else {
+    serialLog.print("ATLAS|GAME|OVER|WINNER|");
+    serialLog.println(game.winnerPlayerNumber());
+  }
 }
 
 void updateCountdown(uint32_t nowMs) {
@@ -678,13 +684,105 @@ IntentResult handlePairRequestIntent(const Intent &intent, void *) {
   if (hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Pair devices in the lobby");
   }
-  if (!sigilBus.openPairing()) {
+  if (!sigilBus.openPairing(pairingWindowMs)) {
     return IntentResult::reject(IntentStatus::Rejected, "Radio unavailable");
   }
   startPairingIndicator(millis());
   serialLog.print("ATLAS|PAIRING|ENTER|DURATION_MS|");
-  serialLog.println(TurnHubProtocol::PAIRING_WINDOW_MS);
+  serialLog.println(pairingWindowMs);
   return IntentResult::accept("Pairing window opened");
+}
+
+namespace {
+
+// Device management comes from the web layer with the signed-in account in
+// payload.moderatorId; Atlas re-checks that account's Admin permission.
+bool adminIntent(const Intent &intent) {
+  TurnHubAccounts::Account admin;
+  return intent.actor.origin == IntentOrigin::Browser &&
+      TurnHubAccounts::load(String(intent.payload.moderatorId), admin) &&
+      !admin.archived && (admin.permissions & TurnHubAccounts::Admin);
+}
+
+// Forgets one paired Sigil that nobody is seated on.
+bool forgetSigil(uint8_t sigilId) {
+  const auto *record = sigilBus.record(sigilId);
+  if (record == nullptr) return false;
+  uint8_t mac[6];
+  memcpy(mac, record->mac, sizeof(mac));
+  if (!sigilBus.forget(sigilId)) return false;
+  // Saved seat bindings are released like after a game; the name is kept so
+  // re-pairing the same Sigil restores it.
+  TurnHubProfiles::resetTransientSeatBindings(mac);
+  lobby.setHeld(sigilId, false);
+  lobby.setSharedChord(sigilId, false);
+  lobby.setSuppressNextShort(sigilId, false);
+  lobby.setActionLong(sigilId, false);
+  return true;
+}
+
+}  // namespace
+
+// Payload: value = Sigil ID or FORGET_ALL_SIGILS. Lobby only, and never a
+// Sigil with seated players, so no participant loses their controller.
+IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  if (hubState != HubState::Lobby) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Forget devices in the lobby, between games");
+  }
+  const int32_t target = intent.payload.value;
+  const bool all = target == TurnHub::FORGET_ALL_SIGILS;
+  if (!all && (target < 0 || target >= MAX_PHYSICAL_SIGILS || !sigilBus.record(target))) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "That Sigil is not paired with Atlas");
+  }
+  uint8_t paired = 0;
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if ((!all && id != target) || !sigilBus.record(id)) continue;
+    ++paired;
+    if (lobby.isJoined(id)) {
+      return IntentResult::reject(IntentStatus::Conflict,
+          all ? "Players are seated on a Sigil; they must leave the lobby first"
+              : "Players are seated on this Sigil; they must leave the lobby first");
+    }
+  }
+  if (paired == 0) return IntentResult::reject(IntentStatus::InvalidState, "No Sigils are paired");
+
+  uint8_t forgotten = 0;
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if ((!all && id != target) || !sigilBus.record(id)) continue;
+    if (forgetSigil(id)) ++forgotten;
+  }
+  leds.invalidateAll();
+  serialLog.print("ATLAS|PAIRING|FORGET|");
+  serialLog.print(all ? "ALL" : "ONE");
+  serialLog.print("|COUNT|");
+  serialLog.println(forgotten);
+  if (forgotten != paired) {
+    return forgotten == 0
+        ? IntentResult::reject(IntentStatus::Rejected, "Pairing storage failed; nothing was forgotten")
+        : IntentResult::accept("Some Sigils could not be forgotten; check the device list");
+  }
+  return IntentResult::accept(all ? "All Sigils forgotten" : "Sigil forgotten");
+}
+
+// Payload: value = Atlas pairing window in milliseconds (15, 30 or 60 s).
+IntentResult handleConfigurePairingIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  const uint32_t windowMs = static_cast<uint32_t>(intent.payload.value);
+  if (intent.payload.value <= 0 || !TurnHub::validPairingWindowMs(windowMs)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Pairing window must be 15, 30 or 60 seconds");
+  }
+  if (TurnHub::savePairingWindow(windowMs) != TurnHubStorage::Status::Ok) {
+    return IntentResult::reject(IntentStatus::Rejected, "Pairing window could not be saved");
+  }
+  pairingWindowMs = windowMs;
+  serialLog.print("ATLAS|PAIRING|WINDOW_MS|");
+  serialLog.println(windowMs);
+  return IntentResult::accept("Pairing window saved");
 }
 
 // Payload: flags = GameProfile, value = starting life, durationMs = turn timer.

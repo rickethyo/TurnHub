@@ -92,6 +92,13 @@ bool connectionBlocked(const String &id);
 void revokeConnections(const String &id);
 using ModerateCallback = bool (*)(const String &actor,const String &target,const String &action,String &message);
 void configureModeration(ModerateCallback callback);
+// Admin device management: ForgetPairing (value = Sigil ID or
+// FORGET_ALL_SIGILS) and ConfigurePairing (value = window in ms). actor is
+// the signed-in account; Atlas re-checks its Admin permission.
+using DeviceIntentCallback = bool (*)(const String &actor, TurnHub::IntentType type,
+    int32_t value, String &message);
+using PairingWindowCallback = uint32_t (*)();
+void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window);
 // Told after a profile's accessibility preferences were saved, so Atlas can
 // restyle that player's Sigil straight away.
 using AccessibilityChangedCallback = void (*)();

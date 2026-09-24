@@ -43,9 +43,14 @@ class SigilBus {
   explicit SigilBus(uint8_t wifiChannel);
 
   bool begin();
-  bool openPairing();
+  // Opens Atlas's pairing window for windowMs (see pairing_settings.h).
+  bool openPairing(uint32_t windowMs);
   void closePairing() { pairingOpen_ = false; }
   bool pairingActive() const;
+  // Erases a paired Sigil's saved association and frees its slot. Sends it a
+  // best-effort Unpair first so it can forget Atlas too. False when the slot
+  // is unused or the store could not be updated (the record is then kept).
+  bool forget(uint8_t sigilId);
   // Next received event, if any. Call from the application loop.
   bool poll(SigilEvent &event);
 
@@ -121,6 +126,7 @@ class SigilBus {
   uint8_t wifiChannel_;
   bool pairingOpen_ = false;
   uint32_t pairingStartedMs_ = 0;
+  uint32_t pairingWindowMs_ = TurnHubProtocol::PAIRING_WINDOW_MS;
   QueueHandle_t rxQueue_ = nullptr;
   SigilRecord records_[MAX_PHYSICAL_SIGILS];
   QueueHandle_t eventQueue_ = nullptr;

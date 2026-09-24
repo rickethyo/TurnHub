@@ -314,6 +314,14 @@ void GameEngine::clearWinClaim() {
   }
 }
 
+bool GameEngine::endInDraw(uint32_t nowMs) {
+  if (!running_ || gameOver_ || playerCount_ == 0) {
+    return false;
+  }
+  finishGame(0, nowMs);
+  return true;
+}
+
 void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
   if (gameOver_) {
     return;

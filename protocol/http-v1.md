@@ -90,6 +90,27 @@ keep their current values. Only the host's primary seat may change settings, and
 only in the lobby (409 otherwise); invalid values return 400. See
 [Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
 
+## Draws
+
+`state: "GAME_OVER"` with `winnerPlayer: null` means the match ended as a draw:
+someone held the Atlas master button for 5 seconds during a running or paused
+match (2026-09-24). No new field was added; before this change no finished match
+could lack a winner. Clients should say "Draw" rather than "Winner: none". Every
+participant's statistics count one game played; the last-game result reads
+`"Draw"` (or `"Eliminated"` for a player already out).
+
+## Device administration (Admin permission)
+
+Session-token authenticated; other accounts get 403.
+
+- `POST /api/device/forget` with `module=<id>` or `all=1` forgets one or every
+  paired Sigil (lobby only; refused with 409 while anyone is seated on that
+  Sigil). Success: `{"ok":true,"message":...}`; refusal: 409 `{"error":...}`.
+- `GET /api/pairing` returns `{"windowMs":15000,"sigilWindowMs":15000,
+  "choicesMs":[15000,30000,60000]}`: Atlas's pairing window, the Sigil's fixed
+  window and the allowed choices. `POST /api/pairing` with `windowMs` saves one
+  of the choices (anything else: 409, nothing stored).
+
 ## Sigil accessibility preferences
 
 `GET /api/session/accessibility` and `POST /api/session/accessibility`
