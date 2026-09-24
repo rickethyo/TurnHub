@@ -339,10 +339,6 @@ MigrationBackup/
 # Fody auto-generated XML schema
 FodyWeavers.xsd
 
-# Local TurnHub game logs
-statistics/*.txt
-!statistics/.gitkeep
-
 # Codex temporary working attachments
 .codex-remote-attachments/
 
