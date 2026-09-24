@@ -103,7 +103,6 @@ void handleDevices(WebServer &server) {
 
     const uint32_t ageMs = nowMs - record->lastSeenMs;
     const String profileA = TurnHubProfiles::boundProfileIdForSeat(record->mac, 1);
-    const bool persistentA = profileA.length() > 0 && TurnHubProfiles::seatIsPersistent(record->mac, 1);
 
     json += "{\"id\":"; json += String(id);
     json += ",\"label\":\""; json += jsonEscape(deviceLabel(id));
@@ -118,47 +117,10 @@ void handleDevices(WebServer &server) {
     json += ",\"capabilities\":"; json += String(record->capabilities);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
-    json += "\",\"persistentA\":"; json += jsonBool(persistentA);
-    json += '}';
+    json += "\"}";
   }
   json += "]}";
   sendJson(server, 200, json);
-}
-
-// Seat bindings are now always temporary; this only lets a profile clear a
-// legacy remembered Seat A binding (remember=0).
-void handleSeatPersistence(WebServer &server) {
-  WebSession *session = sessionForRequest(server);
-  if (!session) {
-    sendError(server, 401, "Sign in before changing Sigil persistence");
-    return;
-  }
-  const int module = server.arg("module").toInt();
-  const int slot = server.arg("slot").toInt();
-  const String remember = server.arg("remember");
-  if (module < 0 || module >= MAX_PHYSICAL_SIGILS || slot != 1 || (remember != "0" && remember != "1")) {
-    sendError(server, 400, "Only Seat A can have a persistence choice");
-    return;
-  }
-  const SigilRecord *record = recordForModule(static_cast<uint8_t>(module));
-  if (!record) {
-    sendError(server, 404, "Sigil is not known to Atlas");
-    return;
-  }
-  const String bound = TurnHubProfiles::boundProfileIdForSeat(record->mac, 1);
-  if (bound.length() == 0 || bound != sessionProfileId(*session)) {
-    sendError(server, 403, "This Sigil seat is not attached to your profile");
-    return;
-  }
-  if (remember == "1") {
-    sendError(server, 409, "Sigil seats are temporary; profiles are saved on Atlas");
-    return;
-  }
-  if (!TurnHubProfiles::setSeatPersistent(record->mac, 1, false)) {
-    sendError(server, 503, "Could not save the Seat A persistence choice");
-    return;
-  }
-  sendJson(server, 200, "{\"ok\":true,\"persistent\":false}");
 }
 
 void handleDeviceName(WebServer &server) {

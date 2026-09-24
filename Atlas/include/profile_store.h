@@ -75,9 +75,6 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
 // Read an existing binding without creating a profile for an unused seat.
 String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
-// Legacy API: physical seats are temporary; enabling persistence is rejected.
-bool seatIsPersistent(const uint8_t mac[6], uint8_t slot);
-bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent);
 // Release both seat bindings and remove legacy remembered-seat keys.
 // Atlas profile records and statistics remain durable.
 bool resetTransientSeatBindings(const uint8_t mac[6]);

@@ -46,8 +46,6 @@ static void existingAccounts() {
   assert(saveStatsForProfile(id, stats));
   assert(bindSeatToProfile(mac, 1, id));
   assert(bindSeatToProfile(mac, 2, id));
-  assert(!setSeatPersistent(mac, 1, true));
-  assert(!seatIsPersistent(mac, 1));
   FakeNvs::strings["b010203040506A"] = id;
   FakeNvs::bytes["r010203040506A"] = 1;
   assert(resetTransientSeatBindings(mac));

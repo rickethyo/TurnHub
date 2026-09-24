@@ -303,16 +303,6 @@ String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot) {
       ? binding->profileId : String();
 }
 
-bool seatIsPersistent(const uint8_t mac[6], uint8_t slot) {
-  (void)mac; (void)slot;
-  return false;
-}
-
-bool setSeatPersistent(const uint8_t mac[6], uint8_t slot, bool persistent) {
-  (void)mac; (void)slot;
-  return !persistent;
-}
-
 bool resetTransientSeatBindings(const uint8_t mac[6]) {
   if (!preferencesReady && !begin()) return false;
   bool ok = true;

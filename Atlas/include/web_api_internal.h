@@ -159,7 +159,6 @@ void runControl(WebServer &server, WebControl control);
 // --- Administration (web_admin_api.cpp) ---------------------------------------------
 
 void handleDevices(WebServer &server);
-void handleSeatPersistence(WebServer &server);
 void handleDeviceName(WebServer &server);
 void handleNetworkInfo(WebServer &server);
 void handleNetworkPassword(WebServer &server);

@@ -134,7 +134,6 @@ void begin(WebServer &server) {
   route("/api/accounts/moderate", HTTP_POST, handleModerate);
   route("/api/diagnostics/log", HTTP_GET, handleSerialLogDownload);
   route("/api/devices", HTTP_GET, handleDevices);
-  route("/api/device/persistence", HTTP_POST, handleSeatPersistence);
   route("/api/device/name", HTTP_POST, handleDeviceName);
   route("/api/network", HTTP_GET, handleNetworkInfo);
   route("/api/network/password", HTTP_POST, handleNetworkPassword);
