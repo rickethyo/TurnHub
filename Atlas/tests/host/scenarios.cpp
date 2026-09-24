@@ -897,6 +897,18 @@ static void turnTimerEngine() {
   assert(engine.pause(start + 903000) && engine.eliminatePlayer(2,start + 903000,finished) && finished);
   assert(engine.turnTimerPhase(start + 9999999) == TurnTimerPhase::Normal);
 
+  // A clock sampled just before the turn was stamped (loop() reads millis()
+  // once, then the countdown starts the game with a later millis()) is zero
+  // elapsed, not a wrapped ~49-day turn. This held across the 32-bit wrap too.
+  assert(engine.start(seats,2,seats[0],start,settings));
+  assert(engine.currentTurnElapsedMs(start - 3) == 0);
+  assert(engine.gameElapsedMs(start - 3) == 0);
+  assert(engine.turnRemainingMs(start - 3) == 60000);
+  assert(engine.turnTimerPhase(start - 3) == TurnTimerPhase::Normal);
+  assert(engine.passTurn(0,start + 30000));
+  assert(engine.turnTimerPhase(start + 29999) == TurnTimerPhase::Normal);
+  assert(engine.gameElapsedMs(start + 29999) == 29999);
+
   for (uint32_t bad : {1000u, 14000u, 15500u, TURN_TIMER_MAX_MS + 1000}) {
     settings.turnTimerMs = bad;
     assert(!validTurnTimerMs(bad) && !engine.start(seats,2,seats[0],1,settings));
@@ -974,6 +986,10 @@ static void turnTimerCuesAndMute() {
   assert(game.turnTimerMs() == 60000);
   const uint8_t active = game.activeController();
   resetBuzzes();
+  // loop() samples millis() before the countdown stamps the new turn; that
+  // stale sample must not raise a spurious EXPIRED cue at game start.
+  updateTurnTimerCues(testNow - 1); drainAudio();
+  assert(totalBuzzes() == 0 && turnTimerCue.phase == TurnTimerPhase::Normal);
   testNow += 49000; updateTurnTimerCues(testNow); drainAudio();
   assert(totalBuzzes() == 0);
   testNow += 1000; updateTurnTimerCues(testNow); updateTurnTimerCues(testNow); drainAudio();
