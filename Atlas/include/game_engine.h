@@ -19,12 +19,25 @@ struct LifeChangeRequest {
   LifeChangeState state = LifeChangeState::None;
 };
 
-enum class WarningPhase : uint8_t {
+// Derived from the turn anchor and the captured turnTimerMs; never stored.
+// Normal: nothing to show. Warning: TURN_TIMER_WARNING_MS or less remaining.
+// Expired: the countdown reached zero; the turn continues (no automatic pass).
+// LongTurn: timer OFF and the turn has reached TURN_TIMER_LONG_TURN_MS.
+enum class TurnTimerPhase : uint8_t {
   Normal,
-  Caution,
   Warning,
-  OffGreen,
+  Expired,
+  LongTurn,
 };
+
+inline const char *turnTimerPhaseName(TurnTimerPhase phase) {
+  switch (phase) {
+    case TurnTimerPhase::Warning: return "WARNING";
+    case TurnTimerPhase::Expired: return "EXPIRED";
+    case TurnTimerPhase::LongTurn: return "LONG_TURN";
+    default: return "NORMAL";
+  }
+}
 
 struct GameCheckpoint;
 
@@ -40,7 +53,6 @@ class GameEngine {
       const PlayerSeat *players,
       uint8_t playerCount,
       const PlayerSeat &starter,
-      uint32_t warningMs,
       uint32_t nowMs,
       const GameSettings &settings = GameSettings{});
 
@@ -55,13 +67,12 @@ class GameEngine {
   int32_t commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const;
   bool changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta);
 
-  bool passTurn(uint8_t controllerId, uint32_t nextWarningMs, uint32_t nowMs);
+  bool passTurn(uint8_t controllerId, uint32_t nowMs);
   bool pause(uint32_t nowMs);
   bool resume(uint32_t nowMs);
 
   bool eliminatePlayer(
       uint8_t playerNumber,
-      uint32_t nextWarningMs,
       uint32_t nowMs,
       bool &gameFinished);
 
@@ -109,9 +120,10 @@ class GameEngine {
 
   uint32_t currentTurnElapsedMs(uint32_t nowMs) const;
   uint32_t gameElapsedMs(uint32_t nowMs) const;
-  WarningPhase warningPhase(uint32_t nowMs) const;
-
-  uint32_t warningMs() const;
+  TurnTimerPhase turnTimerPhase(uint32_t nowMs) const;
+  // Countdown time left in the current turn; 0 when OFF or expired.
+  uint32_t turnRemainingMs(uint32_t nowMs) const;
+  uint32_t turnTimerMs() const { return settings_.turnTimerMs; }
   const PlayerStats *statsForPlayer(uint8_t playerNumber) const;
 
  private:
@@ -147,7 +159,6 @@ class GameEngine {
   uint32_t turnStartedAtMs_ = 0;
   uint32_t pauseStartedAtMs_ = 0;
   uint32_t totalPausedMs_ = 0;
-  uint32_t currentWarningMs_ = 0;
 
   uint8_t winnerPlayer_ = 0;
 

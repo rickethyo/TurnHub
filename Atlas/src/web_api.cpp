@@ -1208,19 +1208,46 @@ void handleGameSettings(WebServer &server) {
   const bool available=readGameConfiguration&&readGameConfiguration(settings,editable);
   auto *session=sessionForRequest(server);SeatSnapshot seat;
   const bool host=session&&resolveSessionParticipant(*session)&&resolveSeatNow(session->controllerId,session->slot,seat)&&seat.host&&session->slot==1;
+  String presets;
+  for (uint8_t i=0;i<TurnHub::TURN_TIMER_PRESET_COUNT;++i) {
+    if (i) presets+=',';
+    presets+=String(TurnHub::TURN_TIMER_PRESETS_MS[i]);
+  }
   String json=String("{\"gameProfile\":\"")+TurnHub::gameProfileKey(settings.profile)+
-      "\",\"startingLife\":"+String(settings.startingLife)+",\"available\":"+(available?"true":"false")+
+      "\",\"startingLife\":"+String(settings.startingLife)+
+      ",\"turnTimerMs\":"+String(settings.turnTimerMs)+
+      ",\"turnTimer\":{\"presetsMs\":["+presets+"],\"minMs\":"+String(TurnHub::TURN_TIMER_MIN_MS)+
+      ",\"maxMs\":"+String(TurnHub::TURN_TIMER_MAX_MS)+",\"warningMs\":"+String(TurnHub::TURN_TIMER_WARNING_MS)+
+      ",\"longTurnMs\":"+String(TurnHub::TURN_TIMER_LONG_TURN_MS)+"}"+
+      ",\"available\":"+(available?"true":"false")+
       ",\"canEdit\":"+(available&&editable&&host?"true":"false")+"}";
   sendJson(server,200,json);
+}
+
+// Whole milliseconds, 0 (OFF) or within the Atlas range; Atlas validates again.
+bool parseTurnTimer(const String &text, uint32_t &value) {
+  if (!text.length() || text.length() > 7) return false;
+  uint32_t number=0;
+  for (size_t i=0;i<text.length();++i) {
+    if (text[i]<'0'||text[i]>'9') return false;
+    number=number*10+static_cast<uint32_t>(text[i]-'0');
+  }
+  value=number;
+  return TurnHub::validTurnTimerMs(number);
 }
 
 void handleSaveGameSettings(WebServer &server) {
   auto *session=sessionForRequest(server);
   if (!session) {sendJson(server,401,"{\"error\":\"Sign in first\"}");return;}
-  TurnHub::GameSettings settings;
-  if (!TurnHub::parseGameProfile(server.arg("gameProfile").c_str(),settings.profile)||
-      !parseLifeInteger(server.arg("startingLife"),settings.startingLife,false)) {
+  // Omitted fields keep their current value, so a client can change one setting.
+  TurnHub::GameSettings settings;bool editable=false;
+  if (readGameConfiguration) readGameConfiguration(settings,editable);
+  if ((server.hasArg("gameProfile")&&!TurnHub::parseGameProfile(server.arg("gameProfile").c_str(),settings.profile))||
+      (server.hasArg("startingLife")&&!parseLifeInteger(server.arg("startingLife"),settings.startingLife,false))) {
     sendJson(server,400,"{\"error\":\"Choose a valid game profile and starting life from 0 to 1000000\"}");return;
+  }
+  if (server.hasArg("turnTimerMs")&&!parseTurnTimer(server.arg("turnTimerMs"),settings.turnTimerMs)) {
+    sendJson(server,400,"{\"error\":\"Turn timer must be off or 15 seconds to 60 minutes in whole seconds\"}");return;
   }
   String message="Join the table first";
   if (!resolveSessionParticipant(*session)||!configureGameHandler||

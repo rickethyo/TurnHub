@@ -38,7 +38,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.byte(s.count); w.byte(s.active); w.byte(s.starter); w.byte(s.winner);
   w.byte(s.paused); w.byte(s.over); w.byte(static_cast<uint8_t>(s.settings.profile));
   w.word(static_cast<uint32_t>(s.settings.startingLife));
-  w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.warningMs); w.word(s.nextRequestId);
+  w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.settings.turnTimerMs); w.word(s.nextRequestId);
   for (uint8_t i=0;i<s.count;++i) {
     const auto &p=s.players[i]; const auto &stats=s.stats[i];
     w.byte(p.playerNumber); w.byte(p.controllerId); w.byte(p.slot); w.word(p.participantId);
@@ -66,7 +66,7 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   s.count=r.byte(); s.active=r.byte(); s.starter=r.byte(); s.winner=r.byte();
   s.paused=r.flag(); s.over=r.flag(); s.settings.profile=static_cast<GameProfile>(r.byte());
   s.settings.startingLife=static_cast<int32_t>(r.word());
-  s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.warningMs=r.word(); s.nextRequestId=r.word();
+  s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.settings.turnTimerMs=r.word(); s.nextRequestId=r.word();
   if (s.count>MAX_PLAYERS) return Status::Corrupt;
   for (uint8_t i=0;i<s.count;++i) {
     auto &p=s.players[i]; auto &stats=s.stats[i];

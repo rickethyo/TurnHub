@@ -2,12 +2,6 @@
 
 namespace TurnHub {
 
-namespace {
-constexpr uint32_t WARNING_OFF = 0;
-constexpr uint32_t WARNING_OFF_GREEN_MS = 300000;
-constexpr float WARNING_CAUTION_FRACTION = 0.75f;
-}
-
 GameEngine::GameCompletedCallback GameEngine::gameCompletedCallback_ = nullptr;
 
 GameEngine::GameEngine() {
@@ -31,7 +25,6 @@ void GameEngine::reset() {
   turnStartedAtMs_ = 0;
   pauseStartedAtMs_ = 0;
   totalPausedMs_ = 0;
-  currentWarningMs_ = WARNING_OFF;
   winnerPlayer_ = 0;
   clearWinClaim();
 
@@ -177,7 +170,6 @@ bool GameEngine::start(
     const PlayerSeat *players,
     uint8_t playerCount,
     const PlayerSeat &starter,
-    uint32_t warningMs,
     uint32_t nowMs, const GameSettings &settings) {
   if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings)) {
     return false;
@@ -206,13 +198,11 @@ bool GameEngine::start(
   gameOver_ = false;
   gameStartedAtMs_ = nowMs;
   turnStartedAtMs_ = nowMs;
-  currentWarningMs_ = warningMs;
   return true;
 }
 
 bool GameEngine::passTurn(
     uint8_t controllerId,
-    uint32_t nextWarningMs,
     uint32_t nowMs) {
   if (!running_ || paused_ || gameOver_ || playerCount_ < 2 || winClaimActive_) {
     return false;
@@ -241,7 +231,6 @@ bool GameEngine::passTurn(
 
   activeIndex_ = static_cast<uint8_t>(next);
   turnStartedAtMs_ = nowMs;
-  currentWarningMs_ = nextWarningMs;
   return true;
 }
 
@@ -270,7 +259,6 @@ bool GameEngine::resume(uint32_t nowMs) {
 
 bool GameEngine::eliminatePlayer(
     uint8_t playerNumber,
-    uint32_t nextWarningMs,
     uint32_t nowMs,
     bool &gameFinished) {
   gameFinished = false;
@@ -299,7 +287,6 @@ bool GameEngine::eliminatePlayer(
     }
 
     turnStartedAtMs_ = pauseStartedAtMs_ != 0 ? pauseStartedAtMs_ : nowMs;
-    currentWarningMs_ = nextWarningMs;
   }
 
   if (livingPlayerCount() == 1) {
@@ -666,29 +653,33 @@ uint32_t GameEngine::gameElapsedMs(uint32_t nowMs) const {
   return end - gameStartedAtMs_ - pausedTotal;
 }
 
-WarningPhase GameEngine::warningPhase(uint32_t nowMs) const {
+TurnTimerPhase GameEngine::turnTimerPhase(uint32_t nowMs) const {
+  if (!hasPlayers() || gameOver_) {
+    return TurnTimerPhase::Normal;
+  }
   const uint32_t elapsed = currentTurnElapsedMs(nowMs);
+  const uint32_t limit = settings_.turnTimerMs;
 
-  if (currentWarningMs_ == WARNING_OFF) {
-    return elapsed >= WARNING_OFF_GREEN_MS
-        ? WarningPhase::OffGreen
-        : WarningPhase::Normal;
+  if (limit == TURN_TIMER_OFF) {
+    return elapsed >= TURN_TIMER_LONG_TURN_MS
+        ? TurnTimerPhase::LongTurn
+        : TurnTimerPhase::Normal;
   }
-
-  if (elapsed >= currentWarningMs_) {
-    return WarningPhase::Warning;
+  if (elapsed >= limit) {
+    return TurnTimerPhase::Expired;
   }
-
-  const uint32_t caution = static_cast<uint32_t>(
-      static_cast<float>(currentWarningMs_) * WARNING_CAUTION_FRACTION);
-
-  return elapsed >= caution
-      ? WarningPhase::Caution
-      : WarningPhase::Normal;
+  return limit - elapsed <= TURN_TIMER_WARNING_MS
+      ? TurnTimerPhase::Warning
+      : TurnTimerPhase::Normal;
 }
 
-uint32_t GameEngine::warningMs() const {
-  return currentWarningMs_;
+uint32_t GameEngine::turnRemainingMs(uint32_t nowMs) const {
+  const uint32_t limit = settings_.turnTimerMs;
+  if (!hasPlayers() || limit == TURN_TIMER_OFF) {
+    return 0;
+  }
+  const uint32_t elapsed = currentTurnElapsedMs(nowMs);
+  return elapsed >= limit ? 0 : limit - elapsed;
 }
 
 const PlayerStats *GameEngine::statsForPlayer(uint8_t playerNumber) const {

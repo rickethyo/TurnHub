@@ -2,6 +2,7 @@ package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.ControlResult
+import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SeatEntry
@@ -71,6 +72,16 @@ interface AtlasSessionTransport {
         expectedRevision: Long?,
         expectedBootId: String?,
     ): ControlResult
+
+    /** `GET /api/game/settings`: the next match's setup and whether this session may edit it. */
+    suspend fun getGameSettings(token: String): GameSettingsInfo
+
+    /**
+     * `POST /api/game/settings` with only `turnTimerMs` (0 = OFF). Atlas keeps
+     * the other settings, validates the value and allows it only for the host
+     * in the lobby. Returns Atlas's message; a refusal throws [AtlasFailure.Rejected].
+     */
+    suspend fun setTurnTimer(token: String, turnTimerMs: Long): String?
 
     /** `POST /api/session/logout`: revokes this token on Atlas. */
     suspend fun logout(token: String)

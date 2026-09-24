@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TableSummary
+import com.turnhub.android.domain.TurnTimerStatus
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 
@@ -41,19 +42,19 @@ fun TableHeader(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StateChip(summary.state)
                 Text(
-                    text = "${summary.settings.profile.displayName()} • starting life ${summary.settings.startingLife}",
+                    text = "${summary.settings.profile.displayName()} • starting life ${summary.settings.startingLife}" +
+                        " • turn timer ${TurnTimerStatus.settingLabel(summary.settings.turnTimerMs).lowercase()}",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
 
+            val timer = TurnTimerStatus.of(summary, nowMs)
             if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED ||
                 summary.state == TableState.GAME_OVER
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Clock(label = "Game", value = TableClock.format(TableClock.gameElapsedMs(summary, nowMs)))
-                    summary.activePlayerNumber?.let {
-                        Clock(label = "Turn", value = TableClock.format(TableClock.turnElapsedMs(summary, nowMs)))
-                    }
+                    timer?.let { Clock(label = it.label, value = it.value) }
                 }
             }
 
@@ -64,7 +65,7 @@ fun TableHeader(
                 Text("Winner: ${labelFor(it)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
 
-            PendingBanners(summary, nowMs, labelFor)
+            PendingBanners(summary, nowMs, labelFor, timerNotice = timer?.notice)
 
             Text(
                 text = "${summary.atlasId} • firmware ${summary.firmwareVersion} • rev ${summary.revision}",
@@ -76,9 +77,10 @@ fun TableHeader(
 }
 
 @Composable
-private fun PendingBanners(summary: TableSummary, nowMs: Long, labelFor: (Int) -> String) {
+private fun PendingBanners(summary: TableSummary, nowMs: Long, labelFor: (Int) -> String, timerNotice: String?) {
     val pending = summary.pending
     val messages = buildList {
+        timerNotice?.let(::add)
         pending.passPlayer?.let {
             val seconds = (TableClock.passGraceRemainingMs(summary, nowMs) + 999) / 1000
             add("${labelFor(it)} passed – ${seconds}s left to cancel")

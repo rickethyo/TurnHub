@@ -31,6 +31,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   const auto &settings = inGame_ ? game.settings() : nextSettings;
   changed |= update(settings_.profile, settings.profile);
   changed |= update(settings_.startingLife, settings.startingLife);
+  changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
   changed |= update(host_, lobby.hostController());
   PlayerSeat selected;
   const uint8_t starter = lobby.selectedStarter(selected) ? selected.playerNumber :
@@ -108,9 +109,16 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"winnerPlayer\":"; nullablePlayer(out, winner_);
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
+  out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
   out += ",\"turnElapsedMs\":"; out += String(game.currentTurnElapsedMs(nowMs));
+  // Sampled like the clocks above: it may change without a revision change.
+  const bool counting = inGame_ && !game.gameOver() && settings_.turnTimerMs != TURN_TIMER_OFF;
+  out += ",\"turnTimer\":{\"phase\":\""; out += turnTimerPhaseName(game.turnTimerPhase(nowMs));
+  out += "\",\"remainingMs\":";
+  if (counting) out += String(game.turnRemainingMs(nowMs)); else out += "null";
+  out += '}';
   out += ",\"pending\":{\"passPlayer\":"; nullablePlayer(out, pending_.passPlayer);
   const uint32_t elapsed = nowMs - pending_.passStartedMs;
   out += ",\"passGraceRemainingMs\":";

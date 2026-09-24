@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.turnhub.android.data.ActionFeedback
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasException
 import com.turnhub.android.data.AtlasFailure
@@ -18,6 +19,7 @@ import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +69,20 @@ class HomeViewModel(
     /** The endpoint a pending Wi-Fi prompt will connect to once answered. */
     private var pendingEndpoint: AtlasEndpoint? = null
 
-    private val sessionFlows = combine(playerSession.state, playerSession.busy, playerSession.feedback, ::Triple)
+    private data class SessionView(
+        val session: PlayerSessionState,
+        val busy: Boolean,
+        val feedback: ActionFeedback?,
+        val gameSettings: GameSettingsInfo?,
+    )
+
+    private val sessionFlows = combine(
+        playerSession.state,
+        playerSession.busy,
+        playerSession.feedback,
+        playerSession.gameSettings,
+        ::SessionView,
+    )
 
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
@@ -75,7 +90,7 @@ class HomeViewModel(
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback) ->
+    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback, gameSettings) ->
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
@@ -86,7 +101,7 @@ class HomeViewModel(
             offerAppSettings = shown is AtlasFailure.LocalNetworkPermissionDenied,
             joiningSsid = screen.joiningSsid,
             wifiPrompt = screen.wifiPrompt,
-            player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback) },
+            player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback, gameSettings) },
             signIn = screen.signIn,
         )
     }.stateIn(
@@ -173,6 +188,11 @@ class HomeViewModel(
     fun onPassClicked() = sendControl(ControlAction.PASS)
 
     fun onPauseResumeClicked() = sendControl(ControlAction.PAUSE_RESUME)
+
+    /** Host only; Atlas re-validates the value and the host/lobby rule. */
+    fun onTurnTimerChosen(turnTimerMs: Long) {
+        viewModelScope.launch { playerSession.setTurnTimer(turnTimerMs) }
+    }
 
     fun onSignOutClicked() {
         viewModelScope.launch { playerSession.signOut() }

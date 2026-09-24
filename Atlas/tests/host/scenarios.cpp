@@ -53,7 +53,8 @@ bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &p) {
 bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlue,v); }
 bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
 bool SigilBus::setGreen(uint8_t id,bool v) { return send(id,PacketType::SetGreen,v); }
-bool SigilBus::buzzer(uint8_t id,int32_t v) { return send(id,PacketType::Buzzer,v); }
+static unsigned fixtureBuzzes[MAX_PHYSICAL_SIGILS]{};
+bool SigilBus::buzzer(uint8_t id,int32_t v) { ++fixtureBuzzes[id]; return send(id,PacketType::Buzzer,v); }
 OtaManager::OtaManager(WebServer &webServer,AllowedCallback allowed) : server_(webServer),allowedCallback_(allowed) {}
 void OtaManager::begin() {}
 void OtaManager::update(uint32_t) {}
@@ -797,7 +798,7 @@ static void physicalGameDisplay() {
   GameSettings settings;
   settings.profile = GameProfile::Commander;
   settings.startingLife = 40;
-  assert(engine.start(seats,6,seats[0],30000,100,settings));
+  assert(engine.start(seats,6,seats[0],100,settings));
   LedRenderer renderer(sigilBus);
   auto render = [&]() { renderer.render(HubState::Running,table,engine,0,0,0,100); };
   render();
@@ -827,18 +828,216 @@ static void physicalGameDisplay() {
   decoded = snapshot; decoded.primary.name[12] = 'x'; assert(!validGameDisplay(decoded));
   decoded = snapshot; decoded.sources[0].damage[0] = -1; assert(!validGameDisplay(decoded));
   assert(engine.changeLife(1,-100)); render(); assert(sentGameDisplays[0].primary.life < 0);
-  assert(engine.passTurn(0,30000,200)); render();
+  assert(engine.passTurn(0,200)); render();
   assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 2);
   assert(sentGameDisplays[0].primary.life == 40 && sentGameDisplays[0].secondary.life < 0);
   assert(!sentGameDisplays[0].sourceCount);
   count = gameDisplaySends; renderer.invalidate(0); render(); assert(gameDisplaySends == count + 1);
   engine.reset(); settings.profile = GameProfile::Magic; settings.startingLife = 20;
-  assert(engine.start(seats,6,seats[0],30000,100,settings));
+  assert(engine.start(seats,6,seats[0],100,settings));
   renderer.invalidateAll(); render();
   assert(!sentGameDisplays[0].commander && !sentGameDisplays[0].sourceCount && sentGameDisplays[0].primary.life == 20);
   fixtureRecords[0].capabilities = 0; renderer.invalidateAll(); count = gameDisplaySends;
   render(); assert(gameDisplaySends == count); // Legacy peers keep the seven-byte protocol.
   fixtureRadio = false;
+}
+
+static void saveClientFixture(const char *name, const String &json);
+
+// Plays out queued cues on a private clock so game time does not move.
+static void drainAudio() {
+  for (uint32_t t = testNow; t < testNow + 3000; t += 10) audio.update(t);
+  audio.clear();
+}
+static unsigned totalBuzzes() {
+  unsigned total = 0;
+  for (auto count : TurnHub::fixtureBuzzes) total += count;
+  return total;
+}
+static void resetBuzzes() {
+  drainAudio();
+  for (auto &count : TurnHub::fixtureBuzzes) count = 0;
+}
+
+static void turnTimerEngine() {
+  using namespace TurnHub;
+  GameEngine engine;
+  PlayerSeat seats[2] = {{1,0,1},{2,1,1}};
+  GameSettings settings;  // OFF: no countdown, gentle long-turn cue only.
+  assert(engine.start(seats,2,seats[0],1000,settings));
+  assert(engine.turnTimerPhase(1000 + TURN_TIMER_LONG_TURN_MS - 1) == TurnTimerPhase::Normal);
+  assert(engine.turnTimerPhase(1000 + TURN_TIMER_LONG_TURN_MS) == TurnTimerPhase::LongTurn);
+  assert(engine.turnRemainingMs(5000) == 0);
+
+  settings.turnTimerMs = 60000;
+  const uint32_t start = UINT32_MAX - 20000;  // The turn crosses the 32-bit wrap.
+  assert(engine.start(seats,2,seats[0],start,settings));
+  assert(engine.turnRemainingMs(start) == 60000);
+  assert(engine.turnTimerPhase(start + 49999) == TurnTimerPhase::Normal);
+  assert(engine.turnTimerPhase(start + 50000) == TurnTimerPhase::Warning);
+  assert(engine.turnRemainingMs(start + 50000) == TURN_TIMER_WARNING_MS);
+  assert(engine.turnTimerPhase(start + 60000) == TurnTimerPhase::Expired);
+  assert(engine.turnRemainingMs(start + 60000) == 0);
+  // Expiry is a cue, never a rule: the turn simply continues.
+  assert(engine.turnTimerPhase(start + 600000) == TurnTimerPhase::Expired);
+  assert(engine.activePlayerNumber() == 1 && engine.running());
+  // Pause freezes the countdown; resume continues it.
+  assert(engine.passTurn(0,start + 700000));
+  assert(engine.pause(start + 755000));
+  assert(engine.turnRemainingMs(start + 900000) == 5000);
+  assert(engine.turnTimerPhase(start + 900000) == TurnTimerPhase::Warning);
+  assert(engine.resume(start + 900000));
+  assert(engine.turnRemainingMs(start + 901000) == 4000);
+  // A new turn starts a fresh countdown.
+  assert(engine.passTurn(1,start + 902000));
+  assert(engine.turnRemainingMs(start + 902000) == 60000);
+  assert(engine.turnTimerPhase(start + 902000) == TurnTimerPhase::Normal);
+  // Once the game is over, phases are quiet.
+  bool finished = false;
+  assert(engine.pause(start + 903000) && engine.eliminatePlayer(2,start + 903000,finished) && finished);
+  assert(engine.turnTimerPhase(start + 9999999) == TurnTimerPhase::Normal);
+
+  for (uint32_t bad : {1000u, 14000u, 15500u, TURN_TIMER_MAX_MS + 1000}) {
+    settings.turnTimerMs = bad;
+    assert(!validTurnTimerMs(bad) && !engine.start(seats,2,seats[0],1,settings));
+  }
+  for (auto preset : TURN_TIMER_PRESETS_MS) assert(validTurnTimerMs(preset));
+
+  // The captured timer survives recovery in checkpoint schema 1's timer word.
+  settings.turnTimerMs = 120000;
+  assert(engine.start(seats,2,seats[0],1000,settings));
+  GameCheckpoint saved; engine.checkpoint(saved,31000);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY];
+  const size_t size = encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size);
+  GameCheckpoint decoded;
+  assert(decodeCheckpoint(bytes,size,decoded) == TurnHubStorage::Status::Ok);
+  GameEngine restored;
+  assert(restored.restoreCheckpoint(decoded,500) && restored.paused());
+  assert(restored.turnTimerMs() == 120000 && restored.turnRemainingMs(900000) == 90000);
+}
+
+static void ledCueSelection() {
+  using namespace TurnHub;
+  const auto &style = defaultLedCueProfile();
+  // Established lobby behavior: host player 1 flashes red once per cycle, host green steady.
+  freshLobby(2);
+  auto lobbyCue = [](uint8_t id, uint32_t now) {
+    return selectSigilLedState(id,HubState::Lobby,lobby,game,0,0,0,now);
+  };
+  const auto host = lobbyCue(0,0);
+  assert(host.cue == LedCue::Joined && host.playerNumber == 1 && host.has(LedOverlay::Host));
+  assert(ledLevels(style,host,0).red && ledLevels(style,host,200).green && !ledLevels(style,host,200).red);
+  assert(!lobbyCue(1,0).has(LedOverlay::Host) && lobbyCue(1,0).playerNumber == 2);
+  const auto invite = lobbyCue(5,0);
+  assert(invite.cue == LedCue::Unassigned);
+  assert(ledLevels(style,invite,100).blue == 255 && ledLevels(style,invite,700).green &&
+      ledLevels(style,invite,1200).red);
+
+  GameEngine engine; Lobby table;
+  PlayerSeat seats[2] = {{1,0,1},{2,1,1}};
+  GameSettings settings; settings.turnTimerMs = 60000;
+  assert(engine.start(seats,2,seats[0],1000,settings));
+  auto cue = [&](uint8_t id, uint32_t now) {
+    return selectSigilLedState(id,HubState::Running,table,engine,0,0,0,now);
+  };
+  assert(cue(0,1000).cue == LedCue::TurnStarted && cue(0,4000).cue == LedCue::YourTurn);
+  assert(cue(1,4000).cue == LedCue::Waiting && !cue(0,4000).overlays);
+  assert(cue(0,51000).has(LedOverlay::TurnWarning) && cue(0,61000).has(LedOverlay::TimerExpired));
+  assert(!cue(1,61000).overlays);  // Only the active Sigil shows its timer.
+  auto levels = [&](uint32_t now) { return ledLevels(style,cue(0,now),now); };
+  // Warning pulses slowly; expiry is steady: distinguishable without color.
+  assert(levels(51000).red && !levels(51750).red && !levels(51000).green);
+  assert(levels(61000).red && levels(61750).red);
+  assert(ledLevels(style,cue(1,61000),61000).blue == 255);
+  // TurnStarted flashes from the turn's own start.
+  assert(levels(1000).blue == 255 && levels(1200).blue == 0 && levels(1400).blue == 255);
+
+  GameEngine untimed; GameSettings off;
+  assert(untimed.start(seats,2,seats[0],1000,off));
+  const auto longTurn = selectSigilLedState(0,HubState::Running,table,untimed,0,0,0,1000 + TURN_TIMER_LONG_TURN_MS);
+  assert(longTurn.has(LedOverlay::LongTurn) && ledLevels(style,longTurn,0).green && !ledLevels(style,longTurn,0).red);
+
+  // Another profile changes presentation only: same state, different channels.
+  LedCueProfile alternate = style;
+  alternate.overlays[static_cast<uint8_t>(LedOverlay::TimerExpired)] =
+      CueStyle{LedStyles::off(), LedStyles::off(), LedStyles::blink(2000,1000)};
+  assert(!ledLevels(alternate,cue(0,62000),62000).red && ledLevels(alternate,cue(0,62000),62000).green);
+  enterEmptyLobby();
+}
+
+static void turnTimerCuesAndMute() {
+  using namespace TurnHub;
+  freshLobby(2);
+  nextGameSettings.turnTimerMs = 60000;
+  startFromHost();
+  assert(game.turnTimerMs() == 60000);
+  const uint8_t active = game.activeController();
+  resetBuzzes();
+  testNow += 49000; updateTurnTimerCues(testNow); drainAudio();
+  assert(totalBuzzes() == 0);
+  testNow += 1000; updateTurnTimerCues(testNow); updateTurnTimerCues(testNow); drainAudio();
+  assert(fixtureBuzzes[active] == 1 && totalBuzzes() == 1);  // One chirp, once.
+  testNow += 10000; updateTurnTimerCues(testNow); drainAudio();
+  assert(fixtureBuzzes[active] == 3 && totalBuzzes() == 3);  // Two-note expiry, once.
+  testNow += 600000; updateTurnTimerCues(testNow); drainAudio();
+  assert(totalBuzzes() == 3 && hubState == HubState::Running && game.activeController() == active);
+  // Pause/resume does not replay the timer cue.
+  assert(web(active,1,WebControl::PauseResume) && web(active,1,WebControl::PauseResume));
+  resetBuzzes(); updateTurnTimerCues(testNow); drainAudio();
+  assert(totalBuzzes() == 0);
+  // The next turn re-arms, and muted audio stays silent while LEDs still render.
+  handlePass(active); testNow += 3000; updatePendingPass(testNow);
+  const uint8_t next = game.activeController();
+  assert(next != active);
+  resetBuzzes();
+  AudioCueProfile muted = defaultAudioCueProfile();
+  muted.enabled = false;
+  audio.setProfile(muted);
+  testNow += 51000; updateTurnTimerCues(testNow); drainAudio();
+  assert(totalBuzzes() == 0 && turnTimerCue.phase == TurnTimerPhase::Warning);
+  assert(selectSigilLedState(next,hubState,lobby,game,0,0,0,testNow).has(LedOverlay::TurnWarning));
+  audio.setProfile(defaultAudioCueProfile());
+  // Settings stay lobby-only while the captured timer runs.
+  nextGameSettings = GameSettings{};
+  enterEmptyLobby();
+}
+
+static void turnTimerSettingsHttp() {
+  enterEmptyLobby(); TurnHub::fixtureRadio = false; testNow = 1000;
+  nextGameSettings = TurnHub::GameSettings{};
+  String hostId, guestId;
+  const String host = registerPhone("Timer host", hostId), guest = registerPhone("Timer guest", guestId);
+  assert(request("/api/session/join", host) == 200 && request("/api/session/join", guest) == 200);
+  assert(request("/api/game/settings", host, {}, HTTP_GET) == 200);
+  assert(server.body.find("\"presetsMs\":[0,60000,120000,180000,300000]") != std::string::npos);
+  assert(server.body.find("\"turnTimerMs\":0") != std::string::npos);
+  assert(server.body.find("\"canEdit\":true") != std::string::npos);
+  for (const char *bad : {"1000", "abc", "-60000", "3601000", "15500", "99999999"})
+    assert(request("/api/game/settings", host, {{"turnTimerMs", bad}}) == 400);
+  assert(request("/api/game/settings", guest, {{"turnTimerMs", "90000"}}) == 409);
+  assert(nextGameSettings.turnTimerMs == 0);
+  // Partial update: only the timer changes.
+  nextGameSettings.profile = TurnHub::GameProfile::Magic; nextGameSettings.startingLife = 20;
+  assert(request("/api/game/settings", host, {{"turnTimerMs", "90000"}}) == 200);
+  assert(nextGameSettings.turnTimerMs == 90000 && nextGameSettings.profile == TurnHub::GameProfile::Magic &&
+      nextGameSettings.startingLife == 20);
+  assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"turnTimerMs\":90000") != std::string::npos);
+  assert(server.body.find("\"turnTimer\":{\"phase\":\"NORMAL\",\"remainingMs\":null}") != std::string::npos);
+  assert(request("/api/control/start", host) == 200);
+  testNow += 3000; updateCountdown(testNow);
+  assert(hubState == HubState::Running);
+  testNow += 81000;
+  assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"phase\":\"WARNING\",\"remainingMs\":9000") != std::string::npos);
+  saveClientFixture("timer-warning", server.body);
+  server.on("/api/status", HTTP_GET, handleStatus);  // Registered by startNetworking() on hardware.
+  assert(request("/api/status", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"turnTimerMs\":90000") != std::string::npos &&
+      server.body.find("\"timerPhase\":\"WARNING\"") != std::string::npos);
+  assert(request("/api/game/settings", host, {{"turnTimerMs", "60000"}}) == 409);  // Lobby only.
+  enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
 }
 
 static void sigilReceivePackets() {
@@ -960,7 +1159,7 @@ static void nativeClientBoundary() {
   PlayerSeat seats[MAX_PLAYERS];
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i)
     seats[i] = PlayerSeat(i + 1, i / 2, i % 2 + 1);
-  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], 0, testNow, nextGameSettings));
+  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], testNow, nextGameSettings));
   for (uint8_t i = 1; i <= MAX_PLAYERS; ++i)
     for (uint8_t j = 1; j <= MAX_PLAYERS; ++j)
       for (uint8_t c = 1; c <= 2; ++c)
@@ -1057,6 +1256,10 @@ int main() {
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
+  turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
+  ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";
+  turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
+  turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
   // Must run last: see the comment on gameRecoveryLifecycle().
   gameRecoveryLifecycle(); std::cout<<"PASS interrupted-match recovery: boot load, checkpoint-after-intent, downtime exclusion, corrupt fail-safe\n";

@@ -202,8 +202,11 @@ remain unsupported. Prototype 1.0 is staged to replace the mock/passive-discover
 behavior with a real Atlas-owned pairing state machine. General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
-requires the primary host seat in the lobby; `flags` is the game-profile enum and
-`value` is starting life. See [Game profiles and life](GAME_PROFILES_AND_LIFE.md).
+requires the primary host seat in the lobby; `flags` is the game-profile enum,
+`value` is starting life and `durationMs` is the turn timer (0 = off). See
+[Game profiles and life](GAME_PROFILES_AND_LIFE.md) and
+[Turn timer and cues](TURN_TIMER_AND_CUES.md). Turn-timer expiry has no Intent:
+it is a derived presentation cue and never changes game state.
 
 ## Result model
 

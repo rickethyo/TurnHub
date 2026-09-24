@@ -24,6 +24,21 @@ object TableClock {
         if (summary.state == TableState.RUNNING) summary.gameElapsedMs + sinceReceived(summary, nowMs)
         else summary.gameElapsedMs
 
+    /**
+     * Turn-timer countdown left, rendered forward between polls and never below
+     * zero. Null when the timer is off or no turn is running.
+     */
+    fun turnRemainingMs(summary: TableSummary, nowMs: Long): Long? {
+        val sampled = summary.turnTimer?.remainingMs ?: return null
+        return if (summary.state == TableState.RUNNING) (sampled - sinceReceived(summary, nowMs)).coerceAtLeast(0)
+        else sampled
+    }
+
+    /** How far the current turn has run past its timer; 0 when on time or untimed. */
+    fun overtimeMs(summary: TableSummary, nowMs: Long): Long =
+        if (!summary.settings.turnTimerEnabled) 0
+        else (turnElapsedMs(summary, nowMs) - summary.settings.turnTimerMs).coerceAtLeast(0)
+
     /** Remaining cancellable-pass grace; counts down, never below zero. */
     fun passGraceRemainingMs(summary: TableSummary, nowMs: Long): Long =
         if (summary.pending.passPlayer == null) 0

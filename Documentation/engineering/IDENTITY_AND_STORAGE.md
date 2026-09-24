@@ -64,7 +64,7 @@ match/controller records, not a claim that those repositories already exist.
 | Physical-use and stats-privacy choices | Atlas profile repository | `a<profileId>` blob in `turnhub`: schema byte 1, allow-physical byte 0/1, hide-stats byte 0/1; implemented locally |
 | Network credentials | Network settings owner in web API | Existing Preferences namespace |
 | Game definitions/rulesets | Planned game-definition repository | Versioned records through storage boundary |
-| Next-game profile and starting life | Atlas game-settings repository | Six-byte schema-1 `gamecfg` blob in `turnhub`; match captures settings at start, life totals stay in RAM |
+| Next-game profile, starting life and turn timer | Atlas game-settings repository | `gamecfg` blob in `turnhub` (schema 2, ten bytes; schema 1 still read); match captures settings at start, life totals stay in RAM |
 | Match facts, membership, history and recovery | Planned Atlas match repository | Bounded versioned records; recovery separate from completed history |
 | Controller assignment/device trust | Planned controller/trust registries | Small critical records independent of statistics |
 | Sigil user/device settings and last-used preferences | Atlas device-settings owner | No remembered profile on either seat; legacy `b<mac>A/B` and `r<mac>A/B` keys are retired on reconnect; no Sigil-side profile persistence |

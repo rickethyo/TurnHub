@@ -2,6 +2,7 @@ package com.turnhub.android.data
 
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.ControlResult
+import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.SeatEntry
@@ -130,6 +131,23 @@ class HttpAtlasTransport(
         }
         requireOk(response, "Atlas did not accept the request")
         return parse { AtlasWireParser.parseControlResult(response.body) }
+    }
+
+    override suspend fun getGameSettings(token: String): GameSettingsInfo {
+        val response = request("GET", "/api/game/settings", headers = auth(token))
+        requireOk(response, "Could not read the game settings")
+        return parse { AtlasWireParser.parseGameSettings(response.body) }
+    }
+
+    override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? {
+        val response = request(
+            "POST",
+            "/api/game/settings",
+            headers = auth(token),
+            formBody = form("turnTimerMs" to turnTimerMs.toString()),
+        )
+        requireOk(response, "Atlas did not save the turn timer")
+        return parse { AtlasWireParser.parseControlResult(response.body).message }
     }
 
     override suspend fun logout(token: String) {
