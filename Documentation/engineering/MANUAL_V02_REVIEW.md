@@ -17,7 +17,7 @@ closing version number. V0.2's opening still says “Prototype Edition v0.1”.
 | Join, leave, start, turn passing, pause/resume, concession, confirmed win | Implemented | Continue mixed phone/Sigil acceptance |
 | Starting life 20, 25, 40, 2000 | All accepted as custom values; format presets also exist | Optional preset presentation polish |
 | Magic +10/-10 controls | Added in this local change | Bench acceptance |
-| Changes to another player's life with a 30-second approval window | Added in this local change; only the recipient can approve/reject, Atlas handles timeout | Bench acceptance, especially a recipient reconnecting during the window |
+| Changes to another player's life with a 15-second approval window | Added in this local change; only the recipient can approve/reject, Atlas handles timeout | Bench acceptance, especially a recipient reconnecting during the window |
 | Commander damage | Added in this local change, separate counters per source and commander 1/2; damage and life change together | Bench acceptance; players still decide elimination |
 | Pass to yourself with a distinct alert | No dedicated self-pass request/control in current Atlas | Define the semantic action and alert before adding UI |
 | Nudges and browser alerts | General browser feedback exists; nudge sending is unimplemented, although mute preferences exist | Atlas nudge handler, recipient delivery, mute enforcement and UI |
@@ -30,8 +30,9 @@ closing version number. V0.2's opening still says “Prototype Edition v0.1”.
 
 ## Other prototype gaps and wording decisions
 
-The manual's deliberate 30-second pairing flow is still beyond the current
-five-second visual pairing mock. Physical auxiliary/Pair controls and standalone
+The manual describes a deliberate 30-second pairing flow. Manual pairing is now
+implemented with a 15-second window (see [Manual Pairing](MANUAL_PAIRING.md)), so
+the manual text needs updating. Physical auxiliary controls and standalone
 profile selection also need their hardware/firmware work. These are separate from
 the web counter changes.
 

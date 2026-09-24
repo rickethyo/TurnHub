@@ -1,6 +1,6 @@
 # TurnHub Atlas ESP32
 
-This directory contains the ESP32 implementation of the TurnHub Atlas controller. The older Python controller in `Controller/` remains a behavioral reference while the ESP32 migration continues.
+This directory contains the ESP32 implementation of the TurnHub Atlas controller.
 
 Current development firmware: **0.6.0-dev**.
 

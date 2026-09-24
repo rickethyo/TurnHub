@@ -98,7 +98,7 @@ bool SigilBus::openPairing() {
 }
 
 bool SigilBus::pairingActive() const {
-  return pairingOpen_ && millis() - pairingStartedMs_ < 30000;
+  return pairingOpen_ && millis() - pairingStartedMs_ < TurnHubProtocol::PAIRING_WINDOW_MS;
 }
 
 bool SigilBus::poll(SigilEvent &event) {
@@ -108,7 +108,7 @@ bool SigilBus::poll(SigilEvent &event) {
   for (uint8_t n = 0; rxQueue_ && n < 32 &&
        xQueueReceive(rxQueue_, &request, 0) == pdTRUE; ++n) {
     if (request.packet.type == PacketType::PairRequest &&
-        (!pairingActive() || request.receivedAt - pairingStartedMs_ >= 30000)) continue;
+        (!pairingActive() || request.receivedAt - pairingStartedMs_ >= TurnHubProtocol::PAIRING_WINDOW_MS)) continue;
     handleReceive(request.mac, reinterpret_cast<const uint8_t *>(&request.packet), sizeof(Packet));
   }
   if (eventQueue_ == nullptr) {

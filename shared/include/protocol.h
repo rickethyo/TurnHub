@@ -9,6 +9,9 @@ constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
+// Deliberate manual-pairing window, shared so Atlas and Sigil time out together.
+constexpr uint32_t PAIRING_WINDOW_MS = 15000;
+
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
 constexpr uint8_t CAPABILITY_GAME_DISPLAY = 0x04;

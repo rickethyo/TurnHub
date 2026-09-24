@@ -6,13 +6,13 @@ This supersedes the five-second visual mock and the planned temporary boot trigg
 ## Operation
 
 1. Install the updated firmware on Atlas and each Sigil.
-2. In the Atlas lobby, press Atlas Pair (GPIO32). Its Pair LED blinks for 30 seconds.
+2. In the Atlas lobby, press Atlas Pair (GPIO32). Its Pair LED blinks for 15 seconds.
 3. Press the Sigil Pair button (GPIO19). Its red LED blinks while requesting pairing.
 4. Sigil logs `SIGIL|PAIR|SUCCESS`, stops blinking, and requests its Atlas state/profile.
    Joining the table still uses the existing Action/profile workflow.
 
 Either button may be pressed first if the windows overlap. Atlas stays open for
-30 seconds and can accept multiple Sigils; only enable pairing on the intended
+15 seconds and can accept multiple Sigils; only enable pairing on the intended
 Atlas nearby. Repeated Atlas presses restart its window. Repeated Sigil presses
 while pairing do not extend its window. Sigil retries every two seconds. Timeout
 restores its previous red LED state and preserves any previous association.
@@ -51,14 +51,14 @@ factory-reset integration, and a forget-device UI remain future work.
 ## Verification
 
 Atlas and Sigil PlatformIO builds pass. Native gameplay/storage regressions pass,
-including new PairRequest origin authorization, unavailable radio, 30-second
+including new PairRequest origin authorization, unavailable radio, 15-second
 expiry, clock rollover, and gameplay exclusion scenarios. These use the transport
 fixture and do not prove on-air delivery or physical NVS persistence.
 
 Bench acceptance still required (firmware has not been flashed by this change):
 
 - Boot an unpaired Sigil: no discovery/adoption; screen instructs Pair on both.
-- Press only one Pair button: no association; timeout at 30 seconds.
+- Press only one Pair button: no association; timeout at 15 seconds.
 - Press both: success, then normal join/pass/display behavior.
 - Reboot Atlas and Sigil independently: same slot, no new Pair press needed.
 - Try unknown Hello/actions and commands from another Atlas: no adoption/control.

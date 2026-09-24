@@ -21,7 +21,7 @@ With GCC/Clang on another host, from this directory:
 
 ```sh
 mkdir -p build
-c++ -std=c++17 -Wall -Wextra -Istubs -I../../include scenarios.cpp test_globals.cpp profile_fixture.cpp \
+c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
     ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp \
     ../../src/profile_statistics.cpp ../../src/stats_page.cpp \
     ../../src/profile_login_page.cpp \
@@ -29,11 +29,11 @@ c++ -std=c++17 -Wall -Wextra -Istubs -I../../include scenarios.cpp test_globals.
     ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp \
     -o build/scenarios
 ./build/scenarios
-c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
+c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
     storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp \
     ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios
 ./build/storage_scenarios
-c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include \
+c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
     profile_store_scenarios.cpp test_globals.cpp ../../src/profile_store.cpp \
     ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp \
     ../../src/profile_policy.cpp -o build/profile_store_scenarios
@@ -85,7 +85,7 @@ production UI, cross-tab prompts, keyboard focus, corrections and reconnects.
 These counter features still require a hardware table check after flashing.
 
 Manual pairing Intent scenarios cover origin authorization, radio unavailability,
-30-second timeout, clock rollover and rejection during gameplay. Radio transport
+15-second timeout, clock rollover and rejection during gameplay. Radio transport
 and persistence still require the manual pairing bench checklist.
 
 Named-profile attachment scenarios cover adopting a joined guest, preserving its

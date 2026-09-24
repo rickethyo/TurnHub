@@ -62,9 +62,9 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Define how Atlas identifies itself to paired Sigils.
 - [ ] Decide whether pairing requires cryptographic authentication in prototype, production, or both.
 - [ ] Prototype 1.0: replace passive proximity adoption with one Atlas-owned pairing
-  state machine using a 30-second window.
+  state machine using a 15-second window.
 - [ ] Prototype 1.0: verify that an unpaired Sigil can temporarily use boot to enter
-  the same 30-second pairing flow until the physical Pair button is wired; there
+  the same 15-second pairing flow until the physical Pair button is wired; there
   must not be a separate auto-pair implementation.
 - [ ] Verify paired startup reconnects only to the retained Atlas relationship and
   that re-pair/forget paths do not silently adopt a neighboring Atlas.

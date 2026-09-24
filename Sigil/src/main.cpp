@@ -41,7 +41,7 @@ constexpr uint32_t LONG_PRESS_MS = 2000;
 constexpr uint32_t WIN_HOLD_MS = 5000;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PASS_ACK_FLASH_MS = 250;
-constexpr uint32_t PAIRING_DURATION_MS = 30000;
+constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
 constexpr uint32_t PAIRING_BLINK_MS = 250;
 constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
 constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
@@ -649,7 +649,8 @@ void startPairing() {
   pairingStartMs = millis();
   pairingActive = true;
   digitalWrite(RED_LED, HIGH);
-  Serial.println("SIGIL|PAIR|START|DURATION_MS|30000");
+  Serial.print("SIGIL|PAIR|START|DURATION_MS|");
+  Serial.println(PAIRING_DURATION_MS);
 }
 
 void updatePairing() {

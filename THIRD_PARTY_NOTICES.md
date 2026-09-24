@@ -11,7 +11,6 @@ This is a working development record, not a substitute for the complete license 
 | Arduino-ESP32 | Espressif Systems and contributors | Arduino framework used by ESP32 Atlas and Sigil firmware | LGPL-2.1 | Firmware distribution obligations must be verified before release. Preserve upstream notices and license terms. |
 | GxEPD2 | Jean-Marc Zingg | Sigil e-ink display driver | GPL-3.0 | **Review required before commercial firmware distribution.** Current use may impose strong copyleft/source obligations on distributed firmware. |
 | Adafruit GFX Library | Adafruit Industries and contributors | Transitive graphics dependency used by GxEPD2 | BSD-style license | Preserve copyright/license/disclaimer notices when distributed in source or binary form as required. |
-| pySerial | Chris Liechti and contributors | Legacy Python serial/controller tooling | BSD-3-Clause | Preserve required notices if this software is distributed. |
 | PlatformIO Core | PlatformIO Labs and contributors | Development/build tooling | Apache-2.0 | Development tool, not presently intended to be embedded in or shipped as part of TurnHub firmware. Track for build provenance. |
 
 ## Framework and platform components

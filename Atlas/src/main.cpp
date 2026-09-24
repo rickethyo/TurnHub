@@ -81,7 +81,7 @@ uint32_t lastDebounceMs = 0;
 bool lastPairButtonState = HIGH;
 uint32_t lastPairDebounceMs = 0;
 constexpr uint32_t BOOT_BLINK_INTERVAL_MS = 150;
-constexpr uint32_t PAIRING_DURATION_MS = 30000;
+constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
 constexpr uint32_t PAIR_BLINK_INTERVAL_MS = 250;
 bool bootBlinkActive = false;
 uint32_t bootBlinkStartedAtMs = 0;
@@ -767,7 +767,7 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
   if (intent.type == IntentType::RequestLifeChange) {
     if (!game.requestLifeChange(seat->playerNumber, payload.targetPlayer, payload.value, millis()))
       return IntentResult::reject(IntentStatus::Conflict, "Request unavailable: check the target, pending request and life limits");
-    return IntentResult::accept("Life change requested; Atlas accepts it after 30 seconds unless rejected");
+    return IntentResult::accept("Life change requested; Atlas accepts it after 15 seconds unless rejected");
   }
   if (intent.type == IntentType::RespondLifeChange) {
     if (payload.flags > 1 || !game.respondLifeChange(seat->playerNumber, payload.requestId, payload.flags == 1, millis()))
@@ -889,7 +889,8 @@ IntentResult handlePairRequestIntent(const Intent &intent, void *) {
   }
   pairingActive = true;
   pairingStartedAtMs = millis();
-  Serial.println("ATLAS|PAIRING|ENTER|DURATION_MS|30000");
+  Serial.print("ATLAS|PAIRING|ENTER|DURATION_MS|");
+  Serial.println(PAIRING_DURATION_MS);
   return IntentResult::accept("Pairing window opened");
 }
 

@@ -1,7 +1,7 @@
 # TurnHub Staged Changes
 
 Current pairing update (2026-09-22): physical buttons are owner-verified and manual
-30-second pairing with persistent MAC associations is now implemented. The boot
+15-second pairing with persistent MAC associations is now implemented. The boot
 pairing fallback and visual mock are superseded. Radio bench acceptance and
 forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
 
@@ -106,7 +106,7 @@ implemented remain; no account reset or firmware flash has been performed.
    actions/Intents instead of creating game rules tied to a button. Firmware may
    compile with the auxiliary input disabled until the physical switch is installed.
 5. **Replace passive discovery with the real pairing state machine.** Prototype 1.0
-   pairing uses a deliberate 30-second pairing window and Atlas-owned trust state.
+   pairing uses a deliberate 15-second pairing window and Atlas-owned trust state.
    Until `BTN_PAIR` is physically wired, an unpaired Sigil may enter that same real
    pairing window automatically at boot. The temporary boot trigger must not become
    a separate pairing implementation. The physical Pair button may slip past the
@@ -244,7 +244,7 @@ Privacy direction:
 
 - Implement real pairing/trusted-device persistence separately from the current
   five-second LED mock; define re-pair, forget and normal reconnect behavior.
-- Prototype 1.0 target: 30-second real pairing window; until the Sigil Pair button
+- Prototype 1.0 target: 15-second real pairing window; until the Sigil Pair button
   is wired, unpaired Sigils may use boot as the temporary trigger for that same flow.
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
