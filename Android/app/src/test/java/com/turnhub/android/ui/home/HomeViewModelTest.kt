@@ -2,13 +2,20 @@ package com.turnhub.android.ui.home
 
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasFailure
+import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
+import com.turnhub.android.data.AtlasSessionTransport
 import com.turnhub.android.data.AtlasWifiLink
+import com.turnhub.android.data.ControlAction
 import com.turnhub.android.data.WifiCredentialStore
 import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.protocol.ControlResult
+import com.turnhub.android.protocol.LoginResult
+import com.turnhub.android.protocol.ProfileSummary
+import com.turnhub.android.protocol.SessionInfo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -73,12 +80,27 @@ private class MemoryCredentialStore : WifiCredentialStore {
     }
 }
 
+private class FakeSessionTransport : AtlasSessionTransport {
+    override suspend fun getProfiles(): List<ProfileSummary> = emptyList()
+    override suspend fun login(profileId: String, pin: String): LoginResult = LoginResult("token", profileId)
+    override suspend fun me(token: String): SessionInfo = SessionInfo("p1", "Player 1", 1, 1, 1, true, false, true, false)
+    override suspend fun join(token: String): String? = "Joined"
+    override suspend fun control(
+        token: String,
+        action: ControlAction,
+        expectedRevision: Long?,
+        expectedBootId: String?,
+    ): ControlResult = ControlResult(ok = true, status = "ACCEPTED", message = "OK", revision = expectedRevision, bootId = expectedBootId)
+    override suspend fun logout(token: String) {}
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
 
     private val repository = RecordingRepository()
     private val link = FakeWifiLink()
     private val store = MemoryCredentialStore()
+    private val playerSession = AtlasPlayerSession { FakeSessionTransport() }
     private val defaultCredentials =
         WifiCredentials(WifiCredentials.DEFAULT_ATLAS_SSID, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
 
@@ -89,7 +111,7 @@ class HomeViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun TestScope.viewModel(): HomeViewModel {
-        val viewModel = HomeViewModel({ repository }, link, store)
+        val viewModel = HomeViewModel({ repository }, link, store, playerSession)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
