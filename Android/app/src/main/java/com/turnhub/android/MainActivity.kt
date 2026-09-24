@@ -17,6 +17,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.turnhub.android.data.AtlasPlayerSession
+import com.turnhub.android.data.AtlasSessionTransportFactory
 import com.turnhub.android.data.AtlasTransportFactory
 import com.turnhub.android.data.HttpAtlasRepository
 import com.turnhub.android.data.HttpAtlasTransport
@@ -40,10 +42,13 @@ class MainActivity : ComponentActivity() {
         // (falling back to a manually joined Wi-Fi when it holds no network).
         val wifiLink = TargetedAtlasWifiLink(applicationContext)
         val transports = AtlasTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
+        val sessionTransports = AtlasSessionTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
+        val playerSession = AtlasPlayerSession(sessionTransports)
         HomeViewModel.factory(
             repositoryFactory = { scope -> HttpAtlasRepository(transports, scope) },
             wifiLink = wifiLink,
             credentialStore = PreferencesWifiCredentialStore(applicationContext),
+            playerSession = playerSession,
         )
     }
 

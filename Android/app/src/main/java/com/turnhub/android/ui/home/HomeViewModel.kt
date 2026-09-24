@@ -8,12 +8,17 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasException
 import com.turnhub.android.data.AtlasFailure
+import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
 import com.turnhub.android.data.AtlasWifiLink
+import com.turnhub.android.data.ControlAction
+import com.turnhub.android.data.PlayerSessionState
 import com.turnhub.android.data.WifiCredentialStore
 import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
+import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -295,6 +300,8 @@ class HomeViewModel(
     }
 
     companion object {
+        private val PIN_PATTERN = Regex("^\\d{4,8}$")
+
         /**
          * Minimal manual-DI factory: no framework is introduced for one ViewModel.
          * Revisit if/when the dependency graph actually grows past this.
@@ -303,8 +310,9 @@ class HomeViewModel(
             repositoryFactory: (CoroutineScope) -> AtlasRepository,
             wifiLink: AtlasWifiLink,
             credentialStore: WifiCredentialStore,
+            playerSession: AtlasPlayerSession,
         ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { HomeViewModel(repositoryFactory, wifiLink, credentialStore) }
+            initializer { HomeViewModel(repositoryFactory, wifiLink, credentialStore, playerSession) }
         }
     }
 }
