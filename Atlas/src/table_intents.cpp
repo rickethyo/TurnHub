@@ -230,7 +230,7 @@ void updateCountdown(uint32_t nowMs) {
   if (elapsed >= START_COUNTDOWN_MS) dispatchSystemIntent(IntentType::CompleteStart);
 }
 
-// --- Profile participation (JoinProfile / LeaveProfile / BindProfile) ----------
+// --- Profile participation (JoinProfile / LeaveProfile / BindProfile / PickProfile) ----------
 
 namespace {
 
@@ -349,6 +349,17 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
   if (intent.type == IntentType::JoinProfile) return joinProfile(intent, profile, joined);
   if (intent.type == IntentType::LeaveProfile) {
     return leaveProfile(intent, profile, joined, existing, existingSlot);
+  }
+  if (intent.type == IntentType::PickProfile) {
+    // Chosen on the Sigil itself: no phone proved who is holding it, so the
+    // profile's "Allow physical use without a PIN" choice decides.
+    if (intent.actor.slot != 1) {
+      return IntentResult::reject(IntentStatus::Conflict, "The picker chooses seat A only");
+    }
+    if (!TurnHubWebApi::physicalUseAllowed(profile)) {
+      return IntentResult::reject(IntentStatus::Unauthorized,
+          "Sign into this profile on a phone before using a Sigil");
+    }
   }
   return bindPhysicalProfile(intent, profile, joined, existing, existingSlot);
 }

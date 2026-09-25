@@ -87,6 +87,14 @@ bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &p) {
   ++gameDisplaySends;
   return fixtureRadio;
 }
+static TurnHubProtocol::ProfilePickerPacket sentPickers[MAX_PHYSICAL_SIGILS]{};
+static unsigned pickerSends = 0;
+bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &p) {
+  assert(TurnHubProtocol::validProfilePicker(p));
+  sentPickers[p.sigilId] = p;
+  ++pickerSends;
+  return fixtureRadio;
+}
 bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlue,v); }
 bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
 bool SigilBus::setGreen(uint8_t id,bool v) { return send(id,PacketType::SetGreen,v); }
@@ -1011,6 +1019,109 @@ static void ledStateTransport() {
   assert(fixtureLedStateSends == states + 3 && fields.style == TurnHubProtocol::LedStyle::ReducedMotion);
   for (auto &record : fixtureRecords) { record.helloInfoValid = false; record.capabilities = 0; }
   fixtureRadio = false;
+}
+
+namespace TurnHubAccounts { extern std::map<std::string, Account> accounts; }
+// Profile picker on e-ink menu Sigils: gating, pages by name, locked and
+// blocked profiles, stale keys, Guest, confirm/back, policy at the handler,
+// and closing when idle or when the game starts.
+static void profilePicker() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  using A = SigilAction;
+  const auto saved = ProfileFixture::profiles;
+  const auto savedAccounts = TurnHubAccounts::accounts;
+  ProfileFixture::profiles.clear();
+  ProfileFixture::bindings.clear();
+  const auto add = [](const char *id, const char *name) { ProfileFixture::profiles[id].name = name; };
+  add("0000000B", "bob"); add("0000000A", "Alice"); add("0000000C", "Carol");
+  add("0000000D", "Dan"); add("0000000E", "Eve");
+  ProfileFixture::profiles["0000000D"].policy.allowPhysicalWithoutPin = false;
+  TurnHubAccounts::accounts["0000000E"].archived = true;
+
+  freshLobby(1);  // Sigil 0 joined.
+  resetSigilMenus(); resetProfilePickers();
+  for (auto &record : fixtureRecords) {
+    record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
+    record.firmwareMajor = 0; record.firmwareMinor = 8;
+  }
+  fixtureRecords[2].capabilities |= CAPABILITY_DISPLAY_OLED;
+  fixtureRecords[3].firmwareMinor = 7;
+  assert(pickerSigil(1) && !pickerSigil(2) && !pickerSigil(3));
+  const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
+  const auto key = [](uint8_t id, PickerKeyCode k) {
+    handlePickerKey(id, encodePickerKey(k, profilePickerPage(id).revision), testNow);
+  };
+
+  // Join opens the picker; browsing changes nothing at the table.
+  pick(1, A::Join);
+  assert(pickerOpen(1) && !lobby.isJoined(1) && lobby.playerCount() == 1);
+  ProfilePickerPacket page = profilePickerPage(1);
+  assert(page.mode == PickerMode::List && page.page == 0 && page.pageCount == 2 && page.itemCount == 3);
+  assert(page.items[0].flags == PICKER_ITEM_GUEST && !strcmp(page.items[0].name, "Guest"));
+  assert(!strcmp(page.items[1].name, "Alice") && !strcmp(page.items[2].name, "bob"));
+  const unsigned sends = pickerSends;
+  syncProfilePickers(testNow);
+  assert(pickerSends > sends && sentPickers[1].mode == PickerMode::List);
+  const unsigned quiet = pickerSends; syncProfilePickers(testNow); assert(pickerSends == quiet);
+
+  // A key from an older page is dropped (and the page resent).
+  handlePickerKey(1, encodePickerKey(PickerKeyCode::Up, page.revision - 1), testNow);
+  assert(pickerOpen(1) && !lobby.isJoined(1) && profilePickerPage(1).revision == page.revision);
+  syncProfilePickers(testNow); assert(pickerSends == quiet + 1);
+
+  // Click: next page. Archived Eve is left out; Dan needs a phone sign-in.
+  key(1, PickerKeyCode::Select);
+  page = profilePickerPage(1);
+  assert(page.page == 1 && page.itemCount == 2 && !strcmp(page.items[0].name, "Carol"));
+  assert(!strcmp(page.items[1].name, "Dan") && (page.items[1].flags & PICKER_ITEM_LOCKED));
+  key(1, PickerKeyCode::Right);
+  page = profilePickerPage(1);
+  assert(page.mode == PickerMode::List && page.notice == PickerNotice::NeedsPhone && !lobby.isJoined(1));
+  // The handler enforces the same policy, whatever the page said.
+  Intent sneaky; sneaky.type = IntentType::PickProfile; sneaky.actor.origin = IntentOrigin::PhysicalSigil;
+  sneaky.actor.controllerId = 1; sneaky.actor.slot = 1; strcpy(sneaky.payload.profileId, "0000000D");
+  assert(intents.dispatch(sneaky).status == IntentStatus::Unauthorized && !lobby.isJoined(1));
+
+  // Left: back a page. Right: Alice, then confirm; Left backs out, click joins.
+  key(1, PickerKeyCode::Left); assert(profilePickerPage(1).page == 0);
+  key(1, PickerKeyCode::Right);
+  page = profilePickerPage(1);
+  assert(page.mode == PickerMode::Confirm && page.itemCount == 1 && !strcmp(page.items[0].name, "Alice"));
+  key(1, PickerKeyCode::Left); assert(profilePickerPage(1).mode == PickerMode::List && !lobby.isJoined(1));
+  key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
+  assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
+  assert(!pickerOpen(1) && profilePickerPage(1).mode == PickerMode::Closed);
+  syncProfilePickers(testNow); assert(sentPickers[1].mode == PickerMode::Closed);
+
+  // An OLED Sigil still joins as a guest at once; a picker Sigil can pick Guest.
+  pick(2, A::Join); assert(lobby.isJoined(2) && !pickerOpen(2));
+  pick(4, A::Join); key(4, PickerKeyCode::Up);
+  assert(lobby.isJoined(4) && TurnHubControllers::profileForSeat(4, 1).length() == 0 && !pickerOpen(4));
+
+  // Alice now plays on a Sigil, so she is no longer offered elsewhere.
+  pick(5, A::Join);
+  page = profilePickerPage(5);
+  assert(page.pageCount == 2 && !strcmp(page.items[1].name, "bob") && !strcmp(page.items[2].name, "Carol"));
+  // Left on the first page cancels.
+  key(5, PickerKeyCode::Left); assert(!pickerOpen(5) && !lobby.isJoined(5));
+
+  // Idle for a minute closes it.
+  pick(5, A::Join); assert(pickerOpen(5));
+  testNow += PICKER_IDLE_MS; syncProfilePickers(testNow); assert(!pickerOpen(5));
+  // Leaving the lobby closes it too.
+  pick(5, A::Join); assert(pickerOpen(5));
+  pick(0, A::StartGame); assert(hubState == HubState::Starting);
+  syncProfilePickers(testNow); assert(!pickerOpen(5));
+
+  for (auto &record : fixtureRecords) {
+    record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
+  }
+  resetSigilMenus(); resetProfilePickers();
+  enterEmptyLobby();
+  ProfileFixture::bindings.clear();
+  ProfileFixture::profiles = saved;
+  TurnHubAccounts::accounts = savedAccounts;
 }
 
 // Menu Sigils: availability per state, the default action, MenuState
@@ -2375,6 +2486,7 @@ int main() {
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";
   ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
+  profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
   sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";

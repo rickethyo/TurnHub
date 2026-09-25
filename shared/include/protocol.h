@@ -77,6 +77,8 @@ enum class PacketType : uint8_t {
   SelectAction = 13,
   // Harness -> Atlas: test run progress (encodeHarnessReport).
   HarnessReport = 14,
+  // Sigil -> Atlas: a key pressed in the profile picker (encodePickerKey).
+  PickerKey = 15,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,
@@ -88,6 +90,8 @@ enum class PacketType : uint8_t {
   // Atlas -> Sigil: erase all saved settings (NVS) and restart. Only honored
   // from the paired Atlas, for this Sigil's ID, with FACTORY_RESET_CONFIRM.
   FactoryReset = 28,
+  // Atlas -> Sigil: the profile picker page (ProfilePickerPacket, by length).
+  ProfilePicker = 33,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -158,6 +162,81 @@ inline bool validGameDisplay(const GameDisplayPacket &p) {
         p.sources[i].damage[0] > 1000000 || p.sources[i].damage[1] > 1000000) return false;
   }
   return true;
+}
+
+// Profile picker (e-ink Sigil 0.8.0+, sent only to Sigils that advertise
+// CAPABILITY_MENU without CAPABILITY_DISPLAY_OLED or CAPABILITY_HARNESS and
+// report at least PICKER_MIN_FIRMWARE). Atlas owns the list, the page and
+// every rule; the Sigil draws the page and reports compass keys. Keys map to
+// fixed places so an e-ink panel redraws once per page, not per cursor move:
+//   Up, Right, Down: the three names on the page     Left: back / cancel
+//   Select (click): more names (List) or yes (Confirm)
+constexpr uint8_t PICKER_MIN_FIRMWARE_MAJOR = 0;
+constexpr uint8_t PICKER_MIN_FIRMWARE_MINOR = 8;
+constexpr uint8_t PICKER_PAGE_ITEMS = 3;
+
+enum class PickerMode : uint8_t {
+  Closed = 0,   // Back to the action menu.
+  List = 1,     // Choose a name.
+  Confirm = 2,  // "Join as <name>?" (item 0 holds the name).
+};
+// Why the last choice did not go through, shown as text on the page.
+enum class PickerNotice : uint8_t {
+  None = 0,
+  NeedsPhone = 1,   // Physical use needs this profile signed in on a phone.
+  Unavailable = 2,  // Already playing on another Sigil, left, or blocked.
+  TableFull = 3,
+  Failed = 4,
+  Count
+};
+constexpr uint8_t PICKER_ITEM_GUEST = 0x01;   // The guest entry, not a profile.
+constexpr uint8_t PICKER_ITEM_LOCKED = 0x02;  // Needs phone sign-in first.
+constexpr uint8_t PICKER_ITEM_PLAYING = 0x04; // At the table already (attach).
+
+struct __attribute__((packed)) PickerItem {
+  uint8_t flags;
+  char name[DISPLAY_NAME_MAX_LENGTH + 1];
+};
+struct __attribute__((packed)) ProfilePickerPacket {
+  uint8_t version;
+  PacketType type;
+  uint8_t sigilId;
+  uint8_t revision;   // A PickerKey names the page it was pressed on.
+  PickerMode mode;
+  PickerNotice notice;
+  uint8_t page;       // 0-based.
+  uint8_t pageCount;
+  uint8_t itemCount;  // 0..PICKER_PAGE_ITEMS
+  PickerItem items[PICKER_PAGE_ITEMS];
+};
+static_assert(sizeof(ProfilePickerPacket) == 51, "Profile picker wire layout changed");
+inline bool validProfilePicker(const ProfilePickerPacket &p) {
+  if (p.version != VERSION || p.type != PacketType::ProfilePicker || p.sigilId >= MAX_SIGILS ||
+      static_cast<uint8_t>(p.mode) > static_cast<uint8_t>(PickerMode::Confirm) ||
+      static_cast<uint8_t>(p.notice) >= static_cast<uint8_t>(PickerNotice::Count) ||
+      p.itemCount > PICKER_PAGE_ITEMS || p.pageCount == 0 || p.page >= p.pageCount ||
+      (p.mode == PickerMode::Confirm && p.itemCount != 1)) return false;
+  for (uint8_t i = 0; i < PICKER_PAGE_ITEMS; ++i) {
+    if (p.items[i].name[DISPLAY_NAME_MAX_LENGTH]) return false;
+  }
+  return true;
+}
+inline bool pickerFirmware(uint8_t major, uint8_t minor) {
+  return major > PICKER_MIN_FIRMWARE_MAJOR ||
+      (major == PICKER_MIN_FIRMWARE_MAJOR && minor >= PICKER_MIN_FIRMWARE_MINOR);
+}
+// PickerKey payload: bits 0-2 key (0 Up, 1 Down, 2 Left, 3 Right, 4 Select),
+// bits 3-10 the page revision it was pressed on.
+enum class PickerKeyCode : uint8_t { Up = 0, Down = 1, Left = 2, Right = 3, Select = 4, Count };
+inline int32_t encodePickerKey(PickerKeyCode key, uint8_t revision) {
+  return static_cast<int32_t>((static_cast<uint32_t>(key) & 0x07u) |
+      (static_cast<uint32_t>(revision) << 3));
+}
+inline uint8_t pickerKeyCode(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x07u);
+}
+inline uint8_t pickerKeyRevision(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 3) & 0xFFu);
 }
 
 inline Packet makePacket(PacketType type, uint8_t sigilId, int32_t value = 0) {

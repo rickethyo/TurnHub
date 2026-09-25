@@ -421,6 +421,16 @@ in-game Table screen; its Pass button is replaced by a 2 s Master pass hold
 speaker level is about 10% quieter. Atlas build: RAM 101,124 B (30.9%), flash
 1,346,697 B (68.5%).
 
+### 2026-09-25 - E-ink profile picker and Atlas screen flicker fix
+
+Sigil `0.8.0-dev` (was `0.7.0-dev`); Atlas stays `0.6.0-dev`. Radio protocol
+version stays 1, with two new packets: `PickerKey = 15` and the 51-byte
+`ProfilePicker = 33`. Atlas gains `profile_picker.cpp` and the `PickProfile`
+Intent; the TFT draws the turn clock, countdown bar and hold bars over old
+pixels instead of clearing them. Atlas build: RAM 104,468 B (31.9%), flash
+1,350,885 B (68.7%). E-ink Sigil build: RAM 49,032 B (15.0%), flash 806,165 B
+(61.5%).
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

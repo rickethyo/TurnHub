@@ -80,6 +80,10 @@ enum class IntentType : uint8_t {
   // Atlas touchscreen hold (Table screen): pass the active player's turn at once,
   // for a stuck turn. Logged as a master pass (ATLAS|GAME|MASTER_PASS).
   MasterPass,
+  // A player chose a profile in a Sigil's profile picker (payload.profileId;
+  // actor = that Sigil, slot 1). Checks the profile's physical-use policy,
+  // then joins or attaches it like BindProfile.
+  PickProfile,
 
   Count,
 };
@@ -233,6 +237,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::ResetTable: return "RESET_TABLE";
     case IntentType::FactoryReset: return "FACTORY_RESET";
     case IntentType::MasterPass: return "MASTER_PASS";
+    case IntentType::PickProfile: return "PICK_PROFILE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

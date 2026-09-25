@@ -21,6 +21,10 @@ class SigilDisplay {
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) = 0;
 
+  // The profile picker page (e-ink Sigils; see ProfilePickerPacket). It
+  // replaces every other screen while Atlas keeps it open.
+  virtual void showPicker(const TurnHubProtocol::ProfilePickerPacket &page) { (void)page; }
+
   // The action menu drawn with the next screen: an e-ink compass legend, or
   // the OLED's list while it is open. Set by the display task before show*().
   void setMenuView(const MenuView &view) { menu_ = view; }

@@ -23,6 +23,7 @@
 #include "atlas_app.h"
 #include "controller_profiles.h"
 #include "harness_link.h"
+#include "profile_picker.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
 #include "sigil_menu.h"
@@ -92,6 +93,7 @@ const char *activityKind(PacketType type) {
     case PacketType::ActionLong: return "sigil_long";
     case PacketType::ActionWin: return "sigil_win";
     case PacketType::SelectAction: return "sigil_menu";
+    case PacketType::PickerKey: return "sigil_picker";
     default: return "sigil_event";
   }
 }
@@ -341,6 +343,11 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
   serialLog.println(raw);
   switch (action) {
     case SigilAction::Join:
+      // A picker Sigil chooses who joins first (profile_picker.cpp).
+      if (pickerSigil(sigilId)) {
+        openProfilePicker(sigilId, millis());
+        break;
+      }
       logRejected("MENU|JOIN", sigilId, dispatchModuleIntent(IntentType::Join, sigilId, 1));
       break;
     case SigilAction::CycleStarter:
@@ -428,6 +435,7 @@ void processSigilEvents() {
     if (event.type == PacketType::Hello) {
       leds.invalidate(event.sigilId);
       invalidateSigilMenu(event.sigilId);
+      invalidateProfilePicker(event.sigilId);
       continue;
     }
     // Test-harness progress is shown on the touchscreen; it is not gameplay.
@@ -445,6 +453,7 @@ void processSigilEvents() {
       case PacketType::ActionLong: handleActionLong(event.sigilId); break;
       case PacketType::ActionWin: handleActionWin(event.sigilId); break;
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;
+      case PacketType::PickerKey: handlePickerKey(event.sigilId, event.value, millis()); break;
       default: break;
     }
   }

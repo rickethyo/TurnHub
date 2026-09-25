@@ -25,6 +25,7 @@ class EpaperDisplay final : public SigilDisplay {
       uint8_t secondaryPlayer,
       uint8_t turnNumber,
       uint8_t flags) override;
+  void showPicker(const TurnHubProtocol::ProfilePickerPacket &page) override;
 
  private:
   void drawHeader(const char *title, uint8_t sigilId = 0xFF,
@@ -41,6 +42,7 @@ class EpaperDisplay final : public SigilDisplay {
   uint8_t legendLines() const;
   int16_t contentBottom() const;
   void drawLegend();
+  void drawKeycap(Key key, int16_t x, int16_t y);
 
   // Native portrait is 122 visible pixels by 250 (128 RAM columns).
   // Use 2 instead of 0 if the physical panel is mounted upside down.

@@ -363,6 +363,9 @@ actions each Sigil may use now (`MenuState`), the Sigil sends the one chosen
   is the likely action (Pass on your turn, Join, Start, Confirm win, Rematch);
   Up pauses or resumes; Down holds for Claim win or Reset table; Left is no,
   back or cancel; Right is yes or next. Link phone takes the first free key.
+  Since firmware 0.8.0 (with a matching Atlas), Join opens the profile picker:
+  Up, Right and Down pick a name, click shows more names or confirms, Left
+  goes back (see [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25)).
 - **OLED (d-pad): list.** Any key opens the list at the likely action; Up and
   Down move, Select or Right choose, Left closes, and ten idle seconds close it.
 - **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:

@@ -1,8 +1,45 @@
 # Physical profile selection and controller assignment
 
 Status: **Partially implemented locally**: Atlas profile-policy settings,
-authorization checks, and Atlas-owned primary-seat persistence. The physical
-picker and selectable startup remain planned.
+authorization checks, Atlas-owned primary-seat persistence and, since
+2026-09-25, a seat-A picker on the e-ink Sigil (host-tested, *Needs
+verification* on hardware). Selectable startup, seat B, the OLED picker and
+duplicate-name labels remain planned. Parts of the proposal below (two-button
+input, remembered last profile) predate the five-key menu Sigils; the picker
+section describes what was built.
+
+## E-ink Sigil picker (2026-09-25)
+
+On an e-ink menu Sigil (firmware 0.8.0+), **Join game** opens a picker instead
+of joining as a guest. The page lists **Guest** first, then saved profiles by
+name, three to a page. Each name has a fixed compass key, so the panel redraws
+once per page rather than once per cursor move:
+
+- **Up / Right / Down:** choose that name. Guest joins at once. A profile shows
+  "Join as <name>?"; **click** joins, **Left** goes back.
+- **Click:** more names (the next page, wrapping). **Left:** previous page, or
+  cancel on the first.
+- Each name carries a word when it matters: "no profile" (Guest), "phone
+  sign-in" (its owner turned off *Allow physical use without a PIN* and has no
+  signed-in phone), "at table: attach" (playing from a phone; choosing it
+  attaches this Sigil to that same participant).
+- Archived or moderated profiles, and profiles already on another Sigil, are
+  not listed. A refused choice returns to the list with a reason in words.
+- The picker closes after a minute without a key, when the game starts, or
+  when the Sigil is joined another way.
+
+Feature gate: state owner Atlas (`profile_picker.cpp` holds only browsing state
+in RAM; the lobby stays authoritative); Intent: the existing `Join` for Guest
+and a new `PickProfile` (seat A), handled with `BindProfile` after checking
+`physicalUseAllowed()`, so the policy is enforced by the handler whatever the
+page showed; validator: `handleProfileParticipationIntent`; persistence: none
+new (seat bindings stay temporary); rendering: the e-ink Sigil; contract:
+`ProfilePicker`/`PickerKey` in `shared/include/protocol.h` (see
+[Protocol and pairing](PROTOCOL_AND_PAIRING.md)); no new dependency;
+accessibility: every state is written out, keys are shown as keycaps with
+their meaning, and the portal's phone attach remains an equivalent path.
+Anyone at the table can see the list of profile names, as in the portal's
+sign-in list; PIN-protected physical use still needs the owner's phone.
 
 ## Observed gap
 

@@ -21,6 +21,8 @@ ADAPTERS = {
                          "changeLife", "changeCounter", "moderateAccount", "manageDevices",
                          "dispatchBrowserSeatIntent"],
     "touch_controls.cpp": ["updateTouchControls", "dispatchTouchAction"],
+    "profile_picker.cpp": ["openProfilePicker", "handlePickerKey", "syncProfilePickers",
+                           "chooseItem", "confirmChoice", "finish"],
     "gameplay_intents.cpp": ["updatePendingPass"],
     "table_intents.cpp": ["updateCountdown"],
 }

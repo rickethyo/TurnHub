@@ -49,15 +49,7 @@ void EpaperDisplay::drawLegend() {
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
     const auto a = static_cast<TurnHubProtocol::SigilAction>(action);
-    if (key == Key::Select) {
-      display_.fillCircle(MARGIN + CAP / 2, y + CAP / 2, CAP / 2, GxEPD_BLACK);
-    } else {
-      display_.fillRoundRect(MARGIN, y, CAP, CAP, 2, GxEPD_BLACK);
-      display_.setTextColor(GxEPD_WHITE);
-      display_.setCursor(MARGIN + 2, y + 1);
-      display_.print(legendGlyph(key));
-      display_.setTextColor(GxEPD_BLACK);
-    }
+    drawKeycap(key, MARGIN, y);
     char line[24];
     snprintf(line, sizeof(line), "%s%s", sigilActionLabel(a),
         TurnHubProtocol::sigilActionHold(a) != TurnHubProtocol::ActionHold::None ? " (hold)" : "");
@@ -65,6 +57,87 @@ void EpaperDisplay::drawLegend() {
     printClipped(line, (display_.width() - 2 * MARGIN - CAP - 4) / CHAR_WIDTH);
     y += LEGEND_LINE;
   }
+}
+
+void EpaperDisplay::drawKeycap(Key key, int16_t x, int16_t y) {
+  constexpr int16_t CAP = LEGEND_LINE - 1;
+  if (key == Key::Select) {
+    display_.fillCircle(x + CAP / 2, y + CAP / 2, CAP / 2, GxEPD_BLACK);
+    return;
+  }
+  display_.fillRoundRect(x, y, CAP, CAP, 2, GxEPD_BLACK);
+  display_.setTextColor(GxEPD_WHITE);
+  display_.setCursor(x + 2, y + 1);
+  display_.print(legendGlyph(key));
+  display_.setTextColor(GxEPD_BLACK);
+}
+
+// Profile picker: a fixed key per name (Up, Right, Down), so one full
+// refresh per page. Each name says in words what choosing it means.
+void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page) {
+  using TurnHubProtocol::PickerMode;
+  using TurnHubProtocol::PickerNotice;
+  constexpr Key ROW_KEYS[] = {Key::Up, Key::Right, Key::Down};
+  constexpr int16_t ROW_TOP = HEADER_BAR + 6;
+  constexpr int16_t ROW_HEIGHT = 34;
+  const bool confirm = page.mode == PickerMode::Confirm;
+  const char *notice = nullptr;
+  switch (page.notice) {
+    case PickerNotice::NeedsPhone: notice = "Sign in on phone"; break;
+    case PickerNotice::Unavailable: notice = "Not available"; break;
+    case PickerNotice::TableFull: notice = "Table is full"; break;
+    case PickerNotice::Failed: notice = "Try again"; break;
+    default: break;
+  }
+  gameFrameValid_ = false;
+  partialRefreshCount_ = 0;
+  display_.setFullWindow();
+  display_.firstPage();
+  do {
+    display_.fillScreen(GxEPD_WHITE);
+    display_.fillRect(0, 0, display_.width(), HEADER_BAR, GxEPD_BLACK);
+    display_.setTextColor(GxEPD_WHITE);
+    drawCentered(confirm ? "Join as" : "Who plays?", 4, 2);
+    if (!confirm && page.pageCount > 1) {
+      char pages[16];
+      snprintf(pages, sizeof(pages), "Page %u of %u", static_cast<unsigned>(page.page + 1),
+          static_cast<unsigned>(page.pageCount));
+      drawCentered(pages, 24);
+    }
+    display_.setTextColor(GxEPD_BLACK);
+    int16_t legendY = display_.height() - 3 - 2 * LEGEND_LINE;
+    if (confirm) {
+      drawTwoLines(page.items[0].name, 70, display_.width() - 2 * MARGIN);
+      drawBanner("Join?", 130, true, Icon::None, 2);
+    } else {
+      for (uint8_t i = 0; i < page.itemCount && i < TurnHubProtocol::PICKER_PAGE_ITEMS; ++i) {
+        const int16_t y = ROW_TOP + i * ROW_HEIGHT;
+        const uint8_t flags = page.items[i].flags;
+        drawKeycap(ROW_KEYS[i], MARGIN, y);
+        const char *tag = (flags & TurnHubProtocol::PICKER_ITEM_GUEST) ? "no profile" :
+            (flags & TurnHubProtocol::PICKER_ITEM_LOCKED) ? "phone sign-in" :
+            (flags & TurnHubProtocol::PICKER_ITEM_PLAYING) ? "at table: attach" : "";
+        display_.setTextSize(1);
+        display_.setCursor(MARGIN + LEGEND_LINE + 3, y + 1);
+        printClipped(tag, (display_.width() - 2 * MARGIN - LEGEND_LINE - 3) / CHAR_WIDTH);
+        drawCentered(page.items[i].name, y + 13, 2);
+      }
+      if (notice) drawBanner(notice, ROW_TOP + 3 * ROW_HEIGHT + 2, true, Icon::None);
+    }
+    display_.drawFastHLine(MARGIN, legendY, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+    legendY += 3;
+    display_.setTextSize(1);
+    const bool more = !confirm && page.pageCount > 1;
+    if (confirm || more) {
+      drawKeycap(Key::Select, MARGIN, legendY);
+      display_.setCursor(MARGIN + LEGEND_LINE + 3, legendY + 1);
+      display_.print(confirm ? "Yes, join" : "More names");
+      legendY += LEGEND_LINE;
+    }
+    drawKeycap(Key::Left, MARGIN, legendY);
+    display_.setCursor(MARGIN + LEGEND_LINE + 3, legendY + 1);
+    display_.print(confirm || page.page > 0 ? "Back" : "Cancel");
+  } while (display_.nextPage());
 }
 
 EpaperDisplay::EpaperDisplay()

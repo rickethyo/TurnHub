@@ -352,6 +352,7 @@ void SigilBus::handleReceive(
     case PacketType::ActionLong:
     case PacketType::ActionWin:
     case PacketType::SelectAction:
+    case PacketType::PickerKey:
     case PacketType::HarnessReport:
     case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
@@ -507,6 +508,17 @@ bool SigilBus::sendToMac(
 }
 
 bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet) {
+  const SigilRecord *sigil = record(packet.sigilId);
+  if (!sigil || !txQueue_ || !ensurePeer(sigil->mac)) return false;
+  TxRequest request;
+  memcpy(request.mac, sigil->mac, 6);
+  memcpy(request.data, &packet, sizeof(packet));
+  request.length = sizeof(packet);
+  return xQueueSend(txQueue_, &request, 0) == pdTRUE;
+}
+
+bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &packet) {
+  static_assert(sizeof(packet) <= sizeof(TxRequest::data), "Picker page must fit a TxRequest");
   const SigilRecord *sigil = record(packet.sigilId);
   if (!sigil || !txQueue_ || !ensurePeer(sigil->mac)) return false;
   TxRequest request;

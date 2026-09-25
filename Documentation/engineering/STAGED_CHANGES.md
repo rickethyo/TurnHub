@@ -534,6 +534,16 @@ Privacy direction:
   the Table screen's 2 s Master pass hold passing a stuck turn at once with an
   `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
   speaker levels, lowered about 10% the same day, at each volume setting.
+- Atlas screen flicker fix (2026-09-25, *Needs verification*): the turn clock,
+  countdown bar and a held button's fill bar are drawn over the old pixels
+  instead of cleared first, and a hold repaints only its own button. Check a
+  running timer and each hold button (End match, Master pass) for blinking.
+- E-ink Sigil profile picker (2026-09-25, host-tested, *Needs verification*;
+  Atlas and Sigil 0.8.0 both need flashing): Join opens the picker; Guest,
+  paging, confirm/back, a "phone sign-in" profile refused with its reason and
+  accepted once its owner signs in on a phone, attaching to a phone-joined
+  profile, idle close after a minute, and an OLED or older Sigil still joining
+  as a guest. See [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25).
 - Forgetting pairings: 10 s Sigil Pair hold; admin Forget one/all with `Unpair`
   reaching an in-range Sigil; the 30/60 s Atlas pairing window.
 

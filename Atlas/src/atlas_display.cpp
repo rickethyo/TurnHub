@@ -239,22 +239,34 @@ void drawHero(const AtlasScreen &screen) {
   tft.drawString(line, x + PAD, SCREEN_HERO_Y + 32);
 }
 
-void drawTimer(const AtlasScreen &screen) {
-  tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, BACKGROUND);
-  if (!hasClock(screen)) return;
+// Draws over what is already there instead of clearing first: the panel
+// shows every write at once, so a clear-then-draw blinks on each tick. The
+// clock box is repainted only when it appears or changes color; the digits
+// pad to the box's width so a shorter time leaves no stale pixels.
+void drawTimer(const AtlasScreen &screen, bool repaintBox) {
+  if (!hasClock(screen)) {
+    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, BACKGROUND);
+    return;
+  }
   const int16_t x = ATLAS_SCREEN_WIDTH - CLOCK_W;
-  tft.fillRect(x, SCREEN_HERO_Y, CLOCK_W, HERO_H, BACKGROUND);
-  tft.fillRoundRect(x, SCREEN_HERO_Y + 2, CLOCK_W - PAD, HERO_H - 6, 8,
-      screen.timerWarning ? DANGER : PANEL);
+  const uint32_t box = screen.timerWarning ? DANGER : PANEL;
+  if (repaintBox) {
+    tft.fillRect(x, SCREEN_HERO_Y, CLOCK_W, HERO_H, BACKGROUND);
+    tft.fillRoundRect(x, SCREEN_HERO_Y + 2, CLOCK_W - PAD, HERO_H - 6, 8, box);
+  }
   tft.setTextDatum(lgfx::middle_center);
-  tft.setTextColor(WORDMARK, screen.timerWarning ? DANGER : PANEL);
+  tft.setTextColor(WORDMARK, box);
   tft.setFont(&fonts::DejaVu24);
+  tft.setTextPadding(CLOCK_W - PAD - 12);
   tft.drawString(screen.clock, x + (CLOCK_W - PAD) / 2, SCREEN_HERO_Y + 2 + (HERO_H - 6) / 2);
+  tft.setTextPadding(0);
   if (screen.timerPermille >= 0) {
     // Countdown bar under the hero; the clock says the same in numbers.
-    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, RING);
-    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH * screen.timerPermille / 1000, BAR_H,
-        screen.timerWarning ? DANGER : ACCENT);
+    const int16_t filled = ATLAS_SCREEN_WIDTH * screen.timerPermille / 1000;
+    tft.fillRect(0, BAR_Y, filled, BAR_H, screen.timerWarning ? DANGER : ACCENT);
+    tft.fillRect(filled, BAR_Y, ATLAS_SCREEN_WIDTH - filled, BAR_H, RING);
+  } else {
+    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, BACKGROUND);
   }
 }
 
@@ -382,6 +394,13 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
   drawLines(screen, PAD + 4, SCREEN_BODY_Y + 6);
 }
 
+// The hold fill bar inside a pressed hold button, drawn over the old one.
+void drawHoldBar(const AtlasScreen &screen, const TouchButton &button) {
+  const int16_t barW = (button.w - 16) * screen.holdPermille / 1000;
+  tft.fillRect(button.x + 8, button.y + button.h - 10, barW, 4, BACKGROUND);
+  tft.fillRect(button.x + 8 + barW, button.y + button.h - 10, button.w - 16 - barW, 4, ACCENT);
+}
+
 // A pressed button inverts (light fill, dark label) and gains a heavier
 // border, so the press does not rely on hue alone. A hold button says so,
 // then counts down with a fill bar while held; the chosen QR code is framed.
@@ -414,9 +433,7 @@ void drawButton(const AtlasScreen &screen, const TouchButton &button) {
     tft.drawString("hold", button.x + button.w / 2, button.y + button.h / 2 + 14);
   }
   if (pressed && button.hold()) {
-    const int16_t barW = (button.w - 16) * screen.holdPermille / 1000;
-    tft.fillRect(button.x + 8, button.y + button.h - 10, button.w - 16, 4, fill);
-    tft.fillRect(button.x + 8, button.y + button.h - 10, barW, 4, BACKGROUND);
+    drawHoldBar(screen, button);
   }
   if (button.selected && !pressed) {
     tft.setFont(&fonts::DejaVu9);
@@ -425,11 +442,40 @@ void drawButton(const AtlasScreen &screen, const TouchButton &button) {
   }
 }
 
+bool sameButtonLayout(const AtlasScreen &a, const AtlasScreen &b) {
+  if (a.buttonCount != b.buttonCount) return false;
+  for (uint8_t i = 0; i < a.buttonCount; ++i) {
+    const TouchButton &x = a.buttons[i];
+    const TouchButton &y = b.buttons[i];
+    if (x.action != y.action || x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
+        x.selected != y.selected || strcmp(x.label, y.label) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void drawButtons(const AtlasScreen &screen) {
   const int16_t top = screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table
       ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
   tft.fillRect(0, top, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT - top, BACKGROUND);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) drawButton(screen, screen.buttons[i]);
+}
+
+// Same buttons, only the press or a hold's progress changed: repaint just the
+// buttons whose press changed, and for a continuing hold only its bar (and
+// its label once a second), so holding a button does not blink the row.
+void updateButtons(const AtlasScreen &screen, const AtlasScreen &old) {
+  for (uint8_t i = 0; i < screen.buttonCount; ++i) {
+    const TouchButton &button = screen.buttons[i];
+    const bool pressedNow = screen.pressed == button.action;
+    const bool pressedBefore = old.pressed == button.action;
+    if (pressedNow != pressedBefore || (pressedNow && screen.holdSecondsLeft != old.holdSecondsLeft)) {
+      drawButton(screen, button);
+    } else if (pressedNow && button.hold() && screen.holdPermille != old.holdPermille) {
+      drawHoldBar(screen, button);
+    }
+  }
 }
 
 AtlasScreen shown;
@@ -441,9 +487,15 @@ void renderScreen(const AtlasScreen &screen) {
   if (full || !sameHeader(screen, shown)) drawHeader(screen);
   const bool heroChanged = full || !sameHero(screen, shown) || hasClock(screen) != hasClock(shown);
   if (heroChanged) drawHero(screen);
-  if (heroChanged || !sameTimer(screen, shown)) drawTimer(screen);
+  const bool repaintBox = full || hasClock(screen) != hasClock(shown) ||
+      screen.timerWarning != shown.timerWarning;
+  if (heroChanged || !sameTimer(screen, shown)) drawTimer(screen, repaintBox);
   if (full || !sameBody(screen, shown)) drawBody(screen, full ? nullptr : &shown);
-  if (full || !sameButtons(screen, shown)) drawButtons(screen);
+  if (full || !sameButtonLayout(screen, shown)) {
+    drawButtons(screen);
+  } else if (!sameButtons(screen, shown)) {
+    updateButtons(screen, shown);
+  }
   shown = screen;
   statusDrawn = true;
 }

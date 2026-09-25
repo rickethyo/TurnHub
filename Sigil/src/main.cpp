@@ -178,6 +178,15 @@ TurnHubSigil::MenuView publishedMenuView;
 TurnHubSigil::MenuView pendingMenuView;
 bool menuViewChanged = false;
 #endif
+// The e-ink menu Sigil also draws Atlas's profile picker (ProfilePickerPacket).
+#define TURNHUB_PICKER (TURNHUB_MENU && !TURNHUB_DISPLAY_OLED)
+#if TURNHUB_PICKER
+// Latest page from Atlas (guarded by displayProfileMux). While open, the keys
+// go to the picker (PickerKey) instead of the menu.
+TurnHubProtocol::ProfilePickerPacket pendingPicker{};
+volatile bool pickerActive = false;
+bool pickerChanged = false;
+#endif
 SigilDisplay &sigilDisplay = TurnHubSigil::getSigilDisplay();
 
 bool espNowReady = false;
@@ -565,6 +574,28 @@ void updateDisplay() {
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
   bool menuChanged = false;
+#if TURNHUB_PICKER
+  // The picker replaces every other screen while Atlas keeps it open.
+  static bool pickerShown = false;
+  TurnHubProtocol::ProfilePickerPacket picker{};
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool showPicker = pickerActive && sigilId != UNASSIGNED_SIGIL_ID;
+  const bool newPage = pickerChanged;
+  picker = pendingPicker;
+  pickerChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (showPicker) {
+    displayNeedsRefresh = false;
+    if (newPage || !pickerShown) sigilDisplay.showPicker(picker);
+    pickerShown = true;
+    return;
+  }
+  if (pickerShown) {
+    // Closed: redraw whatever Atlas says is current.
+    pickerShown = false;
+    displayNeedsRefresh = true;
+  }
+#endif
 #if TURNHUB_MENU
   TurnHubSigil::MenuView menuView;
   portENTER_CRITICAL(&displayProfileMux);
@@ -725,6 +756,12 @@ void forgetPairing(const char *reason) {
 #if TURNHUB_MENU
   sigilMenu.clear();
 #endif
+#if TURNHUB_PICKER
+  portENTER_CRITICAL(&displayProfileMux);
+  pickerActive = false;
+  pickerChanged = true;
+  portEXIT_CRITICAL(&displayProfileMux);
+#endif
   ledModel.setPairing(false, millis());
   stopBuzzer();
   portENTER_CRITICAL(&displayProfileMux);
@@ -740,6 +777,24 @@ void handleEspNowReceive(
     const uint8_t *mac,
     const uint8_t *incomingData,
     int length) {
+#if TURNHUB_PICKER
+  if (length == sizeof(TurnHubProtocol::ProfilePickerPacket)) {
+    TurnHubProtocol::ProfilePickerPacket page{};
+    memcpy(&page, incomingData, sizeof(page));
+    if (!atlasKnown || memcmp(mac, atlasMac, 6) || page.sigilId != sigilId ||
+        !TurnHubProtocol::validProfilePicker(page)) return;
+    const bool open = page.mode != TurnHubProtocol::PickerMode::Closed;
+    portENTER_CRITICAL(&displayProfileMux);
+    const bool changed = open != pickerActive ||
+        (open && memcmp(&page, &pendingPicker, sizeof(page)) != 0);
+    pendingPicker = page;
+    pickerActive = open;
+    pickerChanged = pickerChanged || changed;
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
+#endif
   if (length == sizeof(TurnHubProtocol::GameDisplayPacket)) {
     TurnHubProtocol::GameDisplayPacket snapshot{};
     memcpy(&snapshot, incomingData, sizeof(snapshot));
@@ -932,6 +987,25 @@ void updateMenuKeys() {
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
     const auto key = static_cast<TurnHubSigil::Key>(k);
+#if TURNHUB_PICKER
+    if (pickerActive) {
+      // Keys choose on the picker's page, never a menu action.
+      if (keys[k].stableState == LOW) {
+        portENTER_CRITICAL(&displayProfileMux);
+        const uint8_t revision = pendingPicker.revision;
+        portEXIT_CRITICAL(&displayProfileMux);
+        Serial.print("SIGIL|");
+        Serial.print(sigilId);
+        Serial.print("|PICKER|KEY|");
+        Serial.println(k);
+        sendPacket(PacketType::PickerKey, TurnHubProtocol::encodePickerKey(
+            static_cast<TurnHubProtocol::PickerKeyCode>(k), revision));
+      } else {
+        sigilMenu.keyUp(key, nowMs);
+      }
+      continue;
+    }
+#endif
     if (keys[k].stableState == LOW) {
       sigilMenu.keyDown(key, nowMs);
     } else {

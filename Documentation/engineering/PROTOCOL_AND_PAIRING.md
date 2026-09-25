@@ -114,6 +114,25 @@ Sigil lacks. Sigils ignore both packet types. Protocol version stays 1.
 *Verified* on the owner's hardware (2026-09-25): Atlas receives the reports.
 *Needs verification:* starting a test from the touchscreen.
 
+### Profile picker: ProfilePicker and PickerKey (2026-09-25)
+
+An e-ink menu Sigil running firmware 0.8.0 or later lets a player choose who
+joins (see [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25)).
+Atlas sends it only to Sigils advertising `CAPABILITY_MENU` without
+`CAPABILITY_DISPLAY_OLED` or `CAPABILITY_HARNESS` whose Hello reports at least
+`PICKER_MIN_FIRMWARE` (the capability byte is full, so the firmware version
+gates it). `ProfilePicker = 33` is a 51-byte `ProfilePickerPacket`, told apart
+by its length like `GameDisplay`: revision, mode (Closed, List, Confirm), a
+notice (needs phone sign-in, unavailable, table full, failed), page and page
+count, and up to three items (flags: guest, locked, already at the table;
+12-character name). The Sigil answers with `PickerKey = 15`: the key and the
+revision of the page it was pressed on; Atlas drops a key from an older page
+and resends. Atlas resends the state (Closed when no picker is open) with
+every Hello, so a Sigil never stays on a page Atlas forgot. Older Sigils and
+the OLED Sigil keep joining as a guest; a new Sigil with an older Atlas never
+receives a page. Protocol version stays 1; both device types need reflashing
+to use it. *Needs verification* on hardware.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

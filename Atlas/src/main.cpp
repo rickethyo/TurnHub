@@ -9,6 +9,7 @@
 
 #include "atlas_app.h"
 #include "sigil_menu.h"
+#include "profile_picker.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "config.h"
@@ -185,6 +186,7 @@ bool configureIntentHandlers() {
       {IntentType::JoinProfile, handleProfileParticipationIntent},
       {IntentType::LeaveProfile, handleProfileParticipationIntent},
       {IntentType::BindProfile, handleProfileParticipationIntent},
+      {IntentType::PickProfile, handleProfileParticipationIntent},
       {IntentType::ArmStart, handleStartIntent},
       {IntentType::StartGame, handleStartIntent},
       {IntentType::CancelStart, handleCancelStartIntent},
@@ -409,6 +411,7 @@ void loop() {
   leds.render(hubState, lobby, game, countdownStartedAtMs, eliminationTargetPlayer,
       game.nextWinConfirmationPlayerNumber(), nowMs);
   syncSigilMenus(nowMs);
+  syncProfilePickers(nowMs);
   ota.update(nowMs);
 
   delay(1);

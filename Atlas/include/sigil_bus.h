@@ -61,6 +61,7 @@ class SigilBus {
   void syncDisplayProfile(uint8_t sigilId);
 
   bool sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet);
+  bool sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &packet);
 
   bool setBlue(uint8_t sigilId, uint8_t brightness);
   bool setRed(uint8_t sigilId, bool on);
