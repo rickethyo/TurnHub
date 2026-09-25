@@ -360,6 +360,40 @@ Hello capability bit `CAPABILITY_MENU` (0x40).
 
 All three were flashed (Atlas COM12, E-ink COM13, OLED COM3).
 
+### 2026-09-25 - Touch fix, test harness, screen overhaul, statistics split (`android/testing`)
+
+Firmware versions unchanged (Atlas `0.6.0-dev`, Sigil `0.7.0-dev`; harness
+`0.1.0`). Radio protocol version 1, extended additively: `CAPABILITY_HARNESS`
+(0x80), `HarnessReport = 14`, `HarnessCommand = 27`.
+
+- Atlas touch read samples XPT2046 DOUT while the clock is high (it raced the
+  chip's bit change); calibration key `atlas-touch/cal2`. *Verified* by the
+  owner on hardware.
+- `TestHarness/`: two virtual menu Sigils (station and soft-AP MACs) play whole
+  games against a real Atlas; premade tests start from the Atlas touchscreen.
+- Atlas screen overhaul: header with a NO SD CARD warning, names, life, turn
+  clock, player chips, Info and QR code screens.
+- Sigils share `sigil_icons.h`; the e-ink screens get the OLED's look.
+- Statistics split: core counts in NVS (`c<profileId>`), detail on the microSD
+  card, with a checked migration.
+
+| Build | After |
+| --- | ---: |
+| Atlas RAM | 100,924 B (30.8%) |
+| Atlas flash | 1,329,957 B (67.6%) |
+| Sigil E-ink (`sigil`) RAM | 48,976 B (14.9%) |
+| Sigil E-ink (`sigil`) flash | 803,053 B (61.3%) |
+| Sigil OLED (`sigil-oled`) RAM | 45,056 B (13.8%) |
+| Sigil OLED (`sigil-oled`) flash | 811,353 B (61.9%) |
+| Test harness RAM | 43,736 B (13.3%) |
+| Test harness flash | 751,501 B (57.3%) |
+
+Measured NVS use on the owner's Atlas: 130 of 630 entries (one profile). The
+largest flash items are web assets (portal HTML 103 KB uncompressed, theme CSS
+19 KB, stats page 10 KB); see the microSD item in STAGED_CHANGES.
+
+All four boards were flashed at the end of the session.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
