@@ -253,7 +253,15 @@ void restoreRedLed() {
 }
 
 #if TURNHUB_INPUT_JOYSTICK
-TurnHubSigil::StickTracker stick;
+// Both axes read reversed as the stick is mounted on the E-ink Sigil
+// (owner-verified 2026-09-25), so push right/down read as left/up raw.
+TurnHubSigil::StickConfig stickConfig() {
+  TurnHubSigil::StickConfig config;
+  config.invertX = true;
+  config.invertY = true;
+  return config;
+}
+TurnHubSigil::StickTracker stick(stickConfig());
 uint32_t lastStickSampleMs = 0;
 
 // Rest the stick at boot: a missing or held stick disables the directions
