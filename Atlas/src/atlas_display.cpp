@@ -156,59 +156,269 @@ void drawSplash() {
   tft.drawString((String("v") + TurnHubFirmware::VERSION).c_str(), w - 4, h - 3);
 }
 
-// --- Status screen -----------------------------------------------------------
+// --- Status screens ------------------------------------------------------------
+//
+// Regions, top to bottom: header (state badge, Sigil count, the red NO SD CARD
+// warning), hero (title, detail or action message, turn clock and bar), body
+// (player chips, text lines or a QR code) and the button row(s). Each region
+// redraws only when its part of the AtlasScreen changes. Every state that a
+// color marks is also written out or drawn as a shape (ACCESSIBILITY.md).
 
-constexpr int16_t TITLE_Y = 0;
-constexpr int16_t DETAIL_Y = 44;
-constexpr int16_t NOTICE_Y = 72;
-constexpr int16_t BUTTONS_Y = 100;
+constexpr uint32_t PANEL = 0x161D33;
+constexpr uint32_t DANGER = 0xD93A3F;
+constexpr uint32_t DIM = 0x4A5270;
+constexpr uint32_t QR_LIGHT = 0xFFFFFF;
 
-void drawTextStrip(int16_t y, int16_t h, const char *text, const lgfx::IFont *font,
-    uint32_t color) {
-  tft.fillRect(0, y, ATLAS_SCREEN_WIDTH, h, BACKGROUND);
-  if (text[0] == '\0') return;
-  tft.setTextDatum(lgfx::middle_left);
-  tft.setTextColor(color, BACKGROUND);
-  tft.setFont(font);
-  tft.drawString(text, 12, y + h / 2);
+constexpr int16_t PAD = 8;
+constexpr int16_t CLOCK_W = 84;
+constexpr int16_t HERO_H = 52;        // Title and detail lines.
+constexpr int16_t BAR_Y = SCREEN_HERO_Y + HERO_H;
+constexpr int16_t BAR_H = 4;
+constexpr int16_t BODY_H = BUTTON_ROW_Y - 4 - SCREEN_BODY_Y;
+constexpr int16_t QR_COLUMN_W = 150;  // QR screen: code on the left.
+
+// Largest font (of three) that fits the width.
+const lgfx::IFont *fitFont(const char *text, int16_t width) {
+  static const lgfx::IFont *const FONTS[] = {&fonts::DejaVu18, &fonts::DejaVu12, &fonts::DejaVu9};
+  for (const lgfx::IFont *font : FONTS) {
+    tft.setFont(font);
+    if (tft.textWidth(text) <= width) return font;
+  }
+  return &fonts::DejaVu9;
 }
 
-void drawTitle(const AtlasScreen &screen) {
-  drawTextStrip(TITLE_Y, DETAIL_Y - TITLE_Y, screen.title, &fonts::DejaVu24, WORDMARK);
-  tft.setTextDatum(lgfx::top_right);
-  tft.setTextColor(SUBTLE, BACKGROUND);
-  tft.setFont(&fonts::DejaVu9);
-  tft.drawString("TurnHub Atlas", ATLAS_SCREEN_WIDTH - 8, 6);
+void pill(int16_t x, int16_t y, const char *text, uint32_t fill, uint32_t ink, bool alignRight) {
+  tft.setFont(&fonts::DejaVu12);
+  const int16_t w = tft.textWidth(text) + 14;
+  const int16_t left = alignRight ? x - w : x;
+  tft.fillRoundRect(left, y, w, 18, 9, fill);
+  tft.setTextDatum(lgfx::middle_center);
+  tft.setTextColor(ink, fill);
+  tft.drawString(text, left + w / 2, y + 9);
+}
+
+void drawHeader(const AtlasScreen &screen) {
+  tft.fillRect(0, 0, ATLAS_SCREEN_WIDTH, SCREEN_HEADER_H, PANEL);
+  pill(PAD, 4, screen.badge, RING, WORDMARK, false);
+  int16_t right = ATLAS_SCREEN_WIDTH - PAD;
+  if (screen.sdMissing) {
+    // Red, and written out: the card holds the luxury records.
+    tft.setFont(&fonts::DejaVu12);
+    const int16_t w = tft.textWidth("NO SD CARD") + 14;
+    pill(right, 4, "NO SD CARD", DANGER, WORDMARK, true);
+    right -= w + 8;
+  }
+  char sigils[16];
+  snprintf(sigils, sizeof(sigils), "%u %s", static_cast<unsigned>(screen.sigilsOnline),
+      screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
+  tft.setFont(&fonts::DejaVu12);
+  tft.setTextDatum(lgfx::middle_right);
+  tft.setTextColor(SUBTLE, PANEL);
+  tft.drawString(sigils, right, SCREEN_HEADER_H / 2);
+}
+
+bool hasClock(const AtlasScreen &screen) {
+  return screen.kind == ScreenKind::Status && screen.clock[0] != '\0';
+}
+
+void drawHero(const AtlasScreen &screen) {
+  const bool qr = screen.kind == ScreenKind::Qr;
+  const int16_t x = qr ? QR_COLUMN_W : 0;
+  const int16_t w = ATLAS_SCREEN_WIDTH - x - (hasClock(screen) ? CLOCK_W : 0);
+  tft.fillRect(x, SCREEN_HERO_Y, w, HERO_H, BACKGROUND);
+  tft.setTextDatum(lgfx::top_left);
+  tft.setTextColor(WORDMARK, BACKGROUND);
+  tft.setFont(qr ? &fonts::DejaVu18 : &fonts::DejaVu24);
+  if (tft.textWidth(screen.title) > w - 2 * PAD) tft.setFont(&fonts::DejaVu18);
+  tft.drawString(screen.title, x + PAD, SCREEN_HERO_Y + 2);
+  // An action message replaces the detail line while it lasts.
+  const bool notice = screen.notice[0] != '\0';
+  const char *line = notice ? screen.notice : screen.detail;
+  tft.setTextColor(notice ? ACCENT : DETAIL, BACKGROUND);
+  tft.setFont(fitFont(line, w - 2 * PAD) == &fonts::DejaVu18 ? &fonts::DejaVu12 : fitFont(line, w - 2 * PAD));
+  tft.drawString(line, x + PAD, SCREEN_HERO_Y + 32);
+}
+
+void drawTimer(const AtlasScreen &screen) {
+  tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, BACKGROUND);
+  if (!hasClock(screen)) return;
+  const int16_t x = ATLAS_SCREEN_WIDTH - CLOCK_W;
+  tft.fillRect(x, SCREEN_HERO_Y, CLOCK_W, HERO_H, BACKGROUND);
+  tft.fillRoundRect(x, SCREEN_HERO_Y + 2, CLOCK_W - PAD, HERO_H - 6, 8,
+      screen.timerWarning ? DANGER : PANEL);
+  tft.setTextDatum(lgfx::middle_center);
+  tft.setTextColor(WORDMARK, screen.timerWarning ? DANGER : PANEL);
+  tft.setFont(&fonts::DejaVu24);
+  tft.drawString(screen.clock, x + (CLOCK_W - PAD) / 2, SCREEN_HERO_Y + 2 + (HERO_H - 6) / 2);
+  if (screen.timerPermille >= 0) {
+    // Countdown bar under the hero; the clock says the same in numbers.
+    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, RING);
+    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH * screen.timerPermille / 1000, BAR_H,
+        screen.timerWarning ? DANGER : ACCENT);
+  }
+}
+
+// A player's chip. The active player gets a thick accent frame and a
+// pointer; the tag line says TURN, OUT, WINNER, HOST, STARTS or CONFIRM.
+void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_t w, int16_t h) {
+  const bool active = p.flags & CHIP_ACTIVE;
+  const bool out = p.flags & CHIP_OUT;
+  const uint32_t fill = active ? RING : PANEL;
+  tft.fillRoundRect(x, y, w, h, 6, fill);
+  if (active || (p.flags & CHIP_WINNER)) {
+    tft.drawRoundRect(x, y, w, h, 6, ACCENT);
+    tft.drawRoundRect(x + 1, y + 1, w - 2, h - 2, 5, ACCENT);
+  }
+  const uint32_t ink = out ? DIM : WORDMARK;
+  const char *tag = (p.flags & CHIP_WINNER) ? "WINNER" : out ? "OUT" : active ? "TURN"
+      : (p.flags & CHIP_WAITING) ? "CONFIRM" : (p.flags & CHIP_HOST) ? "HOST"
+      : (p.flags & CHIP_STARTER) ? "STARTS" : "";
+  int16_t nameX = x + 6;
+  if (active) {
+    tft.fillTriangle(x + 5, y + 5, x + 5, y + 15, x + 11, y + 10, ACCENT);
+    nameX = x + 14;
+  }
+  const bool tall = h >= 60;
+  tft.setTextDatum(lgfx::top_left);
+  tft.setTextColor(ink, fill);
+  tft.setFont(&fonts::DejaVu12);
+  char name[SCREEN_NAME_LENGTH + 1];
+  snprintf(name, sizeof(name), "%s", p.name);
+  // Trim the name to the chip, leaving room for the life total on short chips.
+  const int16_t nameRoom = x + w - nameX - 4 - (!tall && showLife ? 34 : 0);
+  for (size_t n = strlen(name); n > 1 && tft.textWidth(name) > nameRoom; --n) name[n - 1] = '\0';
+  tft.drawString(name, nameX, y + 4);
+  if (out) tft.drawFastHLine(nameX, y + 11, tft.textWidth(name), ink);
+
+  char life[12] = {};
+  if (showLife) snprintf(life, sizeof(life), "%ld", static_cast<long>(p.life));
+  if (tall) {
+    if (showLife) {
+      tft.setTextDatum(lgfx::middle_center);
+      tft.setTextColor(ink, fill);
+      tft.setFont(&fonts::DejaVu24);
+      tft.drawString(life, x + w / 2, y + h / 2 + 2);
+    }
+    tft.setTextDatum(lgfx::bottom_center);
+    tft.setTextColor(active ? ACCENT : SUBTLE, fill);
+    tft.setFont(&fonts::DejaVu9);
+    tft.drawString(tag, x + w / 2, y + h - 3);
+  } else {
+    tft.setTextDatum(lgfx::top_right);
+    tft.setTextColor(ink, fill);
+    tft.setFont(&fonts::DejaVu12);
+    if (showLife) tft.drawString(life, x + w - 5, y + 4);
+    tft.setTextDatum(lgfx::bottom_left);
+    tft.setTextColor(active ? ACCENT : SUBTLE, fill);
+    tft.setFont(&fonts::DejaVu9);
+    tft.drawString(tag, nameX, y + h - 2);
+  }
+}
+
+void chipCell(uint8_t index, uint8_t count, int16_t &x, int16_t &y, int16_t &w, int16_t &h) {
+  const uint8_t cols = count <= 4 ? count : 4;
+  const uint8_t rows = count <= 4 ? 1 : 2;
+  constexpr int16_t GAP = 6;
+  w = (ATLAS_SCREEN_WIDTH - 2 * PAD - (cols - 1) * GAP) / cols;
+  h = (BODY_H - (rows - 1) * GAP) / rows;
+  x = PAD + (index % cols) * (w + GAP);
+  y = SCREEN_BODY_Y + (index / cols) * (h + GAP);
+}
+
+void drawQrCode(const char *text, int16_t x, int16_t y, int16_t size) {
+  tft.fillRoundRect(x, y, size, size, 6, QR_LIGHT);
+  tft.qrcode(text, x + 4, y + 4, size - 8, 1, true);
+}
+
+void drawLines(const AtlasScreen &screen, int16_t x, int16_t y) {
+  tft.setTextDatum(lgfx::top_left);
+  tft.setTextColor(DETAIL, BACKGROUND);
+  tft.setFont(&fonts::DejaVu12);
+  for (uint8_t i = 0; i < screen.lineCount; ++i) {
+    const bool warning = strstr(screen.lines[i], "NOT INSERTED") != nullptr;
+    tft.setTextColor(warning ? DANGER : DETAIL, BACKGROUND);
+    tft.drawString(screen.lines[i], x, y + i * 16);
+  }
+}
+
+void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
+  if (screen.kind == ScreenKind::Qr) {
+    tft.fillRect(0, SCREEN_HERO_Y, QR_COLUMN_W, BUTTON_ROW_Y - 4 - SCREEN_HERO_Y, BACKGROUND);
+    tft.fillRect(QR_COLUMN_W, SCREEN_BODY_Y, ATLAS_SCREEN_WIDTH - QR_COLUMN_W, BODY_H, BACKGROUND);
+    if (screen.qr[0] != '\0') {
+      drawQrCode(screen.qr, PAD, SCREEN_HERO_Y + 2, BUTTON_ROW_Y - 8 - SCREEN_HERO_Y);
+      tft.setTextDatum(lgfx::top_left);
+      tft.setTextColor(SUBTLE, BACKGROUND);
+      tft.setFont(&fonts::DejaVu12);
+      tft.drawString(screen.qrCaption, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4);
+    }
+    drawLines(screen, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4);
+    return;
+  }
+  if (screen.kind == ScreenKind::Tests) return;  // Its buttons use the body.
+
+  // Chips alone: redraw only those that changed.
+  const bool chipsOnly = previous != nullptr && previous->kind == screen.kind &&
+      previous->playerCount == screen.playerCount && previous->showLife == screen.showLife &&
+      previous->lineCount == 0 && screen.lineCount == 0 && screen.qr[0] == '\0' && previous->qr[0] == '\0';
+  if (!chipsOnly) tft.fillRect(0, SCREEN_BODY_Y, ATLAS_SCREEN_WIDTH, BODY_H, BACKGROUND);
+  for (uint8_t i = 0; i < screen.playerCount; ++i) {
+    if (chipsOnly && samePlayer(screen.players[i], previous->players[i])) continue;
+    int16_t x, y, w, h;
+    chipCell(i, screen.playerCount, x, y, w, h);
+    if (chipsOnly) tft.fillRect(x, y, w, h, BACKGROUND);
+    drawChip(screen.players[i], screen.showLife, x, y, w, h);
+  }
+  if (screen.qr[0] != '\0') drawQrCode(screen.qr, ATLAS_SCREEN_WIDTH - PAD - BODY_H, SCREEN_BODY_Y, BODY_H);
+  drawLines(screen, PAD + 4, SCREEN_BODY_Y + 6);
 }
 
 // A pressed button inverts (light fill, dark label) and gains a heavier
-// border, so the press does not rely on hue alone.
+// border, so the press does not rely on hue alone. A hold button says so,
+// then counts down with a fill bar while held; the chosen QR code is framed.
 void drawButton(const AtlasScreen &screen, const TouchButton &button) {
   const bool pressed = screen.pressed == button.action;
   const uint32_t fill = pressed ? ACCENT : RING;
-  const uint32_t text = pressed ? BACKGROUND : WORDMARK;
-  tft.fillRoundRect(button.x, button.y, button.w, button.h, 8, fill);
-  tft.drawRoundRect(button.x, button.y, button.w, button.h, 8, pressed ? WORDMARK : SEAT_IDLE);
-  if (pressed) {
-    tft.drawRoundRect(button.x + 1, button.y + 1, button.w - 2, button.h - 2, 7, WORDMARK);
-    tft.drawRoundRect(button.x + 2, button.y + 2, button.w - 4, button.h - 4, 6, WORDMARK);
+  const uint32_t ink = pressed ? BACKGROUND : WORDMARK;
+  tft.fillRoundRect(button.x, button.y, button.w, button.h, 10, fill);
+  const uint32_t frame = pressed || button.selected ? (pressed ? WORDMARK : ACCENT) : SEAT_IDLE;
+  tft.drawRoundRect(button.x, button.y, button.w, button.h, 10, frame);
+  if (pressed || button.selected) {
+    tft.drawRoundRect(button.x + 1, button.y + 1, button.w - 2, button.h - 2, 9, frame);
+    tft.drawRoundRect(button.x + 2, button.y + 2, button.w - 4, button.h - 4, 8, frame);
   }
 
   char label[32];
   if (pressed && button.hold() && screen.holdSecondsLeft > 0) {
-    snprintf(label, sizeof(label), "Keep holding: %u s",
-        static_cast<unsigned>(screen.holdSecondsLeft));
+    snprintf(label, sizeof(label), "Hold %u s", static_cast<unsigned>(screen.holdSecondsLeft));
   } else {
     snprintf(label, sizeof(label), "%s", button.label);
   }
+  const bool caption = button.hold() && !pressed;
   tft.setTextDatum(lgfx::middle_center);
-  tft.setTextColor(text, fill);
-  tft.setFont(&fonts::DejaVu18);
-  tft.drawString(label, button.x + button.w / 2, button.y + button.h / 2);
+  tft.setTextColor(ink, fill);
+  tft.setFont(fitFont(label, button.w - 10));
+  tft.drawString(label, button.x + button.w / 2, button.y + button.h / 2 - (caption ? 6 : 0));
+  if (caption) {
+    tft.setFont(&fonts::DejaVu9);
+    tft.setTextColor(SUBTLE, fill);
+    tft.drawString("hold", button.x + button.w / 2, button.y + button.h / 2 + 14);
+  }
+  if (pressed && button.hold()) {
+    const int16_t barW = (button.w - 16) * screen.holdPermille / 1000;
+    tft.fillRect(button.x + 8, button.y + button.h - 10, button.w - 16, 4, fill);
+    tft.fillRect(button.x + 8, button.y + button.h - 10, barW, 4, BACKGROUND);
+  }
+  if (button.selected && !pressed) {
+    tft.setFont(&fonts::DejaVu9);
+    tft.setTextColor(ACCENT, fill);
+    tft.drawString("shown", button.x + button.w / 2, button.y + button.h - 9);
+  }
 }
 
 void drawButtons(const AtlasScreen &screen) {
-  tft.fillRect(0, BUTTONS_Y, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT - BUTTONS_Y, BACKGROUND);
+  const int16_t top = screen.kind == ScreenKind::Tests ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
+  tft.fillRect(0, top, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT - top, BACKGROUND);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) drawButton(screen, screen.buttons[i]);
 }
 
@@ -216,15 +426,13 @@ AtlasScreen shown;
 bool statusDrawn = false;
 
 void renderScreen(const AtlasScreen &screen) {
-  const bool full = !statusDrawn;
+  const bool full = !statusDrawn || screen.kind != shown.kind;
   if (full) tft.fillScreen(BACKGROUND);
-  if (full || strcmp(screen.title, shown.title) != 0) drawTitle(screen);
-  if (full || strcmp(screen.detail, shown.detail) != 0) {
-    drawTextStrip(DETAIL_Y, NOTICE_Y - DETAIL_Y, screen.detail, &fonts::DejaVu18, DETAIL);
-  }
-  if (full || strcmp(screen.notice, shown.notice) != 0) {
-    drawTextStrip(NOTICE_Y, BUTTONS_Y - NOTICE_Y, screen.notice, &fonts::DejaVu12, ACCENT);
-  }
+  if (full || !sameHeader(screen, shown)) drawHeader(screen);
+  const bool heroChanged = full || !sameHero(screen, shown) || hasClock(screen) != hasClock(shown);
+  if (heroChanged) drawHero(screen);
+  if (heroChanged || !sameTimer(screen, shown)) drawTimer(screen);
+  if (full || !sameBody(screen, shown)) drawBody(screen, full ? nullptr : &shown);
   if (full || !sameButtons(screen, shown)) drawButtons(screen);
   shown = screen;
   statusDrawn = true;

@@ -158,22 +158,44 @@ tone quality, and that the amplifier stays quiet between notes.
 
 The TFT is landscape, rotation 3 (`TFT_ROTATION`), so the connector pigtails on
 the board's left edge leave from the top of the screen. The firmware shows the
-TurnHub splash for 2 seconds and then a status screen: table state, a detail
-line (pairing countdown, player and Sigil counts, whose turn it is, time left,
-a pending pass, or the result), a line for action messages, and touch buttons.
-The display (`atlas_display.cpp`) only draws. `touch_controls.cpp` builds the
+TurnHub splash for 2 seconds, then the status screen (redesigned 2026-09-25):
+
+- **Header:** a state badge (LOBBY, STARTING, PLAYING, PAUSED, GAME OVER, or
+  the open screen's name), the number of Sigils online and, when no microSD
+  card is mounted, a red **NO SD CARD** pill. The words carry the warning;
+  the red only reinforces it.
+- **Hero:** the title (whose turn it is by name, Paused, the winner), a detail
+  line (pairing countdown, counts, a pending pass, whom a win claim waits on)
+  that an action message replaces for 4 s, and during a game a turn clock:
+  time left with a countdown bar (red and "Turn time left" near zero), or the
+  turn's elapsed time with the timer off.
+- **Body:** one chip per player (up to 8): profile name or "Player N", life
+  total in a game, and a tag in words: TURN (plus a pointer and a thick
+  frame), OUT (struck through), WINNER, HOST, STARTS, CONFIRM. An empty lobby
+  shows how to join and the portal's QR code instead.
+- **Buttons:** one row, at least 60 px tall. Hold buttons say "hold", count
+  down in words and fill a bar while held.
+
+Two screens change no table state: **Info** (Wi-Fi name, portal address,
+firmware, Sigils online, SD card state, uptime) and **QR codes**, where Wi-Fi,
+Portal and Sign in each show a code (the chosen one is framed and marked
+"shown"). The Wi-Fi code carries the password. The shipped default is public,
+so its code shows freely; an admin-set password shows only while the admin
+unlock window is open.
+
+The display (`atlas_display.cpp`) only draws, region by region, when that
+region's part of the screen model changes. `touch_controls.cpp` builds the
 screen and holds the touch adapter, which dispatches Intents with
-`IntentOrigin::AtlasHardware`. The one exception is Unlock admin, which only
-opens the physical-presence window in `front_panel.cpp` and changes no table
-state:
+`IntentOrigin::AtlasHardware`. Unlock admin, the screen changes and the test
+harness buttons change no table state:
 
 | State | Buttons | Intent |
 |---|---|---|
-| Lobby | Pair a Sigil | `PairRequest` (replaces the Pair button) |
-| Lobby, Game Over | Hold to unlock admin (3 s), then Admin unlocked: tap to lock | Opens/closes the admin unlock window; no Intent |
-| Running | Pass, Pause | `Pass` / `Pause` for the active seat |
-| Paused | Resume | `Resume` for the active seat |
-| Running, Paused | Hold to end match (draw) | `EndMatch` after `END_MATCH_HOLD_MS` (5 s), with an on-screen countdown |
+| Lobby | Pair, QR, (Tests), Info, Admin (hold 3 s; then Lock) | `PairRequest`; the rest open screens or the admin unlock window |
+| Running | Pass (Undo pass while one is pending), Pause, End (hold 5 s) | `Pass` / `Pause` for the active seat; `EndMatch` after `END_MATCH_HOLD_MS` |
+| Paused | Resume, End (hold 5 s) | `Resume` for the active seat; `EndMatch` |
+| Game Over | QR, Info, Admin (hold) | None |
+| Info / QR codes | QR codes, Back / Wi-Fi, Portal, Sign in, Back | None |
 | Lobby, with a test harness online | Tests, then Radio / 2p game / 4p game / Rematch / Soak x5 / Back, and Stop test while one runs | No Intent: `HarnessCommand` to the harness, which plays through its own Sigils; progress shown in words |
 
 Taps act on release inside the same button, and sliding off cancels. A press
@@ -183,8 +205,7 @@ inside a button to pick it. A contact
 gap shorter than `TOUCH_RELEASE_MS` (60 ms) counts as the same press, because
 resistive panels drop out briefly. Touches during the splash are ignored.
 Buttons are at least 60 px tall. A pressed button inverts and gets a heavier
-border, so the press does not rely on color alone. The screen gives no player
-names yet, only player numbers.
+border, so the press does not rely on color alone.
 
 **Touch calibration.** Resistive panels vary from unit to unit. On the first
 E32R28T, the borrowed defaults registered touches about one button-height

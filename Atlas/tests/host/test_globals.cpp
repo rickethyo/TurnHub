@@ -21,6 +21,8 @@ void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
 void TurnHubAtlas::beginSdCard() {}
 String TurnHubAtlas::sdCardDiagnosticsJson() { return "{\"state\":\"no_card\"}"; }
 TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
+bool fixtureSdCardReady = true;
+bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
 
 // The speaker is firmware-only (ESP32 DAC); host builds have none.
 TurnHub::ToneOutput *TurnHubAtlas::beginAtlasSpeaker() { return nullptr; }

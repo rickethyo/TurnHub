@@ -1561,11 +1561,12 @@ static const TouchButton *screenButton(const AtlasScreen &screen, TouchAction ac
   for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action) return &screen.buttons[i];
   return nullptr;
 }
-// Centre of the touchscreen's second button row (Unlock admin, End match).
-static constexpr int16_t SECONDARY_ROW_CENTER=202;
 static bool startsWith(const char *text,const char *prefix) { return strncmp(text,prefix,strlen(prefix))==0; }
 static AtlasScreen currentScreen() { AtlasScreen s; buildAtlasScreen(testNow,s); return s; }
-static void touchAt(int16_t x,int16_t y) { updateTouchControls(testNow,true,x,y); }
+static int16_t lastTouchX=0, lastTouchY=0;
+static void touchAt(int16_t x,int16_t y) { lastTouchX=x; lastTouchY=y; updateTouchControls(testNow,true,x,y); }
+// The finger stays where it is, even after its button has gone.
+static void keepPressing() { touchAt(lastTouchX,lastTouchY); }
 static void touchRelease() { testNow+=TOUCH_RELEASE_MS; updateTouchControls(testNow,false,0,0); }
 static void pressButton(TouchAction action) {
   const TouchButton *b=screenButton(currentScreen(),action); assert(b!=nullptr);
@@ -1642,7 +1643,7 @@ static void oledSigilSeatsOnePlayer() {
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  assert(String(s.title)=="Lobby" && s.buttonCount==2 && screenButton(s,TouchAction::Pair) &&
+  assert(String(s.title)=="Lobby" && s.buttonCount==4 && screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo) &&
       screenButton(s,TouchAction::UnlockAdmin)->hold());
   // Every button fits on screen and meets the 44 px minimum target size.
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
@@ -1683,7 +1684,7 @@ static void touchControls() {
   assert(!physicalPresenceConfirmed() && String(currentScreen().notice)=="Keep holding for 3 s to unlock admin");
   pressButton(TouchAction::UnlockAdmin); testNow+=ADMIN_UNLOCK_HOLD_MS-1; pressButton(TouchAction::UnlockAdmin);
   assert(!physicalPresenceConfirmed() && currentScreen().holdSecondsLeft==1);
-  testNow+=1; touchAt(160,SECONDARY_ROW_CENTER); assert(physicalPresenceConfirmed()); touchRelease();
+  testNow+=1; keepPressing(); assert(physicalPresenceConfirmed()); touchRelease();
   s=currentScreen();
   assert(screenButton(s,TouchAction::LockAdmin) && !screenButton(s,TouchAction::UnlockAdmin));
   testNow+=TOUCH_NOTICE_MS; assert(startsWith(currentScreen().notice,"Admin unlocked: "));
@@ -1700,7 +1701,7 @@ static void touchControls() {
       screenButton(s,TouchAction::EndMatch)->hold());
   const uint8_t first=game.activePlayerNumber();
   tapButton(TouchAction::Pass); assert(pendingPass.active);
-  assert(String(currentScreen().detail)=="Pass pending: tap Pass to undo");
+  assert(String(currentScreen().detail)=="Pass pending: tap Undo pass to cancel");
   tapButton(TouchAction::Pass); assert(!pendingPass.active && game.activePlayerNumber()==first);
   tapButton(TouchAction::Pass); testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
   assert(game.activePlayerNumber()!=first);
@@ -1718,16 +1719,59 @@ static void touchControls() {
   assert(hubState==HubState::Running);
   testNow+=1; pressButton(TouchAction::EndMatch);
   assert(hubState==HubState::GameOver && game.endedInDraw() && completedGames==1);
-  touchAt(160,200); testNow+=5000; touchAt(160,200); touchRelease();
+  touchAt(160,120); testNow+=5000; touchAt(160,120); touchRelease();
   assert(completedGames==1);
   s=currentScreen();
   assert(String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
-      s.buttonCount==1 && screenButton(s,TouchAction::UnlockAdmin));
+      s.buttonCount==3 && screenButton(s,TouchAction::UnlockAdmin));
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();
   pressButton(TouchAction::Pause); assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
   touchRelease(); assert(hubState==HubState::Paused);
+  resetTouchControls(); enterEmptyLobby();
+}
+
+// The status screen's chips, the NO SD CARD warning, and the Info and QR
+// screens, which change no table state.
+extern bool fixtureSdCardReady;
+static void atlasScreens() {
+  resetTouchControls(); enterEmptyLobby(); pairingActive=false;
+  AtlasScreen s=currentScreen();
+  assert(s.kind==ScreenKind::Status && String(s.badge)=="LOBBY" && s.playerCount==0 && !s.sdMissing);
+  assert(String(s.qr)=="http://192.168.4.1/portal" && s.lineCount>0);  // Empty table: how to join.
+  fixtureSdCardReady=false; assert(currentScreen().sdMissing); fixtureSdCardReady=true;
+
+  freshLobby(3); s=currentScreen();
+  assert(s.playerCount==3 && s.qr[0]=='\0' && !s.showLife);
+  assert(String(s.players[0].name)=="Player 1" && (s.players[0].flags&CHIP_HOST));
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+
+  tapButton(TouchAction::OpenInfo); s=currentScreen();
+  assert(s.kind==ScreenKind::Info && String(s.title)=="Table info" && s.lineCount==5 &&
+      screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::CloseScreen));
+  fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED"); fixtureSdCardReady=true;
+  tapButton(TouchAction::OpenQr); s=currentScreen();
+  assert(s.kind==ScreenKind::Qr && String(s.qr)=="http://192.168.4.1/portal" &&
+      screenButton(s,TouchAction::QrPortal)->selected && !screenButton(s,TouchAction::QrWifi)->selected);
+  tapButton(TouchAction::QrWifi); s=currentScreen();
+  // The shipped default password is public, so its Wi-Fi code shows freely.
+  assert(String(s.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" && screenButton(s,TouchAction::QrWifi)->selected);
+  tapButton(TouchAction::QrSignIn); assert(String(currentScreen().qr)=="http://192.168.4.1/login");
+  assert(hubState==HubState::Lobby && lobby.playerCount()==3);  // Screens change no table state.
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
+
+  startFromHost(); s=currentScreen();
+  assert(String(s.badge)=="PLAYING" && s.showLife && s.playerCount==3 && s.clock[0]!='\0' && s.timerPermille==-1);
+  uint8_t active=0;
+  for (uint8_t i=0;i<s.playerCount;++i) {
+    assert(s.players[i].life==game.lifeTotal(s.players[i].number));
+    if (s.players[i].flags&CHIP_ACTIVE) { ++active; assert(s.players[i].number==game.activePlayerNumber()); }
+  }
+  assert(active==1);
+  char title[32]; snprintf(title,sizeof(title),"Player %u's turn",static_cast<unsigned>(game.activePlayerNumber()));
+  assert(String(s.title)==title);
   resetTouchControls(); enterEmptyLobby();
 }
 
@@ -1801,10 +1845,10 @@ static void endMatchAsDraw() {
   tapButton(TouchAction::Pass); assert(pendingPass.active);
   pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
   assert(hubState==HubState::Running && pendingPass.active);
-  testNow+=1; touchAt(160,SECONDARY_ROW_CENTER);
+  testNow+=1; keepPressing();
   assert(hubState==HubState::GameOver && game.endedInDraw() && game.winnerPlayerNumber()==0);
   assert(!pendingPass.active && completedGames==1);
-  testNow+=10000; touchAt(160,SECONDARY_ROW_CENTER); touchRelease();
+  testNow+=10000; keepPressing(); touchRelease();
   assert(hubState==HubState::GameOver && completedGames==1 && !pendingPass.active);
   assert(!intents.dispatch(end).accepted() && completedGames==1);
 
@@ -2109,6 +2153,7 @@ int main() {
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, admin unlock/lock/expiry, Pass, Pause/Resume, end-match hold, slide-off, drop-out, stale press\n";
   harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
+  atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, unlock window, draw once, countdown\n";

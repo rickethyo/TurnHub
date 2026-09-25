@@ -20,5 +20,7 @@ String sdCardDiagnosticsJson();
 // Record store on the card (directory /turnhub), or nullptr if no card is
 // mounted. Callers must treat nullptr and every error as "card unavailable".
 TurnHubStorage::BlobStore *sdBlobStore();
+// A card is mounted and its store works (the "NO SD CARD" warning otherwise).
+bool sdCardReady();
 
 }  // namespace TurnHubAtlas

@@ -145,4 +145,6 @@ TurnHubStorage::BlobStore *sdBlobStore() {
   return cardState == CardState::Mounted ? &sdStore : nullptr;
 }
 
+bool sdCardReady() { return cardState == CardState::Mounted; }
+
 }  // namespace TurnHubAtlas

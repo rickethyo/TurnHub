@@ -6,8 +6,9 @@
 //
 // The touch adapter only builds Intents with IntentOrigin::AtlasHardware (the
 // screen is part of the Atlas and its only physical input); Atlas's handlers
-// decide every outcome. Its one non-Intent action is the admin unlock window,
-// a physical-presence proof like the master button it replaced.
+// decide every outcome. Its non-Intent actions change no table state: the
+// admin unlock window (a physical-presence proof), moving between screens
+// (status, info, QR codes, test harness) and starting a harness test.
 
 #include <Arduino.h>
 
@@ -26,12 +27,24 @@ constexpr int16_t TOUCH_SLOP_PX = 12;
 // How long an action message stays on screen.
 constexpr uint32_t TOUCH_NOTICE_MS = 4000;
 
+// Screen regions (atlas_display.cpp draws them; buttons live in the rows).
+constexpr int16_t SCREEN_HEADER_H = 26;
+constexpr int16_t SCREEN_HERO_Y = 28;       // Title and detail/notice line.
+constexpr int16_t SCREEN_BODY_Y = 84;       // Players, QR code or info.
+constexpr int16_t BUTTON_ROW_H = 60;        // Well above the 44 px minimum target.
+constexpr int16_t BUTTON_ROW_Y = 172;       // The one row most screens use.
+constexpr int16_t BUTTON_UPPER_ROW_Y = 104; // Second row on the test screen.
+
 enum class TouchAction : uint8_t {
   None, Pair, Pass, Pause, Resume, EndMatch, UnlockAdmin, LockAdmin,
+  // Screens that change no table state.
+  OpenInfo, OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
   // Test harness screen (only while a harness is connected): no Intents.
   OpenTests, CloseTests, StopTest, RunRadioCheck, RunQuickGame, RunFullGame, RunRematchGame,
   RunSoak
 };
+
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -42,6 +55,8 @@ struct TouchButton {
   int16_t h = 0;
   // Hold buttons act once held this long; 0 means the button acts on release.
   uint32_t holdMs = 0;
+  // Shown as the current choice (the selected QR code).
+  bool selected = false;
 
   bool hold() const { return holdMs > 0; }
 
@@ -52,19 +67,66 @@ struct TouchButton {
 };
 
 constexpr uint8_t MAX_TOUCH_BUTTONS = 6;
+constexpr uint8_t SCREEN_NAME_LENGTH = 12;
+constexpr uint8_t MAX_SCREEN_PLAYERS = 8;
 
-// Everything the TFT shows. Equal screens need no redraw.
-struct AtlasScreen {
-  char title[32] = {};
-  char detail[48] = {};
-  char notice[48] = {};
-  TouchButton buttons[MAX_TOUCH_BUTTONS];
-  uint8_t buttonCount = 0;
-  // The button under a finger right now, and a hold's whole seconds left.
-  TouchAction pressed = TouchAction::None;
-  uint8_t holdSecondsLeft = 0;
+// Player chip flags. Every one is also spelled out on the chip in words or a
+// shape, never by color alone.
+constexpr uint8_t CHIP_ACTIVE = 0x01;   // Whose turn it is.
+constexpr uint8_t CHIP_OUT = 0x02;      // Eliminated.
+constexpr uint8_t CHIP_HOST = 0x04;     // Lobby host.
+constexpr uint8_t CHIP_WINNER = 0x08;
+constexpr uint8_t CHIP_STARTER = 0x10;  // Starts the next game.
+constexpr uint8_t CHIP_WAITING = 0x20;  // Atlas is waiting on this player (win confirmation).
+
+struct ScreenPlayer {
+  uint8_t number = 0;
+  char name[SCREEN_NAME_LENGTH + 1] = {};
+  int32_t life = 0;
+  uint8_t flags = 0;
 };
 
+// Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp
+// compares region by region.
+struct AtlasScreen {
+  ScreenKind kind = ScreenKind::Status;
+  char badge[12] = {};    // State word in the header (LOBBY, PLAYING, ...).
+  char title[32] = {};
+  char detail[48] = {};
+  char notice[48] = {};   // Action message; shown in place of detail while set.
+  bool sdMissing = false; // Header warning: "NO SD CARD".
+  uint8_t sigilsOnline = 0;
+
+  ScreenPlayer players[MAX_SCREEN_PLAYERS];
+  uint8_t playerCount = 0;
+  bool showLife = false;
+
+  // Turn clock: timerPermille is the countdown left (0-1000), or -1 with no
+  // countdown; clock is "1:23" (left, or elapsed with no countdown).
+  int16_t timerPermille = -1;
+  bool timerWarning = false;
+  char clock[8] = {};
+
+  // Body text lines (info screen, or the lobby's join hint) and a QR code.
+  char lines[5][40] = {};
+  uint8_t lineCount = 0;
+  char qr[112] = {};
+  char qrCaption[40] = {};
+
+  TouchButton buttons[MAX_TOUCH_BUTTONS];
+  uint8_t buttonCount = 0;
+  // The button under a finger right now, a hold's whole seconds left, and its
+  // progress (0-1000) for the fill bar.
+  TouchAction pressed = TouchAction::None;
+  uint8_t holdSecondsLeft = 0;
+  uint16_t holdPermille = 0;
+};
+
+bool sameHeader(const AtlasScreen &a, const AtlasScreen &b);
+bool sameHero(const AtlasScreen &a, const AtlasScreen &b);
+bool sameTimer(const AtlasScreen &a, const AtlasScreen &b);
+bool sameBody(const AtlasScreen &a, const AtlasScreen &b);
+bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b);
 bool sameButtons(const AtlasScreen &a, const AtlasScreen &b);
 bool sameScreen(const AtlasScreen &a, const AtlasScreen &b);
 
@@ -77,7 +139,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y);
 // Touch calibration may only take over the screen between games, in the lobby.
 bool touchCalibrationAllowed();
 
-// Clears press and notice state (tests, and boot).
+// Clears press, notice and screen state (tests, and boot).
 void resetTouchControls();
 
 }  // namespace TurnHubAtlas

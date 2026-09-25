@@ -87,7 +87,9 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   rollback, mid-session card loss (hot-plug is not handled; a card inserted
   after boot needs a restart), and whether a card may be moved between
   Atlases.
-- Player names on the status screen; more touch actions (Start, Rematch,
+- Done 2026-09-25: player names, life and the turn clock on the status
+  screen, Info and QR code screens, the NO SD CARD warning (bench check of
+  the new layout pending). Still open: more touch actions (Start, Rematch,
   starter selection) once the owner decides which host-only actions the table
   device may take; the on-board RGB LED as a cue output; a battery gauge.
 - Update the user manual: there is no master button; pairing, ending a match
