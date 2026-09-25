@@ -133,6 +133,12 @@ the OLED Sigil keep joining as a guest; a new Sigil with an older Atlas never
 receives a page. Protocol version stays 1; both device types need reflashing
 to use it. *Needs verification* on hardware.
 
+`MenuState2 = 34` (2026-09-25) replaces `MenuState` for the same 0.8.0+ Sigils
+(not the harness): the 21 action bits of `MenuState` were all used, so
+`MenuState2` carries 24 action bits, the 5-bit default and a 3-bit revision.
+Menu revisions now wrap at 8 for every Sigil so either encoding can name them.
+Its first new action is `Leave = 21`, which Atlas offers only to these Sigils.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

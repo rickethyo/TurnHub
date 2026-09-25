@@ -534,6 +534,9 @@ Privacy direction:
   the Table screen's 2 s Master pass hold passing a stuck turn at once with an
   `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
   speaker levels, lowered about 10% the same day, at each volume setting.
+- Leave lobby on menu Sigils (2026-09-25, host-tested, *Needs verification*):
+  a joined e-ink or OLED Sigil (0.8.0) holds Down (or Left) to leave both
+  seats; the next Join shows the picker fresh and Guest is really a guest.
 - Lobby Clear on the Atlas touchscreen (2026-09-25, *Needs verification*): shown
   once anyone has joined; a 2 s hold (`LOBBY_CLEAR_HOLD_MS`, `ResetGame` from
   Atlas hardware) empties the lobby, a tap only explains. Check the six-button

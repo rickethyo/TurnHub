@@ -36,6 +36,14 @@ bool menuSigil(uint8_t sigilId) {
       (record->capabilities & TurnHubProtocol::CAPABILITY_MENU) != 0;
 }
 
+// Decodes MenuState2 (actions past the first 21, such as Leave).
+bool menu2Sigil(uint8_t sigilId) {
+  const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
+  return record != nullptr && record->helloInfoValid &&
+      (record->capabilities & TurnHubProtocol::CAPABILITY_HARNESS) == 0 &&
+      TurnHubProtocol::menuState2Firmware(record->firmwareMajor, record->firmwareMinor);
+}
+
 }  // namespace
 
 MenuStateFields sigilMenuFor(uint8_t sigilId) {
@@ -66,6 +74,8 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
         add(SigilAction::StartGame);
         add(SigilAction::RandomStarter);
       }
+      // Leave (both seats) fits only MenuState2.
+      if (menu2Sigil(sigilId)) add(SigilAction::Leave);
       break;
 
     case HubState::Starting:
@@ -135,7 +145,9 @@ void syncSigilMenus(uint32_t nowMs) {
     }
     const MenuStateFields now = sigilMenuFor(id);
     if (!cache.computed || now.actions != cache.actions || now.defaultAction != cache.defaultAction) {
-      if (cache.computed) cache.revision = static_cast<uint8_t>((cache.revision + 1) & 0x3F);
+      if (cache.computed) {
+        cache.revision = static_cast<uint8_t>((cache.revision + 1) & TurnHubProtocol::MENU_REVISION_MASK);
+      }
       cache.computed = true;
       cache.actions = now.actions;
       cache.defaultAction = now.defaultAction;
@@ -144,7 +156,10 @@ void syncSigilMenus(uint32_t nowMs) {
     if (cache.sent) continue;
     MenuStateFields fields = now;
     fields.revision = cache.revision;
-    if (sigilBus.send(id, TurnHubProtocol::PacketType::MenuState, TurnHubProtocol::encodeMenuState(fields))) {
+    const bool sent = menu2Sigil(id)
+        ? sigilBus.send(id, TurnHubProtocol::PacketType::MenuState2, TurnHubProtocol::encodeMenuState2(fields))
+        : sigilBus.send(id, TurnHubProtocol::PacketType::MenuState, TurnHubProtocol::encodeMenuState(fields));
+    if (sent) {
       cache.sent = true;
     }
   }

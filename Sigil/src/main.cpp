@@ -882,6 +882,9 @@ void handleEspNowReceive(
       break;
 
 #if TURNHUB_MENU
+    case PacketType::MenuState2:
+      sigilMenu.applyMenuState2(packet.value, millis());
+      break;
     case PacketType::MenuState:
       sigilMenu.applyMenuState(packet.value, millis());
       break;

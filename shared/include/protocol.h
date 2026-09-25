@@ -92,6 +92,9 @@ enum class PacketType : uint8_t {
   FactoryReset = 28,
   // Atlas -> Sigil: the profile picker page (ProfilePickerPacket, by length).
   ProfilePicker = 33,
+  // Atlas -> Sigil 0.8.0+: actions available now, with room for actions past
+  // the first 21 (encodeMenuState2). Older Sigils keep MenuState.
+  MenuState2 = 34,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -465,12 +468,18 @@ enum class SigilAction : uint8_t {
   Rematch = 18,
   ResetTable = 19,
   LinkPhone = 20,         // Approve a waiting browser link for this Sigil.
+  // MenuState2 only (Sigil 0.8.0+): this Sigil leaves the lobby, both seats.
+  Leave = 21,
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 31;
+// MenuState carries actions 0-20; MenuState2 carries up to 24.
 constexpr uint32_t SIGIL_ACTION_MASK_BITS = 21;
-static_assert(static_cast<uint8_t>(SigilAction::Count) <= SIGIL_ACTION_MASK_BITS,
-    "SigilAction must fit the MenuState mask");
+constexpr uint32_t SIGIL_ACTION_MASK2_BITS = 24;
+static_assert(static_cast<uint8_t>(SigilAction::Count) <= SIGIL_ACTION_MASK2_BITS,
+    "SigilAction must fit the MenuState2 mask");
+// Menu revisions wrap at 8 so both encodings can name them.
+constexpr uint8_t MENU_REVISION_MASK = 0x07;
 
 constexpr uint32_t sigilActionBit(SigilAction action) {
   return 1u << static_cast<uint8_t>(action);
@@ -483,7 +492,8 @@ inline ActionHold sigilActionHold(SigilAction action) {
   switch (action) {
     case SigilAction::ClaimWin: return ActionHold::Win;
     case SigilAction::Eliminate:
-    case SigilAction::ResetTable: return ActionHold::Long;
+    case SigilAction::ResetTable:
+    case SigilAction::Leave: return ActionHold::Long;
     default: return ActionHold::None;
   }
 }
@@ -516,6 +526,34 @@ inline MenuStateFields decodeMenuState(int32_t value) {
   }
   f.revision = static_cast<uint8_t>((v >> 26) & 0x3Fu);
   return f;
+}
+
+// MenuState2 payload (Sigil 0.8.0+): bits 0-23 available actions, 24-28 the
+// default action (SIGIL_ACTION_NONE if none), 29-31 menu revision.
+inline int32_t encodeMenuState2(const MenuStateFields &f) {
+  return static_cast<int32_t>(
+      (f.actions & ((1u << SIGIL_ACTION_MASK2_BITS) - 1)) |
+      ((static_cast<uint32_t>(f.defaultAction) & 0x1Fu) << 24) |
+      ((static_cast<uint32_t>(f.revision) & MENU_REVISION_MASK) << 29));
+}
+
+inline MenuStateFields decodeMenuState2(int32_t value) {
+  const uint32_t v = static_cast<uint32_t>(value);
+  MenuStateFields f;
+  f.actions = v & ((1u << SIGIL_ACTION_MASK2_BITS) - 1) &
+      ((1u << static_cast<uint8_t>(SigilAction::Count)) - 1);
+  f.defaultAction = static_cast<uint8_t>((v >> 24) & 0x1Fu);
+  if (f.defaultAction >= static_cast<uint8_t>(SigilAction::Count) ||
+      (f.actions & (1u << f.defaultAction)) == 0) {
+    f.defaultAction = SIGIL_ACTION_NONE;
+  }
+  f.revision = static_cast<uint8_t>((v >> 29) & MENU_REVISION_MASK);
+  return f;
+}
+
+// Sigil firmware that decodes MenuState2 (the same release as the picker).
+inline bool menuState2Firmware(uint8_t major, uint8_t minor) {
+  return pickerFirmware(major, minor);
 }
 
 // SelectAction payload: bits 0-4 action, 5-10 menu revision.

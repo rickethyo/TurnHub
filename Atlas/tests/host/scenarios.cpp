@@ -64,6 +64,7 @@ static unsigned fixtureLedStateSends=0;
 static unsigned fixtureChannelSends=0;
 static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
+static int32_t fixtureMenuState2[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureHarnessCommand=-1;
 static unsigned fixtureHarnessCommands=0;
 static int fixtureFactoryResetSigil=-1;
@@ -73,6 +74,7 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::InputTiming&&fixtureRadio) { fixtureInputTiming[id]=value; ++fixtureInputTimingSends; }
   if(type==TurnHubProtocol::PacketType::LedState&&fixtureRadio) { fixtureLedState[id]=value; ++fixtureLedStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
+  if(type==TurnHubProtocol::PacketType::MenuState2&&fixtureRadio) { fixtureMenuState2[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
   if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
@@ -1093,6 +1095,17 @@ static void profilePicker() {
   assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
   assert(!pickerOpen(1) && profilePickerPage(1).mode == PickerMode::Closed);
   syncProfilePickers(testNow); assert(sentPickers[1].mode == PickerMode::Closed);
+
+  // Leave (MenuState2 Sigils only): the whole Sigil leaves the lobby.
+  resetSigilMenus(); syncSigilMenus(testNow);
+  assert((sigilMenuFor(1).actions & sigilActionBit(A::Leave)) != 0);
+  assert((decodeMenuState2(fixtureMenuState2[1]).actions & sigilActionBit(A::Leave)) != 0);
+  fixtureRecords[3].capabilities = CAPABILITY_MENU;  // Sigil 0.7: no Leave, old encoding.
+  pick(3, A::Join); assert(lobby.isJoined(3) && (sigilMenuFor(3).actions & sigilActionBit(A::Leave)) == 0);
+  pick(1, A::Leave);
+  assert(!lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1).length() == 0);
+  pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
+  assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
 
   // An OLED Sigil still joins as a guest at once; a picker Sigil can pick Guest.
   pick(2, A::Join); assert(lobby.isJoined(2) && !pickerOpen(2));

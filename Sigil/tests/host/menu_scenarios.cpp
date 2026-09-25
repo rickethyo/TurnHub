@@ -126,6 +126,27 @@ int main() {
   list.clear();
   assert(!list.active() && !list.view().active);
 
+  // MenuState2 carries Leave (action 21), which MenuState cannot; Leave is a
+  // long-press hold on Down, and a waiting phone link outranks it.
+  {
+    MenuStateFields f;
+    f.actions = sigilActionBit(A::CycleStarter) | sigilActionBit(A::AddSeatB) | sigilActionBit(A::Leave);
+    f.defaultAction = id(A::Leave);
+    f.revision = 5;
+    const MenuStateFields back = decodeMenuState2(encodeMenuState2(f));
+    assert(back.actions == f.actions && back.defaultAction == id(A::Leave) && back.revision == 5);
+    assert((decodeMenuState(encodeMenuState(f)).actions & sigilActionBit(A::Leave)) == 0);
+    assert(SigilMenu::compassAction(f.actions, Key::Down) == id(A::Leave));
+    assert(SigilMenu::compassAction(f.actions | sigilActionBit(A::LinkPhone), Key::Down) == id(A::LinkPhone));
+    assert(sigilActionHold(A::Leave) == ActionHold::Long);
+    SigilMenu leaver(MenuLayout::Compass);
+    leaver.applyMenuState2(encodeMenuState2(f), 0);
+    leaver.keyDown(Key::Down, 10);
+    assert(!leaver.update(1000).ready);
+    const MenuChoice left = leaver.update(10 + DEFAULT_LONG_PRESS_MS);
+    assert(left.ready && left.action == A::Leave && left.revision == 5);
+  }
+
   // Every action has a short label.
   for (uint8_t a = 0; a < static_cast<uint8_t>(A::Count); ++a) {
     const char *label = sigilActionLabel(static_cast<A>(a));

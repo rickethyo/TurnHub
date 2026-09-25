@@ -442,6 +442,14 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
   if (!lobby.leave(module)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "Module is not joined");
   }
+  // Seat profiles are temporary: a Sigil that leaves is free for anyone,
+  // so its next Join (or the picker's Guest) is not the old profile.
+  if (module < MAX_PHYSICAL_SIGILS) {
+    if (const auto *record = sigilBus.record(module)) {
+      TurnHubProfiles::resetTransientSeatBindings(record->mac);
+      sigilBus.syncDisplayProfile(module);
+    }
+  }
   serialLog.print("ATLAS|LOBBY|LEAVE|SIGIL|");
   serialLog.println(module);
   return seatChanged(false);

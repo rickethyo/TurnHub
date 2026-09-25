@@ -56,6 +56,7 @@ class SigilMenu {
   explicit SigilMenu(MenuLayout layout) : layout_(layout) {}
 
   void applyMenuState(int32_t value, uint32_t nowMs);
+  void applyMenuState2(int32_t value, uint32_t nowMs);  // MenuState2 (Leave and later).
   void clear();  // Unpaired: back to legacy gestures until Atlas sends a menu.
   void setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs);
 
@@ -77,6 +78,7 @@ class SigilMenu {
 
  private:
   bool offered(uint8_t action) const { return action < MENU_MAX_ITEMS && (actions_ & (1u << action)) != 0; }
+  void applyFields(const TurnHubProtocol::MenuStateFields &f, uint32_t nowMs);
   uint8_t itemAt(uint8_t index) const;
   uint8_t itemCount() const;
   uint8_t indexOf(uint8_t action) const;

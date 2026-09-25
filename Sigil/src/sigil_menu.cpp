@@ -43,6 +43,7 @@ Slots preferences(uint8_t action) {
     case SigilAction::CycleStarter:
     case SigilAction::NextTarget: return {{R, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
     case SigilAction::LinkPhone: return {{D, R, L, U, C}};
+    case SigilAction::Leave: return {{D, L, KEY_NONE, KEY_NONE, KEY_NONE}};
     default: return {{KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
   }
 }
@@ -72,6 +73,7 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::Rematch: return "Rematch";
     case SigilAction::ResetTable: return "Reset table";
     case SigilAction::LinkPhone: return "Link phone";
+    case SigilAction::Leave: return "Leave lobby";
     default: return "";
   }
 }
@@ -88,7 +90,8 @@ bool MenuView::operator==(const MenuView &o) const {
 }
 
 uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
-  // Assign in action order (Link phone, the only movable one, comes last).
+  // Assign in action order (Link phone before Leave: a waiting phone
+  // link outranks Leave for the last free key; Leave comes back after).
   uint8_t owner[KEY_COUNT];
   memset(owner, MENU_NONE, sizeof(owner));
   for (uint8_t action = 0; action < MENU_MAX_ITEMS; ++action) {
@@ -105,8 +108,15 @@ uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
   return owner[static_cast<uint8_t>(key)];
 }
 
+void SigilMenu::applyMenuState2(int32_t value, uint32_t nowMs) {
+  applyFields(TurnHubProtocol::decodeMenuState2(value), nowMs);
+}
+
 void SigilMenu::applyMenuState(int32_t value, uint32_t nowMs) {
-  const TurnHubProtocol::MenuStateFields f = TurnHubProtocol::decodeMenuState(value);
+  applyFields(TurnHubProtocol::decodeMenuState(value), nowMs);
+}
+
+void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f, uint32_t nowMs) {
   const uint8_t cursorAction = listOpen_ ? itemAt(cursor_) : MENU_NONE;
   const bool changed = !active_ || f.actions != actions_;
   active_ = true;

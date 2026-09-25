@@ -418,6 +418,10 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
     case SigilAction::ResetTable:
       logRejected("MENU|RESET", sigilId, dispatchModuleIntent(IntentType::ResetGame, sigilId));
       break;
+    case SigilAction::Leave:
+      // Slot 1 leaves the whole Sigil, seat B included.
+      logRejected("MENU|LEAVE", sigilId, dispatchModuleIntent(IntentType::Leave, sigilId, 1));
+      break;
     case SigilAction::LinkPhone:
       // Proof of possession, as a physical Action press was before menus.
       TurnHubWebApi::notePhysicalAction(sigilId);
