@@ -5,6 +5,7 @@
 
 #include "oled_config.h"
 #include "sigil_display.h"
+#include "sigil_icons.h"
 
 namespace TurnHubSigil {
 
@@ -23,7 +24,6 @@ class OledDisplay final : public SigilDisplay {
 
  private:
   enum class Align : uint8_t { Left, Center, Right };
-  enum class Icon : uint8_t { None, Turn, TurnBack, Pause, Crown };
 
   bool validConfig() const;
   int16_t text(const char *value, int16_t y, uint8_t maxSize, Align align,

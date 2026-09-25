@@ -163,34 +163,13 @@ void OledDisplay::banner(const char *message, int16_t y, bool highlight, Icon ki
   }
 }
 
-// 13x9 glyphs drawn from primitives.
+// Shared glyphs (sigil_icons.h), so the OLED and e-ink Sigils match.
 void OledDisplay::icon(Icon kind, int16_t x, int16_t y, uint16_t color) {
-  switch (kind) {
-    case Icon::Turn:
-      display_->fillTriangle(x + 3, y, x + 3, y + 8, x + 11, y + 4, color);
-      break;
-    case Icon::TurnBack:
-      display_->fillTriangle(x + 10, y, x + 10, y + 8, x + 2, y + 4, color);
-      break;
-    case Icon::Pause:
-      display_->fillRect(x + 3, y, 3, 9, color);
-      display_->fillRect(x + 8, y, 3, 9, color);
-      break;
-    case Icon::Crown:
-      display_->fillRect(x, y + 6, 13, 3, color);
-      display_->fillTriangle(x, y + 6, x + 2, y, x + 4, y + 6, color);
-      display_->fillTriangle(x + 4, y + 6, x + 6, y, x + 8, y + 6, color);
-      display_->fillTriangle(x + 8, y + 6, x + 10, y, x + 12, y + 6, color);
-      break;
-    case Icon::None:
-      break;
-  }
+  drawIcon(*display_, kind, x, y, color);
 }
 
 void OledDisplay::heart(int16_t x, int16_t y) {
-  display_->fillCircle(x + 3, y + 3, 3, SH110X_WHITE);
-  display_->fillCircle(x + 9, y + 3, 3, SH110X_WHITE);
-  display_->fillTriangle(x, y + 4, x + 12, y + 4, x + 6, y + 10, SH110X_WHITE);
+  drawIcon(*display_, Icon::Heart, x, y, SH110X_WHITE);
 }
 
 // Heart plus the largest life number that fits, centered as one unit.
@@ -211,11 +190,7 @@ void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
 // Boot splash: an hourglass (the turn timer) inside a double ring.
 void OledDisplay::splash(const char *caption) {
   const int16_t cx = display_->width() / 2;
-  display_->drawCircle(cx, 15, 14, SH110X_WHITE);
-  display_->drawCircle(cx, 15, 12, SH110X_WHITE);
-  display_->drawTriangle(cx - 6, 7, cx + 6, 7, cx, 15, SH110X_WHITE);
-  display_->drawTriangle(cx - 6, 23, cx + 6, 23, cx, 15, SH110X_WHITE);
-  display_->fillTriangle(cx - 4, 22, cx + 4, 22, cx, 18, SH110X_WHITE);
+  drawEmblem(*display_, cx, 15, SH110X_WHITE);
   text("TurnHub", 33, 2, Align::Center);
   text(caption, 54, 1, Align::Center);
 }

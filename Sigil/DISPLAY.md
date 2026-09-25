@@ -213,6 +213,21 @@ with a character split for longer unbroken names. Six-pixel side margins leave
 110 pixels for content. Life numbers reduce font size to fit, preserving the
 sign and every digit through the supported -1,000,000 to 1,000,000 range.
 
+**Shared visual language (2026-09-25).** Both Sigils draw the same glyphs from
+`include/sigil_icons.h`: turn arrows, pause bars, crown, heart and the
+hourglass emblem, drawn from primitives on either display. The e-paper panel
+now matches the OLED:
+- a solid black title bar (title, Sigil number, crown and HOST, turn number)
+- the boot, unpaired and ready screens carry the emblem
+- status lines sit in banners: filled with icons on both sides when they
+  concern this Sigil now, framed otherwise
+- life totals have a heart
+- each compass legend line starts with a keycap: an arrow in a filled square,
+  or a filled circle for the click
+
+The words carry every meaning; icons only add character. *Needs verification*
+on the panel (legibility of the white-on-black bar and the keycaps).
+
 ### Running game snapshot
 
 | Vertical area | Contents |

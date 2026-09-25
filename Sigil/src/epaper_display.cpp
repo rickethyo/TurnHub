@@ -9,6 +9,8 @@ namespace {
 constexpr int16_t MARGIN = 6;
 constexpr int16_t CHAR_WIDTH = 6;
 constexpr int16_t LEGEND_LINE = 11;
+constexpr int16_t HEADER_BAR = 36;     // Solid title bar.
+constexpr int16_t BANNER_HEIGHT = 22;
 // Legend order and glyphs (built-in font: 0x09 ring, 0x18-0x1B arrows).
 constexpr Key LEGEND_KEYS[] = {Key::Select, Key::Up, Key::Down, Key::Left, Key::Right};
 char legendGlyph(Key key) {
@@ -34,21 +36,33 @@ int16_t EpaperDisplay::contentBottom() const {
   return display_.height() - (lines ? 3 + LEGEND_LINE * lines : 0);
 }
 
+// Each line starts with a keycap: a filled square with the direction's arrow,
+// or a filled circle for the click (the likely action, listed first).
 void EpaperDisplay::drawLegend() {
   if (legendLines() == 0) return;
   int16_t y = contentBottom();
   display_.drawFastHLine(MARGIN, y, display_.width() - 2 * MARGIN, GxEPD_BLACK);
   y += 3;
   display_.setTextSize(1);
+  constexpr int16_t CAP = LEGEND_LINE - 1;
   for (Key key : LEGEND_KEYS) {
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
     const auto a = static_cast<TurnHubProtocol::SigilAction>(action);
+    if (key == Key::Select) {
+      display_.fillCircle(MARGIN + CAP / 2, y + CAP / 2, CAP / 2, GxEPD_BLACK);
+    } else {
+      display_.fillRoundRect(MARGIN, y, CAP, CAP, 2, GxEPD_BLACK);
+      display_.setTextColor(GxEPD_WHITE);
+      display_.setCursor(MARGIN + 2, y + 1);
+      display_.print(legendGlyph(key));
+      display_.setTextColor(GxEPD_BLACK);
+    }
     char line[24];
-    snprintf(line, sizeof(line), "%c %s%s", legendGlyph(key), sigilActionLabel(a),
+    snprintf(line, sizeof(line), "%s%s", sigilActionLabel(a),
         TurnHubProtocol::sigilActionHold(a) != TurnHubProtocol::ActionHold::None ? " (hold)" : "");
-    display_.setCursor(MARGIN, y + 1);
-    printClipped(line, (display_.width() - 2 * MARGIN) / CHAR_WIDTH);
+    display_.setCursor(MARGIN + CAP + 4, y + 1);
+    printClipped(line, (display_.width() - 2 * MARGIN - CAP - 4) / CHAR_WIDTH);
     y += LEGEND_LINE;
   }
 }
@@ -127,21 +141,75 @@ void EpaperDisplay::drawTwoLines(const char *text, int16_t y, int16_t width) {
   drawCentered(rest, y + 18, 2);
 }
 
+// Solid title bar, as on the OLED Sigil: the title, then the Sigil number
+// (with a crown and HOST for the host) and the turn number, in white.
 void EpaperDisplay::drawHeader(
     const char *title, uint8_t sigilId, bool host, uint8_t turnNumber) {
+  display_.fillRect(0, 0, display_.width(), HEADER_BAR, GxEPD_BLACK);
+  display_.setTextColor(GxEPD_WHITE);
   drawCentered(title, 4, 2);
   if (sigilId != 0xFF) {
     display_.setTextSize(1);
-    display_.setCursor(MARGIN, 25);
-    display_.printf("S%u%s", static_cast<unsigned>(sigilId + 1), host ? " HOST" : "");
+    display_.setCursor(MARGIN, 24);
+    display_.printf("S%u", static_cast<unsigned>(sigilId + 1));
+    if (host) {
+      drawIcon(display_, Icon::Crown, MARGIN + 16, 23, GxEPD_WHITE);
+      display_.setCursor(MARGIN + 32, 24);
+      display_.print("HOST");
+    }
     if (turnNumber != 0) {
       char turn[12];
       snprintf(turn, sizeof(turn), "TURN %u", static_cast<unsigned>(turnNumber));
-      display_.setCursor(display_.width() - MARGIN - strlen(turn) * CHAR_WIDTH, 25);
+      display_.setCursor(display_.width() - MARGIN - strlen(turn) * CHAR_WIDTH, 24);
       display_.print(turn);
     }
   }
-  display_.drawFastHLine(MARGIN, 36, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+  display_.setTextColor(GxEPD_BLACK);
+}
+
+// A message box: filled (white text, icons both sides) when it concerns this
+// Sigil now, framed otherwise. The words carry the meaning.
+void EpaperDisplay::drawBanner(const char *message, int16_t y, bool highlight, Icon kind,
+    uint8_t maxSize) {
+  const int16_t width = display_.width() - 2 * MARGIN;
+  // The largest text size that fits the box; drawCentered shrinks the same way.
+  const int16_t length = static_cast<int16_t>(strlen(message));
+  uint8_t size = maxSize;
+  while (size > 1 && length * CHAR_WIDTH * size > width) --size;
+  const bool icons = highlight && kind != Icon::None &&
+      length * CHAR_WIDTH * size + 2 * (ICON_WIDTH + 6) <= width;
+  if (highlight) {
+    display_.fillRoundRect(MARGIN, y, width, BANNER_HEIGHT, 5, GxEPD_BLACK);
+    display_.setTextColor(GxEPD_WHITE);
+  } else {
+    display_.drawRoundRect(MARGIN, y, width, BANNER_HEIGHT, 5, GxEPD_BLACK);
+  }
+  if (icons) {
+    const int16_t iconY = y + (BANNER_HEIGHT - iconHeight(kind)) / 2;
+    drawIcon(display_, kind, MARGIN + 4, iconY, GxEPD_WHITE);
+    drawIcon(display_, kind == Icon::Turn ? Icon::TurnBack : kind,
+        MARGIN + width - 4 - ICON_WIDTH, iconY, GxEPD_WHITE);
+  }
+  drawCentered(message, y + (BANNER_HEIGHT - 8 * size) / 2, size);
+  display_.setTextColor(GxEPD_BLACK);
+}
+
+// A heart and the largest life total that fits, centered as one unit.
+void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
+  char number[16];
+  snprintf(number, sizeof(number), "%ld", static_cast<long>(life));
+  const int16_t width = display_.width() - 2 * MARGIN;
+  const int16_t length = static_cast<int16_t>(strlen(number));
+  uint8_t size = maxSize;
+  const uint8_t heartScale = maxSize >= 5 ? 2 : 1;
+  while (size > 1 && ICON_WIDTH * heartScale + 4 + length * CHAR_WIDTH * size > width) --size;
+  const int16_t total = ICON_WIDTH * heartScale + 4 + length * CHAR_WIDTH * size;
+  const int16_t x = MARGIN + (width - total) / 2;
+  drawIcon(display_, Icon::Heart, x, y + (8 * size - iconHeight(Icon::Heart) * heartScale) / 2,
+      GxEPD_BLACK, heartScale);
+  display_.setTextSize(size);
+  display_.setCursor(x + ICON_WIDTH * heartScale + 4, y);
+  display_.print(number);
 }
 
 void EpaperDisplay::drawStatus(const char *line1, const char *line2) {
@@ -152,8 +220,9 @@ void EpaperDisplay::drawStatus(const char *line1, const char *line2) {
   do {
     display_.fillScreen(GxEPD_WHITE);
     drawHeader("TurnHub");
-    drawTwoLines(line1, 82, display_.width() - 2 * MARGIN);
-    if (line2 != nullptr) drawCentered(line2, 146);
+    drawEmblem(display_, display_.width() / 2, 72, GxEPD_BLACK, 2);
+    drawTwoLines(line1, 112, display_.width() - 2 * MARGIN);
+    if (line2 != nullptr) drawCentered(line2, 156);
     drawLegend();
   } while (display_.nextPage());
 }
@@ -197,8 +266,6 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const bool active = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_ACTIVE);
   const char primarySeat = primary < secondary ? 'A' : 'B';
   const int16_t width = display_.width() - 2 * MARGIN;
-  char life[16];
-  snprintf(life, sizeof(life), "%ld", static_cast<long>(s.primary.life));
 
   const int16_t bottom = contentBottom();
   const int16_t secondaryY = min<int16_t>(s.commander ? 216 : 149, bottom - 36);
@@ -223,16 +290,10 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
         TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST),
         TurnHubProtocol::displayTurnNumber(s.state));
     // Atlas places the active local player first; keep the turn cue with them.
-    if (active) {
-      display_.fillRect(MARGIN, 40, width, 20, GxEPD_BLACK);
-      display_.setTextColor(GxEPD_WHITE);
-      drawCentered("YOUR TURN", 42, 2);
-      display_.setTextColor(GxEPD_BLACK);
-    } else {
-      drawCentered("WAITING FOR TURN", 46);
-    }
+    drawBanner(active ? "YOUR TURN" : "WAITING FOR TURN", 39, active,
+        active ? Icon::Turn : Icon::None, 2);
     drawTwoLines(s.primary.name, 66, width);
-    drawCentered(life, 104, shared ? 4 : 6);
+    drawLife(s.primary.life, 104, shared ? 4 : 6);
     char label[20] = "LIFE";
     if (shared) snprintf(label, sizeof(label), "LIFE / SEAT %c", primarySeat);
     drawCentered(label, shared ? 138 : 156);
@@ -309,6 +370,7 @@ void EpaperDisplay::showState(
   const char *header = "TurnHub";
   const char *status = "WAITING";
   bool indicateSeat = false;
+  Icon kind = Icon::None;
   switch (mode) {
     case TurnHubProtocol::DisplayMode::Lobby:
       header = "Lobby";
@@ -318,21 +380,25 @@ void EpaperDisplay::showState(
       header = "Starting";
       status = starter ? "GO FIRST" : "GET READY";
       indicateSeat = starter;
+      kind = Icon::Turn;
       break;
     case TurnHubProtocol::DisplayMode::Running:
       header = "Game";
       status = active ? "YOUR TURN" : "WAITING";
       indicateSeat = active;
+      kind = Icon::Turn;
       break;
     case TurnHubProtocol::DisplayMode::Paused:
       header = "Paused";
       status = attention ? "ACTION NEEDED" : "GAME PAUSED";
       indicateSeat = attention;
+      kind = Icon::Pause;
       break;
     case TurnHubProtocol::DisplayMode::GameOver:
       header = "Game Over";
       status = winner ? "WINNER!" : "GAME COMPLETE";
       indicateSeat = winner;
+      kind = Icon::Crown;
       break;
     case TurnHubProtocol::DisplayMode::Ready:
     default:
@@ -365,7 +431,7 @@ void EpaperDisplay::showState(
       drawSeat(player, seatNameA_[0] ? seatNameA_ : player, 55, min<int16_t>(98, divider - 59), focused);
     }
     display_.drawFastHLine(MARGIN, divider, display_.width() - 2 * MARGIN, GxEPD_BLACK);
-    drawTwoLines(status, bottom - 49, display_.width() - 2 * MARGIN);
+    drawBanner(status, bottom - 49, indicateSeat, kind, 2);
     if (shared && indicateSeat) drawCentered(focusA ? "SEAT A" : "SEAT B", bottom - 11);
     drawLegend();
   } while (display_.nextPage());
