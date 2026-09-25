@@ -3,6 +3,7 @@
 // the TFT's and VSPI is kept for the microSD card). Presentation only: it
 // draws the AtlasScreen from touch_controls.cpp and feeds touches back to it.
 
+#include "avatars.h"
 #include "atlas_display.h"
 
 #define LGFX_USE_V1
@@ -289,6 +290,10 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   if (active) {
     tft.fillTriangle(x + 5, y + 5, x + 5, y + 15, x + 11, y + 10, ACCENT);
     nameX = x + 14;
+  }
+  if (p.avatar != 0) {
+    TurnHubAvatars::drawAvatar(tft, p.avatar, nameX, y + 2, ink);
+    nameX += TurnHubAvatars::AVATAR_SIZE + 3;
   }
   const bool tall = h >= 60;
   tft.setTextDatum(lgfx::top_left);

@@ -94,6 +94,7 @@ struct ScreenPlayer {
   char name[SCREEN_NAME_LENGTH + 1] = {};
   int32_t life = 0;
   uint8_t flags = 0;
+  uint8_t avatar = 0;  // A preset (avatars.h), drawn before the name; 0 none.
 };
 
 // Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp

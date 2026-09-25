@@ -119,6 +119,16 @@ bool saveJewelColorForProfile(const String &id, bool set, uint32_t rgb) {
   if (set) jewelColors[id.c_str()] = rgb; else jewelColors.erase(id.c_str());
   return true;
 }
+std::map<std::string, uint8_t> avatars;
+uint8_t avatarForProfile(const String &id) {
+  const auto it = avatars.find(id.c_str());
+  return it == avatars.end() ? 0 : it->second;
+}
+bool saveAvatarForProfile(const String &id, uint8_t avatar) {
+  if (!profileExists(id)) return false;
+  if (avatar) avatars[id.c_str()] = avatar; else avatars.erase(id.c_str());
+  return true;
+}
 void setLuxuryStore(TurnHubStorage::BlobStore *) {}
 bool luxuryStoreAvailable() { return true; }
 size_t migrateDetailedStats() { return 0; }

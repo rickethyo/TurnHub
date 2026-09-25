@@ -622,13 +622,15 @@ inline uint8_t lifeResponseTarget(int32_t v) { return static_cast<uint8_t>(stati
 inline bool lifeResponseApprove(int32_t v) { return (static_cast<uint32_t>(v) & 0x20u) != 0; }
 inline uint8_t lifeResponseTag(int32_t v) { return static_cast<uint8_t>((static_cast<uint32_t>(v) >> 6) & 0x3Fu); }
 
-// SeatColor payload: bits 0-1 seat (1 = A, 2 = B), bit 2 set (else the
-// default look), bits 8-31 0xRRGGBB. The Sigil uses it only for the calm
-// Joined and Waiting cues; every action cue keeps its standard colour.
-inline int32_t encodeSeatColor(uint8_t slot, bool set, uint32_t rgb) {
+// SeatColor payload: bits 0-1 seat (1 = A, 2 = B), bit 2 colour set (else
+// the default look), bits 3-7 the seat's preset avatar (avatars.h; 0 none,
+// never a custom one), bits 8-31 0xRRGGBB. The Sigil uses the colour only for
+// the calm Joined and Waiting cues; every action cue keeps its standard colour.
+inline int32_t encodeSeatColor(uint8_t slot, bool set, uint32_t rgb, uint8_t avatar = 0) {
   return static_cast<int32_t>((static_cast<uint32_t>(slot) & 0x03u) | (set ? 0x04u : 0u) |
-      ((rgb & 0xFFFFFFu) << 8));
+      ((static_cast<uint32_t>(avatar) & 0x1Fu) << 3) | ((rgb & 0xFFFFFFu) << 8));
 }
+inline uint8_t seatAvatar(int32_t v) { return static_cast<uint8_t>((static_cast<uint32_t>(v) >> 3) & 0x1Fu); }
 inline uint8_t seatColorSlot(int32_t v) { return static_cast<uint8_t>(static_cast<uint32_t>(v) & 0x03u); }
 inline bool seatColorSet(int32_t v) { return (static_cast<uint32_t>(v) & 0x04u) != 0; }
 inline uint32_t seatColorRgb(int32_t v) { return (static_cast<uint32_t>(v) >> 8) & 0xFFFFFFu; }

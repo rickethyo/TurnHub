@@ -4,6 +4,7 @@
 #include "account_access.h"
 #include "profile_statistics.h"
 #include "web_api_internal.h"
+#include "avatars.h"
 #include "game_profile.h"
 
 namespace TurnHubWebApi {
@@ -307,59 +308,105 @@ void sendAccessibility(WebServer &server, const TurnHubProfiles::AccessibilityPr
 }
 }  // namespace
 
-// The signed-in profile's Jewel colour ("#rrggbb" or null). It lives on the
-// microSD card, so without one the response says so and saving is refused.
-void handleJewelColor(WebServer &server) {
+// The signed-in profile's personalization: Jewel colour ("#rrggbb" or null)
+// and avatar (0 none, 1..AVATAR_COUNT a preset; see avatars.h). Both live on
+// the microSD card, so without one the response says so and saving fails.
+void handlePersonalization(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
-    sendError(server, 401, "Sign into your profile to see its Jewel colour");
+    sendError(server, 401, "Sign into your profile to see its personalization");
     return;
   }
+  const String id = sessionProfileId(*session);
   uint32_t rgb = 0;
-  const bool set = TurnHubProfiles::jewelColorForProfile(sessionProfileId(*session), rgb);
+  const bool set = TurnHubProfiles::jewelColorForProfile(id, rgb);
   char color[8];
   snprintf(color, sizeof(color), "#%06lx", static_cast<unsigned long>(rgb));
   String body = "{\"ok\":true,\"card\":";
   body += TurnHubProfiles::luxuryStoreAvailable() ? "true" : "false";
   body += ",\"color\":";
   if (set) { body += '"'; body += color; body += '"'; } else { body += "null"; }
+  body += ",\"avatar\":";
+  body += String(TurnHubProfiles::avatarForProfile(id));
   body += '}';
   sendJson(server, 200, body);
 }
 
-// color=#rrggbb sets it; color=none returns to the default lights.
-void handleSaveJewelColor(WebServer &server) {
+// Omitted fields keep their value. color=#rrggbb or none; avatar=0..count
+// (custom avatars are not accepted here yet).
+void handleSavePersonalization(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
-    sendError(server, 401, "Sign into your profile to change its Jewel colour");
+    sendError(server, 401, "Sign into your profile to change its personalization");
     return;
   }
   if (!TurnHubProfiles::luxuryStoreAvailable()) {
-    sendError(server, 503, "The Jewel colour is saved on the microSD card; insert one first");
+    sendError(server, 503, "Personalization is saved on the microSD card; insert one first");
     return;
   }
-  const String value = server.arg("color");
-  bool set = value != "none";
+  const String id = sessionProfileId(*session);
+  bool colorGiven = server.hasArg("color"), setColor = false;
   uint32_t rgb = 0;
-  if (set) {
-    bool valid = value.length() == 7 && value[0] == '#';
-    for (size_t i = 1; valid && i < 7; ++i) {
-      const char c = value[i];
-      const int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 :
-          c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
-      valid = digit >= 0;
-      rgb = (rgb << 4) | static_cast<uint32_t>(digit < 0 ? 0 : digit);
+  if (colorGiven) {
+    const String value = server.arg("color");
+    setColor = value != "none";
+    if (setColor) {
+      bool valid = value.length() == 7 && value[0] == '#';
+      for (size_t i = 1; valid && i < 7; ++i) {
+        const char c = value[i];
+        const int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 :
+            c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+        valid = digit >= 0;
+        rgb = (rgb << 4) | static_cast<uint32_t>(digit < 0 ? 0 : digit);
+      }
+      if (!valid) {
+        sendError(server, 400, "color must be #rrggbb or none");
+        return;
+      }
     }
-    if (!valid) {
-      sendError(server, 400, "color must be #rrggbb or none");
+  }
+  int avatar = -1;
+  if (server.hasArg("avatar")) {
+    const String value = server.arg("avatar");
+    bool digits = value.length() > 0 && value.length() <= 3;
+    for (size_t i = 0; digits && i < value.length(); ++i) digits = value[i] >= '0' && value[i] <= '9';
+    avatar = digits ? value.toInt() : -1;
+    if (avatar < 0 || (avatar != 0 && !TurnHubAvatars::validPresetAvatar(static_cast<uint8_t>(avatar)))) {
+      sendError(server, 400, "avatar must be 0 or a preset number");
       return;
     }
   }
-  if (!TurnHubProfiles::saveJewelColorForProfile(sessionProfileId(*session), set, rgb)) {
-    sendError(server, 503, "The Jewel colour could not be saved to the card");
+  if ((colorGiven && !TurnHubProfiles::saveJewelColorForProfile(id, setColor, rgb)) ||
+      (avatar >= 0 && !TurnHubProfiles::saveAvatarForProfile(id, static_cast<uint8_t>(avatar)))) {
+    sendError(server, 503, "Personalization could not be saved to the card");
     return;
   }
-  handleJewelColor(server);
+  handlePersonalization(server);
+}
+
+// Public: the preset avatar icons, so the portal and apps draw exactly what
+// Atlas and the Sigils draw. Rows are 16 characters, '#' ink, '.' background.
+void handleAvatars(WebServer &server) {
+  String body;
+  body.reserve(6000);
+  body += "{\"size\":";
+  body += String(TurnHubAvatars::AVATAR_SIZE);
+  body += ",\"avatars\":[";
+  for (uint8_t i = 0; i < TurnHubAvatars::AVATAR_COUNT; ++i) {
+    const auto &icon = TurnHubAvatars::AVATARS[i];
+    if (i) body += ',';
+    body += "{\"id\":"; body += String(i + 1);
+    body += ",\"key\":\""; body += icon.key;
+    body += "\",\"label\":\""; body += icon.label;
+    body += "\",\"rows\":[";
+    for (uint8_t row = 0; row < TurnHubAvatars::AVATAR_SIZE; ++row) {
+      if (row) body += ',';
+      body += '"'; body += icon.rows[row]; body += '"';
+    }
+    body += "]}";
+  }
+  body += "]}";
+  sendJson(server, 200, body);
 }
 
 // Per-player accessibility preferences. Like the profile policy, these are

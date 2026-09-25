@@ -11,6 +11,7 @@
 #include "protocol.h"
 #pragma pack(pop)
 #endif
+#include "avatars.h"
 #include "controller_profiles.h"
 #include "profile_store.h"
 #include "web_api_internal.h"
@@ -1207,11 +1208,11 @@ static void jewelColors() {
   enterEmptyLobby(); TurnHub::fixtureRadio = true;
   String id;
   const String owner = registerPhone("Jewel owner", id);
-  assert(request("/api/session/jewel", "", {}, HTTP_GET) == 401);
-  assert(request("/api/session/jewel", owner, {}, HTTP_GET) == 200 && server.body.find("\"color\":null") != std::string::npos);
+  assert(request("/api/session/personalization", "", {}, HTTP_GET) == 401);
+  assert(request("/api/session/personalization", owner, {}, HTTP_GET) == 200 && server.body.find("\"color\":null") != std::string::npos);
   for (const char *bad : {"ff8800", "#ff88", "#gg8800", "#ff88001"})
-    assert(request("/api/session/jewel", owner, {{"color", bad}}) == 400);
-  assert(request("/api/session/jewel", owner, {{"color", "#FF8800"}}) == 200);
+    assert(request("/api/session/personalization", owner, {{"color", bad}}) == 400);
+  assert(request("/api/session/personalization", owner, {{"color", "#FF8800"}}) == 200);
   assert(server.body.find("\"color\":\"#ff8800\"") != std::string::npos);
   for (auto &record : TurnHub::fixtureRecords) {
     record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
@@ -1223,7 +1224,25 @@ static void jewelColors() {
   assert(seatColorSet(c) && seatColorRgb(c) == 0xFF8800 && seatColorSlot(c) == 1);
   assert(!seatColorSet(sigilSeatColorFor(0, 2)) && !seatColorSet(sigilSeatColorFor(1, 1)));
   syncSigilMenus(testNow); assert(TurnHub::fixtureSeatColor[0][1] == c);
-  assert(request("/api/session/jewel", owner, {{"color", "none"}}) == 200 && server.body.find("\"color\":null") != std::string::npos);
+  // Avatars: presets only; 0 clears; custom and unknown values are refused.
+  for (const char *bad : {"13", "128", "-1", "x", "1000"})
+    assert(request("/api/session/personalization", owner, {{"avatar", bad}}) == 400);
+  assert(request("/api/session/personalization", owner, {{"avatar", "3"}}) == 200 &&
+      server.body.find("\"avatar\":3") != std::string::npos && server.body.find("#ff8800") != std::string::npos);
+  c = sigilSeatColorFor(0, 1);
+  assert(seatAvatar(c) == 3 && seatColorRgb(c) == 0xFF8800);
+  assert(request("/api/avatars", "", {}, HTTP_GET) == 200 && server.body.find("\"key\":\"sword\"") != std::string::npos &&
+      server.body.find("\"id\":12") != std::string::npos);
+  handleActionShort(0);
+  assert(request("/api/seats", "", {}, HTTP_GET) == 200 && server.body.find("\"avatar\":3") != std::string::npos);
+  AtlasScreen screen; buildAtlasScreen(testNow, screen);
+  assert(screen.playerCount == 1 && screen.players[0].avatar == 3);
+  TurnHubProfiles::saveAvatarForProfile(id, TurnHubAvatars::AVATAR_CUSTOM);  // Custom: never public.
+  assert(request("/api/seats", "", {}, HTTP_GET) == 200 && server.body.find("\"avatar\":0") != std::string::npos);
+  assert(seatAvatar(sigilSeatColorFor(0, 1)) == 0);
+  buildAtlasScreen(testNow, screen); assert(screen.players[0].avatar == 0);
+  assert(request("/api/session/personalization", owner, {{"avatar", "0"}}) == 200);
+  assert(request("/api/session/personalization", owner, {{"color", "none"}}) == 200 && server.body.find("\"color\":null") != std::string::npos);
   assert(!seatColorSet(sigilSeatColorFor(0, 1)));
   syncSigilMenus(testNow); assert(!seatColorSet(TurnHub::fixtureSeatColor[0][1]));
   for (auto &record : TurnHub::fixtureRecords) {
@@ -2604,7 +2623,7 @@ int main() {
   ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
   profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
   sigilLife(); std::cout<<"PASS Sigil life: AdjustLife availability, batched own-life changes, requests shown and answered with tag checks\n";
-  jewelColors(); std::cout<<"PASS Jewel colour: endpoint, validation, card-backed setting, SeatColor per bound seat\n";
+  jewelColors(); std::cout<<"PASS personalization: Jewel colour and preset avatars, validation, /api/avatars, /api/seats, TFT chips, SeatColor; custom stays private\n";
   sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";

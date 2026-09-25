@@ -5,6 +5,7 @@
 // switch screens, and a test is started on the harness. Drawing lives in
 // atlas_display.cpp.
 
+#include "avatars.h"
 #include "touch_controls.h"
 
 #include <stdio.h>
@@ -433,6 +434,10 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
     const String profile = inGame ? String(seat.profileId)
         : TurnHubControllers::existingProfileForSeat(seat.controllerId, seat.slot);
     playerName(seat, profile, nowMs, p.name);
+    // Only preset avatars reach Atlas's screen; custom ones stay signed-in only.
+    const uint8_t avatar = TurnHubProfiles::avatarForProfile(
+        profile.length() ? profile : TurnHubControllers::profileForSeat(seat.controllerId, seat.slot));
+    if (TurnHubAvatars::validPresetAvatar(avatar)) p.avatar = avatar;
     if (inGame) {
       p.life = game.lifeTotal(seat.playerNumber);
       if (hubState != HubState::GameOver && seat.playerNumber == game.activePlayerNumber()) p.flags |= CHIP_ACTIVE;
@@ -672,7 +677,8 @@ bool sameText(const char *a, const char *b) { return strcmp(a, b) == 0; }
 }  // namespace
 
 bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b) {
-  return a.number == b.number && a.life == b.life && a.flags == b.flags && sameText(a.name, b.name);
+  return a.number == b.number && a.life == b.life && a.flags == b.flags && a.avatar == b.avatar &&
+      sameText(a.name, b.name);
 }
 
 bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {

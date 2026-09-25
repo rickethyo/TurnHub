@@ -274,12 +274,13 @@ bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &pr
 }
 
 namespace {
-// Jewel colour cache: profile ID -> colour or none, so the Sigil sync loop
-// never reads the card more than once per profile.
+// Personalization cache: profile ID -> Jewel colour and avatar, so the Sigil
+// sync loop and /api/seats never read the card more than once per profile.
 struct JewelCacheEntry {
   char id[PROFILE_ID_LENGTH + 1] = {};
   bool set = false;
   uint32_t rgb = 0;
+  uint8_t avatar = 0;
 };
 JewelCacheEntry jewelCache[16];
 uint8_t jewelCacheNext = 0;
@@ -291,8 +292,8 @@ JewelCacheEntry *cachedJewel(const String &profileId) {
 }
 }  // namespace
 
-bool jewelColorForProfile(const String &profileId, uint32_t &rgb) {
-  if (profileId.length() != PROFILE_ID_LENGTH || luxuryStore == nullptr) return false;
+static JewelCacheEntry *personalization(const String &profileId) {
+  if (profileId.length() != PROFILE_ID_LENGTH || luxuryStore == nullptr) return nullptr;
   JewelCacheEntry *entry = cachedJewel(profileId);
   if (entry == nullptr) {
     entry = &jewelCache[jewelCacheNext];
@@ -306,9 +307,40 @@ bool jewelColorForProfile(const String &profileId, uint32_t &rgb) {
       entry->set = true;
       entry->rgb = (static_cast<uint32_t>(record[1]) << 16) | (static_cast<uint32_t>(record[2]) << 8) | record[3];
     }
+    uint8_t avatar[2] = {};
+    if (luxuryStore->read(profileKey('v', profileId).c_str(), avatar, sizeof(avatar), size) ==
+            TurnHubStorage::Status::Ok && size == sizeof(avatar) && avatar[0] == 1) {
+      entry->avatar = avatar[1];
+    }
   }
+  return entry;
+}
+
+bool jewelColorForProfile(const String &profileId, uint32_t &rgb) {
+  const JewelCacheEntry *entry = personalization(profileId);
+  if (entry == nullptr) return false;
   rgb = entry->rgb;
   return entry->set;
+}
+
+uint8_t avatarForProfile(const String &profileId) {
+  const JewelCacheEntry *entry = personalization(profileId);
+  return entry == nullptr ? 0 : entry->avatar;
+}
+
+bool saveAvatarForProfile(const String &profileId, uint8_t avatar) {
+  if (luxuryStore == nullptr || !profileExists(profileId)) return false;
+  const String key = profileKey('v', profileId);
+  TurnHubStorage::Status status;
+  if (avatar != 0) {
+    const uint8_t record[2] = {1, avatar};
+    status = luxuryStore->write(key.c_str(), record, sizeof(record));
+  } else {
+    status = luxuryStore->remove(key.c_str());
+    if (status == TurnHubStorage::Status::NotFound) status = TurnHubStorage::Status::Ok;
+  }
+  if (JewelCacheEntry *entry = cachedJewel(profileId)) *entry = JewelCacheEntry{};
+  return status == TurnHubStorage::Status::Ok;
 }
 
 bool saveJewelColorForProfile(const String &profileId, bool set, uint32_t rgb) {

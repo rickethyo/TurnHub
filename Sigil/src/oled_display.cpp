@@ -1,5 +1,6 @@
 #include "oled_display.h"
 #include "picker_list.h"
+#include "avatars.h"
 #include "display_name.h"
 
 #include <Arduino.h>
@@ -341,6 +342,14 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (!shared) {
     text(asking || pending ? line : s.primary.name, 27, 1, Align::Center);
     lifeTotal(shownLife, 38, 3);
+    // Left of the life total, when the number leaves room (up to 3 digits).
+    char digits[12];
+    snprintf(digits, sizeof(digits), "%ld", static_cast<long>(shownLife));
+    const uint8_t mine = primary < secondary || !secondary ? life_.avatar[0] : life_.avatar[1];
+    if (mine && strlen(digits) <= 3) {
+      display_->fillRect(0, 42, 18, 16, SH110X_BLACK);
+      TurnHubAvatars::drawAvatar(*display_, mine, 0, 42, SH110X_WHITE);
+    }
   } else {
     snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
     text(asking || pending ? line : label, 27, 1, Align::Center);

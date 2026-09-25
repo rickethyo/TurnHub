@@ -9,11 +9,13 @@ namespace TurnHubSigil {
 // that to the status ring), and a life request waiting for this Sigil's
 // answer (Right approves, Left denies).
 struct LifeOverlay {
+  uint8_t avatar[2] = {0, 0};  // Seat A and B preset avatars (SeatColor).
   int32_t pending = 0;
   uint8_t pendingPlayer = 0;
   TurnHubProtocol::LifeRequestFields request;  // target 0 = none
   bool operator==(const LifeOverlay &o) const {
-    return pending == o.pending && pendingPlayer == o.pendingPlayer &&
+    return avatar[0] == o.avatar[0] && avatar[1] == o.avatar[1] &&
+        pending == o.pending && pendingPlayer == o.pendingPlayer &&
         request.target == o.request.target && request.requester == o.request.requester &&
         request.tag == o.request.tag && request.delta == o.request.delta;
   }

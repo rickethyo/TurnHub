@@ -6,6 +6,7 @@
 #include "web_api.h"
 #include "controller_profiles.h"
 #include "profile_store.h"
+#include "avatars.h"
 
 namespace TurnHubAtlas {
 
@@ -210,7 +211,9 @@ int32_t sigilSeatColorFor(uint8_t sigilId, uint8_t slot) {
   uint32_t rgb = 0;
   const String profile = TurnHubControllers::profileForSeat(sigilId, slot);
   const bool set = profile.length() > 0 && TurnHubProfiles::jewelColorForProfile(profile, rgb);
-  return TurnHubProtocol::encodeSeatColor(slot, set, set ? rgb : 0);
+  const uint8_t avatar = profile.length() ? TurnHubProfiles::avatarForProfile(profile) : 0;
+  return TurnHubProtocol::encodeSeatColor(slot, set, set ? rgb : 0,
+      TurnHubAvatars::validPresetAvatar(avatar) ? avatar : 0);
 }
 
 int32_t sigilLifeRequestFor(uint8_t sigilId) {

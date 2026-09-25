@@ -91,6 +91,10 @@ bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPre
 // in RAM; saving (set = false removes it) refreshes the cache.
 bool jewelColorForProfile(const String &profileId, uint32_t &rgb);
 bool saveJewelColorForProfile(const String &profileId, bool set, uint32_t rgb);
+// The profile's avatar (avatars.h: 0 none, 1..AVATAR_COUNT a preset,
+// AVATAR_CUSTOM reserved), also a luxury record on the card (v<profileId>).
+uint8_t avatarForProfile(const String &profileId);
+bool saveAvatarForProfile(const String &profileId, uint8_t avatar);
 
 // Statistics are split (owner decision 2026-09-25): a small core record in
 // NVS (games played and won, last result and game profile) that every Atlas

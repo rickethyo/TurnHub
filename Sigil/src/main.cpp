@@ -198,6 +198,7 @@ uint8_t pickerCursor = 0;
 // key-downs went to life so their releases do not reach the menu.
 TurnHubSigil::LifeAdjuster lifeAdjuster;
 TurnHubProtocol::LifeRequestFields lifeRequest;
+uint8_t seatAvatars[2] = {0, 0};  // From SeatColor; drawn by the OLED.
 bool lifeKeyRouted[TurnHubSigil::KEY_COUNT] = {};
 // Snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::LifeOverlay publishedLifeOverlay;
@@ -789,6 +790,7 @@ void forgetPairing(const char *reason) {
   sigilMenu.clear();
   lifeAdjuster.cancel();
   lifeRequest = TurnHubProtocol::LifeRequestFields{};
+  seatAvatars[0] = seatAvatars[1] = 0;
 #endif
 #if TURNHUB_PICKER
   portENTER_CRITICAL(&displayProfileMux);
@@ -923,9 +925,12 @@ void handleEspNowReceive(
     case PacketType::LifeRequest:
       lifeRequest = TurnHubProtocol::decodeLifeRequest(packet.value);
       break;
-    case PacketType::SeatColor:
+    case PacketType::SeatColor: {
       ledModel.applySeatColor(packet.value);
+      const uint8_t slot = TurnHubProtocol::seatColorSlot(packet.value);
+      if (slot == 1 || slot == 2) seatAvatars[slot - 1] = TurnHubProtocol::seatAvatar(packet.value);
       break;
+    }
     case PacketType::MenuState:
       sigilMenu.applyMenuState(packet.value, millis());
       break;
@@ -1037,6 +1042,8 @@ uint8_t shownPlayer() {
 void publishLifeOverlay() {
   TurnHubSigil::LifeOverlay overlay;
   overlay.request = lifeRequest;
+  overlay.avatar[0] = seatAvatars[0];
+  overlay.avatar[1] = seatAvatars[1];
 #if TURNHUB_DISPLAY_OLED
   overlay.pending = lifeAdjuster.pending();
   overlay.pendingPlayer = lifeAdjuster.player();

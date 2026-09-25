@@ -7,6 +7,7 @@
 #include "firmware_version.h"
 #include "protocol.h"
 #include "web_api_internal.h"
+#include "avatars.h"
 
 namespace TurnHubWebApi {
 namespace internal {
@@ -156,7 +157,10 @@ void handleSeats(WebServer &server) {
       json += ",\"life\":"; json += String(snapshot.life);
       json += ",\"profileId\":\""; json += jsonEscape(profileId);
       json += "\",\"name\":\""; json += jsonEscape(TurnHubProfiles::nameForProfile(profileId));
-      json += "\",\"hasPin\":"; json += jsonBool(hasPin(controllerId, slot));
+      const uint8_t avatar = TurnHubProfiles::avatarForProfile(profileId);
+      json += "\",\"avatar\":";
+      json += String(TurnHubAvatars::validPresetAvatar(avatar) ? avatar : 0);
+      json += ",\"hasPin\":"; json += jsonBool(hasPin(controllerId, slot));
       json += ",\"sessionClaimed\":"; json += jsonBool(seatHasSession(controllerId, slot, nowMs));
       json += '}';
     }
