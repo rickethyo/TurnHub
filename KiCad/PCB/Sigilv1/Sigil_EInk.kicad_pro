@@ -488,7 +488,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "Sigilv1.kicad_pro",
+    "filename": "Sigil_EInk.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -668,12 +668,12 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "Sigilv1.kicad_sch",
+        "filename": "Sigil_EInk.kicad_sch",
         "name": "Root",
         "uuid": "f3084516-8a7e-4624-9c15-ca3477e318b9"
       }
     ],
-    "used_designators": "SW1,R1,D1",
+    "used_designators": "",
     "variants": []
   },
   "sheets": [

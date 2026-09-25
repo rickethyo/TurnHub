@@ -1,34 +1,38 @@
-# Sigil Rev A electrical draft
+# Sigil Rev A electrical drafts
 
-U1 is the removable, complete 38-pin ESP32 DevKit carrier interface. Its custom symbol and local symbol library use **A11–A29 and J11–J29 as pin numbers** (breadboard positions after the owner rotated the breadboard 180° on 2026-09-24: old A*n* is now J*(30−n)*, old J*n* is now A*(30−n)*), not ESP32 module pad numbers. No DevKit footprint is assigned. The PCB file has not been routed or changed.
+Rev A is drawn as two KiCad projects in this folder. They share the symbol library (`Sigil.kicad_sym`) and differ only in the display interface:
+
+| Project | Display | Display nets |
+|---|---|---|
+| `Sigil_EInk.kicad_pro` | Inland e-paper driver board (GxEPD2_213_B74), J2 `EPD_Module_Header` (8 pins) | EPD_SCLK, EPD_MOSI, EPD_CS, EPD_DC, EPD_RST, EPD_BUSY |
+| `Sigil_OLED.kicad_pro` | Inland 1.3" OLED V2.0, J2 `OLED_Module_Header` (7 pins) | OLED_SCLK, OLED_MOSI, OLED_CS, OLED_DC, OLED_RST |
+
+Both displays use the same sockets and GPIOs (A8/GPIO16 DC, A9/GPIO17 CS, A11/GPIO18 clock, A17/GPIO22 reset, A18/GPIO23 data); only the e-ink uses A14/GPIO21 BUSY. Both schematics also carry the buzzer interface J3 on J12/GPIO33, +3V3 from J19, and GND on A13, A19 and J6.
+
+**Buttons and LEDs are not on either schematic** (removed 2026-09-24) while the controls are redesigned. Their GPIOs are marked NC.
+
+**Joystick (E-ink only).** `Sigil_EInk` carries J4, an unmarked 5-pin analog thumbstick that replaces the Pass/Action/Pause buttons: GND, "+5V" (fed **3.3 V**, never 5 V, since VRX/VRY swing to the supply and the ESP32 ADC is 3.3 V max), VRX to J15/GPIO34, VRY to J14/GPIO35 and SW to J13/GPIO32. VRX/VRY are ADC1 input-only pins because ADC2 is unusable under ESP-NOW. Firmware: the Sigil `sigil-joystick` PlatformIO environment (click = PASS, right = Action, down = Pause/Win). *Planned*: not yet tested on hardware. The breadboard wiring the current firmware uses is in the [hardware reference](../../../Documentation/engineering/HARDWARE_REFERENCE.md).
+
+U1 is the removable, complete 38-pin ESP32 DevKit carrier interface. Its custom symbol and local symbol library use **A1–A19 and J1–J19 as pin numbers**, not ESP32 module pad numbers. No DevKit footprint is assigned. The PCB files are empty placeholders.
 
 ## Authority and orientation
 
-- GPIO functions: `Sigil/src/main.cpp`, `Sigil/include/epaper_display.h`, and explicit SPI configuration in `Sigil/src/epaper_display.cpp`.
-- Socket identity: user-supplied [SigilBackMarked.png](reference/SigilBackMarked.png), photographed from the **BACK**, and the user's transcribed sequence. The photo still carries the pre-rotation A1–A19 / J1–J19 labels; apply the mapping above to read it. The schematic shows A29 top-left and J29 top-right in that rear-reference view.
-- Existing values: R1–R3 remain **330R**, as specified in the previous schematic. The hardware reference contains no additional verified passive values or peripheral part numbers.
-- [Both cross-check tables](CROSS_CHECK.md) are verified from the exported netlist and firmware by `tools/verify_schematic.py`.
+- GPIO functions: `Sigil/include/epaper_display.h` and the explicit SPI configuration in `Sigil/src/epaper_display.cpp` (e-ink), `Sigil/include/oled_config.h` (OLED), and `BUZZER_PIN` in `Sigil/src/main.cpp`.
+- Socket identity: user-supplied [SigilBackMarked.png](reference/SigilBackMarked.png), photographed from the **BACK**, and the user's transcribed sequence. The schematics deliberately show J1 (5V) top-left and A1 (CLK) top-right in that rear-reference view.
+- [The cross-check tables](CROSS_CHECK.md) are verified from both exported netlists and the firmware by `tools/verify_schematic.py`.
 
-The schematic's rear-reference arrangement is **not** a carrier component-side footprint drawing. Future footprint work must translate the views explicitly and verify insertion against the physical part. Preserve each socket ID; do not blindly copy or mirror the schematic into a footprint.
+The rear-reference arrangement is **not** a carrier component-side footprint drawing. Future footprint work must translate the views explicitly and verify insertion against the physical part. Preserve each socket ID; do not blindly copy or mirror the schematic into a footprint.
 
-## Electrical corrections and discrepancies
-
-The old U1 was a bare ESP32-WROOM-32E symbol with labels on incorrect electrical pins. For example its exported netlist assigned LED_BLUE to IO5, LED_GREEN to IO25, and LED_RED to IO23, contrary to the working firmware's GPIO27, GPIO14, and GPIO13. These now terminate on A21, A22, and A25 respectively. The old LED resistor outputs and LED cathodes were unconnected; the new circuits connect GPIO → 330R → LED anode, with cathode → GND.
-
-PAIR was described as future work in old schematic/hardware notes. It is implemented: `PAIR_BUTTON = 19`, U1 J18, net PAIR, SW4 to common GND including U1 J17. Firmware detaches SPI MISO from GPIO19 and configures INPUT_PULLUP after display initialization. Released is HIGH; pressed is LOW. Pass and Action also close to GND with internal pull-ups.
-
-The old GPIO4 Action/Win auxiliary and GPIO32 DISPLAY_DETECT assignments have no current firmware implementation and were removed; J23 is explicitly NC. GPIO32 / A17 is now the Pause / Win button (`PAUSE_WIN_BUTTON = 32`): net BTN_PAUSE, SW5 to GND, INPUT_PULLUP like the other buttons. The owner first added the BTN_PAUSE label by hand in KiCad without a switch; the script now draws the complete circuit. SW3's reference stays retired (it was the old GPIO4 auxiliary) rather than renumbering the existing Pair switch SW4.
-
-All three ground positions J17, J11, and A24 connect to GND. A11 supplies the +3V3 rail. This draft assumes power through the DevKit's own USB connector; A29/5V has no carrier connection. No additional regulator, USB-UART, BOOT, EN/reset, or other DevKit support circuitry is reproduced.
+This draft assumes power through the DevKit's own USB connector; J1/5V has no carrier connection. No additional regulator, USB-UART, BOOT, EN/reset, or other DevKit support circuitry is reproduced.
 
 ## Unresolved electrical details
 
-The **known GPIO network is connected and internally consistent**, but the complete peripheral implementation cannot be released from the information currently in the repository:
-
-- **Display J2:** a logical signal interface only, with semantic pin IDs VCC/GND/DIN/CLK/CS/DC/RST/BUSY. These are not a verified physical connector order. Firmware selects GxEPD2_213_B74; the exact breakout, connector, supply rating/current, and onboard support components need confirmation. The +3V3 connection carries forward the old schematic's intended supply and is pending module verification. The display has no carrier MISO connection.
+- **Display J2 (both):** pin numbers follow the module's own header, pin 1 at the top, with the silkscreen labels as pin names. Order and the jumper wire colour on each wire come from the owner's photos of the breadboard wiring (2026-09-24); the colours are annotations, not a harness specification. Tables are in [CROSS_CHECK.md](CROSS_CHECK.md). J2 has no footprint yet.
+- **E-ink J2:** SDI, SCLK, CS, D/C, RES, BUSY, VCC, GND. The Inland driver board has two slide switches, P1 (3 / 0.47) and P2 (5VIN / 3.3VIN), whose positions are not recorded; with the carrier's 3.3 V supply, check P2. Supply current and the panel itself need confirmation. The display has no carrier MISO connection.
+- **OLED J2:** GND, VCC, CLK, MOSI, RES, DC, CS. The owner verified the SPI wiring, 3.3 V supply and a working image on 2026-09-24; the SH1106 controller and 128x64 geometry are inferred from the vendor example (see `Sigil/DISPLAY.md`).
 - **Buzzer J3:** a logical SIG/GND interface only. Firmware proves GPIO33 tone output, but not whether the physical load is a passive piezo, magnetic transducer, or driven module. Confirm part, wiring, voltage/current, driver, bias and protection before implementing the load. No direct GPIO-drive rating is assumed.
-- J2/J3 are excluded from PCB and BOM, have no footprints, and are explicitly marked logical-only on the sheet. Their complete internal circuitry is not represented. They must be replaced with verified physical interfaces/circuits before PCB work.
-- Confirm LED parts, operating current and resistor ratings; 330R is retained from the old schematic, not claimed measured. Confirm the DevKit regulator can supply the total carrier/display load.
+- J2/J3 are excluded from PCB and BOM and have no footprints; J3 is marked logical-only on the sheet. Both need verified physical connectors/circuits before PCB work.
+- Buttons, LEDs and their passives must be redrawn once the controls are decided. Confirm the DevKit regulator can supply the total carrier/display load.
 
 ## Mechanical release hold
 
@@ -40,12 +44,18 @@ No reliable dimensional drawing or measured dimensions were found in the reposit
 - Female socket dimensions/height, insertion depth, underside and component keepouts.
 - BOOT and EN/reset access plus antenna clearance requirements for the exact installed DevKit.
 
-Use two 1x19 female socket rows so the complete DevKit remains removable. The eventual silkscreen must make A29/J29 and insertion orientation obvious. Keep USB-C accessible for flashing/debugging and leave BOOT and EN/reset operable. **No fabrication-ready DevKit footprint exists in this revision.**
+Use two 1x19 female socket rows so the complete DevKit remains removable. The eventual silkscreen must make A1/J1 and insertion orientation obvious. Keep USB-C accessible for flashing/debugging and leave BOOT and EN/reset operable. **No fabrication-ready DevKit footprint exists in this revision.**
 
 ## Validation and editing
 
-KiCad 10.0.6 CLI ERC (standard `Device`/`Switch` libraries installed): **0 errors, 0 warnings**, without adding ERC exclusions (2026-09-24, after adding SW5). Exported netlist checks verify all 38 socket names, all 14 firmware signal mappings, ground positions, button topology, LED chains, logical peripheral connections and unused-pin NC markers. A rendered schematic was visually reviewed. These checks do not resolve the electrical or mechanical holds above.
+KiCad 10.0.6 CLI ERC on both schematics: **0 violations**, without ERC exclusions (2026-09-24). Exported netlist checks verify all 38 socket names, the display and buzzer GPIOs against firmware, each display header pin's number, label and net, power and ground positions, that only U1/J2/J3 are present, and that every other socket is NC. Rendered schematics were visually reviewed. These checks do not resolve the electrical or mechanical holds above.
 
-Open `Sigilv1.kicad_sch` in KiCad. The project had existing editor lock files during this update; reload the schematic from disk before editing so an older open copy does not overwrite it.
+`tools/build_schematic.py` rebuilds both schematics and the symbol library deterministically. When `kicad-cli` is on PATH it then re-saves each file with `kicad-cli sch upgrade --force`, so the output matches what the KiCad editor writes (pin UUIDs are deterministic too). It overwrites both schematics and the library; do not rerun it after manual edits unless those edits have been incorporated into the script. Close the projects in KiCad first, or reload from disk afterwards, so an open copy does not overwrite the rebuild.
 
-`tools/build_schematic.py` rebuilds the draft deterministically, preserving embedded standard R/LED/SW_Push definitions. When `kicad-cli` is on PATH it then re-saves the file with `kicad-cli sch upgrade --force`, so the output is byte-identical to what the KiCad editor writes (pin UUIDs are generated deterministically too). It overwrites schematic and custom library; do not rerun it after manual edits unless those edits have been incorporated into the script. To validate an edited schematic, export KiCad XML netlist and run `python tools/verify_schematic.py path/to/export.xml` (for example after `kicad-cli sch export netlist --format kicadxml -o export.xml Sigilv1.kicad_sch`); this refreshes CROSS_CHECK.md only after checks pass.
+To validate, export each netlist and run the verifier; it refreshes CROSS_CHECK.md only after both pass:
+
+```sh
+kicad-cli sch export netlist --format kicadxml -o eink.xml Sigil_EInk.kicad_sch
+kicad-cli sch export netlist --format kicadxml -o oled.xml Sigil_OLED.kicad_sch
+python tools/verify_schematic.py eink.xml oled.xml
+```
