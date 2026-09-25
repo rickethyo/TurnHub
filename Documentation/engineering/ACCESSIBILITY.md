@@ -280,6 +280,17 @@ about every two seconds and immediately after a save.
   a short green blink every 4 s), and confirming a win (short pulses) versus
   choosing a player to eliminate (now long pulses).
 
+### Sigil-rendered light (2026-09-25)
+
+Sigils that render their own light (`LedState`, see PROTOCOL_AND_PAIRING.md)
+receive the same style choice and apply it locally with the same rules: Reduced
+motion turns breathing into steady light and faster blinks into the 4-second
+slow blink; Monochrome-safe lengthens elimination pulses and makes a long
+untimed turn blink. On the NeoPixel ring the player number is shown as that
+many steady pixels and a shared seat as its half of the ring, so neither needs
+counting flashes or colour. The light never carries information found nowhere
+else: the Sigil display, Atlas screen and portal/app show it as text.
+
 ### Decision-needed sound
 
 `ActionRequired` (two short 1,150 Hz notes) now plays on the Sigil of the player

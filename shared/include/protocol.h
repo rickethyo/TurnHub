@@ -24,6 +24,10 @@ constexpr uint8_t CAPABILITY_INPUT_TIMING = 0x08;
 // player on it: shared seating (Seat B) is e-paper only. E-paper Sigils, and
 // firmware from before this bit existed, leave it clear.
 constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
+// The Sigil renders its status light itself from LedState packets (full
+// color, and the NeoPixel ring's pixels). Atlas then sends LedState instead
+// of the SetBlue/SetRed/SetGreen channel stream; older Sigils keep that.
+constexpr uint8_t CAPABILITY_LED_STATE = 0x20;
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
 // accessibility preferences and sends them in InputTiming; the Sigil applies
@@ -62,6 +66,7 @@ enum class PacketType : uint8_t {
   SetGreen = 22,
   Buzzer = 23,
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
+  LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -246,6 +251,95 @@ inline char displayNameChar(int32_t value, uint8_t index) {
 }
 
 // InputTiming value: long-press ms in bits 0..15, win-hold ms in bits 16..31.
+// Status-light vocabulary. Atlas chooses the cue and overlays from game state
+// (it owns the meaning); the Sigil only renders them. Wire values are stable.
+// Every cue stays distinguishable by pattern or position, not only by hue
+// (ACCESSIBILITY.md), and essential meaning also reaches screens as text.
+enum class LedCue : uint8_t {
+  Off = 0,             // Not part of the current table or game.
+  Unassigned = 1,      // Online but not joined: lobby invitation.
+  Joined = 2,          // In the lobby; shows the player number.
+  Starting = 3,        // Start countdown.
+  TurnStarted = 4,     // First moments of a turn that just passed to this Sigil.
+  YourTurn = 5,
+  Waiting = 6,         // Another player's turn.
+  Paused = 7,
+  ConfirmationNeeded = 8,  // This Sigil must confirm or deny a win claim.
+  EliminationSelect = 9,   // This Sigil is choosing a player to eliminate.
+  GameOver = 10,
+  // Sigil-local: Atlas cannot drive a Sigil that is pairing or offline.
+  Pairing = 11,
+  Disconnected = 12,
+  Error = 13,
+  Count
+};
+
+// Facets layered over the primary cue.
+enum class LedOverlay : uint8_t {
+  Host = 0,
+  Starter = 1,
+  Winner = 2,
+  TurnWarning = 3,   // Turn timer: little time left.
+  TimerExpired = 4,  // Turn timer reached zero; the turn continues.
+  LongTurn = 5,      // Timer off and the turn passed the long-turn mark.
+  Count
+};
+
+// The seated players' LED accessibility choice (profile LedStyle).
+enum class LedStyle : uint8_t { Default = 0, ReducedMotion = 1, MonochromeSafe = 2 };
+
+// LedState payload:
+//   bits 0-3 cue, 4-9 overlay bits, 10-13 player number (0-15),
+//   14 seat B (else A), 15 shared seat, 16-17 style,
+//   18-31 time since the cue's anchor (turn or countdown start) in 16 ms
+//   units, clamped (~262 s); only anchored patterns use it.
+constexpr uint32_t LED_ANCHOR_UNIT_MS = 16;
+constexpr uint32_t LED_ANCHOR_MAX_UNITS = 0x3FFF;
+
+struct LedStateFields {
+  LedCue cue = LedCue::Off;
+  uint8_t overlays = 0;
+  uint8_t playerNumber = 0;
+  uint8_t seatSlot = 1;  // 1 = A, 2 = B.
+  bool sharedSeat = false;
+  LedStyle style = LedStyle::Default;
+  uint32_t anchorAgeMs = 0;
+};
+
+inline int32_t encodeLedState(const LedStateFields &f) {
+  uint32_t units = f.anchorAgeMs / LED_ANCHOR_UNIT_MS;
+  if (units > LED_ANCHOR_MAX_UNITS) units = LED_ANCHOR_MAX_UNITS;
+  return static_cast<int32_t>(
+      (static_cast<uint32_t>(f.cue) & 0x0Fu) |
+      ((static_cast<uint32_t>(f.overlays) & 0x3Fu) << 4) |
+      ((static_cast<uint32_t>(f.playerNumber) & 0x0Fu) << 10) |
+      (f.seatSlot == 2 ? 1u << 14 : 0u) |
+      (f.sharedSeat ? 1u << 15 : 0u) |
+      ((static_cast<uint32_t>(f.style) & 0x03u) << 16) |
+      (units << 18));
+}
+
+// Everything except the anchor age: what makes a new LedState worth sending.
+inline uint32_t ledStateKey(int32_t value) {
+  return static_cast<uint32_t>(value) & 0x3FFFFu;
+}
+
+inline LedStateFields decodeLedState(int32_t value) {
+  const uint32_t v = static_cast<uint32_t>(value);
+  LedStateFields f;
+  const uint8_t cue = static_cast<uint8_t>(v & 0x0Fu);
+  f.cue = cue < static_cast<uint8_t>(LedCue::Count) ? static_cast<LedCue>(cue) : LedCue::Off;
+  f.overlays = static_cast<uint8_t>((v >> 4) & 0x3Fu);
+  f.playerNumber = static_cast<uint8_t>((v >> 10) & 0x0Fu);
+  f.seatSlot = (v & (1u << 14)) ? 2 : 1;
+  f.sharedSeat = (v & (1u << 15)) != 0;
+  const uint8_t style = static_cast<uint8_t>((v >> 16) & 0x03u);
+  f.style = style <= static_cast<uint8_t>(LedStyle::MonochromeSafe)
+      ? static_cast<LedStyle>(style) : LedStyle::Default;
+  f.anchorAgeMs = (v >> 18) * LED_ANCHOR_UNIT_MS;
+  return f;
+}
+
 inline bool validInputTiming(uint16_t longPressMs, uint16_t winHoldMs) {
   return longPressMs >= MIN_LONG_PRESS_MS && longPressMs <= MAX_LONG_PRESS_MS &&
       winHoldMs >= MIN_WIN_HOLD_MS && winHoldMs <= MAX_WIN_HOLD_MS &&

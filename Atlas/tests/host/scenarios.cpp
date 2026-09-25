@@ -58,9 +58,15 @@ static unsigned fixtureProfileSyncs=0;
 void SigilBus::syncDisplayProfile(uint8_t id) { assert(id<MAX_PHYSICAL_SIGILS); ++fixtureProfileSyncs; }
 static int32_t fixtureInputTiming[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureInputTimingSends=0;
+static int32_t fixtureLedState[MAX_PHYSICAL_SIGILS]{};
+static unsigned fixtureLedStateSends=0;
+static unsigned fixtureChannelSends=0;
 bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;
   if(type==TurnHubProtocol::PacketType::InputTiming&&fixtureRadio) { fixtureInputTiming[id]=value; ++fixtureInputTimingSends; }
+  if(type==TurnHubProtocol::PacketType::LedState&&fixtureRadio) { fixtureLedState[id]=value; ++fixtureLedStateSends; }
+  if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
+     type==TurnHubProtocol::PacketType::SetGreen) ++fixtureChannelSends;
   return fixtureRadio;
 }
 static TurnHubProtocol::GameDisplayPacket sentGameDisplays[MAX_PHYSICAL_SIGILS]{};
@@ -914,6 +920,38 @@ static void physicalGameDisplay() {
   assert(!sentGameDisplays[0].commander && !sentGameDisplays[0].sourceCount && sentGameDisplays[0].primary.life == 20);
   fixtureRecords[0].capabilities = 0; renderer.invalidateAll(); count = gameDisplaySends;
   render(); assert(gameDisplaySends == count); // Legacy peers keep the seven-byte protocol.
+  fixtureRadio = false;
+}
+
+// Sigils with CAPABILITY_LED_STATE get one semantic LedState packet per
+// change (and on invalidation, i.e. every Hello) instead of channel frames.
+static void ledStateTransport() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  fixtureRadio = true;
+  for (auto &record : fixtureRecords) { record.helloInfoValid = true; record.capabilities = 0; }
+  fixtureRecords[0].capabilities = CAPABILITY_LED_STATE;
+  GameEngine engine;
+  Lobby table;
+  PlayerSeat seats[2] = {{1,0,1},{2,1,1}};
+  GameSettings settings;
+  assert(engine.start(seats,2,seats[0],100,settings));
+  LedRenderer renderer(sigilBus);
+  auto render = [&](uint32_t now) { renderer.render(HubState::Running,table,engine,0,0,0,now); };
+  const unsigned states = fixtureLedStateSends, channels = fixtureChannelSends;
+  render(200);
+  assert(fixtureLedStateSends == states + 1 && fixtureChannelSends > channels);  // Sigil 1 is legacy.
+  LedStateFields fields = decodeLedState(fixtureLedState[0]);
+  assert(fields.cue == LedCue::TurnStarted && fields.anchorAgeMs == 96);  // 100 ms, 16 ms units.
+  render(300); render(2000);
+  assert(fixtureLedStateSends == states + 1);  // Same cue: nothing more to send.
+  render(3100);
+  assert(fixtureLedStateSends == states + 2 && decodeLedState(fixtureLedState[0]).cue == LedCue::YourTurn);
+  renderer.setProfile(0, reducedMotionLedCueProfile());
+  renderer.invalidate(0); render(3200);
+  fields = decodeLedState(fixtureLedState[0]);
+  assert(fixtureLedStateSends == states + 3 && fields.style == TurnHubProtocol::LedStyle::ReducedMotion);
+  for (auto &record : fixtureRecords) { record.helloInfoValid = false; record.capabilities = 0; }
   fixtureRadio = false;
 }
 
@@ -1920,6 +1958,7 @@ int main() {
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";
+  ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
   accessibilityPreferences(); std::cout<<"PASS per-player accessibility: LED profiles, merge rules, API, Sigil mute, hold-timing radio\n";

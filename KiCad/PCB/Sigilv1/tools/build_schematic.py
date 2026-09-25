@@ -2,8 +2,9 @@
 
 Both share the removable DevKit (U1), the power/ground sockets and the buzzer
 interface; they differ in the display interface, and the E-ink draft also
-carries the analog joystick (J4) that replaces the Pass/Action/Pause buttons.
-LEDs and the old buttons are absent while the controls are redesigned, so
+carries the analog joystick (J4) that replaces the Pass/Action/Pause buttons
+and the NeoPixel Jewel 7 status ring (J5, data through R1).
+Discrete LEDs and the old buttons are absent while the controls are redesigned, so
 their GPIOs are NC. No mechanical geometry is inferred here.
 """
 from pathlib import Path
@@ -39,6 +40,23 @@ JOYSTICK = dict(
          'Axis direction depends on mounting; firmware can swap/invert.\n'
          'Firmware: Sigil PlatformIO env sigil (E-ink build).')
 
+# Adafruit NeoPixel Jewel 7, RGBW (SK6812-type): 5 V power from the DevKit's
+# USB 5V (J1), data from GPIO26 (J10) through a 330 ohm series resistor (R1)
+# at the ring. Data Output is unused (no chained pixels). Pin numbers are
+# logical; the Jewel's pads are labelled. Firmware: Sigil env `sigil`.
+JEWEL = dict(
+    symbol='NeoPixel_Jewel7_RGBW', value='NEOPIXEL JEWEL 7 RGBW',
+    header=[('PWR', '+5V'), ('GND', 'GND'), ('DIN', 'RING_DIN_R'), ('DOUT', None)],
+    sockets={'J1': '+5V', 'J10': 'RING_DIN'},
+    note='Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n'
+         '3.3 V data into 5 V pixels usually works; if it glitches, add a\n'
+         '74AHCT125 level shifter. R1 (300-500 ohm) sits at the ring.\n'
+         'Recommended, not fitted on the breadboard: 100-1000 uF across\n'
+         'PWR/GND. Full RGBW is ~80 mA per pixel (~560 mA total), more\n'
+         'than USB supplies: firmware caps brightness at 48/255.\n'
+         'Draws the status light (LedState); never the only signal.\n'
+         'Firmware: Sigil PlatformIO env sigil (E-ink build).')
+
 # Each variant: project name, root sheet UUID, the display module's header in
 # physical order (pin 1 first) as (silkscreen label, net, jumper wire colour),
 # and the U1 socket -> net map for the display. Header order and wire colours
@@ -55,6 +73,7 @@ VARIANTS = {
         sockets={'A8': 'EPD_DC', 'A9': 'EPD_CS', 'A11': 'EPD_SCLK', 'A14': 'EPD_BUSY',
                  'A17': 'EPD_RST', 'A18': 'EPD_MOSI'},
         joystick=True,
+        jewel=True,
         note='Inland e-paper driver board, write-only (GxEPD2_213_B74); no MISO.\n'
              'J2 pins follow the board header, pin 1 = SDI (top).\n'
              'Board switches P1 (3 / 0.47) and P2 (5VIN / 3.3VIN): positions\n'
@@ -93,6 +112,11 @@ def joystick_symbol():
     pins = [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0, kinds[name])
             for i, (name, _) in enumerate(JOYSTICK['header'])]
     return custom(JOYSTICK['symbol'], pins, 15.24, 5.08, round(-5.08*len(JOYSTICK['header']), 2), 'J')
+def jewel_symbol():
+    kinds = {'PWR': 'power_in', 'GND': 'passive', 'DIN': 'input', 'DOUT': 'output'}
+    pins = [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0, kinds[name])
+            for i, (name, _) in enumerate(JEWEL['header'])]
+    return custom(JEWEL['symbol'], pins, 15.24, 5.08, round(-5.08*len(JEWEL['header']), 2), 'J')
 
 # Pin types describe the DevKit, not one carrier's use of it, so both
 # schematics embed the identical library symbol.
@@ -101,13 +125,16 @@ for row, names, x, angle in [('J', J, -43.18, 0), ('A', A, 43.18, 180)]:
     for i, name in enumerate(names):
         pos = f'{row}{i+1}'
         devkit_pins.append(pin(pos, name, x, round(45.72-i*5.08, 2), angle,
-                               'power_out' if pos == 'J19' else 'passive'))
+                               'power_out' if pos in ('J1', 'J19') else 'passive'))
 devkit = custom('ESP32_DevKit_38_RearReference', devkit_pins, 38.1, 50.8, -50.8)
 buzz = custom('Buzzer_Logical_Interface', [pin('SIG','SIG',-20.32,0,0,'input'),pin('GND','GND',-20.32,-10.16,0)],15.24,5.08,-15.24,'J')
 displays = {name: display_symbol(v) for name, v in VARIANTS.items()}
 joystick = joystick_symbol()
+jewel = jewel_symbol()
+resistor = custom('Resistor_Series', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62, 0, 180)],
+                  2.54, 1.27, -1.27, 'R')
 (ROOT / 'Sigil.kicad_sym').write_text('(kicad_symbol_lib (version 20241209) (generator "Sigil")\n' + '\n'.join(
-    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick]) + ')\n')
+    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor]) + ')\n')
 (ROOT / 'sym-lib-table').write_text('(sym_lib_table (lib (name "Sigil") (type "KiCad") (uri "${KIPRJMOD}/Sigil.kicad_sym") (options "") (descr "Sigil Rev A interfaces; no verified footprints")))\n')
 
 
@@ -116,12 +143,15 @@ def build(project, v):
     def uid(key): return str(uuid.uuid5(NS, key))
     has_joystick = v.get('joystick', False)
     nets = dict(COMMON_NETS, **v['sockets'])
+    has_jewel = v.get('jewel', False)
     if has_joystick: nets.update(JOYSTICK['sockets'])
-    controls = ('Joystick J4 replaces the buttons; LEDs removed pending redesign.' if has_joystick
+    if has_jewel: nets.update(JEWEL['sockets'])
+    controls = ('Joystick J4, status ring J5.' if has_joystick
                 else 'Buttons and LEDs removed pending redesign.')
     out = [f'(kicad_sch (version 20260306) (generator "eeschema") (uuid "{NS}") (paper "A3")',
            f'(title_block (title {q(v["title"])}) (rev "A electrical draft") (comment 1 "Rear-photo socket numbering. {controls}"))',
-           '(lib_symbols\n' + '\n'.join([devkit, buzz, displays[project]] + ([joystick] if has_joystick else [])) + ')']
+           '(lib_symbols\n' + '\n'.join([devkit, buzz, displays[project]] + ([joystick] if has_joystick else [])
+                                       + ([jewel, resistor] if has_jewel else [])) + ')']
     def note(text, x, y, size=1.27):
         out.append(f'(text {q(text)} (at {x} {y} 0) (effects (font (size {size} {size})) (justify left top)) (uuid "{uid(text)}"))')
     def wire(x, y, x2, y2):
@@ -134,6 +164,8 @@ def build(project, v):
         f'Sigil:{v["symbol"]}': [str(i+1) for i in range(len(v['header']))],
 'Sigil:Buzzer_Logical_Interface': ['SIG', 'GND'],
         f'Sigil:{JOYSTICK["symbol"]}': [str(i+1) for i in range(len(JOYSTICK['header']))],
+        f'Sigil:{JEWEL["symbol"]}': [str(i+1) for i in range(len(JEWEL['header']))],
+        'Sigil:Resistor_Series': ['1', '2'],
     }
     def instance(lib, ref, value, x, y, top, on=True):
         fields = prop('Reference', ref, x, y-top) + prop('Value', value, x, y-top+2.54)
@@ -152,7 +184,8 @@ def build(project, v):
                 wire(x, y, end, y); label(nets[pos], end, y)
             else: nc(x, y)
     note('BACK / REAR PHOTO VIEW\nJ1 (5V) top-left; A1 (CLK) top-right\nSocket IDs are immutable; this is NOT a footprint view.', 28, 21, 1.5)
-    note('USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.', 28, 157)
+    note(('USB-powered DevKit; J1 / 5V feeds only the status ring (J5).' if has_jewel
+          else 'USB-powered DevKit; J1 / 5V unused on carrier.') + '\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC.', 28, 157)
 
     note('DISPLAY', 175, 40, 1.5)
     dx, dy = 238.76, 55.88
@@ -177,7 +210,26 @@ def build(project, v):
             y = round(jy+i*5.08, 2); wire(round(jx-20.32, 2), y, 304.8, y); label(net, 304.8, y)
         note(JOYSTICK['note'], 290, round(jy+5.08*len(JOYSTICK['header'])+5.08, 2))
 
-    hold6 = ('6. LEDs and the old buttons are removed; J4 is the joystick header. Its "+5V" pin MUST be fed 3.3 V.\n'
+    if has_jewel:
+        note('STATUS RING', 290, 125, 1.5)
+        rx, ry = 353.06, 139.7
+        instance(f'Sigil:{JEWEL["symbol"]}', 'J5', JEWEL['value'], rx, ry, 12.7, on=False)
+        pin_x = round(rx-20.32, 2)
+        for i, (name, net) in enumerate(JEWEL['header']):
+            y = round(ry+i*5.08, 2)
+            if net is None:
+                nc(pin_x, y)
+            elif name == 'DIN':
+                # GPIO26 -> R1 -> DIN; R1's pins end at 309.88 and 325.12.
+                instance('Sigil:Resistor_Series', 'R1', '330R', 317.5, y, 5.08, on=False)
+                wire(309.88, y, 304.8, y); label('RING_DIN', 304.8, y)
+                wire(325.12, y, 327.66, y); wire(327.66, y, pin_x, y); label(net, 327.66, y)
+            else:
+                wire(pin_x, y, 304.8, y); label(net, 304.8, y)
+        note(JEWEL['note'], 290, round(ry+5.08*len(JEWEL['header'])+5.08, 2))
+
+    hold6 = ('6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its "+5V" pin MUST be fed 3.3 V)'
+             + ('; J5 is the NeoPixel status ring on USB 5V.\n' if has_jewel else '.\n')
              if has_joystick else
              '6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n')
     note('SCHEMATIC REVIEW / RELEASE HOLDS\n'
@@ -185,7 +237,7 @@ def build(project, v):
          '2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n'
          '3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n'
          '4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n'
-         '5. Display/joystick headers have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n'
+         '5. Display/joystick/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n'
          + hold6 +
          '7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed.', 28, 211)
     out.append('(embedded_fonts no))')

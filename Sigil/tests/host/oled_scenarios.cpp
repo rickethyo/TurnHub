@@ -55,7 +55,7 @@ int main() {
       OLED_CONFIG.dc == 16 && OLED_CONFIG.cs == 17);
   resetTrace();
   { OledDisplay shipped; shipped.begin();
-    assert(panel.begins == 1 && panel.spi && panel.rotation == 2); }
+    assert(panel.begins == 1 && panel.spi && panel.rotation == OLED_CONFIG.rotation); }
   rejected(OledConfig{});
   auto c = fixture();
   c.controller = OledController::Unspecified; rejected(c);

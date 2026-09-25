@@ -13,6 +13,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'OLED test compilation failed.' }
     & ..\..\.pio\host-tests\oled_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'OLED scenarios failed.' }
+    & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include led_scenarios.cpp ../../src/sigil_led.cpp -o ../../.pio/host-tests/led_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'LED test compilation failed.' }
+    & ..\..\.pio\host-tests\led_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'LED scenarios failed.' }
 } finally {
     Pop-Location
     $env:PATH = $previousPath

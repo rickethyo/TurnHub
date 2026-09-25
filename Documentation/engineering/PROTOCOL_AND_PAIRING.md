@@ -68,6 +68,28 @@ Current/experimental packet concepts include:
 
 The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
 
+### Sigil-rendered status light: LedState (2026-09-25)
+
+`LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of
+channel levels: the cue (`LedCue`), overlay bits (`LedOverlay`), player number,
+focused seat (A/B) and whether the Sigil is shared, the seated players' LED
+style (Standard, Reduced motion, Monochrome-safe), and the time since the cue's
+anchor (turn or countdown start) in 16 ms units so anchored patterns stay in
+phase. `encodeLedState`/`decodeLedState` in `protocol.h` define the bit layout;
+the cue and overlay enums moved there from Atlas's `led_cues.h`, which now
+aliases them.
+
+A Sigil advertising `CAPABILITY_LED_STATE` (0x20) gets one LedState per change,
+plus a resend whenever its Hello arrives (about every 2 s), so a lost packet or
+quiet reboot heals itself. Atlas still decides every cue (`selectSigilLedState`);
+the Sigil only draws it (`Sigil/src/sigil_led.cpp`): full color on an RGB LED
+(PWM on all three pins) and, on the E-ink Sigil, spatially on the NeoPixel Jewel
+(player number as lit pixels, a shared seat as its ring half, the top overlay in
+the center). Sigils without the bit keep the `SetBlue`/`SetRed`/`SetGreen`
+stream, and a new Sigil still follows those packets from an older Atlas.
+Pairing blink and the Pass acknowledgement flash stay Sigil-local. Protocol
+version stays 1. *Needs verification* on hardware.
+
 ### Unpair (2026-09-24)
 
 `Unpair = 12` (Atlas -> Sigil, `value` 0) tells a Sigil that Atlas forgot it. The

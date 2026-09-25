@@ -130,6 +130,7 @@ void LedRenderer::invalidate(uint8_t sigilId) {
     cache_[sigilId].blueValid = false;
     cache_[sigilId].redValid = false;
     cache_[sigilId].greenValid = false;
+    cache_[sigilId].ledStateValid = false;
     cache_[sigilId].displayValid = false;
   }
 }
@@ -139,6 +140,7 @@ void LedRenderer::invalidateAll() {
     entry.blueValid = false;
     entry.redValid = false;
     entry.greenValid = false;
+    entry.ledStateValid = false;
     entry.displayValid = false;
   }
 }
@@ -182,6 +184,29 @@ void LedRenderer::set(uint8_t sigilId, const LedLevels &levels, uint32_t nowMs) 
       cache.green = green;
       cache.greenValid = true;
     }
+  }
+}
+
+void LedRenderer::sendLedState(uint8_t sigilId, const SigilLedState &cue, uint32_t nowMs) {
+  TurnHubProtocol::LedStateFields fields;
+  fields.cue = cue.cue;
+  fields.overlays = cue.overlays;
+  fields.playerNumber = cue.playerNumber < 15 ? cue.playerNumber : 15;
+  fields.seatSlot = cue.seatSlot;
+  fields.sharedSeat = cue.sharedSeat;
+  const LedCueProfile *profile = profiles_[sigilId];
+  fields.style = profile == &reducedMotionLedCueProfile() ? TurnHubProtocol::LedStyle::ReducedMotion
+      : profile == &monochromeSafeLedCueProfile() ? TurnHubProtocol::LedStyle::MonochromeSafe
+      : TurnHubProtocol::LedStyle::Default;
+  fields.anchorAgeMs = cue.anchorMs != 0 ? nowMs - cue.anchorMs : 0;
+
+  const int32_t value = TurnHubProtocol::encodeLedState(fields);
+  const uint32_t key = TurnHubProtocol::ledStateKey(value);
+  Cache &cache = cache_[sigilId];
+  if (cache.ledStateValid && cache.ledStateKey == key) return;
+  if (bus_.send(sigilId, TurnHubProtocol::PacketType::LedState, value)) {
+    cache.ledStateValid = true;
+    cache.ledStateKey = key;
   }
 }
 
@@ -408,7 +433,13 @@ void LedRenderer::render(
     const SigilLedState cue = selectSigilLedState(
         id, state, lobby, game, countdownStartedAtMs,
         eliminationTargetPlayer, winConfirmationPlayer, nowMs);
-    set(id, ledLevels(*profiles_[id], cue, nowMs), nowMs);
+    const SigilRecord *record = bus_.record(id);
+    if (record != nullptr && record->helloInfoValid &&
+        (record->capabilities & TurnHubProtocol::CAPABILITY_LED_STATE) != 0) {
+      sendLedState(id, cue, nowMs);
+    } else {
+      set(id, ledLevels(*profiles_[id], cue, nowMs), nowMs);
+    }
   }
 }
 

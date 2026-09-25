@@ -314,6 +314,29 @@ version unchanged; new Hello capability bit `CAPABILITY_DISPLAY_OLED` (0x10).
 
 "Before" is the microSD step-1 build. Build only; nothing was flashed.
 
+## 2026-09-25: Sigil-rendered light, joystick, status ring, speaker
+
+Sigil `0.5.6-dev` -> `0.6.0-dev`; Atlas stays `0.6.0-dev`. Radio protocol
+version unchanged; new `LedState = 25` packet and Hello capability bit
+`CAPABILITY_LED_STATE` (0x20).
+
+- Atlas sends semantic `LedState` to capable Sigils; the Sigil renders it
+  (`sigil_led.cpp`) to an RGB LED and, on the E-ink build, the NeoPixel Jewel
+- E-ink `sigil` build: analog joystick input and Jewel status ring
+  (Adafruit NeoPixel 1.15.5); Pair moves to the DevKit BOOT button (GPIO0)
+- Atlas speaker: LEDC square wave with louder volume steps instead of the DAC sine
+
+| Build | After |
+| --- | ---: |
+| Atlas RAM | 99,860 B (30.5%) |
+| Atlas flash | 1,308,245 B (66.5%) |
+| Sigil E-ink (`sigil`) RAM | 48,808 B (14.9%) |
+| Sigil E-ink (`sigil`) flash | 796,397 B (60.8%) |
+| Sigil OLED (`sigil-oled`) RAM | 44,736 B (13.7%) |
+| Sigil OLED (`sigil-oled`) flash | 798,969 B (61.0%) |
+
+Atlas and the OLED Sigil were flashed; the E-ink Sigil was built only.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -326,4 +349,4 @@ version unchanged; new Hello capability bit `CAPABILITY_DISPLAY_OLED` (0x10).
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-24
+Last updated: 2026-09-25

@@ -106,7 +106,7 @@ cannot change it. Display library: LovyanGFX.
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
 | RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot |
 | Speaker amp enable | 4 | Active low. On only while a tone plays |
-| Speaker audio (DAC) | 26 | DAC channel 2 cosine generator (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
+| Speaker audio | 26 | LEDC channel 4 square wave (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
 | Battery voltage ADC | 34 | Input only. Not used yet |
 
 **No master button (owner decision, 2026-09-24).** The firmware no longer
@@ -141,15 +141,18 @@ Atlas screen, Sigils and portal, so sound is never the only signal
 
 `AudioController` sends a cue's notes to the Sigils in its target mask; the
 speaker is the mask's bit 15 (`ATLAS_SPEAKER_MASK`). `atlas_speaker.cpp`
-(firmware-only) plays each note on the DAC cosine generator on IO26 and keeps
+(firmware-only) plays each note as an LEDC square wave on IO26 and keeps
 the amplifier enabled (IO4 low) only while a note plays, so an idle speaker does
 not hiss. Volume is an Admin setting in the portal (System), saved as the
-`spkvol` NVS blob: Off, Low, Medium (default) or High, which scale the waveform
-to 1/8, 1/4 and 1/1. Off silences only the Atlas speaker; each Sigil still
+`spkvol` NVS blob: Off, Low, Medium (default) or High. The duty cycle sets
+loudness: about 1/2, 3/4 and full amplitude (the fundamental scales with
+sin(pi x duty); 50% is loudest). Until 2026-09-25 the speaker used the DAC's
+sine generator at 1/8, 1/4 and full scale, which was too quiet on the default
+Medium; a square wave is also much louder on a small speaker. Off silences only the Atlas speaker; each Sigil still
 follows its seated players' sound preference.
 
-*Needs verification* on hardware: loudness at each level, tone quality through
-the DAC, and that the amplifier stays quiet between notes.
+*Needs verification* on hardware: loudness at each level, the square wave's
+tone quality, and that the amplifier stays quiet between notes.
 
 ### Atlas touchscreen
 
@@ -233,7 +236,7 @@ really is common-anode.
 | Action button | 25 | Current development wiring |
 | Pause / Win button | 32 | Breadboard J13; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
 | Buzzer | 33 | Current development wiring |
-| Pair button | 19 | Verified working firmware and rear-photo socket A12; closes to A13/GND, INPUT_PULLUP |
+| Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build keeps its Pair pushbutton on GPIO19 (A12). |
 
 ### E-ink interface
 
@@ -246,7 +249,7 @@ really is common-anode.
 | EPD SCLK | 18 | Explicit SPI.begin configuration; socket A11 |
 | EPD MOSI | 23 | Explicit SPI.begin configuration; socket A18 |
 
-GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view: J1 (5V) is top-left, A1 (CLK) top-right; A12 is GPIO19 and A13 is GND. Rev A is drawn twice, `Sigil_EInk` and `Sigil_OLED`, which differ only in the display interface. Since 2026-09-24 neither schematic carries the buttons or LEDs, which are being redesigned; the breadboard wiring in this table is the current firmware's.
+GPIO19 is explicitly detached from SPI MISO; it was the Pair button until 2026-09-25 (still Pair in Wokwi) and the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view: J1 (5V) is top-left, A1 (CLK) top-right; A12 is GPIO19 and A13 is GND. Rev A is drawn twice, `Sigil_EInk` and `Sigil_OLED`, which differ only in the display interface. Since 2026-09-24 neither schematic carries the buttons or LEDs, which are being redesigned; the breadboard wiring in this table is the current firmware's.
 
 The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-ink target in the present implementation.
 
@@ -298,7 +301,7 @@ The current controls extend the original two-button layout:
 - **Pass** - primary turn-pass input.
 - **Action** - contextual action with existing short/long behavior retained as needed.
 - **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
-- **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
+- **Pair button** - implemented and verified on GPIO19; moved to the DevKit's onboard BOOT button (GPIO0) on 2026-09-25.
 
 The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. The Rev A schematics no longer draw it (buttons and LEDs were removed on 2026-09-24 pending the controls redesign). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
 

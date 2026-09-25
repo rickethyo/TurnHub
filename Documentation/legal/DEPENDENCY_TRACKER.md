@@ -20,6 +20,7 @@ The goal is simple: know what entered the project, where it came from, how it is
 | Adafruit GFX Library | Transitive GxEPD2 / SH110X dependency | Sigil e-ink and OLED graphics | BSD-style | Yes if linked into shipped firmware | GREEN | Preserve copyright, conditions, and disclaimer in release notices/materials as required. |
 | LovyanGFX | `lovyan03/LovyanGFX@1.2.30` (PlatformIO) | Atlas TFT (E32R28T) | FreeBSD (BSD-2-Clause) for LovyanGFX. Bundled Adafruit (BSD) and Bodmer (FreeBSD) code carries its own notices | Yes, Atlas firmware | GREEN | Preserve the combined notices in `license.txt` in release materials. Atlas uses only the DejaVu fonts (Bitstream Vera-style license) and the glcd font; do not use the bundled GNU FreeFont `Free*` fonts (GPL with font exception) without review. |
 | Adafruit SH110X | `adafruit/Adafruit SH110X@2.1.15`, [upstream](https://github.com/adafruit/Adafruit_SH110x) | Optional Sigil OLED environment only | BSD-3-Clause ([license](https://github.com/adafruit/Adafruit_SH110x/blob/master/license.txt)) | Yes if OLED firmware ships | GREEN | Preserve upstream copyright, license, disclaimer and required source notices in release materials; the vendor splash is disabled in the build. |
+| Adafruit NeoPixel | `adafruit/Adafruit NeoPixel@1.15.5`, [upstream](https://github.com/adafruit/Adafruit_NeoPixel) | Sigil E-ink build (`sigil` env) status ring only | LGPL-3.0 ([license](https://github.com/adafruit/Adafruit_NeoPixel/blob/master/COPYING)) | Yes if E-ink Sigil firmware ships | YELLOW | Statically linked, so LGPL-3.0 requires letting recipients relink against a modified library (e.g. provide object files or the full source) and preserving notices. Covered by the same pre-release review as GxEPD2 (GPL-3.0) in the same firmware. |
 | Adafruit BusIO | Transitive GFX / SH110X dependency | Sigil graphics bus support | MIT ([license](https://github.com/adafruit/Adafruit_BusIO/blob/master/LICENSE)) | Yes if linked into shipped firmware | GREEN | Preserve copyright and license notice. |
 | PlatformIO Core | Build environment | Development | Apache-2.0 | No, currently build tooling only | GREEN | Track tool version for reproducibility. No product notice expected unless redistributed. |
 | wokwi-ws29v2-custom-chip | `bonnyr/wokwi-ws29v2-custom-chip` release v0.0.5 `chip.zip` (`chip.wasm` SHA-256 `6f59d1873e3faa07a018a088f61b1ffff6a8bcfebf7925eadd7e2082dd318d9d`), vendored as `Sigil/wokwi/chips/epaper-2in13.chip.wasm` with a TurnHub `chip.json` (2.13" geometry) | Sigil Wokwi simulation only | MIT (copy in `Sigil/wokwi/chips/LICENSE-wokwi-ws29v2-custom-chip.txt`) | No, development simulation only | GREEN | Keep the license file with the binary. Not linked into firmware. |
@@ -74,6 +75,11 @@ The high-level rows above are not yet a complete software bill of materials. Bef
 - [ ] Perform a final third-party asset audit before public release.
 
 ## Change log
+
+### 2026-09-25 (Sigil status ring)
+
+Added Adafruit NeoPixel (LGPL-3.0) for the E-ink Sigil's Jewel 7 status ring.
+No third-party code was copied into the tree.
 
 ### 2026-09-24 (Sigil OLED scaffold)
 

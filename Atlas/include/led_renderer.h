@@ -54,12 +54,17 @@ class LedRenderer {
     bool red = false;
     bool green = false;
     uint32_t lastBlueTxMs = 0;
+    bool ledStateValid = false;
+    uint32_t ledStateKey = 0;
     bool displayValid = false;
     int32_t displayPayload = 0;
     TurnHubProtocol::GameDisplayPacket gameDisplay{};
   };
 
   void set(uint8_t sigilId, const LedLevels &levels, uint32_t nowMs);
+  // Sigils with CAPABILITY_LED_STATE render cues themselves: one packet per
+  // change instead of the per-frame channel stream.
+  void sendLedState(uint8_t sigilId, const SigilLedState &cue, uint32_t nowMs);
   void syncDisplay(
       uint8_t sigilId,
       HubState state,

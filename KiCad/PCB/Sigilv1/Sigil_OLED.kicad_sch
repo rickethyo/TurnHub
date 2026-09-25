@@ -543,7 +543,7 @@
 						)
 					)
 				)
-				(pin passive line
+				(pin power_out line
 					(at -43.18 45.72 0)
 					(length 5.08)
 					(name "5V"
@@ -1160,7 +1160,7 @@
 		)
 		(uuid "2c39c738-113b-5f7a-9a90-cecf45243995")
 	)
-	(text "USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained."
+	(text "USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC."
 		(exclude_from_sim no)
 		(at 28 157 0)
 		(effects
@@ -1169,7 +1169,7 @@
 			)
 			(justify left top)
 		)
-		(uuid "305413a3-b934-5cea-8112-b00913c2476a")
+		(uuid "356036e0-61ea-5d39-9e06-c6ab69681bb6")
 	)
 	(text "BACK / REAR PHOTO VIEW\nJ1 (5V) top-left; A1 (CLK) top-right\nSocket IDs are immutable; this is NOT a footprint view."
 		(exclude_from_sim no)
@@ -1181,6 +1181,17 @@
 			(justify left top)
 		)
 		(uuid "694c6bf1-7687-5c82-ac3e-49dde90b17d9")
+	)
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+		(exclude_from_sim no)
+		(at 28 211 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "8a3107bb-de2b-5df4-8765-a273176b4c9c")
 	)
 	(text "DISPLAY"
 		(exclude_from_sim no)
@@ -1236,17 +1247,6 @@
 			(justify left top)
 		)
 		(uuid "ed72d4f5-e5d8-5670-b024-bc1879904e5b")
-	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick headers have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
-		(exclude_from_sim no)
-		(at 28 211 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "f9944de7-34f8-5c30-8e62-0242486d1968")
 	)
 	(no_connect
 		(at 45.72 127)

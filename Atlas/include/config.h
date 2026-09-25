@@ -56,7 +56,8 @@ constexpr uint8_t RGB_RED_PIN = 22;
 constexpr uint8_t RGB_GREEN_PIN = 16;
 constexpr uint8_t RGB_BLUE_PIN = 17;
 
-// Speaker amplifier: enable is active low, audio is the DAC on IO26.
+// Speaker amplifier: enable is active low; audio input is IO26 (the DAC pin,
+// driven as an LEDC square wave by atlas_speaker.cpp).
 constexpr uint8_t AUDIO_ENABLE_PIN = 4;
 constexpr uint8_t AUDIO_DAC_PIN = 26;
 

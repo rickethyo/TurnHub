@@ -2,7 +2,6 @@
 #include "atlas_speaker.h"
 
 #include <Arduino.h>
-#include <driver/dac.h>
 
 #include "config.h"
 #include "serial_log.h"
@@ -10,16 +9,22 @@
 namespace TurnHubAtlas {
 namespace {
 
-// The DAC cosine generator covers roughly 130 Hz to 55 kHz; every cue note
-// is well inside that.
+// Square wave from the LED PWM peripheral on the amplifier input (IO26). A
+// square wave's odd harmonics fall where a small speaker is most efficient,
+// so it is much louder than the DAC's sine for the same swing. Channel 4 uses
+// its own timer, away from the backlight's channel 7.
+constexpr uint8_t SPEAKER_LEDC_CHANNEL = 4;
+constexpr uint8_t SPEAKER_LEDC_BITS = 8;
 constexpr uint16_t MIN_TONE_HZ = 130;
 constexpr uint16_t MAX_TONE_HZ = 10000;
 
-dac_cw_scale_t scaleFor(uint8_t volume) {
+// Duty sets loudness: the fundamental scales with sin(pi * duty), so these
+// give about 1/2, 3/4 and full amplitude (50% duty is the loudest).
+uint32_t dutyFor(uint8_t volume) {
   switch (volume) {
-    case 1: return DAC_CW_SCALE_8;  // Low
-    case 2: return DAC_CW_SCALE_4;  // Medium
-    default: return DAC_CW_SCALE_1;  // High
+    case 1: return 43;   // Low, ~1/2
+    case 2: return 69;   // Medium, ~3/4
+    default: return 128; // High, full
   }
 }
 
@@ -27,23 +32,19 @@ class AtlasSpeaker final : public TurnHub::ToneOutput {
  public:
   void begin() {
     pinMode(AtlasConfig::AUDIO_ENABLE_PIN, OUTPUT);
+    ledcSetup(SPEAKER_LEDC_CHANNEL, 1000, SPEAKER_LEDC_BITS);
+    ledcAttachPin(AtlasConfig::AUDIO_DAC_PIN, SPEAKER_LEDC_CHANNEL);
     silence();
   }
 
   void tone(uint16_t frequencyHz, uint16_t durationMs, uint8_t volume) override {
     if (volume == 0 || durationMs == 0) return;
-    dac_cw_config_t config = {};
-    config.en_ch = DAC_CHANNEL_2;  // GPIO26
-    config.scale = scaleFor(volume);
-    config.phase = DAC_CW_PHASE_0;
-    config.freq = constrain(frequencyHz, MIN_TONE_HZ, MAX_TONE_HZ);
-    config.offset = 0;
-    if (dac_cw_generator_config(&config) != ESP_OK) {
+    const uint32_t hz = constrain(frequencyHz, MIN_TONE_HZ, MAX_TONE_HZ);
+    if (ledcChangeFrequency(SPEAKER_LEDC_CHANNEL, hz, SPEAKER_LEDC_BITS) == 0) {
       TurnHub::serialLog.println("ATLAS|SPEAKER|TONE_FAILED");
       return;
     }
-    dac_cw_generator_enable();
-    dac_output_enable(DAC_CHANNEL_2);
+    ledcWrite(SPEAKER_LEDC_CHANNEL, dutyFor(volume));
     digitalWrite(AtlasConfig::AUDIO_ENABLE_PIN, LOW);  // Amplifier on.
     playing_ = true;
     stopAtMs_ = millis() + durationMs;
@@ -57,8 +58,7 @@ class AtlasSpeaker final : public TurnHub::ToneOutput {
   // Amplifier off between notes so an idle speaker does not hiss.
   void silence() {
     digitalWrite(AtlasConfig::AUDIO_ENABLE_PIN, HIGH);
-    dac_cw_generator_disable();
-    dac_output_disable(DAC_CHANNEL_2);
+    ledcWrite(SPEAKER_LEDC_CHANNEL, 0);
     playing_ = false;
   }
 

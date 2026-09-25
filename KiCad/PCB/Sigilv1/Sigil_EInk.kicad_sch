@@ -7,7 +7,7 @@
 	(title_block
 		(title "Sigil Rev A - removable DevKit carrier, e-ink display")
 		(rev "A electrical draft")
-		(comment 1 "Rear-photo socket numbering. Joystick J4 replaces the buttons; LEDs removed pending redesign.")
+		(comment 1 "Rear-photo socket numbering. Joystick J4, status ring J5.")
 	)
 	(lib_symbols
 		(symbol "Sigil:Buzzer_Logical_Interface"
@@ -766,7 +766,7 @@
 						)
 					)
 				)
-				(pin passive line
+				(pin power_out line
 					(at -43.18 45.72 0)
 					(length 5.08)
 					(name "5V"
@@ -1280,6 +1280,272 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Sigil:NeoPixel_Jewel7_RGBW"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "J"
+				(at 0 10.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "NeoPixel_Jewel7_RGBW"
+				(at 0 7.58 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "NeoPixel_Jewel7_RGBW_0_1"
+				(rectangle
+					(start -15.24 5.08)
+					(end 15.24 -20.32)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "NeoPixel_Jewel7_RGBW_1_1"
+				(pin power_in line
+					(at -20.32 0 0)
+					(length 5.08)
+					(name "PWR"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -5.08 0)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -20.32 -10.16 0)
+					(length 5.08)
+					(name "DIN"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -20.32 -15.24 0)
+					(length 5.08)
+					(name "DOUT"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "Sigil:Resistor_Series"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "R"
+				(at 0 6.27 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Resistor_Series"
+				(at 0 3.77 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "Resistor_Series_0_1"
+				(rectangle
+					(start -2.54 1.27)
+					(end 2.54 -1.27)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "Resistor_Series_1_1"
+				(pin passive line
+					(at -7.62 0 0)
+					(length 5.08)
+					(name "~"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 0 180)
+					(length 5.08)
+					(name "~"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 	)
 	(text "CONTROLS / JOYSTICK"
 		(exclude_from_sim no)
@@ -1303,6 +1569,17 @@
 		)
 		(uuid "0a78ce2c-8e30-596b-8ada-eae2e8b936bf")
 	)
+	(text "USB-powered DevKit; J1 / 5V feeds only the status ring (J5).\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC."
+		(exclude_from_sim no)
+		(at 28 157 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "0edf1d21-e3dc-56b9-b87b-5deaa726aa84")
+	)
 	(text "purple wire"
 		(exclude_from_sim no)
 		(at 204.47 59.44 0)
@@ -1314,16 +1591,16 @@
 		)
 		(uuid "15022fa0-469a-57c0-aad2-1f3bdaac70d1")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick headers have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. LEDs and the old buttons are removed; J4 is the joystick header. Its \"+5V\" pin MUST be fed 3.3 V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+	(text "Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n3.3 V data into 5 V pixels usually works; if it glitches, add a\n74AHCT125 level shifter. R1 (300-500 ohm) sits at the ring.\nRecommended, not fitted on the breadboard: 100-1000 uF across\nPWR/GND. Full RGBW is ~80 mA per pixel (~560 mA total), more\nthan USB supplies: firmware caps brightness at 48/255.\nDraws the status light (LedState); never the only signal.\nFirmware: Sigil PlatformIO env sigil (E-ink build)."
 		(exclude_from_sim no)
-		(at 28 211 0)
+		(at 290 165.1 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left top)
 		)
-		(uuid "27baad61-6b28-5739-8926-1b1c54d8a442")
+		(uuid "1dd6254b-eec9-56b1-92e1-cbe28547a09c")
 	)
 	(text "BACK / REAR PHOTO VIEW\nJ1 (5V) top-left; A1 (CLK) top-right\nSocket IDs are immutable; this is NOT a footprint view."
 		(exclude_from_sim no)
@@ -1336,17 +1613,6 @@
 		)
 		(uuid "335804e4-b571-587a-bfcc-ed4c469fe148")
 	)
-	(text "USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained."
-		(exclude_from_sim no)
-		(at 28 157 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "367f7b73-6288-5090-896d-7c81b8097f0b")
-	)
 	(text "gray wire"
 		(exclude_from_sim no)
 		(at 204.47 64.52 0)
@@ -1357,6 +1623,17 @@
 			(justify left top)
 		)
 		(uuid "3993d841-4dac-51c9-b0fb-db2d117fc8d6")
+	)
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the NeoPixel status ring on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+		(exclude_from_sim no)
+		(at 28 211 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "4007d1f8-b0d1-54c2-9ec4-55621771fa34")
 	)
 	(text "orange wire"
 		(exclude_from_sim no)
@@ -1434,6 +1711,17 @@
 			(justify left top)
 		)
 		(uuid "947d08e2-0f67-5461-90f0-b7386df62c0a")
+	)
+	(text "STATUS RING"
+		(exclude_from_sim no)
+		(at 290 125 0)
+		(effects
+			(font
+				(size 1.5 1.5)
+			)
+			(justify left top)
+		)
+		(uuid "ca663ed4-4872-5710-8ca3-5302d258e631")
 	)
 	(text "black wire"
 		(exclude_from_sim no)
@@ -1521,10 +1809,6 @@
 		(uuid "765f492d-28c2-5ba4-8997-aca8c9ae63d5")
 	)
 	(no_connect
-		(at 45.72 101.6)
-		(uuid "9067aa50-4278-5bba-ab90-64e094ec4276")
-	)
-	(no_connect
 		(at 132.08 76.2)
 		(uuid "967d0022-2898-5947-82e2-e3592244863a")
 	)
@@ -1539,10 +1823,6 @@
 	(no_connect
 		(at 45.72 96.52)
 		(uuid "ad2daad8-ca84-5683-a147-9d7924cd9a01")
-	)
-	(no_connect
-		(at 45.72 55.88)
-		(uuid "ccf5374a-53dc-5d5d-8866-808718f4a95d")
 	)
 	(no_connect
 		(at 45.72 142.24)
@@ -1563,6 +1843,20 @@
 	(no_connect
 		(at 132.08 111.76)
 		(uuid "e29661eb-04fc-55c3-ac0f-089157c7951c")
+	)
+	(no_connect
+		(at 332.74 154.94)
+		(uuid "fed13d06-76bf-5753-9f5b-98acdf76bff7")
+	)
+	(wire
+		(pts
+			(xy 45.72 101.6) (xy 25.4 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "01b96756-c3c8-534a-8c97-81ce2ed17da4")
 	)
 	(wire
 		(pts
@@ -1616,6 +1910,16 @@
 	)
 	(wire
 		(pts
+			(xy 325.12 149.86) (xy 327.66 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2df6b58e-fa4d-58a0-b41b-f72031ec03a7")
+	)
+	(wire
+		(pts
 			(xy 132.08 137.16) (xy 137.16 137.16)
 		)
 		(stroke
@@ -1633,6 +1937,16 @@
 			(type default)
 		)
 		(uuid "458f8aea-2341-5bf7-b386-a2aa4aceff6c")
+	)
+	(wire
+		(pts
+			(xy 332.74 144.78) (xy 304.8 144.78)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "478ef5ce-f5d1-55f9-94fa-7339802ab44d")
 	)
 	(wire
 		(pts
@@ -1696,6 +2010,36 @@
 	)
 	(wire
 		(pts
+			(xy 327.66 149.86) (xy 332.74 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "83742ab6-ebad-5603-bd7b-a3879146a8c1")
+	)
+	(wire
+		(pts
+			(xy 45.72 55.88) (xy 25.4 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "90a58637-5518-5dfe-81f2-0f21324985fa")
+	)
+	(wire
+		(pts
+			(xy 332.74 139.7) (xy 304.8 139.7)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9a4f7e1d-cb9c-574f-a6b4-c8c8391d430e")
+	)
+	(wire
+		(pts
 			(xy 218.44 86.36) (xy 190.5 86.36)
 		)
 		(stroke
@@ -1733,6 +2077,16 @@
 			(type default)
 		)
 		(uuid "ad62256a-c6d3-52bd-ad2d-306bc0141369")
+	)
+	(wire
+		(pts
+			(xy 309.88 149.86) (xy 304.8 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b0d1f593-2468-5aed-a1bb-80dc49bee5af")
 	)
 	(wire
 		(pts
@@ -1874,6 +2228,16 @@
 		)
 		(uuid "04f66ae5-2e6b-5102-baf2-1d611f1151ea")
 	)
+	(label "RING_DIN"
+		(at 25.4 101.6 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "053c7600-d39d-5c9c-88c2-6d55f8e9b91d")
+	)
 	(label "JOY_SW"
 		(at 304.8 76.2 0)
 		(effects
@@ -1883,6 +2247,16 @@
 			(justify left bottom)
 		)
 		(uuid "05f0032b-f94e-5dd9-8592-3f270982f285")
+	)
+	(label "RING_DIN_R"
+		(at 327.66 149.86 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "30f9b447-f6e7-5dae-835c-6aefbcbb16bf")
 	)
 	(label "GND"
 		(at 137.16 116.84 0)
@@ -1954,6 +2328,26 @@
 		)
 		(uuid "70267b78-d6b0-5b1d-beec-ddeed90006b8")
 	)
+	(label "RING_DIN"
+		(at 304.8 149.86 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7366929c-66dd-5e45-a470-057f0a8db744")
+	)
+	(label "+5V"
+		(at 304.8 139.7 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7de1093b-d1ce-54ce-a9b6-5dc51de623c5")
+	)
 	(label "EPD_CS"
 		(at 190.5 66.04 0)
 		(effects
@@ -2013,6 +2407,16 @@
 			(justify left bottom)
 		)
 		(uuid "92d76891-282e-53af-9060-3dc7adf0f44e")
+	)
+	(label "GND"
+		(at 304.8 144.78 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "96e5de5a-115d-5ee9-b5f6-52d3ebc8592a")
 	)
 	(label "+3V3"
 		(at 190.5 86.36 0)
@@ -2084,6 +2488,16 @@
 		)
 		(uuid "d0b77c12-1e65-5279-89ca-bf0ef88cc407")
 	)
+	(label "+5V"
+		(at 25.4 55.88 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d300a2e5-c745-5ba7-9180-401efc55914c")
+	)
 	(label "GND"
 		(at 25.4 81.28 0)
 		(effects
@@ -2143,6 +2557,89 @@
 			(justify left bottom)
 		)
 		(uuid "f71d24d7-9b41-53bd-976c-65bc61857d34")
+	)
+	(symbol
+		(lib_id "Sigil:NeoPixel_Jewel7_RGBW")
+		(at 353.06 139.7 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "1ea87bad-afb8-59b0-95ce-c024f8f083d9")
+		(property "Reference" "J5"
+			(at 353.06 127 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "NEOPIXEL JEWEL 7 RGBW"
+			(at 353.06 129.54 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 353.06 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 353.06 139.7 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 353.06 139.7 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d48698d2-694c-505b-8bc5-260e19c41b67")
+		)
+		(pin "2"
+			(uuid "390dbad8-5da9-5c14-a1d7-499f8b9e2e9c")
+		)
+		(pin "3"
+			(uuid "f4e7d8c4-734f-56fb-8d21-df7fe5c17b5d")
+		)
+		(pin "4"
+			(uuid "340c058f-f413-5d64-80d5-c54c36df86c2")
+		)
+		(instances
+			(project "Sigil_EInk"
+				(path "/f3084516-8a7e-4624-9c15-ca3477e318b9"
+					(reference "J5")
+					(unit 1)
+				)
+			)
+		)
 	)
 	(symbol
 		(lib_id "Sigil:ESP32_DevKit_38_RearReference")
@@ -2505,6 +3002,83 @@
 			(project "Sigil_EInk"
 				(path "/f3084516-8a7e-4624-9c15-ca3477e318b9"
 					(reference "J4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sigil:Resistor_Series")
+		(at 317.5 149.86 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "bc488ee0-9490-5951-9a71-98ebfe78d457")
+		(property "Reference" "R1"
+			(at 317.5 144.78 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "330R"
+			(at 317.5 147.32 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 317.5 149.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 317.5 149.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 317.5 149.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "d32cbe35-119f-5c12-9408-9b79b2c4a389")
+		)
+		(pin "2"
+			(uuid "b35aa73e-e7f2-5a6a-935d-be06030eafc3")
+		)
+		(instances
+			(project "Sigil_EInk"
+				(path "/f3084516-8a7e-4624-9c15-ca3477e318b9"
+					(reference "R1")
 					(unit 1)
 				)
 			)

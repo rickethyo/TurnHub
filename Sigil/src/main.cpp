@@ -17,6 +17,7 @@
 #include "firmware_version.h"
 #include "protocol.h"
 #include "sigil_display.h"
+#include "sigil_led.h"
 #include "received_packet.h"
 
 #ifndef TURNHUB_INPUT_JOYSTICK
@@ -24,6 +25,15 @@
 #endif
 #if TURNHUB_INPUT_JOYSTICK
 #include "joystick_input.h"
+#endif
+#ifndef TURNHUB_STATUS_RING
+#define TURNHUB_STATUS_RING 0
+#endif
+#if TURNHUB_STATUS_RING
+#if !TURNHUB_INPUT_JOYSTICK
+#error "The status ring uses GPIO26, which is the Pass button in button builds"
+#endif
+#include "status_ring.h"
 #endif
 
 namespace {
@@ -36,15 +46,20 @@ using TurnHubSigil::SigilDisplay;
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
+// Status LED: one RGB LED (or three single LEDs), PWM on every channel.
 constexpr uint8_t BLUE_LED = 27;
 constexpr uint8_t GREEN_LED = 14;
 constexpr uint8_t RED_LED = 13;
+#if TURNHUB_STATUS_RING
+// NeoPixel Jewel 7 Data Input, via 330 ohm (J10). Powered from 5V (J1).
+constexpr uint8_t STATUS_RING_PIN = 26;
+#endif
 #if TURNHUB_INPUT_JOYSTICK
 // Analog thumbstick in place of the three buttons (stick powered from 3.3 V,
 // never 5 V: VRX/VRY swing to the supply). Clicking the stick is PASS;
 // pushing right is Action and down is Pause/Win, with the same tap and hold
 // timing as the buttons. VRX/VRY must be ADC1 pins: ADC2 is unusable while
-// ESP-NOW has the radio. GPIO26/25 are left unconfigured.
+// ESP-NOW has the radio. GPIO25 is unused; GPIO26 drives the status ring.
 constexpr uint8_t PASS_BUTTON = 32;        // SW, switch to GND (J13).
 constexpr uint8_t JOYSTICK_X_PIN = 34;     // VRX, input-only ADC1 (J15).
 constexpr uint8_t JOYSTICK_Y_PIN = 35;     // VRY, input-only ADC1 (J14).
@@ -62,7 +77,14 @@ constexpr uint8_t PAUSE_WIN_BUTTON = 32; // Breadboard J13; switch to GND.
 #endif
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
-constexpr uint8_t PAIR_BUTTON = 19;
+#if defined(TURNHUB_WOKWI)
+constexpr uint8_t PAIR_BUTTON = 19;  // diagram.json's Pair pushbutton.
+#else
+// The DevKit's onboard BOOT button (GPIO0, pulled up on the board). GPIO0 is
+// a strapping pin only at reset: holding BOOT while resetting enters the ROM
+// downloader instead of this firmware, so Pair works from boot onward.
+constexpr uint8_t PAIR_BUTTON = 0;
+#endif
 
 // Both display implementations consume the same existing display packets.
 // The OLED build also says so, so Atlas limits it to one player.
@@ -70,7 +92,8 @@ constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
     TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |
     TurnHubProtocol::CAPABILITY_GAME_DISPLAY |
-    TurnHubProtocol::CAPABILITY_INPUT_TIMING
+    TurnHubProtocol::CAPABILITY_INPUT_TIMING |
+    TurnHubProtocol::CAPABILITY_LED_STATE
 #if TURNHUB_DISPLAY_OLED
     | TurnHubProtocol::CAPABILITY_DISPLAY_OLED
 #endif
@@ -78,9 +101,9 @@ constexpr uint8_t DEVICE_CAPABILITIES =
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
-constexpr uint32_t PASS_ACK_FLASH_MS = 250;
 constexpr uint32_t PAIRING_DURATION_MS = TurnHubProtocol::PAIRING_WINDOW_MS;
-constexpr uint32_t PAIRING_BLINK_MS = 250;
+// Status light: frames are rendered at most this often.
+constexpr uint32_t LED_FRAME_MS = 20;
 constexpr uint32_t DISPLAY_TASK_STACK_BYTES = 4096;
 constexpr uint32_t PROFILE_REQUEST_RETRY_MS = 1000;
 constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
@@ -119,10 +142,13 @@ bool atlasKnown = false;
 uint8_t atlasMac[6] = {};
 volatile uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
-uint32_t greenFlashUntilMs = 0;
 uint32_t buzzerStopAtMs = 0;
-bool commandedGreen = false;
-volatile bool commandedRed = false;
+// Status light: Atlas's LedState (or legacy channels) plus Sigil-local
+// pairing and pass-ack, rendered to the RGB LED pins and the Jewel ring.
+TurnHubSigil::SigilLedModel ledModel;
+uint32_t lastLedFrameMs = 0;
+bool ledOutputValid = false;
+TurnHubSigil::Rgb shownSingle;
 volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
@@ -231,25 +257,24 @@ void sendHello() {
   lastHelloMs = millis();
 }
 
-void flashGreenForPassAck() {
-  digitalWrite(GREEN_LED, HIGH);
-  greenFlashUntilMs = millis() + PASS_ACK_FLASH_MS;
-}
-
-void updateGreenFlash() {
-  if (greenFlashUntilMs == 0) {
-    return;
+// Renders the current light state: the RGB LED pins (PWM on all three, so a
+// single RGB LED shows full color) and, on the E-ink build, the Jewel ring.
+// Both only change hardware when the frame differs.
+void updateLeds() {
+  const uint32_t nowMs = millis();
+  if (ledOutputValid && nowMs - lastLedFrameMs < LED_FRAME_MS) return;
+  lastLedFrameMs = nowMs;
+  const TurnHubSigil::LedFrame frame = ledModel.render(nowMs);
+  if (!ledOutputValid || frame.single != shownSingle) {
+    analogWrite(RED_LED, frame.single.r);
+    analogWrite(GREEN_LED, frame.single.g);
+    analogWrite(BLUE_LED, frame.single.b);
+    shownSingle = frame.single;
   }
-
-  if (static_cast<int32_t>(millis() - greenFlashUntilMs) >= 0) {
-    greenFlashUntilMs = 0;
-    digitalWrite(GREEN_LED, commandedGreen ? HIGH : LOW);
-  }
-}
-
-// The pairing blink temporarily owns the red LED; this hands it back to Atlas.
-void restoreRedLed() {
-  digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
+  ledOutputValid = true;
+#if TURNHUB_STATUS_RING
+  TurnHubSigil::statusRingShow(frame);
+#endif
 }
 
 #if TURNHUB_INPUT_JOYSTICK
@@ -621,12 +646,8 @@ void forgetPairing(const char *reason) {
   profileRequestActive = false;
   longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
   winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
-  commandedRed = false;
-  commandedGreen = false;
-  greenFlashUntilMs = 0;
-  analogWrite(BLUE_LED, 0);
-  digitalWrite(RED_LED, LOW);
-  digitalWrite(GREEN_LED, LOW);
+  ledModel.clear();
+  ledModel.setPairing(false, millis());
   stopBuzzer();
   portENTER_CRITICAL(&displayProfileMux);
   gameDisplayValid = false;
@@ -680,7 +701,7 @@ void handleEspNowReceive(
     rememberAtlas(mac);
     sigilId = packet.sigilId;
     pairingActive = false;
-    restoreRedLed();
+    ledModel.setPairing(false, millis());
     profileSyncStartPending = true;
     queueReadyDisplay();
     Serial.println("SIGIL|PAIR|SUCCESS");
@@ -717,24 +738,25 @@ void handleEspNowReceive(
       Serial.println(packet.value);
 
       if (packet.value == static_cast<int32_t>(PacketType::Pass)) {
-        flashGreenForPassAck();
+        ledModel.flashPassAck(millis());
       }
       break;
 
+    case PacketType::LedState:
+      ledModel.applyLedState(packet.value, millis());
+      break;
+
+    // Legacy channel stream from an Atlas that predates LedState.
     case PacketType::SetBlue:
-      analogWrite(BLUE_LED, constrain(packet.value, 0, 255));
+      ledModel.applyLegacyBlue(static_cast<uint8_t>(constrain(packet.value, 0, 255)));
       break;
 
     case PacketType::SetRed:
-      commandedRed = packet.value != 0;
-      if (!pairingActive) restoreRedLed();
+      ledModel.applyLegacyRed(packet.value != 0);
       break;
 
     case PacketType::SetGreen:
-      commandedGreen = packet.value != 0;
-      if (greenFlashUntilMs == 0) {
-        digitalWrite(GREEN_LED, commandedGreen ? HIGH : LOW);
-      }
+      ledModel.applyLegacyGreen(packet.value != 0);
       break;
 
     case PacketType::Buzzer:
@@ -808,7 +830,7 @@ void startPairing() {
   lastPairRequestMs = millis() - HELLO_INTERVAL_MS;
   pairingStartMs = millis();
   pairingActive = true;
-  digitalWrite(RED_LED, HIGH);
+  ledModel.setPairing(true, pairingStartMs);
   Serial.print("SIGIL|PAIR|START|DURATION_MS|");
   Serial.println(PAIRING_DURATION_MS);
 }
@@ -821,7 +843,7 @@ void updatePairing() {
   const uint32_t elapsedMs = millis() - pairingStartMs;
   if (elapsedMs >= PAIRING_DURATION_MS) {
     pairingActive = false;
-    restoreRedLed();
+    ledModel.setPairing(false, millis());
     Serial.println("SIGIL|PAIR|TIMEOUT");
     return;
   }
@@ -830,8 +852,6 @@ void updatePairing() {
     sendPacket(PacketType::PairRequest, pairingToken, true);
     lastPairRequestMs = millis();
   }
-  digitalWrite(
-      RED_LED, (elapsedMs / PAIRING_BLINK_MS) % 2 == 0 ? HIGH : LOW);
 }
 
 // A press opens the pairing window; keeping Pair held for
@@ -994,9 +1014,10 @@ void setup() {
   pinMode(PAUSE_WIN_BUTTON, INPUT_PULLUP);
 #endif
 
-  analogWrite(BLUE_LED, 0);
-  digitalWrite(GREEN_LED, LOW);
-  digitalWrite(RED_LED, LOW);
+#if TURNHUB_STATUS_RING
+  TurnHubSigil::statusRingBegin(STATUS_RING_PIN);
+#endif
+  updateLeds();
 
   ledcSetup(BUZZER_CHANNEL, 2000, 8);
   ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
@@ -1063,7 +1084,7 @@ void loop() {
   updateActionButton(pauseWinButton, true);
   updatePairButton();
   updatePairing();
-  updateGreenFlash();
+  updateLeds();
   updateBuzzer();
   updateDisplayProfileSync();
 
