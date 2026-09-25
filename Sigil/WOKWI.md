@@ -16,6 +16,12 @@ Then run **Wokwi: Start Simulator**. `wokwi.toml` loads the `sigil-wokwi` firmwa
 
 ## Hardware in the diagram
 
+The simulation keeps the Rev A pushbuttons and three discrete LEDs. The real
+E-ink Sigil now uses an analog joystick, the NeoPixel Jewel status ring and
+the DevKit BOOT button (GPIO0) for Pair (see `platformio.ini`), and the fake
+Atlas does not send `LedState` or `MenuState`, so the ring and Sigil menus
+cannot be exercised here yet.
+
 `diagram.json` follows the Sigil Rev A schematic (`KiCad/PCB/Sigilv1`) and
 `Documentation/engineering/HARDWARE_REFERENCE.md`:
 
@@ -57,8 +63,8 @@ command (`0x18`), which has no visible effect.
 A new Sigil is unpaired: the screen says so and it ignores everything until it
 pairs. As with a real Atlas, both sides must be in pairing mode:
 
-1. Type `pair` in the serial console. This stands in for pressing Atlas's Pair
-   button and opens the fake Atlas's 15-second window.
+1. Type `pair` in the serial console. This stands in for tapping **Pair a
+   Sigil** on the Atlas touchscreen and opens the fake Atlas's 15-second window.
 2. Press the Sigil's PAIR button (`R`) within those 15 seconds. The red LED
    blinks while the Sigil broadcasts `PairRequest`.
 3. The fake Atlas answers `PairAccept` with the Sigil ID set by `id` (default 0).

@@ -44,7 +44,7 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Measure approximate Sigil current draw during idle, radio activity, buzzer operation, and display refresh.
 - [ ] Decide final battery chemistry/form factor for portable Sigils.
 - [ ] Decide whether charging is onboard, external, or battery-swap based.
-- [x] Add and assign GPIO for the Pair button (GPIO19, verified working firmware).
+- [x] Add and assign GPIO for the Pair button (GPIO19, verified working firmware). Since 2026-09-25 the real E-ink Sigil uses the DevKit BOOT button (GPIO0) for Pair; GPIO19 remains only in the Wokwi build.
 - [x] Add and assign GPIO for the auxiliary Pause / Win button (GPIO32; bench check pending).
 - [x] Verify the auxiliary path maps to semantic Atlas actions and introduces no
   button-owned game rules (it reuses Action-long and Action-win).
@@ -90,7 +90,7 @@ When an item is verified, update the relevant reference document and mark the it
   PIN/name and totals across update/reboot, and records one completed game once.
 
 - [x] Audit current Atlas migration code for any browser/Sigil logic that duplicates game-engine rules. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [x] Route running-game PASS requests from physical Sigils, browser controls, and the Atlas master button through the shared authoritative `IntentDispatcher`.
+- [x] Route running-game PASS requests from physical Sigils, browser controls, and Atlas's physical control (the master button then; since 2026-09-24 the touchscreen Pass button) through the shared authoritative `IntentDispatcher`.
 - [x] Investigate inconsistent PASS grace timing observed on hardware. The 2026-09-19 ESP32 Build Fix conversation reports three-second physical/browser pending-to-commit timing and Action cancellation on the pre-migration build. New native scenarios verify grace/cancellation/rollover; repeat the hardware test after this migration.
 - [x] Eliminate optional Preferences/NVS NOT_FOUND spam without reducing error logging. Native fault-injection policy tests and clean firmware build pass; see [verification record](ATLAS_INTENT_VERIFICATION.md).
 - [x] User reports gameplay migration checks tested after the supplied serial run.

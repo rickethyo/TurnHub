@@ -314,7 +314,7 @@ version unchanged; new Hello capability bit `CAPABILITY_DISPLAY_OLED` (0x10).
 
 "Before" is the microSD step-1 build. Build only; nothing was flashed.
 
-## 2026-09-25: Sigil-rendered light, joystick, status ring, speaker
+### 2026-09-25 - Sigil-rendered light, joystick, status ring, speaker
 
 Sigil `0.5.6-dev` -> `0.6.0-dev`; Atlas stays `0.6.0-dev`. Radio protocol
 version unchanged; new `LedState = 25` packet and Hello capability bit
@@ -337,7 +337,7 @@ version unchanged; new `LedState = 25` packet and Hello capability bit
 
 Atlas and the OLED Sigil were flashed; the E-ink Sigil was built only.
 
-## 2026-09-25: Sigil menus
+### 2026-09-25 - Sigil menus
 
 Sigil `0.6.0-dev` -> `0.7.0-dev`; Atlas stays `0.6.0-dev`. Radio protocol
 version unchanged; new `SelectAction = 13` and `MenuState = 26` packets and

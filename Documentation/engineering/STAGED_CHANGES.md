@@ -17,14 +17,16 @@ Owner decisions and follow-through (2026-09-24, later the same day):
   pairing; admins forget one or all Sigils in Device Settings, and Atlas sends
   `Unpair`. See [Manual Pairing](MANUAL_PAIRING.md#forgetting-a-pairing-2026-09-24).
 - **Pairing window:** Atlas's window is admin-adjustable (15/30/60 s).
-- **On hold:** the physical profile picker (waits for a D-pad on the Sigil), LED
-  brightness and buzzer volume (current hardware cannot vary them).
+- **On hold:** buzzer volume (current hardware cannot vary it). Unblocked
+  (2026-09-25): the physical profile picker (both Sigils now have five-way
+  input: the E-ink joystick and the OLED d-pad, with Sigil menus) and LED
+  brightness (the NeoPixel Jewel ring can dim; Atlas already sends `LedState`).
 - **Not planned on e-ink:** the turn timer on the Sigil screen; it will be tried
   on an LCD Sigil model.
 - **Long-term goal:** game-scoped statistics and session history (sections 3-5).
 
 All of the above: host scenarios, the portal browser smoke, and PlatformIO
-builds of Atlas, `sigil` and `sigil-wokwi` pass (Sigil firmware 0.5.5-dev). The
+builds of Atlas, `sigil` and `sigil-wokwi` passed at the time (Sigil firmware 0.5.5-dev; now 0.7.0-dev). The
 Android "Draw" label has a unit test that was not run. Nothing was flashed;
 hardware acceptance is pending.
 
@@ -34,8 +36,10 @@ host/Android tests and an Atlas build; hardware acceptance is pending. See
 [Turn timer and cues](TURN_TIMER_AND_CUES.md). Staged follow-ups:
 
 - Timer on the Sigil screen: not on e-ink (owner decision); revisit on an LCD Sigil.
-- Route Sigil-local Pairing/Disconnected/Error LEDs through a shared cue profile
-  (and so through the player's light style).
+- Partly done (2026-09-25): Sigils render the light themselves from Atlas's
+  `LedState`, and the local Pairing blink follows Reduced motion. Still to
+  check: Sigil-local Disconnected/Error looks honor the player's light style
+  (Standard, Reduced motion, Monochrome-safe).
 
 Sigil accessibility preferences (2026-09-24): the owner chose per-player settings
 that follow the profile. Sigil sound, light style (Standard, Reduced motion,
@@ -236,8 +240,10 @@ reports compiling/flashing the current changes successfully and that everything
 works (2026-09-20); this is general bench feedback, not a recorded pass of each
 persistence/reboot acceptance case.
 
-**On hold (owner, 2026-09-24): the two-button e-ink picker waits for a D-pad on
-the Sigil.** The notes below stay as the design record.
+**Unblocked (2026-09-25):** this waited for a D-pad on the Sigil (owner,
+2026-09-24). Both Sigils now have five-way input (E-ink joystick, OLED d-pad)
+and a Sigil menu system, so the picker can be designed on those. The notes
+below stay as the design record.
 
 **Physical profile selection and reusable Sigils.** The owner found that
 Michael joining by phone prevents his last-used, unjoined Sigil from joining as
