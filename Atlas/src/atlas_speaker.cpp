@@ -19,12 +19,13 @@ constexpr uint16_t MIN_TONE_HZ = 130;
 constexpr uint16_t MAX_TONE_HZ = 10000;
 
 // Duty sets loudness: the fundamental scales with sin(pi * duty), so these
-// give about 1/2, 3/4 and full amplitude (50% duty is the loudest).
+// give about 45%, 68% and 90% amplitude (50% duty would be the loudest). Each
+// level was lowered about 10% on 2026-09-25 at the owner's request.
 uint32_t dutyFor(uint8_t volume) {
   switch (volume) {
-    case 1: return 43;   // Low, ~1/2
-    case 2: return 69;   // Medium, ~3/4
-    default: return 128; // High, full
+    case 1: return 38;   // Low, ~0.45
+    case 2: return 60;   // Medium, ~0.68
+    default: return 91;  // High, ~0.90
   }
 }
 

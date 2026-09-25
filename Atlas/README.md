@@ -170,7 +170,7 @@ loss. See [Software Architecture](../Documentation/engineering/SOFTWARE_ARCHITEC
 
 A turn pass is now provisional for three seconds.
 
-When the active player presses Pass, Atlas records the original pass timestamp and arms a pending transition. During the grace window, another Pass or an Action press from that physical Sigil cancels the pending transition. Browser Pass and the Atlas touchscreen Pass use the same pending-pass path.
+When the active player presses Pass, Atlas records the original pass timestamp and arms a pending transition. During the grace window, another Pass or an Action press from that physical Sigil cancels the pending transition. Browser Pass uses the same pending-pass path. The Atlas touchscreen has no Pass button; its Table screen has a 2 s **Master pass** hold for a stuck turn, which passes at once (no grace) and is logged as `ATLAS|GAME|MASTER_PASS`.
 
 If the grace expires, the game engine commits the pass using the original request timestamp. This keeps the outgoing player's recorded turn from gaining an artificial extra three seconds, while the incoming player's clock includes the elapsed grace period. A cancelled pass leaves the original turn uninterrupted.
 

@@ -127,8 +127,21 @@ happens on the touchscreen:
   verification early. Protected requests without it get
   `403 {"presenceRequired": true}`, and the portal then starts the code flow
   and retries.
-- **Pass** for the active player: the touchscreen's Pass button.
-- **End a match as a draw:** hold **End match** for 5 seconds (`END_MATCH_HOLD_MS`).
+- **Between games:** **Start** (two or more players in the lobby), **Cancel
+  start** during the countdown, and **Rematch** or **Reset** after a game.
+- **During a game** the main row is only **Pause** (or **Resume**) and
+  **Table**. Players pass from their own Sigils, phones or the app; the
+  touchscreen has no Pass button (owner decision 2026-09-25).
+- **Master pass** (Table screen, running game): hold 2 s
+  (`MASTER_PASS_HOLD_MS`) to pass a stuck turn at once, for example when the
+  active player has stepped away or their Sigil is offline. It skips the 3 s
+  grace, overrides a queued PASS, waits for an open win claim or elimination
+  selection, and is logged as a master pass (`ATLAS|GAME|MASTER_PASS|<from>-><to>|ORIGIN|ATLAS_HARDWARE`
+  plus a `master_pass` activity entry), never as the player's own pass. The
+  turn counts like any other. A Game Master's **Pass turn** in the portal is
+  logged the same way (`ORIGIN|BROWSER`).
+- **End a match as a draw:** on the Table screen, hold **End match** for 5
+  seconds (`END_MATCH_HOLD_MS`).
 
 *Needs verification* on hardware.
 
@@ -149,8 +162,9 @@ speaker is the mask's bit 15 (`ATLAS_SPEAKER_MASK`). `atlas_speaker.cpp`
 the amplifier enabled (IO4 low) only while a note plays, so an idle speaker does
 not hiss. Volume is an Admin setting in the portal (System), saved as the
 `spkvol` NVS blob: Off, Low, Medium (default) or High. The duty cycle sets
-loudness: about 1/2, 3/4 and full amplitude (the fundamental scales with
-sin(pi x duty); 50% is loudest). Until 2026-09-25 the speaker used the DAC's
+loudness: about 45%, 68% and 90% amplitude (the fundamental scales with
+sin(pi x duty); 50% would be loudest; each level was lowered about 10% on
+2026-09-25 at the owner's request). Until 2026-09-25 the speaker used the DAC's
 sine generator at 1/8, 1/4 and full scale, which was too quiet on the default
 Medium; a square wave is also much louder on a small speaker. Off silences only the Atlas speaker; each Sigil still
 follows its seated players' sound preference.
@@ -195,10 +209,12 @@ harness buttons change no table state:
 
 | State | Buttons | Intent |
 |---|---|---|
-| Lobby | Pair, QR, (Tests), Info | `PairRequest`; the rest open screens |
-| Running | Pass (Undo pass while one is pending), Pause, End (hold 5 s) | `Pass` / `Pause` for the active seat; `EndMatch` after `END_MATCH_HOLD_MS` |
-| Paused | Resume, End (hold 5 s) | `Resume` for the active seat; `EndMatch` |
-| Game Over | QR, Info | None |
+| Lobby | (Start, with two or more players), Pair, QR, (Tests), Info | `StartGame` (the countdown; no seat or arming needed from the screen), `PairRequest`; the rest open screens |
+| Starting | Cancel start | `CancelStart` |
+| Running | Pause, Table | `Pause` for the active seat; Table opens the Table screen |
+| Paused | Resume, Table | `Resume` for the active seat |
+| Table screen (Running or Paused) | Master pass (hold 2 s, Running only), End match (hold 5 s), Back | `MasterPass` after `MASTER_PASS_HOLD_MS`; `EndMatch` after `END_MATCH_HOLD_MS`. It closes when the match ends, and after either acts |
+| Game Over | Rematch, Reset, QR, Info | `Rematch` (same players, back to the lobby) / `ResetGame` (empty lobby) |
 | Any, while a phone asked for a presence code | Cancel (the code screen shows the six digits and a QR code over any other screen) | None: cancels that code |
 | Info / QR codes | QR codes, Back / Wi-Fi, Portal, Sign in, Back | None |
 | Lobby, with a test harness online | Tests, then Radio / 2p game / 4p game / Rematch / Soak x5 / Back, and Stop test while one runs | No Intent: `HarnessCommand` to the harness, which plays through its own Sigils; progress shown in words |

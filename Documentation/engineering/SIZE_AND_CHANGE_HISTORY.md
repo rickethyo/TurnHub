@@ -412,6 +412,15 @@ through a lock in `sd_card.cpp` (2026-09-25). The combined Atlas build: RAM
 100,980 B (30.8%), flash 1,333,357 B (67.8%). Physical SD acceptance is still
 pending.
 
+### 2026-09-25 - Touchscreen table actions and master pass
+
+Atlas stays `0.6.0-dev`; Sigil firmware and radio protocol are unchanged. The
+touchscreen gains Start, Cancel start, Rematch and Reset between games and an
+in-game Table screen; its Pass button is replaced by a 2 s Master pass hold
+(new `MasterPass` Intent, logged as `ATLAS|GAME|MASTER_PASS`). Each Atlas
+speaker level is about 10% quieter. Atlas build: RAM 101,124 B (30.9%), flash
+1,346,697 B (68.5%).
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

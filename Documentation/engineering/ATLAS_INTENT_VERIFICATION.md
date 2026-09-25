@@ -25,7 +25,8 @@ The six architectural gate answers for this migration are:
 
 | Control or transition | Authoritative intent |
 | --- | --- |
-| Physical/browser/Atlas master PASS | Pass |
+| Physical/browser PASS | Pass |
+| Atlas touchscreen master pass (Table screen hold, 2026-09-25) | MasterPass (immediate; logged as a master pass) |
 | Action cancels pending PASS | CancelPass |
 | Grace timer expires | CommitPass (Atlas System only) |
 | Physical pause/resume; browser toggle | Pause / Resume / TogglePause |

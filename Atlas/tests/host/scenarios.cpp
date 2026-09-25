@@ -1628,9 +1628,18 @@ static void pressButton(TouchAction action) {
   touchAt(b->x+b->w/2,b->y+b->h/2);
 }
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
+// End match and Master pass live on the in-game Table screen.
+static void openTableScreen() {
+  if (!screenButton(currentScreen(),TouchAction::EndMatch)) tapButton(TouchAction::OpenTable);
+}
 // Holds the on-screen End match button for the full hold, then lets go.
 static void holdEndMatch() {
+  openTableScreen();
   pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS; pressButton(TouchAction::EndMatch); touchRelease();
+}
+// A player's own PASS from their Sigil (the touchscreen no longer passes).
+static void seatPass() {
+  assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::PhysicalSigil,*game.activePlayer()).accepted());
 }
 
 // Touch calibration math: solve from four simulated presses, then map.
@@ -1698,7 +1707,8 @@ static void oledSigilSeatsOnePlayer() {
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  assert(String(s.title)=="Lobby" && s.buttonCount==3 && screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
+  assert(String(s.title)=="Lobby" && s.buttonCount==4 && screenButton(s,TouchAction::StartGame) &&
+      screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
   // Every button fits on screen and meets the 44 px minimum target size.
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
@@ -1745,23 +1755,31 @@ static void touchControls() {
   assert(currentScreen().kind==ScreenKind::Status && !anyPresenceActive(testNow));
   testNow+=TOUCH_NOTICE_MS;
 
-  // Running: Pass (for the active seat), Pause, and a hold-only End match.
+  // Running: just Pause and Table. Players pass from their own seats; the
+  // touchscreen shows a pending PASS but has no Pass button of its own.
   startFromHost(); s=currentScreen();
-  assert(startsWith(s.title,"Player ") && s.buttonCount==3 &&
-      screenButton(s,TouchAction::Pass) && screenButton(s,TouchAction::Pause) &&
-      screenButton(s,TouchAction::EndMatch)->hold());
-  const uint8_t first=game.activePlayerNumber();
-  tapButton(TouchAction::Pass); assert(pendingPass.active);
-  assert(String(currentScreen().detail)=="Pass pending: tap Undo pass to cancel");
-  tapButton(TouchAction::Pass); assert(!pendingPass.active && game.activePlayerNumber()==first);
-  tapButton(TouchAction::Pass); testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
-  assert(game.activePlayerNumber()!=first);
+  assert(startsWith(s.title,"Player ") && s.buttonCount==2 &&
+      screenButton(s,TouchAction::Pause) && screenButton(s,TouchAction::OpenTable) &&
+      !screenButton(s,TouchAction::EndMatch) && !screenButton(s,TouchAction::MasterPass));
+  seatPass(); assert(String(currentScreen().detail)=="Pass pending: that seat can cancel");
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
   tapButton(TouchAction::Pause); assert(hubState==HubState::Paused);
   s=currentScreen();
-  assert(String(s.title)=="Paused" && s.buttonCount==2 && screenButton(s,TouchAction::Resume) && !screenButton(s,TouchAction::Pass));
-  tapButton(TouchAction::Resume); assert(hubState==HubState::Running);
+  assert(String(s.title)=="Paused" && s.buttonCount==2 && screenButton(s,TouchAction::Resume) &&
+      screenButton(s,TouchAction::OpenTable));
+  // Paused, the Table screen offers End match but not the master pass.
+  tapButton(TouchAction::OpenTable); s=currentScreen();
+  assert(s.kind==ScreenKind::Table && String(s.detail)=="Resume to use Master pass" &&
+      !screenButton(s,TouchAction::MasterPass) && screenButton(s,TouchAction::EndMatch)->hold());
+  tapButton(TouchAction::CloseScreen); tapButton(TouchAction::Resume); assert(hubState==HubState::Running);
 
   // End match needs the full hold, shows a countdown, and acts once.
+  tapButton(TouchAction::OpenTable); s=currentScreen();
+  assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==3 &&
+      screenButton(s,TouchAction::MasterPass)->holdMs==MASTER_PASS_HOLD_MS &&
+      screenButton(s,TouchAction::EndMatch)->holdMs==END_MATCH_HOLD_MS && screenButton(s,TouchAction::CloseScreen));
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=SCREEN_BODY_Y && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
   tapButton(TouchAction::EndMatch);
   assert(hubState==HubState::Running && String(currentScreen().notice)=="Keep holding for 5 s to end the match");
   completedGames=0;
@@ -1773,8 +1791,9 @@ static void touchControls() {
   touchAt(160,120); testNow+=5000; touchAt(160,120); touchRelease();
   assert(completedGames==1);
   s=currentScreen();
-  assert(String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
-      s.buttonCount==2 && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
+  assert(s.kind==ScreenKind::Status && String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
+      s.buttonCount==4 && screenButton(s,TouchAction::Rematch) && screenButton(s,TouchAction::ResetTable) &&
+      screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();
@@ -1877,6 +1896,86 @@ static void harnessScreen() {
   rec.helloInfoValid=false; rec.capabilities=0; resetTouchControls(); resetHarnessLink();
 }
 
+// The touchscreen between games: Start (two or more players), Cancel start,
+// Rematch and Reset, all as table actions from the Atlas hardware.
+static void touchTableLifecycle() {
+  resetTouchControls(); freshLobby(1); pairingActive=false;
+  assert(!screenButton(currentScreen(),TouchAction::StartGame));
+  Intent start; start.type=IntentType::StartGame; start.actor.origin=IntentOrigin::AtlasHardware;
+  assert(intents.dispatch(start).status==IntentStatus::InvalidState && hubState==HubState::Lobby);
+  freshLobby(3); tapButton(TouchAction::StartGame);
+  assert(hubState==HubState::Starting);
+  AtlasScreen s=currentScreen();
+  assert(s.buttonCount==1 && screenButton(s,TouchAction::CancelStart));
+  tapButton(TouchAction::CancelStart); assert(hubState==HubState::Lobby && lobby.playerCount()==3);
+  // Only the touchscreen skips the seat and arming: an unseated browser cannot.
+  Intent stranger=start; stranger.actor.origin=IntentOrigin::Browser;
+  stranger.actor.controllerId=MAX_PHYSICAL_SIGILS; stranger.actor.slot=1;
+  assert(!intents.dispatch(stranger).accepted() && hubState==HubState::Lobby);
+  tapButton(TouchAction::StartGame); testNow+=START_COUNTDOWN_MS; updateCountdown(testNow);
+  assert(hubState==HubState::Running);
+  // Rematch and Reset only after a game.
+  for (IntentType type : {IntentType::Rematch, IntentType::ResetGame}) {
+    Intent early; early.type=type; early.actor.origin=IntentOrigin::AtlasHardware;
+    assert(intents.dispatch(early).status==IntentStatus::InvalidState && hubState==HubState::Running);
+  }
+  holdEndMatch(); assert(hubState==HubState::GameOver);
+  tapButton(TouchAction::Rematch); assert(hubState==HubState::Lobby && lobby.playerCount()==3);
+  tapButton(TouchAction::StartGame); testNow+=START_COUNTDOWN_MS; updateCountdown(testNow);
+  holdEndMatch(); assert(hubState==HubState::GameOver);
+  tapButton(TouchAction::ResetTable); assert(hubState==HubState::Lobby && lobby.playerCount()==0);
+  resetTouchControls(); enterEmptyLobby();
+}
+
+// Master pass: the Table screen's hold passes a stuck turn at once (no
+// grace), logged as a master pass. Atlas hardware only, running games only,
+// never over an open table decision.
+static void masterPass() {
+  resetTouchControls(); freshLobby(3); startFromHost();
+  Intent master; master.type=IntentType::MasterPass; master.actor.origin=IntentOrigin::AtlasHardware;
+  for (auto origin : {IntentOrigin::Browser, IntentOrigin::AndroidApp, IntentOrigin::PhysicalSigil,
+                      IntentOrigin::Simulator, IntentOrigin::System}) {
+    Intent other=master; other.actor.origin=origin;
+    assert(intents.dispatch(other).status==IntentStatus::Unauthorized);
+  }
+  const uint8_t first=game.activePlayerNumber();
+  // A short press only explains; the full hold passes once, immediately, and
+  // returns to the status screen.
+  tapButton(TouchAction::OpenTable);
+  char detail[48]; snprintf(detail,sizeof(detail),"Stuck turn? Master pass skips Player %u",static_cast<unsigned>(first));
+  assert(String(currentScreen().detail)==detail);
+  tapButton(TouchAction::MasterPass);
+  assert(game.activePlayerNumber()==first && String(currentScreen().notice)=="Keep holding for 2 s to pass this turn");
+  const size_t activityBefore=TurnHub::Diagnostics::activityLog().count;
+  pressButton(TouchAction::MasterPass); testNow+=MASTER_PASS_HOLD_MS-1; pressButton(TouchAction::MasterPass);
+  assert(game.activePlayerNumber()==first);
+  testNow+=1; keepPressing();
+  const uint8_t second=game.activePlayerNumber();
+  assert(second!=first && !pendingPass.active && hubState==HubState::Running);
+  assert(currentScreen().kind==ScreenKind::Status && String(currentScreen().notice)=="Master pass: turn passed");
+  testNow+=5000; keepPressing(); touchRelease(); assert(game.activePlayerNumber()==second);
+  { const TurnHub::Diagnostics::ActivityLog &log=TurnHub::Diagnostics::activityLog();
+    assert(log.count==activityBefore+1 || log.count==TurnHub::Diagnostics::ACTIVITY_CAPACITY);
+    const TurnHub::Diagnostics::ActivityEvent &last=log.entries[(log.next+TurnHub::Diagnostics::ACTIVITY_CAPACITY-1)%TurnHub::Diagnostics::ACTIVITY_CAPACITY];
+    assert(String(last.kind)=="master_pass" && startsWith(last.message,"player=")); }
+  // It overrides a queued PASS: one turn passes, not two.
+  seatPass(); assert(pendingPass.active);
+  assert(intents.dispatch(master).accepted());
+  const uint8_t third=game.activePlayerNumber();
+  assert(third!=second && !pendingPass.active);
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(game.activePlayerNumber()==third);
+  // Not while paused, nor over a win claim.
+  assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
+  assert(intents.dispatch(master).status==IntentStatus::InvalidState);
+  assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Running);
+  const PlayerSeat claimant=*game.activePlayer();
+  assert(web(claimant.controllerId,claimant.slot,WebControl::ClaimWin) && game.hasWinClaim());
+  assert(!intents.dispatch(master).accepted() && game.hasWinClaim());
+  // The Table screen closes with the match.
+  holdEndMatch(); assert(hubState==HubState::GameOver && currentScreen().kind==ScreenKind::Status);
+  resetTouchControls(); enterEmptyLobby();
+}
+
 static void endMatchAsDraw() {
   using TurnHubProfiles::LastGameResult;
   // Only a match in progress, and only the Atlas hardware, can end it.
@@ -1893,8 +1992,8 @@ static void endMatchAsDraw() {
   assert(hubState==HubState::Running && !game.gameOver());
 
   // The full hold overrides a queued PASS and ends the match once, as a draw.
-  tapButton(TouchAction::Pass); assert(pendingPass.active);
-  pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
+  seatPass(); assert(pendingPass.active);
+  openTableScreen(); pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
   assert(hubState==HubState::Running && pendingPass.active);
   testNow+=1; keepPressing();
   assert(hubState==HubState::GameOver && game.endedInDraw() && game.winnerPlayerNumber()==0);
@@ -2261,8 +2360,10 @@ int main() {
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
+  touchTableLifecycle(); std::cout<<"PASS touchscreen Start, Cancel start, Rematch and Reset between games\n";
+  masterPass(); std::cout<<"PASS master pass: Table screen hold, Atlas hardware only, immediate, logged, overrides a queued PASS\n";
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
-  touchControls(); std::cout<<"PASS touchscreen: Pair, presence code screen/cancel/expiry, Pass, Pause/Resume, end-match hold, slide-off, drop-out, stale press\n";
+  touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Table screen, end-match hold, slide-off, drop-out, stale press\n";
   harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";

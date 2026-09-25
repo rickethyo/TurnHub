@@ -19,7 +19,8 @@ identifiers, PINs, statistics and bindings remain compatible.
 
 - Admin: account permission assignment, device naming, network configuration and
   firmware upload. Existing physical/state gates still apply to system changes.
-- Game Master: force pass and nudge mute/unmute. Game Masters do not see other
+- Game Master: force pass (logged as a master pass, `ATLAS|GAME|MASTER_PASS`,
+  like the Atlas touchscreen's Master pass hold) and nudge mute/unmute. Game Masters do not see other
   accounts' moderation history.
 - Developer: developer page and runtime diagnostics. Not implied by Admin.
 - GM reset connections and GM remove from game: independent additional choices;

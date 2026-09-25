@@ -214,7 +214,16 @@ then clears every participant. It is the portal's **Return table to lobby**,
 for when nobody at the table can finish or reach their Sigil. `EndMatch` is Atlas-hardware only (a
 5-second End match hold on the Atlas touchscreen): it ends a running or paused match as a draw,
 overriding a queued PASS, a win claim or an elimination selection, and commits
-statistics once through the normal game-completed callback. `PairConfirm` remains
+statistics once through the normal game-completed callback. `MasterPass` is
+Atlas-hardware only too (a 2-second hold on the touchscreen's Table screen): in
+a running game it passes the active player's turn at once, with no grace
+period, clearing a queued PASS; it is refused while paused or while a win claim
+or elimination selection is open. It logs `ATLAS|GAME|MASTER_PASS` and a
+`master_pass` activity entry, and a Game Master's portal pass logs the same
+line. `StartGame`, `CancelStart`, `Rematch` and `ResetGame` also accept the
+Atlas touchscreen (`AtlasHardware`, no controller): it stands at the table, so
+Start needs no seat or arming (two or more players still), and Rematch and
+Reset work only after a game. `PairConfirm` remains
 unsupported. General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`

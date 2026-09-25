@@ -363,7 +363,8 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
     drawLines(screen, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4);
     return;
   }
-  if (screen.kind == ScreenKind::Tests) return;  // Its buttons use the body.
+  // Their buttons use the body.
+  if (screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table) return;
 
   // Chips alone: redraw only those that changed.
   const bool chipsOnly = previous != nullptr && previous->kind == screen.kind &&
@@ -425,7 +426,8 @@ void drawButton(const AtlasScreen &screen, const TouchButton &button) {
 }
 
 void drawButtons(const AtlasScreen &screen) {
-  const int16_t top = screen.kind == ScreenKind::Tests ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
+  const int16_t top = screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table
+      ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
   tft.fillRect(0, top, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT - top, BACKGROUND);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) drawButton(screen, screen.buttons[i]);
 }

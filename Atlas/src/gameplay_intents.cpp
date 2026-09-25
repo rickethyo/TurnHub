@@ -4,6 +4,7 @@
 // before it mutates GameEngine or the table-decision state in atlas_app.h.
 
 #include "atlas_app.h"
+#include "runtime_diagnostics.h"
 #include "serial_log.h"
 
 using TurnHub::serialLog;
@@ -261,6 +262,50 @@ IntentResult handleEndMatchIntent(const Intent &intent, void *) {
   logIntent("END_MATCH", intent.actor.origin, 0);
   finishGameState();
   return IntentResult::accept("Match ended as a draw");
+}
+
+// --- Master pass ------------------------------------------------------------------
+
+void logMasterPass(uint8_t fromPlayer, uint8_t toPlayer, IntentOrigin origin) {
+  serialLog.print("ATLAS|GAME|MASTER_PASS|");
+  serialLog.print(fromPlayer);
+  serialLog.print("->");
+  serialLog.print(toPlayer);
+  serialLog.print("|ORIGIN|");
+  serialLog.println(intentOriginName(origin));
+  TurnHub::recordActivity("master_pass", String("player=") + String(fromPlayer) +
+      " next=" + String(toPlayer) + " origin=" + intentOriginName(origin));
+}
+
+// The table's way past a stuck turn (a player away, a Sigil offline). Only
+// the Atlas touchscreen hold can ask, so someone is at the table. It passes
+// the active player's turn at once, with no grace period, and is logged as a
+// master pass, never as the player's own. The turn counts like any other. It
+// waits for open table decisions (a win claim, an elimination selection).
+IntentResult handleMasterPassIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Hold Master pass on the Atlas screen");
+  }
+  if (hubState != HubState::Running) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Master pass needs a running game");
+  }
+  if (tableDecisionPending()) {
+    return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table decision first");
+  }
+  const PlayerSeat *active = game.activePlayer();
+  if (active == nullptr) {
+    return IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
+  }
+  const PlayerSeat passing = *active;
+  clearPendingPass("MASTER_PASS");
+  if (!game.passTurn(passing.controllerId, millis())) {
+    return IntentResult::reject(IntentStatus::Conflict, "Atlas could not pass the turn");
+  }
+  const PlayerSeat *next = game.activePlayer();
+  logMasterPass(passing.playerNumber, next != nullptr ? next->playerNumber : 0, intent.actor.origin);
+  if (next != nullptr) audio.turnPassed(passing.controllerId, next->controllerId);
+  leds.invalidateAll();
+  return IntentResult::accept("Master pass: turn passed");
 }
 
 // --- Concession -----------------------------------------------------------------

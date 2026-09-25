@@ -35,6 +35,8 @@ IntentResult passForPlayer(bool joined, uint8_t controller, const PlayerSeat &se
     return IntentResult::reject(IntentStatus::InvalidState, "Pass rejected");
   }
   const PlayerSeat *next = game.activePlayer();
+  // A pass for someone else is a master pass, whoever asks for it.
+  logMasterPass(seat.playerNumber, next ? next->playerNumber : 0, IntentOrigin::Browser);
   if (next) audio.turnPassed(controller, next->controllerId);
   leds.invalidateAll();
   return IntentResult::accept("Turn passed by Game Master");

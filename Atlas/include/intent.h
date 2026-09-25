@@ -77,6 +77,9 @@ enum class IntentType : uint8_t {
   // Admin at the table, between games: erase a device's saved settings (NVS).
   // payload.value = a Sigil ID, or FACTORY_RESET_ATLAS for Atlas itself.
   FactoryReset,
+  // Atlas touchscreen hold (Table screen): pass the active player's turn at once,
+  // for a stuck turn. Logged as a master pass (ATLAS|GAME|MASTER_PASS).
+  MasterPass,
 
   Count,
 };
@@ -229,6 +232,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::ConfigureSpeaker: return "CONFIGURE_SPEAKER";
     case IntentType::ResetTable: return "RESET_TABLE";
     case IntentType::FactoryReset: return "FACTORY_RESET";
+    case IntentType::MasterPass: return "MASTER_PASS";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

@@ -8,7 +8,7 @@
 // screen is part of the Atlas and its only physical input); Atlas's handlers
 // decide every outcome. Its non-Intent actions change no table state: the
 // presence code screen (cancelling a code a phone asked for), moving between screens
-// (status, info, QR codes, test harness) and starting a harness test.
+// (status, info, QR codes, test harness, Table) and starting a harness test.
 
 #include <Arduino.h>
 
@@ -33,10 +33,14 @@ constexpr int16_t SCREEN_HERO_Y = 28;       // Title and detail/notice line.
 constexpr int16_t SCREEN_BODY_Y = 84;       // Players, QR code or info.
 constexpr int16_t BUTTON_ROW_H = 60;        // Well above the 44 px minimum target.
 constexpr int16_t BUTTON_ROW_Y = 172;       // The one row most screens use.
-constexpr int16_t BUTTON_UPPER_ROW_Y = 104; // Second row on the test screen.
+constexpr int16_t BUTTON_UPPER_ROW_Y = 104; // Second row (test and Table screens).
 
 enum class TouchAction : uint8_t {
-  None, Pair, Pass, Pause, Resume, EndMatch,
+  None, Pair, Pause, Resume, EndMatch,
+  // Between games: start (lobby), cancel the countdown, rematch or reset.
+  StartGame, CancelStart, Rematch, ResetTable,
+  // In a game: the Table screen and its master pass (a stuck turn).
+  OpenTable, MasterPass,
   // Presence code screen: cancel the code a phone asked for.
   CancelCode,
   // Screens that change no table state.
@@ -47,7 +51,8 @@ enum class TouchAction : uint8_t {
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code };
+// Table: in-game controls kept off the main row (master pass, End match).
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

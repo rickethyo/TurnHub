@@ -1,7 +1,7 @@
 // Atlas touchscreen: the TFT's screen model and its touch buttons. The touch
 // adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
-// decide. The exceptions change no table state: "Unlock admin" opens the
-// physical-presence window in front_panel.cpp, the Info, QR and Tests buttons
+// decide. The exceptions change no table state: Cancel takes a presence code
+// off the screen (front_panel.cpp), the Info, QR, Tests and Table buttons
 // switch screens, and a test is started on the harness. Drawing lives in
 // atlas_display.cpp.
 
@@ -113,9 +113,27 @@ void layoutTests(AtlasScreen &screen, uint32_t nowMs) {
   addRow(screen, BUTTON_ROW_Y, lower, 3);
 }
 
-// A code a phone asked for shows over whatever screen is open.
+bool matchInProgress() {
+  return hubState == HubState::Running || hubState == HubState::Paused;
+}
+
+// A code a phone asked for shows over whatever screen is open. The Table
+// screen belongs to a match and closes when it ends.
 ScreenKind activeScreen(uint32_t nowMs) {
+  if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
   return pendingPresenceCode(nowMs) != nullptr ? ScreenKind::Code : openScreen;
+}
+
+// In-game controls kept off the main row: Master pass (a stuck turn, running
+// games only) above, End match and Back below. Both act only when held.
+void layoutTable(AtlasScreen &screen) {
+  if (hubState == HubState::Running) {
+    const ButtonSpec upper[] = {{TouchAction::MasterPass, "Master pass", MASTER_PASS_HOLD_MS, 1}};
+    addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
+  }
+  const ButtonSpec lower[] = {{TouchAction::EndMatch, "End match", END_MATCH_HOLD_MS, 3},
+      {TouchAction::CloseScreen, "Back", 0, 2}};
+  addRow(screen, BUTTON_ROW_Y, lower, 2);
 }
 
 // The buttons for the open screen and the table state.
@@ -129,6 +147,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     }
     case ScreenKind::Tests:
       layoutTests(screen, nowMs);
+      return;
+    case ScreenKind::Table:
+      layoutTable(screen);
       return;
     case ScreenKind::Info: {
       const ButtonSpec row[] = {{TouchAction::OpenQr, "QR codes", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
@@ -147,8 +168,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
 
   switch (hubState) {
     case HubState::Lobby: {
-      ButtonSpec row[4];
+      ButtonSpec row[5];
       uint8_t n = 0;
+      if (lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
       row[n++] = {TouchAction::Pair, "Pair", 0, 3};
       row[n++] = {TouchAction::OpenQr, "QR", 0, 2};
       if (harnessSigilId(nowMs) != INVALID_ID) row[n++] = {TouchAction::OpenTests, "Tests", 0, 2};
@@ -156,26 +178,29 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
     }
+    // Players pass from their own seats; the master pass and End match sit
+    // on the Table screen, out of the way during play.
     case HubState::Running: {
-      const bool undo = pendingPass.active;
-      const ButtonSpec row[] = {{TouchAction::Pass, undo ? "Undo pass" : "Pass", 0, 5},
-          {TouchAction::Pause, "Pause", 0, 3}, {TouchAction::EndMatch, "End", END_MATCH_HOLD_MS, 3}};
-      addRow(screen, BUTTON_ROW_Y, row, 3);
+      const ButtonSpec row[] = {{TouchAction::Pause, "Pause", 0, 3}, {TouchAction::OpenTable, "Table", 0, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
       break;
     }
     case HubState::Paused: {
-      const ButtonSpec row[] = {{TouchAction::Resume, "Resume", 0, 2},
-          {TouchAction::EndMatch, "End", END_MATCH_HOLD_MS, 1}};
+      const ButtonSpec row[] = {{TouchAction::Resume, "Resume", 0, 3}, {TouchAction::OpenTable, "Table", 0, 2}};
       addRow(screen, BUTTON_ROW_Y, row, 2);
       break;
     }
     case HubState::GameOver: {
-      const ButtonSpec row[] = {{TouchAction::OpenQr, "QR", 0, 1}, {TouchAction::OpenInfo, "Info", 0, 1}};
-      addRow(screen, BUTTON_ROW_Y, row, 2);
+      const ButtonSpec row[] = {{TouchAction::Rematch, "Rematch", 0, 3}, {TouchAction::ResetTable, "Reset", 0, 2},
+          {TouchAction::OpenQr, "QR", 0, 2}, {TouchAction::OpenInfo, "Info", 0, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 4);
       break;
     }
-    case HubState::Starting:
+    case HubState::Starting: {
+      const ButtonSpec row[] = {{TouchAction::CancelStart, "Cancel start", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 1);
       break;
+    }
   }
 }
 
@@ -200,7 +225,12 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
 const char *actionName(TouchAction action) {
   switch (action) {
     case TouchAction::Pair: return "PAIR";
-    case TouchAction::Pass: return "PASS";
+    case TouchAction::StartGame: return "START_GAME";
+    case TouchAction::CancelStart: return "CANCEL_START";
+    case TouchAction::Rematch: return "REMATCH";
+    case TouchAction::ResetTable: return "RESET_TABLE";
+    case TouchAction::OpenTable: return "OPEN_TABLE";
+    case TouchAction::MasterPass: return "MASTER_PASS";
     case TouchAction::Pause: return "PAUSE";
     case TouchAction::Resume: return "RESUME";
     case TouchAction::EndMatch: return "END_MATCH";
@@ -230,12 +260,32 @@ void showNotice(uint32_t nowMs, const char *text) {
   noticeAtMs = nowMs;
 }
 
+// The Intent a table-wide button asks for.
+IntentType tableIntentType(TouchAction action) {
+  switch (action) {
+    case TouchAction::Pair: return IntentType::PairRequest;
+    case TouchAction::EndMatch: return IntentType::EndMatch;
+    case TouchAction::MasterPass: return IntentType::MasterPass;
+    case TouchAction::StartGame: return IntentType::StartGame;
+    case TouchAction::CancelStart: return IntentType::CancelStart;
+    case TouchAction::Rematch: return IntentType::Rematch;
+    case TouchAction::ResetTable: return IntentType::ResetGame;
+    default: return IntentType::None;
+  }
+}
+
+// What a hold button does, for "Keep holding for 5 s to ...".
+const char *holdPurpose(TouchAction action) {
+  return action == TouchAction::MasterPass ? "pass this turn" : "end the match";
+}
+
 // Screen changes: no Intent, no table state, no notice.
 bool navigate(TouchAction action) {
   switch (action) {
     case TouchAction::OpenInfo: openScreen = ScreenKind::Info; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
+    case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::CloseScreen:
     case TouchAction::CloseTests: openScreen = ScreenKind::Status; return true;
     case TouchAction::QrWifi:
@@ -245,9 +295,9 @@ bool navigate(TouchAction action) {
   }
 }
 
-// Adapter: turns one touch button into its Intent. Pass, Pause and Resume act
-// for the active seat. Unlock/Lock admin only open or close the presence
-// window; they change no table state.
+// Adapter: turns one touch button into its Intent. Pause and Resume act for
+// the active seat; the rest act for the table (origin only, no seat).
+// Cancelling a presence code changes no table state.
 void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   if (navigate(action)) {
     serialLog.print("ATLAS|TOUCH|");
@@ -262,14 +312,22 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       result = IntentResult::accept("Code cancelled");
       break;
     case TouchAction::Pair:
-    case TouchAction::EndMatch: {
+    case TouchAction::EndMatch:
+    case TouchAction::MasterPass:
+    case TouchAction::StartGame:
+    case TouchAction::CancelStart:
+    case TouchAction::Rematch:
+    case TouchAction::ResetTable: {
       Intent intent;
-      intent.type = action == TouchAction::Pair ? IntentType::PairRequest : IntentType::EndMatch;
+      intent.type = tableIntentType(action);
       intent.actor.origin = IntentOrigin::AtlasHardware;
       result = intents.dispatch(intent);
+      // After a master pass or End match, show the table what happened.
+      if (result.accepted() && (action == TouchAction::MasterPass || action == TouchAction::EndMatch)) {
+        openScreen = ScreenKind::Status;
+      }
       break;
     }
-    case TouchAction::Pass:
     case TouchAction::Pause:
     case TouchAction::Resume: {
       const PlayerSeat *active = game.activePlayer();
@@ -277,8 +335,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         result = IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
         break;
       }
-      const IntentType type = action == TouchAction::Pass ? IntentType::Pass
-          : action == TouchAction::Pause ? IntentType::Pause : IntentType::Resume;
+      const IntentType type = action == TouchAction::Pause ? IntentType::Pause : IntentType::Resume;
       result = dispatchSeatIntent(type, IntentOrigin::AtlasHardware, *active);
       break;
     }
@@ -437,7 +494,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       const char *name = nameOfPlayer(screen, game.activePlayerNumber());
       snprintf(screen.title, sizeof(screen.title), "%s's turn", name);
       if (pendingPass.active) {
-        snprintf(screen.detail, sizeof(screen.detail), "Pass pending: tap Undo pass to cancel");
+        snprintf(screen.detail, sizeof(screen.detail), "Pass pending: that seat can cancel");
       } else if (game.turnTimerMs() > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Turn time left %s", screen.clock);
       } else {
@@ -520,6 +577,25 @@ void formatCode(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.qr, sizeof(screen.qr), "%s/portal#code=%06lu", PORTAL_ORIGIN,
       static_cast<unsigned long>(request->code));
   snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Enter it on that phone");
+}
+
+// The Table screen: whose turn a master pass would skip, in words.
+void formatTable(AtlasScreen &screen, uint32_t nowMs) {
+  snprintf(screen.badge, sizeof(screen.badge), "TABLE");
+  snprintf(screen.title, sizeof(screen.title), "Table controls");
+  if (hubState != HubState::Running) {
+    snprintf(screen.detail, sizeof(screen.detail), "Resume to use Master pass");
+    return;
+  }
+  if (game.hasWinClaim() || eliminationTargetPlayer != 0) {
+    snprintf(screen.detail, sizeof(screen.detail), "Finish the table decision first");
+    return;
+  }
+  const PlayerSeat *active = game.activePlayer();
+  if (active == nullptr) return;
+  char name[SCREEN_NAME_LENGTH + 1];
+  playerName(*active, String(active->profileId), nowMs, name);
+  snprintf(screen.detail, sizeof(screen.detail), "Stuck turn? Master pass skips %s", name);
 }
 
 void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
@@ -645,6 +721,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Info: formatInfo(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
+    case ScreenKind::Table: formatTable(screen, nowMs); break;
   }
   layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
@@ -693,8 +770,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
     if (button->hold()) {
       char hint[sizeof(noticeText)];
       snprintf(hint, sizeof(hint), "Keep holding for %lu s to %s",
-          static_cast<unsigned long>(button->holdMs / 1000),
-          "end the match");
+          static_cast<unsigned long>(button->holdMs / 1000), holdPurpose(pressedAction));
       showNotice(nowMs, hint);
     } else {
       dispatchTouchAction(nowMs, pressedAction);

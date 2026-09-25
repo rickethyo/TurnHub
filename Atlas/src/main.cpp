@@ -203,6 +203,7 @@ bool configureIntentHandlers() {
       {IntentType::ExpireLifeChanges, handleExpireLifeChangesIntent},
       {IntentType::ChangeCounter, handleCounterIntent},
       {IntentType::EndMatch, handleEndMatchIntent},
+      {IntentType::MasterPass, handleMasterPassIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},

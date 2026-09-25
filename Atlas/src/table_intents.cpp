@@ -480,16 +480,20 @@ IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
 // --- Start countdown -----------------------------------------------------------------------
 
 // ArmStart (physical long press) arms; StartGame begins the countdown. A
-// browser host may start without arming.
+// browser seat may start without arming. The Atlas touchscreen (Start in the
+// lobby) is at the table itself, so it starts without a seat or arming.
 IntentResult handleStartIntent(const Intent &intent, void *) {
+  const bool touchscreen = intent.actor.origin == IntentOrigin::AtlasHardware &&
+      intent.type == IntentType::StartGame;
   IntentResult rejection;
-  if (!validTableActor(intent, rejection)) return rejection;
+  if (!touchscreen && !validTableActor(intent, rejection)) return rejection;
   const uint8_t module = intent.actor.controllerId;
   if (!gameSettingsAvailable) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Game settings storage is unavailable; restart Atlas after resolving the storage problem");
   }
-  if (hubState != HubState::Lobby || !lobby.isJoined(module) || lobby.playerCount() < 2) {
+  if (hubState != HubState::Lobby || (!touchscreen && !lobby.isJoined(module)) ||
+      lobby.playerCount() < 2) {
     return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
   }
   // A Seat B joined before its Sigil reported an OLED display (for example
@@ -509,7 +513,7 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
     serialLog.print("ATLAS|LOBBY|START_ARM|");
     serialLog.println(module);
   } else {
-    if (intent.actor.origin != IntentOrigin::Browser && lobby.startArmedBy() != module) {
+    if (!touchscreen && intent.actor.origin != IntentOrigin::Browser && lobby.startArmedBy() != module) {
       return IntentResult::reject(IntentStatus::InvalidState, "Start is not armed");
     }
     beginCountdown();
@@ -531,11 +535,13 @@ IntentResult handleCompleteStartIntent(const Intent &intent, void *) {
 
 IntentResult handleCancelStartIntent(const Intent &intent, void *) {
   IntentResult rejection;
-  if (!validTableActor(intent, rejection)) return rejection;
+  if (intent.actor.origin != IntentOrigin::AtlasHardware && !validTableActor(intent, rejection)) {
+    return rejection;
+  }
   if (hubState != HubState::Starting) {
     return IntentResult::reject(IntentStatus::InvalidState, "No countdown");
   }
-  // Existing behavior: any discovered module can cancel the countdown.
+  // Any discovered module, or the Atlas touchscreen, can cancel the countdown.
   cancelCountdown();
   return IntentResult::accept();
 }
@@ -544,8 +550,20 @@ IntentResult handleCancelStartIntent(const Intent &intent, void *) {
 
 // Rematch keeps the finished match's participants; ResetGame empties the
 // table. Reset is reachable only from GameOver or an unstarted lobby, so it
-// can never discard an in-progress (including recovered) match.
+// can never discard an in-progress (including recovered) match. The Atlas
+// touchscreen offers both after a game (Rematch and Reset).
 IntentResult handleResetIntent(const Intent &intent, void *) {
+  if (intent.actor.origin == IntentOrigin::AtlasHardware) {
+    if (hubState != HubState::GameOver) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Game is not over");
+    }
+    if (intent.type == IntentType::Rematch) {
+      enterRematchLobby();
+      return IntentResult::accept("Rematch: same players, back to the lobby");
+    }
+    enterEmptyLobby(&intent);
+    return IntentResult::accept("Table reset to an empty lobby");
+  }
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
   const uint8_t module = intent.actor.controllerId;

@@ -119,10 +119,12 @@ ESP32-32E display module (see [Hardware reference](HARDWARE_REFERENCE.md#generat
 Implemented and built: the new pin map, the splash screen and the `min_spiffs`
 partition table. The Pair button, the status/Pair LEDs and (owner decision,
 2026-09-24) the master button are gone; the firmware reads no buttons. The
-touchscreen is Atlas's only physical input: Pair a Sigil, Pass, Pause/Resume, a
-5 s hold to end the match as a draw, and a 3 s **Unlock admin** hold that opens a
-60 s physical-presence window for first-Admin setup, network settings, device
-names and OTA (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)).
+touchscreen is Atlas's only physical input: Pair a Sigil, Start/Cancel
+start/Rematch/Reset between games, Pause/Resume, and a Table screen with a 2 s
+**Master pass** hold for a stuck turn and a 5 s hold to end the match as a
+draw. Since 2026-09-25 it has no Pass button (players pass from their seats),
+and presence codes replaced the old **Unlock admin** hold (see
+[Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)).
 The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
 [Atlas speaker](HARDWARE_REFERENCE.md#atlas-speaker)). Staged follow-ups:
 
@@ -524,8 +526,14 @@ Privacy direction:
   load/save wiring and diagnostic logging are in now (see item 3 above); this
   entry stays open until an actual power-loss-and-reboot bench test confirms
   it on hardware, including ending a restored match with the End match hold.
-- End match draw hold on the touchscreen: 5 s during a match with an on-screen
-  countdown, a shorter press only shows a hint, statistics record Draw once.
+- End match draw hold on the touchscreen (on the Table screen since
+  2026-09-25): 5 s during a match with an on-screen countdown, a shorter press
+  only shows a hint, statistics record Draw once.
+- Touchscreen table actions (2026-09-25, flashed, *Needs verification*): Start
+  with two or more players, Cancel start, Rematch and Reset after a game, and
+  the Table screen's 2 s Master pass hold passing a stuck turn at once with an
+  `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
+  speaker levels, lowered about 10% the same day, at each volume setting.
 - Forgetting pairings: 10 s Sigil Pair hold; admin Forget one/all with `Unpair`
   reaching an in-range Sigil; the 30/60 s Atlas pairing window.
 

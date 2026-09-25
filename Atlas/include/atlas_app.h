@@ -182,6 +182,9 @@ IntentResult handleChangeLifeIntent(const Intent &intent, void *);
 IntentResult handleExpireLifeChangesIntent(const Intent &intent, void *);
 IntentResult handleCounterIntent(const Intent &intent, void *);
 IntentResult handleEndMatchIntent(const Intent &intent, void *);
+IntentResult handleMasterPassIntent(const Intent &intent, void *);
+// ATLAS|GAME|MASTER_PASS|<from>-><to>|ORIGIN|<origin>, plus an activity entry.
+void logMasterPass(uint8_t fromPlayer, uint8_t toPlayer, IntentOrigin origin);
 
 void clearPendingPass(const char *reason);
 bool cancelPendingPassForModule(uint8_t sigilId, const char *reason);
@@ -280,6 +283,8 @@ void beginFrontPanel();
 void startPairingIndicator(uint32_t nowMs);
 // Holding "End match" on the touchscreen this long ends a match as a draw.
 constexpr uint32_t END_MATCH_HOLD_MS = 5000;
+// Holding "Master pass" (touchscreen Table screen) this long passes a stuck turn.
+constexpr uint32_t MASTER_PASS_HOLD_MS = 2000;
 // Proof that someone is at the table (owner decision 2026-09-25; replaced the
 // 3 s "Unlock admin" hold). A signed-in phone asks for a code, the Atlas
 // screen shows it (digits and a QR code), and entering it on that phone
