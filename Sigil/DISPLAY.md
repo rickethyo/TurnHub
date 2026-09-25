@@ -1,7 +1,151 @@
-# Sigil portrait display
+# Sigil display implementations
+
+## Boundary and selection
+
+`include/sigil_display.h` defines the `SigilDisplay` presentation interface:
+`begin`, `showBooting`, `showUnpaired`, `showReady`, `setSeatName`, `showState`
+and `showGame`. `src/sigil_display.cpp` returns a static implementation from
+`getSigilDisplay()`. The existing display task calls that interface; it never
+includes a panel driver or branches on display hardware.
+
+- **E-paper (default):** `EpaperDisplay` in `include/epaper_display.h` and
+  `src/epaper_display.cpp`. The previous rendering body was moved without
+  layout, refresh, SPI-pin, or MISO-detachment changes.
+- **OLED (experimental):** `OledDisplay` in `include/oled_display.h` and
+  `src/oled_display.cpp`, with hardware settings in `include/oled_config.h`.
+  The scaffold supports SH1106 128x64, landscape rotation 0 or 2, through
+  explicit I2C or four-wire software SPI. These are supported configurations,
+  not an automatically selected hardware specification.
+
+Build from `Sigil/`:
+
+```text
+pio run -e sigil
+pio run -e sigil-wokwi
+pio run -e sigil-oled
+```
+
+`default_envs = sigil` retains the existing e-paper firmware. `sigil-wokwi`
+retains the existing e-paper simulator. `sigil-oled` defines
+`TURNHUB_DISPLAY_OLED=1`, excludes the e-paper source, and selects the OLED-only
+Adafruit SH110X dependency. The e-paper environments exclude the OLED source.
+Change selection through the environment, not just a flag in isolation: source
+filters and dependencies must agree. The current Wokwi diagram models e-paper,
+not OLED. Do not upload the OLED target to the e-paper unit.
+
+### Feature boundary
+
+Atlas still owns canonical state and validates existing game intents. There
+is no new intent, validator, persistence, capability, or protocol field.
+Both display implementations consume the same existing `DisplayState`, name
+chunks and `GameDisplayPacket` through the unchanged main-loop/display-task
+handoff. Pairing, ESP-NOW, buttons, LEDs, buzzer and refresh change detection
+retain their existing behavior. Name/frame caches are disposable presentation.
+The added dependency and its notices are recorded in the
+[dependency tracker](../Documentation/legal/DEPENDENCY_TRACKER.md).
+
+## OLED hardware evidence and unresolved settings
+
+Owner photos supplied on 2026-09-24 show **Inland 1.3-inch OLED V2.0**, seven
+header pins, and IIC/SPI selector markings. The front photo does not clearly
+resolve the pin labels. The
+[matching Inland listing](https://www.microcenter.com/product/643965/inland-iic-spi-13-128x64-oled-v20-graphic-display-module-for-arduino-uno-r3)
+identifies part **KS0056**, 128x64. The
+[Keyestudio KS0056 example](https://wiki.keyestudio.com/Ks0056_keyestudio_1.3%22_128x64_OLED_Graphic_Display)
+selects an SH1106 128x64 software-SPI driver. **Inference:** this is the likely
+controller/geometry and SPI is consistent with the owner's identification.
+The exact physical module, jumper setting and pin order remain to be checked.
+No Arduino example GPIO numbers were adopted for the ESP32.
+
+Every hardware setting defaults to an unset value in `oled_config.h`. Before
+enabling a panel, fill its TODO values from verified module/wiring information:
+
+| Setting | Required decision |
+| --- | --- |
+| `controller` | Confirm `OledController::Sh1106`; other controllers need their own adapter. |
+| `width`, `height` | Confirm 128x64; other geometries are rejected by this scaffold. |
+| `bus` | `OledBus::SoftwareSpi` for four-wire SPI, or `OledBus::I2c` after verifying board configuration. |
+| `rotation` | 0 or 2 after checking the physical mounting orientation. |
+| `power` | Confirm the module suits `OledPower::InternalChargePump`; the driver enables its internal DC/DC converter. Supply voltage and logic compatibility still need module verification. |
+| `reset` | Explicit GPIO, or explicitly -1 when no reset GPIO is connected; -2 means undecided. |
+| `mosi`, `sclk`, `dc`, `cs` | SPI GPIO mapping, all initially -1. No MISO is needed. |
+| `sda`, `scl`, `i2cAddress`, `i2cClockHz` | I2C-only mapping, explicit seven-bit address and bus speed, if I2C is chosen; unused for SPI. No default address is assumed. |
+
+The selected values are copied from `OLED_CONFIG` at display construction.
+Unsupported, missing, duplicate or conflicting pins/settings cause
+`SIGIL|DISPLAY|OLED|UNCONFIGURED_OR_INVALID|CHECK_OLED_CONFIG`; no panel object,
+OLED pin or bus is initialized and rendering calls are harmless no-ops. This
+allows compile/testing while hardware selection is unresolved. It is **not**
+a ready-to-flash OLED hardware profile and does not establish a working panel.
+
+GPIO validation excludes ESP32 flash/input-only/nonexistent pins, UART0 and the
+existing Sigil input/LED/buzzer pins (including GPIO19 Pair). Review this guard
+if those documented assignments change. It does not establish electrical
+compatibility or boot-strap suitability; review the actual board wiring.
+Software SPI is write-only and never initializes default SPI/MISO. The I2C
+path sets explicit Wire pins before the driver initializes it and supplies the
+chosen clock before/after transfers. Driver init failure logs `INIT_FAILED`;
+Wire configuration failure logs `I2C_INIT_FAILED`. `READY` means software
+initialization completed; write-only SPI cannot confirm physical panel presence.
+
+### Minimal OLED content
+
+Booting, Unpaired plus the existing pairing instruction, and assigned/ready
+screens use text. State-only screens cover lobby, starting, running, paused
+and game over, including shared-seat focus and host/turn metadata. `H` in the
+header means host; `S` identifies the Sigil and `T` is the turn number.
+
+A running snapshot shows the full primary name, LIFE value and explicit
+YOUR TURN / WAITING FOR TURN text. YOUR TURN also uses inverse contrast. Shared
+snapshots retain the supplied primary seat, with the other seat's name/life
+below it. Names retain all 12 protocol characters and values retain every digit
+and sign through -1,000,000..1,000,000. There is no new score field: LIFE renders
+the protocol's existing numeric value. No timer, animation or new pairing state
+is introduced. State-only packets do not retain stale running-game life values.
+
+Commander damage detail is deliberately outside this minimal OLED layout;
+Commander snapshots show `Cmd` and `CMD: see companion`. Existing e-paper
+Commander rendering remains intact. Check detailed damage in the companion
+client. Physical readability, viewing distance, rotation, contrast, bus timing
+and coexistence with radio/buttons still require bench acceptance. The design
+uses explicit text and monochrome contrast; existing light/sound and companion
+paths remain available, consistent with the accessibility reference.
+
+## Adding another display
+
+1. Implement `SigilDisplay` in a separate header/source. Keep pins, library,
+   geometry and refresh policy inside that implementation/configuration.
+2. Extend the factory selection and add a PlatformIO environment with matching
+   source filters/dependencies. Keep `sigil` as the established e-paper default.
+3. Consume the supplied snapshots without inferring game rules or sending
+   packets. Do not move driver branching into networking, pairing or input code.
+4. Exercise all interface screens, missing/failed hardware setup, full names,
+   numeric limits and shared-seat focus. Update hardware/dependency records.
+
+## Scaffold verification (2026-09-24)
+
+- PlatformIO builds pass for `sigil`, `sigil-wokwi` and `sigil-oled`, using the
+  installed Espressif32 7.1.3 / Arduino-ESP32 2.0.17 toolchain. No compiler
+  warnings were emitted. OLED build uses the deliberately unconfigured profile.
+- `tests/host/run-gcc.ps1` compiles the real OLED renderer and factory against
+  recording driver stubs using MinGW, with warnings treated as errors. It checks
+  configuration rejection before I/O, initialization failures, both bus paths,
+  repeated begin, lifecycle messages, full names, numeric bounds, active/waiting,
+  shared-seat mapping, unchanged packet data, and non-overlapping/in-bounds text.
+  The synthetic fixture pins are test inputs, not approved hardware wiring.
+- The extracted e-paper implementation matches the original body after only
+  the header/class rename. Firmware builds cover its driver integration.
+- The KiCad schematic was exported and its firmware/netlist cross-check passes
+  with the new e-paper file paths; its generated report is unchanged.
+- No panel was flashed or tested electrically. Host stubs check presentation
+  and configuration behavior, not actual glyph pixels, radio or bus waveforms.
+
+The remainder documents the unchanged e-paper layout and previous bench work.
+
+## Existing portrait e-paper implementation
 
 The physical Sigil now renders in **122 x 250 portrait**, using
-`DISPLAY_ROTATION = 0` in `include/sigil_display.h`. The previous layout used
+`DISPLAY_ROTATION = 0` in `include/epaper_display.h`. The previous layout used
 rotation 1 (250 x 122 landscape). GxEPD2 handles rotation; drawing coordinates
 remain ordinary top-left portrait coordinates.
 
@@ -146,7 +290,7 @@ updates. Its timing constants are 3,600 ms for full refresh and 500 ms for parti
 refresh. These are driver values, not measured end-to-end Sigil latencies. See
 the [upstream driver](https://github.com/ZinggJM/GxEPD2/blob/master/src/epd/GxEPD2_213_B74.h).
 
-Refresh selection is local to `SigilDisplay`; no protocol or Atlas change is
+Refresh selection is local to `EpaperDisplay`; no protocol or Atlas change is
 needed. The existing worker coalesces arriving snapshots and avoids drawing
 identical game snapshots. If the experimental switch is re-enabled, its policy is:
 
@@ -169,7 +313,7 @@ identical game snapshots. If the experimental switch is re-enabled, its policy i
    This happens after the image buffers have been synchronized, without a
    reset or hibernate that would discard the differential baseline.
 
-`ENABLE_GAME_PARTIAL_REFRESH` in `include/sigil_display.h` is currently `false`,
+`ENABLE_GAME_PARTIAL_REFRESH` in `include/epaper_display.h` is currently `false`,
 so every frame uses full refresh. Boot reports `POLICY|FULL_ONLY` to identify
 the fallback build. Setting the switch to `true` reports `POLICY|PARTIAL_TRIAL`.
 `MAX_PARTIAL_REFRESHES` sets the cleanup cadence. A driver without fast partial

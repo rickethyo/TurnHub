@@ -1,0 +1,19 @@
+param([string]$Compiler = "$env:USERPROFILE\.platformio\packages\toolchain-gccmingw32\bin\g++.exe")
+$ErrorActionPreference = 'Stop'
+if (-not (Test-Path -LiteralPath $Compiler)) {
+    throw 'Pass -Compiler with a Windows GCC compiler path.'
+}
+$Compiler = (Resolve-Path -LiteralPath $Compiler).Path
+$previousPath = $env:PATH
+$env:PATH = (Split-Path -Parent $Compiler) + ';' + $env:PATH
+Push-Location $PSScriptRoot
+try {
+    New-Item -ItemType Directory -Force ../../.pio/host-tests | Out-Null
+    & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -DTURNHUB_DISPLAY_OLED=1 -Istubs -I../../include -I../../../shared/include oled_scenarios.cpp ../../src/oled_display.cpp ../../src/sigil_display.cpp -o ../../.pio/host-tests/oled_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'OLED test compilation failed.' }
+    & ..\..\.pio\host-tests\oled_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'OLED scenarios failed.' }
+} finally {
+    Pop-Location
+    $env:PATH = $previousPath
+}

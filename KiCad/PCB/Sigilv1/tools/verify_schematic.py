@@ -11,8 +11,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[2]
 main = (REPO/'Sigil/src/main.cpp').read_text()
-header = (REPO/'Sigil/include/sigil_display.h').read_text()
-display = (REPO/'Sigil/src/sigil_display.cpp').read_text()
+header = (REPO/'Sigil/include/epaper_display.h').read_text()
+display = (REPO/'Sigil/src/epaper_display.cpp').read_text()
 xml = ET.parse(sys.argv[1]).getroot()
 nets = {n.get('name'): {(p.get('ref'),p.get('pin')) for p in n.findall('node')} for n in xml.findall('nets/net')}
 by_pin = {p: name for name, pins in nets.items() for p in pins}

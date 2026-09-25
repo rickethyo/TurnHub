@@ -17,8 +17,10 @@ The goal is simple: know what entered the project, where it came from, how it is
 | --- | --- | --- | --- | --- | --- | --- |
 | Arduino-ESP32 | PlatformIO `espressif32`, Arduino framework | Atlas + Sigil | LGPL-2.1 | Yes, firmware build | YELLOW | Confirm exact release version/components and satisfy LGPL distribution/relinking/source obligations for the chosen firmware distribution model. Preserve notices. |
 | GxEPD2 | `zinggjm/GxEPD2`, current PlatformIO dependency | Sigil e-ink | GPL-3.0 | Yes if current Sigil firmware ships | RED | Decide before production whether to comply with GPLv3 for the resulting firmware or replace with a suitably licensed display driver. Legal review before commercial release. |
-| Adafruit GFX Library | Transitive GxEPD2 dependency | Sigil e-ink graphics | BSD-style | Yes if linked into shipped firmware | GREEN | Preserve copyright, conditions, and disclaimer in release notices/materials as required. |
+| Adafruit GFX Library | Transitive GxEPD2 / SH110X dependency | Sigil e-ink and OLED graphics | BSD-style | Yes if linked into shipped firmware | GREEN | Preserve copyright, conditions, and disclaimer in release notices/materials as required. |
 | LovyanGFX | `lovyan03/LovyanGFX@1.2.30` (PlatformIO) | Atlas TFT (E32R28T) | FreeBSD (BSD-2-Clause) for LovyanGFX. Bundled Adafruit (BSD) and Bodmer (FreeBSD) code carries its own notices | Yes, Atlas firmware | GREEN | Preserve the combined notices in `license.txt` in release materials. Atlas uses only the DejaVu fonts (Bitstream Vera-style license) and the glcd font; do not use the bundled GNU FreeFont `Free*` fonts (GPL with font exception) without review. |
+| Adafruit SH110X | `adafruit/Adafruit SH110X@2.1.15`, [upstream](https://github.com/adafruit/Adafruit_SH110x) | Optional Sigil OLED environment only | BSD-3-Clause ([license](https://github.com/adafruit/Adafruit_SH110x/blob/master/license.txt)) | Yes if OLED firmware ships | GREEN | Preserve upstream copyright, license, disclaimer and required source notices in release materials; the vendor splash is disabled in the build. |
+| Adafruit BusIO | Transitive GFX / SH110X dependency | Sigil graphics bus support | MIT ([license](https://github.com/adafruit/Adafruit_BusIO/blob/master/LICENSE)) | Yes if linked into shipped firmware | GREEN | Preserve copyright and license notice. |
 | PlatformIO Core | Build environment | Development | Apache-2.0 | No, currently build tooling only | GREEN | Track tool version for reproducibility. No product notice expected unless redistributed. |
 | wokwi-ws29v2-custom-chip | `bonnyr/wokwi-ws29v2-custom-chip` release v0.0.5 `chip.zip` (`chip.wasm` SHA-256 `6f59d1873e3faa07a018a088f61b1ffff6a8bcfebf7925eadd7e2082dd318d9d`), vendored as `Sigil/wokwi/chips/epaper-2in13.chip.wasm` with a TurnHub `chip.json` (2.13" geometry) | Sigil Wokwi simulation only | MIT (copy in `Sigil/wokwi/chips/LICENSE-wokwi-ws29v2-custom-chip.txt`) | No, development simulation only | GREEN | Keep the license file with the binary. Not linked into firmware. |
 | org.json (JSON-java) | `org.json:json:20260814`, Android `testImplementation` only | Android JVM unit tests (the app itself uses Android's built-in `org.json`) | Public Domain (per its Maven POM) | No, test classpath only | GREEN | None while test-only. Re-review if it ever moves to an `implementation` dependency. |
@@ -72,6 +74,11 @@ The high-level rows above are not yet a complete software bill of materials. Bef
 - [ ] Perform a final third-party asset audit before public release.
 
 ## Change log
+
+### 2026-09-24 (Sigil OLED scaffold)
+
+Added the optional SH110X driver, recorded BusIO and extended the GFX usage
+record. No third-party implementation code or photo was copied into the tree.
 
 ### 2026-09-24 (Atlas display)
 

@@ -1,10 +1,10 @@
 // Sigil player controller firmware. Buttons become ESP-NOW packets for
-// Atlas; Atlas's packets drive the LEDs, buzzer and e-ink display. Sigil
+// Atlas; Atlas's packets drive the LEDs, buzzer and selected display. Sigil
 // decides nothing about the game (ARCHITECTURAL_INVARIANTS.md, Invariant 1):
 // it only persists the minimum pairing binding needed to find Atlas again.
 //
 // Threads: ESP-NOW receive callbacks only enqueue packets; loop() handles
-// them. E-ink rendering runs on its own task (displayTask) because a refresh
+// them. Rendering runs on its own task (displayTask) because e-paper refresh
 // blocks for seconds; state shared with it is guarded by displayProfileMux.
 
 #include <Arduino.h>
@@ -39,7 +39,7 @@ constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 constexpr uint8_t PAIR_BUTTON = 19;
 
-// All production Sigils use the same firmware and standard display hardware.
+// Both display implementations consume the same existing display packets.
 constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
     TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |
@@ -82,7 +82,7 @@ ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
 ButtonState pauseWinButton(PAUSE_WIN_BUTTON);
 ButtonState pairButton(PAIR_BUTTON);
-SigilDisplay sigilDisplay;
+SigilDisplay &sigilDisplay = TurnHubSigil::getSigilDisplay();
 
 bool espNowReady = false;
 bool atlasKnown = false;

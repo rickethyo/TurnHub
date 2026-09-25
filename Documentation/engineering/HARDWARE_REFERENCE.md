@@ -182,7 +182,7 @@ really is common-anode.
 
 ## Generation 2 development Sigil
 
-**Confidence:** Verified from `Sigil/src/main.cpp` and `Sigil/include/sigil_display.h` unless otherwise noted
+**Confidence:** Verified from `Sigil/src/main.cpp` and `Sigil/include/epaper_display.h` unless otherwise noted
 
 ### Main I/O
 
@@ -211,6 +211,18 @@ really is common-anode.
 GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view. Socket positions follow the breadboard rotated 180° (2026-09-24; *Needs verification* on the rewired board): A29 is top-left, J29 top-right; J18 is GPIO19 and J17 is GND. The photo still shows the pre-rotation labels (old A*n* = J*(30−n)*, old J*n* = A*(30−n)*).
 
 The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-ink target in the present implementation.
+
+### Experimental OLED display variant
+
+A separate `sigil-oled` build selects the OLED renderer while `sigil` and
+`sigil-wokwi` keep e-paper. The owner's 2026-09-24 photos show an Inland
+1.3-inch OLED V2.0 board with IIC/SPI markings. The matching KS0056 vendor
+example supports a **likely SH1106 128x64 SPI** identification; the actual
+jumper mode, pin order, power/reset arrangement and ESP32 wiring remain
+**Needs verification**. No OLED GPIO map is approved or inherited from the
+e-paper table above. `Sigil/include/oled_config.h` keeps all hardware values
+unset; unconfigured builds skip OLED initialization. See
+[display selection, sources, configuration and verification](../../Sigil/DISPLAY.md).
 
 ### Current control timing
 

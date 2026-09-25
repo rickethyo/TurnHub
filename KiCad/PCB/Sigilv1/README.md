@@ -4,7 +4,7 @@ U1 is the removable, complete 38-pin ESP32 DevKit carrier interface. Its custom 
 
 ## Authority and orientation
 
-- GPIO functions: `Sigil/src/main.cpp`, `Sigil/include/sigil_display.h`, and explicit SPI configuration in `Sigil/src/sigil_display.cpp`.
+- GPIO functions: `Sigil/src/main.cpp`, `Sigil/include/epaper_display.h`, and explicit SPI configuration in `Sigil/src/epaper_display.cpp`.
 - Socket identity: user-supplied [SigilBackMarked.png](reference/SigilBackMarked.png), photographed from the **BACK**, and the user's transcribed sequence. The photo still carries the pre-rotation A1–A19 / J1–J19 labels; apply the mapping above to read it. The schematic shows A29 top-left and J29 top-right in that rear-reference view.
 - Existing values: R1–R3 remain **330R**, as specified in the previous schematic. The hardware reference contains no additional verified passive values or peripheral part numbers.
 - [Both cross-check tables](CROSS_CHECK.md) are verified from the exported netlist and firmware by `tools/verify_schematic.py`.
