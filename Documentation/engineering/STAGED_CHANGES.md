@@ -68,7 +68,7 @@ Owner decisions (2026-09-25, end of day):
   on hardware).** Device Settings has Factory reset per Sigil and for Atlas
   (NVS erase and restart; the microSD card is kept). See
   [Manual Pairing](MANUAL_PAIRING.md#factory-reset-2026-09-25). The user
-  manual still needs it.
+  manual V0.3 covers it.
 
 
 Owner decisions and follow-through (2026-09-24, later the same day):
@@ -185,10 +185,12 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   starter selection) from the touchscreen, which has no seat of its own. The
   access gate is built (top of this file); this is the remaining question. Also open: the
   on-board RGB LED as a cue output; a battery gauge.
-- Update the user manual: there is no master button; pairing, ending a match
-  as a draw and Unlock admin (first Admin, network settings, device names, OTA)
-  are on the Atlas touchscreen, the speaker volume is an Admin setting, and an
-  Admin can return the table to an empty lobby from the portal.
+- User manual: **V0.3 written 2026-09-25** (`Documentation/User Manual/TurnHub
+  Manual V0.3.docx`). It covers the Atlas touchscreen (Pair, QR codes, Info,
+  the End hold, recalibration), the menu-driven E-ink and OLED Sigils, no table
+  host, Verify at the table, factory reset, statistics and the microSD card,
+  and restarting without a shut-down command. Keep it in step with later
+  changes.
 
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
 

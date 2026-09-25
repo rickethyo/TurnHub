@@ -47,7 +47,7 @@ Zero/negative totals do not eliminate players. Hidden performance statistics do
 not hide public in-game life totals.
 
 HTTP: `GET /api/game/settings` reports effective settings and caller editability;
-host-authenticated `POST /api/game/settings` takes `gameProfile` and `startingLife`.
+seated-player-authenticated `POST /api/game/settings` takes `gameProfile` and `startingLife`.
 `POST /api/control/life` takes `delta` and resolves its target from authentication.
 `/api/session/me` and `/api/seats` report `lifeAvailable` and `life`.
 
