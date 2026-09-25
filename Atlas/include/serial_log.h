@@ -10,7 +10,8 @@ namespace TurnHub {
 // fixed-size RAM ring so a connected browser can download recent output
 // without a USB cable (GET /api/diagnostics/log).
 //
-// RAM-only by design: the ring clears on reboot and is never written to flash.
+// The ring clears on reboot. The optional SD worker drains the same redacted
+// bytes independently; no filesystem operations happen inside this class.
 // When it fills, the oldest lines are dropped. Framework log_e()/ESP-IDF
 // messages bypass Print and are not captured.
 class SerialLog : public Print {
@@ -28,6 +29,10 @@ class SerialLog : public Print {
 
   // Captured text, oldest first, starting at a whole line.
   String snapshot() const;
+  // Bounded streaming read for a background consumer. Cursor is an absolute
+  // byte position, initially zero; lost reports overwritten/cleared bytes.
+  // Copies under the ring lock, with no allocation, formatting or file I/O.
+  size_t readSince(uint64_t &cursor, char *out, size_t capacity, uint64_t &lost) const;
   // Bytes that no longer fit and were dropped since boot.
   uint32_t droppedBytes() const;
   void clear();
@@ -44,6 +49,7 @@ class SerialLog : public Print {
   bool wrapped_ = false;
   bool lineStart_ = true;
   uint32_t dropped_ = 0;
+  uint64_t captured_ = 0;  // Monotonic even across clear(), so cursors stay valid.
 };
 
 extern SerialLog serialLog;

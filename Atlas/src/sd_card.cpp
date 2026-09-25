@@ -4,10 +4,15 @@
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
+#include <atomic>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include "config.h"
+#include "diagnostic_log.h"
 #include "firmware_version.h"
 #include "game_recovery.h"
+#include "runtime_diagnostics.h"
 #include "sd_blob_store.h"
 #include "serial_log.h"
 
@@ -17,7 +22,8 @@ using TurnHub::serialLog;
 using TurnHubStorage::Status;
 
 // Adapts the Arduino SD library to the store's file-system interface.
-class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem {
+class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem,
+                                  public TurnHubStorage::DiagnosticFileSystem {
  public:
   bool exists(const char *path) override { return SD.exists(path); }
   bool readFile(const char *path, void *data, size_t capacity,
@@ -44,16 +50,37 @@ class ArduinoSdFileSystem final : public TurnHubStorage::FileSystem {
   }
   bool remove(const char *path) override { return SD.remove(path); }
   bool mkdir(const char *path) override { return SD.mkdir(path); }
+  bool fileSize(const char *path, size_t &size) override {
+    File file = SD.open(path, FILE_READ);
+    if (!file || file.isDirectory()) return false;
+    size = file.size();
+    file.close();
+    return true;
+  }
+  bool appendFile(const char *path, const void *data, size_t size) override {
+    File file = SD.open(path, FILE_APPEND);
+    if (!file || file.isDirectory()) return false;
+    const size_t written = file.write(static_cast<const uint8_t *>(data), size);
+    file.flush();
+    file.close();
+    return written == size;
+  }
 };
 
 SPIClass sdSpi(VSPI);
 ArduinoSdFileSystem sdFileSystem;
 TurnHubStorage::SdBlobStore sdStore;
 
-enum class CardState : uint8_t { NotStarted, NoCard, Mounted, StoreError };
+enum class CardState : uint8_t { NotStarted, NoCard, Mounted, StoreError, SelfTestError };
+enum class LogState : uint32_t { Off, Starting, Ready, IoError, TaskUnavailable };
 CardState cardState = CardState::NotStarted;
+std::atomic<LogState> logState{LogState::Off};
+std::atomic<uint32_t> logLostBytes{0};
 Status storeStatus = Status::Unavailable;
 Status selfTestStatus = Status::Unavailable;
+// Sample before starting the worker; HTTP diagnostics must not access SD.
+const char *mountedType = "none";
+uint32_t cardMB = 0, totalMB = 0, usedKB = 0;
 
 const char *cardStateName(CardState state) {
   switch (state) {
@@ -61,8 +88,54 @@ const char *cardStateName(CardState state) {
     case CardState::NoCard: return "no_card";
     case CardState::Mounted: return "mounted";
     case CardState::StoreError: return "store_error";
+    case CardState::SelfTestError: return "self_test_error";
   }
   return "unknown";
+}
+
+const char *logStateName(LogState state) {
+  switch (state) {
+    case LogState::Off: return "off";
+    case LogState::Starting: return "starting";
+    case LogState::Ready: return "ready";
+    case LogState::IoError: return "io_error";
+    case LogState::TaskUnavailable: return "task_unavailable";
+  }
+  return "unknown";
+}
+
+void sdLogTask(void *) {
+  TurnHubStorage::DiagnosticLog log;
+  char marker[160];
+  const int length = snprintf(marker, sizeof(marker),
+      "\nATLAS|BOOT_RECORD|FW|%s|BOOT_ID|%08lX|RESET|%s\n",
+      TurnHubFirmware::VERSION, static_cast<unsigned long>(esp_random()),
+      TurnHub::resetReason());
+  bool ok = length > 0 && static_cast<size_t>(length) < sizeof(marker) &&
+            log.begin(sdFileSystem) && log.append(marker, static_cast<size_t>(length));
+  if (ok) {
+    logState.store(LogState::Ready);
+    serialLog.println("ATLAS|SD|LOG|READY");
+  }
+  uint64_t cursor = 0;
+  char buffer[2048];
+  while (ok) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    uint64_t lost = 0;
+    const size_t count = serialLog.readSince(cursor, buffer, sizeof(buffer), lost);
+    if (lost) {
+      const uint32_t before = logLostBytes.load();
+      logLostBytes.store(lost > UINT32_MAX - before ? UINT32_MAX : before + static_cast<uint32_t>(lost));
+      const int n = snprintf(marker, sizeof(marker), "\nATLAS|SD|LOG|LOST_BYTES|%llu\n",
+                             static_cast<unsigned long long>(lost));
+      ok = n > 0 && static_cast<size_t>(n) < sizeof(marker) &&
+           log.append(marker, static_cast<size_t>(n));
+    }
+    if (ok && count) ok = log.append(buffer, count);
+  }
+  logState.store(LogState::IoError);
+  serialLog.println("ATLAS|SD|LOG|IO_ERROR");
+  vTaskDelete(nullptr);
 }
 
 const char *cardTypeName() {
@@ -110,6 +183,10 @@ void beginSdCard() {
   serialLog.print("|");
   serialLog.print(String(static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL))));
   serialLog.println("MB");
+  mountedType = cardTypeName();
+  cardMB = static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL));
+  totalMB = static_cast<uint32_t>(SD.totalBytes() / (1024ULL * 1024ULL));
+  usedKB = static_cast<uint32_t>(SD.usedBytes() / 1024ULL);
 
   storeStatus = sdStore.begin(sdFileSystem, "/turnhub");
   if (storeStatus != Status::Ok) {
@@ -122,27 +199,44 @@ void beginSdCard() {
   selfTestStatus = runSelfTest();
   serialLog.print("ATLAS|SD|SELF_TEST|");
   serialLog.println(TurnHub::storageStatusName(selfTestStatus));
+  if (!TurnHubStorage::sdStorageReady(storeStatus, selfTestStatus)) {
+    cardState = CardState::SelfTestError;
+    sdStore.end();
+    return;
+  }
+  logState.store(LogState::Starting);
+  // SD writes are isolated from gameplay and radio callbacks. ESP32 stack size
+  // is bytes; includes the 2 KiB drain buffer plus filesystem call headroom.
+  if (xTaskCreate(sdLogTask, "sd-log", 6144, nullptr, 1, nullptr) != pdPASS) {
+    logState.store(LogState::TaskUnavailable);
+    serialLog.println("ATLAS|SD|LOG|TASK_UNAVAILABLE");
+  }
 }
 
 String sdCardDiagnosticsJson() {
   String json = String("{\"state\":\"") + cardStateName(cardState) + "\"";
-  if (cardState == CardState::Mounted || cardState == CardState::StoreError) {
-    json += String(",\"type\":\"") + cardTypeName() + "\"";
-    json += ",\"cardMB\":" + String(static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL)));
-    json += ",\"totalMB\":" + String(static_cast<uint32_t>(SD.totalBytes() / (1024ULL * 1024ULL)));
-    json += ",\"usedKB\":" + String(static_cast<uint32_t>(SD.usedBytes() / 1024ULL));
+  if (cardState == CardState::Mounted || cardState == CardState::StoreError ||
+      cardState == CardState::SelfTestError) {
+    json += String(",\"type\":\"") + mountedType + "\"";
+    json += ",\"cardMB\":" + String(cardMB);
+    json += ",\"totalMB\":" + String(totalMB);
+    json += ",\"usedKB\":" + String(usedKB) + ",\"usageSample\":\"boot\"";
     json += String(",\"store\":\"") + TurnHub::storageStatusName(storeStatus) + "\"";
   }
-  if (cardState == CardState::Mounted) {
+  if (cardState == CardState::Mounted || cardState == CardState::SelfTestError) {
     json += String(",\"selfTest\":\"") +
             TurnHub::storageStatusName(selfTestStatus) + "\"";
   }
+  json += String(",\"logging\":{\"state\":\"") + logStateName(logState.load()) +
+          "\",\"lostBytes\":" + String(logLostBytes.load()) + "}";
   json += "}";
   return json;
 }
 
 TurnHubStorage::BlobStore *sdBlobStore() {
-  return cardState == CardState::Mounted ? &sdStore : nullptr;
+  return cardState == CardState::Mounted &&
+         TurnHubStorage::sdStorageReady(storeStatus, selfTestStatus) &&
+         logState.load() != LogState::IoError ? &sdStore : nullptr;
 }
 
 }  // namespace TurnHubAtlas

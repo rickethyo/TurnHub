@@ -64,6 +64,7 @@ void SerialLog::captureByte(char byte, uint32_t nowMs) {
     const char next = i < stampLength ? stamp[i] : byte;
     if (wrapped_) ++dropped_;
     ring_[head_] = next;
+    ++captured_;
     if (++head_ == CAPACITY) {
       head_ = 0;
       wrapped_ = true;
@@ -132,6 +133,30 @@ uint32_t SerialLog::droppedBytes() const {
   const uint32_t dropped = dropped_;
   SERIAL_LOG_UNLOCK();
   return dropped;
+}
+
+size_t SerialLog::readSince(uint64_t &cursor, char *out, size_t capacity,
+                            uint64_t &lost) const {
+  lost = 0;
+  if (!out || !capacity) return 0;
+  SERIAL_LOG_LOCK();
+  const size_t retained = wrapped_ ? CAPACITY : head_;
+  const uint64_t oldest = captured_ - retained;
+  if (cursor < oldest) {
+    lost = oldest - cursor;
+    cursor = oldest;
+  }
+  if (cursor > captured_) cursor = captured_;
+  const uint64_t available = captured_ - cursor;
+  const size_t count = available < capacity ? static_cast<size_t>(available) : capacity;
+  const size_t offset = static_cast<size_t>(cursor - oldest);
+  const size_t start = (head_ + CAPACITY - retained + offset) % CAPACITY;
+  const size_t first = count < CAPACITY - start ? count : CAPACITY - start;
+  memcpy(out, ring_ + start, first);
+  memcpy(out + first, ring_, count - first);
+  cursor += count;
+  SERIAL_LOG_UNLOCK();
+  return count;
 }
 
 void SerialLog::clear() {

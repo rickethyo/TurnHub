@@ -118,8 +118,10 @@ yet queued for replay.
 
 Status (2026-09-24): *Implemented* in firmware and host tests. *Verified* on
 the board by the owner: the card mounts and registers. Booting without a card
-still needs a bench check. No repository uses the card yet, so every record
-listed above still lives in NVS and gameplay never depends on the card.
+still needs a bench check. Optional rotating diagnostics were added on
+2026-09-25 (*Experimental*, hardware acceptance pending); authoritative records
+remain in NVS and gameplay never depends on the card. See
+[SD diagnostics](SD_DIAGNOSTICS.md) for retention, failure behavior and checks.
 
 - `sd_card.cpp` (firmware-only, Arduino `SD` library on VSPI) mounts the card
   once at boot with `format_if_empty = false`: an unreadable or unformatted
@@ -127,7 +129,8 @@ listed above still lives in NVS and gameplay never depends on the card.
   `/turnhub/selftest` through the same store the repositories will use.
   Serial log lines are `ATLAS|SD|NO_CARD`, `ATLAS|SD|MOUNTED|<type>|<size>MB`
   and `ATLAS|SD|SELF_TEST|<status>`; `GET /api/diagnostics` (Developer) adds an
-  `sdCard` object with state, type, capacity, usage and the self-test result.
+  `sdCard` object with state, type, capacity, startup usage, the self-test result
+  and logger state/lost-byte count. Usage is explicitly marked `usageSample: boot`.
 - `SdBlobStore` implements `BlobStore` over a small `FileSystem` interface, so
   host tests run it against an in-memory, fault-injecting fake. Keys follow the
   NVS rules (1-15 characters) restricted to letters, digits, `_` and `-`.
@@ -137,13 +140,15 @@ listed above still lives in NVS and gameplay never depends on the card.
   format number reads as `UnsupportedSchema`.
 - Writes go to `<key>.tmp`, are read back and compared, then replace `<key>`
   via `<key>.bak` (FAT cannot rename over a file). A read that finds no `<key>`
-  but a `<key>.bak` returns the backup, so power loss leaves the old or the new
-  record, never a torn one. A damaged `<key>` is reported, not silently rolled
-  back to the backup. A leftover `.tmp` is never read.
+  but a `<key>.bak` returns the backup when the filesystem is intact. This does
+  not make FAT metadata or the card power-loss transactional. A damaged `<key>`
+  is reported, not silently rolled back to the backup. A leftover `.tmp` is never read.
 - `sdBlobStore()` returns `nullptr` unless the card mounted and the directory
-  exists; callers treat that and every error as "card unavailable". A card
-  removed while running makes operations fail with `IoError`; remount needs a
-  restart.
+  exists, the write/read-back self-test passed, and the diagnostic worker has
+  not reported an I/O error; callers treat that and every error as "card unavailable".
+  A card removed while running makes operations fail with `IoError`; remount
+  needs a restart. The logger is currently the only post-boot SD consumer;
+  future blob/package access must share a serialized SD owner with it.
 
 Not decided yet (see [Staged changes](STAGED_CHANGES.md)): which records move,
 PIN hashes on removable media, migration and rollback from NVS, and how a card
