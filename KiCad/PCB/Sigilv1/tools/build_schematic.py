@@ -4,7 +4,8 @@ Both share the removable DevKit (U1), the power/ground sockets and the buzzer
 interface; they differ in the display interface, and the E-ink draft also
 carries the analog joystick (J4) that replaces the Pass/Action/Pause buttons
 and the NeoPixel Jewel 7 status ring (J5, data through R1); the OLED draft
-carries a five-button d-pad (J4). Both are the Sigil's five menu keys.
+carries five discrete pushbuttons (SW1-SW5) on a common ground. Both are the
+Sigil's five menu keys.
 Discrete LEDs and the old buttons are absent while the controls are redesigned, so
 their GPIOs are NC. No mechanical geometry is inferred here.
 """
@@ -41,18 +42,21 @@ JOYSTICK = dict(
          'Axis direction depends on mounting; firmware can swap/invert.\n'
          'Firmware: Sigil PlatformIO env sigil (E-ink build).')
 
-# OLED Sigil five-button d-pad: each key a switch to GND with the ESP32's
-# internal pull-up. Pin numbers are logical; the switches are unspecified.
-DPAD = dict(
-    symbol='DPad_5_Key_Header', value='FIVE-BUTTON D-PAD',
-    header=[('UP', 'KEY_UP'), ('DOWN', 'KEY_DOWN'), ('LEFT', 'KEY_LEFT'),
-            ('RIGHT', 'KEY_RIGHT'), ('SELECT', 'KEY_SELECT'), ('GND', 'GND')],
-    sockets={'J11': 'KEY_UP', 'J9': 'KEY_DOWN', 'A12': 'KEY_LEFT', 'A14': 'KEY_RIGHT',
-             'J13': 'KEY_SELECT'},
-    note='Five momentary switches, each from its key to GND; the ESP32\n'
-         'internal pull-ups need no resistors. Up/Down move the menu\n'
-         'list, Select or Right choose, Left closes. Pair is the DevKit\n'
-         'BOOT button. Firmware: Sigil PlatformIO env sigil-oled.')
+# OLED Sigil keys: five discrete momentary pushbuttons (no d-pad module),
+# each from its GPIO to a common GND, using the ESP32's internal pull-ups.
+# (ref, key, net, GPIO, DevKit socket). Firmware: KEY_PINS in main.cpp.
+BUTTONS = dict(
+    symbol='Pushbutton_SPST_NO',
+    keys=[('SW1', 'UP', 'KEY_UP', 25, 'J11'), ('SW2', 'DOWN', 'KEY_DOWN', 27, 'J9'),
+          ('SW3', 'LEFT', 'KEY_LEFT', 19, 'A12'), ('SW4', 'RIGHT', 'KEY_RIGHT', 21, 'A14'),
+          ('SW5', 'SELECT', 'KEY_SELECT', 32, 'J13')],
+    note='Five discrete momentary pushbuttons (normally open), each from\n'
+         'its GPIO to one shared GND rail; the ESP32 internal pull-ups need\n'
+         'no resistors. Pin 1 = GPIO side, pin 2 = GND. On a 4-leg tactile\n'
+         'switch use two legs on opposite sides (across the gap).\n'
+         'Up/Down move the menu list, Select or Right choose, Left closes.\n'
+         'Pair is the DevKit BOOT button. Firmware: Sigil env sigil-oled.')
+BUTTONS['sockets'] = {sock: net for _, _, net, _, sock in BUTTONS['keys']}
 
 # Adafruit NeoPixel Jewel 7, RGBW (SK6812-type): 5 V power from the DevKit's
 # USB 5V (J1), data from GPIO26 (J10) through a 330 ohm series resistor (R1)
@@ -105,8 +109,8 @@ VARIANTS = {
         note='Inland 1.3" OLED V2.0 (KS0056), 4-wire SPI, 3.3 V.\n'
              'SH1106 128x64 inferred from the vendor example.\n'
              'J2 pins follow the board header, pin 1 = GND (top).\n'
-             'GPIO21 (A14, the e-ink BUSY) is Right on the d-pad here.',
-        dpad=True,
+             'GPIO21 (A14, the e-ink BUSY) is the Right button (SW4) here.',
+        buttons=True,
         jewel=True),
 }
 
@@ -128,10 +132,18 @@ def joystick_symbol():
     pins = [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0, kinds[name])
             for i, (name, _) in enumerate(JOYSTICK['header'])]
     return custom(JOYSTICK['symbol'], pins, 15.24, 5.08, round(-5.08*len(JOYSTICK['header']), 2), 'J')
-def dpad_symbol():
-    pins = [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0, 'passive')
-            for i, (name, _) in enumerate(DPAD['header'])]
-    return custom(DPAD['symbol'], pins, 15.24, 5.08, round(-5.08*len(DPAD['header']), 2), 'J')
+def button_symbol():
+    # Two contacts and a plunger over them; the pins end at x = +/-2.54.
+    name = BUTTONS['symbol']
+    st = '(stroke (width 0) (type default)) (fill (type none))'
+    return (f'(symbol "Sigil:{name}" (pin_names (offset 1.016) (hide yes)) (in_bom yes) (on_board yes)\n'
+            f'  {prop("Reference", "SW", 0, 5.08)} {prop("Value", name, 0, -3.81)}\n'
+            f'  {prop("Footprint", "", 0, 0, True)}\n'
+            f'  (symbol "{name}_0_1" (circle (center -2.032 0) (radius 0.508) {st})'
+            f' (circle (center 2.032 0) (radius 0.508) {st})'
+            f' (polyline (pts (xy -2.54 1.524) (xy 2.54 1.524)) {st})'
+            f' (polyline (pts (xy 0 1.524) (xy 0 3.048)) {st}))\n'
+            f'  (symbol "{name}_1_1" {pin("1", "~", -7.62, 0, 0)}{pin("2", "~", 7.62, 0, 180)}))')
 def jewel_symbol():
     kinds = {'PWR': 'power_in', 'GND': 'passive', 'DIN': 'input', 'DOUT': 'output'}
     pins = [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0, kinds[name])
@@ -151,11 +163,11 @@ buzz = custom('Buzzer_Logical_Interface', [pin('SIG','SIG',-20.32,0,0,'input'),p
 displays = {name: display_symbol(v) for name, v in VARIANTS.items()}
 joystick = joystick_symbol()
 jewel = jewel_symbol()
-dpad = dpad_symbol()
+button = button_symbol()
 resistor = custom('Resistor_Series', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62, 0, 180)],
                   2.54, 1.27, -1.27, 'R')
 (ROOT / 'Sigil.kicad_sym').write_text('(kicad_symbol_lib (version 20241209) (generator "Sigil")\n' + '\n'.join(
-    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, dpad]) + ')\n')
+    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, button]) + ')\n')
 (ROOT / 'sym-lib-table').write_text('(sym_lib_table (lib (name "Sigil") (type "KiCad") (uri "${KIPRJMOD}/Sigil.kicad_sym") (options "") (descr "Sigil Rev A interfaces; no verified footprints")))\n')
 
 
@@ -165,18 +177,18 @@ def build(project, v):
     has_joystick = v.get('joystick', False)
     nets = dict(COMMON_NETS, **v['sockets'])
     has_jewel = v.get('jewel', False)
-    has_dpad = v.get('dpad', False)
-    if has_dpad: nets.update(DPAD['sockets'])
+    has_buttons = v.get('buttons', False)
+    if has_buttons: nets.update(BUTTONS['sockets'])
     if has_joystick: nets.update(JOYSTICK['sockets'])
     if has_jewel: nets.update(JEWEL['sockets'])
     controls = ('Joystick J4, status ring J5.' if has_joystick
-                else 'D-pad J4, status ring J5.' if has_dpad
+                else 'Buttons SW1-SW5, status ring J5.' if has_buttons
                 else 'Buttons and LEDs removed pending redesign.')
     out = [f'(kicad_sch (version 20260306) (generator "eeschema") (uuid "{NS}") (paper "A3")',
            f'(title_block (title {q(v["title"])}) (rev "A electrical draft") (comment 1 "Rear-photo socket numbering. {controls}"))',
            '(lib_symbols\n' + '\n'.join([devkit, buzz, displays[project]] + ([joystick] if has_joystick else [])
                                        + ([jewel, resistor] if has_jewel else [])
-                                       + ([dpad] if has_dpad else [])) + ')']
+                                       + ([button] if has_buttons else [])) + ')']
     def note(text, x, y, size=1.27):
         out.append(f'(text {q(text)} (at {x} {y} 0) (effects (font (size {size} {size})) (justify left top)) (uuid "{uid(text)}"))')
     def wire(x, y, x2, y2):
@@ -191,7 +203,7 @@ def build(project, v):
         f'Sigil:{JOYSTICK["symbol"]}': [str(i+1) for i in range(len(JOYSTICK['header']))],
         f'Sigil:{JEWEL["symbol"]}': [str(i+1) for i in range(len(JEWEL['header']))],
         'Sigil:Resistor_Series': ['1', '2'],
-        f'Sigil:{DPAD["symbol"]}': [str(i+1) for i in range(len(DPAD['header']))],
+        f'Sigil:{BUTTONS["symbol"]}': ['1', '2'],
     }
     def instance(lib, ref, value, x, y, top, on=True):
         fields = prop('Reference', ref, x, y-top) + prop('Value', value, x, y-top+2.54)
@@ -236,13 +248,15 @@ def build(project, v):
             y = round(jy+i*5.08, 2); wire(round(jx-20.32, 2), y, 304.8, y); label(net, 304.8, y)
         note(JOYSTICK['note'], 290, round(jy+5.08*len(JOYSTICK['header'])+5.08, 2))
 
-    if has_dpad:
-        note('CONTROLS / D-PAD', 290, 40, 1.5)
-        kx, ky = 353.06, 55.88
-        instance(f'Sigil:{DPAD["symbol"]}', 'J4', DPAD['value'], kx, ky, 12.7, on=False)
-        for i, (_, net) in enumerate(DPAD['header']):
-            y = round(ky+i*5.08, 2); wire(round(kx-20.32, 2), y, 304.8, y); label(net, 304.8, y)
-        note(DPAD['note'], 290, round(ky+5.08*len(DPAD['header'])+5.08, 2))
+    if has_buttons:
+        note('CONTROLS / FIVE PUSHBUTTONS', 290, 40, 1.5)
+        # Each switch's pins end at 322.58 (GPIO side) and 337.82 (GND).
+        for i, (ref, key, net, gpio, sock) in enumerate(BUTTONS['keys']):
+            y = round(55.88+i*10.16, 2)
+            instance(f'Sigil:{BUTTONS["symbol"]}', ref, f'{key} (GPIO{gpio}, {sock})', 330.2, y, 5.08, on=False)
+            wire(322.58, y, 304.8, y); label(net, 304.8, y)
+            wire(337.82, y, 345.44, y); label('GND', 345.44, y)
+        note(BUTTONS['note'], 290, round(55.88+10.16*len(BUTTONS['keys'])+2.54, 2))
 
     if has_jewel:
         note('STATUS RING', 290, 125, 1.5)
@@ -265,15 +279,15 @@ def build(project, v):
     hold6 = ('6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its "+5V" pin MUST be fed 3.3 V)'
              + ('; J5 is the NeoPixel status ring on USB 5V.\n' if has_jewel else '.\n')
              if has_joystick else
-             '6. Discrete LEDs and the old buttons are removed; J4 is the five-button d-pad (switches to GND); J5 is the NeoPixel status ring on USB 5V.\n'
-             if has_dpad else
+             '6. Discrete LEDs and the old buttons are removed; SW1-SW5 are the five menu pushbuttons (GPIO to a common GND); J5 is the NeoPixel status ring on USB 5V.\n'
+             if has_buttons else
              '6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n')
     note('SCHEMATIC REVIEW / RELEASE HOLDS\n'
          '1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n'
          '2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n'
          '3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n'
          '4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n'
-         '5. Display/joystick/d-pad/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n'
+         '5. Display/joystick/ring headers, the pushbuttons and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n'
          + hold6 +
          '7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed.', 28, 211)
     out.append('(embedded_fonts no))')

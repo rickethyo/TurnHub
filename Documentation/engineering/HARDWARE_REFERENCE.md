@@ -288,7 +288,7 @@ really is common-anode.
 |---|---:|---|
 | Status LED blue / green / red (Wokwi only) | 27 / 14 / 13 | One RGB LED or three LEDs; PWM on all three. The hardware Sigils use the Jewel ring instead |
 | Menu keys, E-ink (`sigil`) | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V |
-| Menu keys, OLED (`sigil-oled`) | 25 Up, 27 Down, 19 Left, 21 Right, 32 Select | Five-button d-pad, each a switch to GND with INPUT_PULLUP. *Planned*: not yet wired |
+| Menu keys, OLED (`sigil-oled`) | 25 Up, 27 Down, 19 Left, 21 Right, 32 Select | Five discrete pushbuttons SW1-SW5 (no d-pad module), each GPIO to a common GND with INPUT_PULLUP; sockets J11, J9, A12, A14, J13. *Planned*: being wired |
 | Status ring, both hardware Sigils | 26 | NeoPixel Jewel 7 RGBW Data Input via 330 ohm; PWR from USB 5V (J1). The only status light (no separate LED since 2026-09-25) |
 | Pass / Action / Pause-Win buttons (Wokwi only) | 26 / 25 / 32 | The three-button gesture layout; closes to GND, INPUT_PULLUP |
 | Buzzer | 33 | Current development wiring |

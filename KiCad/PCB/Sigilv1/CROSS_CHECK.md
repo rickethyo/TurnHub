@@ -2,7 +2,7 @@
 
 Verified against exported KiCad netlists, current firmware, and the user-supplied rear-photo sequence. YES means GPIO/socket/net consistency; it does not verify peripheral parts or mechanical dimensions.
 
-LEDs and the old buttons are not on either schematic while the controls are redesigned; their GPIOs are explicitly NC. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries a five-button d-pad (J4).
+LEDs and the old buttons are not on either schematic while the controls are redesigned; their GPIOs are explicitly NC. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.
 
 ## E-ink (Sigil_EInk.kicad_sch)
 
@@ -66,11 +66,11 @@ Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10
 | OLED clock | GPIO18 | A11 | OLED_SCLK | `c.sclk = 18` | YES |
 | OLED reset | GPIO22 | A17 | OLED_RST | `c.reset = 22` | YES |
 | OLED data | GPIO23 | A18 | OLED_MOSI | `c.mosi = 23` | YES |
-| D-pad Down | GPIO27 | J9 | KEY_DOWN | `27 /* Down, J9 */` | YES |
-| D-pad Up | GPIO25 | J11 | KEY_UP | `25 /* Up, J11 */` | YES |
-| D-pad Select | GPIO32 | J13 | KEY_SELECT | `32 /* Select, J13 */` | YES |
-| D-pad Left | GPIO19 | A12 | KEY_LEFT | `19 /* Left, A12 */` | YES |
-| D-pad Right | GPIO21 | A14 | KEY_RIGHT | `21 /* Right, A14 */` | YES |
+| Up button (SW1) | GPIO25 | J11 | KEY_UP | `25 /* Up, J11 */` | YES |
+| Down button (SW2) | GPIO27 | J9 | KEY_DOWN | `27 /* Down, J9 */` | YES |
+| Left button (SW3) | GPIO19 | A12 | KEY_LEFT | `19 /* Left, A12 */` | YES |
+| Right button (SW4) | GPIO21 | A14 | KEY_RIGHT | `21 /* Right, A14 */` | YES |
+| Select button (SW5) | GPIO32 | J13 | KEY_SELECT | `32 /* Select, J13 */` | YES |
 | Status ring data (via R1) | GPIO26 | J10 | RING_DIN | `STATUS_RING_PIN = 26` | YES |
 | Buzzer signal | GPIO33 | J12 | BUZZER | `BUZZER_PIN = 33` | YES |
 | Ground | — | A13, A19, J6 | GND | Hardware ground | YES |
@@ -91,16 +91,15 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 | 6 | DC | OLED_DC | blue |
 | 7 | CS | OLED_CS | green |
 
-D-pad header J4: five momentary switches, each from its key to GND (internal pull-ups). Firmware: Sigil env `sigil-oled`; the keys drive the menu list.
+Menu keys SW1-SW5: five discrete momentary pushbuttons, each from its GPIO (pin 1) to one shared GND rail (pin 2), using the ESP32 internal pull-ups; no resistors. On a 4-leg tactile switch, pins 1 and 2 are legs on opposite sides (across the gap). Firmware: Sigil env `sigil-oled`, `KEY_PINS` in `main.cpp`.
 
-| Header pin | Key | Net |
-|---|---|---|
-| 1 | UP | KEY_UP |
-| 2 | DOWN | KEY_DOWN |
-| 3 | LEFT | KEY_LEFT |
-| 4 | RIGHT | KEY_RIGHT |
-| 5 | SELECT | KEY_SELECT |
-| 6 | GND | GND |
+| Switch | Key | GPIO | DevKit socket (breadboard) | Net (pin 1) | Pin 2 |
+|---|---|---|---|---|---|
+| SW1 | Up | GPIO25 | J11 | KEY_UP | GND |
+| SW2 | Down | GPIO27 | J9 | KEY_DOWN | GND |
+| SW3 | Left | GPIO19 | A12 | KEY_LEFT | GND |
+| SW4 | Right | GPIO21 | A14 | KEY_RIGHT | GND |
+| SW5 | Select | GPIO32 | J13 | KEY_SELECT | GND |
 
 Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through R1 (330 ohm, at the ring) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
 
@@ -156,4 +155,4 @@ Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10
 
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
-Validation: 38 unique socket positions per schematic; display, joystick and status ring (E-ink), d-pad (OLED) and buzzer nets match firmware; power and all three grounds connected; every other socket explicitly NC; no buttons, LEDs or dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) and buzzer nets match firmware; power and all three grounds connected; every other socket explicitly NC; no buttons, LEDs or dangling named nets. Peripheral interfaces remain unresolved; see README.md.

@@ -1580,17 +1580,6 @@
 		)
 		(uuid "0a78ce2c-8e30-596b-8ada-eae2e8b936bf")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/d-pad/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the NeoPixel status ring on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
-		(exclude_from_sim no)
-		(at 28 211 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "0d4a70c2-ea4b-508b-8492-cde8e9c9ba0a")
-	)
 	(text "USB-powered DevKit; J1 / 5V feeds only the status ring (J5).\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC."
 		(exclude_from_sim no)
 		(at 28 157 0)
@@ -1623,6 +1612,17 @@
 			(justify left top)
 		)
 		(uuid "335804e4-b571-587a-bfcc-ed4c469fe148")
+	)
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/ring headers, the pushbuttons and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the NeoPixel status ring on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+		(exclude_from_sim no)
+		(at 28 211 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "38ce3247-8412-5044-b7e2-57f00d4221f6")
 	)
 	(text "gray wire"
 		(exclude_from_sim no)
