@@ -255,6 +255,27 @@ void handleResetTable(WebServer &server) {
   sendOkMessage(server, message);
 }
 
+// Factory reset: atlas=1 for Atlas itself, or module=<id> for one Sigil.
+// Admin, and admin unlocked on the Atlas screen; Atlas re-checks both, and
+// that no match is running, in the FactoryReset Intent handler.
+void handleFactoryReset(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!requirePhysicalPresence(server)) return;
+  const bool atlas = server.arg("atlas") == "1";
+  if (!atlas && !server.hasArg("module")) {
+    sendError(server, 400, "Choose Atlas or a Sigil");
+    return;
+  }
+  const int32_t target = atlas ? TurnHub::FACTORY_RESET_ATLAS : server.arg("module").toInt();
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::FactoryReset, target, message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
 // --- Network ------------------------------------------------------------------------------
 
 void handleNetworkInfo(WebServer &server) {

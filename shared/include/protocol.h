@@ -14,6 +14,9 @@ constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 constexpr uint32_t PAIRING_WINDOW_MS = 15000;
 // Holding a Sigil's Pair button this long erases its saved Atlas pairing.
 constexpr uint32_t FORGET_PAIRING_HOLD_MS = 10000;
+// FactoryReset payload: a fixed value ("FRES"), so no stray or corrupted
+// packet can wipe a Sigil.
+constexpr int32_t FACTORY_RESET_CONFIRM = 0x46524553;
 
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
@@ -82,6 +85,9 @@ enum class PacketType : uint8_t {
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
   MenuState = 26,    // Atlas -> Sigil: actions available now (encodeMenuState).
   HarnessCommand = 27,  // Atlas -> harness: run or stop a test (encodeHarnessCommand).
+  // Atlas -> Sigil: erase all saved settings (NVS) and restart. Only honored
+  // from the paired Atlas, for this Sigil's ID, with FACTORY_RESET_CONFIRM.
+  FactoryReset = 28,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,

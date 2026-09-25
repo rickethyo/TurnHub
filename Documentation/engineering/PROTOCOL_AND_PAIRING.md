@@ -87,6 +87,16 @@ the Sigil with the seated players' InputTiming thresholds.
 Sigils without the bit keep the Action/Pass gestures, and a menu Sigil talking
 to an older Atlas falls back to them. Protocol version stays 1.
 
+### Factory reset: FactoryReset (2026-09-25)
+
+`FactoryReset = 28` (Atlas -> Sigil), value `FACTORY_RESET_CONFIRM`
+(`0x46524553`, "FRES"). A Sigil honors it only from its saved Atlas, for its own
+ID, with that value: it erases its NVS partition and restarts unpaired. Atlas
+sends it from the `FactoryReset` Intent (Device Settings) just before forgetting
+the Sigil (see [Manual Pairing](MANUAL_PAIRING.md#factory-reset-2026-09-25)).
+Older Sigils ignore the unknown type and see only the `Unpair` that follows.
+Protocol version stays 1.
+
 ### Test harness: HarnessCommand and HarnessReport (2026-09-25)
 
 The hardware test harness (`TestHarness/`) pairs like any Sigil. It pairs twice,

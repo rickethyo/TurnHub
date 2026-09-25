@@ -74,6 +74,9 @@ enum class IntentType : uint8_t {
   // Admin at the table (admin unlocked on the Atlas screen): return the table
   // to an empty lobby, ending a match in progress as a draw first.
   ResetTable,
+  // Admin at the table, between games: erase a device's saved settings (NVS).
+  // payload.value = a Sigil ID, or FACTORY_RESET_ATLAS for Atlas itself.
+  FactoryReset,
 
   Count,
 };
@@ -116,6 +119,8 @@ enum class StarterSelection : int32_t { ExactSeat = 0, CycleModule = 1, Random =
 // ForgetPairing payload.value: one Sigil ID, or FORGET_ALL_SIGILS. The
 // admin's account ID travels in payload.moderatorId (as for ConfigurePairing).
 constexpr int32_t FORGET_ALL_SIGILS = -1;
+// FactoryReset payload.value for Atlas itself (otherwise a Sigil ID).
+constexpr int32_t FACTORY_RESET_ATLAS = -1;
 
 // Moderate payload.value. moderatorId and profileId name the accounts.
 enum class ModerationAction : int32_t {
@@ -223,6 +228,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::ConfigurePairing: return "CONFIGURE_PAIRING";
     case IntentType::ConfigureSpeaker: return "CONFIGURE_SPEAKER";
     case IntentType::ResetTable: return "RESET_TABLE";
+    case IntentType::FactoryReset: return "FACTORY_RESET";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

@@ -198,7 +198,8 @@ bool moderateAccount(const String &actor, const String &target,
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
-       type != IntentType::ConfigureSpeaker && type != IntentType::ResetTable)) {
+       type != IntentType::ConfigureSpeaker && type != IntentType::ResetTable &&
+       type != IntentType::FactoryReset)) {
     message = "Invalid request";
     return false;
   }

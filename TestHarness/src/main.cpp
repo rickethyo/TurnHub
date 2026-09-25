@@ -293,6 +293,15 @@ void handlePacket(const uint8_t *mac, const Packet &packet) {
       }
       break;
     }
+    case PacketType::FactoryReset:
+      // The harness plays two Sigils on one board, so a factory reset clears
+      // only that virtual Sigil's pairing (no NVS wipe, no restart).
+      if (packet.value != TurnHubProtocol::FACTORY_RESET_CONFIRM) break;
+      Serial.printf("HARNESS|FACTORY_RESET|%s\n", v->name);
+      v->sigilId = UNASSIGNED;
+      v->menuValid = false;
+      savePairing();
+      break;
     case PacketType::Unpair:
       Serial.printf("HARNESS|PAIR|FORGOTTEN_BY_ATLAS|%s\n", v->name);
       v->sigilId = UNASSIGNED;

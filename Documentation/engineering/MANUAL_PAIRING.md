@@ -76,6 +76,34 @@ and factory-reset integration remain future work.
 routes, storage codec and portal; the Sigil hold and `Unpair` handling were built
 (`sigil`, `sigil-wokwi`) but not flashed.
 
+## Factory reset (2026-09-25)
+
+Device Settings has **Factory reset** for each paired Sigil and **Factory
+reset Atlas** (`POST /api/device/factory-reset`, `module=<id>` or `atlas=1`).
+Both are the `FactoryReset` Intent. It needs Admin permission, and admin
+unlocked on the Atlas screen (someone at the table), and it is never allowed
+during a match. Atlas re-checks all of that in the handler.
+
+- **A Sigil** must be free (nobody seated, lobby only). Atlas sends it
+  `FactoryReset = 28` carrying `FACTORY_RESET_CONFIRM` ("FRES"), queued ahead of
+  the `Unpair` that forgetting it sends, then forgets it exactly as Forget
+  does. The Sigil acts only on that packet from its saved Atlas, for its own
+  ID, with the confirmation value. It then erases its whole NVS partition,
+  pairing included, logs `SIGIL|FACTORY_RESET|ERASING` and restarts as new.
+  If the Sigil is out of range, Atlas only forgets it and says so; holding the
+  Sigil's Pair button for 10 s clears that side. The test harness clears only
+  that virtual Sigil's pairing.
+- **Atlas** (lobby or game over) replies first, then after 1.5 s erases its whole
+  NVS partition (`nvs_flash_erase`, `factory_reset.cpp`) and restarts. That
+  removes every profile, PIN hash, core statistic, account, pairing, the Wi-Fi
+  password (back to the default), game settings, speaker volume and touch
+  calibration, so Atlas asks to calibrate again. The microSD card is **not**
+  erased. The portal asks the Admin to type RESET first.
+
+*Needs verification* on hardware: host scenarios cover permission, the unlock
+window, refusal while seated or in a match, the packet and forget, and the
+delayed Atlas erase. The Sigil and Atlas erases are firmware-only and untested.
+
 ## Verification
 
 Atlas and Sigil PlatformIO builds pass. Native gameplay/storage regressions pass,

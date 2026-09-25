@@ -11,6 +11,7 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <nvs_flash.h>
 #include <Preferences.h>
 #include <freertos/queue.h>
 
@@ -874,6 +875,17 @@ void handleEspNowReceive(
     case PacketType::Unpair:
       // Only the saved Atlas, addressing this Sigil's ID, gets here.
       forgetPairing("ATLAS");
+      break;
+
+    case PacketType::FactoryReset:
+      // An Admin chose Factory reset for this Sigil in Device Settings.
+      // Erase everything saved (pairing included) and start over as new.
+      if (packet.value != TurnHubProtocol::FACTORY_RESET_CONFIRM) break;
+      Serial.println("SIGIL|FACTORY_RESET|ERASING");
+      Serial.flush();
+      nvs_flash_erase();
+      delay(100);
+      ESP.restart();
       break;
 
     case PacketType::DisplayNameChunk:

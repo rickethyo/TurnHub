@@ -206,6 +206,13 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);
+IntentResult handleFactoryResetIntent(const Intent &intent, void *);
+// Runs a scheduled Atlas factory reset once the web reply has had time to
+// leave (called from loop()). eraseSettingsAndRestart() is firmware-only
+// (factory_reset.cpp); host tests stub it.
+void serviceFactoryReset(uint32_t nowMs);
+bool factoryResetScheduled();
+void eraseSettingsAndRestart();
 
 // Clears Atlas-owned decisions and the physical gesture bookkeeping.
 void clearDecisionState();

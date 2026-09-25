@@ -179,6 +179,7 @@ void handleSavePairingSettings(WebServer &server);
 void handleSpeakerSettings(WebServer &server);
 void handleSaveSpeakerSettings(WebServer &server);
 void handleResetTable(WebServer &server);
+void handleFactoryReset(WebServer &server);
 void handleNetworkInfo(WebServer &server);
 void handleNetworkPassword(WebServer &server);
 void handleSerialLogDownload(WebServer &server);

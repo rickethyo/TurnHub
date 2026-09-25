@@ -847,6 +847,74 @@ IntentResult handleResetTableIntent(const Intent &intent, void *) {
       : "The table is back to an empty lobby");
 }
 
+namespace {
+// An Atlas factory reset waits this long so the web reply leaves first.
+constexpr uint32_t FACTORY_RESET_DELAY_MS = 1500;
+bool atlasResetScheduled = false;
+uint32_t atlasResetAtMs = 0;
+}  // namespace
+
+// Erases a device's saved settings (NVS). Admin, admin unlocked on the Atlas
+// screen (someone is at the table), and never during a match.
+//   Atlas: every profile, statistic, pairing and setting in NVS goes; Atlas
+//   restarts as new. The microSD card is not touched.
+//   Sigil: Atlas tells it to erase and restart (FactoryReset packet), then
+//   forgets it. A Sigil out of range is only forgotten here.
+IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  if (!physicalPresenceConfirmed()) {
+    return IntentResult::reject(IntentStatus::Unauthorized,
+        "Unlock admin on the Atlas screen first: hold Unlock admin for 3 seconds");
+  }
+  const int32_t target = intent.payload.value;
+  if (target == TurnHub::FACTORY_RESET_ATLAS) {
+    if (hubState != HubState::Lobby && hubState != HubState::GameOver) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Atlas between games");
+    }
+    if (!atlasResetScheduled) {
+      atlasResetScheduled = true;
+      atlasResetAtMs = millis() + FACTORY_RESET_DELAY_MS;
+      serialLog.println("ATLAS|FACTORY_RESET|ATLAS|SCHEDULED");
+    }
+    return IntentResult::accept("Atlas is erasing its settings and restarting");
+  }
+  if (hubState != HubState::Lobby) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Sigils in the lobby, between games");
+  }
+  if (target < 0 || target >= MAX_PHYSICAL_SIGILS || !sigilBus.record(target)) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "That Sigil is not paired with Atlas");
+  }
+  const uint8_t id = static_cast<uint8_t>(target);
+  if (lobby.isJoined(id)) {
+    return IntentResult::reject(IntentStatus::Conflict,
+        "Players are seated on this Sigil; they must leave the lobby first");
+  }
+  // Queued before forget() queues Unpair, so the Sigil hears it first.
+  const bool reached = sigilBus.isOnline(id, millis()) &&
+      sigilBus.send(id, TurnHubProtocol::PacketType::FactoryReset, TurnHubProtocol::FACTORY_RESET_CONFIRM);
+  if (!forgetSigil(id)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Pairing storage failed; nothing was reset");
+  }
+  leds.invalidateAll();
+  serialLog.print("ATLAS|FACTORY_RESET|SIGIL|");
+  serialLog.print(id);
+  serialLog.println(reached ? "|SENT" : "|OFFLINE");
+  return IntentResult::accept(reached
+      ? "Sigil is erasing its settings and restarting; pair it again to use it"
+      : "The Sigil is out of range: Atlas forgot it. Hold its Pair button for 10 s to clear it too");
+}
+
+bool factoryResetScheduled() { return atlasResetScheduled; }
+
+void serviceFactoryReset(uint32_t nowMs) {
+  if (!atlasResetScheduled || static_cast<int32_t>(nowMs - atlasResetAtMs) < 0) return;
+  atlasResetScheduled = false;
+  serialLog.println("ATLAS|FACTORY_RESET|ATLAS|ERASING");
+  eraseSettingsAndRestart();
+}
+
 // Payload: flags = GameProfile, value = starting life, durationMs = turn timer.
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;

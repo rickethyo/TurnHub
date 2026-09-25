@@ -23,6 +23,9 @@ String TurnHubAtlas::sdCardDiagnosticsJson() { return "{\"state\":\"no_card\"}";
 TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
 bool fixtureSdCardReady = true;
 bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
+// Firmware-only NVS erase + restart (factory_reset.cpp): counted instead.
+unsigned fixtureFactoryResets = 0;
+namespace TurnHubAtlas { void eraseSettingsAndRestart() { ++fixtureFactoryResets; } }
 
 // The speaker is firmware-only (ESP32 DAC); host builds have none.
 TurnHub::ToneOutput *TurnHubAtlas::beginAtlasSpeaker() { return nullptr; }

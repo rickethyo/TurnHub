@@ -47,7 +47,7 @@ node Atlas/tests/host/portal_smoke.cjs             # optional Playwright + Edge 
 node Atlas/tests/host/counter_smoke.cjs            # optional two-context life/Commander UI smoke
 ```
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
-- **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_display.cpp` (LovyanGFX), `atlas_speaker.cpp` (ESP32 DAC) and `sd_card.cpp` (Arduino SD) are left out, and `test_globals.cpp` stubs them.
+- **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_display.cpp` (LovyanGFX), `atlas_speaker.cpp` (ESP32 DAC), `sd_card.cpp` (Arduino SD) and `factory_reset.cpp` (NVS erase + restart) are left out, and `test_globals.cpp` stubs them.
 - **Python:** `python` isn't on PATH on this machine (it hits the Microsoft Store stub). Use PlatformIO's bundled interpreter, `%USERPROFILE%\.platformio\penv\Scripts\python.exe`, which runs both `.py` checks with the standard library only.
 - **Packed-struct flag:** the GCC runner uses `-mno-ms-bitfields` and C++14 to preserve the packed radio packet layout. Keep it.
 - **Test ordering:** the recovery scenario runs last on purpose (the recovery store is a one-way process-wide latch).

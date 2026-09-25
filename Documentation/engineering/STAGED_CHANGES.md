@@ -11,11 +11,20 @@ Owner decisions (2026-09-25, end of day):
   which alone may start, rematch, reset and pick the starter) and the 3 s
   touchscreen Admin unlock window (physical presence for first-Admin setup,
   network settings, device names and OTA) feel clunky and dated. They go away,
-  but *some* access gate is still needed. **Design open:** propose a
-  replacement before implementing; until then both stay as they are. The
-  replacement must keep the Intent/validator boundary, and it must keep a
-  proof of physical presence for first-Admin setup (nothing else prevents a
-  stranger on the Wi-Fi claiming an unconfigured Atlas).
+  but *some* access gate is still needed. **Accepted direction (owner,
+  2026-09-25), *Planned*:**
+  - **Table actions:** Start, Rematch and choosing the starter are open to any
+    seated player. Start keeps its countdown, which any seated player can
+    cancel, so no one player can force it. No host.
+  - **Admin actions:** an Admin signs in on a phone. The Atlas screen then
+    shows a short one-time code or QR code, which the Admin enters or scans on
+    that phone to prove they are at the table. This replaces the 3 s hold.
+  - **New or factory-reset Atlas:** the screen shows a setup QR code carrying
+    a one-time token, and the first phone to use it becomes the Admin.
+    Without that, a stranger on the Wi-Fi could claim an unconfigured Atlas.
+
+  All three go through the Intent/validator boundary. Until they are built,
+  host and admin unlock stay as they are.
 - **SD cards are multi-Atlas.** A card records its owner Atlas's ID. A card
   from another Atlas is offered in transient "slots" with two choices:
   - **Game night:** its profiles, statistics and settings are available
@@ -30,8 +39,22 @@ Owner decisions (2026-09-25, end of day):
   remount), not left out until a restart.
 - **No statistics rollback option.** Detail moved to the card is not copied
   back to NVS on request.
-- **Sigil OTA transport: undecided.** The owner wants a recommendation with
-  the trade-offs explained before choosing (see the Sigil OTA section).
+- **Sigil OTA over Wi-Fi first (owner accepted the recommendation, 2026-09-25;
+  *Planned*).**
+  - **How it works:** Atlas tells a Sigil over ESP-NOW to update, sending the
+    Wi-Fi credentials over the paired link. The Sigil joins Atlas's AP and
+    downloads the image over HTTP with the ESP32's standard update library.
+    Expect about 20-40 s per Sigil, against 1-3 min for about 3,300 ESP-NOW
+    packets.
+  - **Recovery:** each Sigil keeps two app slots. A new image is kept only
+    once it has reconnected to Atlas; otherwise the bootloader returns to the
+    previous one.
+  - **Fallback:** ESP-NOW transfer, if Wi-Fi joining proves unreliable.
+- **Factory reset: implemented (2026-09-25, host-tested, *Needs verification*
+  on hardware).** Device Settings has Factory reset per Sigil and for Atlas
+  (NVS erase and restart; the microSD card is kept). See
+  [Manual Pairing](MANUAL_PAIRING.md#factory-reset-2026-09-25). The user
+  manual still needs it.
 
 
 Owner decisions and follow-through (2026-09-24, later the same day):
@@ -450,8 +473,8 @@ Privacy direction:
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
 - Sigil OTA is the next implementation priority above. Its transport is
-  undecided (owner, 2026-09-25): a recommendation with trade-offs comes first. Then choose its transport
-  and recovery strategy before implementing the queued update workflow.
+  Wi-Fi download with two-slot rollback (owner accepted, 2026-09-25; see the
+  owner decisions at the top); ESP-NOW transfer stays the fallback.
 - Freeze hardware revisions only after GPIO, power, display, pairing, transport, tactile-control, and accessibility decisions are verified.
 
 ## OLED Sigil

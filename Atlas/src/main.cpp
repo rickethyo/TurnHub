@@ -207,6 +207,7 @@ bool configureIntentHandlers() {
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
       {IntentType::ResetTable, handleResetTableIntent},
+      {IntentType::FactoryReset, handleFactoryResetIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {
@@ -395,6 +396,7 @@ void loop() {
   const uint32_t nowMs = millis();
   updatePairingWindow(nowMs);
   serviceAtlasDisplay(nowMs);
+  serviceFactoryReset(nowMs);
   updatePendingPass(nowMs);
   updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);

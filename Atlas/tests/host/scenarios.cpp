@@ -66,12 +66,15 @@ static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
 static int32_t fixtureHarnessCommand=-1;
 static unsigned fixtureHarnessCommands=0;
+static int fixtureFactoryResetSigil=-1;
+static int32_t fixtureFactoryResetValue=0;
 bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;
   if(type==TurnHubProtocol::PacketType::InputTiming&&fixtureRadio) { fixtureInputTiming[id]=value; ++fixtureInputTimingSends; }
   if(type==TurnHubProtocol::PacketType::LedState&&fixtureRadio) { fixtureLedState[id]=value; ++fixtureLedStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
+  if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
   if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
      type==TurnHubProtocol::PacketType::SetGreen) ++fixtureChannelSends;
   return fixtureRadio;
@@ -2105,6 +2108,53 @@ static void resetTableFromPortal() {
   enterEmptyLobby();
 }
 
+// Factory reset from Device Settings: Admin at the table (admin unlocked),
+// between games. A Sigil is told to erase itself and is forgotten; Atlas
+// erases its NVS and restarts after the reply has gone.
+extern unsigned fixtureFactoryResets;
+static void factoryResetFromPortal() {
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
+  closeAdminUnlock(); resetTouchControls();
+  freshLobby(2);
+  String adminId,playerId;
+  const String admin=registerPhone("Factory admin",adminId),player=registerPhone("Factory player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+  TurnHub::fixtureFactoryResetSigil=-1; fixtureFactoryResets=0; TurnHub::fixtureUnpairs[3]=0;
+
+  // Admin only, and only while admin is unlocked on the Atlas screen.
+  assert(request("/api/device/factory-reset",admin,{{"module","3"}})==403 && sigilBus.record(3));
+  openAdminUnlock(testNow);
+  assert(request("/api/device/factory-reset",player,{{"module","3"}})==403 && sigilBus.record(3));
+  Intent forged; forged.type=IntentType::FactoryReset; forged.actor.origin=IntentOrigin::Browser;
+  forged.payload.value=3; strncpy(forged.payload.moderatorId,playerId.c_str(),8);
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && sigilBus.record(3));
+  assert(request("/api/device/factory-reset",admin)==400);
+
+  // A Sigil someone is seated on is refused; a free one is told and forgotten.
+  assert(request("/api/device/factory-reset",admin,{{"module","0"}})==409 && sigilBus.record(0));
+  assert(request("/api/device/factory-reset",admin,{{"module","3"}})==200);
+  assert(TurnHub::fixtureFactoryResetSigil==3 &&
+      TurnHub::fixtureFactoryResetValue==TurnHubProtocol::FACTORY_RESET_CONFIRM && !sigilBus.record(3) &&
+      TurnHub::fixtureUnpairs[3]==1);
+  assert(request("/api/device/factory-reset",admin,{{"module","3"}})==409);  // No longer paired.
+  assert(fixtureFactoryResets==0);
+
+  // Never during a match, for Sigils or Atlas.
+  startFromHost();
+  assert(request("/api/device/factory-reset",admin,{{"atlas","1"}})==409 && !factoryResetScheduled());
+  enterEmptyLobby();
+
+  // Atlas: scheduled, then erased once the reply has had time to leave.
+  assert(request("/api/device/factory-reset",admin,{{"atlas","1"}})==200 && factoryResetScheduled());
+  serviceFactoryReset(millis()); assert(fixtureFactoryResets==0);
+  serviceFactoryReset(millis()+2000); assert(fixtureFactoryResets==1 && !factoryResetScheduled());
+  serviceFactoryReset(millis()+4000); assert(fixtureFactoryResets==1);
+  TurnHub::fixtureUnpairs[3]=0;
+  closeAdminUnlock();
+}
+
 static void gameRecoveryLifecycle() {
   using TurnHubStorage::Status;
 
@@ -2188,6 +2238,7 @@ int main() {
   oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, unlock window, draw once, countdown\n";
+  factoryResetFromPortal(); std::cout<<"PASS factory reset: admin at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
