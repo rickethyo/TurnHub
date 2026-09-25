@@ -1,5 +1,6 @@
 package com.turnhub.android.domain
 
+import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.LifeRequest
 import com.turnhub.android.protocol.PendingDecisions
@@ -73,6 +74,8 @@ data class TablePlayer(
     val turnsCompleted: Long,
     val commanderDamage: List<CommanderDamage>,
     val lifeRequest: LifeRequest?,
+    /** The seat's preset avatar, when Atlas has one for it. */
+    val avatar: AvatarIcon? = null,
 )
 
 /**

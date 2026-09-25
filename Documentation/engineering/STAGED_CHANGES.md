@@ -534,6 +534,14 @@ Privacy direction:
   the Table screen's 2 s Master pass hold passing a stuck turn at once with an
   `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
   speaker levels, lowered about 10% the same day, at each volume setting.
+- Preset avatars (2026-09-25, host-tested, *Needs verification*): pick one in
+  the portal's Personalization card (needs the SD card); shown in the portal,
+  the Android app, Atlas's player chips and the OLED game screen (not the
+  e-ink yet). Custom avatars: scaffolding only (`AVATAR_CUSTOM` reserved,
+  never public); upload and Admin approval to make one public are *Planned*.
+  Feature gate: profile setting on the card (`v<profileId>`), no Intent,
+  `/api/avatars` + `/api/seats` contract additions, icons drawn for TurnHub
+  (no third-party art), decorative only (names always shown).
 - Jewel colour per profile (2026-09-25, host-tested, *Needs verification*):
   pick a colour in the portal (needs the SD card); the Jewel shows it in the
   lobby and while waiting, action cues unchanged, shared Sigils split by seat.

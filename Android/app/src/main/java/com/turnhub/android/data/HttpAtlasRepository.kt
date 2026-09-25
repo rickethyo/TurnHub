@@ -4,6 +4,7 @@ import com.turnhub.android.domain.SeatKey
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.domain.TableSummaryMapper
+import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.StateSnapshot
@@ -72,6 +73,8 @@ class HttpAtlasRepository(
         val summary: TableSummary,
         val names: Map<SeatKey, String>,
         val pollsSinceNames: Int,
+        val seatAvatars: Map<SeatKey, Int> = emptyMap(),
+        val avatarIcons: Map<Int, AvatarIcon> = emptyMap(),
     )
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
@@ -154,12 +157,16 @@ class HttpAtlasRepository(
         // have changed (any revision change) and periodically otherwise.
         val refreshNames = snapshot.revision != current.revision ||
             live.pollsSinceNames + 1 >= nameRefreshPolls
-        val names = if (refreshNames) fetchSeatNames(transport) else null
+        val seats = if (refreshNames) fetchSeats(transport) else null
+        val names = seats?.first ?: live.names
+        val avatars = seats?.second ?: live.seatAvatars
         return Live(
             info = live.info,
-            summary = map(live.info, snapshot, names ?: live.names),
-            names = names ?: live.names,
-            pollsSinceNames = if (names != null) 0 else live.pollsSinceNames + 1,
+            summary = map(live.info, snapshot, names, avatars, live.avatarIcons),
+            names = names,
+            pollsSinceNames = if (seats != null) 0 else live.pollsSinceNames + 1,
+            seatAvatars = avatars,
+            avatarIcons = live.avatarIcons,
         )
     }
 
@@ -171,26 +178,45 @@ class HttpAtlasRepository(
             val snapshot: StateSnapshot = call { transport.getState() }
             AtlasCompatibility.requireCompatible(snapshot)
             if (snapshot.atlasId == info.atlasId && snapshot.bootId == info.bootId) {
-                val names = fetchSeatNames(transport).orEmpty()
-                return Live(info, map(info, snapshot, names), names, pollsSinceNames = 0)
+                val seats = fetchSeats(transport)
+                val names = seats?.first.orEmpty()
+                val avatars = seats?.second.orEmpty()
+                val icons = fetchAvatarIcons(transport)
+                return Live(info, map(info, snapshot, names, avatars, icons), names, pollsSinceNames = 0,
+                    seatAvatars = avatars, avatarIcons = icons)
             }
         }
         throw AtlasException(AtlasFailure.Malformed("Atlas identity changed while connecting; try again"))
     }
 
-    /** Seat names are presentation only: any failure just keeps the names we have. */
-    private suspend fun fetchSeatNames(transport: AtlasTransport): Map<SeatKey, String>? = try {
-        transport.getSeats()
-            .mapNotNull { seat -> seat.name?.let { SeatKey(seat.moduleId, seat.slot) to it } }
-            .toMap()
+    /** Seat names and avatars are presentation only: any failure keeps what we have. */
+    private suspend fun fetchSeats(transport: AtlasTransport): Pair<Map<SeatKey, String>, Map<SeatKey, Int>>? = try {
+        val seats = transport.getSeats()
+        val names = seats.mapNotNull { seat -> seat.name?.let { SeatKey(seat.moduleId, seat.slot) to it } }.toMap()
+        val avatars = seats.filter { it.avatar > 0 }.associate { SeatKey(it.moduleId, it.slot) to it.avatar }
+        names to avatars
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {
         null
     }
 
-    private fun map(info: AtlasInfo, snapshot: StateSnapshot, names: Map<SeatKey, String>) =
-        TableSummaryMapper.map(info, snapshot, names, receivedAtMs = clock())
+    /** The preset icons; fetched once per connection, and optional. */
+    private suspend fun fetchAvatarIcons(transport: AtlasTransport): Map<Int, AvatarIcon> = try {
+        transport.getAvatars().associateBy { it.id }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        emptyMap()
+    }
+
+    private fun map(
+        info: AtlasInfo,
+        snapshot: StateSnapshot,
+        names: Map<SeatKey, String>,
+        avatars: Map<SeatKey, Int> = emptyMap(),
+        icons: Map<Int, AvatarIcon> = emptyMap(),
+    ) = TableSummaryMapper.map(info, snapshot, names, receivedAtMs = clock(), seatAvatars = avatars, avatarIcons = icons)
 
     /**
      * Normalizes anything thrown below this repository into [AtlasException],

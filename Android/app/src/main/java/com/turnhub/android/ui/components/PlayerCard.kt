@@ -1,5 +1,13 @@
 package com.turnhub.android.ui.components
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import com.turnhub.android.protocol.AvatarIcon
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -95,14 +103,17 @@ fun PlayerCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(
-                text = player.label,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textDecoration = if (player.eliminated) TextDecoration.LineThrough else null,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                player.avatar?.let { AvatarGlyph(it, MaterialTheme.colorScheme.onSurface) }
+                Text(
+                    text = player.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textDecoration = if (player.eliminated) TextDecoration.LineThrough else null,
+                )
+            }
             Text(
                 text = lifeText,
                 style = MaterialTheme.typography.displayLarge,
@@ -129,6 +140,23 @@ fun PlayerCard(
             )
             extras.forEach {
                 Text(it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+/**
+ * A preset avatar drawn pixel for pixel from Atlas's 16x16 rows, so it matches
+ * Atlas's screen and the Sigils. Decorative: the card's description carries
+ * the player's name.
+ */
+@Composable
+fun AvatarGlyph(icon: AvatarIcon, color: Color, size: Dp = 24.dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val cell = this.size.width / icon.rows.size
+        icon.rows.forEachIndexed { y, row ->
+            row.forEachIndexed { x, c ->
+                if (c == '#') drawRect(color, topLeft = Offset(x * cell, y * cell), size = Size(cell, cell))
             }
         }
     }

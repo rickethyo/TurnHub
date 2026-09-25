@@ -283,6 +283,23 @@ class AtlasWireParserTest {
     }
 
     @Test
+    fun `parses a seat avatar and the preset icons`() {
+        val seat = AtlasWireParser.parseSeats("""{"seats":[{"module":0,"slot":1,"player":1,"name":"Ricky","avatar":3}]}""")
+        assertEquals(3, seat.single().avatar)
+        assertEquals(0, AtlasWireParser.parseSeats("""{"seats":[{"module":0,"slot":1,"player":1}]}""").single().avatar)
+        val row = "#".repeat(8) + ".".repeat(8)
+        val rows = List(16) { "\"$row\"" }.joinToString(",")
+        val icons = AtlasWireParser.parseAvatars(
+            """{"size":16,"avatars":[{"id":1,"key":"die","label":"Die","rows":[$rows]},
+               {"id":2,"key":"bad","label":"Bad","rows":["#"]}]}""",
+        )
+        assertEquals(1, icons.size)  // The malformed icon is skipped.
+        assertEquals("Die", icons[0].label)
+        assertTrue(icons[0].ink(0, 0))
+        assertTrue(!icons[0].ink(8, 0))
+    }
+
+    @Test
     fun `non-TurnHub responders are rejected`() {
         val notTurnHub = listOf(
             "<html><body>Router login</body></html>",

@@ -7,6 +7,7 @@ import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
+import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.StateSnapshot
@@ -30,6 +31,9 @@ interface AtlasTransport {
 
     /** `GET /api/seats`: display names, which the v1 state snapshot doesn't carry. */
     suspend fun getSeats(): List<SeatEntry>
+
+    /** `GET /api/avatars`: preset avatar icons. Older Atlas firmware has none. */
+    suspend fun getAvatars(): List<AvatarIcon> = emptyList()
 }
 
 /** Builds a transport for the endpoint the user chose. */

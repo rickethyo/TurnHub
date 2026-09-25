@@ -95,7 +95,21 @@ object AtlasWireParser {
                     slot = seat.int("slot"),
                     playerNumber = seat.int("player"),
                     name = seat.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() },
+                    avatar = seat.optionalInt("avatar") ?: 0,
                 )
+            }
+        }
+    }
+
+    /** `GET /api/avatars`: the preset icons. Malformed entries are skipped. */
+    fun parseAvatars(body: String): List<AvatarIcon> {
+        val root = parseObject(body) { AtlasWireException.Malformed("Avatars response is not JSON") }
+        return wrap {
+            val size = root.int("size")
+            root.array("avatars").objects().mapNotNull { icon ->
+                val rows = icon.array("rows").let { array -> List(array.length()) { array.getString(it) } }
+                if (rows.size != size || rows.any { it.length != size }) return@mapNotNull null
+                AvatarIcon(id = icon.int("id"), key = icon.string("key"), label = icon.string("label"), rows = rows)
             }
         }
     }

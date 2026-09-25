@@ -7,6 +7,7 @@ import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
+import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.AtlasWireException
@@ -80,6 +81,13 @@ class HttpAtlasTransport(
             throw AtlasException(AtlasFailure.HttpStatus(response.code, "Atlas seats request failed"))
         }
         return parse { AtlasWireParser.parseSeats(response.body) }
+    }
+
+    override suspend fun getAvatars(): List<AvatarIcon> {
+        val response = request("GET", "/api/avatars")
+        // Older Atlas firmware has no avatars: show none rather than fail.
+        if (response.code != HttpURLConnection.HTTP_OK) return emptyList()
+        return parse { AtlasWireParser.parseAvatars(response.body) }
     }
 
     // --- authenticated profile/session routes -------------------------------

@@ -1,5 +1,6 @@
 package com.turnhub.android.domain
 
+import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.AtlasInfo
 import com.turnhub.android.protocol.StateSnapshot
 
@@ -16,6 +17,8 @@ object TableSummaryMapper {
         snapshot: StateSnapshot,
         seatNames: Map<SeatKey, String> = emptyMap(),
         receivedAtMs: Long = 0,
+        seatAvatars: Map<SeatKey, Int> = emptyMap(),
+        avatarIcons: Map<Int, AvatarIcon> = emptyMap(),
     ): TableSummary {
         require(info.atlasId == snapshot.atlasId && info.bootId == snapshot.bootId) {
             "Info and state must come from the same Atlas boot"
@@ -35,6 +38,7 @@ object TableSummaryMapper {
                 turnsCompleted = player.turnsCompleted,
                 commanderDamage = player.commanderDamage,
                 lifeRequest = player.lifeRequest,
+                avatar = seatAvatars[SeatKey(player.moduleId, player.slot)]?.let { avatarIcons[it] },
             )
         }
         return TableSummary(

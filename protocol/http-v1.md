@@ -172,3 +172,15 @@ The next Android slice can test info → login/join → snapshot → PASS → sn
 → reconnect through an `AtlasRepository`, with a fake transport and these fixtures.
 Generic envelopes, richer per-intent statuses, deduplication and events remain
 separate future work. No Android application ID is selected here.
+
+## Personalization and avatars (2026-09-25)
+
+- `GET /api/avatars` (public): `{"size":16,"avatars":[{"id":1,"key":"die","label":"Die","rows":["....", ...]}]}`,
+  the preset icons from `shared/include/avatars.h`. Each row is `size` characters, `#` ink, `.` background.
+  Clients draw these rows so every screen shows the same icon.
+- `GET /api/seats` entries carry `"avatar"`: the seat's preset id, or 0. Custom avatars never appear here.
+- `GET`/`POST /api/session/personalization` (signed-in profile only): `color` (`#rrggbb` or `none`) and
+  `avatar` (0 or a preset id). Both are saved on Atlas's microSD card; without one, `card` is false and
+  saving answers 503.
+- Planned: custom avatars (`AVATAR_CUSTOM`), visible to signed-in viewers only, with a possible Admin
+  approval to make one public. Not implemented.

@@ -15,4 +15,6 @@ data class SeatEntry(
     val playerNumber: Int,
     /** Saved profile name, or null when the seat has none (e.g. a guest). */
     val name: String?,
+    /** Preset avatar id ([AvatarIcon.id]), or 0 for none. */
+    val avatar: Int = 0,
 )
