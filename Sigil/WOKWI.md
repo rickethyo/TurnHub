@@ -2,7 +2,7 @@
 
 The Wokwi build runs the normal Sigil firmware with one deliberate substitution: Wokwi does not simulate ESP-NOW, so the `sigil-wokwi` environment force-includes `wokwi_espnow_shim.h`. The shim behaves like a tiny Atlas test harness and delivers normal TurnHub `Packet` objects to the existing Sigil receive handler.
 
-The normal `sigil` PlatformIO environment is unchanged and continues to use real ESP-NOW.
+The real-hardware `sigil` environment (the E-ink Sigil) uses real ESP-NOW and the analog joystick. The simulation keeps the pushbuttons wired in `diagram.json`, so it builds without `TURNHUB_INPUT_JOYSTICK`.
 
 ## Build and run
 

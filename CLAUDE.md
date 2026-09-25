@@ -28,7 +28,7 @@ The owner also uses GitHub Desktop, which can switch branches and auto-stash unc
 ### Atlas firmware (run from `Atlas/`)
 ```
 pio run -e atlas                      # build
-pio run -e atlas --target upload      # flash (add --upload-port COM7 on Windows if needed)
+pio run -e atlas --target upload      # flash (platformio.ini pins the owner's Atlas to COM12)
 pio device monitor                    # serial, 115200 baud
 ```
 Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
@@ -51,7 +51,8 @@ There is no per-test filter. To run one group, build the single executable (the 
 
 ### Sigil firmware (run from `Sigil/`)
 ```
-pio run -e sigil                      # real hardware
+pio run -e sigil                      # E-ink Sigil with analog joystick (uploads to COM13)
+pio run -e sigil-oled                 # OLED Sigil with buttons (uploads to COM14)
 pio run -e sigil-wokwi                # Wokwi simulation build (ESP-NOW replaced by wokwi_espnow_shim.h, which acts as a fake Atlas)
 ```
 Wokwi serial-console commands for driving the simulated Atlas are listed in `Sigil/WOKWI.md`.

@@ -26,7 +26,7 @@ COMMON_NETS = {'J12': 'BUZZER', 'A13': 'GND', 'A19': 'GND', 'J6': 'GND', 'J19': 
 # Its "+5V" pin is wired to +3V3 on purpose: VRX/VRY are potentiometer wipers
 # that swing to the supply, and the ESP32 ADC inputs must stay at or below
 # 3.3 V. VRX/VRY use ADC1 input-only pins (ADC2 is unusable under ESP-NOW);
-# SW uses GPIO32's internal pull-up. Firmware: Sigil env `sigil-joystick`.
+# SW uses GPIO32's internal pull-up. Firmware: Sigil env `sigil`, the E-ink build.
 JOYSTICK = dict(
     symbol='Joystick_Module_Header', value='ANALOG JOYSTICK HEADER (5-PIN)',
     header=[('GND', 'GND'), ('+5V', '+3V3'), ('VRX', 'JOY_X'), ('VRY', 'JOY_Y'),
@@ -37,7 +37,7 @@ JOYSTICK = dict(
          'ESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\n'
          'Click = PASS, push right = Action, push down = Pause/Win.\n'
          'Axis direction depends on mounting; firmware can swap/invert.\n'
-         'Firmware: Sigil PlatformIO env sigil-joystick.')
+         'Firmware: Sigil PlatformIO env sigil (E-ink build).')
 
 # Each variant: project name, root sheet UUID, the display module's header in
 # physical order (pin 1 first) as (silkscreen label, net, jumper wire colour),

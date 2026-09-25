@@ -1380,17 +1380,6 @@
 		)
 		(uuid "6222e8a0-9d51-5ab3-8261-135830430c06")
 	)
-	(text "Unmarked 5-pin analog thumbstick; pins in module order.\n\"+5V\" pin is fed 3.3 V: VRX/VRY swing to the supply and the\nESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\nClick = PASS, push right = Action, push down = Pause/Win.\nAxis direction depends on mounting; firmware can swap/invert.\nFirmware: Sigil PlatformIO env sigil-joystick."
-		(exclude_from_sim no)
-		(at 290 86.36 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "73f99959-fab7-5d0b-970a-b9d1927b6b33")
-	)
 	(text "blue wire"
 		(exclude_from_sim no)
 		(at 204.47 54.36 0)
@@ -1401,6 +1390,17 @@
 			(justify left top)
 		)
 		(uuid "78fa861d-3485-5c98-b91b-67c51a57f4b7")
+	)
+	(text "Unmarked 5-pin analog thumbstick; pins in module order.\n\"+5V\" pin is fed 3.3 V: VRX/VRY swing to the supply and the\nESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\nClick = PASS, push right = Action, push down = Pause/Win.\nAxis direction depends on mounting; firmware can swap/invert.\nFirmware: Sigil PlatformIO env sigil (E-ink build)."
+		(exclude_from_sim no)
+		(at 290 86.36 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "79df3239-78a7-55f6-ad2c-c2e076d3990b")
 	)
 	(text "Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland e-paper driver board, write-only (GxEPD2_213_B74); no MISO.\nJ2 pins follow the board header, pin 1 = SDI (top).\nBoard switches P1 (3 / 0.47) and P2 (5VIN / 3.3VIN): positions\nnot recorded; with the 3.3 V supply, check P2."
 		(exclude_from_sim no)

@@ -106,7 +106,7 @@ for project, title, prefix, header, rows in VARIANTS:
     report += [f'| {num} | {name} | {net} | {colour} |' for num,name,net,colour in header]
     report.append('')
     if has_joystick:
-        report += ['Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil-joystick` (click = PASS, right = Action, down = Pause/Win).', '',
+        report += ['Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build (click = PASS, right = Action, down = Pause/Win).', '',
             '| Header pin | Module label | Net |', '|---|---|---|']
         report += [f'| {num} | {name} | {net} |' for num,name,net,_ in JOYSTICK_HEADER]
         report.append('')

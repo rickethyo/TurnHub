@@ -36,7 +36,7 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 | 7 | VCC | +3V3 | red |
 | 8 | GND | GND | orange |
 
-Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil-joystick` (click = PASS, right = Action, down = Pause/Win).
+Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build (click = PASS, right = Action, down = Pause/Win).
 
 | Header pin | Module label | Net |
 |---|---|---|
