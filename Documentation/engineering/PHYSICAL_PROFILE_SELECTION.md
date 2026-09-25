@@ -3,8 +3,8 @@
 Status: **Partially implemented locally**: Atlas profile-policy settings,
 authorization checks, Atlas-owned primary-seat persistence and, since
 2026-09-25, a seat-A picker on the e-ink Sigil (host-tested, *Needs
-verification* on hardware). Selectable startup, seat B, the OLED picker and
-duplicate-name labels remain planned. Parts of the proposal below (two-button
+verification* on hardware), shown on the OLED Sigil too as a list.
+Selectable startup, seat B and duplicate-name labels remain planned. Parts of the proposal below (two-button
 input, remembered last profile) predate the five-key menu Sigils; the picker
 section describes what was built.
 
@@ -27,6 +27,11 @@ once per page rather than once per cursor move:
   not listed. A refused choice returns to the list with a reason in words.
 - The picker closes after a minute without a key, when the game starts, or
   when the Sigil is joined another way.
+- **OLED Sigil:** the same page as a list, keeping the OLED's navigation: the
+  names, More names, and Back (Cancel on the first page); on confirm, Yes,
+  join and Back. Up/Down move, Select or Right chooses, Left goes back. The
+  Sigil turns the chosen row into the compass key Atlas expects
+  (`Sigil/include/picker_list.h`), so Atlas has one picker protocol.
 
 Feature gate: state owner Atlas (`profile_picker.cpp` holds only browsing state
 in RAM; the lobby stays authoritative); Intent: the existing `Join` for Guest

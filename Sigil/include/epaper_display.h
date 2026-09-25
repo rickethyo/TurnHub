@@ -25,7 +25,7 @@ class EpaperDisplay final : public SigilDisplay {
       uint8_t secondaryPlayer,
       uint8_t turnNumber,
       uint8_t flags) override;
-  void showPicker(const TurnHubProtocol::ProfilePickerPacket &page) override;
+  void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
 
  private:
   void drawHeader(const char *title, uint8_t sigilId = 0xFF,

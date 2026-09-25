@@ -1,4 +1,5 @@
 #include "sigil_menu.h"
+#include "picker_list.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -145,6 +146,32 @@ int main() {
     assert(!leaver.update(1000).ready);
     const MenuChoice left = leaver.update(10 + DEFAULT_LONG_PRESS_MS);
     assert(left.ready && left.action == A::Leave && left.revision == 5);
+  }
+
+  // OLED picker list: names, More, Back; a chosen row becomes the compass key.
+  {
+    ProfilePickerPacket page{};
+    page.mode = PickerMode::List; page.itemCount = 3; page.page = 0; page.pageCount = 2;
+    PickerRows rows = pickerRows(page);
+    assert(rows.count == 5 && rows.rows[3] == PickerRow::More && rows.rows[4] == PickerRow::Back);
+    uint8_t cursor = 0;
+    PickerKeyCode code = PickerKeyCode::Count;
+    assert(!pickerListKey(page, cursor, Key::Up, code) && cursor == 0);
+    assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Up);
+    assert(!pickerListKey(page, cursor, Key::Down, code) && cursor == 1);
+    assert(pickerListKey(page, cursor, Key::Right, code) && code == PickerKeyCode::Right);
+    cursor = 2; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Down);
+    cursor = 3; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Select);
+    for (int i = 0; i < 5; ++i) pickerListKey(page, cursor, Key::Down, code);
+    assert(cursor == 4 && pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Left);
+    assert(pickerListKey(page, cursor, Key::Left, code) && code == PickerKeyCode::Left);
+    page.pageCount = 1; page.itemCount = 2;
+    assert(pickerRows(page).count == 3);  // Two names and Back; no More.
+    page.mode = PickerMode::Confirm; page.itemCount = 1;
+    rows = pickerRows(page);
+    assert(rows.count == 2 && rows.rows[0] == PickerRow::Yes && rows.rows[1] == PickerRow::Back);
+    cursor = 0; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Select);
+    cursor = 9; assert(!pickerListKey(page, cursor, Key::Up, code) && cursor == 0);  // Stale cursor resets.
   }
 
   // Every action has a short label.

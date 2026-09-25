@@ -21,6 +21,7 @@ class OledDisplay final : public SigilDisplay {
   void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) override;
+  void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
 
  private:
   enum class Align : uint8_t { Left, Center, Right };

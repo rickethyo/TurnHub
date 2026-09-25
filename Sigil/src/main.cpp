@@ -40,6 +40,7 @@
 #define TURNHUB_MENU (TURNHUB_INPUT_JOYSTICK || TURNHUB_INPUT_DPAD)
 #if TURNHUB_MENU
 #include "sigil_menu.h"
+#include "picker_list.h"
 #endif
 #ifndef TURNHUB_STATUS_RING
 #define TURNHUB_STATUS_RING 0
@@ -178,14 +179,17 @@ TurnHubSigil::MenuView publishedMenuView;
 TurnHubSigil::MenuView pendingMenuView;
 bool menuViewChanged = false;
 #endif
-// The e-ink menu Sigil also draws Atlas's profile picker (ProfilePickerPacket).
-#define TURNHUB_PICKER (TURNHUB_MENU && !TURNHUB_DISPLAY_OLED)
+// Menu Sigils also draw Atlas's profile picker (ProfilePickerPacket): the
+// e-ink as a compass, the OLED as a list (picker_list.h).
+#define TURNHUB_PICKER TURNHUB_MENU
 #if TURNHUB_PICKER
 // Latest page from Atlas (guarded by displayProfileMux). While open, the keys
-// go to the picker (PickerKey) instead of the menu.
+// go to the picker (PickerKey) instead of the menu. pickerCursor is the OLED
+// list row, reset on every new page.
 TurnHubProtocol::ProfilePickerPacket pendingPicker{};
 volatile bool pickerActive = false;
 bool pickerChanged = false;
+uint8_t pickerCursor = 0;
 #endif
 SigilDisplay &sigilDisplay = TurnHubSigil::getSigilDisplay();
 
@@ -582,11 +586,12 @@ void updateDisplay() {
   const bool showPicker = pickerActive && sigilId != UNASSIGNED_SIGIL_ID;
   const bool newPage = pickerChanged;
   picker = pendingPicker;
+  const uint8_t cursor = pickerCursor;
   pickerChanged = false;
   portEXIT_CRITICAL(&displayProfileMux);
   if (showPicker) {
     displayNeedsRefresh = false;
-    if (newPage || !pickerShown) sigilDisplay.showPicker(picker);
+    if (newPage || !pickerShown) sigilDisplay.showPicker(picker, cursor);
     pickerShown = true;
     return;
   }
@@ -787,6 +792,7 @@ void handleEspNowReceive(
     portENTER_CRITICAL(&displayProfileMux);
     const bool changed = open != pickerActive ||
         (open && memcmp(&page, &pendingPicker, sizeof(page)) != 0);
+    if (page.revision != pendingPicker.revision || !open) pickerCursor = 0;
     pendingPicker = page;
     pickerActive = open;
     pickerChanged = pickerChanged || changed;
@@ -995,14 +1001,30 @@ void updateMenuKeys() {
       // Keys choose on the picker's page, never a menu action.
       if (keys[k].stableState == LOW) {
         portENTER_CRITICAL(&displayProfileMux);
-        const uint8_t revision = pendingPicker.revision;
+        const TurnHubProtocol::ProfilePickerPacket page = pendingPicker;
+        uint8_t cursor = pickerCursor;
         portEXIT_CRITICAL(&displayProfileMux);
+#if TURNHUB_DISPLAY_OLED
+        // List navigation: Up/Down move locally; a choice becomes the key
+        // the compass would have sent.
+        TurnHubProtocol::PickerKeyCode code = TurnHubProtocol::PickerKeyCode::Left;
+        const bool choose = TurnHubSigil::pickerListKey(page, cursor, key, code);
+        portENTER_CRITICAL(&displayProfileMux);
+        const bool moved = cursor != pickerCursor;
+        pickerCursor = cursor;
+        if (moved) pickerChanged = true;
+        portEXIT_CRITICAL(&displayProfileMux);
+        if (moved) { displayNeedsRefresh = true; notifyDisplayTask(); }
+        if (!choose) continue;
+#else
+        (void)cursor;
+        const auto code = static_cast<TurnHubProtocol::PickerKeyCode>(k);
+#endif
         Serial.print("SIGIL|");
         Serial.print(sigilId);
         Serial.print("|PICKER|KEY|");
-        Serial.println(k);
-        sendPacket(PacketType::PickerKey, TurnHubProtocol::encodePickerKey(
-            static_cast<TurnHubProtocol::PickerKeyCode>(k), revision));
+        Serial.println(static_cast<unsigned>(code));
+        sendPacket(PacketType::PickerKey, TurnHubProtocol::encodePickerKey(code, page.revision));
       } else {
         sigilMenu.keyUp(key, nowMs);
       }

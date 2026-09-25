@@ -1,6 +1,6 @@
 #pragma once
 
-// Sigil profile picker (e-ink Sigil 0.8.0+; see ProfilePickerPacket in
+// Sigil profile picker (menu Sigils 0.8.0+, e-ink and OLED; see ProfilePickerPacket in
 // protocol.h). On a picker Sigil, the menu's Join opens a list of names
 // instead of joining as a guest: Guest first, then the saved profiles by
 // name. Atlas owns the list, the page and the choice; the Sigil draws a page
@@ -18,7 +18,7 @@ namespace TurnHubAtlas {
 // The picker closes by itself after this long without a key.
 constexpr uint32_t PICKER_IDLE_MS = 60000;
 
-// This Sigil draws the picker (menu, e-ink, new enough firmware, not a harness).
+// This Sigil draws the picker (menu, new enough firmware, not a harness).
 bool pickerSigil(uint8_t sigilId);
 bool pickerOpen(uint8_t sigilId);
 // Opens the list on its first page (the menu's Join on a picker Sigil).

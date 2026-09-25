@@ -549,8 +549,8 @@ Privacy direction:
   Atlas and Sigil 0.8.0 both need flashing): Join opens the picker; Guest,
   paging, confirm/back, a "phone sign-in" profile refused with its reason and
   accepted once its owner signs in on a phone, attaching to a phone-joined
-  profile, idle close after a minute, and an OLED or older Sigil still joining
-  as a guest. See [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25).
+  profile, idle close after a minute, and an older Sigil still joining as a
+  guest. The OLED Sigil shows it as a list (Up/Down, Select/Right, Left). See [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25).
 - Forgetting pairings: 10 s Sigil Pair hold; admin Forget one/all with `Unpair`
   reaching an in-range Sigil; the 30/60 s Atlas pairing window.
 

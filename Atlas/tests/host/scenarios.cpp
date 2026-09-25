@@ -1049,7 +1049,8 @@ static void profilePicker() {
   }
   fixtureRecords[2].capabilities |= CAPABILITY_DISPLAY_OLED;
   fixtureRecords[3].firmwareMinor = 7;
-  assert(pickerSigil(1) && !pickerSigil(2) && !pickerSigil(3));
+  fixtureRecords[6].capabilities |= CAPABILITY_HARNESS;
+  assert(pickerSigil(1) && pickerSigil(2) && !pickerSigil(3) && !pickerSigil(6));
   const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
   const auto key = [](uint8_t id, PickerKeyCode k) {
     handlePickerKey(id, encodePickerKey(k, profilePickerPage(id).revision), testNow);
@@ -1107,8 +1108,9 @@ static void profilePicker() {
   pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
   assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
 
-  // An OLED Sigil still joins as a guest at once; a picker Sigil can pick Guest.
-  pick(2, A::Join); assert(lobby.isJoined(2) && !pickerOpen(2));
+  // The OLED Sigil gets the same picker (it draws it as a list); Guest joins.
+  pick(2, A::Join); assert(pickerOpen(2) && !lobby.isJoined(2));
+  key(2, PickerKeyCode::Up); assert(lobby.isJoined(2) && !pickerOpen(2));
   pick(4, A::Join); key(4, PickerKeyCode::Up);
   assert(lobby.isJoined(4) && TurnHubControllers::profileForSeat(4, 1).length() == 0 && !pickerOpen(4));
 

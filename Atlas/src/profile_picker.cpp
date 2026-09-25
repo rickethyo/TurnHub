@@ -211,7 +211,7 @@ bool pickerSigil(uint8_t sigilId) {
   if (record == nullptr || !record->helloInfoValid) return false;
   const uint8_t caps = record->capabilities;
   return (caps & TurnHubProtocol::CAPABILITY_MENU) != 0 &&
-      (caps & (TurnHubProtocol::CAPABILITY_DISPLAY_OLED | TurnHubProtocol::CAPABILITY_HARNESS)) == 0 &&
+      (caps & TurnHubProtocol::CAPABILITY_HARNESS) == 0 &&
       TurnHubProtocol::pickerFirmware(record->firmwareMajor, record->firmwareMinor);
 }
 

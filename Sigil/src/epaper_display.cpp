@@ -74,7 +74,7 @@ void EpaperDisplay::drawKeycap(Key key, int16_t x, int16_t y) {
 
 // Profile picker: a fixed key per name (Up, Right, Down), so one full
 // refresh per page. Each name says in words what choosing it means.
-void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page) {
+void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t) {
   using TurnHubProtocol::PickerMode;
   using TurnHubProtocol::PickerNotice;
   constexpr Key ROW_KEYS[] = {Key::Up, Key::Right, Key::Down};

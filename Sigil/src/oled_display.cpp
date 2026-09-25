@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "picker_list.h"
 #include "display_name.h"
 
 #include <Arduino.h>
@@ -225,6 +226,58 @@ bool OledDisplay::drawMenuList() {
   }
   display_->display();
   return true;
+}
+
+// Profile picker as a list (picker_list.h): the page's names, More names,
+// Back; or "Join as" a name with Yes / Back. Each row says in words what it
+// is, so nothing depends on the highlight alone.
+void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) {
+  if (!ready_) return;
+  using TurnHubProtocol::PickerNotice;
+  constexpr int16_t ROW_HEIGHT = 12;
+  const bool confirm = page.mode == TurnHubProtocol::PickerMode::Confirm;
+  const PickerRows rows = pickerRows(page);
+  if (cursor >= rows.count) cursor = 0;
+  display_->clearDisplay();
+  char position[12] = "";
+  if (!confirm && page.pageCount > 1) {
+    snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(page.page + 1),
+        static_cast<unsigned>(page.pageCount));
+  }
+  header(confirm ? "JOIN AS" : "WHO PLAYS?", position);
+  const int16_t w = display_->width();
+  int16_t y = HEADER_HEIGHT + 2;
+  const char *notice = page.notice == PickerNotice::NeedsPhone ? "Sign in on phone" :
+      page.notice == PickerNotice::Unavailable ? "Not available" :
+      page.notice == PickerNotice::TableFull ? "Table is full" :
+      page.notice == PickerNotice::Failed ? "Try again" : nullptr;
+  if (confirm) {
+    text(page.items[0].name, y, 2, Align::Center);
+    y += 18;
+  } else if (notice) {
+    banner(notice, y, true, Icon::None);
+    y += BANNER_HEIGHT + 1;
+  }
+  // Scroll so the cursor row stays visible.
+  const uint8_t fit = static_cast<uint8_t>((display_->height() - y) / ROW_HEIGHT);
+  const uint8_t first = cursor >= fit ? cursor - (fit - 1) : 0;
+  for (uint8_t i = first; i < rows.count && i < first + fit; ++i, y += ROW_HEIGHT) {
+    const bool selected = i == cursor;
+    if (selected) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
+    char line[32];
+    const PickerRow row = rows.rows[i];
+    if (row == PickerRow::More) snprintf(line, sizeof(line), "More names");
+    else if (row == PickerRow::Yes) snprintf(line, sizeof(line), "Yes, join");
+    else if (row == PickerRow::Back) snprintf(line, sizeof(line), confirm || page.page > 0 ? "Back" : "Cancel");
+    else {
+      const auto &item = page.items[static_cast<uint8_t>(row)];
+      const char *tag = (item.flags & TurnHubProtocol::PICKER_ITEM_LOCKED) ? " (phone)" :
+          (item.flags & TurnHubProtocol::PICKER_ITEM_PLAYING) ? " (attach)" : "";
+      snprintf(line, sizeof(line), "%s%s", item.name, tag);
+    }
+    text(line, y + 1, 1, Align::Left, selected, 3, w - 3);
+  }
+  display_->display();
 }
 
 void OledDisplay::status(const char *headerRight, const char *big,

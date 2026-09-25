@@ -167,11 +167,12 @@ inline bool validGameDisplay(const GameDisplayPacket &p) {
   return true;
 }
 
-// Profile picker (e-ink Sigil 0.8.0+, sent only to Sigils that advertise
-// CAPABILITY_MENU without CAPABILITY_DISPLAY_OLED or CAPABILITY_HARNESS and
-// report at least PICKER_MIN_FIRMWARE). Atlas owns the list, the page and
-// every rule; the Sigil draws the page and reports compass keys. Keys map to
-// fixed places so an e-ink panel redraws once per page, not per cursor move:
+// Profile picker (menu Sigils 0.8.0+: sent only to Sigils that advertise
+// CAPABILITY_MENU without CAPABILITY_HARNESS and report at least
+// PICKER_MIN_FIRMWARE). Atlas owns the list, the page and every rule; the
+// Sigil draws the page and reports compass keys. Keys map to fixed places so
+// an e-ink panel redraws once per page, not per cursor move (the OLED shows a
+// list and turns the chosen row into the same key):
 //   Up, Right, Down: the three names on the page     Left: back / cancel
 //   Select (click): more names (List) or yes (Confirm)
 constexpr uint8_t PICKER_MIN_FIRMWARE_MAJOR = 0;
