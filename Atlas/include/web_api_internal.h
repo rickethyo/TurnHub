@@ -153,6 +153,8 @@ void handleParticipation(WebServer &server, WebControl control);
 void handleProfile(WebServer &server);
 void handleProfilePolicy(WebServer &server);
 void handleAccessibility(WebServer &server);
+void handleJewelColor(WebServer &server);
+void handleSaveJewelColor(WebServer &server);
 void handleSaveAccessibility(WebServer &server);
 void handleProfileStats(WebServer &server);
 void handleProfileStatsExport(WebServer &server);

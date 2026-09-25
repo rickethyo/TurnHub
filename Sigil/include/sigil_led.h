@@ -58,6 +58,10 @@ class SigilLedModel {
   // counter-clockwise in red (direction, not only color), one pixel per
   // point; past six the center lights too. The screen shows the new total.
   void setLifePending(int32_t delta) { lifePending_ = delta; }
+  // A seated profile's chosen colour (SeatColor), used only by the calm
+  // Joined and Waiting cues; every action cue keeps its standard colour. A
+  // shared Sigil shows each seat's colour on its ring half.
+  void applySeatColor(int32_t value);
 
   LedFrame render(uint32_t nowMs) const;
 
@@ -76,6 +80,10 @@ class SigilLedModel {
   uint32_t passAckUntilMs_ = 0;
   uint8_t holdProgress_ = 0;
   int32_t lifePending_ = 0;
+  bool seatColorSet_[2] = {false, false};  // [0] = seat A, [1] = seat B.
+  Rgb seatColor_[2];
+  // The colour for ring pixel i (1-6) of a calm cue, or `standard` if unset.
+  Rgb calmColor(uint8_t pixel, Rgb standard) const;
 };
 
 }  // namespace TurnHubSigil

@@ -923,6 +923,9 @@ void handleEspNowReceive(
     case PacketType::LifeRequest:
       lifeRequest = TurnHubProtocol::decodeLifeRequest(packet.value);
       break;
+    case PacketType::SeatColor:
+      ledModel.applySeatColor(packet.value);
+      break;
     case PacketType::MenuState:
       sigilMenu.applyMenuState(packet.value, millis());
       break;

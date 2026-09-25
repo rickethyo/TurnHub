@@ -107,6 +107,18 @@ bool hasPinForSeat(const uint8_t *mac,uint8_t slot) { return hasPinForProfile(pr
 String deviceName(const uint8_t *) { return String(); }
 bool setDeviceName(const uint8_t *,const String &) { return true; }
 bool loadStatsForProfile(const String &id,ProfileStats &stats,bool *detailed) { if(detailed)*detailed=true; if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
+std::map<std::string, uint32_t> jewelColors;
+bool jewelColorForProfile(const String &id, uint32_t &rgb) {
+  const auto it = jewelColors.find(id.c_str());
+  if (it == jewelColors.end()) return false;
+  rgb = it->second;
+  return true;
+}
+bool saveJewelColorForProfile(const String &id, bool set, uint32_t rgb) {
+  if (!profileExists(id)) return false;
+  if (set) jewelColors[id.c_str()] = rgb; else jewelColors.erase(id.c_str());
+  return true;
+}
 void setLuxuryStore(TurnHubStorage::BlobStore *) {}
 bool luxuryStoreAvailable() { return true; }
 size_t migrateDetailedStats() { return 0; }

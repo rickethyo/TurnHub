@@ -192,6 +192,8 @@ void begin(WebServer &server) {
   route("/api/session/policy", HTTP_POST, handleProfilePolicy);
   route("/api/session/accessibility", HTTP_GET, handleAccessibility);
   route("/api/session/accessibility", HTTP_POST, handleSaveAccessibility);
+  route("/api/session/jewel", HTTP_GET, handleJewelColor);
+  route("/api/session/jewel", HTTP_POST, handleSaveJewelColor);
   route("/api/session/stats", HTTP_GET, handleProfileStats);
   route("/api/session/stats/export", HTTP_GET, handleProfileStatsExport);
   route("/api/session/logout", HTTP_POST, handleLogout);

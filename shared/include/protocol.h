@@ -104,6 +104,9 @@ enum class PacketType : uint8_t {
   // Atlas -> Sigil 0.8.0+: a pending life request for one of this Sigil's
   // players, or none (encodeLifeRequest). Resent with every Hello.
   LifeRequest = 35,
+  // Atlas -> Sigil: a seated profile's chosen Jewel colour for one seat, or
+  // none (encodeSeatColor). Resent with every Hello; older Sigils ignore it.
+  SeatColor = 36,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -618,6 +621,17 @@ inline int32_t encodeLifeResponse(uint8_t target, bool approve, uint8_t tag) {
 inline uint8_t lifeResponseTarget(int32_t v) { return static_cast<uint8_t>(static_cast<uint32_t>(v) & 0x1Fu); }
 inline bool lifeResponseApprove(int32_t v) { return (static_cast<uint32_t>(v) & 0x20u) != 0; }
 inline uint8_t lifeResponseTag(int32_t v) { return static_cast<uint8_t>((static_cast<uint32_t>(v) >> 6) & 0x3Fu); }
+
+// SeatColor payload: bits 0-1 seat (1 = A, 2 = B), bit 2 set (else the
+// default look), bits 8-31 0xRRGGBB. The Sigil uses it only for the calm
+// Joined and Waiting cues; every action cue keeps its standard colour.
+inline int32_t encodeSeatColor(uint8_t slot, bool set, uint32_t rgb) {
+  return static_cast<int32_t>((static_cast<uint32_t>(slot) & 0x03u) | (set ? 0x04u : 0u) |
+      ((rgb & 0xFFFFFFu) << 8));
+}
+inline uint8_t seatColorSlot(int32_t v) { return static_cast<uint8_t>(static_cast<uint32_t>(v) & 0x03u); }
+inline bool seatColorSet(int32_t v) { return (static_cast<uint32_t>(v) & 0x04u) != 0; }
+inline uint32_t seatColorRgb(int32_t v) { return (static_cast<uint32_t>(v) >> 8) & 0xFFFFFFu; }
 
 // Sigil firmware that decodes MenuState2 (the same release as the picker).
 inline bool menuState2Firmware(uint8_t major, uint8_t minor) {

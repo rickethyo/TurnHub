@@ -273,6 +273,60 @@ bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &pr
   return status == TurnHubStorage::Status::Ok;
 }
 
+namespace {
+// Jewel colour cache: profile ID -> colour or none, so the Sigil sync loop
+// never reads the card more than once per profile.
+struct JewelCacheEntry {
+  char id[PROFILE_ID_LENGTH + 1] = {};
+  bool set = false;
+  uint32_t rgb = 0;
+};
+JewelCacheEntry jewelCache[16];
+uint8_t jewelCacheNext = 0;
+JewelCacheEntry *cachedJewel(const String &profileId) {
+  for (auto &entry : jewelCache) {
+    if (entry.id[0] && profileId == entry.id) return &entry;
+  }
+  return nullptr;
+}
+}  // namespace
+
+bool jewelColorForProfile(const String &profileId, uint32_t &rgb) {
+  if (profileId.length() != PROFILE_ID_LENGTH || luxuryStore == nullptr) return false;
+  JewelCacheEntry *entry = cachedJewel(profileId);
+  if (entry == nullptr) {
+    entry = &jewelCache[jewelCacheNext];
+    jewelCacheNext = static_cast<uint8_t>((jewelCacheNext + 1) % 16);
+    *entry = JewelCacheEntry{};
+    strncpy(entry->id, profileId.c_str(), PROFILE_ID_LENGTH);
+    uint8_t record[4] = {};
+    size_t size = 0;
+    if (luxuryStore->read(profileKey('k', profileId).c_str(), record, sizeof(record), size) ==
+            TurnHubStorage::Status::Ok && size == sizeof(record) && record[0] == 1) {
+      entry->set = true;
+      entry->rgb = (static_cast<uint32_t>(record[1]) << 16) | (static_cast<uint32_t>(record[2]) << 8) | record[3];
+    }
+  }
+  rgb = entry->rgb;
+  return entry->set;
+}
+
+bool saveJewelColorForProfile(const String &profileId, bool set, uint32_t rgb) {
+  if (luxuryStore == nullptr || !profileExists(profileId)) return false;
+  const String key = profileKey('k', profileId);
+  TurnHubStorage::Status status;
+  if (set) {
+    const uint8_t record[4] = {1, static_cast<uint8_t>(rgb >> 16), static_cast<uint8_t>(rgb >> 8),
+        static_cast<uint8_t>(rgb)};
+    status = luxuryStore->write(key.c_str(), record, sizeof(record));
+  } else {
+    status = luxuryStore->remove(key.c_str());
+    if (status == TurnHubStorage::Status::NotFound) status = TurnHubStorage::Status::Ok;
+  }
+  if (JewelCacheEntry *entry = cachedJewel(profileId)) *entry = JewelCacheEntry{};
+  return status == TurnHubStorage::Status::Ok;
+}
+
 bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs) {
   if (!preferencesReady || !profileExists(profileId) || !validAccessibilityPrefs(prefs) ||
       statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;

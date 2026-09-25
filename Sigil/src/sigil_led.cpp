@@ -120,7 +120,23 @@ void SigilLedModel::applyLegacyRed(bool on) { semantic_ = false; legacyRed_ = on
 void SigilLedModel::applyLegacyGreen(bool on) { semantic_ = false; legacyGreen_ = on; }
 void SigilLedModel::applyLegacyBlue(uint8_t level) { semantic_ = false; legacyBlue_ = level; }
 
+void SigilLedModel::applySeatColor(int32_t value) {
+  const uint8_t slot = TurnHubProtocol::seatColorSlot(value);
+  if (slot != 1 && slot != 2) return;
+  const uint32_t rgb = TurnHubProtocol::seatColorRgb(value);
+  seatColorSet_[slot - 1] = TurnHubProtocol::seatColorSet(value);
+  seatColor_[slot - 1] = Rgb(static_cast<uint8_t>(rgb >> 16), static_cast<uint8_t>(rgb >> 8),
+      static_cast<uint8_t>(rgb));
+}
+
+Rgb SigilLedModel::calmColor(uint8_t pixel, Rgb standard) const {
+  // Shared: seat A owns pixels 1-3, seat B 4-6; otherwise the focused seat.
+  const uint8_t seat = state_.sharedSeat ? (pixel >= 4 ? 1 : 0) : (state_.seatSlot == 2 ? 1 : 0);
+  return seatColorSet_[seat] ? seatColor_[seat] : standard;
+}
+
 void SigilLedModel::clear() {
+  seatColorSet_[0] = seatColorSet_[1] = false;
   state_ = TurnHubProtocol::LedStateFields();
   semantic_ = false;
   legacyRed_ = legacyGreen_ = false;
@@ -196,7 +212,7 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       break;
     case LedCue::Joined:
       // Player number as that many steady ring pixels.
-      for (uint8_t i = 1; i < LED_PIXELS && i <= s.playerNumber; ++i) frame.pixels[i] = CYAN;
+      for (uint8_t i = 1; i < LED_PIXELS && i <= s.playerNumber; ++i) frame.pixels[i] = calmColor(i, CYAN);
       break;
     case LedCue::ConfirmationNeeded:
     case LedCue::EliminationSelect:
@@ -205,6 +221,10 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
         const bool seatB = i >= 4;
         if (!s.sharedSeat || seatB == (s.seatSlot == 2)) frame.pixels[i] = cueColor;
       }
+      break;
+    case LedCue::Waiting:
+      // Another player's turn: the seat's own colour, at the waiting level.
+      for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = scaled(calmColor(i, cue.color), cue.level);
       break;
     default:
       for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = cueColor;
@@ -221,7 +241,9 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   if (hasOverlay) {
     frame.pixels[LED_CENTER] = scaled(overlay.color, overlay.level);
   } else if (s.cue == LedCue::Joined) {
-    if (s.playerNumber > 6) frame.pixels[LED_CENTER] = CYAN;
+    if (s.playerNumber > 6) frame.pixels[LED_CENTER] = calmColor(1, CYAN);
+  } else if (s.cue == LedCue::Waiting) {
+    frame.pixels[LED_CENTER] = scaled(calmColor(1, cue.color), cue.level);
   } else if (s.cue != LedCue::Unassigned || reduced(s.style)) {
     frame.pixels[LED_CENTER] = cueColor;
   }

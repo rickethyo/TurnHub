@@ -4,6 +4,8 @@
 #include "atlas_app.h"
 #include "serial_log.h"
 #include "web_api.h"
+#include "controller_profiles.h"
+#include "profile_store.h"
 
 namespace TurnHubAtlas {
 
@@ -21,6 +23,9 @@ struct MenuCache {
   // Life request shown on this Sigil (encodeLifeRequest; 0 = none).
   int32_t lifeRequest = 0;
   bool lifeSent = false;
+  // SeatColor per seat (index 0 = A), resent with the menu.
+  int32_t seatColor[2] = {0, 0};
+  bool seatColorSent[2] = {false, false};
 };
 
 MenuCache menus[MAX_PHYSICAL_SIGILS];
@@ -178,6 +183,17 @@ void syncSigilMenus(uint32_t nowMs) {
       cache.lifeSent = false;
       continue;
     }
+    for (uint8_t slot = 1; slot <= 2; ++slot) {
+      const int32_t color = sigilSeatColorFor(id, slot);
+      if (color != cache.seatColor[slot - 1]) {
+        cache.seatColor[slot - 1] = color;
+        cache.seatColorSent[slot - 1] = false;
+      }
+      if (!cache.seatColorSent[slot - 1] &&
+          sigilBus.send(id, TurnHubProtocol::PacketType::SeatColor, color)) {
+        cache.seatColorSent[slot - 1] = true;
+      }
+    }
     const int32_t request = sigilLifeRequestFor(id);
     if (request != cache.lifeRequest) {
       cache.lifeRequest = request;
@@ -188,6 +204,13 @@ void syncSigilMenus(uint32_t nowMs) {
       cache.lifeSent = true;
     }
   }
+}
+
+int32_t sigilSeatColorFor(uint8_t sigilId, uint8_t slot) {
+  uint32_t rgb = 0;
+  const String profile = TurnHubControllers::profileForSeat(sigilId, slot);
+  const bool set = profile.length() > 0 && TurnHubProfiles::jewelColorForProfile(profile, rgb);
+  return TurnHubProtocol::encodeSeatColor(slot, set, set ? rgb : 0);
 }
 
 int32_t sigilLifeRequestFor(uint8_t sigilId) {
@@ -211,6 +234,7 @@ void invalidateSigilMenu(uint8_t sigilId) {
   if (sigilId < MAX_PHYSICAL_SIGILS) {
     menus[sigilId].sent = false;
     menus[sigilId].lifeSent = false;
+    menus[sigilId].seatColorSent[0] = menus[sigilId].seatColorSent[1] = false;
   }
 }
 

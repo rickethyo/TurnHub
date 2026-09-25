@@ -120,5 +120,31 @@ int main() {
   m.clear();
   assert(lit(m.render(0)) == 0);
 
+  // Seat colours: only the calm cues (Joined, Waiting) take them; action cues
+  // keep their standard colours; a shared Sigil splits the ring by seat.
+  {
+    SigilLedModel c;
+    c.applySeatColor(encodeSeatColor(1, true, 0xFF8800));
+    c.applyLedState(led(LedCue::Waiting), 0);
+    LedFrame w = c.render(0);
+    assert(w.pixels[1].r > w.pixels[1].b && w.pixels[1].g > 0 && w.pixels[6] == w.pixels[1]);
+    c.applyLedState(led(LedCue::Joined, 0, 2), 0);
+    LedFrame j = c.render(0);
+    assert(j.pixels[1] == Rgb(255, 136, 0) && j.pixels[2] == j.pixels[1] && dark(j.pixels[3]));
+    c.applyLedState(led(LedCue::YourTurn), 0);
+    assert(c.render(0).pixels[1].r == 0);  // Your turn stays green.
+    c.applySeatColor(encodeSeatColor(2, true, 0x0000FF));
+    c.applyLedState(led(LedCue::Waiting, 0, 0, 1, true), 0);
+    LedFrame sh = c.render(0);
+    assert(sh.pixels[1].r > 0 && sh.pixels[4].b > 0 && sh.pixels[4].r == 0);
+    c.applySeatColor(encodeSeatColor(1, false, 0));
+    c.applyLedState(led(LedCue::Waiting), 0);
+    assert(c.render(0).pixels[1].r == 0 && c.render(0).pixels[1].b > 0);  // Back to blue.
+    c.applySeatColor(encodeSeatColor(1, true, 0xFF0000));
+    c.clear();
+    c.applyLedState(led(LedCue::Waiting), 0);
+    assert(c.render(0).pixels[1].r == 0);  // Unpaired: colours forgotten.
+  }
+
   std::cout << "LED wire format, cue rendering, seat halves, overlays and local states passed\n";
 }

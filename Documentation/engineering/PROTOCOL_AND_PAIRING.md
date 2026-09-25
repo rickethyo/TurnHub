@@ -151,6 +151,16 @@ resent with every Hello; the Sigil answers `LifeResponse = 17` (target,
 approve, tag) and Atlas dispatches `RespondLifeChange` only if the tag still
 matches the pending request. *Needs verification* on hardware.
 
+**Jewel colour (2026-09-25).** `SeatColor = 36` (Atlas -> Sigil, value: seat,
+set bit, 0xRRGGBB) carries the colour a seated profile chose in the portal,
+per seat, resent with every Hello; older Sigils ignore it. Sigils apply it only
+to the calm Joined and Waiting cues; every action cue keeps its standard
+colour, and patterns still carry every meaning. Feature gate: state owner is
+the profile (a luxury record `k<profileId>` on the microSD card, cached in RAM;
+no card means no colour); no new Intent (a profile setting, like accessibility,
+via `GET`/`POST /api/session/jewel` for the signed-in profile only); rendering
+on both Sigils' Jewel; no new dependency. *Needs verification* on hardware.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

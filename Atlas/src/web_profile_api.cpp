@@ -307,6 +307,61 @@ void sendAccessibility(WebServer &server, const TurnHubProfiles::AccessibilityPr
 }
 }  // namespace
 
+// The signed-in profile's Jewel colour ("#rrggbb" or null). It lives on the
+// microSD card, so without one the response says so and saving is refused.
+void handleJewelColor(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendError(server, 401, "Sign into your profile to see its Jewel colour");
+    return;
+  }
+  uint32_t rgb = 0;
+  const bool set = TurnHubProfiles::jewelColorForProfile(sessionProfileId(*session), rgb);
+  char color[8];
+  snprintf(color, sizeof(color), "#%06lx", static_cast<unsigned long>(rgb));
+  String body = "{\"ok\":true,\"card\":";
+  body += TurnHubProfiles::luxuryStoreAvailable() ? "true" : "false";
+  body += ",\"color\":";
+  if (set) { body += '"'; body += color; body += '"'; } else { body += "null"; }
+  body += '}';
+  sendJson(server, 200, body);
+}
+
+// color=#rrggbb sets it; color=none returns to the default lights.
+void handleSaveJewelColor(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendError(server, 401, "Sign into your profile to change its Jewel colour");
+    return;
+  }
+  if (!TurnHubProfiles::luxuryStoreAvailable()) {
+    sendError(server, 503, "The Jewel colour is saved on the microSD card; insert one first");
+    return;
+  }
+  const String value = server.arg("color");
+  bool set = value != "none";
+  uint32_t rgb = 0;
+  if (set) {
+    bool valid = value.length() == 7 && value[0] == '#';
+    for (size_t i = 1; valid && i < 7; ++i) {
+      const char c = value[i];
+      const int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 :
+          c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+      valid = digit >= 0;
+      rgb = (rgb << 4) | static_cast<uint32_t>(digit < 0 ? 0 : digit);
+    }
+    if (!valid) {
+      sendError(server, 400, "color must be #rrggbb or none");
+      return;
+    }
+  }
+  if (!TurnHubProfiles::saveJewelColorForProfile(sessionProfileId(*session), set, rgb)) {
+    sendError(server, 503, "The Jewel colour could not be saved to the card");
+    return;
+  }
+  handleJewelColor(server);
+}
+
 // Per-player accessibility preferences. Like the profile policy, these are
 // profile settings rather than table state: only the signed-in profile reads
 // or changes its own, and the portal and Android use this same endpoint.

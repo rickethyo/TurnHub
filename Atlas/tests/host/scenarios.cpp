@@ -66,6 +66,7 @@ static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
 static int32_t fixtureMenuState2[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureLifeRequest[MAX_PHYSICAL_SIGILS]{};
+static int32_t fixtureSeatColor[MAX_PHYSICAL_SIGILS][2]{};  // [id][slot & 1]: A at 1, B at 0.
 static int32_t fixtureHarnessCommand=-1;
 static unsigned fixtureHarnessCommands=0;
 static int fixtureFactoryResetSigil=-1;
@@ -77,6 +78,7 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState2&&fixtureRadio) { fixtureMenuState2[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::LifeRequest&&fixtureRadio) fixtureLifeRequest[id]=value;
+  if(type==TurnHubProtocol::PacketType::SeatColor&&fixtureRadio) fixtureSeatColor[id][TurnHubProtocol::seatColorSlot(value)&1]=value;
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
   if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
@@ -1196,6 +1198,38 @@ static void sigilLife() {
     record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
   }
   resetSigilMenus(); enterEmptyLobby();
+}
+
+// Jewel colour: the signed-in profile sets or clears it; a seat bound to that
+// profile gets a SeatColor on 0.8.0+ Sigils, and a guest seat gets none.
+static void jewelColors() {
+  using namespace TurnHubProtocol;
+  enterEmptyLobby(); TurnHub::fixtureRadio = true;
+  String id;
+  const String owner = registerPhone("Jewel owner", id);
+  assert(request("/api/session/jewel", "", {}, HTTP_GET) == 401);
+  assert(request("/api/session/jewel", owner, {}, HTTP_GET) == 200 && server.body.find("\"color\":null") != std::string::npos);
+  for (const char *bad : {"ff8800", "#ff88", "#gg8800", "#ff88001"})
+    assert(request("/api/session/jewel", owner, {{"color", bad}}) == 400);
+  assert(request("/api/session/jewel", owner, {{"color", "#FF8800"}}) == 200);
+  assert(server.body.find("\"color\":\"#ff8800\"") != std::string::npos);
+  for (auto &record : TurnHub::fixtureRecords) {
+    record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
+    record.firmwareMajor = 0; record.firmwareMinor = 8;
+  }
+  resetSigilMenus();
+  assert(TurnHubProfiles::bindSeatToProfile(TurnHub::fixtureRecords[0].mac, 1, id));
+  int32_t c = sigilSeatColorFor(0, 1);
+  assert(seatColorSet(c) && seatColorRgb(c) == 0xFF8800 && seatColorSlot(c) == 1);
+  assert(!seatColorSet(sigilSeatColorFor(0, 2)) && !seatColorSet(sigilSeatColorFor(1, 1)));
+  syncSigilMenus(testNow); assert(TurnHub::fixtureSeatColor[0][1] == c);
+  assert(request("/api/session/jewel", owner, {{"color", "none"}}) == 200 && server.body.find("\"color\":null") != std::string::npos);
+  assert(!seatColorSet(sigilSeatColorFor(0, 1)));
+  syncSigilMenus(testNow); assert(!seatColorSet(TurnHub::fixtureSeatColor[0][1]));
+  for (auto &record : TurnHub::fixtureRecords) {
+    record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
+  }
+  resetSigilMenus(); enterEmptyLobby(); ProfileFixture::bindings.clear();
 }
 
 // Menu Sigils: availability per state, the default action, MenuState
@@ -2570,6 +2604,7 @@ int main() {
   ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
   profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
   sigilLife(); std::cout<<"PASS Sigil life: AdjustLife availability, batched own-life changes, requests shown and answered with tag checks\n";
+  jewelColors(); std::cout<<"PASS Jewel colour: endpoint, validation, card-backed setting, SeatColor per bound seat\n";
   sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";

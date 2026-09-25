@@ -534,6 +534,11 @@ Privacy direction:
   the Table screen's 2 s Master pass hold passing a stuck turn at once with an
   `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
   speaker levels, lowered about 10% the same day, at each volume setting.
+- Jewel colour per profile (2026-09-25, host-tested, *Needs verification*):
+  pick a colour in the portal (needs the SD card); the Jewel shows it in the
+  lobby and while waiting, action cues unchanged, shared Sigils split by seat.
+- E-ink partial refresh with clean-ups (2026-09-25, *Needs verification*):
+  tune with `epd max/idle` over serial and report fading.
 - Sigil life (2026-09-25, host-tested, *Needs verification*): Left/Right
   change life on both Sigils (tap, hold, fives after 1.5 s), one send 2 s after
   the last press, the e-ink Jewel showing the running total; life requests

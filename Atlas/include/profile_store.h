@@ -86,6 +86,12 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
 bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs);
 bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs);
 
+// The profile's Jewel colour (0xRRGGBB): a luxury setting on the microSD
+// card (key k<profileId>), so without a card there is none. Reads are cached
+// in RAM; saving (set = false removes it) refreshes the cache.
+bool jewelColorForProfile(const String &profileId, uint32_t &rgb);
+bool saveJewelColorForProfile(const String &profileId, bool set, uint32_t rgb);
+
 // Statistics are split (owner decision 2026-09-25): a small core record in
 // NVS (games played and won, last result and game profile) that every Atlas
 // keeps, and the full v1 record as luxury data on the microSD card. Without

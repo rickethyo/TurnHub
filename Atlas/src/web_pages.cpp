@@ -559,6 +559,11 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
  </section>
  <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Sigil accessibility</h2><p class="small">Saved with your profile on Atlas. Follows you to whichever Sigil you sit at.</p></div></div>
   <div id="sigilAccessSignedOut" class="notice info"><p>Sign in to choose how your Sigil sounds, how its lights behave and how long its buttons must be held.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
+  <div id="jewelBox" hidden style="margin-bottom:14px"><label for="jewelColor">Sigil light colour</label>
+   <div class="inline" style="align-items:center;gap:8px"><input id="jewelColor" type="color" value="#00c8c8" aria-describedby="jewelHelp" style="width:64px;height:40px">
+   <button type="button" onclick="saveJewel(jewelColor.value)">Use this colour</button><button type="button" onclick="saveJewel('none')">Standard colours</button></div>
+   <p id="jewelHelp" class="hint">Your Sigil's ring glows in this colour while you wait in the lobby and between your turns, so you can spot your seat. Turns, pauses, warnings and wins keep their usual colours. Saved on Atlas's microSD card.</p>
+   <p id="jewelStatus" class="msg" role="status" aria-live="polite"></p></div>
   <form id="sigilAccessForm" hidden onsubmit="saveSigilAccess(event)"><fieldset id="sigilAccessFields"><legend class="sr-only">Sigil accessibility</legend>
    <div class="switch-row"><div><label for="sigilSoundToggle">Sigil sound</label><small id="sigilSoundHelp">Buzzer tones on your Sigil. Everything a tone means also shows as text here and on the Sigil screen. A shared Sigil stays quiet if either player turns sound off.</small></div><input id="sigilSoundToggle" type="checkbox" aria-describedby="sigilSoundHelp"></div>
    <fieldset style="margin-top:14px"><legend>Sigil lights</legend>
@@ -675,6 +680,8 @@ function holdChoices(select,min,max,step,value,defaultMs){select.innerHTML='';fo
 function renderSigilAccess(d){sigilAccessLimits=d.limits;sigilSoundToggle.checked=!!d.sigilSound;document.querySelectorAll('input[name=ledStyle]').forEach(r=>r.checked=r.value===d.ledStyle);
  holdChoices(longPressSelect,d.limits.longPressMinMs,d.limits.longPressMaxMs,d.limits.stepMs,d.longPressMs,2000);holdChoices(winHoldSelect,d.limits.winHoldMinMs,d.limits.winHoldMaxMs,d.limits.stepMs,d.winHoldMs,5000);
  sigilAccessStatus.textContent=d.stored?'':'Your saved Sigil settings could not be read, so defaults are shown. Saving replaces them.'}
+async function loadJewel(){try{const r=await fetch('/api/session/jewel',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unavailable');jewelBox.hidden=false;if(d.color)jewelColor.value=d.color;jewelStatus.textContent=!d.card?'Insert a microSD card in Atlas to choose a colour.':d.color?'Current colour: '+d.color:'Using the standard colours.'}catch(e){jewelBox.hidden=true}}
+async function saveJewel(color){try{const r=await fetch('/api/session/jewel',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({color})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');jewelStatus.textContent=d.color?'Saved: '+d.color+'. Your Sigil updates within a few seconds.':'Back to the standard colours.'}catch(e){jewelStatus.textContent=e.message}}
 async function loadSigilAccess(){sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sigil settings are unavailable');renderSigilAccess(d);sigilAccessFields.disabled=false}catch(e){sigilAccessStatus.textContent=e.message}}
 async function saveSigilAccess(event){event.preventDefault();const style=document.querySelector('input[name=ledStyle]:checked');const longMs=Number(longPressSelect.value),winMs=Number(winHoldSelect.value);
  if(sigilAccessLimits&&winMs<longMs+sigilAccessLimits.minGapMs){sigilAccessStatus.textContent='Choose a win hold at least one second longer than the pause hold.';winHoldSelect.focus();return}
@@ -750,7 +757,7 @@ function renderSession(){
  if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;sigilAccessOwner=null;sigilAccessForm.hidden=true;sigilAccessSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';return}
  const policyOwnerChanged=profilePolicyOwner!==sessionInfo.profileId;
  if(policyOwnerChanged){profilePolicyDirty=false;profilePolicyOwner=sessionInfo.profileId}
- if(sigilAccessOwner!==sessionInfo.profileId){sigilAccessOwner=sessionInfo.profileId;sigilAccessForm.hidden=false;sigilAccessSignedOut.hidden=true;loadSigilAccess()}
+ if(sigilAccessOwner!==sessionInfo.profileId){sigilAccessOwner=sessionInfo.profileId;sigilAccessForm.hidden=false;sigilAccessSignedOut.hidden=true;loadSigilAccess();loadJewel()}
  profilePolicyFields.disabled=!sessionInfo.policyAvailable;
  if(!profilePolicyDirty&&sessionInfo.policyAvailable){
    allowPhysicalWithoutPin.checked=!!sessionInfo.allowPhysicalWithoutPin;
