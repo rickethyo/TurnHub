@@ -20,6 +20,10 @@ constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
 constexpr uint8_t CAPABILITY_GAME_DISPLAY = 0x04;
 // The Sigil applies InputTiming packets (adjustable hold thresholds).
 constexpr uint8_t CAPABILITY_INPUT_TIMING = 0x08;
+// The Sigil has the 1.3" OLED display (the sigil-oled build). Atlas seats one
+// player on it: shared seating (Seat B) is e-paper only. E-paper Sigils, and
+// firmware from before this bit existed, leave it clear.
+constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
 // accessibility preferences and sends them in InputTiming; the Sigil applies

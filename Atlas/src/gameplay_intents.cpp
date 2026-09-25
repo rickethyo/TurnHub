@@ -244,12 +244,12 @@ IntentResult handleTogglePauseIntent(const Intent &intent, void *) {
 // --- Ending a match as a draw ---------------------------------------------------
 
 // The table's way out of a match nobody can or wants to finish, including one
-// restored after a power loss. Only the Atlas master button can ask, so it
+// restored after a power loss. Only the Atlas touchscreen hold can ask, so it
 // needs someone at the table. It overrides open table decisions (a win claim,
 // an elimination selection, a queued PASS); statistics record a draw once.
 IntentResult handleEndMatchIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
-    return IntentResult::reject(IntentStatus::Unauthorized, "Hold the Atlas master button to end the match");
+    return IntentResult::reject(IntentStatus::Unauthorized, "Hold End match on the Atlas screen to end the match");
   }
   if (!gameInProgress()) {
     return IntentResult::reject(IntentStatus::InvalidState, "No match is in progress");

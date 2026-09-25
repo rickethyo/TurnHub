@@ -91,6 +91,8 @@ extern CounterControlCallback counterControlHandler;
 extern ModerateCallback moderateHandler;
 extern DeviceIntentCallback deviceHandler;
 extern PairingWindowCallback readPairingWindow;
+extern PresenceCallback presenceConfirmed;
+extern SpeakerVolumeCallback readSpeakerVolume;
 extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
@@ -102,8 +104,10 @@ void sendJson(WebServer &server, int status, const String &body);
 void sendError(WebServer &server, int status, const String &message);
 // {"ok":true,"message":"<message>"}
 void sendOkMessage(WebServer &server, const String &message);
-// Sends 403 unless the physical master button is held.
-bool requireMasterButton(WebServer &server);
+// True while admin is unlocked on the Atlas touchscreen (physical presence).
+bool physicalPresence();
+// Sends 403 unless admin is unlocked on the Atlas touchscreen.
+bool requirePhysicalPresence(WebServer &server);
 
 // --- Identity helpers (web_admin_api.cpp) -------------------------------------
 
@@ -172,6 +176,9 @@ void handleDeviceName(WebServer &server);
 void handleForgetDevice(WebServer &server);
 void handlePairingSettings(WebServer &server);
 void handleSavePairingSettings(WebServer &server);
+void handleSpeakerSettings(WebServer &server);
+void handleSaveSpeakerSettings(WebServer &server);
+void handleResetTable(WebServer &server);
 void handleNetworkInfo(WebServer &server);
 void handleNetworkPassword(WebServer &server);
 void handleSerialLogDownload(WebServer &server);

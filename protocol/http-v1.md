@@ -93,8 +93,8 @@ only in the lobby (409 otherwise); invalid values return 400. See
 ## Draws
 
 `state: "GAME_OVER"` with `winnerPlayer: null` means the match ended as a draw:
-someone held the Atlas master button for 5 seconds during a running or paused
-match (2026-09-24). No new field was added; before this change no finished match
+someone held End match on the Atlas touchscreen for 5 seconds during a running
+or paused match (2026-09-24; originally the Atlas master button, which is gone). No new field was added; before this change no finished match
 could lack a winner. Clients should say "Draw" rather than "Winner: none". Every
 participant's statistics count one game played; the last-game result reads
 `"Draw"` (or `"Eliminated"` for a player already out).

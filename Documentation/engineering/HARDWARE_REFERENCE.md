@@ -85,7 +85,8 @@ status LED and Pair LED, none of which are carried over.
 - 2.8" 240x320 ILI9341V TFT, XPT2046 resistive touch controller.
 - microSD slot, common-anode RGB LED, speaker amplifier with connector,
   battery connector with charging circuit and a battery-voltage ADC.
-- RESET (EN) and BOOT (IO0) buttons.
+- RESET (EN) and BOOT (IO0) buttons. Both are for flashing and resets only;
+  the firmware reads neither. The touchscreen is Atlas's only physical input.
 
 PlatformIO (`Atlas/platformio.ini`): Espressif32, board `esp32dev`, Arduino,
 115200 baud, partition table `min_spiffs.csv` (two 1.9 MB OTA app slots, NVS at
@@ -96,25 +97,59 @@ cannot change it. Display library: LovyanGFX.
 
 | Function | GPIO | Notes |
 |---|---:|---|
-| Master button | 0 | On-board BOOT button, active low. Firmware only samples it after boot. |
 | TFT SCK / MOSI / MISO | 14 / 13 / 12 | HSPI, display only |
 | TFT CS / DC | 15 / 2 | Reset is the shared EN line |
 | TFT backlight | 21 | Active high (PWM) |
 | Touch SCK / MOSI / MISO | 25 / 32 / 39 | XPT2046, read by bit-banged SPI (HSPI is the TFT's, VSPI is kept for microSD) |
 | Touch CS / IRQ | 33 / 36 | Active low |
-| microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Mounted at boot at 4 MHz (`SD_SPI_HZ`), never formatted; FAT32 cards only. Optional storage, see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage). Built and host-tested, not yet tried on the board |
+| microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Mounted at boot at 4 MHz (`SD_SPI_HZ`), never formatted; FAT32 cards only. Optional storage, see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage). *Verified* on the board by the owner (2026-09-24): the card mounts and registers |
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
 | RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot |
-| Speaker amp enable | 4 | Active low. Held disabled at boot |
-| Speaker audio (DAC) | 26 | Not used yet |
+| Speaker amp enable | 4 | Active low. On only while a tone plays |
+| Speaker audio (DAC) | 26 | DAC channel 2 cosine generator (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
 | Battery voltage ADC | 34 | Input only. Not used yet |
 
-Master button (BOOT): holding it proves physical presence for system settings
-and OTA (Lobby/Game Over only). Releasing it passes for the active player.
-Holding it for 5 seconds (`MASTER_END_MATCH_HOLD_MS`) during a running or paused
-match ends the match as a draw. From 1 second into such a hold, the TFT shows
-"Keep holding BOOT to end match: N s" (this replaces the old status-LED blink).
+**No master button (owner decision, 2026-09-24).** The firmware no longer
+reads BOOT (IO0) or any other button. Everything the master button did now
+happens on the touchscreen:
+
+- **Physical presence:** hold **Unlock admin** for 3 seconds
+  (`ADMIN_UNLOCK_HOLD_MS`) in the Lobby or at Game Over. That opens a 60-second
+  admin unlock window (`ADMIN_UNLOCK_WINDOW_MS`), shown as a countdown on the
+  screen and on the portal's Developer status. While it is open, an account
+  with the right permission can make itself the first Admin, save network
+  settings, rename devices, start an OTA update (Lobby/Game Over only), or
+  **Return table to lobby** (Admin; ends a match in progress as a draw, then
+  empties the table).
+  Tapping **Admin unlocked: tap to lock** closes it early. The window only
+  proves someone is at the table; the account permission checks still apply.
+- **Pass** for the active player: the touchscreen's Pass button.
+- **End a match as a draw:** hold **End match** for 5 seconds (`END_MATCH_HOLD_MS`).
+
 *Needs verification* on hardware.
+
+### Atlas speaker
+
+The on-board amplifier and speaker play the **table-wide** cues, so players
+without a Sigil (a browser or phone) hear them too: the start countdown and its
+cancellation, game start, each turn change, the turn-timer warning and expiry,
+pause and resume, eliminations, win claim/confirm/deny/cancel, and game over.
+Per-Sigil feedback (joining, shared seats, starter selection, nudges, decisions
+waiting on one Sigil) stays on that Sigil's buzzer. Every cue also shows on the
+Atlas screen, Sigils and portal, so sound is never the only signal
+([Accessibility](ACCESSIBILITY.md)).
+
+`AudioController` sends a cue's notes to the Sigils in its target mask; the
+speaker is the mask's bit 15 (`ATLAS_SPEAKER_MASK`). `atlas_speaker.cpp`
+(firmware-only) plays each note on the DAC cosine generator on IO26 and keeps
+the amplifier enabled (IO4 low) only while a note plays, so an idle speaker does
+not hiss. Volume is an Admin setting in the portal (System), saved as the
+`spkvol` NVS blob: Off, Low, Medium (default) or High, which scale the waveform
+to 1/8, 1/4 and 1/1. Off silences only the Atlas speaker; each Sigil still
+follows its seated players' sound preference.
+
+*Needs verification* on hardware: loudness at each level, tone quality through
+the DAC, and that the amplifier stays quiet between notes.
 
 ### Atlas touchscreen
 
@@ -125,14 +160,17 @@ line (pairing countdown, player and Sigil counts, whose turn it is, time left,
 a pending pass, or the result), a line for action messages, and touch buttons.
 The display (`atlas_display.cpp`) only draws. `touch_controls.cpp` builds the
 screen and holds the touch adapter, which dispatches Intents with
-`IntentOrigin::AtlasHardware`, just as the master button does:
+`IntentOrigin::AtlasHardware`. The one exception is Unlock admin, which only
+opens the physical-presence window in `front_panel.cpp` and changes no table
+state:
 
 | State | Buttons | Intent |
 |---|---|---|
 | Lobby | Pair a Sigil | `PairRequest` (replaces the Pair button) |
+| Lobby, Game Over | Hold to unlock admin (3 s), then Admin unlocked: tap to lock | Opens/closes the admin unlock window; no Intent |
 | Running | Pass, Pause | `Pass` / `Pause` for the active seat |
 | Paused | Resume | `Resume` for the active seat |
-| Running, Paused | Hold to end match (draw) | `EndMatch` after `MASTER_END_MATCH_HOLD_MS`, with an on-screen countdown |
+| Running, Paused | Hold to end match (draw) | `EndMatch` after `END_MATCH_HOLD_MS` (5 s), with an on-screen countdown |
 
 Taps act on release inside the same button, and sliding off cancels. A contact
 gap shorter than `TOUCH_RELEASE_MS` (60 ms) counts as the same press, because
@@ -193,9 +231,9 @@ really is common-anode.
 | Red LED | 13 | Current development wiring |
 | Pass button | 26 | Current development wiring |
 | Action button | 25 | Current development wiring |
-| Pause / Win button | 32 | Breadboard A17; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
+| Pause / Win button | 32 | Breadboard J13; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
 | Buzzer | 33 | Current development wiring |
-| Pair button | 19 | Verified working firmware and rear-photo socket J18; closes to J17/GND, INPUT_PULLUP |
+| Pair button | 19 | Verified working firmware and rear-photo socket A12; closes to A13/GND, INPUT_PULLUP |
 
 ### E-ink interface
 
@@ -205,10 +243,10 @@ really is common-anode.
 | EPD DC | 16 | Verified in display class |
 | EPD RST | 22 | Verified in display class |
 | EPD BUSY | 21 | Verified in display class |
-| EPD SCLK | 18 | Explicit SPI.begin configuration; socket J19 |
-| EPD MOSI | 23 | Explicit SPI.begin configuration; socket J12 |
+| EPD SCLK | 18 | Explicit SPI.begin configuration; socket A11 |
+| EPD MOSI | 23 | Explicit SPI.begin configuration; socket A18 |
 
-GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view. Socket positions follow the breadboard rotated 180° (2026-09-24; *Needs verification* on the rewired board): A29 is top-left, J29 top-right; J18 is GPIO19 and J17 is GND. The photo still shows the pre-rotation labels (old A*n* = J*(30−n)*, old J*n* = A*(30−n)*).
+GPIO19 is explicitly detached from SPI MISO for the Pair button; the display is write-only. See the [Rev A electrical draft and unresolved parts/mechanics](../../KiCad/PCB/Sigilv1/README.md) and [38-position socket / firmware cross-check tables](../../KiCad/PCB/Sigilv1/CROSS_CHECK.md). Rev A sockets the complete removable DevKit, not a bare ESP32-WROOM module. The authoritative socket photograph is a BACK view: J1 (5V) is top-left, A1 (CLK) top-right; A12 is GPIO19 and A13 is GND. Rev A is drawn twice, `Sigil_EInk` and `Sigil_OLED`, which differ only in the display interface. Since 2026-09-24 neither schematic carries the buttons or LEDs, which are being redesigned; the breadboard wiring in this table is the current firmware's.
 
 The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-ink target in the present implementation.
 
@@ -216,13 +254,27 @@ The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-i
 
 A separate `sigil-oled` build selects the OLED renderer while `sigil` and
 `sigil-wokwi` keep e-paper. The owner's 2026-09-24 photos show an Inland
-1.3-inch OLED V2.0 board with IIC/SPI markings. The matching KS0056 vendor
-example supports a **likely SH1106 128x64 SPI** identification; the actual
-jumper mode, pin order, power/reset arrangement and ESP32 wiring remain
-**Needs verification**. No OLED GPIO map is approved or inherited from the
-e-paper table above. `Sigil/include/oled_config.h` keeps all hardware values
-unset; unconfigured builds skip OLED initialization. See
+1.3-inch OLED V2.0 board with IIC/SPI markings. It runs over 4-wire SPI on the
+e-paper's GPIOs (CLK 18, MOSI 23, RES 22, DC 16, CS 17; GPIO21 unused) at 3.3 V,
+as selected in `Sigil/include/oled_config.h`; the owner verified that wiring and
+a working image on 2026-09-24. The SH1106 128x64 controller is inferred from the
+KS0056 vendor example and still **Needs verification**. The OLED header order and
+wire colours are in the `Sigil_OLED` schematic. See
 [display selection, sources, configuration and verification](../../Sigil/DISPLAY.md).
+
+**Limitation (owner decision, 2026-09-24): the OLED Sigil is single-player only.**
+Seat one player on it; shared seating (Seat A and Seat B on one Sigil) is not
+supported on the OLED variant. Use an e-paper Sigil for a shared seat.
+Atlas enforces it (2026-09-24): the OLED build reports
+`CAPABILITY_DISPLAY_OLED` (0x10) in its Hello, and Atlas then refuses Seat B on
+that Sigil (the Action + PASS chord, or any Seat B join) with "This Sigil has an
+OLED display and seats one player; use an e-paper Sigil to share a seat". It also
+refuses to start a game while an OLED Sigil still has a Seat B joined before it
+reported its display (for example, one reflashed while seated). The portal's
+device list shows each Sigil's display: "OLED: 1 player" or "E-paper: up to 2
+players". Sigils without the bit (e-paper, and older firmware) keep shared
+seating, so an OLED Sigil must run Sigil firmware 0.5.6 or later. Host-tested;
+*Needs verification* on hardware.
 
 ### Current control timing
 
@@ -248,7 +300,7 @@ The current controls extend the original two-button layout:
 - **Pause / Win auxiliary button** - tap emits the prior Action-long semantic; a 5-second hold emits Action-long then Action-win once, without pausing at 2 seconds. Release after a win hold emits no additional action.
 - **Pair button** - now implemented and verified on GPIO19; no longer a planned GPIO assignment.
 
-The Pause / Win auxiliary control uses GPIO32 / A17 on the breadboard. The Rev A schematic now carries it as net BTN_PAUSE with switch SW5 to GND (2026-09-24, checked against firmware by `verify_schematic.py`; not a hardware check). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
+The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. The Rev A schematics no longer draw it (buttons and LEDs were removed on 2026-09-24 pending the controls redesign). The older GPIO4 auxiliary and GPIO32 display-detect labels are gone. Remaining ergonomics should be finalized after physical playtesting.
 
 ### Display orientation direction
 

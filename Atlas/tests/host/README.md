@@ -18,6 +18,9 @@ and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
 guest reads/writes, temporary bindings, legacy remember-key cleanup and placeholder filtering before
 the account limit. No saved user records are deleted by this filtering.
 
+`src/atlas_speaker.cpp` (ESP32 DAC) and `src/sd_card.cpp` (Arduino SD) are
+firmware-only too; `test_globals.cpp` stubs them (no speaker, no card), and the
+speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
 `src/atlas_display.cpp` is firmware-only (it needs LovyanGFX), so it is not in
 any runner's source list. `test_globals.cpp` provides a no-op `beginAtlasDisplay()`.
 
@@ -80,10 +83,11 @@ Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolv
 HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
 It also checks policy saving/reloading and that polling preserves unsaved choices.
 The gameplay executable also covers ending a match as a draw through the real
-master-button adapter (hold threshold, short-press PASS, overrides, statistics
-once, recovery validation) and admin device management (forget one/all Sigils,
+touchscreen adapter (hold threshold, overrides, statistics once, recovery
+validation), the touchscreen Unlock admin window, the OLED one-player limit, the
+Atlas speaker's cue routing and volume setting, and admin device management (forget one/all Sigils,
 seated/in-game refusal, storage failure, the 15/30/60-second pairing window). The
-storage executable checks the `pairwin` codec and the v1 `Draw` result byte.
+storage executable checks the `pairwin` and `spkvol` codecs and the v1 `Draw` result byte.
 The portal smoke also covers the Paired Sigils card and the Draw label.
 
 Game/life checks cover persisted setup, host-only edits, captured match settings,

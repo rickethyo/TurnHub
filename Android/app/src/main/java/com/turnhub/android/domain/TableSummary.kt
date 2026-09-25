@@ -48,7 +48,7 @@ data class TableSummary(
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
-     * the Atlas master button (protocol/http-v1.md). Derived, never stored.
+     * End match on the Atlas touchscreen (protocol/http-v1.md). Derived, never stored.
      */
     val endedInDraw: Boolean
         get() = state == TableState.GAME_OVER && winnerPlayerNumber == null

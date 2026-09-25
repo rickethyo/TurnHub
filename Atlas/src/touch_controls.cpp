@@ -1,6 +1,7 @@
 // Atlas touchscreen: the TFT's screen model and its touch buttons. The touch
-// adapter only builds Intents (IntentOrigin::AtlasHardware, like the master
-// button); the handlers decide. Drawing lives in atlas_display.cpp.
+// adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
+// decide. The exception is "Unlock admin", which opens the physical-presence
+// window in front_panel.cpp. Drawing lives in atlas_display.cpp.
 
 #include "touch_controls.h"
 
@@ -16,7 +17,6 @@ namespace TurnHubAtlas {
 
 namespace {
 
-constexpr uint32_t MASTER_HOLD_WARNING_MS = 1000;
 constexpr int16_t MARGIN = 8;
 constexpr int16_t ROW_HEIGHT = 60;  // Well above the 44 px minimum target.
 constexpr int16_t PRIMARY_ROW_Y = 104;
@@ -35,7 +35,7 @@ char noticeText[sizeof(AtlasScreen::notice)] = {};
 uint32_t noticeAtMs = 0;
 
 void addButton(AtlasScreen &screen, TouchAction action, const char *label,
-    int16_t x, int16_t y, int16_t w, bool hold = false) {
+    int16_t x, int16_t y, int16_t w, uint32_t holdMs = 0) {
   if (screen.buttonCount >= MAX_TOUCH_BUTTONS) return;
   TouchButton &button = screen.buttons[screen.buttonCount++];
   button.action = action;
@@ -44,15 +44,26 @@ void addButton(AtlasScreen &screen, TouchAction action, const char *label,
   button.y = y;
   button.w = w;
   button.h = ROW_HEIGHT;
-  button.hold = hold;
+  button.holdMs = holdMs;
+}
+
+// Between games: unlock admin (a hold), or lock it again early (a tap).
+void addAdminButton(AtlasScreen &screen, int16_t y, uint32_t nowMs) {
+  if (adminUnlockRemainingMs(nowMs) > 0) {
+    addButton(screen, TouchAction::LockAdmin, "Admin unlocked: tap to lock", MARGIN, y, FULL_WIDTH);
+  } else {
+    addButton(screen, TouchAction::UnlockAdmin, "Hold to unlock admin", MARGIN, y, FULL_WIDTH,
+        ADMIN_UNLOCK_HOLD_MS);
+  }
 }
 
 // The buttons for the current table state.
-void layoutButtons(AtlasScreen &screen) {
+void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
   switch (hubState) {
     case HubState::Lobby:
       addButton(screen, TouchAction::Pair, "Pair a Sigil", MARGIN, PRIMARY_ROW_Y, FULL_WIDTH);
+      addAdminButton(screen, SECONDARY_ROW_Y, nowMs);
       break;
     case HubState::Running: {
       const int16_t passWidth = 200;
@@ -60,32 +71,34 @@ void layoutButtons(AtlasScreen &screen) {
       addButton(screen, TouchAction::Pause, "Pause", MARGIN * 2 + passWidth, PRIMARY_ROW_Y,
           FULL_WIDTH - passWidth - MARGIN);
       addButton(screen, TouchAction::EndMatch, "Hold to end match (draw)", MARGIN,
-          SECONDARY_ROW_Y, FULL_WIDTH, true);
+          SECONDARY_ROW_Y, FULL_WIDTH, END_MATCH_HOLD_MS);
       break;
     }
     case HubState::Paused:
       addButton(screen, TouchAction::Resume, "Resume", MARGIN, PRIMARY_ROW_Y, FULL_WIDTH);
       addButton(screen, TouchAction::EndMatch, "Hold to end match (draw)", MARGIN,
-          SECONDARY_ROW_Y, FULL_WIDTH, true);
+          SECONDARY_ROW_Y, FULL_WIDTH, END_MATCH_HOLD_MS);
+      break;
+    case HubState::GameOver:
+      addAdminButton(screen, PRIMARY_ROW_Y, nowMs);
       break;
     case HubState::Starting:
-    case HubState::GameOver:
       break;
   }
 }
 
 // The current layout's button for an action, or nullptr if it is gone.
-const TouchButton *currentButton(TouchAction action, AtlasScreen &layout) {
-  layoutButtons(layout);
+const TouchButton *currentButton(TouchAction action, AtlasScreen &layout, uint32_t nowMs) {
+  layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
     if (layout.buttons[i].action == action) return &layout.buttons[i];
   }
   return nullptr;
 }
 
-TouchAction buttonAt(int16_t x, int16_t y) {
+TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
   AtlasScreen layout;
-  layoutButtons(layout);
+  layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
     if (layout.buttons[i].contains(x, y)) return layout.buttons[i].action;
   }
@@ -99,6 +112,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::Pause: return "PAUSE";
     case TouchAction::Resume: return "RESUME";
     case TouchAction::EndMatch: return "END_MATCH";
+    case TouchAction::UnlockAdmin: return "UNLOCK_ADMIN";
+    case TouchAction::LockAdmin: return "LOCK_ADMIN";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -111,10 +126,19 @@ void showNotice(uint32_t nowMs, const char *text) {
 }
 
 // Adapter: turns one touch button into its Intent. Pass, Pause and Resume act
-// for the active seat, like the master button's PASS.
+// for the active seat. Unlock/Lock admin only open or close the presence
+// window; they change no table state.
 void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   IntentResult result;
   switch (action) {
+    case TouchAction::UnlockAdmin:
+      openAdminUnlock(nowMs);
+      result = IntentResult::accept("Admin unlocked for 60 s");
+      break;
+    case TouchAction::LockAdmin:
+      closeAdminUnlock();
+      result = IntentResult::accept("Admin locked");
+      break;
     case TouchAction::Pair:
     case TouchAction::EndMatch: {
       Intent intent;
@@ -227,25 +251,24 @@ bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen = AtlasScreen();
   formatTitle(screen, nowMs);
-  layoutButtons(screen);
+  layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
     snprintf(screen.notice, sizeof(screen.notice), "%s", noticeText);
   }
-  // A master (BOOT) hold counting toward ending the match; shown from
-  // MASTER_HOLD_WARNING_MS in so an ordinary PASS press does not flash it.
-  const uint32_t masterLeftMs = masterEndMatchRemainingMs(nowMs);
-  if (masterLeftMs > 0 && masterLeftMs <= MASTER_END_MATCH_HOLD_MS - MASTER_HOLD_WARNING_MS) {
-    snprintf(screen.notice, sizeof(screen.notice), "Keep holding BOOT to end match: %lu s",
-        static_cast<unsigned long>((masterLeftMs + 999) / 1000));
+  // The admin unlock countdown, whenever no action message is showing.
+  const uint32_t unlockMs = adminUnlockRemainingMs(nowMs);
+  if (screen.notice[0] == '\0' && unlockMs > 0) {
+    snprintf(screen.notice, sizeof(screen.notice), "Admin unlocked: %lu s left",
+        static_cast<unsigned long>((unlockMs + 999) / 1000));
   }
   if (!touchDown || !pressInside) return;
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     const TouchButton &button = screen.buttons[i];
     if (button.action != pressedAction) continue;
     screen.pressed = pressedAction;
-    if (button.hold && !holdFired) {
+    if (button.hold() && !holdFired) {
       const uint32_t heldMs = nowMs - pressStartedAtMs;
-      const uint32_t leftMs = heldMs < MASTER_END_MATCH_HOLD_MS ? MASTER_END_MATCH_HOLD_MS - heldMs : 0;
+      const uint32_t leftMs = heldMs < button.holdMs ? button.holdMs - heldMs : 0;
       screen.holdSecondsLeft = static_cast<uint8_t>((leftMs + 999) / 1000);
     }
   }
@@ -259,12 +282,12 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
       touchDown = true;
       holdFired = false;
       pressStartedAtMs = nowMs;
-      pressedAction = buttonAt(x, y);
+      pressedAction = buttonAt(x, y, nowMs);
     }
-    const TouchButton *button = currentButton(pressedAction, layout);
+    const TouchButton *button = currentButton(pressedAction, layout, nowMs);
     pressInside = button != nullptr && button->contains(x, y);
-    if (button != nullptr && button->hold && pressInside && !holdFired &&
-        nowMs - pressStartedAtMs >= MASTER_END_MATCH_HOLD_MS) {
+    if (button != nullptr && button->hold() && pressInside && !holdFired &&
+        nowMs - pressStartedAtMs >= button->holdMs) {
       holdFired = true;
       dispatchTouchAction(nowMs, pressedAction);
     }
@@ -273,12 +296,13 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
 
   if (!touchDown || nowMs - lastContactAtMs < TOUCH_RELEASE_MS) return;
   touchDown = false;
-  const TouchButton *button = currentButton(pressedAction, layout);
+  const TouchButton *button = currentButton(pressedAction, layout, nowMs);
   if (button != nullptr && pressInside && !holdFired) {
-    if (button->hold) {
+    if (button->hold()) {
       char hint[sizeof(noticeText)];
-      snprintf(hint, sizeof(hint), "Keep holding for %lu s to end the match",
-          static_cast<unsigned long>(MASTER_END_MATCH_HOLD_MS / 1000));
+      snprintf(hint, sizeof(hint), "Keep holding for %lu s to %s",
+          static_cast<unsigned long>(button->holdMs / 1000),
+          button->action == TouchAction::EndMatch ? "end the match" : "unlock admin");
       showNotice(nowMs, hint);
     } else {
       dispatchTouchAction(nowMs, pressedAction);

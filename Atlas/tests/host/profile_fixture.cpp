@@ -2,6 +2,7 @@
 #include "account_access.h"
 #include "game_settings_store.h"
 #include "pairing_settings.h"
+#include "speaker_settings.h"
 namespace TurnHub {
 GameSettings fixtureSettings;
 TurnHubStorage::Status loadGameSettings(GameSettings &value) {value=fixtureSettings;return TurnHubStorage::Status::Ok;}
@@ -17,6 +18,15 @@ TurnHubStorage::Status loadPairingWindow(uint32_t &windowMs) {
 TurnHubStorage::Status savePairingWindow(uint32_t windowMs) {
   if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
   fixturePairingWindowSaved=windowMs;return TurnHubStorage::Status::Ok;
+}
+int fixtureSpeakerVolumeSaved=-1;
+TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {
+  if (fixtureSpeakerVolumeSaved<0) return TurnHubStorage::Status::NotFound;
+  volume=static_cast<uint8_t>(fixtureSpeakerVolumeSaved);return TurnHubStorage::Status::Ok;
+}
+TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
+  if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
+  fixtureSpeakerVolumeSaved=volume;return TurnHubStorage::Status::Ok;
 }
 }
 namespace ProfileFixture {

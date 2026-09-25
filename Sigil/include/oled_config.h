@@ -30,8 +30,8 @@ struct OledConfig {
 
 // Inland 1.3-inch OLED V2.0 on the Sigil carrier's EPD header, 4-wire SPI.
 // Owner-verified wiring (2026-09-24) against the Sigil schematic:
-//   CLK J19/GPIO18, MOSI J12/GPIO23, RES J13/GPIO22, DC J22/GPIO16,
-//   CS J21/GPIO17, VCC 3.3 V, GND common. EPD_BUSY/GPIO21 is unused.
+//   CLK A11/GPIO18, MOSI A18/GPIO23, RES A17/GPIO22, DC A8/GPIO16,
+//   CS A9/GPIO17, VCC 3.3 V, GND common. EPD_BUSY/GPIO21 is unused.
 // Controller SH1106 128x64 is inferred from the vendor (KS0056) example and
 // still needs confirmation on the panel itself.
 inline OledConfig makeOledConfig() {
@@ -40,7 +40,7 @@ inline OledConfig makeOledConfig() {
   c.bus = OledBus::SoftwareSpi;
   c.width = 128;
   c.height = 64;
-  c.rotation = 2;  // Panel is mounted upside down on the carrier.
+  c.rotation = 0;  // Native orientation (panel remounted 2026-09-24).
   c.power = OledPower::InternalChargePump;
   c.reset = 22;
   c.mosi = 23;

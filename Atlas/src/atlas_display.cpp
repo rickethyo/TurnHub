@@ -191,7 +191,7 @@ void drawButton(const AtlasScreen &screen, const TouchButton &button) {
   }
 
   char label[32];
-  if (pressed && button.hold && screen.holdSecondsLeft > 0) {
+  if (pressed && button.hold() && screen.holdSecondsLeft > 0) {
     snprintf(label, sizeof(label), "Keep holding: %u s",
         static_cast<unsigned>(screen.holdSecondsLeft));
   } else {

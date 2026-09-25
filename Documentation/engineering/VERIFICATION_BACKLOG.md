@@ -115,7 +115,7 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Prototype 1.0 recovery: abrupt-power test from lobby, running, paused,
   mid-turn, after pass, after concession, and around game completion. A recovered
   match must open paused and must not charge downtime to a player.
-- [ ] Prototype 1.0 recovery (Discard = 5 s master-button draw hold, 2026-09-24): verify Resume/Discard, re-login, physical/controller
+- [ ] Prototype 1.0 recovery (Discard = 5 s End match draw hold on the Atlas touchscreen, 2026-09-24): verify Resume/Discard, re-login, physical/controller
   reattachment, corrupt/unsupported snapshot rejection, and exactly-once statistics.
 - [ ] Define a controller interface suitable for a simulator/test harness.
 - [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.

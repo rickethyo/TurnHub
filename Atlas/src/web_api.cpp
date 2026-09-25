@@ -30,6 +30,8 @@ CounterControlCallback counterControlHandler = nullptr;
 ModerateCallback moderateHandler = nullptr;
 DeviceIntentCallback deviceHandler = nullptr;
 PairingWindowCallback readPairingWindow = nullptr;
+PresenceCallback presenceConfirmed = nullptr;
+SpeakerVolumeCallback readSpeakerVolume = nullptr;
 AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
@@ -51,10 +53,14 @@ void sendOkMessage(WebServer &server, const String &message) {
   sendJson(server, 200, String("{\"ok\":true,\"message\":\"") + jsonEscape(message) + "\"}");
 }
 
-bool requireMasterButton(WebServer &server) {
-  if (AtlasConfig::masterButtonPressed()) return true;
+bool physicalPresence() {
+  return presenceConfirmed != nullptr && presenceConfirmed();
+}
+
+bool requirePhysicalPresence(WebServer &server) {
+  if (physicalPresence()) return true;
   sendJson(server, 403,
-      "{\"ok\":false,\"error\":\"Hold the physical Atlas master button while saving this system setting\"}");
+      "{\"ok\":false,\"error\":\"Unlock admin on the Atlas screen first: hold Unlock admin for 3 seconds, then save within a minute\"}");
   return false;
 }
 
@@ -100,6 +106,14 @@ void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window)
 
 void configureAccessibility(AccessibilityChangedCallback callback) {
   accessibilityChanged = callback;
+}
+
+void configurePresence(PresenceCallback confirmed) {
+  presenceConfirmed = confirmed;
+}
+
+void configureSpeaker(SpeakerVolumeCallback volume) {
+  readSpeakerVolume = volume;
 }
 
 // --- Routes ---------------------------------------------------------------------------
@@ -150,6 +164,9 @@ void begin(WebServer &server) {
   route("/api/device/forget", HTTP_POST, handleForgetDevice);
   route("/api/pairing", HTTP_GET, handlePairingSettings);
   route("/api/pairing", HTTP_POST, handleSavePairingSettings);
+  route("/api/speaker", HTTP_GET, handleSpeakerSettings);
+  route("/api/speaker", HTTP_POST, handleSaveSpeakerSettings);
+  route("/api/table/reset", HTTP_POST, handleResetTable);
   route("/api/network", HTTP_GET, handleNetworkInfo);
   route("/api/network/password", HTTP_POST, handleNetworkPassword);
 

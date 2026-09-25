@@ -72,6 +72,7 @@ match/controller records, not a claim that those repositories already exist.
 | Controller assignment/device trust | Sigil bus (pairing) | `th_pair_v1/s0`-`s7` MACs on Atlas, `th_pair_v1/atlas` on each Sigil; admins forget Atlas records, a 10 s Pair hold forgets the Sigil's (see [Manual Pairing](MANUAL_PAIRING.md)) |
 | Atlas touchscreen calibration | Atlas display (`atlas_display.cpp`) | `atlas-touch/cal` blob (2026-09-24): raw `TouchCalibration` struct (swap flag, raw range per screen axis). Missing or invalid falls back to `config.h` and triggers on-device calibration at boot. Device presentation, not game state |
 | Atlas pairing window | Atlas table settings | `pairwin` blob in `turnhub` (2026-09-24): schema byte 1, seconds (15/30/60); missing or unreadable reads as 15 s |
+| Atlas speaker volume | Atlas table settings (`ConfigureSpeaker`, Admin) | `spkvol` blob in `turnhub` (2026-09-24): schema byte 1, volume 0 (off) to 3 (high); missing or unreadable reads as 2 (medium) |
 | Sigil user/device settings and last-used preferences | Atlas device-settings owner | No remembered profile on either seat; legacy `b<mac>A/B` and `r<mac>A/B` keys are retired on reconnect; no Sigil-side profile persistence |
 | Per-player Sigil accessibility (sound, light style, hold times) | Atlas profile repository | `x<profileId>` blob in `turnhub` (2026-09-24): schema byte 1, sound 0/1, light style 0-2, long press and win hold as little-endian uint16 ms (7 bytes). Missing reads as defaults; Corrupt/unsupported records are never overwritten silently. Sigils hold the applied values in RAM only |
 | Other shared accessibility preferences | Atlas profile owner | Versioned profile preferences; per-Sigil user adjustments belong to Atlas device settings |
@@ -115,8 +116,9 @@ yet queued for replay.
 
 ## Optional microSD storage
 
-Status (2026-09-24): *Implemented* in firmware and host tests; *Needs
-verification* on the board. No repository uses the card yet, so every record
+Status (2026-09-24): *Implemented* in firmware and host tests. *Verified* on
+the board by the owner: the card mounts and registers. Booting without a card
+still needs a bench check. No repository uses the card yet, so every record
 listed above still lives in NVS and gameplay never depends on the card.
 
 - `sd_card.cpp` (firmware-only, Arduino `SD` library on VSPI) mounts the card

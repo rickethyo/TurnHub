@@ -296,6 +296,24 @@ Feature change; Atlas stays `0.6.0-dev`, radio protocol unchanged.
 
 Build only; nothing was flashed.
 
+### 2026-09-24 - No master button, Atlas speaker, OLED one-player limit (`android/testing`)
+
+Feature change; Atlas stays `0.6.0-dev`, Sigil `0.5.6-dev`. Radio protocol
+version unchanged; new Hello capability bit `CAPABILITY_DISPLAY_OLED` (0x10).
+
+- Master button removed: the touchscreen's 3 s Unlock admin hold opens a 60 s
+  physical-presence window; End match hold replaces the BOOT draw hold
+- New `Atlas/src/atlas_speaker.cpp` (DAC cosine tones) and the `ConfigureSpeaker`
+  Intent / `spkvol` setting; table-wide cues play on Atlas
+- Atlas refuses Seat B on OLED Sigils and blocks a start with a leftover one
+
+| Build | Before | After |
+| --- | ---: | ---: |
+| Atlas RAM | 99,764 B (30.4%) | 99,788 B (30.5%) |
+| Atlas flash | 1,300,721 B (66.2%) | 1,307,673 B (66.5%) |
+
+"Before" is the microSD step-1 build. Build only; nothing was flashed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

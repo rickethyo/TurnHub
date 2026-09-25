@@ -8,6 +8,7 @@
 #include "controller_profiles.h"
 #include "game_settings_store.h"
 #include "pairing_settings.h"
+#include "speaker_settings.h"
 #include "profile_store.h"
 #include "serial_log.h"
 
@@ -417,6 +418,11 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
           "Profile is already playing; attach this Sigil from its signed-in phone");
     }
   }
+  if (slot == 2 && joining && sigilSeatsOnePlayer(module)) {
+    serialLog.print("ATLAS|LOBBY|SECONDARY|REFUSED_ONE_PLAYER_SIGIL|");
+    serialLog.println(module);
+    return IntentResult::reject(IntentStatus::Conflict, ONE_PLAYER_SIGIL_MESSAGE);
+  }
   if (slot == 2) return toggleSecondarySeat(module, joining);
   if (joining) return joinPrimarySeat(module);
   if (!lobby.leave(module)) {
@@ -482,6 +488,14 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
   }
   if (hubState != HubState::Lobby || module != lobby.hostController() || lobby.playerCount() < 2) {
     return IntentResult::reject(IntentStatus::InvalidState, "Only the host can start a lobby with two players");
+  }
+  // A Seat B joined before its Sigil reported an OLED display (for example
+  // one reflashed while seated) must leave before the game starts.
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (lobby.hasSecondary(id) && sigilSeatsOnePlayer(id)) {
+      return IntentResult::reject(IntentStatus::Conflict,
+          "An OLED Sigil seats one player; its Seat B must leave before the game starts");
+    }
   }
   if (intent.type == IntentType::ArmStart) {
     if (lobby.anyOtherHeld(module)) {
@@ -783,6 +797,54 @@ IntentResult handleConfigurePairingIntent(const Intent &intent, void *) {
   serialLog.print("ATLAS|PAIRING|WINDOW_MS|");
   serialLog.println(windowMs);
   return IntentResult::accept("Pairing window saved");
+}
+
+// Payload: value = Atlas speaker volume, 0 (off) to 3 (high). Sigil sound is
+// unaffected; it follows each seated player's accessibility preference.
+IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  if (!TurnHub::validSpeakerVolume(intent.payload.value)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Speaker volume must be off, low, medium or high");
+  }
+  const uint8_t volume = static_cast<uint8_t>(intent.payload.value);
+  if (TurnHub::saveSpeakerVolume(volume) != TurnHubStorage::Status::Ok) {
+    return IntentResult::reject(IntentStatus::Rejected, "Speaker volume could not be saved");
+  }
+  audio.setSpeakerVolume(volume);
+  serialLog.print("ATLAS|SPEAKER|VOLUME|");
+  serialLog.println(TurnHub::speakerVolumeName(volume));
+  return IntentResult::accept("Speaker volume saved");
+}
+
+// An Admin's way back to an empty lobby from any state, for example while the
+// Sigils are being rewired and nobody at the table can finish the match. It
+// needs admin unlocked on the Atlas screen, so someone is at the table. A
+// match in progress ends as a draw first (statistics once, like the End match
+// hold); a countdown is cancelled.
+IntentResult handleResetTableIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  if (!physicalPresenceConfirmed()) {
+    return IntentResult::reject(IntentStatus::Unauthorized,
+        "Unlock admin on the Atlas screen first: hold Unlock admin for 3 seconds");
+  }
+  if (hubState == HubState::Starting) cancelCountdown();
+  const bool matchInProgress = hubState == HubState::Running || hubState == HubState::Paused;
+  if (matchInProgress) {
+    if (!game.endInDraw(millis())) {
+      return IntentResult::reject(IntentStatus::Conflict, "Atlas could not end the match");
+    }
+    finishGameState();
+  }
+  serialLog.print("ATLAS|ADMIN|RESET_TABLE|");
+  serialLog.println(matchInProgress ? "MATCH_ENDED_AS_DRAW" : "NO_MATCH");
+  enterEmptyLobby(&intent);
+  return IntentResult::accept(matchInProgress
+      ? "Match ended as a draw; the table is back to an empty lobby"
+      : "The table is back to an empty lobby");
 }
 
 // Payload: flags = GameProfile, value = starting life, durationMs = turn timer.

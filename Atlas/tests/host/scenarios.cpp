@@ -22,7 +22,7 @@
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
-namespace TurnHub { extern uint32_t fixturePairingWindowSaved; }
+namespace TurnHub { extern uint32_t fixturePairingWindowSaved; extern int fixtureSpeakerVolumeSaved; }
 esp_err_t readError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t eraseError = ESP_ERR_NVS_NOT_FOUND;
 esp_err_t injectedCommitError = ESP_OK;
@@ -626,11 +626,12 @@ static void gameProfilesAndLife() {
 static void accountPermissionsAndModeration(){
   using namespace TurnHubAccounts;
   enterEmptyLobby();TurnHubWebApi::configureModeration(moderateAccount);
+  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
   String adminId,gmId,playerId,devId;
   const String admin=registerPhone("Administrator",adminId),gm=registerPhone("Moderator",gmId),player=registerPhone("Participant",playerId),dev=registerPhone("Developer",devId);
   assert(request("/api/accounts/setup","",{},HTTP_GET)==200&&server.body.find("true")!=std::string::npos);
   assert(request("/api/accounts/setup",admin)==403); // Physical confirmation needed.
-  testDigitalRead=LOW;assert(request("/api/accounts/setup",admin)==200);testDigitalRead=HIGH;
+  openAdminUnlock(testNow);assert(request("/api/accounts/setup",admin)==200);closeAdminUnlock();
   assert(request("/api/accounts/setup",gm)==409);
   assert(request("/api/accounts/permissions",player,{{"profileId",playerId},{"permissions","31"}})==403);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","0"}})==409);
@@ -1421,16 +1422,13 @@ static void nativeClientBoundary() {
 // persisting checkpoints for the rest of the process (matching production;
 // see main.cpp's observeIntent()). Earlier scenarios never call
 // beginGameRecovery(), so they are unaffected either way.
-// Presses and releases the Atlas master button through its real debounced adapter.
-static void masterDown() { testDigitalRead=LOW; testNow+=30; updateMasterButton(); }
-static void masterUp() { testDigitalRead=HIGH; testNow+=30; updateMasterButton(); }
-static void holdMaster(uint32_t ms) { testNow+=ms; updateMasterButton(); }
-
 // Drives the touchscreen adapter with screen-coordinate samples.
 static const TouchButton *screenButton(const AtlasScreen &screen, TouchAction action) {
   for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action) return &screen.buttons[i];
   return nullptr;
 }
+// Centre of the touchscreen's second button row (Unlock admin, End match).
+static constexpr int16_t SECONDARY_ROW_CENTER=202;
 static bool startsWith(const char *text,const char *prefix) { return strncmp(text,prefix,strlen(prefix))==0; }
 static AtlasScreen currentScreen() { AtlasScreen s; buildAtlasScreen(testNow,s); return s; }
 static void touchAt(int16_t x,int16_t y) { updateTouchControls(testNow,true,x,y); }
@@ -1440,6 +1438,10 @@ static void pressButton(TouchAction action) {
   touchAt(b->x+b->w/2,b->y+b->h/2);
 }
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
+// Holds the on-screen End match button for the full hold, then lets go.
+static void holdEndMatch() {
+  pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS; pressButton(TouchAction::EndMatch); touchRelease();
+}
 
 // Touch calibration math: solve from four simulated presses, then map.
 static void touchCalibrationMath() {
@@ -1478,10 +1480,36 @@ static void touchCalibrationMath() {
   startFromHost(); assert(!touchCalibrationAllowed()); enterEmptyLobby();
 }
 
+// An OLED Sigil (CAPABILITY_DISPLAY_OLED) seats one player: Atlas refuses its
+// Seat B and will not start while one is left over from before it said so.
+static void oledSigilSeatsOnePlayer() {
+  using TurnHubProtocol::CAPABILITY_DISPLAY_OLED;
+  freshLobby(2);
+  TurnHub::fixtureRecords[1].capabilities=CAPABILITY_DISPLAY_OLED;
+  assert(sigilSeatsOnePlayer(1) && !sigilSeatsOnePlayer(0) && !sigilSeatsOnePlayer(MAX_PHYSICAL_SIGILS));
+  // The Action + PASS chord and a direct Seat B join are both refused.
+  handleActionDown(1); handlePass(1); handleActionUp(1); handleActionShort(1);
+  assert(!lobby.hasSecondary(1) && lobby.playerCount()==2);
+  IntentResult refused=dispatchModuleIntent(IntentType::Join,1,2);
+  assert(refused.status==IntentStatus::Conflict && String(refused.message)==ONE_PLAYER_SIGIL_MESSAGE);
+  assert(!lobby.hasSecondary(1));
+  // An e-paper Sigil still shares.
+  assert(dispatchModuleIntent(IntentType::Join,0,2).accepted() && lobby.hasSecondary(0));
+  // Seat B joined before the Sigil reported OLED (e.g. reflashed while seated)
+  // blocks the start until it leaves; leaving is always allowed.
+  TurnHub::fixtureRecords[0].capabilities=CAPABILITY_DISPLAY_OLED;
+  assert(dispatchModuleIntent(IntentType::ArmStart,0).status==IntentStatus::Conflict);
+  assert(dispatchModuleIntent(IntentType::Leave,0,2).accepted() && !lobby.hasSecondary(0));
+  assert(dispatchModuleIntent(IntentType::ArmStart,0).accepted());
+  TurnHub::fixtureRecords[0].capabilities=0; TurnHub::fixtureRecords[1].capabilities=0;
+  enterEmptyLobby();
+}
+
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  assert(String(s.title)=="Lobby" && s.buttonCount==1 && screenButton(s,TouchAction::Pair));
+  assert(String(s.title)=="Lobby" && s.buttonCount==2 && screenButton(s,TouchAction::Pair) &&
+      screenButton(s,TouchAction::UnlockAdmin)->hold());
   // Every button fits on screen and meets the 44 px minimum target size.
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
@@ -1504,11 +1532,28 @@ static void touchControls() {
   assert(!pairingActive && String(currentScreen().notice)=="Radio unavailable");
   TurnHub::fixtureRadio=true;
 
+  // Unlock admin: a 3 s hold opens the physical-presence window for 60 s,
+  // shown with a countdown; it expires on its own or a tap locks it early.
+  testNow+=TOUCH_NOTICE_MS; assert(!physicalPresenceConfirmed());
+  tapButton(TouchAction::UnlockAdmin);
+  assert(!physicalPresenceConfirmed() && String(currentScreen().notice)=="Keep holding for 3 s to unlock admin");
+  pressButton(TouchAction::UnlockAdmin); testNow+=ADMIN_UNLOCK_HOLD_MS-1; pressButton(TouchAction::UnlockAdmin);
+  assert(!physicalPresenceConfirmed() && currentScreen().holdSecondsLeft==1);
+  testNow+=1; touchAt(160,SECONDARY_ROW_CENTER); assert(physicalPresenceConfirmed()); touchRelease();
+  s=currentScreen();
+  assert(screenButton(s,TouchAction::LockAdmin) && !screenButton(s,TouchAction::UnlockAdmin));
+  testNow+=TOUCH_NOTICE_MS; assert(startsWith(currentScreen().notice,"Admin unlocked: "));
+  testNow+=ADMIN_UNLOCK_WINDOW_MS; updatePairingWindow(testNow);
+  assert(!physicalPresenceConfirmed() && currentScreen().notice[0]=='\0' &&
+      screenButton(currentScreen(),TouchAction::UnlockAdmin));
+  openAdminUnlock(testNow); tapButton(TouchAction::LockAdmin); assert(!physicalPresenceConfirmed());
+  testNow+=TOUCH_NOTICE_MS;
+
   // Running: Pass (for the active seat), Pause, and a hold-only End match.
   startFromHost(); s=currentScreen();
   assert(startsWith(s.title,"Player ") && s.buttonCount==3 &&
       screenButton(s,TouchAction::Pass) && screenButton(s,TouchAction::Pause) &&
-      screenButton(s,TouchAction::EndMatch)->hold);
+      screenButton(s,TouchAction::EndMatch)->hold());
   const uint8_t first=game.activePlayerNumber();
   tapButton(TouchAction::Pass); assert(pendingPass.active);
   assert(String(currentScreen().detail)=="Pass pending: tap Pass to undo");
@@ -1520,18 +1565,11 @@ static void touchControls() {
   assert(String(s.title)=="Paused" && s.buttonCount==2 && screenButton(s,TouchAction::Resume) && !screenButton(s,TouchAction::Pass));
   tapButton(TouchAction::Resume); assert(hubState==HubState::Running);
 
-  // A master (BOOT) hold shows its countdown on screen after the first second.
-  testNow+=TOUCH_NOTICE_MS;
-  masterDown(); holdMaster(500); assert(currentScreen().notice[0]=='\0');
-  holdMaster(1000); assert(startsWith(currentScreen().notice,"Keep holding BOOT to end match: 4 s"));
-  masterUp(); assert(pendingPass.active && currentScreen().notice[0]=='\0');
-  tapButton(TouchAction::Pass); assert(!pendingPass.active);
-
   // End match needs the full hold, shows a countdown, and acts once.
   tapButton(TouchAction::EndMatch);
-  assert(hubState==HubState::Running && startsWith(currentScreen().notice,"Keep holding"));
+  assert(hubState==HubState::Running && String(currentScreen().notice)=="Keep holding for 5 s to end the match");
   completedGames=0;
-  pressButton(TouchAction::EndMatch); testNow+=MASTER_END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
+  pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
   s=currentScreen(); assert(s.pressed==TouchAction::EndMatch && s.holdSecondsLeft==1);
   assert(hubState==HubState::Running);
   testNow+=1; pressButton(TouchAction::EndMatch);
@@ -1539,7 +1577,8 @@ static void touchControls() {
   touchAt(160,200); testNow+=5000; touchAt(160,200); touchRelease();
   assert(completedGames==1);
   s=currentScreen();
-  assert(String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" && s.buttonCount==0);
+  assert(String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
+      s.buttonCount==1 && screenButton(s,TouchAction::UnlockAdmin));
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();
@@ -1551,11 +1590,10 @@ static void touchControls() {
 static void endMatchAsDraw() {
   using TurnHubProfiles::LastGameResult;
   // Only a match in progress, and only the Atlas hardware, can end it.
-  freshLobby(2);
+  resetTouchControls(); freshLobby(2);
   Intent end; end.type=IntentType::EndMatch; end.actor.origin=IntentOrigin::AtlasHardware;
   assert(!intents.dispatch(end).accepted() && hubState==HubState::Lobby);
-  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS); masterUp();
-  assert(hubState==HubState::Lobby && lobby.playerCount()==2);
+  assert(lobby.playerCount()==2 && !screenButton(currentScreen(),TouchAction::EndMatch));
   startFromHost();
   for (auto origin : {IntentOrigin::Browser, IntentOrigin::AndroidApp, IntentOrigin::PhysicalSigil,
                       IntentOrigin::Simulator, IntentOrigin::System}) {
@@ -1564,20 +1602,14 @@ static void endMatchAsDraw() {
   }
   assert(hubState==HubState::Running && !game.gameOver());
 
-  // A short press still passes; a hold just short of the threshold also passes.
-  masterDown(); holdMaster(1000); masterUp();
-  assert(pendingPass.active && hubState==HubState::Running);
-  testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(game.activePlayerNumber()==2);
-  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS-60); masterUp();
-  assert(pendingPass.active && hubState==HubState::Running);
-
   // The full hold overrides a queued PASS and ends the match once, as a draw.
-  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS-1);
+  tapButton(TouchAction::Pass); assert(pendingPass.active);
+  pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
   assert(hubState==HubState::Running && pendingPass.active);
-  holdMaster(1);
+  testNow+=1; touchAt(160,SECONDARY_ROW_CENTER);
   assert(hubState==HubState::GameOver && game.endedInDraw() && game.winnerPlayerNumber()==0);
   assert(!pendingPass.active && completedGames==1);
-  holdMaster(10000); masterUp();
+  testNow+=10000; touchAt(160,SECONDARY_ROW_CENTER); touchRelease();
   assert(hubState==HubState::GameOver && completedGames==1 && !pendingPass.active);
   assert(!intents.dispatch(end).accepted() && completedGames==1);
 
@@ -1592,8 +1624,8 @@ static void endMatchAsDraw() {
   // It overrides an open win claim, and works from a paused (e.g. recovered) match.
   freshLobby(2); startFromHost();
   assert(web(0,1,WebControl::ClaimWin) && game.hasWinClaim() && hubState==HubState::Paused);
-  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS);
-  assert(game.endedInDraw() && !game.hasWinClaim() && completedGames==1); masterUp();
+  holdEndMatch();
+  assert(game.endedInDraw() && !game.hasWinClaim() && completedGames==1);
 
   // Statistics: every player gets a game played and a Draw, not a win or loss;
   // a player who conceded first keeps Eliminated.
@@ -1606,7 +1638,7 @@ static void endMatchAsDraw() {
   assert(hubState==HubState::Running);
   assert(request("/api/control/concede",c)==200 && hubState==HubState::Running);
   assert(request("/api/control/pause",b)==200 && hubState==HubState::Paused);
-  masterDown(); holdMaster(MASTER_END_MATCH_HOLD_MS); masterUp();
+  holdEndMatch();
   assert(hubState==HubState::GameOver && game.endedInDraw() && completedGames==1);
   for (const String *id : {&aId,&bId,&cId}) {
     const auto &stats=ProfileFixture::profiles[id->c_str()].stats;
@@ -1689,6 +1721,120 @@ static void deviceManagement() {
   enterEmptyLobby();
 }
 
+// Atlas's speaker plays table-wide cues, including for a table with no
+// Sigil; lobby feedback stays on Sigils. Volume 0 silences only the speaker,
+// and muting every Sigil leaves it. Admins set the volume through an Intent.
+struct FakeSpeaker final : TurnHub::ToneOutput {
+  std::vector<uint8_t> volumes;
+  void tone(uint16_t,uint16_t,uint8_t volume) override { volumes.push_back(volume); }
+};
+static void playQueuedAudio() { for (int i=0;i<300;++i) { testNow+=20; audio.update(testNow); } }
+static void passActiveTurn() {
+  const PlayerSeat *active=game.activePlayer(); assert(active);
+  assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::AtlasHardware,*active).accepted());
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow); playQueuedAudio();
+}
+static void atlasSpeaker() {
+  FakeSpeaker speaker;
+  audio.clear(); audio.setSpeaker(&speaker); audio.setSpeakerVolume(TurnHub::DEFAULT_SPEAKER_VOLUME);
+  freshLobby(2); playQueuedAudio();
+  assert(speaker.volumes.empty());  // Joining is Sigil feedback only.
+  startFromHost(); playQueuedAudio();
+  assert(!speaker.volumes.empty());  // Countdown and game start.
+  for (uint8_t v : speaker.volumes) assert(v==TurnHub::DEFAULT_SPEAKER_VOLUME);
+  speaker.volumes.clear(); passActiveTurn(); assert(!speaker.volumes.empty());
+  audio.setMutedSigils(0xFF); speaker.volumes.clear(); passActiveTurn();
+  assert(!speaker.volumes.empty());
+  audio.setMutedSigils(0);
+  audio.setSpeakerVolume(0); speaker.volumes.clear();
+  const unsigned buzzes=totalBuzzes(); passActiveTurn();
+  assert(speaker.volumes.empty() && totalBuzzes()>buzzes);
+  enterEmptyLobby(); audio.clear();
+
+  // A phone-only table still hears turn changes on Atlas.
+  audio.setSpeakerVolume(3); TurnHub::fixtureRadio=false;
+  String aId,bId;
+  const String a=registerPhone("Speaker one",aId),b=registerPhone("Speaker two",bId);
+  assert(request("/api/session/join",a)==200 && request("/api/session/join",b)==200);
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  assert(hubState==HubState::Running); playQueuedAudio();
+  speaker.volumes.clear(); passActiveTurn();
+  assert(!speaker.volumes.empty() && speaker.volumes.back()==3);
+  enterEmptyLobby(); audio.clear();
+  TurnHub::fixtureRadio=true;
+
+  // Volume setting: Admin only, 0-3, saved, and a storage failure changes nothing.
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
+  audio.setSpeakerVolume(TurnHub::DEFAULT_SPEAKER_VOLUME);
+  String adminId,playerId;
+  const String admin=registerPhone("Speaker admin",adminId),player=registerPhone("Speaker player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+  assert(request("/api/speaker",player,{},HTTP_GET)==403);
+  assert(request("/api/speaker",player,{{"volume","3"}})==403);
+  assert(request("/api/speaker",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"volume\":2")!=std::string::npos && server.body.find("\"name\":\"medium\"")!=std::string::npos);
+  for (const char *bad : {"4","9","-1","abc","","10"}) {
+    const int status=request("/api/speaker",admin,{{"volume",bad}});
+    assert((status==400 || status==409) && audio.speakerVolume()==2);
+  }
+  assert(request("/api/speaker",admin)==400);
+  assert(request("/api/speaker",admin,{{"volume","0"}})==200 && audio.speakerVolume()==0);
+  assert(request("/api/speaker",admin,{{"volume","3"}})==200 && audio.speakerVolume()==3);
+  assert(TurnHub::fixtureSpeakerVolumeSaved==3);
+  ProfileFixture::gameSettingsWritable=false;
+  assert(request("/api/speaker",admin,{{"volume","1"}})==409 && audio.speakerVolume()==3);
+  ProfileFixture::gameSettingsWritable=true;
+  Intent forged; forged.type=IntentType::ConfigureSpeaker; forged.actor.origin=IntentOrigin::Browser;
+  strncpy(forged.payload.moderatorId,playerId.c_str(),8); forged.payload.value=1;
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && audio.speakerVolume()==3);
+
+  audio.setSpeaker(nullptr); audio.setSpeakerVolume(0); audio.clear(); enterEmptyLobby();
+}
+
+// An Admin at the table (admin unlocked on the Atlas screen) returns the
+// table to an empty lobby from the portal; a match in progress ends as a draw.
+static void resetTableFromPortal() {
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
+  closeAdminUnlock(); resetTouchControls();
+  freshLobby(2);
+  String adminId,playerId;
+  const String admin=registerPhone("Reset admin",adminId),player=registerPhone("Reset player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+  startFromHost(); completedGames=0;
+
+  // Admin only, and only while admin is unlocked on the Atlas screen.
+  assert(request("/api/table/reset",player)==403 && hubState==HubState::Running);
+  assert(request("/api/table/reset",admin)==403 && hubState==HubState::Running);
+  openAdminUnlock(testNow);
+  assert(request("/api/table/reset",player)==403 && hubState==HubState::Running);
+  Intent forged; forged.type=IntentType::ResetTable; forged.actor.origin=IntentOrigin::Browser;
+  strncpy(forged.payload.moderatorId,playerId.c_str(),8);
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && hubState==HubState::Running);
+
+  // A paused match ends as a draw once, and the table empties.
+  assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
+  assert(request("/api/table/reset",admin)==200);
+  assert(server.body.find("ended as a draw")!=std::string::npos);
+  assert(hubState==HubState::Lobby && lobby.playerCount()==0 && !game.hasPlayers() && completedGames==1);
+
+  // From a lobby (or a countdown) it just empties the table.
+  handleActionShort(0); handleActionShort(1); completedGames=0; assert(lobby.playerCount()==2);
+  handleActionDown(0); handleActionLong(0); handleActionUp(0); assert(hubState==HubState::Starting);
+  assert(request("/api/table/reset",admin)==200 && hubState==HubState::Lobby && lobby.playerCount()==0);
+  assert(completedGames==0);
+
+  // The unlock window closing locks it again, even for the Admin.
+  handleActionShort(0); handleActionShort(1); testNow+=ADMIN_UNLOCK_WINDOW_MS; updatePairingWindow(testNow);
+  assert(request("/api/table/reset",admin)==403 && lobby.playerCount()==2);
+  strncpy(forged.payload.moderatorId,adminId.c_str(),8);
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
+  enterEmptyLobby();
+}
+
 static void gameRecoveryLifecycle() {
   using TurnHubStorage::Status;
 
@@ -1764,9 +1910,12 @@ int main() {
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
-  endMatchAsDraw(); std::cout<<"PASS master-button hold ends a match as a draw: authorization, short press, overrides, stats once, recovery\n";
+  endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
-  touchControls(); std::cout<<"PASS touchscreen: Pair, Pass, Pause/Resume, end-match hold, BOOT-hold countdown, slide-off, drop-out, stale press\n";
+  touchControls(); std::cout<<"PASS touchscreen: Pair, admin unlock/lock/expiry, Pass, Pause/Resume, end-match hold, slide-off, drop-out, stale press\n";
+  oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
+  atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
+  resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, unlock window, draw once, countdown\n";
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";

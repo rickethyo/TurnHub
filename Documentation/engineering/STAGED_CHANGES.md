@@ -8,7 +8,8 @@ forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md)
 
 Owner decisions and follow-through (2026-09-24, later the same day):
 
-- **End a match as a draw:** implemented. Holding the Atlas master button for 5 s
+- **End a match as a draw:** implemented. Holding End match on the Atlas
+  touchscreen for 5 s (originally the master button, removed later that day)
   during a running or paused match (including a recovered one) sends `EndMatch`,
   which ends it with no winner and records a Draw for every player. This is the
   "Discard" path for a recovered match that item 3 below lacked.
@@ -46,22 +47,27 @@ Remaining accessibility items are listed there under "Not yet implemented".
 
 Atlas display board (2026-09-24): Atlas now targets the LCDwiki E32R28T 2.8"
 ESP32-32E display module (see [Hardware reference](HARDWARE_REFERENCE.md#generation-2-development-atlas)).
-Implemented and built, but not flashed: the new pin map, the splash screen,
-BOOT (IO0) as the master button (presence check, PASS on release, 5 s hold
-to end a match as a draw), and the `min_spiffs` partition table. The Pair button
-and the status/Pair LEDs were dropped. The touchscreen (host-tested, built, not
-flashed) now replaces them: Pair a Sigil, Pass, Pause/Resume, a hold to end the
-match as a draw, and an on-screen countdown for the BOOT hold (see
-[Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)). Staged follow-ups:
+Implemented and built: the new pin map, the splash screen and the `min_spiffs`
+partition table. The Pair button, the status/Pair LEDs and (owner decision,
+2026-09-24) the master button are gone; the firmware reads no buttons. The
+touchscreen is Atlas's only physical input: Pair a Sigil, Pass, Pause/Resume, a
+5 s hold to end the match as a draw, and a 3 s **Unlock admin** hold that opens a
+60 s physical-presence window for first-Admin setup, network settings, device
+names and OTA (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)).
+The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
+[Atlas speaker](HARDWARE_REFERENCE.md#atlas-speaker)). Staged follow-ups:
 
 - **Bench acceptance:** screen orientation, on-device touch calibration (first
-  boot, and the 10 s lobby hold), and each touch button against a real table.
-- **microSD storage:** step 1 is built and host-tested but not flashed
-  (2026-09-24): Atlas mounts the card at boot, runs a write/read-back self-test
-  and reports it in Developer diagnostics; `SdBlobStore` provides checksummed,
-  crash-safe records (see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage)).
-  Nothing authoritative is on the card yet. Bench check: boot with and without
-  a FAT32 card and confirm `ATLAS|SD|...` lines and `sdCard` in `/api/diagnostics`.
+  boot, and the 10 s lobby hold), each touch button against a real table, the
+  Unlock admin window (first Admin, a network save, an OTA upload, Return
+  table to lobby from the portal), and the speaker at each volume. The touch screen stays "off" after calibration on the
+  current unit (owner report, 2026-09-24; deferred).
+- **microSD storage:** step 1 is done (2026-09-24): Atlas mounts the card at
+  boot, runs a write/read-back self-test and reports it in Developer
+  diagnostics; `SdBlobStore` provides checksummed, crash-safe records (see
+  [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage)).
+  *Verified* by the owner on hardware: the card mounts and registers. Still to
+  check: booting without a card. Nothing authoritative is on the card yet.
   Before moving bulk records (profiles, statistics, possibly logs) off NVS, the
   owner decides: which records move, whether PIN hashes may sit on a removable
   card, the NVS migration and rollback, what happens when the card is missing
@@ -69,10 +75,11 @@ match as a draw, and an on-screen countdown for the BOOT hold (see
   restart), and whether a card may be moved between Atlases.
 - Player names on the status screen; more touch actions (Start, Rematch,
   starter selection) once the owner decides which host-only actions the table
-  device may take; the on-board RGB LED and speaker as cue outputs; a battery
-  gauge.
-- Update the user manual: the master button is now BOOT, and pairing moves
-  to the touchscreen.
+  device may take; the on-board RGB LED as a cue output; a battery gauge.
+- Update the user manual: there is no master button; pairing, ending a match
+  as a draw and Unlock admin (first Admin, network settings, device names, OTA)
+  are on the Atlas touchscreen, the speaker volume is an Admin setting, and an
+  Admin can return the table to an empty lobby from the portal.
 
 This is the durable staging document for agreed work that has not yet been implemented or fully verified.
 
@@ -155,7 +162,8 @@ implemented remain; no account reset or firmware flash has been performed.
    scenarios pass (verified via an equivalent Linux/g++ build here; PlatformIO
    firmware and hardware acceptance still need the owner's bench).
 
-   Update (2026-09-24): the owner chose a 5-second Atlas master-button hold that
+   Update (2026-09-24): the owner chose a 5-second Atlas hold (first the master
+   button, now End match on the touchscreen, since the master button is gone) that
    ends the match as a draw (`EndMatch`). That is the Discard path: it works on a
    restored (paused) match and records a Draw, not a discarded game. Resume
    remains the ordinary Pause/Resume control. The history below is kept for
@@ -168,7 +176,7 @@ implemented remain; no account reset or firmware flash has been performed.
    `ResetGame` is intentionally only reachable from `GameOver` or an
    unstarted `Lobby` today, specifically so it can't be used to nuke an
    ordinary in-progress paused game, and a freshly-recovered match is
-   indistinguishable from that once `hubState` is `Paused`. The master-button
+   indistinguishable from that once `hubState` is `Paused`. The End match
    hold answers this without a new `HubState`: it needs someone at the table and
    applies to any match, recovered or not.
 4. **Auxiliary button software path.** Done (2026-09-24): the Pause / Win button
@@ -338,6 +346,24 @@ Privacy direction:
 - Choose the production Sigil transport and OTA strategy.
 - Freeze hardware revisions only after GPIO, power, display, pairing, transport, tactile-control, and accessibility decisions are verified.
 
+## OLED Sigil
+
+- **One player per OLED Sigil:** implemented and host-tested (2026-09-24),
+  *Needs verification* on hardware (see the
+  [hardware reference](HARDWARE_REFERENCE.md#experimental-oled-display-variant)).
+  Feature gate: state owner Atlas (`Lobby`); Intent: the existing `Join`
+  (slot 2) and `ArmStart`/`StartGame`; validator: `sigilSeatsOnePlayer()` in the
+  seat-membership and start handlers; persistence: none (the capability is RAM,
+  re-sent in every Hello); rendering: the portal device list; contract: new
+  `CAPABILITY_DISPLAY_OLED` bit in `shared/include/protocol.h` (no packet layout
+  change; reflash Atlas and the OLED Sigil, e-paper Sigils may stay); no new
+  dependency; accessibility: the refusal is text in the log/portal, never only a
+  sound or LED. Bench check: flash both, try the Action + PASS chord on the OLED
+  Sigil (no Seat B), and confirm the portal badge.
+- *Planned:* a Sigil-side message when Seat B is refused (today the second seat
+  just does not appear), and the user manual once the OLED Sigil ships.
+- *Needs verification:* OLED rotation 0 after the panel was remounted.
+
 ## Pending physical verification
 
 - Pairing-window behavior and pairing LED mode.
@@ -350,9 +376,9 @@ Privacy direction:
 - Prototype 1.0 interrupted-match recovery after abrupt Atlas power loss. The
   load/save wiring and diagnostic logging are in now (see item 3 above); this
   entry stays open until an actual power-loss-and-reboot bench test confirms
-  it on hardware, including ending a restored match with the master-button hold.
-- Master-button draw hold: 5 s during a match, status LED blinks fast from 1 s,
-  a shorter press still passes, statistics record Draw once.
+  it on hardware, including ending a restored match with the End match hold.
+- End match draw hold on the touchscreen: 5 s during a match with an on-screen
+  countdown, a shorter press only shows a hint, statistics record Draw once.
 - Forgetting pairings: 10 s Sigil Pair hold; admin Forget one/all with `Unpair`
   reaching an in-range Sigil; the 30/60 s Atlas pairing window.
 

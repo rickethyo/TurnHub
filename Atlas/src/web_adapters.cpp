@@ -197,7 +197,8 @@ bool moderateAccount(const String &actor, const String &target,
 
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
-      (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing)) {
+      (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
+       type != IntentType::ConfigureSpeaker && type != IntentType::ResetTable)) {
     message = "Invalid request";
     return false;
   }
@@ -222,6 +223,8 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureModeration(moderateAccount);
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configureAccessibility([]() { applyAllSigilAccessibility(millis()); });
+  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
+  TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
 }
 

@@ -6,8 +6,9 @@ pass. Hardware playtesting remains required. No profile wipe or flash performed.
 ## Initial setup
 
 On a new Atlas or an existing installation without an Admin, the portal shows a
-setup banner. Create or sign into a PIN-protected account, hold the physical Atlas
-master button, and select **Make my account the initial Admin**. This explicitly
+setup banner. Create or sign into a PIN-protected account, hold **Unlock admin**
+on the Atlas touchscreen for 3 seconds, and within the next minute select **Make my
+account the initial Admin**. This explicitly
 establishes the administrator; neither a display name nor first registration
 automatically grants privileges. The initial Admin cannot be demoted in this slice.
 Subsequent privileged accounts are configured in Device Settings. Existing profile

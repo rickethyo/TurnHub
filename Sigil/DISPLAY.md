@@ -16,6 +16,10 @@ includes a panel driver or branches on display hardware.
   The scaffold supports SH1106 128x64, landscape rotation 0 or 2, through
   explicit I2C or four-wire software SPI. These are supported configurations,
   not an automatically selected hardware specification.
+  **Single-player only** (owner decision, 2026-09-24): shared seating (Seat A
+  and Seat B on one Sigil) is not supported on the OLED Sigil. Use an e-paper
+  Sigil for a shared seat. Atlas enforces it; see
+  [OLED limitations](#oled-limitations).
 
 Build from `Sigil/`:
 
@@ -47,8 +51,8 @@ The added dependency and its notices are recorded in the
 ## OLED hardware evidence and unresolved settings
 
 Owner photos supplied on 2026-09-24 show **Inland 1.3-inch OLED V2.0**, seven
-header pins, and IIC/SPI selector markings. The front photo does not clearly
-resolve the pin labels. The
+header pins, and IIC/SPI selector markings. A later photo of the wired header
+(2026-09-24) reads, from pin 1: GND, VCC, CLK, MOSI, RES, DC, CS. The
 [matching Inland listing](https://www.microcenter.com/product/643965/inland-iic-spi-13-128x64-oled-v20-graphic-display-module-for-arduino-uno-r3)
 identifies part **KS0056**, 128x64. The
 [Keyestudio KS0056 example](https://wiki.keyestudio.com/Ks0056_keyestudio_1.3%22_128x64_OLED_Graphic_Display)
@@ -60,19 +64,45 @@ No Arduino example GPIO numbers were adopted for the ESP32.
 `OledConfig` fields default to unset values; `OLED_CONFIG` in `oled_config.h`
 is the selected Sigil carrier profile (2026-09-24):
 
-| Signal | Carrier socket | GPIO |
-| --- | --- | --- |
-| CLK | J19 | 18 |
-| MOSI | J12 | 23 |
-| RES | J13 | 22 |
-| DC | J22 | 16 |
-| CS | J21 | 17 |
+| Header pin | Signal | Carrier socket | GPIO | Breadboard wire |
+| --- | --- | --- | --- | --- |
+| 1 | GND | A13, A19 or J6 | — | olive |
+| 2 | VCC | J19 (3.3 V) | — | black |
+| 3 | CLK | A11 | 18 | white |
+| 4 | MOSI | A18 | 23 | gray |
+| 5 | RES | A17 | 22 | purple |
+| 6 | DC | A8 | 16 | blue |
+| 7 | CS | A9 | 17 | green |
+
+Wire colours are the jumpers in the owner's photo, not a harness specification.
+The matching e-ink header order and colours are in the
+[Sigil schematic cross-check](../KiCad/PCB/Sigilv1/CROSS_CHECK.md).
+
+### OLED limitations
+
+- **One player per OLED Sigil.** Shared seating is not supported on the OLED
+  variant, even though `OledDisplay` still has the shared-seat layouts it
+  inherited from the display interface. Those layouts are unsupported and
+  may be removed.
+- **Enforced by Atlas.** Atlas enforces it (2026-09-24): the OLED build reports
+  `CAPABILITY_DISPLAY_OLED` (0x10) in its Hello, and Atlas then refuses Seat B on
+  that Sigil (the Action + PASS chord, or any Seat B join) with "This Sigil has an
+  OLED display and seats one player; use an e-paper Sigil to share a seat". It also
+  refuses to start a game while an OLED Sigil still has a Seat B joined before it
+  reported its display (for example, one reflashed while seated). The portal's
+  device list shows each Sigil's display: "OLED: 1 player" or "E-paper: up to 2
+  players". Sigils without the bit (e-paper, and older firmware) keep shared
+  seating, so an OLED Sigil must run Sigil firmware 0.5.6 or later. Host-tested;
+  *Needs verification* on hardware.
+- The OLED Sigil shows no message of its own when Seat B is refused: the second
+  seat simply does not appear. The portal badge and the Atlas log say why.
 
 *Verified (owner hardware inspection):* the wiring above, 3.3 V VCC, common GND,
 and SPI (not I2C) as the module bus, and a working image. EPD_BUSY/GPIO21 is unused by the OLED.
 *Needs verification:* the SH1106 controller and 128x64 geometry (inferred from
-the vendor example). Rotation 2 (180°) matches the mounted panel; the
-owner confirmed a visible image on hardware on 2026-09-24.
+the vendor example). The owner confirmed a visible image on hardware on
+2026-09-24 at rotation 2 (180°). The panel was then remounted the other way up,
+so `OLED_CONFIG` now uses rotation 0; *Needs verification* on hardware.
 
 Field reference:
 

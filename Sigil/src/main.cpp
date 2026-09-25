@@ -45,9 +45,9 @@ constexpr uint8_t RED_LED = 13;
 // pushing right is Action and down is Pause/Win, with the same tap and hold
 // timing as the buttons. VRX/VRY must be ADC1 pins: ADC2 is unusable while
 // ESP-NOW has the radio. GPIO26/25 are left unconfigured.
-constexpr uint8_t PASS_BUTTON = 32;        // SW, switch to GND (A17).
-constexpr uint8_t JOYSTICK_X_PIN = 34;     // VRX, input-only ADC1 (A16).
-constexpr uint8_t JOYSTICK_Y_PIN = 35;     // VRY, input-only ADC1 (A15).
+constexpr uint8_t PASS_BUTTON = 32;        // SW, switch to GND (J13).
+constexpr uint8_t JOYSTICK_X_PIN = 34;     // VRX, input-only ADC1 (J15).
+constexpr uint8_t JOYSTICK_Y_PIN = 35;     // VRY, input-only ADC1 (J14).
 constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
 constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
 // Virtual pins: never GPIO numbers, read from the stick direction instead.
@@ -65,11 +65,16 @@ constexpr uint8_t BUZZER_CHANNEL = 7;
 constexpr uint8_t PAIR_BUTTON = 19;
 
 // Both display implementations consume the same existing display packets.
+// The OLED build also says so, so Atlas limits it to one player.
 constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
     TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |
     TurnHubProtocol::CAPABILITY_GAME_DISPLAY |
-    TurnHubProtocol::CAPABILITY_INPUT_TIMING;
+    TurnHubProtocol::CAPABILITY_INPUT_TIMING
+#if TURNHUB_DISPLAY_OLED
+    | TurnHubProtocol::CAPABILITY_DISPLAY_OLED
+#endif
+    ;
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;

@@ -17,7 +17,7 @@
 //   moderation_intent.cpp  Game Master moderation
 //   sigil_input.cpp        ESP-NOW event adapter and physical gesture state
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
-//   front_panel.cpp        master (BOOT) button, pairing window
+//   front_panel.cpp        pairing window, admin unlock window
 //   touch_controls.cpp     touchscreen buttons (adapter) and the TFT's
 //                          screen model (touch_controls.h)
 //   sigil_accessibility.cpp  seated players' accessibility preferences ->
@@ -141,9 +141,16 @@ void startNetworking();
 
 const char *intentOriginName(IntentOrigin origin);
 
-// Sigils whose joined/in-game seats should hear table-wide cues.
+// Table-wide cue targets: Atlas's speaker plus the Sigils with joined/in-game seats.
 uint16_t lobbyAudioMask();
 uint16_t gameAudioMask();
+
+// True for a Sigil that seats one player: the OLED Sigil reports
+// CAPABILITY_DISPLAY_OLED, and shared seating (Seat B) is e-paper only.
+bool sigilSeatsOnePlayer(uint8_t controllerId);
+// Message for refusing Seat B on such a Sigil.
+constexpr char ONE_PLAYER_SIGIL_MESSAGE[] =
+    "This Sigil has an OLED display and seats one player; use an e-paper Sigil to share a seat";
 
 // Seat lookups against the running game, or the lobby before a game starts.
 bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat);
@@ -197,6 +204,8 @@ IntentResult handlePairRequestIntent(const Intent &intent, void *);
 IntentResult handleGameSettingsIntent(const Intent &intent, void *);
 IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
+IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
+IntentResult handleResetTableIntent(const Intent &intent, void *);
 
 // Clears Atlas-owned decisions and the physical gesture bookkeeping.
 void clearDecisionState();
@@ -260,14 +269,21 @@ extern bool pairingActive;
 
 void beginFrontPanel();
 void startPairingIndicator(uint32_t nowMs);
-// OTA is allowed only between games and while the master button is held.
+// Holding "End match" on the touchscreen this long ends a match as a draw.
+constexpr uint32_t END_MATCH_HOLD_MS = 5000;
+// Holding "Unlock admin" on the touchscreen this long proves physical
+// presence for ADMIN_UNLOCK_WINDOW_MS. Protected web actions (first Admin,
+// system settings, device names, OTA) still need the account permission too.
+constexpr uint32_t ADMIN_UNLOCK_HOLD_MS = 3000;
+constexpr uint32_t ADMIN_UNLOCK_WINDOW_MS = 60000;
+void openAdminUnlock(uint32_t nowMs);
+void closeAdminUnlock();
+// Time left in the admin unlock window, or 0 when it is closed.
+uint32_t adminUnlockRemainingMs(uint32_t nowMs);
+// True while the admin unlock window is open.
+bool physicalPresenceConfirmed();
+// OTA is allowed only between games and while admin is unlocked.
 bool otaAllowed();
-// Holding the master button this long during a match ends it as a draw.
-constexpr uint32_t MASTER_END_MATCH_HOLD_MS = 5000;
-void updateMasterButton();
-// Time left before a match-time master hold ends the match, or 0 when no such
-// hold is counting.
-uint32_t masterEndMatchRemainingMs(uint32_t nowMs);
 void updatePairingWindow(uint32_t nowMs);
 // Time left in the open pairing window, or 0 when it is closed.
 uint32_t pairingRemainingMs(uint32_t nowMs);

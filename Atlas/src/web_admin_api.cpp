@@ -1,6 +1,6 @@
 // Administration endpoints: paired devices and Sigil naming, the Wi-Fi AP
 // password, the downloadable serial log, and account administration. System
-// settings additionally require the physical master button to be held.
+// settings additionally require admin to be unlocked on the Atlas screen.
 
 #include <WiFi.h>
 
@@ -9,6 +9,7 @@
 #include "firmware_version.h"
 #include "optional_preferences.h"
 #include "pairing_settings.h"
+#include "speaker_settings.h"
 #include "wifi_password_store.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
@@ -116,6 +117,10 @@ void handleDevices(WebServer &server) {
     json += ",\"firmware\":\""; json += firmwareText(*record);
     json += "\",\"metadata\":"; json += jsonBool(record->helloInfoValid);
     json += ",\"capabilities\":"; json += String(record->capabilities);
+    // OLED Sigils seat one player; e-paper (and older firmware) seat two.
+    const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
+    json += ",\"display\":\""; json += !record->helloInfoValid ? "unknown" : oled ? "oled" : "epaper";
+    json += "\",\"maxPlayers\":"; json += String(oled ? 1 : 2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
     json += "\"}";
@@ -126,7 +131,7 @@ void handleDevices(WebServer &server) {
 
 void handleDeviceName(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
-  if (!requireMasterButton(server)) return;
+  if (!requirePhysicalPresence(server)) return;
   if (!profileStoreReady || !server.hasArg("module") || !server.hasArg("name")) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Module and name are required\"}");
     return;
@@ -206,6 +211,50 @@ void handleSavePairingSettings(WebServer &server) {
   sendOkMessage(server, message);
 }
 
+// Atlas speaker volume. Admin only; saving is an Intent like the pairing window.
+void handleSpeakerSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const uint8_t volume = readSpeakerVolume ? readSpeakerVolume() : TurnHub::DEFAULT_SPEAKER_VOLUME;
+  String json = "{\"volume\":";
+  json += String(volume);
+  json += ",\"name\":\"";
+  json += TurnHub::speakerVolumeName(volume);
+  json += "\",\"max\":";
+  json += String(TurnHub::SPEAKER_VOLUME_MAX);
+  json += '}';
+  sendJson(server, 200, json);
+}
+
+void handleSaveSpeakerSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const String volume = server.arg("volume");
+  if (volume.length() != 1 || volume[0] < '0' || volume[0] > '9') {
+    sendError(server, 400, "volume must be 0 (off) to 3 (high)");
+    return;
+  }
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::ConfigureSpeaker, server.arg("volume").toInt(), message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
+// Returns the table to an empty lobby (ResetTable). Admin, and admin unlocked
+// on the Atlas screen; Atlas re-checks both in the Intent handler.
+void handleResetTable(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!requirePhysicalPresence(server)) return;
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::ResetTable, 0, message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
 // --- Network ------------------------------------------------------------------------------
 
 void handleNetworkInfo(WebServer &server) {
@@ -223,8 +272,8 @@ void handleNetworkInfo(WebServer &server) {
   response += String(ownerSet ? password.length() : sizeof(AtlasConfig::WIFI_DEFAULT_PASSWORD) - 1);
   response += ",\"stations\":";
   response += String(WiFi.softAPgetStationNum());
-  response += ",\"masterButton\":";
-  response += jsonBool(AtlasConfig::masterButtonPressed());
+  response += ",\"adminUnlocked\":";
+  response += jsonBool(physicalPresence());
   response += '}';
   sendJson(server, 200, response);
 }
@@ -232,7 +281,7 @@ void handleNetworkInfo(WebServer &server) {
 // Saves a new AP password and restarts Atlas so the AP uses it.
 void handleNetworkPassword(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
-  if (!requireMasterButton(server)) return;
+  if (!requirePhysicalPresence(server)) return;
   if (!server.hasArg("password")) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"New password is required\"}");
     return;
@@ -305,7 +354,7 @@ void handleSerialLogDownload(WebServer &server) {
 // --- Accounts ------------------------------------------------------------------------------------
 
 // GET reports whether first-run Admin setup is still needed. POST makes the
-// signed-in account the initial Admin (master button required).
+// signed-in account the initial Admin (admin unlocked on the Atlas screen).
 void handleAccountSetup(WebServer &server, bool readOnly) {
   String primary;
   if (!TurnHubAccounts::primaryAdmin(primary)) {
@@ -325,7 +374,7 @@ void handleAccountSetup(WebServer &server, bool readOnly) {
     sendError(server, 401, "Create or sign into your account first");
     return;
   }
-  if (!requireMasterButton(server)) return;
+  if (!requirePhysicalPresence(server)) return;
   if (!TurnHubAccounts::establishAdmin(String(session->profileId))) {
     sendError(server, 503, "Could not establish Admin; a saved PIN is required");
     return;

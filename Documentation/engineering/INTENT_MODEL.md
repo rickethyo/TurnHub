@@ -204,8 +204,14 @@ default; see [Manual Pairing](MANUAL_PAIRING.md)). `ForgetPairing` and
 signed-in account, and the handler re-checks its Admin permission. `ForgetPairing`
 takes a Sigil ID or `FORGET_ALL_SIGILS` (-1) in `value`, works only in the lobby
 and refuses Sigils with seated players. `ConfigurePairing` takes Atlas's window in
-milliseconds (15,000, 30,000 or 60,000). `EndMatch` is Atlas-hardware only (a
-5-second master-button hold): it ends a running or paused match as a draw,
+milliseconds (15,000, 30,000 or 60,000). `ConfigureSpeaker` (Admin) takes the
+Atlas speaker volume, 0 (off) to 3 (high), and saves it before applying it.
+`ResetTable` (Admin, and only while admin is unlocked on the Atlas touchscreen)
+returns the table to an empty lobby from any state: it cancels a countdown, ends
+a running or paused match as a draw first (statistics once, like `EndMatch`),
+then clears every participant. It is the portal's **Return table to lobby**,
+for when nobody at the table can finish or reach their Sigil. `EndMatch` is Atlas-hardware only (a
+5-second End match hold on the Atlas touchscreen): it ends a running or paused match as a draw,
 overriding a queued PASS, a win claim or an elimination selection, and commits
 statistics once through the normal game-completed callback. `PairConfirm` remains
 unsupported. General counters and nudges

@@ -46,9 +46,9 @@ for ownership, compatibility and acceptance checks.
 
 ## Current prototype hardware
 
-- ESP32-WROOM-32 DevKit-style Atlas
-- Atlas master button: GPIO 32 to GND using the ESP32 internal pull-up
-- No Atlas buzzer
+- LCDwiki E32R28T 2.8" display module (ESP32-32E) Atlas; its touchscreen is
+  the only physical input (no master button; see the hardware reference)
+- On-board speaker for table-wide cues, microSD slot (optional storage)
 - ESP-NOW Sigil transport on Wi-Fi channel 6
 - Local `TurnHub-Atlas` Wi-Fi access point and browser portal
 
@@ -67,7 +67,7 @@ The ESP32 Atlas currently provides:
 - Authenticated statistics page at `/stats`
 - Self-service text statistics export for the authenticated profile
 - Browser feedback controls
-- Atlas web OTA with physical master-button/state gating and post-restart verification
+- Atlas web OTA gated by the table state and the touchscreen Unlock admin window, with post-restart verification
 
 TurnHub remains local-first. Normal table control and player statistics do not require an internet or cloud connection.
 
@@ -170,7 +170,7 @@ loss. See [Software Architecture](../Documentation/engineering/SOFTWARE_ARCHITEC
 
 A turn pass is now provisional for three seconds.
 
-When the active player presses Pass, Atlas records the original pass timestamp and arms a pending transition. During the grace window, another Pass or an Action press from that physical Sigil cancels the pending transition. Browser Pass and the Atlas master-button pass use the same pending-pass path.
+When the active player presses Pass, Atlas records the original pass timestamp and arms a pending transition. During the grace window, another Pass or an Action press from that physical Sigil cancels the pending transition. Browser Pass and the Atlas touchscreen Pass use the same pending-pass path.
 
 If the grace expires, the game engine commits the pass using the original request timestamp. This keeps the outgoing player's recorded turn from gaining an artificial extra three seconds, while the incoming player's clock includes the elapsed grace period. A cancelled pass leaves the original turn uninterrupted.
 
@@ -213,7 +213,7 @@ This provisioning flow is planned, not the current boot behavior.
 ## Wi-Fi access point password
 
 Atlas hosts `TurnHub-Atlas` (WPA2, channel 6). Until an owner sets a password
-in the portal (System → Wi-Fi security, holding the master button), Atlas
+in the portal (System → Wi-Fi security, after Unlock admin on the Atlas screen), Atlas
 uses the shipped pre-setup passphrase `TurnHub-Setup` from `config.h`. This
 lets the Android app join a new Atlas without asking. The default is never
 written to NVS, so erasing NVS returns Atlas to it. An owner-set password is

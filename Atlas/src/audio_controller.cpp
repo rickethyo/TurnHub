@@ -194,6 +194,8 @@ const AudioCueProfile &defaultAudioCueProfile() {
   return profile;
 }
 
+static_assert(MAX_PHYSICAL_SIGILS < 15, "Sigil audio bits must not reach ATLAS_SPEAKER_MASK");
+
 AudioController::AudioController(SigilBus &bus)
     : bus_(bus), profile_(&defaultAudioCueProfile()) {}
 
@@ -213,6 +215,7 @@ void AudioController::setProfile(const AudioCueProfile &profile) {
 
 bool AudioController::play(AudioCue cue, uint16_t targetMask) {
   targetMask = static_cast<uint16_t>(targetMask & ~mutedMask_);
+  if (!speakerAudible()) targetMask = static_cast<uint16_t>(targetMask & ~ATLAS_SPEAKER_MASK);
   if (targetMask == 0 || !profile_->enabled || profile_->pattern(cue).count == 0) {
     return false;
   }
@@ -287,6 +290,9 @@ void AudioController::sendTone(
     }
     bus_.buzzer(sigilId, payload);
   }
+  if ((targetMask & ATLAS_SPEAKER_MASK) != 0 && speakerAudible()) {
+    speaker_->tone(frequencyHz, durationMs, speakerVolume_);
+  }
 }
 
 void AudioController::actionRequired(uint8_t sigilId) { play(AudioCue::ActionRequired, maskForSigil(sigilId)); }
@@ -304,25 +310,27 @@ void AudioController::countdownTone(uint16_t targetMask, uint8_t secondIndex) {
        secondIndex == 1 ? AudioCue::Countdown2 : AudioCue::Countdown3, targetMask);
 }
 
+// The turn change and turn-timer cues also sound on Atlas's speaker, so a
+// player at the table without a Sigil (browser, phone) hears whose turn began.
 void AudioController::turnPassed(uint8_t fromSigilId, uint8_t toSigilId) {
   if (fromSigilId == toSigilId) {
-    play(AudioCue::SameModulePass, maskForSigil(toSigilId));
+    play(AudioCue::SameModulePass, maskForSigil(toSigilId) | ATLAS_SPEAKER_MASK);
     return;
   }
   play(AudioCue::TurnPassed, maskForSigil(fromSigilId));
-  play(AudioCue::TurnStarted, maskForSigil(toSigilId));
+  play(AudioCue::TurnStarted, maskForSigil(toSigilId) | ATLAS_SPEAKER_MASK);
 }
 
 void AudioController::pause(uint16_t targetMask) { play(AudioCue::Pause, targetMask); }
 void AudioController::resume(uint16_t targetMask) { play(AudioCue::Resume, targetMask); }
-void AudioController::turnWarning(uint8_t sigilId) { play(AudioCue::TurnWarning, maskForSigil(sigilId)); }
-void AudioController::timerExpired(uint8_t sigilId) { play(AudioCue::TimerExpired, maskForSigil(sigilId)); }
+void AudioController::turnWarning(uint8_t sigilId) { play(AudioCue::TurnWarning, maskForSigil(sigilId) | ATLAS_SPEAKER_MASK); }
+void AudioController::timerExpired(uint8_t sigilId) { play(AudioCue::TimerExpired, maskForSigil(sigilId) | ATLAS_SPEAKER_MASK); }
 void AudioController::gameStart(uint16_t targetMask) { play(AudioCue::GameStart, targetMask); }
 void AudioController::gameOver(uint16_t targetMask) { play(AudioCue::GameOver, targetMask); }
 void AudioController::eliminationArmed(uint8_t sigilId) { play(AudioCue::EliminationArmed, maskForSigil(sigilId)); }
 void AudioController::eliminationTargetChanged(uint8_t sigilId) { play(AudioCue::EliminationChanged, maskForSigil(sigilId)); }
 void AudioController::eliminationCancelled(uint8_t sigilId) { play(AudioCue::EliminationCancelled, maskForSigil(sigilId)); }
-void AudioController::playerEliminated(uint8_t sigilId) { play(AudioCue::PlayerEliminated, maskForSigil(sigilId)); }
+void AudioController::playerEliminated(uint8_t sigilId) { play(AudioCue::PlayerEliminated, maskForSigil(sigilId) | ATLAS_SPEAKER_MASK); }
 void AudioController::winClaimed(uint16_t targetMask) { play(AudioCue::WinClaimed, targetMask); }
 void AudioController::winConfirmed(uint16_t targetMask) { play(AudioCue::WinConfirmed, targetMask); }
 void AudioController::winDenied(uint16_t targetMask) { play(AudioCue::WinDenied, targetMask); }

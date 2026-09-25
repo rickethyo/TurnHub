@@ -9,6 +9,7 @@
 
 #include "atlas_app.h"
 #include "atlas_display.h"
+#include "atlas_speaker.h"
 #include "config.h"
 #include "firmware_version.h"
 #include "game_recovery.h"
@@ -17,6 +18,7 @@
 #include "runtime_diagnostics.h"
 #include "sd_card.h"
 #include "serial_log.h"
+#include "speaker_settings.h"
 #include "wifi_password_store.h"
 
 using TurnHub::serialLog;
@@ -201,6 +203,8 @@ bool configureIntentHandlers() {
       {IntentType::EndMatch, handleEndMatchIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
+      {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
+      {IntentType::ResetTable, handleResetTableIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {
@@ -237,14 +241,15 @@ void handleStatus() {
   snprintf(
       json,
       sizeof(json),
-      "{\"masterButton\":%s,\"sigils\":%u,\"players\":%u,"
+      "{\"adminUnlocked\":%s,\"adminUnlockMs\":%lu,\"sigils\":%u,\"players\":%u,"
       "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
       "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
       "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
       "\"espNow\":%s,\"firmware\":\"%s\","
       "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
-      AtlasConfig::masterButtonPressed() ? "true" : "false",
+      adminUnlockRemainingMs(nowMs) > 0 ? "true" : "false",
+      static_cast<unsigned long>(adminUnlockRemainingMs(nowMs)),
       static_cast<unsigned>(sigilBus.activeCount(nowMs)),
       static_cast<unsigned>(players),
       stateName(hubState),
@@ -359,13 +364,23 @@ void setup() {
       pairingStatus != TurnHubStorage::Status::NotFound) {
     serialLog.println("ATLAS|PAIRING|WINDOW|STORAGE_ERROR");
   }
+  // The speaker plays table-wide cues; a missing or unreadable volume keeps
+  // the default.
+  uint8_t speakerVolume = TurnHub::DEFAULT_SPEAKER_VOLUME;
+  const auto speakerStatus = TurnHub::loadSpeakerVolume(speakerVolume);
+  if (speakerStatus != TurnHubStorage::Status::Ok &&
+      speakerStatus != TurnHubStorage::Status::NotFound) {
+    speakerVolume = TurnHub::DEFAULT_SPEAKER_VOLUME;
+    serialLog.println("ATLAS|SPEAKER|VOLUME|STORAGE_ERROR");
+  }
+  audio.setSpeaker(beginAtlasSpeaker());
+  audio.setSpeakerVolume(speakerVolume);
   startNetworking();
   serialLog.println("ATLAS|READY");
 }
 
 void loop() {
   processSigilEvents();
-  updateMasterButton();
   server.handleClient();
 
   const uint32_t nowMs = millis();
@@ -379,6 +394,7 @@ void loop() {
   updateGameRecoveryClock(nowMs);
   updateSigilAccessibility(nowMs);
   audio.update(nowMs);
+  serviceAtlasSpeaker(nowMs);
   leds.render(hubState, lobby, game, countdownStartedAtMs, eliminationTargetPlayer,
       game.nextWinConfirmationPlayerNumber(), nowMs);
   ota.update(nowMs);

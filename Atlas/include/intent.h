@@ -65,10 +65,15 @@ enum class IntentType : uint8_t {
   RequestLifeChange,
   RespondLifeChange,
   ExpireLifeChanges,
-  // Atlas master-button hold: end the running or paused match as a draw.
+  // Atlas touchscreen hold: end the running or paused match as a draw.
   EndMatch,
   // Admin: payload.value = pairing window in milliseconds.
   ConfigurePairing,
+  // Admin: payload.value = Atlas speaker volume, 0 (off) to 3 (high).
+  ConfigureSpeaker,
+  // Admin at the table (admin unlocked on the Atlas screen): return the table
+  // to an empty lobby, ending a match in progress as a draw first.
+  ResetTable,
 
   Count,
 };
@@ -216,6 +221,8 @@ inline const char *intentName(IntentType type) {
     case IntentType::Moderate: return "MODERATE";
     case IntentType::EndMatch: return "END_MATCH";
     case IntentType::ConfigurePairing: return "CONFIGURE_PAIRING";
+    case IntentType::ConfigureSpeaker: return "CONFIGURE_SPEAKER";
+    case IntentType::ResetTable: return "RESET_TABLE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

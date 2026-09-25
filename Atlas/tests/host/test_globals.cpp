@@ -2,6 +2,7 @@
 #include <WiFi.h>
 
 #include "atlas_display.h"
+#include "atlas_speaker.h"
 #include "sd_card.h"
 
 uint32_t testNow = 1000;
@@ -20,3 +21,7 @@ void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
 void TurnHubAtlas::beginSdCard() {}
 String TurnHubAtlas::sdCardDiagnosticsJson() { return "{\"state\":\"no_card\"}"; }
 TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
+
+// The speaker is firmware-only (ESP32 DAC); host builds have none.
+TurnHub::ToneOutput *TurnHubAtlas::beginAtlasSpeaker() { return nullptr; }
+void TurnHubAtlas::serviceAtlasSpeaker(uint32_t) {}

@@ -68,11 +68,28 @@ struct AudioCueProfile {
 // The prototype's established sounds plus the turn-timer cues.
 const AudioCueProfile &defaultAudioCueProfile();
 
+// Atlas's own speaker. Non-blocking: tone() starts a note and the
+// implementation ends it after durationMs. volume is 1 (low) to 3 (high).
+class ToneOutput {
+ public:
+  virtual ~ToneOutput() = default;
+  virtual void tone(uint16_t frequencyHz, uint16_t durationMs, uint8_t volume) = 0;
+};
+
 class AudioController {
  public:
   explicit AudioController(SigilBus &bus);
 
   static uint16_t maskForSigil(uint8_t sigilId);
+  // Target bit for Atlas's own speaker (Sigil IDs never reach it). It rides
+  // along with table-wide cues so players without a Sigil hear them too.
+  static constexpr uint16_t ATLAS_SPEAKER_MASK = 0x8000;
+
+  // The speaker, or nullptr when Atlas has none (host tests). Volume 0
+  // silences it without touching Sigil sound; 1-3 are low to high.
+  void setSpeaker(ToneOutput *speaker) { speaker_ = speaker; }
+  void setSpeakerVolume(uint8_t volume) { speakerVolume_ = volume; }
+  uint8_t speakerVolume() const { return speakerVolume_; }
 
   // The profile must outlive the controller (static or owned by the caller).
   void setProfile(const AudioCueProfile &profile);
@@ -132,9 +149,13 @@ class AudioController {
   bool beginNext(uint32_t nowMs);
   void sendTone(uint16_t targetMask, uint16_t frequencyHz, uint16_t durationMs);
 
+  bool speakerAudible() const { return speaker_ != nullptr && speakerVolume_ > 0; }
+
   SigilBus &bus_;
   const AudioCueProfile *profile_;
   uint16_t mutedMask_ = 0;
+  ToneOutput *speaker_ = nullptr;
+  uint8_t speakerVolume_ = 0;
   Job queue_[QUEUE_CAPACITY];
   uint8_t queueHead_ = 0;
   uint8_t queueTail_ = 0;

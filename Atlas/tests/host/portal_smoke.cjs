@@ -169,7 +169,7 @@ const api=http.createServer(async(req,res)=>{
   await tab.getByRole('button',{name:'Forget all',exact:true}).click();
   for(let i=0;i<100&&forgetRequests.length<2;++i)await tab.waitForTimeout(20);
   assert.deepEqual(forgetRequests,['?module=2','?all=1']);
-  // A match ended from the Atlas master button shows as a draw, not a winner.
+  // A match ended from the Atlas touchscreen hold shows as a draw, not a winner.
   state='GAME_OVER';await tab.evaluate(()=>refreshAll());
   await tab.getByRole('button',{name:'Game',exact:true}).click();
   await tab.waitForFunction(()=>document.getElementById('heroTitle').textContent==='Draw');

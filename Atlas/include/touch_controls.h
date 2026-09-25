@@ -5,8 +5,9 @@
 // touch samples in and draws the AtlasScreen this module builds.
 //
 // The touch adapter only builds Intents with IntentOrigin::AtlasHardware (the
-// screen is part of the Atlas, like its master button); Atlas's handlers
-// decide every outcome.
+// screen is part of the Atlas and its only physical input); Atlas's handlers
+// decide every outcome. Its one non-Intent action is the admin unlock window,
+// a physical-presence proof like the master button it replaced.
 
 #include <Arduino.h>
 
@@ -22,7 +23,9 @@ constexpr uint32_t TOUCH_RELEASE_MS = 60;
 // How long an action message stays on screen.
 constexpr uint32_t TOUCH_NOTICE_MS = 4000;
 
-enum class TouchAction : uint8_t { None, Pair, Pass, Pause, Resume, EndMatch };
+enum class TouchAction : uint8_t {
+  None, Pair, Pass, Pause, Resume, EndMatch, UnlockAdmin, LockAdmin
+};
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -31,8 +34,10 @@ struct TouchButton {
   int16_t y = 0;
   int16_t w = 0;
   int16_t h = 0;
-  // Hold buttons act after MASTER_END_MATCH_HOLD_MS; the others act on release.
-  bool hold = false;
+  // Hold buttons act once held this long; 0 means the button acts on release.
+  uint32_t holdMs = 0;
+
+  bool hold() const { return holdMs > 0; }
 
   bool contains(int16_t px, int16_t py) const {
     return px >= x && px < x + w && py >= y && py < y + h;

@@ -21,7 +21,7 @@ const char *intentOriginName(IntentOrigin origin) {
 }
 
 uint16_t lobbyAudioMask() {
-  uint16_t mask = 0;
+  uint16_t mask = AudioController::ATLAS_SPEAKER_MASK;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (lobby.isJoined(id)) mask |= AudioController::maskForSigil(id);
   }
@@ -29,11 +29,18 @@ uint16_t lobbyAudioMask() {
 }
 
 uint16_t gameAudioMask() {
-  uint16_t mask = 0;
+  uint16_t mask = AudioController::ATLAS_SPEAKER_MASK;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (game.controllerInGame(id)) mask |= AudioController::maskForSigil(id);
   }
   return mask;
+}
+
+bool sigilSeatsOnePlayer(uint8_t controllerId) {
+  if (controllerId >= MAX_PHYSICAL_SIGILS) return false;
+  const TurnHub::SigilRecord *record = sigilBus.record(controllerId);
+  return record != nullptr &&
+      (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
 }
 
 bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat) {

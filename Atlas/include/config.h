@@ -7,12 +7,9 @@ namespace AtlasConfig {
 // Atlas board: LCDwiki 2.8" ESP32-32E display module (E32R28T, resistive
 // touch). Pin map from the vendor's pin allocation table; see
 // Documentation/engineering/HARDWARE_REFERENCE.md. The previous prototype's
-// Pair button and status/Pair LEDs are not carried over.
-
-// Physical-presence control: the on-board BOOT button (GPIO0, active-low with
-// an on-board pull-up). It is only sampled after boot, where it is an ordinary
-// input; holding it through reset still enters the ROM download mode.
-constexpr uint8_t MASTER_BUTTON_PIN = 0;
+// Pair button, status/Pair LEDs and master button are not carried over: the
+// touchscreen is Atlas's only physical input (GPIO0 stays the flashing-only
+// BOOT strap).
 
 // ILI9341V TFT on its own SPI bus (HSPI). Reset is tied to the ESP32 EN line.
 constexpr int8_t TFT_SCLK_PIN = 14;
@@ -83,10 +80,5 @@ constexpr size_t WIFI_PASSWORD_MIN_LENGTH = 8;
 constexpr size_t WIFI_PASSWORD_MAX_LENGTH = 63;
 
 constexpr uint16_t HTTP_PORT = 80;
-
-// The master (BOOT) button is active-low.
-inline bool masterButtonPressed() {
-  return digitalRead(MASTER_BUTTON_PIN) == LOW;
-}
 
 }  // namespace AtlasConfig

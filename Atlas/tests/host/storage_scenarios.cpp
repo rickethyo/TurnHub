@@ -11,6 +11,7 @@
 #include "pairing_settings.h"
 #include "accessibility_prefs.h"
 #include "sd_blob_store.h"
+#include "speaker_settings.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -224,6 +225,29 @@ void pairingWindowRecords() {
   FakeNvs::setError=ESP_ERR_NVS_INVALID_HANDLE;
   assert(writePairingWindow(store,30000)==Status::IoError);
   FakeNvs::setError=ESP_OK;
+}
+
+void speakerVolumeRecords() {
+  using namespace TurnHub;
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub")==Status::Ok);
+  uint8_t volume=DEFAULT_SPEAKER_VOLUME;
+  assert(readSpeakerVolume(store,volume)==Status::NotFound && volume==2);
+  for (uint8_t choice=0; choice<=SPEAKER_VOLUME_MAX; ++choice) {
+    assert(writeSpeakerVolume(store,choice)==Status::Ok);
+    assert((FakeNvs::blobs["spkvol"]==std::vector<uint8_t>{1,choice}));
+    uint8_t again=9; assert(readSpeakerVolume(store,again)==Status::Ok && again==choice);
+  }
+  assert(writeSpeakerVolume(store,4)==Status::InvalidArgument && writeSpeakerVolume(store,255)==Status::InvalidArgument);
+  for (const auto &bytes : {std::vector<uint8_t>{}, {1}, {1,2,0}, {1,4}, {2,1}}) {
+    FakeNvs::blobs["spkvol"]=bytes;
+    volume=2;
+    const Status expected=bytes.size()==2&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    assert(readSpeakerVolume(store,volume)==expected && volume==2);
+  }
+  assert(std::string(speakerVolumeName(0))=="off" && std::string(speakerVolumeName(3))=="high");
+  FakeNvs::blobs.clear();
 }
 
 void gameSettingsRecords() {
@@ -495,7 +519,8 @@ int main() {
   profilePolicyRecords();
   gameSettingsRecords();
   pairingWindowRecords();
+  speakerVolumeRecords();
   accessibilityRecords();
   sdRecords();
-  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences, NVS failures and SD records\n";
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences, speaker volume, NVS failures and SD records\n";
 }

@@ -99,10 +99,19 @@ using DeviceIntentCallback = bool (*)(const String &actor, TurnHub::IntentType t
     int32_t value, String &message);
 using PairingWindowCallback = uint32_t (*)();
 void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window);
+// Atlas speaker volume (0 off to 3 high). Saving goes through the device
+// callback as ConfigureSpeaker.
+using SpeakerVolumeCallback = uint8_t (*)();
+void configureSpeaker(SpeakerVolumeCallback volume);
 // Told after a profile's accessibility preferences were saved, so Atlas can
 // restyle that player's Sigil straight away.
 using AccessibilityChangedCallback = void (*)();
 void configureAccessibility(AccessibilityChangedCallback callback);
+// Physical presence: true while admin is unlocked on the Atlas touchscreen.
+// First Admin setup, network settings and device names require it on top of
+// the account permission.
+using PresenceCallback = bool (*)();
+void configurePresence(PresenceCallback confirmed);
 
 
 // Called only for real physical Sigil button activity. A pending browser claim
