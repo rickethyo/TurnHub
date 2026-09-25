@@ -11,7 +11,6 @@ using namespace TurnHubSigil;
 using namespace TurnHubProtocol;
 
 static OledConfig fixture() {
-  // Synthetic host-only values, NOT a proposed wiring diagram or hardware BOM.
   OledConfig c;
   c.controller = OledController::Sh1106;
   c.bus = OledBus::SoftwareSpi;
@@ -22,6 +21,16 @@ static OledConfig fixture() {
 }
 static bool has(const char *text) {
   for (const auto &line : panel.lines) if (line.text == text) return true;
+  return false;
+}
+// Highlighted text is drawn black on a filled bar.
+static bool highlighted(const char *text) {
+  for (const auto &line : panel.lines)
+    if (line.text == text && line.color == SH110X_BLACK) return true;
+  return false;
+}
+static bool startsWith(const char *prefix) {
+  for (const auto &line : panel.lines) if (line.text.rfind(prefix, 0) == 0) return true;
   return false;
 }
 static void resetTrace() { panel = {}; Wire = {}; Serial.output.clear(); }
@@ -38,7 +47,16 @@ static void rejected(const OledConfig &c) {
 int main() {
   static_assert(std::is_abstract<SigilDisplay>::value, "Driver-independent interface required");
   assert(&getSigilDisplay() == &getSigilDisplay());
-  rejected(OLED_CONFIG);
+  // The shipped profile is the owner-verified Sigil carrier wiring.
+  assert(OLED_CONFIG.controller == OledController::Sh1106 &&
+      OLED_CONFIG.bus == OledBus::SoftwareSpi && OLED_CONFIG.width == 128 &&
+      OLED_CONFIG.height == 64 && OLED_CONFIG.sclk == 18 &&
+      OLED_CONFIG.mosi == 23 && OLED_CONFIG.reset == 22 &&
+      OLED_CONFIG.dc == 16 && OLED_CONFIG.cs == 17);
+  resetTrace();
+  { OledDisplay shipped; shipped.begin();
+    assert(panel.begins == 1 && panel.spi && panel.rotation == 2); }
+  rejected(OledConfig{});
   auto c = fixture();
   c.controller = OledController::Unspecified; rejected(c);
   c = fixture(); c.bus = OledBus::Unspecified; rejected(c);
@@ -67,26 +85,27 @@ int main() {
   assert(panel.begins == 1 && panel.spi && Wire.calls == 0);
   assert(panel.mosi == 23 && panel.sclk == 18 && panel.cs == 17 && panel.dc == 16);
   assert(panel.reset == 22 && panel.resetRequested);
-  d.showBooting(); assert(has("Booting") && has("TurnHub"));
-  d.showUnpaired(); assert(has("Unpaired") && has("Press Pair on both"));
-  d.showReady(7); assert(has("Sigil 8") && has("Ready for game"));
+  d.showBooting(); assert(has("Booting") && has("TurnHub") && panel.shapes > 0);
+  d.showUnpaired(); assert(has("UNPAIRED") && has("Press Pair on both"));
+  d.showReady(7); assert(has("SIGIL 8") && has("Ready for game"));
   assert(d.setSeatName(1, "ABCDEFGHIJKLmore"));
   assert(!d.setSeatName(1, "ABCDEFGHIJKL"));
   assert(!d.setSeatName(3, "ignored"));
   assert(d.setSeatName(2, "Second"));
   d.showState(7, DisplayMode::Lobby, 1, 2, 255, DISPLAY_FLAG_HOST);
   assert(has("A: ABCDEFGHIJKL") && has("B: Second") && has("SHARED SIGIL"));
-  assert(has("Lobby S8 T255 H"));
+  assert(highlighted("LOBBY") && highlighted("S8 T255"));
+  assert(!highlighted("SHARED SIGIL"));
   d.showState(0, DisplayMode::Starting, 2, 1, 1, DISPLAY_FLAG_STARTER);
-  assert(has("GO FIRST: B") && panel.inversions == 1);
+  assert(highlighted("GO FIRST: B"));
   d.showState(0, DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
-  assert(has("YOUR TURN: A"));
+  assert(highlighted("YOUR TURN: A"));
   d.showState(0, DisplayMode::Paused, 2, 1, 1, DISPLAY_FLAG_ATTENTION);
-  assert(has("ACTION NEEDED: B"));
+  assert(highlighted("ACTION NEEDED: B"));
   d.showState(0, DisplayMode::GameOver, 1, 2, 1, DISPLAY_FLAG_WINNER);
-  assert(has("WINNER!: A"));
+  assert(highlighted("WINNER!: A"));
   d.showState(0, DisplayMode::Paused, 1, 0, 1, 0);
-  assert(has("GAME PAUSED"));
+  assert(has("GAME PAUSED") && !highlighted("GAME PAUSED"));
   d.showState(0, DisplayMode::GameOver, 1, 0, 1, 0);
   assert(has("GAME COMPLETE"));
   assert(d.setSeatName(1, nullptr));
@@ -109,14 +128,15 @@ int main() {
         const auto before = s;
         d.showGame(s);
         assert(std::memcmp(&before, &s, sizeof(s)) == 0);
-        assert(has(active ? "YOUR TURN" : "WAITING FOR TURN"));
-        assert(panel.inversions == (active ? 1 : 0));
+        assert(active ? highlighted("YOUR TURN") :
+            has("WAITING FOR TURN") && !highlighted("WAITING FOR TURN"));
         assert(has(shared ? "B: ABCDEFGHIJKL" : "ABCDEFGHIJKL"));
-        char life[32]; std::snprintf(life, sizeof(life), "LIFE %ld", long(value));
+        char life[32]; std::snprintf(life, sizeof(life), "%ld", long(value));
         assert(has(life));
         if (shared) {
-          assert(has("A: MNOPQRSTUVWX"));
-          std::snprintf(life, sizeof(life), "LIFE %ld", long(-value));
+          // The other seat's name may shorten; its life total never does.
+          assert(startsWith("A: MNOP"));
+          std::snprintf(life, sizeof(life), "\x03%ld", long(-value));
           assert(has(life));
         }
       }
@@ -124,9 +144,9 @@ int main() {
   }
   s.state = encodeDisplayState(DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
   s.commander = 1; d.showGame(s);
-  assert(has("A: ABCDEFGHIJKL") && has("B: MNOPQRSTUVWX") && has("CMD: see companion"));
+  assert(has("A: ABCDEFGHIJKL") && startsWith("B: MNOP") && highlighted("COMMANDER"));
   d.showState(0, DisplayMode::Paused, 1, 0, 1, 0);
-  assert(!has("LIFE 1000000")); // State-only packets must not retain stale life.
+  assert(!has("1000000")); // State-only packets must not retain stale life.
 
   c = fixture(); c.bus = OledBus::I2c; c.sda = 21; c.scl = 22;
   c.reset = -1; c.rotation = 2; c.i2cClockHz = 100000;

@@ -57,8 +57,24 @@ controller/geometry and SPI is consistent with the owner's identification.
 The exact physical module, jumper setting and pin order remain to be checked.
 No Arduino example GPIO numbers were adopted for the ESP32.
 
-Every hardware setting defaults to an unset value in `oled_config.h`. Before
-enabling a panel, fill its TODO values from verified module/wiring information:
+`OledConfig` fields default to unset values; `OLED_CONFIG` in `oled_config.h`
+is the selected Sigil carrier profile (2026-09-24):
+
+| Signal | Carrier socket | GPIO |
+| --- | --- | --- |
+| CLK | J19 | 18 |
+| MOSI | J12 | 23 |
+| RES | J13 | 22 |
+| DC | J22 | 16 |
+| CS | J21 | 17 |
+
+*Verified (owner hardware inspection):* the wiring above, 3.3 V VCC, common GND,
+and SPI (not I2C) as the module bus, and a working image. EPD_BUSY/GPIO21 is unused by the OLED.
+*Needs verification:* the SH1106 controller and 128x64 geometry (inferred from
+the vendor example). Rotation 2 (180°) matches the mounted panel; the
+owner confirmed a visible image on hardware on 2026-09-24.
+
+Field reference:
 
 | Setting | Required decision |
 | --- | --- |
@@ -74,9 +90,7 @@ enabling a panel, fill its TODO values from verified module/wiring information:
 The selected values are copied from `OLED_CONFIG` at display construction.
 Unsupported, missing, duplicate or conflicting pins/settings cause
 `SIGIL|DISPLAY|OLED|UNCONFIGURED_OR_INVALID|CHECK_OLED_CONFIG`; no panel object,
-OLED pin or bus is initialized and rendering calls are harmless no-ops. This
-allows compile/testing while hardware selection is unresolved. It is **not**
-a ready-to-flash OLED hardware profile and does not establish a working panel.
+OLED pin or bus is initialized and rendering calls are harmless no-ops.
 
 GPIO validation excludes ESP32 flash/input-only/nonexistent pins, UART0 and the
 existing Sigil input/LED/buzzer pins (including GPIO19 Pair). Review this guard
@@ -126,7 +140,8 @@ paths remain available, consistent with the accessibility reference.
 
 - PlatformIO builds pass for `sigil`, `sigil-wokwi` and `sigil-oled`, using the
   installed Espressif32 7.1.3 / Arduino-ESP32 2.0.17 toolchain. No compiler
-  warnings were emitted. OLED build uses the deliberately unconfigured profile.
+  warnings were emitted. OLED build initially used an unconfigured profile; the verified carrier
+  wiring was selected later the same day.
 - `tests/host/run-gcc.ps1` compiles the real OLED renderer and factory against
   recording driver stubs using MinGW, with warnings treated as errors. It checks
   configuration rejection before I/O, initialization failures, both bus paths,

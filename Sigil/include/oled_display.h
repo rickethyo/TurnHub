@@ -22,11 +22,20 @@ class OledDisplay final : public SigilDisplay {
       uint8_t flags) override;
 
  private:
+  enum class Align : uint8_t { Left, Center, Right };
+  enum class Icon : uint8_t { None, Turn, TurnBack, Pause, Crown };
+
   bool validConfig() const;
-  void line(const char *text, int16_t y, uint8_t maxSize = 1, bool inverse = false);
-  void header(const char *title, uint8_t sigilId, uint8_t turn, bool host);
-  void status(const char *first, const char *second = nullptr,
-      const char *third = nullptr);
+  int16_t text(const char *value, int16_t y, uint8_t maxSize, Align align,
+      bool inverse = false, int16_t left = 0, int16_t right = -1);
+  void header(const char *title, const char *right, bool host = false);
+  void banner(const char *message, int16_t y, bool highlight, Icon kind);
+  void icon(Icon kind, int16_t x, int16_t y, uint16_t color);
+  void heart(int16_t x, int16_t y);
+  void lifeTotal(int32_t life, int16_t y, uint8_t maxSize);
+  void splash(const char *caption);
+  void status(const char *headerRight, const char *big, const char *first,
+      const char *second = nullptr);
 
   const OledConfig config_;
   std::unique_ptr<Adafruit_SH1106G> display_;
