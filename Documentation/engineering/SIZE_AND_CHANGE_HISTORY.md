@@ -394,6 +394,24 @@ largest flash items are web assets (portal HTML 103 KB uncompressed, theme CSS
 
 All four boards were flashed at the end of the session.
 
+
+### 2026-09-25 - Optional SD diagnostics (experimental, `codex/sd-diagnostics`)
+
+Atlas stays `0.6.0-dev`; Sigil firmware and radio protocol are unchanged.
+Redacted serial capture can drain to four rotating SD logs, with boot markers,
+explicit overflow reporting and self-test gating. Authoritative NVS data is
+unchanged. The worker requests a 6,144-byte dynamic task stack, including a
+2,048-byte drain buffer; this is not a measured total RAM delta. No new library.
+
+Host storage and serial-stream scenarios cover retention, restarts, redaction,
+overflow and injected failures. Firmware RAM/flash figures are unavailable in
+this environment; a firmware build and physical SD acceptance are still required.
+
+Merged into `android/testing` with the statistics split, which shares the card
+through a lock in `sd_card.cpp` (2026-09-25). The combined Atlas build: RAM
+100,980 B (30.8%), flash 1,333,357 B (67.8%). Physical SD acceptance is still
+pending.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

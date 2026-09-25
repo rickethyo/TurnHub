@@ -33,8 +33,9 @@ class FileSystem {
 // A write goes to <key>.tmp, is read back and checked, and only then replaces
 // <key>: the old record is renamed to <key>.bak, the new one renamed into
 // place, and the backup removed. If power is lost between those renames, the
-// next read falls back to <key>.bak, so a record is always either the old or
-// the new version. A leftover .tmp is never read.
+// next read can fall back to <key>.bak. A leftover .tmp is never read. This
+// protects against interrupted application operations when the filesystem is
+// intact; FAT metadata and the card itself are not power-loss transactional.
 class SdBlobStore final : public BlobStore {
  public:
   static constexpr size_t MAX_RECORD_BYTES = 4096;

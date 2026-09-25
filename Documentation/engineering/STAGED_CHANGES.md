@@ -69,10 +69,15 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   2026-09-25 touch read fix (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)).
 - **microSD storage:** step 1 is done (2026-09-24): Atlas mounts the card at
   boot, runs a write/read-back self-test and reports it in Developer
-  diagnostics; `SdBlobStore` provides checksummed, crash-safe records (see
+  diagnostics; `SdBlobStore` provides checksummed records with backup fallback
+  when the filesystem remains intact (see
   [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage)).
   *Verified* by the owner on hardware: the card mounts and registers. Still to
-  check: booting without a card. Nothing authoritative is on the card yet.
+  check: booting without a card.
+  Step 2 (2026-09-25, Codex, `codex/sd-diagnostics`): optional rotating
+  redacted diagnostics and boot markers are implemented as an experiment;
+  self-test failure now gates consumers. See [SD diagnostics](SD_DIAGNOSTICS.md)
+  for the remaining physical checks.
   **Owner direction (2026-09-25):** offload as much as possible to the card.
   An Atlas without a card runs in a "limp" mode: it loses luxury features but
   stays fully functional for play. So core table function (pairing, seats,
@@ -84,7 +89,7 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   themes or cosmetic options) and a few basic statistics: games played, games
   won, the game type, perhaps a handful of other simple counters. Literally
   everything else goes to the card.
-  **Step 2 done (2026-09-25, host-tested, *Needs verification* on hardware):**
+  **Step 3 done (2026-09-25, host-tested, *Needs verification* on hardware):**
   statistics are split into an NVS core record (games played and won, last
   result, last game type) and the detailed record on the card, with a
   checked, non-destructive migration at boot (see
@@ -122,6 +127,37 @@ This is the durable staging document for agreed work that has not yet been imple
 Use this file instead of chat history for near-term changes. Keep it concise. Once an item is implemented and verified, move any lasting architectural facts into the appropriate reference document and remove it from here.
 
 ## Current baseline
+
+### Next implementation priority: Sigil OTA
+
+Owner direction (2026-09-25): move Sigil OTA ahead of session history and SD
+theme packs. Repeated USB flashing and COM-port tracking across devices is the
+immediate workflow problem. Continue the already-in-progress profile/life work
+without mixing it into the updater change.
+
+Target workflow: upload each firmware variant to Atlas once, select paired
+Sigils by name, update one device first and then a queued group, with visible
+transfer/install/reboot results and reported running versions. Atlas stages
+validated images on SD and retains the current known-good package plus a small
+history of compatible previous releases for an explicit reinstall action.
+See [package storage requirements](SD_DIAGNOSTICS.md#sigil-update-packages-planned).
+
+Implementation order:
+1. Define variant/version/compatibility metadata and the Sigil update transport,
+   flash partition requirements and boot validation/recovery behavior.
+2. Add authenticated Admin upload/catalog handling with the existing physical
+   unlock policy, verified staging and bounded package retention on SD. A hash
+   detects corruption; update authorization/authenticity is a separate requirement.
+3. Prove an end-to-end update on one Sigil, then add per-device queuing, progress,
+   timeout/retry reporting and selection of a retained compatible image.
+
+Acceptance: update and reinstall a retained compatible release on both Sigil
+variants without selecting COM ports; reject wrong-variant/corrupt images;
+interrupt transfer/power and verify a recoverable device. Do not claim automatic
+rollback until failed-boot recovery is implemented and tested. Full Sigil OTA
+remains planned; the SD diagnostics change does not implement firmware delivery.
+
+### Baseline reference
 
 Active baseline: `master` (Atlas ESP32 migration merged in `6844f94`).
 
@@ -381,7 +417,8 @@ Privacy direction:
   [Manual Pairing](MANUAL_PAIRING.md)); authenticated device trust remains.
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
-- Choose the production Sigil transport and OTA strategy.
+- Sigil OTA is the next implementation priority above; choose its transport
+  and recovery strategy before implementing the queued update workflow.
 - Freeze hardware revisions only after GPIO, power, display, pairing, transport, tactile-control, and accessibility decisions are verified.
 
 ## OLED Sigil
@@ -427,7 +464,7 @@ Privacy direction:
   flashed Atlas yet.
 - *Planned* follow-up: capture framework `log_e`/ESP-IDF output as well (for
   example via a vprintf hook). Today only the Atlas `serialLog` stream is kept.
-  Persisting logs across reboots needs storage that Atlas does not have yet.
+  Optional SD persistence is now experimental; see [SD diagnostics](SD_DIAGNOSTICS.md).
 
 ## Working rules
 

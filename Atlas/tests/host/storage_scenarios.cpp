@@ -11,6 +11,7 @@
 #include "pairing_settings.h"
 #include "accessibility_prefs.h"
 #include "sd_blob_store.h"
+#include "diagnostic_log.h"
 #include "speaker_settings.h"
 
 using namespace TurnHubStorage;
@@ -542,7 +543,87 @@ void sdRecords() {
   assert(!store.ready() && store.read("rec", out, sizeof(out), size) == Status::Unavailable);
 }
 
+struct FakeDiagnosticFiles : DiagnosticFileSystem {
+  std::map<std::string, std::string> files;
+  bool failWrite = false, failRename = false, failRemove = false, failSize = false;
+  int writes = 0;
+  bool exists(const char *path) override { return files.count(path) != 0; }
+  bool fileSize(const char *path, size_t &size) override {
+    if (failSize || !exists(path)) return false;
+    size = files[path].size(); return true;
+  }
+  bool appendFile(const char *path, const void *data, size_t size) override {
+    ++writes;
+    // Model a short write too, not just a clean failure before touching disk.
+    files[path].append(static_cast<const char *>(data), failWrite ? size / 2 : size);
+    return !failWrite;
+  }
+  bool rename(const char *from, const char *to) override {
+    if (failRename || !exists(from) || exists(to)) return false;
+    files[to] = files[from]; files.erase(from); return true;
+  }
+  bool remove(const char *path) override {
+    if (failRemove) return false;
+    return files.erase(path) != 0;
+  }
+};
+
+void diagnosticLogRecords() {
+  assert(sdStorageReady(Status::Ok, Status::Ok));
+  for (Status bad : {Status::Unavailable, Status::IoError, Status::Corrupt, Status::NotFound}) {
+    assert(!sdStorageReady(bad, Status::Ok));
+    assert(!sdStorageReady(Status::Ok, bad));
+  }
+  FakeDiagnosticFiles fs;
+  fs.files["/turnhub/unrelated"] = "keep";
+  DiagnosticLog log;
+  assert(!log.append("x", 1));
+  assert(log.begin(fs, 8));
+  assert(log.append("boot1", 5));
+  DiagnosticLog restarted;
+  assert(restarted.begin(fs, 8));
+  assert(restarted.append("+2", 2));
+  assert(fs.files[DiagnosticLog::current()] == "boot1+2");
+  assert(!restarted.append("too large", 9));
+  assert(restarted.ready());
+  // More than four generations: oldest is retired, newest remain in order.
+  for (char c = 'A'; c <= 'F'; ++c) {
+    const std::string entry(8, c);
+    assert(restarted.append(entry.data(), entry.size()));
+  }
+  assert(fs.files.size() == 5 && fs.files["/turnhub/unrelated"] == "keep");
+  assert(fs.files[DiagnosticLog::current()] == std::string(8, 'F'));
+  for (unsigned i = 1; i <= 3; ++i)
+    assert(fs.files[std::string(DiagnosticLog::current()) + "." + std::to_string(i)] == std::string(8, 'F' - i));
+  fs.failRemove = true;
+  assert(!restarted.append("G", 1) && !restarted.ready());
+  fs.failRemove = false;
+  assert(restarted.begin(fs, 8));
+  fs.failRename = true;
+  assert(!restarted.append("G", 1) && !restarted.ready());
+  assert(fs.files[DiagnosticLog::current()] == std::string(8, 'F'));
+  fs.failRename = false;
+  assert(restarted.begin(fs, 8));
+  fs.failWrite = true;
+  assert(!restarted.append("partial", 7) && !restarted.ready());
+  const auto before = fs.files;
+  const int attempts = fs.writes;
+  assert(!restarted.append("retry", 5));
+  assert(fs.files == before && fs.writes == attempts);
+  fs.failWrite = false;
+  assert(restarted.begin(fs, 8) && restarted.append("new", 3));
+  assert(fs.files[DiagnosticLog::current()] == "parnew");
+  fs.failSize = true;
+  assert(!restarted.begin(fs, 8));
+  fs.failSize = false;
+  assert(!restarted.begin(fs, 0));
+  fs.files[DiagnosticLog::current()] = std::string(9, 'X');
+  assert(!restarted.begin(fs, 8)); // Unexpected oversized data is preserved.
+  assert(fs.files[DiagnosticLog::current()].size() == 9);
+}
+
 int main() {
+  diagnosticLogRecords();
   accountRecords();
   moderationRecords();
   identityContracts();

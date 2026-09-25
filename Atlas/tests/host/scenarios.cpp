@@ -714,6 +714,37 @@ static void accountPermissionsAndModeration(){
 static bool logHas(const char *text) {
   return TurnHub::serialLog.snapshot().find(text)!=std::string::npos;
 }
+static void serialLogStream() {
+  TurnHub::SerialLog log;
+  log.printlnRedacted("password=secret", "password=<redacted>");
+  const String expected = log.snapshot();
+  char buffer[31];
+  uint64_t cursor = 0, lost = 0;
+  std::string drained;
+  size_t n;
+  while ((n = log.readSince(cursor, buffer, sizeof(buffer), lost))) {
+    assert(lost == 0);
+    drained.append(buffer, n);
+  }
+  assert(drained == expected && drained.find("secret") == std::string::npos);
+  assert(log.snapshot() == expected); // Reading is independent of HTTP download.
+  assert(log.readSince(cursor, buffer, sizeof(buffer), lost) == 0 && lost == 0);
+  log.print("later");
+  assert(log.readSince(cursor, buffer, sizeof(buffer), lost) > 0 && lost == 0);
+  for (size_t i = 0; i < TurnHub::SerialLog::CAPACITY + 50; ++i) log.write('x');
+  n = log.readSince(cursor, buffer, sizeof(buffer), lost);
+  assert(n == sizeof(buffer) && lost == 50);
+  assert(std::string(buffer, n) == std::string(n, 'x'));
+  // Clearing capture also advances a lagging reader, without replaying stale bytes.
+  log.clear(); log.println("fresh");
+  const String fresh = log.snapshot();
+  n = log.readSince(cursor, buffer, sizeof(buffer), lost);
+  assert(lost == TurnHub::SerialLog::CAPACITY - sizeof(buffer));
+  assert(std::string(buffer, n) == fresh);
+  uint64_t independent = cursor;
+  assert(log.readSince(independent, nullptr, 1, lost) == 0 && independent == cursor);
+}
+
 static void serialLogCapture() {
   using TurnHub::serialLog;
   serialLog.clear(); testNow=12345;
@@ -2168,7 +2199,8 @@ int main() {
   accessibilityPreferences(); std::cout<<"PASS per-player accessibility: LED profiles, merge rules, API, Sigil mute, hold-timing radio\n";
   actionRequiredCues(); std::cout<<"PASS ActionRequired reaches only the Sigil whose win confirmation is next\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
-  serialLogCapture(); std::cout<<"PASS serial log capture, redaction, ring overflow and self-describing log lines\n";
+  serialLogStream();
+  serialLogCapture(); std::cout<<"PASS serial log capture, redaction, stream draining, ring overflow and self-describing log lines\n";
   // Must run last: see the comment on gameRecoveryLifecycle().
   gameRecoveryLifecycle(); std::cout<<"PASS interrupted-match recovery: boot load, checkpoint-after-intent, downtime exclusion, corrupt fail-safe\n";
 }
