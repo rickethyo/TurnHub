@@ -5,6 +5,34 @@ Current pairing update (2026-09-22): physical buttons are owner-verified and man
 pairing fallback and visual mock are superseded. Radio bench acceptance and
 forget-device management remain pending. See [Manual Pairing](MANUAL_PAIRING.md).
 
+Owner decisions (2026-09-25, end of day):
+
+- **Retire "host" and "admin unlock".** The host (the first-joined controller,
+  which alone may start, rematch, reset and pick the starter) and the 3 s
+  touchscreen Admin unlock window (physical presence for first-Admin setup,
+  network settings, device names and OTA) feel clunky and dated. They go away,
+  but *some* access gate is still needed. **Design open:** propose a
+  replacement before implementing; until then both stay as they are. The
+  replacement must keep the Intent/validator boundary, and it must keep a
+  proof of physical presence for first-Admin setup (nothing else prevents a
+  stranger on the Wi-Fi claiming an unconfigured Atlas).
+- **SD cards are multi-Atlas.** A card records its owner Atlas's ID. A card
+  from another Atlas is offered in transient "slots" with two choices:
+  - **Game night:** its profiles, statistics and settings are available
+    temporarily on this Atlas, and the card is not taken over.
+  - **Merge in:** its data becomes this Atlas's master data, and the card now
+    belongs to this Atlas.
+
+  **Design open:** conflicts, meaning the same profile on both, whose PIN
+  wins, and which stats are merged or kept apart. Also where game-night
+  results are written.
+- **Cards pulled mid-session must be re-recognized** when reinserted (hot-plug
+  remount), not left out until a restart.
+- **No statistics rollback option.** Detail moved to the card is not copied
+  back to NVS on request.
+- **Sigil OTA transport: undecided.** The owner wants a recommendation with
+  the trade-offs explained before choosing (see the Sigil OTA section).
+
 
 Owner decisions and follow-through (2026-09-24, later the same day):
 
@@ -109,14 +137,17 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   19 KB of CSS and 10 KB for the stats page. Storing them gzipped, as the QR
   script already is, would free roughly 100 KB with or without a card.
   Proposed, not started.
-  Still to decide: rollback, mid-session card loss (hot-plug is not handled;
-  a card inserted after boot needs a restart), and whether a card may be
-  moved between Atlases.
+  Decided 2026-09-25 (see the owner decisions at the top of this file): no
+  statistics rollback. A card pulled mid-session must be re-recognized when
+  reinserted; today it still needs a restart, so hot-plug remount is to
+  build. Cards are multi-Atlas, with owner ID plus game-night or merge-in
+  slots; to design.
 - Done 2026-09-25: player names, life and the turn clock on the status
   screen, Info and QR code screens, the NO SD CARD warning (bench check of
   the new layout pending). Still open: more touch actions (Start, Rematch,
-  starter selection) once the owner decides which host-only actions the table
-  device may take; the on-board RGB LED as a cue output; a battery gauge.
+  starter selection). They wait on the access gate that replaces host and
+  admin unlock (owner decision 2026-09-25, top of this file). Also open: the
+  on-board RGB LED as a cue output; a battery gauge.
 - Update the user manual: there is no master button; pairing, ending a match
   as a draw and Unlock admin (first Admin, network settings, device names, OTA)
   are on the Atlas touchscreen, the speaker volume is an Admin setting, and an
@@ -328,7 +359,8 @@ stats; the last active same-profile session controls authenticated visibility.
 No hardware acceptance yet. Startup behavior and the picker still need coordinated
 Atlas/Sigil changes, live-assignment separation and e-ink verification; they are
 not implemented. Device-settings editing permissions beyond existing physical
-Atlas confirmation for naming remain to be defined.
+Atlas confirmation for naming remain to be defined, as part of the access gate
+that replaces host and admin unlock (owner decision 2026-09-25).
 
 Follow-through remains: durable session/recovery policy, richer role/capability
 administration, temporary browser guest profiles, broader controller handoff,
@@ -417,7 +449,8 @@ Privacy direction:
   [Manual Pairing](MANUAL_PAIRING.md)); authenticated device trust remains.
 - Re-test Atlas OTA application and reboot behavior on physical hardware.
 - Define validation and rollback/recovery behavior.
-- Sigil OTA is the next implementation priority above; choose its transport
+- Sigil OTA is the next implementation priority above. Its transport is
+  undecided (owner, 2026-09-25): a recommendation with trade-offs comes first. Then choose its transport
   and recovery strategy before implementing the queued update workflow.
 - Freeze hardware revisions only after GPIO, power, display, pairing, transport, tactile-control, and accessibility decisions are verified.
 
