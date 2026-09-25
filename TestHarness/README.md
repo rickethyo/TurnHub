@@ -42,6 +42,18 @@ over ESP-NOW:
 7. **Third-party impact:** none (Arduino ESP32 core only).
 8. **Accessibility impact:** none to gameplay; developer tooling only.
 
+## From the Atlas touchscreen
+
+V1 advertises `CAPABILITY_HARNESS`, so while the harness is online the Atlas
+lobby shows **Tests** beside Pair a Sigil. It opens the premade tests: **Radio**
+(radio check), **2p game**, **4p game**, **Rematch** (3 players: a game, a
+rematch and a second game) and **Soak x5**. Tap one and the harness plays it
+through its Sigils. The title and detail lines show the test, the current
+checkpoint and the result in words, and **Stop test** aborts it. The test
+screen stays up through the game until **Back**. Atlas and the harness speak
+`HarnessCommand` and `HarnessReport` (see
+`Documentation/engineering/PROTOCOL_AND_PAIRING.md`).
+
 ## Serial commands (115200 baud)
 
 | Command | What it does |
@@ -50,7 +62,9 @@ over ESP-NOW:
 | `pair` | Sends PairRequest from every unpaired virtual Sigil for 30 s. Tap **Pair a Sigil** on Atlas during that time |
 | `forget` | Forgets the pairing on the harness only. Forget the two Sigils in the portal's Device Settings as well |
 | `sigils <1\|2>` | Use one or both virtual Sigils |
+| `pace <ms>` | Pause before each menu choice (default 1500 ms, 0-10000, kept in NVS) so a run can be followed on the Atlas screen |
 | `verbose <on\|off>` | Log every packet sent and received |
+| `test [n]` | Runs premade test n, as the Atlas touchscreen does; with no number, lists them |
 | `menu` | Print what Atlas currently offers each virtual Sigil |
 | `select <V1\|V2> <action>` | Send one menu choice by hand (`join`, `start`, `pass`, `claim-win`, ...) |
 | `run smoke` | Each virtual Sigil is paired, answers Hello and has a menu |

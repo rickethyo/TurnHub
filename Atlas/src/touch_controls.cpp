@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "atlas_app.h"
+#include "harness_link.h"
 #include "serial_log.h"
 
 using TurnHub::serialLog;
@@ -34,6 +35,9 @@ uint32_t lastContactAtMs = 0;
 char noticeText[sizeof(AtlasScreen::notice)] = {};
 uint32_t noticeAtMs = 0;
 
+// The test harness screen is showing (opened from the lobby's Tests button).
+bool testsOpen = false;
+
 void addButton(AtlasScreen &screen, TouchAction action, const char *label,
     int16_t x, int16_t y, int16_t w, uint32_t holdMs = 0) {
   if (screen.buttonCount >= MAX_TOUCH_BUTTONS) return;
@@ -57,12 +61,51 @@ void addAdminButton(AtlasScreen &screen, int16_t y, uint32_t nowMs) {
   }
 }
 
+bool harnessRunning(uint32_t nowMs) {
+  TurnHubProtocol::HarnessReportFields report;
+  return harnessReport(nowMs, report) && report.state == TurnHubProtocol::HarnessRunState::Running;
+}
+
+// The test harness screen: its premade tests in two rows of three, or Stop
+// while one runs. It stays up through the game the harness plays until Back.
+void layoutTests(AtlasScreen &screen, uint32_t nowMs) {
+  if (harnessSigilId(nowMs) == INVALID_ID) {
+    addButton(screen, TouchAction::CloseTests, "Back", MARGIN, SECONDARY_ROW_Y, FULL_WIDTH);
+    return;
+  }
+  if (harnessRunning(nowMs)) {
+    addButton(screen, TouchAction::StopTest, "Stop test", MARGIN, PRIMARY_ROW_Y, FULL_WIDTH);
+    addButton(screen, TouchAction::CloseTests, "Back", MARGIN, SECONDARY_ROW_Y, FULL_WIDTH);
+    return;
+  }
+  constexpr int16_t THIRD = (FULL_WIDTH - 2 * MARGIN) / 3;
+  const int16_t x2 = MARGIN + THIRD + MARGIN;
+  const int16_t x3 = x2 + THIRD + MARGIN;
+  addButton(screen, TouchAction::RunRadioCheck, "Radio", MARGIN, PRIMARY_ROW_Y, THIRD);
+  addButton(screen, TouchAction::RunQuickGame, "2p game", x2, PRIMARY_ROW_Y, THIRD);
+  addButton(screen, TouchAction::RunFullGame, "4p game", x3, PRIMARY_ROW_Y, THIRD);
+  addButton(screen, TouchAction::RunRematchGame, "Rematch", MARGIN, SECONDARY_ROW_Y, THIRD);
+  addButton(screen, TouchAction::RunSoak, "Soak x5", x2, SECONDARY_ROW_Y, THIRD);
+  addButton(screen, TouchAction::CloseTests, "Back", x3, SECONDARY_ROW_Y, THIRD);
+}
+
 // The buttons for the current table state.
 void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
+  if (testsOpen) {
+    layoutTests(screen, nowMs);
+    return;
+  }
   switch (hubState) {
     case HubState::Lobby:
-      addButton(screen, TouchAction::Pair, "Pair a Sigil", MARGIN, PRIMARY_ROW_Y, FULL_WIDTH);
+      if (harnessSigilId(nowMs) != INVALID_ID) {
+        const int16_t pairWidth = 200;
+        addButton(screen, TouchAction::Pair, "Pair a Sigil", MARGIN, PRIMARY_ROW_Y, pairWidth);
+        addButton(screen, TouchAction::OpenTests, "Tests", MARGIN * 2 + pairWidth, PRIMARY_ROW_Y,
+            FULL_WIDTH - pairWidth - MARGIN);
+      } else {
+        addButton(screen, TouchAction::Pair, "Pair a Sigil", MARGIN, PRIMARY_ROW_Y, FULL_WIDTH);
+      }
       addAdminButton(screen, SECONDARY_ROW_Y, nowMs);
       break;
     case HubState::Running: {
@@ -114,6 +157,14 @@ const char *actionName(TouchAction action) {
     case TouchAction::EndMatch: return "END_MATCH";
     case TouchAction::UnlockAdmin: return "UNLOCK_ADMIN";
     case TouchAction::LockAdmin: return "LOCK_ADMIN";
+    case TouchAction::OpenTests: return "OPEN_TESTS";
+    case TouchAction::CloseTests: return "CLOSE_TESTS";
+    case TouchAction::StopTest: return "STOP_TEST";
+    case TouchAction::RunRadioCheck: return "RUN_RADIO_CHECK";
+    case TouchAction::RunQuickGame: return "RUN_QUICK_GAME";
+    case TouchAction::RunFullGame: return "RUN_FULL_GAME";
+    case TouchAction::RunRematchGame: return "RUN_REMATCH_GAME";
+    case TouchAction::RunSoak: return "RUN_SOAK";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -160,6 +211,31 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       result = dispatchSeatIntent(type, IntentOrigin::AtlasHardware, *active);
       break;
     }
+    // The test harness screen changes no table state. A test plays through
+    // the harness's own Sigils and Atlas's normal handlers.
+    case TouchAction::OpenTests:
+      testsOpen = true;
+      result = IntentResult::accept("Pick a test for the harness to run");
+      break;
+    case TouchAction::CloseTests:
+      testsOpen = false;
+      result = IntentResult::accept("Test screen closed");
+      break;
+    case TouchAction::StopTest:
+      result = requestHarnessStop(nowMs) ? IntentResult::accept("Stopping the test")
+          : IntentResult::reject(IntentStatus::InvalidState, "The test harness is not connected");
+      break;
+    case TouchAction::RunRadioCheck:
+    case TouchAction::RunQuickGame:
+    case TouchAction::RunFullGame:
+    case TouchAction::RunRematchGame:
+    case TouchAction::RunSoak: {
+      const TurnHubProtocol::HarnessTest test = static_cast<TurnHubProtocol::HarnessTest>(
+          static_cast<uint8_t>(action) - static_cast<uint8_t>(TouchAction::RunRadioCheck));
+      result = requestHarnessTest(test, nowMs) ? IntentResult::accept("Test sent to the harness")
+          : IntentResult::reject(IntentStatus::InvalidState, "The test harness is not connected");
+      break;
+    }
     case TouchAction::None:
       return;
   }
@@ -170,7 +246,43 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   showNotice(nowMs, result.message);
 }
 
+// Test screen text: the test's name and its progress, all in words (a pass or
+// failure never relies on color).
+void formatTests(AtlasScreen &screen, uint32_t nowMs) {
+  using TurnHubProtocol::HarnessRunState;
+  snprintf(screen.title, sizeof(screen.title), "Test harness");
+  if (harnessSigilId(nowMs) == INVALID_ID) {
+    snprintf(screen.detail, sizeof(screen.detail), "Harness offline");
+    return;
+  }
+  TurnHubProtocol::HarnessReportFields r;
+  if (!harnessReport(nowMs, r) || r.state == HarnessRunState::Idle) {
+    snprintf(screen.detail, sizeof(screen.detail), "Ready: pick a test");
+    return;
+  }
+  snprintf(screen.title, sizeof(screen.title), "%s", TurnHubProtocol::harnessTestName(r.test));
+  const char *step = TurnHubProtocol::harnessStepName(r.step);
+  switch (r.state) {
+    case HarnessRunState::Running:
+      snprintf(screen.detail, sizeof(screen.detail), "%s, %u ok", step, static_cast<unsigned>(r.passed));
+      break;
+    case HarnessRunState::Passed:
+      snprintf(screen.detail, sizeof(screen.detail), "PASSED: %u steps", static_cast<unsigned>(r.passed));
+      break;
+    case HarnessRunState::Failed:
+      snprintf(screen.detail, sizeof(screen.detail), "FAILED at %s", step);
+      break;
+    default:
+      snprintf(screen.detail, sizeof(screen.detail), "Stopped at %s", step);
+      break;
+  }
+}
+
 void formatTitle(AtlasScreen &screen, uint32_t nowMs) {
+  if (testsOpen) {
+    formatTests(screen, nowMs);
+    return;
+  }
   const uint8_t players = game.hasPlayers() ? game.playerCount() : lobby.playerCount();
   switch (hubState) {
     case HubState::Lobby: {
@@ -322,6 +434,7 @@ void resetTouchControls() {
   holdFired = false;
   pressedAction = TouchAction::None;
   noticeText[0] = '\0';
+  testsOpen = false;
 }
 
 }  // namespace TurnHubAtlas

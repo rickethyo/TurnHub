@@ -27,7 +27,10 @@ constexpr int16_t TOUCH_SLOP_PX = 12;
 constexpr uint32_t TOUCH_NOTICE_MS = 4000;
 
 enum class TouchAction : uint8_t {
-  None, Pair, Pass, Pause, Resume, EndMatch, UnlockAdmin, LockAdmin
+  None, Pair, Pass, Pause, Resume, EndMatch, UnlockAdmin, LockAdmin,
+  // Test harness screen (only while a harness is connected): no Intents.
+  OpenTests, CloseTests, StopTest, RunRadioCheck, RunQuickGame, RunFullGame, RunRematchGame,
+  RunSoak
 };
 
 struct TouchButton {
@@ -48,7 +51,7 @@ struct TouchButton {
   }
 };
 
-constexpr uint8_t MAX_TOUCH_BUTTONS = 3;
+constexpr uint8_t MAX_TOUCH_BUTTONS = 6;
 
 // Everything the TFT shows. Equal screens need no redraw.
 struct AtlasScreen {

@@ -174,6 +174,7 @@ state:
 | Running | Pass, Pause | `Pass` / `Pause` for the active seat |
 | Paused | Resume | `Resume` for the active seat |
 | Running, Paused | Hold to end match (draw) | `EndMatch` after `END_MATCH_HOLD_MS` (5 s), with an on-screen countdown |
+| Lobby, with a test harness online | Tests, then Radio / 2p game / 4p game / Rematch / Soak x5 / Back, and Stop test while one runs | No Intent: `HarnessCommand` to the harness, which plays through its own Sigils; progress shown in words |
 
 Taps act on release inside the same button, and sliding off cancels. A press
 that started on a button stays on it within `TOUCH_SLOP_PX` (12 px) of its

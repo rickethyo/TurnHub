@@ -19,6 +19,7 @@
 #include "../../src/main.cpp"
 #include "touch_calibration.h"
 #include "touch_controls.h"
+#include "harness_link.h"
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
@@ -63,11 +64,14 @@ static unsigned fixtureLedStateSends=0;
 static unsigned fixtureChannelSends=0;
 static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
+static int32_t fixtureHarnessCommand=-1;
+static unsigned fixtureHarnessCommands=0;
 bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;
   if(type==TurnHubProtocol::PacketType::InputTiming&&fixtureRadio) { fixtureInputTiming[id]=value; ++fixtureInputTimingSends; }
   if(type==TurnHubProtocol::PacketType::LedState&&fixtureRadio) { fixtureLedState[id]=value; ++fixtureLedStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
+  if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
      type==TurnHubProtocol::PacketType::SetGreen) ++fixtureChannelSends;
   return fixtureRadio;
@@ -1727,6 +1731,57 @@ static void touchControls() {
   resetTouchControls(); enterEmptyLobby();
 }
 
+// A connected test harness (CAPABILITY_HARNESS) adds Tests to the lobby; its
+// screen starts premade tests over the radio and shows progress in words.
+static void harnessScreen() {
+  using namespace TurnHubProtocol;
+  resetTouchControls(); resetHarnessLink(); freshLobby(2); pairingActive=false;
+  AtlasScreen s=currentScreen();
+  assert(!screenButton(s,TouchAction::OpenTests) && harnessSigilId(testNow)==INVALID_ID);
+  // A report from an ordinary Sigil is ignored.
+  HarnessReportFields running; running.state=HarnessRunState::Running;
+  running.test=static_cast<uint8_t>(HarnessTest::FullGame); running.step=static_cast<uint8_t>(HarnessStep::Turn);
+  running.passed=12;
+  noteHarnessReport(2,encodeHarnessReport(running),testNow); HarnessReportFields r;
+  assert(!harnessReport(testNow,r));
+
+  TurnHub::SigilRecord &rec=TurnHub::fixtureRecords[2];
+  rec.helloInfoValid=true; rec.capabilities=CAPABILITY_MENU|CAPABILITY_HARNESS;
+  assert(harnessSigilId(testNow)==2);
+  s=currentScreen();
+  const TouchButton *pair=screenButton(s,TouchAction::Pair), *tests=screenButton(s,TouchAction::OpenTests);
+  assert(pair && tests && pair->w>=44 && tests->w>=44 && tests->x>=pair->x+pair->w);
+  tapButton(TouchAction::OpenTests); s=currentScreen();
+  assert(String(s.title)=="Test harness" && String(s.detail)=="Ready: pick a test" && s.buttonCount==6);
+  for (const TouchButton &b : s.buttons)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+
+  TurnHub::fixtureHarnessCommands=0; tapButton(TouchAction::RunFullGame);
+  assert(TurnHub::fixtureHarnessCommands==1 && harnessCommandKind(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessCommandKind::Run) &&
+      harnessCommandTest(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessTest::FullGame));
+  assert(hubState==HubState::Lobby);  // Atlas changes nothing itself; the harness plays.
+
+  noteHarnessReport(2,encodeHarnessReport(running),testNow); s=currentScreen();
+  assert(String(s.title)=="4-player game" && String(s.detail)=="TURN, 12 ok" &&
+      s.buttonCount==2 && screenButton(s,TouchAction::StopTest) && screenButton(s,TouchAction::CloseTests));
+  tapButton(TouchAction::StopTest);
+  assert(harnessCommandKind(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessCommandKind::Stop));
+  HarnessReportFields failed=running; failed.state=HarnessRunState::Failed; failed.failed=1;
+  noteHarnessReport(2,encodeHarnessReport(failed),testNow);
+  assert(String(currentScreen().detail)=="FAILED at TURN");
+  // The screen stays up while the harness plays, then a stale report lapses.
+  startFromHost(); assert(String(currentScreen().detail)=="FAILED at TURN");
+  testNow+=HARNESS_REPORT_STALE_MS; assert(String(currentScreen().detail)=="Ready: pick a test");
+  tapButton(TouchAction::CloseTests); assert(!screenButton(currentScreen(),TouchAction::StopTest));
+  assert(String(currentScreen().title)!="Test harness");
+  enterEmptyLobby();
+  // Without a harness the Tests button goes, and an open test screen offers only Back.
+  tapButton(TouchAction::OpenTests); rec.capabilities=CAPABILITY_MENU; s=currentScreen();
+  assert(String(s.detail)=="Harness offline" && s.buttonCount==1 && screenButton(s,TouchAction::CloseTests));
+  tapButton(TouchAction::CloseTests); assert(!screenButton(currentScreen(),TouchAction::OpenTests));
+  rec.helloInfoValid=false; rec.capabilities=0; resetTouchControls(); resetHarnessLink();
+}
+
 static void endMatchAsDraw() {
   using TurnHubProfiles::LastGameResult;
   // Only a match in progress, and only the Atlas hardware, can end it.
@@ -2053,6 +2108,7 @@ int main() {
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, admin unlock/lock/expiry, Pass, Pause/Resume, end-match hold, slide-off, drop-out, stale press\n";
+  harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
   oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, unlock window, draw once, countdown\n";

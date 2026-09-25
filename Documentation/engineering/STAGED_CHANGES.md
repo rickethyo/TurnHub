@@ -79,10 +79,14 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   the game engine, settings, recovery, and whatever login needs) must never
   depend on the card. Bulk and history records (statistics, session and game
   history, logs) move to it, and are shown as unavailable when it's missing.
-  Still to decide: the exact core/luxury split (in particular profiles and PIN
-  hashes, which gate login), the NVS migration and rollback, mid-session card
-  loss (hot-plug is not handled; a card inserted after boot needs a restart),
-  and whether a card may be moved between Atlases.
+  **The split (owner, later on 2026-09-25; flash and NVS are running short):**
+  NVS keeps only a basic profile (ID, name, PIN hash; no avatar, no extra
+  themes or cosmetic options) and a few basic statistics: games played, games
+  won, the game type, perhaps a handful of other simple counters. Literally
+  everything else goes to the card. Still to decide: the NVS migration and
+  rollback, mid-session card loss (hot-plug is not handled; a card inserted
+  after boot needs a restart), and whether a card may be moved between
+  Atlases.
 - Player names on the status screen; more touch actions (Start, Rematch,
   starter selection) once the owner decides which host-only actions the table
   device may take; the on-board RGB LED as a cue output; a battery gauge.

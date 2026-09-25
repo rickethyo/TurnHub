@@ -352,6 +352,7 @@ void SigilBus::handleReceive(
     case PacketType::ActionLong:
     case PacketType::ActionWin:
     case PacketType::SelectAction:
+    case PacketType::HarnessReport:
     case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
       enqueue(*sigil, packet);

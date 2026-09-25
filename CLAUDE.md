@@ -14,6 +14,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
 | `PiLogger/` | Optional Raspberry Pi telemetry recorder (non-authoritative; must never be required for gameplay) | Python |
+| `TestHarness/` | ESP32 hardware-in-the-loop harness: plays as two virtual menu Sigils against a real Atlas; premade tests start from the Atlas touchscreen (see its README) | PlatformIO, Arduino ESP32, C++ |
 | `KiCad/` | Sigil PCB/schematic, plus Python scripts in `tools/` that build and verify the schematic | KiCad, Python |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
 
@@ -73,6 +74,12 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 - **Joining Atlas's Wi-Fi:** the app joins it itself via `TargetedAtlasWifiLink` (`WifiNetworkSpecifier`, API 29+). It tries a saved password, then the shipped default, then prompts. The default passphrase `TurnHub-Setup` exists in two places that must stay in sync: `Atlas/include/config.h` (`WIFI_DEFAULT_PASSWORD`) and `WifiCredentials.DEFAULT_ATLAS_PASSPHRASE`. It's documented in `protocol/http-v1.md`.
 - **Phone testing:** with USB debugging on, `adb` is at `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`. Drive the UI with `uiautomator dump` plus `input tap`. `screencap` needs a display ID on the Pixel Fold. Never type passwords for the user.
 - **Identifying boards:** Atlas (LCDwiki E32R28T 2.8" display board) uses a CH340C USB bridge; Sigils use CP210x. To confirm a board, read its MAC with `pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac`; Atlas's MAC is its `THA-` ID. Reading the MAC resets the board.
+
+### Test harness (run from `TestHarness/`)
+```
+pio run -e harness --target upload --upload-port COMx   # the harness is a CP210x port too; ask which one
+```
+Serial console (115200): `status`, `pair` (tap Pair a Sigil on Atlas), `test` (premade tests), `run game [players] [turns]`, `pace <ms>`. It pairs as two Sigils (its station and soft-AP MACs), and the first advertises `CAPABILITY_HARNESS` so Atlas shows **Tests** in the lobby.
 
 ### PiLogger
 `python -m turnhub_logger.main --config config.toml` (copy from `config.example.toml`).

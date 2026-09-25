@@ -22,6 +22,9 @@ using TurnHubProtocol::MenuStateFields;
 using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
 using TurnHubProtocol::SigilAction;
+using TurnHubProtocol::HarnessRunState;
+using TurnHubProtocol::HarnessStep;
+using TurnHubProtocol::HarnessTest;
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Must match Atlas's soft-AP channel (and Sigil's WIFI_CHANNEL).
@@ -94,6 +97,11 @@ String inputLine;
 bool abortRequested = false;
 uint16_t passed = 0;
 uint16_t failed = 0;
+// The run Atlas sees (HarnessReport), and a test Atlas asked for from its
+// touchscreen, started by loop() so it never runs inside the radio pump.
+TurnHubProtocol::HarnessReportFields report;
+bool running = false;
+int8_t pendingTest = -1;
 
 // --- Names ---------------------------------------------------------------------
 
@@ -207,7 +215,8 @@ void sendHello(VirtualSigil &v) {
   v.lastHelloMs = millis();
   if (!atlasKnown || v.sigilId == UNASSIGNED) return;
   sendPacket(v, PacketType::Hello,
-      TurnHubProtocol::encodeHelloInfo(FIRMWARE_MAJOR, FIRMWARE_MINOR, FIRMWARE_PATCH, CAPABILITIES));
+      TurnHubProtocol::encodeHelloInfo(FIRMWARE_MAJOR, FIRMWARE_MINOR, FIRMWARE_PATCH,
+          &v == &sigils[0] ? CAPABILITIES | TurnHubProtocol::CAPABILITY_HARNESS : CAPABILITIES));
 }
 
 VirtualSigil *sigilById(uint8_t sigilId) {
@@ -268,6 +277,22 @@ void handlePacket(const uint8_t *mac, const Packet &packet) {
             static_cast<unsigned>(v->menu.revision), menuText(*v).c_str());
       }
       break;
+    case PacketType::HarnessCommand: {
+      // Only V1 carries CAPABILITY_HARNESS, so only it takes commands.
+      if (v != &sigils[0]) break;
+      const uint8_t kind = TurnHubProtocol::harnessCommandKind(packet.value);
+      const uint8_t test = TurnHubProtocol::harnessCommandTest(packet.value);
+      if (kind == static_cast<uint8_t>(TurnHubProtocol::HarnessCommandKind::Stop)) {
+        if (running) abortRequested = true;
+        Serial.println("HARNESS|ATLAS|STOP");
+      } else if (running || pendingTest >= 0) {
+        Serial.println("HARNESS|ATLAS|RUN|BUSY");
+      } else if (test < static_cast<uint8_t>(HarnessTest::Count)) {
+        pendingTest = static_cast<int8_t>(test);
+        Serial.printf("HARNESS|ATLAS|RUN|%s\n", TurnHubProtocol::harnessTestName(test));
+      }
+      break;
+    }
     case PacketType::Unpair:
       Serial.printf("HARNESS|PAIR|FORGOTTEN_BY_ATLAS|%s\n", v->name);
       v->sigilId = UNASSIGNED;
@@ -323,6 +348,7 @@ bool startRadio() {
 // --- Service loop --------------------------------------------------------------
 
 void pollSerialForAbort();
+void sendReport();
 
 // Keeps every virtual Sigil alive: received packets, Hello, pairing requests.
 void pump() {
@@ -345,6 +371,7 @@ void pump() {
       }
     } else if (now - v.lastHelloMs >= HELLO_INTERVAL_MS) {
       sendHello(v);
+      if (i == 0) sendReport();  // Atlas keeps showing the last result.
     }
   }
 }
@@ -402,15 +429,27 @@ bool choose(VirtualSigil &v, SigilAction action) {
 
 // --- Reporting -----------------------------------------------------------------
 
-bool step(bool ok, const char *name, const String &detail = String()) {
+// Tells Atlas how the run is going (V1 speaks for the harness).
+void sendReport() {
+  report.passed = static_cast<uint8_t>(min<uint16_t>(passed, 255));
+  report.failed = static_cast<uint8_t>(min<uint16_t>(failed, 255));
+  if (sigils[0].sigilId != UNASSIGNED) {
+    sendPacket(sigils[0], PacketType::HarnessReport, TurnHubProtocol::encodeHarnessReport(report));
+  }
+}
+
+bool step(bool ok, HarnessStep checkpoint, const String &detail = String()) {
   if (ok) {
     ++passed;
   } else {
     ++failed;
   }
-  Serial.printf("HARNESS|%s|%s", ok ? "PASS" : "FAIL", name);
+  report.step = static_cast<uint8_t>(checkpoint);
+  Serial.printf("HARNESS|%s|%s", ok ? "PASS" : "FAIL",
+      TurnHubProtocol::harnessStepName(static_cast<uint8_t>(checkpoint)));
   if (detail.length() > 0) Serial.printf("|%s", detail.c_str());
   Serial.println();
+  sendReport();
   return ok;
 }
 
@@ -438,13 +477,13 @@ bool scenarioSmoke() {
   bool ok = true;
   for (uint8_t i = 0; i < activeSigils; ++i) {
     VirtualSigil &v = sigils[i];
-    if (!step(v.sigilId != UNASSIGNED, "PAIRED", String(v.name) +
+    if (!step(v.sigilId != UNASSIGNED, HarnessStep::Paired, String(v.name) +
             (v.sigilId == UNASSIGNED ? "|reason=run 'pair'" : "|sigil=" + String(v.sigilId)))) {
       ok = false;
       continue;
     }
-    ok &= step(waitUntil([&v] { return online(v); }, STEP_WAIT_MS), "HELLO_ACK", v.name);
-    ok &= step(waitUntil([&v] { return v.menuValid; }, STEP_WAIT_MS), "MENU",
+    ok &= step(waitUntil([&v] { return online(v); }, STEP_WAIT_MS), HarnessStep::HelloAck, v.name);
+    ok &= step(waitUntil([&v] { return v.menuValid; }, STEP_WAIT_MS), HarnessStep::Menu,
         String(v.name) + "|" + menuText(v));
   }
   return ok;
@@ -467,56 +506,56 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
     }
     return true;
   }, STEP_WAIT_MS);
-  if (!step(inLobby, "LOBBY", inLobby ? String() : "reason=table not in lobby|" + allMenus())) return false;
+  if (!step(inLobby, HarnessStep::Lobby, inLobby ? String() : "reason=table not in lobby|" + allMenus())) return false;
 
   // Seats: V1 A, V2 A, V1 B, V2 B (as many as asked for).
   for (uint8_t i = 0; i < activeSigils && i < players; ++i) {
     VirtualSigil &v = sigils[i];
     if (!has(v, SigilAction::Join)) {
-      step(true, "JOIN", String(v.name) + "|already joined");
+      step(true, HarnessStep::Join, String(v.name) + "|already joined");
       continue;
     }
     const bool joined = choose(v, SigilAction::Join) &&
         waitUntil([&v] { return has(v, SigilAction::CycleStarter); }, STEP_WAIT_MS);
-    if (!step(joined, "JOIN", String(v.name) + "|" + menuText(v))) return false;
+    if (!step(joined, HarnessStep::Join, String(v.name) + "|" + menuText(v))) return false;
   }
   for (uint8_t seat = activeSigils; seat < players; ++seat) {
     VirtualSigil &v = sigils[seat - activeSigils];
     if (has(v, SigilAction::RemoveSeatB)) continue;
     const bool added = choose(v, SigilAction::AddSeatB) &&
         waitUntil([&v] { return has(v, SigilAction::RemoveSeatB); }, STEP_WAIT_MS);
-    if (!step(added, "SEAT_B", String(v.name) + "|" + menuText(v))) return false;
+    if (!step(added, HarnessStep::SeatB, String(v.name) + "|" + menuText(v))) return false;
   }
 
   VirtualSigil *host = nullptr;
   waitUntil([&host] { return (host = offering(SigilAction::StartGame)) != nullptr; }, STEP_WAIT_MS);
-  if (!step(host != nullptr, "HOST", host ? String(host->name)
+  if (!step(host != nullptr, HarnessStep::Host, host ? String(host->name)
           : "reason=no harness Sigil may start (another controller joined first?)|" + allMenus())) {
     return false;
   }
   const bool started = choose(*host, SigilAction::StartGame) &&
       waitUntil([] { return offering(SigilAction::Pass) != nullptr; }, START_WAIT_MS);
-  if (!step(started, "START", allMenus())) return false;
+  if (!step(started, HarnessStep::Start, allMenus())) return false;
 
   for (uint8_t turn = 1; turn <= turns; ++turn) {
     VirtualSigil *active = nullptr;
     waitUntil([&active] { return (active = offering(SigilAction::Pass)) != nullptr; }, STEP_WAIT_MS);
-    if (active == nullptr) return step(false, "TURN", "turn=" + String(turn) + "|" + allMenus());
+    if (active == nullptr) return step(false, HarnessStep::Turn, "turn=" + String(turn) + "|" + allMenus());
     VirtualSigil &a = *active;
     // Pass is queued (CancelPass offered) and commits after Atlas's grace.
     const bool ok = choose(a, SigilAction::Pass) &&
         waitUntil([&a] { return has(a, SigilAction::CancelPass); }, STEP_WAIT_MS) &&
         waitUntil([&a] { return !has(a, SigilAction::CancelPass); }, PASS_WAIT_MS);
-    if (!step(ok, "TURN", "turn=" + String(turn) + "|from=" + a.name + "|" + allMenus())) return false;
+    if (!step(ok, HarnessStep::Turn, "turn=" + String(turn) + "|from=" + a.name + "|" + allMenus())) return false;
   }
 
   VirtualSigil *pauser = offering(SigilAction::Pause);
   bool paused = pauser != nullptr && choose(*pauser, SigilAction::Pause) &&
       waitUntil([pauser] { return has(*pauser, SigilAction::Resume); }, STEP_WAIT_MS);
-  if (!step(paused, "PAUSE", allMenus())) return false;
+  if (!step(paused, HarnessStep::Pause, allMenus())) return false;
   const bool resumed = choose(*pauser, SigilAction::Resume) &&
       waitUntil([] { return offering(SigilAction::Pass) != nullptr; }, STEP_WAIT_MS);
-  if (!step(resumed, "RESUME", allMenus())) return false;
+  if (!step(resumed, HarnessStep::Resume, allMenus())) return false;
 
   if (players >= 3) {
     // V1 holds two seats: it pauses, says "I'm out" and eliminates one seat.
@@ -529,12 +568,12 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
         waitUntil([] {
           return offering(SigilAction::Resume) != nullptr || offering(SigilAction::Pass) != nullptr;
         }, STEP_WAIT_MS);
-    if (!step(ok, "ELIMINATE", String(out.name) + "|" + allMenus())) return false;
+    if (!step(ok, HarnessStep::Eliminate, String(out.name) + "|" + allMenus())) return false;
     if (offering(SigilAction::Pass) == nullptr) {
       VirtualSigil *resumer = offering(SigilAction::Resume);
       ok = resumer != nullptr && choose(*resumer, SigilAction::Resume) &&
           waitUntil([] { return offering(SigilAction::Pass) != nullptr; }, STEP_WAIT_MS);
-      if (!step(ok, "RESUME_AFTER_ELIMINATION", allMenus())) return false;
+      if (!step(ok, HarnessStep::ResumeAfterElimination, allMenus())) return false;
     }
   }
 
@@ -543,7 +582,7 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
   VirtualSigil *claimant = offering(SigilAction::ClaimWin);
   const bool claimed = claimant != nullptr && choose(*claimant, SigilAction::ClaimWin) &&
       waitUntil([] { return offering(SigilAction::ConfirmWin) != nullptr || gameOver(); }, STEP_WAIT_MS);
-  if (!step(claimed, "CLAIM_WIN", claimant ? String(claimant->name) : allMenus())) return false;
+  if (!step(claimed, HarnessStep::ClaimWin, claimant ? String(claimant->name) : allMenus())) return false;
   uint8_t confirmations = 0;
   while (!gameOver()) {
     VirtualSigil *confirmer = nullptr;
@@ -552,22 +591,22 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
     }, STEP_WAIT_MS);
     if (gameOver()) break;
     if (confirmer == nullptr || !choose(*confirmer, SigilAction::ConfirmWin)) {
-      return step(false, "CONFIRM_WIN", allMenus());
+      return step(false, HarnessStep::ConfirmWin, allMenus());
     }
     ++confirmations;
-    step(true, "CONFIRM_WIN", String(confirmer->name));
+    step(true, HarnessStep::ConfirmWin, String(confirmer->name));
     // The same Sigil may confirm again for its other seat with an unchanged
     // menu, so give Atlas a moment to move the question on.
     idle(300);
-    if (confirmations > 2 * VIRTUAL_SIGILS) return step(false, "CONFIRM_WIN", "reason=too many");
+    if (confirmations > 2 * VIRTUAL_SIGILS) return step(false, HarnessStep::ConfirmWin, "reason=too many");
   }
-  if (!step(waitUntil([] { return gameOver(); }, STEP_WAIT_MS), "GAME_OVER", allMenus())) return false;
+  if (!step(waitUntil([] { return gameOver(); }, STEP_WAIT_MS), HarnessStep::GameOver, allMenus())) return false;
 
   VirtualSigil *finisher = offering(SigilAction::Rematch);
   if (rematch) {
     const bool ok = choose(*finisher, SigilAction::Rematch) &&
         waitUntil([] { return offering(SigilAction::StartGame) != nullptr; }, STEP_WAIT_MS);
-    return step(ok, "REMATCH_LOBBY", allMenus());
+    return step(ok, HarnessStep::RematchLobby, allMenus());
   }
   const bool reset = choose(*finisher, SigilAction::ResetTable) && waitUntil([] {
     for (uint8_t i = 0; i < activeSigils; ++i) {
@@ -575,7 +614,7 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
     }
     return true;
   }, STEP_WAIT_MS);
-  return step(reset, "RESET_TABLE", allMenus());
+  return step(reset, HarnessStep::ResetTable, allMenus());
 }
 
 void startPairing() {
@@ -603,12 +642,56 @@ void startPairing() {
   Serial.println(done ? "HARNESS|PAIR|DONE" : "HARNESS|PAIR|TIMEOUT");
 }
 
+// A premade test (the list the Atlas touchscreen offers), reported to Atlas
+// from start to finish.
+void runTest(HarnessTest test) {
+  const uint8_t id = static_cast<uint8_t>(test);
+  passed = 0;
+  failed = 0;
+  abortRequested = false;
+  running = true;
+  report = TurnHubProtocol::HarnessReportFields();
+  report.state = HarnessRunState::Running;
+  report.test = id;
+  sendReport();
+  Serial.printf("HARNESS|RUN|%s\n", TurnHubProtocol::harnessTestName(id));
+  switch (test) {
+    case HarnessTest::RadioCheck:
+      scenarioSmoke();
+      break;
+    case HarnessTest::QuickGame:
+      scenarioGame(2, 3, false);
+      break;
+    case HarnessTest::FullGame:
+      scenarioGame(4, 6, false);
+      break;
+    case HarnessTest::RematchGame:
+      if (scenarioGame(3, 2, true)) scenarioGame(3, 2, false);
+      break;
+    case HarnessTest::Soak:
+      for (uint8_t game = 1; game <= 5 && !abortRequested && failed == 0; ++game) {
+        Serial.printf("HARNESS|RUN|soak|game=%u/5\n", game);
+        scenarioGame(4, 4, false);
+      }
+      break;
+    default:
+      break;
+  }
+  report.state = abortRequested ? HarnessRunState::Stopped
+      : failed > 0 ? HarnessRunState::Failed : HarnessRunState::Passed;
+  running = false;
+  sendReport();
+  summary(TurnHubProtocol::harnessTestName(id));
+  if (abortRequested) Serial.println("HARNESS|ABORTED");
+  abortRequested = false;
+}
+
 // --- Commands ------------------------------------------------------------------
 
 void printHelp() {
   Serial.println("HARNESS|HELP|status | pair | forget | sigils <1|2> | pace <ms> | verbose <on|off> | menu");
   Serial.println("HARNESS|HELP|select <V1|V2> <action> | run smoke | run game [players 2-4] [turns] [rematch]");
-  Serial.println("HARNESS|HELP|run soak [games] [players] | x (abort a run)");
+  Serial.println("HARNESS|HELP|run soak [games] [players] | test [n] (the premade tests Atlas offers) | x (abort a run)");
 }
 
 void printStatus() {
@@ -698,6 +781,15 @@ void handleCommand(String command) {
     } else {
       Serial.printf("HARNESS|SELECT|%s\n", choose(*v, action) ? "ACKED" : "NO_ACK");
     }
+  } else if (verb == "test") {
+    const long id = numberOr(token(command, 1), -1);
+    if (id < 0 || id >= static_cast<long>(HarnessTest::Count)) {
+      for (uint8_t i = 0; i < static_cast<uint8_t>(HarnessTest::Count); ++i) {
+        Serial.printf("HARNESS|TEST|%u|%s\n", i, TurnHubProtocol::harnessTestName(i));
+      }
+    } else {
+      runTest(static_cast<HarnessTest>(id));
+    }
   } else if (verb == "run") {
     const String scenario = token(command, 1);
     resetCounts();
@@ -768,5 +860,10 @@ void setup() {
 void loop() {
   pollSerial();
   pump();
+  if (pendingTest >= 0) {
+    const auto test = static_cast<HarnessTest>(pendingTest);
+    pendingTest = -1;
+    runTest(test);
+  }
   delay(2);
 }

@@ -87,6 +87,23 @@ the Sigil with the seated players' InputTiming thresholds.
 Sigils without the bit keep the Action/Pass gestures, and a menu Sigil talking
 to an older Atlas falls back to them. Protocol version stays 1.
 
+### Test harness: HarnessCommand and HarnessReport (2026-09-25)
+
+The hardware test harness (`TestHarness/`) pairs like any Sigil. It pairs twice,
+in fact: its station and soft-AP MACs are two virtual menu Sigils. The first
+advertises `CAPABILITY_HARNESS` (0x80) in Hello. While that Sigil is online,
+the Atlas lobby screen shows **Tests**, which lists the premade tests
+(`HarnessTest`: radio check, 2-player game, 4-player game, rematch game,
+soak ×5). A choice sends `HarnessCommand = 27` (run a test, or stop). The
+harness answers with `HarnessReport = 14`: run state, test, last checkpoint
+(`HarnessStep`), and steps passed and failed. It sends one at each checkpoint
+and repeats the latest with every Hello. Atlas shows the report on the test
+screen (`harness_link.cpp`, `touch_controls.cpp`) and never acts on it. The
+harness plays only through `SelectAction`, so it has no authority a real menu
+Sigil lacks. Sigils ignore both packet types. Protocol version stays 1.
+*Verified* on the owner's hardware (2026-09-25): Atlas receives the reports.
+*Needs verification:* starting a test from the touchscreen.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

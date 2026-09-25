@@ -32,6 +32,11 @@ constexpr uint8_t CAPABILITY_LED_STATE = 0x20;
 // and shows Atlas's action menu. Atlas then sends MenuState, and the Sigil
 // answers with SelectAction instead of the Action/Pass gestures.
 constexpr uint8_t CAPABILITY_MENU = 0x40;
+// A hardware test harness (TestHarness/), not a player controller. Atlas then
+// offers its premade tests on the touchscreen and sends HarnessCommand; the
+// harness answers with HarnessReport. It still plays only through the normal
+// Sigil packets, so it gains no authority.
+constexpr uint8_t CAPABILITY_HARNESS = 0x80;
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
 // accessibility preferences and sends them in InputTiming; the Sigil applies
@@ -67,6 +72,8 @@ enum class PacketType : uint8_t {
   Unpair = 12,
   // Sigil -> Atlas: the player chose a menu action (encodeSelectAction).
   SelectAction = 13,
+  // Harness -> Atlas: test run progress (encodeHarnessReport).
+  HarnessReport = 14,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,
@@ -74,6 +81,7 @@ enum class PacketType : uint8_t {
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
   MenuState = 26,    // Atlas -> Sigil: actions available now (encodeMenuState).
+  HarnessCommand = 27,  // Atlas -> harness: run or stop a test (encodeHarnessCommand).
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -452,6 +460,93 @@ inline uint16_t inputTimingLongPress(int32_t value) {
 }
 inline uint16_t inputTimingWinHold(int32_t value) {
   return static_cast<uint16_t>((static_cast<uint32_t>(value) >> 16) & 0xFFFFu);
+}
+
+// --- Test harness (CAPABILITY_HARNESS) -------------------------------------
+// Premade tests the Atlas touchscreen can start. The harness owns what each
+// one does; Atlas only names them.
+enum class HarnessTest : uint8_t {
+  RadioCheck = 0,   // Every virtual Sigil paired, answering Hello, with a menu.
+  QuickGame = 1,    // 2 players, 3 turns, reset.
+  FullGame = 2,     // 4 players, 6 turns, pause, elimination, win, reset.
+  RematchGame = 3,  // 3 players: a game, rematch, a second game, reset.
+  Soak = 4,         // Five 4-player games in a row.
+  Count
+};
+
+inline const char *harnessTestName(uint8_t test) {
+  switch (static_cast<HarnessTest>(test)) {
+    case HarnessTest::RadioCheck: return "Radio check";
+    case HarnessTest::QuickGame: return "2-player game";
+    case HarnessTest::FullGame: return "4-player game";
+    case HarnessTest::RematchGame: return "Rematch game";
+    case HarnessTest::Soak: return "Soak x5";
+    default: return "Unknown test";
+  }
+}
+
+// The checkpoints a run reports, in the order a game reaches them.
+enum class HarnessStep : uint8_t {
+  None = 0, Paired, HelloAck, Menu, Lobby, Join, SeatB, Host, Start, Turn, Pause, Resume,
+  Eliminate, ResumeAfterElimination, ClaimWin, ConfirmWin, GameOver, RematchLobby, ResetTable,
+  Count
+};
+
+inline const char *harnessStepName(uint8_t step) {
+  static const char *const NAMES[] = {"NONE", "PAIRED", "HELLO_ACK", "MENU", "LOBBY", "JOIN",
+      "SEAT_B", "HOST", "START", "TURN", "PAUSE", "RESUME", "ELIMINATE",
+      "RESUME_AFTER_ELIMINATION", "CLAIM_WIN", "CONFIRM_WIN", "GAME_OVER", "REMATCH_LOBBY",
+      "RESET_TABLE"};
+  static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == static_cast<size_t>(HarnessStep::Count),
+      "One name per HarnessStep");
+  return step < static_cast<uint8_t>(HarnessStep::Count) ? NAMES[step] : "UNKNOWN";
+}
+
+enum class HarnessCommandKind : uint8_t { Run = 0, Stop = 1 };
+
+// HarnessCommand payload: bits 0-3 kind, 4-7 test.
+inline int32_t encodeHarnessCommand(HarnessCommandKind kind, HarnessTest test = HarnessTest::RadioCheck) {
+  return static_cast<int32_t>((static_cast<uint32_t>(kind) & 0x0Fu) |
+      ((static_cast<uint32_t>(test) & 0x0Fu) << 4));
+}
+inline uint8_t harnessCommandKind(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x0Fu);
+}
+inline uint8_t harnessCommandTest(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 4) & 0x0Fu);
+}
+
+enum class HarnessRunState : uint8_t { Idle = 0, Running = 1, Passed = 2, Failed = 3, Stopped = 4 };
+
+// HarnessReport payload: bits 0-2 state, 3-7 test, 8-15 last step, 16-23
+// steps passed, 24-31 steps failed (both saturate at 255).
+struct HarnessReportFields {
+  HarnessRunState state = HarnessRunState::Idle;
+  uint8_t test = 0;
+  uint8_t step = 0;
+  uint8_t passed = 0;
+  uint8_t failed = 0;
+};
+
+inline int32_t encodeHarnessReport(const HarnessReportFields &f) {
+  return static_cast<int32_t>((static_cast<uint32_t>(f.state) & 0x07u) |
+      ((static_cast<uint32_t>(f.test) & 0x1Fu) << 3) |
+      (static_cast<uint32_t>(f.step) << 8) |
+      (static_cast<uint32_t>(f.passed) << 16) |
+      (static_cast<uint32_t>(f.failed) << 24));
+}
+
+inline HarnessReportFields decodeHarnessReport(int32_t value) {
+  const uint32_t v = static_cast<uint32_t>(value);
+  HarnessReportFields f;
+  const uint8_t state = static_cast<uint8_t>(v & 0x07u);
+  f.state = state <= static_cast<uint8_t>(HarnessRunState::Stopped)
+      ? static_cast<HarnessRunState>(state) : HarnessRunState::Idle;
+  f.test = static_cast<uint8_t>((v >> 3) & 0x1Fu);
+  f.step = static_cast<uint8_t>((v >> 8) & 0xFFu);
+  f.passed = static_cast<uint8_t>((v >> 16) & 0xFFu);
+  f.failed = static_cast<uint8_t>((v >> 24) & 0xFFu);
+  return f;
 }
 
 }  // namespace TurnHubProtocol

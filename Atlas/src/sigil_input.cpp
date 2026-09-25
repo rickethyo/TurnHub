@@ -22,6 +22,7 @@
 
 #include "atlas_app.h"
 #include "controller_profiles.h"
+#include "harness_link.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
 #include "sigil_menu.h"
@@ -429,6 +430,11 @@ void processSigilEvents() {
     if (event.type == PacketType::Hello) {
       leds.invalidate(event.sigilId);
       invalidateSigilMenu(event.sigilId);
+      continue;
+    }
+    // Test-harness progress is shown on the touchscreen; it is not gameplay.
+    if (event.type == PacketType::HarnessReport) {
+      noteHarnessReport(event.sigilId, event.value, millis());
       continue;
     }
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));
