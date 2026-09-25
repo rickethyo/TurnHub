@@ -1,79 +1,91 @@
 # TurnHub Hardware Test Harness
 
-**Status:** Experimental scaffold. No radio transport or automated scenarios are implemented yet.
+**Status:** *Experimental* (2026-09-25). A virtual-Sigil emulator and a full
+game scenario run against a real Atlas. The firmware builds and pairs over the
+air; treat a scenario's PASS as a check of Atlas's radio and menu paths, not as
+hardware acceptance of a physical Sigil.
 
-This target is intended to reuse the former Atlas ESP32 as a dedicated hardware-in-the-loop QA node. Its job is to behave like one or more TurnHub controllers against a real Atlas, exercise real transport paths, and report PASS/FAIL results without becoming another source of game state.
+One ESP32 (any `esp32dev` board; the owner's is the former Atlas DevKit, with
+no buttons or LEDs besides BOOT) plays **two menu Sigils** against a real Atlas
+over ESP-NOW:
+
+- **V1** is the board's Wi-Fi station MAC and **V2** its soft-AP MAC. Wi-Fi
+  runs in AP+STA mode, so both MACs are live at once and Atlas pairs them as
+  two separate Sigils (two of Atlas's eight slots). The soft-AP is hidden and
+  password-protected; it exists only to own the second MAC on channel 6.
+- Each virtual Sigil can take Seat B too, so one board seats up to **four
+  players**.
+- They advertise `CAPABILITY_MENU` in Hello and act only through
+  `SelectAction`, choosing from the `MenuState` Atlas sends: exactly the path a
+  real menu Sigil (OLED d-pad or E-ink joystick) uses.
 
 ## Architectural boundary
 
-- Atlas remains the sole authority for table/game state.
-- The harness may emulate Sigil/controller inputs and inspect responses, but it must never decide game outcomes or mutate Atlas state directly.
-- Shared ESP-NOW packet definitions come from `../shared/include/protocol.h`; do not copy them into this project.
-- Test orchestration should drive the same public controller/transport boundaries used by real hardware.
-- The harness must not depend on Atlas GPIO, display hardware, or the replacement Atlas board. That keeps it useful through the upcoming Atlas hardware migration.
-- Pairing tests must exercise the real pairing rules rather than bypassing trust or directly editing pairing storage.
+- Atlas remains the sole authority for table and game state. The harness reads
+  the menus Atlas offers and picks from them; it never decides an outcome.
+- Shared ESP-NOW packet definitions come from `../shared/include/protocol.h`;
+  do not copy them into this project.
+- Pairing goes through Atlas's real pairing window (tap **Pair a Sigil** on the
+  touchscreen); the harness never edits Atlas's pairing storage.
+- It must not depend on Atlas GPIO or display hardware.
 
 ## Feature gate
 
-1. **State owner:** Atlas. The harness owns only transient test-run state and observations.
-2. **Intent/request:** Existing controller requests and protocol packets. Add no test-only gameplay semantics.
+1. **State owner:** Atlas. The harness owns only transient run state and its
+   own pairing record (NVS `th_harness/pair`: Atlas MAC and the two Sigil IDs).
+2. **Intent/request:** the existing Sigil packets (PairRequest, Hello,
+   SelectAction). No test-only gameplay semantics.
 3. **Validator:** Atlas's normal transport adapters and Intent handlers.
-4. **Persistence:** None planned for canonical state. Test results may eventually be streamed over serial or stored as disposable logs.
-5. **Presentation:** Serial console first. A richer host-side runner can be added later if useful.
-6. **Protocol change:** None for the scaffold. The harness consumes the shared protocol as a client.
-7. **Third-party impact:** None currently.
-8. **Accessibility impact:** None to gameplay. This is developer tooling only.
+4. **Persistence:** none for canonical state.
+5. **Presentation:** serial console, machine-readable lines.
+6. **Protocol change:** none.
+7. **Third-party impact:** none (Arduino ESP32 core only).
+8. **Accessibility impact:** none to gameplay; developer tooling only.
 
-## Intended scenarios
+## Serial commands (115200 baud)
 
-The first useful scenario set should eventually cover:
+| Command | What it does |
+|---|---|
+| `status` | Radio, Atlas MAC, each virtual Sigil's MAC, ID, online state and current menu |
+| `pair` | Sends PairRequest from every unpaired virtual Sigil for 30 s. Tap **Pair a Sigil** on Atlas during that time |
+| `forget` | Forgets the pairing on the harness only. Forget the two Sigils in the portal's Device Settings as well |
+| `sigils <1\|2>` | Use one or both virtual Sigils |
+| `verbose <on\|off>` | Log every packet sent and received |
+| `menu` | Print what Atlas currently offers each virtual Sigil |
+| `select <V1\|V2> <action>` | Send one menu choice by hand (`join`, `start`, `pass`, `claim-win`, ...) |
+| `run smoke` | Each virtual Sigil is paired, answers Hello and has a menu |
+| `run game [players] [turns] [rematch]` | A whole game (defaults: 4 players, 6 turns), below |
+| `run soak [games] [players]` | Repeats `run game` (4 turns each) until one fails |
+| `x` | Aborts a running scenario |
 
-- Pair a virtual Sigil through the real pairing window.
-- Join/attach controllers using supported flows.
-- Start a game through a normal Atlas controller path.
-- Pass turns through multiple virtual Sigils.
-- Exercise life/counter requests where supported.
-- Disconnect and reconnect a virtual Sigil, then verify resynchronization.
-- Send duplicate, delayed, invalid, or out-of-turn requests and verify safe rejection/recovery.
-- End/reset a game through normal controller paths.
-- Repeated/soak sequences after the basic smoke path is trustworthy.
+`run game` needs the table in its lobby with no other controller joined first,
+because the first joined Sigil becomes the host. Its steps:
 
-Do not implement the full list until the replacement Atlas board work settles. The goal of this directory right now is to reserve a clean boundary for the harness, not to freeze details that may need rework.
+1. `LOBBY`, then `JOIN` for V1 and V2, then `SEAT_B` for as many extra players
+   as asked for (V1 B, then V2 B).
+2. `HOST` and `START`: the host picks Start, and the countdown ends in a
+   running game.
+3. `TURN` × N: the active Sigil picks Pass, sees Cancel pass while Atlas holds
+   the pass for its 3 s grace, and the pass commits.
+4. `PAUSE` and `RESUME`.
+5. With 3+ players, `ELIMINATE`: V1 pauses, says "I'm out" and eliminates one
+   of its seats, then the table resumes.
+6. `CLAIM_WIN` by the active player, `CONFIRM_WIN` from every other living
+   player in the order Atlas asks, then `GAME_OVER`.
+7. `RESET_TABLE` back to an empty lobby (or `REMATCH_LOBBY` with `rematch`).
 
-## Planned serial surface
+Every step prints `HARNESS|PASS|<step>|...` or `HARNESS|FAIL|<step>|...` with
+the menus at that moment, and each run ends with
+`HARNESS|SUMMARY|<scenario>|passed=N|failed=N`. Games end in a guest win, and
+Atlas records statistics only for signed-in profiles.
 
-The command vocabulary is intentionally small and provisional:
+## Build and flash
 
-```text
-help
-status
-run smoke
-run pairing
-run standard-4p
-run reconnect
-run chaos
-run soak
-```
-
-Only `help` and `status` are functional in the initial scaffold. `run ...` currently reports that scenarios are not implemented.
-
-Future output should be machine-readable enough for a host script while remaining understandable at a serial monitor, for example:
-
-```text
-HARNESS|PASS|PAIR|sigil=1
-HARNESS|PASS|TURN|from=1|to=2
-HARNESS|FAIL|RECONNECT|reason=timeout
-HARNESS|SUMMARY|passed=27|failed=1
-```
-
-## Build
-
-From `TestHarness/`:
+From `TestHarness/` (the COM number changes between PC restarts; the harness
+is a CP210x port, like the Sigils, so check which is which first):
 
 ```text
 pio run -e harness
-pio run -e harness --target upload
-pio device monitor
+pio run -e harness --target upload --upload-port COMx
+pio device monitor --port COMx
 ```
-
-The initial target is `esp32dev`, matching the former Atlas development board. Pinout is intentionally irrelevant to the scaffold because the first implementation uses serial plus wireless transport only.
