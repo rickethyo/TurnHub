@@ -26,6 +26,18 @@ class EpaperDisplay final : public SigilDisplay {
       uint8_t turnNumber,
       uint8_t flags) override;
   void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
+  uint32_t idleWorkDueInMs(uint32_t nowMs) const override;
+  void idleWork(uint32_t nowMs) override;
+  bool handleCommand(const char *line) override;
+
+  // Partial-refresh policy, adjustable at runtime for bench tuning (serial
+  // "epd ..." commands in main.cpp; RAM only, a reboot restores defaults).
+  // maxPartials: full clean-up refresh after this many partial updates.
+  // idleCleanupMs: full clean-up this long after the last partial (0 = off).
+  void configurePartial(bool enabled, uint8_t maxPartials, uint32_t idleCleanupMs);
+  bool partialEnabled() const { return partialEnabled_; }
+  uint8_t maxPartials() const { return maxPartials_; }
+  uint32_t idleCleanupMs() const { return idleCleanupMs_; }
 
  private:
   void drawHeader(const char *title, uint8_t sigilId = 0xFF,
@@ -49,10 +61,19 @@ class EpaperDisplay final : public SigilDisplay {
   // Native portrait is 122 visible pixels by 250 (128 RAM columns).
   // Use 2 instead of 0 if the physical panel is mounted upside down.
   static constexpr uint8_t DISPLAY_ROTATION = 0;
-  // The bench panel loses contrast during partial updates. Use full refreshes
-  // until the exact panel/driver match and differential waveform are verified.
-  static constexpr bool ENABLE_GAME_PARTIAL_REFRESH = false;
-  static constexpr uint8_t MAX_PARTIAL_REFRESHES = 10;
+  // Game screens update with the partial waveform; this panel loses contrast
+  // over repeated partials (2026-09 bench trial), so a full refresh cleans up
+  // after a few of them and once the table goes quiet. Defaults, tunable:
+  static constexpr bool DEFAULT_PARTIAL_REFRESH = true;
+  static constexpr uint8_t DEFAULT_MAX_PARTIALS = 4;
+  static constexpr uint32_t DEFAULT_IDLE_CLEANUP_MS = 20000;
+  volatile bool partialEnabled_ = DEFAULT_PARTIAL_REFRESH;
+  volatile uint8_t maxPartials_ = DEFAULT_MAX_PARTIALS;
+  volatile uint32_t idleCleanupMs_ = DEFAULT_IDLE_CLEANUP_MS;
+  // The last game snapshot, redrawn by the clean-up; when its last partial was.
+  TurnHubProtocol::GameDisplayPacket lastGame_{};
+  uint32_t lastPartialAtMs_ = 0;
+  bool forceFull_ = false;
 
   static constexpr int8_t EPD_CS = 17;
   static constexpr int8_t EPD_DC = 16;

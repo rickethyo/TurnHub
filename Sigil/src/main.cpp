@@ -710,7 +710,12 @@ void displayTask(void *parameter) {
   Serial.println("SIGIL|DISPLAY|TASK|READY");
 
   for (;;) {
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    // Sleep until a packet wakes us or the panel's clean-up is due.
+    const uint32_t due = sigilDisplay.idleWorkDueInMs(millis());
+    if (ulTaskNotifyTake(pdTRUE, due == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(due)) == 0) {
+      sigilDisplay.idleWork(millis());
+      continue;
+    }
 #if !TURNHUB_DISPLAY_OLED
     // State, game and menu packets arrive together: one e-ink refresh for all.
     vTaskDelay(pdMS_TO_TICKS(80));
@@ -1431,7 +1436,32 @@ void setup() {
   Serial.println("SIGIL|READY");
 }
 
+#if !defined(TURNHUB_WOKWI)
+// Bench commands typed on the serial console (the Wokwi build reads serial
+// for its simulated Atlas instead). Only the display handles any today.
+void readSerialCommands() {
+  static char line[40];
+  static uint8_t length = 0;
+  while (Serial.available() > 0) {
+    const char c = static_cast<char>(Serial.read());
+    if (c == '\r' || c == '\n') {
+      line[length] = '\0';
+      if (length && !sigilDisplay.handleCommand(line)) {
+        Serial.print("SIGIL|SERIAL|UNKNOWN|");
+        Serial.println(line);
+      }
+      length = 0;
+    } else if (length + 1 < sizeof(line)) {
+      line[length++] = c;
+    }
+  }
+}
+#endif
+
 void loop() {
+#if !defined(TURNHUB_WOKWI)
+  readSerialCommands();
+#endif
   ReceivedPacket received;
   // Bounded so a packet burst cannot starve the buttons.
   for (uint8_t n = 0; receiveQueue && n < RECEIVE_QUEUE_LENGTH &&

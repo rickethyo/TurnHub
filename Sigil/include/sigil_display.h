@@ -49,6 +49,14 @@ class SigilDisplay {
   const MenuView &menuView() const { return menu_; }
   void setLifeOverlay(const LifeOverlay &life) { life_ = life; }
 
+  // Deferred panel upkeep (the e-ink's clean-up refresh after partial
+  // updates): milliseconds until idleWork() is due, or UINT32_MAX for none.
+  // The display task wakes for it; both run on the display task.
+  virtual uint32_t idleWorkDueInMs(uint32_t nowMs) const { (void)nowMs; return UINT32_MAX; }
+  virtual void idleWork(uint32_t nowMs) { (void)nowMs; }
+  // A bench serial command for the display ("epd ..."); true if handled.
+  virtual bool handleCommand(const char *line) { (void)line; return false; }
+
  protected:
   MenuView menu_;
   LifeOverlay life_;

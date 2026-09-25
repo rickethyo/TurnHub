@@ -90,6 +90,57 @@ void EpaperDisplay::drawLegend() {
   }
 }
 
+void EpaperDisplay::configurePartial(bool enabled, uint8_t maxPartials, uint32_t idleCleanupMs) {
+  partialEnabled_ = enabled;
+  maxPartials_ = maxPartials;
+  idleCleanupMs_ = idleCleanupMs;
+  Serial.printf("SIGIL|DISPLAY|PARTIAL|%s|MAX|%u|IDLE_MS|%lu\n", enabled ? "ON" : "OFF",
+      static_cast<unsigned>(maxPartials), static_cast<unsigned long>(idleCleanupMs));
+}
+
+// Bench tuning over serial: "epd on", "epd off", "epd max <n>" (partials
+// before a full clean-up, 1-50), "epd idle <seconds>" (0 = no idle
+// clean-up), "epd status". RAM only; a reboot restores the defaults.
+bool EpaperDisplay::handleCommand(const char *line) {
+  if (strncmp(line, "epd", 3) != 0) return false;
+  const char *arg = line + 3;
+  while (*arg == ' ') ++arg;
+  bool enabled = partialEnabled_;
+  uint8_t maxPartials = maxPartials_;
+  uint32_t idleMs = idleCleanupMs_;
+  if (!strcmp(arg, "on")) enabled = true;
+  else if (!strcmp(arg, "off")) enabled = false;
+  else if (!strncmp(arg, "max ", 4)) {
+    const int n = atoi(arg + 4);
+    if (n < 1 || n > 50) { Serial.println("SIGIL|DISPLAY|PARTIAL|MAX_RANGE|1-50"); return true; }
+    maxPartials = static_cast<uint8_t>(n);
+  } else if (!strncmp(arg, "idle ", 5)) {
+    const int seconds = atoi(arg + 5);
+    if (seconds < 0 || seconds > 600) { Serial.println("SIGIL|DISPLAY|PARTIAL|IDLE_RANGE|0-600"); return true; }
+    idleMs = static_cast<uint32_t>(seconds) * 1000;
+  } else if (strcmp(arg, "status") != 0) {
+    Serial.println("SIGIL|DISPLAY|EPD|USAGE|on off max <n> idle <s> status");
+    return true;
+  }
+  configurePartial(enabled, maxPartials, idleMs);
+  return true;
+}
+
+// A clean-up is due once the game screen shows partial updates and nothing
+// changed for idleCleanupMs.
+uint32_t EpaperDisplay::idleWorkDueInMs(uint32_t nowMs) const {
+  if (!gameFrameValid_ || partialRefreshCount_ == 0 || idleCleanupMs_ == 0) return UINT32_MAX;
+  const uint32_t idle = nowMs - lastPartialAtMs_;
+  return idle >= idleCleanupMs_ ? 0 : idleCleanupMs_ - idle;
+}
+
+void EpaperDisplay::idleWork(uint32_t nowMs) {
+  if (idleWorkDueInMs(nowMs) != 0) return;
+  Serial.println("SIGIL|DISPLAY|CLEANUP|IDLE");
+  forceFull_ = true;
+  showGame(lastGame_);
+}
+
 void EpaperDisplay::drawKeycap(Key key, int16_t x, int16_t y) {
   constexpr int16_t CAP = LEGEND_LINE - 1;
   if (key == Key::Select) {
@@ -192,7 +243,7 @@ void EpaperDisplay::begin() {
   Serial.printf("SIGIL|DISPLAY|READY|%dx%d|ROTATION|%u\n",
       display_.width(), display_.height(), DISPLAY_ROTATION);
   Serial.printf("SIGIL|DISPLAY|POLICY|%s\n",
-      ENABLE_GAME_PARTIAL_REFRESH && GxEPD2_213_B74::hasFastPartialUpdate
+      partialEnabled_ && GxEPD2_213_B74::hasFastPartialUpdate
           ? "PARTIAL_TRIAL" : "FULL_ONLY");
 }
 
@@ -374,11 +425,12 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const int16_t bottom = contentBottom();
   const int16_t secondaryY = min<int16_t>(s.commander ? 216 : 149, bottom - 36);
   const int16_t commanderLimit = shared ? secondaryY : bottom;
-  const bool partial = ENABLE_GAME_PARTIAL_REFRESH &&
+  const bool partial = partialEnabled_ && !forceFull_ &&
       GxEPD2_213_B74::hasFastPartialUpdate && gameFrameValid_ &&
       gameFrameSigilId_ == s.sigilId && gameFrameShared_ == shared &&
       gameFrameCommander_ == static_cast<bool>(s.commander) &&
-      partialRefreshCount_ < MAX_PARTIAL_REFRESHES;
+      partialRefreshCount_ < maxPartials_;
+  forceFull_ = false;
   const uint32_t refreshStartMs = millis();
   if (partial) {
     // Redraw one complete snapshot using the differential waveform. GxEPD2
@@ -456,6 +508,8 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   // Power off after both RAM images are synchronized; do not reset/hibernate.
   display_.powerOff();
   partialRefreshCount_ = partial ? partialRefreshCount_ + 1 : 0;
+  if (partial) lastPartialAtMs_ = millis();
+  lastGame_ = s;
   gameFrameValid_ = true;
   gameFrameSigilId_ = s.sigilId;
   gameFrameShared_ = shared;

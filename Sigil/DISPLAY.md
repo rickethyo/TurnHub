@@ -301,7 +301,27 @@ SIGIL|DISPLAY|READY|122x250|ROTATION|0
 SIGIL|DISPLAY|POLICY|FULL_ONLY
 ```
 
-### Partial-refresh bench result (disabled by default)
+### Partial refresh with clean-ups (2026-09-25, *Needs verification*)
+
+Game screens now update with the partial waveform again, with the fading
+bounded instead of left to build up: a full refresh cleans up after
+`DEFAULT_MAX_PARTIALS` (4) partial updates, and once nothing has changed for
+`DEFAULT_IDLE_CLEANUP_MS` (20 s) after a partial. Any layout change (shared
+seat, Commander, another screen) is still a full refresh. The display task
+wakes for the idle clean-up on its own (`idleWorkDueInMs`/`idleWork`).
+
+Both installed 2.13" drivers (`GxEPD2_213_B74`, `GxEPD2_213_GDEY0213B74`) use
+the same OTP partial waveform (update control `0xFC`), so a driver swap alone is
+unlikely to change the fading. A custom partial LUT would need the driver's
+private register sequence, i.e. a modified copy of GPL-3.0 library code; not
+done without an owner decision (see `Documentation/legal/`).
+
+Bench tuning without reflashing (serial, 115200, e-ink build only; RAM only):
+`epd status`, `epd on`, `epd off`, `epd max <1-50>`, `epd idle <0-600 s>`.
+Each prints `SIGIL|DISPLAY|PARTIAL|ON|MAX|n|IDLE_MS|ms`; every refresh still
+logs `SIGIL|DISPLAY|REFRESH|PARTIAL|FULL|MS|...|PARTIALS|n`.
+
+### Partial-refresh bench result (first trial, historical)
 
 The supplied bench video shows progressive contrast loss during partial
 updates, including static titles and life digits. Full refresh is restored as
