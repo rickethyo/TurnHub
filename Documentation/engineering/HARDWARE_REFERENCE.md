@@ -229,12 +229,11 @@ really is common-anode.
 
 | Function | GPIO | Notes |
 |---|---:|---|
-| Blue LED | 27 | Current development wiring |
-| Green LED | 14 | Current development wiring |
-| Red LED | 13 | Current development wiring |
-| Pass button | 26 | Current development wiring |
-| Action button | 25 | Current development wiring |
-| Pause / Win button | 32 | Breadboard J13; closes to GND, INPUT_PULLUP; tap for Action-long, hold 5 seconds for win |
+| Status LED blue / green / red (Wokwi only) | 27 / 14 / 13 | One RGB LED or three LEDs; PWM on all three. The hardware Sigils use the Jewel ring instead |
+| Menu keys, E-ink (`sigil`) | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V |
+| Menu keys, OLED (`sigil-oled`) | 25 Up, 27 Down, 19 Left, 21 Right, 32 Select | Five-button d-pad, each a switch to GND with INPUT_PULLUP. *Planned*: not yet wired |
+| Status ring, both hardware Sigils | 26 | NeoPixel Jewel 7 RGBW Data Input via 330 ohm; PWR from USB 5V (J1). The only status light (no separate LED since 2026-09-25) |
+| Pass / Action / Pause-Win buttons (Wokwi only) | 26 / 25 / 32 | The three-button gesture layout; closes to GND, INPUT_PULLUP |
 | Buzzer | 33 | Current development wiring |
 | Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build keeps its Pair pushbutton on GPIO19 (A12). |
 
@@ -292,9 +291,32 @@ seating, so an OLED Sigil must run Sigil firmware 0.5.6 or later. Host-tested;
 - Pair: a press opens the 15-second pairing window; holding it for 10 seconds
   erases the Sigil's saved pairing (Sigil 0.5.5+). *Needs verification* on hardware.
 
+### Menu controls (2026-09-25)
+
+**Status:** Implemented in firmware and host-tested; *Needs verification* on hardware
+
+Both hardware Sigils have five keys (Up, Down, Left, Right, Select) and show
+Atlas's action menu instead of the button gestures below. Atlas sends which
+actions each Sigil may use now (`MenuState`), the Sigil sends the one chosen
+(`SelectAction`), and Atlas dispatches the same Intents the gestures used
+(see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
+
+- **E-ink (joystick): compass.** Every action has a fixed key, listed at the
+  bottom of the screen, so the panel redraws only when the menu changes. Click
+  is the likely action (Pass on your turn, Join, Start, Confirm win, Rematch);
+  Up pauses or resumes; Down holds for Claim win or Reset table; Left is no,
+  back or cancel; Right is yes or next. Link phone takes the first free key.
+- **OLED (d-pad): list.** Any key opens the list at the likely action; Up and
+  Down move, Select or Right choose, Left closes, and ten idle seconds close it.
+- **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:
+  the long press) are sent only once the key is held for the seated players'
+  thresholds. The E-ink ring fills in white while held; the OLED row says HOLD.
+- Until Atlas sends a menu (an older Atlas), the keys fall back to the gestures:
+  Select is PASS, Right is Action, Down is Pause / Win.
+
 ### Auxiliary control revision
 
-**Status:** Pause / Win implemented in firmware on GPIO32; physical operation awaits a bench check
+**Status:** Historical on the hardware Sigils (superseded by the menu controls above); still the Wokwi layout
 
 The current controls extend the original two-button layout:
 

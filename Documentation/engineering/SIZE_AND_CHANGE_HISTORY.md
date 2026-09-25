@@ -337,6 +337,29 @@ version unchanged; new `LedState = 25` packet and Hello capability bit
 
 Atlas and the OLED Sigil were flashed; the E-ink Sigil was built only.
 
+## 2026-09-25: Sigil menus
+
+Sigil `0.6.0-dev` -> `0.7.0-dev`; Atlas stays `0.6.0-dev`. Radio protocol
+version unchanged; new `SelectAction = 13` and `MenuState = 26` packets and
+Hello capability bit `CAPABILITY_MENU` (0x40).
+
+- Atlas works out each menu Sigil's available actions (`sigil_menu.cpp`) and
+  dispatches choices through the existing Intents (`handleSelectAction`)
+- Sigil five-key input (joystick on E-ink, new five-button d-pad on OLED),
+  e-ink compass legend and OLED menu list (`sigil_menu.cpp`), hold-to-confirm
+  with ring progress
+
+| Build | After |
+| --- | ---: |
+| Atlas RAM | 99,956 B (30.5%) |
+| Atlas flash | 1,310,389 B (66.6%) |
+| Sigil E-ink (`sigil`) RAM | 49,040 B (15.0%) |
+| Sigil E-ink (`sigil`) flash | 799,973 B (61.0%) |
+| Sigil OLED (`sigil-oled`) RAM | 44,944 B (13.7%) |
+| Sigil OLED (`sigil-oled`) flash | 802,801 B (61.2%) |
+
+All three were flashed (Atlas COM12, E-ink COM13, OLED COM3).
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

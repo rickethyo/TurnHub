@@ -1,0 +1,163 @@
+// Menu Sigils: action availability and MenuState transport. See sigil_menu.h.
+#include "sigil_menu.h"
+
+#include "atlas_app.h"
+#include "serial_log.h"
+#include "web_api.h"
+
+namespace TurnHubAtlas {
+
+using TurnHubProtocol::MenuStateFields;
+using TurnHubProtocol::SigilAction;
+
+namespace {
+
+struct MenuCache {
+  bool computed = false;  // actions/defaultAction/revision describe the last menu.
+  bool sent = false;      // That menu reached the Sigil (cleared to resend).
+  uint32_t actions = 0;
+  uint8_t defaultAction = TurnHubProtocol::SIGIL_ACTION_NONE;
+  uint8_t revision = 0;
+};
+
+MenuCache menus[MAX_PHYSICAL_SIGILS];
+
+// The action a click (compass center) or the list cursor starts on: the one
+// the player most likely wants now.
+constexpr SigilAction DEFAULT_ORDER[] = {
+    SigilAction::ConfirmWin, SigilAction::Pass, SigilAction::Eliminate, SigilAction::Join,
+    SigilAction::StartGame, SigilAction::Rematch, SigilAction::Resume, SigilAction::CancelPass,
+    SigilAction::CancelStart, SigilAction::LinkPhone, SigilAction::CycleStarter,
+    SigilAction::BeginElimination};
+
+bool menuSigil(uint8_t sigilId) {
+  const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
+  return record != nullptr && record->helloInfoValid &&
+      (record->capabilities & TurnHubProtocol::CAPABILITY_MENU) != 0;
+}
+
+}  // namespace
+
+MenuStateFields sigilMenuFor(uint8_t sigilId) {
+  uint32_t actions = 0;
+  const auto add = [&actions](SigilAction action) { actions |= TurnHubProtocol::sigilActionBit(action); };
+  const bool host = sigilId == lobby.hostController();
+  PlayerSeat living;
+  const bool hasLivingSeat = firstLivingSeatForModule(sigilId, living);
+  const PlayerSeat *active = game.activePlayer();
+  const bool isActive = active != nullptr && active->controllerId == sigilId &&
+      !game.isEliminated(active->playerNumber);
+
+  switch (hubState) {
+    case HubState::Lobby:
+      if (!lobby.isJoined(sigilId)) {
+        add(SigilAction::Join);
+        break;
+      }
+      add(SigilAction::CycleStarter);
+      if (lobby.hasSecondary(sigilId)) {
+        add(SigilAction::RemoveSeatB);
+      } else if (!sigilSeatsOnePlayer(sigilId)) {
+        add(SigilAction::AddSeatB);
+      }
+      if (host && lobby.playerCount() >= 2) {
+        add(SigilAction::StartGame);
+        add(SigilAction::RandomStarter);
+      }
+      break;
+
+    case HubState::Starting:
+      // Any seated Sigil may cancel the countdown (handleCancelStartIntent).
+      if (lobby.isJoined(sigilId)) add(SigilAction::CancelStart);
+      break;
+
+    case HubState::Running:
+      if (isActive) {
+        const bool passQueued = pendingPass.active && pendingPass.seat.controllerId == sigilId;
+        add(passQueued ? SigilAction::CancelPass : SigilAction::Pass);
+        add(SigilAction::ClaimWin);
+      }
+      if (hasLivingSeat) add(SigilAction::Pause);
+      break;
+
+    case HubState::Paused:
+      if (game.hasWinClaim()) {
+        const PlayerSeat *expected = game.playerByNumber(game.nextWinConfirmationPlayerNumber());
+        if (expected != nullptr && expected->controllerId == sigilId) {
+          add(SigilAction::ConfirmWin);
+          add(SigilAction::DenyWin);
+        }
+      } else if (eliminationTargetPlayer != 0) {
+        const PlayerSeat *target = game.playerByNumber(eliminationTargetPlayer);
+        if (target != nullptr && target->controllerId == sigilId) {
+          add(SigilAction::Eliminate);
+          PlayerSeat seats[2];
+          if (game.livingPlayersForController(sigilId, seats, 2) > 1) add(SigilAction::NextTarget);
+        }
+        // Cancelling is table-wide (handleEliminationIntent).
+        if (game.controllerInGame(sigilId)) add(SigilAction::CancelElimination);
+      } else if (hasLivingSeat) {
+        add(SigilAction::Resume);
+        add(SigilAction::BeginElimination);
+        if (isActive) add(SigilAction::ClaimWin);
+      }
+      break;
+
+    case HubState::GameOver:
+      if (host) {
+        add(SigilAction::Rematch);
+        add(SigilAction::ResetTable);
+      }
+      break;
+  }
+
+  if (TurnHubWebApi::hasPendingClaim(sigilId)) add(SigilAction::LinkPhone);
+
+  MenuStateFields fields;
+  fields.actions = actions;
+  for (SigilAction action : DEFAULT_ORDER) {
+    if ((actions & TurnHubProtocol::sigilActionBit(action)) != 0) {
+      fields.defaultAction = static_cast<uint8_t>(action);
+      break;
+    }
+  }
+  return fields;
+}
+
+void syncSigilMenus(uint32_t nowMs) {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    MenuCache &cache = menus[id];
+    if (!sigilBus.isOnline(id, nowMs) || !menuSigil(id)) {
+      cache.sent = false;
+      continue;
+    }
+    const MenuStateFields now = sigilMenuFor(id);
+    if (!cache.computed || now.actions != cache.actions || now.defaultAction != cache.defaultAction) {
+      if (cache.computed) cache.revision = static_cast<uint8_t>((cache.revision + 1) & 0x3F);
+      cache.computed = true;
+      cache.actions = now.actions;
+      cache.defaultAction = now.defaultAction;
+      cache.sent = false;
+    }
+    if (cache.sent) continue;
+    MenuStateFields fields = now;
+    fields.revision = cache.revision;
+    if (sigilBus.send(id, TurnHubProtocol::PacketType::MenuState, TurnHubProtocol::encodeMenuState(fields))) {
+      cache.sent = true;
+    }
+  }
+}
+
+void invalidateSigilMenu(uint8_t sigilId) {
+  if (sigilId < MAX_PHYSICAL_SIGILS) menus[sigilId].sent = false;
+}
+
+uint8_t sigilMenuRevision(uint8_t sigilId) {
+  return sigilId < MAX_PHYSICAL_SIGILS ? menus[sigilId].revision : 0;
+}
+
+void resetSigilMenus() {
+  for (auto &cache : menus) cache = MenuCache{};
+}
+
+}  // namespace TurnHubAtlas

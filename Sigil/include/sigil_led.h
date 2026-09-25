@@ -50,6 +50,9 @@ class SigilLedModel {
   // Sigil-local conditions Atlas cannot drive.
   void setPairing(bool active, uint32_t nowMs);
   void flashPassAck(uint32_t nowMs);
+  // A deliberate menu action being held: 0 (none) to 255 (done). The ring
+  // fills clockwise in white; a single LED brightens.
+  void setHoldProgress(uint8_t level) { holdProgress_ = level; }
 
   LedFrame render(uint32_t nowMs) const;
 
@@ -66,6 +69,7 @@ class SigilLedModel {
   uint32_t pairingStartMs_ = 0;
   bool passAck_ = false;
   uint32_t passAckUntilMs_ = 0;
+  uint8_t holdProgress_ = 0;
 };
 
 }  // namespace TurnHubSigil

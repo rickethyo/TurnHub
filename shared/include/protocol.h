@@ -28,6 +28,10 @@ constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
 // color, and the NeoPixel ring's pixels). Atlas then sends LedState instead
 // of the SetBlue/SetRed/SetGreen channel stream; older Sigils keep that.
 constexpr uint8_t CAPABILITY_LED_STATE = 0x20;
+// The Sigil has five-key input (Up/Down/Left/Right/Select: joystick or d-pad)
+// and shows Atlas's action menu. Atlas then sends MenuState, and the Sigil
+// answers with SelectAction instead of the Action/Pass gestures.
+constexpr uint8_t CAPABILITY_MENU = 0x40;
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
 // accessibility preferences and sends them in InputTiming; the Sigil applies
@@ -61,12 +65,15 @@ enum class PacketType : uint8_t {
   // Atlas -> Sigil: Atlas forgot this Sigil; it erases its saved pairing.
   // Best effort: a Sigil that misses it stays paired until re-paired or reset.
   Unpair = 12,
+  // Sigil -> Atlas: the player chose a menu action (encodeSelectAction).
+  SelectAction = 13,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,
   Buzzer = 23,
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
+  MenuState = 26,    // Atlas -> Sigil: actions available now (encodeMenuState).
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -338,6 +345,96 @@ inline LedStateFields decodeLedState(int32_t value) {
       ? static_cast<LedStyle>(style) : LedStyle::Default;
   f.anchorAgeMs = (v >> 18) * LED_ANCHOR_UNIT_MS;
   return f;
+}
+
+// Actions a menu Sigil can offer. Atlas decides which are available for each
+// Sigil (MenuState) and validates every choice through its Intent handlers;
+// the Sigil only lists them. Wire values are stable; at most 21 (mask bits).
+enum class SigilAction : uint8_t {
+  Join = 0,
+  CycleStarter = 1,
+  RandomStarter = 2,
+  AddSeatB = 3,
+  RemoveSeatB = 4,
+  StartGame = 5,
+  CancelStart = 6,
+  Pass = 7,
+  CancelPass = 8,
+  Pause = 9,
+  Resume = 10,
+  ClaimWin = 11,
+  ConfirmWin = 12,
+  DenyWin = 13,
+  BeginElimination = 14,  // "I'm out": start choosing this Sigil's seat to eliminate.
+  NextTarget = 15,        // Switch the elimination to this Sigil's other seat.
+  Eliminate = 16,
+  CancelElimination = 17,
+  Rematch = 18,
+  ResetTable = 19,
+  LinkPhone = 20,         // Approve a waiting browser link for this Sigil.
+  Count
+};
+constexpr uint8_t SIGIL_ACTION_NONE = 31;
+constexpr uint32_t SIGIL_ACTION_MASK_BITS = 21;
+static_assert(static_cast<uint8_t>(SigilAction::Count) <= SIGIL_ACTION_MASK_BITS,
+    "SigilAction must fit the MenuState mask");
+
+constexpr uint32_t sigilActionBit(SigilAction action) {
+  return 1u << static_cast<uint8_t>(action);
+}
+
+// Deliberate actions are sent only after the key is held: the long-press or
+// win-hold threshold from the seated players' InputTiming.
+enum class ActionHold : uint8_t { None, Long, Win };
+inline ActionHold sigilActionHold(SigilAction action) {
+  switch (action) {
+    case SigilAction::ClaimWin: return ActionHold::Win;
+    case SigilAction::Eliminate:
+    case SigilAction::ResetTable: return ActionHold::Long;
+    default: return ActionHold::None;
+  }
+}
+
+// MenuState payload: bits 0-20 available actions, 21-25 the default action
+// (SIGIL_ACTION_NONE if none), 26-31 menu revision (wraps). A SelectAction
+// names the revision it was chosen from, so Atlas ignores stale choices.
+struct MenuStateFields {
+  uint32_t actions = 0;
+  uint8_t defaultAction = SIGIL_ACTION_NONE;
+  uint8_t revision = 0;
+};
+
+inline int32_t encodeMenuState(const MenuStateFields &f) {
+  return static_cast<int32_t>(
+      (f.actions & ((1u << SIGIL_ACTION_MASK_BITS) - 1)) |
+      ((static_cast<uint32_t>(f.defaultAction) & 0x1Fu) << 21) |
+      ((static_cast<uint32_t>(f.revision) & 0x3Fu) << 26));
+}
+
+inline MenuStateFields decodeMenuState(int32_t value) {
+  const uint32_t v = static_cast<uint32_t>(value);
+  MenuStateFields f;
+  f.actions = v & ((1u << SIGIL_ACTION_MASK_BITS) - 1) &
+      ((1u << static_cast<uint8_t>(SigilAction::Count)) - 1);
+  f.defaultAction = static_cast<uint8_t>((v >> 21) & 0x1Fu);
+  if (f.defaultAction >= static_cast<uint8_t>(SigilAction::Count) ||
+      (f.actions & (1u << f.defaultAction)) == 0) {
+    f.defaultAction = SIGIL_ACTION_NONE;
+  }
+  f.revision = static_cast<uint8_t>((v >> 26) & 0x3Fu);
+  return f;
+}
+
+// SelectAction payload: bits 0-4 action, 5-10 menu revision.
+inline int32_t encodeSelectAction(SigilAction action, uint8_t revision) {
+  return static_cast<int32_t>((static_cast<uint32_t>(action) & 0x1Fu) |
+      ((static_cast<uint32_t>(revision) & 0x3Fu) << 5));
+}
+inline uint8_t selectedAction(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x1Fu);
+}
+inline uint8_t selectedRevision(int32_t value) {
+  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 5) & 0x3Fu);
 }
 
 inline bool validInputTiming(uint16_t longPressMs, uint16_t winHoldMs) {

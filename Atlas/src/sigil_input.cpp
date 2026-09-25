@@ -15,11 +15,17 @@
 //             Action short: cycle elimination         win hold: claim win (armed)
 //   Win claim Action short: confirm                   PASS: deny
 //   GameOver  Action short: rematch (host)            Action long: reset (host)
+//
+// Menu Sigils (CAPABILITY_MENU) send SelectAction instead: the player picks
+// from the actions sigil_menu.cpp offered, and handleSelectAction dispatches
+// the same Intents the gestures above would.
 
 #include "atlas_app.h"
 #include "controller_profiles.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
+#include "sigil_menu.h"
+#include "web_api.h"
 
 using TurnHub::serialLog;
 
@@ -84,6 +90,7 @@ const char *activityKind(PacketType type) {
     case PacketType::ActionShort: return "sigil_short";
     case PacketType::ActionLong: return "sigil_long";
     case PacketType::ActionWin: return "sigil_win";
+    case PacketType::SelectAction: return "sigil_menu";
     default: return "sigil_event";
   }
 }
@@ -313,6 +320,107 @@ void handleActionWin(uint8_t sigilId) {
       TurnHub::CLAIM_FROM_ARMED_PAUSE);
 }
 
+void handleSelectAction(uint8_t sigilId, int32_t value) {
+  using TurnHubProtocol::SigilAction;
+  const uint8_t raw = TurnHubProtocol::selectedAction(value);
+  // A choice from an out-of-date menu, or one no longer offered, is dropped
+  // and the current menu resent; the player sees the new choices.
+  if (TurnHubProtocol::selectedRevision(value) != sigilMenuRevision(sigilId) ||
+      raw >= static_cast<uint8_t>(SigilAction::Count) ||
+      (sigilMenuFor(sigilId).actions & (1u << raw)) == 0) {
+    serialLog.print("ATLAS|MENU|STALE|");
+    serialLog.print(sigilId);
+    serialLog.print("|");
+    serialLog.println(raw);
+    invalidateSigilMenu(sigilId);
+    return;
+  }
+  const SigilAction action = static_cast<SigilAction>(raw);
+  serialLog.print("ATLAS|MENU|SELECT|");
+  serialLog.print(sigilId);
+  serialLog.print("|");
+  serialLog.println(raw);
+  switch (action) {
+    case SigilAction::Join:
+      logRejected("MENU|JOIN", sigilId, dispatchModuleIntent(IntentType::Join, sigilId, 1));
+      break;
+    case SigilAction::CycleStarter:
+      logRejected("MENU|STARTER", sigilId, dispatchModuleIntent(IntentType::SelectStarter, sigilId, 1,
+          static_cast<int32_t>(TurnHub::StarterSelection::CycleModule)));
+      break;
+    case SigilAction::RandomStarter:
+      logRejected("MENU|STARTER", sigilId, dispatchModuleIntent(IntentType::SelectStarter, sigilId, 1,
+          static_cast<int32_t>(TurnHub::StarterSelection::Random)));
+      break;
+    case SigilAction::AddSeatB:
+      logRejected("MENU|SECONDARY", sigilId, dispatchModuleIntent(IntentType::Join, sigilId, 2));
+      break;
+    case SigilAction::RemoveSeatB:
+      logRejected("MENU|SECONDARY", sigilId, dispatchModuleIntent(IntentType::Leave, sigilId, 2));
+      break;
+    case SigilAction::StartGame: {
+      // The menu choice is the whole deliberate gesture: arm, then start.
+      const IntentResult armed = dispatchModuleIntent(IntentType::ArmStart, sigilId);
+      logRejected("MENU|START", sigilId,
+          armed.accepted() ? dispatchModuleIntent(IntentType::StartGame, sigilId) : armed);
+      break;
+    }
+    case SigilAction::CancelStart:
+      logRejected("MENU|CANCEL_START", sigilId, dispatchModuleIntent(IntentType::CancelStart, sigilId));
+      break;
+    case SigilAction::Pass:
+      handlePass(sigilId);
+      break;
+    case SigilAction::CancelPass:
+      logRejected("MENU|CANCEL_PASS", sigilId, dispatchModuleIntent(IntentType::CancelPass, sigilId));
+      break;
+    case SigilAction::Pause:
+      dispatchPauseOrResume(sigilId, IntentType::Pause);
+      break;
+    case SigilAction::Resume:
+      dispatchPauseOrResume(sigilId, IntentType::Resume);
+      break;
+    case SigilAction::ClaimWin: {
+      const PlayerSeat *active = game.activePlayer();
+      if (active != nullptr && active->controllerId == sigilId) {
+        logRejected("MENU|WIN", sigilId,
+            dispatchSeatIntent(IntentType::ClaimWin, IntentOrigin::PhysicalSigil, *active));
+      }
+      break;
+    }
+    case SigilAction::ConfirmWin:
+      respondToWinClaim(sigilId, IntentType::ConfirmWin);
+      break;
+    case SigilAction::DenyWin:
+      respondToWinClaim(sigilId, IntentType::DenyWin);
+      break;
+    case SigilAction::BeginElimination:
+      logRejected("MENU|ELIMINATE", sigilId, dispatchModuleIntent(IntentType::BeginElimination, sigilId));
+      break;
+    case SigilAction::NextTarget:
+      logRejected("MENU|ELIMINATE", sigilId, dispatchModuleIntent(IntentType::CycleElimination, sigilId));
+      break;
+    case SigilAction::Eliminate:
+      logRejected("MENU|ELIMINATE", sigilId, dispatchModuleIntent(IntentType::Eliminate, sigilId));
+      break;
+    case SigilAction::CancelElimination:
+      logRejected("MENU|ELIMINATE", sigilId, dispatchModuleIntent(IntentType::CancelElimination, sigilId));
+      break;
+    case SigilAction::Rematch:
+      logRejected("MENU|REMATCH", sigilId, dispatchModuleIntent(IntentType::Rematch, sigilId));
+      break;
+    case SigilAction::ResetTable:
+      logRejected("MENU|RESET", sigilId, dispatchModuleIntent(IntentType::ResetGame, sigilId));
+      break;
+    case SigilAction::LinkPhone:
+      // Proof of possession, as a physical Action press was before menus.
+      TurnHubWebApi::notePhysicalAction(sigilId);
+      break;
+    case SigilAction::Count:
+      break;
+  }
+}
+
 void processSigilEvents() {
   if (hubState != HubState::Lobby) sigilBus.closePairing();
   SigilEvent event;
@@ -320,6 +428,7 @@ void processSigilEvents() {
     if (event.sigilId >= MAX_PHYSICAL_SIGILS) continue;
     if (event.type == PacketType::Hello) {
       leds.invalidate(event.sigilId);
+      invalidateSigilMenu(event.sigilId);
       continue;
     }
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));
@@ -331,6 +440,7 @@ void processSigilEvents() {
       case PacketType::ActionShort: handleActionShort(event.sigilId); break;
       case PacketType::ActionLong: handleActionLong(event.sigilId); break;
       case PacketType::ActionWin: handleActionWin(event.sigilId); break;
+      case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;
       default: break;
     }
   }

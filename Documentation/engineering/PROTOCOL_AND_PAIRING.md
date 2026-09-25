@@ -68,6 +68,25 @@ Current/experimental packet concepts include:
 
 The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
 
+### Sigil menus: MenuState and SelectAction (2026-09-25)
+
+Sigils with five-key input advertise `CAPABILITY_MENU` (0x40). Atlas then sends
+`MenuState = 26`: a mask of the `SigilAction`s this Sigil may use now (21 at
+most), the default (likely) action and a 6-bit menu revision. Atlas works the
+mask out from table state (`Atlas/src/sigil_menu.cpp`), sends it whenever it
+changes (bumping the revision) and resends it on every Hello.
+
+The Sigil answers with `SelectAction = 13` (action and revision). Atlas acks it,
+drops a choice from an old revision or one no longer offered (and resends the
+menu), and otherwise dispatches the same Intents the button gestures produce
+(`handleSelectAction` in `sigil_input.cpp`, an audited adapter). Start is Arm
+then Start in one choice; Link phone approves a waiting browser link, as an
+Action press did. Holds for deliberate actions (`sigilActionHold`) are timed on
+the Sigil with the seated players' InputTiming thresholds.
+
+Sigils without the bit keep the Action/Pass gestures, and a menu Sigil talking
+to an older Atlas falls back to them. Protocol version stays 1.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

@@ -106,6 +106,14 @@ int main() {
   m.flashPassAck(1000);
   assert(m.render(1100).single == (Rgb{0, 255, 0}) && m.render(1250).single.b > 0);
 
+  // A held menu action fills the ring in white; the single LED brightens.
+  m.applyLedState(led(LedCue::Waiting), 0);
+  m.setHoldProgress(128);
+  f = m.render(3000);
+  assert(lit(f) == 4 && f.pixels[4] == (Rgb{255, 255, 255}) && dark(f.pixels[5]) && f.single.r == 128);
+  m.setHoldProgress(0);
+  assert(m.render(3000).pixels[1].b > 0 && m.render(3000).pixels[1].r == 0);
+
   // Legacy channels from an older Atlas; clear() goes dark.
   m.applyLegacyRed(true); m.applyLegacyBlue(128);
   assert(!m.semantic() && m.render(2000).single == (Rgb{255, 0, 128}));

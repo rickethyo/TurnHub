@@ -67,7 +67,7 @@ int main() {
   c = fixture(); c.reset = -2; rejected(c);
   c = fixture(); c.dc = c.cs; rejected(c);
   c = fixture(); c.reset = c.cs; rejected(c);
-  for (int pin : {-1, 1, 3, 6, 7, 8, 9, 10, 11, 13, 14, 19, 20, 24, 25, 26,
+  for (int pin : {-1, 0, 1, 3, 6, 7, 8, 9, 10, 11, 13, 14, 19, 20, 21, 24, 25, 26,
       27, 28, 29, 30, 31, 32, 33, 34, 39}) {
     c = fixture(); c.mosi = pin; rejected(c);
   }
@@ -148,18 +148,47 @@ int main() {
   d.showState(0, DisplayMode::Paused, 1, 0, 1, 0);
   assert(!has("1000000")); // State-only packets must not retain stale life.
 
-  c = fixture(); c.bus = OledBus::I2c; c.sda = 21; c.scl = 22;
+  c = fixture(); c.bus = OledBus::I2c; c.sda = 4; c.scl = 22;
   c.reset = -1; c.rotation = 2; c.i2cClockHz = 100000;
   rejected(c); // Address remains explicitly unset.
   c.i2cAddress = 0x3c;
   resetTrace();
   { OledDisplay i2c(c); i2c.begin(); i2c.showBooting(); }
-  assert(!panel.spi && Wire.calls == 1 && Wire.sda == 21 && Wire.scl == 22);
+  assert(!panel.spi && Wire.calls == 1 && Wire.sda == 4 && Wire.scl == 22);
   assert(panel.address == 0x3c && panel.rotation == 2 && !panel.resetRequested);
   assert(panel.clockDuring == 100000 && panel.clockAfter == 100000 && has("Booting"));
   resetTrace(); Wire.succeeds = false;
   { OledDisplay i2c(c); i2c.begin(); i2c.showBooting(); }
   assert(panel.constructors == 0 && panel.frames == 0);
   assert(Serial.output.find("I2C_INIT_FAILED") != std::string::npos);
+  // The open menu list replaces the screen, scrolled to the cursor.
+  resetTrace();
+  {
+    OledDisplay d(fixture());
+    d.begin();
+    SigilMenu m(MenuLayout::List);
+    MenuStateFields f;
+    for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::Resume,
+                          SigilAction::ClaimWin, SigilAction::LinkPhone}) f.actions |= sigilActionBit(a);
+    f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
+    m.applyMenuState(encodeMenuState(f), 0);
+    d.setMenuView(m.view());
+    d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    assert(has("YOUR TURN") && !has("MENU"));  // Closed: the normal screen.
+    m.keyDown(Key::Select, 0);
+    d.setMenuView(m.view());
+    d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    assert(highlighted("MENU") && highlighted("1/5") && !has("YOUR TURN"));
+    assert(highlighted("Pass turn") && has("Claim win (hold)") && !has("Link phone"));
+    for (uint32_t t = 1; t <= 4; ++t) m.keyDown(Key::Down, t);
+    d.setMenuView(m.view());
+    GameDisplayPacket g{}; g.sigilId = 0; g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    d.showGame(g);
+    assert(highlighted("Link phone") && highlighted("5/5") && !has("Pass turn") && has("Pause"));
+    m.setHoldTimes(2000, 5000);
+    m.keyDown(Key::Up, 10); m.keyDown(Key::Select, 20);
+    d.setMenuView(m.view()); d.showReady(0);
+    assert(highlighted("HOLD: Claim win"));
+  }
   std::cout << "OLED configuration, failure, lifecycle, shared-seat and numeric-bound scenarios passed\n";
 }

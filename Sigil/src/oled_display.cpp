@@ -15,8 +15,9 @@ bool availableOutputPin(int pin) {
       (pin >= 28 && pin <= 31)) return false;
   switch (pin) {
     case 1: case 3:  // Serial diagnostics.
+    case 0: // Pair (the DevKit BOOT button).
     case 13: case 14: case 27: // LEDs.
-    case 19: case 25: case 26: case 32: // Buttons, including Pair.
+    case 19: case 21: case 25: case 26: case 32: // D-pad keys (Wokwi: buttons, Pair on 19).
     case 33: // Buzzer.
       return false;
     default: return true;
@@ -71,7 +72,7 @@ void OledDisplay::begin() {
         &Wire, c.reset, c.i2cClockHz, c.i2cClockHz));
   } else {
     // Software SPI uses only the explicit write-only pins, never default MISO
-    // (GPIO19 is the existing Pair button). No hardware SPI bus is started.
+    // (GPIO19 is the d-pad's Left key). No hardware SPI bus is started.
     display_.reset(new (std::nothrow) Adafruit_SH1106G(c.width, c.height,
         c.mosi, c.sclk, c.dc, c.reset, c.cs));
   }
@@ -213,9 +214,42 @@ void OledDisplay::splash(const char *caption) {
   text(caption, 54, 1, Align::Center);
 }
 
+// Four rows under the header, scrolled to keep the cursor visible. The row
+// being held for a deliberate action says so; the status light shows progress.
+bool OledDisplay::drawMenuList() {
+  if (!menu_.active || !menu_.listOpen || menu_.itemCount == 0) return false;
+  constexpr uint8_t ROWS = 4;
+  constexpr int16_t ROW_HEIGHT = 12;
+  display_->clearDisplay();
+  char position[8];
+  snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(menu_.cursor + 1),
+      static_cast<unsigned>(menu_.itemCount));
+  header("MENU", position);
+  uint8_t first = menu_.cursor >= ROWS ? menu_.cursor - (ROWS - 1) : 0;
+  const int16_t w = display_->width();
+  for (uint8_t row = 0; row < ROWS && first + row < menu_.itemCount; ++row) {
+    const uint8_t index = first + row;
+    const auto action = static_cast<TurnHubProtocol::SigilAction>(menu_.items[index]);
+    const bool selected = index == menu_.cursor;
+    const int16_t y = HEADER_HEIGHT + 2 + row * ROW_HEIGHT;
+    if (selected) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
+    char line[28];
+    const bool hold = TurnHubProtocol::sigilActionHold(action) != TurnHubProtocol::ActionHold::None;
+    if (menu_.holdAction == menu_.items[index]) {
+      snprintf(line, sizeof(line), "HOLD: %s", sigilActionLabel(action));
+    } else {
+      snprintf(line, sizeof(line), "%s%s", sigilActionLabel(action), hold ? " (hold)" : "");
+    }
+    text(line, y + 1, 1, Align::Left, selected, 3, w - 3);
+  }
+  display_->display();
+  return true;
+}
+
 void OledDisplay::status(const char *headerRight, const char *big,
     const char *first, const char *second) {
   if (!ready_) return;
+  if (drawMenuList()) return;
   display_->clearDisplay();
   header("TurnHub", headerRight);
   text(big, 18, 2, Align::Center);
@@ -242,7 +276,7 @@ void OledDisplay::showReady(uint8_t sigilId) {
 }
 
 void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
-  if (!ready_) return;
+  if (!ready_ || drawMenuList()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);
   const uint8_t secondary = TurnHubProtocol::displaySecondaryPlayer(s.state);
   const bool shared = secondary != 0;
@@ -278,7 +312,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
 
 void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
     uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber, uint8_t flags) {
-  if (!ready_) return;
+  if (!ready_ || drawMenuList()) return;
   const bool active = flags & TurnHubProtocol::DISPLAY_FLAG_ACTIVE;
   const bool starter = flags & TurnHubProtocol::DISPLAY_FLAG_STARTER;
   const bool winner = flags & TurnHubProtocol::DISPLAY_FLAG_WINNER;

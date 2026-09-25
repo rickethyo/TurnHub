@@ -351,6 +351,7 @@ void SigilBus::handleReceive(
     case PacketType::ActionShort:
     case PacketType::ActionLong:
     case PacketType::ActionWin:
+    case PacketType::SelectAction:
     case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
       enqueue(*sigil, packet);

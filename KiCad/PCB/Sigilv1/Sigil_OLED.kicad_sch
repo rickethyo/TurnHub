@@ -7,7 +7,7 @@
 	(title_block
 		(title "Sigil Rev A - removable DevKit carrier, OLED display")
 		(rev "A electrical draft")
-		(comment 1 "Rear-photo socket numbering. Buttons and LEDs removed pending redesign.")
+		(comment 1 "Rear-photo socket numbering. D-pad J4, status ring J5.")
 	)
 	(lib_symbols
 		(symbol "Sigil:Buzzer_Logical_Interface"
@@ -115,6 +115,193 @@
 						)
 					)
 					(number "SIG"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "Sigil:DPad_5_Key_Header"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "J"
+				(at 0 10.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "DPad_5_Key_Header"
+				(at 0 7.58 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "DPad_5_Key_Header_0_1"
+				(rectangle
+					(start -15.24 5.08)
+					(end 15.24 -30.48)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "DPad_5_Key_Header_1_1"
+				(pin passive line
+					(at -20.32 0 0)
+					(length 5.08)
+					(name "UP"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -5.08 0)
+					(length 5.08)
+					(name "DOWN"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -10.16 0)
+					(length 5.08)
+					(name "LEFT"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -15.24 0)
+					(length 5.08)
+					(name "RIGHT"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -20.32 0)
+					(length 5.08)
+					(name "SELECT"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -25.4 0)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "6"
 						(effects
 							(font
 								(size 1 1)
@@ -888,6 +1075,157 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Sigil:NeoPixel_Jewel7_RGBW"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "J"
+				(at 0 10.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "NeoPixel_Jewel7_RGBW"
+				(at 0 7.58 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "NeoPixel_Jewel7_RGBW_0_1"
+				(rectangle
+					(start -15.24 5.08)
+					(end 15.24 -20.32)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "NeoPixel_Jewel7_RGBW_1_1"
+				(pin power_in line
+					(at -20.32 0 0)
+					(length 5.08)
+					(name "PWR"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -20.32 -5.08 0)
+					(length 5.08)
+					(name "GND"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -20.32 -10.16 0)
+					(length 5.08)
+					(name "DIN"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -20.32 -15.24 0)
+					(length 5.08)
+					(name "DOUT"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Sigil:OLED_Module_Header"
 			(pin_names
 				(offset 1.016)
@@ -1093,6 +1431,121 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Sigil:Resistor_Series"
+			(pin_names
+				(offset 1.016)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "R"
+				(at 0 6.27 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Resistor_Series"
+				(at 0 3.77 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "Resistor_Series_0_1"
+				(rectangle
+					(start -2.54 1.27)
+					(end 2.54 -1.27)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "Resistor_Series_1_1"
+				(pin passive line
+					(at -7.62 0 0)
+					(length 5.08)
+					(name "~"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 0 180)
+					(length 5.08)
+					(name "~"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1 1)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 	)
 	(text "BUZZER"
 		(exclude_from_sim no)
@@ -1115,6 +1568,17 @@
 			(justify left top)
 		)
 		(uuid "1059980b-189a-53bf-9b22-9a6a8f56d53b")
+	)
+	(text "CONTROLS / D-PAD"
+		(exclude_from_sim no)
+		(at 290 40 0)
+		(effects
+			(font
+				(size 1.5 1.5)
+			)
+			(justify left top)
+		)
+		(uuid "13f4925d-4443-592b-b91f-f245a641e22f")
 	)
 	(text "black wire"
 		(exclude_from_sim no)
@@ -1160,16 +1624,27 @@
 		)
 		(uuid "2c39c738-113b-5f7a-9a90-cecf45243995")
 	)
-	(text "USB-powered DevKit; J1 / 5V unused on carrier.\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC."
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/d-pad/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Discrete LEDs and the old buttons are removed; J4 is the five-button d-pad (switches to GND); J5 is the NeoPixel status ring on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
 		(exclude_from_sim no)
-		(at 28 157 0)
+		(at 28 211 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify left top)
 		)
-		(uuid "356036e0-61ea-5d39-9e06-c6ab69681bb6")
+		(uuid "3853969e-2f08-52c0-8854-2e912f1f8895")
+	)
+	(text "Five momentary switches, each from its key to GND; the ESP32\ninternal pull-ups need no resistors. Up/Down move the menu\nlist, Select or Right choose, Left closes. Pair is the DevKit\nBOOT button. Firmware: Sigil PlatformIO env sigil-oled."
+		(exclude_from_sim no)
+		(at 290 91.44 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "654ecefd-70be-5287-813e-7936edb002dc")
 	)
 	(text "BACK / REAR PHOTO VIEW\nJ1 (5V) top-left; A1 (CLK) top-right\nSocket IDs are immutable; this is NOT a footprint view."
 		(exclude_from_sim no)
@@ -1182,17 +1657,6 @@
 		)
 		(uuid "694c6bf1-7687-5c82-ac3e-49dde90b17d9")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
-		(exclude_from_sim no)
-		(at 28 211 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "8a3107bb-de2b-5df4-8765-a273176b4c9c")
-	)
 	(text "DISPLAY"
 		(exclude_from_sim no)
 		(at 175 40 0)
@@ -1203,6 +1667,28 @@
 			(justify left top)
 		)
 		(uuid "918b9a6a-a89e-5b4a-ba65-5ba264b74363")
+	)
+	(text "Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n3.3 V data into 5 V pixels usually works; if it glitches, add a\n74AHCT125 level shifter. R1 (300-500 ohm) sits at the ring.\nRecommended, not fitted on the breadboard: 100-1000 uF across\nPWR/GND. Full RGBW is ~80 mA per pixel (~560 mA total), more\nthan USB supplies: firmware caps brightness at 48/255.\nDraws the status light (LedState); never the only signal.\nFirmware: Sigil PlatformIO env sigil or sigil-oled."
+		(exclude_from_sim no)
+		(at 290 165.1 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "a6a5ecb7-15ea-5f9b-ade9-03568efa8075")
+	)
+	(text "Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland 1.3\" OLED V2.0 (KS0056), 4-wire SPI, 3.3 V.\nSH1106 128x64 inferred from the vendor example.\nJ2 pins follow the board header, pin 1 = GND (top).\nGPIO21 (A14, the e-ink BUSY) is Right on the d-pad here."
+		(exclude_from_sim no)
+		(at 175 96.52 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "a982025d-593d-5024-b4a1-e534a015a663")
 	)
 	(text "gray wire"
 		(exclude_from_sim no)
@@ -1226,17 +1712,6 @@
 		)
 		(uuid "bd67c9ee-5518-5916-b933-2caada413c12")
 	)
-	(text "Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland 1.3\" OLED V2.0 (KS0056), 4-wire SPI, 3.3 V.\nSH1106 128x64 inferred from the vendor example.\nJ2 pins follow the board header, pin 1 = GND (top).\nGPIO21 (A14, the e-ink BUSY) is unused."
-		(exclude_from_sim no)
-		(at 175 96.52 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "d63a8518-71ff-50ff-851f-2e6c1f5a5c25")
-	)
 	(text "blue wire"
 		(exclude_from_sim no)
 		(at 204.47 79.76 0)
@@ -1248,13 +1723,31 @@
 		)
 		(uuid "ed72d4f5-e5d8-5670-b024-bc1879904e5b")
 	)
+	(text "STATUS RING"
+		(exclude_from_sim no)
+		(at 290 125 0)
+		(effects
+			(font
+				(size 1.5 1.5)
+			)
+			(justify left top)
+		)
+		(uuid "fa4f6792-317c-55e0-ac2b-f68c5427388d")
+	)
+	(text "USB-powered DevKit; J1 / 5V feeds only the status ring (J5).\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC."
+		(exclude_from_sim no)
+		(at 28 157 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "fdd0307b-692f-58e6-9a54-41630f4bbcb1")
+	)
 	(no_connect
 		(at 45.72 127)
 		(uuid "01b81961-dab3-51f3-b528-13057da4ebae")
-	)
-	(no_connect
-		(at 45.72 101.6)
-		(uuid "1680f0d9-35d7-52b4-b2da-cdd93cb747ad")
 	)
 	(no_connect
 		(at 132.08 66.04)
@@ -1285,10 +1778,6 @@
 		(uuid "58c0e60c-5f77-5088-9828-6c0e45674ac6")
 	)
 	(no_connect
-		(at 45.72 106.68)
-		(uuid "5a2c395f-030d-5c26-a26a-ba5bbb89ab93")
-	)
-	(no_connect
 		(at 45.72 60.96)
 		(uuid "5decaad5-91ca-547c-8db9-400b50af59c1")
 	)
@@ -1303,10 +1792,6 @@
 	(no_connect
 		(at 132.08 76.2)
 		(uuid "6eb5e0e6-8360-58fe-95d0-df8b63fb8822")
-	)
-	(no_connect
-		(at 45.72 116.84)
-		(uuid "733ecee7-6cd5-5316-af59-d224d04c4ed2")
 	)
 	(no_connect
 		(at 132.08 127)
@@ -1325,24 +1810,16 @@
 		(uuid "917d955e-2767-50ec-afe9-eb89c2d80971")
 	)
 	(no_connect
-		(at 45.72 96.52)
-		(uuid "91f417b5-38a8-5266-9a9c-3aff3e2c777a")
-	)
-	(no_connect
 		(at 132.08 81.28)
 		(uuid "a5ba659b-dcd3-5a30-9f9f-06ae9f607bfa")
-	)
-	(no_connect
-		(at 132.08 121.92)
-		(uuid "b815d401-bf9c-58f3-82df-fd24f43b5b11")
 	)
 	(no_connect
 		(at 132.08 60.96)
 		(uuid "c161a444-e565-5e66-bb41-053f5f5cd3ec")
 	)
 	(no_connect
-		(at 45.72 55.88)
-		(uuid "d96e901a-f338-5cca-aa4f-890add239a4a")
+		(at 332.74 154.94)
+		(uuid "d52ae41d-c079-50e1-8ab8-b0ce9cd94267")
 	)
 	(no_connect
 		(at 45.72 66.04)
@@ -1356,9 +1833,25 @@
 		(at 132.08 86.36)
 		(uuid "e90d2e2d-89a3-52bc-961e-a406ae2e59cc")
 	)
-	(no_connect
-		(at 132.08 111.76)
-		(uuid "ea9a153f-e1f5-5440-8874-0cd7778e60ff")
+	(wire
+		(pts
+			(xy 325.12 149.86) (xy 327.66 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0010ffe0-28ef-5fde-a5a0-821cdb481034")
+	)
+	(wire
+		(pts
+			(xy 45.72 116.84) (xy 25.4 116.84)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1db39db1-a023-5fff-99ac-8b55c4dfc1b7")
 	)
 	(wire
 		(pts
@@ -1382,6 +1875,26 @@
 	)
 	(wire
 		(pts
+			(xy 45.72 55.88) (xy 25.4 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3c6a1d70-d539-57d5-8949-569bc1db3b13")
+	)
+	(wire
+		(pts
+			(xy 132.08 121.92) (xy 137.16 121.92)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "40a87aa3-80b0-58b9-8c64-7b28b7d4a8d5")
+	)
+	(wire
+		(pts
 			(xy 132.08 116.84) (xy 137.16 116.84)
 		)
 		(stroke
@@ -1389,6 +1902,26 @@
 			(type default)
 		)
 		(uuid "412fe37d-741d-5fb7-af7b-55d1ed0a12bf")
+	)
+	(wire
+		(pts
+			(xy 45.72 106.68) (xy 25.4 106.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "43a4f74a-5e29-5356-8481-cde36f00dd2f")
+	)
+	(wire
+		(pts
+			(xy 332.74 71.12) (xy 304.8 71.12)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "45ebd48e-a82f-58ee-9bfc-20c929d0af0d")
 	)
 	(wire
 		(pts
@@ -1412,6 +1945,26 @@
 	)
 	(wire
 		(pts
+			(xy 332.74 144.78) (xy 304.8 144.78)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "5c8eded4-4347-5a30-b6a1-6658e20185c5")
+	)
+	(wire
+		(pts
+			(xy 332.74 66.04) (xy 304.8 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "60dfa5df-cf44-5524-b5fc-ab1994c82743")
+	)
+	(wire
+		(pts
 			(xy 218.44 60.96) (xy 190.5 60.96)
 		)
 		(stroke
@@ -1419,6 +1972,16 @@
 			(type default)
 		)
 		(uuid "744a1731-932d-5f21-a5f2-0026c84c9233")
+	)
+	(wire
+		(pts
+			(xy 332.74 139.7) (xy 304.8 139.7)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "74bb8512-a9d1-554a-8ec4-5050e2754b37")
 	)
 	(wire
 		(pts
@@ -1432,6 +1995,16 @@
 	)
 	(wire
 		(pts
+			(xy 332.74 76.2) (xy 304.8 76.2)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7e29a5aa-f13a-5ded-ab93-3b6f39db1791")
+	)
+	(wire
+		(pts
 			(xy 218.44 81.28) (xy 190.5 81.28)
 		)
 		(stroke
@@ -1439,6 +2012,16 @@
 			(type default)
 		)
 		(uuid "85810a61-bab4-58eb-a6ee-d708ccdc8fb5")
+	)
+	(wire
+		(pts
+			(xy 45.72 96.52) (xy 25.4 96.52)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8ff98046-cd3f-5273-a1c1-a6fa19155025")
 	)
 	(wire
 		(pts
@@ -1459,6 +2042,36 @@
 			(type default)
 		)
 		(uuid "ae6790e7-6cbc-566a-bab6-9a5f44593a73")
+	)
+	(wire
+		(pts
+			(xy 332.74 60.96) (xy 304.8 60.96)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b00b8ad4-3f93-5acd-86c6-96c552291adf")
+	)
+	(wire
+		(pts
+			(xy 45.72 101.6) (xy 25.4 101.6)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b9b8a85c-dd4b-513f-95a9-b61e4b56f634")
+	)
+	(wire
+		(pts
+			(xy 332.74 81.28) (xy 304.8 81.28)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c33e849a-b0dd-55a7-ba21-c631d6390fd7")
 	)
 	(wire
 		(pts
@@ -1492,6 +2105,16 @@
 	)
 	(wire
 		(pts
+			(xy 309.88 149.86) (xy 304.8 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dcc874d1-4373-5654-8cdb-1366503a2fd7")
+	)
+	(wire
+		(pts
 			(xy 45.72 111.76) (xy 25.4 111.76)
 		)
 		(stroke
@@ -1499,6 +2122,16 @@
 			(type default)
 		)
 		(uuid "ddb3604b-6192-5c73-a40c-b1dc990a66d4")
+	)
+	(wire
+		(pts
+			(xy 327.66 149.86) (xy 332.74 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e0ef3365-34ff-58c3-9e83-3ea65251ad92")
 	)
 	(wire
 		(pts
@@ -1522,6 +2155,16 @@
 	)
 	(wire
 		(pts
+			(xy 132.08 111.76) (xy 137.16 111.76)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f2b8aa93-0130-55f2-8a29-e506a434daec")
+	)
+	(wire
+		(pts
 			(xy 218.44 71.12) (xy 190.5 71.12)
 		)
 		(stroke
@@ -1542,6 +2185,16 @@
 	)
 	(wire
 		(pts
+			(xy 332.74 55.88) (xy 304.8 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fe4a0d23-a73f-53b1-96b1-566ae62e7c5e")
+	)
+	(wire
+		(pts
 			(xy 218.44 76.2) (xy 190.5 76.2)
 		)
 		(stroke
@@ -1549,6 +2202,26 @@
 			(type default)
 		)
 		(uuid "ff9d0e6c-abd0-5c50-b390-bc327066d482")
+	)
+	(label "KEY_LEFT"
+		(at 304.8 66.04 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "003620af-75a6-5a58-993a-be6a2d345074")
+	)
+	(label "+5V"
+		(at 25.4 55.88 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "05a15914-5ec9-5d02-ac3d-ea95f4839cc2")
 	)
 	(label "GND"
 		(at 190.5 55.88 0)
@@ -1589,6 +2262,26 @@
 			(justify left bottom)
 		)
 		(uuid "20b21681-174f-523f-903a-aa46a0a11183")
+	)
+	(label "KEY_SELECT"
+		(at 304.8 76.2 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2526ffa6-641f-5e31-aff5-252a66d6a8f0")
+	)
+	(label "RING_DIN"
+		(at 25.4 101.6 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "25460c3a-d4e2-5a7c-8905-6d490250e288")
 	)
 	(label "OLED_SCLK"
 		(at 190.5 66.04 0)
@@ -1650,6 +2343,66 @@
 		)
 		(uuid "5bbd3d49-19b8-559a-876c-74af2639e872")
 	)
+	(label "KEY_DOWN"
+		(at 304.8 60.96 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "6a2d9807-013f-5001-ba44-85ae00d62664")
+	)
+	(label "GND"
+		(at 304.8 144.78 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "751adcb2-b9f1-581a-9753-ee0fcf3d7513")
+	)
+	(label "KEY_UP"
+		(at 304.8 55.88 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "75746115-23d2-5f9d-9a23-65969a137602")
+	)
+	(label "KEY_LEFT"
+		(at 137.16 111.76 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "79639c9f-10f5-52c2-bda7-6708751dd46e")
+	)
+	(label "KEY_RIGHT"
+		(at 304.8 71.12 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7ec8ca32-7d5e-50f5-b6df-d596d628c450")
+	)
+	(label "KEY_RIGHT"
+		(at 137.16 121.92 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "81e72623-c9a0-51e8-8480-61b76451f9fb")
+	)
 	(label "OLED_MOSI"
 		(at 190.5 71.12 0)
 		(effects
@@ -1669,6 +2422,16 @@
 			(justify left bottom)
 		)
 		(uuid "8d5bbb36-e8e2-5cc7-b8c3-49a25590f4e5")
+	)
+	(label "KEY_SELECT"
+		(at 25.4 116.84 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "958613b6-c099-5948-bdfc-d5a2ff76c01b")
 	)
 	(label "OLED_DC"
 		(at 190.5 81.28 0)
@@ -1690,6 +2453,46 @@
 		)
 		(uuid "b145044e-96e8-5d42-91dc-ec6667cd4ac1")
 	)
+	(label "RING_DIN_R"
+		(at 327.66 149.86 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "c8910673-f0ea-5fe7-acb2-4eeed3e5dbab")
+	)
+	(label "KEY_UP"
+		(at 25.4 106.68 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d1b83f61-84de-5379-9911-bcb03100dd76")
+	)
+	(label "GND"
+		(at 304.8 81.28 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d2af2ade-1600-5841-94dd-59500dcedbab")
+	)
+	(label "RING_DIN"
+		(at 304.8 149.86 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d34b4073-8e73-546a-9432-51b7063ec553")
+	)
 	(label "GND"
 		(at 198.12 149.86 0)
 		(effects
@@ -1699,6 +2502,16 @@
 			(justify left bottom)
 		)
 		(uuid "d46ff703-5b61-5366-b28b-3e0af8b36fc6")
+	)
+	(label "KEY_DOWN"
+		(at 25.4 96.52 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "df89e2f7-8ca5-5c0d-bbdd-98ff70cbf257")
 	)
 	(label "OLED_MOSI"
 		(at 137.16 142.24 0)
@@ -1730,6 +2543,16 @@
 		)
 		(uuid "e252c3a9-a325-540e-aed9-896b5abc26d4")
 	)
+	(label "+5V"
+		(at 304.8 139.7 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "f26ee49c-76da-594b-a547-341846fa9a6e")
+	)
 	(label "+3V3"
 		(at 25.4 147.32 0)
 		(effects
@@ -1739,6 +2562,95 @@
 			(justify left bottom)
 		)
 		(uuid "f565dbe2-8370-5a7c-a3f7-bc74c3b79e0c")
+	)
+	(symbol
+		(lib_id "Sigil:DPad_5_Key_Header")
+		(at 353.06 55.88 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "08bf48a8-c147-5241-9e4f-192652e4417b")
+		(property "Reference" "J4"
+			(at 353.06 43.18 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "FIVE-BUTTON D-PAD"
+			(at 353.06 45.72 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 353.06 55.88 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 353.06 55.88 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 353.06 55.88 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "07a11dd7-3dd2-58b3-abe1-ecf8edeb3511")
+		)
+		(pin "2"
+			(uuid "51eddad1-db28-5966-b850-0149c07bb4a9")
+		)
+		(pin "3"
+			(uuid "c166e7d4-7bd1-5b4b-8c69-b9619338d32a")
+		)
+		(pin "4"
+			(uuid "e467c395-5b56-57b4-b859-563cc092d5cb")
+		)
+		(pin "5"
+			(uuid "a243b022-806f-5e1c-8aa7-fffe9317c4f0")
+		)
+		(pin "6"
+			(uuid "b869c792-8d31-5f1d-bc63-fa1c5ef6e183")
+		)
+		(instances
+			(project "Sigil_OLED"
+				(path "/a61c2f0e-3b7d-4e55-9c1a-5d0e7b8f2c41"
+					(reference "J4")
+					(unit 1)
+				)
+			)
+		)
 	)
 	(symbol
 		(lib_id "Sigil:ESP32_DevKit_38_RearReference")
@@ -2089,6 +3001,166 @@
 			(project "Sigil_OLED"
 				(path "/a61c2f0e-3b7d-4e55-9c1a-5d0e7b8f2c41"
 					(reference "J3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sigil:NeoPixel_Jewel7_RGBW")
+		(at 353.06 139.7 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "e4867022-575e-500e-8dbd-b09afa61996c")
+		(property "Reference" "J5"
+			(at 353.06 127 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "NEOPIXEL JEWEL 7 RGBW"
+			(at 353.06 129.54 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 353.06 139.7 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 353.06 139.7 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 353.06 139.7 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "ececea6e-cdea-5f4e-ba9c-37d54f5dce6e")
+		)
+		(pin "2"
+			(uuid "10aa2ebf-085b-5000-8f98-75aad358c129")
+		)
+		(pin "3"
+			(uuid "a7a7607e-b162-5889-aaa4-90ef7b6718f6")
+		)
+		(pin "4"
+			(uuid "588dbe43-6a4a-5764-be84-7f534f401c5c")
+		)
+		(instances
+			(project "Sigil_OLED"
+				(path "/a61c2f0e-3b7d-4e55-9c1a-5d0e7b8f2c41"
+					(reference "J5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sigil:Resistor_Series")
+		(at 317.5 149.86 0)
+		(unit 1)
+		(body_style 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(in_pos_files yes)
+		(dnp no)
+		(uuid "ee88749f-3042-5a9c-9110-438de6a85cca")
+		(property "Reference" "R1"
+			(at 317.5 144.78 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "330R"
+			(at 317.5 147.32 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 317.5 149.86 0)
+			(hide yes)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Datasheet" ""
+			(at 317.5 149.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Description" ""
+			(at 317.5 149.86 0)
+			(show_name no)
+			(do_not_autoplace no)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(pin "1"
+			(uuid "fe679a57-1e66-5444-a331-b291e6eccfc7")
+		)
+		(pin "2"
+			(uuid "21e84026-8b17-5d8d-a4fe-6373dfb2d9f7")
+		)
+		(instances
+			(project "Sigil_OLED"
+				(path "/a61c2f0e-3b7d-4e55-9c1a-5d0e7b8f2c41"
+					(reference "R1")
 					(unit 1)
 				)
 			)

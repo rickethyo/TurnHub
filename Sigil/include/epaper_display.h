@@ -34,6 +34,10 @@ class EpaperDisplay final : public SigilDisplay {
   void drawSeat(const char *label, const char *name, int16_t y,
       int16_t height, bool focused);
   void printClipped(const char *text, uint8_t maxChars);
+  // Compass legend: one line per key with an action, at the bottom.
+  uint8_t legendLines() const;
+  int16_t contentBottom() const;
+  void drawLegend();
 
   // Native portrait is 122 visible pixels by 250 (128 RAM columns).
   // Use 2 instead of 0 if the physical panel is mounted upside down.

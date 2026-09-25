@@ -2,7 +2,7 @@
 
 Verified against exported KiCad netlists, current firmware, and the user-supplied rear-photo sequence. YES means GPIO/socket/net consistency; it does not verify peripheral parts or mechanical dimensions.
 
-LEDs and the old buttons are not on either schematic while the controls are redesigned; their GPIOs are explicitly NC. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead.
+LEDs and the old buttons are not on either schematic while the controls are redesigned; their GPIOs are explicitly NC. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries a five-button d-pad (J4).
 
 ## E-ink (Sigil_EInk.kicad_sch)
 
@@ -14,7 +14,7 @@ LEDs and the old buttons are not on either schematic while the controls are rede
 | EPD BUSY | GPIO21 | A14 | EPD_BUSY | `EPD_BUSY = 21` | YES |
 | EPD reset | GPIO22 | A17 | EPD_RST | `EPD_RST = 22` | YES |
 | EPD data | GPIO23 | A18 | EPD_MOSI | `SPI.begin(18, 19, 23, EPD_CS)` | YES |
-| Joystick SW (PASS) | GPIO32 | J13 | JOY_SW | `PASS_BUTTON = 32` | YES |
+| Joystick SW (Select) | GPIO32 | J13 | JOY_SW | `32 /* SW (J13) */` | YES |
 | Joystick VRY | GPIO35 | J14 | JOY_Y | `JOYSTICK_Y_PIN = 35` | YES |
 | Joystick VRX | GPIO34 | J15 | JOY_X | `JOYSTICK_X_PIN = 34` | YES |
 | Status ring data (via R1) | GPIO26 | J10 | RING_DIN | `STATUS_RING_PIN = 26` | YES |
@@ -38,7 +38,7 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 | 7 | VCC | +3V3 | red |
 | 8 | GND | GND | orange |
 
-Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build (click = PASS, right = Action, down = Pause/Win).
+Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build; the directions and click are the five menu keys.
 
 | Header pin | Module label | Net |
 |---|---|---|
@@ -66,11 +66,18 @@ Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10
 | OLED clock | GPIO18 | A11 | OLED_SCLK | `c.sclk = 18` | YES |
 | OLED reset | GPIO22 | A17 | OLED_RST | `c.reset = 22` | YES |
 | OLED data | GPIO23 | A18 | OLED_MOSI | `c.mosi = 23` | YES |
+| D-pad Down | GPIO27 | J9 | KEY_DOWN | `27 /* Down, J9 */` | YES |
+| D-pad Up | GPIO25 | J11 | KEY_UP | `25 /* Up, J11 */` | YES |
+| D-pad Select | GPIO32 | J13 | KEY_SELECT | `32 /* Select, J13 */` | YES |
+| D-pad Left | GPIO19 | A12 | KEY_LEFT | `19 /* Left, A12 */` | YES |
+| D-pad Right | GPIO21 | A14 | KEY_RIGHT | `21 /* Right, A14 */` | YES |
+| Status ring data (via R1) | GPIO26 | J10 | RING_DIN | `STATUS_RING_PIN = 26` | YES |
 | Buzzer signal | GPIO33 | J12 | BUZZER | `BUZZER_PIN = 33` | YES |
 | Ground | — | A13, A19, J6 | GND | Hardware ground | YES |
 | 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |
+| USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |
 
-Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A7, A10, A12, A14, A15, A16, J1, J2, J3, J4, J5, J7, J8, J9, J10, J11, J13, J14, J15, J16, J17, J18.
+Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A7, A10, A15, A16, J2, J3, J4, J5, J7, J8, J14, J15, J16, J17, J18.
 
 Display header J2, in physical order (pin 1 at the top of the module header). Wire colours are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
 
@@ -83,6 +90,26 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 | 5 | RES | OLED_RST | purple |
 | 6 | DC | OLED_DC | blue |
 | 7 | CS | OLED_CS | green |
+
+D-pad header J4: five momentary switches, each from its key to GND (internal pull-ups). Firmware: Sigil env `sigil-oled`; the keys drive the menu list.
+
+| Header pin | Key | Net |
+|---|---|---|
+| 1 | UP | KEY_UP |
+| 2 | DOWN | KEY_DOWN |
+| 3 | LEFT | KEY_LEFT |
+| 4 | RIGHT | KEY_RIGHT |
+| 5 | SELECT | KEY_SELECT |
+| 6 | GND | GND |
+
+Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through R1 (330 ohm, at the ring) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
+
+| Header pin | Pad label | Net |
+|---|---|---|
+| 1 | PWR | +5V |
+| 2 | GND | GND |
+| 3 | DIN | RING_DIN_R |
+| 4 | DOUT | NC |
 
 ## Socket positions
 
@@ -129,4 +156,4 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
-Validation: 38 unique socket positions per schematic; display, joystick and status ring (E-ink) and buzzer nets match firmware; power and all three grounds connected; every other socket explicitly NC; no buttons, LEDs or dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+Validation: 38 unique socket positions per schematic; display, joystick and status ring (E-ink), d-pad (OLED) and buzzer nets match firmware; power and all three grounds connected; every other socket explicitly NC; no buttons, LEDs or dangling named nets. Peripheral interfaces remain unresolved; see README.md.

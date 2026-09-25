@@ -117,6 +117,9 @@ void configurePresence(PresenceCallback confirmed);
 // Called only for real physical Sigil button activity. A pending browser claim
 // is approved when the user proves possession by pressing Action on that Sigil.
 void notePhysicalAction(uint8_t sigilId);
+// True while a browser waits for someone to confirm on this Sigil; menu
+// Sigils then offer Link phone (SigilAction::LinkPhone).
+bool hasPendingClaim(uint8_t sigilId);
 
 // Atlas policy queries. Session checks do not refresh authentication lifetime.
 bool profileAuthenticated(const String &profileId);

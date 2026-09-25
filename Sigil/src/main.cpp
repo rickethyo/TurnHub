@@ -26,12 +26,26 @@
 #if TURNHUB_INPUT_JOYSTICK
 #include "joystick_input.h"
 #endif
+#ifndef TURNHUB_DISPLAY_OLED
+#define TURNHUB_DISPLAY_OLED 0
+#endif
+#ifndef TURNHUB_INPUT_DPAD
+#define TURNHUB_INPUT_DPAD 0
+#endif
+#if TURNHUB_INPUT_JOYSTICK && TURNHUB_INPUT_DPAD
+#error "Choose one five-key input: TURNHUB_INPUT_JOYSTICK or TURNHUB_INPUT_DPAD"
+#endif
+// Five-key Sigils show Atlas's action menu (CAPABILITY_MENU).
+#define TURNHUB_MENU (TURNHUB_INPUT_JOYSTICK || TURNHUB_INPUT_DPAD)
+#if TURNHUB_MENU
+#include "sigil_menu.h"
+#endif
 #ifndef TURNHUB_STATUS_RING
 #define TURNHUB_STATUS_RING 0
 #endif
 #if TURNHUB_STATUS_RING
-#if !TURNHUB_INPUT_JOYSTICK
-#error "The status ring uses GPIO26, which is the Pass button in button builds"
+#if !TURNHUB_MENU
+#error "The status ring uses GPIO26, which is the Pass button in three-button builds"
 #endif
 #include "status_ring.h"
 #endif
@@ -46,30 +60,41 @@ using TurnHubSigil::SigilDisplay;
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
-// Status LED: one RGB LED (or three single LEDs), PWM on every channel.
+#if TURNHUB_STATUS_RING
+// Status light: NeoPixel Jewel 7 Data Input, via 330 ohm (J10). Powered from
+// 5V (J1). Both hardware Sigils use it; there is no separate LED.
+constexpr uint8_t STATUS_RING_PIN = 26;
+#else
+// Status light: one RGB LED (or three single LEDs), PWM on every channel.
+// The Wokwi diagram's three LEDs.
 constexpr uint8_t BLUE_LED = 27;
 constexpr uint8_t GREEN_LED = 14;
 constexpr uint8_t RED_LED = 13;
-#if TURNHUB_STATUS_RING
-// NeoPixel Jewel 7 Data Input, via 330 ohm (J10). Powered from 5V (J1).
-constexpr uint8_t STATUS_RING_PIN = 26;
 #endif
+#if TURNHUB_MENU
+// Five keys (Up, Down, Left, Right, Select). Each is a debounced button: a
+// real GPIO switched to GND, or a virtual pin (0xE0+) read from the stick.
+// Until Atlas sends a menu, the keys fall back to the three-button gestures
+// through virtual pins: Select = PASS, Right = Action, Down = Pause/Win.
+constexpr uint8_t STICK_UP_PIN = 0xE0;  // 0xE0-0xE3: Up, Down, Left, Right.
+constexpr uint8_t ACTION_BUTTON = 0xF0;
+constexpr uint8_t PAUSE_WIN_BUTTON = 0xF1;
+constexpr uint8_t PASS_BUTTON = 0xF2;
 #if TURNHUB_INPUT_JOYSTICK
-// Analog thumbstick in place of the three buttons (stick powered from 3.3 V,
-// never 5 V: VRX/VRY swing to the supply). Clicking the stick is PASS;
-// pushing right is Action and down is Pause/Win, with the same tap and hold
-// timing as the buttons. VRX/VRY must be ADC1 pins: ADC2 is unusable while
-// ESP-NOW has the radio. GPIO25 is unused; GPIO26 drives the status ring.
-constexpr uint8_t PASS_BUTTON = 32;        // SW, switch to GND (J13).
+// Analog thumbstick (powered from 3.3 V, never 5 V: VRX/VRY swing to the
+// supply); clicking it is Select. VRX/VRY must be ADC1 pins: ADC2 is unusable
+// while ESP-NOW has the radio. GPIO25 is unused; GPIO26 drives the ring.
 constexpr uint8_t JOYSTICK_X_PIN = 34;     // VRX, input-only ADC1 (J15).
 constexpr uint8_t JOYSTICK_Y_PIN = 35;     // VRY, input-only ADC1 (J14).
 constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
 constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
-// Virtual pins: never GPIO numbers, read from the stick direction instead.
-constexpr uint8_t ACTION_BUTTON = 0xF0;
-constexpr uint8_t PAUSE_WIN_BUTTON = 0xF1;
-constexpr TurnHubSigil::StickDirection ACTION_DIRECTION = TurnHubSigil::StickDirection::Right;
-constexpr TurnHubSigil::StickDirection PAUSE_WIN_DIRECTION = TurnHubSigil::StickDirection::Down;
+constexpr uint8_t KEY_PINS[] = {STICK_UP_PIN, STICK_UP_PIN + 1, STICK_UP_PIN + 2,
+    STICK_UP_PIN + 3, 32 /* SW (J13) */};
+#else
+// Five-button d-pad, each a switch to GND with the internal pull-up.
+constexpr uint8_t KEY_PINS[] = {25 /* Up, J11 */, 27 /* Down, J9 */, 19 /* Left, A12 */,
+    21 /* Right, A14 */, 32 /* Select, J13 */};
+#endif
 #else
 constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
@@ -94,6 +119,9 @@ constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_GAME_DISPLAY |
     TurnHubProtocol::CAPABILITY_INPUT_TIMING |
     TurnHubProtocol::CAPABILITY_LED_STATE
+#if TURNHUB_MENU
+    | TurnHubProtocol::CAPABILITY_MENU
+#endif
 #if TURNHUB_DISPLAY_OLED
     | TurnHubProtocol::CAPABILITY_DISPLAY_OLED
 #endif
@@ -135,6 +163,20 @@ ButtonState passButton(PASS_BUTTON);
 ButtonState actionButton(ACTION_BUTTON);
 ButtonState pauseWinButton(PAUSE_WIN_BUTTON);
 ButtonState pairButton(PAIR_BUTTON);
+#if TURNHUB_MENU
+ButtonState keys[] = {ButtonState(KEY_PINS[0]), ButtonState(KEY_PINS[1]),
+    ButtonState(KEY_PINS[2]), ButtonState(KEY_PINS[3]), ButtonState(KEY_PINS[4])};
+static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One button per key");
+// The e-ink panel redraws in seconds, so it gets the fixed-key compass; the
+// OLED redraws instantly and gets the scrolling list.
+TurnHubSigil::SigilMenu sigilMenu(
+    TURNHUB_DISPLAY_OLED ? TurnHubSigil::MenuLayout::List : TurnHubSigil::MenuLayout::Compass);
+TurnHubProtocol::SigilAction lastSelectedAction = TurnHubProtocol::SigilAction::Count;
+// Menu snapshot for the display task (guarded by displayProfileMux).
+TurnHubSigil::MenuView publishedMenuView;
+TurnHubSigil::MenuView pendingMenuView;
+bool menuViewChanged = false;
+#endif
 SigilDisplay &sigilDisplay = TurnHubSigil::getSigilDisplay();
 
 bool espNowReady = false;
@@ -148,7 +190,9 @@ uint32_t buzzerStopAtMs = 0;
 TurnHubSigil::SigilLedModel ledModel;
 uint32_t lastLedFrameMs = 0;
 bool ledOutputValid = false;
+#if !TURNHUB_STATUS_RING
 TurnHubSigil::Rgb shownSingle;
+#endif
 volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
@@ -257,24 +301,25 @@ void sendHello() {
   lastHelloMs = millis();
 }
 
-// Renders the current light state: the RGB LED pins (PWM on all three, so a
-// single RGB LED shows full color) and, on the E-ink build, the Jewel ring.
-// Both only change hardware when the frame differs.
+// Renders the current light state to the Jewel ring (hardware Sigils) or the
+// RGB LED pins (Wokwi; PWM on all three for full color). Hardware changes
+// only when the frame differs.
 void updateLeds() {
   const uint32_t nowMs = millis();
   if (ledOutputValid && nowMs - lastLedFrameMs < LED_FRAME_MS) return;
   lastLedFrameMs = nowMs;
   const TurnHubSigil::LedFrame frame = ledModel.render(nowMs);
+#if TURNHUB_STATUS_RING
+  TurnHubSigil::statusRingShow(frame);
+#else
   if (!ledOutputValid || frame.single != shownSingle) {
     analogWrite(RED_LED, frame.single.r);
     analogWrite(GREEN_LED, frame.single.g);
     analogWrite(BLUE_LED, frame.single.b);
     shownSingle = frame.single;
   }
-  ledOutputValid = true;
-#if TURNHUB_STATUS_RING
-  TurnHubSigil::statusRingShow(frame);
 #endif
+  ledOutputValid = true;
 }
 
 #if TURNHUB_INPUT_JOYSTICK
@@ -321,8 +366,21 @@ void updateJoystick(uint32_t nowMs) {
 // Active-low reading; joystick virtual pins are LOW while pushed that way.
 bool readButton(uint8_t pin) {
 #if TURNHUB_INPUT_JOYSTICK
-  if (pin == ACTION_BUTTON) return stick.direction() == ACTION_DIRECTION ? LOW : HIGH;
-  if (pin == PAUSE_WIN_BUTTON) return stick.direction() == PAUSE_WIN_DIRECTION ? LOW : HIGH;
+  if (pin >= STICK_UP_PIN && pin <= STICK_UP_PIN + 3) {
+    static constexpr TurnHubSigil::StickDirection DIRECTIONS[] = {
+        TurnHubSigil::StickDirection::Up, TurnHubSigil::StickDirection::Down,
+        TurnHubSigil::StickDirection::Left, TurnHubSigil::StickDirection::Right};
+    return stick.direction() == DIRECTIONS[pin - STICK_UP_PIN] ? LOW : HIGH;
+  }
+#endif
+#if TURNHUB_MENU
+  // Legacy gestures while Atlas sends no menu (an older Atlas).
+  const auto legacy = [](TurnHubSigil::Key key) {
+    return !sigilMenu.active() && keys[static_cast<uint8_t>(key)].stableState == LOW ? LOW : HIGH;
+  };
+  if (pin == PASS_BUTTON) return legacy(TurnHubSigil::Key::Select);
+  if (pin == ACTION_BUTTON) return legacy(TurnHubSigil::Key::Right);
+  if (pin == PAUSE_WIN_BUTTON) return legacy(TurnHubSigil::Key::Down);
 #endif
   return digitalRead(pin);
 }
@@ -505,6 +563,18 @@ void updateDisplayProfileSync() {
 void updateDisplay() {
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
+  bool menuChanged = false;
+#if TURNHUB_MENU
+  TurnHubSigil::MenuView menuView;
+  portENTER_CRITICAL(&displayProfileMux);
+  if (menuViewChanged) {
+    menuView = pendingMenuView;
+    menuViewChanged = false;
+    menuChanged = true;
+  }
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (menuChanged) sigilDisplay.setMenuView(menuView);
+#endif
   TurnHubProtocol::GameDisplayPacket currentGame{};
   portENTER_CRITICAL(&displayProfileMux);
   const bool hasGame = gameDisplayValid;
@@ -514,7 +584,7 @@ void updateDisplay() {
     applyPendingSeatNames();
     // Clear before drawing; packets arriving while the panel is busy wake us again.
     displayNeedsRefresh = false;
-    if (!renderedGameValid || memcmp(&renderedGame, &currentGame, sizeof(currentGame))) {
+    if (menuChanged || !renderedGameValid || memcmp(&renderedGame, &currentGame, sizeof(currentGame))) {
       sigilDisplay.showGame(currentGame);
       renderedGame = currentGame;
       renderedGameValid = true;
@@ -582,6 +652,10 @@ void displayTask(void *parameter) {
 
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+#if !TURNHUB_DISPLAY_OLED
+    // State, game and menu packets arrive together: one e-ink refresh for all.
+    vTaskDelay(pdMS_TO_TICKS(80));
+#endif
     updateDisplay();
 
     // A newer display packet may have arrived while the e-paper was busy.
@@ -647,6 +721,9 @@ void forgetPairing(const char *reason) {
   longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
   winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
   ledModel.clear();
+#if TURNHUB_MENU
+  sigilMenu.clear();
+#endif
   ledModel.setPairing(false, millis());
   stopBuzzer();
   portENTER_CRITICAL(&displayProfileMux);
@@ -740,7 +817,19 @@ void handleEspNowReceive(
       if (packet.value == static_cast<int32_t>(PacketType::Pass)) {
         ledModel.flashPassAck(millis());
       }
+#if TURNHUB_MENU
+      if (packet.value == static_cast<int32_t>(PacketType::SelectAction) &&
+          lastSelectedAction == TurnHubProtocol::SigilAction::Pass) {
+        ledModel.flashPassAck(millis());
+      }
+#endif
       break;
+
+#if TURNHUB_MENU
+    case PacketType::MenuState:
+      sigilMenu.applyMenuState(packet.value, millis());
+      break;
+#endif
 
     case PacketType::LedState:
       ledModel.applyLedState(packet.value, millis());
@@ -808,6 +897,48 @@ void handleEspNowReceive(
       break;
   }
 }
+
+#if TURNHUB_MENU
+// Hands the display task a new menu snapshot when what it shows changed.
+void publishMenuView() {
+  const TurnHubSigil::MenuView view = sigilMenu.view();
+  if (view == publishedMenuView) return;
+  publishedMenuView = view;
+  portENTER_CRITICAL(&displayProfileMux);
+  pendingMenuView = view;
+  menuViewChanged = true;
+  portEXIT_CRITICAL(&displayProfileMux);
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
+// Five-key input: key edges go to the menu, and a finished choice becomes a
+// SelectAction. Hold progress drives the status light.
+void updateMenuKeys() {
+  const uint32_t nowMs = millis();
+  sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
+  for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
+    if (!debouncedEdge(keys[k], nowMs)) continue;
+    const auto key = static_cast<TurnHubSigil::Key>(k);
+    if (keys[k].stableState == LOW) {
+      sigilMenu.keyDown(key, nowMs);
+    } else {
+      sigilMenu.keyUp(key, nowMs);
+    }
+  }
+  const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
+  if (choice.ready) {
+    lastSelectedAction = choice.action;
+    Serial.print("SIGIL|");
+    Serial.print(sigilId);
+    Serial.print("|MENU|");
+    Serial.println(TurnHubSigil::sigilActionLabel(choice.action));
+    sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision));
+  }
+  ledModel.setHoldProgress(sigilMenu.holdProgress(nowMs));
+  publishMenuView();
+}
+#endif
 
 // PASS is sent on release.
 void updatePassButton() {
@@ -1003,13 +1134,21 @@ void setup() {
   Serial.begin(115200);
   delay(250);
 
+#if !TURNHUB_STATUS_RING
   pinMode(BLUE_LED, OUTPUT);
   pinMode(GREEN_LED, OUTPUT);
   pinMode(RED_LED, OUTPUT);
-  pinMode(PASS_BUTTON, INPUT_PULLUP);
+#endif
+#if TURNHUB_MENU
+  for (auto &key : keys) {
+    if (key.pin < STICK_UP_PIN) pinMode(key.pin, INPUT_PULLUP);
+  }
 #if TURNHUB_INPUT_JOYSTICK
   calibrateJoystick();
+#endif
+  for (auto &key : keys) key.rawState = key.stableState = readButton(key.pin);
 #else
+  pinMode(PASS_BUTTON, INPUT_PULLUP);
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
   pinMode(PAUSE_WIN_BUTTON, INPUT_PULLUP);
 #endif
@@ -1078,6 +1217,9 @@ void loop() {
   }
 #if TURNHUB_INPUT_JOYSTICK
   updateJoystick(millis());
+#endif
+#if TURNHUB_MENU
+  updateMenuKeys();
 #endif
   updatePassButton();
   updateActionButton(actionButton);

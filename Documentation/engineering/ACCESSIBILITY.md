@@ -291,6 +291,14 @@ many steady pixels and a shared seat as its half of the ring, so neither needs
 counting flashes or colour. The light never carries information found nowhere
 else: the Sigil display, Atlas screen and portal/app show it as text.
 
+### Sigil menus (2026-09-25)
+
+Menu actions are named in text on the Sigil screen (the compass legend or the
+OLED list), never only by position, colour or sound. Deliberate actions keep the
+seated players' hold thresholds, and hold progress shows both on the light (the
+ring fills) and, on the OLED, as text. A menu choice produces the same Intent as
+the equivalent button gesture or portal action.
+
 ### Decision-needed sound
 
 `ActionRequired` (two short 1,150 Hz notes) now plays on the Sigil of the player

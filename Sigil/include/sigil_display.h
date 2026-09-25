@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol.h"
+#include "sigil_menu.h"
 
 namespace TurnHubSigil {
 
@@ -19,6 +20,14 @@ class SigilDisplay {
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) = 0;
+
+  // The action menu drawn with the next screen: an e-ink compass legend, or
+  // the OLED's list while it is open. Set by the display task before show*().
+  void setMenuView(const MenuView &view) { menu_ = view; }
+  const MenuView &menuView() const { return menu_; }
+
+ protected:
+  MenuView menu_;
 };
 
 // Static lifetime, selected at build time. No driver headers reach main.cpp.

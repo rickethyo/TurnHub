@@ -548,6 +548,15 @@ void handleLogout(WebServer &server) {
 
 using namespace internal;
 
+bool hasPendingClaim(uint8_t sigilId) {
+  const uint32_t nowMs = millis();
+  for (const auto &pending : pendingClaims) {
+    if (pending.used && !pending.approved && pending.controllerId == sigilId &&
+        nowMs - pending.createdMs <= CLAIM_TIMEOUT_MS) return true;
+  }
+  return false;
+}
+
 // Called for real Action presses: approves the oldest pending claim for that
 // Sigil, attaching the requesting browser's profile or issuing a new session.
 void notePhysicalAction(uint8_t sigilId) {

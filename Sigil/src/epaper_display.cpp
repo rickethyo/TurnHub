@@ -8,6 +8,49 @@ namespace TurnHubSigil {
 namespace {
 constexpr int16_t MARGIN = 6;
 constexpr int16_t CHAR_WIDTH = 6;
+constexpr int16_t LEGEND_LINE = 11;
+// Legend order and glyphs (built-in font: 0x09 ring, 0x18-0x1B arrows).
+constexpr Key LEGEND_KEYS[] = {Key::Select, Key::Up, Key::Down, Key::Left, Key::Right};
+char legendGlyph(Key key) {
+  switch (key) {
+    case Key::Up: return 0x18;
+    case Key::Down: return 0x19;
+    case Key::Right: return 0x1A;
+    case Key::Left: return 0x1B;
+    default: return 0x09;
+  }
+}
+}
+
+uint8_t EpaperDisplay::legendLines() const {
+  if (!menu_.active) return 0;
+  uint8_t lines = 0;
+  for (Key key : LEGEND_KEYS) lines += menu_.compass[static_cast<uint8_t>(key)] != MENU_NONE;
+  return lines;
+}
+
+int16_t EpaperDisplay::contentBottom() const {
+  const uint8_t lines = legendLines();
+  return display_.height() - (lines ? 3 + LEGEND_LINE * lines : 0);
+}
+
+void EpaperDisplay::drawLegend() {
+  if (legendLines() == 0) return;
+  int16_t y = contentBottom();
+  display_.drawFastHLine(MARGIN, y, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+  y += 3;
+  display_.setTextSize(1);
+  for (Key key : LEGEND_KEYS) {
+    const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
+    if (action == MENU_NONE) continue;
+    const auto a = static_cast<TurnHubProtocol::SigilAction>(action);
+    char line[24];
+    snprintf(line, sizeof(line), "%c %s%s", legendGlyph(key), sigilActionLabel(a),
+        TurnHubProtocol::sigilActionHold(a) != TurnHubProtocol::ActionHold::None ? " (hold)" : "");
+    display_.setCursor(MARGIN, y + 1);
+    printClipped(line, (display_.width() - 2 * MARGIN) / CHAR_WIDTH);
+    y += LEGEND_LINE;
+  }
 }
 
 EpaperDisplay::EpaperDisplay()
@@ -111,19 +154,25 @@ void EpaperDisplay::drawStatus(const char *line1, const char *line2) {
     drawHeader("TurnHub");
     drawTwoLines(line1, 82, display_.width() - 2 * MARGIN);
     if (line2 != nullptr) drawCentered(line2, 146);
+    drawLegend();
   } while (display_.nextPage());
 }
 
 void EpaperDisplay::drawSeat(
     const char *label, const char *name, int16_t y, int16_t height, bool focused) {
   const int16_t width = display_.width() - 2 * MARGIN;
+  const bool compact = height < 62;  // No room for a two-line size-2 name.
   if (focused) {
-    display_.fillRect(MARGIN, y + 4, width, 16, GxEPD_BLACK);
+    display_.fillRect(MARGIN, y + (compact ? 1 : 4), width, compact ? 12 : 16, GxEPD_BLACK);
     display_.setTextColor(GxEPD_WHITE);
   }
-  drawCentered(label, y + 8);
+  drawCentered(label, y + (compact ? 3 : 8));
   display_.setTextColor(GxEPD_BLACK);
-  drawTwoLines(name, y + 26, width);
+  if (compact) {
+    drawCentered(name, y + 17, 2);
+  } else {
+    drawTwoLines(name, y + 26, width);
+  }
   display_.drawFastHLine(MARGIN, y + height - 1, width, GxEPD_BLACK);
 }
 
@@ -151,6 +200,9 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   char life[16];
   snprintf(life, sizeof(life), "%ld", static_cast<long>(s.primary.life));
 
+  const int16_t bottom = contentBottom();
+  const int16_t secondaryY = min<int16_t>(s.commander ? 216 : 149, bottom - 36);
+  const int16_t commanderLimit = shared ? secondaryY : bottom;
   const bool partial = ENABLE_GAME_PARTIAL_REFRESH &&
       GxEPD2_213_B74::hasFastPartialUpdate && gameFrameValid_ &&
       gameFrameSigilId_ == s.sigilId && gameFrameShared_ == shared &&
@@ -190,12 +242,13 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
       const int16_t commanderY = shared ? 152 : 188;
       char heading[20] = "CMD TAKEN";
       if (s.omittedSources) snprintf(heading, sizeof(heading), "CMD TAKEN +%u", s.omittedSources);
-      drawCentered(heading, commanderY);
-      if (!s.sourceCount) {
+      if (commanderY + 10 <= commanderLimit) drawCentered(heading, commanderY);
+      if (!s.sourceCount && commanderY + 42 <= commanderLimit) {
         drawCentered("No commander", commanderY + 20);
         drawCentered("damage received", commanderY + 32);
       }
       for (uint8_t i = 0; i < s.sourceCount; ++i) {
+        if (commanderY + 28 + 16 * i > commanderLimit) break;  // Legend below.
         const auto &entry = s.sources[i];
         display_.setTextSize(1);
         display_.setCursor(MARGIN, commanderY + 12 + 16 * i);
@@ -216,7 +269,6 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     }
 
     if (shared) {
-      const int16_t secondaryY = s.commander ? 216 : 149;
       display_.drawFastHLine(MARGIN, secondaryY, width, GxEPD_BLACK);
       char otherName[20];
       snprintf(otherName, sizeof(otherName), "%c: %s", primarySeat == 'A' ? 'B' : 'A', s.secondary.name);
@@ -225,7 +277,7 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
       snprintf(otherLife, sizeof(otherLife), "%ld LIFE", static_cast<long>(s.secondary.life));
       drawCentered(otherLife, secondaryY + 17, 2);
     }
-
+    drawLegend();
   } while (display_.nextPage());
   // Unlike the full path, GxEPD2's partial path leaves panel power enabled.
   // Power off after both RAM images are synchronized; do not reset/hibernate.
@@ -292,6 +344,9 @@ void EpaperDisplay::showState(
   const bool focused = active || starter || winner || attention;
   const bool focusA = focused && primaryPlayer < secondaryPlayer;
   const bool focusB = focused && primaryPlayer > secondaryPlayer;
+  // Without a legend these are the original 196 / 201 / 239 positions.
+  const int16_t bottom = contentBottom();
+  const int16_t divider = bottom - 54;
   gameFrameValid_ = false;
   partialRefreshCount_ = 0;
   display_.setFullWindow();
@@ -301,16 +356,18 @@ void EpaperDisplay::showState(
     drawHeader(header, sigilId, host, turnNumber);
     if (shared) {
       // Keep physical A/B ordering stable; Atlas may put the focused seat first.
-      drawSeat("SEAT A", seatNameA_[0] ? seatNameA_ : "Guest", 44, 69, focusA);
-      drawSeat("SEAT B", seatNameB_[0] ? seatNameB_ : "Guest", 120, 69, focusB);
+      const int16_t seatHeight = min<int16_t>(69, (divider - 44 - 7) / 2);
+      drawSeat("SEAT A", seatNameA_[0] ? seatNameA_ : "Guest", 44, seatHeight, focusA);
+      drawSeat("SEAT B", seatNameB_[0] ? seatNameB_ : "Guest", 44 + seatHeight + 7, seatHeight, focusB);
     } else {
       char player[20] = "Ready";
       if (primaryPlayer) snprintf(player, sizeof(player), "Player %u", static_cast<unsigned>(primaryPlayer));
-      drawSeat(player, seatNameA_[0] ? seatNameA_ : player, 55, 98, focused);
+      drawSeat(player, seatNameA_[0] ? seatNameA_ : player, 55, min<int16_t>(98, divider - 59), focused);
     }
-    display_.drawFastHLine(MARGIN, 196, display_.width() - 2 * MARGIN, GxEPD_BLACK);
-    drawTwoLines(status, 201, display_.width() - 2 * MARGIN);
-    if (shared && indicateSeat) drawCentered(focusA ? "SEAT A" : "SEAT B", 239);
+    display_.drawFastHLine(MARGIN, divider, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+    drawTwoLines(status, bottom - 49, display_.width() - 2 * MARGIN);
+    if (shared && indicateSeat) drawCentered(focusA ? "SEAT A" : "SEAT B", bottom - 11);
+    drawLegend();
   } while (display_.nextPage());
 }
 

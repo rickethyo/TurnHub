@@ -228,6 +228,8 @@ void handleActionUp(uint8_t sigilId);
 void handleActionShort(uint8_t sigilId);
 void handleActionLong(uint8_t sigilId);
 void handleActionWin(uint8_t sigilId);
+// A menu Sigil's SelectAction payload (encodeSelectAction).
+void handleSelectAction(uint8_t sigilId, int32_t value);
 // Loop tick: expires the post-cancel Action suppression window.
 void updateActionCancelSuppression(uint32_t nowMs);
 // Forgets held/chord/suppression bookkeeping for every physical Sigil.

@@ -36,6 +36,8 @@ class OledDisplay final : public SigilDisplay {
   void splash(const char *caption);
   void status(const char *headerRight, const char *big, const char *first,
       const char *second = nullptr);
+  // Draws the open menu list instead of the current screen; false if closed.
+  bool drawMenuList();
 
   const OledConfig config_;
   std::unique_ptr<Adafruit_SH1106G> display_;

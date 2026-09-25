@@ -52,7 +52,7 @@ There is no per-test filter. To run one group, build the single executable (the 
 ### Sigil firmware (run from `Sigil/`)
 ```
 pio run -e sigil                      # E-ink Sigil with analog joystick (uploads to COM13)
-pio run -e sigil-oled                 # OLED Sigil with buttons (uploads to COM14)
+pio run -e sigil-oled                 # OLED Sigil with five-button d-pad (uploads to COM3; COM14 is the test harness, never flash it)
 pio run -e sigil-wokwi                # Wokwi simulation build (ESP-NOW replaced by wokwi_espnow_shim.h, which acts as a fake Atlas)
 ```
 Wokwi serial-console commands for driving the simulated Atlas are listed in `Sigil/WOKWI.md`.

@@ -1547,6 +1547,17 @@
 			(embedded_fonts no)
 		)
 	)
+	(text "Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n3.3 V data into 5 V pixels usually works; if it glitches, add a\n74AHCT125 level shifter. R1 (300-500 ohm) sits at the ring.\nRecommended, not fitted on the breadboard: 100-1000 uF across\nPWR/GND. Full RGBW is ~80 mA per pixel (~560 mA total), more\nthan USB supplies: firmware caps brightness at 48/255.\nDraws the status light (LedState); never the only signal.\nFirmware: Sigil PlatformIO env sigil or sigil-oled."
+		(exclude_from_sim no)
+		(at 290 165.1 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "0188da86-7dfe-52d5-b1f3-de2758a58304")
+	)
 	(text "CONTROLS / JOYSTICK"
 		(exclude_from_sim no)
 		(at 290 40 0)
@@ -1568,6 +1579,17 @@
 			(justify left top)
 		)
 		(uuid "0a78ce2c-8e30-596b-8ada-eae2e8b936bf")
+	)
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/d-pad/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the NeoPixel status ring on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
+		(exclude_from_sim no)
+		(at 28 211 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "0d4a70c2-ea4b-508b-8492-cde8e9c9ba0a")
 	)
 	(text "USB-powered DevKit; J1 / 5V feeds only the status ring (J5).\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC."
 		(exclude_from_sim no)
@@ -1591,17 +1613,6 @@
 		)
 		(uuid "15022fa0-469a-57c0-aad2-1f3bdaac70d1")
 	)
-	(text "Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n3.3 V data into 5 V pixels usually works; if it glitches, add a\n74AHCT125 level shifter. R1 (300-500 ohm) sits at the ring.\nRecommended, not fitted on the breadboard: 100-1000 uF across\nPWR/GND. Full RGBW is ~80 mA per pixel (~560 mA total), more\nthan USB supplies: firmware caps brightness at 48/255.\nDraws the status light (LedState); never the only signal.\nFirmware: Sigil PlatformIO env sigil (E-ink build)."
-		(exclude_from_sim no)
-		(at 290 165.1 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "1dd6254b-eec9-56b1-92e1-cbe28547a09c")
-	)
 	(text "BACK / REAR PHOTO VIEW\nJ1 (5V) top-left; A1 (CLK) top-right\nSocket IDs are immutable; this is NOT a footprint view."
 		(exclude_from_sim no)
 		(at 28 21 0)
@@ -1623,17 +1634,6 @@
 			(justify left top)
 		)
 		(uuid "3993d841-4dac-51c9-b0fb-db2d117fc8d6")
-	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n5. Display/joystick/ring headers and R1 have no footprint and the buzzer is a logical interface; all are excluded from PCB and BOM.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the NeoPixel status ring on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready. Power through DevKit USB; no second supply designed."
-		(exclude_from_sim no)
-		(at 28 211 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "4007d1f8-b0d1-54c2-9ec4-55621771fa34")
 	)
 	(text "orange wire"
 		(exclude_from_sim no)
@@ -1667,17 +1667,6 @@
 			(justify left top)
 		)
 		(uuid "78fa861d-3485-5c98-b91b-67c51a57f4b7")
-	)
-	(text "Unmarked 5-pin analog thumbstick; pins in module order.\n\"+5V\" pin is fed 3.3 V: VRX/VRY swing to the supply and the\nESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\nClick = PASS, push right = Action, push down = Pause/Win.\nAxis direction depends on mounting; firmware can swap/invert.\nFirmware: Sigil PlatformIO env sigil (E-ink build)."
-		(exclude_from_sim no)
-		(at 290 86.36 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "79df3239-78a7-55f6-ad2c-c2e076d3990b")
 	)
 	(text "Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland e-paper driver board, write-only (GxEPD2_213_B74); no MISO.\nJ2 pins follow the board header, pin 1 = SDI (top).\nBoard switches P1 (3 / 0.47) and P2 (5VIN / 3.3VIN): positions\nnot recorded; with the 3.3 V supply, check P2."
 		(exclude_from_sim no)
@@ -1744,6 +1733,17 @@
 			(justify left top)
 		)
 		(uuid "e71be1ca-a673-5762-ae01-7c4b53d26db1")
+	)
+	(text "Unmarked 5-pin analog thumbstick; pins in module order.\n\"+5V\" pin is fed 3.3 V: VRX/VRY swing to the supply and the\nESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\nDirections + click are the five menu keys (on-screen compass).\nAxis direction depends on mounting; firmware can swap/invert.\nFirmware: Sigil PlatformIO env sigil (E-ink build)."
+		(exclude_from_sim no)
+		(at 290 86.36 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "ef19b7f6-9fc7-566c-a3bc-76a95a014368")
 	)
 	(text "BUZZER"
 		(exclude_from_sim no)

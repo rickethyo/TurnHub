@@ -8,6 +8,7 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "sigil_menu.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "config.h"
@@ -397,6 +398,7 @@ void loop() {
   serviceAtlasSpeaker(nowMs);
   leds.render(hubState, lobby, game, countdownStartedAtMs, eliminationTargetPlayer,
       game.nextWinConfirmationPlayerNumber(), nowMs);
+  syncSigilMenus(nowMs);
   ota.update(nowMs);
 
   delay(1);
