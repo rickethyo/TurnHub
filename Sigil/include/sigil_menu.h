@@ -39,6 +39,7 @@ struct MenuView {
   uint8_t itemCount = 0;
   uint8_t cursor = 0;           // Index into items.
   uint8_t holdAction = MENU_NONE;  // Being held right now (hold feedback).
+  bool life = false;            // AdjustLife offered: Left/Right change life when free.
 
   MenuView();
   bool operator==(const MenuView &o) const;
@@ -61,6 +62,10 @@ class SigilMenu {
   void setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs);
 
   bool active() const { return active_; }
+  bool lifeOffered() const {
+    return active_ && (actions_ & TurnHubProtocol::sigilActionBit(TurnHubProtocol::SigilAction::AdjustLife)) != 0;
+  }
+  bool listOpen() const { return listOpen_; }
   uint32_t actions() const { return actions_; }
 
   void keyDown(Key key, uint32_t nowMs);
@@ -77,7 +82,12 @@ class SigilMenu {
   static uint8_t compassAction(uint32_t actions, Key key);
 
  private:
-  bool offered(uint8_t action) const { return action < MENU_MAX_ITEMS && (actions_ & (1u << action)) != 0; }
+  // AdjustLife is not a list item or compass slot: it frees Left/Right
+  // (lifeOffered, main.cpp's LifeAdjuster).
+  bool offered(uint8_t action) const {
+    return action < MENU_MAX_ITEMS && action != static_cast<uint8_t>(TurnHubProtocol::SigilAction::AdjustLife) &&
+        (actions_ & (1u << action)) != 0;
+  }
   void applyFields(const TurnHubProtocol::MenuStateFields &f, uint32_t nowMs);
   uint8_t itemAt(uint8_t index) const;
   uint8_t itemCount() const;

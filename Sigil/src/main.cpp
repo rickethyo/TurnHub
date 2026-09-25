@@ -41,6 +41,7 @@
 #if TURNHUB_MENU
 #include "sigil_menu.h"
 #include "picker_list.h"
+#include "life_adjust.h"
 #endif
 #ifndef TURNHUB_STATUS_RING
 #define TURNHUB_STATUS_RING 0
@@ -190,6 +191,18 @@ TurnHubProtocol::ProfilePickerPacket pendingPicker{};
 volatile bool pickerActive = false;
 bool pickerChanged = false;
 uint8_t pickerCursor = 0;
+#endif
+#if TURNHUB_MENU
+// Life (AdjustLife, LifeRequest): Left/Right presses batched by lifeAdjuster;
+// the request shown for this Sigil's answer. lifeKeyRouted remembers which
+// key-downs went to life so their releases do not reach the menu.
+TurnHubSigil::LifeAdjuster lifeAdjuster;
+TurnHubProtocol::LifeRequestFields lifeRequest;
+bool lifeKeyRouted[TurnHubSigil::KEY_COUNT] = {};
+// Snapshot for the display task (guarded by displayProfileMux).
+TurnHubSigil::LifeOverlay publishedLifeOverlay;
+TurnHubSigil::LifeOverlay pendingLifeOverlay;
+bool lifeOverlayChanged = false;
 #endif
 SigilDisplay &sigilDisplay = TurnHubSigil::getSigilDisplay();
 
@@ -611,6 +624,15 @@ void updateDisplay() {
   }
   portEXIT_CRITICAL(&displayProfileMux);
   if (menuChanged) sigilDisplay.setMenuView(menuView);
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool lifeChanged = lifeOverlayChanged;
+  const TurnHubSigil::LifeOverlay lifeOverlay = pendingLifeOverlay;
+  lifeOverlayChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (lifeChanged) {
+    sigilDisplay.setLifeOverlay(lifeOverlay);
+    menuChanged = true;
+  }
 #endif
   TurnHubProtocol::GameDisplayPacket currentGame{};
   portENTER_CRITICAL(&displayProfileMux);
@@ -760,6 +782,8 @@ void forgetPairing(const char *reason) {
   ledModel.clear();
 #if TURNHUB_MENU
   sigilMenu.clear();
+  lifeAdjuster.cancel();
+  lifeRequest = TurnHubProtocol::LifeRequestFields{};
 #endif
 #if TURNHUB_PICKER
   portENTER_CRITICAL(&displayProfileMux);
@@ -891,6 +915,9 @@ void handleEspNowReceive(
     case PacketType::MenuState2:
       sigilMenu.applyMenuState2(packet.value, millis());
       break;
+    case PacketType::LifeRequest:
+      lifeRequest = TurnHubProtocol::decodeLifeRequest(packet.value);
+      break;
     case PacketType::MenuState:
       sigilMenu.applyMenuState(packet.value, millis());
       break;
@@ -988,6 +1015,90 @@ void publishMenuView() {
   notifyDisplayTask();
 }
 
+// The player this Sigil shows first (the one Left/Right change).
+uint8_t shownPlayer() {
+  portENTER_CRITICAL(&displayProfileMux);
+  int32_t state = displayPayload;
+  if (gameDisplayValid) state = pendingGameDisplay.state;
+  portEXIT_CRITICAL(&displayProfileMux);
+  return TurnHubProtocol::displayPrimaryPlayer(state);
+}
+
+// Hands the display task the life overlay when what it shows changed. The
+// e-ink leaves the running total to the status ring (a redraw takes seconds).
+void publishLifeOverlay() {
+  TurnHubSigil::LifeOverlay overlay;
+  overlay.request = lifeRequest;
+#if TURNHUB_DISPLAY_OLED
+  overlay.pending = lifeAdjuster.pending();
+  overlay.pendingPlayer = lifeAdjuster.player();
+#endif
+  if (overlay == publishedLifeOverlay) return;
+  publishedLifeOverlay = overlay;
+  portENTER_CRITICAL(&displayProfileMux);
+  pendingLifeOverlay = overlay;
+  lifeOverlayChanged = true;
+  portEXIT_CRITICAL(&displayProfileMux);
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
+// Left/Right: answer a shown life request (Right approves, Left denies), or
+// change life when no menu action has the key (and the OLED list is closed).
+// True when the key was used here.
+bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
+  const uint8_t k = static_cast<uint8_t>(key);
+  if (!down) {
+    if (!lifeKeyRouted[k]) return false;
+    lifeKeyRouted[k] = false;
+    lifeAdjuster.release(nowMs);
+    return true;
+  }
+  if (key != TurnHubSigil::Key::Left && key != TurnHubSigil::Key::Right) return false;
+  const bool right = key == TurnHubSigil::Key::Right;
+  if (lifeRequest.target != 0) {
+    Serial.print("SIGIL|");
+    Serial.print(sigilId);
+    Serial.println(right ? "|LIFE|APPROVE" : "|LIFE|DENY");
+    sendPacket(PacketType::LifeResponse,
+        TurnHubProtocol::encodeLifeResponse(lifeRequest.target, right, lifeRequest.tag));
+    lifeRequest = TurnHubProtocol::LifeRequestFields{};  // Atlas resends if it still stands.
+    lifeKeyRouted[k] = true;
+    publishLifeOverlay();
+    return true;
+  }
+  const bool free = sigilMenu.lifeOffered() &&
+      (TURNHUB_DISPLAY_OLED ? !sigilMenu.listOpen()
+          : TurnHubSigil::SigilMenu::compassAction(sigilMenu.actions(), key) == TurnHubSigil::MENU_NONE);
+  const uint8_t player = shownPlayer();
+  if (!free || player == 0) return false;
+  lifeAdjuster.press(right ? 1 : -1, player, nowMs);
+  lifeKeyRouted[k] = true;
+  return true;
+}
+
+// Repeats a held life key, sends the batched total once it settles, and
+// shows the running total on the ring (and the OLED).
+void updateLife(uint32_t nowMs) {
+  if (!sigilMenu.lifeOffered() && lifeAdjuster.pending() != 0) {
+    Serial.println("SIGIL|LIFE|DROPPED|NOT_OFFERED");
+    lifeAdjuster.cancel();
+  }
+  int32_t delta = 0;
+  uint8_t player = 0;
+  if (lifeAdjuster.update(nowMs, delta, player)) {
+    Serial.print("SIGIL|");
+    Serial.print(sigilId);
+    Serial.print("|LIFE|ADJUST|");
+    Serial.print(player);
+    Serial.print("|");
+    Serial.println(delta);
+    sendPacket(PacketType::LifeAdjust, TurnHubProtocol::encodeLifeAdjust(player, delta));
+  }
+  ledModel.setLifePending(lifeAdjuster.pending());
+  publishLifeOverlay();
+}
+
 // Five-key input: key edges go to the menu, and a finished choice becomes a
 // SelectAction. Hold progress drives the status light.
 void updateMenuKeys() {
@@ -1031,12 +1142,14 @@ void updateMenuKeys() {
       continue;
     }
 #endif
+    if (routeLifeKey(key, keys[k].stableState == LOW, nowMs)) continue;
     if (keys[k].stableState == LOW) {
       sigilMenu.keyDown(key, nowMs);
     } else {
       sigilMenu.keyUp(key, nowMs);
     }
   }
+  updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
   if (choice.ready) {
     lastSelectedAction = choice.action;

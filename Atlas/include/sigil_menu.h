@@ -23,6 +23,10 @@ void syncSigilMenus(uint32_t nowMs);
 void invalidateSigilMenu(uint8_t sigilId);
 // Revision of the menu last computed for this Sigil; a SelectAction must match it.
 uint8_t sigilMenuRevision(uint8_t sigilId);
+// The pending life request (encodeLifeRequest) aimed at one of this Sigil's
+// living players, or 0. syncSigilMenus sends it as LifeRequest to 0.8.0+
+// Sigils; the Sigil answers with LifeResponse (sigil_input.cpp).
+int32_t sigilLifeRequestFor(uint8_t sigilId);
 // Forget every menu (tests, and boot).
 void resetSigilMenus();
 

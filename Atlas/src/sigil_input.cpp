@@ -94,6 +94,8 @@ const char *activityKind(PacketType type) {
     case PacketType::ActionWin: return "sigil_win";
     case PacketType::SelectAction: return "sigil_menu";
     case PacketType::PickerKey: return "sigil_picker";
+    case PacketType::LifeAdjust:
+    case PacketType::LifeResponse: return "sigil_life";
     default: return "sigil_event";
   }
 }
@@ -431,6 +433,60 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
   }
 }
 
+// LifeAdjust: a batched change to one of this Sigil's own players. The
+// ChangeLife handler checks ownership, state and limits.
+void handleLifeAdjust(uint8_t sigilId, int32_t value) {
+  const uint8_t player = TurnHubProtocol::lifeAdjustPlayer(value);
+  const int32_t delta = TurnHubProtocol::lifeAdjustDelta(value);
+  const PlayerSeat *seat = game.playerByNumber(player);
+  if (seat == nullptr || seat->controllerId != sigilId || delta == 0) {
+    serialLog.print("ATLAS|LIFE|ADJUST|IGNORED|");
+    serialLog.println(sigilId);
+    return;
+  }
+  Intent intent;
+  intent.type = IntentType::ChangeLife;
+  intent.actor.origin = IntentOrigin::PhysicalSigil;
+  intent.actor.controllerId = seat->controllerId;
+  intent.actor.slot = seat->slot;
+  intent.actor.playerNumber = seat->playerNumber;
+  intent.payload.targetPlayer = player;
+  intent.payload.value = delta;
+  const IntentResult result = intents.dispatch(intent);
+  serialLog.print("ATLAS|LIFE|ADJUST|SIGIL|");
+  serialLog.print(sigilId);
+  serialLog.print("|PLAYER|");
+  serialLog.print(player);
+  serialLog.print("|DELTA|");
+  serialLog.println(delta);
+  logRejected("LIFE|ADJUST", sigilId, result);
+}
+
+// LifeResponse: approve or deny the request this Sigil showed. The tag must
+// match the pending request, so an answer never lands on a newer one.
+void handleLifeResponse(uint8_t sigilId, int32_t value) {
+  const uint8_t target = TurnHubProtocol::lifeResponseTarget(value);
+  const PlayerSeat *seat = game.playerByNumber(target);
+  const TurnHub::LifeChangeRequest *request = game.lifeChangeFor(target);
+  if (seat == nullptr || seat->controllerId != sigilId || request == nullptr ||
+      request->state != TurnHub::LifeChangeState::Pending ||
+      (request->id & 0x3F) != TurnHubProtocol::lifeResponseTag(value)) {
+    serialLog.print("ATLAS|LIFE|RESPONSE|STALE|");
+    serialLog.println(sigilId);
+    invalidateSigilMenu(sigilId);
+    return;
+  }
+  Intent intent;
+  intent.type = IntentType::RespondLifeChange;
+  intent.actor.origin = IntentOrigin::PhysicalSigil;
+  intent.actor.controllerId = seat->controllerId;
+  intent.actor.slot = seat->slot;
+  intent.actor.playerNumber = seat->playerNumber;
+  intent.payload.requestId = request->id;
+  intent.payload.flags = TurnHubProtocol::lifeResponseApprove(value) ? 1 : 0;
+  logRejected("LIFE|RESPONSE", sigilId, intents.dispatch(intent));
+}
+
 void processSigilEvents() {
   if (hubState != HubState::Lobby) sigilBus.closePairing();
   SigilEvent event;
@@ -458,6 +514,8 @@ void processSigilEvents() {
       case PacketType::ActionWin: handleActionWin(event.sigilId); break;
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;
       case PacketType::PickerKey: handlePickerKey(event.sigilId, event.value, millis()); break;
+      case PacketType::LifeAdjust: handleLifeAdjust(event.sigilId, event.value); break;
+      case PacketType::LifeResponse: handleLifeResponse(event.sigilId, event.value); break;
       default: break;
     }
   }

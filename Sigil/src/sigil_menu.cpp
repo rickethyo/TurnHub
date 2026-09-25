@@ -74,6 +74,7 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::ResetTable: return "Reset table";
     case SigilAction::LinkPhone: return "Link phone";
     case SigilAction::Leave: return "Leave lobby";
+    case SigilAction::AdjustLife: return "Change life";
     default: return "";
   }
 }
@@ -84,7 +85,7 @@ MenuView::MenuView() {
 }
 
 bool MenuView::operator==(const MenuView &o) const {
-  return active == o.active && listOpen == o.listOpen && itemCount == o.itemCount &&
+  return active == o.active && listOpen == o.listOpen && itemCount == o.itemCount && life == o.life &&
       cursor == o.cursor && holdAction == o.holdAction &&
       memcmp(compass, o.compass, sizeof(compass)) == 0 && memcmp(items, o.items, sizeof(items)) == 0;
 }
@@ -253,6 +254,7 @@ MenuView SigilMenu::view() const {
   // Only the list shows hold progress on screen: an e-ink compass would pay
   // a full refresh for it, so it relies on the status light instead.
   v.holdAction = holding_ && layout_ == MenuLayout::List ? holdAction_ : MENU_NONE;
+  v.life = lifeOffered();
   return v;
 }
 

@@ -140,6 +140,17 @@ to use it. *Needs verification* on hardware.
 Menu revisions now wrap at 8 for every Sigil so either encoding can name them.
 Its first new action is `Leave = 21`, which Atlas offers only to these Sigils.
 
+**Life on 0.8.0+ Sigils (2026-09-25).** `AdjustLife = 22` in `MenuState2` says
+Left/Right may change life now (a living seat, a running or paused game, no win
+claim or elimination). The Sigil batches presses and sends one
+`LifeAdjust = 16` (player number, signed delta) `LIFE_ADJUST_COMMIT_MS` (2 s)
+after the last change; Atlas dispatches `ChangeLife` for that Sigil's own player.
+A pending life request aimed at one of a Sigil's players goes to it as
+`LifeRequest = 35` (target, requester, 6-bit request tag, delta; 0 = none),
+resent with every Hello; the Sigil answers `LifeResponse = 17` (target,
+approve, tag) and Atlas dispatches `RespondLifeChange` only if the tag still
+matches the pending request. *Needs verification* on hardware.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

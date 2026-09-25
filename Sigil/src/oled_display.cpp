@@ -323,15 +323,28 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
       static_cast<unsigned>(TurnHubProtocol::displayTurnNumber(s.state)));
   header(s.commander ? "COMMANDER" : "GAME", label,
       TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST));
-  banner(active ? "YOUR TURN" : "WAITING FOR TURN", 13, active,
-      active ? Icon::Turn : Icon::None);
+  const bool asking = life_.request.target != 0;
+  if (asking) {
+    snprintf(label, sizeof(label), "P%u: %+ld LIFE?", static_cast<unsigned>(life_.request.requester),
+        static_cast<long>(life_.request.delta));
+    banner(label, 13, true, Icon::None);
+  } else {
+    banner(active ? "YOUR TURN" : "WAITING FOR TURN", 13, active,
+        active ? Icon::Turn : Icon::None);
+  }
+  // A change still being gathered shows the total it will make.
+  const bool pending = life_.pending != 0 && life_.pendingPlayer == primary;
+  const int32_t shownLife = pending ? s.primary.life + life_.pending : s.primary.life;
+  char line[32];
+  if (asking) snprintf(line, sizeof(line), "\x1b deny   approve \x1a");
+  else if (pending) snprintf(line, sizeof(line), "%+ld, sending...", static_cast<long>(life_.pending));
   if (!shared) {
-    text(s.primary.name, 27, 1, Align::Center);
-    lifeTotal(s.primary.life, 38, 3);
+    text(asking || pending ? line : s.primary.name, 27, 1, Align::Center);
+    lifeTotal(shownLife, 38, 3);
   } else {
     snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
-    text(label, 27, 1, Align::Center);
-    lifeTotal(s.primary.life, 36, 2);
+    text(asking || pending ? line : label, 27, 1, Align::Center);
+    lifeTotal(shownLife, 36, 2);
     // The other seat on one quiet row; its life total is never truncated.
     char life[16];
     snprintf(life, sizeof(life), "\x03%ld", static_cast<long>(s.secondary.life));

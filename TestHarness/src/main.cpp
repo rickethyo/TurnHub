@@ -109,7 +109,7 @@ const char *actionName(uint8_t action) {
   static const char *const NAMES[] = {"join", "cycle-starter", "random-starter", "add-seat-b",
       "remove-seat-b", "start", "cancel-start", "pass", "cancel-pass", "pause", "resume",
       "claim-win", "confirm-win", "deny-win", "begin-elimination", "next-target", "eliminate",
-      "cancel-elimination", "rematch", "reset-table", "link-phone", "leave"};
+      "cancel-elimination", "rematch", "reset-table", "link-phone", "leave", "adjust-life"};
   static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == static_cast<size_t>(SigilAction::Count),
       "One name per SigilAction");
   return action < static_cast<uint8_t>(SigilAction::Count) ? NAMES[action] : "none";

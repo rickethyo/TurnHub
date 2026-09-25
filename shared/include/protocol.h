@@ -79,6 +79,12 @@ enum class PacketType : uint8_t {
   HarnessReport = 14,
   // Sigil -> Atlas: a key pressed in the profile picker (encodePickerKey).
   PickerKey = 15,
+  // Sigil -> Atlas (0.8.0+): change one of this Sigil's players' life by a
+  // batched amount (encodeLifeAdjust). Offered while AdjustLife is in the menu.
+  LifeAdjust = 16,
+  // Sigil -> Atlas (0.8.0+): approve or deny the life request shown
+  // (encodeLifeResponse).
+  LifeResponse = 17,
   SetBlue = 20,
   SetRed = 21,
   SetGreen = 22,
@@ -95,6 +101,9 @@ enum class PacketType : uint8_t {
   // Atlas -> Sigil 0.8.0+: actions available now, with room for actions past
   // the first 21 (encodeMenuState2). Older Sigils keep MenuState.
   MenuState2 = 34,
+  // Atlas -> Sigil 0.8.0+: a pending life request for one of this Sigil's
+  // players, or none (encodeLifeRequest). Resent with every Hello.
+  LifeRequest = 35,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -471,6 +480,9 @@ enum class SigilAction : uint8_t {
   LinkPhone = 20,         // Approve a waiting browser link for this Sigil.
   // MenuState2 only (Sigil 0.8.0+): this Sigil leaves the lobby, both seats.
   Leave = 21,
+  // MenuState2 only: Left/Right (when no other action has them) change this
+  // Sigil's shown player's life; sent as LifeAdjust, never SelectAction.
+  AdjustLife = 22,
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 31;
@@ -551,6 +563,61 @@ inline MenuStateFields decodeMenuState2(int32_t value) {
   f.revision = static_cast<uint8_t>((v >> 29) & MENU_REVISION_MASK);
   return f;
 }
+
+// Life on a menu Sigil. Presses are batched: the Sigil sends one LifeAdjust
+// LIFE_ADJUST_COMMIT_MS after the last change. Holding a key repeats, then
+// switches to LIFE_ADJUST_FAST_STEP steps for big jumps.
+constexpr uint32_t LIFE_ADJUST_COMMIT_MS = 2000;
+constexpr uint32_t LIFE_ADJUST_REPEAT_DELAY_MS = 500;
+constexpr uint32_t LIFE_ADJUST_REPEAT_MS = 150;
+constexpr uint32_t LIFE_ADJUST_FAST_AFTER_MS = 1500;
+constexpr int32_t LIFE_ADJUST_FAST_STEP = 5;
+constexpr int32_t LIFE_ADJUST_MAX = 9999;
+
+// LifeAdjust payload: bits 0-4 player number, bits 5-31 signed delta.
+inline int32_t encodeLifeAdjust(uint8_t player, int32_t delta) {
+  return static_cast<int32_t>((static_cast<uint32_t>(player) & 0x1Fu) |
+      (static_cast<uint32_t>(delta) << 5));
+}
+inline uint8_t lifeAdjustPlayer(int32_t value) {
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x1Fu);
+}
+inline int32_t lifeAdjustDelta(int32_t value) { return value >> 5; }
+
+// LifeRequest payload: bits 0-4 target player (0 = none), 5-9 requesting
+// player, 10-15 request tag (request id & 63), 16-31 signed delta (clamped).
+struct LifeRequestFields {
+  uint8_t target = 0;
+  uint8_t requester = 0;
+  uint8_t tag = 0;
+  int32_t delta = 0;
+};
+inline int32_t encodeLifeRequest(const LifeRequestFields &f) {
+  int32_t d = f.delta;
+  if (d > 32767) d = 32767;
+  if (d < -32768) d = -32768;
+  return static_cast<int32_t>((static_cast<uint32_t>(f.target) & 0x1Fu) |
+      ((static_cast<uint32_t>(f.requester) & 0x1Fu) << 5) |
+      ((static_cast<uint32_t>(f.tag) & 0x3Fu) << 10) |
+      (static_cast<uint32_t>(static_cast<uint16_t>(static_cast<int16_t>(d))) << 16));
+}
+inline LifeRequestFields decodeLifeRequest(int32_t value) {
+  const uint32_t v = static_cast<uint32_t>(value);
+  LifeRequestFields f;
+  f.target = static_cast<uint8_t>(v & 0x1Fu);
+  f.requester = static_cast<uint8_t>((v >> 5) & 0x1Fu);
+  f.tag = static_cast<uint8_t>((v >> 10) & 0x3Fu);
+  f.delta = static_cast<int16_t>(static_cast<uint16_t>(v >> 16));
+  return f;
+}
+// LifeResponse payload: bits 0-4 target player, bit 5 approve, 6-11 tag.
+inline int32_t encodeLifeResponse(uint8_t target, bool approve, uint8_t tag) {
+  return static_cast<int32_t>((static_cast<uint32_t>(target) & 0x1Fu) |
+      (approve ? 0x20u : 0u) | ((static_cast<uint32_t>(tag) & 0x3Fu) << 6));
+}
+inline uint8_t lifeResponseTarget(int32_t v) { return static_cast<uint8_t>(static_cast<uint32_t>(v) & 0x1Fu); }
+inline bool lifeResponseApprove(int32_t v) { return (static_cast<uint32_t>(v) & 0x20u) != 0; }
+inline uint8_t lifeResponseTag(int32_t v) { return static_cast<uint8_t>((static_cast<uint32_t>(v) >> 6) & 0x3Fu); }
 
 // Sigil firmware that decodes MenuState2 (the same release as the picker).
 inline bool menuState2Firmware(uint8_t major, uint8_t minor) {

@@ -24,10 +24,23 @@ char legendGlyph(Key key) {
 }
 }
 
+// Left/Right carry a life request's answer, or free life changes.
+bool EpaperDisplay::lifeRequestShown() const { return life_.request.target != 0; }
+bool EpaperDisplay::lifeKeysShown() const {
+  return !lifeRequestShown() && menu_.life &&
+      menu_.compass[static_cast<uint8_t>(Key::Left)] == MENU_NONE &&
+      menu_.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE;
+}
+
 uint8_t EpaperDisplay::legendLines() const {
   if (!menu_.active) return 0;
   uint8_t lines = 0;
-  for (Key key : LEGEND_KEYS) lines += menu_.compass[static_cast<uint8_t>(key)] != MENU_NONE;
+  for (Key key : LEGEND_KEYS) {
+    if (lifeRequestShown() && (key == Key::Left || key == Key::Right)) continue;
+    lines += menu_.compass[static_cast<uint8_t>(key)] != MENU_NONE;
+  }
+  if (lifeRequestShown()) lines += 2;
+  else if (lifeKeysShown()) lines += 1;
   return lines;
 }
 
@@ -45,7 +58,25 @@ void EpaperDisplay::drawLegend() {
   y += 3;
   display_.setTextSize(1);
   constexpr int16_t CAP = LEGEND_LINE - 1;
+  const auto line = [&](Key key, const char *label) {
+    drawKeycap(key, MARGIN, y);
+    display_.setCursor(MARGIN + CAP + 4, y + 1);
+    printClipped(label, (display_.width() - 2 * MARGIN - CAP - 4) / CHAR_WIDTH);
+    y += LEGEND_LINE;
+  };
+  if (lifeRequestShown()) {
+    line(Key::Right, "Approve life");
+    line(Key::Left, "Deny life");
+  } else if (lifeKeysShown()) {
+    // Both arrows on one line: Left lowers, Right raises; hold for speed.
+    drawKeycap(Key::Left, MARGIN, y);
+    drawKeycap(Key::Right, MARGIN + CAP + 2, y);
+    display_.setCursor(MARGIN + 2 * CAP + 6, y + 1);
+    printClipped("Life -/+ (hold)", (display_.width() - 2 * MARGIN - 2 * CAP - 6) / CHAR_WIDTH);
+    y += LEGEND_LINE;
+  }
   for (Key key : LEGEND_KEYS) {
+    if (lifeRequestShown() && (key == Key::Left || key == Key::Right)) continue;
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
     const auto a = static_cast<TurnHubProtocol::SigilAction>(action);
@@ -365,7 +396,15 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     // Atlas places the active local player first; keep the turn cue with them.
     drawBanner(active ? "YOUR TURN" : "WAITING FOR TURN", 39, active,
         active ? Icon::Turn : Icon::None, 2);
-    drawTwoLines(s.primary.name, 66, width);
+    if (life_.request.target != 0) {
+      // Who asks and how much, in words; the legend says which key answers.
+      char ask[24];
+      snprintf(ask, sizeof(ask), "P%u: %+ld life?", static_cast<unsigned>(life_.request.requester),
+          static_cast<long>(life_.request.delta));
+      drawBanner(ask, 64, true, Icon::None, 2);
+    } else {
+      drawTwoLines(s.primary.name, 66, width);
+    }
     drawLife(s.primary.life, 104, shared ? 4 : 6);
     char label[20] = "LIFE";
     if (shared) snprintf(label, sizeof(label), "LIFE / SEAT %c", primarySeat);

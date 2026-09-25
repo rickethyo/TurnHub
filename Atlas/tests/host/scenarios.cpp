@@ -65,6 +65,7 @@ static unsigned fixtureChannelSends=0;
 static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
 static int32_t fixtureMenuState2[MAX_PHYSICAL_SIGILS]{};
+static int32_t fixtureLifeRequest[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureHarnessCommand=-1;
 static unsigned fixtureHarnessCommands=0;
 static int fixtureFactoryResetSigil=-1;
@@ -75,6 +76,7 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::LedState&&fixtureRadio) { fixtureLedState[id]=value; ++fixtureLedStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState2&&fixtureRadio) { fixtureMenuState2[id]=value; ++fixtureMenuStateSends; }
+  if(type==TurnHubProtocol::PacketType::LifeRequest&&fixtureRadio) fixtureLifeRequest[id]=value;
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
   if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
@@ -1137,6 +1139,63 @@ static void profilePicker() {
   ProfileFixture::bindings.clear();
   ProfileFixture::profiles = saved;
   TurnHubAccounts::accounts = savedAccounts;
+}
+
+// Life on 0.8.0+ Sigils: AdjustLife only while ChangeLife could succeed, a
+// batched LifeAdjust for the Sigil's own player only, and life requests
+// shown on (and answered from) the target's Sigil, tag-checked.
+static void sigilLife() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  freshLobby(2); resetSigilMenus();
+  for (auto &record : fixtureRecords) {
+    record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
+    record.firmwareMajor = 0; record.firmwareMinor = 8;
+  }
+  const auto offered = [](uint8_t id) { return (sigilMenuFor(id).actions & sigilActionBit(SigilAction::AdjustLife)) != 0; };
+  assert(!offered(0));  // Lobby.
+  startFromHost();
+  assert(offered(0) && offered(1));
+  const PlayerSeat a = *game.playerByNumber(lobby.playerNumber(0, 1));
+  const PlayerSeat b = *game.playerByNumber(lobby.playerNumber(1, 1));
+  const int32_t start = game.lifeTotal(a.playerNumber);
+  handleLifeAdjust(0, encodeLifeAdjust(a.playerNumber, -39));
+  assert(game.lifeTotal(a.playerNumber) == start - 39);
+  handleLifeAdjust(0, encodeLifeAdjust(a.playerNumber, 11));
+  assert(game.lifeTotal(a.playerNumber) == start - 28);
+  handleLifeAdjust(0, encodeLifeAdjust(b.playerNumber, -5));  // Not this Sigil's player.
+  assert(game.lifeTotal(b.playerNumber) == start);
+
+  // Sigil 1's player asks to take 3 from Sigil 0's player.
+  assert(sigilLifeRequestFor(0) == 0);
+  Intent ask; ask.type = IntentType::RequestLifeChange; ask.actor.origin = IntentOrigin::PhysicalSigil;
+  ask.actor.controllerId = b.controllerId; ask.actor.slot = b.slot; ask.actor.playerNumber = b.playerNumber;
+  ask.payload.targetPlayer = a.playerNumber; ask.payload.value = -3;
+  assert(intents.dispatch(ask).accepted());
+  const LifeRequestFields shown = decodeLifeRequest(sigilLifeRequestFor(0));
+  assert(shown.target == a.playerNumber && shown.requester == b.playerNumber && shown.delta == -3);
+  assert(sigilLifeRequestFor(1) == 0);
+  syncSigilMenus(testNow); assert(fixtureLifeRequest[0] == sigilLifeRequestFor(0));
+  handleLifeResponse(0, encodeLifeResponse(a.playerNumber, true, shown.tag + 1));  // Stale tag.
+  assert(game.lifeTotal(a.playerNumber) == start - 28);
+  handleLifeResponse(1, encodeLifeResponse(a.playerNumber, true, shown.tag));  // Not the target's Sigil.
+  assert(game.lifeTotal(a.playerNumber) == start - 28);
+  handleLifeResponse(0, encodeLifeResponse(a.playerNumber, true, shown.tag));
+  assert(game.lifeTotal(a.playerNumber) == start - 31 && sigilLifeRequestFor(0) == 0);
+  syncSigilMenus(testNow); assert(fixtureLifeRequest[0] == 0);
+  assert(intents.dispatch(ask).accepted());
+  handleLifeResponse(0, encodeLifeResponse(a.playerNumber, false, decodeLifeRequest(sigilLifeRequestFor(0)).tag));
+  assert(game.lifeTotal(a.playerNumber) == start - 31);
+
+  // An elimination selection blocks life changes.
+  assert(dispatchSeatIntent(IntentType::Pause, IntentOrigin::PhysicalSigil, a).accepted());
+  assert(offered(0));
+  dispatchModuleIntent(IntentType::BeginElimination, 0);
+  assert(eliminationTargetPlayer != 0 && !offered(0));
+  for (auto &record : fixtureRecords) {
+    record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
+  }
+  resetSigilMenus(); enterEmptyLobby();
 }
 
 // Menu Sigils: availability per state, the default action, MenuState
@@ -2510,6 +2569,7 @@ int main() {
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";
   ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
   profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
+  sigilLife(); std::cout<<"PASS Sigil life: AdjustLife availability, batched own-life changes, requests shown and answered with tag checks\n";
   sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";

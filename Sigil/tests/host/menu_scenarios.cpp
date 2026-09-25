@@ -1,5 +1,6 @@
 #include "sigil_menu.h"
 #include "picker_list.h"
+#include "life_adjust.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -172,6 +173,30 @@ int main() {
     assert(rows.count == 2 && rows.rows[0] == PickerRow::Yes && rows.rows[1] == PickerRow::Back);
     cursor = 0; assert(pickerListKey(page, cursor, Key::Select, code) && code == PickerKeyCode::Select);
     cursor = 9; assert(!pickerListKey(page, cursor, Key::Up, code) && cursor == 0);  // Stale cursor resets.
+  }
+
+  // Life presses batch: a tap is 1, a hold repeats then speeds to 5s, and one
+  // total goes out 2 s after the last change (never while a key is held).
+  {
+    LifeAdjuster life;
+    int32_t delta = 0;
+    uint8_t player = 0;
+    life.press(-1, 2, 0); life.release(50);
+    life.press(-1, 2, 300); life.release(350);
+    assert(life.pending() == -2 && !life.update(2000, delta, player));
+    assert(life.update(2350, delta, player) && delta == -2 && player == 2 && life.pending() == 0);
+    // Hold Right: +1, repeats +1 every 150 ms from 500 ms, then +5 from 1.5 s.
+    life.press(1, 2, 10000);
+    for (uint32_t t = 10000; t <= 12000; t += 10) assert(!life.update(t, delta, player));
+    const int32_t held = life.pending();
+    assert(held == 1 + 7 + 4 * 5);  // Tap, seven +1 repeats (0.5-1.4 s), four +5 (1.55-2 s).
+    life.release(12000);
+    assert(!life.update(13999, delta, player) && life.update(14000, delta, player) && delta == held);
+    // A different player drops the old total; cancel drops everything.
+    life.press(1, 2, 20000); life.release(20010);
+    life.press(-1, 3, 20100); life.release(20110);
+    assert(life.pending() == -1 && life.player() == 3);
+    life.cancel(); assert(life.pending() == 0 && !life.update(30000, delta, player));
   }
 
   // Every action has a short label.

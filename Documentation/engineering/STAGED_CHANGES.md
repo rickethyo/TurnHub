@@ -534,6 +534,12 @@ Privacy direction:
   the Table screen's 2 s Master pass hold passing a stuck turn at once with an
   `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
   speaker levels, lowered about 10% the same day, at each volume setting.
+- Sigil life (2026-09-25, host-tested, *Needs verification*): Left/Right
+  change life on both Sigils (tap, hold, fives after 1.5 s), one send 2 s after
+  the last press, the e-ink Jewel showing the running total; life requests
+  from phones show on the target's Sigil with Right approve / Left deny. Known
+  gap: while paused the request text is not on the status screen, only the
+  Approve/Deny legend (e-ink).
 - Leave lobby on menu Sigils (2026-09-25, host-tested, *Needs verification*):
   a joined e-ink or OLED Sigil (0.8.0) holds Down (or Left) to leave both
   seats; the next Join shows the picker fresh and Guest is really a guest.

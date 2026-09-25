@@ -369,6 +369,15 @@ actions each Sigil may use now (`MenuState`), the Sigil sends the one chosen
   A joined 0.8.0 Sigil also offers **Leave lobby** (a long-press hold, on Down
   or else Left): both seats leave and the Sigil's seat profiles are released.
   A waiting phone link takes the last free key first.
+- **Life (0.8.0):** in a game, Left lowers and Right raises the shown player's
+  life whenever no menu action has those keys (on the OLED, while the list is
+  closed). A tap is 1; holding repeats, then counts in fives after 1.5 s. The
+  Sigil sends one total 2 s after the last change. The e-ink shows the running
+  total on the Jewel (green clockwise for a gain, red counter-clockwise for a
+  loss, one pixel per point, center lit past six) and redraws once with the new
+  life; the OLED shows it at once. A life request from another player shows as
+  "P4: -3 life?": Right approves, Left denies, and ignoring it still accepts
+  after 15 s.
 - **OLED (d-pad): list.** Any key opens the list at the likely action; Up and
   Down move, Select or Right choose, Left closes, and ten idle seconds close it.
 - **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:

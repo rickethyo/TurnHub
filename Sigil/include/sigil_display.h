@@ -5,6 +5,21 @@
 
 namespace TurnHubSigil {
 
+// Life shown over the game screen: a change not yet sent (the e-ink leaves
+// that to the status ring), and a life request waiting for this Sigil's
+// answer (Right approves, Left denies).
+struct LifeOverlay {
+  int32_t pending = 0;
+  uint8_t pendingPlayer = 0;
+  TurnHubProtocol::LifeRequestFields request;  // target 0 = none
+  bool operator==(const LifeOverlay &o) const {
+    return pending == o.pending && pendingPlayer == o.pendingPlayer &&
+        request.target == o.request.target && request.requester == o.request.requester &&
+        request.tag == o.request.tag && request.delta == o.request.delta;
+  }
+  bool operator!=(const LifeOverlay &o) const { return !(*this == o); }
+};
+
 // Presentation only. Atlas owns these snapshots; implementations must not send
 // packets, interpret inputs, or mutate/persist game or pairing state.
 // Calls are serialized by setup() and then the existing display task.
@@ -32,9 +47,11 @@ class SigilDisplay {
   // the OLED's list while it is open. Set by the display task before show*().
   void setMenuView(const MenuView &view) { menu_ = view; }
   const MenuView &menuView() const { return menu_; }
+  void setLifeOverlay(const LifeOverlay &life) { life_ = life; }
 
  protected:
   MenuView menu_;
+  LifeOverlay life_;
 };
 
 // Static lifetime, selected at build time. No driver headers reach main.cpp.

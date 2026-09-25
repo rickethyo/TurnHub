@@ -158,6 +158,16 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     frame.single = scaled(WHITE, holdProgress_);
     return frame;
   }
+  if (lifePending_ != 0) {
+    const bool gain = lifePending_ > 0;
+    const int32_t magnitude = gain ? lifePending_ : -lifePending_;
+    const uint8_t lit = magnitude > 6 ? 6 : static_cast<uint8_t>(magnitude);
+    const Rgb color = gain ? GREEN : RED;
+    for (uint8_t i = 0; i < lit; ++i) frame.pixels[gain ? 1 + i : 6 - i] = color;
+    if (magnitude > 6) frame.pixels[LED_CENTER] = WHITE;
+    frame.single = color;
+    return frame;
+  }
   if (passAck_ && static_cast<int32_t>(nowMs - passAckUntilMs_) < 0) {
     fill(GREEN);
     return frame;

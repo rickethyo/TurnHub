@@ -40,6 +40,8 @@ class EpaperDisplay final : public SigilDisplay {
   void printClipped(const char *text, uint8_t maxChars);
   // Compass legend: one line per key with an action, at the bottom.
   uint8_t legendLines() const;
+  bool lifeRequestShown() const;
+  bool lifeKeysShown() const;
   int16_t contentBottom() const;
   void drawLegend();
   void drawKeycap(Key key, int16_t x, int16_t y);

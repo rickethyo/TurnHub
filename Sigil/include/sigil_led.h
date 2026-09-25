@@ -53,6 +53,11 @@ class SigilLedModel {
   // A deliberate menu action being held: 0 (none) to 255 (done). The ring
   // fills clockwise in white; a single LED brightens.
   void setHoldProgress(uint8_t level) { holdProgress_ = level; }
+  // A life change not yet sent (LifeAdjuster), shown at once while the
+  // e-ink catches up: gains fill the ring clockwise in green, losses
+  // counter-clockwise in red (direction, not only color), one pixel per
+  // point; past six the center lights too. The screen shows the new total.
+  void setLifePending(int32_t delta) { lifePending_ = delta; }
 
   LedFrame render(uint32_t nowMs) const;
 
@@ -70,6 +75,7 @@ class SigilLedModel {
   bool passAck_ = false;
   uint32_t passAckUntilMs_ = 0;
   uint8_t holdProgress_ = 0;
+  int32_t lifePending_ = 0;
 };
 
 }  // namespace TurnHubSigil

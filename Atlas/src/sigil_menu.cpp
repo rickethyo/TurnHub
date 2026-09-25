@@ -18,6 +18,9 @@ struct MenuCache {
   uint32_t actions = 0;
   uint8_t defaultAction = TurnHubProtocol::SIGIL_ACTION_NONE;
   uint8_t revision = 0;
+  // Life request shown on this Sigil (encodeLifeRequest; 0 = none).
+  int32_t lifeRequest = 0;
+  bool lifeSent = false;
 };
 
 MenuCache menus[MAX_PHYSICAL_SIGILS];
@@ -124,6 +127,12 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   }
 
   if (TurnHubWebApi::hasPendingClaim(sigilId)) add(SigilAction::LinkPhone);
+  // Left/Right life changes (MenuState2 Sigils), whenever ChangeLife could
+  // succeed: a living seat in a running or paused game, no table decision.
+  if (menu2Sigil(sigilId) && (hubState == HubState::Running || hubState == HubState::Paused) &&
+      hasLivingSeat && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
+    add(SigilAction::AdjustLife);
+  }
 
   MenuStateFields fields;
   fields.actions = actions;
@@ -163,10 +172,46 @@ void syncSigilMenus(uint32_t nowMs) {
       cache.sent = true;
     }
   }
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    MenuCache &cache = menus[id];
+    if (!sigilBus.isOnline(id, nowMs) || !menu2Sigil(id)) {
+      cache.lifeSent = false;
+      continue;
+    }
+    const int32_t request = sigilLifeRequestFor(id);
+    if (request != cache.lifeRequest) {
+      cache.lifeRequest = request;
+      cache.lifeSent = false;
+    }
+    if (!cache.lifeSent &&
+        sigilBus.send(id, TurnHubProtocol::PacketType::LifeRequest, request)) {
+      cache.lifeSent = true;
+    }
+  }
+}
+
+int32_t sigilLifeRequestFor(uint8_t sigilId) {
+  if (hubState != HubState::Running && hubState != HubState::Paused) return 0;
+  PlayerSeat seats[2];
+  const uint8_t count = game.livingPlayersForController(sigilId, seats, 2);
+  for (uint8_t i = 0; i < count; ++i) {
+    const TurnHub::LifeChangeRequest *request = game.lifeChangeFor(seats[i].playerNumber);
+    if (request == nullptr || request->state != TurnHub::LifeChangeState::Pending) continue;
+    TurnHubProtocol::LifeRequestFields f;
+    f.target = request->target;
+    f.requester = request->actor;
+    f.tag = static_cast<uint8_t>(request->id & 0x3F);
+    f.delta = request->delta;
+    return TurnHubProtocol::encodeLifeRequest(f);
+  }
+  return 0;
 }
 
 void invalidateSigilMenu(uint8_t sigilId) {
-  if (sigilId < MAX_PHYSICAL_SIGILS) menus[sigilId].sent = false;
+  if (sigilId < MAX_PHYSICAL_SIGILS) {
+    menus[sigilId].sent = false;
+    menus[sigilId].lifeSent = false;
+  }
 }
 
 uint8_t sigilMenuRevision(uint8_t sigilId) {

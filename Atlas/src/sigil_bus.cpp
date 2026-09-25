@@ -353,6 +353,8 @@ void SigilBus::handleReceive(
     case PacketType::ActionWin:
     case PacketType::SelectAction:
     case PacketType::PickerKey:
+    case PacketType::LifeAdjust:
+    case PacketType::LifeResponse:
     case PacketType::HarnessReport:
     case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
