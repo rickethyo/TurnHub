@@ -19,6 +19,13 @@
 #include "sigil_display.h"
 #include "received_packet.h"
 
+#ifndef TURNHUB_INPUT_JOYSTICK
+#define TURNHUB_INPUT_JOYSTICK 0
+#endif
+#if TURNHUB_INPUT_JOYSTICK
+#include "joystick_input.h"
+#endif
+
 namespace {
 
 using TurnHubProtocol::DisplayMode;
@@ -32,9 +39,27 @@ constexpr uint8_t WIFI_CHANNEL = 6;
 constexpr uint8_t BLUE_LED = 27;
 constexpr uint8_t GREEN_LED = 14;
 constexpr uint8_t RED_LED = 13;
+#if TURNHUB_INPUT_JOYSTICK
+// Analog thumbstick in place of the three buttons (stick powered from 3.3 V,
+// never 5 V: VRX/VRY swing to the supply). Clicking the stick is PASS;
+// pushing right is Action and down is Pause/Win, with the same tap and hold
+// timing as the buttons. VRX/VRY must be ADC1 pins: ADC2 is unusable while
+// ESP-NOW has the radio. GPIO26/25 are left unconfigured.
+constexpr uint8_t PASS_BUTTON = 32;        // SW, switch to GND (A17).
+constexpr uint8_t JOYSTICK_X_PIN = 34;     // VRX, input-only ADC1 (A16).
+constexpr uint8_t JOYSTICK_Y_PIN = 35;     // VRY, input-only ADC1 (A15).
+constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
+constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
+// Virtual pins: never GPIO numbers, read from the stick direction instead.
+constexpr uint8_t ACTION_BUTTON = 0xF0;
+constexpr uint8_t PAUSE_WIN_BUTTON = 0xF1;
+constexpr TurnHubSigil::StickDirection ACTION_DIRECTION = TurnHubSigil::StickDirection::Right;
+constexpr TurnHubSigil::StickDirection PAUSE_WIN_DIRECTION = TurnHubSigil::StickDirection::Down;
+#else
 constexpr uint8_t PASS_BUTTON = 26;
 constexpr uint8_t ACTION_BUTTON = 25;
 constexpr uint8_t PAUSE_WIN_BUTTON = 32; // Breadboard J13; switch to GND.
+#endif
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 constexpr uint8_t PAIR_BUTTON = 19;
@@ -222,9 +247,51 @@ void restoreRedLed() {
   digitalWrite(RED_LED, commandedRed ? HIGH : LOW);
 }
 
+#if TURNHUB_INPUT_JOYSTICK
+TurnHubSigil::StickTracker stick;
+uint32_t lastStickSampleMs = 0;
+
+// Rest the stick at boot: a missing or held stick disables the directions
+// (the click still works as PASS).
+void calibrateJoystick() {
+  int16_t xs[JOYSTICK_CALIBRATION_SAMPLES];
+  int16_t ys[JOYSTICK_CALIBRATION_SAMPLES];
+  for (uint8_t i = 0; i < JOYSTICK_CALIBRATION_SAMPLES; ++i) {
+    xs[i] = static_cast<int16_t>(analogRead(JOYSTICK_X_PIN));
+    ys[i] = static_cast<int16_t>(analogRead(JOYSTICK_Y_PIN));
+    delay(2);
+  }
+  const bool ok = stick.calibrate(xs, ys, JOYSTICK_CALIBRATION_SAMPLES);
+  Serial.printf("SIGIL|JOYSTICK|%s|CENTER|%d|%d\n", ok ? "READY" : "NOT_CENTERED_DISABLED",
+      stick.centerX(), stick.centerY());
+}
+
+void updateJoystick(uint32_t nowMs) {
+  if (nowMs - lastStickSampleMs < JOYSTICK_SAMPLE_MS) return;
+  lastStickSampleMs = nowMs;
+  const TurnHubSigil::StickDirection before = stick.direction();
+  const TurnHubSigil::StickDirection after = stick.update(
+      static_cast<int16_t>(analogRead(JOYSTICK_X_PIN)),
+      static_cast<int16_t>(analogRead(JOYSTICK_Y_PIN)));
+  if (after != before) {
+    Serial.print("SIGIL|JOYSTICK|");
+    Serial.println(TurnHubSigil::stickDirectionName(after));
+  }
+}
+#endif
+
+// Active-low reading; joystick virtual pins are LOW while pushed that way.
+bool readButton(uint8_t pin) {
+#if TURNHUB_INPUT_JOYSTICK
+  if (pin == ACTION_BUTTON) return stick.direction() == ACTION_DIRECTION ? LOW : HIGH;
+  if (pin == PAUSE_WIN_BUTTON) return stick.direction() == PAUSE_WIN_DIRECTION ? LOW : HIGH;
+#endif
+  return digitalRead(pin);
+}
+
 // Returns true once each time the button settles in a new state.
 bool debouncedEdge(ButtonState &button, uint32_t nowMs) {
-  const bool reading = digitalRead(button.pin);
+  const bool reading = readButton(button.pin);
   if (reading != button.rawState) {
     button.rawState = reading;
     button.lastDebounceMs = nowMs;
@@ -907,8 +974,12 @@ void setup() {
   pinMode(GREEN_LED, OUTPUT);
   pinMode(RED_LED, OUTPUT);
   pinMode(PASS_BUTTON, INPUT_PULLUP);
+#if TURNHUB_INPUT_JOYSTICK
+  calibrateJoystick();
+#else
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
   pinMode(PAUSE_WIN_BUTTON, INPUT_PULLUP);
+#endif
 
   analogWrite(BLUE_LED, 0);
   digitalWrite(GREEN_LED, LOW);
@@ -918,9 +989,9 @@ void setup() {
   ledcAttachPin(BUZZER_PIN, BUZZER_CHANNEL);
   stopBuzzer();
 
-  passButton.rawState = passButton.stableState = digitalRead(PASS_BUTTON);
-  actionButton.rawState = actionButton.stableState = digitalRead(ACTION_BUTTON);
-  pauseWinButton.rawState = pauseWinButton.stableState = digitalRead(PAUSE_WIN_BUTTON);
+  passButton.rawState = passButton.stableState = readButton(PASS_BUTTON);
+  actionButton.rawState = actionButton.stableState = readButton(ACTION_BUTTON);
+  pauseWinButton.rawState = pauseWinButton.stableState = readButton(PAUSE_WIN_BUTTON);
 
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
@@ -971,6 +1042,9 @@ void loop() {
     handleEspNowReceive(received.mac,
         received.data, received.length);
   }
+#if TURNHUB_INPUT_JOYSTICK
+  updateJoystick(millis());
+#endif
   updatePassButton();
   updateActionButton(actionButton);
   updateActionButton(pauseWinButton, true);
