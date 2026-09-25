@@ -61,7 +61,7 @@ match/controller records, not a claim that those repositories already exist.
 | Data | Owner | Current/planned location |
 | --- | --- | --- |
 | Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Profile and device-label records use `turnhub` NVS; both physical-seat bindings are RAM-only and clear on restart/reconnect and game end |
-| Lifetime/latest-game statistics | Profile statistics repository | `BlobStore` -> `NvsBlobStore`, existing `turnhub` namespace and `s<profileId>` keys. Last-game result byte 4 is `Draw` (2026-09-24; it was the never-written `Completed`), so the v1 image and older firmware still accept draws |
+| Lifetime/latest-game statistics | Profile statistics repository | Split 2026-09-25 (owner decision). **Core, NVS, always:** `c<profileId>` in `turnhub`, 12 bytes little-endian (schema 1, last result, last game profile, reserved, games played and won as uint32). **Detail, microSD:** the v1 72-byte `s<profileId>` record in the card's store. Its reserved byte 67 now holds the last game's profile; older records read 0 = Generic. Without a card only the core counts are recorded ("limp mode"), and the stats API reports `"detailed": false`. A v1 record older firmware left in NVS stays the detail, and is updated in place, until a card is present. Then boot migrates it: written, read back and compared on the card, core record written, and only then removed from NVS. Different detail already on the card is never overwritten. Last-game result byte 4 is `Draw` (2026-09-24; it was the never-written `Completed`), so the v1 image and older firmware still accept draws |
 | Private moderation history (connection resets, game removals) | Profile statistics repository | `o<profileId>` blob in `turnhub`: schema byte 1, then two little-endian uint32 counts. Served only to the owner's PIN-verified session; never exported. Counts older firmware kept in `u<profileId>` migrate on first account load (2026-09-24) |
 | Account access control (permissions, archived, nudge mute, reconnect-required) | Atlas account repository | `u<profileId>` blob in `turnhub` (12 bytes, schema 2); its count bytes are legacy and read only for migration |
 | Physical-use and stats-privacy choices | Atlas profile repository | `a<profileId>` blob in `turnhub`: schema byte 1, allow-physical byte 0/1, hide-stats byte 0/1; implemented locally |
@@ -118,8 +118,9 @@ yet queued for replay.
 
 Status (2026-09-24): *Implemented* in firmware and host tests. *Verified* on
 the board by the owner: the card mounts and registers. Booting without a card
-still needs a bench check. No repository uses the card yet, so every record
-listed above still lives in NVS and gameplay never depends on the card.
+still needs a bench check. Since 2026-09-25 detailed statistics live on the
+card (host-tested; *Needs verification* on hardware); every other record
+stays in NVS, and gameplay never depends on the card.
 
 - `sd_card.cpp` (firmware-only, Arduino `SD` library on VSPI) mounts the card
   once at boot with `format_if_empty = false`: an unreadable or unformatted
@@ -145,7 +146,8 @@ listed above still lives in NVS and gameplay never depends on the card.
   removed while running makes operations fail with `IoError`; remount needs a
   restart.
 
-Not decided yet (see [Staged changes](STAGED_CHANGES.md)): which records move,
+Detailed statistics are the first records on the card (see the table above).
+Not decided yet (see [Staged changes](STAGED_CHANGES.md)): which other records move,
 PIN hashes on removable media, migration and rollback from NVS, and how a card
 moved to another Atlas is treated.
 

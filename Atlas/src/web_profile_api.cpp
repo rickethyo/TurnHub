@@ -4,6 +4,7 @@
 #include "account_access.h"
 #include "profile_statistics.h"
 #include "web_api_internal.h"
+#include "game_profile.h"
 
 namespace TurnHubWebApi {
 namespace internal {
@@ -57,7 +58,8 @@ String safeExportName(const String &name, const String &profileId) {
 }
 
 // Loads the signed-in profile's statistics or sends the error response.
-WebSession *loadSessionStats(WebServer &server, String &profileId, String &name, ProfileStats &stats) {
+WebSession *loadSessionStats(WebServer &server, String &profileId, String &name, ProfileStats &stats,
+    bool *detailed = nullptr) {
   WebSession *session = sessionForRequest(server);
   if (session == nullptr) {
     sendJson(server, 401, "{\"ok\":false,\"error\":\"Browser session is not authorized\"}");
@@ -69,7 +71,7 @@ WebSession *loadSessionStats(WebServer &server, String &profileId, String &name,
     return nullptr;
   }
   name = TurnHubProfiles::nameForProfile(profileId);
-  if (!TurnHubProfiles::loadStatsForProfile(profileId, stats)) {
+  if (!TurnHubProfiles::loadStatsForProfile(profileId, stats, detailed)) {
     sendJson(server, 503, "{\"ok\":false,\"error\":\"Profile statistics storage unavailable\"}");
     return nullptr;
   }
@@ -373,7 +375,8 @@ void handleProfileStats(WebServer &server) {
   String profileId;
   String name;
   ProfileStats stats{};
-  const WebSession *session = loadSessionStats(server, profileId, name, stats);
+  bool detailed = false;
+  const WebSession *session = loadSessionStats(server, profileId, name, stats, &detailed);
   if (!session) return;
 
   String response;
@@ -384,6 +387,13 @@ void handleProfileStats(WebServer &server) {
   response += jsonEscape(name);
   response += "\",\"winRate\":\"";
   response += winRateText(stats);
+  // "detailed": false without a microSD card; only games played and won,
+  // the last result and the last game type are then kept.
+  response += "\",\"detailed\":";
+  response += detailed ? "true" : "false";
+  response += ",\"lastGameType\":\"";
+  response += TurnHub::gameProfileKey(static_cast<TurnHub::GameProfile>(
+      stats.lastGameProfile < static_cast<uint8_t>(TurnHub::GameProfile::Count) ? stats.lastGameProfile : 0));
   response += "\",\"lifetime\":{";
   response += "\"gamesPlayed\":" + String(stats.gamesPlayed);
   response += ",\"gamesWon\":" + String(stats.gamesWon);

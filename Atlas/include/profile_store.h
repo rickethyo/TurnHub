@@ -5,6 +5,8 @@
 #include "accessibility_prefs.h"
 #include "profile_policy.h"
 
+namespace TurnHubStorage { class BlobStore; }
+
 namespace TurnHubProfiles {
 
 constexpr uint16_t STATS_SCHEMA_VERSION = 1;
@@ -40,7 +42,9 @@ struct ProfileStats {
 
   uint16_t schemaVersion = STATS_SCHEMA_VERSION;
   LastGameResult lastGameResult = LastGameResult::None;
-  uint8_t reserved = 0;
+  // GameProfile of the last completed game. Was an unused reserved byte, so
+  // older records read 0 (Generic) and the v1 layout is unchanged.
+  uint8_t lastGameProfile = 0;
 };
 
 // Private moderation history: Game Master actions taken against this profile.
@@ -82,8 +86,23 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
 bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs);
 bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs);
 
-bool loadStatsForProfile(const String &profileId, ProfileStats &stats);
+// Statistics are split (owner decision 2026-09-25): a small core record in
+// NVS (games played and won, last result and game profile) that every Atlas
+// keeps, and the full v1 record as luxury data on the microSD card. Without
+// a card the detail is not recorded ("limp mode"); a v1 record still in NVS
+// from older firmware keeps serving as the detail until it is migrated.
+// Load returns the combined view; *detailed says whether the detail fields
+// are backed by a record (false: only the core counts are real).
+bool loadStatsForProfile(const String &profileId, ProfileStats &stats, bool *detailed = nullptr);
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
+
+// The card's record store, or nullptr without one. Set once at boot.
+void setLuxuryStore(TurnHubStorage::BlobStore *store);
+bool luxuryStoreAvailable();
+// Moves detailed statistics still in NVS to the card: each is written, read
+// back and compared, its core record written, and only then removed from
+// NVS. Without a card nothing moves or is deleted. Returns profiles moved.
+size_t migrateDetailedStats();
 // A missing record reads as zero counts. Loading also migrates counts that
 // older firmware kept in the account record.
 bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats);

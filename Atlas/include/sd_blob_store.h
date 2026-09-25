@@ -54,6 +54,7 @@ class SdBlobStore final : public BlobStore {
   Status read(const char *key, void *data, size_t capacity,
               size_t &size) override;
   Status write(const char *key, const void *data, size_t size) override;
+  Status remove(const char *key) override;
 
  private:
   static constexpr size_t PATH_BYTES = 48;

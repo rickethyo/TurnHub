@@ -56,4 +56,17 @@ Status NvsBlobStore::write(const char *key, const void *data, size_t size) {
   }
   return Status::Ok;
 }
+
+Status NvsBlobStore::remove(const char *key) {
+  if (!ready_) return Status::Unavailable;
+  if (!validKey(key)) return Status::InvalidArgument;
+  esp_err_t error = nvs_erase_key(handle_, key);
+  if (error == ESP_ERR_NVS_NOT_FOUND) return Status::NotFound;
+  if (error == ESP_OK) error = nvs_commit(handle_);
+  if (error != ESP_OK) {
+    log_e("TurnHub storage erase failed: %s", esp_err_to_name(error));
+    return Status::IoError;
+  }
+  return Status::Ok;
+}
 }  // namespace TurnHubStorage

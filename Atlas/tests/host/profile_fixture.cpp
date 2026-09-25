@@ -106,7 +106,10 @@ bool clearPinForSeat(const uint8_t *mac,uint8_t slot) { return clearPinForProfil
 bool hasPinForSeat(const uint8_t *mac,uint8_t slot) { return hasPinForProfile(profileIdForSeat(mac,slot)); }
 String deviceName(const uint8_t *) { return String(); }
 bool setDeviceName(const uint8_t *,const String &) { return true; }
-bool loadStatsForProfile(const String &id,ProfileStats &stats) { if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
+bool loadStatsForProfile(const String &id,ProfileStats &stats,bool *detailed) { if(detailed)*detailed=true; if(!profileExists(id))return false;stats=profiles[id].stats;return true; }
+void setLuxuryStore(TurnHubStorage::BlobStore *) {}
+bool luxuryStoreAvailable() { return true; }
+size_t migrateDetailedStats() { return 0; }
 bool saveStatsForProfile(const String &id,const ProfileStats &stats) { if(!profileExists(id))return false;profiles[id].stats=stats;return true; }
 bool loadModerationStatsForProfile(const String &id,ModerationStats &stats) { if(!profileExists(id))return false;stats=profiles[id].moderation;return true; }
 bool saveModerationStatsForProfile(const String &id,const ModerationStats &stats) { if(!profileExists(id))return false;profiles[id].moderation=stats;return true; }

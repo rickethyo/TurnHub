@@ -14,6 +14,8 @@ constexpr char PREF_NAMESPACE[] = "turnhub";
 
 TurnHub::OptionalPreferences preferences;
 TurnHubStorage::NvsBlobStore statsStorage;
+// The microSD card's store for luxury records, or nullptr (limp mode).
+TurnHubStorage::BlobStore *luxuryStore = nullptr;
 bool preferencesReady = false;
 constexpr uint8_t TRANSIENT_SEAT_CAPACITY = 16;
 struct TransientSeatBinding {
@@ -278,29 +280,111 @@ bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPre
       profileKey(ACCESSIBILITY_PREFIX, profileId).c_str(), prefs) == TurnHubStorage::Status::Ok;
 }
 
-bool loadStatsForProfile(const String &profileId, ProfileStats &stats) {
+void setLuxuryStore(TurnHubStorage::BlobStore *store) { luxuryStore = store; }
+
+bool luxuryStoreAvailable() { return luxuryStore != nullptr; }
+
+bool loadStatsForProfile(const String &profileId, ProfileStats &stats, bool *detailed) {
+  using TurnHubStorage::Status;
   stats = ProfileStats{};
+  if (detailed) *detailed = false;
   if (!preferencesReady || !profileExists(profileId)) {
     return false;
   }
+  if (statsStorage.begin(PREF_NAMESPACE) != Status::Ok) return false;
 
-  const String key = profileKey('s', profileId);
-  if (statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
-  const auto status = readStoredStats(statsStorage, key.c_str(), stats);
-  // A fresh profile has no statistics. All other failures must stop the
-  // completion callback from replacing an unreadable record with zero totals.
-  return status == TurnHubStorage::Status::Ok ||
-      status == TurnHubStorage::Status::NotFound;
+  // NVS: the core record, and a v1 record older firmware left (the detail
+  // until it moves to the card). A fresh profile has neither. Any other
+  // failure must stop the completion callback from replacing an unreadable
+  // record with zero totals.
+  CoreStats core;
+  const Status coreStatus = readCoreStats(statsStorage, profileKey(CORE_STATS_PREFIX, profileId).c_str(), core);
+  if (coreStatus != Status::Ok && coreStatus != Status::NotFound) return false;
+  ProfileStats legacy{};
+  const Status legacyStatus = readStoredStats(statsStorage, profileKey('s', profileId).c_str(), legacy);
+  if (legacyStatus != Status::Ok && legacyStatus != Status::NotFound) return false;
+
+  if (legacyStatus == Status::Ok) {
+    stats = legacy;
+    if (detailed) *detailed = true;
+  } else if (luxuryStore != nullptr) {
+    // A card problem only costs the detail; the core counts still load.
+    ProfileStats detail{};
+    const Status detailStatus = readStoredStats(*luxuryStore, profileKey('s', profileId).c_str(), detail);
+    if (detailStatus == Status::Ok) stats = detail;
+    if (detailed) *detailed = detailStatus == Status::Ok || detailStatus == Status::NotFound;
+  }
+  // The core record is authoritative for its fields: it keeps counting while
+  // the detail is missing (no card), so the detail's copies can lag.
+  if (coreStatus == Status::Ok) {
+    stats.gamesPlayed = core.gamesPlayed;
+    stats.gamesWon = core.gamesWon;
+    stats.lastGameResult = core.lastGameResult;
+    stats.lastGameProfile = core.lastGameProfile;
+  }
+  return true;
 }
 
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats) {
-  if (!preferencesReady || !profileExists(profileId)) {
+  using TurnHubStorage::Status;
+  if (!preferencesReady || !profileExists(profileId) ||
+      statsStorage.begin(PREF_NAMESPACE) != Status::Ok) {
     return false;
   }
+  const String detailKey = profileKey('s', profileId);
+  if (writeCoreStats(statsStorage, profileKey(CORE_STATS_PREFIX, profileId).c_str(), coreOf(stats)) !=
+      Status::Ok) {
+    return false;
+  }
+  ProfileStats legacy{};
+  const bool legacyInNvs = readStoredStats(statsStorage, detailKey.c_str(), legacy) == Status::Ok;
+  if (luxuryStore != nullptr && writeStoredStats(*luxuryStore, detailKey.c_str(), stats) == Status::Ok) {
+    // The card has the detail now; free the NVS copy.
+    if (legacyInNvs) statsStorage.remove(detailKey.c_str());
+    return true;
+  }
+  // No card (or it failed): an NVS detail record from older firmware stays
+  // current in place (same size); otherwise only the core counts are kept.
+  if (legacyInNvs) writeStoredStats(statsStorage, detailKey.c_str(), stats);
+  return true;
+}
 
-  const String key = profileKey('s', profileId);
-  if (statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
-  return writeStoredStats(statsStorage, key.c_str(), stats) == TurnHubStorage::Status::Ok;
+size_t migrateDetailedStats() {
+  using TurnHubStorage::Status;
+  if (luxuryStore == nullptr || !preferencesReady ||
+      statsStorage.begin(PREF_NAMESPACE) != Status::Ok) {
+    return 0;
+  }
+  char ids[MAX_LOGIN_PROFILES][PROFILE_ID_LENGTH + 1];
+  const size_t count = listProfileIds(ids, MAX_LOGIN_PROFILES);
+  size_t moved = 0;
+  for (size_t i = 0; i < count; ++i) {
+    const String id(ids[i]);
+    const String detailKey = profileKey('s', id);
+    ProfileStats legacy{};
+    if (readStoredStats(statsStorage, detailKey.c_str(), legacy) != Status::Ok) continue;
+    // Keep the core record ahead of the detail: the counts must never be
+    // lost between the two writes.
+    const String coreKey = profileKey(CORE_STATS_PREFIX, id);
+    CoreStats core;
+    const Status coreStatus = readCoreStats(statsStorage, coreKey.c_str(), core);
+    if (coreStatus == Status::NotFound &&
+        writeCoreStats(statsStorage, coreKey.c_str(), coreOf(legacy)) != Status::Ok) continue;
+    if (coreStatus != Status::Ok && coreStatus != Status::NotFound) continue;
+    // A detail record already on the card (this card was used before) is
+    // never overwritten by an older NVS copy; both stay for a person to sort.
+    ProfileStats onCard{};
+    const Status cardStatus = readStoredStats(*luxuryStore, detailKey.c_str(), onCard);
+    if (cardStatus == Status::NotFound) {
+      if (writeStoredStats(*luxuryStore, detailKey.c_str(), legacy) != Status::Ok) continue;
+      if (readStoredStats(*luxuryStore, detailKey.c_str(), onCard) != Status::Ok) continue;
+    } else if (cardStatus != Status::Ok) {
+      continue;
+    }
+    if (memcmp(&onCard, &legacy, sizeof(legacy)) != 0) continue;
+    if (statsStorage.remove(detailKey.c_str()) == Status::Ok) ++moved;
+  }
+  return moved;
 }
 
 bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats) {

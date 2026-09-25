@@ -160,4 +160,24 @@ Status SdBlobStore::write(const char *key, const void *data, size_t size) {
   return Status::Ok;
 }
 
+
+// Removes the record and any backup or leftover temporary copy of it.
+Status SdBlobStore::remove(const char *key) {
+  if (fs_ == nullptr) return Status::Unavailable;
+  if (!validKey(key)) return Status::InvalidArgument;
+  char current[PATH_BYTES];
+  char backup[PATH_BYTES];
+  char temp[PATH_BYTES];
+  if (!path(current, key, "") || !path(backup, key, ".bak") || !path(temp, key, ".tmp")) {
+    return Status::InvalidArgument;
+  }
+  bool found = false;
+  const char *const files[] = {current, backup, temp};
+  for (const char *file : files) {
+    if (!fs_->exists(file)) continue;
+    found = true;
+    if (!fs_->remove(file)) return Status::IoError;
+  }
+  return found ? Status::Ok : Status::NotFound;
+}
 }  // namespace TurnHubStorage

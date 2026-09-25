@@ -96,6 +96,31 @@ void existingRecords() {
   assert(writeStoredStats(store, "s12345678", ProfileStats{}) == Status::Ok);
 }
 
+// The core statistics record (c<profileId>, in NVS whatever the card) and
+// NVS removal, which migration uses once the card holds the detail.
+void coreStatsRecords() {
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub") == Status::Ok);
+  CoreStats core;
+  assert(readCoreStats(store, "cABCDEFGH", core) == Status::NotFound);
+  core.gamesPlayed = 0x01020304; core.gamesWon = 7;
+  core.lastGameResult = LastGameResult::Draw; core.lastGameProfile = 2;
+  assert(writeCoreStats(store, "cABCDEFGH", core) == Status::Ok);
+  const std::vector<uint8_t> expected = {1, 4, 2, 0, 4, 3, 2, 1, 7, 0, 0, 0};
+  assert(FakeNvs::blobs["cABCDEFGH"] == expected);  // Little-endian, portable.
+  CoreStats back;
+  assert(readCoreStats(store, "cABCDEFGH", back) == Status::Ok && back.gamesPlayed == 0x01020304 &&
+      back.gamesWon == 7 && back.lastGameResult == LastGameResult::Draw && back.lastGameProfile == 2);
+  FakeNvs::blobs["cABCDEFGH"][0] = 9;
+  assert(readCoreStats(store, "cABCDEFGH", back) == Status::UnsupportedSchema);
+  assert(writeCoreStats(store, "cABCDEFGH", core) == Status::UnsupportedSchema);  // Never overwritten.
+  FakeNvs::blobs["cABCDEFGH"] = {1, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  assert(readCoreStats(store, "cABCDEFGH", back) == Status::Corrupt);
+  assert(store.remove("cABCDEFGH") == Status::Ok && !FakeNvs::blobs.count("cABCDEFGH"));
+  assert(store.remove("cABCDEFGH") == Status::NotFound);
+}
+
 void protectedRecords() {
   FakeNvs::reset();
   NvsBlobStore store;
@@ -503,6 +528,14 @@ void sdRecords() {
   assert(store.write("rec", "fifth", 6) == Status::Ok);
   assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "fifth"));
 
+  // Remove takes the record and any backup or leftover temporary copy.
+  fs.files["/turnhub/rec.bak"] = fs.files["/turnhub/rec"];
+  fs.files["/turnhub/rec.tmp"] = fs.files["/turnhub/rec"];
+  assert(store.remove("rec") == Status::Ok);
+  assert(!fs.files.count("/turnhub/rec") && !fs.files.count("/turnhub/rec.bak") && !fs.files.count("/turnhub/rec.tmp"));
+  assert(store.read("rec", out, sizeof(out), size) == Status::NotFound && store.remove("rec") == Status::NotFound);
+  assert(store.write("rec", "fifth", 6) == Status::Ok);
+
   // The checksum is standard CRC-32 (IEEE), so records can be checked off-device.
   assert(crc32("123456789", 9) == 0xCBF43926u);
   store.end();
@@ -514,6 +547,7 @@ int main() {
   moderationRecords();
   identityContracts();
   existingRecords();
+  coreStatsRecords();
   protectedRecords();
   backendFailures();
   profilePolicyRecords();

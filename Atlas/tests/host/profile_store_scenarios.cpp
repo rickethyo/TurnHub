@@ -2,6 +2,8 @@
 #include <iostream>
 #include "profile_store.h"
 #include "account_access.h"
+#include "storage.h"
+#include <cstring>
 #include <nvs.h>
 
 namespace FakeNvs {
@@ -151,6 +153,90 @@ static void accessibilityPreferences() {
   assert(loadAccessibilityForProfile(id, again) && again.winHoldMs == 8000);
 }
 
+// An in-memory microSD record store.
+struct FakeCard : TurnHubStorage::BlobStore {
+  std::map<std::string, std::vector<uint8_t>> records;
+  bool broken = false;
+  TurnHubStorage::Status read(const char *key, void *data, size_t capacity, size_t &size) override {
+    size = 0;
+    if (broken) return TurnHubStorage::Status::IoError;
+    const auto found = records.find(key);
+    if (found == records.end()) return TurnHubStorage::Status::NotFound;
+    size = found->second.size();
+    if (data == nullptr) return TurnHubStorage::Status::Ok;
+    if (size > capacity) return TurnHubStorage::Status::Corrupt;
+    memcpy(data, found->second.data(), size);
+    return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status write(const char *key, const void *data, size_t size) override {
+    if (broken) return TurnHubStorage::Status::IoError;
+    const uint8_t *bytes = static_cast<const uint8_t *>(data);
+    records[key].assign(bytes, bytes + size);
+    return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status remove(const char *key) override {
+    return records.erase(key) ? TurnHubStorage::Status::Ok : TurnHubStorage::Status::NotFound;
+  }
+};
+
+// Core counts stay in NVS; the detail is luxury data on the card (limp mode
+// without one), and detail older firmware left in NVS moves to the card.
+static void statisticsSplit() {
+  const String id = createProfileWithCredentials("Split", "1234", hashPin);
+  const std::string core = std::string("c") + id.c_str(), detail = std::string("s") + id.c_str();
+  ProfileStats stats; bool detailed = true;
+  setLuxuryStore(nullptr);
+  assert(loadStatsForProfile(id, stats, &detailed) && stats.gamesPlayed == 0 && !detailed);
+
+  // No card: only the 12-byte core record is written.
+  stats.gamesPlayed = 2; stats.gamesWon = 1; stats.totalTurnMs = 9000; stats.turnsCompleted = 4;
+  stats.lastGameResult = LastGameResult::Win; stats.lastGameProfile = 2;
+  assert(saveStatsForProfile(id, stats));
+  assert(FakeNvs::blobs.count(core) && FakeNvs::blobs[core].size() == 12 && !FakeNvs::blobs.count(detail));
+  assert(loadStatsForProfile(id, stats, &detailed) && !detailed && stats.gamesPlayed == 2 &&
+      stats.gamesWon == 1 && stats.lastGameProfile == 2 && stats.lastGameResult == LastGameResult::Win &&
+      stats.totalTurnMs == 0);
+
+  // With a card: the detail goes there; the core counts stay authoritative.
+  FakeCard card; setLuxuryStore(&card);
+  stats.gamesPlayed = 3; stats.totalTurnMs = 12000;
+  assert(saveStatsForProfile(id, stats) && card.records.count(detail) && !FakeNvs::blobs.count(detail));
+  assert(loadStatsForProfile(id, stats, &detailed) && detailed && stats.gamesPlayed == 3 && stats.totalTurnMs == 12000);
+  // A game played without the card: the core keeps counting, the detail lags.
+  setLuxuryStore(nullptr); stats.gamesPlayed = 4; stats.totalTurnMs = 15000; assert(saveStatsForProfile(id, stats));
+  setLuxuryStore(&card);
+  assert(loadStatsForProfile(id, stats, &detailed) && detailed && stats.gamesPlayed == 4 && stats.totalTurnMs == 12000);
+  // A failing card costs only the detail.
+  card.broken = true;
+  assert(loadStatsForProfile(id, stats, &detailed) && !detailed && stats.gamesPlayed == 4);
+  assert(saveStatsForProfile(id, stats));
+  card.broken = false;
+
+  // Migration: a v1 record older firmware left in NVS moves to the card
+  // (written, read back, compared) and only then leaves NVS.
+  const String old = createProfileWithCredentials("Old", "1234", hashPin);
+  const std::string oldDetail = std::string("s") + old.c_str(), oldCore = std::string("c") + old.c_str();
+  ProfileStats legacy; legacy.gamesPlayed = 7; legacy.gamesWon = 5; legacy.fastestTurnMs = 800;
+  std::vector<uint8_t> image(sizeof(legacy));
+  memcpy(image.data(), &legacy, sizeof(legacy));
+  FakeNvs::blobs[oldDetail] = image;
+  setLuxuryStore(nullptr);
+  assert(migrateDetailedStats() == 0 && FakeNvs::blobs.count(oldDetail));  // No card: nothing deleted.
+  assert(loadStatsForProfile(old, stats, &detailed) && detailed && stats.fastestTurnMs == 800);
+  setLuxuryStore(&card);
+  assert(migrateDetailedStats() == 1);
+  assert(!FakeNvs::blobs.count(oldDetail) && card.records[oldDetail] == image && FakeNvs::blobs.count(oldCore));
+  assert(loadStatsForProfile(old, stats, &detailed) && detailed && stats.gamesPlayed == 7 &&
+      stats.gamesWon == 5 && stats.fastestTurnMs == 800);
+  assert(migrateDetailedStats() == 0);
+  // A card that already holds different detail is never overwritten.
+  FakeNvs::blobs[oldDetail] = image; ProfileStats other = legacy; other.fastestTurnMs = 1;
+  memcpy(card.records[oldDetail].data(), &other, sizeof(other));
+  assert(migrateDetailedStats() == 0 && FakeNvs::blobs.count(oldDetail));
+  FakeNvs::blobs.erase(oldDetail);
+  setLuxuryStore(nullptr);
+}
+
 int main() {
   assert(begin());
   guestLookups();
@@ -158,5 +244,6 @@ int main() {
   legacyPlaceholders();
   moderationMigration();
   accessibilityPreferences();
-  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, moderation-count migration and accessibility preferences\n";
+  statisticsSplit();
+  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, moderation-count migration, accessibility preferences and the NVS/SD statistics split\n";
 }

@@ -17,6 +17,7 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "runtime_diagnostics.h"
+#include "profile_store.h"
 #include "sd_card.h"
 #include "serial_log.h"
 #include "speaker_settings.h"
@@ -349,6 +350,13 @@ void setup() {
   TurnHub::recordActivity("boot", TurnHub::resetReason());
   // Optional storage: a missing or failed card is logged and never blocks play.
   beginSdCard();
+  // Luxury records (detailed statistics) go to the card; without one Atlas
+  // keeps only the core counts. Move any detail older firmware left in NVS.
+  TurnHubProfiles::setLuxuryStore(sdBlobStore());
+  if (TurnHubProfiles::begin()) {
+    const size_t moved = TurnHubProfiles::migrateDetailedStats();
+    if (moved > 0) serialLog.printf("ATLAS|SD|STATS_MIGRATED|%u\n", static_cast<unsigned>(moved));
+  }
 
   configureIntentHandlers();
   observeClientState();

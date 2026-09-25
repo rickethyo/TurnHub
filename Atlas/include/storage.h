@@ -26,6 +26,8 @@ class BlobStore {
   virtual Status read(const char *key, void *data, size_t capacity,
                       size_t &size) = 0;
   virtual Status write(const char *key, const void *data, size_t size) = 0;
+  // Deletes one record. NotFound when there was none; never touches others.
+  virtual Status remove(const char *key) = 0;
 };
 
 }  // namespace TurnHubStorage

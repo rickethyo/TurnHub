@@ -80,4 +80,42 @@ Status writeStoredModerationStats(TurnHubStorage::BlobStore &store, const char *
   writeLe32(data + 5, stats.gameRemovals);
   return store.write(key, data, sizeof(data));
 }
+
+namespace {
+constexpr uint8_t CORE_SCHEMA = 1;
+constexpr size_t CORE_RECORD_SIZE = 12;
+}  // namespace
+
+Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStats &stats) {
+  size_t size = 0;
+  Status status = store.read(key, nullptr, 0, size);
+  if (status != Status::Ok) return status;
+  if (size != CORE_RECORD_SIZE) return Status::Corrupt;
+  uint8_t data[CORE_RECORD_SIZE] = {};
+  status = store.read(key, data, sizeof(data), size);
+  if (status != Status::Ok) return status;
+  if (size != sizeof(data)) return Status::Corrupt;
+  if (data[0] != CORE_SCHEMA) return Status::UnsupportedSchema;
+  if (data[1] > static_cast<uint8_t>(LastGameResult::Draw)) return Status::Corrupt;
+  stats.lastGameResult = static_cast<LastGameResult>(data[1]);
+  stats.lastGameProfile = data[2];
+  stats.gamesPlayed = readLe32(data + 4);
+  stats.gamesWon = readLe32(data + 8);
+  return Status::Ok;
+}
+
+// Like the other statistics records, an unreadable record is never overwritten.
+Status writeCoreStats(TurnHubStorage::BlobStore &store, const char *key, const CoreStats &stats) {
+  if (static_cast<uint8_t>(stats.lastGameResult) > static_cast<uint8_t>(LastGameResult::Draw)) {
+    return Status::Corrupt;
+  }
+  CoreStats existing;
+  const Status status = readCoreStats(store, key, existing);
+  if (status != Status::Ok && status != Status::NotFound) return status;
+  uint8_t data[CORE_RECORD_SIZE] = {CORE_SCHEMA, static_cast<uint8_t>(stats.lastGameResult),
+      stats.lastGameProfile, 0};
+  writeLe32(data + 4, stats.gamesPlayed);
+  writeLe32(data + 8, stats.gamesWon);
+  return store.write(key, data, sizeof(data));
+}
 }  // namespace TurnHubProfiles

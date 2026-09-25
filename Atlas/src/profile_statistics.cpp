@@ -71,6 +71,7 @@ uint8_t recordCompletedGame(
     const uint32_t longest = current != nullptr ? current->longestTurnMs : 0;
 
     ++persistent.gamesPlayed;
+    persistent.lastGameProfile = static_cast<uint8_t>(game.settings().profile);
     persistent.totalGameMs += gameDurationMs;
     if (seat->playerNumber == winner) {
       ++persistent.gamesWon;

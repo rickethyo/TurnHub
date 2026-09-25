@@ -83,10 +83,30 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   NVS keeps only a basic profile (ID, name, PIN hash; no avatar, no extra
   themes or cosmetic options) and a few basic statistics: games played, games
   won, the game type, perhaps a handful of other simple counters. Literally
-  everything else goes to the card. Still to decide: the NVS migration and
-  rollback, mid-session card loss (hot-plug is not handled; a card inserted
-  after boot needs a restart), and whether a card may be moved between
-  Atlases.
+  everything else goes to the card.
+  **Step 2 done (2026-09-25, host-tested, *Needs verification* on hardware):**
+  statistics are split into an NVS core record (games played and won, last
+  result, last game type) and the detailed record on the card, with a
+  checked, non-destructive migration at boot (see
+  [Identity and storage](IDENTITY_AND_STORAGE.md#persistence-ownership)).
+  The portal's stats page says when detail needs the card. Deliberately kept
+  in NVS, for the owner to confirm:
+  - account permissions and profile policy, because they gate login;
+  - per-player accessibility preferences, because accessible play is not a
+    luxury;
+  - moderation counts, because a Game Master action records them before it
+    acts and would be refused without a card.
+
+  **Measured 2026-09-25:** NVS was at 130 of 630 entries with one profile
+  (about 14 entries each), so NVS alone would fill somewhere past 30 profiles.
+  The tighter space is program flash (1.33 MB of the 1.97 MB app slot). The
+  largest single item is the portal page, 103 KB of uncompressed HTML, plus
+  19 KB of CSS and 10 KB for the stats page. Storing them gzipped, as the QR
+  script already is, would free roughly 100 KB with or without a card.
+  Proposed, not started.
+  Still to decide: rollback, mid-session card loss (hot-plug is not handled;
+  a card inserted after boot needs a restart), and whether a card may be
+  moved between Atlases.
 - Done 2026-09-25: player names, life and the turn clock on the status
   screen, Info and QR code screens, the NO SD CARD warning (bench check of
   the new layout pending). Still open: more touch actions (Start, Rematch,
