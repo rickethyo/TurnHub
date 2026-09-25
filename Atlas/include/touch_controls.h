@@ -39,6 +39,8 @@ enum class TouchAction : uint8_t {
   None, Pair, Pause, Resume, EndMatch,
   // Between games: start (lobby), cancel the countdown, rematch or reset.
   StartGame, CancelStart, Rematch, ResetTable,
+  // Lobby hold: send everyone back out of an unstarted lobby.
+  ClearLobby,
   // In a game: the Table screen and its master pass (a stuck turn).
   OpenTable, MasterPass,
   // Presence code screen: cancel the code a phone asked for.

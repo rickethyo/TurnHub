@@ -285,6 +285,8 @@ void startPairingIndicator(uint32_t nowMs);
 constexpr uint32_t END_MATCH_HOLD_MS = 5000;
 // Holding "Master pass" (touchscreen Table screen) this long passes a stuck turn.
 constexpr uint32_t MASTER_PASS_HOLD_MS = 2000;
+// Atlas touchscreen lobby hold: clear every player from an unstarted lobby.
+constexpr uint32_t LOBBY_CLEAR_HOLD_MS = 2000;
 // Proof that someone is at the table (owner decision 2026-09-25; replaced the
 // 3 s "Unlock admin" hold). A signed-in phone asks for a code, the Atlas
 // screen shows it (digits and a QR code), and entering it on that phone

@@ -1818,7 +1818,7 @@ static void oledSigilSeatsOnePlayer() {
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  assert(String(s.title)=="Lobby" && s.buttonCount==4 && screenButton(s,TouchAction::StartGame) &&
+  assert(String(s.title)=="Lobby" && s.buttonCount==5 && screenButton(s,TouchAction::StartGame) && screenButton(s,TouchAction::ClearLobby) &&
       screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
   // Every button fits on screen and meets the 44 px minimum target size.
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
@@ -2035,6 +2035,14 @@ static void touchTableLifecycle() {
   tapButton(TouchAction::StartGame); testNow+=START_COUNTDOWN_MS; updateCountdown(testNow);
   holdEndMatch(); assert(hubState==HubState::GameOver);
   tapButton(TouchAction::ResetTable); assert(hubState==HubState::Lobby && lobby.playerCount()==0);
+  // Lobby Clear: a hold, shown only with someone joined; a tap only explains.
+  assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
+  freshLobby(3); resetTouchControls();
+  assert(screenButton(currentScreen(),TouchAction::ClearLobby));
+  tapButton(TouchAction::ClearLobby); assert(lobby.playerCount()==3);
+  pressButton(TouchAction::ClearLobby); testNow+=LOBBY_CLEAR_HOLD_MS; pressButton(TouchAction::ClearLobby); touchRelease();
+  assert(hubState==HubState::Lobby && lobby.playerCount()==0);
+  assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
   resetTouchControls(); enterEmptyLobby();
 }
 
@@ -2471,7 +2479,7 @@ int main() {
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
-  touchTableLifecycle(); std::cout<<"PASS touchscreen Start, Cancel start, Rematch and Reset between games\n";
+  touchTableLifecycle(); std::cout<<"PASS touchscreen Start, Cancel start, Rematch and Reset between games, lobby Clear hold\n";
   masterPass(); std::cout<<"PASS master pass: Table screen hold, Atlas hardware only, immediate, logged, overrides a queued PASS\n";
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Table screen, end-match hold, slide-off, drop-out, stale press\n";

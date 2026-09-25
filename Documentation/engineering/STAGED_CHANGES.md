@@ -534,6 +534,10 @@ Privacy direction:
   the Table screen's 2 s Master pass hold passing a stuck turn at once with an
   `ATLAS|GAME|MASTER_PASS` line in the serial and SD logs. Also check the
   speaker levels, lowered about 10% the same day, at each volume setting.
+- Lobby Clear on the Atlas touchscreen (2026-09-25, *Needs verification*): shown
+  once anyone has joined; a 2 s hold (`LOBBY_CLEAR_HOLD_MS`, `ResetGame` from
+  Atlas hardware) empties the lobby, a tap only explains. Check the six-button
+  row with a harness connected is still easy to hit.
 - Atlas screen flicker fix (2026-09-25, *Needs verification*): the turn clock,
   countdown bar and a held button's fill bar are drawn over the old pixels
   instead of cleared first, and a hold repaints only its own button. Check a

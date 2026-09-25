@@ -168,13 +168,17 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
 
   switch (hubState) {
     case HubState::Lobby: {
-      ButtonSpec row[5];
+      ButtonSpec row[6];
       uint8_t n = 0;
       if (lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
+      if (lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", LOBBY_CLEAR_HOLD_MS, 2};
       row[n++] = {TouchAction::Pair, "Pair", 0, 3};
       row[n++] = {TouchAction::OpenQr, "QR", 0, 2};
       if (harnessSigilId(nowMs) != INVALID_ID) row[n++] = {TouchAction::OpenTests, "Tests", 0, 2};
       row[n++] = {TouchAction::OpenInfo, "Info", 0, 2};
+      // A full row (players joined and a harness connected): equal widths keep
+      // every button at least a finger wide.
+      if (n == 6) for (uint8_t i = 0; i < n; ++i) row[i].weight = 1;
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
     }
@@ -229,6 +233,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::CancelStart: return "CANCEL_START";
     case TouchAction::Rematch: return "REMATCH";
     case TouchAction::ResetTable: return "RESET_TABLE";
+    case TouchAction::ClearLobby: return "CLEAR_LOBBY";
     case TouchAction::OpenTable: return "OPEN_TABLE";
     case TouchAction::MasterPass: return "MASTER_PASS";
     case TouchAction::Pause: return "PAUSE";
@@ -269,14 +274,17 @@ IntentType tableIntentType(TouchAction action) {
     case TouchAction::StartGame: return IntentType::StartGame;
     case TouchAction::CancelStart: return IntentType::CancelStart;
     case TouchAction::Rematch: return IntentType::Rematch;
-    case TouchAction::ResetTable: return IntentType::ResetGame;
+    case TouchAction::ResetTable:
+    case TouchAction::ClearLobby: return IntentType::ResetGame;
     default: return IntentType::None;
   }
 }
 
 // What a hold button does, for "Keep holding for 5 s to ...".
 const char *holdPurpose(TouchAction action) {
-  return action == TouchAction::MasterPass ? "pass this turn" : "end the match";
+  if (action == TouchAction::MasterPass) return "pass this turn";
+  if (action == TouchAction::ClearLobby) return "clear the lobby";
+  return "end the match";
 }
 
 // Screen changes: no Intent, no table state, no notice.
@@ -317,7 +325,8 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::StartGame:
     case TouchAction::CancelStart:
     case TouchAction::Rematch:
-    case TouchAction::ResetTable: {
+    case TouchAction::ResetTable:
+    case TouchAction::ClearLobby: {
       Intent intent;
       intent.type = tableIntentType(action);
       intent.actor.origin = IntentOrigin::AtlasHardware;

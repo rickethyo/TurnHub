@@ -562,9 +562,16 @@ IntentResult handleCancelStartIntent(const Intent &intent, void *) {
 // Rematch keeps the finished match's participants; ResetGame empties the
 // table. Reset is reachable only from GameOver or an unstarted lobby, so it
 // can never discard an in-progress (including recovered) match. The Atlas
-// touchscreen offers both after a game (Rematch and Reset).
+// touchscreen offers both after a game (Rematch and Reset), and a Clear hold
+// in the lobby (ResetGame) that sends every player back out.
 IntentResult handleResetIntent(const Intent &intent, void *) {
   if (intent.actor.origin == IntentOrigin::AtlasHardware) {
+    if (intent.type == IntentType::ResetGame && hubState == HubState::Lobby) {
+      serialLog.print("ATLAS|LOBBY|CLEAR|PLAYERS|");
+      serialLog.println(lobby.playerCount());
+      enterEmptyLobby(&intent);
+      return IntentResult::accept("Lobby cleared");
+    }
     if (hubState != HubState::GameOver) {
       return IntentResult::reject(IntentStatus::InvalidState, "Game is not over");
     }
