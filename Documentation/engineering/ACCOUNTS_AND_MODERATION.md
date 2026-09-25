@@ -6,9 +6,10 @@ pass. Hardware playtesting remains required. No profile wipe or flash performed.
 ## Initial setup
 
 On a new Atlas or an existing installation without an Admin, the portal shows a
-setup banner. Create or sign into a PIN-protected account, hold **Unlock admin**
-on the Atlas touchscreen for 3 seconds, and within the next minute select **Make my
-account the initial Admin**. This explicitly
+setup banner. Create or sign into a PIN-protected account and select **Make my
+account the initial Admin**. The Atlas screen shows a six-digit code and a QR
+code; enter it on that phone, or scan it, to prove you are at the table (the
+presence code, 2026-09-25). This explicitly
 establishes the administrator; neither a display name nor first registration
 automatically grants privileges. The initial Admin cannot be demoted in this slice.
 Subsequent privileged accounts are configured in Device Settings. Existing profile
@@ -24,8 +25,10 @@ identifiers, PINs, statistics and bindings remain compatible.
 - GM reset connections and GM remove from game: independent additional choices;
   either requires Game Master. Admin, Game Master and Developer can be combined.
 
-A normal account has none of these permissions. Table host remains a per-game
-capability, not an account permission. Permission checks run on Atlas for every
+A normal account has none of these permissions. There is no table host (owner
+decision 2026-09-25). Any seated player may start (the countdown can be
+cancelled by any seated player), pick the starter, change the next game's
+settings, rematch or reset. Permission checks run on Atlas for every
 protected request, not just in the UI. Privileged accounts cannot remove their PIN.
 The restricted HTML routes first serve an authentication shell; actual page contents
 require the session header. Tokens are never placed in URLs.

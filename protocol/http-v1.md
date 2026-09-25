@@ -86,8 +86,20 @@ snapshots. Firmware before the timer omits both fields; treat that as off.
 `GET /api/game/settings` (authenticated) returns `turnTimerMs` and
 `turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
 existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
-keep their current values. Only the host's primary seat may change settings, and
-only in the lobby (409 otherwise); invalid values return 400. See
+keep their current values. Any seated player may change settings (there is no
+table host since 2026-09-25), only in the lobby (409 otherwise); invalid values
+return 400. In `GET /api/session/me`, `host` now means "this seat may use table
+actions", which is true for every seated player; `hostModuleId` in the state is
+always `null`. Both fields remain for compatibility.
+
+Table presence (2026-09-25): `GET /api/presence` returns `{verified,
+remainingMs, setup, canRequest}`. `POST /api/presence/request` (an Admin, or
+anyone signed in before any Admin exists) shows a six-digit code on the Atlas
+screen for 90 s. `POST /api/presence/confirm?code=NNNNNN` returns 200 when
+verified (for 10 minutes), 400 for a wrong code, 409 when no code is showing
+for that account, and 429 after five wrong codes. `POST /api/presence/lock`
+ends verification. Protected requests without verification return
+`403 {"presenceRequired": true}`. See
 [Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
 
 ## Draws

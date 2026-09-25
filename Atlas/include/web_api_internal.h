@@ -91,7 +91,7 @@ extern CounterControlCallback counterControlHandler;
 extern ModerateCallback moderateHandler;
 extern DeviceIntentCallback deviceHandler;
 extern PairingWindowCallback readPairingWindow;
-extern PresenceCallback presenceConfirmed;
+extern PresenceHooks presenceHooks;
 extern SpeakerVolumeCallback readSpeakerVolume;
 extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
@@ -104,9 +104,9 @@ void sendJson(WebServer &server, int status, const String &body);
 void sendError(WebServer &server, int status, const String &message);
 // {"ok":true,"message":"<message>"}
 void sendOkMessage(WebServer &server, const String &message);
-// True while admin is unlocked on the Atlas touchscreen (physical presence).
-bool physicalPresence();
-// Sends 403 unless admin is unlocked on the Atlas touchscreen.
+// True while the signed-in profile of this request is verified at the table.
+bool physicalPresence(WebServer &server);
+// Sends 403 {"presenceRequired":true} unless it is.
 bool requirePhysicalPresence(WebServer &server);
 
 // --- Identity helpers (web_admin_api.cpp) -------------------------------------
@@ -184,6 +184,11 @@ void handleNetworkInfo(WebServer &server);
 void handleNetworkPassword(WebServer &server);
 void handleSerialLogDownload(WebServer &server);
 void handleAccountSetup(WebServer &server, bool readOnly);
+// Table presence: GET /api/presence, POST /api/presence/request, /confirm, /lock.
+void handlePresenceStatus(WebServer &server);
+void handlePresenceRequest(WebServer &server);
+void handlePresenceConfirm(WebServer &server);
+void handlePresenceLock(WebServer &server);
 void handleAccounts(WebServer &server);
 void handleAccountPermissions(WebServer &server);
 void handleAccountArchive(WebServer &server);

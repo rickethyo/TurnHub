@@ -82,7 +82,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     <h1>Atlas Firmware Update</h1>
     <p class="small">Upload the Atlas <code>firmware.bin</code> produced by PlatformIO.</p>
     <div class="notice" style="margin-top:14px">
-      For safety, start updates only from Lobby or Game Over and <strong>unlock admin on the Atlas screen (hold Unlock admin for 3 seconds), then click Upload within a minute</strong>. Atlas will restart automatically after the image is written.
+      For safety, start updates only from Lobby or Game Over and <strong>verify at the table first (Device Settings in the portal: Verify at the table, then the code the Atlas screen shows), then upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
     </div>
     <div id="current" class="status">Reading current firmware...</div>
     <div class="drop"><label for="file">Firmware image</label><input id="file" type="file" accept=".bin,application/octet-stream"></div>
@@ -166,7 +166,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     if (!file.files.length) return;
 
     button.disabled = true;
-    setMessage('Uploading... Atlas checks that admin is still unlocked when the upload begins.');
+    setMessage('Uploading... Atlas checks that you are still verified at the table when the upload begins.');
 
     const form = new FormData();
     form.append('firmware', file.files[0]);
@@ -268,7 +268,8 @@ void OtaManager::handleUpload() {
     case UPLOAD_FILE_START:
       resetAttempt();
 
-      if (!TurnHubWebApi::requirePermission(server_,TurnHubAccounts::Admin) || allowedCallback_ == nullptr || !allowedCallback_()) {
+      if (!TurnHubWebApi::requirePermission(server_,TurnHubAccounts::Admin) || !TurnHubWebApi::verifiedAtTable(server_) ||
+          allowedCallback_ == nullptr || !allowedCallback_()) {
         denied_ = true;
         serialLog.println("ATLAS|OTA|DENIED");
         return;
@@ -338,7 +339,7 @@ void OtaManager::handleComplete() {
     server_.send(
         403,
         "application/json",
-        "{\"ok\":false,\"error\":\"Update not armed. Return to Lobby or Game Over, unlock admin on the Atlas screen, then start the upload within a minute.\"}");
+        "{\"ok\":false,\"error\":\"Update not armed. Return to Lobby or Game Over and verify at the table in the portal (the code the Atlas screen shows), then start the upload within 10 minutes.\"}");
     return;
   }
 

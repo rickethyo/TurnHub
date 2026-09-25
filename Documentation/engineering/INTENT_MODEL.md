@@ -177,7 +177,7 @@ to the authoritative transitions.
   seat membership. Membership changes require Lobby state. Whole-controller Leave is
   bound but has no new physical gesture or HTTP endpoint in this patch.
 - `SelectStarter`: `payload.value` is `StarterSelection::ExactSeat` (0),
-  `CycleModule` (1), or `Random` (2). Random selection requires the host and two
+  `CycleModule` (1), or `Random` (2). Random selection requires a seated actor and two
   players. Browser requests select the exact authenticated seat. `CycleModule`
   retains its compatibility name while the internal actor field is controller-based.
 - `Pause`: `payload.flags & ARM_WIN_ON_PAUSE` identifies a pause gesture that may
@@ -187,7 +187,8 @@ to the authoritative transitions.
   flag, denial restores the state before the claim. Neither flag is inferred from
   transport/origin inside the semantic handler.
 - `ArmStart`, `StartGame`, `Rematch`, and `ResetGame` identify the requesting controller;
-  Atlas validates host, state, player count, and start-arm constraints.
+  Atlas validates that the controller is seated (there is no table host since
+  2026-09-25), state, player count, and start-arm constraints.
 - `BeginElimination`, `CycleElimination`, `CancelElimination`, and `Eliminate` refer
   to Atlas's selected target. Eliminate is intentionally distinct from Concede:
   a surviving elimination stays paused; concession restores prior running play.
@@ -206,7 +207,7 @@ takes a Sigil ID or `FORGET_ALL_SIGILS` (-1) in `value`, works only in the lobby
 and refuses Sigils with seated players. `ConfigurePairing` takes Atlas's window in
 milliseconds (15,000, 30,000 or 60,000). `ConfigureSpeaker` (Admin) takes the
 Atlas speaker volume, 0 (off) to 3 (high), and saves it before applying it.
-`ResetTable` (Admin, and only while admin is unlocked on the Atlas touchscreen)
+`ResetTable` (Admin, verified at the table with the presence code)
 returns the table to an empty lobby from any state: it cancels a countdown, ends
 a running or paused match as a draw first (statistics once, like `EndMatch`),
 then clears every participant. It is the portal's **Return table to lobby**,
@@ -217,7 +218,7 @@ statistics once through the normal game-completed callback. `PairConfirm` remain
 unsupported. General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
-requires the primary host seat in the lobby; `flags` is the game-profile enum,
+requires a seated actor in the lobby (any seat; no table host); `flags` is the game-profile enum,
 `value` is starting life and `durationMs` is the turn timer (0 = off). See
 [Game profiles and life](GAME_PROFILES_AND_LIFE.md) and
 [Turn timer and cues](TURN_TIMER_AND_CUES.md). Turn-timer expiry has no Intent:

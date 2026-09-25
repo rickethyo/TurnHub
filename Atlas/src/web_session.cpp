@@ -670,4 +670,5 @@ bool requirePermission(WebServer &server, uint8_t permission) {
   return true;
 }
 
+bool verifiedAtTable(WebServer &server) { return internal::physicalPresence(server); }
 }  // namespace TurnHubWebApi

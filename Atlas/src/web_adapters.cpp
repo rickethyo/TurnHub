@@ -69,7 +69,9 @@ bool resolveWebSeat(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot) 
   snapshot.playerNumber = seat.playerNumber;
   snapshot.active = false;
   snapshot.eliminated = false;
-  snapshot.host = controllerId == lobby.hostController();
+  // "host" now means this seat may use table actions (start, rematch, reset,
+  // next-game settings): every seated player may, since 2026-09-25.
+  snapshot.host = true;
   snapshot.lifeAvailable = game.hasPlayers();
   snapshot.life = game.lifeTotal(seat.playerNumber);
   if (game.hasPlayers()) {
@@ -195,6 +197,19 @@ bool moderateAccount(const String &actor, const String &target,
   return result.accepted();
 }
 
+
+// Table presence for the web API: authorization state in front_panel.cpp,
+// not table state, so it bypasses the Intent path like the old unlock window.
+TurnHubWebApi::PresenceHooks presenceHooks() {
+  TurnHubWebApi::PresenceHooks hooks;
+  hooks.remainingMs = [](const String &profile) { return presenceRemainingMs(profile, millis()); };
+  hooks.request = [](const String &profile, bool setup) { return requestPresenceCode(profile, setup, millis()); };
+  hooks.confirm = [](const String &profile, uint32_t code) {
+    return static_cast<TurnHubWebApi::PresenceResult>(confirmPresenceCode(profile, code, millis()));
+  };
+  hooks.revoke = [](const String &profile) { revokePresence(profile); };
+  return hooks;
+}
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
@@ -224,7 +239,7 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureModeration(moderateAccount);
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configureAccessibility([]() { applyAllSigilAccessibility(millis()); });
-  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
+  TurnHubWebApi::configurePresence(presenceHooks());
   TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
 }

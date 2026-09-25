@@ -39,7 +39,6 @@ SigilLedState selectSigilLedState(
     uint8_t winConfirmationPlayer,
     uint32_t nowMs) {
   SigilLedState cue;
-  const bool host = sigilId == lobby.hostController();
 
   if (state == HubState::Lobby || state == HubState::Starting) {
     if (!lobby.isJoined(sigilId)) {
@@ -53,7 +52,6 @@ SigilLedState selectSigilLedState(
     }
     cue.cue = LedCue::Joined;
     cue.playerNumber = lobby.playerNumber(sigilId, 1);
-    if (host) cue.overlays |= ledOverlayBit(LedOverlay::Host);
     PlayerSeat starter;
     if (lobby.selectedStarter(starter) && starter.controllerId == sigilId) {
       cue.overlays |= ledOverlayBit(LedOverlay::Starter);
@@ -96,7 +94,6 @@ SigilLedState selectSigilLedState(
 
   // Game over.
   cue.cue = LedCue::GameOver;
-  if (host) cue.overlays |= ledOverlayBit(LedOverlay::Host);
   const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
   if (winner != nullptr && winner->controllerId == sigilId) {
     cue.overlays |= ledOverlayBit(LedOverlay::Winner);
@@ -226,10 +223,6 @@ void LedRenderer::syncDisplay(
   uint8_t secondary = 0;
   uint8_t turnNumber = 0;
   uint8_t flags = 0;
-
-  if (sigilId == lobby.hostController()) {
-    flags |= TurnHubProtocol::DISPLAY_FLAG_HOST;
-  }
 
   if (state == HubState::Lobby || state == HubState::Starting) {
     if (lobby.isJoined(sigilId)) {

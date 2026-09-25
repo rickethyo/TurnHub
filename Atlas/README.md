@@ -67,7 +67,7 @@ The ESP32 Atlas currently provides:
 - Authenticated statistics page at `/stats`
 - Self-service text statistics export for the authenticated profile
 - Browser feedback controls
-- Atlas web OTA gated by the table state and the touchscreen Unlock admin window, with post-restart verification
+- Atlas web OTA gated by the table state and the Admin being verified at the table (presence code), with post-restart verification
 
 TurnHub remains local-first. Normal table control and player statistics do not require an internet or cloud connection.
 
@@ -132,7 +132,7 @@ The portal links to `/stats`, where the authenticated player can view and downlo
 
 ### Game profiles and life (local implementation)
 
-After joining, the host can choose Generic, Magic, Commander, or Yu-Gi-Oh! and
+After joining, any seated player can choose Generic, Magic, Commander, or Yu-Gi-Oh! and
 custom starting life under Settings. Atlas saves that setup and captures it when
 the game starts. Game shows everyone's life and controls for changing your own
 total, including negative totals without automatic elimination. Rematches reset
@@ -213,7 +213,7 @@ This provisioning flow is planned, not the current boot behavior.
 ## Wi-Fi access point password
 
 Atlas hosts `TurnHub-Atlas` (WPA2, channel 6). Until an owner sets a password
-in the portal (System → Wi-Fi security, after Unlock admin on the Atlas screen), Atlas
+in the portal (System → Wi-Fi security, after verifying at the table with the code the Atlas screen shows), Atlas
 uses the shipped pre-setup passphrase `TurnHub-Setup` from `config.h`. This
 lets the Android app join a new Atlas without asking. The default is never
 written to NVS, so erasing NVS returns Atlas to it. An owner-set password is

@@ -293,8 +293,8 @@ void handleNetworkInfo(WebServer &server) {
   response += String(ownerSet ? password.length() : sizeof(AtlasConfig::WIFI_DEFAULT_PASSWORD) - 1);
   response += ",\"stations\":";
   response += String(WiFi.softAPgetStationNum());
-  response += ",\"adminUnlocked\":";
-  response += jsonBool(physicalPresence());
+  response += ",\"verifiedAtTable\":";
+  response += jsonBool(physicalPresence(server));
   response += '}';
   sendJson(server, 200, response);
 }
@@ -401,6 +401,94 @@ void handleAccountSetup(WebServer &server, bool readOnly) {
     return;
   }
   sendJson(server, 200, "{\"ok\":true}");
+}
+
+// --- Table presence ----------------------------------------------------------------------
+// A phone proves its user is at the table by entering the code the Atlas
+// screen shows. Admins may ask for a code at any time; before any Admin
+// exists, any signed-in account may, to set up the first Admin.
+
+namespace {
+
+bool setupPending() {
+  String primary;
+  return TurnHubAccounts::primaryAdmin(primary) && primary.length() == 0;
+}
+
+// The request's signed-in profile, or sends 401 and returns "".
+String presenceProfile(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session) {
+    sendError(server, 401, "Sign in first");
+    return String();
+  }
+  return sessionProfileId(*session);
+}
+
+}  // namespace
+
+void handlePresenceStatus(WebServer &server) {
+  const String profile = presenceProfile(server);
+  if (!profile.length()) return;
+  const bool setup = setupPending();
+  const uint32_t remaining = presenceHooks.remainingMs ? presenceHooks.remainingMs(profile) : 0;
+  String json = "{\"verified\":";
+  json += jsonBool(remaining > 0);
+  json += ",\"remainingMs\":" + String(remaining);
+  json += String(",\"setup\":") + jsonBool(setup);
+  json += String(",\"canRequest\":") + jsonBool(setup || TurnHubAccounts::has(profile, TurnHubAccounts::Admin));
+  json += '}';
+  sendJson(server, 200, json);
+}
+
+void handlePresenceRequest(WebServer &server) {
+  const String profile = presenceProfile(server);
+  if (!profile.length()) return;
+  const bool setup = setupPending();
+  if (!setup && !TurnHubAccounts::has(profile, TurnHubAccounts::Admin)) {
+    sendError(server, 403, "Only an Admin can verify at the table");
+    return;
+  }
+  if (!presenceHooks.request || !presenceHooks.request(profile, setup)) {
+    sendError(server, 503, "Atlas could not show a code");
+    return;
+  }
+  sendOkMessage(server, "Enter the code the Atlas screen shows");
+}
+
+void handlePresenceConfirm(WebServer &server) {
+  const String profile = presenceProfile(server);
+  if (!profile.length()) return;
+  String digits;
+  for (const char c : server.arg("code")) if (c >= '0' && c <= '9') digits += c;
+  if (digits.length() != 6 || !presenceHooks.confirm) {
+    sendError(server, 400, "Enter the six-digit code from the Atlas screen");
+    return;
+  }
+  switch (presenceHooks.confirm(profile, static_cast<uint32_t>(digits.toInt()))) {
+    case PresenceResult::Verified: {
+      const uint32_t remaining = presenceHooks.remainingMs ? presenceHooks.remainingMs(profile) : 0;
+      sendJson(server, 200, String("{\"ok\":true,\"message\":\"Verified at the table\",\"remainingMs\":") +
+          String(remaining) + "}");
+      return;
+    }
+    case PresenceResult::WrongCode:
+      sendError(server, 400, "That is not the code on the Atlas screen");
+      return;
+    case PresenceResult::TooManyAttempts:
+      sendError(server, 429, "Too many wrong codes; request a new one");
+      return;
+    case PresenceResult::NoCode:
+      break;
+  }
+  sendError(server, 409, "No code is showing for you; request a new one");
+}
+
+void handlePresenceLock(WebServer &server) {
+  const String profile = presenceProfile(server);
+  if (!profile.length()) return;
+  if (presenceHooks.revoke) presenceHooks.revoke(profile);
+  sendOkMessage(server, "No longer verified at the table");
 }
 
 // Admins and Game Masters see every account; others see only their own.

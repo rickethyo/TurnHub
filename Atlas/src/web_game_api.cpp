@@ -171,9 +171,9 @@ void handleGameSettings(WebServer &server) {
   const bool available = readGameConfiguration && readGameConfiguration(settings, editable);
   WebSession *session = sessionForRequest(server);
   SeatSnapshot seat;
-  // Only the host's primary seat may edit next-game settings.
+  // Any seated player may edit next-game settings (no table host since 2026-09-25).
   const bool host = session && resolveSessionParticipant(*session) &&
-      resolveSeatNow(session->controllerId, session->slot, seat) && seat.host && session->slot == 1;
+      resolveSeatNow(session->controllerId, session->slot, seat) && seat.host;
   String presets;
   for (uint8_t i = 0; i < TurnHub::TURN_TIMER_PRESET_COUNT; ++i) {
     if (i) presets += ',';

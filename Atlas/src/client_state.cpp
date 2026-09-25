@@ -32,7 +32,8 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.profile, settings.profile);
   changed |= update(settings_.startingLife, settings.startingLife);
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
-  changed |= update(host_, lobby.hostController());
+  // hostModuleId stays null: there is no table host (2026-09-25); the field
+  // remains for client-contract compatibility.
   PlayerSeat selected;
   const uint8_t starter = lobby.selectedStarter(selected) ? selected.playerNumber :
       (inGame_ ? game.starterPlayerNumber() : 0);

@@ -80,8 +80,8 @@ routes, storage codec and portal; the Sigil hold and `Unpair` handling were buil
 
 Device Settings has **Factory reset** for each paired Sigil and **Factory
 reset Atlas** (`POST /api/device/factory-reset`, `module=<id>` or `atlas=1`).
-Both are the `FactoryReset` Intent. It needs Admin permission, and admin
-unlocked on the Atlas screen (someone at the table), and it is never allowed
+Both are the `FactoryReset` Intent. It needs Admin permission, that Admin
+verified at the table (the presence code), and it is never allowed
 during a match. Atlas re-checks all of that in the handler.
 
 - **A Sigil** must be free (nobody seated, lobby only). Atlas sends it

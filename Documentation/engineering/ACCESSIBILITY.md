@@ -148,12 +148,12 @@ Design goals:
 
 The Atlas touchscreen follows the same rules: buttons at least 60 px tall with
 text labels, a pressed state that changes luminance and border rather than hue
-alone, and a visible seconds countdown for every hold (end match, 5 s; unlock
-admin, 3 s). Touch actions use the same Intents as Sigils and the portal. With
-no master button (removed 2026-09-24), the touchscreen is Atlas's only physical
-input, so Unlock admin needs a 3 s hold on it; a player who cannot hold it can
-ask anyone at the table to, and the protected action is then finished in the
-portal by the account holder.
+alone, and a visible seconds countdown for every hold (end match, 5 s). Touch
+actions use the same Intents as Sigils and the portal. Proving you are at the
+table (for Admin actions) no longer needs a touch hold (2026-09-25). The Atlas
+screen shows a six-digit code in large digits and a QR code, and the account
+holder enters or scans it on their own phone, with the phone's own
+accessibility tools. Anyone at the table can read the code aloud.
 
 Atlas's speaker (2026-09-24) plays only table-wide cues, and each one also shows
 on the Atlas screen, the Sigils and the portal. Its volume (Off to High) is an

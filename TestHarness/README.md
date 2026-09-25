@@ -72,13 +72,13 @@ screen stays up through the game until **Back**. Atlas and the harness speak
 | `run soak [games] [players]` | Repeats `run game` (4 turns each) until one fails |
 | `x` | Aborts a running scenario |
 
-`run game` needs the table in its lobby with no other controller joined first,
-because the first joined Sigil becomes the host. Its steps:
+`run game` needs the table in its lobby. Any seated Sigil may start (there is
+no table host since 2026-09-25), so V1 starts it. Its steps:
 
 1. `LOBBY`, then `JOIN` for V1 and V2, then `SEAT_B` for as many extra players
    as asked for (V1 B, then V2 B).
-2. `HOST` and `START`: the host picks Start, and the countdown ends in a
-   running game.
+2. `HOST` (a harness Sigil offered Start; the step name is historical) and
+   `START`: V1 picks Start, and the countdown ends in a running game.
 3. `TURN` × N: the active Sigil picks Pass, sees Cancel pass while Atlas holds
    the pass for its 3 s grace, and the pass commits.
 4. `PAUSE` and `RESUME`.

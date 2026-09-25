@@ -87,6 +87,8 @@ void configure(
 // web-control endpoints on the Atlas WebServer.
 void begin(WebServer &server);
 bool requirePermission(WebServer &server,uint8_t permission);
+// The request's signed-in profile is verified at the table (presence code).
+bool verifiedAtTable(WebServer &server);
 void serveRestrictedPage(WebServer &server,const char *html,uint8_t permission);
 bool connectionBlocked(const String &id);
 void revokeConnections(const String &id);
@@ -107,11 +109,18 @@ void configureSpeaker(SpeakerVolumeCallback volume);
 // restyle that player's Sigil straight away.
 using AccessibilityChangedCallback = void (*)();
 void configureAccessibility(AccessibilityChangedCallback callback);
-// Physical presence: true while admin is unlocked on the Atlas touchscreen.
-// First Admin setup, network settings and device names require it on top of
-// the account permission.
-using PresenceCallback = bool (*)();
-void configurePresence(PresenceCallback confirmed);
+// Table presence (front_panel.cpp): a code the Atlas screen shows, entered on
+// the phone, verifies that profile is at the table for a while. First-Admin
+// setup, system settings, device names, OTA, Return to lobby and factory
+// reset require it on top of the account permission.
+enum class PresenceResult : uint8_t { Verified, WrongCode, NoCode, TooManyAttempts };
+struct PresenceHooks {
+  uint32_t (*remainingMs)(const String &profileId) = nullptr;  // 0: not verified.
+  bool (*request)(const String &profileId, bool setup) = nullptr;
+  PresenceResult (*confirm)(const String &profileId, uint32_t code) = nullptr;
+  void (*revoke)(const String &profileId) = nullptr;
+};
+void configurePresence(const PresenceHooks &hooks);
 
 
 // Called only for real physical Sigil button activity. A pending browser claim

@@ -232,8 +232,7 @@ void handleActionUp(uint8_t sigilId) {
     if (wasLong) suppressEliminationShort[sigilId] = false;
     return;
   }
-  if (hubState == HubState::Lobby && lobby.startArmedBy() == sigilId &&
-      sigilId == lobby.hostController()) {
+  if (hubState == HubState::Lobby && lobby.startArmedBy() == sigilId) {
     dispatchModuleIntent(IntentType::StartGame, sigilId);
   }
 }
@@ -262,7 +261,7 @@ void handleActionShort(uint8_t sigilId) {
     handleLobbyShort(sigilId);
     return;
   }
-  if (hubState == HubState::GameOver && sigilId == lobby.hostController()) {
+  if (hubState == HubState::GameOver) {
     dispatchModuleIntent(IntentType::Rematch, sigilId);
   }
 }
@@ -291,7 +290,7 @@ void handleActionLong(uint8_t sigilId) {
       }
       break;
     case HubState::GameOver:
-      if (sigilId == lobby.hostController()) dispatchModuleIntent(IntentType::ResetGame, sigilId);
+      dispatchModuleIntent(IntentType::ResetGame, sigilId);
       break;
     default:
       break;
@@ -301,8 +300,7 @@ void handleActionLong(uint8_t sigilId) {
 void handleActionWin(uint8_t sigilId) {
   if (suppressActionAfterPassCancel[sigilId]) return;
 
-  if (hubState == HubState::Lobby && sigilId == lobby.hostController() &&
-      lobby.startArmedBy() == sigilId) {
+  if (hubState == HubState::Lobby && lobby.startArmedBy() == sigilId) {
     dispatchModuleIntent(IntentType::ResetGame, sigilId);
     return;
   }

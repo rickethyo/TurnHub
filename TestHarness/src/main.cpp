@@ -504,7 +504,7 @@ bool gameOver() {
 
 // One whole game through the menus: join, seat B, start, turns, pause and
 // resume, an elimination (3+ players), a win claim confirmed by everyone,
-// then the host resets the table (or offers a rematch).
+// then a seated Sigil resets the table (or offers a rematch).
 bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
   if (!scenarioSmoke()) return false;
 
@@ -539,7 +539,7 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
   VirtualSigil *host = nullptr;
   waitUntil([&host] { return (host = offering(SigilAction::StartGame)) != nullptr; }, STEP_WAIT_MS);
   if (!step(host != nullptr, HarnessStep::Host, host ? String(host->name)
-          : "reason=no harness Sigil may start (another controller joined first?)|" + allMenus())) {
+          : "reason=no harness Sigil is offered Start|" + allMenus())) {
     return false;
   }
   const bool started = choose(*host, SigilAction::StartGame) &&

@@ -7,7 +7,7 @@
 // The touch adapter only builds Intents with IntentOrigin::AtlasHardware (the
 // screen is part of the Atlas and its only physical input); Atlas's handlers
 // decide every outcome. Its non-Intent actions change no table state: the
-// admin unlock window (a physical-presence proof), moving between screens
+// presence code screen (cancelling a code a phone asked for), moving between screens
 // (status, info, QR codes, test harness) and starting a harness test.
 
 #include <Arduino.h>
@@ -36,7 +36,9 @@ constexpr int16_t BUTTON_ROW_Y = 172;       // The one row most screens use.
 constexpr int16_t BUTTON_UPPER_ROW_Y = 104; // Second row on the test screen.
 
 enum class TouchAction : uint8_t {
-  None, Pair, Pass, Pause, Resume, EndMatch, UnlockAdmin, LockAdmin,
+  None, Pair, Pass, Pause, Resume, EndMatch,
+  // Presence code screen: cancel the code a phone asked for.
+  CancelCode,
   // Screens that change no table state.
   OpenInfo, OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
   // Test harness screen (only while a harness is connected): no Intents.
@@ -44,7 +46,8 @@ enum class TouchAction : uint8_t {
   RunSoak
 };
 
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests };
+// Code: a presence code a phone asked for, shown over any other screen.
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -74,7 +77,7 @@ constexpr uint8_t MAX_SCREEN_PLAYERS = 8;
 // shape, never by color alone.
 constexpr uint8_t CHIP_ACTIVE = 0x01;   // Whose turn it is.
 constexpr uint8_t CHIP_OUT = 0x02;      // Eliminated.
-constexpr uint8_t CHIP_HOST = 0x04;     // Lobby host.
+// 0x04 was CHIP_HOST (no table host since 2026-09-25).
 constexpr uint8_t CHIP_WINNER = 0x08;
 constexpr uint8_t CHIP_STARTER = 0x10;  // Starts the next game.
 constexpr uint8_t CHIP_WAITING = 0x20;  // Atlas is waiting on this player (win confirmation).
@@ -112,6 +115,7 @@ struct AtlasScreen {
   uint8_t lineCount = 0;
   char qr[112] = {};
   char qrCaption[40] = {};
+  char code[8] = {};      // Presence code as "123 456" (Code screen).
 
   TouchButton buttons[MAX_TOUCH_BUTTONS];
   uint8_t buttonCount = 0;

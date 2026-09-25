@@ -30,7 +30,7 @@ CounterControlCallback counterControlHandler = nullptr;
 ModerateCallback moderateHandler = nullptr;
 DeviceIntentCallback deviceHandler = nullptr;
 PairingWindowCallback readPairingWindow = nullptr;
-PresenceCallback presenceConfirmed = nullptr;
+PresenceHooks presenceHooks;
 SpeakerVolumeCallback readSpeakerVolume = nullptr;
 AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
@@ -53,14 +53,17 @@ void sendOkMessage(WebServer &server, const String &message) {
   sendJson(server, 200, String("{\"ok\":true,\"message\":\"") + jsonEscape(message) + "\"}");
 }
 
-bool physicalPresence() {
-  return presenceConfirmed != nullptr && presenceConfirmed();
+bool physicalPresence(WebServer &server) {
+  const WebSession *session = sessionForRequest(server);
+  return session != nullptr && presenceHooks.remainingMs != nullptr &&
+      presenceHooks.remainingMs(sessionProfileId(*session)) > 0;
 }
 
 bool requirePhysicalPresence(WebServer &server) {
-  if (physicalPresence()) return true;
+  if (physicalPresence(server)) return true;
+  // "presenceRequired" lets the portal start Verify at the table and retry.
   sendJson(server, 403,
-      "{\"ok\":false,\"error\":\"Unlock admin on the Atlas screen first: hold Unlock admin for 3 seconds, then save within a minute\"}");
+      "{\"ok\":false,\"presenceRequired\":true,\"error\":\"Verify at the table first: request a code and enter the one the Atlas screen shows\"}");
   return false;
 }
 
@@ -108,8 +111,8 @@ void configureAccessibility(AccessibilityChangedCallback callback) {
   accessibilityChanged = callback;
 }
 
-void configurePresence(PresenceCallback confirmed) {
-  presenceConfirmed = confirmed;
+void configurePresence(const PresenceHooks &hooks) {
+  presenceHooks = hooks;
 }
 
 void configureSpeaker(SpeakerVolumeCallback volume) {
@@ -154,6 +157,10 @@ void begin(WebServer &server) {
   // Accounts and administration.
   server.on("/api/accounts/setup", HTTP_GET, [&server]() { handleAccountSetup(server, true); });
   server.on("/api/accounts/setup", HTTP_POST, [&server]() { handleAccountSetup(server, false); });
+  route("/api/presence", HTTP_GET, handlePresenceStatus);
+  route("/api/presence/request", HTTP_POST, handlePresenceRequest);
+  route("/api/presence/confirm", HTTP_POST, handlePresenceConfirm);
+  route("/api/presence/lock", HTTP_POST, handlePresenceLock);
   route("/api/accounts", HTTP_GET, handleAccounts);
   route("/api/accounts/permissions", HTTP_POST, handleAccountPermissions);
   route("/api/accounts/archive", HTTP_POST, handleAccountArchive);

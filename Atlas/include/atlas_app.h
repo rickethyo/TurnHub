@@ -280,18 +280,39 @@ void beginFrontPanel();
 void startPairingIndicator(uint32_t nowMs);
 // Holding "End match" on the touchscreen this long ends a match as a draw.
 constexpr uint32_t END_MATCH_HOLD_MS = 5000;
-// Holding "Unlock admin" on the touchscreen this long proves physical
-// presence for ADMIN_UNLOCK_WINDOW_MS. Protected web actions (first Admin,
-// system settings, device names, OTA) still need the account permission too.
-constexpr uint32_t ADMIN_UNLOCK_HOLD_MS = 3000;
-constexpr uint32_t ADMIN_UNLOCK_WINDOW_MS = 60000;
-void openAdminUnlock(uint32_t nowMs);
-void closeAdminUnlock();
-// Time left in the admin unlock window, or 0 when it is closed.
-uint32_t adminUnlockRemainingMs(uint32_t nowMs);
-// True while the admin unlock window is open.
-bool physicalPresenceConfirmed();
-// OTA is allowed only between games and while admin is unlocked.
+// Proof that someone is at the table (owner decision 2026-09-25; replaced the
+// 3 s "Unlock admin" hold). A signed-in phone asks for a code, the Atlas
+// screen shows it (digits and a QR code), and entering it on that phone
+// verifies that profile for PRESENCE_GRANT_MS. Protected web actions (first
+// Admin, system settings, device names, OTA, Return to lobby, factory reset)
+// need the account permission too. Authorization state only, never game
+// state, so it lives outside the Intent path like the old unlock window.
+constexpr uint32_t PRESENCE_CODE_MS = 90000;      // How long a shown code works.
+constexpr uint32_t PRESENCE_GRANT_MS = 600000;    // How long a verified profile stays verified.
+constexpr uint8_t PRESENCE_MAX_ATTEMPTS = 5;      // Wrong codes before the code is cancelled.
+constexpr uint8_t PRESENCE_MAX_GRANTS = 4;
+struct PresenceRequest {
+  char profileId[9] = {};
+  uint32_t code = 0;        // Six digits.
+  uint32_t shownAtMs = 0;
+  bool setup = false;       // No Admin exists yet: this verifies first-Admin setup.
+};
+enum class PresenceOutcome : uint8_t { Verified, WrongCode, NoCode, TooManyAttempts };
+// Shows a new code on the Atlas screen for this profile, replacing an older
+// request (one at a time, so nobody can queue codes up).
+bool requestPresenceCode(const String &profileId, bool setup, uint32_t nowMs);
+PresenceOutcome confirmPresenceCode(const String &profileId, uint32_t code, uint32_t nowMs);
+// The code on screen now, or nullptr.
+const PresenceRequest *pendingPresenceCode(uint32_t nowMs);
+void cancelPresenceCode();
+bool presenceConfirmedFor(const String &profileId, uint32_t nowMs);
+// Time left for that profile, or 0.
+uint32_t presenceRemainingMs(const String &profileId, uint32_t nowMs);
+// Someone verified is at the table (for the Wi-Fi QR code's private password).
+bool anyPresenceActive(uint32_t nowMs);
+void revokePresence(const String &profileId);
+void resetPresence();
+// OTA is allowed only between games (the upload also needs a verified Admin).
 bool otaAllowed();
 void updatePairingWindow(uint32_t nowMs);
 // Time left in the open pairing window, or 0 when it is closed.

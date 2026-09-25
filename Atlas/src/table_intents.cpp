@@ -51,6 +51,13 @@ bool validTableActor(const Intent &intent, IntentResult &rejection) {
   return true;
 }
 
+// No table host (owner decision 2026-09-25): any controller with a seat at the
+// table may start, pick the starter, change next-game settings, rematch or
+// reset. Start keeps its countdown, which any seated player can cancel.
+bool seatedAtTable(uint8_t module) {
+  return lobby.isJoined(module) || game.controllerInGame(module);
+}
+
 void resetCountdown() {
   countdownStartedAtMs = 0;
   lastCountdownSecond = -1;
@@ -385,10 +392,6 @@ IntentResult joinPrimarySeat(uint8_t module) {
   serialLog.print(module);
   serialLog.print("|PLAYER|");
   serialLog.println(player);
-  if (module == lobby.hostController()) {
-    serialLog.print("ATLAS|LOBBY|HOST|");
-    serialLog.println(module);
-  }
   audio.playerJoined(module);
   return seatChanged(true);
 }
@@ -447,9 +450,9 @@ IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
   const auto selection = static_cast<TurnHub::StarterSelection>(intent.payload.value);
   switch (selection) {
     case TurnHub::StarterSelection::Random:
-      if (module != lobby.hostController() || lobby.playerCount() < 2) {
+      if (!seatedAtTable(module) || lobby.playerCount() < 2) {
         return IntentResult::reject(IntentStatus::Unauthorized,
-            "Only the host can choose a random starter with two players");
+            "Choose a random starter from a seat, with two players");
       }
       selectedOk = lobby.randomStarter(selected);
       break;
@@ -486,8 +489,8 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Game settings storage is unavailable; restart Atlas after resolving the storage problem");
   }
-  if (hubState != HubState::Lobby || module != lobby.hostController() || lobby.playerCount() < 2) {
-    return IntentResult::reject(IntentStatus::InvalidState, "Only the host can start a lobby with two players");
+  if (hubState != HubState::Lobby || !lobby.isJoined(module) || lobby.playerCount() < 2) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
   }
   // A Seat B joined before its Sigil reported an OLED display (for example
   // one reflashed while seated) must leave before the game starts.
@@ -546,8 +549,8 @@ IntentResult handleResetIntent(const Intent &intent, void *) {
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
   const uint8_t module = intent.actor.controllerId;
-  if (module != lobby.hostController()) {
-    return IntentResult::reject(IntentStatus::Unauthorized, "Only the host can reset");
+  if (!seatedAtTable(module)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Only a player at the table can reset");
   }
   if (intent.type == IntentType::Rematch) {
     if (hubState != HubState::GameOver) {
@@ -820,16 +823,16 @@ IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
 
 // An Admin's way back to an empty lobby from any state, for example while the
 // Sigils are being rewired and nobody at the table can finish the match. It
-// needs admin unlocked on the Atlas screen, so someone is at the table. A
+// needs that Admin verified at the table (presence code), so someone is there. A
 // match in progress ends as a draw first (statistics once, like the End match
 // hold); a countdown is cancelled.
 IntentResult handleResetTableIntent(const Intent &intent, void *) {
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
-  if (!physicalPresenceConfirmed()) {
+  if (!presenceConfirmedFor(String(intent.payload.moderatorId), millis())) {
     return IntentResult::reject(IntentStatus::Unauthorized,
-        "Unlock admin on the Atlas screen first: hold Unlock admin for 3 seconds");
+        "Verify at the table first: enter the code the Atlas screen shows");
   }
   if (hubState == HubState::Starting) cancelCountdown();
   const bool matchInProgress = hubState == HubState::Running || hubState == HubState::Paused;
@@ -854,8 +857,8 @@ bool atlasResetScheduled = false;
 uint32_t atlasResetAtMs = 0;
 }  // namespace
 
-// Erases a device's saved settings (NVS). Admin, admin unlocked on the Atlas
-// screen (someone is at the table), and never during a match.
+// Erases a device's saved settings (NVS). Admin, verified at the table
+// (presence code), and never during a match.
 //   Atlas: every profile, statistic, pairing and setting in NVS goes; Atlas
 //   restarts as new. The microSD card is not touched.
 //   Sigil: Atlas tells it to erase and restart (FactoryReset packet), then
@@ -864,9 +867,9 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
-  if (!physicalPresenceConfirmed()) {
+  if (!presenceConfirmedFor(String(intent.payload.moderatorId), millis())) {
     return IntentResult::reject(IntentStatus::Unauthorized,
-        "Unlock admin on the Atlas screen first: hold Unlock admin for 3 seconds");
+        "Verify at the table first: enter the code the Atlas screen shows");
   }
   const int32_t target = intent.payload.value;
   if (target == TurnHub::FACTORY_RESET_ATLAS) {
@@ -918,12 +921,12 @@ void serviceFactoryReset(uint32_t nowMs) {
 // Payload: flags = GameProfile, value = starting life, durationMs = turn timer.
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;
+  // Any seated player, in the lobby (no table host).
   if (hubState != HubState::Lobby || lobby.playerCount() == 0 ||
-      intent.actor.controllerId != lobby.hostController() || intent.actor.slot != 1 ||
       !seatForModuleSlot(intent.actor.controllerId, intent.actor.slot, actor) ||
       actor.playerNumber != intent.actor.playerNumber) {
     return IntentResult::reject(IntentStatus::Unauthorized,
-        "Only the table host can change game settings in the lobby");
+        "Only a seated player can change game settings, in the lobby");
   }
   if (intent.payload.flags >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");

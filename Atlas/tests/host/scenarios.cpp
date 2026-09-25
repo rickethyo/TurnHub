@@ -168,11 +168,14 @@ static void lobbyLifecycle() {
   freshLobby(2,true);
   assert(lobby.hostController()==0);
   assert(!dispatchModuleIntent(IntentType::Join,255).accepted());
-  assert(!dispatchModuleIntent(IntentType::ArmStart,1).accepted());
+  // No table host: any seated Sigil may arm Start, not only the first to join.
+  assert(dispatchModuleIntent(IntentType::ArmStart,1).accepted() && lobby.startArmedBy()==1);
+  lobby.clearStartArm();
   assert(web(0,2,WebControl::SelectStarter));
   PlayerSeat selected; assert(lobby.selectedStarter(selected)&&selected.slot==2);
   handleActionShort(0); assert(lobby.selectedStarter(selected)&&selected.slot==1);
-  handlePass(1); assert(lobby.selectedStarter(selected)&&selected.controllerId==0);
+  // Any seated Sigil may ask for a random starter now (no table host).
+  handlePass(1); assert(lobby.selectedStarter(selected));
   assert(dispatchModuleIntent(IntentType::Leave,0,2).accepted());
   assert(lobby.playerCount()==2&&!lobby.hasSecondary(0));
   assert(!dispatchModuleIntent(IntentType::Leave,0,2).accepted());
@@ -208,8 +211,9 @@ static void winDecisions() {
   handleActionShort(0);
   assert(game.gameOver()&&game.winnerPlayerNumber()==1&&completedGames==1);
   assert(!web(0,2,WebControl::ConfirmWin)); assert(completedGames==1);
-  assert(!dispatchModuleIntent(IntentType::Rematch,1).accepted());
-  handleActionShort(0); assert(hubState==HubState::Lobby&&lobby.playerCount()==4&&!game.hasPlayers());
+  // Any seated Sigil may call the rematch (no table host).
+  assert(dispatchModuleIntent(IntentType::Rematch,1).accepted());
+  assert(hubState==HubState::Lobby&&lobby.playerCount()==4&&!game.hasPlayers());
   startFromHost(); assert(web(0,1,WebControl::ClaimWin));
   handlePass(1); assert(hubState==HubState::Running&&!game.hasWinClaim());
   assert(web(1,1,WebControl::PauseResume));
@@ -312,6 +316,16 @@ static int request(const char *path,const String &token=String(),
   auto found=server.routes.find(std::to_string(method)+path); assert(found!=server.routes.end());
   found->second(); return server.status;
 }
+// Table presence over HTTP, as a phone does it: ask for a code, read it off
+// the Atlas screen (the pending request), and enter it.
+namespace TurnHubAtlas { TurnHubWebApi::PresenceHooks presenceHooks(); }
+static void verifyAtTable(const String &token) {
+  assert(request("/api/presence/request",token)==200);
+  const PresenceRequest *shown=pendingPresenceCode(testNow); assert(shown!=nullptr);
+  char digits[8]; snprintf(digits,sizeof(digits),"%06lu",static_cast<unsigned long>(shown->code));
+  assert(request("/api/presence/confirm",token,{{"code",digits}})==200);
+  assert(pendingPresenceCode(testNow)==nullptr);
+}
 static String registerPhone(const char *name,String &id) {
   assert(request("/api/profiles/register","",{{"name",name},{"pin","1234"}})==200);
   id=responseField("profileId"); return responseField("token");
@@ -336,7 +350,9 @@ static void virtualProfileFlow() {
   assert(request("/api/session/join",second)==200);
   const String companion=loginPhone(firstId);
   assert(request("/api/session/join",companion)==200 && lobby.playerCount()==2);
-  assert(request("/api/control/start",second)==409);
+  // No table host: the second phone may start too; its countdown is cancellable.
+  assert(request("/api/control/start",second)==200 && hubState==HubState::Starting);
+  assert(request("/api/control/cancel-start",first)==200 && hubState==HubState::Lobby);
   assert(request("/api/control/start",first)==200 && hubState==HubState::Starting);
   assert(request("/api/session/leave",first)==409);
   testNow+=3000; updateCountdown(testNow); assert(hubState==HubState::Running);
@@ -360,8 +376,8 @@ static void virtualProfileFlow() {
   assert(request("/api/control/confirm",second)==409);
   assert(ProfileFixture::profiles[firstId].stats.gamesPlayed==1);
   assert(request("/api/control/rematch",returned)==200 && lobby.playerCount()==2);
-  assert(request("/api/control/reset",second)==409);
-  assert(request("/api/control/reset",returned)==200 && lobby.playerCount()==0);
+  // Any seated phone may reset the table now (no table host).
+  assert(request("/api/control/reset",second)==200 && lobby.playerCount()==0);
   assert(request("/api/session/me",returned,{},HTTP_GET)==200);
   assert(server.body.find("\"participating\":false")!=std::string::npos);
   assert(request("/api/session/stats",returned,{{"profileId",secondId}},HTTP_GET)==200);
@@ -573,7 +589,8 @@ static void gameProfilesAndLife() {
   assert(request("/api/session/join",third)==200);
   assert(request("/api/game/settings",first,{},HTTP_GET)==200);
   assert(server.body.find("\"canEdit\":true")!=std::string::npos);
-  assert(request("/api/game/settings",second,magic)==409);
+  // Any seated player may edit the next-game settings (no table host).
+  assert(request("/api/game/settings",second,magic)==200);
   for (const char *profile : {"generic","mtg","mtg_commander","yugioh"}) {
     assert(request("/api/game/settings",first,{{"gameProfile",profile},{"startingLife","27"}})==200);
     assert(request("/api/game/settings",first,{},HTTP_GET)==200);
@@ -642,12 +659,12 @@ static void gameProfilesAndLife() {
 static void accountPermissionsAndModeration(){
   using namespace TurnHubAccounts;
   enterEmptyLobby();TurnHubWebApi::configureModeration(moderateAccount);
-  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
+  TurnHubWebApi::configurePresence(presenceHooks());
   String adminId,gmId,playerId,devId;
   const String admin=registerPhone("Administrator",adminId),gm=registerPhone("Moderator",gmId),player=registerPhone("Participant",playerId),dev=registerPhone("Developer",devId);
   assert(request("/api/accounts/setup","",{},HTTP_GET)==200&&server.body.find("true")!=std::string::npos);
   assert(request("/api/accounts/setup",admin)==403); // Physical confirmation needed.
-  openAdminUnlock(testNow);assert(request("/api/accounts/setup",admin)==200);closeAdminUnlock();
+  verifyAtTable(admin);assert(request("/api/accounts/setup",admin)==200);resetPresence();
   assert(request("/api/accounts/setup",gm)==409);
   assert(request("/api/accounts/permissions",player,{{"profileId",playerId},{"permissions","31"}})==403);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","0"}})==409);
@@ -1010,15 +1027,15 @@ static void sigilMenus() {
   };
   const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
 
-  freshLobby(2);  // Sigils 0 (host) and 1 joined.
+  freshLobby(2);  // Sigils 0 and 1 joined.
   resetSigilMenus();
   for (auto &record : fixtureRecords) { record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU; }
 
-  // Lobby: the host can start; a guest can cycle starter or add Seat B; an
-  // unjoined Sigil can only join.
+  // Lobby: every joined Sigil can start and pick a random starter (no table
+  // host), cycle the starter or add Seat B; an unjoined Sigil can only join.
   assert(only(0, {A::CycleStarter, A::AddSeatB, A::StartGame, A::RandomStarter}));
   assert(sigilMenuFor(0).defaultAction == static_cast<uint8_t>(A::StartGame));
-  assert(only(1, {A::CycleStarter, A::AddSeatB}));
+  assert(only(1, {A::CycleStarter, A::AddSeatB, A::StartGame, A::RandomStarter}));
   assert(only(2, {A::Join}) && sigilMenuFor(2).defaultAction == static_cast<uint8_t>(A::Join));
 
   // Transport: one MenuState per Sigil, none while unchanged, resend when invalidated.
@@ -1039,7 +1056,7 @@ static void sigilMenus() {
   handleSelectAction(2, encodeSelectAction(A::Join, oldRevision));
   assert(lobby.playerCount() == 3);
   // Unoffered actions are dropped even at the current revision.
-  pick(1, A::StartGame); assert(hubState == HubState::Lobby);
+  pick(1, A::Rematch); assert(hubState == HubState::Lobby && lobby.playerCount() == 3);
 
   pick(1, A::AddSeatB); assert(lobby.hasSecondary(1) && has(1, A::RemoveSeatB));
   pick(1, A::RemoveSeatB); assert(!lobby.hasSecondary(1));
@@ -1175,14 +1192,15 @@ static void turnTimerEngine() {
 static void ledCueSelection() {
   using namespace TurnHub;
   const auto &style = defaultLedCueProfile();
-  // Established lobby behavior: host player 1 flashes red once per cycle, host green steady.
+  // Lobby: player 1 flashes red once per cycle. There is no host overlay (no
+  // table host since 2026-09-25).
   freshLobby(2);
   auto lobbyCue = [](uint8_t id, uint32_t now) {
     return selectSigilLedState(id,HubState::Lobby,lobby,game,0,0,0,now);
   };
   const auto host = lobbyCue(0,0);
-  assert(host.cue == LedCue::Joined && host.playerNumber == 1 && host.has(LedOverlay::Host));
-  assert(ledLevels(style,host,0).red && ledLevels(style,host,200).green && !ledLevels(style,host,200).red);
+  assert(host.cue == LedCue::Joined && host.playerNumber == 1 && !host.has(LedOverlay::Host));
+  assert(ledLevels(style,host,0).red && !ledLevels(style,host,200).red);
   assert(!lobbyCue(1,0).has(LedOverlay::Host) && lobbyCue(1,0).playerNumber == 2);
   const auto invite = lobbyCue(5,0);
   assert(invite.cue == LedCue::Unassigned);
@@ -1425,7 +1443,10 @@ static void turnTimerSettingsHttp() {
   assert(server.body.find("\"canEdit\":true") != std::string::npos);
   for (const char *bad : {"1000", "abc", "-60000", "3601000", "15500", "99999999"})
     assert(request("/api/game/settings", host, {{"turnTimerMs", bad}}) == 400);
-  assert(request("/api/game/settings", guest, {{"turnTimerMs", "90000"}}) == 409);
+  // Any seated player may set the timer (no table host).
+  assert(request("/api/game/settings", guest, {{"turnTimerMs", "90000"}}) == 200);
+  assert(nextGameSettings.turnTimerMs == 90000);
+  assert(request("/api/game/settings", guest, {{"turnTimerMs", "0"}}) == 200);
   assert(nextGameSettings.turnTimerMs == 0);
   // Partial update: only the timer changes.
   nextGameSettings.profile = TurnHub::GameProfile::Magic; nextGameSettings.startingLife = 20;
@@ -1677,8 +1698,7 @@ static void oledSigilSeatsOnePlayer() {
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  assert(String(s.title)=="Lobby" && s.buttonCount==4 && screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo) &&
-      screenButton(s,TouchAction::UnlockAdmin)->hold());
+  assert(String(s.title)=="Lobby" && s.buttonCount==3 && screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
   // Every button fits on screen and meets the 44 px minimum target size.
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
@@ -1711,21 +1731,18 @@ static void touchControls() {
   assert(!pairingActive && String(currentScreen().notice)=="Radio unavailable");
   TurnHub::fixtureRadio=true;
 
-  // Unlock admin: a 3 s hold opens the physical-presence window for 60 s,
-  // shown with a countdown; it expires on its own or a tap locks it early.
-  testNow+=TOUCH_NOTICE_MS; assert(!physicalPresenceConfirmed());
-  tapButton(TouchAction::UnlockAdmin);
-  assert(!physicalPresenceConfirmed() && String(currentScreen().notice)=="Keep holding for 3 s to unlock admin");
-  pressButton(TouchAction::UnlockAdmin); testNow+=ADMIN_UNLOCK_HOLD_MS-1; pressButton(TouchAction::UnlockAdmin);
-  assert(!physicalPresenceConfirmed() && currentScreen().holdSecondsLeft==1);
-  testNow+=1; keepPressing(); assert(physicalPresenceConfirmed()); touchRelease();
+  // A presence code a phone asked for shows over the screen, with only Cancel;
+  // Cancel or its expiry takes it away. The code never becomes a notice.
+  testNow+=TOUCH_NOTICE_MS;
+  assert(requestPresenceCode(String("ABCDEFGH"),false,testNow));
   s=currentScreen();
-  assert(screenButton(s,TouchAction::LockAdmin) && !screenButton(s,TouchAction::UnlockAdmin));
-  testNow+=TOUCH_NOTICE_MS; assert(startsWith(currentScreen().notice,"Admin unlocked: "));
-  testNow+=ADMIN_UNLOCK_WINDOW_MS; updatePairingWindow(testNow);
-  assert(!physicalPresenceConfirmed() && currentScreen().notice[0]=='\0' &&
-      screenButton(currentScreen(),TouchAction::UnlockAdmin));
-  openAdminUnlock(testNow); tapButton(TouchAction::LockAdmin); assert(!physicalPresenceConfirmed());
+  assert(s.kind==ScreenKind::Code && String(s.badge)=="VERIFY" && strlen(s.code)==7 && s.code[3]==' ' &&
+      startsWith(s.qr,"http://192.168.4.1/portal#code=") && s.buttonCount==1 && screenButton(s,TouchAction::CancelCode));
+  tapButton(TouchAction::CancelCode);
+  assert(pendingPresenceCode(testNow)==nullptr && currentScreen().kind==ScreenKind::Status);
+  assert(requestPresenceCode(String("ABCDEFGH"),true,testNow) && String(currentScreen().badge)=="SETUP");
+  testNow+=PRESENCE_CODE_MS; updatePairingWindow(testNow);
+  assert(currentScreen().kind==ScreenKind::Status && !anyPresenceActive(testNow));
   testNow+=TOUCH_NOTICE_MS;
 
   // Running: Pass (for the active seat), Pause, and a hold-only End match.
@@ -1757,7 +1774,7 @@ static void touchControls() {
   assert(completedGames==1);
   s=currentScreen();
   assert(String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
-      s.buttonCount==3 && screenButton(s,TouchAction::UnlockAdmin));
+      s.buttonCount==2 && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();
@@ -1778,7 +1795,7 @@ static void atlasScreens() {
 
   freshLobby(3); s=currentScreen();
   assert(s.playerCount==3 && s.qr[0]=='\0' && !s.showLife);
-  assert(String(s.players[0].name)=="Player 1" && (s.players[0].flags&CHIP_HOST));
+  assert(String(s.players[0].name)=="Player 1");
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
@@ -2070,8 +2087,8 @@ static void atlasSpeaker() {
 // table to an empty lobby from the portal; a match in progress ends as a draw.
 static void resetTableFromPortal() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
-  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
-  closeAdminUnlock(); resetTouchControls();
+  TurnHubWebApi::configurePresence(presenceHooks());
+  resetPresence(); resetTouchControls();
   freshLobby(2);
   String adminId,playerId;
   const String admin=registerPhone("Reset admin",adminId),player=registerPhone("Reset player",playerId);
@@ -2079,10 +2096,23 @@ static void resetTableFromPortal() {
   assert(TurnHubAccounts::save(adminId,account));
   startFromHost(); completedGames=0;
 
-  // Admin only, and only while admin is unlocked on the Atlas screen.
+  // Admin only, and only once that Admin is verified at the table (the code
+  // the Atlas screen shows). A player cannot even ask for a code.
   assert(request("/api/table/reset",player)==403 && hubState==HubState::Running);
   assert(request("/api/table/reset",admin)==403 && hubState==HubState::Running);
-  openAdminUnlock(testNow);
+  assert(server.body.find("presenceRequired")!=std::string::npos);
+  assert(request("/api/presence/request",player)==403 && pendingPresenceCode(testNow)==nullptr);
+  // A wrong code does not verify; five wrong codes cancel it.
+  assert(request("/api/presence/request",admin)==200);
+  for (int i=0;i<4;++i) assert(request("/api/presence/confirm",admin,{{"code","000000"}})==400);
+  assert(request("/api/presence/confirm",admin,{{"code","000000"}})==429 && pendingPresenceCode(testNow)==nullptr);
+  assert(!presenceConfirmedFor(adminId,testNow));
+  // Only the phone that asked may use the code.
+  assert(request("/api/presence/request",admin)==200);
+  { char digits[8]; snprintf(digits,sizeof(digits),"%06lu",static_cast<unsigned long>(pendingPresenceCode(testNow)->code));
+    assert(request("/api/presence/confirm",player,{{"code",digits}})==409); }
+  verifyAtTable(admin);
+  assert(request("/api/presence",admin,{},HTTP_GET)==200 && server.body.find("\"verified\":true")!=std::string::npos);
   assert(request("/api/table/reset",player)==403 && hubState==HubState::Running);
   Intent forged; forged.type=IntentType::ResetTable; forged.actor.origin=IntentOrigin::Browser;
   strncpy(forged.payload.moderatorId,playerId.c_str(),8);
@@ -2100,22 +2130,22 @@ static void resetTableFromPortal() {
   assert(request("/api/table/reset",admin)==200 && hubState==HubState::Lobby && lobby.playerCount()==0);
   assert(completedGames==0);
 
-  // The unlock window closing locks it again, even for the Admin.
-  handleActionShort(0); handleActionShort(1); testNow+=ADMIN_UNLOCK_WINDOW_MS; updatePairingWindow(testNow);
+  // Verification lapses after PRESENCE_GRANT_MS, even for the Admin.
+  handleActionShort(0); handleActionShort(1); testNow+=PRESENCE_GRANT_MS; updatePairingWindow(testNow);
   assert(request("/api/table/reset",admin)==403 && lobby.playerCount()==2);
   strncpy(forged.payload.moderatorId,adminId.c_str(),8);
   assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
   enterEmptyLobby();
 }
 
-// Factory reset from Device Settings: Admin at the table (admin unlocked),
+// Factory reset from Device Settings: Admin verified at the table (presence code),
 // between games. A Sigil is told to erase itself and is forgotten; Atlas
 // erases its NVS and restarts after the reply has gone.
 extern unsigned fixtureFactoryResets;
 static void factoryResetFromPortal() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
-  TurnHubWebApi::configurePresence(physicalPresenceConfirmed);
-  closeAdminUnlock(); resetTouchControls();
+  TurnHubWebApi::configurePresence(presenceHooks());
+  resetPresence(); resetTouchControls();
   freshLobby(2);
   String adminId,playerId;
   const String admin=registerPhone("Factory admin",adminId),player=registerPhone("Factory player",playerId);
@@ -2123,9 +2153,9 @@ static void factoryResetFromPortal() {
   assert(TurnHubAccounts::save(adminId,account));
   TurnHub::fixtureFactoryResetSigil=-1; fixtureFactoryResets=0; TurnHub::fixtureUnpairs[3]=0;
 
-  // Admin only, and only while admin is unlocked on the Atlas screen.
+  // Admin only, and only once verified at the table (presence code).
   assert(request("/api/device/factory-reset",admin,{{"module","3"}})==403 && sigilBus.record(3));
-  openAdminUnlock(testNow);
+  verifyAtTable(admin);
   assert(request("/api/device/factory-reset",player,{{"module","3"}})==403 && sigilBus.record(3));
   Intent forged; forged.type=IntentType::FactoryReset; forged.actor.origin=IntentOrigin::Browser;
   forged.payload.value=3; strncpy(forged.payload.moderatorId,playerId.c_str(),8);
@@ -2152,7 +2182,7 @@ static void factoryResetFromPortal() {
   serviceFactoryReset(millis()+2000); assert(fixtureFactoryResets==1 && !factoryResetScheduled());
   serviceFactoryReset(millis()+4000); assert(fixtureFactoryResets==1);
   TurnHub::fixtureUnpairs[3]=0;
-  closeAdminUnlock();
+  resetPresence();
 }
 
 static void gameRecoveryLifecycle() {
@@ -2232,13 +2262,13 @@ int main() {
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
-  touchControls(); std::cout<<"PASS touchscreen: Pair, admin unlock/lock/expiry, Pass, Pause/Resume, end-match hold, slide-off, drop-out, stale press\n";
+  touchControls(); std::cout<<"PASS touchscreen: Pair, presence code screen/cancel/expiry, Pass, Pause/Resume, end-match hold, slide-off, drop-out, stale press\n";
   harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
-  resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, unlock window, draw once, countdown\n";
-  factoryResetFromPortal(); std::cout<<"PASS factory reset: admin at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
+  resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
+  factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";

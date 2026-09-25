@@ -113,16 +113,20 @@ cannot change it. Display library: LovyanGFX.
 reads BOOT (IO0) or any other button. Everything the master button did now
 happens on the touchscreen:
 
-- **Physical presence:** hold **Unlock admin** for 3 seconds
-  (`ADMIN_UNLOCK_HOLD_MS`) in the Lobby or at Game Over. That opens a 60-second
-  admin unlock window (`ADMIN_UNLOCK_WINDOW_MS`), shown as a countdown on the
-  screen and on the portal's Developer status. While it is open, an account
-  with the right permission can make itself the first Admin, save network
-  settings, rename devices, start an OTA update (Lobby/Game Over only), or
-  **Return table to lobby** (Admin; ends a match in progress as a draw, then
-  empties the table).
-  Tapping **Admin unlocked: tap to lock** closes it early. The window only
-  proves someone is at the table; the account permission checks still apply.
+- **Physical presence (presence code, 2026-09-25; replaced the 3 s "Unlock
+  admin" hold):** in the portal, an Admin (or, before any Admin exists, any
+  signed-in account) selects **Verify at the table**. The Atlas screen shows a
+  six-digit code and a QR code for that account only, for 90 s
+  (`PRESENCE_CODE_MS`). Entering the code, or scanning the QR code with that
+  phone (`/portal#code=…`), verifies that account at the table for 10 minutes
+  (`PRESENCE_GRANT_MS`). Five wrong codes cancel it. **Cancel** on the screen
+  removes a code nobody at the table asked for. A verified account can make
+  itself the first Admin, save network settings, rename devices, start an OTA
+  update (Lobby/Game Over only), **Return table to lobby** or **Factory reset**,
+  provided its permissions allow it. **Stop** in Device Settings ends the
+  verification early. Protected requests without it get
+  `403 {"presenceRequired": true}`, and the portal then starts the code flow
+  and retries.
 - **Pass** for the active player: the touchscreen's Pass button.
 - **End a match as a draw:** hold **End match** for 5 seconds (`END_MATCH_HOLD_MS`).
 
@@ -180,21 +184,22 @@ Two screens change no table state: **Info** (Wi-Fi name, portal address,
 firmware, Sigils online, SD card state, uptime) and **QR codes**, where Wi-Fi,
 Portal and Sign in each show a code (the chosen one is framed and marked
 "shown"). The Wi-Fi code carries the password. The shipped default is public,
-so its code shows freely; an admin-set password shows only while the admin
-unlock window is open.
+so its code shows freely; an admin-set password shows only while an Admin is
+verified at the table (presence code).
 
 The display (`atlas_display.cpp`) only draws, region by region, when that
 region's part of the screen model changes. `touch_controls.cpp` builds the
 screen and holds the touch adapter, which dispatches Intents with
-`IntentOrigin::AtlasHardware`. Unlock admin, the screen changes and the test
+`IntentOrigin::AtlasHardware`. Cancelling a presence code, the screen changes and the test
 harness buttons change no table state:
 
 | State | Buttons | Intent |
 |---|---|---|
-| Lobby | Pair, QR, (Tests), Info, Admin (hold 3 s; then Lock) | `PairRequest`; the rest open screens or the admin unlock window |
+| Lobby | Pair, QR, (Tests), Info | `PairRequest`; the rest open screens |
 | Running | Pass (Undo pass while one is pending), Pause, End (hold 5 s) | `Pass` / `Pause` for the active seat; `EndMatch` after `END_MATCH_HOLD_MS` |
 | Paused | Resume, End (hold 5 s) | `Resume` for the active seat; `EndMatch` |
-| Game Over | QR, Info, Admin (hold) | None |
+| Game Over | QR, Info | None |
+| Any, while a phone asked for a presence code | Cancel (the code screen shows the six digits and a QR code over any other screen) | None: cancels that code |
 | Info / QR codes | QR codes, Back / Wi-Fi, Portal, Sign in, Back | None |
 | Lobby, with a test harness online | Tests, then Radio / 2p game / 4p game / Rematch / Soak x5 / Back, and Stop test while one runs | No Intent: `HarnessCommand` to the harness, which plays through its own Sigils; progress shown in words |
 

@@ -85,12 +85,6 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
   }
 }
 
-// Between games: unlock admin (a hold), or lock it again early (a tap).
-ButtonSpec adminSpec(uint32_t nowMs) {
-  if (adminUnlockRemainingMs(nowMs) > 0) return {TouchAction::LockAdmin, "Lock", 0, 2};
-  return {TouchAction::UnlockAdmin, "Admin", ADMIN_UNLOCK_HOLD_MS, 2};
-}
-
 bool harnessRunning(uint32_t nowMs) {
   TurnHubProtocol::HarnessReportFields report;
   return harnessReport(nowMs, report) && report.state == TurnHubProtocol::HarnessRunState::Running;
@@ -119,10 +113,20 @@ void layoutTests(AtlasScreen &screen, uint32_t nowMs) {
   addRow(screen, BUTTON_ROW_Y, lower, 3);
 }
 
+// A code a phone asked for shows over whatever screen is open.
+ScreenKind activeScreen(uint32_t nowMs) {
+  return pendingPresenceCode(nowMs) != nullptr ? ScreenKind::Code : openScreen;
+}
+
 // The buttons for the open screen and the table state.
 void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
-  switch (openScreen) {
+  switch (activeScreen(nowMs)) {
+    case ScreenKind::Code: {
+      const ButtonSpec row[] = {{TouchAction::CancelCode, "Cancel", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 1);
+      return;
+    }
     case ScreenKind::Tests:
       layoutTests(screen, nowMs);
       return;
@@ -143,13 +147,12 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
 
   switch (hubState) {
     case HubState::Lobby: {
-      ButtonSpec row[5];
+      ButtonSpec row[4];
       uint8_t n = 0;
       row[n++] = {TouchAction::Pair, "Pair", 0, 3};
       row[n++] = {TouchAction::OpenQr, "QR", 0, 2};
       if (harnessSigilId(nowMs) != INVALID_ID) row[n++] = {TouchAction::OpenTests, "Tests", 0, 2};
       row[n++] = {TouchAction::OpenInfo, "Info", 0, 2};
-      row[n++] = adminSpec(nowMs);
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
     }
@@ -167,9 +170,8 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       break;
     }
     case HubState::GameOver: {
-      const ButtonSpec row[] = {{TouchAction::OpenQr, "QR", 0, 2}, {TouchAction::OpenInfo, "Info", 0, 2},
-          adminSpec(nowMs)};
-      addRow(screen, BUTTON_ROW_Y, row, 3);
+      const ButtonSpec row[] = {{TouchAction::OpenQr, "QR", 0, 1}, {TouchAction::OpenInfo, "Info", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
       break;
     }
     case HubState::Starting:
@@ -202,8 +204,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::Pause: return "PAUSE";
     case TouchAction::Resume: return "RESUME";
     case TouchAction::EndMatch: return "END_MATCH";
-    case TouchAction::UnlockAdmin: return "UNLOCK_ADMIN";
-    case TouchAction::LockAdmin: return "LOCK_ADMIN";
+    case TouchAction::CancelCode: return "CANCEL_CODE";
     case TouchAction::OpenInfo: return "OPEN_INFO";
     case TouchAction::OpenQr: return "OPEN_QR";
     case TouchAction::CloseScreen: return "CLOSE_SCREEN";
@@ -255,13 +256,10 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   }
   IntentResult result;
   switch (action) {
-    case TouchAction::UnlockAdmin:
-      openAdminUnlock(nowMs);
-      result = IntentResult::accept("Admin unlocked for 60 s");
-      break;
-    case TouchAction::LockAdmin:
-      closeAdminUnlock();
-      result = IntentResult::accept("Admin locked");
+    // Someone at the table did not ask for this code: take it off the screen.
+    case TouchAction::CancelCode:
+      cancelPresenceCode();
+      result = IntentResult::accept("Code cancelled");
       break;
     case TouchAction::Pair:
     case TouchAction::EndMatch: {
@@ -376,7 +374,6 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
       if (hubState == HubState::GameOver && seat.playerNumber == game.winnerPlayerNumber()) p.flags |= CHIP_WINNER;
       if (seat.playerNumber == waitingOn) p.flags |= CHIP_WAITING;
     } else {
-      if (seat.controllerId == lobby.hostController() && seat.slot == 1) p.flags |= CHIP_HOST;
       if (hasStarter && seat.sameSeat(starter)) p.flags |= CHIP_STARTER;
     }
   }
@@ -505,6 +502,26 @@ void formatTests(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
+// A presence code a signed-in phone asked for: the digits, and a QR code
+// that opens the portal with the code filled in on the phone that scans it.
+// Only that phone's profile can use it; Cancel takes it off the screen.
+void formatCode(AtlasScreen &screen, uint32_t nowMs) {
+  const PresenceRequest *request = pendingPresenceCode(nowMs);
+  if (request == nullptr) return;
+  snprintf(screen.badge, sizeof(screen.badge), "%s", request->setup ? "SETUP" : "VERIFY");
+  snprintf(screen.title, sizeof(screen.title), "%s", request->setup ? "Set up this Atlas" : "Admin code");
+  const String name = TurnHubProfiles::nameForProfile(String(request->profileId));
+  const uint32_t leftS = (PRESENCE_CODE_MS - (nowMs - request->shownAtMs) + 999) / 1000;
+  char who[SCREEN_NAME_LENGTH + 1];
+  snprintf(who, sizeof(who), "%s", name.length() ? name.c_str() : "a signed-in phone");
+  snprintf(screen.detail, sizeof(screen.detail), "For %s (%lu s)", who, static_cast<unsigned long>(leftS));
+  snprintf(screen.code, sizeof(screen.code), "%03lu %03lu",
+      static_cast<unsigned long>(request->code / 1000), static_cast<unsigned long>(request->code % 1000));
+  snprintf(screen.qr, sizeof(screen.qr), "%s/portal#code=%06lu", PORTAL_ORIGIN,
+      static_cast<unsigned long>(request->code));
+  snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Enter it on that phone");
+}
+
 void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "INFO");
   snprintf(screen.title, sizeof(screen.title), "Table info");
@@ -536,11 +553,11 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
         read = true;
       }
       const bool custom = TurnHub::validWifiPassword(stored) && stored != AtlasConfig::WIFI_DEFAULT_PASSWORD;
-      if (custom && adminUnlockRemainingMs(nowMs) == 0) {
+      if (custom && !anyPresenceActive(nowMs)) {
         snprintf(screen.detail, sizeof(screen.detail), "Network: %s", AtlasConfig::WIFI_SSID);
         snprintf(screen.lines[0], sizeof(screen.lines[0]), "This network has a private");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "password. Hold Admin on the");
-        snprintf(screen.lines[2], sizeof(screen.lines[2]), "lobby screen to show its code.");
+        snprintf(screen.lines[1], sizeof(screen.lines[1]), "password. An Admin must verify");
+        snprintf(screen.lines[2], sizeof(screen.lines[2]), "at the table to show its code.");
         screen.lineCount = 3;
         return;
       }
@@ -588,7 +605,8 @@ bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
 
 bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
   if (a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
-      a.lineCount != b.lineCount || !sameText(a.qr, b.qr) || !sameText(a.qrCaption, b.qrCaption)) {
+      a.lineCount != b.lineCount || !sameText(a.qr, b.qr) || !sameText(a.qrCaption, b.qrCaption) ||
+      !sameText(a.code, b.code)) {
     return false;
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameText(a.lines[i], b.lines[i])) return false;
@@ -618,24 +636,19 @@ bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen = AtlasScreen();
-  screen.kind = openScreen;
+  screen.kind = activeScreen(nowMs);
   screen.sdMissing = !sdCardReady();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
-  switch (openScreen) {
+  switch (screen.kind) {
     case ScreenKind::Status: formatStatus(screen, nowMs); break;
     case ScreenKind::Tests: formatTests(screen, nowMs); break;
     case ScreenKind::Info: formatInfo(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
+    case ScreenKind::Code: formatCode(screen, nowMs); break;
   }
   layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
     snprintf(screen.notice, sizeof(screen.notice), "%s", noticeText);
-  }
-  // The admin unlock countdown, whenever no action message is showing.
-  const uint32_t unlockMs = adminUnlockRemainingMs(nowMs);
-  if (screen.notice[0] == '\0' && unlockMs > 0) {
-    snprintf(screen.notice, sizeof(screen.notice), "Admin unlocked: %lu s left",
-        static_cast<unsigned long>((unlockMs + 999) / 1000));
   }
   if (!touchDown || !pressInside) return;
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
@@ -681,7 +694,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
       char hint[sizeof(noticeText)];
       snprintf(hint, sizeof(hint), "Keep holding for %lu s to %s",
           static_cast<unsigned long>(button->holdMs / 1000),
-          button->action == TouchAction::EndMatch ? "end the match" : "unlock admin");
+          "end the match");
       showNotice(nowMs, hint);
     } else {
       dispatchTouchAction(nowMs, pressedAction);

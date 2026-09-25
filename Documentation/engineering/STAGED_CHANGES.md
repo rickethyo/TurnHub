@@ -23,8 +23,22 @@ Owner decisions (2026-09-25, end of day):
     a one-time token, and the first phone to use it becomes the Admin.
     Without that, a stranger on the Wi-Fi could claim an unconfigured Atlas.
 
-  All three go through the Intent/validator boundary. Until they are built,
-  host and admin unlock stay as they are.
+  All three go through the Intent/validator boundary. **Implemented
+  2026-09-25 (host-tested, *Needs verification* on hardware):**
+  - **Host removed:** Sigil menus and gestures, the portal, the next-game
+    settings and Android (its `host` flag now means "seated") all follow the
+    any-seated-player rule.
+  - **Presence code replaces the hold** (`front_panel.cpp`): an Admin taps
+    **Verify at the table** in the portal. The Atlas screen shows six digits
+    and a QR code for 90 s, and entering them on that phone verifies the Admin
+    for 10 minutes. Five wrong codes cancel the code, and **Cancel** on the
+    screen removes one. A code works only for the account that asked. Protected
+    requests answer `403 presenceRequired`, and the portal then runs the flow
+    and retries.
+  - **New Atlas:** before any Admin exists, any signed-in account may ask for
+    a code (the setup banner), so the setup QR is the same flow.
+  - **Still open:** whether the Atlas touchscreen itself (which has no seat)
+    may Start or Rematch.
 - **SD cards are multi-Atlas.** A card records its owner Atlas's ID. A card
   from another Atlas is offered in transient "slots" with two choices:
   - **Game night:** its profiles, statistics and settings are available
@@ -168,8 +182,8 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
 - Done 2026-09-25: player names, life and the turn clock on the status
   screen, Info and QR code screens, the NO SD CARD warning (bench check of
   the new layout pending). Still open: more touch actions (Start, Rematch,
-  starter selection). They wait on the access gate that replaces host and
-  admin unlock (owner decision 2026-09-25, top of this file). Also open: the
+  starter selection) from the touchscreen, which has no seat of its own. The
+  access gate is built (top of this file); this is the remaining question. Also open: the
   on-board RGB LED as a cue output; a battery gauge.
 - Update the user manual: there is no master button; pairing, ending a match
   as a draw and Unlock admin (first Admin, network settings, device names, OTA)
@@ -381,9 +395,9 @@ under Device Settings. Missing-policy defaults preserve physical use and hide
 stats; the last active same-profile session controls authenticated visibility.
 No hardware acceptance yet. Startup behavior and the picker still need coordinated
 Atlas/Sigil changes, live-assignment separation and e-ink verification; they are
-not implemented. Device-settings editing permissions beyond existing physical
-Atlas confirmation for naming remain to be defined, as part of the access gate
-that replaces host and admin unlock (owner decision 2026-09-25).
+not implemented. Device settings (naming, forgetting, factory reset) need an
+Admin, and naming and factory reset also need that Admin verified at the table
+(presence code, 2026-09-25).
 
 Follow-through remains: durable session/recovery policy, richer role/capability
 administration, temporary browser guest profiles, broader controller handoff,

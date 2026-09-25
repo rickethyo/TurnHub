@@ -37,7 +37,7 @@ life totals. Failed/unsupported settings reads must not silently overwrite data.
 
 ## Using the feature
 
-Join the table, then the host can save Game profile and life on the Game tab.
+Join the table, then any seated player can save Game profile and life on the Game tab.
 Magic uses 20 life, Commander 40, Generic 40, and Yu-Gi-Oh! 8000; custom starting
 life is supported. Game shows everyone's totals and the signed-in player's own
 adjustment controls. Standard buttons use 1/5-point changes, or 100/1000 for

@@ -232,7 +232,6 @@ void handleStatus() {
       ? game.activePlayerNumber()
       : 0;
   const uint8_t players = game.hasPlayers() ? game.playerCount() : lobby.playerCount();
-  const uint8_t host = lobby.hostController();
   const bool otaStateAllowed = hubState == HubState::Lobby || hubState == HubState::GameOver;
   const uint32_t nowMs = millis();
   const uint32_t passElapsed = pendingPass.active ? nowMs - pendingPass.requestedAtMs : 0;
@@ -244,19 +243,19 @@ void handleStatus() {
   snprintf(
       json,
       sizeof(json),
-      "{\"adminUnlocked\":%s,\"adminUnlockMs\":%lu,\"sigils\":%u,\"players\":%u,"
+      "{\"presenceActive\":%s,\"presenceCodeShown\":%s,\"sigils\":%u,\"players\":%u,"
       "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
       "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
       "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
       "\"espNow\":%s,\"firmware\":\"%s\","
       "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
-      adminUnlockRemainingMs(nowMs) > 0 ? "true" : "false",
-      static_cast<unsigned long>(adminUnlockRemainingMs(nowMs)),
+      anyPresenceActive(nowMs) ? "true" : "false",
+      pendingPresenceCode(nowMs) != nullptr ? "true" : "false",
       static_cast<unsigned>(sigilBus.activeCount(nowMs)),
       static_cast<unsigned>(players),
       stateName(hubState),
-      host == INVALID_ID ? -1 : static_cast<int>(host),
+      -1,  // "host": there is no table host since 2026-09-25.
       static_cast<unsigned>(starter),
       static_cast<unsigned>(active),
       static_cast<unsigned>(game.winnerPlayerNumber()),

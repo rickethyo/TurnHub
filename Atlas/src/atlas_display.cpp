@@ -222,7 +222,7 @@ bool hasClock(const AtlasScreen &screen) {
 }
 
 void drawHero(const AtlasScreen &screen) {
-  const bool qr = screen.kind == ScreenKind::Qr;
+  const bool qr = screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code;
   const int16_t x = qr ? QR_COLUMN_W : 0;
   const int16_t w = ATLAS_SCREEN_WIDTH - x - (hasClock(screen) ? CLOCK_W : 0);
   tft.fillRect(x, SCREEN_HERO_Y, w, HERO_H, BACKGROUND);
@@ -271,7 +271,7 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   }
   const uint32_t ink = out ? DIM : WORDMARK;
   const char *tag = (p.flags & CHIP_WINNER) ? "WINNER" : out ? "OUT" : active ? "TURN"
-      : (p.flags & CHIP_WAITING) ? "CONFIRM" : (p.flags & CHIP_HOST) ? "HOST"
+      : (p.flags & CHIP_WAITING) ? "CONFIRM"
       : (p.flags & CHIP_STARTER) ? "STARTS" : "";
   int16_t nameX = x + 6;
   if (active) {
@@ -342,7 +342,7 @@ void drawLines(const AtlasScreen &screen, int16_t x, int16_t y) {
 }
 
 void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
-  if (screen.kind == ScreenKind::Qr) {
+  if (screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code) {
     tft.fillRect(0, SCREEN_HERO_Y, QR_COLUMN_W, BUTTON_ROW_Y - 4 - SCREEN_HERO_Y, BACKGROUND);
     tft.fillRect(QR_COLUMN_W, SCREEN_BODY_Y, ATLAS_SCREEN_WIDTH - QR_COLUMN_W, BODY_H, BACKGROUND);
     if (screen.qr[0] != '\0') {
@@ -350,7 +350,15 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
       tft.setTextDatum(lgfx::top_left);
       tft.setTextColor(SUBTLE, BACKGROUND);
       tft.setFont(&fonts::DejaVu12);
-      tft.drawString(screen.qrCaption, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4);
+      tft.drawString(screen.qrCaption, QR_COLUMN_W + PAD, SCREEN_BODY_Y + (screen.code[0] ? 50 : 4));
+    }
+    if (screen.code[0] != '\0') {
+      // The presence code, large enough to read across the table.
+      tft.setTextDatum(lgfx::top_left);
+      tft.setTextColor(ACCENT, BACKGROUND);
+      tft.setFont(&fonts::DejaVu40);
+      if (tft.textWidth(screen.code) > ATLAS_SCREEN_WIDTH - QR_COLUMN_W - 2 * PAD) tft.setFont(&fonts::DejaVu24);
+      tft.drawString(screen.code, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4);
     }
     drawLines(screen, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4);
     return;

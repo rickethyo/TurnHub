@@ -41,7 +41,9 @@ bool menuSigil(uint8_t sigilId) {
 MenuStateFields sigilMenuFor(uint8_t sigilId) {
   uint32_t actions = 0;
   const auto add = [&actions](SigilAction action) { actions |= TurnHubProtocol::sigilActionBit(action); };
-  const bool host = sigilId == lobby.hostController();
+  // No table host (owner decision 2026-09-25): every seated Sigil may start,
+  // pick the starter, rematch or reset. Start keeps its cancellable countdown.
+  const bool seated = lobby.isJoined(sigilId) || game.controllerInGame(sigilId);
   PlayerSeat living;
   const bool hasLivingSeat = firstLivingSeatForModule(sigilId, living);
   const PlayerSeat *active = game.activePlayer();
@@ -60,7 +62,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       } else if (!sigilSeatsOnePlayer(sigilId)) {
         add(SigilAction::AddSeatB);
       }
-      if (host && lobby.playerCount() >= 2) {
+      if (lobby.playerCount() >= 2) {
         add(SigilAction::StartGame);
         add(SigilAction::RandomStarter);
       }
@@ -104,7 +106,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       break;
 
     case HubState::GameOver:
-      if (host) {
+      if (seated) {
         add(SigilAction::Rematch);
         add(SigilAction::ResetTable);
       }
