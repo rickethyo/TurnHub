@@ -202,7 +202,7 @@ below the drawn button. So Atlas calibrates on the device:
 - The result is saved in NVS (`atlas-touch/cal2`). The `config.h` values
   (`TOUCH_RAW_*`, `TOUCH_SWAP_XY`, `TOUCH_INVERT_*`) are only the fallback when
   nothing valid is saved or calibration times out (30 s without a touch).
-- **Touch read fix (2026-09-25, *Needs verification* on hardware).** The
+- **Touch read fix (2026-09-25, *Verified* by the owner on hardware).** The
   bit-banged XPT2046 read sampled DOUT just after the falling clock edge,
   which is when the chip changes that line. Each bit could come from either
   side of the race, so positions were scrambled (a doubled, wrapped value
@@ -217,7 +217,7 @@ below the drawn button. So Atlas calibrates on the device:
   values, and each new press logs `ATLAS|TOUCH|RAW|x|y|SCREEN|x|y`.
 
 **Needs verification on hardware:** panel orientation (rotation 3 puts the
-pigtail at the top), the on-device calibration and the accuracy it gives, color inversion and
+pigtail at the top), color inversion and
 RGB/BGR order; 40 MHz TFT write clock; the pin table
 above, especially the small 3-pin header (silkscreen appears to read IO35/IO22/GND).
 Also confirm that GPIO0 reads high when BOOT is released and that the RGB LED

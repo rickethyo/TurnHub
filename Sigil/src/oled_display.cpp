@@ -8,6 +8,8 @@
 
 namespace TurnHubSigil {
 namespace {
+// How long the boot logo stays up before the first status screen.
+constexpr uint32_t OLED_SPLASH_MS = 1000;
 // ESP32 output pins excluding flash, UART0, and Sigil's existing controls/cues
 // (main.cpp). These are validation exclusions, NOT proposed OLED assignments.
 bool availableOutputPin(int pin) {
@@ -90,6 +92,10 @@ void OledDisplay::begin() {
   ready_ = true;
   Serial.printf("SIGIL|DISPLAY|OLED|READY|%dx%d|ROTATION|%u\n",
       display_->width(), display_->height(), static_cast<unsigned>(c.rotation));
+  // Hold the logo long enough to be seen before the first status screen
+  // replaces it (owner request, 2026-09-25). Runs once, in setup().
+  showBooting();
+  delay(OLED_SPLASH_MS);
 }
 
 bool OledDisplay::setSeatName(uint8_t slot, const char *name) {

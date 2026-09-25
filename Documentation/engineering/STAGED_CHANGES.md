@@ -57,15 +57,12 @@ names and OTA (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)
 The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
 [Atlas speaker](HARDWARE_REFERENCE.md#atlas-speaker)). Staged follow-ups:
 
-- **Bench acceptance:** screen orientation, on-device touch calibration (first
-  boot, and the 10 s lobby hold), each touch button against a real table, the
+- **Bench acceptance:** screen orientation, the 10 s lobby recalibration hold,
+  each touch button against a real table, the
   Unlock admin window (first Admin, a network save, an OTA upload, Return
-  table to lobby from the portal), and the speaker at each volume. The touch
-  screen stayed "off" after calibration on the current unit (owner report,
-  2026-09-24), and touches were out of line with the buttons. The 2026-09-25
-  touch read fix (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen))
-  is the likely cause of both. Atlas recalibrates once after that update, then
-  re-check touch accuracy on every button.
+  table to lobby from the portal), and the speaker at each volume. On-device
+  touch calibration and touch accuracy are *Verified* by the owner after the
+  2026-09-25 touch read fix (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen)).
 - **microSD storage:** step 1 is done (2026-09-24): Atlas mounts the card at
   boot, runs a write/read-back self-test and reports it in Developer
   diagnostics; `SdBlobStore` provides checksummed, crash-safe records (see
