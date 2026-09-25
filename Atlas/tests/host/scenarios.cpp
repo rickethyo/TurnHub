@@ -1657,6 +1657,16 @@ static void touchControls() {
   testNow+=TOUCH_NOTICE_MS; assert(currentScreen().notice[0]=='\0');
   testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);
   assert(String(currentScreen().detail)=="2 players, 0 Sigils");
+  // A press drifting just past the edge (resistive jitter, a rolling
+  // fingertip) still counts; beyond the slop it cancels.
+  { const TouchButton *pair=screenButton(currentScreen(),TouchAction::Pair);
+    const int16_t px=pair->x+pair->w/2, py=pair->y+pair->h/2, edge=pair->y-1;
+    touchAt(px,py); touchAt(px,edge-TOUCH_SLOP_PX+2); touchRelease(); assert(pairingActive);
+    testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);
+    touchAt(px,py); touchAt(px,edge-TOUCH_SLOP_PX); touchRelease(); assert(!pairingActive);
+    // A press that starts in the slop, off every button, does nothing.
+    touchAt(px,edge); touchRelease(); assert(!pairingActive);
+    testNow+=TOUCH_NOTICE_MS; }
   // Pairing still goes through its handler: a radio failure is reported, not hidden.
   TurnHub::fixtureRadio=false; tapButton(TouchAction::Pair);
   assert(!pairingActive && String(currentScreen().notice)=="Radio unavailable");

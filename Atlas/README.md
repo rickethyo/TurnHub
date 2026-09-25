@@ -273,7 +273,7 @@ Serial monitor speed is 115200 baud.
 A specific Windows upload port can be supplied explicitly, for example:
 
 ```powershell
-C:\Users\ricke\.platformio\penv\Scripts\platformio.exe run -e atlas --target upload --upload-port COM7
+C:\Users\ricke\.platformio\penv\Scripts\platformio.exe run -e atlas --target upload --upload-port COMx
 ```
 
 After boot, connect a phone or computer to the Atlas access point and browse to the IP printed in the serial monitor. The ESP32 SoftAP address will normally be `192.168.4.1`.

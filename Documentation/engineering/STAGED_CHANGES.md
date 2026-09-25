@@ -60,19 +60,28 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
 - **Bench acceptance:** screen orientation, on-device touch calibration (first
   boot, and the 10 s lobby hold), each touch button against a real table, the
   Unlock admin window (first Admin, a network save, an OTA upload, Return
-  table to lobby from the portal), and the speaker at each volume. The touch screen stays "off" after calibration on the
-  current unit (owner report, 2026-09-24; deferred).
+  table to lobby from the portal), and the speaker at each volume. The touch
+  screen stayed "off" after calibration on the current unit (owner report,
+  2026-09-24), and touches were out of line with the buttons. The 2026-09-25
+  touch read fix (see [Hardware reference](HARDWARE_REFERENCE.md#atlas-touchscreen))
+  is the likely cause of both. Atlas recalibrates once after that update, then
+  re-check touch accuracy on every button.
 - **microSD storage:** step 1 is done (2026-09-24): Atlas mounts the card at
   boot, runs a write/read-back self-test and reports it in Developer
   diagnostics; `SdBlobStore` provides checksummed, crash-safe records (see
   [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage)).
   *Verified* by the owner on hardware: the card mounts and registers. Still to
   check: booting without a card. Nothing authoritative is on the card yet.
-  Before moving bulk records (profiles, statistics, possibly logs) off NVS, the
-  owner decides: which records move, whether PIN hashes may sit on a removable
-  card, the NVS migration and rollback, what happens when the card is missing
-  mid-session (hot-plug is not handled; a card inserted after boot needs a
-  restart), and whether a card may be moved between Atlases.
+  **Owner direction (2026-09-25):** offload as much as possible to the card.
+  An Atlas without a card runs in a "limp" mode: it loses luxury features but
+  stays fully functional for play. So core table function (pairing, seats,
+  the game engine, settings, recovery, and whatever login needs) must never
+  depend on the card. Bulk and history records (statistics, session and game
+  history, logs) move to it, and are shown as unavailable when it's missing.
+  Still to decide: the exact core/luxury split (in particular profiles and PIN
+  hashes, which gate login), the NVS migration and rollback, mid-session card
+  loss (hot-plug is not handled; a card inserted after boot needs a restart),
+  and whether a card may be moved between Atlases.
 - Player names on the status screen; more touch actions (Start, Rematch,
   starter selection) once the owner decides which host-only actions the table
   device may take; the on-board RGB LED as a cue output; a battery gauge.

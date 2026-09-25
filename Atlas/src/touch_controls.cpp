@@ -285,7 +285,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
       pressedAction = buttonAt(x, y, nowMs);
     }
     const TouchButton *button = currentButton(pressedAction, layout, nowMs);
-    pressInside = button != nullptr && button->contains(x, y);
+    pressInside = button != nullptr && button->contains(x, y, TOUCH_SLOP_PX);
     if (button != nullptr && button->hold() && pressInside && !holdFired &&
         nowMs - pressStartedAtMs >= button->holdMs) {
       holdFired = true;

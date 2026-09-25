@@ -20,6 +20,9 @@ constexpr int16_t ATLAS_SCREEN_HEIGHT = 240;
 // A touch counts as released only after this long without contact, because
 // resistive panels drop out briefly during a press.
 constexpr uint32_t TOUCH_RELEASE_MS = 60;
+// A press that started on a button stays on it while within this many pixels
+// of its edge, so resistive jitter and a rolling fingertip do not cancel it.
+constexpr int16_t TOUCH_SLOP_PX = 12;
 // How long an action message stays on screen.
 constexpr uint32_t TOUCH_NOTICE_MS = 4000;
 
@@ -39,8 +42,9 @@ struct TouchButton {
 
   bool hold() const { return holdMs > 0; }
 
-  bool contains(int16_t px, int16_t py) const {
-    return px >= x && px < x + w && py >= y && py < y + h;
+  // slop widens the button on every side (for a press already on it).
+  bool contains(int16_t px, int16_t py, int16_t slop = 0) const {
+    return px >= x - slop && px < x + w + slop && py >= y - slop && py < y + h + slop;
   }
 };
 

@@ -36,7 +36,11 @@ constexpr uint32_t CALIBRATE_IDLE_MS = 30000;
 constexpr uint32_t CALIBRATE_RESULT_MS = 1500;
 
 constexpr char TOUCH_PREF_NAMESPACE[] = "atlas-touch";
-constexpr char TOUCH_PREF_KEY[] = "cal";
+// "cal2": readings before the 2026-09-25 SPI sampling fix were scrambled, so
+// a calibration saved under the old "cal" key is discarded (and removed on
+// the next save) and Atlas recalibrates once.
+constexpr char TOUCH_PREF_KEY[] = "cal2";
+constexpr char TOUCH_PREF_LEGACY_KEY[] = "cal";
 
 enum class DisplayMode : uint8_t { Splash, Status, Calibrate, CalibrateResult };
 
@@ -238,14 +242,17 @@ uint16_t touchTransfer(uint8_t command) {
     digitalWrite(TOUCH_SCLK_PIN, LOW);
   }
   digitalWrite(TOUCH_MOSI_PIN, LOW);
-  // One busy clock, 12 data bits (MSB first), then padding.
+  // One busy clock, 12 data bits (MSB first), then padding. The XPT2046
+  // changes DOUT on the falling edge, so sample it while the clock is high:
+  // reading just after the falling edge races the new bit and scrambles the
+  // position (a doubled, wrapped value whenever the new bit wins).
   uint16_t value = 0;
   for (uint8_t bit = 0; bit < 16; ++bit) {
     delayMicroseconds(1);
     digitalWrite(TOUCH_SCLK_PIN, HIGH);
     delayMicroseconds(1);
-    digitalWrite(TOUCH_SCLK_PIN, LOW);
     value = static_cast<uint16_t>((value << 1) | (digitalRead(TOUCH_MISO_PIN) ? 1 : 0));
+    digitalWrite(TOUCH_SCLK_PIN, LOW);
   }
   return static_cast<uint16_t>((value >> 3) & 0x0FFF);
 }
@@ -258,24 +265,40 @@ uint16_t median3(uint16_t a, uint16_t b, uint16_t c) {
 
 TouchCalibration touchCal;
 
-// Reads one raw touch sample (median of three per axis).
+int32_t touchPressure() {
+  const int32_t z1 = touchTransfer(0xB1);
+  const int32_t z2 = touchTransfer(0xC1);
+  return z1 + 4095 - z2;
+}
+
+// Median of three conversions on one channel. The first conversion after the
+// panel drivers switch plates has not settled, so it is discarded.
+uint16_t readTouchChannel(uint8_t command) {
+  touchTransfer(command);
+  const uint16_t a = touchTransfer(command);
+  const uint16_t b = touchTransfer(command);
+  const uint16_t c = touchTransfer(command);
+  return median3(a, b, c);
+}
+
+// Reads one raw touch sample. Pressure is checked before and after the
+// position reads, so a finger landing or lifting mid-sample (when a resistive
+// panel reports positions well off the real one) is not counted as a touch.
 bool readTouchRaw(uint16_t &rawX, uint16_t &rawY) {
   using namespace AtlasConfig;
   if (digitalRead(TOUCH_IRQ_PIN) == HIGH) return false;
 
   digitalWrite(TOUCH_CS_PIN, LOW);
-  const uint16_t z1 = touchTransfer(0xB1);
-  const uint16_t z2 = touchTransfer(0xC1);
-  const uint16_t a0 = touchTransfer(0x91), b0 = touchTransfer(0xD1);
-  const uint16_t a1 = touchTransfer(0x91), b1 = touchTransfer(0xD1);
-  const uint16_t a2 = touchTransfer(0x91), b2 = touchTransfer(0xD1);
+  const int32_t before = touchPressure();
+  const uint16_t x = readTouchChannel(0x91);
+  const uint16_t y = readTouchChannel(0xD1);
+  const int32_t after = touchPressure();
   touchTransfer(0xD0);  // Power down with the pen interrupt enabled.
   digitalWrite(TOUCH_CS_PIN, HIGH);
 
-  const int32_t pressure = static_cast<int32_t>(z1) + 4095 - static_cast<int32_t>(z2);
-  if (pressure < TOUCH_PRESSURE_MIN) return false;
-  rawX = median3(a0, a1, a2);
-  rawY = median3(b0, b1, b2);
+  if (before < TOUCH_PRESSURE_MIN || after < TOUCH_PRESSURE_MIN) return false;
+  rawX = x;
+  rawY = y;
   return true;
 }
 
@@ -297,6 +320,7 @@ bool saveTouchCalibration(const TouchCalibration &cal) {
   TurnHub::OptionalPreferences prefs;
   if (!prefs.begin(TOUCH_PREF_NAMESPACE, false)) return false;
   const bool ok = prefs.putBytes(TOUCH_PREF_KEY, &cal, sizeof(cal)) == sizeof(cal);
+  if (ok && prefs.getBytesLength(TOUCH_PREF_LEGACY_KEY) > 0) prefs.remove(TOUCH_PREF_LEGACY_KEY);
   prefs.end();
   return ok;
 }

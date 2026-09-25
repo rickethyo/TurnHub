@@ -175,7 +175,10 @@ state:
 | Paused | Resume | `Resume` for the active seat |
 | Running, Paused | Hold to end match (draw) | `EndMatch` after `END_MATCH_HOLD_MS` (5 s), with an on-screen countdown |
 
-Taps act on release inside the same button, and sliding off cancels. A contact
+Taps act on release inside the same button, and sliding off cancels. A press
+that started on a button stays on it within `TOUCH_SLOP_PX` (12 px) of its
+edge, so jitter and a rolling fingertip don't cancel it; a press has to start
+inside a button to pick it. A contact
 gap shorter than `TOUCH_RELEASE_MS` (60 ms) counts as the same press, because
 resistive panels drop out briefly. Touches during the splash are ignored.
 Buttons are at least 60 px tall. A pressed button inverts and gets a heavier
@@ -196,9 +199,20 @@ below the drawn button. So Atlas calibrates on the device:
   or inverted, plus each axis's raw range extended to the screen edges. It
   refuses presses that don't span the panel or whose axes don't separate,
   then asks again.
-- The result is saved in NVS (`atlas-touch/cal`). The `config.h` values
+- The result is saved in NVS (`atlas-touch/cal2`). The `config.h` values
   (`TOUCH_RAW_*`, `TOUCH_SWAP_XY`, `TOUCH_INVERT_*`) are only the fallback when
   nothing valid is saved or calibration times out (30 s without a touch).
+- **Touch read fix (2026-09-25, *Needs verification* on hardware).** The
+  bit-banged XPT2046 read sampled DOUT just after the falling clock edge,
+  which is when the chip changes that line. Each bit could come from either
+  side of the race, so positions were scrambled (a doubled, wrapped value
+  whenever the new bit won). That is the likeliest cause of the touches that
+  didn't line up with the buttons, and of calibrations solved from them. DOUT
+  is now sampled while the clock is high. Each axis also throws away its
+  first conversion after the plates switch, then takes the median of three.
+  Pressure is checked before and after the position reads, so samples taken
+  while a finger lands or lifts are dropped. The calibration key moved to
+  `cal2`, so each Atlas recalibrates once after this update.
 - Serial logs `ATLAS|TOUCH|CALIBRATION|LOADED/DEFAULT/SAVED|...` with the
   values, and each new press logs `ATLAS|TOUCH|RAW|x|y|SCREEN|x|y`.
 

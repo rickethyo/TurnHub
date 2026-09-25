@@ -28,10 +28,12 @@ The owner also uses GitHub Desktop, which can switch branches and auto-stash unc
 ### Atlas firmware (run from `Atlas/`)
 ```
 pio run -e atlas                      # build
-pio run -e atlas --target upload      # flash (platformio.ini pins the owner's Atlas to COM12)
+pio run -e atlas --target upload --upload-port COMx   # flash (no port is pinned; see below)
 pio device monitor                    # serial, 115200 baud
 ```
 Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
+
+**Serial ports:** never hard-code COM numbers (in `platformio.ini`, docs or scripts). They change whenever the PC restarts. Find the board each time (Atlas is the CH340 port, Sigils are CP210x; see "Identifying boards" below), pass `--upload-port` / `--port`, and ask the owner if several candidates are attached.
 
 ### Atlas host regression tests (no hardware)
 These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
@@ -51,8 +53,8 @@ There is no per-test filter. To run one group, build the single executable (the 
 
 ### Sigil firmware (run from `Sigil/`)
 ```
-pio run -e sigil                      # E-ink Sigil with analog joystick (uploads to COM13)
-pio run -e sigil-oled                 # OLED Sigil with five-button d-pad (uploads to COM3; COM14 is the test harness, never flash it)
+pio run -e sigil                      # E-ink Sigil with analog joystick
+pio run -e sigil-oled                 # OLED Sigil with five-button d-pad
 pio run -e sigil-wokwi                # Wokwi simulation build (ESP-NOW replaced by wokwi_espnow_shim.h, which acts as a fake Atlas)
 ```
 Wokwi serial-console commands for driving the simulated Atlas are listed in `Sigil/WOKWI.md`.
@@ -94,7 +96,7 @@ transport adapter (ESP-NOW packet / HTTP handler / GPIO)
 
 **Identity model:** Profile (persistent: ID, name, PIN hash, stats) → Participant (one per person at the current table) → controller assignments (physical Sigil seat A/B, browser sessions, future app). Hardware identity is never player identity. Changing controllers must not replace the participant or move its stats. Multiple browser sessions can control one participant.
 
-**Persistence:** profiles, PIN data, seat bindings, statistics, game settings, profile policy, per-player accessibility preferences, AP config, the pairing window, the speaker volume (`spkvol`) and the touchscreen calibration (`atlas-touch/cal`) live in NVS (`profile_store`, `profile_stats_storage`, `nvs_blob_store`, `game_settings_store`, `optional_preferences`). Sessions, table participation and live game state are RAM-only, apart from the in-progress interrupted-match recovery record (`game_checkpoint`/`game_recovery*`). That record must restore **paused** and must never replay the stats-completion callback. Stats are committed once from the engine's game-completed event (`profile_stats_bridge`), whatever the ending path.
+**Persistence:** profiles, PIN data, seat bindings, statistics, game settings, profile policy, per-player accessibility preferences, AP config, the pairing window, the speaker volume (`spkvol`) and the touchscreen calibration (`atlas-touch/cal2`) live in NVS (`profile_store`, `profile_stats_storage`, `nvs_blob_store`, `game_settings_store`, `optional_preferences`). Sessions, table participation and live game state are RAM-only, apart from the in-progress interrupted-match recovery record (`game_checkpoint`/`game_recovery*`). That record must restore **paused** and must never replay the stats-completion callback. Stats are committed once from the engine's game-completed event (`profile_stats_bridge`), whatever the ending path.
 
 **Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (15 s) or the Hello capability bits (`CAPABILITY_DISPLAY_OLED` makes Atlas seat one player on that Sigil). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
 
