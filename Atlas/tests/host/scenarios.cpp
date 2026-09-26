@@ -1888,7 +1888,8 @@ static void touchAt(int16_t x,int16_t y) { lastTouchX=x; lastTouchY=y; updateTou
 static void keepPressing() { touchAt(lastTouchX,lastTouchY); }
 static void touchRelease() { testNow+=TOUCH_RELEASE_MS; updateTouchControls(testNow,false,0,0); }
 static void pressButton(TouchAction action) {
-  const TouchButton *b=screenButton(currentScreen(),action); assert(b!=nullptr);
+  const AtlasScreen screen=currentScreen();  // keep it alive: b points into it
+  const TouchButton *b=screenButton(screen,action); assert(b!=nullptr);
   touchAt(b->x+b->w/2,b->y+b->h/2);
 }
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
@@ -1992,7 +1993,8 @@ static void touchControls() {
   assert(String(currentScreen().detail)=="2 players, 0 Sigils");
   // A press drifting just past the edge (resistive jitter, a rolling
   // fingertip) still counts; beyond the slop it cancels.
-  { const TouchButton *pair=screenButton(currentScreen(),TouchAction::Pair);
+  { const AtlasScreen pairScreen=currentScreen();
+    const TouchButton *pair=screenButton(pairScreen,TouchAction::Pair);
     const int16_t px=pair->x+pair->w/2, py=pair->y+pair->h/2, edge=pair->y-1;
     touchAt(px,py); touchAt(px,edge-TOUCH_SLOP_PX+2); touchRelease(); assert(pairingActive);
     testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);
