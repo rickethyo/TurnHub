@@ -513,6 +513,51 @@ Privacy direction:
   just does not appear), and the user manual once the OLED Sigil ships.
 - *Needs verification:* OLED rotation 0 after the panel was remounted.
 
+## E-ink Sigil: player-facing LED strip (possible, depends on the case)
+
+*Planned, conditional* (owner, 2026-09-26). The enclosure concept is a 45° wedge
+about 48 mm wide, 78 mm deep and 78 mm tall: portrait e-paper on the upper
+slope, joystick below it, main board flat in the base, USB through the back
+wall. In that shape the Jewel 7 status ring faces the **other players** from the
+back wall, so the seated player can't see it. A short LED strip on the front lip
+would give the **player** their own light. Build this only if the final case
+keeps that split; if the case lets one light face both ways, drop it.
+
+- **Hardware:** no Sigil board change. The strip hangs off the Jewel adapter's
+  existing chain-out, so it's the same data line (GPIO26 through U2 and J5):
+  Jewel pixels 0–6, then the strip. Candidate: 6–8 SK6812 RGBW pixels to match
+  the Jewel's colour order. The Jewel adapter's chain-out connector and cable
+  length depend on where the case puts the strip.
+- **Feature gate:**
+  1. *State owner:* Atlas, unchanged. It already decides each Sigil's
+     `LedState`; the Sigil only renders it.
+  2. *Intent:* none. Lights are output only and add no gameplay action.
+  3. *Validator:* none new. Any user setting (see 5) uses the existing
+     accessibility preference path.
+  4. *Persistence:* the pixel count is a build or hardware setting on the Sigil,
+     not NVS. A per-player front-strip brightness, if added, belongs in the
+     existing per-player accessibility preferences (`optional_preferences`).
+  5. *Rendering:* the Sigil maps one `LedState` to two groups. The rear ring
+     keeps today's table-facing role (turn state, player colour). The front strip
+     shows the player's own cues (your turn, timer warnings, pending life
+     approval). The exact split is an owner decision.
+  6. *Protocol/contract:* probably none. If both groups are derived from
+     `LedState` on the Sigil, `shared/include/protocol.h` doesn't change. A
+     separate front-strip state from Atlas would be a radio contract change and
+     need both firmwares reflashed.
+  7. *Third-party dependencies:* none new (Adafruit NeoPixel already drives the
+     Jewel).
+  8. *Accessibility:* no information may live only on the strip; the e-paper
+     repeats everything it shows. Brightness should be adjustable because the
+     strip is a few centimetres from the player's eyes. Blink patterns follow
+     the existing reduced-motion style (`LedStyle::ReducedMotion`).
+- **Power:** USB can't supply full RGBW on 7 + 8 pixels. The firmware brightness
+  cap (48/255) has to hold for the whole chain, and the front strip can run
+  dimmer than the ring. *Needs verification:* measure current with both groups
+  at the cap.
+- **Before building:** settle the case (strip position, pixel count, cable
+  route), then the owner's choice of which cues go front and which go rear.
+
 ## Pending physical verification
 
 - Pairing-window behavior and pairing LED mode.
