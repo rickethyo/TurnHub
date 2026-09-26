@@ -1163,6 +1163,12 @@ static void sigilLife() {
   assert(!offered(0));  // Lobby.
   startFromHost();
   assert(offered(0) && offered(1));
+  // A 0.8.0+ test harness plays life like a real Sigil; an older one cannot.
+  fixtureRecords[1].capabilities |= CAPABILITY_HARNESS;
+  assert(offered(1));
+  fixtureRecords[1].firmwareMinor = 1;
+  assert(!offered(1));
+  fixtureRecords[1].capabilities = CAPABILITY_MENU; fixtureRecords[1].firmwareMinor = 8;
   const PlayerSeat a = *game.playerByNumber(lobby.playerNumber(0, 1));
   const PlayerSeat b = *game.playerByNumber(lobby.playerNumber(1, 1));
   const int32_t start = game.lifeTotal(a.playerNumber);

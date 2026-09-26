@@ -707,6 +707,9 @@ inline const char *harnessTestName(uint8_t test) {
 enum class HarnessStep : uint8_t {
   None = 0, Paired, HelloAck, Menu, Lobby, Join, SeatB, Host, Start, Turn, Pause, Resume,
   Eliminate, ResumeAfterElimination, ClaimWin, ConfirmWin, GameOver, RematchLobby, ResetTable,
+  // Harness 0.8.0+: join through the profile picker (Guest), a life change
+  // checked against the game display, and leaving the lobby.
+  Picker, Life, Leave,
   Count
 };
 
@@ -714,7 +717,7 @@ inline const char *harnessStepName(uint8_t step) {
   static const char *const NAMES[] = {"NONE", "PAIRED", "HELLO_ACK", "MENU", "LOBBY", "JOIN",
       "SEAT_B", "HOST", "START", "TURN", "PAUSE", "RESUME", "ELIMINATE",
       "RESUME_AFTER_ELIMINATION", "CLAIM_WIN", "CONFIRM_WIN", "GAME_OVER", "REMATCH_LOBBY",
-      "RESET_TABLE"};
+      "RESET_TABLE", "PICKER", "LIFE", "LEAVE"};
   static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == static_cast<size_t>(HarnessStep::Count),
       "One name per HarnessStep");
   return step < static_cast<uint8_t>(HarnessStep::Count) ? NAMES[step] : "UNKNOWN";

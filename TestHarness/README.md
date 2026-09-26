@@ -15,9 +15,19 @@ over ESP-NOW:
   password-protected; it exists only to own the second MAC on channel 6.
 - Each virtual Sigil can take Seat B too, so one board seats up to **four
   players**.
-- They advertise `CAPABILITY_MENU` in Hello and act only through
-  `SelectAction`, choosing from the `MenuState` Atlas sends: exactly the path a
-  real menu Sigil (OLED d-pad or E-ink joystick) uses.
+- They report firmware **0.8.0** and advertise `CAPABILITY_MENU`,
+  `CAPABILITY_GAME_DISPLAY` and `CAPABILITY_LED_STATE` in Hello, so Atlas
+  treats them like a current menu Sigil (OLED d-pad or E-ink joystick): it
+  sends `MenuState2` (with **Leave** and **AdjustLife**), the profile picker,
+  life requests and the game display with each seat's life. They act only
+  through the packets a real Sigil sends: `SelectAction`, `PickerKey`,
+  `LifeAdjust` and `LifeResponse`.
+- V1 also carries `CAPABILITY_HARNESS`, so Atlas never opens the profile
+  picker on it (Join seats a guest directly). V2 gets the picker and the
+  harness picks **Guest** from it, so a run never plays as a real profile.
+- Life requests (a portal user asking to change a harness player's life) are
+  answered by the `lifereq` policy: approve by default, or deny, or ignore to
+  let Atlas's 15 s timeout accept it.
 
 ## Architectural boundary
 
@@ -34,7 +44,7 @@ over ESP-NOW:
 1. **State owner:** Atlas. The harness owns only transient run state and its
    own pairing record (NVS `th_harness/pair`: Atlas MAC and the two Sigil IDs).
 2. **Intent/request:** the existing Sigil packets (PairRequest, Hello,
-   SelectAction). No test-only gameplay semantics.
+   SelectAction, PickerKey, LifeAdjust, LifeResponse). No test-only gameplay semantics.
 3. **Validator:** Atlas's normal transport adapters and Intent handlers.
 4. **Persistence:** none for canonical state.
 5. **Presentation:** serial console, machine-readable lines.
@@ -58,7 +68,7 @@ screen stays up through the game until **Back**. Atlas and the harness speak
 
 | Command | What it does |
 |---|---|
-| `status` | Radio, Atlas MAC, each virtual Sigil's MAC, ID, online state and current menu |
+| `status` | Radio, Atlas MAC, each virtual Sigil's MAC, ID, online state, seats and life, picker page and current menu |
 | `pair` | Sends PairRequest from every unpaired virtual Sigil for 30 s. Tap **Pair a Sigil** on Atlas during that time |
 | `forget` | Forgets the pairing on the harness only. Forget the two Sigils in the portal's Device Settings as well |
 | `sigils <1\|2>` | Use one or both virtual Sigils |
@@ -66,7 +76,10 @@ screen stays up through the game until **Back**. Atlas and the harness speak
 | `verbose <on\|off>` | Log every packet sent and received |
 | `test [n]` | Runs premade test n, as the Atlas touchscreen does; with no number, lists them |
 | `menu` | Print what Atlas currently offers each virtual Sigil |
-| `select <V1\|V2> <action>` | Send one menu choice by hand (`join`, `start`, `pass`, `claim-win`, ...) |
+| `select <V1\|V2> <action>` | Send one menu choice by hand (`join`, `start`, `pass`, `claim-win`, `leave`, ...) |
+| `pick <V1\|V2> <up\|down\|left\|right\|select>` | Press a profile-picker key by hand (Up/Right/Down pick the page's names, Left backs out, Select pages or confirms) |
+| `life <V1\|V2> <delta> [player]` | Send one LifeAdjust for that Sigil's shown player (or the given player number), then print its seats and life |
+| `lifereq <approve\|deny\|ignore>` | How the harness answers life requests shown to its players (default approve) |
 | `run smoke` | Each virtual Sigil is paired, answers Hello and has a menu |
 | `run game [players] [turns] [rematch]` | A whole game (defaults: 4 players, 6 turns), below |
 | `run soak [games] [players]` | Repeats `run game` (4 turns each) until one fails |
@@ -75,18 +88,28 @@ screen stays up through the game until **Back**. Atlas and the harness speak
 `run game` needs the table in its lobby. Any seated Sigil may start (there is
 no table host since 2026-09-25), so V1 starts it. Its steps:
 
-1. `LOBBY`, then `JOIN` for V1 and V2, then `SEAT_B` for as many extra players
+1. `LOBBY`, then `JOIN` for V1 and V2 (V2 first passes `PICKER`, choosing
+   Guest from the profile picker), then `SEAT_B` for as many extra players
    as asked for (V1 B, then V2 B).
 2. `HOST` (a harness Sigil offered Start; the step name is historical) and
    `START`: V1 picks Start, and the countdown ends in a running game.
 3. `TURN` × N: the active Sigil picks Pass, sees Cancel pass while Atlas holds
    the pass for its 3 s grace, and the pass commits.
-4. `PAUSE` and `RESUME`.
-5. With 3+ players, `ELIMINATE`: V1 pauses, says "I'm out" and eliminates one
+4. `LIFE`: every harness Sigil offered AdjustLife sends a LifeAdjust of -3
+   for its shown player, checks the game display shows the new total, then
+   sends +3 to put it back.
+5. `PAUSE` and `RESUME`.
+6. With 3+ players, `ELIMINATE`: V1 pauses, says "I'm out" and eliminates one
    of its seats, then the table resumes.
-6. `CLAIM_WIN` by the active player, `CONFIRM_WIN` from every other living
+7. `CLAIM_WIN` by the active player, `CONFIRM_WIN` from every other living
    player in the order Atlas asks, then `GAME_OVER`.
-7. `RESET_TABLE` back to an empty lobby (or `REMATCH_LOBBY` with `rematch`).
+8. `RESET_TABLE` back to an empty lobby, or with `rematch`: `REMATCH_LOBBY`,
+   then `LEAVE` (the last harness Sigil leaves the rematch lobby) and `JOIN`
+   again.
+
+The harness needs Atlas firmware that sends `MenuState2` to a 0.8.0 harness
+(2026-09-26 or later). Against an older Atlas, V1 gets only `MenuState`, so
+`LIFE` fails for want of AdjustLife.
 
 Every step prints `HARNESS|PASS|<step>|...` or `HARNESS|FAIL|<step>|...` with
 the menus at that moment, and each run ends with

@@ -51,11 +51,12 @@ bool menuSigil(uint8_t sigilId) {
       (record->capabilities & TurnHubProtocol::CAPABILITY_MENU) != 0;
 }
 
-// Decodes MenuState2 (actions past the first 21, such as Leave).
+// Decodes MenuState2 (actions past the first 21, such as Leave). The test
+// harness qualifies too from its 0.8.0 (it plays life changes and Leave like a
+// real Sigil); only the profile picker stays off for it (profile_picker.cpp).
 bool menu2Sigil(uint8_t sigilId) {
   const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
   return record != nullptr && record->helloInfoValid &&
-      (record->capabilities & TurnHubProtocol::CAPABILITY_HARNESS) == 0 &&
       TurnHubProtocol::menuState2Firmware(record->firmwareMajor, record->firmwareMinor);
 }
 

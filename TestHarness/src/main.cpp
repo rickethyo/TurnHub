@@ -4,9 +4,11 @@
 // MAC and its soft-AP MAC each pair as a separate Sigil, and each can seat two
 // players (Seat A and B), so one board plays up to four players. It speaks
 // only the shared ESP-NOW contract (protocol.h) and drives the game through
-// the same SelectAction choices a real menu Sigil sends. Atlas stays the sole
-// authority: the harness reads the menus Atlas offers and never decides an
-// outcome. See README.md for the serial commands.
+// the same SelectAction choices a real menu Sigil sends. Like a 0.8.0 Sigil it
+// also joins through the profile picker, changes its players' life with
+// LifeAdjust and answers life requests with LifeResponse. Atlas stays the
+// sole authority: the harness reads the menus Atlas offers and never decides
+// an outcome. See README.md for the serial commands.
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -18,8 +20,13 @@
 
 namespace {
 
+using TurnHubProtocol::GameDisplayPacket;
+using TurnHubProtocol::LifeRequestFields;
 using TurnHubProtocol::MenuStateFields;
 using TurnHubProtocol::Packet;
+using TurnHubProtocol::PickerKeyCode;
+using TurnHubProtocol::PickerMode;
+using TurnHubProtocol::ProfilePickerPacket;
 using TurnHubProtocol::PacketType;
 using TurnHubProtocol::SigilAction;
 using TurnHubProtocol::HarnessRunState;
@@ -29,12 +36,16 @@ using TurnHubProtocol::HarnessTest;
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Must match Atlas's soft-AP channel (and Sigil's WIFI_CHANNEL).
 constexpr uint8_t WIFI_CHANNEL = 6;
+// 0.8.0 is the Sigil release that decodes MenuState2 (Leave, AdjustLife),
+// the profile picker and life requests; Atlas gates those on it.
 constexpr uint8_t FIRMWARE_MAJOR = 0;
-constexpr uint8_t FIRMWARE_MINOR = 1;
+constexpr uint8_t FIRMWARE_MINOR = 8;
 constexpr uint8_t FIRMWARE_PATCH = 0;
-// Menu Sigil with a shared (two-seat) display; no LED or game display, which
-// keeps Atlas's radio traffic to the harness small.
-constexpr uint8_t CAPABILITIES = TurnHubProtocol::CAPABILITY_MENU;
+// Menu Sigil with a shared (two-seat) display. The game display carries each
+// seat's life, which the life checks read back; LedState keeps Atlas's light
+// traffic to one packet per change instead of three channel packets.
+constexpr uint8_t CAPABILITIES = TurnHubProtocol::CAPABILITY_MENU |
+    TurnHubProtocol::CAPABILITY_GAME_DISPLAY | TurnHubProtocol::CAPABILITY_LED_STATE;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PAIR_REQUEST_INTERVAL_MS = 1000;
 constexpr uint32_t PAIR_ATTEMPT_MS = 30000;
@@ -52,6 +63,10 @@ constexpr char PREF_KEY[] = "pair";  // Atlas MAC + one Sigil ID per virtual Sig
 constexpr uint32_t START_WAIT_MS = 3000 + 4000;
 constexpr uint32_t PASS_WAIT_MS = 3000 + 4000;
 constexpr uint32_t STEP_WAIT_MS = 5000;
+// A LifeAdjust is sent once, like a real Sigil's batch after
+// LIFE_ADJUST_COMMIT_MS; the game display should show it well within this.
+constexpr uint32_t LIFE_WAIT_MS = 3000;
+constexpr int32_t LIFE_TEST_DELTA = 3;
 
 struct VirtualSigil {
   VirtualSigil(const char *n, wifi_interface_t i) : name(n), iface(i) {}
@@ -70,6 +85,16 @@ struct VirtualSigil {
   uint8_t lastAckType = 0;
   uint32_t lastAckMs = 0;
   uint32_t ackCount = 0;
+  // What Atlas shows this Sigil: its seats (DisplayState), their life while a
+  // game runs (GameDisplay), the profile picker and a pending life request.
+  int32_t displayState = 0;
+  bool gameDisplayValid = false;
+  GameDisplayPacket gameDisplay{};
+  bool pickerValid = false;
+  ProfilePickerPacket picker{};
+  LifeRequestFields lifeRequest;
+  int32_t startingLife = 0;
+  uint8_t passingPlayer = 0;
 };
 
 VirtualSigil sigils[VIRTUAL_SIGILS] = {{"V1", WIFI_IF_STA}, {"V2", WIFI_IF_AP}};
@@ -83,11 +108,16 @@ constexpr uint32_t DEFAULT_PACE_MS = 1500;
 constexpr uint32_t MAX_PACE_MS = 10000;
 uint32_t paceMs = DEFAULT_PACE_MS;
 bool radioReady = false;
+// How the harness answers a life request shown to one of its players (a
+// portal user asking to change a harness player's life). Like confirming a
+// win, it is only an answer; Atlas decides. "lifereq <mode>" changes it.
+enum class LifeRequestPolicy : uint8_t { Approve, Deny, Ignore };
+LifeRequestPolicy lifeRequestPolicy = LifeRequestPolicy::Approve;
 
 struct RxFrame {
   uint8_t mac[6];
   uint8_t length;
-  uint8_t data[sizeof(TurnHubProtocol::GameDisplayPacket)];
+  uint8_t data[sizeof(GameDisplayPacket)];
 };
 QueueHandle_t rxQueue = nullptr;
 volatile bool sendDone = false;
@@ -125,6 +155,14 @@ bool parseAction(const String &text, SigilAction &out) {
   return false;
 }
 
+const char *policyName(LifeRequestPolicy policy) {
+  switch (policy) {
+    case LifeRequestPolicy::Approve: return "approve";
+    case LifeRequestPolicy::Deny: return "deny";
+    default: return "ignore";
+  }
+}
+
 String macText(const uint8_t *mac) {
   char text[18];
   snprintf(text, sizeof(text), "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -141,6 +179,49 @@ String menuText(const VirtualSigil &v) {
     text += actionName(i);
   }
   return text.length() > 0 ? text : String("empty");
+}
+
+// The seats this Sigil shows (primary first) and, while a game runs, life.
+uint8_t primaryPlayer(const VirtualSigil &v) {
+  return TurnHubProtocol::displayPrimaryPlayer(v.displayState);
+}
+
+bool lifeOf(const VirtualSigil &v, uint8_t player, int32_t &life) {
+  if (!v.gameDisplayValid || player == 0) return false;
+  if (TurnHubProtocol::displayPrimaryPlayer(v.gameDisplay.state) == player) {
+    life = v.gameDisplay.primary.life;
+    return true;
+  }
+  if (TurnHubProtocol::displaySecondaryPlayer(v.gameDisplay.state) == player) {
+    life = v.gameDisplay.secondary.life;
+    return true;
+  }
+  return false;
+}
+
+String seatsText(const VirtualSigil &v) {
+  const uint8_t a = TurnHubProtocol::displayPrimaryPlayer(v.displayState);
+  const uint8_t b = TurnHubProtocol::displaySecondaryPlayer(v.displayState);
+  if (a == 0) return "none";
+  String text = "P" + String(a);
+  int32_t life = 0;
+  if (lifeOf(v, a, life)) text += "(" + String(life) + ")";
+  if (b != 0) {
+    text += ",P" + String(b);
+    if (lifeOf(v, b, life)) text += "(" + String(life) + ")";
+  }
+  return text;
+}
+
+String pickerText(const VirtualSigil &v) {
+  if (!v.pickerValid || v.picker.mode == PickerMode::Closed) return "closed";
+  String text = v.picker.mode == PickerMode::Confirm ? "confirm:" : "page " +
+      String(v.picker.page + 1) + "/" + String(v.picker.pageCount) + ":";
+  for (uint8_t i = 0; i < v.picker.itemCount; ++i) {
+    if (i > 0) text += ",";
+    text += v.picker.items[i].name;
+  }
+  return text;
 }
 
 // --- Persistence ---------------------------------------------------------------
@@ -269,7 +350,10 @@ void handlePacket(const uint8_t *mac, const Packet &packet) {
       }
       break;
     case PacketType::MenuState:
-      v->menu = TurnHubProtocol::decodeMenuState(packet.value);
+    case PacketType::MenuState2:
+      v->menu = packet.type == PacketType::MenuState2
+          ? TurnHubProtocol::decodeMenuState2(packet.value)
+          : TurnHubProtocol::decodeMenuState(packet.value);
       v->menuValid = true;
       v->menuAtMs = millis();
       if (verbose) {
@@ -302,6 +386,37 @@ void handlePacket(const uint8_t *mac, const Packet &packet) {
       v->menuValid = false;
       savePairing();
       break;
+    case PacketType::DisplayState:
+      // A non-running state ends the game display (as on a real Sigil).
+      v->displayState = packet.value;
+      v->gameDisplayValid = false;
+      break;
+    case PacketType::LifeRequest: {
+      const LifeRequestFields request = TurnHubProtocol::decodeLifeRequest(packet.value);
+      const bool fresh = request.target != 0 &&
+          (request.target != v->lifeRequest.target || request.tag != v->lifeRequest.tag);
+      v->lifeRequest = request;
+      if (!fresh) break;
+      Serial.printf("HARNESS|LIFE|REQUEST|%s|target=P%u|from=P%u|delta=%ld|%s\n", v->name,
+          static_cast<unsigned>(request.target), static_cast<unsigned>(request.requester),
+          static_cast<long>(request.delta), policyName(lifeRequestPolicy));
+      if (lifeRequestPolicy != LifeRequestPolicy::Ignore) {
+        sendPacket(*v, PacketType::LifeResponse, TurnHubProtocol::encodeLifeResponse(request.target,
+            lifeRequestPolicy == LifeRequestPolicy::Approve, request.tag));
+      }
+      break;
+    }
+    case PacketType::StartingLife:
+      v->startingLife = packet.value;
+      break;
+    case PacketType::PassPending:
+      v->passingPlayer = static_cast<uint8_t>(packet.value);
+      break;
+    case PacketType::SeatColor:
+    case PacketType::LedState:
+    case PacketType::InputTiming:
+    case PacketType::DisplayNameChunk:
+      break;  // Presentation only; the harness has no light or screen.
     case PacketType::Unpair:
       Serial.printf("HARNESS|PAIR|FORGOTTEN_BY_ATLAS|%s\n", v->name);
       v->sigilId = UNASSIGNED;
@@ -315,6 +430,32 @@ void handlePacket(const uint8_t *mac, const Packet &packet) {
       }
       break;
   }
+}
+
+bool fromAtlas(const uint8_t *mac) {
+  return atlasKnown && memcmp(mac, atlasMac, 6) == 0;
+}
+
+void handleGameDisplay(const uint8_t *mac, const uint8_t *data) {
+  GameDisplayPacket snapshot;
+  memcpy(&snapshot, data, sizeof(snapshot));
+  if (!fromAtlas(mac) || !TurnHubProtocol::validGameDisplay(snapshot)) return;
+  VirtualSigil *v = sigilById(snapshot.sigilId);
+  if (v == nullptr) return;
+  v->gameDisplay = snapshot;
+  v->gameDisplayValid = true;
+  v->displayState = snapshot.state;
+}
+
+void handlePicker(const uint8_t *mac, const uint8_t *data) {
+  ProfilePickerPacket page;
+  memcpy(&page, data, sizeof(page));
+  if (!fromAtlas(mac) || !TurnHubProtocol::validProfilePicker(page)) return;
+  VirtualSigil *v = sigilById(page.sigilId);
+  if (v == nullptr) return;
+  v->picker = page;
+  v->pickerValid = true;
+  if (verbose) Serial.printf("HARNESS|PICKER|%s|%s\n", v->name, pickerText(*v).c_str());
 }
 
 void onReceive(const uint8_t *mac, const uint8_t *data, int length) {
@@ -367,8 +508,11 @@ void pump() {
       Packet packet;
       memcpy(&packet, frame.data, sizeof(packet));
       handlePacket(frame.mac, packet);
+    } else if (frame.length == sizeof(GameDisplayPacket)) {
+      handleGameDisplay(frame.mac, frame.data);
+    } else if (frame.length == sizeof(ProfilePickerPacket)) {
+      handlePicker(frame.mac, frame.data);
     }
-    // GameDisplay snapshots are not requested (no CAPABILITY_GAME_DISPLAY).
   }
   const uint32_t now = millis();
   for (uint8_t i = 0; i < activeSigils; ++i) {
@@ -434,6 +578,40 @@ bool choose(VirtualSigil &v, SigilAction action) {
     return v.ackCount != acksBefore &&
         v.lastAckType == static_cast<uint8_t>(PacketType::SelectAction);
   }, ACK_TIMEOUT_MS);
+}
+
+bool pickerOpen(const VirtualSigil &v) {
+  return v.pickerValid && v.picker.mode != PickerMode::Closed;
+}
+
+// A picker key names the page it was pressed on, like a SelectAction's menu
+// revision. Up, Right and Down pick the page's three names in order.
+bool pressPickerKey(VirtualSigil &v, PickerKeyCode key) {
+  idle(paceMs);
+  if (!pickerOpen(v)) return false;
+  static const char *const KEYS[] = {"up", "down", "left", "right", "select"};
+  Serial.printf("HARNESS|PICKER_KEY|%s|%s|rev=%u\n", v.name, KEYS[static_cast<uint8_t>(key)],
+      static_cast<unsigned>(v.picker.revision));
+  return sendPacket(v, PacketType::PickerKey, TurnHubProtocol::encodePickerKey(key, v.picker.revision));
+}
+
+PickerKeyCode keyForItem(uint8_t item) {
+  static const PickerKeyCode KEYS[] = {PickerKeyCode::Up, PickerKeyCode::Right, PickerKeyCode::Down};
+  return KEYS[item < 3 ? item : 0];
+}
+
+bool joined(const VirtualSigil &v) {
+  return has(v, SigilAction::CycleStarter);
+}
+
+// Life changes go out as one LifeAdjust (a real Sigil batches its presses the
+// same way), for one of this Sigil's own players.
+bool sendLifeAdjust(VirtualSigil &v, uint8_t player, int32_t delta) {
+  idle(paceMs);
+  if (!has(v, SigilAction::AdjustLife) || player == 0 || delta == 0) return false;
+  Serial.printf("HARNESS|LIFE|ADJUST|%s|P%u|%+ld\n", v.name, static_cast<unsigned>(player),
+      static_cast<long>(delta));
+  return sendPacket(v, PacketType::LifeAdjust, TurnHubProtocol::encodeLifeAdjust(player, delta));
 }
 
 // --- Reporting -----------------------------------------------------------------
@@ -502,6 +680,61 @@ bool gameOver() {
   return offering(SigilAction::Rematch) != nullptr;
 }
 
+// Join: a picker Sigil (0.8.0+, not V1, which carries CAPABILITY_HARNESS)
+// first gets Atlas's profile picker; the harness picks Guest from it, so the
+// run never plays as, or changes, a real profile.
+bool join(VirtualSigil &v) {
+  const bool asked = choose(v, SigilAction::Join) &&
+      waitUntil([&v] { return joined(v) || pickerOpen(v); }, STEP_WAIT_MS);
+  if (asked && pickerOpen(v)) {
+    int8_t guest = -1;
+    if (v.picker.mode == PickerMode::List) {
+      for (uint8_t i = 0; i < v.picker.itemCount; ++i) {
+        if (v.picker.items[i].flags & TurnHubProtocol::PICKER_ITEM_GUEST) guest = static_cast<int8_t>(i);
+      }
+    }
+    const bool picked = guest >= 0 &&
+        pressPickerKey(v, keyForItem(static_cast<uint8_t>(guest))) &&
+        waitUntil([&v] { return joined(v) && !pickerOpen(v); }, STEP_WAIT_MS);
+    if (!step(picked, HarnessStep::Picker, String(v.name) + "|" +
+            (guest < 0 ? "reason=no Guest on the page|" : "") + pickerText(v))) {
+      return false;
+    }
+  }
+  return step(asked && joined(v), HarnessStep::Join, String(v.name) + "|" + menuText(v));
+}
+
+// A life change on each harness Sigil offered AdjustLife: take
+// LIFE_TEST_DELTA from its shown player, check the game display, then give it
+// back so the game's totals end where they started.
+bool lifeCheck() {
+  bool any = false;
+  for (uint8_t i = 0; i < activeSigils; ++i) {
+    VirtualSigil &v = sigils[i];
+    if (!has(v, SigilAction::AdjustLife)) continue;
+    any = true;
+    const uint8_t player = primaryPlayer(v);
+    int32_t before = 0;
+    if (!step(waitUntil([&v, player, &before] { return lifeOf(v, player, before); }, STEP_WAIT_MS),
+            HarnessStep::Life, String(v.name) + "|P" + String(player) + "|reason=no life on the game display")) {
+      return false;
+    }
+    for (const int32_t delta : {-LIFE_TEST_DELTA, LIFE_TEST_DELTA}) {
+      const int32_t expected = before + delta;
+      int32_t now = before;
+      const bool ok = sendLifeAdjust(v, player, delta) &&
+          waitUntil([&v, player, expected, &now] { return lifeOf(v, player, now) && now == expected; },
+              LIFE_WAIT_MS);
+      if (!step(ok, HarnessStep::Life, String(v.name) + "|P" + String(player) + "|" + String(before) +
+              (delta < 0 ? "" : "+") + String(delta) + "=" + String(now))) {
+        return false;
+      }
+      before = expected;
+    }
+  }
+  return step(any, HarnessStep::Life, any ? String() : "reason=AdjustLife not offered|" + allMenus());
+}
+
 // One whole game through the menus: join, seat B, start, turns, pause and
 // resume, an elimination (3+ players), a win claim confirmed by everyone,
 // then a seated Sigil resets the table (or offers a rematch).
@@ -524,9 +757,7 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
       step(true, HarnessStep::Join, String(v.name) + "|already joined");
       continue;
     }
-    const bool joined = choose(v, SigilAction::Join) &&
-        waitUntil([&v] { return has(v, SigilAction::CycleStarter); }, STEP_WAIT_MS);
-    if (!step(joined, HarnessStep::Join, String(v.name) + "|" + menuText(v))) return false;
+    if (!join(v)) return false;
   }
   for (uint8_t seat = activeSigils; seat < players; ++seat) {
     VirtualSigil &v = sigils[seat - activeSigils];
@@ -557,6 +788,8 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
         waitUntil([&a] { return !has(a, SigilAction::CancelPass); }, PASS_WAIT_MS);
     if (!step(ok, HarnessStep::Turn, "turn=" + String(turn) + "|from=" + a.name + "|" + allMenus())) return false;
   }
+
+  if (!lifeCheck()) return false;
 
   VirtualSigil *pauser = offering(SigilAction::Pause);
   bool paused = pauser != nullptr && choose(*pauser, SigilAction::Pause) &&
@@ -615,7 +848,14 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
   if (rematch) {
     const bool ok = choose(*finisher, SigilAction::Rematch) &&
         waitUntil([] { return offering(SigilAction::StartGame) != nullptr; }, STEP_WAIT_MS);
-    return step(ok, HarnessStep::RematchLobby, allMenus());
+    if (!step(ok, HarnessStep::RematchLobby, allMenus())) return false;
+    // The last harness Sigil leaves the rematch lobby (both its seats), then
+    // joins again, so the next game still has every player.
+    VirtualSigil &leaver = sigils[activeSigils - 1];
+    const bool left = choose(leaver, SigilAction::Leave) &&
+        waitUntil([&leaver] { return has(leaver, SigilAction::Join); }, STEP_WAIT_MS);
+    if (!step(left, HarnessStep::Leave, String(leaver.name) + "|" + menuText(leaver))) return false;
+    return join(leaver);
   }
   const bool reset = choose(*finisher, SigilAction::ResetTable) && waitUntil([] {
     for (uint8_t i = 0; i < activeSigils; ++i) {
@@ -699,20 +939,22 @@ void runTest(HarnessTest test) {
 
 void printHelp() {
   Serial.println("HARNESS|HELP|status | pair | forget | sigils <1|2> | pace <ms> | verbose <on|off> | menu");
-  Serial.println("HARNESS|HELP|select <V1|V2> <action> | run smoke | run game [players 2-4] [turns] [rematch]");
+  Serial.println("HARNESS|HELP|select <V1|V2> <action> | pick <V1|V2> <up|down|left|right|select>");
+  Serial.println("HARNESS|HELP|life <V1|V2> <delta> [player] | lifereq <approve|deny|ignore>");
+  Serial.println("HARNESS|HELP|run smoke | run game [players 2-4] [turns] [rematch]");
   Serial.println("HARNESS|HELP|run soak [games] [players] | test [n] (the premade tests Atlas offers) | x (abort a run)");
 }
 
 void printStatus() {
-  Serial.printf("HARNESS|STATUS|fw=%u.%u.%u|protocol=%u|channel=%u|radio=%s|atlas=%s|sigils=%u|pace=%lu\n",
+  Serial.printf("HARNESS|STATUS|fw=%u.%u.%u|protocol=%u|channel=%u|radio=%s|atlas=%s|sigils=%u|pace=%lu|lifereq=%s\n",
       FIRMWARE_MAJOR, FIRMWARE_MINOR, FIRMWARE_PATCH, static_cast<unsigned>(TurnHubProtocol::VERSION),
       WIFI_CHANNEL, radioReady ? "ready" : "error", atlasKnown ? macText(atlasMac).c_str() : "none",
-      static_cast<unsigned>(activeSigils), static_cast<unsigned long>(paceMs));
+      static_cast<unsigned>(activeSigils), static_cast<unsigned long>(paceMs), policyName(lifeRequestPolicy));
   for (uint8_t i = 0; i < activeSigils; ++i) {
     const VirtualSigil &v = sigils[i];
-    Serial.printf("HARNESS|STATUS|%s|mac=%s|sigil=%s|online=%s|menu=%s\n", v.name, macText(v.mac).c_str(),
-        v.sigilId == UNASSIGNED ? "unpaired" : String(v.sigilId).c_str(), online(v) ? "yes" : "no",
-        menuText(v).c_str());
+    Serial.printf("HARNESS|STATUS|%s|mac=%s|sigil=%s|online=%s|seats=%s|picker=%s|menu=%s\n", v.name,
+        macText(v.mac).c_str(), v.sigilId == UNASSIGNED ? "unpaired" : String(v.sigilId).c_str(),
+        online(v) ? "yes" : "no", seatsText(v).c_str(), pickerText(v).c_str(), menuText(v).c_str());
   }
 }
 
@@ -785,11 +1027,52 @@ void handleCommand(String command) {
     VirtualSigil *v = who == "V1" ? &sigils[0] : who == "V2" ? &sigils[1] : nullptr;
     if (v == nullptr || !parseAction(token(command, 2), action)) {
       Serial.println("HARNESS|SELECT|USAGE|select <V1|V2> <action>");
+    } else if (action == SigilAction::AdjustLife) {
+      Serial.println("HARNESS|SELECT|USAGE|adjust-life is not a menu choice; use life <V1|V2> <delta>");
     } else if (!has(*v, action)) {
       Serial.printf("HARNESS|SELECT|NOT_OFFERED|%s|%s\n", v->name, menuText(*v).c_str());
     } else {
       Serial.printf("HARNESS|SELECT|%s\n", choose(*v, action) ? "ACKED" : "NO_ACK");
     }
+  } else if (verb == "pick") {
+    const String who = token(command, 1);
+    const String name = token(command, 2);
+    VirtualSigil *v = who == "V1" ? &sigils[0] : who == "V2" ? &sigils[1] : nullptr;
+    static const char *const KEYS[] = {"up", "down", "left", "right", "select"};
+    int8_t key = -1;
+    for (uint8_t i = 0; i < 5; ++i) {
+      if (name == KEYS[i]) key = static_cast<int8_t>(i);
+    }
+    if (v == nullptr || key < 0) {
+      Serial.println("HARNESS|PICK|USAGE|pick <V1|V2> <up|down|left|right|select>");
+    } else if (!pickerOpen(*v)) {
+      Serial.printf("HARNESS|PICK|CLOSED|%s\n", v->name);
+    } else {
+      pressPickerKey(*v, static_cast<PickerKeyCode>(key));
+      idle(300);
+      Serial.printf("HARNESS|PICK|%s|%s\n", v->name, pickerText(*v).c_str());
+    }
+  } else if (verb == "life") {
+    const String who = token(command, 1);
+    VirtualSigil *v = who == "V1" ? &sigils[0] : who == "V2" ? &sigils[1] : nullptr;
+    const long delta = constrain(numberOr(token(command, 2), 0),
+        -static_cast<long>(TurnHubProtocol::LIFE_ADJUST_MAX), static_cast<long>(TurnHubProtocol::LIFE_ADJUST_MAX));
+    if (v == nullptr || delta == 0) {
+      Serial.println("HARNESS|LIFE|USAGE|life <V1|V2> <delta> [player]");
+    } else if (!has(*v, SigilAction::AdjustLife)) {
+      Serial.printf("HARNESS|LIFE|NOT_OFFERED|%s|%s\n", v->name, menuText(*v).c_str());
+    } else {
+      const uint8_t player = static_cast<uint8_t>(numberOr(token(command, 3), primaryPlayer(*v)));
+      sendLifeAdjust(*v, player, static_cast<int32_t>(delta));
+      idle(500);
+      Serial.printf("HARNESS|LIFE|%s|%s\n", v->name, seatsText(*v).c_str());
+    }
+  } else if (verb == "lifereq") {
+    const String mode = token(command, 1);
+    if (mode == "approve") lifeRequestPolicy = LifeRequestPolicy::Approve;
+    else if (mode == "deny") lifeRequestPolicy = LifeRequestPolicy::Deny;
+    else if (mode == "ignore") lifeRequestPolicy = LifeRequestPolicy::Ignore;
+    Serial.printf("HARNESS|LIFEREQ|%s\n", policyName(lifeRequestPolicy));
   } else if (verb == "test") {
     const long id = numberOr(token(command, 1), -1);
     if (id < 0 || id >= static_cast<long>(HarnessTest::Count)) {

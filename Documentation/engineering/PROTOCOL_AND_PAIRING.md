@@ -109,7 +109,9 @@ harness answers with `HarnessReport = 14`: run state, test, last checkpoint
 (`HarnessStep`), and steps passed and failed. It sends one at each checkpoint
 and repeats the latest with every Hello. Atlas shows the report on the test
 screen (`harness_link.cpp`, `touch_controls.cpp`) and never acts on it. The
-harness plays only through `SelectAction`, so it has no authority a real menu
+harness plays only through `SelectAction` (and, from harness 0.8.0 on
+2026-09-26, `PickerKey`, `LifeAdjust` and `LifeResponse`; its checkpoints
+gained `PICKER`, `LIFE` and `LEAVE`), so it has no authority a real menu
 Sigil lacks. Sigils ignore both packet types. Protocol version stays 1.
 *Verified* on the owner's hardware (2026-09-25): Atlas receives the reports.
 *Needs verification:* starting a test from the touchscreen.
@@ -135,7 +137,8 @@ Protocol version stays 1; both device types need reflashing
 to use it. *Needs verification* on hardware.
 
 `MenuState2 = 34` (2026-09-25) replaces `MenuState` for the same 0.8.0+ Sigils
-(not the harness): the 21 action bits of `MenuState` were all used, so
+(since 2026-09-26 the 0.8.0 test harness too, which plays life changes and
+Leave; the profile picker stays off for a Sigil with `CAPABILITY_HARNESS`): the 21 action bits of `MenuState` were all used, so
 `MenuState2` carries 24 action bits, the 5-bit default and a 3-bit revision.
 Menu revisions now wrap at 8 for every Sigil so either encoding can name them.
 Its first new action is `Leave = 21`, which Atlas offers only to these Sigils.
