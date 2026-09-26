@@ -168,6 +168,22 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         ActionFeedback("Sigil accessibility saved. Your Sigil updates within a few seconds.", isError = false)
     }
 
+    /**
+     * One authenticated request for the admin and developer screens. Not
+     * serialized with player actions (they are reads and deliberate admin
+     * taps); an expired session signs out as usual. Null when signed out.
+     */
+    suspend fun raw(method: String, path: String, fields: List<Pair<String, String>> = emptyList()): RawResponse? {
+        val endpoint = endpoint ?: return null
+        val token = token ?: return null
+        val response = call { transports.create(endpoint).raw(method, path, token, fields) }
+        if (response.code == 401) {
+            clear()
+            _feedback.value = ActionFeedback(AtlasFailure.SessionExpired.userMessage, isError = true)
+        }
+        return response
+    }
+
     /** Revokes the token on Atlas (best effort) and forgets it here. */
     suspend fun signOut() {
         mutex.withLock {

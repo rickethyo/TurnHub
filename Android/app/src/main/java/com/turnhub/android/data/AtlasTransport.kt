@@ -67,6 +67,11 @@ data class Personalization(
     val cardPresent: Boolean,
 )
 
+/** An unparsed Atlas response. */
+data class RawResponse(val code: Int, val body: String) {
+    val ok: Boolean get() = code in 200..299
+}
+
 private fun unsupported(): Nothing =
     throw AtlasException(AtlasFailure.Unexpected("This Atlas connection does not support that yet"))
 
@@ -153,6 +158,14 @@ interface AtlasSessionTransport {
     suspend fun saveProfile(token: String, name: String?, pin: String?): String? = unsupported()
 
     suspend fun getPersonalization(token: String): Personalization = unsupported()
+
+    /**
+     * Any authenticated request, returned as-is (status and body) for the
+     * admin and developer screens, which read many small routes. Never throws
+     * for an HTTP status; network failures throw [AtlasException].
+     */
+    suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>> = emptyList()): RawResponse =
+        unsupported()
 
     /** `GET /api/avatars` (public): the presets a profile may choose. */
     suspend fun getAvatars(): List<AvatarIcon> = emptyList()

@@ -56,6 +56,10 @@ class HomeViewModel(
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
+    /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
+    private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(playerSession)
+    val adminState: StateFlow<com.turnhub.android.data.AdminState> = adminConsole.state
+
     /** Everything this screen owns that the repository doesn't. */
     private data class LocalState(
         val endpointText: String = AtlasEndpoint.DEFAULT.baseUrl,
@@ -135,6 +139,9 @@ class HomeViewModel(
     )
 
     init {
+        viewModelScope.launch {
+            playerSession.state.collect { if (it is PlayerSessionState.SignedOut) adminConsole.forget() }
+        }
         // Give the Atlas Wi-Fi back whenever the Atlas connection ends
         // (Disconnect, lost connection, failed handshake).
         viewModelScope.launch {
@@ -307,6 +314,33 @@ class HomeViewModel(
     /** [color] is `#rrggbb` or `none`; [avatar] 0 clears it. */
     fun onSavePersonalization(color: String?, avatar: Int?) {
         viewModelScope.launch { playerSession.savePersonalization(color, avatar) }
+    }
+
+    /** Runs one admin/developer request; the outcome shows in [adminState]. */
+    fun onAdmin(block: suspend com.turnhub.android.data.AtlasAdminConsole.() -> Unit) {
+        viewModelScope.launch { adminConsole.block() }
+    }
+
+    fun onAdminMessageDismissed() = adminConsole.clearMessage()
+
+    /** Reads what the signed-in account may administer. */
+    fun onAdminRefresh() {
+        val info = (playerSession.state.value as? PlayerSessionState.SignedIn)?.info ?: return
+        viewModelScope.launch {
+            adminConsole.refresh(
+                admin = info.has(com.turnhub.android.protocol.AccountPermission.ADMIN),
+                gameMaster = info.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER),
+            )
+        }
+    }
+
+    fun onDeveloperRefresh() {
+        viewModelScope.launch { adminConsole.refreshDeveloper() }
+    }
+
+    /** Downloads the serial log; [onText] shares it (the Activity owns sharing). */
+    fun onDownloadLog(onText: (String) -> Unit) {
+        viewModelScope.launch { adminConsole.downloadLog()?.let(onText) }
     }
 
     fun onSignOutClicked() {

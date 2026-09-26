@@ -74,7 +74,9 @@ import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.ui.theme.palette
 
-private enum class HomeTab(val label: String) { GAME("Game"), PLAYERS("Players"), ACCOUNT("My Account") }
+private enum class HomeTab(val label: String) {
+    GAME("Game"), PLAYERS("Players"), ACCOUNT("Account"), SETTINGS("Settings"), DEV("Dev"),
+}
 
 /**
  * The app: a connect screen until Atlas answers, then the portal's Game,
@@ -101,7 +103,10 @@ fun HomeScreen(
     onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) -> Unit =
         { _, _, _, _ -> },
     onAccessibilityDismiss: () -> Unit = {},
+    admin: com.turnhub.android.data.AdminState = com.turnhub.android.data.AdminState(),
+    adminActions: AdminActions = AdminActions(),
 ) {
+    PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
         WifiPasswordDialog(prompt = prompt, onSubmit = onWifiPasswordSubmit, onUseCurrentWifi = onUseCurrentWifi, onDismiss = onWifiPromptDismiss)
     }
@@ -113,6 +118,20 @@ fun HomeScreen(
     val summary = uiState.tableSummary
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
     val me = uiState.me()
+    val info = uiState.sessionInfo()
+    val canSettings = info != null && (info.has(com.turnhub.android.protocol.AccountPermission.ADMIN) ||
+        info.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER))
+    val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
+    val tabs = HomeTab.entries.filter {
+        when (it) {
+            HomeTab.SETTINGS -> canSettings
+            HomeTab.DEV -> canDev
+            else -> true
+        }
+    }
+    if (tab !in tabs) tab = HomeTab.GAME
+    // Presence also says whether Atlas still needs its first Admin.
+    androidx.compose.runtime.LaunchedEffect(info?.profileId) { if (info != null) adminActions.onRefresh() }
     val incomingRequest = me?.lifeRequest?.let { it.state == LifeRequestState.PENDING && it.target == me.playerNumber } == true
 
     Scaffold(
@@ -122,7 +141,7 @@ fun HomeScreen(
         bottomBar = {
             if (summary != null) {
                 NavigationBar(containerColor = p.surface, tonalElevation = 0.dp) {
-                    HomeTab.entries.forEach { entry ->
+                    tabs.forEach { entry ->
                         NavigationBarItem(
                             selected = tab == entry,
                             onClick = { tab = entry },
@@ -173,7 +192,12 @@ fun HomeScreen(
                     when (tab) {
                         HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
                         HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText)
-                        HomeTab.ACCOUNT -> AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
+                        HomeTab.ACCOUNT -> {
+                            if (admin.presence?.setup == true) AdminSetupCard(adminActions)
+                            AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
+                        }
+                        HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, uiState.avatars, adminActions) }
+                        HomeTab.DEV -> DevTab(admin, adminActions)
                     }
                 }
                 Text(
@@ -251,6 +275,19 @@ private fun TabIcon(tab: HomeTab, color: Color) {
                 drawArc(color, 180f, 180f, false, Offset(s * .12f, s * .6f), Size(s * .5f, s * .5f), style = stroke)
                 drawCircle(color, s * .11f, Offset(s * .72f, s * .37f), style = stroke)
                 drawArc(color, 200f, 140f, false, Offset(s * .56f, s * .62f), Size(s * .36f, s * .4f), style = stroke)
+            }
+            HomeTab.SETTINGS -> {
+                drawLine(color, Offset(s * .15f, s * .3f), Offset(s * .85f, s * .3f), s * .075f)
+                drawLine(color, Offset(s * .15f, s * .7f), Offset(s * .85f, s * .7f), s * .075f)
+                drawCircle(color, s * .1f, Offset(s * .62f, s * .3f))
+                drawCircle(color, s * .1f, Offset(s * .38f, s * .7f))
+            }
+            HomeTab.DEV -> {
+                drawRoundRect(color, Offset(s * .1f, s * .18f), Size(s * .8f, s * .64f),
+                    androidx.compose.ui.geometry.CornerRadius(s * .1f), style = stroke)
+                drawLine(color, Offset(s * .3f, s * .4f), Offset(s * .42f, s * .5f), s * .075f)
+                drawLine(color, Offset(s * .42f, s * .5f), Offset(s * .3f, s * .6f), s * .075f)
+                drawLine(color, Offset(s * .5f, s * .62f), Offset(s * .7f, s * .62f), s * .075f)
             }
             HomeTab.ACCOUNT -> {
                 drawCircle(color, s * .17f, Offset(s * .5f, s * .32f), style = stroke)

@@ -203,8 +203,17 @@ Portal parity (2026-09-26, *Needs verification* on hardware):
 - All of it goes through the same routes as the portal (`/api/control/*`,
   `/api/control/life*`, `/api/control/commander`, `/api/game/settings`,
   `/api/session/profile`, `/api/session/personalization`); Atlas validates
-  every request. Admin device settings (Wi-Fi password, pairing window,
-  speaker, account permissions, factory reset) remain portal-only.
+  every request.
+- **Settings** (Admin or Game Master accounts) and **Dev** (Developer
+  accounts) tabs appear from `/api/session/me`'s `permissions`:
+  verify at the table (the six-digit code from the Atlas screen; a request
+  Atlas answers `403 presenceRequired` asks for the code and retries once),
+  Wi-Fi password, paired Sigils (rename, forget, factory reset), pairing
+  window, speaker volume, Return to lobby, Atlas factory reset, account
+  permissions and archiving, Game Master moderation, first-Admin setup, and
+  the Developer activity feed, raw status/devices/seats/diagnostics JSON and
+  a shareable serial log (`AtlasAdminConsole`). Atlas firmware updates stay
+  on the portal's firmware page.
 - **Quick app switch:** Android releases an app's `WifiNetworkSpecifier`
   network once the app leaves the foreground. When the app leaves the screen
   while connected, `AtlasLinkHoldService` (a `connectedDevice` foreground

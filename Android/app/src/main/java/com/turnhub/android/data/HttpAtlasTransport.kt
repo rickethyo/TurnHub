@@ -280,6 +280,21 @@ class HttpAtlasTransport(
         null
     }
 
+    override suspend fun raw(
+        method: String,
+        path: String,
+        token: String,
+        fields: List<Pair<String, String>>,
+    ): RawResponse {
+        val response = request(
+            method,
+            path,
+            headers = auth(token),
+            formBody = if (method == "POST") form(*fields.toTypedArray()) else null,
+        )
+        return RawResponse(response.code, response.body)
+    }
+
     private fun auth(token: String) = mapOf(TOKEN_HEADER to token)
 
     private fun form(vararg fields: Pair<String, String>): String =

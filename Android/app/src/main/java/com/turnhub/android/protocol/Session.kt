@@ -35,7 +35,20 @@ data class SessionInfo(
     val host: Boolean,
     val active: Boolean,
     val eliminated: Boolean,
-)
+    /** Account permission bits (see [AccountPermission]); 0 from older firmware. */
+    val permissions: Int = 0,
+) {
+    fun has(permission: AccountPermission): Boolean = permissions and permission.bit != 0
+}
+
+/** Atlas account permissions (`permissions` in `/api/session/me` and `/api/accounts`). */
+enum class AccountPermission(val bit: Int, val label: String) {
+    ADMIN(1, "Admin"),
+    GAME_MASTER(2, "Game Master"),
+    DEVELOPER(4, "Developer"),
+    GM_RESET_CONNECTIONS(8, "GM: reset connections"),
+    GM_REMOVE_FROM_GAME(16, "GM: remove from game"),
+}
 
 /**
  * Result of a session control such as `POST /api/control/pass`. [status] is

@@ -145,6 +145,7 @@ object AtlasWireParser {
                 host = root.boolean("host"),
                 active = root.boolean("active"),
                 eliminated = root.boolean("eliminated"),
+                permissions = if (root.has("permissions")) root.optInt("permissions", 0) else 0,
             )
         }
     }

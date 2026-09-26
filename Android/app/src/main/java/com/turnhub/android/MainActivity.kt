@@ -99,6 +99,17 @@ class MainActivity : ComponentActivity() {
         uiPrefs.edit().putBoolean("reduceMotion", on).apply()
     }
 
+    /** Hands Atlas's serial log to another app (mail, Drive, a chat) as text. */
+    private fun shareLog(text: String) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "TurnHub Atlas serial log")
+            // Binder transactions are limited; keep the newest part of a long log.
+            putExtra(Intent.EXTRA_TEXT, if (text.length > 200_000) text.takeLast(200_000) else text)
+        }
+        startActivity(Intent.createChooser(send, "Share serial log"))
+    }
+
     override fun onResume() {
         super.onResume()
         AtlasLinkHoldService.release(this)
@@ -161,6 +172,14 @@ class MainActivity : ComponentActivity() {
                             onSignOut = homeViewModel::onSignOutClicked,
                             onThemeChosen = ::chooseTheme,
                             onReduceMotion = ::chooseReduceMotion,
+                        ),
+                        admin = homeViewModel.adminState.collectAsStateWithLifecycle().value,
+                        adminActions = com.turnhub.android.ui.home.AdminActions(
+                            onRefresh = homeViewModel::onAdminRefresh,
+                            onDeveloperRefresh = homeViewModel::onDeveloperRefresh,
+                            run = homeViewModel::onAdmin,
+                            onDismissMessage = homeViewModel::onAdminMessageDismissed,
+                            onDownloadLog = { homeViewModel.onDownloadLog(::shareLog) },
                         ),
                         theme = theme,
                         reduceMotion = reduceMotion,
