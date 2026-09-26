@@ -187,21 +187,24 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
-Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, C1/C2 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
 
 ## Jewel adapter (Sigil_JewelAdapter.kicad_sch)
 
-The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF) and a 3-wire JST-XH pigtail in J2 whose order matches J5 on the Sigil boards. Pad positions: Adafruit-NeoPixel-Jewel-7 board file.
+The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF), a 3-wire JST-XH pigtail in J2 whose order matches J5 on the Sigil boards, and an optional chain-out J3 (+5V, DOUT, GND) for more pixels. Pad positions: Adafruit-NeoPixel-Jewel-7 board file.
 
 | Ref | Pin | Name | Net |
 |---|---|---|---|
 | J1 | 1 | PWR | +5V |
 | J2 | 1 | +5V | +5V |
+| J3 | 1 | +5V | +5V |
 | C1 | 1 | ~ | +5V |
 | J1 | 2 | GND | GND |
 | J1 | 5 | GND | GND |
 | J2 | 3 | GND | GND |
+| J3 | 3 | GND | GND |
 | C1 | 2 | ~ | GND |
 | J1 | 3 | DIN | RING_DIN_R |
 | J2 | 2 | DIN | RING_DIN_R |
-| J1 | 4 | DOUT | NC |
+| J1 | 4 | DOUT | RING_DOUT |
+| J3 | 2 | DIN | RING_DOUT |

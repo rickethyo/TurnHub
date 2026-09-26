@@ -81,7 +81,7 @@ JEWEL = dict(
 # (github.com/adafruit/Adafruit-NeoPixel-Jewel-7), seen from the LED side, in
 # mm from the ring centre with y down. (pad, name, net, x, y)
 JEWEL_PADS = [('1', 'PWR', '+5V', 2.043, 4.141), ('2', 'GND', 'GND', 4.207, 0.108),
-              ('3', 'DIN', 'RING_DIN_R', -2.041, 3.963), ('4', 'DOUT', None, -2.303, -4.004),
+              ('3', 'DIN', 'RING_DIN_R', -2.041, 3.963), ('4', 'DOUT', 'RING_DOUT', -2.303, -4.004),
               ('5', 'GND', 'GND', 2.3, -4.2)]
 # Pigtail holes on the adapter, same order as J5 on the Sigil board.
 PIGTAIL = [('+5V', '+5V'), ('DIN', 'RING_DIN_R'), ('GND', 'GND')]
@@ -463,6 +463,12 @@ def build_adapter():
              ['1', '2', '3'], 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical')
     for i, (_, net) in enumerate(PIGTAIL):
         y = round(py+i*5.08, 2); wire(round(px-20.32, 2), y, 60.96, y); label(net, 60.96, y)
+    # J3: optional chain output (unfitted): more pixels after the Jewel's 7th.
+    cx, cy = 101.6, 106.68
+    instance('Sigil:Pigtail_Pads_3', 'J3', 'CHAIN OUT (OPTIONAL)', cx, cy, 12.7,
+             ['1', '2', '3'], 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical')
+    for i, net in enumerate(['+5V', 'RING_DOUT', 'GND']):
+        y = round(cy+i*5.08, 2); wire(round(cx-20.32, 2), y, 60.96, y); label(net, 60.96, y)
     # C1 bulk capacitor: pins end at 144.78 (+5V) and 160.02 (GND).
     instance('Sigil:Capacitor', 'C1', '470uF 10V', 152.4, 45.72, 5.08, ['1', '2'], FOOTPRINTS['C1'])
     wire(144.78, 45.72, 137.16, 45.72); label('+5V', 137.16, 45.72)
@@ -470,11 +476,14 @@ def build_adapter():
     note('Pins stand up from this board and the Jewel is soldered on top,\n'
          'LEDs up. Pad positions come from Adafruit\'s NeoJewel 7 board file\n'
          '(github.com/adafruit/Adafruit-NeoPixel-Jewel-7); test-fit your Jewel\n'
-         'before ordering. Both Jewel GND pads are used; DOUT is unused.\n'
+         'before ordering. Both Jewel GND pads are used.\n'
+         'J3 (optional, unfitted): +5V, DOUT, GND for chaining more pixels\n'
+         '(e.g. a strip) after the Jewel. Mind the USB current budget and\n'
+         'set the pixel count in firmware.\n'
          'J2: holes for a 3-wire JST-XH pigtail (1 +5V, 2 DIN, 3 GND), same\n'
          'order as J5 on the Sigil board. C1 470 uF 10 V electrolytic,\n'
          '+ to +5V, is the ring bulk capacitor. The Jewel already has a\n'
-         '470 ohm resistor on DIN; the Sigil board adds U2 and R1.', 25.4, 110)
+         '470 ohm resistor on DIN; the Sigil board adds U2 and R1.', 25.4, 125)
     out.append('(embedded_fonts no))')
     sch = ROOT / f'{project}.kicad_sch'
     sch.write_text('\n'.join(out) + '\n')

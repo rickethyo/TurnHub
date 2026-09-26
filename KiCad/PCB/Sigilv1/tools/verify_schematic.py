@@ -173,11 +173,12 @@ if len(sys.argv) > 3:
               ('J2','1'):'/+5V', ('J2','2'):'/RING_DIN_R', ('J2','3'):'/GND',
               ('C1','1'):'/+5V', ('C1','2'):'/GND'}
     for k, net in expect.items(): assert by_pin[k]==net, ('adapter', k, by_pin.get(k))
-    assert by_pin[('J1','4')].startswith('unconnected-'), 'adapter DOUT must be NC'
+    assert by_pin[('J1','4')]=='/RING_DOUT' and by_pin[('J3','2')]=='/RING_DOUT', 'DOUT goes to chain-out J3'
+    assert by_pin[('J3','1')]=='/+5V' and by_pin[('J3','3')]=='/GND', 'chain-out power'
     assert [by_pin[('J2',n)] for n in '123'] == ['/'+net for _,_,net,_ in JEWEL_HEADER], 'pigtail order must match J5'
     for c in xml.findall('components/comp'): assert c.find('footprint') is not None, ('adapter', c.get('ref'))
     report += ['## Jewel adapter (Sigil_JewelAdapter.kicad_sch)', '',
-        'The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF) and a 3-wire JST-XH pigtail in J2 whose order matches J5 on the Sigil boards. Pad positions: Adafruit-NeoPixel-Jewel-7 board file.', '',
+        'The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF), a 3-wire JST-XH pigtail in J2 whose order matches J5 on the Sigil boards, and an optional chain-out J3 (+5V, DOUT, GND) for more pixels. Pad positions: Adafruit-NeoPixel-Jewel-7 board file.', '',
         '| Ref | Pin | Name | Net |', '|---|---|---|---|']
     report += [f"| {n.get('ref')} | {n.get('pin')} | {n.get('pinfunction')} | {net.get('name').lstrip('/') if not net.get('name').startswith('unconnected') else 'NC'} |"
                for net in xml.findall('nets/net') for n in net.findall('node')]
