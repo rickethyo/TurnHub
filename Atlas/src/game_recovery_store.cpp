@@ -20,6 +20,12 @@ TurnHubStorage::Status beginGameRecovery(GameEngine &game, Lobby &lobby, uint32_
 TurnHubStorage::Status checkpointGame(const GameEngine &game, uint32_t nowMs) {
   return openStatus==TurnHubStorage::Status::Ok ? recovery.save(game,nowMs) : openStatus;
 }
+TurnHubStorage::Status checkpointCompletedGame(const GameEngine &game, uint32_t nowMs) {
+  // Opening is idempotent. If boot could not open NVS, a completion still has
+  // to obtain a successful commit before statistics may change.
+  openStatus=store.begin("th_game_v1");
+  return openStatus==TurnHubStorage::Status::Ok ? recovery.saveCompleted(game,nowMs) : openStatus;
+}
 TurnHubStorage::Status gameRecoveryStatus() {
   return openStatus==TurnHubStorage::Status::Ok ? recovery.status() : openStatus;
 }

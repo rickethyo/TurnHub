@@ -133,11 +133,10 @@ Interrupted-match recovery: the gameplay executable now also compiles
 `game_checkpoint.cpp`, `game_recovery.cpp`, `game_recovery_store.cpp` and
 `nvs_blob_store.cpp`, and runs a `gameRecoveryLifecycle` scenario against the
 real `beginGameRecovery()`/`checkpointGame()` entry points main.cpp calls
-(`stubs/nvs.h` gained a real in-memory blob backing for this, opt-in via
-`useRealNvsBlobs` so the pre-existing `OptionalPreferences` error-injection
-scenarios keep their original pure-error-code contract; this scenario runs
-last for the same reason -- opening the recovery store is a one-way,
-process-wide singleton latch). It checks: `NotFound` on a fresh store; a
+(`stubs/nvs.h` uses a separate recovery namespace handle with real map-backed
+reads and `checkpointReadError`; `OptionalPreferences` keeps its independent
+canned-value/error contract). Recovery fault scenarios run last because they
+change the process-wide store's writable state. They check: `NotFound` on a fresh store; a
 checkpoint is written after a dispatched intent with no direct call to
 `checkpointGame()` from the test, i.e. through the same observer hook
 main.cpp uses; a simulated reboot (fresh `GameEngine`/`Lobby`, same
@@ -147,4 +146,16 @@ game-completed statistics callback; and a corrupted record fails safe to
 `Corrupt` with no players restored rather than loading ambiguous state. This
 does not simulate real flash power loss mid-write; see
 `Documentation/engineering/STAGED_CHANGES.md` for the remaining hardware
-acceptance item and the Resume/Discard UI gap noted there.
+acceptance items. Resume is the normal control; End match is the implemented
+five-second draw path for ending a recovered game.
+
+`completionRecoveryOrdering` runs the production completion bridge and recovery
+store with interruptions after the first and second profile writes for draws,
+confirmed wins and last-player-standing endings. The saved match must already
+be Game Over, restoring it must not replay statistics, and it cannot end again.
+It also injects failed writes, an uncertain commit that has written its bytes,
+read errors, corrupt records and future schemas. These block statistics and
+cannot be bypassed by the later observer. The per-profile boundary remains a
+fixture; real profile-store/storage suites test those repositories separately.
+Missing/partial results after interruption are an explicit limitation, not a
+passing claim of exactly-once multi-record persistence.

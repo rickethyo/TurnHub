@@ -99,9 +99,17 @@ transport adapter (ESP-NOW packet / HTTP handler / GPIO)
 
 **Identity model:** Profile (persistent: ID, name, PIN hash, stats) → Participant (one per person at the current table) → controller assignments (physical Sigil seat A/B, browser sessions, future app). Hardware identity is never player identity. Changing controllers must not replace the participant or move its stats. Multiple browser sessions can control one participant.
 
-**Persistence:** profiles, PIN data, seat bindings, statistics, game settings, profile policy, per-player accessibility preferences, AP config, the pairing window, the speaker volume (`spkvol`) and the touchscreen calibration (`atlas-touch/cal2`) live in NVS (`profile_store`, `profile_stats_storage`, `nvs_blob_store`, `game_settings_store`, `optional_preferences`). Sessions, table participation and live game state are RAM-only, apart from the in-progress interrupted-match recovery record (`game_checkpoint`/`game_recovery*`). That record must restore **paused** and must never replay the stats-completion callback. Stats are committed once from the engine's game-completed event (`profile_stats_bridge`), whatever the ending path.
+**Persistence:** profiles, PIN data, seat bindings, statistics, game settings, profile policy, per-player accessibility preferences, AP config, the pairing window, the speaker volume (`spkvol`) and the touchscreen calibration (`atlas-touch/cal2`) live in NVS (`profile_store`, `profile_stats_storage`, `nvs_blob_store`, `game_settings_store`, `optional_preferences`). Sessions, table participation and live game state are RAM-only, apart from the in-progress interrupted-match recovery record (`game_checkpoint`/`game_recovery*`). That record must restore **paused** and must never replay the stats-completion callback. The engine's game-completed event invokes `profile_stats_bridge` once per match, whatever the ending path; the durability limit is described below.
 
 **microSD card:** optional; play never depends on it. Luxury records (detailed statistics, `s<profileId>`) and the rotating diagnostics log live there; the NVS core record `c<profileId>` keeps games played and won without a card. All card access goes through `sd_card.cpp`: application code uses only `sdBlobStore()` (from the application task), whose calls take the same card lock as the background log worker. Never call the Arduino `SD` library directly elsewhere.
+
+**Completion ordering:** `profile_stats_bridge.cpp` must successfully commit the
+finished-match checkpoint before incrementing profile statistics. Failed or
+uncertain checkpoint writes skip statistics and log `SKIPPED_CHECKPOINT`.
+Restoration never replays completion; a cut during later profile writes can leave
+partial/missing results. Do not claim crash-safe exactly-once statistics until
+durable completion receipts and replay-safe persistence exist. See
+`COMPLETION_RECOVERY.md` and `PROTOTYPE_V1_VERIFICATION.md` in the engineering docs.
 
 **Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (15 s) or the Hello capability bits (`CAPABILITY_DISPLAY_OLED` makes Atlas seat one player on that Sigil). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
 

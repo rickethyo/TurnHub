@@ -56,31 +56,42 @@ Survives reboot/power loss:
 
 - Durable player profiles and names.
 - PIN-related profile data.
-- Existing physical-seat/profile bindings or preferences.
-- Deployed profile statistics.
+- Core profile statistics (games played/won); detailed statistics use optional SD
+  storage or a retained legacy NVS record.
 - Selected game profile and starting-life preference.
 - Other explicitly stored Atlas configuration such as the current AP settings.
 
 Does **not** currently survive reboot:
 
 - Browser sessions.
-- Current table participation.
-- Live controller assignments.
-- Active game/turn state.
-- Current life totals.
+- Unstarted lobby participation and temporary profile bindings.
+- Authentication sessions, pending input gestures and unconfirmed requests.
 
-A current Atlas reboot therefore returns to a fresh table while preserving durable profile/statistics data. Prototype 1.0 work is staged to add a compact, versioned interrupted-match recovery record with Resume/Discard behavior and paused recovery so power-off time is never charged to a player. See [Software Architecture](Documentation/engineering/SOFTWARE_ARCHITECTURE.md) and [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
+A valid interrupted-match checkpoint restores players, turn, life/counters and
+timing into a paused match, excluding downtime. Resume uses the normal control;
+the five-second End match hold ends it as a draw. A saved completed match restores
+as Game Over without replaying statistics. Missing or invalid recovery data falls
+back to an empty table. These paths still require physical acceptance.
+
+The completion callback commits Game Over before changing statistics, preventing
+the reproduced double count after a power cut. Interrupted later writes can still
+leave missing or partial results; exactly-once crash recovery is not yet promised.
+See [completion ordering](Documentation/engineering/COMPLETION_RECOVERY.md) and the
+[v1 verification checklist](Documentation/engineering/PROTOTYPE_V1_VERIFICATION.md).
 
 ## Physical Sigils
 
-The current development Sigil firmware uses an ESP32, two physical gameplay buttons, discrete status LEDs, buzzer output, a monochrome e-ink display, and ESP-NOW for the current experimental radio transport.
+The current development variants use an ESP32, an e-ink display with analog
+joystick or an OLED display with five buttons, a NeoPixel Jewel status ring,
+buzzer output and ESP-NOW. Both input variants drive Atlas-owned menus/actions.
 
 The current verified development wiring is maintained in [Hardware Reference](Documentation/engineering/HARDWARE_REFERENCE.md). Planned Prototype 1.0 work includes:
 
-- Physical profile selection on reusable Sigils.
-- A software path for a dedicated auxiliary Action/Win control before final GPIO wiring.
+- Acceptance of the implemented Seat-A profile picker; remaining startup,
+  Seat-B selection and duplicate-name options are tracked separately.
 - Bench validation of the implemented Atlas-owned pairing records.
-- A 15-second deliberate pairing window triggered by physical Pair buttons.
+- A deliberate pairing window, default 15 seconds, opened on Atlas and requested
+  with the Sigil's DevKit BOOT/Pair button. Forget/unpair flows are implemented.
 - No automatic pairing on boot; saved devices reconnect to their paired Atlas.
 - Additional field-test Sigils and protective prototype enclosures.
 
