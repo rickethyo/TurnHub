@@ -146,5 +146,15 @@ int main() {
     assert(c.render(0).pixels[1].r == 0);  // Unpaired: colours forgotten.
   }
 
+  {  // Life laps: +8 is lap two (cyan, 2 lit) over a dim green ring.
+    SigilLedModel life;
+    life.setLifePending(8);
+    const LedFrame g = life.render(0);
+    assert(g.pixels[1] == g.pixels[2] && g.pixels[1].b > 0 && g.pixels[1].g > 0 && g.pixels[1].r == 0);
+    assert(g.pixels[3].g > 0 && g.pixels[3].b == 0 && g.pixels[3].g < 255);
+    life.setLifePending(-6);
+    const LedFrame r = life.render(0);
+    assert(r.pixels[1].r == 255 && r.pixels[6].r == 255 && dark(r.pixels[0]));
+  }
   std::cout << "LED wire format, cue rendering, seat halves, overlays and local states passed\n";
 }

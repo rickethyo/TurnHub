@@ -177,10 +177,21 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   if (lifePending_ != 0) {
     const bool gain = lifePending_ > 0;
     const int32_t magnitude = gain ? lifePending_ : -lifePending_;
-    const uint8_t lit = magnitude > 6 ? 6 : static_cast<uint8_t>(magnitude);
-    const Rgb color = gain ? GREEN : RED;
+    // Laps of six, like an odometer: each full lap changes colour, and the
+    // new lap's colour fills over the finished one. The centre shows the lap
+    // colour once past six. The exact number is on the Sigil's screen.
+    static constexpr Rgb GAIN_LAPS[] = {GREEN, CYAN, BLUE, PURPLE};
+    static constexpr Rgb LOSS_LAPS[] = {RED, ORANGE, GOLD, MAGENTA};
+    const uint32_t lap = static_cast<uint32_t>(magnitude - 1) / 6;
+    const uint8_t lit = static_cast<uint8_t>((magnitude - 1) % 6 + 1);
+    const Rgb *laps = gain ? GAIN_LAPS : LOSS_LAPS;
+    const Rgb color = laps[lap % 4];
+    if (lap > 0) {
+      const Rgb done = scaled(laps[(lap - 1) % 4], 60);
+      for (uint8_t i = 1; i <= 6; ++i) frame.pixels[i] = done;
+      frame.pixels[LED_CENTER] = color;
+    }
     for (uint8_t i = 0; i < lit; ++i) frame.pixels[gain ? 1 + i : 6 - i] = color;
-    if (magnitude > 6) frame.pixels[LED_CENTER] = WHITE;
     frame.single = color;
     return frame;
   }
