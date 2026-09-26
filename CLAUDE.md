@@ -13,7 +13,6 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `Android/` | Native client: live read-only Atlas view over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`) | Gradle, Kotlin |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
-| `PiLogger/` | Optional Raspberry Pi telemetry recorder (non-authoritative; must never be required for gameplay) | Python |
 | `TestHarness/` | ESP32 hardware-in-the-loop harness: plays as two virtual menu Sigils against a real Atlas; premade tests start from the Atlas touchscreen (see its README) | PlatformIO, Arduino ESP32, C++ |
 | `KiCad/` | Sigil PCB/schematic, plus Python scripts in `tools/` that build and verify the schematic | KiCad, Python |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
@@ -37,7 +36,7 @@ Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
 **Serial ports:** never hard-code COM numbers (in `platformio.ini`, docs or scripts). They change whenever the PC restarts. Find the board each time (Atlas is the CH340 port, Sigils are CP210x; see "Identifying boards" below), pass `--upload-port` / `--port`, and ask the owner if several candidates are attached.
 
 ### Atlas host regression tests (no hardware)
-These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
+These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers, the statistics bridge and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
 ```
 Atlas\tests\host\run-gcc.ps1          # PowerShell, uses PlatformIO's toolchain-gccmingw32 (or -Compiler <g++>)
 Atlas\tests\host\run.cmd              # from an x64 VS Native Tools prompt (MSVC)
@@ -80,9 +79,6 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 pio run -e harness --target upload --upload-port COMx   # the harness is a CP210x port too; ask which one
 ```
 Serial console (115200): `status`, `pair` (tap Pair a Sigil on Atlas), `test` (premade tests), `run game [players] [turns]`, `pace <ms>`. It pairs as two Sigils (its station and soft-AP MACs), and the first advertises `CAPABILITY_HARNESS` so Atlas shows **Tests** in the lobby.
-
-### PiLogger
-`python -m turnhub_logger.main --config config.toml` (copy from `config.example.toml`).
 
 ## Architecture: rules that span files
 

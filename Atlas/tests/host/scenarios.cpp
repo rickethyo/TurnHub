@@ -18,6 +18,7 @@
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
+#include "profile_stats_bridge.h"
 #include "touch_calibration.h"
 #include "touch_controls.h"
 #include "harness_link.h"
@@ -120,7 +121,7 @@ bool OtaManager::inProgress() const { return false; }
 static int completedGames=0;
 static void completed(const GameEngine &g) {
   ++completedGames;
-  TurnHubProfileStats::recordCompletedGame(g,+[](const PlayerSeat &s){return String(s.profileId);});
+  TurnHubProfileStats::persistCompletedGame(g);  // The firmware's own bridge.
 }
 static void freshLobby(int modules=3,bool shared=false) {
   // Fixture reset; all actions under test go through adapters/dispatcher.
