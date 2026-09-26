@@ -266,6 +266,19 @@ class AtlasAdminConsole(private val session: AtlasPlayerSession) {
     suspend fun saveSpeakerVolume(volume: Int) =
         post("/api/speaker", listOf("volume" to volume.toString()), success = "Speaker volume saved.")
 
+    /** The Table and Atlas card's one Save: pairing window, then speaker volume; stops at the first refusal. */
+    suspend fun saveTableSettings(pairingWindowMs: Long?, speakerVolume: Int?) {
+        if (pairingWindowMs != null) {
+            val response = send("/api/pairing", listOf("windowMs" to pairingWindowMs.toString())) ?: return
+            if (!response.ok) return finish(response, "")
+        }
+        if (speakerVolume != null) {
+            val response = send("/api/speaker", listOf("volume" to speakerVolume.toString())) ?: return
+            if (!response.ok) return finish(response, "")
+        }
+        _state.update { it.copy(message = ActionFeedback("Atlas settings saved.", isError = false)) }
+    }
+
     // --- accounts ---------------------------------------------------------------
 
     suspend fun savePermissions(profileId: String, permissions: Int) =

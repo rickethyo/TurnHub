@@ -246,7 +246,10 @@ void drawHero(const AtlasScreen &screen) {
 // pad to the box's width so a shorter time leaves no stale pixels.
 void drawTimer(const AtlasScreen &screen, bool repaintBox) {
   if (!hasClock(screen)) {
-    tft.fillRect(0, BAR_Y, ATLAS_SCREEN_WIDTH, BAR_H, BACKGROUND);
+    // The QR column runs through the bar's row: leave the code intact.
+    const bool qr = screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code;
+    const int16_t x = qr ? QR_COLUMN_W : 0;
+    tft.fillRect(x, BAR_Y, ATLAS_SCREEN_WIDTH - x, BAR_H, BACKGROUND);
     return;
   }
   const int16_t x = ATLAS_SCREEN_WIDTH - CLOCK_W;

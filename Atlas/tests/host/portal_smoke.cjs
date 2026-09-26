@@ -12,7 +12,7 @@ let access={sigilSound:true,ledStyle:'standard',longPressMs:2000,winHoldMs:5000}
 const accessLimits={longPressMinMs:1000,longPressMaxMs:4000,winHoldMinMs:3000,winHoldMaxMs:10000,minGapMs:1000,stepMs:250};
 let gameSettings={gameProfile:'generic',startingLife:40,turnTimerMs:0},life=40;
 let sigils=[{id:2,label:'Sigil 3',defaultLabel:'Sigil 3',customName:'',hardwareId:'THS-000000000002',mac:'00:00:00:00:00:02',online:true,ageMs:100,firmware:'0.5.5',metadata:true,capabilities:15,sessionCount:0,profileA:''}];
-let pairingWindowMs=15000;const forgetRequests=[];
+let pairingWindowMs=15000,speakerVolume=2;const forgetRequests=[];
 const turnTimer={presetsMs:[0,60000,120000,180000,300000],minMs:15000,maxMs:3600000,warningMs:10000,longTurnMs:300000};
 const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
@@ -32,6 +32,7 @@ const api=http.createServer(async(req,res)=>{
   case '/api/devices':result={atlas:{hardwareId:'TEST-ATLAS',firmware:'0.6.0-dev'},devices:sigils};break;
   case '/api/device/forget':assert.equal(permissions&1,1);forgetRequests.push(url.search);{const id=url.searchParams.get('module');sigils=url.searchParams.get('all')==='1'?[]:sigils.filter(s=>String(s.id)!==id);}result={ok:true,message:'Sigil forgotten'};break;
   case '/api/pairing':assert.equal(permissions&1,1);if(req.method==='POST'){pairingWindowMs=Number(url.searchParams.get('windowMs'));result={ok:true,message:'Pairing window saved'}}else result={windowMs:pairingWindowMs,sigilWindowMs:15000,choicesMs:[15000,30000,60000]};break;
+case '/api/speaker':if(req.method==='POST'){speakerVolume=Number(url.searchParams.get('volume'));result={ok:true}}else result={volume:speakerVolume};break;
   case '/api/seats':result={seats:joined?[{module:8,slot:1,slotName:'A',player:1,name:'Phone Tester',profileId:'AB12CD34',virtual:true,hasPin:true,lifeAvailable:state==='RUNNING',life}]:[]};break;
   case '/api/network':result={ssid:'Test fixture',security:'WPA2-PSK',stations:0};break;
   case '/api/profiles':result={profiles:[]};break;
@@ -128,6 +129,8 @@ const api=http.createServer(async(req,res)=>{
   assert.deepEqual(access,{sigilSound:false,ledStyle:'reduced-motion',longPressMs:3000,winHoldMs:6000});
   // Per-browser reduce motion, remembered across reloads and pages.
   await tab.getByLabel('Reduce motion',{exact:true}).check();
+  assert.equal(await tab.evaluate(()=>document.documentElement.dataset.motion),undefined);  // Not until saved.
+  await tab.getByRole('button',{name:'Save appearance',exact:true}).click();
   assert.equal(await tab.evaluate(()=>document.documentElement.dataset.motion),'reduce');
   await tab.reload();
   assert.equal(await tab.evaluate(()=>document.documentElement.dataset.motion),'reduce');
@@ -159,6 +162,10 @@ const api=http.createServer(async(req,res)=>{
   await tab.waitForFunction(()=>document.getElementById('pairingWindowSelect').options.length===3);
   assert.equal(await windowSelect.inputValue(),'15000');
   await windowSelect.selectOption('30000');
+  await tab.evaluate(()=>refreshAll());  // A refresh must not undo the unsaved choice.
+  assert.equal(await windowSelect.inputValue(),'30000');
+  assert.equal(pairingWindowMs,15000);
+  await tab.getByRole('button',{name:'Save Atlas settings',exact:true}).click();
   await tab.getByText('Atlas pairing window: 30 seconds.',{exact:true}).waitFor();
   assert.equal(pairingWindowMs,30000);
   await tab.getByRole('button',{name:'Forget Sigil 3',exact:true}).click();
@@ -184,6 +191,7 @@ const api=http.createServer(async(req,res)=>{
   assert(await contrastTab.getByRole('radio',{name:/^High contrast/}).isChecked());
   assert.equal(await contrastTab.evaluate(()=>localStorage.getItem('turnhubTheme')),null);
   await contrastTab.getByRole('radio',{name:/^Parchment/}).check();
+  await contrastTab.getByRole('button',{name:'Save appearance',exact:true}).click();
   await contrastTab.reload();
   assert.equal(await contrastTab.evaluate(()=>document.documentElement.dataset.theme),'parchment');
   await contrastContext.close();

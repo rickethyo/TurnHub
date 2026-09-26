@@ -1,5 +1,15 @@
 package com.turnhub.android.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.turnhub.android.data.presenceCodeFromQr
+import com.turnhub.android.ui.components.QrScanner
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -110,7 +120,22 @@ internal fun AdminMessage(admin: AdminState, actions: AdminActions) {
 fun PresenceCodeDialog(admin: AdminState, actions: AdminActions) {
     if (!admin.codePrompt) return
     val p = palette
+    val context = LocalContext.current
     var code by remember { mutableStateOf("") }
+    var scanning by remember { mutableStateOf(false) }
+    var scanHint by remember { mutableStateOf<String?>(null) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        scanning = granted
+        if (!granted) scanHint = "Camera permission is off. Type the code instead."
+    }
+    val startScan = {
+        scanHint = null
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            scanning = true
+        } else {
+            cameraPermission.launch(Manifest.permission.CAMERA)
+        }
+    }
     AlertDialog(
         onDismissRequest = { actions.run { dismissCode() } },
         containerColor = p.surface,
@@ -118,10 +143,29 @@ fun PresenceCodeDialog(admin: AdminState, actions: AdminActions) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "The Atlas screen now shows a six-digit code for you. Enter it here to prove you are at the table. " +
-                        "You stay verified for 10 minutes.",
+                    "The Atlas screen now shows a six-digit code and a QR code for you. Scan the QR or type the code " +
+                        "to prove you are at the table. You stay verified for 10 minutes.",
                     color = p.muted,
                 )
+                if (scanning) {
+                    QrScanner(
+                        onScanned = { text ->
+                            val scanned = presenceCodeFromQr(text)
+                            if (scanned != null) {
+                                scanning = false
+                                code = scanned
+                                actions.run { confirmCode(scanned) }
+                            } else {
+                                scanHint = "That QR isn't the Admin code. Scan the one next to the six digits."
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                    ToneButton("Stop scanning", { scanning = false }, Modifier.fillMaxWidth())
+                } else {
+                    ToneButton("Scan the QR code", startScan, Modifier.fillMaxWidth(), enabled = !admin.busy)
+                }
+                scanHint?.let { Text(it, color = p.muted, style = MaterialTheme.typography.bodySmall) }
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it.filter(Char::isDigit).take(6) },
@@ -367,14 +411,18 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
             dismissButton = { TextButton(onClick = { confirmFactory = false; typed = "" }) { Text("Cancel", color = p.text) } },
         )
     }
+    // Chosen here, sent only by Save (the saved values reset them on refresh).
+    var pairingDraft by remember(admin.pairingWindowMs) { mutableStateOf(admin.pairingWindowMs) }
+    var volumeDraft by remember(admin.speakerVolume) { mutableStateOf(admin.speakerVolume) }
+    val tableDirty = pairingDraft != admin.pairingWindowMs || volumeDraft != admin.speakerVolume
     BrassCard {
         Eyebrow("Table and Atlas")
         if (admin.pairingChoicesMs.isNotEmpty()) {
             ChoiceDropdown(
                 label = "Atlas pairing window",
                 options = admin.pairingChoicesMs.map { it to "${it / 1000} seconds" },
-                selected = admin.pairingWindowMs ?: admin.pairingChoicesMs.first(),
-                onSelect = { ms -> actions.run { savePairingWindow(ms); refresh(admin = true, gameMaster = false) } },
+                selected = pairingDraft ?: admin.pairingChoicesMs.first(),
+                onSelect = { ms -> pairingDraft = ms },
             )
             Text(
                 "How long Atlas listens after Pair a Sigil is tapped on its screen. A Sigil listens for 15 seconds, so with " +
@@ -383,18 +431,30 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        admin.speakerVolume?.let { volume ->
+        volumeDraft?.let { volume ->
             ChoiceDropdown(
                 label = "Atlas speaker volume",
                 options = SPEAKER_LEVELS,
                 selected = volume,
-                onSelect = { v -> actions.run { saveSpeakerVolume(v); refresh(admin = true, gameMaster = false) } },
+                onSelect = { v -> volumeDraft = v },
             )
             Text(
                 "Atlas's speaker plays table-wide cues (countdown, turn changes, timer warnings, pause, wins) so players " +
                     "without a Sigil hear them too. Every cue also shows on screen.",
                 color = p.faint,
                 style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (admin.pairingChoicesMs.isNotEmpty() || admin.speakerVolume != null) {
+            AccentButton(
+                if (tableDirty) "Save Atlas settings" else "Atlas settings saved",
+                {
+                    val ms = pairingDraft.takeIf { it != admin.pairingWindowMs }
+                    val v = volumeDraft.takeIf { it != admin.speakerVolume }
+                    actions.run { saveTableSettings(ms, v); refresh(admin = true, gameMaster = false) }
+                },
+                Modifier.fillMaxWidth(),
+                enabled = tableDirty && !admin.busy,
             )
         }
         ToneButton("Return table to lobby", { confirmReturn = true }, Modifier.fillMaxWidth(), tone = Tone.WARN)

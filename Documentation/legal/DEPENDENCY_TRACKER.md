@@ -25,6 +25,8 @@ The goal is simple: know what entered the project, where it came from, how it is
 | PlatformIO Core | Build environment | Development | Apache-2.0 | No, currently build tooling only | GREEN | Track tool version for reproducibility. No product notice expected unless redistributed. |
 | wokwi-ws29v2-custom-chip | `bonnyr/wokwi-ws29v2-custom-chip` release v0.0.5 `chip.zip` (`chip.wasm` SHA-256 `6f59d1873e3faa07a018a088f61b1ffff6a8bcfebf7925eadd7e2082dd318d9d`), vendored as `Sigil/wokwi/chips/epaper-2in13.chip.wasm` with a TurnHub `chip.json` (2.13" geometry) | Sigil Wokwi simulation only | MIT (copy in `Sigil/wokwi/chips/LICENSE-wokwi-ws29v2-custom-chip.txt`) | No, development simulation only | GREEN | Keep the license file with the binary. Not linked into firmware. |
 | org.json (JSON-java) | `org.json:json:20260814`, Android `testImplementation` only | Android JVM unit tests (the app itself uses Android's built-in `org.json`) | Public Domain (per its Maven POM) | No, test classpath only | GREEN | None while test-only. Re-review if it ever moves to an `implementation` dependency. |
+| AndroidX CameraX (`camera-camera2`, `camera-lifecycle`, `camera-view`) | `androidx.camera:*:1.5.0` | Android app: Admin-code QR scanner preview | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and any NOTICE text in the app's open-source notices. Camera use is optional and asked for only when the player taps Scan. |
+| ZXing core | `com.google.zxing:core:3.5.3`, [upstream](https://github.com/zxing/zxing) | Android app: on-device QR decoding (no network) | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and NOTICE in the app's open-source notices. |
 
 ## Platform/toolchain follow-up
 

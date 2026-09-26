@@ -77,6 +77,20 @@ Placement follows common web conventions so people find things without hunting.
 | Wi-Fi, device names, permissions, firmware update | Device Settings tab (Admin), with firmware under the Atlas card |
 | Connection | Pill at top right; on phones a dot while connected, words when it is not |
 
+## Saving settings
+
+Settings never save on change, on the portal or in the Android app. A control
+only stages a choice; an explicit Save button sends it, and a block of related
+settings may share one Save (for example *Save appearance*, *Save
+personalization*, *Save Atlas settings*, *Save Sigil accessibility*). Every
+save confirms in words, both in the card's status line (`role="status"`) and as
+a toast, and says where it was stored (this browser, this phone, the profile
+on Atlas). Background refreshes must not overwrite a staged but unsaved choice
+(guard with a dirty flag, as game settings and the Atlas settings block do).
+Actions that are not settings, such as Forget, Return to lobby or Factory
+reset, keep their own confirmation dialogs. *Verified* in code 2026-09-25;
+browser smoke updated but not run (Node was not installed).
+
 ## Layout
 
 - Phones: single column, with a bottom tab bar in thumb reach and the primary action
