@@ -27,7 +27,7 @@ uint8_t sigilMenuRevision(uint8_t sigilId);
 // living players, or 0. syncSigilMenus sends it as LifeRequest to 0.8.0+
 // Sigils; the Sigil answers with LifeResponse (sigil_input.cpp).
 int32_t sigilLifeRequestFor(uint8_t sigilId);
-// The SeatColor for one seat (its bound profile's Jewel colour, or none).
+// The SeatColor for one seat (its bound profile's Jewel color, or none).
 int32_t sigilSeatColorFor(uint8_t sigilId, uint8_t slot);
 // Forget every menu (tests, and boot).
 void resetSigilMenus();

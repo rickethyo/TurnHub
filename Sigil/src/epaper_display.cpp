@@ -1,4 +1,5 @@
 #include "epaper_display.h"
+#include "life_heart.h"
 #include "display_name.h"
 
 #include <SPI.h>
@@ -349,7 +350,8 @@ void EpaperDisplay::drawBanner(const char *message, int16_t y, bool highlight, I
   display_.setTextColor(GxEPD_BLACK);
 }
 
-// A heart and the largest life total that fits, centered as one unit.
+// A heart and the largest life total that fits, centered as one unit. The
+// heart drains or grows against the starting life (life_heart.h).
 void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
   char number[16];
   snprintf(number, sizeof(number), "%ld", static_cast<long>(life));
@@ -357,13 +359,17 @@ void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
   const int16_t length = static_cast<int16_t>(strlen(number));
   uint8_t size = maxSize;
   const uint8_t heartScale = maxSize >= 5 ? 2 : 1;
-  while (size > 1 && ICON_WIDTH * heartScale + 4 + length * CHAR_WIDTH * size > width) --size;
-  const int16_t total = ICON_WIDTH * heartScale + 4 + length * CHAR_WIDTH * size;
+  const HeartLook look = lifeHeartLook(life, life_.startingLife);
+  const int16_t heartW = static_cast<int16_t>(ICON_WIDTH * heartScale * look.sizePercent / 100);
+  const int16_t heartH = static_cast<int16_t>(iconHeight(Icon::Heart) * heartScale * look.sizePercent / 100);
+  while (size > 1 && heartW + 4 + length * CHAR_WIDTH * size > width) --size;
+  const int16_t total = heartW + 4 + length * CHAR_WIDTH * size;
   const int16_t x = MARGIN + (width - total) / 2;
-  drawIcon(display_, Icon::Heart, x, y + (8 * size - iconHeight(Icon::Heart) * heartScale) / 2,
-      GxEPD_BLACK, heartScale);
+  int16_t heartY = y + (7 * size - heartH) / 2;  // Centered on the digits' ink.
+  if (heartY < y - 4) heartY = y - 4;
+  drawLifeHeart(display_, x, heartY, heartW, heartH, look.fill, GxEPD_BLACK);
   display_.setTextSize(size);
-  display_.setCursor(x + ICON_WIDTH * heartScale + 4, y);
+  display_.setCursor(x + heartW + 4, y);
   display_.print(number);
 }
 
@@ -446,8 +452,13 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
         TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST),
         TurnHubProtocol::displayTurnNumber(s.state));
     // Atlas places the active local player first; keep the turn cue with them.
-    drawBanner(active ? "YOUR TURN" : "WAITING FOR TURN", 39, active,
-        active ? Icon::Turn : Icon::None, 2);
+    // A pass in its grace period says so; the ring counts it down.
+    if (life_.passPending) {
+      drawBanner("PASSING", 39, true, Icon::Turn, 2);
+    } else {
+      drawBanner(active ? "YOUR TURN" : "WAITING FOR TURN", 39, active,
+          active ? Icon::Turn : Icon::None, 2);
+    }
     if (life_.request.target != 0) {
       // Who asks and how much, in words; the legend says which key answers.
       char ask[24];

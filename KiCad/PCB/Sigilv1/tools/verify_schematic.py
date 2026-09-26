@@ -44,7 +44,7 @@ BUTTONS = [('SW1','Up','KEY_UP',25,'J11'), ('SW2','Down','KEY_DOWN',27,'J9'),
 BUTTON_ROWS = [(f'{key} button ({ref})', gpio, sock, net, f'{gpio} /* {key}, {sock} */', main)
     for ref, key, net, gpio, sock in BUTTONS]
 VARIANTS = [
-    # Display header in physical order: (pin number, silkscreen label, net, wire colour).
+    # Display header in physical order: (pin number, silkscreen label, net, wire color).
     ('Sigil_EInk', 'E-ink', 'EPD', [
         ('1','SDI','EPD_MOSI','blue'), ('2','SCLK','EPD_SCLK','purple'), ('3','CS','EPD_CS','gray'),
         ('4','D/C','EPD_DC','white'), ('5','RES','EPD_RST','black'), ('6','BUSY','EPD_BUSY','brown'),
@@ -126,9 +126,9 @@ for project, title, prefix, header, rows in VARIANTS:
     if has_jewel: report.append('| USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |')
     report.append('')
     report.append('Unused (NC) sockets: ' + ', '.join(p for p in mapping if p not in used) + '.')
-    report += ['', f'Display header J2, in physical order (pin 1 at the top of the module header). Wire colours are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.', '',
-        '| Header pin | Silkscreen | Net | Wire colour |', '|---|---|---|---|']
-    report += [f'| {num} | {name} | {net} | {colour} |' for num,name,net,colour in header]
+    report += ['', f'Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.', '',
+        '| Header pin | Silkscreen | Net | Wire color |', '|---|---|---|---|']
+    report += [f'| {num} | {name} | {net} | {color} |' for num,name,net,color in header]
     report.append('')
     if has_joystick:
         report += ['Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build; the directions and click are the five menu keys.', '',

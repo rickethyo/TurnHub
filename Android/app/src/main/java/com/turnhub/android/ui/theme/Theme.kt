@@ -22,9 +22,9 @@ private val DarkColors = darkColorScheme(primary = TurnHubBlue80)
 
 /**
  * App-wide Material3 theme. When the device's contrast setting is raised
- * (Android 14+, Settings > Accessibility > Colour and motion > Contrast), the
+ * (Android 14+, Settings > Accessibility > Color and motion > Contrast), the
  * fixed high-contrast scheme in [Color.kt] replaces everything else. Otherwise
- * dynamic colour (Android 12+) follows the wallpaper, falling back to the
+ * dynamic color (Android 12+) follows the wallpaper, falling back to the
  * placeholder TurnHub palette.
  */
 @Composable

@@ -235,7 +235,7 @@ the flash growth is mostly portal text. Build only; nothing was flashed.
 
 ### 2026-09-24 - draw ending, forgetting pairings, pairing window (`android/testing`)
 
-Sigil firmware `0.5.4-dev` -> `0.5.5-dev` (10-second Pair hold forgets; honours
+Sigil firmware `0.5.4-dev` -> `0.5.5-dev` (10-second Pair hold forgets; honors
 `Unpair`); Atlas stays `0.6.0-dev`; radio protocol version 1 with a new
 backward-compatible `Unpair = 12` packet.
 

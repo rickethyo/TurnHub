@@ -76,8 +76,8 @@ JEWEL = dict(
          'Firmware: Sigil PlatformIO env sigil or sigil-oled.')
 
 # Each variant: project name, root sheet UUID, the display module's header in
-# physical order (pin 1 first) as (silkscreen label, net, jumper wire colour),
-# and the U1 socket -> net map for the display. Header order and wire colours
+# physical order (pin 1 first) as (silkscreen label, net, jumper wire color),
+# and the U1 socket -> net map for the display. Header order and wire colors
 # are read from the owner's photos of the breadboard wiring (2026-09-24).
 VARIANTS = {
     'Sigil_EInk': dict(
@@ -228,10 +228,10 @@ def build(project, v):
     note('DISPLAY', 175, 40, 1.5)
     dx, dy = 238.76, 55.88
     instance(f'Sigil:{v["symbol"]}', 'J2', v['value'], dx, dy, 12.7, on=False)
-    for i, (_, net, colour) in enumerate(v['header']):
+    for i, (_, net, color) in enumerate(v['header']):
         y = round(dy+i*5.08, 2); wire(round(dx-20.32, 2), y, 190.5, y); label(net, 190.5, y)
-        note(colour + ' wire', 204.47, round(y-1.52, 2), 1.0)
-    note('Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\n' + v['note'],
+        note(color + ' wire', 204.47, round(y-1.52, 2), 1.0)
+    note('Wire colors are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\n' + v['note'],
          175, round(dy+5.08*len(v['header'])+5.08, 2))
 
     note('BUZZER', 175, 125, 1.5)

@@ -18,7 +18,7 @@ constexpr uint32_t LIFE_APPROVAL_MS = 15000;
 constexpr uint8_t COMMANDERS_PER_PLAYER = 2;
 
 // Automatic: accepted by timeout. Failed: accepted but could not be applied
-// (limits, or the requester was eliminated). Cancelled: a table decision or
+// (limits, or the requester was eliminated). Canceled: a table decision or
 // the end of the game superseded it.
 enum class LifeChangeState : uint8_t { None, Pending, Accepted, Rejected, Automatic, Cancelled, Failed };
 

@@ -201,9 +201,16 @@ void SigilMenu::keyDown(Key key, uint32_t nowMs) {
   }
   const uint8_t count = itemCount();
   if (!listOpen_) {
-    // Select is Enter: with the list closed it does what the e-ink's centre
+    // Select is Enter: with the list closed it does what the e-ink's center
     // click does (PASS in game). The other keys open the list.
     if (key == Key::Select) {
+      // Pressed again during the pass grace period: undo it, like pressing
+      // Pass twice (the screen says "Click again to undo").
+      const uint8_t undo = static_cast<uint8_t>(SigilAction::CancelPass);
+      if (offered(undo)) {
+        choose(undo, key, nowMs);
+        return;
+      }
       const uint8_t direct = compassAction(actions_, key);
       if (direct != MENU_NONE) {
         choose(direct, key, nowMs);

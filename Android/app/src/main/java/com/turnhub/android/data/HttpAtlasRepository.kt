@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
  *   a fresh snapshot. This read-only milestone sends no commands, so there is
  *   nothing that could be replayed.
  *
- * All work runs in [scope]; cancelling it stops polling. Each connection gets a
+ * All work runs in [scope]; canceling it stops polling. Each connection gets a
  * generation number and may only publish while it is still current, so a
  * request that completes after [disconnect] can never resurrect stale state.
  */

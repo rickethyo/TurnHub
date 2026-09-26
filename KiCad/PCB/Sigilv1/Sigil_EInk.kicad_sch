@@ -1668,7 +1668,7 @@
 		)
 		(uuid "78fa861d-3485-5c98-b91b-67c51a57f4b7")
 	)
-	(text "Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland e-paper driver board, write-only (GxEPD2_213_B74); no MISO.\nJ2 pins follow the board header, pin 1 = SDI (top).\nBoard switches P1 (3 / 0.47) and P2 (5VIN / 3.3VIN): positions\nnot recorded; with the 3.3 V supply, check P2."
+	(text "Wire colors are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland e-paper driver board, write-only (GxEPD2_213_B74); no MISO.\nJ2 pins follow the board header, pin 1 = SDI (top).\nBoard switches P1 (3 / 0.47) and P2 (5VIN / 3.3VIN): positions\nnot recorded; with the 3.3 V supply, check P2."
 		(exclude_from_sim no)
 		(at 175 101.6 0)
 		(effects

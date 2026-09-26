@@ -86,7 +86,7 @@ bool savePolicyForProfile(const String &profileId, const ProfilePolicy &policy);
 bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &prefs);
 bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPrefs &prefs);
 
-// The profile's Jewel colour (0xRRGGBB): a luxury setting on the microSD
+// The profile's Jewel color (0xRRGGBB): a luxury setting on the microSD
 // card (key k<profileId>), so without a card there is none. Reads are cached
 // in RAM; saving (set = false removes it) refreshes the cache.
 bool jewelColorForProfile(const String &profileId, uint32_t &rgb);

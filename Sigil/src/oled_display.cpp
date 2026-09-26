@@ -2,6 +2,7 @@
 #include "picker_list.h"
 #include "avatars.h"
 #include "display_name.h"
+#include "life_heart.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -170,23 +171,25 @@ void OledDisplay::icon(Icon kind, int16_t x, int16_t y, uint16_t color) {
   drawIcon(*display_, kind, x, y, color);
 }
 
-void OledDisplay::heart(int16_t x, int16_t y) {
-  drawIcon(*display_, Icon::Heart, x, y, SH110X_WHITE);
-}
-
-// Heart plus the largest life number that fits, centered as one unit.
+// Heart plus the largest life number that fits, centered as one unit. The
+// heart drains or grows against the starting life (life_heart.h).
 void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
   char number[16];
   snprintf(number, sizeof(number), "%ld", static_cast<long>(life));
+  const HeartLook look = lifeHeartLook(life, life_.startingLife);
+  const int16_t heartW = static_cast<int16_t>(HEART_WIDTH * look.sizePercent / 100);
+  const int16_t heartH = static_cast<int16_t>(11 * look.sizePercent / 100);
   const int16_t w = display_->width();
   const int16_t length = static_cast<int16_t>(strlen(number));
   uint8_t size = maxSize;
-  while (size > 1 && (HEART_WIDTH + 4 + length * 6 * size > w ||
+  while (size > 1 && (heartW + 4 + length * 6 * size > w ||
       y + 8 * size > display_->height())) --size;
-  const int16_t total = HEART_WIDTH + 4 + length * 6 * size;
+  const int16_t total = heartW + 4 + length * 6 * size;
   const int16_t x = total < w ? (w - total) / 2 : 0;
-  heart(x, y + (8 * size - 11) / 2);
-  text(number, y, size, Align::Left, false, x + HEART_WIDTH + 4, w);
+  int16_t heartY = y + (7 * size - heartH) / 2;  // Centered on the digits' ink.
+  if (heartY < y) heartY = y;
+  drawLifeHeart(*display_, x, heartY, heartW, heartH, look.fill, SH110X_WHITE);
+  text(number, y, size, Align::Left, false, x + heartW + 4, w);
 }
 
 // Boot splash: an hourglass (the turn timer) inside a double ring.
@@ -328,9 +331,12 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (asking) {
     snprintf(label, sizeof(label), "P%u: %+ld LIFE?", static_cast<unsigned>(life_.request.requester),
         static_cast<long>(life_.request.delta));
-    banner(label, 13, true, Icon::None);
+    banner(label, 12, true, Icon::None);
+  } else if (life_.passPending) {
+    // The pass waits out Atlas's grace period; the ring counts it down.
+    banner("PASSING...", 12, true, Icon::Turn);
   } else {
-    banner(active ? "YOUR TURN" : "WAITING FOR TURN", 13, active,
+    banner(active ? "YOUR TURN" : "WAITING FOR TURN", 12, active,
         active ? Icon::Turn : Icon::None);
   }
   // A change still being gathered shows the total it will make.
@@ -340,16 +346,24 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (asking) snprintf(line, sizeof(line), "\x1b deny   approve \x1a");
   else if (pending) snprintf(line, sizeof(line), "%+ld, sending...", static_cast<long>(life_.pending));
   if (!shared) {
-    text(asking || pending ? line : s.primary.name, 27, 1, Align::Center);
-    lifeTotal(shownLife, 38, 3);
+    text(asking || pending ? line : s.primary.name, 24, 1, Align::Center);
+    lifeTotal(shownLife, 32, 3);
     // Left of the life total, when the number leaves room (up to 3 digits).
     char digits[12];
     snprintf(digits, sizeof(digits), "%ld", static_cast<long>(shownLife));
     const uint8_t mine = primary < secondary || !secondary ? life_.avatar[0] : life_.avatar[1];
     if (mine && strlen(digits) <= 3) {
-      display_->fillRect(0, 42, 18, 16, SH110X_BLACK);
-      TurnHubAvatars::drawAvatar(*display_, mine, 0, 42, SH110X_WHITE);
+      display_->fillRect(0, 36, 18, 16, SH110X_BLACK);
+      TurnHubAvatars::drawAvatar(*display_, mine, 0, 36, SH110X_WHITE);
     }
+    // One quiet line of key help (turntest, 2026-09-26). The ask line above
+    // already names its keys.
+    const char *help = nullptr;
+    if (life_.passPending) help = "Click again to undo";
+    else if (asking || pending || !menu_.active) help = nullptr;
+    else if (menu_.life) help = "\x1b\x1a life  press: menu";
+    else help = "Press any key: menu";
+    if (help) text(help, 56, 1, Align::Center);
   } else {
     snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
     text(asking || pending ? line : label, 27, 1, Align::Center);

@@ -226,7 +226,7 @@ acceptance yet (*Needs verification* on the bench list below).
 | Portal reduce motion | Portal My Account > Appearance | This browser | Off, but the device's reduced-motion setting always applies |
 | Windows high contrast (`forced-colors`) | Operating system | - | Follows the OS |
 | Browser feedback sound, vibration and volume | Portal My Account > Browser feedback | This browser | Sound and vibration on, medium volume |
-| Android high contrast | Android 14+ Settings > Accessibility > Contrast | Operating system | Follows the OS; a raised level switches the app to fixed high-contrast colours |
+| Android high contrast | Android 14+ Settings > Accessibility > Contrast | Operating system | Follows the OS; a raised level switches the app to fixed high-contrast colors |
 | Android text size, TalkBack, live announcements | Operating system | - | Follows the OS |
 
 The four Sigil settings are *per-player* (owner decision, 2026-09-24): they follow
@@ -276,7 +276,7 @@ about every two seconds and immediately after a save.
   differ by cadence, so this style is monochrome-safe as well. The player number
   and which shared seat is meant are left to the e-ink display and portal/app.
 - **Monochrome-safe:** Standard, except where two cues in the same situation
-  differed only by colour: time over (steady red) versus a long untimed turn (now
+  differed only by color: time over (steady red) versus a long untimed turn (now
   a short green blink every 4 s), and confirming a win (short pulses) versus
   choosing a player to eliminate (now long pulses).
 
@@ -288,13 +288,13 @@ motion turns breathing into steady light and faster blinks into the 4-second
 slow blink; Monochrome-safe lengthens elimination pulses and makes a long
 untimed turn blink. On the NeoPixel ring the player number is shown as that
 many steady pixels and a shared seat as its half of the ring, so neither needs
-counting flashes or colour. The light never carries information found nowhere
+counting flashes or color. The light never carries information found nowhere
 else: the Sigil display, Atlas screen and portal/app show it as text.
 
 ### Sigil menus (2026-09-25)
 
 Menu actions are named in text on the Sigil screen (the compass legend or the
-OLED list), never only by position, colour or sound. Deliberate actions keep the
+OLED list), never only by position, color or sound. Deliberate actions keep the
 seated players' hold thresholds, and hold progress shows both on the light (the
 ring fills) and, on the OLED, as text. A menu choice produces the same Intent as
 the equivalent button gesture or portal action.
@@ -319,7 +319,7 @@ Atlas's pairing window is adjustable (15, 30 or 60 s, admin Device Settings,
 2026-09-24). The Sigil's own window stays 15 s, so with a longer setting press
 Atlas's Pair first. Forgetting a pairing has a remote path (admin portal) as
 well as the 10-second Sigil Pair hold, and ending a match as a draw (5-second
-Atlas master hold) is signalled by a fast status-LED blink during the hold and
+Atlas master hold) is signaled by a fast status-LED blink during the hold and
 by "Draw" text in the portal and Android app.
 - Accessibility preferences for players without a profile (guests).
 
@@ -337,7 +337,7 @@ by "Draw" text in the portal and Android app.
 6. Claim a win: only the next confirmer's Sigil plays the two-note decision cue.
 7. Monochrome-safe and Reduced motion: check time over versus long turn, and
    win confirmation versus elimination, in a monochrome photo or with a
-   colour-blind tester.
+   color-blind tester.
 
 ## Physical, digital, and hybrid participation policies
 

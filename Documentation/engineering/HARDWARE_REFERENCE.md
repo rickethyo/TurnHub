@@ -204,7 +204,7 @@ verified at the table (presence code).
 The display (`atlas_display.cpp`) only draws, region by region, when that
 region's part of the screen model changes. `touch_controls.cpp` builds the
 screen and holds the touch adapter, which dispatches Intents with
-`IntentOrigin::AtlasHardware`. Cancelling a presence code, the screen changes and the test
+`IntentOrigin::AtlasHardware`. Canceling a presence code, the screen changes and the test
 harness buttons change no table state:
 
 | State | Buttons | Intent |
@@ -318,7 +318,7 @@ e-paper's GPIOs (CLK 18, MOSI 23, RES 22, DC 16, CS 17; GPIO21 unused) at 3.3 V,
 as selected in `Sigil/include/oled_config.h`; the owner verified that wiring and
 a working image on 2026-09-24. The SH1106 128x64 controller is inferred from the
 KS0056 vendor example and still **Needs verification**. The OLED header order and
-wire colours are in the `Sigil_OLED` schematic. See
+wire colors are in the `Sigil_OLED` schematic. See
 [display selection, sources, configuration and verification](../../Sigil/DISPLAY.md).
 
 **Limitation (owner decision, 2026-09-24): the OLED Sigil is single-player only.**

@@ -47,6 +47,32 @@ inline void drawIcon(Gfx &g, Icon kind, int16_t x, int16_t y, uint16_t color, ui
   }
 }
 
+// The life heart in a w x h box at (x, y), drawn pixel by pixel so it can
+// take any size (life_heart.h). fill 255 is the solid heart; less leaves the
+// top as an outline, draining like a vial.
+template <typename Gfx>
+inline void drawLifeHeart(Gfx &g, int16_t x, int16_t y, int16_t w, int16_t h,
+    uint8_t fill, uint16_t color) {
+  if (w < 3 || h < 3) return;
+  // Classic heart curve, (X^2 + Y^2 - 1)^3 <= X^2 Y^3, fitted to the box.
+  const auto inside = [w, h](int16_t px, int16_t py) {
+    if (px < 0 || py < 0 || px >= w || py >= h) return false;
+    const float fx = ((px + 0.5f) / w * 2.0f - 1.0f) * 1.16f;
+    const float fy = 1.22f - (py + 0.5f) / h * 2.26f;
+    const float a = fx * fx + fy * fy - 1.0f;
+    return a * a * a - fx * fx * fy * fy * fy <= 0.0f;
+  };
+  const int16_t filledFrom = static_cast<int16_t>(h - (static_cast<int32_t>(h) * fill + 254) / 255);
+  for (int16_t py = 0; py < h; ++py) {
+    for (int16_t px = 0; px < w; ++px) {
+      if (!inside(px, py)) continue;
+      const bool edge = !inside(px - 1, py) || !inside(px + 1, py) ||
+          !inside(px, py - 1) || !inside(px, py + 1);
+      if (edge || py >= filledFrom) g.drawPixel(x + px, y + py, color);
+    }
+  }
+}
+
 // The TurnHub emblem: an hourglass (the turn timer) inside a double ring,
 // centered on (cx, cy); radius 14 at scale 1.
 template <typename Gfx>

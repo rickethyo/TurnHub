@@ -17,6 +17,9 @@ constexpr uint32_t FORGET_PAIRING_HOLD_MS = 10000;
 // FactoryReset payload: a fixed value ("FRES"), so no stray or corrupted
 // packet can wipe a Sigil.
 constexpr int32_t FACTORY_RESET_CONFIRM = 0x46524553;
+// A queued PASS commits after this grace period unless the same seat cancels
+// it. Atlas owns the timer; a Sigil uses it only to draw the countdown.
+constexpr uint32_t PASS_GRACE_MS = 3000;
 
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
@@ -104,9 +107,13 @@ enum class PacketType : uint8_t {
   // Atlas -> Sigil 0.8.0+: a pending life request for one of this Sigil's
   // players, or none (encodeLifeRequest). Resent with every Hello.
   LifeRequest = 35,
-  // Atlas -> Sigil: a seated profile's chosen Jewel colour for one seat, or
+  // Atlas -> Sigil: a seated profile's chosen Jewel color for one seat, or
   // none (encodeSeatColor). Resent with every Hello; older Sigils ignore it.
   SeatColor = 36,
+  // Atlas -> Sigil: the running game's starting life (0 = no game), so the
+  // Sigil's heart can shrink or grow against it. Resent with every Hello;
+  // older Sigils ignore it. Presentation only.
+  StartingLife = 37,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -622,10 +629,10 @@ inline uint8_t lifeResponseTarget(int32_t v) { return static_cast<uint8_t>(stati
 inline bool lifeResponseApprove(int32_t v) { return (static_cast<uint32_t>(v) & 0x20u) != 0; }
 inline uint8_t lifeResponseTag(int32_t v) { return static_cast<uint8_t>((static_cast<uint32_t>(v) >> 6) & 0x3Fu); }
 
-// SeatColor payload: bits 0-1 seat (1 = A, 2 = B), bit 2 colour set (else
+// SeatColor payload: bits 0-1 seat (1 = A, 2 = B), bit 2 color set (else
 // the default look), bits 3-7 the seat's preset avatar (avatars.h; 0 none,
-// never a custom one), bits 8-31 0xRRGGBB. The Sigil uses the colour only for
-// the calm Joined and Waiting cues; every action cue keeps its standard colour.
+// never a custom one), bits 8-31 0xRRGGBB. The Sigil uses the color only for
+// the calm Joined and Waiting cues; every action cue keeps its standard color.
 inline int32_t encodeSeatColor(uint8_t slot, bool set, uint32_t rgb, uint8_t avatar = 0) {
   return static_cast<int32_t>((static_cast<uint32_t>(slot) & 0x03u) | (set ? 0x04u : 0u) |
       ((static_cast<uint32_t>(avatar) & 0x1Fu) << 3) | ((rgb & 0xFFFFFFu) << 8));

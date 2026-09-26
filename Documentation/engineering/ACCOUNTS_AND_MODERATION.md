@@ -28,7 +28,7 @@ identifiers, PINs, statistics and bindings remain compatible.
 
 A normal account has none of these permissions. There is no table host (owner
 decision 2026-09-25). Any seated player may start (the countdown can be
-cancelled by any seated player), pick the starter, change the next game's
+canceled by any seated player), pick the starter, change the next game's
 settings, rematch or reset. Permission checks run on Atlas for every
 protected request, not just in the UI. Privileged accounts cannot remove their PIN.
 The restricted HTML routes first serve an authentication shell; actual page contents

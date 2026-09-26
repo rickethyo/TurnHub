@@ -7,14 +7,20 @@ namespace TurnHubSigil {
 
 // Life shown over the game screen: a change not yet sent (the e-ink leaves
 // that to the status ring), and a life request waiting for this Sigil's
-// answer (Right approves, Left denies).
+// answer (Right approves, Left denies). Also carries the other game-screen
+// extras Atlas sends outside GameDisplay: the starting life and a pending
+// pass.
 struct LifeOverlay {
   uint8_t avatar[2] = {0, 0};  // Seat A and B preset avatars (SeatColor).
   int32_t pending = 0;
   uint8_t pendingPlayer = 0;
   TurnHubProtocol::LifeRequestFields request;  // target 0 = none
+  int32_t startingLife = 0;  // StartingLife: sizes the heart (life_heart.h).
+  // Atlas offers Cancel pass: this Sigil's pass is in its grace period.
+  bool passPending = false;
   bool operator==(const LifeOverlay &o) const {
     return avatar[0] == o.avatar[0] && avatar[1] == o.avatar[1] &&
+        startingLife == o.startingLife && passPending == o.passPending &&
         pending == o.pending && pendingPlayer == o.pendingPlayer &&
         request.target == o.request.target && request.requester == o.request.requester &&
         request.tag == o.request.tag && request.delta == o.request.delta;

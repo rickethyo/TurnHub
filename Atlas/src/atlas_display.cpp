@@ -712,7 +712,7 @@ void serviceCalibration(uint32_t nowMs, bool touched, uint16_t rawX, uint16_t ra
 
   if (nowMs - cal.lastActivityAtMs >= CALIBRATE_IDLE_MS) {
     serialLog.println("ATLAS|TOUCH|CALIBRATION|TIMEOUT");
-    finishCalibrationMessage(nowMs, "Calibration cancelled");
+    finishCalibrationMessage(nowMs, "Calibration canceled");
     return;
   }
   if (nowMs - cal.lastContactAtMs < TOUCH_RELEASE_MS) return;

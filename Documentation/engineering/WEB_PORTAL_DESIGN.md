@@ -24,7 +24,7 @@ saved theme before first paint. Page-specific layout stays inline in its page.
 ## Themes
 
 A theme is only a set of CSS custom properties (tokens) on `html[data-theme]`.
-Components never hard-code colours, so adding a theme means adding one token block.
+Components never hard-code colors, so adding a theme means adding one token block.
 
 | Key | Name | Character |
 |---|---|---|
@@ -89,8 +89,8 @@ Placement follows common web conventions so people find things without hunting.
 
 ## Accessibility
 
-- Every state shown by colour also carries text (badges, player-state labels,
-  "Active turn", "Time's up"). Switches show state by knob position as well as colour.
+- Every state shown by color also carries text (badges, player-state labels,
+  "Active turn", "Time's up"). Switches show state by knob position as well as color.
 - High contrast theme (automatic when the device asks for more contrast) and
   `forced-colors` support. `prefers-reduced-motion`, or the per-browser Reduce
   motion switch in Appearance (`turnhubReduceMotion`, `html[data-motion=reduce]`,

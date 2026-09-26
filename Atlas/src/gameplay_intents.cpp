@@ -1,4 +1,4 @@
-// In-game Intent handlers: PASS (with its cancellable grace period),
+// In-game Intent handlers: PASS (with its cancelable grace period),
 // pause/resume, concession, win claims, life and Commander counters, and the
 // one-shot turn-timer cues. Each handler validates against canonical state
 // before it mutates GameEngine or the table-decision state in atlas_app.h.
@@ -102,7 +102,7 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
   if (pendingPass.active) {
     if (pendingPass.seat.sameSeat(*active)) {
       clearPendingPass("PASS");
-      return IntentResult::accept("Pending pass cancelled");
+      return IntentResult::accept("Pending pass canceled");
     }
     return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected the pass");
   }

@@ -35,7 +35,7 @@ The owner explicitly chose linked Commander damage/life changes on 2026-09-22.
 4. These facts have the same RAM-only lifetime as the current engine's active
    match. This change does not introduce a second recovery format or alter saved
    profiles/statistics. Future match recovery must include committed counters;
-   pending approvals should be cancelled during recovery.
+   pending approvals should be canceled during recovery.
 5. The browser renders Atlas state, requests changes, and displays the remaining
    time returned by Atlas. Closing the browser does not stop the Atlas timer.
 6. Add HTTP request/response contracts and internal semantic Intents. No Sigil

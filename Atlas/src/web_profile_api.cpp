@@ -308,7 +308,7 @@ void sendAccessibility(WebServer &server, const TurnHubProfiles::AccessibilityPr
 }
 }  // namespace
 
-// The signed-in profile's personalization: Jewel colour ("#rrggbb" or null)
+// The signed-in profile's personalization: Jewel color ("#rrggbb" or null)
 // and avatar (0 none, 1..AVATAR_COUNT a preset; see avatars.h). Both live on
 // the microSD card, so without one the response says so and saving fails.
 void handlePersonalization(WebServer &server) {

@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
 val TurnHubBlue40 = Color(0xFF2F5FA8)
 val TurnHubBlue80 = Color(0xFFA8C7FA)
 
-// High-contrast schemes, used instead of wallpaper colours when the device's
+// High-contrast schemes, used instead of wallpaper colors when the device's
 // contrast setting is raised. Text and controls meet at least 7:1 against
 // their backgrounds; outlines are full-strength so controls stay visible.
 val HighContrastLight = androidx.compose.material3.lightColorScheme(

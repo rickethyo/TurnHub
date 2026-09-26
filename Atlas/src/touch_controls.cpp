@@ -306,7 +306,7 @@ bool navigate(TouchAction action) {
 
 // Adapter: turns one touch button into its Intent. Pause and Resume act for
 // the active seat; the rest act for the table (origin only, no seat).
-// Cancelling a presence code changes no table state.
+// Canceling a presence code changes no table state.
 void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
   if (navigate(action)) {
     serialLog.print("ATLAS|TOUCH|");
@@ -318,7 +318,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     // Someone at the table did not ask for this code: take it off the screen.
     case TouchAction::CancelCode:
       cancelPresenceCode();
-      result = IntentResult::accept("Code cancelled");
+      result = IntentResult::accept("Code canceled");
       break;
     case TouchAction::Pair:
     case TouchAction::EndMatch:
@@ -508,7 +508,12 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       const char *name = nameOfPlayer(screen, game.activePlayerNumber());
       snprintf(screen.title, sizeof(screen.title), "%s's turn", name);
       if (pendingPass.active) {
-        snprintf(screen.detail, sizeof(screen.detail), "Pass pending: that seat can cancel");
+        // Count down the grace period so the table sees the pass is still
+        // cancelable, and for how long (turntest, 2026-09-26).
+        const uint32_t elapsed = millis() - pendingPass.requestedAtMs;
+        const uint32_t leftMs = elapsed < PASS_GRACE_MS ? PASS_GRACE_MS - elapsed : 0;
+        snprintf(screen.detail, sizeof(screen.detail), "Passing in %lus: that seat can cancel",
+            static_cast<unsigned long>((leftMs + 999) / 1000));
       } else if (game.turnTimerMs() > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Turn time left %s", screen.clock);
       } else {

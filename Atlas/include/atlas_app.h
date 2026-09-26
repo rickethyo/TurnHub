@@ -77,9 +77,10 @@ using TurnHubWebApi::WebControl;
 // --- Timing -----------------------------------------------------------------
 
 constexpr uint32_t START_COUNTDOWN_MS = 3000;
-// A queued PASS commits after this grace period unless it is cancelled.
-// Keep in sync with the "within 3 seconds" wording in handlePassIntent.
-constexpr uint32_t PASS_GRACE_MS = 3000;
+// A queued PASS commits after this grace period unless it is canceled.
+// Shared with Sigils (protocol.h), which draw the countdown. Keep in sync
+// with the "within 3 seconds" wording in handlePassIntent.
+using TurnHubProtocol::PASS_GRACE_MS;
 
 // --- Runtime objects (defined in main.cpp) ----------------------------------
 
@@ -299,7 +300,7 @@ constexpr uint32_t LOBBY_CLEAR_HOLD_MS = 2000;
 // state, so it lives outside the Intent path like the old unlock window.
 constexpr uint32_t PRESENCE_CODE_MS = 90000;      // How long a shown code works.
 constexpr uint32_t PRESENCE_GRANT_MS = 600000;    // How long a verified profile stays verified.
-constexpr uint8_t PRESENCE_MAX_ATTEMPTS = 5;      // Wrong codes before the code is cancelled.
+constexpr uint8_t PRESENCE_MAX_ATTEMPTS = 5;      // Wrong codes before the code is canceled.
 constexpr uint8_t PRESENCE_MAX_GRANTS = 4;
 struct PresenceRequest {
   char profileId[9] = {};

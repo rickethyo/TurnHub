@@ -12,7 +12,9 @@ namespace {
 
 // Palette. Hues follow the Atlas screen where they overlap; meaning never
 // rests on hue alone.
-constexpr Rgb WHITE{255, 255, 255};
+// Soft warm white, not full RGB white: on the Jewel full white was glaring
+// next to every other cue (turntest, 2026-09-26).
+constexpr Rgb WHITE{120, 100, 70};
 constexpr Rgb GREEN{0, 255, 0};
 constexpr Rgb BLUE{0, 90, 255};
 constexpr Rgb AMBER{255, 120, 0};
@@ -142,11 +144,17 @@ void SigilLedModel::clear() {
   legacyRed_ = legacyGreen_ = false;
   legacyBlue_ = 0;
   passAck_ = false;
+  passPending_ = false;
 }
 
 void SigilLedModel::setPairing(bool active, uint32_t nowMs) {
   if (active && !pairing_) pairingStartMs_ = nowMs;
   pairing_ = active;
+}
+
+void SigilLedModel::setPassPending(bool active, uint32_t nowMs) {
+  if (active && !passPending_) passPendingStartMs_ = nowMs;
+  passPending_ = active;
 }
 
 void SigilLedModel::flashPassAck(uint32_t nowMs) {
@@ -177,9 +185,9 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   if (lifePending_ != 0) {
     const bool gain = lifePending_ > 0;
     const int32_t magnitude = gain ? lifePending_ : -lifePending_;
-    // Laps of six, like an odometer: each full lap changes colour, and the
-    // new lap's colour fills over the finished one. The centre shows the lap
-    // colour once past six. The exact number is on the Sigil's screen.
+    // Laps of six, like an odometer: each full lap changes color, and the
+    // new lap's color fills over the finished one. The center shows the lap
+    // color once past six. The exact number is on the Sigil's screen.
     static constexpr Rgb GAIN_LAPS[] = {GREEN, CYAN, BLUE, PURPLE};
     static constexpr Rgb LOSS_LAPS[] = {RED, ORANGE, GOLD, MAGENTA};
     const uint32_t lap = static_cast<uint32_t>(magnitude - 1) / 6;
@@ -193,6 +201,17 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     }
     for (uint8_t i = 0; i < lit; ++i) frame.pixels[gain ? 1 + i : 6 - i] = color;
     frame.single = color;
+    return frame;
+  }
+  if (passPending_) {
+    // Six pixels at the start, one left once the grace is up (Atlas commits
+    // it moments later). Position carries the countdown, not only color.
+    const uint32_t elapsed = nowMs - passPendingStartMs_;
+    const uint32_t grace = TurnHubProtocol::PASS_GRACE_MS;
+    const uint8_t lit = elapsed >= grace ? 1 : static_cast<uint8_t>(6 - elapsed * 6 / grace);
+    for (uint8_t i = 1; i <= lit; ++i) frame.pixels[i] = GREEN;
+    frame.pixels[LED_CENTER] = GREEN;
+    frame.single = scaled(GREEN, reduced(state_.style) ? static_cast<uint8_t>(255) : blink(elapsed, 300, 150));
     return frame;
   }
   if (passAck_ && static_cast<int32_t>(nowMs - passAckUntilMs_) < 0) {
@@ -234,7 +253,7 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       }
       break;
     case LedCue::Waiting:
-      // Another player's turn: the seat's own colour, at the waiting level.
+      // Another player's turn: the seat's own color, at the waiting level.
       for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = scaled(calmColor(i, cue.color), cue.level);
       break;
     default:

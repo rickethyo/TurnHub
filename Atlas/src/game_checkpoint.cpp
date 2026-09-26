@@ -74,7 +74,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
     for (uint8_t j = 0; j < s.count; ++j)
       for (uint8_t c = 0; c < 2; ++c) commanderDamage_[i][j][c] = s.damage[i][j][c];
   }
-  // Pending requests, claims and confirmations are deliberately cancelled.
+  // Pending requests, claims and confirmations are deliberately canceled.
   // Restoration never invokes the game-completed statistics callback.
   return true;
 }

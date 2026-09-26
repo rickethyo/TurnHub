@@ -39,7 +39,7 @@ object TableClock {
         if (!summary.settings.turnTimerEnabled) 0
         else (turnElapsedMs(summary, nowMs) - summary.settings.turnTimerMs).coerceAtLeast(0)
 
-    /** Remaining cancellable-pass grace; counts down, never below zero. */
+    /** Remaining cancelable-pass grace; counts down, never below zero. */
     fun passGraceRemainingMs(summary: TableSummary, nowMs: Long): Long =
         if (summary.pending.passPlayer == null) 0
         else (summary.pending.passGraceRemainingMs - sinceReceived(summary, nowMs)).coerceAtLeast(0)

@@ -127,7 +127,7 @@ inline const LedCueProfile &defaultLedCueProfile() {
 // Reduced motion: no breathing, pulsing or counting flashes. Lights are steady
 // or blink slowly (at most one 2-second change per 4 seconds), and your turn
 // versus waiting is bright versus dim blue. Cues that share a situation also
-// differ without colour (steady versus slow blink), so this style is
+// differ without color (steady versus slow blink), so this style is
 // monochrome-safe too. Details a slow light cannot carry (player number, which
 // shared seat) remain on the e-ink display and in the portal/app.
 inline const LedCueProfile &reducedMotionLedCueProfile() {
@@ -162,7 +162,7 @@ inline const LedCueProfile &reducedMotionLedCueProfile() {
 }
 
 // Monochrome-safe: the standard cadences, changed only where two cues that can
-// appear in the same situation differed by colour alone. Timer expired (steady
+// appear in the same situation differed by color alone. Timer expired (steady
 // red) versus long turn (was steady green) now differ by cadence, and a win
 // confirmation (short pulses) versus choosing an elimination (long pulses).
 inline const LedCueProfile &monochromeSafeLedCueProfile() {

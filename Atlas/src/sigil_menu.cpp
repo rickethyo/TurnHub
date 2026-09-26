@@ -27,6 +27,9 @@ struct MenuCache {
   // SeatColor per seat (index 0 = A), resent with the menu.
   int32_t seatColor[2] = {0, 0};
   bool seatColorSent[2] = {false, false};
+  // StartingLife (0 outside a running or paused game).
+  int32_t startingLife = 0;
+  bool startingLifeSent = false;
 };
 
 MenuCache menus[MAX_PHYSICAL_SIGILS];
@@ -59,7 +62,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   uint32_t actions = 0;
   const auto add = [&actions](SigilAction action) { actions |= TurnHubProtocol::sigilActionBit(action); };
   // No table host (owner decision 2026-09-25): every seated Sigil may start,
-  // pick the starter, rematch or reset. Start keeps its cancellable countdown.
+  // pick the starter, rematch or reset. Start keeps its cancelable countdown.
   const bool seated = lobby.isJoined(sigilId) || game.controllerInGame(sigilId);
   PlayerSeat living;
   const bool hasLivingSeat = firstLivingSeatForModule(sigilId, living);
@@ -115,7 +118,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
           PlayerSeat seats[2];
           if (game.livingPlayersForController(sigilId, seats, 2) > 1) add(SigilAction::NextTarget);
         }
-        // Cancelling is table-wide (handleEliminationIntent).
+        // Canceling is table-wide (handleEliminationIntent).
         if (game.controllerInGame(sigilId)) add(SigilAction::CancelElimination);
       } else if (hasLivingSeat) {
         add(SigilAction::Resume);
@@ -182,6 +185,7 @@ void syncSigilMenus(uint32_t nowMs) {
     MenuCache &cache = menus[id];
     if (!sigilBus.isOnline(id, nowMs) || !menu2Sigil(id)) {
       cache.lifeSent = false;
+      cache.startingLifeSent = false;
       continue;
     }
     for (uint8_t slot = 1; slot <= 2; ++slot) {
@@ -194,6 +198,16 @@ void syncSigilMenus(uint32_t nowMs) {
           sigilBus.send(id, TurnHubProtocol::PacketType::SeatColor, color)) {
         cache.seatColorSent[slot - 1] = true;
       }
+    }
+    const int32_t startingLife = hubState == HubState::Running || hubState == HubState::Paused
+        ? game.settings().startingLife : 0;
+    if (startingLife != cache.startingLife) {
+      cache.startingLife = startingLife;
+      cache.startingLifeSent = false;
+    }
+    if (!cache.startingLifeSent &&
+        sigilBus.send(id, TurnHubProtocol::PacketType::StartingLife, startingLife)) {
+      cache.startingLifeSent = true;
     }
     const int32_t request = sigilLifeRequestFor(id);
     if (request != cache.lifeRequest) {
@@ -238,6 +252,7 @@ void invalidateSigilMenu(uint8_t sigilId) {
     menus[sigilId].sent = false;
     menus[sigilId].lifeSent = false;
     menus[sigilId].seatColorSent[0] = menus[sigilId].seatColorSent[1] = false;
+    menus[sigilId].startingLifeSent = false;
   }
 }
 

@@ -365,7 +365,7 @@ static void virtualProfileFlow() {
   assert(request("/api/session/join",second)==200);
   const String companion=loginPhone(firstId);
   assert(request("/api/session/join",companion)==200 && lobby.playerCount()==2);
-  // No table host: the second phone may start too; its countdown is cancellable.
+  // No table host: the second phone may start too; its countdown is cancelable.
   assert(request("/api/control/start",second)==200 && hubState==HubState::Starting);
   assert(request("/api/control/cancel-start",first)==200 && hubState==HubState::Lobby);
   assert(request("/api/control/start",first)==200 && hubState==HubState::Starting);
@@ -1201,7 +1201,7 @@ static void sigilLife() {
   resetSigilMenus(); enterEmptyLobby();
 }
 
-// Jewel colour: the signed-in profile sets or clears it; a seat bound to that
+// Jewel color: the signed-in profile sets or clears it; a seat bound to that
 // profile gets a SeatColor on 0.8.0+ Sigils, and a guest seat gets none.
 static void jewelColors() {
   using namespace TurnHubProtocol;
@@ -1542,7 +1542,7 @@ static void accessibilityPreferences() {
   const LedCueProfile &calmProfile = reducedMotionLedCueProfile();
   for (const auto &style : calmProfile.cues) assert(onlyPatterns(style, calm));
   for (const auto &style : calmProfile.overlays) assert(onlyPatterns(style, calm));
-  // Your turn and waiting differ by brightness, not only by colour.
+  // Your turn and waiting differ by brightness, not only by color.
   SigilLedState yours; yours.cue = LedCue::YourTurn;
   SigilLedState waiting; waiting.cue = LedCue::Waiting;
   assert(ledLevels(calmProfile, yours, 1000).blue == 255 && ledLevels(calmProfile, waiting, 1000).blue > 0 &&
@@ -1999,7 +1999,7 @@ static void touchControls() {
   assert(startsWith(s.title,"Player ") && s.buttonCount==2 &&
       screenButton(s,TouchAction::Pause) && screenButton(s,TouchAction::OpenTable) &&
       !screenButton(s,TouchAction::EndMatch) && !screenButton(s,TouchAction::MasterPass));
-  seatPass(); assert(String(currentScreen().detail)=="Pass pending: that seat can cancel");
+  seatPass(); assert(String(currentScreen().detail)=="Passing in 3s: that seat can cancel");
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
   tapButton(TouchAction::Pause); assert(hubState==HubState::Paused);
   s=currentScreen();
@@ -2623,7 +2623,7 @@ int main() {
   ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
   profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
   sigilLife(); std::cout<<"PASS Sigil life: AdjustLife availability, batched own-life changes, requests shown and answered with tag checks\n";
-  jewelColors(); std::cout<<"PASS personalization: Jewel colour and preset avatars, validation, /api/avatars, /api/seats, TFT chips, SeatColor; custom stays private\n";
+  jewelColors(); std::cout<<"PASS personalization: Jewel color and preset avatars, validation, /api/avatars, /api/seats, TFT chips, SeatColor; custom stays private\n";
   sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";

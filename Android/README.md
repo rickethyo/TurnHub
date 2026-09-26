@@ -191,7 +191,7 @@ Accessibility (2026-09-24):
   from and saved to Atlas through `/api/session/accessibility` (the same
   endpoint and validation as the portal). Atlas stores them with the profile.
 - When Android 14+'s contrast setting is raised, `TurnHubTheme` switches to fixed
-  high-contrast colours instead of wallpaper colours, and follows changes live.
+  high-contrast colors instead of wallpaper colors, and follows changes live.
 
 Targeted Wi-Fi (no trip to Android settings):
 

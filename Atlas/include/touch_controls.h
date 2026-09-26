@@ -7,7 +7,7 @@
 // The touch adapter only builds Intents with IntentOrigin::AtlasHardware (the
 // screen is part of the Atlas and its only physical input); Atlas's handlers
 // decide every outcome. Its non-Intent actions change no table state: the
-// presence code screen (cancelling a code a phone asked for), moving between screens
+// presence code screen (canceling a code a phone asked for), moving between screens
 // (status, info, QR codes, test harness, Table) and starting a harness test.
 
 #include <Arduino.h>

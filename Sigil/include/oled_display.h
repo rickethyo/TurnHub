@@ -32,7 +32,6 @@ class OledDisplay final : public SigilDisplay {
   void header(const char *title, const char *right, bool host = false);
   void banner(const char *message, int16_t y, bool highlight, Icon kind);
   void icon(Icon kind, int16_t x, int16_t y, uint16_t color);
-  void heart(int16_t x, int16_t y);
   void lifeTotal(int32_t life, int16_t y, uint8_t maxSize);
   void splash(const char *caption);
   void status(const char *headerRight, const char *big, const char *first,

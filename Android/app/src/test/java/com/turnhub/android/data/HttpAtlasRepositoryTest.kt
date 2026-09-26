@@ -432,7 +432,7 @@ class HttpAtlasRepositoryTest {
     }
 
     @Test
-    fun `cancelling the owning scope stops polling`() = runTest {
+    fun `canceling the owning scope stops polling`() = runTest {
         val owner = CoroutineScope(coroutineContext + kotlinx.coroutines.Job())
         val repository = repository(owner)
         repository.connect(AtlasEndpoint.DEFAULT)

@@ -415,8 +415,8 @@ retain profile companion control.
 - Define reusable accessible UI patterns before the portal and Android surfaces diverge.
 - Ensure essential states are not represented by color alone; pair color with text, icons, pattern/cadence, or another practical cue.
 - Add high-contrast and monochrome-safe presentation options. The web portal has a
-  High contrast theme (automatic when the device asks for more contrast) and honours
-  `forced-colors`; Android switches to high-contrast colours when the system
+  High contrast theme (automatic when the device asks for more contrast) and honors
+  `forced-colors`; Android switches to high-contrast colors when the system
   contrast is raised; Sigil lights have a Monochrome-safe style (all 2026-09-24).
   A monochrome-safe portal theme separate from High contrast remains open.
 - Player-level accessibility preferences exist for the Sigil (sound, light style,
@@ -542,9 +542,16 @@ Privacy direction:
   Feature gate: profile setting on the card (`v<profileId>`), no Intent,
   `/api/avatars` + `/api/seats` contract additions, icons drawn for TurnHub
   (no third-party art), decorative only (names always shown).
-- Jewel colour per profile (2026-09-25, host-tested, *Needs verification*):
-  pick a colour in the portal (needs the SD card); the Jewel shows it in the
+- Jewel color per profile (2026-09-25, host-tested, *Needs verification*):
+  pick a color in the portal (needs the SD card); the Jewel shows it in the
   lobby and while waiting, action cues unchanged, shared Sigils split by seat.
+- Turntest notes (2026-09-26, host-tested, *Needs verification*): softer
+  warm white on the Jewel (was full RGB white); OLED one-line key help under
+  the life total; a pending pass shows PASSING and a green ring countdown on
+  both Sigils and "Passing in Ns" on Atlas, and a second Select on the OLED
+  undoes it; the life heart drains or grows against the starting life
+  (`StartingLife = 37`); US spellings in UI text, comments and docs (wire
+  tokens such as `CANCELLED` and code identifiers unchanged).
 - E-ink partial refresh with clean-ups (2026-09-25, *Needs verification*):
   tune with `epd max/idle` over serial and report fading.
 - Sigil life (2026-09-25, host-tested, *Needs verification*): Left/Right

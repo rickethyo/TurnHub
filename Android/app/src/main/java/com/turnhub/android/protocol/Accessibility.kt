@@ -6,9 +6,9 @@ enum class LedStyle(val wire: String, val label: String, val description: String
     REDUCED_MOTION(
         "reduced-motion",
         "Reduced motion",
-        "Steady lights and slow blinks only; your turn is bright, waiting is dim. Also safe without colour.",
+        "Steady lights and slow blinks only; your turn is bright, waiting is dim. Also safe without color.",
     ),
-    MONOCHROME_SAFE("monochrome-safe", "Monochrome-safe", "Standard lights, but no two signals differ by colour alone."),
+    MONOCHROME_SAFE("monochrome-safe", "Monochrome-safe", "Standard lights, but no two signals differ by color alone."),
     ;
 
     companion object {

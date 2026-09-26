@@ -33,7 +33,7 @@ This draft assumes power through the DevKit's own USB connector; J1/5V has no ca
 
 ## Unresolved electrical details
 
-- **Display J2 (both):** pin numbers follow the module's own header, pin 1 at the top, with the silkscreen labels as pin names. Order and the jumper wire colour on each wire come from the owner's photos of the breadboard wiring (2026-09-24); the colours are annotations, not a harness specification. Tables are in [CROSS_CHECK.md](CROSS_CHECK.md). J2 has no footprint yet.
+- **Display J2 (both):** pin numbers follow the module's own header, pin 1 at the top, with the silkscreen labels as pin names. Order and the jumper wire color on each wire come from the owner's photos of the breadboard wiring (2026-09-24); the colors are annotations, not a harness specification. Tables are in [CROSS_CHECK.md](CROSS_CHECK.md). J2 has no footprint yet.
 - **E-ink J2:** SDI, SCLK, CS, D/C, RES, BUSY, VCC, GND. The Inland driver board has two slide switches, P1 (3 / 0.47) and P2 (5VIN / 3.3VIN), whose positions are not recorded; with the carrier's 3.3 V supply, check P2. Supply current and the panel itself need confirmation. The display has no carrier MISO connection.
 - **OLED J2:** GND, VCC, CLK, MOSI, RES, DC, CS. The owner verified the SPI wiring, 3.3 V supply and a working image on 2026-09-24; the SH1106 controller and 128x64 geometry are inferred from the vendor example (see `Sigil/DISPLAY.md`).
 - **Buzzer J3:** a logical SIG/GND interface only. Firmware proves GPIO33 tone output, but not whether the physical load is a passive piezo, magnetic transducer, or driven module. Confirm part, wiring, voltage/current, driver, bias and protection before implementing the load. No direct GPIO-drive rating is assumed.

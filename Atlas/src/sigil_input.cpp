@@ -35,8 +35,8 @@ namespace TurnHubAtlas {
 
 namespace {
 
-// Released Action presses are ignored this long after they cancelled a PASS,
-// so the cancelling press does not also trigger its own gesture.
+// Released Action presses are ignored this long after they canceled a PASS,
+// so the canceling press does not also trigger its own gesture.
 constexpr uint32_t ACTION_CANCEL_RELEASE_CLEAR_MS = 250;
 
 bool eliminationChord[MAX_PHYSICAL_SIGILS] = {};

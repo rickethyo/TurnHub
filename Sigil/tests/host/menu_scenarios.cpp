@@ -209,5 +209,18 @@ int main() {
     const char *label = sigilActionLabel(static_cast<A>(a));
     assert(label[0] && std::strlen(label) <= 12);
   }
+  {
+    // OLED: Select passes, and pressed again in the grace period it undoes
+    // the pass without opening the list.
+    SigilMenu oled(MenuLayout::List);
+    oled.applyMenuState(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
+    oled.keyDown(Key::Select, 10); oled.keyUp(Key::Select, 20);
+    MenuChoice c = oled.update(20);
+    assert(c.ready && c.action == A::Pass);
+    oled.applyMenuState(menu({A::CancelPass, A::Pause, A::ClaimWin, A::LinkPhone}, A::CancelPass, 2), 30);
+    oled.keyDown(Key::Select, 40); oled.keyUp(Key::Select, 50);
+    c = oled.update(50);
+    assert(c.ready && c.action == A::CancelPass && !oled.view().listOpen);
+  }
   std::cout << "Menu wire format, compass keys, list navigation, holds and stale menus passed\n";
 }

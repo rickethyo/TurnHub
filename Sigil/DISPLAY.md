@@ -74,8 +74,8 @@ is the selected Sigil carrier profile (2026-09-24):
 | 6 | DC | A8 | 16 | blue |
 | 7 | CS | A9 | 17 | green |
 
-Wire colours are the jumpers in the owner's photo, not a harness specification.
-The matching e-ink header order and colours are in the
+Wire colors are the jumpers in the owner's photo, not a harness specification.
+The matching e-ink header order and colors are in the
 [Sigil schematic cross-check](../KiCad/PCB/Sigilv1/CROSS_CHECK.md).
 
 ### OLED limitations

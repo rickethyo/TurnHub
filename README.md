@@ -39,7 +39,7 @@ Atlas `0.6.0-dev` currently provides:
 - Multiple browser sessions controlling the same participant.
 - Explicit browser-assisted attachment of an unused physical Sigil to the authenticated profile.
 - Shared physical A/B seats retained for compatibility.
-- Starter selection, start/cancel countdown, turn passing, three-second cancellable pass grace, pause/resume, concession/elimination, confirmed victory, rematch, and reset.
+- Starter selection, start/cancel countdown, turn passing, three-second cancelable pass grace, pause/resume, concession/elimination, confirmed victory, rematch, and reset.
 - Game profile presets and custom starting life, with browser controls for each player's own life and public table totals (implemented locally; hardware playtest pending). See [Game profiles and life](Documentation/engineering/GAME_PROFILES_AND_LIFE.md).
 - Atlas-authoritative profile statistics stored locally.
 - Persistent profile identity, names/PIN-related profile data, physical-seat bindings, and deployed statistics through Atlas local storage.

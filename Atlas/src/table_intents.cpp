@@ -619,7 +619,7 @@ IntentResult handleCancelPassIntent(const Intent &intent, void *) {
       !cancelPendingPassForModule(intent.actor.controllerId, "ACTION")) {
     return IntentResult::reject(IntentStatus::InvalidState, "No pending pass for this controller");
   }
-  return IntentResult::accept("Pass cancelled");
+  return IntentResult::accept("Pass canceled");
 }
 
 // --- Elimination selection ------------------------------------------------------------------------
@@ -869,7 +869,7 @@ IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
 // Sigils are being rewired and nobody at the table can finish the match. It
 // needs that Admin verified at the table (presence code), so someone is there. A
 // match in progress ends as a draw first (statistics once, like the End match
-// hold); a countdown is cancelled.
+// hold); a countdown is canceled.
 IntentResult handleResetTableIntent(const Intent &intent, void *) {
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");

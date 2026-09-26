@@ -56,6 +56,7 @@ class Adafruit_SH1106G {
   void fillRoundRect(int x, int y, int w, int h, int, int color) { box(x, y, w, h, color); }
   void drawRoundRect(int x, int y, int w, int h, int, int color) { box(x, y, w, h, color); }
   void drawFastHLine(int x, int y, int w, int color) { box(x, y, w, 1, color); }
+  void drawPixel(int x, int y, int color) { box(x, y, 1, 1, color); }
   void fillCircle(int x, int y, int r, int color) { box(x - r, y - r, 2 * r + 1, 2 * r + 1, color); }
   void drawCircle(int x, int y, int r, int color) { box(x - r, y - r, 2 * r + 1, 2 * r + 1, color); }
   void fillTriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color) {

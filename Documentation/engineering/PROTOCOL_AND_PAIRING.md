@@ -151,15 +151,29 @@ resent with every Hello; the Sigil answers `LifeResponse = 17` (target,
 approve, tag) and Atlas dispatches `RespondLifeChange` only if the tag still
 matches the pending request. *Needs verification* on hardware.
 
-**Jewel colour (2026-09-25).** `SeatColor = 36` (Atlas -> Sigil, value: seat,
-set bit, 0xRRGGBB) carries the colour a seated profile chose in the portal,
+**Jewel color (2026-09-25).** `SeatColor = 36` (Atlas -> Sigil, value: seat,
+set bit, 0xRRGGBB) carries the color a seated profile chose in the portal,
 per seat, resent with every Hello; older Sigils ignore it. Sigils apply it only
 to the calm Joined and Waiting cues; every action cue keeps its standard
-colour, and patterns still carry every meaning. Feature gate: state owner is
+color, and patterns still carry every meaning. Feature gate: state owner is
 the profile (a luxury record `k<profileId>` on the microSD card, cached in RAM;
-no card means no colour); no new Intent (a profile setting, like accessibility,
+no card means no color); no new Intent (a profile setting, like accessibility,
 via `GET`/`POST /api/session/jewel` for the signed-in profile only); rendering
 on both Sigils' Jewel; no new dependency. *Needs verification* on hardware.
+
+**Starting life and pass grace (2026-09-26, turntest notes).** `StartingLife =
+37` (Atlas -> Sigil, value: the running or paused game's starting life, else 0)
+is resent with every Hello to menu Sigils (0.8.0+); older Sigils ignore it. The
+Sigil only draws with it: the life heart drains from the top below the
+starting life and grows up to 1.5x at double it; 0 keeps the plain heart.
+`PASS_GRACE_MS` (3 s) moved into `protocol.h` so both firmwares agree on it;
+Atlas still owns the grace timer. A Sigil treats "Undo pass is in the menu" as
+its pass being pending and shows PASSING, a green ring countdown, and (OLED)
+"Click again to undo", where a second Select sends `CancelPass`. Feature gate:
+no new Intent (CancelPass already exists), no new state owner or persistence,
+rendering on both Sigils and the Atlas screen ("Passing in Ns"), no new
+dependency; the number and words still carry every meaning. *Host-tested*;
+*Needs verification* on hardware.
 
 ### Sigil-rendered status light: LedState (2026-09-25)
 
@@ -186,7 +200,7 @@ version stays 1. *Needs verification* on hardware.
 ### Unpair (2026-09-24)
 
 `Unpair = 12` (Atlas -> Sigil, `value` 0) tells a Sigil that Atlas forgot it. The
-Sigil honours it only from its saved Atlas MAC with its own Sigil ID, then erases
+Sigil honors it only from its saved Atlas MAC with its own Sigil ID, then erases
 its pairing. It is best effort and unacknowledged. Older Sigils ignore it.
 `FORGET_PAIRING_HOLD_MS` (10 s) is the Sigil's Pair hold that forgets locally.
 `PAIRING_WINDOW_MS` stays 15 s: it is the Sigil's window and Atlas's default.

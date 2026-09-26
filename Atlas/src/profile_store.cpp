@@ -274,7 +274,7 @@ bool loadAccessibilityForProfile(const String &profileId, AccessibilityPrefs &pr
 }
 
 namespace {
-// Personalization cache: profile ID -> Jewel colour and avatar, so the Sigil
+// Personalization cache: profile ID -> Jewel color and avatar, so the Sigil
 // sync loop and /api/seats never read the card more than once per profile.
 struct JewelCacheEntry {
   char id[PROFILE_ID_LENGTH + 1] = {};

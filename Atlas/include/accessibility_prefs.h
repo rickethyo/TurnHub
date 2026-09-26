@@ -11,9 +11,9 @@ namespace TurnHubProfiles {
 // are selected either way (led_cues.h), and every cue also reaches the
 // portal/app as text.
 enum class LedStyle : uint8_t {
-  Standard = 0,       // The prototype's established cadences and colours.
+  Standard = 0,       // The prototype's established cadences and colors.
   ReducedMotion = 1,  // No breathing or pulsing; steady lights, slow blinks only.
-  MonochromeSafe = 2, // No two cues in the same situation differ only by colour.
+  MonochromeSafe = 2, // No two cues in the same situation differ only by color.
   Count
 };
 
@@ -61,7 +61,7 @@ inline bool parseLedStyle(const char *key, LedStyle &style) {
 // accommodation one of the players asked for:
 // - sound is off if either player turned it off;
 // - Reduced motion wins over Monochrome-safe (its cues are also distinguishable
-//   without colour), which wins over Standard;
+//   without color), which wins over Standard;
 // - the longer hold thresholds apply.
 inline AccessibilityPrefs mergeSeatPrefs(const AccessibilityPrefs &a, const AccessibilityPrefs &b) {
   AccessibilityPrefs merged;

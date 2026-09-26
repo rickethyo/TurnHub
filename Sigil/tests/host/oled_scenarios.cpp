@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "life_heart.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -189,6 +190,42 @@ int main() {
     m.keyDown(Key::Up, 10); m.keyDown(Key::Select, 20);
     d.setMenuView(m.view()); d.showReady(0);
     assert(highlighted("HOLD: Claim win"));
+  }
+  resetTrace();
+  {
+    // Turntest (2026-09-26): one line of key help, a visible pending pass,
+    // and a heart that drains or grows against the starting life.
+    OledDisplay d(fixture());
+    d.begin();
+    SigilMenu m(MenuLayout::List);
+    MenuStateFields f;
+    for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::AdjustLife}) f.actions |= sigilActionBit(a);
+    f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
+    m.applyMenuState2(encodeMenuState2(f), 0);
+    d.setMenuView(m.view());
+    GameDisplayPacket g{}; g.sigilId = 1;
+    g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 7, DISPLAY_FLAG_ACTIVE);
+    g.primary.life = 1000000; std::strcpy(g.primary.name, "Michael12345");
+    LifeOverlay life;
+    life.startingLife = 40;
+    d.setLifeOverlay(life);
+    d.showGame(g);  // Also checks nothing overlaps at the widest life total.
+    assert(highlighted("YOUR TURN") && has("\x1b\x1a life  press: menu") && has("1000000"));
+    life.passPending = true;
+    d.setLifeOverlay(life);
+    g.primary.life = 29; d.showGame(g);
+    assert(highlighted("PASSING...") && has("Click again to undo") && !has("YOUR TURN"));
+    // The heart: fewer lit pixels as life drains, more as it grows.
+    const auto heartPixels = [&](int32_t lifeTotal) {
+      g.primary.life = lifeTotal; resetTrace(); d.showGame(g); return panel.shapes;
+    };
+    life.passPending = false; d.setLifeOverlay(life);
+    const int low = heartPixels(5), full = heartPixels(40), big = heartPixels(80);
+    assert(low < full && full < big);
+    assert(lifeHeartLook(0, 40).fill == 0 && lifeHeartLook(1, 40).fill == 16 &&
+        lifeHeartLook(20, 40).fill == 127 && lifeHeartLook(40, 40).fill == 255 &&
+        lifeHeartLook(40, 40).sizePercent == 100 && lifeHeartLook(60, 40).sizePercent == 125 &&
+        lifeHeartLook(500, 40).sizePercent == 150 && lifeHeartLook(7, 0).fill == 255);
   }
   std::cout << "OLED configuration, failure, lifecycle, shared-seat and numeric-bound scenarios passed\n";
 }

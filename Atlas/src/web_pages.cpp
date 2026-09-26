@@ -6,7 +6,7 @@ namespace TurnHubWeb {
 // token sets on [data-theme]; the choice is a per-browser preference only.
 const char THEME_CSS[] PROGMEM = R"CSS(
 /* TurnHub theme. Every page links /theme.css. A theme is only a set of tokens
-   on [data-theme]; components never hard-code colours. Themes are a per-browser
+   on [data-theme]; components never hard-code colors. Themes are a per-browser
    presentation preference and never affect game state. */
 :root,[data-theme=brass]{color-scheme:dark;
 --bg:#110d09;--glow-a:rgba(224,168,72,.17);--glow-b:rgba(95,212,176,.06);
@@ -117,7 +117,7 @@ input::placeholder{color:var(--faint)}
 input:focus,select:focus{border-color:var(--accent)}
 select{-webkit-appearance:none;appearance:none;padding-right:38px;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 19px) 52%,calc(100% - 14px) 52%;background-size:5px 5px;background-repeat:no-repeat}
 input[type=number]{font-variant-numeric:tabular-nums}
-/* Every checkbox is a real input drawn as a switch: the knob position, not only its colour, shows the state. */
+/* Every checkbox is a real input drawn as a switch: the knob position, not only its color, shows the state. */
 input[type=checkbox]{-webkit-appearance:none;appearance:none;width:48px;height:28px;min-height:0;padding:0;margin:0;border-radius:99px;background:var(--inset);border:1px solid var(--line-strong);position:relative;flex:none;cursor:pointer;vertical-align:middle;transition:background-color .15s,border-color .15s}
 input[type=checkbox]::before{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--faint);transition:transform .15s,background-color .15s}
 input[type=checkbox]:checked{background:var(--accent-lo);border-color:var(--accent)}
@@ -136,7 +136,7 @@ label{display:block;color:var(--muted);font-size:.8rem;font-weight:650;letter-sp
 .switch-row>div{min-width:0}
 .switch-row small{display:block;color:var(--muted);font-weight:400;font-size:.84rem;margin-top:2px}
 
-/* Status atoms: every state carries text; colour only reinforces it. */
+/* Status atoms: every state carries text; color only reinforces it. */
 .badges{display:flex;flex-wrap:wrap;gap:7px}
 .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);border-radius:99px;padding:4px 11px 4px 9px;font-size:.76rem;font-weight:700;letter-spacing:.02em;color:var(--muted);background:var(--inset);white-space:nowrap}
 .badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
@@ -564,8 +564,8 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
    <fieldset style="margin-top:14px"><legend>Sigil lights</legend>
     <div class="themes">
      <label class="theme-opt"><input type="radio" name="ledStyle" value="standard"><strong>Standard</strong><small>Breathing and pulsing lights, as before.</small></label>
-     <label class="theme-opt"><input type="radio" name="ledStyle" value="reduced-motion"><strong>Reduced motion</strong><small>Steady lights and slow blinks only; your turn is bright, waiting is dim. Also safe without colour.</small></label>
-     <label class="theme-opt"><input type="radio" name="ledStyle" value="monochrome-safe"><strong>Monochrome-safe</strong><small>Standard lights, but no two signals differ by colour alone.</small></label>
+     <label class="theme-opt"><input type="radio" name="ledStyle" value="reduced-motion"><strong>Reduced motion</strong><small>Steady lights and slow blinks only; your turn is bright, waiting is dim. Also safe without color.</small></label>
+     <label class="theme-opt"><input type="radio" name="ledStyle" value="monochrome-safe"><strong>Monochrome-safe</strong><small>Standard lights, but no two signals differ by color alone.</small></label>
     </div></fieldset>
    <label for="longPressSelect">Hold Action to pause</label><select id="longPressSelect" aria-describedby="holdHelp"></select>
    <label for="winHoldSelect">Hold Action to claim a win</label><select id="winHoldSelect" aria-describedby="holdHelp"></select>
@@ -574,14 +574,14 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
    <p id="sigilAccessStatus" class="msg" role="status" aria-live="polite"></p></form>
  </section>
  <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Personalization</h2><p class="small">How you show up at the table. Saved with your profile on Atlas's microSD card.</p></div></div>
-  <div id="personalSignedOut" class="notice info"><p>Sign in to choose your avatar and Sigil light colour.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
+  <div id="personalSignedOut" class="notice info"><p>Sign in to choose your avatar and Sigil light color.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
   <div id="jewelBox" hidden><fieldset><legend>Avatar</legend>
    <div id="avatarGrid" class="themes" role="radiogroup"></div>
    <p class="hint">Shown next to your name here, in the app, on Atlas's screen and on OLED Sigils.</p></fieldset>
-   <label for="jewelColor" style="margin-top:12px">Sigil light colour</label>
+   <label for="jewelColor" style="margin-top:12px">Sigil light color</label>
    <div class="inline" style="align-items:center;gap:8px"><input id="jewelColor" type="color" value="#00c8c8" aria-describedby="jewelHelp" style="width:64px;height:40px">
-   <button type="button" onclick="saveJewel(jewelColor.value)">Use this colour</button><button type="button" onclick="saveJewel('none')">Standard colours</button></div>
-   <p id="jewelHelp" class="hint">Your Sigil's ring glows in this colour while you wait in the lobby and between your turns, so you can spot your seat. Turns, pauses, warnings and wins keep their usual colours. Saved on Atlas's microSD card.</p>
+   <button type="button" onclick="saveJewel(jewelColor.value)">Use this color</button><button type="button" onclick="saveJewel('none')">Standard colors</button></div>
+   <p id="jewelHelp" class="hint">Your Sigil's ring glows in this color while you wait in the lobby and between your turns, so you can spot your seat. Turns, pauses, warnings and wins keep their usual colors. Saved on Atlas's microSD card.</p>
    <p id="jewelStatus" class="msg" role="status" aria-live="polite"></p></div>
  </section>
  <section id="moderationCard" class="card" hidden><div class="card-head"><div><h2 class="eyebrow">Private moderation history</h2><p class="small">Kept with your statistics and shown only to you after you sign in with your PIN. Game Masters and other accounts cannot see it.</p></div></div><a class="btn" href="/stats">View on my statistics</a></section>
@@ -693,8 +693,8 @@ function renderSigilAccess(d){sigilAccessLimits=d.limits;sigilSoundToggle.checke
  sigilAccessStatus.textContent=d.stored?'':'Your saved Sigil settings could not be read, so defaults are shown. Saving replaces them.'}
 function renderAvatarGrid(current){const opts=[{id:0,label:'None'}].concat((avatarIcons||[]).map(a=>({id:a.id,label:a.label})));avatarGrid.innerHTML=opts.map(o=>`<label class="theme-opt" style="text-align:center"><input type="radio" name="avatarPick" value="${o.id}" ${Number(current)===o.id?'checked':''} onchange="savePersonal({avatar:'${o.id}'})"><span class="avatar" style="--hue:${hue(1)};margin:4px auto">${o.id?avatarSvg(o.id):'&ndash;'}</span><small>${esc(o.label)}</small></label>`).join('')}
 async function savePersonal(fields){try{const r=await fetch('/api/session/personalization',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(fields)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');jewelStatus.textContent='Saved. Your Sigil and the table update within a few seconds.';myAvatar=Number(d.avatar)||0;renderAvatarGrid(d.avatar)}catch(e){jewelStatus.textContent=e.message}}
-async function loadJewel(){if(!avatarIcons)await loadAvatarIcons();try{const r=await fetch('/api/session/personalization',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unavailable');jewelBox.hidden=false;personalSignedOut.hidden=true;myAvatar=Number(d.avatar)||0;renderAvatarGrid(d.avatar);if(d.color)jewelColor.value=d.color;jewelStatus.textContent=!d.card?'Insert a microSD card in Atlas to choose a colour.':d.color?'Current colour: '+d.color:'Using the standard colours.'}catch(e){jewelBox.hidden=true;personalSignedOut.hidden=false}}
-async function saveJewel(color){try{const r=await fetch('/api/session/personalization',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({color})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');jewelStatus.textContent=d.color?'Saved: '+d.color+'. Your Sigil updates within a few seconds.':'Back to the standard colours.'}catch(e){jewelStatus.textContent=e.message}}
+async function loadJewel(){if(!avatarIcons)await loadAvatarIcons();try{const r=await fetch('/api/session/personalization',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unavailable');jewelBox.hidden=false;personalSignedOut.hidden=true;myAvatar=Number(d.avatar)||0;renderAvatarGrid(d.avatar);if(d.color)jewelColor.value=d.color;jewelStatus.textContent=!d.card?'Insert a microSD card in Atlas to choose a color.':d.color?'Current color: '+d.color:'Using the standard colors.'}catch(e){jewelBox.hidden=true;personalSignedOut.hidden=false}}
+async function saveJewel(color){try{const r=await fetch('/api/session/personalization',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({color})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');jewelStatus.textContent=d.color?'Saved: '+d.color+'. Your Sigil updates within a few seconds.':'Back to the standard colors.'}catch(e){jewelStatus.textContent=e.message}}
 async function loadSigilAccess(){sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sigil settings are unavailable');renderSigilAccess(d);sigilAccessFields.disabled=false}catch(e){sigilAccessStatus.textContent=e.message}}
 async function saveSigilAccess(event){event.preventDefault();const style=document.querySelector('input[name=ledStyle]:checked');const longMs=Number(longPressSelect.value),winMs=Number(winHoldSelect.value);
  if(sigilAccessLimits&&winMs<longMs+sigilAccessLimits.minGapMs){sigilAccessStatus.textContent='Choose a win hold at least one second longer than the pause hold.';winHoldSelect.focus();return}
@@ -972,7 +972,7 @@ function renderCounterControls(){
  if(!available||!data.editable)lifeFields.disabled=true;
  const requests=available?data.requests||[]:[],incoming=requests.find(r=>Number(r.target)===Number(me.player));
  lifeRequestsPanel.hidden=!me.authenticated||(!me.lifeAvailable&&!requests.length);
- const outcomes={accepted:'Accepted',rejected:'Rejected',automatic:'Automatically accepted',cancelled:'Cancelled by a table decision or player departure',failed:'Not applied: life limits or player state changed'};
+ const outcomes={accepted:'Accepted',rejected:'Rejected',automatic:'Automatically accepted',cancelled:'Canceled by a table decision or player departure',failed:'Not applied: life limits or player state changed'};
  const describe=r=>`${playerLabel(r.actor)} requests ${Number(r.delta)>0?'+':''}${r.delta} life for ${playerLabel(r.target)}.`;
  const notice=!available?'Request status unavailable. Reconnect to Atlas; its 15-second timer continues.':incoming?describe(incoming)+(incoming.state==='pending'?' Accept or reject this change.':' '+(outcomes[incoming.state]||incoming.state)+'.'):'No request awaiting your response.';
  if(lifeRequestNotice.textContent!==notice)lifeRequestNotice.textContent=notice;

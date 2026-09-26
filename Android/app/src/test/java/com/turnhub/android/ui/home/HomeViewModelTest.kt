@@ -291,7 +291,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `cancelling the prompt does nothing`() = runTest {
+    fun `canceling the prompt does nothing`() = runTest {
         link.results.addLast(WifiJoinResult.Unavailable)
         val viewModel = viewModel()
         viewModel.onConnectClicked()

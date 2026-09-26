@@ -1511,7 +1511,7 @@
 			(embedded_fonts no)
 		)
 	)
-	(text "Wire colours are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland 1.3\" OLED V2.0 (KS0056), 4-wire SPI, 3.3 V.\nSH1106 128x64 inferred from the vendor example.\nJ2 pins follow the board header, pin 1 = GND (top).\nGPIO21 (A14, the e-ink BUSY) is the Right button (SW4) here."
+	(text "Wire colors are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland 1.3\" OLED V2.0 (KS0056), 4-wire SPI, 3.3 V.\nSH1106 128x64 inferred from the vendor example.\nJ2 pins follow the board header, pin 1 = GND (top).\nGPIO21 (A14, the e-ink BUSY) is the Right button (SW4) here."
 		(exclude_from_sim no)
 		(at 175 96.52 0)
 		(effects

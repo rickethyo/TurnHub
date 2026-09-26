@@ -199,6 +199,7 @@ uint8_t pickerCursor = 0;
 TurnHubSigil::LifeAdjuster lifeAdjuster;
 TurnHubProtocol::LifeRequestFields lifeRequest;
 uint8_t seatAvatars[2] = {0, 0};  // From SeatColor; drawn by the OLED.
+int32_t startingLife = 0;  // From StartingLife: sizes the life heart.
 bool lifeKeyRouted[TurnHubSigil::KEY_COUNT] = {};
 // Snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::LifeOverlay publishedLifeOverlay;
@@ -791,6 +792,7 @@ void forgetPairing(const char *reason) {
   lifeAdjuster.cancel();
   lifeRequest = TurnHubProtocol::LifeRequestFields{};
   seatAvatars[0] = seatAvatars[1] = 0;
+  startingLife = 0;
 #endif
 #if TURNHUB_PICKER
   portENTER_CRITICAL(&displayProfileMux);
@@ -934,6 +936,9 @@ void handleEspNowReceive(
     case PacketType::MenuState:
       sigilMenu.applyMenuState(packet.value, millis());
       break;
+    case PacketType::StartingLife:
+      startingLife = constrain(packet.value, 0, 1000000);
+      break;
 #endif
 
     case PacketType::LedState:
@@ -1044,6 +1049,11 @@ void publishLifeOverlay() {
   overlay.request = lifeRequest;
   overlay.avatar[0] = seatAvatars[0];
   overlay.avatar[1] = seatAvatars[1];
+  overlay.startingLife = startingLife;
+  // Atlas offers Undo pass only while this Sigil's pass waits out its grace.
+  overlay.passPending = sigilMenu.active() && (sigilMenu.actions() &
+      TurnHubProtocol::sigilActionBit(TurnHubProtocol::SigilAction::CancelPass)) != 0;
+  ledModel.setPassPending(overlay.passPending, millis());
 #if TURNHUB_DISPLAY_OLED
   overlay.pending = lifeAdjuster.pending();
   overlay.pendingPlayer = lifeAdjuster.player();

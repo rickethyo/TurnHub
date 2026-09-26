@@ -50,6 +50,10 @@ class SigilLedModel {
   // Sigil-local conditions Atlas cannot drive.
   void setPairing(bool active, uint32_t nowMs);
   void flashPassAck(uint32_t nowMs);
+  // This Sigil's pass is in Atlas's grace period (Undo pass offered): the
+  // ring empties counter-clockwise in green over PASS_GRACE_MS, the center
+  // stays lit, and a single LED flickers. Timed from when it was first seen.
+  void setPassPending(bool active, uint32_t nowMs);
   // A deliberate menu action being held: 0 (none) to 255 (done). The ring
   // fills clockwise in white; a single LED brightens.
   void setHoldProgress(uint8_t level) { holdProgress_ = level; }
@@ -58,9 +62,9 @@ class SigilLedModel {
   // counter-clockwise in red (direction, not only color), one pixel per
   // point; past six the center lights too. The screen shows the new total.
   void setLifePending(int32_t delta) { lifePending_ = delta; }
-  // A seated profile's chosen colour (SeatColor), used only by the calm
-  // Joined and Waiting cues; every action cue keeps its standard colour. A
-  // shared Sigil shows each seat's colour on its ring half.
+  // A seated profile's chosen color (SeatColor), used only by the calm
+  // Joined and Waiting cues; every action cue keeps its standard color. A
+  // shared Sigil shows each seat's color on its ring half.
   void applySeatColor(int32_t value);
 
   LedFrame render(uint32_t nowMs) const;
@@ -78,11 +82,13 @@ class SigilLedModel {
   uint32_t pairingStartMs_ = 0;
   bool passAck_ = false;
   uint32_t passAckUntilMs_ = 0;
+  bool passPending_ = false;
+  uint32_t passPendingStartMs_ = 0;
   uint8_t holdProgress_ = 0;
   int32_t lifePending_ = 0;
   bool seatColorSet_[2] = {false, false};  // [0] = seat A, [1] = seat B.
   Rgb seatColor_[2];
-  // The colour for ring pixel i (1-6) of a calm cue, or `standard` if unset.
+  // The color for ring pixel i (1-6) of a calm cue, or `standard` if unset.
   Rgb calmColor(uint8_t pixel, Rgb standard) const;
 };
 

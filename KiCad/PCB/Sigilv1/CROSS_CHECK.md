@@ -25,9 +25,9 @@ LEDs and the old buttons are not on either schematic while the controls are rede
 
 Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A7, A10, A12, A15, A16, J2, J3, J4, J5, J7, J8, J9, J11, J16, J17, J18.
 
-Display header J2, in physical order (pin 1 at the top of the module header). Wire colours are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
+Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
 
-| Header pin | Silkscreen | Net | Wire colour |
+| Header pin | Silkscreen | Net | Wire color |
 |---|---|---|---|
 | 1 | SDI | EPD_MOSI | blue |
 | 2 | SCLK | EPD_SCLK | purple |
@@ -79,9 +79,9 @@ Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10
 
 Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A7, A10, A15, A16, J2, J3, J4, J5, J7, J8, J14, J15, J16, J17, J18.
 
-Display header J2, in physical order (pin 1 at the top of the module header). Wire colours are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
+Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
 
-| Header pin | Silkscreen | Net | Wire colour |
+| Header pin | Silkscreen | Net | Wire color |
 |---|---|---|---|
 | 1 | GND | GND | olive |
 | 2 | VCC | +3V3 | black |
