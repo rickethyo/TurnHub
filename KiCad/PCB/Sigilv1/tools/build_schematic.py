@@ -98,7 +98,7 @@ FOOTPRINTS = {
     'C1': 'Capacitor_THT:CP_Radial_D8.0mm_P3.50mm',
     'C2': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
     'SW': 'Button_Switch_THT:SW_PUSH_6mm',
-    'U1': 'Sigil:ESP32_DevKit_38_Socket_Row25.4mm',
+    'U1': 'Sigil:ESP32_DevKit_38_Socket_Row22.86mm',
     'U2': 'Package_TO_SOT_SMD:SOT-23-5',
     'C3': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
 }
@@ -225,33 +225,50 @@ capacitor = custom('Capacitor', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62,
 # U1 footprint, carrier top view with the DevKit plugged in face up and its
 # micro-USB end at the top. That view mirrors the rear photo, so the A row
 # (A1 = CLK) is on the LEFT and the J row (J1 = 5V) on the RIGHT; A1/J1 are at
-# the USB end (J1 is 5V, J19 is 3V3 by the antenna). Rows 25.4 mm apart, pitch
-# 2.54 mm, outline 55.0 x 27.5 mm centred on the pins (published Inland specs;
-# Needs verification with calipers).
+# the USB end (J1 is 5V, J19 is 3V3 by the antenna). Rows 22.86 mm (0.9 in)
+# apart: the owner's DevKit straddles a standard breadboard leaving one free hole
+# outside each row (columns b and i), which contradicts the published 25.4 mm.
+# Pitch 2.54 mm; outline 55.0 x 27.5 mm centred on the pins (published Inland
+# specs). A keep-out covers the WROOM-32E antenna past the A19/J19 end.
+# Needs verification with calipers.
+DEVKIT_ROW = 22.86
+DEVKIT_FP = 'ESP32_DevKit_38_Socket_Row22.86mm'
+ANTENNA_KEEPOUT = 7.0   # mm in from the board's antenna edge; estimate, measure it
 def devkit_footprint():
-    L = ['(footprint "ESP32_DevKit_38_Socket_Row25.4mm" (version 20241229) (generator "Sigil") (layer "F.Cu")',
-         '(descr "Two 1x19 2.54 mm female sockets, rows 25.4 mm apart, for the removable Inland ESP32-WROOM-32D DevKit (micro-USB). Needs verification.")',
+    mid = round(DEVKIT_ROW/2, 2)
+    L = [f'(footprint "{DEVKIT_FP}" (version 20241229) (generator "Sigil") (layer "F.Cu")',
+         '(descr "Two 1x19 2.54 mm female sockets, rows 22.86 mm (0.9 in) apart, for the removable Inland ESP32-WROOM-32E DevKit (micro-USB), with an antenna keep-out. Needs verification.")',
          '(attr through_hole)',
-         '(property "Reference" "U1" (at 12.7 -8.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))',
-         '(property "Value" "ESP32 DevKit 38" (at 12.7 53 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))']
+         f'(property "Reference" "U1" (at {mid} -8.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))',
+         f'(property "Value" "ESP32 DevKit 38" (at {mid} 53 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))']
     def line(x1, y1, x2, y2, layer, w):
         L.append(f'(fp_line (start {x1} {y1}) (end {x2} {y2}) (stroke (width {w}) (type solid)) (layer "{layer}"))')
     def text(t, x, y, layer='F.SilkS'):
         L.append(f'(fp_text user "{t}" (at {x} {y} 0) (layer "{layer}") (effects (font (size 1 1) (thickness 0.15))))')
-    x0, x1, y0, y1 = -1.05, 26.45, round(22.86-27.5, 2), round(22.86+27.5, 2)
+    x0, x1 = round(mid-27.5/2, 2), round(mid+27.5/2, 2)
+    y0, y1 = round(22.86-27.5, 2), round(22.86+27.5, 2)
     def rect(grow, layer, w):
         l, t, rr, b = round(x0-grow, 2), round(y0-grow, 2), round(x1+grow, 2), round(y1+grow, 2)
         for e in [(l, t, rr, t), (rr, t, rr, b), (rr, b, l, b), (l, b, l, t)]: line(*e, layer, w)
     rect(0, 'F.Fab', 0.1); rect(0.12, 'F.SilkS', 0.12); rect(0.25, 'F.CrtYd', 0.05)
-    text('USB', 12.7, -2.5); text('A1', -2.8, 0); text('J1', 28.2, 0)
-    text('DevKit outline: verify', 12.7, 22.86, 'F.Fab')
-    for row, x in [('A', 0), ('J', 25.4)]:
+    text('USB', mid, -2.5); text('A1', -2.8, 0); text('J1', round(DEVKIT_ROW+2.8, 2), 0)
+    text('DevKit outline: verify', mid, 22.86, 'F.Fab')
+    # No tracks, vias, pours or parts under the module antenna; the socket's own pads stay.
+    ka = round(y1-ANTENNA_KEEPOUT, 2)
+    text('ANTENNA KEEP-OUT', mid, round((ka+y1)/2, 2), 'F.Fab')
+    L.append('(zone (net 0) (net_name "") (layers "F.Cu" "B.Cu") (name "U1 antenna keep-out") (hatch edge 0.5) '
+             '(connect_pads (clearance 0)) (min_thickness 0.25) '
+             '(keepout (tracks not_allowed) (vias not_allowed) (pads allowed) (copperpour not_allowed) (footprints not_allowed)) '
+             '(fill (thermal_gap 0.5) (thermal_bridge_width 0.5)) '
+             f'(polygon (pts (xy {x0} {ka}) (xy {x1} {ka}) (xy {x1} {y1}) (xy {x0} {y1}))))')
+    for row, x in [('A', 0), ('J', DEVKIT_ROW)]:
         for i in range(19):
             shape = 'rect' if i == 0 else 'circle'
             L.append(f'(pad "{row}{i+1}" thru_hole {shape} (at {x} {round(i*2.54, 2)}) (size 1.7 1.7) (drill 1.0) (layers "*.Cu" "*.Mask"))')
     return '\n'.join(L) + ')\n'
 (ROOT / 'Sigil.pretty').mkdir(exist_ok=True)
-(ROOT / 'Sigil.pretty' / 'ESP32_DevKit_38_Socket_Row25.4mm.kicad_mod').write_text(devkit_footprint())
+for old in (ROOT / 'Sigil.pretty').glob('ESP32_DevKit_38_Socket_Row*.kicad_mod'): old.unlink()
+(ROOT / 'Sigil.pretty' / f'{DEVKIT_FP}.kicad_mod').write_text(devkit_footprint())
 # Jewel adapter footprint: five pin holes where the Jewel's pads sit, the two
 # M2 mounting holes and the ring outline (23 mm, from Adafruit's board file).
 def jewel_footprint():
@@ -409,10 +426,10 @@ def build(project, v):
              '6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n')
     note('SCHEMATIC REVIEW / RELEASE HOLDS\n'
          '1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n'
-         '2. U1 footprint (Sigil.pretty) is from published Inland specs: 2.54 mm pitch, 25.4 mm rows, 55.0 x 27.5 mm. Caliper-check and test-fit before ordering.\n'
+         '2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.86 mm (0.9 in) apart from the breadboard fit (Inland publishes 25.4 mm), 55.0 x 27.5 mm outline. Caliper-check and test-fit before ordering.\n'
          '3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n'
-         '4. Keep micro-USB, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n'
-         '5. Footprints: 2.54 mm sockets/headers, JST-XH J5, axial R1, radial C2/C3, SOT-23-5 U2' + (', 6 mm switches' if has_buttons else '') + '; U1 uses published Inland DevKit rows (25.4 mm): caliper-check first.\n'
+         '4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 7 mm antenna keep-out at the A19/J19 end (estimate): measure the WROOM-32E antenna.\n'
+         '5. Footprints: 2.54 mm sockets/headers, JST-XH J5, axial R1, radial C2/C3, SOT-23-5 U2' + (', 6 mm switches' if has_buttons else '') + '; U1 rows 22.86 mm from the breadboard fit: caliper-check first.\n'
          + hold6 +
          '7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed.', 28, 211)
     out.append('(embedded_fonts no))')

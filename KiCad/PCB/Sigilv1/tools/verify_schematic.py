@@ -124,7 +124,7 @@ for project, title, prefix, header, rows in VARIANTS:
         | ({'J5','R1','U2','C3'} if has_jewel else set()) | ({r[0] for r in BUTTONS} if has_buttons else set()), (project, refs)
     for n,pins in nets.items():
         if not n.startswith('unconnected-'): assert len(pins)>=2,(project,n,pins)
-    assert xml.findtext("components/comp[@ref='U1']/footprint")=='Sigil:ESP32_DevKit_38_Socket_Row25.4mm'
+    assert xml.findtext("components/comp[@ref='U1']/footprint")=='Sigil:ESP32_DevKit_38_Socket_Row22.86mm'
 
     report += [f'## {title} ({project}.kicad_sch)', '',
         '| Function | GPIO | DevKit socket position | Schematic net | Firmware evidence | Match? |', '|---|---|---|---|---|---|']

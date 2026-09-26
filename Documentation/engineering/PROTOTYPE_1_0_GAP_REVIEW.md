@@ -54,8 +54,10 @@ joystick, Jewel ring and buzzer. As of 2026-09-26 the Rev A schematic
 for every carrier part, the ring's bulk capacitor, +3V3 decoupling and the GPIO4
 strap. Before a board can be ordered:
 
-Update the same day: U1 has a footprint from the published Inland DevKit
-dimensions (rows 25.4 mm apart), the buzzer is a passive piezo driven directly, and
+Update the same day: U1 has a footprint (rows 22.86 mm apart, corrected from the
+published 25.4 mm after the owner's DevKit was seen to straddle a standard breadboard
+with one free hole outside each row; *Needs verification*) with a 7 mm antenna
+keep-out, the buzzer is a passive piezo driven directly, and
 a 74AHCT1G125 level shifter (U2) was added for the ring. The Jewel moved to a
 small adapter board with a JST-XH pigtail into the Sigil board. What's left:
 

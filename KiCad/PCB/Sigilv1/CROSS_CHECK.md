@@ -68,7 +68,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | J4 | ANALOG JOYSTICK HEADER (5-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x05_P2.54mm_Vertical` |
 | J5 | STATUS RING CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
-| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row25.4mm` |
+| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.86mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 
 ## OLED (Sigil_OLED.kicad_sch)
@@ -139,7 +139,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | SW3 | LEFT (GPIO19, A12) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW4 | RIGHT (GPIO21, A14) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW5 | SELECT (GPIO32, J13) | `Button_Switch_THT:SW_PUSH_6mm` |
-| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row25.4mm` |
+| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.86mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 
 ## Socket positions
@@ -195,16 +195,16 @@ The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF), a 3-wire
 
 | Ref | Pin | Name | Net |
 |---|---|---|---|
-| J1 | 1 | PWR | +5V |
-| J2 | 1 | +5V | +5V |
-| J3 | 1 | +5V | +5V |
-| C1 | 1 | ~ | +5V |
-| J1 | 2 | GND | GND |
-| J1 | 5 | GND | GND |
-| J2 | 3 | GND | GND |
-| J3 | 3 | GND | GND |
-| C1 | 2 | ~ | GND |
-| J1 | 3 | DIN | RING_DIN_R |
-| J2 | 2 | DIN | RING_DIN_R |
-| J1 | 4 | DOUT | RING_DOUT |
-| J3 | 2 | DOUT | RING_DOUT |
+| C1 | 1 | ~_1 | +5V |
+| J1 | 1 | PWR_1 | +5V |
+| J2 | 1 | +5V_1 | +5V |
+| J3 | 1 | +5V_1 | +5V |
+| C1 | 2 | ~_2 | GND |
+| J1 | 2 | GND_2 | GND |
+| J1 | 5 | GND_5 | GND |
+| J2 | 3 | GND_3 | GND |
+| J3 | 3 | GND_3 | GND |
+| J1 | 3 | DIN_3 | RING_DIN_R |
+| J2 | 2 | DIN_2 | RING_DIN_R |
+| J1 | 4 | DOUT_4 | RING_DOUT |
+| J3 | 2 | DOUT_2 | RING_DOUT |
