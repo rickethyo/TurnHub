@@ -54,10 +54,12 @@ joystick, Jewel ring and buzzer. As of 2026-09-26 the Rev A schematic
 for every carrier part, the ring's bulk capacitor, +3V3 decoupling and the GPIO4
 strap. Before a board can be ordered:
 
-1. **Measure the DevKit** (row spacing, outline, USB-C overhang) and give U1 a footprint.
-2. **Identify the buzzer** part; a magnetic transducer needs a transistor driver.
-3. **Confirm the ring lights** from 3.3 V data; if not, add a 74AHCT1G125.
-4. Re-run KiCad ERC, then lay out the board.
+Update the same day: U1 has a footprint from the published Inland DevKit
+dimensions (rows 25.4 mm apart), the buzzer is a passive piezo driven directly, and
+a 74AHCT1G125 level shifter (U2) was added for the ring. What's left:
+
+1. **Caliper-check the DevKit** row spacing and outline, and test-fit the sockets.
+2. Re-run KiCad ERC, then lay out the board.
 
 A second Jewel strip is optional and not drawn; GPIO26's single data line can chain
 more pixels from J5's DOUT if it is ever wanted, within the USB current budget.

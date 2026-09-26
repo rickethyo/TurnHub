@@ -67,8 +67,8 @@ JEWEL = dict(
     header=[('PWR', '+5V'), ('GND', 'GND'), ('DIN', 'RING_DIN_R'), ('DOUT', None)],
     sockets={'J1': '+5V', 'J10': 'RING_DIN'},
     note='Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n'
-         '3.3 V data into 5 V pixels usually works; if it glitches, add a\n'
-         '74AHCT125 level shifter. R1 (300-500 ohm) sits at the ring.\n'
+         '3.3 V data worked on the breadboard, but it is below spec, so\n'
+         '74AHCT1G125 (U2) buffers GPIO26 to 5 V logic, then R1 (330 ohm).\n'
          'C1 (470 uF, + to PWR) is the recommended bulk capacitor across\n'
          'PWR/GND at the ring. Full RGBW is ~80 mA per pixel (~560 mA total), more\n'
          'than USB supplies: firmware caps brightness at 48/255.\n'
@@ -88,7 +88,17 @@ FOOTPRINTS = {
     'C1': 'Capacitor_THT:CP_Radial_D8.0mm_P3.50mm',
     'C2': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
     'SW': 'Button_Switch_THT:SW_PUSH_6mm',
+    'U1': 'Sigil:ESP32_DevKit_38_Socket_Row25.4mm',
+    'U2': 'Package_TO_SOT_SMD:SOT-23-5',
+    'C3': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
 }
+
+# U2: 74AHCT1G125 single buffer lifts the ring's 3.3 V data to 5 V logic
+# (SK6812 wants about 0.7 x 5 V). Pin numbers are the SOT-23-5 pads; all pins
+# are drawn on the left. (number, name, net, pin type)
+SHIFTER = [('1', 'OE#', 'GND', 'input'), ('2', 'A', 'RING_DIN', 'input'),
+           ('3', 'GND', 'GND', 'passive'), ('4', 'Y', 'RING_DIN_5V', 'output'),
+           ('5', 'VCC', '+5V', 'power_in')]
 
 # Each variant: project name, root sheet UUID, the display module's header in
 # physical order (pin 1 first) as (silkscreen label, net, jumper wire color),
@@ -185,10 +195,45 @@ jewel = jewel_symbol()
 button = button_symbol()
 resistor = custom('Resistor_Series', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62, 0, 180)],
                   2.54, 1.27, -1.27, 'R')
+shifter = custom('74AHCT1G125', [pin(n, name, -20.32, round(-i*5.08, 2), 0, kind)
+                                  for i, (n, name, _, kind) in enumerate(SHIFTER)],
+                 10.16, 5.08, -25.4, 'U')
 capacitor = custom('Capacitor', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62, 0, 180)],
                    2.54, 1.27, -1.27, 'C')
 (ROOT / 'Sigil.kicad_sym').write_text('(kicad_symbol_lib (version 20241209) (generator "Sigil")\n' + '\n'.join(
-    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, capacitor, button]) + ')\n')
+    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, capacitor, shifter, button]) + ')\n')
+# U1 footprint, carrier top view with the DevKit plugged in face up and its
+# micro-USB end at the top. That view mirrors the rear photo, so the A row
+# (A1 = CLK) is on the LEFT and the J row (J1 = 5V) on the RIGHT; A1/J1 are at
+# the USB end (J1 is 5V, J19 is 3V3 by the antenna). Rows 25.4 mm apart, pitch
+# 2.54 mm, outline 55.0 x 27.5 mm centred on the pins (published Inland specs;
+# Needs verification with calipers).
+def devkit_footprint():
+    L = ['(footprint "ESP32_DevKit_38_Socket_Row25.4mm" (version 20241229) (generator "Sigil") (layer "F.Cu")',
+         '(descr "Two 1x19 2.54 mm female sockets, rows 25.4 mm apart, for the removable Inland ESP32-WROOM-32D DevKit (micro-USB). Needs verification.")',
+         '(attr through_hole)',
+         '(property "Reference" "U1" (at 12.7 -8.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))',
+         '(property "Value" "ESP32 DevKit 38" (at 12.7 53 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))']
+    def line(x1, y1, x2, y2, layer, w):
+        L.append(f'(fp_line (start {x1} {y1}) (end {x2} {y2}) (stroke (width {w}) (type solid)) (layer "{layer}"))')
+    def text(t, x, y, layer='F.SilkS'):
+        L.append(f'(fp_text user "{t}" (at {x} {y} 0) (layer "{layer}") (effects (font (size 1 1) (thickness 0.15))))')
+    x0, x1, y0, y1 = -1.05, 26.45, round(22.86-27.5, 2), round(22.86+27.5, 2)
+    for a, b, c, d in [(x0, y0, x1, y0), (x1, y0, x1, y1), (x1, y1, x0, y1), (x0, y1, x0, y0)]:
+        line(a, b, c, d, 'F.Fab', 0.1); line(a-0.25, b-0.25 if b == y0 else b+0.25, c+0.25 if c == x1 else c-0.25, d-0.25 if d == y0 else d+0.25, 'F.CrtYd', 0.05)
+    for a, b, c, d in [(x0-0.12, y0-0.12, x1+0.12, y0-0.12), (x1+0.12, y0-0.12, x1+0.12, y1+0.12),
+                       (x1+0.12, y1+0.12, x0-0.12, y1+0.12), (x0-0.12, y1+0.12, x0-0.12, y0-0.12)]:
+        line(a, b, c, d, 'F.SilkS', 0.12)
+    text('USB', 12.7, -2.5); text('A1', -2.8, 0); text('J1', 28.2, 0)
+    text('DevKit outline: verify', 12.7, 22.86, 'F.Fab')
+    for row, x in [('A', 0), ('J', 25.4)]:
+        for i in range(19):
+            shape = 'rect' if i == 0 else 'circle'
+            L.append(f'(pad "{row}{i+1}" thru_hole {shape} (at {x} {round(i*2.54, 2)}) (size 1.7 1.7) (drill 1.0) (layers "*.Cu" "*.Mask"))')
+    return '\n'.join(L) + ')\n'
+(ROOT / 'Sigil.pretty').mkdir(exist_ok=True)
+(ROOT / 'Sigil.pretty' / 'ESP32_DevKit_38_Socket_Row25.4mm.kicad_mod').write_text(devkit_footprint())
+(ROOT / 'fp-lib-table').write_text('(fp_lib_table (version 7) (lib (name "Sigil") (type "KiCad") (uri "${KIPRJMOD}/Sigil.pretty") (options "") (descr "Sigil carrier footprints")))\n')
 (ROOT / 'sym-lib-table').write_text('(sym_lib_table (lib (name "Sigil") (type "KiCad") (uri "${KIPRJMOD}/Sigil.kicad_sym") (options "") (descr "Sigil Rev A interfaces; no verified footprints")))\n')
 
 
@@ -209,7 +254,7 @@ def build(project, v):
     out = [f'(kicad_sch (version 20260306) (generator "eeschema") (uuid "{NS}") (paper "A3")',
            f'(title_block (title {q(v["title"])}) (rev "A electrical draft") (comment 1 "Rear-photo socket numbering. {controls}"))',
            '(lib_symbols\n' + '\n'.join([devkit, buzz, displays[project]] + ([joystick] if has_joystick else [])
-                                       + ([jewel, resistor] if has_jewel else []) + [capacitor]
+                                       + ([jewel, resistor, shifter] if has_jewel else []) + [capacitor]
                                        + ([button] if has_buttons else [])) + ')']
     def note(text, x, y, size=1.27):
         out.append(f'(text {q(text)} (at {x} {y} 0) (effects (font (size {size} {size})) (justify left top)) (uuid "{uid(text)}"))')
@@ -223,6 +268,7 @@ def build(project, v):
         f'Sigil:{v["symbol"]}': [str(i+1) for i in range(len(v['header']))],
         'Sigil:Buzzer_Logical_Interface': ['1', '2'],
         'Sigil:Capacitor': ['1', '2'],
+        'Sigil:74AHCT1G125': [n for n, _, _, _ in SHIFTER],
         f'Sigil:{JOYSTICK["symbol"]}': [str(i+1) for i in range(len(JOYSTICK['header']))],
         f'Sigil:{JEWEL["symbol"]}': [str(i+1) for i in range(len(JEWEL['header']))],
         'Sigil:Resistor_Series': ['1', '2'],
@@ -236,7 +282,7 @@ def build(project, v):
       (uuid "{uid(ref)}") {fields} {prop('Footprint',fp,x,y,True)} {pin_uuids}
       (instances (project "{project}" (path "/{NS}" (reference "{ref}") (unit 1)))))''')
 
-    instance('Sigil:ESP32_DevKit_38_RearReference', 'U1', 'REMOVABLE ESP32 DEVKIT / 2 x 19', 88.9, 101.6, 58.42)
+    instance('Sigil:ESP32_DevKit_38_RearReference', 'U1', 'REMOVABLE ESP32 DEVKIT / 2 x 19', 88.9, 101.6, 58.42, fp=FOOTPRINTS['U1'])
     for row, names, x in [('J', J, 45.72), ('A', A, 132.08)]:
         for i in range(len(names)):
             y = round(55.88+i*5.08, 2); pos = f'{row}{i+1}'
@@ -263,14 +309,24 @@ def build(project, v):
     wire(218.44, 139.7, 198.12, 139.7); label('BUZZER', 198.12, 139.7)
     wire(218.44, 149.86, 198.12, 149.86); label('GND', 198.12, 149.86)
     instance('Sigil:Buzzer_Logical_Interface', 'J3', 'BUZZER 2-PIN HEADER', 238.76, 139.7, 12.7, fp=FOOTPRINTS['J3'])
-    note('J3 is a 2-pin header (1 SIG, 2 GND) for the breadboard buzzer\non flying leads. The load is unconfirmed: a passive piezo can be\ndriven directly; a magnetic transducer needs a transistor driver\nand flyback diode (not on this board).', 175, 162)
+    note('J3 is a 2-pin header (1 SIG, 2 GND) for the buzzer on leads.\nOwner: a cheap passive piezo disc, driven directly by GPIO33\n(LEDC tone). A magnetic transducer would need a driver instead.', 175, 162)
 
     note('DECOUPLING', 175, 180, 1.5)
     # C2 at the display/joystick headers: pins end at 190.5 (+3V3) and 205.74 (GND).
     instance('Sigil:Capacitor', 'C2', '10uF', 198.12, 190.5, 5.08, fp=FOOTPRINTS['C2'])
     wire(190.5, 190.5, 182.88, 190.5); label('+3V3', 182.88, 190.5)
     wire(205.74, 190.5, 213.36, 190.5); label('GND', 213.36, 190.5)
-    note('C2: 10 uF ceramic (X5R/X7R, >= 10 V) on +3V3 beside J2/J4.', 175, 196)
+    if has_jewel:
+        # C3 decouples U2 on +5V; same layout as C2, one row down.
+        instance('Sigil:Capacitor', 'C3', '100nF', 198.12, 200.66, 5.08, fp=FOOTPRINTS['C3'])
+        wire(190.5, 200.66, 182.88, 200.66); label('+5V', 182.88, 200.66)
+        wire(205.74, 200.66, 213.36, 200.66); label('GND', 213.36, 200.66)
+        # U2 level shifter: pin ends at x 246.38, labels at 228.6.
+        ux, uy = 266.7, 180.34
+        instance('Sigil:74AHCT1G125', 'U2', '74AHCT1G125', ux, uy, 12.7, fp=FOOTPRINTS['U2'])
+        for i, (_, _, net, _) in enumerate(SHIFTER):
+            y = round(uy+i*5.08, 2); wire(246.38, y, 228.6, y); label(net, 228.6, y)
+    note('C2 10 uF X7R on +3V3' + ('; C3 100 nF at U2.' if has_jewel else '.'), 175, 205)
 
     if has_joystick:
         note('CONTROLS / JOYSTICK', 290, 40, 1.5)
@@ -302,7 +358,7 @@ def build(project, v):
             elif name == 'DIN':
                 # GPIO26 -> R1 -> DIN; R1's pins end at 309.88 and 325.12.
                 instance('Sigil:Resistor_Series', 'R1', '330R', 317.5, y, 5.08, fp=FOOTPRINTS['R1'])
-                wire(309.88, y, 304.8, y); label('RING_DIN', 304.8, y)
+                wire(309.88, y, 304.8, y); label('RING_DIN_5V', 304.8, y)
                 wire(325.12, y, 327.66, y); wire(327.66, y, pin_x, y); label(net, 327.66, y)
             else:
                 wire(pin_x, y, 304.8, y); label(net, 304.8, y)
@@ -321,12 +377,12 @@ def build(project, v):
              '6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n')
     note('SCHEMATIC REVIEW / RELEASE HOLDS\n'
          '1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n'
-         '2. No DevKit footprint assigned: measure pitch, row spacing, outline, USB-C overhang, holes, socket height and keepouts.\n'
+         '2. U1 footprint (Sigil.pretty) is from published Inland specs: 2.54 mm pitch, 25.4 mm rows, 55.0 x 27.5 mm. Caliper-check and test-fit before ordering.\n'
          '3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n'
-         '4. Keep USB-C, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n'
-         '5. Carrier parts have through-hole footprints (2.54 mm sockets/headers, axial R1, radial C1/C2' + (', 6 mm switches' if has_buttons else '') + '); U1 has none until measured.\n'
+         '4. Keep micro-USB, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n'
+         '5. Footprints: 2.54 mm sockets/headers, axial R1, radial C1-C3, SOT-23-5 U2' + (', 6 mm switches' if has_buttons else '') + '; U1 uses published Inland DevKit rows (25.4 mm): caliper-check first.\n'
          + hold6 +
-         '7. Rev A is an electrical draft, NOT fabrication-ready until hold 2 is closed. Power through DevKit USB; no second supply designed.', 28, 211)
+         '7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed.', 28, 211)
     out.append('(embedded_fonts no))')
     sch = ROOT / f'{project}.kicad_sch'
     sch.write_text('\n'.join(out) + '\n')

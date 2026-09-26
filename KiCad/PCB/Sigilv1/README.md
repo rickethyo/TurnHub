@@ -23,7 +23,7 @@ Both displays use the same sockets and GPIOs (A8/GPIO16 DC, A9/GPIO17 CS, A11/GP
 
 The breadboard wiring the current firmware uses is in the [hardware reference](../../../Documentation/engineering/HARDWARE_REFERENCE.md).
 
-U1 is the removable, complete 38-pin ESP32 DevKit carrier interface. Its custom symbol and local symbol library use **A1–A19 and J1–J19 as pin numbers**, not ESP32 module pad numbers. No DevKit footprint is assigned. The PCB files are empty placeholders.
+U1 is the removable, complete 38-pin ESP32 DevKit carrier interface (Inland ESP32-WROOM-32D, micro-USB). Its custom symbol and local symbol library use **A1–A19 and J1–J19 as pin numbers**, not ESP32 module pad numbers. Its footprint, `Sigil.pretty/ESP32_DevKit_38_Socket_Row25.4mm` (from `build_schematic.py`), uses the published dimensions: 2.54 mm pitch, rows 25.4 mm (1.0 in) apart, a 55.0 x 27.5 mm board. It is drawn from the carrier's top side with the DevKit face up and micro-USB at the top, which mirrors the rear photo: the A row is on the left, the J row on the right, and A1/J1 at the USB end. *Needs verification*: caliper-check the row spacing and test-fit sockets before ordering. The PCB files are empty placeholders.
 
 ## Authority and orientation
 
@@ -41,9 +41,9 @@ This draft assumes power through the DevKit's own USB connector; J1/5V has no ca
 - **E-ink J2:** SDI, SCLK, CS, D/C, RES, BUSY, VCC, GND. The Inland driver board has two slide switches, P1 (3 / 0.47) and P2 (5VIN / 3.3VIN), whose positions are not recorded; with the carrier's 3.3 V supply, check P2. Supply current and the panel itself need confirmation. The display has no carrier MISO connection.
 - **OLED J2:** GND, VCC, CLK, MOSI, RES, DC, CS. The owner verified the SPI wiring, 3.3 V supply and a working image on 2026-09-24; the SH1106 controller and 128x64 geometry are inferred from the vendor example (see `Sigil/DISPLAY.md`).
 - **Buzzer J3:** a logical SIG/GND interface only. Firmware proves GPIO33 tone output, but not whether the physical load is a passive piezo, magnetic transducer, or driven module. Confirm part, wiring, voltage/current, driver, bias and protection before implementing the load. No direct GPIO-drive rating is assumed.
-- J3 is a plain 2-pin header (pin 1 SIG, pin 2 GND); a magnetic transducer would still need an off-board or added transistor driver and flyback diode.
+- J3 is a plain 2-pin header (pin 1 SIG, pin 2 GND). The owner reports cheap passive piezo buzzers, which GPIO33 drives directly; a magnetic transducer would need a transistor driver and flyback diode.
 - Confirm the DevKit regulator can supply the carrier/display load on +3V3 (the ring runs from USB 5 V).
-- The ring gets 3.3 V data into 5 V SK6812 pixels (spec minimum is about 3.5 V). If the bench ring glitches, add a 74AHCT1G125 before R1 on the PCB rather than after.
+- **Ring level shifter (2026-09-26):** 3.3 V data worked on the breadboard but is below the SK6812's ~3.5 V input spec, so the PCB adds U2, a 74AHCT1G125 (SOT-23-5) on +5V with C3 (100 nF): GPIO26 -> U2 -> R1 -> DIN (nets RING_DIN, RING_DIN_5V, RING_DIN_R).
 
 ## Mechanical release hold
 

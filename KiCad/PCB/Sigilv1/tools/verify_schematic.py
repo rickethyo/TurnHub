@@ -76,7 +76,7 @@ def evidence_found(text, source):
 
 report = ['# Sigil Rev A cross-check tables', '',
     'Verified against exported KiCad netlists, current firmware, and the user-supplied rear-photo sequence. YES means GPIO/socket/net consistency; it does not verify peripheral parts or mechanical dimensions.', '',
-    'Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. C1 (470 uF) sits across the ring supply and C2 (10 uF) on +3V3. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.', '']
+    'Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. C1 (470 uF) sits across the ring supply, C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.', '']
 for project, title, prefix, header, rows in VARIANTS:
     xml = ET.parse(sys.argv[1 if project == 'Sigil_EInk' else 2]).getroot()
     nets = {n.get('name'): {(p.get('ref'),p.get('pin')) for p in n.findall('node')} for n in xml.findall('nets/net')}
@@ -108,7 +108,10 @@ for project, title, prefix, header, rows in VARIANTS:
         for ref, _, net, _, _ in BUTTONS:
             assert by_pin[(ref,'1')]=='/'+net and by_pin[(ref,'2')]=='/GND', (project, ref)
     if has_jewel:
-        assert by_pin[('R1','1')]=='/RING_DIN' and by_pin[('R1','2')]=='/RING_DIN_R', (project, 'R1')
+        for num, net in [('1','GND'),('2','RING_DIN'),('3','GND'),('4','RING_DIN_5V'),('5','+5V')]:
+            assert by_pin[('U2',num)]=='/'+net, (project, 'U2', num)
+        assert by_pin[('C3','1')]=='/+5V' and by_pin[('C3','2')]=='/GND', (project, 'C3')
+        assert by_pin[('R1','1')]=='/RING_DIN_5V' and by_pin[('R1','2')]=='/RING_DIN_R', (project, 'R1')
     assert by_pin[('J3','1')]=='/BUZZER' and by_pin[('J3','2')]=='/GND'
     assert by_pin[('C1','1')]=='/+5V' and by_pin[('C1','2')]=='/GND', (project, 'C1')
     assert by_pin[('C2','1')]=='/+3V3' and by_pin[('C2','2')]=='/GND', (project, 'C2')
@@ -117,12 +120,12 @@ for project, title, prefix, header, rows in VARIANTS:
     for p in set(mapping)-used: assert 'no_connect' in actual[p].get('pintype'), (project, p)
     refs = {c.get('ref') for c in xml.findall('components/comp')}
     for c in xml.findall('components/comp'):
-        if c.get('ref') != 'U1': assert c.find('footprint') is not None, (project, c.get('ref'), 'needs a footprint')
+        assert c.find('footprint') is not None, (project, c.get('ref'), 'needs a footprint')
     assert refs == {'U1','J2','J3','C1','C2'} | ({'J4'} if has_joystick else set()) \
-        | ({'J5','R1'} if has_jewel else set()) | ({r[0] for r in BUTTONS} if has_buttons else set()), (project, refs)
+        | ({'J5','R1','U2','C3'} if has_jewel else set()) | ({r[0] for r in BUTTONS} if has_buttons else set()), (project, refs)
     for n,pins in nets.items():
         if not n.startswith('unconnected-'): assert len(pins)>=2,(project,n,pins)
-    assert xml.find("components/comp[@ref='U1']/footprint") is None
+    assert xml.findtext("components/comp[@ref='U1']/footprint")=='Sigil:ESP32_DevKit_38_Socket_Row25.4mm'
 
     report += [f'## {title} ({project}.kicad_sch)', '',
         '| Function | GPIO | DevKit socket position | Schematic net | Firmware evidence | Match? |', '|---|---|---|---|---|---|']
@@ -148,11 +151,11 @@ for project, title, prefix, header, rows in VARIANTS:
         report += [f'| {ref} | {key} | GPIO{gpio} | {sock} | {net} | GND |' for ref,key,net,gpio,sock in BUTTONS]
         report.append('')
     if has_jewel:
-        report += ['Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through R1 (330 ohm, at the ring) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.', '',
+        report += ['Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.', '',
             '| Header pin | Pad label | Net |', '|---|---|---|']
         report += [f'| {num} | {name} | {net or "NC"} |' for num,name,net,_ in JEWEL_HEADER]
         report.append('')
-    report += ['Passives and footprints (U1 has none until the DevKit is measured):', '',
+    report += ['Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-check before ordering):', '',
         '| Ref | Value | Footprint |', '|---|---|---|']
     report += [f"| {c.get('ref')} | {c.findtext('value')} | `{c.findtext('footprint') or 'none'}` |"
                for c in sorted(xml.findall('components/comp'), key=lambda c: c.get('ref'))]
@@ -161,6 +164,6 @@ for project, title, prefix, header, rows in VARIANTS:
 report += ['## Socket positions', '', '| Socket position | DevKit silkscreen pin |', '|---|---|']
 report += [f'| {p} | {n} |' for p,n in mapping.items()]
 report += ['', 'Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.', '',
-    'Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, C1/C2 and buzzer nets match firmware; power and all three grounds connected; every part except U1 has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.', '']
+    'Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, C1/C2 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.', '']
 (ROOT/'CROSS_CHECK.md').write_text('\n'.join(report), encoding='utf-8')
-print('PASS: both schematics match the socket mapping, firmware display/joystick/pushbutton/ring/buzzer pins, power, NC pins and empty DevKit footprint')
+print('PASS: both schematics match the socket mapping, firmware display/joystick/pushbutton/ring/buzzer pins, power, NC pins and the U1 socket footprint')
