@@ -379,6 +379,9 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
     case SigilAction::Pass:
       handlePass(sigilId);
       break;
+    case SigilAction::AdjustLife:
+      // Not selectable: it only frees Left/Right, which send LifeAdjust packets.
+      break;
     case SigilAction::CancelPass:
       logRejected("MENU|CANCEL_PASS", sigilId, dispatchModuleIntent(IntentType::CancelPass, sigilId));
       break;

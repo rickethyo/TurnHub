@@ -588,9 +588,11 @@ void formatCode(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.title, sizeof(screen.title), "%s", request->setup ? "Set up this Atlas" : "Admin code");
   const String name = TurnHubProfiles::nameForProfile(String(request->profileId));
   const uint32_t leftS = (PRESENCE_CODE_MS - (nowMs - request->shownAtMs) + 999) / 1000;
+  // Profile names are clipped to the screen's name width; the fallback is not.
   char who[SCREEN_NAME_LENGTH + 1];
-  snprintf(who, sizeof(who), "%s", name.length() ? name.c_str() : "a signed-in phone");
-  snprintf(screen.detail, sizeof(screen.detail), "For %s (%lu s)", who, static_cast<unsigned long>(leftS));
+  snprintf(who, sizeof(who), "%s", name.c_str());
+  snprintf(screen.detail, sizeof(screen.detail), "For %s (%lu s)",
+      name.length() ? who : "a signed-in phone", static_cast<unsigned long>(leftS));
   snprintf(screen.code, sizeof(screen.code), "%03lu %03lu",
       static_cast<unsigned long>(request->code / 1000), static_cast<unsigned long>(request->code % 1000));
   snprintf(screen.qr, sizeof(screen.qr), "%s/portal#code=%06lu", PORTAL_ORIGIN,
