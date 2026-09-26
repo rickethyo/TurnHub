@@ -18,6 +18,7 @@
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
+#include "profile_stats_bridge.h"
 #include "touch_calibration.h"
 #include "touch_controls.h"
 #include "harness_link.h"
@@ -120,7 +121,7 @@ bool OtaManager::inProgress() const { return false; }
 static int completedGames=0;
 static void completed(const GameEngine &g) {
   ++completedGames;
-  TurnHubProfileStats::recordCompletedGame(g,+[](const PlayerSeat &s){return String(s.profileId);});
+  TurnHubProfileStats::persistCompletedGame(g);  // The firmware's own bridge.
 }
 static void freshLobby(int modules=3,bool shared=false) {
   // Fixture reset; all actions under test go through adapters/dispatcher.
@@ -1888,7 +1889,8 @@ static void touchAt(int16_t x,int16_t y) { lastTouchX=x; lastTouchY=y; updateTou
 static void keepPressing() { touchAt(lastTouchX,lastTouchY); }
 static void touchRelease() { testNow+=TOUCH_RELEASE_MS; updateTouchControls(testNow,false,0,0); }
 static void pressButton(TouchAction action) {
-  const TouchButton *b=screenButton(currentScreen(),action); assert(b!=nullptr);
+  const AtlasScreen screen=currentScreen();  // keep it alive: b points into it
+  const TouchButton *b=screenButton(screen,action); assert(b!=nullptr);
   touchAt(b->x+b->w/2,b->y+b->h/2);
 }
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
@@ -1992,7 +1994,8 @@ static void touchControls() {
   assert(String(currentScreen().detail)=="2 players, 0 Sigils");
   // A press drifting just past the edge (resistive jitter, a rolling
   // fingertip) still counts; beyond the slop it cancels.
-  { const TouchButton *pair=screenButton(currentScreen(),TouchAction::Pair);
+  { const AtlasScreen pairScreen=currentScreen();
+    const TouchButton *pair=screenButton(pairScreen,TouchAction::Pair);
     const int16_t px=pair->x+pair->w/2, py=pair->y+pair->h/2, edge=pair->y-1;
     touchAt(px,py); touchAt(px,edge-TOUCH_SLOP_PX+2); touchRelease(); assert(pairingActive);
     testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);

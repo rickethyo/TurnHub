@@ -1,3 +1,5 @@
+#include "profile_stats_bridge.h"
+
 #include "game_engine.h"
 #include "profile_statistics.h"
 #include "profile_store.h"
@@ -14,16 +16,20 @@ String resolveProfileId(const TurnHub::PlayerSeat &seat) {
   return String(seat.profileId);
 }
 
-void persistCompletedGame(const TurnHub::GameEngine &game) {
+}  // namespace
+
+void TurnHubProfileStats::persistCompletedGame(const TurnHub::GameEngine &game) {
   const uint8_t updated =
       TurnHubProfileStats::recordCompletedGame(game, resolveProfileId);
   serialLog.print("ATLAS|PROFILE_STATS|GAME_RECORDED|");
   serialLog.println(updated);
 }
 
+namespace {
+
 struct ProfileStatsBridgeRegistration {
   ProfileStatsBridgeRegistration() {
-    TurnHub::GameEngine::setGameCompletedCallback(persistCompletedGame);
+    TurnHub::GameEngine::setGameCompletedCallback(TurnHubProfileStats::persistCompletedGame);
   }
 };
 

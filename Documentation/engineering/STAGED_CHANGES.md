@@ -247,6 +247,9 @@ bench and be usable by another person without a development computer. It does no
 need production-finished enclosures or batteries. USB power from known-good power
 banks is acceptable; setup reliability and recovery are higher priorities.
 
+Gap review (2026-09-26): see [Prototype 1.0 gap review](PROTOTYPE_1_0_GAP_REVIEW.md)
+for the status of each item below against the current tree, and the carrier-PCB path.
+
 Near-term order:
 
 Play-test priority update (2026-09-21): Michael requested game profiles/life totals.
