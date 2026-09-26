@@ -1,6 +1,6 @@
 # Sigil Rev A electrical drafts
 
-Rev A is drawn as two KiCad projects in this folder. They share the symbol library (`Sigil.kicad_sym`) and differ only in the display interface:
+Rev A is drawn as two KiCad projects in this folder, plus `Sigil_JewelAdapter` (the status ring's small board, below). They share the symbol library (`Sigil.kicad_sym`) and differ only in the display interface:
 
 | Project | Display | Display nets |
 |---|---|---|
@@ -13,13 +13,13 @@ Both displays use the same sockets and GPIOs (A8/GPIO16 DC, A9/GPIO17 CS, A11/GP
 
 **Display-type strap (both, 2026-09-26).** A7/GPIO4 tells the firmware which display the board carries (`HW_TYPE_STRAP_PIN`, `Sigil/DISPLAY.md`): left NC on `Sigil_EInk` (the internal pull-up reads E-ink), tied to GND on `Sigil_OLED`. A build for the other display halts at boot, so a carrier with the wrong strap won't run.
 
-**First-PCB footprints (2026-09-26).** Every carrier part except U1 now has a through-hole KiCad standard-library footprint and is in the BOM: J2 a 1x8 (E-ink) or 1x7 (OLED) 2.54 mm socket, J4 a 1x5 socket, J5 a 1x4 header for leads to the Jewel, J3 a 1x2 header for the buzzer leads, R1 an axial 0207 resistor, C1 an 8 mm radial electrolytic, C2 a 10 uF ceramic on +3V3 beside the headers (5 mm disc footprint), SW1-SW5 6 mm tactile switches. *Planned*: footprints are chosen, no board is laid out.
+**First-PCB footprints (2026-09-26).** Every carrier part now has a through-hole KiCad standard-library footprint and is in the BOM: J2 a 1x8 (E-ink) or 1x7 (OLED) 2.54 mm socket, J4 a 1x5 socket, J5 a JST-XH 3-pin socket for the Jewel adapter pigtail, J3 a 1x2 header for the buzzer leads, R1 an axial 0207 resistor, C2 a 10 uF ceramic on +3V3 beside the headers (5 mm disc footprint), SW1-SW5 6 mm tactile switches. *Planned*: footprints are chosen, no board is laid out.
 
 **Joystick (E-ink only).** `Sigil_EInk` carries J4, an unmarked 5-pin analog thumbstick that replaces the Pass/Action/Pause buttons: GND, "+5V" (fed **3.3 V**, never 5 V, since VRX/VRY swing to the supply and the ESP32 ADC is 3.3 V max), VRX to J15/GPIO34, VRY to J14/GPIO35 and SW to J13/GPIO32. VRX/VRY are ADC1 input-only pins because ADC2 is unusable under ESP-NOW. Firmware: the Sigil `sigil` PlatformIO environment (the E-ink build); the directions and click are the five menu keys (on-screen compass). *Verified* on the owner's breadboard (2026-09-25): both axes read reversed as mounted, so the firmware inverts X and Y.
 
 **Pushbuttons (OLED only).** `Sigil_OLED` carries SW1-SW5, five discrete momentary pushbuttons (no d-pad module; replaced J4 on 2026-09-25), each from its GPIO (pin 1) to one shared GND rail (pin 2) using the ESP32's internal pull-ups, no resistors: SW1 Up J11/GPIO25, SW2 Down J9/GPIO27, SW3 Left A12/GPIO19, SW4 Right A14/GPIO21 (the e-ink BUSY pin, unused by the OLED) and SW5 Select J13/GPIO32. On a 4-leg tactile switch use legs on opposite sides of the gap. They drive the OLED menu list; firmware unchanged. *Planned*: being wired.
 
-**Status ring (both).** Both drafts carry J5, an Adafruit NeoPixel Jewel 7 (RGBW): PWR from the DevKit's USB 5V (J1), GND, and DIN from J10/GPIO26 through R1 (330 ohm, placed at the ring); Data Output is unconnected. 3.3 V data into 5 V pixels usually works; add a 74AHCT125 level shifter if it glitches. C1 (470 uF, 10 V electrolytic, + to PWR) is now on both schematics across PWR/GND at the ring; it wasn't fitted on the breadboard. Full RGBW draws about 560 mA, more than USB supplies, so the firmware caps brightness at 48/255. The ring draws the Sigil's status light from Atlas's LedState (player number as lit pixels, a shared seat as its ring half, the top overlay in the center); the same information is always on a screen as text. *Planned*: wired, not yet confirmed lit on hardware.
+**Status ring (both), on its own adapter board (2026-09-26).** The Adafruit NeoPixel Jewel 7 (RGBW) no longer sits on the Sigil board. `Sigil_JewelAdapter` is a small board with five pin holes where the Jewel's pads are (positions from Adafruit's [NeoJewel 7 board file](https://github.com/adafruit/Adafruit-NeoPixel-Jewel-7)): pins stand up from it and the Jewel is soldered on top, LEDs up, like it was on the breadboard. It carries C1 (470 uF bulk capacitor), the Jewel's two M2 mounting holes, and J2, three holes for the bare end of a 3-wire JST-XH pigtail. The pigtail plugs into J5 on the Sigil board, a JST-XH 3-pin socket (1 +5V, 2 DIN, 3 GND, same order at both ends). On the Sigil board, GPIO26 (J10) goes through U2 and R1 (330 ohm, at the source; the Jewel has its own 470 ohm on DIN) to J5, and +5V comes from the DevKit's USB 5V (J1). Full RGBW draws about 560 mA, more than USB supplies, so the firmware caps brightness at 48/255. The ring draws the Sigil's status light from Atlas's LedState; the same information is always on a screen as text. *Verified* lit on the breadboard (owner, 2026-09-26); the adapter's pad positions are *Needs verification* (test-fit a Jewel against a 1:1 print).
 
 The breadboard wiring the current firmware uses is in the [hardware reference](../../../Documentation/engineering/HARDWARE_REFERENCE.md).
 
@@ -68,7 +68,8 @@ To validate, export each netlist and run the verifier; it refreshes CROSS_CHECK.
 ```sh
 kicad-cli sch export netlist --format kicadxml -o eink.xml Sigil_EInk.kicad_sch
 kicad-cli sch export netlist --format kicadxml -o oled.xml Sigil_OLED.kicad_sch
-python tools/verify_schematic.py eink.xml oled.xml
+kicad-cli sch export netlist --format kicadxml -o adapter.xml Sigil_JewelAdapter.kicad_sch
+python tools/verify_schematic.py eink.xml oled.xml adapter.xml
 ```
 
 Without KiCad, `python tools/offline_netlist.py Sigil_EInk.kicad_sch eink.xml` (and the same for OLED) writes an equivalent netlist from the generated files. It only understands what `build_schematic.py` writes and is not ERC.

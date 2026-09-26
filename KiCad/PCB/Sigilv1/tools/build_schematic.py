@@ -58,22 +58,33 @@ BUTTONS = dict(
          'Pair is the DevKit BOOT button. Firmware: Sigil env sigil-oled.')
 BUTTONS['sockets'] = {sock: net for _, _, net, _, sock in BUTTONS['keys']}
 
-# Adafruit NeoPixel Jewel 7, RGBW (SK6812-type): 5 V power from the DevKit's
-# USB 5V (J1), data from GPIO26 (J10) through a 330 ohm series resistor (R1)
-# at the ring. Data Output is unused (no chained pixels). Pin numbers are
-# logical; the Jewel's pads are labelled. Firmware: Sigil env `sigil`.
+# Status ring cable socket J5: the Jewel sits on its own adapter board
+# (Sigil_JewelAdapter) with a pigtail that plugs in here. 5 V from the DevKit's
+# USB 5V (J1); data from GPIO26 (J10) through U2 and a 330 ohm source resistor
+# (R1). Pin order matches the adapter's pigtail holes, so a straight 3-wire
+# JST-XH cable works. Firmware: Sigil env `sigil` or `sigil-oled`.
 JEWEL = dict(
-    symbol='NeoPixel_Jewel7_RGBW', value='NEOPIXEL JEWEL 7 RGBW',
-    header=[('PWR', '+5V'), ('GND', 'GND'), ('DIN', 'RING_DIN_R'), ('DOUT', None)],
+    symbol='Ring_Cable_JST_XH_3', value='STATUS RING CABLE (JST-XH 3)',
+    header=[('+5V', '+5V'), ('DIN', 'RING_DIN_R'), ('GND', 'GND')],
     sockets={'J1': '+5V', 'J10': 'RING_DIN'},
-    note='Adafruit NeoPixel Jewel 7, RGBW, powered from USB 5V (J1).\n'
-         '3.3 V data worked on the breadboard, but it is below spec, so\n'
-         '74AHCT1G125 (U2) buffers GPIO26 to 5 V logic, then R1 (330 ohm).\n'
-         'C1 (470 uF, + to PWR) is the recommended bulk capacitor across\n'
-         'PWR/GND at the ring. Full RGBW is ~80 mA per pixel (~560 mA total), more\n'
-         'than USB supplies: firmware caps brightness at 48/255.\n'
-         'Draws the status light (LedState); never the only signal.\n'
-         'Firmware: Sigil PlatformIO env sigil or sigil-oled.')
+    note='J5: JST-XH 3-pin socket for the Jewel adapter pigtail\n'
+         '(1 +5V, 2 DIN, 3 GND). The Jewel 7 RGBW and its bulk capacitor\n'
+         'are on Sigil_JewelAdapter. 3.3 V data worked on the breadboard\n'
+         'but is below spec, so U2 (74AHCT1G125) buffers GPIO26 to 5 V;\n'
+         'R1 (330 ohm) at the source damps the cable (the Jewel has its\n'
+         'own 470 ohm on DIN). Full RGBW is ~560 mA, more than USB\n'
+         'supplies: firmware caps brightness at 48/255.\n'
+         'Draws the status light (LedState); never the only signal.')
+
+# Jewel adapter board: pins stand up from it and the Jewel is soldered on top,
+# LEDs up. Pad positions are Adafruit's NeoJewel 7 board file
+# (github.com/adafruit/Adafruit-NeoPixel-Jewel-7), seen from the LED side, in
+# mm from the ring centre with y down. (pad, name, net, x, y)
+JEWEL_PADS = [('1', 'PWR', '+5V', 2.043, 4.141), ('2', 'GND', 'GND', 4.207, 0.108),
+              ('3', 'DIN', 'RING_DIN_R', -2.041, 3.963), ('4', 'DOUT', None, -2.303, -4.004),
+              ('5', 'GND', 'GND', 2.3, -4.2)]
+# Pigtail holes on the adapter, same order as J5 on the Sigil board.
+PIGTAIL = [('+5V', '+5V'), ('DIN', 'RING_DIN_R'), ('GND', 'GND')]
 
 # Carrier footprints for the first PCB: all through-hole, hand-solderable,
 # 2.54 mm sockets so each module plugs in like it does on the breadboard.
@@ -83,7 +94,7 @@ FOOTPRINTS = {
     'J2_7': 'Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical',
     'J3': 'Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical',
     'J4': 'Connector_PinSocket_2.54mm:PinSocket_1x05_P2.54mm_Vertical',
-    'J5': 'Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical',
+    'J5': 'Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical',
     'R1': 'Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal',
     'C1': 'Capacitor_THT:CP_Radial_D8.0mm_P3.50mm',
     'C2': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
@@ -174,7 +185,7 @@ def button_symbol():
             f' (polyline (pts (xy 0 1.524) (xy 0 3.048)) {st}))\n'
             f'  (symbol "{name}_1_1" {pin("1", "~", -7.62, 0, 0)}{pin("2", "~", 7.62, 0, 180)}))')
 def jewel_symbol():
-    kinds = {'PWR': 'power_in', 'GND': 'passive', 'DIN': 'input', 'DOUT': 'output'}
+    kinds = {'+5V': 'passive', 'GND': 'passive', 'DIN': 'passive'}
     pins = [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0, kinds[name])
             for i, (name, _) in enumerate(JEWEL['header'])]
     return custom(JEWEL['symbol'], pins, 15.24, 5.08, round(-5.08*len(JEWEL['header']), 2), 'J')
@@ -198,10 +209,17 @@ resistor = custom('Resistor_Series', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 
 shifter = custom('74AHCT1G125', [pin(n, name, -20.32, round(-i*5.08, 2), 0, kind)
                                   for i, (n, name, _, kind) in enumerate(SHIFTER)],
                  10.16, 5.08, -25.4, 'U')
+jewel_pins = custom('NeoPixel_Jewel7', [pin(n, name, -20.32, round(-i*5.08, 2), 0,
+                                         'output' if name == 'DOUT' else 'passive')
+                                     for i, (n, name, _, _, _) in enumerate(JEWEL_PADS)],
+                    15.24, 5.08, -25.4, 'J')
+pigtail = custom('Pigtail_Pads_3', [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0)
+                                    for i, (name, _) in enumerate(PIGTAIL)],
+                 15.24, 5.08, -15.24, 'J')
 capacitor = custom('Capacitor', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62, 0, 180)],
                    2.54, 1.27, -1.27, 'C')
 (ROOT / 'Sigil.kicad_sym').write_text('(kicad_symbol_lib (version 20241209) (generator "Sigil")\n' + '\n'.join(
-    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, capacitor, shifter, button]) + ')\n')
+    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, capacitor, shifter, button, jewel_pins, pigtail]) + ')\n')
 # U1 footprint, carrier top view with the DevKit plugged in face up and its
 # micro-USB end at the top. That view mirrors the rear photo, so the A row
 # (A1 = CLK) is on the LEFT and the J row (J1 = 5V) on the RIGHT; A1/J1 are at
@@ -233,6 +251,24 @@ def devkit_footprint():
     return '\n'.join(L) + ')\n'
 (ROOT / 'Sigil.pretty').mkdir(exist_ok=True)
 (ROOT / 'Sigil.pretty' / 'ESP32_DevKit_38_Socket_Row25.4mm.kicad_mod').write_text(devkit_footprint())
+# Jewel adapter footprint: five pin holes where the Jewel's pads sit, the two
+# M2 mounting holes and the ring outline (23 mm, from Adafruit's board file).
+def jewel_footprint():
+    L = ['(footprint "NeoPixel_Jewel7_Pins" (version 20241229) (generator "Sigil") (layer "F.Cu")',
+         '(descr "Pin holes to solder an Adafruit NeoPixel Jewel 7 on top, LEDs up. Pad positions from Adafruit-NeoPixel-Jewel-7 (Eagle). Test-fit before ordering.")',
+         '(attr through_hole)',
+         '(property "Reference" "J1" (at 0 -13 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))',
+         '(property "Value" "Jewel 7" (at 0 13 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))',
+         '(fp_circle (center 0 0) (end 11.5 0) (stroke (width 0.1) (type solid)) (fill no) (layer "F.Fab"))',
+         '(fp_circle (center 0 0) (end 11.75 0) (stroke (width 0.05) (type solid)) (fill no) (layer "F.CrtYd"))',
+         '(fp_circle (center 0 0) (end 11.62 0) (stroke (width 0.12) (type solid)) (fill no) (layer "F.SilkS"))']
+    for n, name, _, x, y in JEWEL_PADS:
+        L.append(f'(pad "{n}" thru_hole {"rect" if n == "1" else "circle"} (at {x} {y}) (size 1.8 1.8) (drill 1.0) (layers "*.Cu" "*.Mask"))')
+        L.append(f'(fp_text user "{name}" (at {x} {round(y + (1.9 if y > 0 else -1.9), 2)} 0) (layer "F.SilkS") (effects (font (size 0.7 0.7) (thickness 0.12))))')
+    for x in (-9.5, 9.5):
+        L.append(f'(pad "" np_thru_hole circle (at {x} 0) (size 2.2 2.2) (drill 2.2) (layers "*.Cu" "*.Mask"))')
+    return '\n'.join(L) + ')\n'
+(ROOT / 'Sigil.pretty' / 'NeoPixel_Jewel7_Pins.kicad_mod').write_text(jewel_footprint())
 (ROOT / 'fp-lib-table').write_text('(fp_lib_table (version 7) (lib (name "Sigil") (type "KiCad") (uri "${KIPRJMOD}/Sigil.pretty") (options "") (descr "Sigil carrier footprints")))\n')
 (ROOT / 'sym-lib-table').write_text('(sym_lib_table (lib (name "Sigil") (type "KiCad") (uri "${KIPRJMOD}/Sigil.kicad_sym") (options "") (descr "Sigil Rev A interfaces; no verified footprints")))\n')
 
@@ -362,17 +398,12 @@ def build(project, v):
                 wire(325.12, y, 327.66, y); wire(327.66, y, pin_x, y); label(net, 327.66, y)
             else:
                 wire(pin_x, y, 304.8, y); label(net, 304.8, y)
-        # C1 bulk capacitor across the ring supply, below the J5 pins.
-        cy = round(ry+5.08*len(JEWEL['header'])+2.54, 2)
-        instance('Sigil:Capacitor', 'C1', '470uF 10V', 317.5, cy, 5.08, fp=FOOTPRINTS['C1'])
-        wire(309.88, cy, 304.8, cy); label('+5V', 304.8, cy)
-        wire(325.12, cy, 327.66, cy); label('GND', 327.66, cy)
-        note(JEWEL['note'], 290, round(cy+7.62, 2))
+        note(JEWEL['note'], 290, round(ry+5.08*len(JEWEL['header'])+5.08, 2))
 
     hold6 = ('6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its "+5V" pin MUST be fed 3.3 V)'
-             + ('; J5 is the NeoPixel status ring on USB 5V.\n' if has_jewel else '.\n')
+             + ('; J5 is the Jewel adapter cable on USB 5V.\n' if has_jewel else '.\n')
              if has_joystick else
-             '6. Discrete LEDs and the old buttons are removed; SW1-SW5 are the five menu pushbuttons (GPIO to a common GND); J5 is the NeoPixel status ring on USB 5V.\n'
+             '6. Discrete LEDs and the old buttons are removed; SW1-SW5 are the five menu pushbuttons (GPIO to a common GND); J5 is the Jewel adapter cable on USB 5V.\n'
              if has_buttons else
              '6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n')
     note('SCHEMATIC REVIEW / RELEASE HOLDS\n'
@@ -380,7 +411,7 @@ def build(project, v):
          '2. U1 footprint (Sigil.pretty) is from published Inland specs: 2.54 mm pitch, 25.4 mm rows, 55.0 x 27.5 mm. Caliper-check and test-fit before ordering.\n'
          '3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n'
          '4. Keep micro-USB, BOOT and EN/reset accessible; preserve antenna/component clearances after measurement.\n'
-         '5. Footprints: 2.54 mm sockets/headers, axial R1, radial C1-C3, SOT-23-5 U2' + (', 6 mm switches' if has_buttons else '') + '; U1 uses published Inland DevKit rows (25.4 mm): caliper-check first.\n'
+         '5. Footprints: 2.54 mm sockets/headers, JST-XH J5, axial R1, radial C2/C3, SOT-23-5 U2' + (', 6 mm switches' if has_buttons else '') + '; U1 uses published Inland DevKit rows (25.4 mm): caliper-check first.\n'
          + hold6 +
          '7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed.', 28, 211)
     out.append('(embedded_fonts no))')
@@ -394,3 +425,61 @@ def build(project, v):
 
 for project, v in VARIANTS.items():
     build(project, v)
+
+
+def build_adapter():
+    """Sigil_JewelAdapter: the Jewel on raised pins, C1, and pigtail holes."""
+    project = 'Sigil_JewelAdapter'
+    NS = uuid.UUID('6b1d3f52-0c4e-4a8e-9f7a-2d5c8e1b9a03')
+    def uid(key): return str(uuid.uuid5(NS, key))
+    out = [f'(kicad_sch (version 20260306) (generator "eeschema") (uuid "{NS}") (paper "A4")',
+           '(title_block (title "Sigil Jewel adapter - NeoPixel Jewel 7 on pins, pigtail to Sigil J5") (rev "A electrical draft"))',
+           '(lib_symbols\n' + '\n'.join([jewel_pins, pigtail, capacitor]) + ')']
+    def note(text, x, y, size=1.27):
+        out.append(f'(text {q(text)} (at {x} {y} 0) (effects (font (size {size} {size})) (justify left top)) (uuid "{uid(text)}"))')
+    def wire(x, y, x2, y2):
+        out.append(f'(wire (pts (xy {x} {y}) (xy {x2} {y2})) (stroke (width 0) (type default)) (uuid "{uid(str((x,y,x2,y2)))}"))')
+    def label(net, x, y):
+        out.append(f'(label {q(net)} (at {x} {y} 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "{uid(net+str((x,y)))}"))')
+    def instance(lib, ref, value, x, y, top, pins, fp):
+        fields = prop('Reference', ref, x, y-top) + prop('Value', value, x, y-top+2.54)
+        pin_uuids = ''.join(f'(pin {q(n)} (uuid "{uid(ref+"/"+n)}"))' for n in pins)
+        out.append(f'''(symbol (lib_id "{lib}") (at {x} {y} 0) (unit 1) (in_bom yes) (on_board yes) (dnp no)
+      (uuid "{uid(ref)}") {fields} {prop('Footprint',fp,x,y,True)} {pin_uuids}
+      (instances (project "{project}" (path "/{NS}" (reference "{ref}") (unit 1)))))''')
+
+    note('JEWEL ADAPTER', 25.4, 25.4, 1.5)
+    jx, jy = 101.6, 45.72
+    instance('Sigil:NeoPixel_Jewel7', 'J1', 'ADAFRUIT NEOPIXEL JEWEL 7 RGBW', jx, jy, 12.7,
+             [n for n, *_ in JEWEL_PADS], 'Sigil:NeoPixel_Jewel7_Pins')
+    for i, (_, name, net, _, _) in enumerate(JEWEL_PADS):
+        y = round(jy+i*5.08, 2)
+        if net is None:
+            out.append(f'(no_connect (at {round(jx-20.32, 2)} {y}) (uuid "{uid("nc"+str(y))}"))')
+        else:
+            wire(round(jx-20.32, 2), y, 60.96, y); label(net, 60.96, y)
+    px, py = 101.6, 83.82
+    instance('Sigil:Pigtail_Pads_3', 'J2', 'PIGTAIL TO SIGIL J5', px, py, 12.7,
+             ['1', '2', '3'], 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical')
+    for i, (_, net) in enumerate(PIGTAIL):
+        y = round(py+i*5.08, 2); wire(round(px-20.32, 2), y, 60.96, y); label(net, 60.96, y)
+    # C1 bulk capacitor: pins end at 144.78 (+5V) and 160.02 (GND).
+    instance('Sigil:Capacitor', 'C1', '470uF 10V', 152.4, 45.72, 5.08, ['1', '2'], FOOTPRINTS['C1'])
+    wire(144.78, 45.72, 137.16, 45.72); label('+5V', 137.16, 45.72)
+    wire(160.02, 45.72, 167.64, 45.72); label('GND', 167.64, 45.72)
+    note('Pins stand up from this board and the Jewel is soldered on top,\n'
+         'LEDs up. Pad positions come from Adafruit\'s NeoJewel 7 board file\n'
+         '(github.com/adafruit/Adafruit-NeoPixel-Jewel-7); test-fit your Jewel\n'
+         'before ordering. Both Jewel GND pads are used; DOUT is unused.\n'
+         'J2: holes for a 3-wire JST-XH pigtail (1 +5V, 2 DIN, 3 GND), same\n'
+         'order as J5 on the Sigil board. C1 470 uF 10 V electrolytic,\n'
+         '+ to +5V, is the ring bulk capacitor. The Jewel already has a\n'
+         '470 ohm resistor on DIN; the Sigil board adds U2 and R1.', 25.4, 110)
+    out.append('(embedded_fonts no))')
+    sch = ROOT / f'{project}.kicad_sch'
+    sch.write_text('\n'.join(out) + '\n')
+    if shutil.which('kicad-cli'):
+        subprocess.run(['kicad-cli', 'sch', 'upgrade', '--force', str(sch)], check=True)
+
+
+build_adapter()

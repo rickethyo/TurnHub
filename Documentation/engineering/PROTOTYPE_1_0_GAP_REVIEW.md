@@ -56,9 +56,11 @@ strap. Before a board can be ordered:
 
 Update the same day: U1 has a footprint from the published Inland DevKit
 dimensions (rows 25.4 mm apart), the buzzer is a passive piezo driven directly, and
-a 74AHCT1G125 level shifter (U2) was added for the ring. What's left:
+a 74AHCT1G125 level shifter (U2) was added for the ring. The Jewel moved to a
+small adapter board with a JST-XH pigtail into the Sigil board. What's left:
 
 1. **Caliper-check the DevKit** row spacing and outline, and test-fit the sockets.
+   Print both footprints 1:1 and test-fit the DevKit and a Jewel.
 2. Re-run KiCad ERC, then lay out the board.
 
 A second Jewel strip is optional and not drawn; GPIO26's single data line can chain

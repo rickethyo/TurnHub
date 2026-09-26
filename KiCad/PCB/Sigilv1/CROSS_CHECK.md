@@ -2,7 +2,7 @@
 
 Verified against exported KiCad netlists, current firmware, and the user-supplied rear-photo sequence. YES means GPIO/socket/net consistency; it does not verify peripheral parts or mechanical dimensions.
 
-Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. C1 (470 uF) sits across the ring supply, C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.
+Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. The Jewel moves to its own adapter board (with C1, 470 uF) on a pigtail into J5; C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.
 
 ## E-ink (Sigil_EInk.kicad_sch)
 
@@ -49,26 +49,24 @@ Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: 
 | 4 | VRY | JOY_Y |
 | 5 | SW | JOY_SW |
 
-Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
+Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
 
-| Header pin | Pad label | Net |
+| J5 pin | Signal | Net |
 |---|---|---|
-| 1 | PWR | +5V |
-| 2 | GND | GND |
-| 3 | DIN | RING_DIN_R |
-| 4 | DOUT | NC |
+| 1 | +5V | +5V |
+| 2 | DIN | RING_DIN_R |
+| 3 | GND | GND |
 
 Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-check before ordering):
 
 | Ref | Value | Footprint |
 |---|---|---|
-| C1 | 470uF 10V | `Capacitor_THT:CP_Radial_D8.0mm_P3.50mm` |
 | C2 | 10uF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | C3 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | J2 | INLAND E-PAPER HEADER (8-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical` |
 | J3 | BUZZER 2-PIN HEADER | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` |
 | J4 | ANALOG JOYSTICK HEADER (5-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x05_P2.54mm_Vertical` |
-| J5 | NEOPIXEL JEWEL 7 RGBW | `Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical` |
+| J5 | STATUS RING CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
 | U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row25.4mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
@@ -118,25 +116,23 @@ Menu keys SW1-SW5: five discrete momentary pushbuttons, each from its GPIO (pin 
 | SW4 | Right | GPIO21 | A14 | KEY_RIGHT | GND |
 | SW5 | Select | GPIO32 | J13 | KEY_SELECT | GND |
 
-Status ring J5: Adafruit NeoPixel Jewel 7 RGBW on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
+Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
 
-| Header pin | Pad label | Net |
+| J5 pin | Signal | Net |
 |---|---|---|
-| 1 | PWR | +5V |
-| 2 | GND | GND |
-| 3 | DIN | RING_DIN_R |
-| 4 | DOUT | NC |
+| 1 | +5V | +5V |
+| 2 | DIN | RING_DIN_R |
+| 3 | GND | GND |
 
 Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-check before ordering):
 
 | Ref | Value | Footprint |
 |---|---|---|
-| C1 | 470uF 10V | `Capacitor_THT:CP_Radial_D8.0mm_P3.50mm` |
 | C2 | 10uF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | C3 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | J2 | INLAND 1.3" OLED HEADER (7-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical` |
 | J3 | BUZZER 2-PIN HEADER | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` |
-| J5 | NEOPIXEL JEWEL 7 RGBW | `Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical` |
+| J5 | STATUS RING CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
 | SW1 | UP (GPIO25, J11) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW2 | DOWN (GPIO27, J9) | `Button_Switch_THT:SW_PUSH_6mm` |
@@ -192,3 +188,20 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
 Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, C1/C2 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+
+## Jewel adapter (Sigil_JewelAdapter.kicad_sch)
+
+The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF) and a 3-wire JST-XH pigtail in J2 whose order matches J5 on the Sigil boards. Pad positions: Adafruit-NeoPixel-Jewel-7 board file.
+
+| Ref | Pin | Name | Net |
+|---|---|---|---|
+| J1 | 1 | PWR | +5V |
+| J2 | 1 | +5V | +5V |
+| C1 | 1 | ~ | +5V |
+| J1 | 2 | GND | GND |
+| J1 | 5 | GND | GND |
+| J2 | 3 | GND | GND |
+| C1 | 2 | ~ | GND |
+| J1 | 3 | DIN | RING_DIN_R |
+| J2 | 2 | DIN | RING_DIN_R |
+| J1 | 4 | DOUT | NC |
