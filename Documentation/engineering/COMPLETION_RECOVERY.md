@@ -1,7 +1,7 @@
 # Completed-match recovery ordering
 
 Status: implemented and host-tested on `codex/prototype-v1-stabilization`,
-2026-09-26; firmware build and hardware acceptance pending. This is a conservative prototype fix, not transactional statistics.
+2026-09-26. Atlas firmware build passes; hardware acceptance is pending. This is a conservative prototype fix, not transactional statistics.
 
 ## Problem and boundary
 

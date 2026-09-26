@@ -74,7 +74,7 @@ No device is flashed by these host checks.
 
 ## Firmware and application build gate
 
-- [ ] **B01** Build Atlas `atlas`; record toolchain and RAM/flash usage in the size ledger.
+- [x] **B01** Build Atlas `atlas`; record toolchain and RAM/flash usage in the size ledger.
 - [ ] **B02** Build e-ink `sigil` and OLED `sigil-oled`; record sizes and variant identity.
 - [ ] **B03** Build `sigil-wokwi` and TestHarness `harness` without breaking either target.
 - [ ] **B04** Build Android `assembleDebug`; retain the APK identity with the candidate.
@@ -215,5 +215,13 @@ Verified on the host, 2026-09-26:
 - **A05:** 32 adapters pass the canonical-state mutation audit.
 - **A06:** 10 generated responses and 9 shared fixtures pass contract validation.
 
-ESP32 builds, Android checks, browser smoke and all physical acceptance are
-unverified here. No hardware boxes may be inferred from host results.
+**B01:** Atlas `pio run -e atlas` passes for source commit `56c058f` (published as `199c467` with the identical source tree), with
+PlatformIO 6.2.0, Espressif32 7.1.3, Arduino framework
+`4.20017.260907+sha.dcc1105b`, Xtensa GCC `8.4.0+2021r2-patch5` and
+LovyanGFX 1.2.30. RAM: **105,156 / 327,680 bytes (32.1%)**. Flash:
+**1,366,405 / 1,966,080 bytes (69.5%)**. Telemetry was disabled for the
+successful local build. No firmware was flashed.
+
+Sigil/harness firmware builds, Android checks, browser smoke and all physical
+acceptance remain unverified on this branch. No hardware boxes may be inferred
+from host or compile results.

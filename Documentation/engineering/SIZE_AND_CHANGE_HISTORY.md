@@ -448,7 +448,12 @@ lines. Host tests and documentation are excluded from these totals.
 All six host suites, the 32-adapter audit and the 10-response/9-fixture contract
 check pass. Atlas suites were rebuilt with GCC 13.3.0, C++14, ASan and UBSan;
 LeakSanitizer is unavailable in this execution runtime. Hardware acceptance is
-pending. Firmware build measurements are pending the build attempt for this branch.
+pending. Atlas firmware build passes for source commit `56c058f` (published as `199c467` with the identical source tree): RAM
+**105,156 B (32.1%)**, flash **1,366,405 B (69.5% of the 1,966,080 B slot)**.
+Environment: PlatformIO 6.2.0, Espressif32 7.1.3, Arduino framework
+`4.20017.260907+sha.dcc1105b`, Xtensa GCC `8.4.0+2021r2-patch5`, LovyanGFX
+1.2.30. Built locally with telemetry disabled; no board was flashed. These are
+absolute measurements, not a before/after firmware delta.
 See [the line-item checklist](PROTOTYPE_V1_VERIFICATION.md).
 
 ## Tracking rules
