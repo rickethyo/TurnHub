@@ -335,6 +335,10 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   } else if (life_.passPending) {
     // The pass waits out Atlas's grace period; the ring counts it down.
     banner("PASSING...", 12, true, Icon::Turn);
+  } else if (life_.passingPlayer) {
+    // Another player's pass, still undoable: the whole table sees it.
+    snprintf(label, sizeof(label), "P%u PASSING...", static_cast<unsigned>(life_.passingPlayer));
+    banner(label, 12, false, Icon::None);
   } else {
     banner(active ? "YOUR TURN" : "WAITING FOR TURN", 12, active,
         active ? Icon::Turn : Icon::None);

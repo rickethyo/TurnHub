@@ -74,6 +74,16 @@ constexpr AudioNote TIMER_EXPIRED[] = {
     {620, 150, 0},
 };
 
+// Pass grace: two quiet falling ticks start it; a rising pair undoes it.
+constexpr AudioNote PASS_PENDING[] = {
+    {900, 40, 50},
+    {700, 40, 0},
+};
+constexpr AudioNote PASS_UNDONE[] = {
+    {700, 40, 50},
+    {900, 40, 0},
+};
+
 constexpr AudioNote ACTION_REQUIRED[] = {
     {1150, 60, 60},
     {1150, 60, 0},
@@ -189,6 +199,8 @@ const AudioCueProfile &defaultAudioCueProfile() {
     set(AudioCue::WinConfirmed, pattern(WIN_CONFIRMED));
     set(AudioCue::WinDenied, pattern(WIN_DENIED));
     set(AudioCue::WinCancelled, pattern(WIN_CANCELLED));
+    set(AudioCue::PassPending, pattern(PASS_PENDING));
+    set(AudioCue::PassUndone, pattern(PASS_UNDONE));
     return p;
   }();
   return profile;
@@ -335,5 +347,7 @@ void AudioController::winClaimed(uint16_t targetMask) { play(AudioCue::WinClaime
 void AudioController::winConfirmed(uint16_t targetMask) { play(AudioCue::WinConfirmed, targetMask); }
 void AudioController::winDenied(uint16_t targetMask) { play(AudioCue::WinDenied, targetMask); }
 void AudioController::winCancelled(uint16_t targetMask) { play(AudioCue::WinCancelled, targetMask); }
+void AudioController::passPending(uint16_t targetMask) { play(AudioCue::PassPending, targetMask); }
+void AudioController::passUndone(uint16_t targetMask) { play(AudioCue::PassUndone, targetMask); }
 
 }  // namespace TurnHub

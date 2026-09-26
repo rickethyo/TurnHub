@@ -455,6 +455,11 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     // A pass in its grace period says so; the ring counts it down.
     if (life_.passPending) {
       drawBanner("PASSING", 39, true, Icon::Turn, 2);
+    } else if (life_.passingPlayer) {
+      // Another player's pass, still undoable: the whole table sees it.
+      char passing[20];
+      snprintf(passing, sizeof(passing), "P%u PASSING", static_cast<unsigned>(life_.passingPlayer));
+      drawBanner(passing, 39, false, Icon::None, 2);
     } else {
       drawBanner(active ? "YOUR TURN" : "WAITING FOR TURN", 39, active,
           active ? Icon::Turn : Icon::None, 2);

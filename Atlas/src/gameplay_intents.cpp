@@ -102,6 +102,7 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
   if (pendingPass.active) {
     if (pendingPass.seat.sameSeat(*active)) {
       clearPendingPass("PASS");
+      audio.passUndone(gameAudioMask());
       return IntentResult::accept("Pending pass canceled");
     }
     return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected the pass");
@@ -119,6 +120,7 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
   serialLog.print("|GRACE_MS|");
   serialLog.println(PASS_GRACE_MS);
   leds.invalidateAll();
+  audio.passPending(gameAudioMask());
   return IntentResult::accept("Pass queued. Press Pass or Action within 3 seconds to cancel.");
 }
 

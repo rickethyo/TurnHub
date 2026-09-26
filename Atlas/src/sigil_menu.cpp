@@ -30,6 +30,9 @@ struct MenuCache {
   // StartingLife (0 outside a running or paused game).
   int32_t startingLife = 0;
   bool startingLifeSent = false;
+  // PassPending: the passing player's number, 0 when no pass is pending.
+  int32_t passing = 0;
+  bool passingSent = false;
 };
 
 MenuCache menus[MAX_PHYSICAL_SIGILS];
@@ -186,6 +189,7 @@ void syncSigilMenus(uint32_t nowMs) {
     if (!sigilBus.isOnline(id, nowMs) || !menu2Sigil(id)) {
       cache.lifeSent = false;
       cache.startingLifeSent = false;
+      cache.passingSent = false;
       continue;
     }
     for (uint8_t slot = 1; slot <= 2; ++slot) {
@@ -208,6 +212,15 @@ void syncSigilMenus(uint32_t nowMs) {
     if (!cache.startingLifeSent &&
         sigilBus.send(id, TurnHubProtocol::PacketType::StartingLife, startingLife)) {
       cache.startingLifeSent = true;
+    }
+    const int32_t passing = pendingPass.active ? pendingPass.seat.playerNumber : 0;
+    if (passing != cache.passing) {
+      cache.passing = passing;
+      cache.passingSent = false;
+    }
+    if (!cache.passingSent &&
+        sigilBus.send(id, TurnHubProtocol::PacketType::PassPending, passing)) {
+      cache.passingSent = true;
     }
     const int32_t request = sigilLifeRequestFor(id);
     if (request != cache.lifeRequest) {
@@ -253,6 +266,7 @@ void invalidateSigilMenu(uint8_t sigilId) {
     menus[sigilId].lifeSent = false;
     menus[sigilId].seatColorSent[0] = menus[sigilId].seatColorSent[1] = false;
     menus[sigilId].startingLifeSent = false;
+    menus[sigilId].passingSent = false;
   }
 }
 

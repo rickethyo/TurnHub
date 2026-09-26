@@ -114,6 +114,10 @@ enum class PacketType : uint8_t {
   // Sigil's heart can shrink or grow against it. Resent with every Hello;
   // older Sigils ignore it. Presentation only.
   StartingLife = 37,
+  // Atlas -> Sigil: the player number whose pass is in its grace period
+  // (0 = none), sent to every Sigil so the whole table sees it. Resent with
+  // every Hello; older Sigils ignore it. Presentation only.
+  PassPending = 38,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,

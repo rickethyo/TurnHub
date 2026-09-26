@@ -41,6 +41,8 @@ enum class AudioCue : uint8_t {
   WinConfirmed,
   WinDenied,
   WinCancelled,
+  PassPending,         // A pass was queued: the whole table hears its grace start.
+  PassUndone,          // The passing seat undid it within the grace.
   Count
 };
 
@@ -133,6 +135,8 @@ class AudioController {
   void winConfirmed(uint16_t targetMask);
   void winDenied(uint16_t targetMask);
   void winCancelled(uint16_t targetMask);
+  void passPending(uint16_t targetMask);
+  void passUndone(uint16_t targetMask);
 
  private:
   struct Job {

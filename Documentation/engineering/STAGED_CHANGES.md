@@ -548,8 +548,10 @@ Privacy direction:
 - Turntest notes (2026-09-26, host-tested, *Needs verification*): softer
   warm white on the Jewel (was full RGB white); OLED one-line key help under
   the life total; a pending pass shows PASSING and a green ring countdown on
-  both Sigils and "Passing in Ns" on Atlas, and a second Select on the OLED
-  undoes it; the life heart drains or grows against the starting life
+  every Sigil (green countdown for the passer, amber plus "P<n> PASSING"
+  for everyone else, `PassPending = 38`) and "Passing in Ns" on Atlas, with a
+  table-wide tick when it starts and when it is undone; a second Select on
+  the OLED undoes it; the life heart drains or grows against the starting life
   (`StartingLife = 37`); US spellings in UI text, comments and docs (wire
   tokens such as `CANCELLED` and code identifiers unchanged).
 - E-ink partial refresh with clean-ups (2026-09-25, *Needs verification*):

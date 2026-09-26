@@ -107,14 +107,18 @@ int main() {
   assert(m.render(1100).single == (Rgb{0, 255, 0}) && m.render(1250).single.b > 0);
 
   // A pending pass counts down on the ring: six pixels, emptying to one.
-  m.setPassPending(true, 5000);
+  m.setPassPending(true, true, 5000);
   f = m.render(5000);
   assert(lit(f) == 6 && f.pixels[6] == (Rgb{0, 255, 0}) && f.pixels[LED_CENTER] == (Rgb{0, 255, 0}));
-  m.setPassPending(true, 6600);  // Still pending: the start time holds.
+  m.setPassPending(true, true, 6600);  // Still pending: the start time holds.
   f = m.render(6600);
   assert(lit(f) == 3 && dark(f.pixels[4]) && f.pixels[3] == (Rgb{0, 255, 0}));
   assert(lit(m.render(9000)) == 1);
-  m.setPassPending(false, 9100);
+  m.setPassPending(false, false, 9100);
+  // Everyone else sees the same countdown in amber.
+  m.setPassPending(true, false, 9200);
+  assert(lit(m.render(9200)) == 6 && m.render(9200).pixels[1] == (Rgb{255, 120, 0}));
+  m.setPassPending(false, false, 9300);
   assert(m.render(9100).pixels[1].b > 0);
 
   // A held menu action fills the ring in white; the single LED brightens.

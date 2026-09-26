@@ -175,6 +175,14 @@ rendering on both Sigils and the Atlas screen ("Passing in Ns"), no new
 dependency; the number and words still carry every meaning. *Host-tested*;
 *Needs verification* on hardware.
 
+`PassPending = 38` (Atlas -> every menu Sigil, value: the passing player's
+number, 0 = none, resent with every Hello) lets the whole table see a pending
+pass, not only the passer: other Sigils show "P<n> PASSING" and an amber ring
+countdown (the passer's stays green). Atlas also plays two new audio cues to
+every seated Sigil and its own speaker: `PassPending` (two falling ticks) when
+a pass is queued and `PassUndone` (two rising ticks) when the passer undoes it.
+Audio stays supplementary: the screens and ring carry the same information.
+
 ### Sigil-rendered status light: LedState (2026-09-25)
 
 `LedState = 25` (Atlas -> Sigil) carries the light's *meaning* instead of

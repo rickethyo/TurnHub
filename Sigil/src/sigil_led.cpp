@@ -152,9 +152,10 @@ void SigilLedModel::setPairing(bool active, uint32_t nowMs) {
   pairing_ = active;
 }
 
-void SigilLedModel::setPassPending(bool active, uint32_t nowMs) {
+void SigilLedModel::setPassPending(bool active, bool mine, uint32_t nowMs) {
   if (active && !passPending_) passPendingStartMs_ = nowMs;
   passPending_ = active;
+  passMine_ = mine;
 }
 
 void SigilLedModel::flashPassAck(uint32_t nowMs) {
@@ -209,9 +210,10 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     const uint32_t elapsed = nowMs - passPendingStartMs_;
     const uint32_t grace = TurnHubProtocol::PASS_GRACE_MS;
     const uint8_t lit = elapsed >= grace ? 1 : static_cast<uint8_t>(6 - elapsed * 6 / grace);
-    for (uint8_t i = 1; i <= lit; ++i) frame.pixels[i] = GREEN;
-    frame.pixels[LED_CENTER] = GREEN;
-    frame.single = scaled(GREEN, reduced(state_.style) ? static_cast<uint8_t>(255) : blink(elapsed, 300, 150));
+    const Rgb color = passMine_ ? GREEN : AMBER;
+    for (uint8_t i = 1; i <= lit; ++i) frame.pixels[i] = color;
+    frame.pixels[LED_CENTER] = color;
+    frame.single = scaled(color, reduced(state_.style) ? static_cast<uint8_t>(255) : blink(elapsed, 300, 150));
     return frame;
   }
   if (passAck_ && static_cast<int32_t>(nowMs - passAckUntilMs_) < 0) {

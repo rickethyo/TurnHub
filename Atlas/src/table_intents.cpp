@@ -619,6 +619,7 @@ IntentResult handleCancelPassIntent(const Intent &intent, void *) {
       !cancelPendingPassForModule(intent.actor.controllerId, "ACTION")) {
     return IntentResult::reject(IntentStatus::InvalidState, "No pending pass for this controller");
   }
+  audio.passUndone(gameAudioMask());
   return IntentResult::accept("Pass canceled");
 }
 

@@ -215,6 +215,13 @@ int main() {
     d.setLifeOverlay(life);
     g.primary.life = 29; d.showGame(g);
     assert(highlighted("PASSING...") && has("Click again to undo") && !has("YOUR TURN"));
+    // Waiting Sigils see another player's pending pass too.
+    life.passPending = false; life.passingPlayer = 3; d.setLifeOverlay(life);
+    g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 7, 0);
+    d.showGame(g);
+    assert(has("P3 PASSING...") && !has("WAITING FOR TURN") && !has("Click again to undo"));
+    life.passingPlayer = 0;
+    g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 7, DISPLAY_FLAG_ACTIVE);
     // The heart: fewer lit pixels as life drains, more as it grows.
     const auto heartPixels = [&](int32_t lifeTotal) {
       g.primary.life = lifeTotal; resetTrace(); d.showGame(g); return panel.shapes;

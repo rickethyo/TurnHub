@@ -67,6 +67,8 @@ static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
 static int32_t fixtureMenuState2[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureLifeRequest[MAX_PHYSICAL_SIGILS]{};
+static int32_t fixturePassPending[MAX_PHYSICAL_SIGILS]{};
+static int32_t fixtureStartingLife[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureSeatColor[MAX_PHYSICAL_SIGILS][2]{};  // [id][slot & 1]: A at 1, B at 0.
 static int32_t fixtureHarnessCommand=-1;
 static unsigned fixtureHarnessCommands=0;
@@ -79,6 +81,8 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState2&&fixtureRadio) { fixtureMenuState2[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::LifeRequest&&fixtureRadio) fixtureLifeRequest[id]=value;
+  if(type==TurnHubProtocol::PacketType::PassPending&&fixtureRadio) fixturePassPending[id]=value;
+  if(type==TurnHubProtocol::PacketType::StartingLife&&fixtureRadio) fixtureStartingLife[id]=value;
   if(type==TurnHubProtocol::PacketType::SeatColor&&fixtureRadio) fixtureSeatColor[id][TurnHubProtocol::seatColorSlot(value)&1]=value;
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
@@ -1189,6 +1193,22 @@ static void sigilLife() {
   assert(intents.dispatch(ask).accepted());
   handleLifeResponse(0, encodeLifeResponse(a.playerNumber, false, decodeLifeRequest(sigilLifeRequestFor(0)).tag));
   assert(game.lifeTotal(a.playerNumber) == start - 31);
+
+  // Every menu Sigil learns the starting life and sees a pending pass, not
+  // only the passer (turntest, 2026-09-26).
+  syncSigilMenus(testNow);
+  assert(fixtureStartingLife[0] == start && fixtureStartingLife[1] == start);
+  const PlayerSeat *passer = game.activePlayer();
+  assert(passer != nullptr);
+  Intent pass; pass.type = IntentType::Pass; pass.actor.origin = IntentOrigin::PhysicalSigil;
+  pass.actor.controllerId = passer->controllerId; pass.actor.slot = passer->slot;
+  pass.actor.playerNumber = passer->playerNumber;
+  assert(intents.dispatch(pass).accepted() && pendingPass.active);
+  syncSigilMenus(testNow);
+  assert(fixturePassPending[0] == passer->playerNumber && fixturePassPending[1] == passer->playerNumber);
+  assert(intents.dispatch(pass).accepted() && !pendingPass.active);  // Pressed again: undone.
+  syncSigilMenus(testNow);
+  assert(fixturePassPending[0] == 0 && fixturePassPending[1] == 0);
 
   // An elimination selection blocks life changes.
   assert(dispatchSeatIntent(IntentType::Pause, IntentOrigin::PhysicalSigil, a).accepted());

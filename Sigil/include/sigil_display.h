@@ -18,9 +18,13 @@ struct LifeOverlay {
   int32_t startingLife = 0;  // StartingLife: sizes the heart (life_heart.h).
   // Atlas offers Cancel pass: this Sigil's pass is in its grace period.
   bool passPending = false;
+  // PassPending: the player whose pass is pending anywhere at the table (0 =
+  // none), so every Sigil can show it, not only the passer's.
+  uint8_t passingPlayer = 0;
   bool operator==(const LifeOverlay &o) const {
     return avatar[0] == o.avatar[0] && avatar[1] == o.avatar[1] &&
         startingLife == o.startingLife && passPending == o.passPending &&
+        passingPlayer == o.passingPlayer &&
         pending == o.pending && pendingPlayer == o.pendingPlayer &&
         request.target == o.request.target && request.requester == o.request.requester &&
         request.tag == o.request.tag && request.delta == o.request.delta;
