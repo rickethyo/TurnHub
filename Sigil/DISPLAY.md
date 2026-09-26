@@ -37,6 +37,18 @@ Change selection through the environment, not just a flag in isolation: source
 filters and dependencies must agree. The current Wokwi diagram models e-paper,
 not OLED. Do not upload the OLED target to the e-paper unit.
 
+### Hardware-type strap (GPIO4)
+
+Each board carries its display type in hardware on carrier header pin A7
+(GPIO4, otherwise unused): **open = E-ink, wired to GND = OLED**. At boot,
+before the display, radio or pairing start, the firmware reads the pin with
+its internal pull-up and prints `SIGIL|HW|EINK` or `SIGIL|HW|OLED`. If the
+strap names the other display, the build halts: it repeats
+`SIGIL|HW|MISMATCH|BOARD|…|BUILD|…` on serial and flashes the status light
+red, and never joins Atlas. The Wokwi build skips the check. *Planned:* a
+solder jumper for this on the next PCB revision (the v1 carrier needs a wire
+from A7 to a GND pin on OLED boards).
+
 ### Feature boundary
 
 Atlas still owns canonical state and validates existing game intents. There

@@ -197,6 +197,19 @@ phase. `encodeLedState`/`decodeLedState` in `protocol.h` define the bit layout;
 the cue and overlay enums moved there from Atlas's `led_cues.h`, which now
 aliases them.
 
+`TableClock = 39` (Atlas -> each LedState Sigil, value: Atlas's `millis()`)
+makes Atlas the one clock for the table's lights. Atlas sends it ahead of the
+LedState stream and then every `TABLE_CLOCK_INTERVAL_MS` (2 s). Each Sigil keeps
+`offset = Atlas time - local time`, using the largest of its last four samples
+(radio delay only ever makes a sample look early), and starts over when Atlas's
+clock jumps (an Atlas restart). Every looping cue and overlay pattern (breathe,
+blink, seat pulses, the unseated chase) runs on that table time, so all Sigils
+show them in step. Sigil-local states (pairing, hold progress, pass
+acknowledgement) stay on the Sigil's own clock. Until the first sample arrives
+(or from an Atlas that predates it) patterns use local time as before.
+Presentation only. *Needs verification:* host tests cover the offset
+logic; visual lock-step across real Sigils needs verification.
+
 A Sigil advertising `CAPABILITY_LED_STATE` (0x20) gets one LedState per change,
 plus a resend whenever its Hello arrives (about every 2 s), so a lost packet or
 quiet reboot heals itself. Atlas still decides every cue (`selectSigilLedState`);

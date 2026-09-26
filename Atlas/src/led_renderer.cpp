@@ -128,6 +128,7 @@ void LedRenderer::invalidate(uint8_t sigilId) {
     cache_[sigilId].redValid = false;
     cache_[sigilId].greenValid = false;
     cache_[sigilId].ledStateValid = false;
+    cache_[sigilId].clockValid = false;
     cache_[sigilId].displayValid = false;
   }
 }
@@ -138,6 +139,7 @@ void LedRenderer::invalidateAll() {
     entry.redValid = false;
     entry.greenValid = false;
     entry.ledStateValid = false;
+    entry.clockValid = false;
     entry.displayValid = false;
   }
 }
@@ -200,6 +202,12 @@ void LedRenderer::sendLedState(uint8_t sigilId, const SigilLedState &cue, uint32
   const int32_t value = TurnHubProtocol::encodeLedState(fields);
   const uint32_t key = TurnHubProtocol::ledStateKey(value);
   Cache &cache = cache_[sigilId];
+  // Atlas's clock paces every Sigil's looping patterns (TableClock).
+  if ((!cache.clockValid || nowMs - cache.lastClockTxMs >= TurnHubProtocol::TABLE_CLOCK_INTERVAL_MS) &&
+      bus_.send(sigilId, TurnHubProtocol::PacketType::TableClock, static_cast<int32_t>(nowMs))) {
+    cache.clockValid = true;
+    cache.lastClockTxMs = nowMs;
+  }
   if (cache.ledStateValid && cache.ledStateKey == key) return;
   if (bus_.send(sigilId, TurnHubProtocol::PacketType::LedState, value)) {
     cache.ledStateValid = true;

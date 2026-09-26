@@ -15,6 +15,10 @@ pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac
 | E-ink Sigil | `sigil` | CP210x | `F4:65:0B:C4:FF:38` | 122x250 e-ink, analog joystick |
 | TestHarness | `harness` | CP210x | `D4:E9:F4:B4:27:3C` | Also pairs as a second virtual Sigil on its soft-AP MAC `D4:E9:F4:B4:27:3D`. Never flash Sigil or Atlas firmware onto it. |
 
+Sigils also carry their display type on a strap: header A7 (GPIO4) open on
+the E-ink Sigil, wired to GND on the OLED Sigil. A build for the wrong display
+halts at boot (see `Sigil/DISPLAY.md`).
+
 *Verified* 2026-09-25 by reading each MAC with `read_mac` and matching each
 board's boot banner (`SIGIL|DISPLAY|OLED`, `SIGIL|DISPLAY|READY|122x250`,
 `HARNESS|BOOT`).

@@ -171,5 +171,24 @@ int main() {
     const LedFrame r = life.render(0);
     assert(r.pixels[1].r == 255 && r.pixels[6].r == 255 && dark(r.pixels[0]));
   }
-  std::cout << "LED wire format, cue rendering, seat halves, overlays and local states passed\n";
+  {  // Table clock: two Sigils booted at different times show looping cues in step.
+    SigilLedModel a, b;
+    const uint32_t aBoot = 1000, bBoot = 73321;  // Local millis() when Atlas read 50000.
+    a.syncTableClock(50000, aBoot);
+    b.syncTableClock(50000, bBoot + 40);  // Late radio delivery, then an on-time one.
+    b.syncTableClock(52000, bBoot + 2000);
+    a.applyLedState(led(LedCue::Unassigned), aBoot);
+    b.applyLedState(led(LedCue::Unassigned), bBoot);
+    a.applyLedState(led(LedCue::Paused), aBoot);
+    b.applyLedState(led(LedCue::Paused), bBoot);
+    for (uint32_t t = 0; t < 6000; t += 137) {
+      const LedFrame fa = a.render(aBoot + t), fb = b.render(bBoot + t);
+      for (uint8_t i = 0; i < LED_PIXELS; ++i) assert(fa.pixels[i] == fb.pixels[i]);
+      assert(fa.single == fb.single);
+    }
+    // Atlas restarts (its clock jumps back): the old samples are dropped.
+    b.syncTableClock(10, bBoot + 9000);
+    assert(b.tableNow(bBoot + 9000) == 10);
+  }
+  std::cout << "LED wire format, cue rendering, seat halves, overlays, local states and table clock passed\n";
 }

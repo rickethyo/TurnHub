@@ -118,6 +118,11 @@ enum class PacketType : uint8_t {
   // (0 = none), sent to every Sigil so the whole table sees it. Resent with
   // every Hello; older Sigils ignore it. Presentation only.
   PassPending = 38,
+  // Atlas -> Sigil: Atlas's millis() at send (TABLE_CLOCK_INTERVAL_MS apart
+  // and with every fresh LedState stream). Sigils run their looping light
+  // patterns on this table clock, so every Sigil blinks and breathes in step.
+  // Older Sigils ignore it. Presentation only.
+  TableClock = 39,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -421,6 +426,8 @@ enum class LedStyle : uint8_t { Default = 0, ReducedMotion = 1, MonochromeSafe =
 //   18-31 time since the cue's anchor (turn or countdown start) in 16 ms
 //   units, clamped (~262 s); only anchored patterns use it.
 constexpr uint32_t LED_ANCHOR_UNIT_MS = 16;
+// TableClock resend period. Crystal drift over it is well under 1 ms.
+constexpr uint32_t TABLE_CLOCK_INTERVAL_MS = 2000;
 constexpr uint32_t LED_ANCHOR_MAX_UNITS = 0x3FFF;
 
 struct LedStateFields {

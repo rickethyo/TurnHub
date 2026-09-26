@@ -67,6 +67,11 @@ class SigilLedModel {
   // Joined and Waiting cues; every action cue keeps its standard color. A
   // shared Sigil shows each seat's color on its ring half.
   void applySeatColor(int32_t value);
+  // Atlas's clock (TableClock). Looping cue and overlay patterns run on it,
+  // so every Sigil at the table shows them in step. Before the first sample
+  // (or from an older Atlas) they run on this Sigil's own clock.
+  void syncTableClock(int32_t atlasMs, uint32_t nowMs);
+  uint32_t tableNow(uint32_t nowMs) const { return nowMs + tableOffset_; }
 
   LedFrame render(uint32_t nowMs) const;
 
@@ -88,6 +93,13 @@ class SigilLedModel {
   uint32_t passPendingStartMs_ = 0;
   uint8_t holdProgress_ = 0;
   int32_t lifePending_ = 0;
+  // Table clock: offset = Atlas millis - local millis. Radio delay only ever
+  // makes a sample look early, so the largest of the recent ones is best.
+  static constexpr uint8_t CLOCK_SAMPLES = 4;
+  uint32_t clockSamples_[CLOCK_SAMPLES] = {};
+  uint8_t clockSampleCount_ = 0;
+  uint8_t clockSampleNext_ = 0;
+  uint32_t tableOffset_ = 0;
   bool seatColorSet_[2] = {false, false};  // [0] = seat A, [1] = seat B.
   Rgb seatColor_[2];
   // The color for ring pixel i (1-6) of a calm cue, or `standard` if unset.

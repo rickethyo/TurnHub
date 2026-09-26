@@ -56,6 +56,8 @@ class LedRenderer {
     uint32_t lastBlueTxMs = 0;
     bool ledStateValid = false;
     uint32_t ledStateKey = 0;
+    bool clockValid = false;  // TableClock reached the Sigil; resent every interval.
+    uint32_t lastClockTxMs = 0;
     bool displayValid = false;
     int32_t displayPayload = 0;
     TurnHubProtocol::GameDisplayPacket gameDisplay{};

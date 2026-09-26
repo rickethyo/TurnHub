@@ -63,6 +63,11 @@ using TurnHubSigil::SigilDisplay;
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
+// Hardware-type strap (carrier header A7, GPIO4): left open on an E-ink
+// Sigil, wired to GND on an OLED Sigil. It stays with the board through every
+// flash and erase, so a build for the other display refuses to start.
+constexpr uint8_t HW_TYPE_STRAP_PIN = 4;
+
 #if TURNHUB_STATUS_RING
 // Status light: NeoPixel Jewel 7 Data Input, via 330 ohm (J10). Powered from
 // 5V (J1). Both hardware Sigils use it; there is no separate LED.
@@ -950,6 +955,10 @@ void handleEspNowReceive(
       ledModel.applyLedState(packet.value, millis());
       break;
 
+    case PacketType::TableClock:
+      ledModel.syncTableClock(packet.value, millis());
+      break;
+
     // Legacy channel stream from an Atlas that predates LedState.
     case PacketType::SetBlue:
       ledModel.applyLegacyBlue(static_cast<uint8_t>(constrain(packet.value, 0, 255)));
@@ -1383,11 +1392,52 @@ bool startEspNow() {
   return true;
 }
 
+#ifndef TURNHUB_WOKWI
+// Halts before the display, radio or pairing start when the strap names the
+// other display type: the serial line says why, and the status light (or the
+// red LED) flashes red.
+void checkHardwareType() {
+  pinMode(HW_TYPE_STRAP_PIN, INPUT_PULLUP);
+  delay(2);
+  const bool boardIsOled = digitalRead(HW_TYPE_STRAP_PIN) == LOW;
+  const char *board = boardIsOled ? "OLED" : "EINK";
+  const char *build = TURNHUB_DISPLAY_OLED ? "OLED" : "EINK";
+  if (boardIsOled == static_cast<bool>(TURNHUB_DISPLAY_OLED)) {
+    Serial.print("SIGIL|HW|");
+    Serial.println(board);
+    return;
+  }
+#if TURNHUB_STATUS_RING
+  TurnHubSigil::statusRingBegin(STATUS_RING_PIN);
+#else
+  pinMode(RED_LED, OUTPUT);
+#endif
+  for (bool on = true;; on = !on) {
+    Serial.print("SIGIL|HW|MISMATCH|BOARD|");
+    Serial.print(board);
+    Serial.print("|BUILD|");
+    Serial.print(build);
+    Serial.println("|HALTED (GPIO4 open = E-ink, GPIO4 to GND = OLED)");
+#if TURNHUB_STATUS_RING
+    TurnHubSigil::LedFrame frame{};
+    for (auto &pixel : frame.pixels) pixel = TurnHubSigil::Rgb(on ? 80 : 0, 0, 0);
+    TurnHubSigil::statusRingShow(frame);
+#else
+    digitalWrite(RED_LED, on ? HIGH : LOW);
+#endif
+    delay(500);
+  }
+}
+#endif
+
 }  // namespace
 
 void setup() {
   Serial.begin(115200);
   delay(250);
+#ifndef TURNHUB_WOKWI
+  checkHardwareType();
+#endif
 
 #if !TURNHUB_STATUS_RING
   pinMode(BLUE_LED, OUTPUT);
