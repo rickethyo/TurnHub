@@ -201,6 +201,15 @@ void SigilMenu::keyDown(Key key, uint32_t nowMs) {
   }
   const uint8_t count = itemCount();
   if (!listOpen_) {
+    // Select is Enter: with the list closed it does what the e-ink's centre
+    // click does (PASS in game). The other keys open the list.
+    if (key == Key::Select) {
+      const uint8_t direct = compassAction(actions_, key);
+      if (direct != MENU_NONE) {
+        choose(direct, key, nowMs);
+        return;
+      }
+    }
     // The first key only opens the list, at the default action.
     if (count == 0) return;
     listOpen_ = true;

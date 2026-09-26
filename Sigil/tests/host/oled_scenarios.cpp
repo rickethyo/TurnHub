@@ -175,7 +175,7 @@ int main() {
     d.setMenuView(m.view());
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
     assert(has("YOUR TURN") && !has("MENU"));  // Closed: the normal screen.
-    m.keyDown(Key::Select, 0);
+    m.keyDown(Key::Up, 0);  // Select would pass; the other keys open the list.
     d.setMenuView(m.view());
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
     assert(highlighted("MENU") && highlighted("1/5") && !has("YOUR TURN"));

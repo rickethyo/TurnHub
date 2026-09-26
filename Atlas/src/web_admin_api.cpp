@@ -13,6 +13,7 @@
 #include "wifi_password_store.h"
 #include "serial_log.h"
 #include "web_api_internal.h"
+#include "avatars.h"
 
 using TurnHub::serialLog;
 
@@ -524,6 +525,9 @@ void handleAccounts(WebServer &server) {
         jsonEscape(TurnHubProfiles::nameForProfile(id)) + "\",\"permissions\":" + String(account.permissions);
     json += ",\"archived\":";
     json += jsonBool(account.archived);
+    const uint8_t avatar = TurnHubProfiles::avatarForProfile(id);
+    json += ",\"avatar\":";
+    json += String(TurnHubAvatars::validPresetAvatar(avatar) ? avatar : 0);
     if (gameMaster || self) {
       json += ",\"nudgeMuted\":";
       json += jsonBool(account.nudgeMuted);

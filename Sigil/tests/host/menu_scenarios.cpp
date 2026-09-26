@@ -108,12 +108,17 @@ int main() {
   c = list.update(1200);
   assert(c.ready && c.action == A::Pause && c.revision == 3 && !list.view().listOpen);
   // Left closes; an idle list closes by itself.
-  list.keyDown(Key::Select, 2000); assert(list.view().listOpen);
+  list.keyDown(Key::Up, 2000); assert(list.view().listOpen);
   list.keyDown(Key::Left, 2100); assert(!list.view().listOpen);
-  list.keyDown(Key::Select, 3000); assert(list.view().listOpen);
+  list.keyDown(Key::Up, 3000); assert(list.view().listOpen);
   list.update(3000 + MENU_LIST_IDLE_MS); assert(!list.view().listOpen);
+  // Select is Enter: with the list closed it passes, like the e-ink click.
+  list.keyDown(Key::Select, 19000);
+  c = list.update(19000);
+  assert(c.ready && c.action == A::Pass && !list.view().listOpen);
+  list.keyUp(Key::Select, 19100);
   // A new menu keeps the cursor on a surviving action, else the default.
-  list.keyDown(Key::Select, 20000); list.keyDown(Key::Down, 20100);
+  list.keyDown(Key::Up, 20000); list.keyDown(Key::Down, 20100);
   assert(list.view().items[list.view().cursor] == id(A::Pause));
   list.applyMenuState(menu({A::Pause, A::Resume, A::ClaimWin}, A::Resume, 4), 20200);
   assert(list.view().items[list.view().cursor] == id(A::Pause));
