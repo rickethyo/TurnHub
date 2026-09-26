@@ -1,5 +1,14 @@
 # TurnHub Staged Changes
 
+Stabilization started (2026-09-26, `codex/prototype-v1-stabilization`): use the
+[line-item v1 checklist](PROTOTYPE_V1_VERIFICATION.md) for current acceptance.
+The first code change commits the finished-match recovery record before profile
+statistics. This closes the reproduced duplicate-counting window; interrupted
+statistics writes can still leave missing/partial results. Durable completion
+receipts, Sigil OTA, SD hot-plug and physical acceptance remain open. See
+[completion ordering](COMPLETION_RECOVERY.md). Do not infer firmware or bench
+verification from a host result.
+
 Current pairing update (2026-09-22): physical buttons are owner-verified and manual
 15-second pairing with persistent MAC associations is now implemented. The boot
 pairing fallback and visual mock are superseded. Radio bench acceptance and

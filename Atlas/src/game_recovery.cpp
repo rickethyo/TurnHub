@@ -138,6 +138,32 @@ TurnHubStorage::Status GameRecovery::load(GameEngine &game, Lobby &lobby, uint32
   return status_;
 }
 
+TurnHubStorage::Status GameRecovery::saveCompleted(const GameEngine &game, uint32_t nowMs) {
+  using TurnHubStorage::Status;
+  if (!game.hasPlayers() || !game.gameOver()) return Status::InvalidArgument;
+  writable_ = false;  // A failed barrier must not be bypassed by the observer.
+
+  // Recheck the stored record before replacing it. This also keeps the barrier
+  // safe if recovery could not load at boot: damaged/future records are never
+  // replaced simply because another match has since finished.
+  size_t existingSize = 0;
+  status_ = store_.read(RECORD_KEY, bytes_, sizeof(bytes_), existingSize);
+  if (status_ == Status::Ok) status_ = decodeCheckpoint(bytes_, existingSize, scratch_);
+  if (status_ != Status::Ok && status_ != Status::NotFound) return status_;
+
+  game.checkpoint(scratch_, nowMs);
+  const size_t size = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
+  if (!size) return status_ = Status::InvalidArgument;
+  status_ = store_.write(RECORD_KEY, bytes_, size);
+  serialLog.print("ATLAS|RECOVERY|COMPLETION|STATUS|");
+  serialLog.println(storageStatusName(status_));
+  if (status_ == Status::Ok) {
+    rememberSaved(nowMs);
+    writable_ = true;
+  }
+  return status_;
+}
+
 // Keeps a clock-normalized copy of what was last saved, so save() can tell
 // a real state change from elapsed time alone.
 void GameRecovery::rememberSaved(uint32_t nowMs) {

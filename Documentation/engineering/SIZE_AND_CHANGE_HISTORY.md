@@ -431,6 +431,26 @@ pixels instead of clearing them. Atlas build: RAM 104,468 B (31.9%), flash
 1,350,885 B (68.7%). E-ink Sigil build: RAM 49,032 B (15.0%), flash 806,165 B
 (61.5%).
 
+### 2026-09-26 - Prototype v1 completion guard and verification checklist
+
+Branch: `codex/prototype-v1-stabilization`, based on `959a09b`.
+Atlas remains `0.6.0-dev`; Sigil firmware and all storage/radio/HTTP schemas are
+unchanged. The production completion bridge commits Game Over before profile
+increments and skips statistics on failed/uncertain checkpoint writes. This
+prevents the reproduced duplicate count but does not replay missing results.
+The recovery owner reuses its existing buffers; no new persistent record or
+third-party dependency is added to the firmware.
+
+Source snapshot (production `.cpp` / `.h` files only): Atlas `src/`: 46 files,
+660,368 bytes / 14,949 lines; Atlas `include/`: 53 files, 199,856 bytes / 4,568
+lines. Host tests and documentation are excluded from these totals.
+
+All six host suites, the 32-adapter audit and the 10-response/9-fixture contract
+check pass. Atlas suites were rebuilt with GCC 13.3.0, C++14, ASan and UBSan;
+LeakSanitizer is unavailable in this execution runtime. Hardware acceptance is
+pending. Firmware build measurements are pending the build attempt for this branch.
+See [the line-item checklist](PROTOTYPE_V1_VERIFICATION.md).
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -443,4 +463,4 @@ pixels instead of clearing them. Atlas build: RAM 104,468 B (31.9%), flash
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-25
+Last updated: 2026-09-26
