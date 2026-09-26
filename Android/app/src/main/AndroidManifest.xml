@@ -23,6 +23,18 @@
     -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
+    <!--
+      A quick app switch must not drop the Atlas Wi-Fi: Android releases an
+      app's WifiNetworkSpecifier network once the app is no longer foreground.
+      AtlasLinkHoldService is a short-lived connectedDevice foreground service
+      that keeps the app eligible for LINK_HOLD_MS after it leaves the screen
+      (TargetedAtlasWifiLink holds the request; CHANGE_NETWORK_STATE above is
+      this service type's prerequisite). The notification says so.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -42,6 +54,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".data.AtlasLinkHoldService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
     </application>
 
 </manifest>

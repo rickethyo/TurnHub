@@ -43,6 +43,8 @@ data class TableSummary(
      * locally rendered time-sensitive display between snapshots).
      */
     val receivedAtMs: Long,
+    /** Atlas's uptime clock when it sampled this snapshot (unsigned 32-bit, wraps). */
+    val sampledAtMs: Long = 0,
     val players: List<TablePlayer>,
     /** Physical Sigils currently represented at the table, derived from [players]. */
     val physicalSigils: List<PhysicalSigilAtTable>,

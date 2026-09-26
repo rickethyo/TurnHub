@@ -45,7 +45,30 @@ fun interface AtlasTransportFactory {
 enum class ControlAction(val path: String) {
     PASS("/api/control/pass"),
     PAUSE_RESUME("/api/control/pause"),
+    CLAIM_WIN("/api/control/win"),
+    CONFIRM_WIN("/api/control/confirm"),
+    DENY_WIN("/api/control/deny"),
+    CONCEDE("/api/control/concede"),
+    SELECT_STARTER("/api/control/starter"),
+    START("/api/control/start"),
+    CANCEL_START("/api/control/cancel-start"),
+    REMATCH("/api/control/rematch"),
+    RESET("/api/control/reset"),
+    LEAVE("/api/session/leave"),
 }
+
+/** The signed-in profile's look at the table (`/api/session/personalization`). */
+data class Personalization(
+    /** `#rrggbb`, or null for the standard Sigil colors. */
+    val color: String?,
+    /** Preset avatar ID; 0 = none. */
+    val avatar: Int,
+    /** False when Atlas has no microSD card (color and avatar cannot be saved). */
+    val cardPresent: Boolean,
+)
+
+private fun unsupported(): Nothing =
+    throw AtlasException(AtlasFailure.Unexpected("This Atlas connection does not support that yet"))
 
 /**
  * Atlas's authenticated profile/session routes (protocol/http-v1.md). Atlas
@@ -107,6 +130,35 @@ interface AtlasSessionTransport {
 
     /** `POST /api/session/logout`: revokes this token on Atlas. */
     suspend fun logout(token: String)
+
+    /**
+     * A counter or game control with form fields, such as `/api/control/life`
+     * (`delta`), `/api/control/life/request` (`target`, `delta`),
+     * `/api/control/life/respond` (`requestId`, `accept`) or
+     * `/api/control/commander` (`source`, `commander`, `delta`). Refusals
+     * with Atlas's reason (400/403/409) come back as a [ControlResult].
+     */
+    suspend fun postControl(token: String, path: String, fields: List<Pair<String, String>>): ControlResult =
+        unsupported()
+
+    /** `POST /api/game/settings`; null fields keep Atlas's current values. */
+    suspend fun saveGameSettings(
+        token: String,
+        gameProfile: String?,
+        startingLife: Int?,
+        turnTimerMs: Long?,
+    ): String? = unsupported()
+
+    /** `POST /api/session/profile` with a new `name` and/or `pin`. */
+    suspend fun saveProfile(token: String, name: String?, pin: String?): String? = unsupported()
+
+    suspend fun getPersonalization(token: String): Personalization = unsupported()
+
+    /** `GET /api/avatars` (public): the presets a profile may choose. */
+    suspend fun getAvatars(): List<AvatarIcon> = emptyList()
+
+    /** `POST /api/session/personalization`: `color` (`#rrggbb` or `none`) and/or `avatar`. */
+    suspend fun savePersonalization(token: String, color: String?, avatar: Int?): Personalization = unsupported()
 }
 
 fun interface AtlasSessionTransportFactory {

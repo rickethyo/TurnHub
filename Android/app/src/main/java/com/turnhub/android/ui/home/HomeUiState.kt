@@ -32,6 +32,10 @@ data class HomeUiState(
     val wifiPrompt: WifiPrompt? = null,
     val player: PlayerPanel? = null,
     val signIn: SignInPrompt? = null,
+    /** The next match's setup, while this session may read it. */
+    val gameSettings: GameSettingsInfo? = null,
+    val personalization: com.turnhub.android.data.Personalization? = null,
+    val avatars: List<com.turnhub.android.protocol.AvatarIcon> = emptyList(),
     /** The Sigil accessibility editor, while open. */
     val accessibility: AccessibilityPrompt? = null,
 ) {

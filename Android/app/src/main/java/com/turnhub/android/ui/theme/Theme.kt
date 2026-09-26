@@ -3,13 +3,9 @@ package com.turnhub.android.ui.theme
 import android.app.UiModeManager
 import android.content.Context
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,38 +13,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 
-private val LightColors = lightColorScheme(primary = TurnHubBlue40)
-private val DarkColors = darkColorScheme(primary = TurnHubBlue80)
-
 /**
- * App-wide Material3 theme. When the device's contrast setting is raised
- * (Android 14+, Settings > Accessibility > Color and motion > Contrast), the
- * fixed high-contrast scheme in [Color.kt] replaces everything else. Otherwise
- * dynamic color (Android 12+) follows the wallpaper, falling back to the
- * placeholder TurnHub palette.
+ * App-wide theme: the portal's look. [choice] is the player's saved theme;
+ * when the device's contrast setting is raised (Android 14+), High contrast
+ * replaces it, as the portal does for `prefers-contrast`.
  */
 @Composable
 fun TurnHubTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    choice: TurnHubThemeChoice = TurnHubThemeChoice.BRASS,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val highContrast = rememberHighContrast(context)
-    val colorScheme = when {
-        highContrast -> if (darkTheme) HighContrastDark else HighContrastLight
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        darkTheme -> DarkColors
-        else -> LightColors
+    val palette = TurnHubPalette.of(if (highContrast) TurnHubThemeChoice.CONTRAST else choice)
+    CompositionLocalProvider(LocalTurnHubPalette provides palette) {
+        MaterialTheme(
+            colorScheme = palette.toColorScheme(),
+            typography = turnHubTypography(palette.serifDisplay),
+            content = content,
+        )
     }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = TurnHubTypography,
-        content = content,
-    )
 }
+
+/** The active TurnHub tokens. */
+val palette: TurnHubPalette
+    @Composable get() = LocalTurnHubPalette.current
 
 /** True while the system contrast level is above standard; follows changes live. */
 @Composable

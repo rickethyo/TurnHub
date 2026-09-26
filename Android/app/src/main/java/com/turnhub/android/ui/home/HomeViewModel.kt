@@ -80,7 +80,7 @@ class HomeViewModel(
         val accessibility: AccessibilitySettings?,
     )
 
-    private val sessionFlows = combine(
+    private val baseSessionFlows = combine(
         playerSession.state,
         playerSession.busy,
         playerSession.feedback,
@@ -89,13 +89,20 @@ class HomeViewModel(
         ::SessionView,
     )
 
+    private val sessionFlows = combine(
+        baseSessionFlows,
+        playerSession.personalization,
+        playerSession.avatars,
+    ) { view, personalization, avatars -> Triple(view, personalization, avatars) }
+
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
         repository.tableSummary,
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (session, busy, feedback, gameSettings, accessibility) ->
+    ) { connectionState, tableSummary, repositoryFailure, screen, (view, personalization, avatars) ->
+        val (session, busy, feedback, gameSettings, accessibility) = view
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
@@ -108,6 +115,9 @@ class HomeViewModel(
             wifiPrompt = screen.wifiPrompt,
             player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback, gameSettings) },
             signIn = screen.signIn,
+            gameSettings = gameSettings,
+            personalization = personalization,
+            avatars = avatars,
             accessibility = if (screen.accessibilityOpen && session is PlayerSessionState.SignedIn) {
                 AccessibilityPrompt(
                     settings = accessibility,
@@ -225,6 +235,78 @@ class HomeViewModel(
 
     fun onAccessibilityDismissed() {
         local.update { it.copy(accessibilityOpen = false) }
+    }
+
+    /** Any game control; Atlas decides whether it applies now. */
+    fun onControl(action: ControlAction) = sendControl(action)
+
+    /** Changes this player's own life; applies immediately on Atlas. */
+    fun onChangeMyLife(delta: Int) {
+        if (delta == 0) return
+        viewModelScope.launch {
+            playerSession.counter("/api/control/life", listOf("delta" to delta.toString()), "Life updated.")
+        }
+    }
+
+    /** Asks [target] to approve a change to their life (Atlas accepts it after 15 s unless rejected). */
+    fun onRequestLife(target: Int, delta: Int) {
+        if (delta == 0) return
+        viewModelScope.launch {
+            playerSession.counter(
+                "/api/control/life/request",
+                listOf("target" to target.toString(), "delta" to delta.toString()),
+                "Life change requested.",
+            )
+        }
+    }
+
+    fun onRespondLife(requestId: Long, accept: Boolean) {
+        viewModelScope.launch {
+            playerSession.counter(
+                "/api/control/life/respond",
+                listOf("requestId" to requestId.toString(), "accept" to if (accept) "1" else "0"),
+                if (accept) "Life change accepted." else "Life change rejected.",
+            )
+        }
+    }
+
+    /** Records Commander damage this player received (negative corrects it). */
+    fun onCommanderDamage(source: Int, commander: Int, delta: Int) {
+        if (delta == 0) return
+        viewModelScope.launch {
+            playerSession.counter(
+                "/api/control/commander",
+                listOf("source" to source.toString(), "commander" to commander.toString(), "delta" to delta.toString()),
+                "Commander damage and life updated.",
+            )
+        }
+    }
+
+    fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?) {
+        viewModelScope.launch { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs) }
+    }
+
+    fun onSaveName(name: String) {
+        val clean = name.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch { playerSession.saveProfile(clean, null) }
+    }
+
+    fun onSavePin(pin: String) {
+        if (!pin.matches(PIN_PATTERN)) {
+            playerSession.clearFeedback()
+            return
+        }
+        viewModelScope.launch { playerSession.saveProfile(null, pin) }
+    }
+
+    fun onLoadPersonalization() {
+        viewModelScope.launch { playerSession.loadPersonalization() }
+    }
+
+    /** [color] is `#rrggbb` or `none`; [avatar] 0 clears it. */
+    fun onSavePersonalization(color: String?, avatar: Int?) {
+        viewModelScope.launch { playerSession.savePersonalization(color, avatar) }
     }
 
     fun onSignOutClicked() {

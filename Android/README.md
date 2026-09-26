@@ -184,6 +184,33 @@ production always uses `HttpAtlasRepository`.
    and clears state. A match Atlas recovered after a reboot is simply shown
    as `PAUSED`.
 
+Portal parity (2026-09-26, *Needs verification* on hardware):
+
+- The app now mirrors the Atlas portal's look and its player features. The
+  four portal themes (Brass, Midnight, Parchment, High contrast; `ui/theme/
+  Palette.kt`) are chosen in My Account and saved on the phone only; the
+  device's raised-contrast setting still forces High contrast. A Reduce motion
+  switch stops the turning gear and dial sweeps.
+- Tabs as in the portal: **Game** (the brass turn dial, my seat with every
+  session control the portal offers: join, I go first, start, cancel
+  countdown, pass/cancel pass, pause/resume, claim, confirm or deny a win,
+  concede, leave, rematch, reset; life tiles for every player with my -5/-1/
+  +1/+5 and custom changes, tap-to-request changes to other players, the
+  incoming life-request banner with its 15 s countdown, Commander damage, game
+  setup and table facts), **Players** (roster and seated Sigils) and **My
+  Account** (name, PIN, avatar, Sigil light color, Sigil accessibility,
+  appearance, connection).
+- All of it goes through the same routes as the portal (`/api/control/*`,
+  `/api/control/life*`, `/api/control/commander`, `/api/game/settings`,
+  `/api/session/profile`, `/api/session/personalization`); Atlas validates
+  every request. Admin device settings (Wi-Fi password, pairing window,
+  speaker, account permissions, factory reset) remain portal-only.
+- **Quick app switch:** Android releases an app's `WifiNetworkSpecifier`
+  network once the app leaves the foreground. When the app leaves the screen
+  while connected, `AtlasLinkHoldService` (a `connectedDevice` foreground
+  service with a notification) keeps the app eligible for two minutes
+  (`HOLD_MS`) and stops as soon as the app returns.
+
 Accessibility (2026-09-24):
 
 - A signed-in player's **Sigil accessibility** button opens

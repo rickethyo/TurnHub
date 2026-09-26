@@ -15,9 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.turnhub.android.data.AtlasLinkHoldService
 import com.turnhub.android.data.AtlasPlayerSession
+import com.turnhub.android.protocol.AtlasConnectionState
+import com.turnhub.android.ui.home.AccountActions
+import com.turnhub.android.ui.home.GameActions
+import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.data.AtlasSessionTransportFactory
 import com.turnhub.android.data.AtlasTransportFactory
 import com.turnhub.android.data.HttpAtlasRepository
@@ -26,7 +33,6 @@ import com.turnhub.android.data.PreferencesWifiCredentialStore
 import com.turnhub.android.data.TargetedAtlasWifiLink
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
-import com.turnhub.android.ui.home.PlayerPanelActions
 import com.turnhub.android.ui.theme.TurnHubTheme
 
 /**
@@ -78,10 +84,49 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    // Appearance is a phone-only preference, like the portal's per-browser theme.
+    private val uiPrefs by lazy { getSharedPreferences("turnhub_ui", MODE_PRIVATE) }
+    private var theme by mutableStateOf(TurnHubThemeChoice.BRASS)
+    private var reduceMotion by mutableStateOf(false)
+
+    private fun chooseTheme(choice: TurnHubThemeChoice) {
+        theme = choice
+        uiPrefs.edit().putString("theme", choice.key).apply()
+    }
+
+    private fun chooseReduceMotion(on: Boolean) {
+        reduceMotion = on
+        uiPrefs.edit().putBoolean("reduceMotion", on).apply()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AtlasLinkHoldService.release(this)
+    }
+
+    // Leaving the screen while connected: hold the Atlas Wi-Fi for a quick
+    // app switch (AtlasLinkHoldService). Started here, while the app is still
+    // foreground, because Android refuses foreground services started later.
+    override fun onPause() {
+        super.onPause()
+        if (!isChangingConfigurations &&
+            homeViewModel.uiState.value.connectionState == AtlasConnectionState.CONNECTED
+        ) {
+            AtlasLinkHoldService.hold(this)
+        }
+    }
+
+    override fun onDestroy() {
+        if (!isChangingConfigurations) AtlasLinkHoldService.release(this)
+        super.onDestroy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
+        reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         setContent {
-            TurnHubTheme {
+            TurnHubTheme(choice = theme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -96,16 +141,29 @@ class MainActivity : ComponentActivity() {
                         onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
                         onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
                         onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
-                        playerActions = PlayerPanelActions(
-                            onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
+                        gameActions = GameActions(
+                            onControl = homeViewModel::onControl,
                             onJoin = homeViewModel::onJoinClicked,
-                            onPass = homeViewModel::onPassClicked,
-                            onPauseResume = homeViewModel::onPauseResumeClicked,
-                            onTurnTimerChosen = homeViewModel::onTurnTimerChosen,
+                            onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
+                            onChangeMyLife = homeViewModel::onChangeMyLife,
+                            onRequestLife = homeViewModel::onRequestLife,
+                            onRespondLife = homeViewModel::onRespondLife,
+                            onCommanderDamage = homeViewModel::onCommanderDamage,
+                            onSaveGameSettings = homeViewModel::onSaveGameSettings,
+                        ),
+                        accountActions = AccountActions(
+                            onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,
+                            onSaveName = homeViewModel::onSaveName,
+                            onSavePin = homeViewModel::onSavePin,
+                            onLoadPersonalization = homeViewModel::onLoadPersonalization,
+                            onSavePersonalization = homeViewModel::onSavePersonalization,
                             onAccessibility = homeViewModel::onAccessibilityClicked,
                             onSignOut = homeViewModel::onSignOutClicked,
-                            onFeedbackDismiss = homeViewModel::onFeedbackDismissed,
+                            onThemeChosen = ::chooseTheme,
+                            onReduceMotion = ::chooseReduceMotion,
                         ),
+                        theme = theme,
+                        reduceMotion = reduceMotion,
                         onSignInSubmit = homeViewModel::onSignInSubmitted,
                         onSignInDismiss = homeViewModel::onSignInDismissed,
                         onAccessibilitySave = homeViewModel::onAccessibilitySaved,

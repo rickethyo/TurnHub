@@ -193,6 +193,93 @@ class HttpAtlasTransport(
         if (response.code != HttpURLConnection.HTTP_UNAUTHORIZED) requireOk(response, "Sign-out failed")
     }
 
+    override suspend fun postControl(
+        token: String,
+        path: String,
+        fields: List<Pair<String, String>>,
+    ): ControlResult {
+        val response = request("POST", path, headers = auth(token), formBody = form(*fields.toTypedArray()))
+        if (response.code == HttpURLConnection.HTTP_UNAUTHORIZED) throw AtlasException(AtlasFailure.SessionExpired)
+        if (response.code in 400..499) {
+            val reason = AtlasWireParser.errorMessage(response.body)
+            return try {
+                AtlasWireParser.parseControlResult(response.body).let { it.copy(message = it.message ?: reason) }
+            } catch (_: AtlasWireException) {
+                ControlResult(ok = false, status = "REJECTED", message = reason, revision = null, bootId = null)
+            }
+        }
+        requireOk(response, "Atlas did not accept the request")
+        return try {
+            parse { AtlasWireParser.parseControlResult(response.body) }
+        } catch (_: AtlasException) {
+            ControlResult(ok = true, status = "ACCEPTED", message = null, revision = null, bootId = null)
+        }
+    }
+
+    override suspend fun saveGameSettings(
+        token: String,
+        gameProfile: String?,
+        startingLife: Int?,
+        turnTimerMs: Long?,
+    ): String? {
+        val fields = buildList {
+            gameProfile?.let { add("gameProfile" to it) }
+            startingLife?.let { add("startingLife" to it.toString()) }
+            turnTimerMs?.let { add("turnTimerMs" to it.toString()) }
+        }
+        val response = request("POST", "/api/game/settings", headers = auth(token), formBody = form(*fields.toTypedArray()))
+        requireOk(response, "Atlas did not save the game settings")
+        return messageOf(response.body)
+    }
+
+    override suspend fun saveProfile(token: String, name: String?, pin: String?): String? {
+        val fields = buildList {
+            name?.let { add("name" to it) }
+            pin?.let { add("pin" to it) }
+        }
+        val response = request("POST", "/api/session/profile", headers = auth(token), formBody = form(*fields.toTypedArray()))
+        requireOk(response, "Atlas did not save your profile")
+        return messageOf(response.body)
+    }
+
+    override suspend fun getPersonalization(token: String): Personalization {
+        val response = request("GET", "/api/session/personalization", headers = auth(token))
+        requireOk(response, "Could not read your personalization")
+        return parsePersonalization(response.body)
+    }
+
+    override suspend fun savePersonalization(token: String, color: String?, avatar: Int?): Personalization {
+        val fields = buildList {
+            color?.let { add("color" to it) }
+            avatar?.let { add("avatar" to it.toString()) }
+        }
+        val response = request(
+            "POST",
+            "/api/session/personalization",
+            headers = auth(token),
+            formBody = form(*fields.toTypedArray()),
+        )
+        requireOk(response, "Atlas did not save your personalization")
+        return parsePersonalization(response.body)
+    }
+
+    private fun parsePersonalization(body: String): Personalization = try {
+        val root = org.json.JSONObject(body)
+        Personalization(
+            color = if (root.isNull("color")) null else root.optString("color").takeIf { it.startsWith("#") },
+            avatar = root.optInt("avatar", 0),
+            cardPresent = root.optBoolean("card", true),
+        )
+    } catch (e: org.json.JSONException) {
+        throw AtlasException(AtlasFailure.Malformed(e.message ?: "personalization"))
+    }
+
+    private fun messageOf(body: String): String? = try {
+        org.json.JSONObject(body).optString("message").takeIf { it.isNotBlank() }
+    } catch (_: org.json.JSONException) {
+        null
+    }
+
     private fun auth(token: String) = mapOf(TOKEN_HEADER to token)
 
     private fun form(vararg fields: Pair<String, String>): String =

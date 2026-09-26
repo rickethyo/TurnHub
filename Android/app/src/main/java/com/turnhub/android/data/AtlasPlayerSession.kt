@@ -103,6 +103,52 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         }
     }
 
+    /**
+     * A counter or game control with form fields (life, life requests,
+     * Commander damage). Atlas resolves the player from the session.
+     */
+    suspend fun counter(path: String, fields: List<Pair<String, String>>, success: String) = act {
+        val result = transports.create(it.first).postControl(it.second, path, fields)
+        when {
+            result.ok -> ActionFeedback(result.message ?: success, isError = false)
+            else -> ActionFeedback(result.message ?: "Atlas refused that.", isError = true)
+        }
+    }
+
+    /** Any seated player, in the lobby; null fields keep Atlas's values. */
+    suspend fun saveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?) = act {
+        val message = transports.create(it.first).saveGameSettings(it.second, gameProfile, startingLife, turnTimerMs)
+        ActionFeedback(message ?: "Game settings saved on Atlas.", isError = false)
+    }
+
+    /** A new display name and/or PIN for the signed-in profile. */
+    suspend fun saveProfile(name: String?, pin: String?) = act {
+        val message = transports.create(it.first).saveProfile(it.second, name, pin)
+        if (name != null) {
+            (_state.value as? PlayerSessionState.SignedIn)?.let { s -> _state.value = s.copy(name = name) }
+        }
+        ActionFeedback(message ?: if (pin != null) "PIN saved." else "Name saved.", isError = false)
+    }
+
+    /** The profile's avatar and Sigil light color, once read with [loadPersonalization]. */
+    private val _personalization = MutableStateFlow<Personalization?>(null)
+    val personalization: StateFlow<Personalization?> = _personalization.asStateFlow()
+
+    private val _avatars = MutableStateFlow<List<com.turnhub.android.protocol.AvatarIcon>>(emptyList())
+    val avatars: StateFlow<List<com.turnhub.android.protocol.AvatarIcon>> = _avatars.asStateFlow()
+
+    suspend fun loadPersonalization() = act {
+        val transport = transports.create(it.first)
+        if (_avatars.value.isEmpty()) _avatars.value = transport.getAvatars()
+        _personalization.value = transport.getPersonalization(it.second)
+        null
+    }
+
+    suspend fun savePersonalization(color: String?, avatar: Int?) = act {
+        _personalization.value = transports.create(it.first).savePersonalization(it.second, color, avatar)
+        ActionFeedback("Saved. Your Sigil and the table update within a few seconds.", isError = false)
+    }
+
     /** Host only, in the lobby: Atlas validates and stores it for the next match. */
     suspend fun setTurnTimer(turnTimerMs: Long) = act {
         val message = transports.create(it.first).setTurnTimer(it.second, turnTimerMs)
@@ -154,6 +200,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         token = null
         _gameSettings.value = null
         _accessibility.value = null
+        _personalization.value = null
         _state.value = PlayerSessionState.SignedOut
     }
 

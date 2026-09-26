@@ -57,6 +57,7 @@ object TableSummaryMapper {
             turnElapsedMs = snapshot.turnElapsedMs,
             turnTimer = snapshot.turnTimer,
             receivedAtMs = receivedAtMs,
+            sampledAtMs = snapshot.sampledAtMs,
             players = players,
             physicalSigils = players
                 .filter { it.controller.kind == ControllerHandle.Kind.PHYSICAL }
