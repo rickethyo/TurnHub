@@ -86,9 +86,8 @@ JEWEL_PADS = [('1', 'PWR', '+5V', 2.043, 4.141), ('2', 'GND', 'GND', 4.207, 0.10
 # Pigtail holes on the adapter, same order as J5 on the Sigil board.
 PIGTAIL = [('+5V', '+5V'), ('DIN', 'RING_DIN_R'), ('GND', 'GND')]
 
-# Carrier footprints for the first PCB: all through-hole, hand-solderable,
-# 2.54 mm sockets so each module plugs in like it does on the breadboard.
-# U1 (the DevKit) stays unassigned until its row spacing is measured.
+# Carrier footprints for the first PCB: hand-solderable, through-hole except
+# U2 (SOT-23-5). U1 is the local DevKit socket footprint (see devkit_footprint).
 FOOTPRINTS = {
     'J2_8': 'Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical',
     'J2_7': 'Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical',
@@ -213,13 +212,16 @@ jewel_pins = custom('NeoPixel_Jewel7', [pin(n, name, -20.32, round(-i*5.08, 2), 
                                          'output' if name == 'DOUT' else 'passive')
                                      for i, (n, name, _, _, _) in enumerate(JEWEL_PADS)],
                     15.24, 5.08, -25.4, 'J')
+chain_out = custom('Chain_Out_Pads_3', [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0)
+                                        for i, name in enumerate(['+5V', 'DOUT', 'GND'])],
+                   15.24, 5.08, -15.24, 'J')
 pigtail = custom('Pigtail_Pads_3', [pin(str(i+1), name, -20.32, round(-i*5.08, 2), 0)
                                     for i, (name, _) in enumerate(PIGTAIL)],
                  15.24, 5.08, -15.24, 'J')
 capacitor = custom('Capacitor', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62, 0, 180)],
                    2.54, 1.27, -1.27, 'C')
 (ROOT / 'Sigil.kicad_sym').write_text('(kicad_symbol_lib (version 20241209) (generator "Sigil")\n' + '\n'.join(
-    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, capacitor, shifter, button, jewel_pins, pigtail]) + ')\n')
+    s.replace('"Sigil:', '"', 1) for s in [devkit, buzz, *displays.values(), joystick, jewel, resistor, capacitor, shifter, button, jewel_pins, pigtail, chain_out]) + ')\n')
 # U1 footprint, carrier top view with the DevKit plugged in face up and its
 # micro-USB end at the top. That view mirrors the rear photo, so the A row
 # (A1 = CLK) is on the LEFT and the J row (J1 = 5V) on the RIGHT; A1/J1 are at
@@ -237,11 +239,10 @@ def devkit_footprint():
     def text(t, x, y, layer='F.SilkS'):
         L.append(f'(fp_text user "{t}" (at {x} {y} 0) (layer "{layer}") (effects (font (size 1 1) (thickness 0.15))))')
     x0, x1, y0, y1 = -1.05, 26.45, round(22.86-27.5, 2), round(22.86+27.5, 2)
-    for a, b, c, d in [(x0, y0, x1, y0), (x1, y0, x1, y1), (x1, y1, x0, y1), (x0, y1, x0, y0)]:
-        line(a, b, c, d, 'F.Fab', 0.1); line(a-0.25, b-0.25 if b == y0 else b+0.25, c+0.25 if c == x1 else c-0.25, d-0.25 if d == y0 else d+0.25, 'F.CrtYd', 0.05)
-    for a, b, c, d in [(x0-0.12, y0-0.12, x1+0.12, y0-0.12), (x1+0.12, y0-0.12, x1+0.12, y1+0.12),
-                       (x1+0.12, y1+0.12, x0-0.12, y1+0.12), (x0-0.12, y1+0.12, x0-0.12, y0-0.12)]:
-        line(a, b, c, d, 'F.SilkS', 0.12)
+    def rect(grow, layer, w):
+        l, t, rr, b = round(x0-grow, 2), round(y0-grow, 2), round(x1+grow, 2), round(y1+grow, 2)
+        for e in [(l, t, rr, t), (rr, t, rr, b), (rr, b, l, b), (l, b, l, t)]: line(*e, layer, w)
+    rect(0, 'F.Fab', 0.1); rect(0.12, 'F.SilkS', 0.12); rect(0.25, 'F.CrtYd', 0.05)
     text('USB', 12.7, -2.5); text('A1', -2.8, 0); text('J1', 28.2, 0)
     text('DevKit outline: verify', 12.7, 22.86, 'F.Fab')
     for row, x in [('A', 0), ('J', 25.4)]:
@@ -434,7 +435,7 @@ def build_adapter():
     def uid(key): return str(uuid.uuid5(NS, key))
     out = [f'(kicad_sch (version 20260306) (generator "eeschema") (uuid "{NS}") (paper "A4")',
            '(title_block (title "Sigil Jewel adapter - NeoPixel Jewel 7 on pins, pigtail to Sigil J5") (rev "A electrical draft"))',
-           '(lib_symbols\n' + '\n'.join([jewel_pins, pigtail, capacitor]) + ')']
+           '(lib_symbols\n' + '\n'.join([jewel_pins, pigtail, chain_out, capacitor]) + ')']
     def note(text, x, y, size=1.27):
         out.append(f'(text {q(text)} (at {x} {y} 0) (effects (font (size {size} {size})) (justify left top)) (uuid "{uid(text)}"))')
     def wire(x, y, x2, y2):
@@ -465,7 +466,7 @@ def build_adapter():
         y = round(py+i*5.08, 2); wire(round(px-20.32, 2), y, 60.96, y); label(net, 60.96, y)
     # J3: optional chain output (unfitted): more pixels after the Jewel's 7th.
     cx, cy = 101.6, 106.68
-    instance('Sigil:Pigtail_Pads_3', 'J3', 'CHAIN OUT (OPTIONAL)', cx, cy, 12.7,
+    instance('Sigil:Chain_Out_Pads_3', 'J3', 'CHAIN OUT (OPTIONAL)', cx, cy, 12.7,
              ['1', '2', '3'], 'Connector_PinHeader_2.54mm:PinHeader_1x03_P2.54mm_Vertical')
     for i, net in enumerate(['+5V', 'RING_DOUT', 'GND']):
         y = round(cy+i*5.08, 2); wire(round(cx-20.32, 2), y, 60.96, y); label(net, 60.96, y)

@@ -207,4 +207,4 @@ The Jewel is soldered on pins on this board, LEDs up, with C1 (470 uF), a 3-wire
 | J1 | 3 | DIN | RING_DIN_R |
 | J2 | 2 | DIN | RING_DIN_R |
 | J1 | 4 | DOUT | RING_DOUT |
-| J3 | 2 | DIN | RING_DOUT |
+| J3 | 2 | DOUT | RING_DOUT |

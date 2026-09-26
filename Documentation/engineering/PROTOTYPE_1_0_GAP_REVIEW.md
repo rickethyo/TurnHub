@@ -63,5 +63,6 @@ small adapter board with a JST-XH pigtail into the Sigil board. What's left:
    Print both footprints 1:1 and test-fit the DevKit and a Jewel.
 2. Re-run KiCad ERC, then lay out the board.
 
-A second Jewel strip is optional and not drawn; GPIO26's single data line can chain
-more pixels from J5's DOUT if it is ever wanted, within the USB current budget.
+An LED strip can be chained later from the adapter's optional chain-out (J3: +5V,
+DOUT, GND). It must be RGBW (SK6812) to match the Jewel, the firmware pixel count
+must change, and the USB current budget still applies.

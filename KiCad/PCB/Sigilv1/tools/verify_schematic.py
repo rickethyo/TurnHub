@@ -92,7 +92,7 @@ for project, title, prefix, header, rows in VARIANTS:
         assert by_pin[('U1',pos)]=='/'+net, (project, pos, by_pin.get(('U1',pos)))
     has_joystick = project == 'Sigil_EInk'
     has_buttons = project == 'Sigil_OLED'
-    has_jewel = True  # Both drafts carry the status ring.
+    has_jewel = True  # Both drafts carry the status ring cable (J5).
     power = dict(POWER, **(EINK_POWER if has_jewel else {}))
     for pos,net in power.items(): assert by_pin[('U1',pos)]=='/'+net, (project, pos)
     headers = [('J2', header)] + ([('J4', JOYSTICK_HEADER)] if has_joystick else []) \
@@ -185,4 +185,4 @@ if len(sys.argv) > 3:
     report.append('')
 
 (ROOT/'CROSS_CHECK.md').write_text('\n'.join(report), encoding='utf-8')
-print('PASS: both schematics match the socket mapping, firmware display/joystick/pushbutton/ring/buzzer pins, power, NC pins and the U1 socket footprint')
+print('PASS: ' + ('all three schematics' if len(sys.argv) > 3 else 'both Sigil schematics') + ' match the socket mapping, firmware display/joystick/pushbutton/ring/buzzer pins, power, NC pins and the U1 socket footprint')
