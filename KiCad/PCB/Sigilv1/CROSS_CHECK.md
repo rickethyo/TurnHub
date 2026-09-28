@@ -23,8 +23,9 @@ Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. The J
 | 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |
 | Display-type strap (open = E-ink) | GPIO4 | A7 | NC | `HW_TYPE_STRAP_PIN = 4` | YES |
 | USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |
+| Front light data (spare output) | GPIO13 | J5 | FRONT_DIN | No firmware yet | N/A |
 
-Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A7, A10, A12, A15, A16, J2, J3, J4, J5, J7, J8, J9, J11, J16, J17, J18.
+Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A7, A10, A12, A15, A16, J2, J3, J4, J7, J8, J9, J11, J16, J17, J18.
 
 Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
 
@@ -57,19 +58,31 @@ Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Da
 | 2 | DIN | RING_DIN_R |
 | 3 | GND | GND |
 
+Front light cable J6 (JST-XH, 3 pins, fitted), a spare output for a possible player-facing strip on the case front lip (STAGED_CHANGES). Data runs GPIO13 (socket J5, net FRONT_DIN) through U3 (74AHCT1G125, decoupled by C4, net FRONT_DIN_5V) and R2 (330 ohm) to DIN (net FRONT_DIN_R); same pinout as J5. J6, U3, R2 and C4 are fitted on every board; nothing drives GPIO13 until a strip is added. The ring and strip share USB 5 V, so firmware must cap both.
+
+| J6 pin | Signal | Net |
+|---|---|---|
+| 1 | +5V | +5V |
+| 2 | DIN | FRONT_DIN_R |
+| 3 | GND | GND |
+
 Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-check before ordering):
 
 | Ref | Value | Footprint |
 |---|---|---|
 | C2 | 10uF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | C3 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
-| J2 | INLAND E-PAPER HEADER (8-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical` |
+| C4 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
+| J2 | INLAND E-PAPER HEADER (8-PIN) | `Connector_JST:JST_XH_B8B-XH-A_1x08_P2.50mm_Vertical` |
 | J3 | BUZZER 2-PIN HEADER | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` |
-| J4 | ANALOG JOYSTICK HEADER (5-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x05_P2.54mm_Vertical` |
+| J4 | ANALOG JOYSTICK HEADER (5-PIN) | `Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical` |
 | J5 | STATUS RING CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
+| J6 | FRONT LIGHT CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
+| R2 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
 | U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.86mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
+| U3 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 
 ## OLED (Sigil_OLED.kicad_sch)
 
@@ -91,8 +104,9 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | Ground | — | A13, A19, J6 | GND | Hardware ground | YES |
 | 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |
 | USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |
+| Front light data (spare output) | GPIO13 | J5 | FRONT_DIN | No firmware yet | N/A |
 
-Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A10, A15, A16, J2, J3, J4, J5, J7, J8, J14, J15, J16, J17, J18.
+Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A10, A15, A16, J2, J3, J4, J7, J8, J14, J15, J16, J17, J18.
 
 Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
 
@@ -124,16 +138,27 @@ Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Da
 | 2 | DIN | RING_DIN_R |
 | 3 | GND | GND |
 
+Front light cable J6 (JST-XH, 3 pins, fitted), a spare output for a possible player-facing strip on the case front lip (STAGED_CHANGES). Data runs GPIO13 (socket J5, net FRONT_DIN) through U3 (74AHCT1G125, decoupled by C4, net FRONT_DIN_5V) and R2 (330 ohm) to DIN (net FRONT_DIN_R); same pinout as J5. J6, U3, R2 and C4 are fitted on every board; nothing drives GPIO13 until a strip is added. The ring and strip share USB 5 V, so firmware must cap both.
+
+| J6 pin | Signal | Net |
+|---|---|---|
+| 1 | +5V | +5V |
+| 2 | DIN | FRONT_DIN_R |
+| 3 | GND | GND |
+
 Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-check before ordering):
 
 | Ref | Value | Footprint |
 |---|---|---|
 | C2 | 10uF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | C3 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
+| C4 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | J2 | INLAND 1.3" OLED HEADER (7-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical` |
 | J3 | BUZZER 2-PIN HEADER | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` |
 | J5 | STATUS RING CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
+| J6 | FRONT LIGHT CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
+| R2 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
 | SW1 | UP (GPIO25, J11) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW2 | DOWN (GPIO27, J9) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW3 | LEFT (GPIO19, A12) | `Button_Switch_THT:SW_PUSH_6mm` |
@@ -141,6 +166,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | SW5 | SELECT (GPIO32, J13) | `Button_Switch_THT:SW_PUSH_6mm` |
 | U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.86mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
+| U3 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 
 ## Socket positions
 
@@ -187,7 +213,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
-Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3, spare front light J6/U3/R2/C4 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
 
 ## Jewel adapter (Sigil_JewelAdapter.kicad_sch)
 

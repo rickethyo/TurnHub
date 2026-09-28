@@ -37,6 +37,11 @@ JEWEL_HEADER = [('1','+5V','+5V','not recorded'), ('2','DIN','RING_DIN_R','not r
     ('3','GND','GND','not recorded')]
 JEWEL_ROWS = [('Status ring data (via R1)', 26, 'J10', 'RING_DIN', 'STATUS_RING_PIN = 26', main)]
 EINK_POWER = {'J1': '+5V'}
+# Spare front light J6 (fitted, both drafts): GPIO13 (socket J5) through U3 and
+# R2, pinout as J5. No firmware drives it yet, so it is checked by net only.
+FRONT_HEADER = [('1','+5V','+5V','not recorded'), ('2','DIN','FRONT_DIN_R','not recorded'),
+    ('3','GND','GND','not recorded')]
+FRONT_SOCKET = ('J5', 'FRONT_DIN')
 # OLED keys: five discrete pushbuttons, pin 1 on the key net, pin 2 on GND.
 BUTTONS = [('SW1','Up','KEY_UP',25,'J11'), ('SW2','Down','KEY_DOWN',27,'J9'),
     ('SW3','Left','KEY_LEFT',19,'A12'), ('SW4','Right','KEY_RIGHT',21,'A14'),
@@ -96,7 +101,7 @@ for project, title, prefix, header, rows in VARIANTS:
     power = dict(POWER, **(EINK_POWER if has_jewel else {}))
     for pos,net in power.items(): assert by_pin[('U1',pos)]=='/'+net, (project, pos)
     headers = [('J2', header)] + ([('J4', JOYSTICK_HEADER)] if has_joystick else []) \
-        + ([('J5', JEWEL_HEADER)] if has_jewel else [])
+        + ([('J5', JEWEL_HEADER), ('J6', FRONT_HEADER)] if has_jewel else [])
     for ref, pins in headers:
         nodes = {n.get('pin'):n for n in xml.findall('nets/net/node') if n.get('ref')==ref}
         assert set(nodes)=={h[0] for h in pins}, (project, ref, sorted(nodes))
@@ -112,16 +117,24 @@ for project, title, prefix, header, rows in VARIANTS:
             assert by_pin[('U2',num)]=='/'+net, (project, 'U2', num)
         assert by_pin[('C3','1')]=='/+5V' and by_pin[('C3','2')]=='/GND', (project, 'C3')
         assert by_pin[('R1','1')]=='/RING_DIN_5V' and by_pin[('R1','2')]=='/RING_DIN_R', (project, 'R1')
+        assert mapping[FRONT_SOCKET[0]] == 'GPIO13' and by_pin[('U1', FRONT_SOCKET[0])] == '/' + FRONT_SOCKET[1]
+        for num, net in [('1','GND'),('2','FRONT_DIN'),('3','GND'),('4','FRONT_DIN_5V'),('5','+5V')]:
+            assert by_pin[('U3',num)]=='/'+net, (project, 'U3', num)
+        assert by_pin[('C4','1')]=='/+5V' and by_pin[('C4','2')]=='/GND', (project, 'C4')
+        assert by_pin[('R2','1')]=='/FRONT_DIN_5V' and by_pin[('R2','2')]=='/FRONT_DIN_R', (project, 'R2')
+        dnp = {c.get('ref') for c in xml.findall('components/comp')
+               if any(p.get('name') == 'dnp' for p in c.findall('property'))}
+        assert not dnp, (project, 'DNP', dnp)
     assert by_pin[('J3','1')]=='/BUZZER' and by_pin[('J3','2')]=='/GND'
     assert by_pin[('C2','1')]=='/+3V3' and by_pin[('C2','2')]=='/GND', (project, 'C2')
     # E-ink leaves the GPIO4 strap open (checked NC below); OLED ties it to GND (a row).
-    used = {r[2] for r in rows} | set(power)
+    used = {r[2] for r in rows} | set(power) | ({FRONT_SOCKET[0]} if has_jewel else set())
     for p in set(mapping)-used: assert 'no_connect' in actual[p].get('pintype'), (project, p)
     refs = {c.get('ref') for c in xml.findall('components/comp')}
     for c in xml.findall('components/comp'):
         assert c.find('footprint') is not None, (project, c.get('ref'), 'needs a footprint')
     assert refs == {'U1','J2','J3','C2'} | ({'J4'} if has_joystick else set()) \
-        | ({'J5','R1','U2','C3'} if has_jewel else set()) | ({r[0] for r in BUTTONS} if has_buttons else set()), (project, refs)
+        | ({'J5','R1','U2','C3','J6','R2','U3','C4'} if has_jewel else set()) | ({r[0] for r in BUTTONS} if has_buttons else set()), (project, refs)
     for n,pins in nets.items():
         if not n.startswith('unconnected-'): assert len(pins)>=2,(project,n,pins)
     assert xml.findtext("components/comp[@ref='U1']/footprint")=='Sigil:ESP32_DevKit_38_Socket_Row22.86mm'
@@ -132,7 +145,8 @@ for project, title, prefix, header, rows in VARIANTS:
     report += ['| Ground | — | A13, A19, J6 | GND | Hardware ground | YES |',
                '| 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |']
     if not has_buttons: report.append('| Display-type strap (open = E-ink) | GPIO4 | A7 | NC | `HW_TYPE_STRAP_PIN = 4` | YES |')
-    if has_jewel: report.append('| USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |')
+    if has_jewel: report += ['| USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |',
+                             '| Front light data (spare output) | GPIO13 | J5 | FRONT_DIN | No firmware yet | N/A |']
     report.append('')
     report.append('Unused (NC) sockets: ' + ', '.join(p for p in mapping if p not in used) + '.')
     report += ['', f'Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.', '',
@@ -153,6 +167,9 @@ for project, title, prefix, header, rows in VARIANTS:
         report += ['Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.', '',
             '| J5 pin | Signal | Net |', '|---|---|---|']
         report += [f'| {num} | {name} | {net or "NC"} |' for num,name,net,_ in JEWEL_HEADER]
+        report += ['', 'Front light cable J6 (JST-XH, 3 pins, fitted), a spare output for a possible player-facing strip on the case front lip (STAGED_CHANGES). Data runs GPIO13 (socket J5, net FRONT_DIN) through U3 (74AHCT1G125, decoupled by C4, net FRONT_DIN_5V) and R2 (330 ohm) to DIN (net FRONT_DIN_R); same pinout as J5. J6, U3, R2 and C4 are fitted on every board; nothing drives GPIO13 until a strip is added. The ring and strip share USB 5 V, so firmware must cap both.', '',
+            '| J6 pin | Signal | Net |', '|---|---|---|']
+        report += [f'| {num} | {name} | {net} |' for num,name,net,_ in FRONT_HEADER]
         report.append('')
     report += ['Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-check before ordering):', '',
         '| Ref | Value | Footprint |', '|---|---|---|']
@@ -163,7 +180,7 @@ for project, title, prefix, header, rows in VARIANTS:
 report += ['## Socket positions', '', '| Socket position | DevKit silkscreen pin |', '|---|---|']
 report += [f'| {p} | {n} |' for p,n in mapping.items()]
 report += ['', 'Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.', '',
-    'Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.', '']
+    'Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3, spare front light J6/U3/R2/C4 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.', '']
 # Jewel adapter (third netlist): Jewel pads, C1 and pigtail, same order as J5.
 if len(sys.argv) > 3:
     xml = ET.parse(sys.argv[3]).getroot()

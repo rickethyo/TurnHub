@@ -535,11 +535,14 @@ back wall, so the seated player can't see it. A short LED strip on the front lip
 would give the **player** their own light. Build this only if the final case
 keeps that split; if the case lets one light face both ways, drop it.
 
-- **Hardware:** no Sigil board change. The strip hangs off the Jewel adapter's
-  existing chain-out, so it's the same data line (GPIO26 through U2 and J5):
-  Jewel pixels 0–6, then the strip. Candidate: 6–8 SK6812 RGBW pixels to match
-  the Jewel's colour order. The Jewel adapter's chain-out connector and cable
-  length depend on where the case puts the strip.
+- **Hardware:** reserved on Sigil Rev A (2026-09-28): J6, a JST-XH 3-pin
+  socket fed by its own data line, GPIO13 through U3 (74AHCT1G125) and R2, same
+  pinout as J5. J6, U3, R2 and C4 are fitted on every board, so a strip can be
+  added later without rework. A
+  separate line suits the case better than the Jewel adapter's chain-out (the
+  board is beside the front lip, the Jewel on the back wall) and gives the strip
+  its own pixel chain. The chain-out stays as a fallback. Candidate: 6–8 SK6812
+  RGBW pixels to match the Jewel's colour order.
 - **Feature gate:**
   1. *State owner:* Atlas, unchanged. It already decides each Sigil's
      `LedState`; the Sigil only renders it.
