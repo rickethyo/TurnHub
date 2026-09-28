@@ -2,6 +2,10 @@
 
 This file exists so provisional documentation can be useful immediately without silently becoming permanent fact.
 
+For the current field-test gates, use [Prototype v1 Verification](PROTOTYPE_V1_VERIFICATION.md).
+This broader backlog includes historical research and production decisions.
+Implemented-source checks below do not certify physical behavior.
+
 When an item is verified, update the relevant reference document and mark the item complete here with the evidence used.
 
 ## Historical hardware
@@ -48,7 +52,8 @@ When an item is verified, update the relevant reference document and mark the it
 - [x] Add and assign GPIO for the auxiliary Pause / Win button (GPIO32; bench check pending).
 - [x] Verify the auxiliary path maps to semantic Atlas actions and introduces no
   button-owned game rules (it reuses Action-long and Action-win).
-- [ ] Revisit whether the original Action long-press remains after the auxiliary control exists.
+- [x] Auxiliary-button design superseded by joystick/Select menus (2026-09-25).
+  Pause/Win remain semantic actions. Current input acceptance is in the v1 checklist.
 
 ## Wireless and pairing
 
@@ -106,18 +111,22 @@ When an item is verified, update the relevant reference document and mark the it
   HTTP/application regression checks pass; `0.6.0-dev` bench acceptance is pending.
 - [ ] Bench-check `0.6.0-dev`: old profiles, two-phone game with Sigils off,
   concurrent phone/Sigil control, statistics once and persistence after reboot.
-- [ ] Prototype 1.0 recovery: define a compact versioned active-match record rather
-  than persisting the in-memory engine object.
+- [x] Prototype 1.0 recovery: compact versioned record implemented in
+  `game_checkpoint.*` / `game_recovery.*` and wired into setup/observer.
+  Host-tested; abrupt-power hardware acceptance remains open below.
 - [ ] Prototype 1.0 recovery: allocate/persist MatchId and a completion receipt or
   equivalent idempotency marker before automatic replay of completion/stat updates.
-- [ ] Prototype 1.0 recovery: save only after accepted semantic state transitions;
-  verify timer/display ticks do not create continuous flash writes.
+- [ ] Prototype 1.0 recovery: physically verify bounded writes. Source saves
+  changed semantic state plus a 60-second running-clock checkpoint; rejected
+  actions and ordinary timer/display ticks should not continuously write flash.
 - [ ] Prototype 1.0 recovery: abrupt-power test from lobby, running, paused,
   mid-turn, after pass, after concession, and around game completion. A recovered
   match must open paused and must not charge downtime to a player.
 - [ ] Prototype 1.0 recovery (Discard = 5 s End match draw hold on the Atlas touchscreen, 2026-09-24): verify Resume/Discard, re-login, physical/controller
   reattachment, corrupt/unsupported snapshot rejection, and exactly-once statistics.
-- [ ] Define a controller interface suitable for a simulator/test harness.
+- [x] TestHarness uses the shared radio/menu contract to emulate two Sigils.
+  Source implementation is documented in `TestHarness/README.md`; candidate
+  hardware runs remain part of the v1 checklist.
 - [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
 - [ ] Review timer implementation for timestamp/derived-state behavior rather than unnecessary repeated state mutation.
 - [ ] Review e-ink update code for state-change/dirty-region opportunities.
@@ -150,4 +159,4 @@ When an item is verified, update the relevant reference document and mark the it
 - [ ] Tag future docs with hardware revision and firmware/protocol version where applicable.
 - [ ] Update this backlog whenever a provisional claim is added elsewhere.
 
-Last updated: 2026-09-21
+Last updated: 2026-09-26

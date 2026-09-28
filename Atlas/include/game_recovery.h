@@ -35,6 +35,9 @@ class GameRecovery {
   explicit GameRecovery(TurnHubStorage::BlobStore &store) : store_(store) {}
   TurnHubStorage::Status load(GameEngine &game, Lobby &lobby, uint32_t nowMs);
   TurnHubStorage::Status save(const GameEngine &game, uint32_t nowMs);
+  // Completion barrier: commit a finished snapshot before profile increments.
+  // Never overwrites an unreadable/future record and never replays statistics.
+  TurnHubStorage::Status saveCompleted(const GameEngine &game, uint32_t nowMs);
   TurnHubStorage::Status status() const { return status_; }
  private:
   void rememberSaved(uint32_t nowMs);
@@ -51,5 +54,6 @@ class GameRecovery {
 // Production NVS adapter, initialized explicitly during setup.
 TurnHubStorage::Status beginGameRecovery(GameEngine &game, Lobby &lobby, uint32_t nowMs);
 TurnHubStorage::Status checkpointGame(const GameEngine &game, uint32_t nowMs);
+TurnHubStorage::Status checkpointCompletedGame(const GameEngine &game, uint32_t nowMs);
 TurnHubStorage::Status gameRecoveryStatus();
 } // namespace TurnHub

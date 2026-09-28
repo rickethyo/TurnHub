@@ -31,6 +31,7 @@ TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
 }
 namespace ProfileFixture {
 bool gameSettingsWritable = true;
+void (*afterStatsSave)() = nullptr;
 std::map<std::string,Profile> profiles;
 std::map<std::string,String> bindings;
 String key(const uint8_t *mac,uint8_t slot) { return String(mac[5])+":"+String(slot); }
@@ -132,7 +133,12 @@ bool saveAvatarForProfile(const String &id, uint8_t avatar) {
 void setLuxuryStore(TurnHubStorage::BlobStore *) {}
 bool luxuryStoreAvailable() { return true; }
 size_t migrateDetailedStats() { return 0; }
-bool saveStatsForProfile(const String &id,const ProfileStats &stats) { if(!profileExists(id))return false;profiles[id].stats=stats;return true; }
+bool saveStatsForProfile(const String &id,const ProfileStats &stats) {
+  if(!profileExists(id))return false;
+  profiles[id].stats=stats;
+  if(afterStatsSave)afterStatsSave();
+  return true;
+}
 bool loadModerationStatsForProfile(const String &id,ModerationStats &stats) { if(!profileExists(id))return false;stats=profiles[id].moderation;return true; }
 bool saveModerationStatsForProfile(const String &id,const ModerationStats &stats) { if(!profileExists(id))return false;profiles[id].moderation=stats;return true; }
 }

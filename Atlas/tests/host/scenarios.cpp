@@ -32,7 +32,7 @@ esp_err_t injectedCommitError = ESP_OK;
 esp_err_t openError = ESP_OK;
 esp_err_t setError = ESP_OK;
 std::map<std::string, std::vector<uint8_t>> testBlobs;
-bool useRealNvsBlobs = false;
+esp_err_t checkpointReadError = ESP_OK;
 
 // Only hardware/transport/presentation boundaries are replaced.
 namespace TurnHub {
@@ -1870,12 +1870,9 @@ static void nativeClientBoundary() {
   enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
 }
 
-// Interrupted-match recovery: beginGameRecovery()/checkpointGame() live in a
-// process-wide singleton (game_recovery_store.cpp), so this scenario must run
-// last -- once it opens that store, every dispatched intent's observer starts
-// persisting checkpoints for the rest of the process (matching production;
-// see main.cpp's observeIntent()). Earlier scenarios never call
-// beginGameRecovery(), so they are unaffected either way.
+// Recovery fault-injection scenarios run last: they change the process-wide
+// store's writable state. The recovery namespace uses map-backed reads across
+// simulated restarts, independently of OptionalPreferences fault injection.
 // Drives the touchscreen adapter with screen-coordinate samples.
 static const TouchButton *screenButton(const AtlasScreen &screen, TouchAction action) {
   for (uint8_t i=0;i<screen.buttonCount;++i) if (screen.buttons[i].action==action) return &screen.buttons[i];
@@ -2559,15 +2556,109 @@ static void factoryResetFromPortal() {
   resetPresence();
 }
 
+struct CompletionPowerLoss {};
+static unsigned completionWritesBeforeLoss = 0;
+static void interruptCompletionWrite() {
+  if (--completionWritesBeforeLoss == 0) throw CompletionPowerLoss{};
+}
+
+static void prepareCompletionProbe(GameEngine &subject, Lobby &subjectLobby) {
+  testBlobs.clear(); checkpointReadError = ESP_OK;
+  setError = ESP_OK; injectedCommitError = ESP_OK;
+  testNow = 5000;
+  ProfileFixture::profiles["CAFE0001"] = ProfileFixture::Profile{};
+  ProfileFixture::profiles["CAFE0002"] = ProfileFixture::Profile{};
+  assert(beginGameRecovery(subject, subjectLobby, testNow) == TurnHubStorage::Status::NotFound);
+  PlayerSeat seats[] = {PlayerSeat{1, 0}, PlayerSeat{2, 1}};
+  strcpy(seats[0].profileId, "CAFE0001"); strcpy(seats[1].profileId, "CAFE0002");
+  assert(subject.start(seats, 2, seats[0], testNow));
+  assert(checkpointGame(subject, testNow) == TurnHubStorage::Status::Ok);
+  testNow += 1000;
+}
+
+static void completionRecoveryOrdering() {
+  using TurnHubStorage::Status;
+  // Draw, confirmed win and last-player-standing all share the real bridge.
+  // Interrupt within profile writes, before the Intent observer can run.
+  for (unsigned ending = 0; ending < 3; ++ending) {
+    for (unsigned cutAfter = 1; cutAfter <= 2; ++cutAfter) {
+      GameEngine subject; Lobby subjectLobby;
+      prepareCompletionProbe(subject, subjectLobby);
+      completionWritesBeforeLoss = cutAfter;
+      ProfileFixture::afterStatsSave = interruptCompletionWrite;
+      bool interrupted = false;
+      try {
+        if (ending == 0) {
+          subject.endInDraw(testNow);
+        } else if (ending == 1) {
+          assert(subject.beginWinClaim(1, true, testNow));
+          bool finished = false; subject.confirmWinClaim(2, testNow, finished);
+        } else {
+          assert(subject.pause(testNow));
+          bool finished = false; subject.eliminatePlayer(2, testNow, finished);
+        }
+      } catch (const CompletionPowerLoss &) { interrupted = true; }
+      ProfileFixture::afterStatsSave = nullptr;
+      assert(interrupted);
+      assert(ProfileFixture::profiles["CAFE0001"].stats.gamesPlayed == 1);
+      assert(ProfileFixture::profiles["CAFE0002"].stats.gamesPlayed == (cutAfter == 2 ? 1u : 0u));
+      const int beforeRestore = completedGames;
+      GameEngine rebooted; Lobby rebootedLobby;
+      assert(beginGameRecovery(rebooted, rebootedLobby, testNow + 600000) == Status::Ok);
+      assert(rebooted.gameOver() && rebooted.winnerPlayerNumber() == (ending == 0 ? 0 : 1));
+      assert(!rebooted.endInDraw(testNow + 601000));
+      assert(completedGames == beforeRestore);  // No unsafe aggregate replay.
+      assert(ProfileFixture::profiles["CAFE0001"].stats.gamesPlayed == 1);
+      assert(ProfileFixture::profiles["CAFE0002"].stats.gamesPlayed == (cutAfter == 2 ? 1u : 0u));
+    }
+  }
+
+  // Refuse increments after failed or uncertain checkpoint writes, read errors,
+  // corrupt records or future schemas. The later observer must not bypass this.
+  for (unsigned fault = 0; fault < 5; ++fault) {
+    GameEngine subject; Lobby subjectLobby;
+    prepareCompletionProbe(subject, subjectLobby);
+    if (fault == 0) setError = ESP_ERR_NVS_INVALID_HANDLE;
+    if (fault == 1) injectedCommitError = ESP_ERR_NVS_INVALID_HANDLE;
+    if (fault == 2) checkpointReadError = ESP_ERR_NVS_INVALID_HANDLE;
+    if (fault == 3) testBlobs["checkpoint"][0] ^= 0xFF;
+    if (fault == 4) testBlobs["checkpoint"][4] = 99;
+    const auto before = testBlobs["checkpoint"];
+    const Status expected = fault < 3 ? Status::IoError :
+        (fault == 3 ? Status::Corrupt : Status::UnsupportedSchema);
+    assert(subject.endInDraw(testNow));
+    assert(TurnHub::gameRecoveryStatus() == expected);
+    assert(ProfileFixture::profiles["CAFE0001"].stats.gamesPlayed == 0);
+    assert(ProfileFixture::profiles["CAFE0002"].stats.gamesPlayed == 0);
+    assert(serialLog.snapshot().find("ATLAS|PROFILE_STATS|SKIPPED_CHECKPOINT|") != std::string::npos);
+    const auto after = testBlobs["checkpoint"];
+    if (fault != 1) assert(before == after);
+    checkpointReadError = ESP_OK; setError = ESP_OK; injectedCommitError = ESP_OK;
+    assert(checkpointGame(subject, testNow) == expected && testBlobs["checkpoint"] == after);
+    GameEngine rebooted; Lobby rebootedLobby;
+    const auto restored = beginGameRecovery(rebooted, rebootedLobby, testNow + 600000);
+    if (fault < 3) {
+      assert(restored == Status::Ok);
+      // The stub's failed commit can still have written the finished record.
+      assert(rebooted.gameOver() == (fault == 1));
+      if (fault != 1) assert(rebooted.paused());
+    } else {
+      assert(restored == expected && !rebooted.hasPlayers());
+    }
+  }
+  checkpointReadError = ESP_OK;
+  testBlobs.clear();
+}
+
 static void gameRecoveryLifecycle() {
   using TurnHubStorage::Status;
 
   testBlobs.clear();
-  useRealNvsBlobs = true;
-  readError = ESP_OK; openError = ESP_OK; setError = ESP_OK;
+  checkpointReadError = ESP_OK; openError = ESP_OK; setError = ESP_OK;
 
   // 1) First boot ever: nothing has been saved.
   freshLobby(2);
+  testBlobs.clear();  // Ignore any fixture-reset observer checkpoint.
   testNow = 5000;
   assert(TurnHub::beginGameRecovery(game, lobby, testNow) == Status::NotFound);
   assert(!game.hasPlayers());
@@ -2607,8 +2698,7 @@ static void gameRecoveryLifecycle() {
   assert(TurnHub::beginGameRecovery(corrupt, corruptLobby, rebootAtMs) == Status::Corrupt);
   assert(!corrupt.hasPlayers() && corruptLobby.playerCount() == 0);
 
-  useRealNvsBlobs = false;
-  readError = ESP_ERR_NVS_NOT_FOUND;
+  checkpointReadError = ESP_OK;
   testBlobs.clear();
   enterEmptyLobby();
 }
@@ -2661,6 +2751,7 @@ int main() {
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
   serialLogStream();
   serialLogCapture(); std::cout<<"PASS serial log capture, redaction, stream draining, ring overflow and self-describing log lines\n";
-  // Must run last: see the comment on gameRecoveryLifecycle().
+  // Recovery fault injection runs last; see the recovery fixture comment.
+  completionRecoveryOrdering(); std::cout<<"PASS completion checkpoint before stats: interrupted profile writes, failed/uncertain commits, protected records, no replay\n";
   gameRecoveryLifecycle(); std::cout<<"PASS interrupted-match recovery: boot load, checkpoint-after-intent, downtime exclusion, corrupt fail-safe\n";
 }

@@ -6,5 +6,6 @@ struct Profile { String name, hash; TurnHubProfiles::ProfileStats stats; TurnHub
 extern std::map<std::string,Profile> profiles;
 extern std::map<std::string,String> bindings;
 extern bool gameSettingsWritable;
+extern void (*afterStatsSave)();  // Fault injection after a durable profile write.
 String key(const uint8_t *mac,uint8_t slot);
 }

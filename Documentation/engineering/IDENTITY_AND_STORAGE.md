@@ -114,6 +114,16 @@ load as zero defaults; other read failures return false. The completion callback
 then skips that profile instead of replacing totals. Failed completions are not
 yet queued for replay.
 
+Completion ordering update (2026-09-26, Codex stabilization branch): the production
+completion bridge commits a valid finished-match recovery record **before** any
+profile increments. Failed/uncertain checkpoint writes skip statistics, and
+corrupt/future records stay protected. This closes the reproduced power-cut
+double-counting window. A cut after that checkpoint can still leave missing or
+partial statistics, because restoration deliberately never replays completion.
+No statistics/checkpoint schema changes are included in this fix. See
+[completion ordering](COMPLETION_RECOVERY.md) for the boundary and
+[v1 verification](PROTOTYPE_V1_VERIFICATION.md) for the remaining receipts/replay gate.
+
 ## Optional microSD storage
 
 Status (2026-09-24): *Implemented* in firmware and host tests. *Verified* on

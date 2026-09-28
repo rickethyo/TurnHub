@@ -6,6 +6,11 @@ The goal of that lane is a build another person can use **without a development
 computer**. Confidence labels follow the engineering README: host tests passing is
 not hardware acceptance.
 
+Follow-up: stabilization is now tracked in the
+[line-item v1 checklist](PROTOTYPE_V1_VERIFICATION.md). Completion checkpoint
+ordering is host-tested on the Codex branch; complete replay-safe statistics
+remain open. The review below describes the baseline examined that morning.
+
 ## Summary
 
 The software side of the lane is largely built. Very little of it has been accepted
@@ -27,7 +32,7 @@ identical field-test Sigils practical.
 | 2 | Freeze major portal features | **Not held** | Since the lane was written: avatars, a Personalization card, Admin/GM/Developer tabs in Android, touchscreen table actions and more. Needs an explicit freeze from here on. |
 | 3 | Interrupted-match recovery | *Implemented, host-tested* | Wired into `setup()`/dispatcher observer on 2026-09-23. Discard is the 5 s End match hold. The abrupt-power test matrix (backlog lines 109-118) is still open; those checkboxes also need updating to match what was built. |
 | 4 | Auxiliary button path | *Superseded* | GPIO32 now carries the joystick click (e-ink) or the Select key (OLED); Pause/Win became menu actions. The backlog's "revisit Action long-press" item can be closed or restated. |
-| 5 | Pairing state machine | *Implemented* | 15 s manual pairing, Pair = DevKit BOOT button. Radio bench acceptance and a forget-device flow remain. |
+| 5 | Pairing state machine | *Implemented* | Manual pairing defaults to 15 s, Pair = DevKit BOOT button. Forget-device and local unpair flows are implemented; radio bench acceptance remains. |
 | 6 | Three-Sigil field-test set | **Not started as a set** | Sigils are breadboards of two different kinds (e-ink/joystick and OLED/buttons). No repeated cold-boot / power-loss / reconnect / re-pair runs are recorded. The carrier PCB (below) is the blocker for building three alike. |
 | 7 | Out-of-box setup | *Mostly implemented* | Atlas screen shows QR codes, access codes replace the admin hold, Android joins the Atlas Wi-Fi itself, factory reset exists on both devices. Not yet tried end to end by someone other than the owner. |
 
