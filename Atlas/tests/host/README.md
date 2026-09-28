@@ -5,6 +5,10 @@ handler and adapter modules declared in `atlas_app.h`), `GameEngine`, `Lobby`,
 and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
+On Linux, run `bash Atlas/tests/host/run-linux.sh` from the repository root.
+It builds all three suites with C++14, AddressSanitizer and UBSan, then runs them.
+GitHub Actions uses this runner; see [CI checks](../../../Documentation/engineering/CONTINUOUS_INTEGRATION.md).
+
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command
 Prompt for Visual Studio (C++ workload required). Assertions must remain enabled.
 

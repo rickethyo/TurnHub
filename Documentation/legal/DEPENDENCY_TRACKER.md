@@ -23,6 +23,7 @@ The goal is simple: know what entered the project, where it came from, how it is
 | Adafruit NeoPixel | `adafruit/Adafruit NeoPixel@1.15.5`, [upstream](https://github.com/adafruit/Adafruit_NeoPixel) | Sigil E-ink build (`sigil` env) status ring only | LGPL-3.0 ([license](https://github.com/adafruit/Adafruit_NeoPixel/blob/master/COPYING)) | Yes if E-ink Sigil firmware ships | YELLOW | Statically linked, so LGPL-3.0 requires letting recipients relink against a modified library (e.g. provide object files or the full source) and preserving notices. Covered by the same pre-release review as GxEPD2 (GPL-3.0) in the same firmware. |
 | Adafruit BusIO | Transitive GFX / SH110X dependency | Sigil graphics bus support | MIT ([license](https://github.com/adafruit/Adafruit_BusIO/blob/master/LICENSE)) | Yes if linked into shipped firmware | GREEN | Preserve copyright and license notice. |
 | PlatformIO Core | Build environment | Development | Apache-2.0 | No, currently build tooling only | GREEN | Track tool version for reproducibility. No product notice expected unless redistributed. |
+| GitHub Actions: checkout, setup-python, setup-java, upload-artifact | Official `actions/*` repositories; exact commit revisions in `.github/workflows/ci.yml` | Development CI only | MIT (upstream `LICENSE` in each action repository) | No, not embedded in firmware or APK | GREEN | Preserve upstream notices if action code is ever redistributed. Workflow invokes the actions without copying their implementation into TurnHub. |
 | wokwi-ws29v2-custom-chip | `bonnyr/wokwi-ws29v2-custom-chip` release v0.0.5 `chip.zip` (`chip.wasm` SHA-256 `6f59d1873e3faa07a018a088f61b1ffff6a8bcfebf7925eadd7e2082dd318d9d`), vendored as `Sigil/wokwi/chips/epaper-2in13.chip.wasm` with a TurnHub `chip.json` (2.13" geometry) | Sigil Wokwi simulation only | MIT (copy in `Sigil/wokwi/chips/LICENSE-wokwi-ws29v2-custom-chip.txt`) | No, development simulation only | GREEN | Keep the license file with the binary. Not linked into firmware. |
 | org.json (JSON-java) | `org.json:json:20260814`, Android `testImplementation` only | Android JVM unit tests (the app itself uses Android's built-in `org.json`) | Public Domain (per its Maven POM) | No, test classpath only | GREEN | None while test-only. Re-review if it ever moves to an `implementation` dependency. |
 | AndroidX CameraX (`camera-camera2`, `camera-lifecycle`, `camera-view`) | `androidx.camera:*:1.5.0` | Android app: Admin-code QR scanner preview | Apache-2.0 | Yes, Android APK | GREEN | Include the Apache-2.0 license and any NOTICE text in the app's open-source notices. Camera use is optional and asked for only when the player taps Scan. |
@@ -77,6 +78,12 @@ The high-level rows above are not yet a complete software bill of materials. Bef
 - [ ] Perform a final third-party asset audit before public release.
 
 ## Change log
+
+### 2026-09-28 (GitHub Actions)
+
+Recorded the four official GitHub actions used for checkout, language setup and
+development artifact retention. They run on GitHub-hosted build machines and do
+not add a device/runtime dependency.
 
 ### 2026-09-25 (Sigil status ring)
 

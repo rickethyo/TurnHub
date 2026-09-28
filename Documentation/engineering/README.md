@@ -14,6 +14,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 
 ## Reference set
 
+- [GitHub Actions checks](CONTINUOUS_INTEGRATION.md) - automated builds/tests, reading results, development artifacts and the separate branch-protection setup.
 - [Accounts and Moderation](ACCOUNTS_AND_MODERATION.md) - initial Admin setup, independent permissions, private moderation counts and portal organization.
 - [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
 - [Accessibility Specification](ACCESSIBILITY.md) - cross-platform requirements for color, contrast, redundant cues, physical input, assistive controllers, digital accessibility, and accessibility testing.
