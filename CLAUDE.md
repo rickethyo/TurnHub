@@ -36,6 +36,12 @@ Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
 **Serial ports:** never hard-code COM numbers (in `platformio.ini`, docs or scripts). They change whenever the PC restarts. Find the board each time (Atlas is the CH340 port, Sigils are CP210x; see "Identifying boards" below), pass `--upload-port` / `--port`, and ask the owner if several candidates are attached.
 
 ### Atlas host regression tests (no hardware)
+Linux / GitHub Actions: `bash Atlas/tests/host/run-linux.sh` and
+`bash Sigil/tests/host/run-linux.sh` run the existing suites with sanitizers.
+Keep their source lists aligned with the Windows runners when sources change.
+See `Documentation/engineering/CONTINUOUS_INTEGRATION.md` for the workflow,
+build artifacts and check names.
+
 These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers, the statistics bridge and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
 ```
 Atlas\tests\host\run-gcc.ps1          # PowerShell, uses PlatformIO's toolchain-gccmingw32 (or -Compiler <g++>)

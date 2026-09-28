@@ -1,0 +1,136 @@
+name: TurnHub CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-tests:
+    name: Host tests and contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Atlas host suites (ASan and UBSan)
+        run: bash Atlas/tests/host/run-linux.sh
+      - name: Sigil host suites (ASan and UBSan)
+        run: bash Sigil/tests/host/run-linux.sh
+      - name: Audit authoritative adapters
+        run: python3 Atlas/tests/host/audit_adapters.py
+      - name: Validate generated responses and shared contracts
+        run: python3 Atlas/tests/host/check_client_contract.py
+
+  firmware:
+    name: Firmware (${{ matrix.environment }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: Atlas
+            environment: atlas
+          - project: Sigil
+            environment: sigil
+          - project: Sigil
+            environment: sigil-oled
+          - project: Sigil
+            environment: sigil-wokwi
+          - project: TestHarness
+            environment: harness
+    env:
+      PIO_PROJECT: ${{ matrix.project }}
+      PIO_ENVIRONMENT: ${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --disable-pip-version-check platformio==6.2.0
+          pio settings set enable_telemetry No
+      - name: Build firmware
+        run: pio run --project-dir "$PIO_PROJECT" --environment "$PIO_ENVIRONMENT"
+      - name: Prepare firmware artifact and build identity
+        run: |
+          mkdir -p "$RUNNER_TEMP/firmware"
+          cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.bin" "$RUNNER_TEMP/firmware/"
+          cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.elf" "$RUNNER_TEMP/firmware/"
+          {
+            git rev-parse HEAD
+            printf 'Project: %s\nEnvironment: %s\n' "$PIO_PROJECT" "$PIO_ENVIRONMENT"
+            pio --version
+            pio pkg list --project-dir "$PIO_PROJECT" --environment "$PIO_ENVIRONMENT"
+          } > "$RUNNER_TEMP/firmware/build-info.txt"
+      - name: Upload firmware build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: firmware-${{ matrix.environment }}-${{ github.sha }}
+          path: ${{ runner.temp }}/firmware/
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android build and unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up the repository's Gradle JVM
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          # Keep in sync with Android/gradle/gradle-daemon-jvm.properties.
+          java-version: '26'
+          cache: gradle
+          cache-dependency-path: |
+            Android/**/*.gradle.kts
+            Android/gradle/libs.versions.toml
+            Android/gradle/wrapper/gradle-wrapper.properties
+            Android/gradle/gradle-daemon-jvm.properties
+      - name: Accept Android SDK licenses
+        # The hosted runner includes the SDK. Gradle installs the platform and
+        # build tools required by this project's compileSdk/AGP configuration.
+        run: |
+          # yes exits with SIGPIPE once sdkmanager finishes; preserve sdkmanager's status.
+          set +o pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+      - name: Build debug APK and run JVM unit tests
+        working-directory: Android
+        run: bash gradlew --no-daemon --stacktrace assembleDebug testDebugUnitTest
+      - name: Upload Android test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: android-test-reports-${{ github.sha }}
+          path: |
+            Android/app/build/reports/tests/testDebugUnitTest/
+            Android/app/build/test-results/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: android-debug-${{ github.sha }}
+          path: Android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
