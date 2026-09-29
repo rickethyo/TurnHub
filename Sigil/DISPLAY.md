@@ -218,8 +218,9 @@ portrait orientation; coordinates and layout do not need to change.
 
 ## Layout
 
-All text uses the existing Adafruit GFX built-in monochrome font (6 x 8 pixel
-cells). Automatic wrapping is disabled. Names retain all 12 protocol characters
+Until 2026-09-29 all text used the Adafruit GFX built-in monochrome font (6 x 8
+pixel cells); the e-ink now uses the Brass fonts for titles, names, banners
+and life (see below), keeping the built-in font as the fallback. Automatic wrapping is disabled. Names retain all 12 protocol characters
 at size 2 across up to two centered lines; wrapping prefers a word boundary,
 with a character split for longer unbroken names. Six-pixel side margins leave
 110 pixels for content. Life numbers reduce font size to fit, preserving the
@@ -239,6 +240,30 @@ now matches the OLED:
 
 The words carry every meaning; icons only add character. *Needs verification*
 on the panel (legibility of the white-on-black bar and the keycaps).
+
+**Brass look (2026-09-29).** The portal's Brass theme carried onto both
+Sigils, one bit deep:
+- **E-ink:** the title bar is an engraved nameplate (a gear, a rivet and a
+  cog-tooth lower edge) with the title in Cinzel and "Sigil 3 / Turn 7" in its
+  small caps. Banners are riveted plates with an inner rule (filled) or a
+  double frame (plain). Names use Cinzel, falling back to its small size and
+  then to the built-in font so all 12 protocol characters always show. Life is
+  an Oswald figure beside a pressure-gauge **life dial** that replaces the
+  heart: its arc and needle sweep down with the share of the starting life
+  left, and an outer arc grows above it (`lifeHeartLook`, unchanged). Rules
+  carry diamonds and small-caps labels ("Life", "Seat A life"). The page has
+  a thin frame; the boot, unpaired, ready and Atlas-lost screens show a gear
+  emblem. The legend and data rows (commander damage) keep the built-in font.
+- **OLED:** text stays in the built-in font (legibility at 128x64, and the
+  host suite checks every character cell). Banners are tickets with notched
+  ends, life has the same dial, and the splash shows the gear emblem.
+- Fonts are bitmaps rendered by `tools/fonts/make_fonts.py` into
+  `include/brass_fonts.h` (Cinzel and Oswald, SIL OFL 1.1). The ornament is
+  drawn in the same full refresh, so refresh counts and timing are unchanged.
+- `bash tests/host/render-sigil-screens.sh` renders the real e-ink and OLED
+  classes over Adafruit GFX's canvas to PNGs (`.pio/host-tests/screens/`).
+  *Needs verification* on both panels: serif legibility at arm's length, the
+  dial at small sizes, and e-ink ghosting around the heavier header.
 
 ### Running game snapshot
 

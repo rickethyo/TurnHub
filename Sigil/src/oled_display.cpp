@@ -111,7 +111,6 @@ bool OledDisplay::setSeatName(uint8_t slot, const char *name) {
 namespace {
 constexpr int16_t HEADER_HEIGHT = 11;
 constexpr int16_t BANNER_HEIGHT = 11;
-constexpr int16_t HEART_WIDTH = 13;
 }
 
 // Draws one text run inside [left, right), shrinking to fit and clipping only
@@ -152,18 +151,27 @@ void OledDisplay::header(const char *title, const char *right, bool host) {
   }
 }
 
-// Highlighted banners are filled and flanked by icons; plain ones get a frame.
-// The words always carry the meaning; icons only add character.
+// Banners are brass tickets with notched ends (the Brass look, 2026-09-29):
+// highlighted ones filled and flanked by icons, plain ones outlined. The
+// words always carry the meaning; icons only add character.
 void OledDisplay::banner(const char *message, int16_t y, bool highlight, Icon kind) {
   const int16_t w = display_->width();
+  constexpr int16_t NOTCH = 3, MID = BANNER_HEIGHT / 2;
   if (highlight) {
-    display_->fillRoundRect(0, y, w, BANNER_HEIGHT, 3, SH110X_WHITE);
+    display_->fillRect(NOTCH, y, w - 2 * NOTCH, BANNER_HEIGHT, SH110X_WHITE);
+    display_->fillTriangle(0, y + MID, NOTCH, y, NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    display_->fillTriangle(w - 1, y + MID, w - 1 - NOTCH, y, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
     icon(kind, 2, y + 1, SH110X_BLACK);
     icon(kind == Icon::Turn ? Icon::TurnBack : kind, w - 15, y + 1, SH110X_BLACK);
     text(message, y + 2, 1, Align::Center, true, 16, w - 16);
   } else {
-    display_->drawRoundRect(0, y, w, BANNER_HEIGHT, 3, SH110X_WHITE);
-    text(message, y + 2, 1, Align::Center, false, 3, w - 3);
+    display_->drawFastHLine(NOTCH, y, w - 2 * NOTCH, SH110X_WHITE);
+    display_->drawFastHLine(NOTCH, y + BANNER_HEIGHT - 1, w - 2 * NOTCH, SH110X_WHITE);
+    display_->drawLine(0, y + MID, NOTCH, y, SH110X_WHITE);
+    display_->drawLine(0, y + MID, NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y, SH110X_WHITE);
+    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    text(message, y + 2, 1, Align::Center, false, 4, w - 4);
   }
 }
 
@@ -172,31 +180,38 @@ void OledDisplay::icon(Icon kind, int16_t x, int16_t y, uint16_t color) {
   drawIcon(*display_, kind, x, y, color);
 }
 
-// Heart plus the largest life number that fits, centered as one unit. The
-// heart drains or grows against the starting life (life_heart.h).
+// The life dial plus the largest life number that fits, centered as one
+// unit. The dial sweeps against the starting life, and an outer arc grows
+// above it (life_heart.h, sigil_icons.h).
 void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
   char number[16];
   snprintf(number, sizeof(number), "%ld", static_cast<long>(life));
   const HeartLook look = lifeHeartLook(life, life_.startingLife);
-  const int16_t heartW = static_cast<int16_t>(HEART_WIDTH * look.sizePercent / 100);
-  const int16_t heartH = static_cast<int16_t>(11 * look.sizePercent / 100);
   const int16_t w = display_->width();
   const int16_t length = static_cast<int16_t>(strlen(number));
   uint8_t size = maxSize;
-  while (size > 1 && (heartW + 4 + length * 6 * size > w ||
+  const auto dialR = [](uint8_t s) -> int16_t { return s >= 3 ? 8 : s == 2 ? 5 : 3; };
+  const auto dialW = [&](uint8_t s) -> int16_t { return 2 * (dialR(s) + 2) + 1; };
+  while (size > 1 && (dialW(size) + 3 + length * 6 * size > w ||
       y + 8 * size > display_->height())) --size;
-  const int16_t total = heartW + 4 + length * 6 * size;
+  const int16_t total = dialW(size) + 3 + length * 6 * size;
   const int16_t x = total < w ? (w - total) / 2 : 0;
-  int16_t heartY = y + (7 * size - heartH) / 2;  // Centered on the digits' ink.
-  if (heartY < y) heartY = y;
-  drawLifeHeart(*display_, x, heartY, heartW, heartH, look.fill, SH110X_WHITE);
-  text(number, y, size, Align::Left, false, x + heartW + 4, w);
+  // Centered on the digits' ink, kept on the panel with room for the outer arc.
+  const int16_t r = dialR(size);
+  int16_t cy = y + (7 * size) / 2;
+  if (cy - r - 2 < y) cy = y + r + 2;
+  if (cy + r + 2 >= display_->height()) cy = display_->height() - r - 3;
+  drawLifeDial(*display_, x + r + 2, cy, r, look.fill, SH110X_WHITE, look.sizePercent - 100);
+  text(number, y, size, Align::Left, false, x + dialW(size) + 3, w);
 }
 
-// Boot splash: an hourglass (the turn timer) inside a double ring.
+// Boot splash: the Brass emblem, a gear with the turn arrow in its hub
+// meshed with a smaller one.
 void OledDisplay::splash(const char *caption) {
   const int16_t cx = display_->width() / 2;
-  drawEmblem(*display_, cx, 15, SH110X_WHITE);
+  drawGear(*display_, cx + 15, 21, 7, 8, SH110X_WHITE, 2, SH110X_BLACK, 10.0f);
+  drawGear(*display_, cx - 3, 14, 13, 10, SH110X_WHITE, 6, SH110X_BLACK);
+  display_->fillTriangle(cx - 6, 10, cx - 6, 18, cx + 1, 14, SH110X_WHITE);
   text("TurnHub", 33, 2, Align::Center);
   text(caption, 54, 1, Align::Center);
 }

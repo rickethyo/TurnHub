@@ -167,8 +167,10 @@ on both Sigils' Jewel; no new dependency. *Needs verification* on hardware.
 **Starting life and pass grace (2026-09-26, turntest notes).** `StartingLife =
 37` (Atlas -> Sigil, value: the running or paused game's starting life, else 0)
 is resent with every Hello to menu Sigils (0.8.0+); older Sigils ignore it. The
-Sigil only draws with it: the life heart drains from the top below the
-starting life and grows up to 1.5x at double it; 0 keeps the plain heart.
+Sigil only draws with it: the life heart drained from the top below the
+starting life and grew up to 1.5x at double it; 0 kept the plain heart. Since
+the Brass look (2026-09-29) both Sigils draw a life dial from the same values:
+its arc sweeps down below the starting life and an outer arc grows above it.
 `PASS_GRACE_MS` (3 s) moved into `protocol.h` so both firmwares agree on it;
 Atlas still owns the grace timer. A Sigil treats "Undo pass is in the menu" as
 its pass being pending and shows PASSING, a green ring countdown, and (OLED)

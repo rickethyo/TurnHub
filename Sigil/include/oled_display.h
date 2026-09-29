@@ -23,6 +23,10 @@ class OledDisplay final : public SigilDisplay {
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) override;
   void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
+#ifdef TURNHUB_SCREEN_PREVIEW
+  // The host screen preview reads the canvas back (tests/host/render_sigil_screens.cpp).
+  Adafruit_GFX &previewGfx() { return *display_; }
+#endif
 
  private:
   enum class Align : uint8_t { Left, Center, Right };

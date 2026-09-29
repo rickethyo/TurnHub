@@ -1,7 +1,9 @@
 #pragma once
 #include "Arduino.h"
 #include "Wire.h"
+#include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <vector>
 
 #define SH110X_BLACK 0
@@ -57,6 +59,9 @@ class Adafruit_SH1106G {
   void drawRoundRect(int x, int y, int w, int h, int, int color) { box(x, y, w, h, color); }
   void drawFastHLine(int x, int y, int w, int color) { box(x, y, w, 1, color); }
   void drawPixel(int x, int y, int color) { box(x, y, 1, 1, color); }
+  void drawLine(int x0, int y0, int x1, int y1, int color) {
+    box(std::min(x0, x1), std::min(y0, y1), std::abs(x1 - x0) + 1, std::abs(y1 - y0) + 1, color);
+  }
   void fillCircle(int x, int y, int r, int color) { box(x - r, y - r, 2 * r + 1, 2 * r + 1, color); }
   void drawCircle(int x, int y, int r, int color) { box(x - r, y - r, 2 * r + 1, 2 * r + 1, color); }
   void fillTriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color) {
