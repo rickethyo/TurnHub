@@ -246,7 +246,7 @@ Commit after each step and tick it here.
          everything it sends is sealed, and only sealed frames from its Atlas
          are handled. A keyless binding counts as unpaired.
       5. [x] TestHarness and the Wokwi fake Atlas do the same.
-      6. [ ] Remove the old `PairRequest`/`PairAccept` path.
+      6. [x] Remove the old `PairRequest`/`PairAccept` path (IDs 10 and 11 stay reserved).
       7. [ ] Docs and manual; CI; flash all four boards; bench test (play, Atlas
          restart recovery, forged/replayed/cleartext packets rejected).
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
