@@ -51,8 +51,12 @@ SIGIL_FONTS = [
     ("EinkSmall", "Cinzel-700", 11, ASCII, "e-ink small caps labels"),
     ("EinkLife", "Oswald-600", 50, DIGITS, "e-ink life total"),
     ("EinkLifeSmall", "Oswald-600", 32, DIGITS, "e-ink life total, shared seat"),
-    ("OledSmall", "Cinzel-700", 10, ASCII, "OLED header, banner and name"),
-    ("OledLife", "Oswald-600", 28, DIGITS, "OLED life total"),
+    ("OledSmall", "Cinzel-700", 10, ASCII, "OLED player names and small Cinzel lines"),
+    ("OledHeader", "Cinzel-900", 10, ASCII, "OLED header title (caps fit the 11 px bar)"),
+    ("OledName", "Cinzel-700", 15, ASCII, "OLED big lines: seat name, Sigil number, status word"),
+    ("OledLife", "Oswald-600", 28, DIGITS, "OLED life total, single seat"),
+    ("OledLifeMid", "Oswald-600", 22, DIGITS, "OLED life total when 28 px is too wide"),
+    ("OledLifeSmall", "Oswald-600", 18, DIGITS, "OLED life total: shared seat, commander rows shown"),
 ]
 
 # 1-bit threshold for the Sigil fonts (0-255 coverage). Slightly under half
