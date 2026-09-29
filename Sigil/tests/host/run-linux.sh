@@ -31,3 +31,7 @@ mkdir -p "$build_dir"
 "$compiler" "${flags[@]}" "${includes[@]}" \
   pairing_scenarios.cpp -o "$build_dir/pairing_scenarios"
 "$build_dir/pairing_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}" \
+  session_scenarios.cpp -o "$build_dir/session_scenarios"
+"$build_dir/session_scenarios"
