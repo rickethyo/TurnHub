@@ -23,6 +23,9 @@ namespace {
 uint32_t pairingStartedAtMs = 0;
 uint32_t pairingIndicatorMs = TurnHubProtocol::PAIRING_WINDOW_MS;
 
+// The on-board RGB LED's red channel as last written (active low).
+bool pairingLedLit = false;
+
 bool codeShown = false;
 PresenceRequest shownCode;
 uint8_t wrongAttempts = 0;
@@ -51,8 +54,19 @@ PresenceGrant *grantFor(const String &profileId) {
 
 }  // namespace
 
+// While Atlas's pairing window is open, its on-board LED blinks red in the
+// same rhythm as a pairing Sigil (250 ms on, 250 ms off). The Atlas screen
+// says so in words too; the light is an extra cue, never the only one.
+static bool pairingLedOn(uint32_t elapsedMs) { return elapsedMs % 500 < 250; }
+
+static void setPairingLed(bool lit) {
+  if (lit == pairingLedLit) return;
+  pairingLedLit = lit;
+  digitalWrite(AtlasConfig::RGB_RED_PIN, lit ? LOW : HIGH);
+}
+
 void beginFrontPanel() {
-  // Park the on-board RGB LED, which Atlas does not drive yet (active low).
+  // Park the on-board RGB LED (active low); pairing blinks its red channel.
   pinMode(AtlasConfig::RGB_RED_PIN, OUTPUT);
   pinMode(AtlasConfig::RGB_GREEN_PIN, OUTPUT);
   pinMode(AtlasConfig::RGB_BLUE_PIN, OUTPUT);
@@ -167,6 +181,7 @@ void updatePairingWindow(uint32_t nowMs) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }
+  setPairingLed(pairingActive && pairingLedOn(nowMs - pairingStartedAtMs));
   if (codeShown && !codeLive(nowMs)) {
     codeShown = false;
     serialLog.println("ATLAS|PRESENCE|CODE_EXPIRED");

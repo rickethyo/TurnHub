@@ -193,6 +193,13 @@ Commit after each step and tick it here.
       side. Follow-up: trim the boot test (for example to one RFC agreement)
       or run it off the boot path, since it delays every start by 1.6 s.
 - [ ] Pairing v2 on Atlas and Sigil; pair key in NVS; keyless records cleared.
+      In progress on branch `secure-link-pairing-v2` (2026-09-29): the shared
+      state machines are done and host-tested (`shared/include/pairing_v2.h`,
+      `Sigil/tests/host/pairing_scenarios.cpp`; `TestCrypto` now in
+      `Sigil/tests/host/test_crypto.h`). Next: wire them into `sigil_bus.cpp`
+      and `Sigil/src/main.cpp` (widen the Atlas rx queue for 38/39/15-byte
+      packets), then NVS. Transition rule: VERSION stays 1 and traffic stays
+      cleartext until the envelope step; keyless v1 pairings keep working.
 - [ ] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
       Confirm/Reject on the Atlas screen and in the portal; 60 s timeout.
 - [ ] Secure Hello/session and the envelope on every packet, both directions.
