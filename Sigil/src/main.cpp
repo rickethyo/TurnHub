@@ -142,7 +142,7 @@ constexpr uint8_t PAIR_BUTTON = 0;
 #endif
 
 // Both display implementations consume the same existing display packets.
-// The OLED build also says so, so Atlas limits it to one player.
+// The OLED build identifies its display so Atlas selects matching OTA firmware.
 constexpr uint8_t DEVICE_CAPABILITIES =
     TurnHubProtocol::CAPABILITY_DISPLAY |
     TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE |

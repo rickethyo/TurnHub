@@ -435,11 +435,6 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
           "Profile is already playing; attach this Sigil from its signed-in phone");
     }
   }
-  if (slot == 2 && joining && sigilSeatsOnePlayer(module)) {
-    serialLog.print("ATLAS|LOBBY|SECONDARY|REFUSED_ONE_PLAYER_SIGIL|");
-    serialLog.println(module);
-    return IntentResult::reject(IntentStatus::Conflict, ONE_PLAYER_SIGIL_MESSAGE);
-  }
   if (slot == 2) return toggleSecondarySeat(module, joining);
   if (joining) return joinPrimarySeat(module);
   if (!lobby.leave(module)) {
@@ -518,14 +513,6 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
   if (hubState != HubState::Lobby || (!touchscreen && !lobby.isJoined(module)) ||
       lobby.playerCount() < 2) {
     return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
-  }
-  // A Seat B joined before its Sigil reported an OLED display (for example
-  // one reflashed while seated) must leave before the game starts.
-  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
-    if (lobby.hasSecondary(id) && sigilSeatsOnePlayer(id)) {
-      return IntentResult::reject(IntentStatus::Conflict,
-          "An OLED Sigil seats one player; its Seat B must leave before the game starts");
-    }
   }
   if (intent.type == IntentType::ArmStart) {
     if (lobby.anyOtherHeld(module)) {

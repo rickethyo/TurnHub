@@ -119,10 +119,10 @@ void handleDevices(WebServer &server) {
     json += ",\"firmware\":\""; json += firmwareText(*record);
     json += "\",\"metadata\":"; json += jsonBool(record->helloInfoValid);
     json += ",\"capabilities\":"; json += String(record->capabilities);
-    // OLED Sigils seat one player; e-paper (and older firmware) seat two.
+    // Both display variants support shared seating. The display bit still selects OTA firmware.
     const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
     json += ",\"display\":\""; json += !record->helloInfoValid ? "unknown" : oled ? "oled" : "epaper";
-    json += "\",\"maxPlayers\":"; json += String(oled ? 1 : 2);
+    json += "\",\"maxPlayers\":"; json += String(2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
     // Pairing v2: paired with a key (ready for the secure link), or the old way.

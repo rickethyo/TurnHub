@@ -96,11 +96,11 @@ int main() {
   assert(!d.setSeatName(3, "ignored"));
   assert(d.setSeatName(2, "Second"));
   d.showState(7, DisplayMode::Lobby, 1, 2, 255, DISPLAY_FLAG_HOST);
-  assert(has("A: ABCDEFGHIJKL") && has("B: Second") && has("SHARED SIGIL"));
+  assert(has("A: ABCDEFGHIJKL") && !has("B: Second") && has("SHARED SIGIL"));
   assert(highlighted("LOBBY") && highlighted("S8 T255"));
   assert(!highlighted("SHARED SIGIL"));
   d.showState(0, DisplayMode::Starting, 2, 1, 1, DISPLAY_FLAG_STARTER);
-  assert(highlighted("GO FIRST: B"));
+  assert(highlighted("GO FIRST: B") && has("B: Second") && !has("A: ABCDEFGHIJKL"));
   d.showState(0, DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
   assert(highlighted("YOUR TURN: A"));
   d.showState(0, DisplayMode::Paused, 2, 1, 1, DISPLAY_FLAG_ATTENTION);
@@ -137,17 +137,14 @@ int main() {
         char life[32]; std::snprintf(life, sizeof(life), "%ld", long(value));
         assert(has(life));
         if (shared) {
-          // The other seat's name may shorten; its life total never does.
-          assert(startsWith("A: MNOP"));
-          std::snprintf(life, sizeof(life), "\x03%ld", long(-value));
-          assert(has(life));
+          assert(!startsWith("A: MNOP"));
         }
       }
     }
   }
   s.state = encodeDisplayState(DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
   s.commander = 1; d.showGame(s);
-  assert(has("A: ABCDEFGHIJKL") && startsWith("B: MNOP") && highlighted("COMMANDER"));
+  assert(has("A: ABCDEFGHIJKL") && !startsWith("B: MNOP") && highlighted("COMMANDER"));
   d.showState(0, DisplayMode::Paused, 1, 0, 1, 0);
   assert(!has("1000000")); // State-only packets must not retain stale life.
 

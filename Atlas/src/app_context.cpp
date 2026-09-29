@@ -36,13 +36,6 @@ uint16_t gameAudioMask() {
   return mask;
 }
 
-bool sigilSeatsOnePlayer(uint8_t controllerId) {
-  if (controllerId >= MAX_PHYSICAL_SIGILS) return false;
-  const TurnHub::SigilRecord *record = sigilBus.record(controllerId);
-  return record != nullptr &&
-      (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
-}
-
 bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat) {
   PlayerSeat local[2];
   const uint8_t count = game.hasPlayers()

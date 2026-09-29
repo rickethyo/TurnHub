@@ -46,9 +46,9 @@ constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
 constexpr uint8_t CAPABILITY_GAME_DISPLAY = 0x04;
 // The Sigil applies InputTiming packets (adjustable hold thresholds).
 constexpr uint8_t CAPABILITY_INPUT_TIMING = 0x08;
-// The Sigil has the 1.3" OLED display (the sigil-oled build). Atlas seats one
-// player on it: shared seating (Seat B) is e-paper only. E-paper Sigils, and
-// firmware from before this bit existed, leave it clear.
+// The Sigil has the OLED display (sigil-oled build). Used for display identity
+// and OTA variant selection; both display variants support Seat B.
+// E-paper Sigils and older firmware leave it clear.
 constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
 // The Sigil renders its status light itself from LedState packets (full
 // color, and the NeoPixel ring's pixels). Atlas then sends LedState instead

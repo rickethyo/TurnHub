@@ -349,19 +349,13 @@ KS0056 vendor example and still **Needs verification**. The OLED header order an
 wire colors are in the `Sigil_OLED` schematic. See
 [display selection, sources, configuration and verification](../../Sigil/DISPLAY.md).
 
-**Limitation (owner decision, 2026-09-24): the OLED Sigil is single-player only.**
-Seat one player on it; shared seating (Seat A and Seat B on one Sigil) is not
-supported on the OLED variant. Use an e-paper Sigil for a shared seat.
-Atlas enforces it (2026-09-24): the OLED build reports
-`CAPABILITY_DISPLAY_OLED` (0x10) in its Hello, and Atlas then refuses Seat B on
-that Sigil (the Action + PASS chord, or any Seat B join) with "This Sigil has an
-OLED display and seats one player; use an e-paper Sigil to share a seat". It also
-refuses to start a game while an OLED Sigil still has a Seat B joined before it
-reported its display (for example, one reflashed while seated). The portal's
-device list shows each Sigil's display: "OLED: 1 player" or "E-paper: up to 2
-players". Sigils without the bit (e-paper, and older firmware) keep shared
-seating, so an OLED Sigil must run Sigil firmware 0.5.6 or later. Host-tested;
-*Needs verification* on hardware.
+**Shared seating enabled (owner decision, 2026-09-29): both OLED and e-paper
+Sigils support two players.** Atlas offers Add Seat B in the OLED menu and
+accepts Seat B joins and game starts. The OLED capability bit still identifies
+the display and protects OTA variant selection; it no longer limits seating.
+Each OLED player gets a full-screen view of the currently controlled seat,
+including its name, life and commander damage. No second-player panel is drawn.
+Update Atlas and the OLED Sigil. Shared-seat controls still need hardware verification.
 
 ### Current control timing
 

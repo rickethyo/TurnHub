@@ -1977,28 +1977,18 @@ static void touchCalibrationMath() {
   startFromHost(); assert(!touchCalibrationAllowed()); enterEmptyLobby();
 }
 
-// An OLED Sigil (CAPABILITY_DISPLAY_OLED) seats one player: Atlas refuses its
-// Seat B and will not start while one is left over from before it said so.
-static void oledSigilSeatsOnePlayer() {
+// Both display variants can join Seat B and start a shared-seat match.
+static void oledSigilSeatsTwoPlayers() {
   using TurnHubProtocol::CAPABILITY_DISPLAY_OLED;
   freshLobby(2);
   TurnHub::fixtureRecords[1].capabilities=CAPABILITY_DISPLAY_OLED;
-  assert(sigilSeatsOnePlayer(1) && !sigilSeatsOnePlayer(0) && !sigilSeatsOnePlayer(MAX_PHYSICAL_SIGILS));
-  // The Action + PASS chord and a direct Seat B join are both refused.
   handleActionDown(1); handlePass(1); handleActionUp(1); handleActionShort(1);
-  assert(!lobby.hasSecondary(1) && lobby.playerCount()==2);
-  IntentResult refused=dispatchModuleIntent(IntentType::Join,1,2);
-  assert(refused.status==IntentStatus::Conflict && String(refused.message)==ONE_PLAYER_SIGIL_MESSAGE);
-  assert(!lobby.hasSecondary(1));
-  // An e-paper Sigil still shares.
+  assert(lobby.hasSecondary(1) && lobby.playerCount()==3);
+  assert(dispatchModuleIntent(IntentType::Leave,1,2).accepted());
+  assert(dispatchModuleIntent(IntentType::Join,1,2).accepted() && lobby.hasSecondary(1));
   assert(dispatchModuleIntent(IntentType::Join,0,2).accepted() && lobby.hasSecondary(0));
-  // Seat B joined before the Sigil reported OLED (e.g. reflashed while seated)
-  // blocks the start until it leaves; leaving is always allowed.
-  TurnHub::fixtureRecords[0].capabilities=CAPABILITY_DISPLAY_OLED;
-  assert(dispatchModuleIntent(IntentType::ArmStart,0).status==IntentStatus::Conflict);
-  assert(dispatchModuleIntent(IntentType::Leave,0,2).accepted() && !lobby.hasSecondary(0));
   assert(dispatchModuleIntent(IntentType::ArmStart,0).accepted());
-  TurnHub::fixtureRecords[0].capabilities=0; TurnHub::fixtureRecords[1].capabilities=0;
+  TurnHub::fixtureRecords[1].capabilities=0;
   enterEmptyLobby();
 }
 
@@ -2922,7 +2912,7 @@ int main() {
   touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Table screen, end-match hold, slide-off, drop-out, stale press\n";
   harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
-  oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
+  oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;

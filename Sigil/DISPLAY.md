@@ -90,24 +90,14 @@ Wire colors are the jumpers in the owner's photo, not a harness specification.
 The matching e-ink header order and colors are in the
 [Sigil schematic cross-check](../KiCad/PCB/Sigilv1/CROSS_CHECK.md).
 
-### OLED limitations
+### OLED shared seating
 
-- **One player per OLED Sigil.** Shared seating is not supported on the OLED
-  variant, even though `OledDisplay` still has the shared-seat layouts it
-  inherited from the display interface. Those layouts are unsupported and
-  may be removed.
-- **Enforced by Atlas.** Atlas enforces it (2026-09-24): the OLED build reports
-  `CAPABILITY_DISPLAY_OLED` (0x10) in its Hello, and Atlas then refuses Seat B on
-  that Sigil (the Action + PASS chord, or any Seat B join) with "This Sigil has an
-  OLED display and seats one player; use an e-paper Sigil to share a seat". It also
-  refuses to start a game while an OLED Sigil still has a Seat B joined before it
-  reported its display (for example, one reflashed while seated). The portal's
-  device list shows each Sigil's display: "OLED: 1 player" or "E-paper: up to 2
-  players". Sigils without the bit (e-paper, and older firmware) keep shared
-  seating, so an OLED Sigil must run Sigil firmware 0.5.6 or later. Host-tested;
-  *Needs verification* on hardware.
-- The OLED Sigil shows no message of its own when Seat B is refused: the second
-  seat simply does not appear. The portal badge and the Atlas log say why.
+Both seats are supported. Each player uses a full-screen view, with Atlas
+selecting the active player as turns change. The OLED shows only that player's
+name, life total and commander damage, with an A/B label for shared seats.
+Atlas and OLED firmware must both be updated. Verify turn changes and life
+adjustments for both seats on hardware.
+
 
 *Verified (owner hardware inspection):* the wiring above, 3.3 V VCC, common GND,
 and SPI (not I2C) as the module bus, and a working image. EPD_BUSY/GPIO21 is unused by the OLED.

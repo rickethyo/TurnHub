@@ -146,13 +146,6 @@ const char *intentOriginName(IntentOrigin origin);
 uint16_t lobbyAudioMask();
 uint16_t gameAudioMask();
 
-// True for a Sigil that seats one player: the OLED Sigil reports
-// CAPABILITY_DISPLAY_OLED, and shared seating (Seat B) is e-paper only.
-bool sigilSeatsOnePlayer(uint8_t controllerId);
-// Message for refusing Seat B on such a Sigil.
-constexpr char ONE_PLAYER_SIGIL_MESSAGE[] =
-    "This Sigil has an OLED display and seats one player; use an e-paper Sigil to share a seat";
-
 // Seat lookups against the running game, or the lobby before a game starts.
 bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat);
 bool firstLivingSeatForModule(uint8_t controllerId, PlayerSeat &seat);

@@ -83,7 +83,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       add(SigilAction::CycleStarter);
       if (lobby.hasSecondary(sigilId)) {
         add(SigilAction::RemoveSeatB);
-      } else if (!sigilSeatsOnePlayer(sigilId)) {
+      } else {
         add(SigilAction::AddSeatB);
       }
       if (lobby.playerCount() >= 2) {

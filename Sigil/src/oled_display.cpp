@@ -512,14 +512,18 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   char line[32];
   if (asking) snprintf(line, sizeof(line), "\x1b deny   approve \x1a");
   else if (pending) snprintf(line, sizeof(line), "%+ld, sending...", static_cast<long>(life_.pending));
-  if (!shared) {
+  {
+    // Each shared-seat player uses the same full-screen layout.
+    // Atlas puts the currently controlled player in primary.
     // Commander damage, once taken, gets the bottom two rows; the life total
     // drops to size 2 to make room and the key help gives way.
     const bool cmdShown = commanderDamageShown(s);
     const int16_t lifeY = cmdShown ? 32 : 36;
+    snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
+    if (!shared) snprintf(label, sizeof(label), "%s", s.primary.name);
     if (asking || pending ||
-        fontText(s.primary.name, &BrassFonts::OledSmall, 23, 31, Align::Center) < 0) {
-      text(asking || pending ? line : s.primary.name, 24, 1, Align::Center);
+        fontText(label, &BrassFonts::OledSmall, 23, 31, Align::Center) < 0) {
+      text(asking || pending ? line : label, 24, 1, Align::Center);
     }
     lifeTotal(shownLife, 32, cmdShown ? 2 : 3);
     // Left of the life total, when the number leaves room (up to 3 digits).
@@ -561,20 +565,6 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
       else help = "Press any key: menu";
       if (help) text(help, 56, 1, Align::Center);
     }
-  } else {
-    snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
-    if (asking || pending || fontText(label, &BrassFonts::OledSmall, 24, 35, Align::Center) < 0) {
-      text(asking || pending ? line : label, 27, 1, Align::Center);
-    }
-    lifeTotal(shownLife, 36, 2);
-    // The other seat on one quiet row; its life total is never truncated.
-    char life[16];
-    snprintf(life, sizeof(life), "\x03%ld", static_cast<long>(s.secondary.life));
-    const int16_t lifeStart = w - static_cast<int16_t>(strlen(life)) * 6;
-    display_->drawFastHLine(0, 54, w, SH110X_WHITE);
-    snprintf(label, sizeof(label), "%c: %s", seat == 'A' ? 'B' : 'A', s.secondary.name);
-    text(label, 56, 1, Align::Left, false, 0, lifeStart - 4);
-    text(life, 56, 1, Align::Right, false, lifeStart);
   }
   display_->display();
 }
@@ -622,11 +612,13 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
     banner(message, 13, indicateSeat, indicateSeat ? kind : Icon::None);
   }
   if (secondaryPlayer) {
-    snprintf(label, sizeof(label), "A: %s", seatNameA_[0] ? seatNameA_ : "Guest");
-    if (fontText(label, &BrassFonts::OledSmall, 27, 37, Align::Center) < 0) text(label, 29, 1, Align::Center);
-    rule(42, 24, display_->width() - 24);
-    snprintf(label, sizeof(label), "B: %s", seatNameB_[0] ? seatNameB_ : "Guest");
-    if (fontText(label, &BrassFonts::OledSmall, 47, 57, Align::Center) < 0) text(label, 48, 1, Align::Center);
+    const bool seatA = primaryPlayer < secondaryPlayer;
+    snprintf(label, sizeof(label), "%c: %s", seatA ? 'A' : 'B',
+        seatA ? (seatNameA_[0] ? seatNameA_ : "Guest") : (seatNameB_[0] ? seatNameB_ : "Guest"));
+    if (fontText(label, &BrassFonts::OledName, 28, 44, Align::Center) < 0 &&
+        fontText(label, &BrassFonts::OledSmall, 31, 42, Align::Center) < 0) {
+      text(label, 30, 1, Align::Center);
+    }
   } else {
     snprintf(label, sizeof(label), "Player %u", static_cast<unsigned>(primaryPlayer));
     const char *name = seatNameA_[0] ? seatNameA_ : label;
