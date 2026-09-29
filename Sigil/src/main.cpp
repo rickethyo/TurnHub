@@ -21,6 +21,7 @@
 #include "sigil_display.h"
 #include "sigil_led.h"
 #include "received_packet.h"
+#include "secure_link_mbedtls.h"
 
 #ifndef TURNHUB_INPUT_JOYSTICK
 #define TURNHUB_INPUT_JOYSTICK 0
@@ -845,6 +846,21 @@ void forgetPairing(const char *reason) {
   Serial.println(reason);
 }
 
+// Secure-link crypto check against published vectors (SECURE_LINK.md). Not
+// used by the radio yet; logged so each board's result is on record.
+bool runSecureLinkSelfTest() {
+  TurnHubSecureLink::MbedtlsCrypto crypto;
+  const uint32_t startMs = millis();
+  const TurnHubSecureLink::SelfTestStep step = TurnHubSecureLink::knownAnswerTest(crypto);
+  if (step != TurnHubSecureLink::SelfTestStep::Pass) {
+    Serial.printf("SIGIL|SECURE_LINK|SELF_TEST|FAIL|%u\n", static_cast<unsigned>(step));
+    return false;
+  }
+  Serial.printf("SIGIL|SECURE_LINK|SELF_TEST|PASS|%lums\n",
+      static_cast<unsigned long>(millis() - startMs));
+  return true;
+}
+
 // Shows or clears "Atlas lost" (atlas_link.h). Runs on the loop task.
 void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
   if (change == TurnHubSigil::LinkChange::None) return;
@@ -1533,6 +1549,7 @@ void setup() {
 
   Serial.println();
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
+  runSecureLinkSelfTest();
   loadSavedPairing();
   sigilDisplay.begin();
   // SPI startup configures its default MISO pin as INPUT; reclaim the pin

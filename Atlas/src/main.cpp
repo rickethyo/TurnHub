@@ -20,6 +20,7 @@
 #include "runtime_diagnostics.h"
 #include "profile_store.h"
 #include "sd_card.h"
+#include "secure_link_backend.h"
 #include "serial_log.h"
 #include "speaker_settings.h"
 #include "wifi_password_store.h"
@@ -353,6 +354,9 @@ void setup() {
   serialLog.print("ATLAS|DIAGNOSTICS|");
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
+  // Secure-link crypto check against published vectors (SECURE_LINK.md). Not
+  // used by the radio yet; logged so each board's result is on record.
+  runSecureLinkSelfTest();
   // Optional storage: a missing or failed card is logged and never blocks play.
   beginSdCard();
   // Luxury records (detailed statistics) go to the card; without one Atlas

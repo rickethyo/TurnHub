@@ -333,6 +333,12 @@ int main() {
   sealedFramesRoundTripAndRejectTampering();
   outOfOrderAndOldSessionsAreDropped();
   eightSigilsHaveIndependentSessions();
+  // The boot self-test rejects a backend that isn't the real algorithms: the
+  // stand-in fails the first published vector. (mbedTLS passes on the device.)
+  {
+    TestCrypto crypto;
+    assert(knownAnswerTest(crypto) == SelfTestStep::X25519Public);
+  }
   std::cout << "PASS secure link: layouts, pairing codes, handshake MACs, sealing, tamper, replay, 8 sessions\n";
   return 0;
 }
