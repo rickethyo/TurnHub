@@ -247,6 +247,16 @@ restores the last screen; Atlas's answer to that Hello resends the light,
 menu, screen and life state. No protocol change. Host-tested
 (`led_scenarios`); *Needs verification* on hardware.
 
+### Secure link, protocol version 2 (2026-09-29)
+
+`VERSION` is 2. After pairing v2 (a key agreed at pairing, confirmed with a
+4-digit code), each connection starts with `SecureHello` / `SecureHelloAck`,
+and every other packet in both directions is sealed (AES-128-CCM, rising
+counters, per-session keys). Cleartext packets from paired devices are dropped;
+the keyless `PairRequest` / `PairAccept` (IDs 10 and 11) are retired. Details,
+reasons and the bench results are in [Secure Link](SECURE_LINK.md). Version 1
+and version 2 devices cannot talk to each other: reflash every device together.
+
 ### Unpair (2026-09-24)
 
 `Unpair = 12` (Atlas -> Sigil, `value` 0) tells a Sigil that Atlas forgot it. The

@@ -138,10 +138,29 @@ never key material; `printlnRedacted` where needed).
 
 ### Compatibility
 
-`TurnHubProtocol::VERSION` goes from 1 to 2. Every paired Sigil must be
-reflashed over USB and **paired again once**, because old pairings have no
-key; Atlas clears keyless records on first boot of the new firmware.
-The harness and the Wokwi fake Atlas get the same code (shared header).
+`TurnHubProtocol::VERSION` goes from 1 to 2 (implemented 2026-09-29, branch
+`secure-link-envelope`). Every device must be reflashed over USB together, and
+a pairing from before pairing v2 is forgotten at boot on both ends because it
+has no key, so it is **paired again once**. Sigils already paired with v2 keep
+their pairing. The harness and the Wokwi fake Atlas share the same code
+(`secure_session.h`).
+
+In operation:
+
+- A paired Sigil sends `SecureHello` (23 bytes: its Hello info, a fresh nonce
+  and a MAC) when it has no session, or when Atlas has been quiet for more than
+  two Hello intervals (4 s). Atlas answers `SecureHelloAck` (27 bytes) and both
+  derive the session key; Atlas treats the SecureHello as that Sigil's Hello
+  and resends its lights, menu and screen, sealed.
+- While Atlas keeps answering, the Sigil's 2-second keep-alive is a sealed
+  Hello. After an Atlas restart the old session is gone, the Sigil hears
+  nothing, and within about 4-6 s sends a new SecureHello (before the 7 s
+  "Atlas lost" screen).
+- Sealed frames are the inner packet plus 15 bytes: 22 (control), 66 (picker
+  page), 125 (game display). Anything else from a paired device is dropped,
+  including cleartext packets and frames that fail to open.
+- Sealing happens on Atlas's application task, so each Sigil's counter goes out
+  in order; the transmit queue only carries finished frames.
 
 ## Feature gate
 
