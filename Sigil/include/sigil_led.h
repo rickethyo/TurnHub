@@ -49,6 +49,12 @@ class SigilLedModel {
 
   // Sigil-local conditions Atlas cannot drive.
   void setPairing(bool active, uint32_t nowMs);
+  // The paired Atlas stopped answering (atlas_link.h): Atlas's last state is
+  // stale, so it is replaced by one orange pixel sweeping back and forth
+  // (reduced motion: two opposite pixels steady; one LED: an orange double
+  // blink). Only pairing outranks it. The screen says so in words too.
+  void setAtlasLost(bool lost, uint32_t nowMs);
+  bool atlasLost() const { return atlasLost_; }
   void flashPassAck(uint32_t nowMs);
   // A pass is in Atlas's grace period: the ring empties counter-clockwise
   // over PASS_GRACE_MS, the center stays lit, and a single LED flickers.
@@ -86,6 +92,8 @@ class SigilLedModel {
   uint8_t legacyBlue_ = 0;
   bool pairing_ = false;
   uint32_t pairingStartMs_ = 0;
+  bool atlasLost_ = false;
+  uint32_t atlasLostStartMs_ = 0;
   bool passAck_ = false;
   uint32_t passAckUntilMs_ = 0;
   bool passPending_ = false;

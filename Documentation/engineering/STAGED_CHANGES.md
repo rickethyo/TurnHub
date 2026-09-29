@@ -137,7 +137,9 @@ host/Android tests and an Atlas build; hardware acceptance is pending. See
 - Partly done (2026-09-25): Sigils render the light themselves from Atlas's
   `LedState`, and the local Pairing blink follows Reduced motion. Still to
   check: Sigil-local Disconnected/Error looks honor the player's light style
-  (Standard, Reduced motion, Monochrome-safe).
+  (Standard, Reduced motion, Monochrome-safe). The Atlas lost state
+  (2026-09-28, see Protocol and Pairing) follows Reduced motion; Monochrome-safe
+  still to check.
 
 Sigil accessibility preferences (2026-09-24): the owner chose per-player settings
 that follow the profile. Sigil sound, light style (Standard, Reduced motion,

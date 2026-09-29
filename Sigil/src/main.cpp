@@ -15,6 +15,7 @@
 #include <Preferences.h>
 #include <freertos/queue.h>
 
+#include "atlas_link.h"
 #include "firmware_version.h"
 #include "protocol.h"
 #include "sigil_display.h"
@@ -216,6 +217,10 @@ SigilDisplay &sigilDisplay = TurnHubSigil::getSigilDisplay();
 
 bool espNowReady = false;
 bool atlasKnown = false;
+// Whether the paired Atlas still answers; atlasLostShown mirrors it for the
+// display task.
+TurnHubSigil::AtlasLink atlasLink;
+volatile bool atlasLostShown = false;
 uint8_t atlasMac[6] = {};
 volatile uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
@@ -598,10 +603,29 @@ void updateDisplayProfileSync() {
 void updateDisplay() {
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
+#if TURNHUB_PICKER
+  static bool pickerShown = false;
+#endif
+  // Atlas lost replaces every screen. Once it answers again, redraw the last
+  // state it sent (Atlas resends it too, but unchanged packets draw nothing).
+  static bool lostDrawn = false;
+  if (atlasLostShown && sigilId != UNASSIGNED_SIGIL_ID) {
+    displayNeedsRefresh = false;
+    if (!lostDrawn) sigilDisplay.showAtlasLost(sigilId);
+    lostDrawn = true;
+    return;
+  }
+  if (lostDrawn) {
+    lostDrawn = false;
+    renderedGameValid = false;
+#if TURNHUB_PICKER
+    pickerShown = false;
+#endif
+    displayNeedsRefresh = true;
+  }
   bool menuChanged = false;
 #if TURNHUB_PICKER
   // The picker replaces every other screen while Atlas keeps it open.
-  static bool pickerShown = false;
   TurnHubProtocol::ProfilePickerPacket picker{};
   portENTER_CRITICAL(&displayProfileMux);
   const bool showPicker = pickerActive && sigilId != UNASSIGNED_SIGIL_ID;
@@ -792,6 +816,9 @@ void forgetPairing(const char *reason) {
   profileRequestActive = false;
   longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
   winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
+  atlasLink.stop();
+  atlasLostShown = false;
+  ledModel.setAtlasLost(false, millis());
   ledModel.clear();
 #if TURNHUB_MENU
   sigilMenu.clear();
@@ -818,6 +845,31 @@ void forgetPairing(const char *reason) {
   Serial.println(reason);
 }
 
+// Shows or clears "Atlas lost" (atlas_link.h). Runs on the loop task.
+void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
+  if (change == TurnHubSigil::LinkChange::None) return;
+  const bool lost = change == TurnHubSigil::LinkChange::Lost;
+  if (lost) {
+#if TURNHUB_MENU
+    // Stale: nothing here can reach Atlas. Atlas resends the menu and any
+    // life request with its next Hello answer; an unsent life change is
+    // dropped rather than applied late.
+    sigilMenu.clear();
+    lifeAdjuster.cancel();
+    lifeRequest = TurnHubProtocol::LifeRequestFields{};
+#endif
+  }
+  ledModel.setAtlasLost(lost, millis());
+  atlasLostShown = lost;
+  Serial.println(lost ? "SIGIL|ATLAS|LOST" : "SIGIL|ATLAS|RESTORED");
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
+void noteAtlasHeard() {
+  applyAtlasLinkChange(atlasLink.heard(millis()));
+}
+
 void handleEspNowReceive(
     const uint8_t *mac,
     const uint8_t *incomingData,
@@ -828,6 +880,7 @@ void handleEspNowReceive(
     memcpy(&page, incomingData, sizeof(page));
     if (!atlasKnown || memcmp(mac, atlasMac, 6) || page.sigilId != sigilId ||
         !TurnHubProtocol::validProfilePicker(page)) return;
+    noteAtlasHeard();
     const bool open = page.mode != TurnHubProtocol::PickerMode::Closed;
     portENTER_CRITICAL(&displayProfileMux);
     const bool changed = open != pickerActive ||
@@ -847,6 +900,7 @@ void handleEspNowReceive(
     if (!atlasKnown || memcmp(mac, atlasMac, 6) || snapshot.sigilId != sigilId ||
         !TurnHubProtocol::validGameDisplay(snapshot) ||
         TurnHubProtocol::displayMode(snapshot.state) != DisplayMode::Running) return;
+    noteAtlasHeard();
     portENTER_CRITICAL(&displayProfileMux);
     const bool changed = !gameDisplayValid || memcmp(&snapshot, &pendingGameDisplay, sizeof(snapshot));
     pendingGameDisplay = snapshot;
@@ -879,6 +933,7 @@ void handleEspNowReceive(
     if (!stored) { Serial.println("SIGIL|PAIR|STORE_ERROR"); return; }
     rememberAtlas(mac);
     sigilId = packet.sigilId;
+    atlasLink.start(millis());
     pairingActive = false;
     ledModel.setPairing(false, millis());
     profileSyncStartPending = true;
@@ -892,6 +947,7 @@ void handleEspNowReceive(
   if (packet.type == PacketType::Ack &&
       packet.value == static_cast<int32_t>(PacketType::Hello)) {
     if (packet.sigilId >= TurnHubProtocol::MAX_SIGILS) return;
+    noteAtlasHeard();
 
     if (sigilId != packet.sigilId) {
       sigilId = packet.sigilId;
@@ -910,6 +966,7 @@ void handleEspNowReceive(
   }
 
   rememberAtlas(mac);
+  noteAtlasHeard();
 
   switch (packet.type) {
     case PacketType::Ack:
@@ -1146,6 +1203,8 @@ void updateMenuKeys() {
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
+    // Nothing reaches a lost Atlas; the screen says so instead.
+    if (atlasLink.lost()) continue;
     const auto key = static_cast<TurnHubSigil::Key>(k);
 #if TURNHUB_PICKER
     if (pickerActive) {
@@ -1340,6 +1399,7 @@ void loadSavedPairing() {
       memcpy(atlasMac, binding, sizeof(atlasMac));
       atlasKnown = true;
       sigilId = binding[6];
+      atlasLink.start(millis());
       Serial.println("SIGIL|PAIR|LOADED");
     }
     prefs.end();
@@ -1556,6 +1616,7 @@ void loop() {
   updateActionButton(pauseWinButton, true);
   updatePairButton();
   updatePairing();
+  applyAtlasLinkChange(atlasLink.update(millis()));
   updateLeds();
   updateBuzzer();
   updateDisplayProfileSync();

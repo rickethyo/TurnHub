@@ -314,6 +314,20 @@ void OledDisplay::showReady(uint8_t sigilId) {
   status("READY", big, "Ready for game");
 }
 
+void OledDisplay::showAtlasLost(uint8_t sigilId) {
+  if (!ready_) return;
+  // Drawn directly, not through status(): an open menu list must not cover
+  // it, since none of its actions can reach Atlas now.
+  char label[12];
+  snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
+  display_->clearDisplay();
+  header("TurnHub", label);
+  text("NO ATLAS", 18, 2, Align::Center);
+  text("Atlas not responding", 41, 1, Align::Center);
+  text("Searching...", 52, 1, Align::Center);
+  display_->display();
+}
+
 void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (!ready_ || drawMenuList()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);

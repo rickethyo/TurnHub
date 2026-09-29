@@ -391,7 +391,7 @@ void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
   display_.print(number);
 }
 
-void EpaperDisplay::drawStatus(const char *line1, const char *line2) {
+void EpaperDisplay::drawStatus(const char *line1, const char *line2, bool legend) {
   drawnValid_ = false;
   gameFrameValid_ = false;
   partialRefreshCount_ = 0;
@@ -403,7 +403,7 @@ void EpaperDisplay::drawStatus(const char *line1, const char *line2) {
     drawEmblem(display_, display_.width() / 2, 72, GxEPD_BLACK, 2);
     drawTwoLines(line1, 112, display_.width() - 2 * MARGIN);
     if (line2 != nullptr) drawCentered(line2, 156);
-    drawLegend();
+    if (legend) drawLegend();
   } while (display_.nextPage());
 }
 
@@ -437,6 +437,12 @@ void EpaperDisplay::showReady(uint8_t sigilId) {
   char title[24];
   snprintf(title, sizeof(title), "Sigil %u", static_cast<unsigned>(sigilId + 1));
   drawStatus(title, "Ready for game");
+}
+
+void EpaperDisplay::showAtlasLost(uint8_t sigilId) {
+  (void)sigilId;
+  // No legend: none of the actions can reach Atlas now.
+  drawStatus("Atlas lost", "Searching...", false);
 }
 
 void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
