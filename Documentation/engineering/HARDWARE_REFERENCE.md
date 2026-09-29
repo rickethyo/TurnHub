@@ -214,8 +214,22 @@ Portal and Sign in each show a code (the chosen one is framed and marked
 so its code shows freely; an admin-set password shows only while an Admin is
 verified at the table (presence code).
 
-The display (`atlas_display.cpp`) only draws, region by region, when that
-region's part of the screen model changes. `touch_controls.cpp` builds the
+**Brass look (2026-09-29).** The screen wears the portal's Brass theme
+(`atlas_art.cpp`): a polished-brass header with a gear that turns while a
+game runs; titles and labels in Cinzel, numbers in Oswald, details in DejaVu;
+riveted walnut plates for players; the turn clock as a 270-degree pressure
+gauge (red face near zero) above a brass countdown tube; brass primary
+buttons (Start, Rematch, Pause, Resume, Pair a Sigil); and a gear train on the
+empty lobby's join plate. The header and the gauge draw into sprites and are
+pushed whole so their per-second updates do not blink; chip turn times and
+the header clock redraw in place. Fonts that fail to load fall back to DejaVu,
+and a failed sprite allocation falls back to drawing on the panel (both
+logged). *Needs verification* on the panel: brass legibility, the gauge at
+arm's length, and any tearing from the turning gear.
+
+The display (`atlas_display.cpp`, with the drawing in `atlas_art.cpp`) only
+draws, region by region, when that region's part of the screen model
+changes. `touch_controls.cpp` builds the
 screen and holds the touch adapter, which dispatches Intents with
 `IntentOrigin::AtlasHardware`. Canceling a presence code, the screen changes and the test
 harness buttons change no table state:

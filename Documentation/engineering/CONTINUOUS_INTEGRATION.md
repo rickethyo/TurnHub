@@ -51,6 +51,15 @@ environment to the device and retain the normal PlatformIO upload process for
 initial provisioning. PR artifact names identify the tested merge commit, which
 may differ from the branch head or the eventual merge commit.
 
+The `atlas` and `sigil` firmware jobs also upload **screen previews**
+(`screens-atlas-<sha>`, `screens-sigil-<sha>`, kept 14 days, added
+2026-09-29): PNGs of the Atlas touchscreen, e-ink Sigil and OLED Sigil screens,
+rendered on the runner from the real display code
+(`Atlas/tests/host/render-atlas-screens.sh`,
+`Sigil/tests/host/render-sigil-screens.sh`). The Atlas render fails the job if
+a region-by-region redraw differs from a full redraw. Previews show the design,
+not the panel: colors, contrast and ghosting still need the bench.
+
 CI artifacts are not accepted releases. Buttons, displays, radio behavior,
 recovery after real power loss, physical updates, accessibility and independent
 setup still need bench acceptance. Browser smoke tests and Android device/UI
