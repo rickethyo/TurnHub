@@ -237,39 +237,35 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 ## Current baseline
 
-### Next implementation priority: Sigil OTA
+### Next implementation priority: Sigil OTA and signed updates
 
-In progress (2026-09-28): design, feature gate and a step-by-step resume
-checklist are in [Sigil OTA](SIGIL_OTA.md). Upload is through the web portal.
-The encrypted Atlas-Sigil link ([Secure Link](SECURE_LINK.md)) comes first,
-because the update offer carries the Atlas Wi-Fi password.
+In progress: the design, feature gate and step-by-step resume checklist are in
+[Sigil OTA](SIGIL_OTA.md). The encrypted Atlas-Sigil link it needed is done
+([Secure Link](SECURE_LINK.md), 2026-09-29).
+
+Owner decision (2026-09-29, remote updates): (1) Sigil OTA through Atlas with
+signed firmware packages checked by every device; (2) the Android app fetches
+releases while online and installs them at the table, so Atlas needs no
+internet; (3) later, optional: Atlas joins the home Wi-Fi only to fetch an
+update, between games.
+
+Option 3 (*Planned*, after 1 and 2): Atlas stores a home Wi-Fi SSID and
+password (Admin, presence-gated, NVS), and **Check for updates** joins that
+network in station mode between games, reads the same release feed over HTTPS,
+downloads and verifies the same `.thfw` packages, then disconnects and returns
+its AP and ESP-NOW to channel 6. It needs a CA bundle and about 40 KB of heap
+during the download, and it can't work behind a sign-in page. Staying
+connected is out of scope: the router would pull Atlas off channel 6 and the
+Sigils would need channel scanning.
 
 Owner direction (2026-09-25): move Sigil OTA ahead of session history and SD
 theme packs. Repeated USB flashing and COM-port tracking across devices is the
-immediate workflow problem. Continue the already-in-progress profile/life work
-without mixing it into the updater change.
+immediate workflow problem.
 
-Target workflow: upload each firmware variant to Atlas once, select paired
-Sigils by name, update one device first and then a queued group, with visible
-transfer/install/reboot results and reported running versions. Atlas stages
-validated images on SD and retains the current known-good package plus a small
-history of compatible previous releases for an explicit reinstall action.
-See [package storage requirements](SD_DIAGNOSTICS.md#sigil-update-packages-planned).
-
-Implementation order:
-1. Define variant/version/compatibility metadata and the Sigil update transport,
-   flash partition requirements and boot validation/recovery behavior.
-2. Add authenticated Admin upload/catalog handling with the existing physical
-   unlock policy, verified staging and bounded package retention on SD. A hash
-   detects corruption; update authorization/authenticity is a separate requirement.
-3. Prove an end-to-end update on one Sigil, then add per-device queuing, progress,
-   timeout/retry reporting and selection of a retained compatible image.
-
-Acceptance: update and reinstall a retained compatible release on both Sigil
-variants without selecting COM ports; reject wrong-variant/corrupt images;
-interrupt transfer/power and verify a recoverable device. Do not claim automatic
-rollback until failed-boot recovery is implemented and tested. Full Sigil OTA
-remains planned; the SD diagnostics change does not implement firmware delivery.
+Acceptance: update both Sigil variants and Atlas without selecting COM ports,
+from the portal and from the app; reject unsigned, wrong-variant, older and
+corrupt packages; interrupt transfer and power and verify a recoverable
+device. Do not claim automatic rollback until failed-boot recovery is tested.
 
 ### Baseline reference
 

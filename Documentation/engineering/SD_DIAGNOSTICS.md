@@ -95,6 +95,11 @@ rotation on the actual card, and gameplay responsiveness during slow SD writes.
 
 ## Sigil update packages (Planned)
 
+Update 2026-09-29: delivering an update no longer needs the card. Atlas stages
+the one package being installed in its idle app slot (see
+[Sigil OTA](SIGIL_OTA.md#where-the-sigil-package-is-staged)). What follows is
+the optional history of older packages for reinstalling.
+
 Owner direction, 2026-09-25: Sigil OTA is the next implementation priority,
 ahead of session history and theme packs. Stage firmware on SD and retain a
 small history for rollback. Keep packages separate from diagnostic-log retention.
