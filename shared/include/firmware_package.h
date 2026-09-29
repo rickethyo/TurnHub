@@ -108,11 +108,16 @@ class PackageCrypto {
       const uint8_t signature[SIGNATURE_BYTES]) = 0;
 };
 
+constexpr uint8_t productBit(Product product) {
+  return static_cast<uint8_t>(1u << static_cast<uint8_t>(product));
+}
+constexpr uint8_t ANY_SIGIL = productBit(Product::SigilEink) | productBit(Product::SigilOled);
+
 // The trusted key and what the device will accept.
 struct Policy {
   const uint8_t *publicKey;  // PUBLIC_KEY_BYTES
   const uint8_t *keyId;      // KEY_ID_BYTES
-  Product product;
+  uint8_t products;          // productBit()s: a device takes its own; Atlas stages any Sigil's.
   Version running;
   uint32_t maxImageSize;
 };
@@ -176,7 +181,9 @@ inline Error checkHeader(PackageCrypto &crypto, const Policy &policy, const Head
   }
   if (!crypto.verify(policy.publicKey, digest, header.signature)) return Error::BadSignature;
   // Only a signed header's fields are worth reading.
-  if (header.product != static_cast<uint8_t>(policy.product)) return Error::WrongProduct;
+  if (header.product > 7 || (policy.products & (1u << header.product)) == 0) {
+    return Error::WrongProduct;
+  }
   if (!versionAllowed(policy.running, header.version)) return Error::OlderVersion;
   if (header.imageSize == 0 || header.imageSize > policy.maxImageSize) return Error::TooLarge;
   return Error::None;

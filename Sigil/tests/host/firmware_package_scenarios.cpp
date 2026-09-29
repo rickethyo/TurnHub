@@ -65,7 +65,7 @@ std::vector<uint8_t> package(const Header &h, const std::vector<uint8_t> &img) {
 }
 
 Policy sigilPolicy() {
-  return Policy{KEY, KEY_ID, Product::SigilOled, Version{0, 8, 0}, 1310720};
+  return Policy{KEY, KEY_ID, productBit(Product::SigilOled), Version{0, 8, 0}, 1310720};
 }
 
 struct RecordingSink : Sink {
@@ -169,6 +169,16 @@ void badHeadersAreRefusedBeforeAnyWrite() {
   tight.maxImageSize = 2999;
   RecordingSink sink;
   assert(feed(package(good, img), tight, sink) == Error::TooLarge && !sink.sawHeader);
+
+  // Atlas stages either Sigil's package, never its own.
+  Policy staging = sigilPolicy();
+  staging.products = ANY_SIGIL;
+  staging.running = Version{0, 0, 0};
+  RecordingSink eink;
+  assert(feed(package(headerFor(img, Product::SigilEink, {0, 1, 0}), img), staging, eink) == Error::None);
+  RecordingSink atlas;
+  assert(feed(package(headerFor(img, Product::Atlas, {9, 0, 0}), img), staging, atlas) ==
+      Error::WrongProduct);
 
   // Not a package at all (a plain firmware.bin).
   RecordingSink plain;

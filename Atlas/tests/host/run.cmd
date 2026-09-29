@@ -18,6 +18,10 @@ if errorlevel 1 (popd & exit /b 1)
 cl /nologo /std:c++17 /EHsc /W4 /Istorage_stubs /Istubs /I../../include /I../../../shared/include profile_store_scenarios.cpp test_globals.cpp ../../src/profile_store.cpp ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp /Fo:build/ /Fe:build/profile_store_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
 build\profile_store_scenarios.exe
+if errorlevel 1 (popd & exit /b 1)
+cl /nologo /std:c++17 /EHsc /W4 /Istubs /I../../include /I../../../shared/include update_scenarios.cpp ../../src/sigil_update_jobs.cpp /Fo:build/ /Fe:build/update_scenarios.exe
+if errorlevel 1 (popd & exit /b 1)
+build\update_scenarios.exe
 set result=%errorlevel%
 popd
 exit /b %result%

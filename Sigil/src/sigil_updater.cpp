@@ -149,7 +149,8 @@ void SigilUpdater::run() {
   FlashSink sink;
   TurnHubFirmwarePackage::Reader reader;
   const TurnHubFirmwarePackage::Policy policy{TurnHubFirmwarePackage::PUBLIC_KEY,
-      TurnHubFirmwarePackage::KEY_ID, product_, running_, slot->size};
+      TurnHubFirmwarePackage::KEY_ID, TurnHubFirmwarePackage::productBit(product_), running_,
+      slot->size};
   reader.begin(crypto, policy, sink);
 
   WiFiClient *stream = http.getStreamPtr();

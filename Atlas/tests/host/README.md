@@ -62,7 +62,14 @@ c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../
     ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp \
     ../../src/profile_policy.cpp -o build/profile_store_scenarios
 ./build/profile_store_scenarios
+c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include \
+    update_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/update_scenarios
+./build/update_scenarios
 ```
+
+`update_scenarios` covers Sigil OTA on Atlas (`sigil_update_jobs.cpp`):
+staging a Sigil package with every check, reloading it after a restart, and
+one update job from offer to done or each failure.
 
 Six scenario groups cover dispatcher ownership; lobby and lifecycle restrictions;
 shared-seat win-response order and denial restoration; elimination versus

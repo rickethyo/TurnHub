@@ -39,3 +39,7 @@ rm -f build/client-*.json
   ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp \
   -o build/profile_store_scenarios
 ./build/profile_store_scenarios
+
+"$compiler" "${flags[@]}" "${includes[@]}" \
+  update_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/update_scenarios
+./build/update_scenarios
