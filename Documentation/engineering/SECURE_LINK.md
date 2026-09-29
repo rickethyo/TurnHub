@@ -192,6 +192,16 @@ Commit after each step and tick it here.
       each in mbedTLS's generic bignum code), so pairing costs about 0.4 s per
       side. Follow-up: trim the boot test (for example to one RFC agreement)
       or run it off the boot path, since it delays every start by 1.6 s.
+- [x] **Bench result, 2026-09-29 (*Verified*):** CI build `be7ec45` on Atlas
+      `B4:BF:E9:12:85:74`, e-ink Sigil `F4:65:0B:C4:FF:38` and OLED Sigil
+      `20:E7:C8:94:49:80`. Both Sigils booted `PAIR|LOADED|KEYLESS`, then
+      re-paired: Atlas `PAIRING|V2|CODE_SHOWN`, Sigil `PAIR|V2|CODE_SHOWN`,
+      owner tapped Codes match on the Atlas screen, Atlas
+      `PAIRING|V2|CONFIRMED` (slots 0 and 1) and each Sigil
+      `PAIR|SUCCESS|SECURE`. The Sigil only accepts a confirmation whose MAC
+      checks with its own new key, so both ends derived the same key (the MAC
+      inputs to the derivation are right). Not yet exercised on hardware: Reject,
+      the 60 s timeout, the portal's Codes match, and forged or replayed verdicts.
 - [x] Pairing v2 on Atlas and Sigil; pair key in NVS (2026-09-29, branch
       `secure-link-pairing-v2`; host-tested and CI-built, *Needs
       verification* on hardware). Shared state machines in
