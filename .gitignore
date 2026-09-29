@@ -344,3 +344,6 @@ FodyWeavers.xsd
 
 # Local AI assistant scratch output
 Claude outputs/
+
+# Claude Code agent worktrees (local, temporary)
+.claude/worktrees/
