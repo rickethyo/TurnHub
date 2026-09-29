@@ -10,10 +10,10 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 
 | Check name | Work performed |
 | --- | --- |
-| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED and menu suites; adapter audit; generated-response and shared-fixture contract validation |
-| Firmware (atlas) | Build Atlas with PlatformIO |
-| Firmware (sigil) | Build the e-ink/joystick Sigil |
-| Firmware (sigil-oled) | Build the OLED/button Sigil |
+| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; the `tools/firmware/thfw.py` packaging tests |
+| Firmware (atlas) | Build Atlas with PlatformIO; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` OTA package |
+| Firmware (sigil) | Build the e-ink/joystick Sigil; descriptor check and signed `sigil-eink.thfw` as for Atlas |
+| Firmware (sigil-oled) | Build the OLED/button Sigil; descriptor check and signed `sigil-oled.thfw` as for Atlas |
 | Firmware (sigil-wokwi) | Compile the Wokwi variant; does not execute the simulator |
 | Firmware (harness) | Build the hardware test harness; does not run it against a board |
 | Android build and unit tests | Build the debug APK and run JVM unit tests |
@@ -30,9 +30,19 @@ Android uses the committed Gradle wrapper and Temurin 26, matching
 SDK; after license acceptance, Gradle installs the SDK components requested by
 the project. Keep the workflow's Java version aligned with the daemon criteria.
 
-The workflow uses read-only repository permission, pinned revisions of official
-GitHub actions, and no custom secrets. It does not flash devices, publish a
-release, or modify repository content/settings. Branch protection is configured
+The workflow uses read-only repository permission and pinned revisions of
+official GitHub actions. Its one secret is `TURNHUB_FIRMWARE_SIGNING_KEY`, the
+firmware signing key ([Sigil OTA](SIGIL_OTA.md#keys-and-signing)); without it
+(for example on a fork's pull request) builds are left unsigned and still
+pass. It does not flash devices, publish a release, or modify repository
+content/settings.
+
+Releases are a separate workflow,
+[`.github/workflows/release.yml`](../../.github/workflows/release.yml): pushing
+a tag like `v0.9.0` builds Atlas and both Sigils, signs them, and publishes a
+GitHub Release with the three `.thfw` packages and `turnhub-firmware.json`, the
+feed the Android app reads. It needs `contents: write` and fails without the
+signing secret. Branch protection is configured
 separately in GitHub, not by this file.
 
 ## Reading results

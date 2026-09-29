@@ -33,6 +33,13 @@ jobs:
         run: python3 Atlas/tests/host/audit_adapters.py
       - name: Validate generated responses and shared contracts
         run: python3 Atlas/tests/host/check_client_contract.py
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Firmware packaging tool
+        run: |
+          python -m pip install --disable-pip-version-check cryptography==46.0.7
+          python tools/firmware/test_thfw.py
 
   firmware:
     name: Firmware (${{ matrix.environment }})
@@ -44,10 +51,13 @@ jobs:
         include:
           - project: Atlas
             environment: atlas
+            product: atlas
           - project: Sigil
             environment: sigil
+            product: sigil-eink
           - project: Sigil
             environment: sigil-oled
+            product: sigil-oled
           - project: Sigil
             environment: sigil-wokwi
           - project: TestHarness
@@ -55,6 +65,8 @@ jobs:
     env:
       PIO_PROJECT: ${{ matrix.project }}
       PIO_ENVIRONMENT: ${{ matrix.environment }}
+      # OTA product name; empty for builds that are never packaged.
+      THFW_PRODUCT: ${{ matrix.product }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -79,6 +91,24 @@ jobs:
             pio --version
             pio pkg list --project-dir "$PIO_PROJECT" --environment "$PIO_ENVIRONMENT"
           } > "$RUNNER_TEMP/firmware/build-info.txt"
+      # Signed OTA package (SIGIL_OTA.md): every build must carry its
+      # descriptor, and is signed when the repository's signing key secret is
+      # available (not for pull requests from forks).
+      - name: Check descriptor and sign OTA package
+        if: matrix.product != ''
+        env:
+          TURNHUB_FIRMWARE_SIGNING_KEY: ${{ secrets.TURNHUB_FIRMWARE_SIGNING_KEY }}
+        run: |
+          python -m pip install --disable-pip-version-check cryptography==46.0.7
+          bin="$RUNNER_TEMP/firmware/firmware.bin"
+          python tools/firmware/thfw.py descriptor "$bin" --expect-product "$THFW_PRODUCT"
+          if [ -z "$TURNHUB_FIRMWARE_SIGNING_KEY" ]; then
+            echo "::notice::No signing key secret; the $THFW_PRODUCT build is unsigned."
+            exit 0
+          fi
+          out="$RUNNER_TEMP/firmware/$THFW_PRODUCT.thfw"
+          python tools/firmware/thfw.py package "$bin" --out "$out"             --expect-product "$THFW_PRODUCT" --build-id "$GITHUB_SHA"
+          python tools/firmware/thfw.py verify "$out"
       - name: Upload firmware build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

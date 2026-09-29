@@ -14,6 +14,7 @@
 #include "atlas_speaker.h"
 #include "config.h"
 #include "firmware_version.h"
+#include "firmware_package.h"
 #include "game_recovery.h"
 #include "game_settings_store.h"
 #include "pairing_settings.h"
@@ -24,6 +25,12 @@
 #include "serial_log.h"
 #include "speaker_settings.h"
 #include "wifi_password_store.h"
+
+// This build's identity, read by tools/firmware/thfw.py when it packages
+// firmware.bin for OTA (SIGIL_OTA.md).
+TURNHUB_FIRMWARE_DESCRIPTOR(atlasFirmwareDescriptor, TurnHubFirmwarePackage::Product::Atlas,
+    TurnHubFirmware::MAJOR, TurnHubFirmware::MINOR, TurnHubFirmware::PATCH,
+    TurnHubProtocol::VERSION);
 
 using TurnHub::serialLog;
 
@@ -350,6 +357,9 @@ void setup() {
   serialLog.println();
   serialLog.print("ATLAS|BOOT|");
   serialLog.println(TurnHubFirmware::VERSION);
+  // A real read of the descriptor, so the linker keeps it in the image.
+  serialLog.print("ATLAS|FW_PRODUCT|");
+  serialLog.println(*reinterpret_cast<const volatile uint8_t *>(&atlasFirmwareDescriptor.product));
   serialLog.print("ATLAS|RESET_REASON|");
   serialLog.println(TurnHub::resetReason());
   serialLog.print("ATLAS|DIAGNOSTICS|");

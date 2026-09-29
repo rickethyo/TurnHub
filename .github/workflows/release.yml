@@ -1,0 +1,70 @@
+name: TurnHub firmware release
+
+# Pushing a tag like v0.9.0 builds Atlas and both Sigils, signs each as a
+# .thfw OTA package, and publishes a GitHub Release with the packages and the
+# release feed the Android app reads (Documentation/engineering/SIGIL_OTA.md,
+# "Release feed"). Needs the TURNHUB_FIRMWARE_SIGNING_KEY secret.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, sign and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TURNHUB_FIRMWARE_SIGNING_KEY: ${{ secrets.TURNHUB_FIRMWARE_SIGNING_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.12'
+      - name: Install tools
+        run: |
+          python -m pip install --disable-pip-version-check platformio==6.2.0 cryptography==46.0.7
+          pio settings set enable_telemetry No
+      - name: Require the signing key
+        run: |
+          if [ -z "$TURNHUB_FIRMWARE_SIGNING_KEY" ]; then
+            echo "::error::TURNHUB_FIRMWARE_SIGNING_KEY is not set; cannot sign a release."
+            exit 1
+          fi
+      - name: Build and package
+        run: |
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out"
+          build() {  # project environment product
+            pio run --project-dir "$1" --environment "$2"
+            local tmp="$out/$3.thfw"
+            python tools/firmware/thfw.py package "$1/.pio/build/$2/firmware.bin" \
+              --out "$tmp" --expect-product "$3" --build-id "$GITHUB_SHA"
+            python tools/firmware/thfw.py verify "$tmp"
+            local version
+            version=$(python tools/firmware/thfw.py info "$tmp" | python -c \
+              'import json,sys; print(".".join(map(str, json.load(sys.stdin)["version"])))')
+            mv "$tmp" "$out/$3-$version.thfw"
+          }
+          build Atlas atlas atlas
+          build Sigil sigil sigil-eink
+          build Sigil sigil-oled sigil-oled
+          python tools/firmware/thfw.py feed "$out"/*.thfw \
+            --release "${GITHUB_REF_NAME#v}" --out "$out/turnhub-firmware.json"
+          cat "$out/turnhub-firmware.json"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/release/* \
+            --repo "$GITHUB_REPOSITORY" --title "TurnHub $GITHUB_REF_NAME" \
+            --notes "Signed firmware packages for Atlas and both Sigils. Install them from the TurnHub app or the Atlas portal."

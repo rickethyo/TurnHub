@@ -24,6 +24,20 @@
 #include "pairing_v2.h"
 #include "secure_session.h"
 #include "secure_link_mbedtls.h"
+#ifndef TURNHUB_WOKWI
+#include "firmware_package.h"
+
+// This build's identity, read by tools/firmware/thfw.py when it packages
+// firmware.bin for OTA (SIGIL_OTA.md). The Wokwi build has none, so it can't
+// be packaged.
+#ifdef TURNHUB_DISPLAY_OLED
+constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilOled;
+#else
+constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilEink;
+#endif
+TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigilFirmware::MAJOR,
+    TurnHubSigilFirmware::MINOR, TurnHubSigilFirmware::PATCH, TurnHubProtocol::VERSION);
+#endif
 
 #ifndef TURNHUB_INPUT_JOYSTICK
 #define TURNHUB_INPUT_JOYSTICK 0
@@ -1628,6 +1642,11 @@ bool startEspNow() {
   Serial.println(WiFi.macAddress());
   Serial.print("SIGIL|FW|");
   Serial.println(TurnHubSigilFirmware::VERSION);
+#ifndef TURNHUB_WOKWI
+  // A real read of the descriptor, so the linker keeps it in the image.
+  Serial.print("SIGIL|FW_PRODUCT|");
+  Serial.println(*reinterpret_cast<const volatile uint8_t *>(&sigilFirmwareDescriptor.product));
+#endif
   Serial.println("SIGIL|ESP_NOW|READY");
   return true;
 }

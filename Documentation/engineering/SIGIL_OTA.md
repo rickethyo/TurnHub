@@ -199,14 +199,16 @@ Published as a release asset, so the app reads
   "schema": 1,
   "release": "0.9.0",
   "packages": [
-    {"product": "atlas", "version": "0.7.0", "file": "atlas-0.7.0.thfw",
-     "size": 1234567, "sha256": "..."}
+    {"product": "atlas", "version": "0.7.0", "radioProtocol": 2,
+     "file": "atlas-0.7.0.thfw", "size": 1234567, "sha256": "...",
+     "buildId": "1548b96..."}
   ]
 }
 ```
 
-The feed is not signed; the packages are, and the app checks each one before
-offering it. A tampered feed can only point at a package that fails the check.
+`sha256` and `size` are of the whole `.thfw` file, so the app can check a
+download before parsing it. The feed is not signed; the packages are, and the
+app checks each one before offering it. A tampered feed can only point at a package that fails the check.
 
 ### Where the Sigil package is staged
 
