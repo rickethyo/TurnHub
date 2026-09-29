@@ -37,6 +37,10 @@ constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage
 #endif
 TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigilFirmware::MAJOR,
     TurnHubSigilFirmware::MINOR, TurnHubSigilFirmware::PATCH, TurnHubProtocol::VERSION);
+#include "sigil_updater.h"
+#define TURNHUB_OTA 1
+#else
+#define TURNHUB_OTA 0
 #endif
 
 #ifndef TURNHUB_INPUT_JOYSTICK
@@ -286,6 +290,16 @@ TaskHandle_t displayTaskHandle = nullptr;
 TurnHubProtocol::GameDisplayPacket pendingGameDisplay{};
 bool gameDisplayValid = false;
 portMUX_TYPE displayProfileMux = portMUX_INITIALIZER_UNLOCKED;
+
+#if TURNHUB_OTA
+// Sigil OTA (sigil_updater.h). While an update runs, loop() is inside
+// updater.run(); the display task draws the progress below.
+TurnHubSigil::SigilUpdater updater;
+bool updateScreenActive = false;   // Guarded by displayProfileMux.
+bool updateScreenChanged = false;
+char updateScreenText[24] = {};
+int8_t updateScreenPercent = -1;
+#endif
 char pendingSeatNames[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
 uint16_t receivedNameChunks[2] = {};
 uint8_t finalNameChunk[2] = {0xFF, 0xFF};
@@ -659,6 +673,27 @@ void updateDisplay() {
   static bool lostDrawn = false;
   static bool codeDrawn = false;
   static uint16_t drawnCode = 0;
+  bool updateEnded = false;
+#if TURNHUB_OTA
+  // A firmware update outranks every screen.
+  static bool updateDrawn = false;
+  char updateText[sizeof(updateScreenText)];
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool updating = updateScreenActive;
+  const bool updateChanged = updateScreenChanged;
+  memcpy(updateText, updateScreenText, sizeof(updateText));
+  const int8_t updatePercent = updateScreenPercent;
+  updateScreenChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (updating) {
+    displayNeedsRefresh = false;
+    if (updateChanged || !updateDrawn) sigilDisplay.showUpdate(updateText, updatePercent);
+    updateDrawn = true;
+    return;
+  }
+  updateEnded = updateDrawn;
+  updateDrawn = false;
+#endif
   if (pairingCodeShown) {
     displayNeedsRefresh = false;
     const uint16_t code = pairingCodeValue;
@@ -668,7 +703,7 @@ void updateDisplay() {
     return;
   }
   // After the code or Atlas lost, redraw whatever comes next in full.
-  bool overlayEnded = codeDrawn;
+  bool overlayEnded = codeDrawn || updateEnded;
   codeDrawn = false;
   if (atlasLostShown && sigilId != UNASSIGNED_SIGIL_ID) {
     displayNeedsRefresh = false;
@@ -1000,10 +1035,71 @@ void noteAtlasHeard() {
 }
 
 // A packet from Atlas that opened in the current session (handleEspNowReceive).
+#if TURNHUB_OTA
+void sendUpdateStatus(int32_t value) {
+  sendPacket(PacketType::SigilUpdateStatus, value);
+}
+
+// Called from inside updater.run(), which blocks loop(): the light is driven
+// from here, the screen by the display task.
+void showUpdateProgress(const char *status, int8_t percent) {
+  static char shownText[sizeof(updateScreenText)] = {};
+  static int8_t shownBucket = -2;
+#if TURNHUB_DISPLAY_OLED
+  const int8_t bucket = percent;
+#else
+  // E-ink: a full refresh per quarter, not per 10%.
+  const int8_t bucket = percent < 0 ? -1 : static_cast<int8_t>(percent / 25);
+#endif
+  const bool redraw = strcmp(shownText, status) != 0 || bucket != shownBucket;
+  if (redraw) {
+    strncpy(shownText, status, sizeof(shownText) - 1);
+    shownBucket = bucket;
+    portENTER_CRITICAL(&displayProfileMux);
+    strncpy(updateScreenText, status, sizeof(updateScreenText) - 1);
+    updateScreenPercent = percent;
+    updateScreenActive = true;
+    updateScreenChanged = true;
+    portEXIT_CRITICAL(&displayProfileMux);
+    notifyDisplayTask();
+  }
+  ledModel.setUpdating(true, percent < 0 ? 0 : static_cast<uint8_t>(percent), millis());
+  ledOutputValid = false;
+  updateLeds();
+}
+
+void endUpdateScreen() {
+  portENTER_CRITICAL(&displayProfileMux);
+  updateScreenActive = false;
+  updateScreenChanged = true;
+  portEXIT_CRITICAL(&displayProfileMux);
+  ledModel.setUpdating(false, 0, millis());
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
+void handleUpdateOffer(const uint8_t *mac, const uint8_t *incomingData) {
+  TurnHubProtocol::SigilUpdateOfferPacket offer{};
+  memcpy(&offer, incomingData, sizeof(offer));
+  if (!atlasKnown || memcmp(mac, atlasMac, 6) != 0) return;
+  noteAtlasHeard();
+  updater.offer(offer, sigilId);
+  TurnHubSecureLink::wipe(&offer, sizeof(offer));
+}
+#endif
+
 void handleAtlasPacket(
     const uint8_t *mac,
     const uint8_t *incomingData,
     int length) {
+#if TURNHUB_OTA
+  // Checked before the version test below: a newer Atlas may still update
+  // this Sigil (MIN_UPDATABLE_VERSION).
+  if (length == sizeof(TurnHubProtocol::SigilUpdateOfferPacket)) {
+    handleUpdateOffer(mac, incomingData);
+    return;
+  }
+#endif
 #if TURNHUB_PICKER
   if (length == sizeof(TurnHubProtocol::ProfilePickerPacket)) {
     TurnHubProtocol::ProfilePickerPacket page{};
@@ -1254,6 +1350,7 @@ void handleEspNowReceive(
       static_cast<size_t>(length), inner, sizeof(inner));
   if (innerLength == 0) return;
   handleAtlasPacket(mac, inner, static_cast<int>(innerLength));
+  TurnHubSecureLink::wipe(inner, innerLength);  // An update offer holds the Wi-Fi password.
 }
 
 #if TURNHUB_MENU
@@ -1765,6 +1862,12 @@ void setup() {
   }
 
   espNowReady = startEspNow();
+#if TURNHUB_OTA
+  updater.begin(SIGIL_PRODUCT,
+      TurnHubFirmwarePackage::Version{TurnHubSigilFirmware::MAJOR, TurnHubSigilFirmware::MINOR,
+          TurnHubSigilFirmware::PATCH},
+      WIFI_CHANNEL, TurnHubSigil::UpdaterHooks{sendUpdateStatus, showUpdateProgress, endUpdateScreen});
+#endif
 
   if (espNowReady) {
     sendHello();
@@ -1805,6 +1908,11 @@ void loop() {
     handleEspNowReceive(received.mac,
         received.data, received.length);
   }
+#if TURNHUB_OTA
+  // A new image is kept only once it has a secure session with Atlas again.
+  updater.confirmBoot(linkSession.ready(), millis());
+  if (updater.pending()) updater.run();  // Blocks; restarts on success.
+#endif
 #if TURNHUB_INPUT_JOYSTICK
   updateJoystick(millis());
 #endif

@@ -4,6 +4,7 @@
 // ECDSA is checked on the device.
 #include "firmware_package.h"
 #include "test_package_crypto.h"
+#include "update_offer.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -227,6 +228,63 @@ void sha256KnownAnswer() {
   assert(memcmp(out, expected, 32) == 0);
 }
 
+void updateOffers() {
+  using namespace TurnHubProtocol;
+  using TurnHubSigil::OfferDecision;
+  TurnHubProtocol::SigilUpdateOfferPacket offer{};
+  offer.version = VERSION;
+  offer.type = PacketType::SigilUpdateOffer;
+  offer.sigilId = 2;
+  offer.product = static_cast<uint8_t>(Product::SigilOled);
+  offer.major = 0;
+  offer.minor = 9;
+  offer.patch = 0;
+  offer.packageSize = 900000;
+  for (uint8_t i = 0; i < UPDATE_TOKEN_BYTES; ++i) offer.token[i] = static_cast<uint8_t>(0xF0 + i);
+  strcpy(offer.ssid, "TurnHub-Atlas");
+  strcpy(offer.password, "secret");
+  const Version running{0, 8, 0};
+  TurnHubSigil::UpdaterMemory memory;
+  const auto check = [&](const SigilUpdateOfferPacket &o) {
+    return TurnHubSigil::checkUpdateOffer(o, 2, Product::SigilOled, running, memory);
+  };
+  assert(check(offer).decision == OfferDecision::Accept);
+  SigilUpdateOfferPacket other = offer;
+  other.sigilId = 3;
+  assert(check(other).decision == OfferDecision::Ignore);  // Another Sigil's.
+  other = offer;
+  other.ssid[0] = '\0';
+  assert(check(other).decision == OfferDecision::Ignore);  // Malformed.
+  other = offer;
+  other.product = static_cast<uint8_t>(Product::SigilEink);
+  assert(check(other).decision == OfferDecision::Refuse &&
+      check(other).error == static_cast<uint8_t>(Error::WrongProduct));
+  other = offer;
+  other.minor = 7;
+  assert(check(other).decision == OfferDecision::Refuse &&
+      check(other).error == static_cast<uint8_t>(Error::OlderVersion));
+  other.minor = 8;  // Reinstall.
+  assert(check(other).decision == OfferDecision::Accept);
+
+  // Once taken, the same token is a repeat (never a restart), and another
+  // job is refused while one runs.
+  memory.hasJob = true;
+  memory.running = true;
+  memcpy(memory.token, offer.token, UPDATE_TOKEN_BYTES);
+  assert(check(offer).decision == OfferDecision::Repeat);
+  other = offer;
+  other.token[0] ^= 1;
+  assert(check(other).decision == OfferDecision::Refuse &&
+      check(other).error == static_cast<uint8_t>(UpdateError::Busy));
+  memory.running = false;  // Failed earlier: a new job may start.
+  assert(check(other).decision == OfferDecision::Accept);
+  assert(check(offer).decision == OfferDecision::Repeat);
+
+  char hex[2 * UPDATE_TOKEN_BYTES + 1];
+  TurnHubSigil::updateTokenHex(offer.token, hex);
+  assert(strcmp(hex, "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff") == 0);
+}
+
 }  // namespace
 
 int main() {
@@ -238,6 +296,7 @@ int main() {
   badHeadersAreRefusedBeforeAnyWrite();
   badImagesFailAtTheEnd();
   errorNames();
-  std::cout << "PASS firmware packages: version rule, descriptor, streaming, refused headers and images\n";
+  updateOffers();
+  std::cout << "PASS firmware packages: version rule, descriptor, streaming, refused headers and images, update offers\n";
   return 0;
 }
