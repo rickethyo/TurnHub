@@ -245,7 +245,7 @@ Commit after each step and tick it here.
          (> 2 Hello intervals), otherwise a sealed Hello as the keep-alive;
          everything it sends is sealed, and only sealed frames from its Atlas
          are handled. A keyless binding counts as unpaired.
-      5. [ ] TestHarness and the Wokwi fake Atlas do the same.
+      5. [x] TestHarness and the Wokwi fake Atlas do the same.
       6. [ ] Remove the old `PairRequest`/`PairAccept` path.
       7. [ ] Docs and manual; CI; flash all four boards; bench test (play, Atlas
          restart recovery, forged/replayed/cleartext packets rejected).
