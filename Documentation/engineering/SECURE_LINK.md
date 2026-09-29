@@ -232,7 +232,7 @@ Commit after each step and tick it here.
 - [ ] Secure Hello/session and the envelope on every packet, both directions.
       **In progress, branch `secure-link-envelope` (from 2026-09-29).** Plan,
       in commit order (tick as done; resume from the first unticked):
-      1. [ ] Shared `secure_session.h`: Sigil and Atlas session endpoints over
+      1. [x] Shared `secure_session.h`: Sigil and Atlas session endpoints over
          `Channel` (SecureHello with a fresh nonce and MAC, SecureHelloAck,
          session key), host-tested.
       2. [ ] `VERSION` 1 -> 2; receive buffers take sealed frames (22, 66 and
