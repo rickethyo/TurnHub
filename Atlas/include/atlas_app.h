@@ -207,6 +207,7 @@ IntentResult handleEliminationIntent(const Intent &intent, void *);
 IntentResult handlePairRequestIntent(const Intent &intent, void *);
 IntentResult handleGameSettingsIntent(const Intent &intent, void *);
 IntentResult handleForgetPairingIntent(const Intent &intent, void *);
+IntentResult handlePairConfirmIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);

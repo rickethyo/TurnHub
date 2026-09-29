@@ -6,6 +6,7 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include "pairing_v2.h"
 #include "protocol.h"
 #include "turnhub_types.h"
 
@@ -32,6 +33,11 @@ struct SigilRecord {
   uint8_t capabilities = 0;
   bool profileRequestSeen = false;
   uint32_t lastProfileRequestMs = 0;
+  // Pairing v2 (SECURE_LINK.md): the key agreed at pairing, stored in NVS.
+  // False for a Sigil paired the old way; it must pair again for the secure
+  // link. Never logged.
+  bool hasPairKey = false;
+  uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
 };
 
 // ESP-NOW transport to the physical Sigils. The radio callback only queues
@@ -51,6 +57,16 @@ class SigilBus {
   // best-effort Unpair first so it can forget Atlas too. False when the slot
   // is unused or the store could not be updated (the record is then kept).
   bool forget(uint8_t sigilId);
+  // Pairing v2: a Sigil awaiting the owner's code check in that slot, or
+  // nullptr. The code is on the Sigil's screen and Atlas's.
+  const TurnHubSecureLink::PendingPairing *pendingPairing(uint8_t slot) const;
+  uint8_t pendingPairingCount() const;
+  // The owner's verdict (PairConfirm Intent). Confirm stores the Sigil and its
+  // pair key; either way the Sigil is told. False if nothing is pending there
+  // or the store failed (nothing is then stored).
+  bool decidePairing(uint8_t slot, bool confirm);
+  // Leaving the lobby: every waiting Sigil is told no.
+  void cancelPendingPairings();
   // Next received event, if any. Call from the application loop.
   bool poll(SigilEvent &event);
 
@@ -78,9 +94,13 @@ class SigilBus {
   static constexpr uint32_t SIGIL_TIMEOUT_MS = TurnHubProtocol::LINK_TIMEOUT_MS;
 
  private:
+  // Radio callbacks copy any packet Atlas accepts: the 7-byte Packet or a
+  // pairing v2 request.
+  static constexpr uint8_t RX_MAX_BYTES = sizeof(TurnHubSecureLink::PairRequest2Packet);
   struct RxRequest {
     uint8_t mac[6];
-    TurnHubProtocol::Packet packet;
+    uint8_t data[RX_MAX_BYTES];
+    uint8_t length;
     uint32_t receivedAt;
   };
   struct TxRequest {
@@ -107,6 +127,11 @@ class SigilBus {
 
   SigilRecord *findByMac(const uint8_t *mac);
   SigilRecord *remember(const uint8_t *mac);
+  void handlePairRequest2(const uint8_t *mac, const TurnHubSecureLink::PairRequest2Packet &packet,
+      uint32_t receivedAt);
+  bool slotFree(uint8_t slot) const;
+  bool storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey);
+  bool sendRaw(const uint8_t *mac, const void *data, uint8_t length);
   void updateHelloInfo(SigilRecord &sigil, int32_t value);
   bool ensurePeer(const uint8_t *mac);
   bool sendToMac(
@@ -130,6 +155,7 @@ class SigilBus {
   uint32_t pairingWindowMs_ = TurnHubProtocol::PAIRING_WINDOW_MS;
   QueueHandle_t rxQueue_ = nullptr;
   SigilRecord records_[MAX_PHYSICAL_SIGILS];
+  TurnHubSecureLink::AtlasPairings pairings_;
   QueueHandle_t eventQueue_ = nullptr;
   QueueHandle_t txQueue_ = nullptr;
   TaskHandle_t txTask_ = nullptr;

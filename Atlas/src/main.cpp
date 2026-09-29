@@ -210,6 +210,7 @@ bool configureIntentHandlers() {
       {IntentType::EndMatch, handleEndMatchIntent},
       {IntentType::MasterPass, handleMasterPassIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
+      {IntentType::PairConfirm, handlePairConfirmIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
       {IntentType::ResetTable, handleResetTableIntent},
