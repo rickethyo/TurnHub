@@ -254,9 +254,39 @@ Sigils, one bit deep:
   carry diamonds and small-caps labels ("Life", "Seat A life"). The page has
   a thin frame; the boot, unpaired, ready and Atlas-lost screens show a gear
   emblem. The legend and data rows (commander damage) keep the built-in font.
-- **OLED:** text stays in the built-in font (legibility at 128x64, and the
-  host suite checks every character cell). Banners are tickets with notched
-  ends, life has the same dial, and the splash shows the gear emblem.
+- **OLED (extended 2026-09-30):** the same family scaled to 128x64.
+  - *Header:* a nameplate bar with a small gear; the title in Cinzel Black
+    10 px caps (`OledHeader`), on row 8, or using the bar's last rows for a
+    descender (JOIN AS). The right-hand seat/turn label stays in the built-in
+    font.
+  - *Tickets:* banners have notched ends. Filled tickets (YOUR TURN, PASSING,
+    GO FIRST, ACTION NEEDED, WINNER!) carry Cinzel Black between their icons;
+    outlined ones (WAITING FOR TURN, STARTER, GAME PAUSED, P1 PASSING...) keep
+    the built-in font, because Cinzel crowded the one-pixel frame.
+  - *Names:* the game screen's name line in Cinzel 10 px (`OledSmall`), also
+    "A: name" / "B: name" on the shared lobby around a rule. The lone seat's
+    name on state screens and the picker's Join-as name use Cinzel 15 px
+    (`OledName`), then 10 px.
+  - *Life:* Oswald figures beside the life dial: 28 px (`OledLife`), 22 px
+    (`OledLifeMid`) or 18 px (`OledLifeSmall`, the only size when commander
+    rows show or the Sigil is shared), with a free row between the name and
+    the figures.
+  - *Status screens:* ready, unpaired and Atlas lost put the big line in
+    Cinzel 15 px over an ornamental rule (a line with a center diamond); the
+    splash shows the gear emblem, "TurnHub" in Cinzel and a rule.
+  - *Kept in the built-in 5x7 font:* key help, the pending-change and
+    life-request lines (they use arrow glyphs Cinzel lacks), commander rows,
+    the other seat's row with its heart glyph, menu and picker list rows, the
+    status screens' small lines, and the header's right-hand label.
+  - *Fallback rule:* every Brass run is measured with `getTextBounds` and
+    must fit its band of rows and columns. If it does not, the built-in font
+    draws it, so no word or digit is ever cut (a life total can go down
+    to Oswald 18 px, then to the built-in font).
+  - *Tests:* the host OLED stub understands custom fonts. It checks that each
+    glyph's ink stays on the panel and clear of every other text run.
+  - Adds 8,060 bytes to the OLED image. *Needs verification* on the panel:
+    Cinzel caps at 7 px, and whether the filled Cinzel tickets read at arm's
+    length.
 - Fonts are bitmaps rendered by `tools/fonts/make_fonts.py` into
   `include/brass_fonts.h` (Cinzel and Oswald, SIL OFL 1.1). The ornament is
   drawn in the same full refresh, so refresh counts and timing are unchanged.

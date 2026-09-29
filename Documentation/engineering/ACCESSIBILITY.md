@@ -164,8 +164,11 @@ gains a diamond marker as well as its brighter color. Main actions are brass
 and the rest walnut, but each has its label, and a pressed button still takes
 a heavy cream frame. Life totals and clocks use Oswald's lining figures
 rather than Cinzel's old-style ones, so digits keep an even height. On the
-128x64 OLED, text stays in the built-in font for legibility. *Needs
-verification* at arm's length on each panel, including the Cinzel small caps.
+128x64 OLED (2026-09-30), Cinzel and Oswald are used only where their
+measured ink fits the space; otherwise the built-in font draws the same
+words, so nothing is cut or dropped. Small body text, list rows and outlined
+banners stay in the built-in font. *Needs verification* at arm's length on
+each panel, including the Cinzel small caps and the OLED's 7 px Cinzel caps.
 
 Atlas's speaker (2026-09-24) plays only table-wide cues, and each one also shows
 on the Atlas screen, the Sigils and the portal. Its volume (Off to High) is an

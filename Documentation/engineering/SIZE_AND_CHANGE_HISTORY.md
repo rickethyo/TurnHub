@@ -486,6 +486,26 @@ All Atlas and Sigil host suites, the 32-adapter audit and both screen
 previews pass (the Atlas preview's nine incremental-redraw checks match full
 redraws pixel for pixel). Hardware acceptance of the new look is pending.
 
+### 2026-09-30 - OLED Sigil in the Brass fonts
+
+Same branch, after `51e4028`. The OLED Sigil now uses Cinzel and Oswald where
+they fit (header title, filled tickets, names, status big lines, life
+figures), with the built-in font as the measured fallback. Four OLED fonts
+are added to `tools/fonts/make_fonts.py` and `Sigil/include/brass_fonts.h`
+regenerated: `OledHeader` (Cinzel Black 10 px), `OledName` (Cinzel 15 px),
+`OledLifeMid` (Oswald 22 px), `OledLifeSmall` (Oswald 18 px). Sigil font data
+grows from 11,530 to 15,250 bytes; Atlas fonts are unchanged byte for byte.
+
+Firmware builds (local PlatformIO 6.2.0, same toolchain; no board flashed):
+- Sigil OLED (`sigil-oled`): flash **841,161 -> 849,221 B (+8,060; 64.8% of
+  1,310,720)**, RAM unchanged at 45,352 B. The CI build of `51e4028` was
+  reported as 847,840 B; the local toolchain measures that commit at 841,161 B.
+- Sigil e-ink (`sigil`) and `sigil-wokwi`: unchanged (844,725 B and
+  852,281 B); the OLED fonts are not linked into them.
+
+Sigil host suites (OLED stub now checks custom-font glyph bounds and
+overlaps), Atlas host suites and the Sigil screen previews pass.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
