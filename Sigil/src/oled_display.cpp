@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "secure_link.h"
 #include "brass_fonts.h"
 #include "picker_list.h"
 #include "avatars.h"
@@ -440,6 +441,21 @@ void OledDisplay::showAtlasLost(uint8_t sigilId) {
   bigLine("NO ATLAS");
   text("Atlas not responding", 41, 1, Align::Center);
   text("Searching...", 52, 1, Align::Center);
+  display_->display();
+}
+
+void OledDisplay::showPairingCode(uint16_t code) {
+  if (!ready_) return;
+  char digits[5];
+  TurnHubSecureLink::formatPairingCode(code, digits);
+  // Drawn directly: an open menu list must not cover the code.
+  display_->clearDisplay();
+  header("TurnHub", "PAIR");
+  if (fontText(digits, &BrassFonts::OledLifeMid, 13, 38, Align::Center) < 0) {
+    text(digits, 15, 3, Align::Center);
+  }
+  text("Same code on Atlas?", 41, 1, Align::Center);
+  text("Confirm it there", 52, 1, Align::Center);
   display_->display();
 }
 
