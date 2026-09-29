@@ -183,7 +183,15 @@ Commit after each step and tick it here.
 - [x] Shared `secure_link.h`: envelope layout, nonce, counter/session logic,
       crypto interface; host tests with a test crypto backend (2026-09-28,
       `Sigil/tests/host/secure_link_scenarios.cpp`; Atlas and Sigil host suites pass).
-- [ ] mbedTLS backend and boot-time known-answer self-test (Atlas and Sigil).
+- [x] mbedTLS backend and boot-time known-answer self-test (Atlas and Sigil),
+      `shared/include/secure_link_mbedtls.h` and `knownAnswerTest()` in
+      `secure_link.h`. *Verified* 2026-09-28 on all three bench boards (Atlas
+      `B4:BF:E9:12:85:74`, OLED Sigil `20:E7:C8:94:49:80`, e-ink Sigil
+      `F4:65:0B:C4:FF:38`; CI build of `a010dd2`): `SECURE_LINK|SELF_TEST|PASS`
+      in 1614-1615 ms. Nearly all of that is 8 X25519 operations (about 200 ms
+      each in mbedTLS's generic bignum code), so pairing costs about 0.4 s per
+      side. Follow-up: trim the boot test (for example to one RFC agreement)
+      or run it off the boot path, since it delays every start by 1.6 s.
 - [ ] Pairing v2 on Atlas and Sigil; pair key in NVS; keyless records cleared.
 - [ ] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
       Confirm/Reject on the Atlas screen and in the portal; 60 s timeout.
