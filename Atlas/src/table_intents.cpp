@@ -16,14 +16,6 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
-HubState hubState = HubState::Lobby;
-PendingPassState pendingPass;
-uint32_t countdownStartedAtMs = 0;
-int8_t lastCountdownSecond = -1;
-uint8_t eliminationTargetPlayer = 0;
-uint8_t winArmedModule = INVALID_ID;
-uint8_t winArmedPlayer = 0;
-
 namespace {
 
 bool validSlot(uint8_t slot) { return slot == 1 || slot == 2; }

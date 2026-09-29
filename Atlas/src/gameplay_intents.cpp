@@ -11,8 +11,6 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
-TurnTimerCueState turnTimerCue;
-
 namespace {
 
 // The player whose answer the table now waits for hears ActionRequired on

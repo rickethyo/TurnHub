@@ -539,6 +539,41 @@ Privacy direction:
   owner decisions at the top); ESP-NOW transfer stays the fallback.
 - Freeze hardware revisions only after GPIO, power, display, pairing, transport, tactile-control, and accessibility decisions are verified.
 
+## Venue model: several games on one Atlas (*Planned*)
+
+A venue Atlas runs more than one game at once. Profiles, statistics, pairing
+and the portal stay shared; each game has its own lobby, engine and table
+decisions. Owner decisions (2026-09-29):
+
+- **Atlas speaker:** muted while more than one game is running. Cues then play
+  only on Sigil buzzers and in browsers. With one game it behaves as today.
+- **Atlas touchscreen:** shows one game at a time, with a "Game 1", "Game 2",
+  ... selector. The selection is presentation state (Invariant 6), not a table
+  decision.
+
+Steps:
+
+1. **Done 2026-09-29 (host-tested, firmware builds):** `GameTable` in
+   `atlas_app.h` groups one game's `Lobby`, `GameEngine`, `ClientState` and
+   table decisions (`hubState`, `pendingPass`, countdown, elimination target,
+   win arm, turn-timer cues). `tables[MAX_GAME_TABLES]` has one entry, and the
+   old global names are references into `tables[0]`, so behavior is unchanged.
+   Next, move call sites to take a `GameTable &` explicitly.
+2. Two tables in RAM: controller and profile → table assignment (a Sigil and
+   its Seat B stay together; a profile sits at one table), Intent routing via
+   `seatForIntentActor` and friends, per-table loop ticks, host scenarios for
+   independent tables. Lobby arrays stay indexed by the global controller ID,
+   and a controller joins at most one table.
+3. Per-table recovery records (today one NVS namespace, `th_game_v1`), each
+   restoring paused, and the checkpoint-before-statistics order per table
+   (`COMPLETION_RECOVERY.md`).
+4. Client contract: per-table state and revisions in `/api/v1/state`,
+   schemas, `protocol/examples`, Android models, portal pages.
+5. Touchscreen game selector, speaker muting rule, user manual.
+
+Feature gate still to write before step 2 (state owner, Intent, validator,
+persistence, clients, contract, dependencies, accessibility).
+
 ## OLED Sigil
 
 - **One player per OLED Sigil:** implemented and host-tested (2026-09-24),
