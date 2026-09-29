@@ -17,6 +17,7 @@
 #include <esp_wifi.h>
 
 #include "pairing_v2.h"
+#include "secure_session.h"
 #include "protocol.h"
 #include "secure_link_mbedtls.h"
 
@@ -89,6 +90,10 @@ struct VirtualSigil {
   TurnHubSecureLink::PairRequest2Packet request{};
   bool hasPairKey = false;
   uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
+  // Its secure session with Atlas (secure_session.h), exactly like a real
+  // Sigil: everything but pairing and the handshake travels sealed.
+  TurnHubSecureLink::SigilSession session;
+  uint32_t lastFrameMs = 0;  // A packet from Atlas last opened for it.
   uint32_t lastHelloMs = 0;
   uint32_t lastHelloAckMs = 0;
   bool menuValid = false;
@@ -130,7 +135,8 @@ LifeRequestPolicy lifeRequestPolicy = LifeRequestPolicy::Approve;
 struct RxFrame {
   uint8_t mac[6];
   uint8_t length;
-  uint8_t data[sizeof(GameDisplayPacket)];
+  // The largest sealed packet: a game display plus the envelope.
+  uint8_t data[sizeof(GameDisplayPacket) + TurnHubSecureLink::SECURE_OVERHEAD];
 };
 QueueHandle_t rxQueue = nullptr;
 volatile bool sendDone = false;
@@ -284,6 +290,16 @@ void loadPairing() {
       }
       TurnHubSecureLink::wipe(keys, sizeof(keys));
     }
+    // Since the secure link a pairing needs its key: a keyless one (from
+    // before pairing v2) counts as unpaired; 'pair' pairs it again.
+    for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
+      VirtualSigil &v = sigils[i];
+      if (v.hasPairKey) {
+        v.session.configure(v.sigilId, v.pairKey);
+      } else {
+        v.sigilId = UNASSIGNED;
+      }
+    }
   }
   paceMs = min(prefs.getUInt("pace", DEFAULT_PACE_MS), MAX_PACE_MS);
   prefs.end();
@@ -314,10 +330,13 @@ bool sendFrom(const VirtualSigil &v, const uint8_t *dest, const void *data, size
   return sendDone && sendOk;
 }
 
-bool sendPacket(VirtualSigil &v, PacketType type, int32_t value, bool broadcast = false) {
-  if (!broadcast && !atlasKnown) return false;
+// Sealed in the virtual Sigil's session; nothing is sent without one.
+bool sendPacket(VirtualSigil &v, PacketType type, int32_t value) {
+  if (!atlasKnown || !v.session.ready()) return false;
   const Packet packet = TurnHubProtocol::makePacket(type, v.sigilId, value);
-  const bool ok = sendFrom(v, broadcast ? BROADCAST_MAC : atlasMac, &packet, sizeof(packet));
+  uint8_t frame[sizeof(Packet) + TurnHubSecureLink::SECURE_OVERHEAD];
+  const size_t length = v.session.seal(linkCrypto, &packet, sizeof(packet), frame, sizeof(frame));
+  const bool ok = length != 0 && sendFrom(v, atlasMac, frame, length);
   if (verbose) {
     Serial.printf("HARNESS|TX|%s|type=%u|value=%ld|%s\n", v.name, static_cast<unsigned>(type),
         static_cast<long>(value), ok ? "OK" : "FAIL");
@@ -325,12 +344,19 @@ bool sendPacket(VirtualSigil &v, PacketType type, int32_t value, bool broadcast 
   return ok;
 }
 
+// Like a real Sigil: a sealed Hello keeps a live session going; with none,
+// or Atlas quiet for two Hello intervals, a SecureHello starts a new one.
 void sendHello(VirtualSigil &v) {
   v.lastHelloMs = millis();
-  if (!atlasKnown || v.sigilId == UNASSIGNED) return;
-  sendPacket(v, PacketType::Hello,
-      TurnHubProtocol::encodeHelloInfo(FIRMWARE_MAJOR, FIRMWARE_MINOR, FIRMWARE_PATCH,
-          &v == &sigils[0] ? CAPABILITIES | TurnHubProtocol::CAPABILITY_HARNESS : CAPABILITIES));
+  if (!atlasKnown || v.sigilId == UNASSIGNED || !v.session.hasKey()) return;
+  const int32_t info = TurnHubProtocol::encodeHelloInfo(FIRMWARE_MAJOR, FIRMWARE_MINOR,
+      FIRMWARE_PATCH, &v == &sigils[0] ? CAPABILITIES | TurnHubProtocol::CAPABILITY_HARNESS : CAPABILITIES);
+  if (v.session.ready() && millis() - v.lastFrameMs <= 2 * HELLO_INTERVAL_MS) {
+    sendPacket(v, PacketType::Hello, info);
+    return;
+  }
+  TurnHubSecureLink::SecureHelloPacket hello;
+  if (v.session.makeHello(linkCrypto, info, hello)) sendFrom(v, atlasMac, &hello, sizeof(hello));
 }
 
 VirtualSigil *sigilById(uint8_t sigilId) {
@@ -375,6 +401,7 @@ void handlePairResult(const uint8_t *mac, const uint8_t *data) {
       for (auto &other : sigils) {
         other.sigilId = UNASSIGNED;
         other.hasPairKey = false;
+        other.session.clear();
       }
     }
     memcpy(atlasMac, mac, 6);
@@ -382,6 +409,7 @@ void handlePairResult(const uint8_t *mac, const uint8_t *data) {
     v.sigilId = result.sigilId;
     v.hasPairKey = true;
     memcpy(v.pairKey, key, TurnHubSecureLink::KEY_BYTES);
+    v.session.configure(v.sigilId, v.pairKey);
     TurnHubSecureLink::wipe(key, sizeof(key));
     v.menuValid = false;
     savePairing();
@@ -394,31 +422,6 @@ void handlePairResult(const uint8_t *mac, const uint8_t *data) {
 
 void handlePacket(const uint8_t *mac, const Packet &packet) {
   if (packet.version != TurnHubProtocol::VERSION) return;
-
-  // Pairing replies are matched by the token each virtual Sigil sent.
-  if (packet.type == PacketType::PairAccept) {
-    for (uint8_t i = 0; i < activeSigils; ++i) {
-      VirtualSigil &v = sigils[i];
-      if (!v.pairing || packet.value != v.pairingToken ||
-          packet.sigilId >= TurnHubProtocol::MAX_SIGILS) {
-        continue;
-      }
-      if (atlasKnown && memcmp(mac, atlasMac, 6) != 0) {
-        // A different Atlas: the harness follows one Atlas at a time.
-        for (auto &other : sigils) other.sigilId = UNASSIGNED;
-      }
-      memcpy(atlasMac, mac, 6);
-      atlasKnown = true;
-      v.sigilId = packet.sigilId;
-      v.pairing = false;
-      v.menuValid = false;
-      savePairing();
-      Serial.printf("HARNESS|PAIR|ACCEPTED|%s|sigil=%u|atlas=%s\n", v.name,
-          static_cast<unsigned>(v.sigilId), macText(mac).c_str());
-      sendHello(v);
-    }
-    return;
-  }
 
   if (!atlasKnown || memcmp(mac, atlasMac, 6) != 0) return;
   VirtualSigil *v = sigilById(packet.sigilId);
@@ -585,18 +588,46 @@ bool startRadio() {
 void pollSerialForAbort();
 void sendReport();
 
+// Atlas's handshake answer or a sealed packet, for the virtual Sigil whose
+// slot it names. A sealed packet that opens goes to the same handlers as
+// before the secure link; anything else is dropped.
+void handleSecure(const uint8_t *mac, const uint8_t *data, uint8_t length) {
+  if (!atlasKnown || memcmp(mac, atlasMac, 6) != 0) return;
+  VirtualSigil *v = sigilById(data[2]);
+  if (v == nullptr) return;
+  if (static_cast<PacketType>(data[1]) == PacketType::SecureHelloAck) {
+    TurnHubSecureLink::SecureHelloAckPacket ack;
+    if (length != sizeof(ack)) return;
+    memcpy(&ack, data, sizeof(ack));
+    if (v->session.acceptAck(linkCrypto, ack)) {
+      v->lastFrameMs = millis();
+      if (verbose) Serial.printf("HARNESS|SECURE|SESSION_READY|%s\n", v->name);
+    }
+    return;
+  }
+  uint8_t inner[sizeof(GameDisplayPacket)];
+  const size_t n = v->session.open(linkCrypto, data, length, inner, sizeof(inner));
+  if (n == 0) return;
+  v->lastFrameMs = millis();
+  if (n == sizeof(Packet)) {
+    Packet packet;
+    memcpy(&packet, inner, sizeof(packet));
+    handlePacket(mac, packet);
+  } else if (n == sizeof(GameDisplayPacket)) {
+    handleGameDisplay(mac, inner);
+  } else if (n == sizeof(ProfilePickerPacket)) {
+    handlePicker(mac, inner);
+  }
+}
+
 // Keeps every virtual Sigil alive: received packets, Hello, pairing requests.
 void pump() {
   RxFrame frame;
   while (rxQueue && xQueueReceive(rxQueue, &frame, 0) == pdTRUE) {
-    if (frame.length == sizeof(Packet)) {
-      Packet packet;
-      memcpy(&packet, frame.data, sizeof(packet));
-      handlePacket(frame.mac, packet);
-    } else if (frame.length == sizeof(GameDisplayPacket)) {
-      handleGameDisplay(frame.mac, frame.data);
-    } else if (frame.length == sizeof(ProfilePickerPacket)) {
-      handlePicker(frame.mac, frame.data);
+    if (frame.length < 3) continue;
+    const PacketType type = static_cast<PacketType>(frame.data[1]);
+    if (type == PacketType::Secure || type == PacketType::SecureHelloAck) {
+      handleSecure(frame.mac, frame.data, frame.length);
     } else if (frame.length == sizeof(TurnHubSecureLink::PairAccept2Packet)) {
       handlePairAccept2(frame.mac, frame.data);
     } else if (frame.length == sizeof(TurnHubSecureLink::PairResultPacket)) {
@@ -1107,6 +1138,7 @@ void handleCommand(String command) {
       v.menuValid = false;
       v.hasPairKey = false;
       TurnHubSecureLink::wipe(v.pairKey, sizeof(v.pairKey));
+      v.session.clear();
     }
     atlasKnown = false;
     savePairing();

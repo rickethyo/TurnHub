@@ -75,6 +75,11 @@ pairs. As with a real Atlas, both sides must be in pairing mode:
    `confirm` the Sigil stores Atlas and the pair key
    (`SIGIL|PAIR|SUCCESS|SECURE`), sends Hello, and asks for player names. On
    `reject`, or no answer for about a minute, nothing is stored.
+5. The Sigil then starts a secure session (`SecureHello`; the fake Atlas logs
+   `WOKWI|ATLAS|SECURE|SESSION_READY`) and everything after that travels sealed,
+   as with a real Atlas. The fake Atlas keeps the pair key in RAM only: after
+   restarting the simulation, `pair` and `confirm` again (the Sigil forgets its
+   old pairing when told, or hold PAIR for 10 seconds).
 
 Pressing PAIR without an open window ends in `SIGIL|PAIR|TIMEOUT`, as on real
 hardware. After pairing the fake Atlas only acknowledges Hello, PASS, the

@@ -4,7 +4,10 @@
 
 namespace TurnHubProtocol {
 
-constexpr uint8_t VERSION = 1;
+// 2 since the secure link (SECURE_LINK.md, 2026-09-29): apart from pairing
+// and the session handshake, every packet travels sealed. Version 1 devices
+// can't talk to version 2 ones; reflash both device types together.
+constexpr uint8_t VERSION = 2;
 constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
@@ -77,6 +80,8 @@ enum class PacketType : uint8_t {
   ActionLong = 7,
   ActionWin = 8,
   DisplayProfileRequest = 9,
+  // Retired with the secure link (VERSION 2): keyless pairing. Pairing is
+  // PairRequest2/PairAccept2 now. Keep the numbers reserved; never reuse them.
   PairRequest = 10,
   PairAccept = 11,
   // Atlas -> Sigil: Atlas forgot this Sigil; it erases its saved pairing.
@@ -129,8 +134,8 @@ enum class PacketType : uint8_t {
   // patterns on this table clock, so every Sigil blinks and breathes in step.
   // Older Sigils ignore it. Presentation only.
   TableClock = 39,
-  // Secure link (secure_link.h; Planned, see SECURE_LINK.md). Not sent by any
-  // firmware yet: pairing key agreement, the pairing-code result, the
+  // Secure link (secure_link.h, pairing_v2.h, secure_session.h; see
+  // SECURE_LINK.md): pairing key agreement, the pairing-code result, the
   // authenticated Hello/Ack that starts a session, and the sealed envelope
   // that carries every other packet once a session exists.
   PairRequest2 = 40,

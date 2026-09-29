@@ -7,6 +7,7 @@
 #include <freertos/task.h>
 
 #include "pairing_v2.h"
+#include "secure_session.h"
 #include "protocol.h"
 #include "turnhub_types.h"
 
@@ -38,6 +39,9 @@ struct SigilRecord {
   // link. Never logged.
   bool hasPairKey = false;
   uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
+  // The current secure session (secure_session.h), started by the Sigil's
+  // SecureHello. Every packet either way is sealed in it; RAM only.
+  TurnHubSecureLink::AtlasSession session;
 };
 
 // ESP-NOW transport to the physical Sigils. The radio callback only queues
@@ -94,8 +98,8 @@ class SigilBus {
   static constexpr uint32_t SIGIL_TIMEOUT_MS = TurnHubProtocol::LINK_TIMEOUT_MS;
 
  private:
-  // Radio callbacks copy any packet Atlas accepts: the 7-byte Packet or a
-  // pairing v2 request.
+  // Radio callbacks copy any packet Atlas accepts: a sealed 7-byte Packet, a
+  // SecureHello, or a pairing v2 request (the largest).
   static constexpr uint8_t RX_MAX_BYTES = sizeof(TurnHubSecureLink::PairRequest2Packet);
   struct RxRequest {
     uint8_t mac[6];
@@ -105,7 +109,8 @@ class SigilBus {
   };
   struct TxRequest {
     uint8_t mac[6] = {};
-    uint8_t data[sizeof(TurnHubProtocol::GameDisplayPacket)] = {};
+    // The largest sealed packet: a game display plus the envelope.
+    uint8_t data[sizeof(TurnHubProtocol::GameDisplayPacket) + TurnHubSecureLink::SECURE_OVERHEAD] = {};
     uint8_t length = 0;
   };
 
@@ -126,12 +131,16 @@ class SigilBus {
   void txTaskLoop();
 
   SigilRecord *findByMac(const uint8_t *mac);
-  SigilRecord *remember(const uint8_t *mac);
   void handlePairRequest2(const uint8_t *mac, const TurnHubSecureLink::PairRequest2Packet &packet,
       uint32_t receivedAt);
   bool slotFree(uint8_t slot) const;
   bool storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey);
   bool sendRaw(const uint8_t *mac, const void *data, uint8_t length);
+  // Seals one packet in the Sigil's session and queues it; false (nothing
+  // sent) until the Sigil has said SecureHello. App task only.
+  bool sendSealed(SigilRecord &sigil, const void *inner, size_t length);
+  void handleSecureHello(const uint8_t *mac, const TurnHubSecureLink::SecureHelloPacket &hello);
+  void handleSealed(const uint8_t *mac, const uint8_t *frame, size_t length);
   void updateHelloInfo(SigilRecord &sigil, int32_t value);
   bool ensurePeer(const uint8_t *mac);
   bool sendToMac(

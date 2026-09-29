@@ -9,6 +9,7 @@
 #include "pairing_v2.h"
 #include "protocol.h"
 #include "secure_link_mbedtls.h"
+#include "secure_session.h"
 
 // Wokwi does not currently simulate ESP-NOW. This header is force-included only
 // by the sigil-wokwi PlatformIO environment and replaces the small ESP-NOW API
@@ -48,6 +49,12 @@ static uint32_t pairingOpenedMs = 0;
 static TurnHubSecureLink::MbedtlsCrypto pairCrypto;
 static TurnHubSecureLink::AtlasPairings pendingPairings;
 static uint8_t pendingSigilMac[6] = {};
+// The secure link, as on the real Atlas: the pair key from 'confirm' (RAM
+// only, so a restarted simulation needs 'pair' again) and the session the
+// Sigil's SecureHello starts. Everything but pairing and the handshake is
+// sealed in it.
+static uint8_t sigilPairKey[TurnHubSecureLink::KEY_BYTES] = {};
+static TurnHubSecureLink::AtlasSession linkSession;
 // Hold thresholds Atlas sends (InputTiming) to Sigils that advertise support;
 // the real Atlas takes them from the seated players' accessibility settings.
 static uint16_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
@@ -67,11 +74,13 @@ inline void injectPacket(PacketType type, int32_t value = 0) {
     return;
   }
 
+  // Sealed like every packet from the real Atlas; nothing without a session.
   const Packet packet = TurnHubProtocol::makePacket(type, assignedSigilId, value);
-  receiveCallback(
-      FAKE_ATLAS_MAC,
-      reinterpret_cast<const uint8_t *>(&packet),
-      sizeof(packet));
+  uint8_t frame[sizeof(Packet) + TurnHubSecureLink::SECURE_OVERHEAD];
+  const size_t length =
+      linkSession.seal(pairCrypto, assignedSigilId, &packet, sizeof(packet), frame, sizeof(frame));
+  if (length == 0) return;
+  receiveCallback(FAKE_ATLAS_MAC, frame, static_cast<int>(length));
 }
 
 // A pairing v2 answer or verdict, delivered like any radio packet.
@@ -89,8 +98,12 @@ inline void decidePairing(bool confirm) {
     Serial.println("WOKWI|ERROR|no Sigil is waiting for its code (type 'pair', then press PAIR)");
     return;
   }
+  if (confirm) {
+    sigilPaired = true;
+    memcpy(sigilPairKey, key, sizeof(sigilPairKey));
+    linkSession.clear();  // The Sigil starts one with SecureHello.
+  }
   TurnHubSecureLink::wipe(key, sizeof(key));
-  if (confirm) sigilPaired = true;
   Serial.println(confirm ? "WOKWI|ATLAS|PAIRING|V2|CONFIRMED" : "WOKWI|ATLAS|PAIRING|V2|REJECTED");
   injectRaw(&result, sizeof(result));
 }
@@ -234,6 +247,8 @@ inline void handleConsoleCommand(String line) {
     // tells the Sigil, which erases its saved pairing.
     injectPacket(PacketType::Unpair);
     sigilPaired = false;
+    linkSession.clear();
+    TurnHubSecureLink::wipe(sigilPairKey, sizeof(sigilPairKey));
     sigilSupportsTiming = false;
     Serial.println("WOKWI|ATLAS|FORGOTTEN");
     return;
@@ -469,12 +484,36 @@ inline esp_err_t espNowSend(
     injectRaw(&accept, sizeof(accept));
     return ESP_OK;
   }
-  if (data == nullptr || length != sizeof(Packet)) {
+  if (data == nullptr || length < 3) {
     return ESP_ERR_INVALID_ARG;
   }
 
+  // Since the secure link only the handshake and sealed packets count.
   Packet packet{};
-  memcpy(&packet, data, sizeof(packet));
+  const PacketType frameType = static_cast<PacketType>(data[1]);
+  if (frameType == PacketType::SecureHello && length == sizeof(TurnHubSecureLink::SecureHelloPacket)) {
+    TurnHubSecureLink::SecureHelloPacket hello;
+    memcpy(&hello, data, sizeof(hello));
+    TurnHubSecureLink::SecureHelloAckPacket ack;
+    if (!sigilPaired ||
+        !linkSession.acceptHello(pairCrypto, sigilPairKey, assignedSigilId, hello, ack)) {
+      Serial.println("WOKWI|ATLAS|SECURE|HELLO_REJECTED (type 'pair' and pair again)");
+      return ESP_OK;
+    }
+    Serial.println("WOKWI|ATLAS|SECURE|SESSION_READY");
+    injectRaw(&ack, sizeof(ack));
+    // A SecureHello is also the Sigil's Hello.
+    packet = TurnHubProtocol::makePacket(PacketType::Hello, assignedSigilId, hello.info);
+  } else if (frameType == PacketType::Secure) {
+    if (linkSession.open(pairCrypto, assignedSigilId, data, length,
+            reinterpret_cast<uint8_t *>(&packet), sizeof(packet)) != sizeof(packet)) {
+      Serial.println("WOKWI|ATLAS|SECURE|DROPPED (did not open)");
+      return ESP_OK;
+    }
+  } else {
+    Serial.println("WOKWI|ATLAS|SECURE|DROPPED (unsealed)");
+    return ESP_OK;
+  }
 
   Serial.print("WOKWI|SIGIL_TX|");
   Serial.print(static_cast<unsigned>(packet.type));
@@ -484,18 +523,6 @@ inline esp_err_t espNowSend(
   Serial.println(packet.value);
 
   if (packet.version != TurnHubProtocol::VERSION) {
-    return ESP_OK;
-  }
-
-  if (packet.type == PacketType::PairRequest) {
-    if (!pairingWindowActive()) {
-      Serial.println("WOKWI|ATLAS|PAIRING|IGNORED|WINDOW_CLOSED (type 'pair' first)");
-      return ESP_OK;
-    }
-    sigilPaired = true;
-    Serial.print("WOKWI|ATLAS|PAIRING|ACCEPT|");
-    Serial.println(assignedSigilId);
-    injectPacket(PacketType::PairAccept, packet.value);
     return ESP_OK;
   }
 

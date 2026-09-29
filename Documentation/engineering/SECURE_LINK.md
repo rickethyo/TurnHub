@@ -138,10 +138,29 @@ never key material; `printlnRedacted` where needed).
 
 ### Compatibility
 
-`TurnHubProtocol::VERSION` goes from 1 to 2. Every paired Sigil must be
-reflashed over USB and **paired again once**, because old pairings have no
-key; Atlas clears keyless records on first boot of the new firmware.
-The harness and the Wokwi fake Atlas get the same code (shared header).
+`TurnHubProtocol::VERSION` goes from 1 to 2 (implemented 2026-09-29, branch
+`secure-link-envelope`). Every device must be reflashed over USB together, and
+a pairing from before pairing v2 is forgotten at boot on both ends because it
+has no key, so it is **paired again once**. Sigils already paired with v2 keep
+their pairing. The harness and the Wokwi fake Atlas share the same code
+(`secure_session.h`).
+
+In operation:
+
+- A paired Sigil sends `SecureHello` (23 bytes: its Hello info, a fresh nonce
+  and a MAC) when it has no session, or when Atlas has been quiet for more than
+  two Hello intervals (4 s). Atlas answers `SecureHelloAck` (27 bytes) and both
+  derive the session key; Atlas treats the SecureHello as that Sigil's Hello
+  and resends its lights, menu and screen, sealed.
+- While Atlas keeps answering, the Sigil's 2-second keep-alive is a sealed
+  Hello. After an Atlas restart the old session is gone, the Sigil hears
+  nothing, and within about 4-6 s sends a new SecureHello (before the 7 s
+  "Atlas lost" screen).
+- Sealed frames are the inner packet plus 15 bytes: 22 (control), 66 (picker
+  page), 125 (game display). Anything else from a paired device is dropped,
+  including cleartext packets and frames that fail to open.
+- Sealing happens on Atlas's application task, so each Sigil's counter goes out
+  in order; the transmit queue only carries finished frames.
 
 ## Feature gate
 
@@ -229,7 +248,34 @@ Commit after each step and tick it here.
       pairing the old way until it learns v2; Sigils built from this branch
       send only v2. The portal marks keyless Sigils "pair again for the secure
       link".
-- [ ] Secure Hello/session and the envelope on every packet, both directions.
+- [x] Secure Hello/session and the envelope on every packet, both directions.
+      **In progress, branch `secure-link-envelope` (from 2026-09-29).** Plan,
+      in commit order (tick as done; resume from the first unticked):
+      1. [x] Shared `secure_session.h`: Sigil and Atlas session endpoints over
+         `Channel` (SecureHello with a fresh nonce and MAC, SecureHelloAck,
+         session key), host-tested.
+      2. [x] `VERSION` 1 -> 2; receive buffers take sealed frames (22, 66 and
+         125 bytes) and the 23/27-byte handshake.
+      3. [x] Atlas: a session per paired Sigil; SecureHello starts or replaces
+         it (and counts as a Hello); every send to a Sigil is sealed in the app
+         task (counters stay in order); every non-pairing packet from a Sigil
+         must open. Keyless records are forgotten at boot.
+      4. [x] Sigil: SecureHello when there is no session or Atlas went quiet
+         (> 2 Hello intervals), otherwise a sealed Hello as the keep-alive;
+         everything it sends is sealed, and only sealed frames from its Atlas
+         are handled. A keyless binding counts as unpaired.
+      5. [x] TestHarness and the Wokwi fake Atlas do the same.
+      6. [x] Remove the old `PairRequest`/`PairAccept` path (IDs 10 and 11 stay reserved).
+      7. [x] Docs and manual; CI (run 36617520681, `1df68ca`, all jobs green);
+         flashed all four boards. **Bench boot, 2026-09-29 (*Verified*):** all
+         four reset together; every one booted (self-test PASS on Atlas and both
+         Sigils) and formed a sealed session on its own: OLED Sigil
+         `SESSION_READY` at 3.8 s, the harness's V1 and V2 at 4.4 s (Atlas logged
+         each SecureHello as `ATLAS|SIGIL|INFO`), e-ink Sigil at 7.2 s (it booted
+         before Atlas and retried). Sealed Hello acks then flowed (10 and 8 in
+         25 s) and the harness showed both virtual Sigils online with their menu,
+         so Atlas's sealed MenuState opened. Still to try on hardware: a game,
+         Atlas restart recovery, and forged/replayed/cleartext packets.
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
       Done so far: the Wokwi fake Atlas speaks v2 (`confirm` / `reject` on the
       console); portal shows secure vs keyless; engineering docs and the manual's

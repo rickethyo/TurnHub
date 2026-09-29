@@ -22,10 +22,13 @@ in [Secure Link](SECURE_LINK.md).
    stores nothing; a Sigil that was already paired keeps its old pairing.
    Leaving the lobby rejects every waiting Sigil.
 
-Until the secure-session step, all other traffic is still cleartext
-(`VERSION` 1) and Atlas also accepts the old `PairRequest` below (stored without
-a key, shown in the portal as "pair again for the secure link"). The
-TestHarness still pairs that way.
+Since the secure link (protocol `VERSION` 2, 2026-09-29) this is the only way
+to pair: once paired, a Sigil starts a secure session with `SecureHello` and
+every other packet travels sealed (see [Secure Link](SECURE_LINK.md)). The old
+keyless `PairRequest` below is retired. A Sigil or harness paired before
+pairing v2 has no key, so both ends forget that pairing at boot
+(`ATLAS|PAIRING|KEYLESS_FORGOTTEN`, `SIGIL|PAIR|KEYLESS_FORGOTTEN`) and it is
+paired again once.
 
 ## History: the first manual pairing (2026-09-22)
 

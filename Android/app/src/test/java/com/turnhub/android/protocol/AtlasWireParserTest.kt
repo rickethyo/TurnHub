@@ -20,7 +20,7 @@ class AtlasWireParserTest {
         assertEquals("0.6.0-dev", info.firmwareVersion)
         assertEquals("1", info.apiVersion)
         assertEquals("0.1", info.protocolVersion)
-        assertEquals(1, info.radioProtocolVersion)
+        assertEquals(2, info.radioProtocolVersion)
         assertEquals(Fixtures.BOOT_ID, info.bootId)
         assertEquals(0L, info.revision)
         assertEquals(
