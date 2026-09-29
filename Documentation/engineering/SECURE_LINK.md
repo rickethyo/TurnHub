@@ -233,8 +233,15 @@ Commit after each step and tick it here.
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
       Done so far: the Wokwi fake Atlas speaks v2 (`confirm` / `reject` on the
       console); portal shows secure vs keyless; engineering docs and the manual's
-      pairing section. Still to do: the TestHarness (v1 pairing until the
-      envelope step).
+      pairing section; the TestHarness (2026-09-29, `6ad6eb4`): `pair` runs v2
+      for each virtual Sigil without a key and stores the keys
+      (`th_harness/pairk`). *Verified* on the bench the same day: harness
+      `D4:E9:F4:B4:27:3C` re-paired V1 (station MAC, slot 2, code 1587) and V2
+      (soft-AP MAC `...:3D`, slot 3, code 6902) with two pending at once, both
+      confirmed on the Atlas screen one after the other and logged
+      `HARNESS|PAIR|ACCEPTED|...|SECURE`. That also proves the derivation with
+      a sender on the soft-AP interface. Nothing still uses the old
+      `PairRequest`; it can go with the envelope step.
 - [ ] Hardware: 8 Sigils (or harness plus Sigils) paired and playing; forged,
       replayed and cleartext packets rejected.
 
