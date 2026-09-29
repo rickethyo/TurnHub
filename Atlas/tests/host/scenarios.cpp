@@ -2633,6 +2633,36 @@ static void pairConfirmIntent() {
   enterEmptyLobby();
 }
 
+// The Atlas screen shows a waiting Sigil's code over the lobby, with Codes
+// match and Reject acting through PairConfirm; a phone's presence code
+// comes first, and the screen closes once nothing is waiting.
+static void pairCodeTouchScreen() {
+  resetTouchControls(); freshLobby(2);
+  assert(currentScreen().kind==ScreenKind::Status);
+  TurnHub::fixtureWaitForCode(2,7);
+  TurnHub::fixturePending[2].startedMs=testNow;
+  AtlasScreen s=currentScreen();
+  assert(s.kind==ScreenKind::PairCode && strcmp(s.code,"0007")==0 && strcmp(s.badge,"PAIR")==0);
+  assert(strcmp(s.title,"Pair Sigil 3")==0 && startsWith(s.detail,"Check the Sigil (60 s)"));
+  assert(s.lineCount==2 && strcmp(s.lines[1],"If not, Reject.")==0);
+  assert(screenButton(s,TouchAction::PairConfirm) && screenButton(s,TouchAction::PairReject));
+  // A second Sigil waits its turn.
+  TurnHub::fixtureWaitForCode(5,4321);
+  assert(strcmp(currentScreen().lines[1],"1 more waiting after")==0);
+  tapButton(TouchAction::PairConfirm);
+  assert(TurnHub::fixturePairDecisions[2]==1 && !sigilBus.pendingPairing(2));
+  s=currentScreen();
+  assert(s.kind==ScreenKind::PairCode && strcmp(s.code,"4321")==0 && strcmp(s.title,"Pair Sigil 6")==0);
+  tapButton(TouchAction::PairReject);
+  assert(TurnHub::fixturePairDecisions[5]==-1 && currentScreen().kind==ScreenKind::Status);
+  // Not shown outside the lobby.
+  TurnHub::fixtureWaitForCode(4,1);
+  startFromHost();
+  assert(currentScreen().kind!=ScreenKind::PairCode);
+  TurnHub::fixturePending[4]=TurnHubSecureLink::PendingPairing{};
+  enterEmptyLobby();
+}
+
 static void factoryResetFromPortal() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configurePresence(presenceHooks());
@@ -2855,6 +2885,7 @@ int main() {
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
+  pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";

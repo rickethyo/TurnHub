@@ -391,10 +391,17 @@ void serviceGear(const AtlasScreen &screen, uint32_t nowMs) {
   drawHeader(screen, nowMs);
 }
 
+// QR codes, the presence code and the pairing code share one layout: a left
+// column (the QR code, if any) and the big code beside it.
+bool codeLayout(const AtlasScreen &screen) {
+  return screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code ||
+      screen.kind == ScreenKind::PairCode;
+}
+
 // Title (engraved serif) and the detail or action line (plain sans, for
 // reading at a glance).
 void drawHeroLine(const AtlasScreen &screen) {
-  const bool qr = screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code;
+  const bool qr = codeLayout(screen);
   const int16_t x = qr ? QR_COLUMN_W : 0;
   const int16_t w = W - x - (hasClock(screen) ? CLOCK_W : 0);
   const bool notice = screen.notice[0] != '\0';
@@ -411,7 +418,7 @@ void drawHeroLine(const AtlasScreen &screen) {
 }
 
 void drawHero(const AtlasScreen &screen) {
-  const bool qr = screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code;
+  const bool qr = codeLayout(screen);
   const int16_t x = qr ? QR_COLUMN_W : 0;
   const int16_t w = W - x - (hasClock(screen) ? CLOCK_W : 0);
   tft().fillRect(x, SCREEN_HERO_Y, w, HERO_H, WALNUT);
@@ -494,7 +501,7 @@ void drawGaugeTo(Gfx &g, int16_t ox, int16_t oy, const AtlasScreen &screen, bool
 }
 
 void drawTube(const AtlasScreen &screen) {
-  const bool qr = screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code;
+  const bool qr = codeLayout(screen);
   const int16_t x = qr ? QR_COLUMN_W : 0;
   tft().fillRect(x, BAR_Y, W - x, BAR_H, WALNUT);
   if (!hasClock(screen) || screen.timerPermille < 0) {
@@ -705,7 +712,7 @@ void drawJoinPlate(const AtlasScreen &screen) {
 }
 
 void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
-  if (screen.kind == ScreenKind::Qr || screen.kind == ScreenKind::Code) {
+  if (codeLayout(screen)) {
     tft().fillRect(0, SCREEN_HERO_Y, QR_COLUMN_W, BUTTON_ROW_Y - 4 - SCREEN_HERO_Y, WALNUT);
     tft().fillRect(QR_COLUMN_W, SCREEN_BODY_Y, W - QR_COLUMN_W, BODY_H, WALNUT);
     if (screen.code[0] != '\0') {
@@ -723,7 +730,8 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
       tft().setFont(&fonts::DejaVu12);
       tft().drawString(screen.qrCaption, QR_COLUMN_W + PAD, SCREEN_BODY_Y + (screen.code[0] ? 56 : 4));
     }
-    drawLines(screen, QR_COLUMN_W + PAD, SCREEN_BODY_Y + 4, WALNUT);
+    // Below the code when there is one (the pairing code's instructions).
+    drawLines(screen, QR_COLUMN_W + PAD, SCREEN_BODY_Y + (screen.code[0] ? 56 : 4), WALNUT);
     return;
   }
   // Their buttons use the body.

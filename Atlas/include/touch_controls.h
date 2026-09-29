@@ -52,14 +52,17 @@ enum class TouchAction : uint8_t {
   OpenTests, CloseTests, StopTest, RunRadioCheck, RunQuickGame, RunFullGame, RunRematchGame,
   RunSoak,
   // Between games: the Menu screen holding Pair, QR codes, Tests and Info.
-  OpenMenu
+  OpenMenu,
+  // Pairing v2 code check: the codes on the Sigil and Atlas match, or not.
+  PairConfirm, PairReject
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
 // Table: in-game controls kept off the main row (master pass, End match).
 // Menu: the between-games extras (Pair, QR codes, Tests, Info) kept off the
 // lobby's main row.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu };
+// PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

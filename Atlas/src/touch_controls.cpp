@@ -123,13 +123,26 @@ bool menuAvailable() {
   return hubState == HubState::Lobby || hubState == HubState::GameOver;
 }
 
-// A code a phone asked for shows over whatever screen is open. The Table
+// The first Sigil waiting for its pairing code to be checked, or INVALID_ID.
+// One at a time on this screen; the next shows once it is decided.
+uint8_t waitingPairSlot() {
+  if (hubState != HubState::Lobby) return INVALID_ID;
+  for (uint8_t slot = 0; slot < MAX_PHYSICAL_SIGILS; ++slot) {
+    if (sigilBus.pendingPairing(slot) != nullptr) return slot;
+  }
+  return INVALID_ID;
+}
+
+// A code a phone asked for shows over whatever screen is open, then a
+// pairing code waiting to be checked. The Table
 // screen belongs to a match and closes when it ends; the Menu closes when
 // a game starts.
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
   if (openScreen == ScreenKind::Menu && !menuAvailable()) openScreen = ScreenKind::Status;
-  return pendingPresenceCode(nowMs) != nullptr ? ScreenKind::Code : openScreen;
+  if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
+  if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
+  return openScreen;
 }
 
 // Between games: Pair (lobby only) and QR codes above; Tests (while a
@@ -167,6 +180,12 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Code: {
       const ButtonSpec row[] = {{TouchAction::CancelCode, "Cancel", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, row, 1);
+      return;
+    }
+    case ScreenKind::PairCode: {
+      const ButtonSpec row[] = {{TouchAction::PairConfirm, "Codes match", 0, 3},
+          {TouchAction::PairReject, "Reject", 0, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 2);
       return;
     }
     case ScreenKind::Tests:
@@ -262,6 +281,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::Resume: return "RESUME";
     case TouchAction::EndMatch: return "END_MATCH";
     case TouchAction::CancelCode: return "CANCEL_CODE";
+    case TouchAction::PairConfirm: return "PAIR_CONFIRM";
+    case TouchAction::PairReject: return "PAIR_REJECT";
     case TouchAction::OpenInfo: return "OPEN_INFO";
     case TouchAction::OpenQr: return "OPEN_QR";
     case TouchAction::CloseScreen: return "CLOSE_SCREEN";
@@ -350,6 +371,18 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       cancelPresenceCode();
       result = IntentResult::accept("Code canceled");
       break;
+    // The owner compared the Sigil's code with this screen's.
+    case TouchAction::PairConfirm:
+    case TouchAction::PairReject: {
+      Intent intent;
+      intent.type = IntentType::PairConfirm;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      const uint8_t slot = waitingPairSlot();
+      intent.payload.value = (slot == INVALID_ID ? MAX_PHYSICAL_SIGILS : slot) |
+          (action == TouchAction::PairConfirm ? TurnHub::PAIR_CONFIRM_ACCEPT : 0);
+      result = intents.dispatch(intent);
+      break;
+    }
     case TouchAction::Pair:
     case TouchAction::EndMatch:
     case TouchAction::MasterPass:
@@ -661,6 +694,34 @@ void formatCode(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.qrCaption, sizeof(screen.qrCaption), "Enter it on that phone");
 }
 
+// The pairing code for the first waiting Sigil, to compare with its screen.
+// The words carry the whole instruction; the code is not a secret (it only
+// proves both ends agreed the same key).
+void formatPairCode(AtlasScreen &screen, uint32_t nowMs) {
+  const uint8_t slot = waitingPairSlot();
+  const TurnHubSecureLink::PendingPairing *pending =
+      slot == INVALID_ID ? nullptr : sigilBus.pendingPairing(slot);
+  if (pending == nullptr) return;
+  snprintf(screen.badge, sizeof(screen.badge), "PAIR");
+  snprintf(screen.title, sizeof(screen.title), "Pair Sigil %u", static_cast<unsigned>(slot + 1));
+  const uint32_t elapsed = nowMs - pending->startedMs;
+  const uint32_t leftS = elapsed >= TurnHubSecureLink::PAIR_CONFIRM_TIMEOUT_MS ? 0 :
+      (TurnHubSecureLink::PAIR_CONFIRM_TIMEOUT_MS - elapsed + 999) / 1000;
+  snprintf(screen.detail, sizeof(screen.detail), "Check the Sigil (%lu s)",
+      static_cast<unsigned long>(leftS));
+  TurnHubSecureLink::formatPairingCode(pending->code, screen.code);
+  // Two short lines fit beside the QR column, under the code.
+  snprintf(screen.lines[0], sizeof(screen.lines[0]), "Same code on the Sigil?");
+  const uint8_t waiting = sigilBus.pendingPairingCount();
+  if (waiting > 1) {
+    snprintf(screen.lines[1], sizeof(screen.lines[0]), "%u more waiting after",
+        static_cast<unsigned>(waiting - 1));
+  } else {
+    snprintf(screen.lines[1], sizeof(screen.lines[0]), "If not, Reject.");
+  }
+  screen.lineCount = 2;
+}
+
 // The Table screen: whose turn a master pass would skip, in words.
 void formatTable(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "TABLE");
@@ -761,6 +822,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Info: formatInfo(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
+    case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
     case ScreenKind::Table: formatTable(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
   }
