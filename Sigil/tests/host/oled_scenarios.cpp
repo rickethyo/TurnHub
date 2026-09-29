@@ -89,6 +89,8 @@ int main() {
   d.showBooting(); assert(has("Booting") && has("TurnHub") && panel.shapes > 0);
   d.showUnpaired(); assert(has("UNPAIRED") && has("Press Pair on both"));
   d.showReady(7); assert(has("SIGIL 8") && has("Ready for game"));
+  d.showUpdate("Downloading", 40); assert(has("UPDATE") && has("40%") && has("Downloading") && has("Keep it powered"));
+  d.showUpdate("Joining Atlas Wi-Fi", -1); assert(has("...") && has("Joining Atlas Wi-Fi"));
   assert(d.setSeatName(1, "ABCDEFGHIJKLmore"));
   assert(!d.setSeatName(1, "ABCDEFGHIJKL"));
   assert(!d.setSeatName(3, "ignored"));

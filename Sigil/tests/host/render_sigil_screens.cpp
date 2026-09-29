@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
   display.setMenuView(MenuView());
   display.showReady(2); shot("ready");
   display.showAtlasLost(2); shot("atlas-lost");
+  display.showUpdate("Downloading", 40); shot("updating");
 
   display.setMenuView(compass(true));
   display.setLifeOverlay(overlay);

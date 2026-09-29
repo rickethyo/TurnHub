@@ -589,6 +589,17 @@ void EpaperDisplay::showPairingCode(uint16_t code) {
   drawStatus(line, "Confirm on Atlas", false);
 }
 
+void EpaperDisplay::showUpdate(const char *status, int8_t percent) {
+  char line[24];
+  if (percent >= 0) {
+    snprintf(line, sizeof(line), "%s %d%%", status, static_cast<int>(percent));
+  } else {
+    snprintf(line, sizeof(line), "%s", status);
+  }
+  // No legend: the Sigil takes no input while it updates.
+  drawStatus("Updating", line, false);
+}
+
 void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);
   const uint8_t secondary = TurnHubProtocol::displaySecondaryPlayer(s.state);

@@ -157,6 +157,12 @@ void SigilLedModel::setAtlasLost(bool lost, uint32_t nowMs) {
   atlasLost_ = lost;
 }
 
+void SigilLedModel::setUpdating(bool active, uint8_t percent, uint32_t nowMs) {
+  if (active && !updating_) updateStartMs_ = nowMs;
+  updating_ = active;
+  updatePercent_ = percent > 100 ? 100 : percent;
+}
+
 void SigilLedModel::setPassPending(bool active, bool mine, uint32_t nowMs) {
   if (active && !passPending_) passPendingStartMs_ = nowMs;
   passPending_ = active;
@@ -195,6 +201,15 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   };
 
   // Sigil-local states win: Atlas cannot see them.
+  if (updating_) {
+    const bool rm = reduced(state_.style);
+    const uint32_t t = nowMs - updateStartMs_;
+    const uint8_t lit = static_cast<uint8_t>((updatePercent_ * 6 + 99) / 100);
+    for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = i <= lit ? CYAN : scaled(BLUE, 40);
+    frame.pixels[LED_CENTER] = scaled(CYAN, rm ? static_cast<uint8_t>(255) : blink(t, 1000, 500));
+    frame.single = scaled(CYAN, rm ? static_cast<uint8_t>(255) : breathe(t, 2000));
+    return frame;
+  }
   if (pairing_) {
     const bool rm = reduced(state_.style);
     fill(scaled(RED, rm ? static_cast<uint8_t>(255) : blink(nowMs - pairingStartMs_, 500, 250)));

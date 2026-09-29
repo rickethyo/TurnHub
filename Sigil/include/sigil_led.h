@@ -55,6 +55,13 @@ class SigilLedModel {
   // blink). Only pairing outranks it. The screen says so in words too.
   void setAtlasLost(bool lost, uint32_t nowMs);
   bool atlasLost() const { return atlasLost_; }
+  // A firmware update is downloading (SIGIL_OTA.md): the ring fills
+  // clockwise in cyan with the percent received, over dim blue, and the center
+  // blinks cyan once a second (reduced motion: steady). One LED breathes cyan.
+  // Outranks everything: the Sigil does nothing else meanwhile. The screen
+  // shows the percent in words.
+  void setUpdating(bool active, uint8_t percent, uint32_t nowMs);
+  bool updating() const { return updating_; }
   void flashPassAck(uint32_t nowMs);
   // A pass is in Atlas's grace period: the ring empties counter-clockwise
   // over PASS_GRACE_MS, the center stays lit, and a single LED flickers.
@@ -94,6 +101,9 @@ class SigilLedModel {
   uint32_t pairingStartMs_ = 0;
   bool atlasLost_ = false;
   uint32_t atlasLostStartMs_ = 0;
+  bool updating_ = false;
+  uint8_t updatePercent_ = 0;
+  uint32_t updateStartMs_ = 0;
   bool passAck_ = false;
   uint32_t passAckUntilMs_ = 0;
   bool passPending_ = false;

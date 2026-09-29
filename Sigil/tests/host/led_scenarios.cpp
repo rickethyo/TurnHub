@@ -134,6 +134,32 @@ int main() {
     assert(!m.atlasLost() && m.render(5000).pixels[1].b > 0);
   }
 
+  // Updating: cyan fills clockwise with the percent over dim blue, the
+  // center blinks, and it outranks pairing and Atlas lost.
+  {
+    const Rgb cyan{0, 200, 200};
+    m.setAtlasLost(true, 5000);
+    m.setPairing(true, 5000);
+    m.setUpdating(true, 0, 5000);
+    LedFrame u = m.render(5000);
+    for (uint8_t i = 1; i < LED_PIXELS; ++i) assert(u.pixels[i].b > 0 && u.pixels[i].r == 0 && u.pixels[i] != cyan);
+    // Reduced motion (set above): the center holds steady.
+    assert(u.pixels[LED_CENTER] == cyan && m.render(5600).pixels[LED_CENTER] == cyan);
+    m.setUpdating(true, 50, 5700);
+    u = m.render(5700);
+    assert(u.pixels[1] == cyan && u.pixels[3] == cyan && u.pixels[4] != cyan);
+    m.setUpdating(true, 1, 5800);
+    assert(m.render(5800).pixels[1] == cyan && m.render(5800).pixels[2] != cyan);
+    m.setUpdating(true, 200, 5900);  // Clamped to 100.
+    u = m.render(5900);
+    for (uint8_t i = 1; i < LED_PIXELS; ++i) assert(u.pixels[i] == cyan);
+    assert(m.updating());
+    m.setUpdating(false, 0, 6000);
+    m.setPairing(false, 6000);
+    m.setAtlasLost(false, 6000);
+    assert(!m.updating());
+  }
+
   // A pending pass counts down on the ring: six pixels, emptying to one.
   m.setPassPending(true, true, 5000);
   f = m.render(5000);

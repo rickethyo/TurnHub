@@ -459,6 +459,23 @@ void OledDisplay::showPairingCode(uint16_t code) {
   display_->display();
 }
 
+void OledDisplay::showUpdate(const char *status, int8_t percent) {
+  if (!ready_) return;
+  // Drawn directly: an open menu list must not cover it.
+  display_->clearDisplay();
+  header("TurnHub", "UPDATE");
+  char big[8];
+  if (percent >= 0) {
+    snprintf(big, sizeof(big), "%d%%", static_cast<int>(percent));
+  } else {
+    snprintf(big, sizeof(big), "...");
+  }
+  bigLine(big);
+  text(status, 41, 1, Align::Center);
+  text("Keep it powered", 52, 1, Align::Center);
+  display_->display();
+}
+
 void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (!ready_ || drawMenuList()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);

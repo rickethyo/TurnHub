@@ -50,6 +50,9 @@ class SigilDisplay {
   // before confirming there (SECURE_LINK.md). Replaces every other screen,
   // with no action menu, until Atlas confirms, rejects or the check lapses.
   virtual void showPairingCode(uint16_t code) = 0;
+  // A firmware update (SIGIL_OTA.md): what is happening in words, and the
+  // percent downloaded (or -1). Replaces every other screen, with no menu.
+  virtual void showUpdate(const char *status, int8_t percent) = 0;
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
