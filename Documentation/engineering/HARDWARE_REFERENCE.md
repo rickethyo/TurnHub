@@ -181,7 +181,10 @@ TurnHub splash for 2 seconds, then the status screen (redesigned 2026-09-25):
 - **Header:** a state badge (LOBBY, STARTING, PLAYING, PAUSED, GAME OVER, or
   the open screen's name), the number of Sigils online and, when no microSD
   card is mounted, a red **NO SD CARD** pill. The words carry the warning;
-  the red only reinforces it.
+  the red only reinforces it. During a game, and after one, it also shows the
+  round and the match's running time ("Round 3 · 42:10"; added 2026-09-29).
+  A round is counted from each living player's completed turns, so it turns
+  over when play comes back to the player who started it.
 - **Hero:** the title (whose turn it is by name, Paused, the winner), a detail
   line (pairing countdown, counts, a pending pass, whom a win claim waits on)
   that an action message replaces for 4 s, and during a game a turn clock:
@@ -189,10 +192,20 @@ TurnHub splash for 2 seconds, then the status screen (redesigned 2026-09-25):
   turn's elapsed time with the timer off.
 - **Body:** one chip per player (up to 8): profile name or "Player N", life
   total in a game, and a tag in words: TURN (plus a pointer and a thick
-  frame), OUT (struck through), WINNER, HOST, STARTS, CONFIRM. An empty lobby
-  shows how to join and the portal's QR code instead.
+  frame), OUT (struck through), WINNER, HOST, STARTS, CONFIRM. During a game
+  each chip also shows that player's total time on their own turns, the
+  current turn included (added 2026-09-29). An empty lobby shows how to join
+  in words; since 2026-09-29 it no longer shows the portal's QR code, which
+  is one tap away under **Menu → QR codes**.
 - **Buttons:** one row, at least 60 px tall. Hold buttons say "hold", count
   down in words and fill a bar while held.
+
+Between games, **Menu** holds what the lobby row no longer carries
+(2026-09-29, owner request): **Pair a Sigil** (lobby only), **QR codes**,
+**Tests** (while a harness is online), **Info** and **Back**. Pairing from
+the Menu returns to the status screen, where the countdown shows. Back from
+Info, QR codes or Tests returns to the Menu; Back from the Menu returns to
+the status screen. The Menu closes when a game starts.
 
 Two screens change no table state: **Info** (Wi-Fi name, portal address,
 firmware, Sigils online, SD card state, uptime) and **QR codes**, where Wi-Fi,
@@ -201,23 +214,38 @@ Portal and Sign in each show a code (the chosen one is framed and marked
 so its code shows freely; an admin-set password shows only while an Admin is
 verified at the table (presence code).
 
-The display (`atlas_display.cpp`) only draws, region by region, when that
-region's part of the screen model changes. `touch_controls.cpp` builds the
+**Brass look (2026-09-29).** The screen wears the portal's Brass theme
+(`atlas_art.cpp`): a polished-brass header with a gear that turns while a
+game runs; titles and labels in Cinzel, numbers in Oswald, details in DejaVu;
+riveted walnut plates for players; the turn clock as a 270-degree pressure
+gauge (red face near zero) above a brass countdown tube; brass primary
+buttons (Start, Rematch, Pause, Resume, Pair a Sigil); and a gear train on the
+empty lobby's join plate. The header and the gauge draw into sprites and are
+pushed whole so their per-second updates do not blink; chip turn times and
+the header clock redraw in place. Fonts that fail to load fall back to DejaVu,
+and a failed sprite allocation falls back to drawing on the panel (both
+logged). *Needs verification* on the panel: brass legibility, the gauge at
+arm's length, and any tearing from the turning gear.
+
+The display (`atlas_display.cpp`, with the drawing in `atlas_art.cpp`) only
+draws, region by region, when that region's part of the screen model
+changes. `touch_controls.cpp` builds the
 screen and holds the touch adapter, which dispatches Intents with
 `IntentOrigin::AtlasHardware`. Canceling a presence code, the screen changes and the test
 harness buttons change no table state:
 
 | State | Buttons | Intent |
 |---|---|---|
-| Lobby | (Start, with two or more players), Pair, QR, (Tests), Info | `StartGame` (the countdown; no seat or arming needed from the screen), `PairRequest`; the rest open screens |
+| Lobby | (Start, with two or more players), (Clear, hold, with anyone seated), Menu | `StartGame` (the countdown; no seat or arming needed from the screen), `ResetGame` after `LOBBY_CLEAR_HOLD_MS`; Menu opens the Menu screen |
+| Menu (Lobby or Game Over) | Pair a Sigil (lobby only), QR codes / (Tests), Info, Back | `PairRequest` (then back to the status screen); the rest open screens |
 | Starting | Cancel start | `CancelStart` |
 | Running | Pause, Table | `Pause` for the active seat; Table opens the Table screen |
 | Paused | Resume, Table | `Resume` for the active seat |
 | Table screen (Running or Paused) | Master pass (hold 2 s, Running only), End match (hold 5 s), Back | `MasterPass` after `MASTER_PASS_HOLD_MS`; `EndMatch` after `END_MATCH_HOLD_MS`. It closes when the match ends, and after either acts |
-| Game Over | Rematch, Reset, QR, Info | `Rematch` (same players, back to the lobby) / `ResetGame` (empty lobby) |
+| Game Over | Rematch, Reset, Menu | `Rematch` (same players, back to the lobby) / `ResetGame` (empty lobby) |
 | Any, while a phone asked for a presence code | Cancel (the code screen shows the six digits and a QR code over any other screen) | None: cancels that code |
 | Info / QR codes | QR codes, Back / Wi-Fi, Portal, Sign in, Back | None |
-| Lobby, with a test harness online | Tests, then Radio / 2p game / 4p game / Rematch / Soak x5 / Back, and Stop test while one runs | No Intent: `HarnessCommand` to the harness, which plays through its own Sigils; progress shown in words |
+| Lobby, with a test harness online | Menu → Tests, then Radio / 2p game / 4p game / Rematch / Soak x5 / Back, and Stop test while one runs | No Intent: `HarnessCommand` to the harness, which plays through its own Sigils; progress shown in words |
 
 Taps act on release inside the same button, and sliding off cancels. A press
 that started on a button stays on it within `TOUCH_SLOP_PX` (12 px) of its

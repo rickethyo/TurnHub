@@ -607,6 +607,17 @@ keeps that split; if the case lets one light face both ways, drop it.
 
 ## Pending physical verification
 
+- Brass display theme (2026-09-29, host previews only): on the Atlas panel,
+  legibility of Cinzel labels and chip names, the turn gauge and tube, header
+  gear motion (no tearing or flicker), NO SD CARD pill, the Menu screen and
+  Back paths, and touch targets unchanged; on the e-ink Sigil, the nameplate
+  header, serif names, life dial and any extra ghosting; on the OLED (Brass
+  fonts since 2026-09-30), the Cinzel header and filled tickets, Cinzel
+  names, Oswald life figures beside the dial, and the rules on the status
+  screens. Also confirm free heap after boot with
+  the two sprites allocated (serial `ATLAS|DISPLAY|SPRITES|UNBUFFERED` means
+  they were not). User manual V0.4 describes the Menu, the round and match
+  clock and per-player turn time.
 - Pairing-window behavior and pairing LED mode.
 - Current Atlas/Sigil hardware pin mappings.
 - E-ink orientation, refresh behavior, legibility, and power measurements.

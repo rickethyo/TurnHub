@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 struct SerialStub {

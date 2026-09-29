@@ -42,6 +42,12 @@ user picks one. Unknown values fall back to Brass.
 
 ## Visual language
 
+Since 2026-09-29 the Brass theme also dresses the device screens (Atlas TFT,
+e-ink and OLED Sigils); see `HARDWARE_REFERENCE.md` and `Sigil/DISPLAY.md`.
+Those screens use bundled Cinzel and Oswald bitmaps, unlike the portal's
+system font stacks. The portal's theme choice stays per browser and does not
+change the devices.
+
 - **Brand mark:** an original gear drawn from plain geometry (twelve trapezoid teeth
   and an axle hole), embedded in `theme.css` as a CSS mask so it takes the theme's
   gold. It turns slowly while a game is running.

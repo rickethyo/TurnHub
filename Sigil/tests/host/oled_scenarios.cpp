@@ -222,7 +222,8 @@ int main() {
     assert(has("P3 PASSING...") && !has("WAITING FOR TURN") && !has("Click again to undo"));
     life.passingPlayer = 0;
     g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 7, DISPLAY_FLAG_ACTIVE);
-    // The heart: fewer lit pixels as life drains, more as it grows.
+    // The life dial: fewer lit pixels as life drains, more as it grows
+    // (an outer arc above the starting life).
     const auto heartPixels = [&](int32_t lifeTotal) {
       g.primary.life = lifeTotal; resetTrace(); d.showGame(g); return panel.shapes;
     };

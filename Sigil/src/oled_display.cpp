@@ -1,4 +1,5 @@
 #include "oled_display.h"
+#include "brass_fonts.h"
 #include "picker_list.h"
 #include "avatars.h"
 #include "display_name.h"
@@ -111,7 +112,6 @@ bool OledDisplay::setSeatName(uint8_t slot, const char *name) {
 namespace {
 constexpr int16_t HEADER_HEIGHT = 11;
 constexpr int16_t BANNER_HEIGHT = 11;
-constexpr int16_t HEART_WIDTH = 13;
 }
 
 // Draws one text run inside [left, right), shrinking to fit and clipping only
@@ -140,30 +140,95 @@ int16_t OledDisplay::text(const char *value, int16_t y, uint8_t maxSize,
   return x + width;
 }
 
-// Solid title bar: mode on the left, seat/turn on the right, crown for host.
+// --- Brass look (2026-09-29, extended 2026-09-30) ----------------------------
+//
+// The e-ink Sigil's Brass family scaled to 128x64: a nameplate header with a
+// gear and a rivet, Cinzel for titles, names and big lines, Oswald figures
+// for life, ornamental rules. Each Brass run is measured first and falls
+// back to the built-in font when it does not fit its band, so every word and
+// digit still shows. Small body text (key help, commander rows, list rows,
+// the other seat's row) stays in the built-in font.
+
+int16_t OledDisplay::fontText(const char *value, const GFXfont *font, int16_t top, int16_t bottom,
+    Align align, bool inverse, int16_t left, int16_t right) {
+  if (!value || !value[0]) return left;
+  if (right < 0) right = display_->width();
+  int16_t x1, y1;
+  uint16_t w, h;
+  display_->setFont(font);
+  display_->getTextBounds(value, 0, 0, &x1, &y1, &w, &h);
+  // Ink rows relative to the baseline: y1 .. y1 + h - 1. Put the ink's
+  // bottom on the band's last row, and give up if its top would leave it.
+  const int16_t baseline = bottom - (y1 + static_cast<int16_t>(h));
+  if (w == 0 || static_cast<int16_t>(w) > right - left || baseline + y1 < top ||
+      bottom > display_->height()) {
+    display_->setFont(nullptr);
+    return -1;
+  }
+  int16_t x = left;
+  if (align == Align::Center) x = left + (right - left - static_cast<int16_t>(w)) / 2;
+  else if (align == Align::Right) x = right - static_cast<int16_t>(w);
+  display_->setTextColor(inverse ? SH110X_BLACK : SH110X_WHITE);
+  display_->setTextSize(1);
+  display_->setCursor(x - x1, baseline);
+  for (const char *c = value; *c; ++c) display_->print(*c);
+  display_->setFont(nullptr);
+  display_->setTextColor(SH110X_WHITE);
+  return x + static_cast<int16_t>(w);
+}
+
+void OledDisplay::rule(int16_t y, int16_t left, int16_t right) {
+  const int16_t cx = (left + right) / 2;
+  display_->drawFastHLine(left, y, cx - 4 - left, SH110X_WHITE);
+  display_->drawFastHLine(cx + 5, y, right - cx - 5, SH110X_WHITE);
+  display_->fillTriangle(cx - 2, y, cx, y - 2, cx + 2, y, SH110X_WHITE);
+  display_->fillTriangle(cx - 2, y, cx, y + 2, cx + 2, y, SH110X_WHITE);
+}
+
+// The nameplate: a solid bar with a gear at the left, the title in Cinzel
+// caps (built-in if it would crowd the right-hand label), then seat/turn on
+// the right and a crown for the host.
 void OledDisplay::header(const char *title, const char *right, bool host) {
   const int16_t w = display_->width();
   display_->fillRect(0, 0, w, HEADER_HEIGHT, SH110X_WHITE);
-  const int16_t titleEnd = text(title, 2, 1, Align::Left, true, 3, w / 2 + 8);
+  drawGear(*display_, 6, 5, 4, 6, SH110X_BLACK, 1, SH110X_WHITE);
   const int16_t rightStart = w - 3 - static_cast<int16_t>(strlen(right)) * 6;
+  const int16_t titleRight = rightStart - (host ? 18 : 4);
+  // Caps sit on row 8; a descender (the J of JOIN AS) may use the bar's
+  // last rows.
+  int16_t titleEnd = fontText(title, &BrassFonts::OledHeader, 1, 9, Align::Left, true, 13, titleRight);
+  if (titleEnd < 0) titleEnd = fontText(title, &BrassFonts::OledHeader, 0, HEADER_HEIGHT, Align::Left, true, 13, titleRight);
+  if (titleEnd < 0) titleEnd = text(title, 2, 1, Align::Left, true, 13, w / 2 + 8);
   text(right, 2, 1, Align::Right, true, titleEnd + 2, w - 3);
   if (host && rightStart - 16 >= titleEnd + 2) {
     icon(Icon::Crown, rightStart - 16, 1, SH110X_BLACK);
   }
 }
 
-// Highlighted banners are filled and flanked by icons; plain ones get a frame.
-// The words always carry the meaning; icons only add character.
+// Banners are brass tickets with notched ends (the Brass look, 2026-09-29):
+// highlighted ones filled and flanked by icons, plain ones outlined. The
+// words always carry the meaning; icons only add character.
 void OledDisplay::banner(const char *message, int16_t y, bool highlight, Icon kind) {
   const int16_t w = display_->width();
+  constexpr int16_t NOTCH = 3, MID = BANNER_HEIGHT / 2;
   if (highlight) {
-    display_->fillRoundRect(0, y, w, BANNER_HEIGHT, 3, SH110X_WHITE);
+    display_->fillRect(NOTCH, y, w - 2 * NOTCH, BANNER_HEIGHT, SH110X_WHITE);
+    display_->fillTriangle(0, y + MID, NOTCH, y, NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    display_->fillTriangle(w - 1, y + MID, w - 1 - NOTCH, y, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
     icon(kind, 2, y + 1, SH110X_BLACK);
     icon(kind == Icon::Turn ? Icon::TurnBack : kind, w - 15, y + 1, SH110X_BLACK);
-    text(message, y + 2, 1, Align::Center, true, 16, w - 16);
+    if (fontText(message, &BrassFonts::OledHeader, y + 2, y + 10, Align::Center, true, 16, w - 16) < 0) {
+      text(message, y + 2, 1, Align::Center, true, 16, w - 16);
+    }
   } else {
-    display_->drawRoundRect(0, y, w, BANNER_HEIGHT, 3, SH110X_WHITE);
-    text(message, y + 2, 1, Align::Center, false, 3, w - 3);
+    display_->drawFastHLine(NOTCH, y, w - 2 * NOTCH, SH110X_WHITE);
+    display_->drawFastHLine(NOTCH, y + BANNER_HEIGHT - 1, w - 2 * NOTCH, SH110X_WHITE);
+    display_->drawLine(0, y + MID, NOTCH, y, SH110X_WHITE);
+    display_->drawLine(0, y + MID, NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y, SH110X_WHITE);
+    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    // Outlined tickets keep the built-in font: Cinzel crowds the thin frame.
+    text(message, y + 2, 1, Align::Center, false, 4, w - 4);
   }
 }
 
@@ -172,32 +237,73 @@ void OledDisplay::icon(Icon kind, int16_t x, int16_t y, uint16_t color) {
   drawIcon(*display_, kind, x, y, color);
 }
 
-// Heart plus the largest life number that fits, centered as one unit. The
-// heart drains or grows against the starting life (life_heart.h).
+// The life dial plus the life total in Oswald figures, centered as one unit
+// in the rows [y, y + 8 * maxSize) (the built-in font's size maxSize). The
+// largest Oswald size that fits is used; the built-in font only if none does,
+// so the number is never cut. The dial sweeps against the starting life, and
+// an outer arc grows above it (life_heart.h, sigil_icons.h).
 void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
   char number[16];
   snprintf(number, sizeof(number), "%ld", static_cast<long>(life));
   const HeartLook look = lifeHeartLook(life, life_.startingLife);
-  const int16_t heartW = static_cast<int16_t>(HEART_WIDTH * look.sizePercent / 100);
-  const int16_t heartH = static_cast<int16_t>(11 * look.sizePercent / 100);
   const int16_t w = display_->width();
+  const int16_t bottom = y + 8 * maxSize;
+  struct Figures { const GFXfont *font; int16_t dialR; };
+  const Figures large[] = {{&BrassFonts::OledLife, 9}, {&BrassFonts::OledLifeMid, 7},
+      {&BrassFonts::OledLifeSmall, 6}};
+  const Figures small[] = {{&BrassFonts::OledLifeSmall, 6}};
+  const Figures *options = maxSize >= 3 ? large : small;
+  const uint8_t count = maxSize >= 3 ? 3 : 1;
+  for (uint8_t i = 0; i < count; ++i) {
+    int16_t x1, y1;
+    uint16_t tw, th;
+    display_->setFont(options[i].font);
+    display_->getTextBounds(number, 0, 0, &x1, &y1, &tw, &th);
+    display_->setFont(nullptr);
+    const int16_t r = options[i].dialR;
+    const int16_t dialW = 2 * (r + 2) + 1;
+    const int16_t total = dialW + 4 + static_cast<int16_t>(tw);
+    if (total > w || static_cast<int16_t>(th) > bottom - y) continue;
+    const int16_t x = (w - total) / 2;
+    // The figures sit centered in the band (the spare row goes above them,
+    // away from the name line); the dial centers on their ink.
+    const int16_t inkTop = y + (bottom - y - static_cast<int16_t>(th) + 1) / 2;
+    int16_t cy = inkTop + static_cast<int16_t>(th) / 2;
+    if (cy - r - 2 < y) cy = y + r + 2;
+    if (cy + r + 2 >= display_->height()) cy = display_->height() - r - 3;
+    drawLifeDial(*display_, x + r + 2, cy, r, look.fill, SH110X_WHITE, look.sizePercent - 100);
+    fontText(number, options[i].font, y, inkTop + static_cast<int16_t>(th), Align::Left, false,
+        x + dialW + 4, w);
+    return;
+  }
+  // Built-in fallback: the largest size that fits beside a smaller dial.
   const int16_t length = static_cast<int16_t>(strlen(number));
   uint8_t size = maxSize;
-  while (size > 1 && (heartW + 4 + length * 6 * size > w ||
+  const auto dialR = [](uint8_t s) -> int16_t { return s >= 3 ? 8 : s == 2 ? 5 : 3; };
+  const auto dialW = [&](uint8_t s) -> int16_t { return 2 * (dialR(s) + 2) + 1; };
+  while (size > 1 && (dialW(size) + 3 + length * 6 * size > w ||
       y + 8 * size > display_->height())) --size;
-  const int16_t total = heartW + 4 + length * 6 * size;
+  const int16_t total = dialW(size) + 3 + length * 6 * size;
   const int16_t x = total < w ? (w - total) / 2 : 0;
-  int16_t heartY = y + (7 * size - heartH) / 2;  // Centered on the digits' ink.
-  if (heartY < y) heartY = y;
-  drawLifeHeart(*display_, x, heartY, heartW, heartH, look.fill, SH110X_WHITE);
-  text(number, y, size, Align::Left, false, x + heartW + 4, w);
+  const int16_t r = dialR(size);
+  int16_t cy = y + (7 * size) / 2;
+  if (cy - r - 2 < y) cy = y + r + 2;
+  if (cy + r + 2 >= display_->height()) cy = display_->height() - r - 3;
+  drawLifeDial(*display_, x + r + 2, cy, r, look.fill, SH110X_WHITE, look.sizePercent - 100);
+  text(number, y, size, Align::Left, false, x + dialW(size) + 3, w);
 }
 
-// Boot splash: an hourglass (the turn timer) inside a double ring.
+// Boot splash: the Brass emblem, a gear with the turn arrow in its hub
+// meshed with a smaller one.
 void OledDisplay::splash(const char *caption) {
   const int16_t cx = display_->width() / 2;
-  drawEmblem(*display_, cx, 15, SH110X_WHITE);
-  text("TurnHub", 33, 2, Align::Center);
+  drawGear(*display_, cx + 15, 21, 7, 8, SH110X_WHITE, 2, SH110X_BLACK, 10.0f);
+  drawGear(*display_, cx - 3, 14, 13, 10, SH110X_WHITE, 6, SH110X_BLACK);
+  display_->fillTriangle(cx - 6, 10, cx - 6, 18, cx + 1, 14, SH110X_WHITE);
+  if (fontText("TurnHub", &BrassFonts::OledName, 31, 43, Align::Center) < 0) {
+    text("TurnHub", 30, 2, Align::Center);
+  }
+  rule(48, 20, display_->width() - 20);
   text(caption, 54, 1, Align::Center);
 }
 
@@ -257,7 +363,10 @@ void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, u
       page.notice == PickerNotice::TableFull ? "Table is full" :
       page.notice == PickerNotice::Failed ? "Try again" : nullptr;
   if (confirm) {
-    text(page.items[0].name, y, 2, Align::Center);
+    if (fontText(page.items[0].name, &BrassFonts::OledName, y + 1, y + 16, Align::Center) < 0 &&
+        fontText(page.items[0].name, &BrassFonts::OledSmall, y + 3, y + 14, Align::Center) < 0) {
+      text(page.items[0].name, y, 2, Align::Center);
+    }
     y += 18;
   } else if (notice) {
     banner(notice, y, true, Icon::None);
@@ -291,10 +400,16 @@ void OledDisplay::status(const char *headerRight, const char *big,
   if (drawMenuList()) return;
   display_->clearDisplay();
   header("TurnHub", headerRight);
-  text(big, 18, 2, Align::Center);
+  bigLine(big);
   text(first, 41, 1, Align::Center);
   text(second, 52, 1, Align::Center);
   display_->display();
+}
+
+// The status screens' big line: Cinzel over an ornamental rule.
+void OledDisplay::bigLine(const char *big) {
+  if (fontText(big, &BrassFonts::OledName, 15, 31, Align::Center) < 0) text(big, 16, 2, Align::Center);
+  rule(36, 16, display_->width() - 16);
 }
 
 void OledDisplay::showBooting() {
@@ -322,7 +437,7 @@ void OledDisplay::showAtlasLost(uint8_t sigilId) {
   snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
   display_->clearDisplay();
   header("TurnHub", label);
-  text("NO ATLAS", 18, 2, Align::Center);
+  bigLine("NO ATLAS");
   text("Atlas not responding", 41, 1, Align::Center);
   text("Searching...", 52, 1, Align::Center);
   display_->display();
@@ -369,7 +484,10 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     // drops to size 2 to make room and the key help gives way.
     const bool cmdShown = commanderDamageShown(s);
     const int16_t lifeY = cmdShown ? 32 : 36;
-    text(asking || pending ? line : s.primary.name, 24, 1, Align::Center);
+    if (asking || pending ||
+        fontText(s.primary.name, &BrassFonts::OledSmall, 23, 31, Align::Center) < 0) {
+      text(asking || pending ? line : s.primary.name, 24, 1, Align::Center);
+    }
     lifeTotal(shownLife, 32, cmdShown ? 2 : 3);
     // Left of the life total, when the number leaves room (up to 3 digits).
     char digits[12];
@@ -412,7 +530,9 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     }
   } else {
     snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
-    text(asking || pending ? line : label, 27, 1, Align::Center);
+    if (asking || pending || fontText(label, &BrassFonts::OledSmall, 24, 35, Align::Center) < 0) {
+      text(asking || pending ? line : label, 27, 1, Align::Center);
+    }
     lifeTotal(shownLife, 36, 2);
     // The other seat on one quiet row; its life total is never truncated.
     char life[16];
@@ -470,12 +590,17 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
   }
   if (secondaryPlayer) {
     snprintf(label, sizeof(label), "A: %s", seatNameA_[0] ? seatNameA_ : "Guest");
-    text(label, 31, 1, Align::Center);
+    if (fontText(label, &BrassFonts::OledSmall, 27, 37, Align::Center) < 0) text(label, 29, 1, Align::Center);
+    rule(42, 24, display_->width() - 24);
     snprintf(label, sizeof(label), "B: %s", seatNameB_[0] ? seatNameB_ : "Guest");
-    text(label, 43, 1, Align::Center);
+    if (fontText(label, &BrassFonts::OledSmall, 47, 57, Align::Center) < 0) text(label, 48, 1, Align::Center);
   } else {
     snprintf(label, sizeof(label), "Player %u", static_cast<unsigned>(primaryPlayer));
-    text(seatNameA_[0] ? seatNameA_ : label, 30, 2, Align::Center);
+    const char *name = seatNameA_[0] ? seatNameA_ : label;
+    if (fontText(name, &BrassFonts::OledName, 28, 44, Align::Center) < 0 &&
+        fontText(name, &BrassFonts::OledSmall, 31, 42, Align::Center) < 0) {
+      text(name, 30, 2, Align::Center);
+    }
     // A lone winner gets a crown under their name.
     if (mode == TurnHubProtocol::DisplayMode::GameOver && winner) {
       icon(Icon::Crown, display_->width() / 2 - 6, 52, SH110X_WHITE);

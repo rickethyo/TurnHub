@@ -86,6 +86,27 @@ jobs:
           path: ${{ runner.temp }}/firmware/
           if-no-files-found: error
           retention-days: 7
+      # Screen previews: the real display code rendered to PNGs on the runner,
+      # with the Atlas art's incremental redraws checked against full redraws.
+      - name: Render screen previews
+        if: matrix.environment == 'atlas' || matrix.environment == 'sigil'
+        run: |
+          mkdir -p "$RUNNER_TEMP/screens"
+          if [ "$PIO_ENVIRONMENT" = atlas ]; then
+            bash Atlas/tests/host/render-atlas-screens.sh
+            cp Atlas/tests/host/build/screens/*.png "$RUNNER_TEMP/screens/"
+          else
+            bash Sigil/tests/host/render-sigil-screens.sh
+            cp Sigil/.pio/host-tests/screens/*.png "$RUNNER_TEMP/screens/"
+          fi
+      - name: Upload screen previews
+        if: matrix.environment == 'atlas' || matrix.environment == 'sigil'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: screens-${{ matrix.environment }}-${{ github.sha }}
+          path: ${{ runner.temp }}/screens/
+          if-no-files-found: error
+          retention-days: 14
 
   android:
     name: Android build and unit tests

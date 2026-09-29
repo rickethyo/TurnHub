@@ -218,8 +218,9 @@ portrait orientation; coordinates and layout do not need to change.
 
 ## Layout
 
-All text uses the existing Adafruit GFX built-in monochrome font (6 x 8 pixel
-cells). Automatic wrapping is disabled. Names retain all 12 protocol characters
+Until 2026-09-29 all text used the Adafruit GFX built-in monochrome font (6 x 8
+pixel cells); the e-ink now uses the Brass fonts for titles, names, banners
+and life (see below), keeping the built-in font as the fallback. Automatic wrapping is disabled. Names retain all 12 protocol characters
 at size 2 across up to two centered lines; wrapping prefers a word boundary,
 with a character split for longer unbroken names. Six-pixel side margins leave
 110 pixels for content. Life numbers reduce font size to fit, preserving the
@@ -239,6 +240,60 @@ now matches the OLED:
 
 The words carry every meaning; icons only add character. *Needs verification*
 on the panel (legibility of the white-on-black bar and the keycaps).
+
+**Brass look (2026-09-29).** The portal's Brass theme carried onto both
+Sigils, one bit deep:
+- **E-ink:** the title bar is an engraved nameplate (a gear, a rivet and a
+  cog-tooth lower edge) with the title in Cinzel and "Sigil 3 / Turn 7" in its
+  small caps. Banners are riveted plates with an inner rule (filled) or a
+  double frame (plain). Names use Cinzel, falling back to its small size and
+  then to the built-in font so all 12 protocol characters always show. Life is
+  an Oswald figure beside a pressure-gauge **life dial** that replaces the
+  heart: its arc and needle sweep down with the share of the starting life
+  left, and an outer arc grows above it (`lifeHeartLook`, unchanged). Rules
+  carry diamonds and small-caps labels ("Life", "Seat A life"). The page has
+  a thin frame; the boot, unpaired, ready and Atlas-lost screens show a gear
+  emblem. The legend and data rows (commander damage) keep the built-in font.
+- **OLED (extended 2026-09-30):** the same family scaled to 128x64.
+  - *Header:* a nameplate bar with a small gear; the title in Cinzel Black
+    10 px caps (`OledHeader`), on row 8, or using the bar's last rows for a
+    descender (JOIN AS). The right-hand seat/turn label stays in the built-in
+    font.
+  - *Tickets:* banners have notched ends. Filled tickets (YOUR TURN, PASSING,
+    GO FIRST, ACTION NEEDED, WINNER!) carry Cinzel Black between their icons;
+    outlined ones (WAITING FOR TURN, STARTER, GAME PAUSED, P1 PASSING...) keep
+    the built-in font, because Cinzel crowded the one-pixel frame.
+  - *Names:* the game screen's name line in Cinzel 10 px (`OledSmall`), also
+    "A: name" / "B: name" on the shared lobby around a rule. The lone seat's
+    name on state screens and the picker's Join-as name use Cinzel 15 px
+    (`OledName`), then 10 px.
+  - *Life:* Oswald figures beside the life dial: 28 px (`OledLife`), 22 px
+    (`OledLifeMid`) or 18 px (`OledLifeSmall`, the only size when commander
+    rows show or the Sigil is shared), with a free row between the name and
+    the figures.
+  - *Status screens:* ready, unpaired and Atlas lost put the big line in
+    Cinzel 15 px over an ornamental rule (a line with a center diamond); the
+    splash shows the gear emblem, "TurnHub" in Cinzel and a rule.
+  - *Kept in the built-in 5x7 font:* key help, the pending-change and
+    life-request lines (they use arrow glyphs Cinzel lacks), commander rows,
+    the other seat's row with its heart glyph, menu and picker list rows, the
+    status screens' small lines, and the header's right-hand label.
+  - *Fallback rule:* every Brass run is measured with `getTextBounds` and
+    must fit its band of rows and columns. If it does not, the built-in font
+    draws it, so no word or digit is ever cut (a life total can go down
+    to Oswald 18 px, then to the built-in font).
+  - *Tests:* the host OLED stub understands custom fonts. It checks that each
+    glyph's ink stays on the panel and clear of every other text run.
+  - Adds 8,060 bytes to the OLED image. *Needs verification* on the panel:
+    Cinzel caps at 7 px, and whether the filled Cinzel tickets read at arm's
+    length.
+- Fonts are bitmaps rendered by `tools/fonts/make_fonts.py` into
+  `include/brass_fonts.h` (Cinzel and Oswald, SIL OFL 1.1). The ornament is
+  drawn in the same full refresh, so refresh counts and timing are unchanged.
+- `bash tests/host/render-sigil-screens.sh` renders the real e-ink and OLED
+  classes over Adafruit GFX's canvas to PNGs (`.pio/host-tests/screens/`).
+  *Needs verification* on both panels: serif legibility at arm's length, the
+  dial at small sizes, and e-ink ghosting around the heavier header.
 
 ### Running game snapshot
 

@@ -1,4 +1,5 @@
 #include "epaper_display.h"
+#include "brass_fonts.h"
 #include "life_heart.h"
 #include "display_name.h"
 #include "commander_damage.h"
@@ -72,7 +73,7 @@ int16_t EpaperDisplay::contentBottom() const {
 void EpaperDisplay::drawLegend() {
   if (legendLines() == 0) return;
   int16_t y = contentBottom();
-  display_.drawFastHLine(MARGIN, y, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+  ornamentRule(y);
   y += 3;
   display_.setTextSize(1);
   constexpr int16_t CAP = LEGEND_LINE - 1;
@@ -196,16 +197,13 @@ void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page,
   display_.firstPage();
   do {
     display_.fillScreen(GxEPD_WHITE);
-    display_.fillRect(0, 0, display_.width(), HEADER_BAR, GxEPD_BLACK);
-    display_.setTextColor(GxEPD_WHITE);
-    drawCentered(confirm ? "Join as" : "Who plays?", 4, 2);
+    drawFrame();
+    char pages[16] = {};
     if (!confirm && page.pageCount > 1) {
-      char pages[16];
       snprintf(pages, sizeof(pages), "Page %u of %u", static_cast<unsigned>(page.page + 1),
           static_cast<unsigned>(page.pageCount));
-      drawCentered(pages, 24);
     }
-    display_.setTextColor(GxEPD_BLACK);
+    drawHeader(confirm ? "Join as" : "Who plays?", 0xFF, false, 0, pages[0] ? pages : nullptr);
     int16_t legendY = display_.height() - 3 - 2 * LEGEND_LINE;
     if (confirm) {
       drawTwoLines(page.items[0].name, 70, display_.width() - 2 * MARGIN);
@@ -221,11 +219,15 @@ void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page,
         display_.setTextSize(1);
         display_.setCursor(MARGIN + LEGEND_LINE + 3, y + 1);
         printClipped(tag, (display_.width() - 2 * MARGIN - LEGEND_LINE - 3) / CHAR_WIDTH);
-        drawCentered(page.items[i].name, y + 13, 2);
+        if (fontFits(page.items[i].name, &BrassFonts::EinkName, display_.width() - 2 * MARGIN)) {
+          fontCentered(page.items[i].name, y + 28, &BrassFonts::EinkName);
+        } else {
+          drawCentered(page.items[i].name, y + 13, 2);
+        }
       }
       if (notice) drawBanner(notice, ROW_TOP + 3 * ROW_HEIGHT + 2, true, Icon::None);
     }
-    display_.drawFastHLine(MARGIN, legendY, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+    ornamentRule(legendY);
     legendY += 3;
     display_.setTextSize(1);
     const bool more = !confirm && page.pageCount > 1;
@@ -292,10 +294,93 @@ void EpaperDisplay::drawCentered(const char *text, int16_t y, uint8_t maxSize) {
   printClipped(text, count);
 }
 
+// --- Brass look (2026-09-29) ------------------------------------------------
+//
+// The portal's Brass theme in black and white: an engraved nameplate header
+// with a cog-tooth edge, riveted banners, Cinzel for words, Oswald figures
+// and a pressure-gauge dial for life, ornamental rules. Words still carry
+// every meaning; the ornament is drawn in the same refresh, so it costs no
+// extra flashes.
+
+int16_t EpaperDisplay::fontWidth(const char *text, const GFXfont *font) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  display_.setFont(font);
+  display_.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display_.setFont(nullptr);
+  return static_cast<int16_t>(w);
+}
+
+bool EpaperDisplay::fontFits(const char *text, const GFXfont *font, int16_t width) {
+  return fontWidth(text, font) <= width;
+}
+
+void EpaperDisplay::fontAt(const char *text, int16_t x, int16_t baseline, const GFXfont *font) {
+  display_.setFont(font);
+  display_.setTextSize(1);
+  display_.setCursor(x, baseline);
+  display_.print(text);
+  display_.setFont(nullptr);
+}
+
+void EpaperDisplay::fontCentered(const char *text, int16_t baseline, const GFXfont *font) {
+  int16_t x1, y1;
+  uint16_t w, h;
+  display_.setFont(font);
+  display_.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display_.setTextSize(1);
+  display_.setCursor((display_.width() - static_cast<int16_t>(w)) / 2 - x1, baseline);
+  display_.print(text);
+  display_.setFont(nullptr);
+}
+
+void EpaperDisplay::ornamentRule(int16_t y, const char *label) {
+  const int16_t cx = display_.width() / 2;
+  const int16_t half = label ? fontWidth(label, &BrassFonts::EinkSmall) / 2 + 9 : 5;
+  display_.drawFastHLine(MARGIN, y, cx - half - MARGIN, GxEPD_BLACK);
+  display_.drawFastHLine(cx + half, y, display_.width() - MARGIN - cx - half, GxEPD_BLACK);
+  const auto diamond = [&](int16_t dx) {
+    display_.fillTriangle(cx + dx - 2, y, cx + dx, y - 2, cx + dx + 2, y, GxEPD_BLACK);
+    display_.fillTriangle(cx + dx - 2, y, cx + dx, y + 2, cx + dx + 2, y, GxEPD_BLACK);
+  };
+  if (label) {
+    diamond(static_cast<int16_t>(-half + 3));
+    diamond(static_cast<int16_t>(half - 3));
+  } else {
+    diamond(0);
+  }
+  if (label) fontCentered(label, y + 4, &BrassFonts::EinkSmall);
+}
+
+// A thin border with rounded corners: the page is one brass-framed plate.
+void EpaperDisplay::drawFrame() {
+  display_.drawRoundRect(0, 0, display_.width(), display_.height(), 4, GxEPD_BLACK);
+}
+
 void EpaperDisplay::drawTwoLines(const char *text, int16_t y, int16_t width) {
-  // Keep all 12 protocol name characters at size 2, including unbroken names.
-  const size_t capacity = width / (2 * CHAR_WIDTH);
+  // A name in Cinzel: one line, or two split at a space, or the small size;
+  // the built-in font keeps all 12 protocol characters as a last resort.
+  if (fontFits(text, &BrassFonts::EinkName, width)) {
+    fontCentered(text, y + 22, &BrassFonts::EinkName);
+    return;
+  }
   const size_t length = strlen(text);
+  for (size_t i = length; i > 0; --i) {
+    if (text[i - 1] != ' ') continue;
+    char first[20] = {};
+    memcpy(first, text, i - 1 < sizeof(first) - 1 ? i - 1 : sizeof(first) - 1);
+    const char *rest = text + i;
+    if (fontFits(first, &BrassFonts::EinkName, width) && fontFits(rest, &BrassFonts::EinkName, width)) {
+      fontCentered(first, y + 14, &BrassFonts::EinkName);
+      fontCentered(rest, y + 33, &BrassFonts::EinkName);
+      return;
+    }
+  }
+  if (fontFits(text, &BrassFonts::EinkSmall, width)) {
+    fontCentered(text, y + 21, &BrassFonts::EinkSmall);
+    return;
+  }
+  const size_t capacity = width / (2 * CHAR_WIDTH);
   if (length <= capacity) {
     drawCentered(text, y + 9, 2);
     return;
@@ -315,80 +400,104 @@ void EpaperDisplay::drawTwoLines(const char *text, int16_t y, int16_t width) {
   drawCentered(rest, y + 18, 2);
 }
 
-// Solid title bar, as on the OLED Sigil: the title, then the Sigil number
-// (with a crown and HOST for the host) and the turn number, in white.
+// The engraved nameplate: a solid bar with a cog-tooth lower edge, a gear
+// and a rivet, the title in Cinzel, then the Sigil and turn numbers (or a
+// subtitle) in small caps, in white.
 void EpaperDisplay::drawHeader(
-    const char *title, uint8_t sigilId, bool host, uint8_t turnNumber) {
-  display_.fillRect(0, 0, display_.width(), HEADER_BAR, GxEPD_BLACK);
+    const char *title, uint8_t sigilId, bool host, uint8_t turnNumber, const char *subtitle) {
+  const int16_t w = display_.width();
+  display_.fillRect(0, 0, w, HEADER_BAR, GxEPD_BLACK);
+  for (int16_t x = 1; x < w; x += 8) display_.fillRect(x, HEADER_BAR, 5, 2, GxEPD_BLACK);
+  drawGear(display_, 13, 12, 8, 8, GxEPD_WHITE, 3, GxEPD_BLACK);
+  drawRivet(display_, w - 7, 7, GxEPD_WHITE, GxEPD_BLACK);
+  const bool second = sigilId != 0xFF || subtitle != nullptr;
   display_.setTextColor(GxEPD_WHITE);
-  drawCentered(title, 4, 2);
-  if (sigilId != 0xFF) {
-    display_.setTextSize(1);
-    display_.setCursor(MARGIN, 24);
-    display_.printf("S%u", static_cast<unsigned>(sigilId + 1));
-    if (host) {
-      drawIcon(display_, Icon::Crown, MARGIN + 16, 23, GxEPD_WHITE);
-      display_.setCursor(MARGIN + 32, 24);
-      display_.print("HOST");
-    }
+  const int16_t room = w - 2 * 25;
+  const GFXfont *font = fontFits(title, &BrassFonts::EinkTitle, room) ? &BrassFonts::EinkTitle
+      : fontFits(title, &BrassFonts::EinkBanner, room) ? &BrassFonts::EinkBanner : &BrassFonts::EinkSmall;
+  fontCentered(title, second ? 18 : 23, font);
+  if (subtitle != nullptr) {
+    fontCentered(subtitle, 32, &BrassFonts::EinkSmall);
+  } else if (sigilId != 0xFF) {
+    char sigil[12];
+    snprintf(sigil, sizeof(sigil), "Sigil %u", static_cast<unsigned>(sigilId + 1));
+    fontAt(sigil, MARGIN, 32, &BrassFonts::EinkSmall);
+    if (host) drawIcon(display_, Icon::Crown, MARGIN + fontWidth(sigil, &BrassFonts::EinkSmall) + 4, 24, GxEPD_WHITE);
     if (turnNumber != 0) {
       char turn[12];
-      snprintf(turn, sizeof(turn), "TURN %u", static_cast<unsigned>(turnNumber));
-      display_.setCursor(display_.width() - MARGIN - strlen(turn) * CHAR_WIDTH, 24);
-      display_.print(turn);
+      snprintf(turn, sizeof(turn), "Turn %u", static_cast<unsigned>(turnNumber));
+      fontAt(turn, w - MARGIN - fontWidth(turn, &BrassFonts::EinkSmall) - 1, 32, &BrassFonts::EinkSmall);
     }
   }
   display_.setTextColor(GxEPD_BLACK);
 }
 
-// A message box: filled (white text, icons both sides) when it concerns this
-// Sigil now, framed otherwise. The words carry the meaning.
+// A message plate: filled (white text, an inner rule and rivets) when it
+// concerns this Sigil now, a double frame otherwise. The words carry the
+// meaning.
 void EpaperDisplay::drawBanner(const char *message, int16_t y, bool highlight, Icon kind,
     uint8_t maxSize) {
+  (void)kind;
   const int16_t width = display_.width() - 2 * MARGIN;
-  // The largest text size that fits the box; drawCentered shrinks the same way.
-  const int16_t length = static_cast<int16_t>(strlen(message));
-  uint8_t size = maxSize;
-  while (size > 1 && length * CHAR_WIDTH * size > width) --size;
-  const bool icons = highlight && kind != Icon::None &&
-      length * CHAR_WIDTH * size + 2 * (ICON_WIDTH + 6) <= width;
+  const uint16_t ink = highlight ? GxEPD_WHITE : GxEPD_BLACK;
   if (highlight) {
-    display_.fillRoundRect(MARGIN, y, width, BANNER_HEIGHT, 5, GxEPD_BLACK);
-    display_.setTextColor(GxEPD_WHITE);
+    display_.fillRoundRect(MARGIN, y, width, BANNER_HEIGHT, 3, GxEPD_BLACK);
+    display_.drawRoundRect(MARGIN + 2, y + 2, width - 4, BANNER_HEIGHT - 4, 2, GxEPD_WHITE);
+    display_.fillCircle(MARGIN + 6, y + BANNER_HEIGHT / 2, 1, GxEPD_WHITE);
+    display_.fillCircle(MARGIN + width - 7, y + BANNER_HEIGHT / 2, 1, GxEPD_WHITE);
   } else {
-    display_.drawRoundRect(MARGIN, y, width, BANNER_HEIGHT, 5, GxEPD_BLACK);
+    display_.drawRoundRect(MARGIN, y, width, BANNER_HEIGHT, 3, GxEPD_BLACK);
+    display_.drawRoundRect(MARGIN + 2, y + 2, width - 4, BANNER_HEIGHT - 4, 2, GxEPD_BLACK);
   }
-  if (icons) {
-    const int16_t iconY = y + (BANNER_HEIGHT - iconHeight(kind)) / 2;
-    drawIcon(display_, kind, MARGIN + 4, iconY, GxEPD_WHITE);
-    drawIcon(display_, kind == Icon::Turn ? Icon::TurnBack : kind,
-        MARGIN + width - 4 - ICON_WIDTH, iconY, GxEPD_WHITE);
+  display_.setTextColor(ink);
+  const int16_t room = width - 18;
+  if (maxSize >= 2 && fontFits(message, &BrassFonts::EinkBanner, room)) {
+    fontCentered(message, y + 16, &BrassFonts::EinkBanner);
+  } else if (fontFits(message, &BrassFonts::EinkSmall, room)) {
+    fontCentered(message, y + 15, &BrassFonts::EinkSmall);
+  } else {
+    drawCentered(message, y + (BANNER_HEIGHT - 8) / 2, 1);
   }
-  drawCentered(message, y + (BANNER_HEIGHT - 8 * size) / 2, size);
   display_.setTextColor(GxEPD_BLACK);
 }
 
-// A heart and the largest life total that fits, centered as one unit. The
-// heart drains or grows against the starting life (life_heart.h).
+// The life total in Oswald figures beside the life dial, centered as one
+// unit in the rows the built-in font's size maxSize would take (y to
+// y + 8 * maxSize). The dial sweeps against the starting life (life_heart.h);
+// it gives way when the number needs the room.
 void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
   char number[16];
   snprintf(number, sizeof(number), "%ld", static_cast<long>(life));
   const int16_t width = display_.width() - 2 * MARGIN;
-  const int16_t length = static_cast<int16_t>(strlen(number));
-  uint8_t size = maxSize;
-  const uint8_t heartScale = maxSize >= 5 ? 2 : 1;
   const HeartLook look = lifeHeartLook(life, life_.startingLife);
-  const int16_t heartW = static_cast<int16_t>(ICON_WIDTH * heartScale * look.sizePercent / 100);
-  const int16_t heartH = static_cast<int16_t>(iconHeight(Icon::Heart) * heartScale * look.sizePercent / 100);
-  while (size > 1 && heartW + 4 + length * CHAR_WIDTH * size > width) --size;
-  const int16_t total = heartW + 4 + length * CHAR_WIDTH * size;
-  const int16_t x = MARGIN + (width - total) / 2;
-  int16_t heartY = y + (7 * size - heartH) / 2;  // Centered on the digits' ink.
-  if (heartY < y - 4) heartY = y - 4;
-  drawLifeHeart(display_, x, heartY, heartW, heartH, look.fill, GxEPD_BLACK);
-  display_.setTextSize(size);
-  display_.setCursor(x + heartW + 4, y);
-  display_.print(number);
+  const GFXfont *font = maxSize >= 5 ? &BrassFonts::EinkLife : maxSize >= 3 ? &BrassFonts::EinkLifeSmall : nullptr;
+  if (font != nullptr && !fontFits(number, font, width)) font = &BrassFonts::EinkLifeSmall;
+  if (font == nullptr || !fontFits(number, font, width)) {
+    // Too small or too long for the figures: the heart and built-in digits.
+    const int16_t length = static_cast<int16_t>(strlen(number));
+    uint8_t size = maxSize;
+    const int16_t heartW = static_cast<int16_t>(ICON_WIDTH * look.sizePercent / 100);
+    const int16_t heartH = static_cast<int16_t>(iconHeight(Icon::Heart) * look.sizePercent / 100);
+    while (size > 1 && heartW + 4 + length * CHAR_WIDTH * size > width) --size;
+    const int16_t x = MARGIN + (width - heartW - 4 - length * CHAR_WIDTH * size) / 2;
+    drawLifeHeart(display_, x, y + (7 * size - heartH) / 2, heartW, heartH, look.fill, GxEPD_BLACK);
+    display_.setTextSize(size);
+    display_.setCursor(x + heartW + 4, y);
+    display_.print(number);
+    return;
+  }
+  int16_t x1, y1;
+  uint16_t w, h;
+  display_.setFont(font);
+  display_.getTextBounds(number, 0, 0, &x1, &y1, &w, &h);
+  display_.setFont(nullptr);
+  const int16_t r = font == &BrassFonts::EinkLife ? 16 : 11;
+  const bool dial = static_cast<int16_t>(w) + 2 * r + 10 <= width;
+  const int16_t total = static_cast<int16_t>(w) + (dial ? 2 * r + 10 : 0);
+  const int16_t left = MARGIN + (width - total) / 2;
+  const int16_t middle = y + 7 * maxSize / 2;
+  if (dial) drawLifeDial(display_, left + r + 2, middle, r, look.fill, GxEPD_BLACK, look.sizePercent - 100);
+  fontAt(number, left + total - static_cast<int16_t>(w) - x1, middle + static_cast<int16_t>(h) / 2, font);
 }
 
 void EpaperDisplay::drawStatus(const char *line1, const char *line2, bool legend) {
@@ -399,10 +508,23 @@ void EpaperDisplay::drawStatus(const char *line1, const char *line2, bool legend
   display_.firstPage();
   do {
     display_.fillScreen(GxEPD_WHITE);
+    drawFrame();
     drawHeader("TurnHub");
-    drawEmblem(display_, display_.width() / 2, 72, GxEPD_BLACK, 2);
-    drawTwoLines(line1, 112, display_.width() - 2 * MARGIN);
-    if (line2 != nullptr) drawCentered(line2, 156);
+    // The emblem: a large gear with the turn arrow in its hub, meshed with a
+    // small one.
+    const int16_t cx = display_.width() / 2;
+    drawGear(display_, cx + 22, 92, 11, 9, GxEPD_BLACK, 4, GxEPD_WHITE, 12.0f);
+    drawGear(display_, cx - 4, 72, 25, 12, GxEPD_BLACK, 11, GxEPD_WHITE);
+    display_.fillTriangle(cx - 8, 66, cx - 8, 78, cx + 3, 72, GxEPD_BLACK);
+    drawTwoLines(line1, 106, display_.width() - 2 * MARGIN);
+    if (line2 != nullptr) {
+      ornamentRule(150);
+      if (fontFits(line2, &BrassFonts::EinkSmall, display_.width() - 2 * MARGIN)) {
+        fontCentered(line2, 166, &BrassFonts::EinkSmall);
+      } else {
+        drawCentered(line2, 158);
+      }
+    }
     if (legend) drawLegend();
   } while (display_.nextPage());
 }
@@ -411,14 +533,26 @@ void EpaperDisplay::drawSeat(
     const char *label, const char *name, int16_t y, int16_t height, bool focused) {
   const int16_t width = display_.width() - 2 * MARGIN;
   const bool compact = height < 62;  // No room for a two-line size-2 name.
+  // The seat's label on a small plate: filled for the seat this concerns
+  // now, framed otherwise, so focus is a shape as well as a fill.
+  const int16_t barY = y + (compact ? 1 : 4), barH = compact ? 12 : 16;
   if (focused) {
-    display_.fillRect(MARGIN, y + (compact ? 1 : 4), width, compact ? 12 : 16, GxEPD_BLACK);
+    display_.fillRoundRect(MARGIN, barY, width, barH, 3, GxEPD_BLACK);
     display_.setTextColor(GxEPD_WHITE);
+  } else {
+    display_.drawFastHLine(MARGIN + 8, barY + barH / 2, 12, GxEPD_BLACK);
+    display_.drawFastHLine(MARGIN + width - 20, barY + barH / 2, 12, GxEPD_BLACK);
   }
-  drawCentered(label, y + (compact ? 3 : 8));
+  if (fontFits(label, &BrassFonts::EinkSmall, width - 44)) {
+    fontCentered(label, barY + barH / 2 + 4, &BrassFonts::EinkSmall);
+  } else {
+    drawCentered(label, y + (compact ? 3 : 8));
+  }
   display_.setTextColor(GxEPD_BLACK);
   if (compact) {
-    drawCentered(name, y + 17, 2);
+    if (fontFits(name, &BrassFonts::EinkName, width)) fontCentered(name, y + 32, &BrassFonts::EinkName);
+    else if (fontFits(name, &BrassFonts::EinkSmall, width)) fontCentered(name, y + 30, &BrassFonts::EinkSmall);
+    else drawCentered(name, y + 17, 2);
   } else {
     drawTwoLines(name, y + 26, width);
   }
@@ -485,6 +619,7 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   display_.firstPage();
   do {
     display_.fillScreen(GxEPD_WHITE);
+    drawFrame();
     drawHeader(s.commander ? "Commander" : "Game", s.sigilId,
         TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST),
         TurnHubProtocol::displayTurnNumber(s.state));
@@ -517,9 +652,9 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
         104 + 8 * lifeSize + labelGap + 10 > commanderLimit - cmdHeight) --lifeSize;
     const int16_t labelY = 104 + 8 * lifeSize + labelGap;
     drawLife(s.primary.life, 104, lifeSize);
-    char label[20] = "LIFE";
-    if (shared) snprintf(label, sizeof(label), "LIFE / SEAT %c", primarySeat);
-    drawCentered(label, labelY);
+    char label[20] = "Life";
+    if (shared) snprintf(label, sizeof(label), "Seat %c life", primarySeat);
+    ornamentRule(labelY + 3, label);
 
     if (cmdShown) {
       // Damage this player received, one compact row per source, anchored to
@@ -530,9 +665,8 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
       while (fit && y + CMD_HEADING + CMD_ROW * fit > commanderLimit) --fit;
       const unsigned hidden = s.omittedSources + (s.sourceCount - fit);
       display_.drawFastHLine(MARGIN, y, width, GxEPD_BLACK);
+      fontAt("Cmd taken", MARGIN, y + 10, &BrassFonts::EinkSmall);
       display_.setTextSize(1);
-      display_.setCursor(MARGIN, y + 3);
-      display_.print("CMD TAKEN");
       if (hidden) {
         char more[8];
         snprintf(more, sizeof(more), "+%u", hidden);
@@ -553,10 +687,14 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     }
 
     if (shared) {
-      display_.drawFastHLine(MARGIN, secondaryY, width, GxEPD_BLACK);
+      // The other seat on its own riveted plate.
+      display_.drawRoundRect(MARGIN, secondaryY, width, 34, 3, GxEPD_BLACK);
+      drawRivet(display_, MARGIN + 4, secondaryY + 4, GxEPD_BLACK, GxEPD_WHITE);
+      drawRivet(display_, MARGIN + width - 5, secondaryY + 4, GxEPD_BLACK, GxEPD_WHITE);
       char otherName[20];
       snprintf(otherName, sizeof(otherName), "%c: %s", primarySeat == 'A' ? 'B' : 'A', s.secondary.name);
-      drawCentered(otherName, secondaryY + 5);
+      if (fontFits(otherName, &BrassFonts::EinkSmall, width - 16)) fontCentered(otherName, secondaryY + 12, &BrassFonts::EinkSmall);
+      else drawCentered(otherName, secondaryY + 5);
       char otherLife[24];
       snprintf(otherLife, sizeof(otherLife), "%ld LIFE", static_cast<long>(s.secondary.life));
       drawCentered(otherLife, secondaryY + 17, 2);
@@ -656,6 +794,7 @@ void EpaperDisplay::showState(
   display_.firstPage();
   do {
     display_.fillScreen(GxEPD_WHITE);
+    drawFrame();
     drawHeader(header, sigilId, host, turnNumber);
     if (shared) {
       // Keep physical A/B ordering stable; Atlas may put the focused seat first.
@@ -667,9 +806,9 @@ void EpaperDisplay::showState(
       if (primaryPlayer) snprintf(player, sizeof(player), "Player %u", static_cast<unsigned>(primaryPlayer));
       drawSeat(player, seatNameA_[0] ? seatNameA_ : player, 55, min<int16_t>(98, divider - 59), focused);
     }
-    display_.drawFastHLine(MARGIN, divider, display_.width() - 2 * MARGIN, GxEPD_BLACK);
+    ornamentRule(divider);
     drawBanner(status, bottom - 49, indicateSeat, kind, 2);
-    if (shared && indicateSeat) drawCentered(focusA ? "SEAT A" : "SEAT B", bottom - 11);
+    if (shared && indicateSeat) fontCentered(focusA ? "Seat A" : "Seat B", bottom - 4, &BrassFonts::EinkSmall);
     drawLegend();
   } while (display_.nextPage());
   memcpy(&drawn_, &inputs, sizeof(inputs));

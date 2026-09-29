@@ -456,6 +456,56 @@ Environment: PlatformIO 6.2.0, Espressif32 7.1.3, Arduino framework
 absolute measurements, not a before/after firmware delta.
 See [the line-item checklist](PROTOTYPE_V1_VERIFICATION.md).
 
+### 2026-09-29 - Brass display theme, Atlas Menu and screen previews
+
+Branch: `claude/modest-mendel-c7ym34`, based on `db1e4f8`. Atlas remains
+`0.6.0-dev`, Sigil firmware version unchanged; no radio, storage, HTTP or
+schema change. The portal's Brass look now covers the Atlas TFT and both
+Sigils. New: `Atlas/src/atlas_art.cpp` (drawing split out of
+`atlas_display.cpp`), generated `brass_fonts.h` for Atlas (VLW, 71,280 B of
+font data) and Sigil (GFXfont, 11,530 B), `tools/fonts/make_fonts.py`, and
+host screen previews for both firmwares (also run in CI). The Atlas screen
+model gains a Menu screen, the round, the match clock and per-player turn
+time; the lobby's persistent QR code is gone.
+
+Source snapshot (production `.cpp` / `.h`, excluding the generated
+`brass_fonts.h`): Atlas `src/` + `include/`: 105 files, 896,810 bytes /
+20,419 lines. Generated font headers: Atlas 438,366 bytes, Sigil 69,157 bytes
+of source text.
+
+Firmware builds (PlatformIO 6.2.0, same toolchain as 2026-09-26; no board
+flashed), before -> after on this branch:
+- Atlas: flash **1,384,437 -> 1,474,169 B (+89,732; 75.0% of 1,966,080)**,
+  RAM 105,684 -> 107,140 B. Heap at run time also holds the header sprite
+  (16,640 B), the gauge sprite (7,904 B) and the fonts' glyph tables (~5 KB).
+- Sigil e-ink (`sigil`): flash 830,433 -> 844,725 B (+14,292; 64.4%), RAM
+  unchanged at 49,576 B.
+- Sigil OLED (`sigil-oled`): flash 840,681 -> 841,161 B (+480), RAM unchanged.
+
+All Atlas and Sigil host suites, the 32-adapter audit and both screen
+previews pass (the Atlas preview's nine incremental-redraw checks match full
+redraws pixel for pixel). Hardware acceptance of the new look is pending.
+
+### 2026-09-30 - OLED Sigil in the Brass fonts
+
+Same branch, after `51e4028`. The OLED Sigil now uses Cinzel and Oswald where
+they fit (header title, filled tickets, names, status big lines, life
+figures), with the built-in font as the measured fallback. Four OLED fonts
+are added to `tools/fonts/make_fonts.py` and `Sigil/include/brass_fonts.h`
+regenerated: `OledHeader` (Cinzel Black 10 px), `OledName` (Cinzel 15 px),
+`OledLifeMid` (Oswald 22 px), `OledLifeSmall` (Oswald 18 px). Sigil font data
+grows from 11,530 to 15,250 bytes; Atlas fonts are unchanged byte for byte.
+
+Firmware builds (local PlatformIO 6.2.0, same toolchain; no board flashed):
+- Sigil OLED (`sigil-oled`): flash **841,161 -> 849,221 B (+8,060; 64.8% of
+  1,310,720)**, RAM unchanged at 45,352 B. The CI build of `51e4028` was
+  reported as 847,840 B; the local toolchain measures that commit at 841,161 B.
+- Sigil e-ink (`sigil`) and `sigil-wokwi`: unchanged (844,725 B and
+  852,281 B); the OLED fonts are not linked into them.
+
+Sigil host suites (OLED stub now checks custom-font glyph bounds and
+overlaps), Atlas host suites and the Sigil screen previews pass.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -468,4 +518,4 @@ See [the line-item checklist](PROTOTYPE_V1_VERIFICATION.md).
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-26
+Last updated: 2026-09-29

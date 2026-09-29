@@ -8,9 +8,10 @@
 // screen is part of the Atlas and its only physical input); Atlas's handlers
 // decide every outcome. Its non-Intent actions change no table state: the
 // presence code screen (canceling a code a phone asked for), moving between screens
-// (status, info, QR codes, test harness, Table) and starting a harness test.
+// (status, Menu, info, QR codes, test harness, Table) and starting a harness test.
 
 #include <Arduino.h>
+#include <string.h>
 
 namespace TurnHubAtlas {
 
@@ -49,12 +50,16 @@ enum class TouchAction : uint8_t {
   OpenInfo, OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
   // Test harness screen (only while a harness is connected): no Intents.
   OpenTests, CloseTests, StopTest, RunRadioCheck, RunQuickGame, RunFullGame, RunRematchGame,
-  RunSoak
+  RunSoak,
+  // Between games: the Menu screen holding Pair, QR codes, Tests and Info.
+  OpenMenu
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
 // Table: in-game controls kept off the main row (master pass, End match).
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table };
+// Menu: the between-games extras (Pair, QR codes, Tests, Info) kept off the
+// lobby's main row.
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -95,6 +100,9 @@ struct ScreenPlayer {
   int32_t life = 0;
   uint8_t flags = 0;
   uint8_t avatar = 0;  // A preset (avatars.h), drawn before the name; 0 none.
+  // In a game: this player's time on their own turns so far, the current
+  // turn included ("12:40"); empty between games.
+  char turnTime[9] = {};
 };
 
 // Everything the TFT shows. Equal screens need no redraw; atlas_display.cpp
@@ -107,6 +115,10 @@ struct AtlasScreen {
   char notice[48] = {};   // Action message; shown in place of detail while set.
   bool sdMissing = false; // Header warning: "NO SD CARD".
   uint8_t sigilsOnline = 0;
+  // In a game: the round (the starter's turn opens each one; 0 between
+  // games) and the match's running time ("42:10"), shown in the header.
+  uint16_t round = 0;
+  char gameClock[10] = {};
 
   ScreenPlayer players[MAX_SCREEN_PLAYERS];
   uint8_t playerCount = 0;
@@ -134,13 +146,72 @@ struct AtlasScreen {
   uint16_t holdPermille = 0;
 };
 
-bool sameHeader(const AtlasScreen &a, const AtlasScreen &b);
-bool sameHero(const AtlasScreen &a, const AtlasScreen &b);
-bool sameTimer(const AtlasScreen &a, const AtlasScreen &b);
-bool sameBody(const AtlasScreen &a, const AtlasScreen &b);
-bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b);
-bool sameButtons(const AtlasScreen &a, const AtlasScreen &b);
-bool sameScreen(const AtlasScreen &a, const AtlasScreen &b);
+// Region comparisons for the display, which redraws only what changed.
+// samePlayer ignores turnTime, which ticks every second: the display
+// redraws that one line in place (samePlayerTime) instead of the whole chip.
+// Likewise sameHeader ignores the game clock (sameGameClock).
+inline bool sameScreenText(const char *a, const char *b) { return strcmp(a, b) == 0; }
+
+inline bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b) {
+  return a.number == b.number && a.life == b.life && a.flags == b.flags && a.avatar == b.avatar &&
+      sameScreenText(a.name, b.name);
+}
+
+inline bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
+  return sameScreenText(a.turnTime, b.turnTime);
+}
+
+inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
+  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sigilsOnline == b.sigilsOnline &&
+      a.round == b.round;
+}
+
+inline bool sameGameClock(const AtlasScreen &a, const AtlasScreen &b) {
+  return sameScreenText(a.gameClock, b.gameClock);
+}
+
+inline bool sameHero(const AtlasScreen &a, const AtlasScreen &b) {
+  return a.kind == b.kind && sameScreenText(a.title, b.title) && sameScreenText(a.detail, b.detail) &&
+      sameScreenText(a.notice, b.notice);
+}
+
+inline bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
+  return a.timerPermille == b.timerPermille && a.timerWarning == b.timerWarning && sameScreenText(a.clock, b.clock);
+}
+
+inline bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
+  if (a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
+      a.lineCount != b.lineCount || !sameScreenText(a.qr, b.qr) || !sameScreenText(a.qrCaption, b.qrCaption) ||
+      !sameScreenText(a.code, b.code)) {
+    return false;
+  }
+  for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameScreenText(a.lines[i], b.lines[i])) return false;
+  for (uint8_t i = 0; i < a.playerCount; ++i) {
+    if (!samePlayer(a.players[i], b.players[i]) || !samePlayerTime(a.players[i], b.players[i])) return false;
+  }
+  return true;
+}
+
+inline bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
+  if (a.buttonCount != b.buttonCount || a.pressed != b.pressed ||
+      a.holdSecondsLeft != b.holdSecondsLeft || a.holdPermille != b.holdPermille) {
+    return false;
+  }
+  for (uint8_t i = 0; i < a.buttonCount; ++i) {
+    const TouchButton &x = a.buttons[i];
+    const TouchButton &y = b.buttons[i];
+    if (x.action != y.action || x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
+        x.selected != y.selected || strcmp(x.label, y.label) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+inline bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
+  return sameHeader(a, b) && sameGameClock(a, b) && sameHero(a, b) && sameTimer(a, b) && sameBody(a, b) &&
+      sameButtons(a, b);
+}
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen);
 
