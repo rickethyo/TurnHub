@@ -427,7 +427,7 @@ void OledDisplay::showUnpaired() {
 void OledDisplay::showReady(uint8_t sigilId) {
   char big[24];
   snprintf(big, sizeof(big), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
-  status("READY", big, "Ready for game");
+  status("READY", big, "OTA TEST 1");
 }
 
 void OledDisplay::showAtlasLost(uint8_t sigilId) {
