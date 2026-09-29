@@ -199,7 +199,9 @@ void startGame() {
 
 void finishGameState() {
   // GameEngine has already persisted results using its captured profile IDs.
-  clearPhysicalSeatProfiles();
+  // Seat names stay bound through GameOver so the Sigils can show who won
+  // (test feedback, 2026-09-28); leaving GameOver releases them: Reset via
+  // enterEmptyLobby(), Rematch by rebinding the match's profiles.
   clearPendingPass("GAME_OVER");
   hubState = HubState::GameOver;
   eliminationTargetPlayer = 0;

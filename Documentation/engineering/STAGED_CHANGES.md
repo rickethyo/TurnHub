@@ -9,6 +9,30 @@ receipts, Sigil OTA, SD hot-plug and physical acceptance remain open. See
 [completion ordering](COMPLETION_RECOVERY.md). Do not infer firmware or bench
 verification from a host result.
 
+Owner decision (2026-09-28): **the OLED Sigil is the internal leading design
+for pre-prototype 1.** Test users preferred it. New Sigil UI work lands on the
+OLED first; the e-ink Sigil stays buildable and supported, but it follows the
+OLED and may drop non-essential extras when they cost it full refreshes.
+
+Test feedback fixes (2026-09-28, host-tested only, *Needs verification* on
+hardware):
+
+- Commander damage is hidden on both Sigils until the player has taken some.
+  The OLED now shows it: two rows under a smaller life total, with "+N more
+  cmd sources" when more have hit. On the e-ink it sits just above the compass
+  legend, the life total shrinks to make room, and rows that don't fit join
+  the "+N" count, so the legend no longer covers it.
+- Sigils keep the winner's name on the Game Over screen. Atlas used to release
+  seat bindings at game end, blanking names just before "WINNER!". Bindings now
+  last through GameOver: Reset releases them and Rematch rebinds them.
+- E-ink refreshes: an update that would draw identical content is skipped
+  (menu hold feedback, the OLED-only list cursor and other overlay fields used
+  to force a full refresh). Another player's pending pass is no longer drawn
+  on the e-ink, which cost every Sigil two full refreshes per pass. The
+  status ring, the OLED and Atlas still show it.
+- Open: Atlas stuck on the pause screen during Soak x5. Not yet reproduced;
+  needs the harness serial log and Atlas's diagnostics log.
+
 Current pairing update (2026-09-22): physical buttons are owner-verified and manual
 15-second pairing with persistent MAC associations is now implemented. The boot
 pairing fallback and visual mock are superseded. Radio bench acceptance and

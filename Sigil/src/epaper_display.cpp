@@ -1,6 +1,7 @@
 #include "epaper_display.h"
 #include "life_heart.h"
 #include "display_name.h"
+#include "commander_damage.h"
 
 #include <SPI.h>
 #include <cstring>
@@ -43,6 +44,22 @@ uint8_t EpaperDisplay::legendLines() const {
   if (lifeRequestShown()) lines += 2;
   else if (lifeKeysShown()) lines += 1;
   return lines;
+}
+
+bool EpaperDisplay::alreadyDrawn(DrawnInputs &out) const {
+  memcpy(out.names[0], seatNameA_, sizeof(out.names[0]));
+  memcpy(out.names[1], seatNameB_, sizeof(out.names[1]));
+  out.menuActive = menu_.active;
+  out.menuLife = menu_.life;
+  memcpy(out.compass, menu_.compass, sizeof(out.compass));
+  // Members one by one: a struct copy could carry padding bytes.
+  out.request.target = life_.request.target;
+  out.request.requester = life_.request.requester;
+  out.request.tag = life_.request.tag;
+  out.request.delta = life_.request.delta;
+  out.startingLife = life_.startingLife;
+  out.passPending = life_.passPending;
+  return drawnValid_ && !forceFull_ && memcmp(&out, &drawn_, sizeof(out)) == 0;
 }
 
 int16_t EpaperDisplay::contentBottom() const {
@@ -172,6 +189,7 @@ void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page,
     case PickerNotice::Failed: notice = "Try again"; break;
     default: break;
   }
+  drawnValid_ = false;
   gameFrameValid_ = false;
   partialRefreshCount_ = 0;
   display_.setFullWindow();
@@ -374,6 +392,7 @@ void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
 }
 
 void EpaperDisplay::drawStatus(const char *line1, const char *line2) {
+  drawnValid_ = false;
   gameFrameValid_ = false;
   partialRefreshCount_ = 0;
   display_.setFullWindow();
@@ -428,14 +447,26 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const char primarySeat = primary < secondary ? 'A' : 'B';
   const int16_t width = display_.width() - 2 * MARGIN;
 
+  const bool cmdShown = commanderDamageShown(s);
+  constexpr int16_t CMD_HEADING = 12;  // Rule and "CMD TAKEN".
+  constexpr int16_t CMD_ROW = 10;      // One source: name left, damage right.
+  const int16_t cmdHeight = cmdShown ? CMD_HEADING + CMD_ROW * s.sourceCount : 0;
   const int16_t bottom = contentBottom();
-  const int16_t secondaryY = min<int16_t>(s.commander ? 216 : 149, bottom - 36);
-  const int16_t commanderLimit = shared ? secondaryY : bottom;
+  const int16_t secondaryY = cmdShown ? bottom - 36 : min<int16_t>(149, bottom - 36);
+  const int16_t commanderLimit = (shared ? secondaryY : bottom) - 2;
   const bool partial = partialEnabled_ && !forceFull_ &&
       GxEPD2_213_B74::hasFastPartialUpdate && gameFrameValid_ &&
       gameFrameSigilId_ == s.sigilId && gameFrameShared_ == shared &&
-      gameFrameCommander_ == static_cast<bool>(s.commander) &&
+      gameFrameCommander_ == cmdShown &&
       partialRefreshCount_ < maxPartials_;
+  DrawnInputs inputs;
+  memset(&inputs, 0, sizeof(inputs));
+  inputs.kind = 1;
+  memcpy(&inputs.game, &s, sizeof(s));
+  if (alreadyDrawn(inputs)) {
+    Serial.println("SIGIL|DISPLAY|REFRESH|SKIPPED_SAME");
+    return;
+  }
   forceFull_ = false;
   const uint32_t refreshStartMs = millis();
   if (partial) {
@@ -453,13 +484,11 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
         TurnHubProtocol::displayTurnNumber(s.state));
     // Atlas places the active local player first; keep the turn cue with them.
     // A pass in its grace period says so; the ring counts it down.
+    // Another player's pending pass is left to the status ring and the OLED
+    // and Atlas screens: on e-ink it cost every Sigil two full refreshes per
+    // pass (test feedback, 2026-09-28). This Sigil's own pass still shows.
     if (life_.passPending) {
       drawBanner("PASSING", 39, true, Icon::Turn, 2);
-    } else if (life_.passingPlayer) {
-      // Another player's pass, still undoable: the whole table sees it.
-      char passing[20];
-      snprintf(passing, sizeof(passing), "P%u PASSING", static_cast<unsigned>(life_.passingPlayer));
-      drawBanner(passing, 39, false, Icon::None, 2);
     } else {
       drawBanner(active ? "YOUR TURN" : "WAITING FOR TURN", 39, active,
           active ? Icon::Turn : Icon::None, 2);
@@ -473,38 +502,46 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     } else {
       drawTwoLines(s.primary.name, 66, width);
     }
-    drawLife(s.primary.life, 104, shared ? 4 : 6);
+    // The life total shrinks (not below size 3, or 2 when shared) so the
+    // commander block fits above the legend or the other seat.
+    uint8_t lifeSize = shared ? 4 : 6;
+    const uint8_t minLifeSize = shared ? 2 : 3;
+    const int16_t labelGap = shared ? 2 : 4;
+    while (cmdShown && lifeSize > minLifeSize &&
+        104 + 8 * lifeSize + labelGap + 10 > commanderLimit - cmdHeight) --lifeSize;
+    const int16_t labelY = 104 + 8 * lifeSize + labelGap;
+    drawLife(s.primary.life, 104, lifeSize);
     char label[20] = "LIFE";
     if (shared) snprintf(label, sizeof(label), "LIFE / SEAT %c", primarySeat);
-    drawCentered(label, shared ? 138 : 156);
+    drawCentered(label, labelY);
 
-    if (s.commander) {
-      // Received damage belongs to the primary player, above the other seat.
-      const int16_t commanderY = shared ? 152 : 188;
-      char heading[20] = "CMD TAKEN";
-      if (s.omittedSources) snprintf(heading, sizeof(heading), "CMD TAKEN +%u", s.omittedSources);
-      if (commanderY + 10 <= commanderLimit) drawCentered(heading, commanderY);
-      if (!s.sourceCount && commanderY + 42 <= commanderLimit) {
-        drawCentered("No commander", commanderY + 20);
-        drawCentered("damage received", commanderY + 32);
+    if (cmdShown) {
+      // Damage this player received, one compact row per source, anchored to
+      // the bottom of the free area so the legend never covers it. Rows that
+      // still do not fit join the "+N" count with the ones Atlas omitted.
+      int16_t y = max<int16_t>(labelY + 10, commanderLimit - cmdHeight);
+      uint8_t fit = s.sourceCount;
+      while (fit && y + CMD_HEADING + CMD_ROW * fit > commanderLimit) --fit;
+      const unsigned hidden = s.omittedSources + (s.sourceCount - fit);
+      display_.drawFastHLine(MARGIN, y, width, GxEPD_BLACK);
+      display_.setTextSize(1);
+      display_.setCursor(MARGIN, y + 3);
+      display_.print("CMD TAKEN");
+      if (hidden) {
+        char more[8];
+        snprintf(more, sizeof(more), "+%u", hidden);
+        display_.setCursor(display_.width() - MARGIN - strlen(more) * CHAR_WIDTH, y + 3);
+        display_.print(more);
       }
-      for (uint8_t i = 0; i < s.sourceCount; ++i) {
-        if (commanderY + 28 + 16 * i > commanderLimit) break;  // Legend below.
+      y += CMD_HEADING;
+      for (uint8_t i = 0; i < fit; ++i, y += CMD_ROW) {
         const auto &entry = s.sources[i];
-        display_.setTextSize(1);
-        display_.setCursor(MARGIN, commanderY + 12 + 16 * i);
-        printClipped(entry.name, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH);
         char damage[24];
-        // Keep slot identity when only commander 2 has damage.
-        if (!entry.damage[0] && entry.damage[1]) {
-          snprintf(damage, sizeof(damage), "%ld (C2)", static_cast<long>(entry.damage[1]));
-        } else if (entry.damage[1]) {
-          snprintf(damage, sizeof(damage), "%ld/%ld",
-              static_cast<long>(entry.damage[0]), static_cast<long>(entry.damage[1]));
-        } else {
-          snprintf(damage, sizeof(damage), "%ld", static_cast<long>(entry.damage[0]));
-        }
-        display_.setCursor(display_.width() - MARGIN - strlen(damage) * CHAR_WIDTH, commanderY + 20 + 16 * i);
+        formatCommanderDamage(entry, damage, sizeof(damage));
+        const int16_t damageWidth = static_cast<int16_t>(strlen(damage)) * CHAR_WIDTH;
+        display_.setCursor(MARGIN, y);
+        printClipped(entry.name, (width - damageWidth - CHAR_WIDTH) / CHAR_WIDTH);
+        display_.setCursor(display_.width() - MARGIN - damageWidth, y);
         display_.print(damage);
       }
     }
@@ -529,7 +566,9 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   gameFrameValid_ = true;
   gameFrameSigilId_ = s.sigilId;
   gameFrameShared_ = shared;
-  gameFrameCommander_ = s.commander != 0;
+  gameFrameCommander_ = cmdShown;
+  memcpy(&drawn_, &inputs, sizeof(inputs));
+  drawnValid_ = true;
   Serial.printf("SIGIL|DISPLAY|REFRESH|%s|MS|%lu|PARTIALS|%u\n",
       partial ? "PARTIAL" : "FULL",
       static_cast<unsigned long>(millis() - refreshStartMs),
@@ -595,6 +634,16 @@ void EpaperDisplay::showState(
   // Without a legend these are the original 196 / 201 / 239 positions.
   const int16_t bottom = contentBottom();
   const int16_t divider = bottom - 54;
+  DrawnInputs inputs;
+  memset(&inputs, 0, sizeof(inputs));
+  inputs.kind = 2;
+  const uint8_t stateArgs[6] = {sigilId, static_cast<uint8_t>(mode), primaryPlayer,
+      secondaryPlayer, turnNumber, flags};
+  memcpy(inputs.state, stateArgs, sizeof(stateArgs));
+  if (alreadyDrawn(inputs)) {
+    Serial.println("SIGIL|DISPLAY|REFRESH|SKIPPED_SAME");
+    return;
+  }
   gameFrameValid_ = false;
   partialRefreshCount_ = 0;
   display_.setFullWindow();
@@ -617,6 +666,8 @@ void EpaperDisplay::showState(
     if (shared && indicateSeat) drawCentered(focusA ? "SEAT A" : "SEAT B", bottom - 11);
     drawLegend();
   } while (display_.nextPage());
+  memcpy(&drawn_, &inputs, sizeof(inputs));
+  drawnValid_ = true;
 }
 
 }  // namespace TurnHubSigil

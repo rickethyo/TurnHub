@@ -84,6 +84,29 @@ class EpaperDisplay final : public SigilDisplay {
   char seatNameA_[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
   char seatNameB_[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
 
+  // Everything a game or state screen actually draws. A full refresh takes
+  // seconds and flashes, so an update that would draw the same pixels is
+  // skipped (test feedback, 2026-09-28: menu hold feedback, the OLED list
+  // cursor and other overlay fields used to force refreshes). Built on a
+  // zeroed struct so memcmp is exact.
+  struct DrawnInputs {
+    uint8_t kind;  // 1 = game, 2 = state.
+    TurnHubProtocol::GameDisplayPacket game;
+    uint8_t state[6];  // sigilId, mode, primary, secondary, turn, flags.
+    char names[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
+    bool menuActive;
+    bool menuLife;
+    uint8_t compass[KEY_COUNT];
+    TurnHubProtocol::LifeRequestFields request;
+    int32_t startingLife;
+    bool passPending;
+  };
+  // Adds the shared inputs (legend, overlay, seat names) to a zeroed out that
+  // already holds the screen's own; true if the panel shows exactly these.
+  bool alreadyDrawn(DrawnInputs &out) const;
+  DrawnInputs drawn_{};
+  bool drawnValid_ = false;
+
   bool gameFrameValid_ = false;
   bool gameFrameShared_ = false;
   bool gameFrameCommander_ = false;
