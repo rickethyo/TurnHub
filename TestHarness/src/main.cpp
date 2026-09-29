@@ -50,9 +50,9 @@ constexpr uint8_t CAPABILITIES = TurnHubProtocol::CAPABILITY_MENU |
     TurnHubProtocol::CAPABILITY_GAME_DISPLAY | TurnHubProtocol::CAPABILITY_LED_STATE;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PAIR_REQUEST_INTERVAL_MS = 1000;
-// Atlas's 15 s window plus the owner's code check for each virtual Sigil
-// (up to about a minute; both ask at once).
-constexpr uint32_t PAIR_ATTEMPT_MS = 90000;
+// Atlas's pairing window (at least 60 s) plus the owner's code check for
+// each virtual Sigil (up to about a minute; both ask at once).
+constexpr uint32_t PAIR_ATTEMPT_MS = 150000;
 constexpr uint32_t SEND_TIMEOUT_MS = 60;
 constexpr uint32_t ACK_TIMEOUT_MS = 600;
 constexpr uint8_t UNASSIGNED = 0xFF;

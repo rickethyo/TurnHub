@@ -375,7 +375,7 @@ seating, so an OLED Sigil must run Sigil firmware 0.5.6 or later. Host-tested;
 - Pass acknowledgement green flash: 250 ms.
 - Atlas lost: after 7 s without a valid packet from the paired Atlas
   (`LINK_TIMEOUT_MS`); see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md#atlas-lost-2026-09-28).
-- Pair: a press opens the 15-second pairing window; holding it for 10 seconds
+- Pair: a press opens the 60-second pairing window (15 s before 2026-09-29); holding it for 10 seconds
   erases the Sigil's saved pairing (Sigil 0.5.5+). *Needs verification* on hardware.
 
 ### Menu controls (2026-09-25)

@@ -10,8 +10,10 @@ constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 
 // Deliberate manual-pairing window. It is the Sigil's window and Atlas's
-// default; an Atlas admin may lengthen Atlas's own window (pairing_settings.h).
-constexpr uint32_t PAIRING_WINDOW_MS = 15000;
+// default, and the minimum anywhere: 60 s (owner, 2026-09-29), so nobody has
+// to rush between the two devices. An Atlas admin may lengthen Atlas's own
+// window (pairing_settings.h), never shorten it below this.
+constexpr uint32_t PAIRING_WINDOW_MS = 60000;
 // Holding a Sigil's Pair button this long erases its saved Atlas pairing.
 constexpr uint32_t FORGET_PAIRING_HOLD_MS = 10000;
 // FactoryReset payload: a fixed value ("FRES"), so no stray or corrupted

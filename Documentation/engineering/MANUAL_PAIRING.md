@@ -6,7 +6,7 @@
 in [Secure Link](SECURE_LINK.md).
 
 1. In the Atlas lobby, tap **Menu → Pair a Sigil**. Atlas's pairing window opens
-   (15 s by default, 30/60 s if set in Device Settings); the Atlas screen shows
+   (60 s by default and at least; 90 or 120 s if set in Device Settings); the Atlas screen shows
    the countdown and Atlas's on-board LED blinks red.
 2. Press the Sigil's Pair button. It blinks red and broadcasts `PairRequest2`
    with a fresh X25519 key every 2 s until answered.
@@ -100,6 +100,8 @@ and factory-reset integration remain future work.
 - **Pairing window:** Device Settings also has the Atlas pairing window (15, 30 or
   60 seconds; `GET/POST /api/pairing`, `ConfigurePairing` Intent), stored in NVS
   `turnhub/pairwin` as `{schema 1, seconds}`. Missing or unreadable values mean 15 s.
+  Since 2026-09-29 the choices are 60, 90 or 120 s (the 60 s minimum on every
+  device); a stored 15 or 30 reads as 60, and missing or unreadable means 60 s.
 
 *Needs verification* on hardware: host scenarios cover the Atlas handlers, HTTP
 routes, storage codec and portal; the Sigil hold and `Unpair` handling were built

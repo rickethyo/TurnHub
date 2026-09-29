@@ -332,9 +332,12 @@ in the portal/app, and win confirmations on the Sigil display.
 - On hold (owner, 2026-09-24): LED intensity and buzzer volume. The current
   Sigil hardware cannot vary them.
 
-Atlas's pairing window is adjustable (15, 30 or 60 s, admin Device Settings,
-2026-09-24). The Sigil's own window stays 15 s, so with a longer setting press
-Atlas's Pair first. Forgetting a pairing has a remote path (admin portal) as
+Atlas's pairing window is adjustable (admin Device Settings, 2026-09-24).
+Since 2026-09-29 every pairing window lasts at least 60 s (owner decision), so
+nobody has to rush between the two devices: Atlas offers 60, 90 or 120 s and
+can be lengthened for players who need more time, never shortened below 60 s.
+The Sigil's own window is 60 s, so with a longer setting press Atlas's Pair
+first. Forgetting a pairing has a remote path (admin portal) as
 well as the 10-second Sigil Pair hold, and ending a match as a draw (5-second
 Atlas master hold) is signaled by a fast status-LED blink during the hold and
 by "Draw" text in the portal and Android app.
