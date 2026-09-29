@@ -1892,6 +1892,11 @@ static void pressButton(TouchAction action) {
   touchAt(b->x+b->w/2,b->y+b->h/2);
 }
 static void tapButton(TouchAction action) { pressButton(action); testNow+=30; pressButton(action); touchRelease(); }
+// Pair, QR codes, Tests and Info live on the between-games Menu screen.
+static void openMenuScreen() {
+  if (currentScreen().kind!=ScreenKind::Menu) tapButton(TouchAction::OpenMenu);
+  assert(currentScreen().kind==ScreenKind::Menu);
+}
 // End match and Master pass live on the in-game Table screen.
 static void openTableScreen() {
   if (!screenButton(currentScreen(),TouchAction::EndMatch)) tapButton(TouchAction::OpenTable);
@@ -1971,11 +1976,20 @@ static void oledSigilSeatsOnePlayer() {
 static void touchControls() {
   resetTouchControls(); freshLobby(2); TurnHub::fixtureRadio=true; pairingActive=false;
   AtlasScreen s=currentScreen();
-  assert(String(s.title)=="Lobby" && s.buttonCount==5 && screenButton(s,TouchAction::StartGame) && screenButton(s,TouchAction::ClearLobby) &&
-      screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
+  // The lobby row keeps Start and Clear up front; the rest waits under Menu.
+  assert(String(s.title)=="Lobby" && s.buttonCount==3 && screenButton(s,TouchAction::StartGame) &&
+      screenButton(s,TouchAction::ClearLobby) && screenButton(s,TouchAction::OpenMenu) &&
+      !screenButton(s,TouchAction::Pair) && !screenButton(s,TouchAction::OpenQr) && !screenButton(s,TouchAction::OpenInfo));
+  assert(s.round==0 && s.gameClock[0]=='\0' && s.players[0].turnTime[0]=='\0');
   // Every button fits on screen and meets the 44 px minimum target size.
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+  tapButton(TouchAction::OpenMenu); s=currentScreen();
+  assert(s.kind==ScreenKind::Menu && String(s.badge)=="MENU" && screenButton(s,TouchAction::Pair) &&
+      screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo) &&
+      screenButton(s,TouchAction::CloseScreen) && hubState==HubState::Lobby);
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=SCREEN_BODY_Y && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
   // Touches outside a button, or sliding off one, do nothing.
   touchAt(4,4); touchRelease(); assert(!pairingActive);
@@ -1985,18 +1999,21 @@ static void touchControls() {
   assert(!pairingActive && currentScreen().pressed==TouchAction::Pair);
   pressButton(TouchAction::Pair); touchRelease();
   assert(pairingActive && currentScreen().pressed==TouchAction::None);
+  // Pairing from the Menu returns to the status screen and its countdown.
   s=currentScreen();
-  assert(startsWith(s.detail,"Pairing open: ") && String(s.notice)=="Pairing window opened");
+  assert(s.kind==ScreenKind::Status && startsWith(s.detail,"Pairing open: ") && String(s.notice)=="Pairing window opened");
   testNow+=TOUCH_NOTICE_MS; assert(currentScreen().notice[0]=='\0');
   testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);
   assert(String(currentScreen().detail)=="2 players, 0 Sigils");
   // A press drifting just past the edge (resistive jitter, a rolling
   // fingertip) still counts; beyond the slop it cancels.
+  openMenuScreen();
   { const AtlasScreen pairScreen=currentScreen();
     const TouchButton *pair=screenButton(pairScreen,TouchAction::Pair);
     const int16_t px=pair->x+pair->w/2, py=pair->y+pair->h/2, edge=pair->y-1;
     touchAt(px,py); touchAt(px,edge-TOUCH_SLOP_PX+2); touchRelease(); assert(pairingActive);
     testNow+=pairingWindowMs; updatePairingWindow(testNow); assert(!pairingActive);
+    openMenuScreen();
     touchAt(px,py); touchAt(px,edge-TOUCH_SLOP_PX); touchRelease(); assert(!pairingActive);
     // A press that starts in the slop, off every button, does nothing.
     touchAt(px,edge); touchRelease(); assert(!pairingActive);
@@ -2004,6 +2021,9 @@ static void touchControls() {
   // Pairing still goes through its handler: a radio failure is reported, not hidden.
   TurnHub::fixtureRadio=false; tapButton(TouchAction::Pair);
   assert(!pairingActive && String(currentScreen().notice)=="Radio unavailable");
+  // A refused pairing leaves the Menu up; Back returns to the lobby.
+  assert(currentScreen().kind==ScreenKind::Menu);
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
   TurnHub::fixtureRadio=true;
 
   // A presence code a phone asked for shows over the screen, with only Cancel;
@@ -2057,8 +2077,14 @@ static void touchControls() {
   assert(completedGames==1);
   s=currentScreen();
   assert(s.kind==ScreenKind::Status && String(s.title)=="Game over" && String(s.detail)=="The match ended in a draw" &&
-      s.buttonCount==4 && screenButton(s,TouchAction::Rematch) && screenButton(s,TouchAction::ResetTable) &&
-      screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo));
+      s.buttonCount==3 && screenButton(s,TouchAction::Rematch) && screenButton(s,TouchAction::ResetTable) &&
+      screenButton(s,TouchAction::OpenMenu));
+  // After a game the Menu has no Pair; the round and match length stay up.
+  assert(s.round>=1 && s.gameClock[0]!='\0');
+  tapButton(TouchAction::OpenMenu); s=currentScreen();
+  assert(s.kind==ScreenKind::Menu && !screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) &&
+      screenButton(s,TouchAction::OpenInfo));
+  tapButton(TouchAction::CloseScreen);
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();
@@ -2074,7 +2100,7 @@ static void atlasScreens() {
   resetTouchControls(); enterEmptyLobby(); pairingActive=false;
   AtlasScreen s=currentScreen();
   assert(s.kind==ScreenKind::Status && String(s.badge)=="LOBBY" && s.playerCount==0 && !s.sdMissing);
-  assert(String(s.qr)=="http://192.168.4.1/portal" && s.lineCount>0);  // Empty table: how to join.
+  assert(s.qr[0]=='\0' && s.lineCount>0);  // Empty table: how to join, no QR code (it is under Menu).
   fixtureSdCardReady=false; assert(currentScreen().sdMissing); fixtureSdCardReady=true;
 
   freshLobby(3); s=currentScreen();
@@ -2083,7 +2109,7 @@ static void atlasScreens() {
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
-  tapButton(TouchAction::OpenInfo); s=currentScreen();
+  openMenuScreen(); tapButton(TouchAction::OpenInfo); s=currentScreen();
   assert(s.kind==ScreenKind::Info && String(s.title)=="Table info" && s.lineCount==5 &&
       screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::CloseScreen));
   fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED"); fixtureSdCardReady=true;
@@ -2095,10 +2121,27 @@ static void atlasScreens() {
   assert(String(s.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" && screenButton(s,TouchAction::QrWifi)->selected);
   tapButton(TouchAction::QrSignIn); assert(String(currentScreen().qr)=="http://192.168.4.1/login");
   assert(hubState==HubState::Lobby && lobby.playerCount()==3);  // Screens change no table state.
+  // Back steps out one level: QR codes to the Menu, then the Menu to the lobby.
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
+  // A game starting closes the Menu.
+  openMenuScreen();
 
   startFromHost(); s=currentScreen();
-  assert(String(s.badge)=="PLAYING" && s.showLife && s.playerCount==3 && s.clock[0]!='\0' && s.timerPermille==-1);
+  assert(s.kind==ScreenKind::Status && String(s.badge)=="PLAYING" && s.showLife && s.playerCount==3 &&
+      s.clock[0]!='\0' && s.timerPermille==-1);
+  // Round 1, the match clock and every player's own turn time.
+  assert(s.round==1 && String(s.gameClock)=="0:00");
+  for (uint8_t i=0;i<s.playerCount;++i) assert(String(s.players[i].turnTime)=="0:00");
+  // The round turns over when the play comes back to the first seat, and
+  // each player's turn time counts only their own turns.
+  testNow+=65000; s=currentScreen();
+  { uint8_t ticking=0;
+    for (uint8_t i=0;i<s.playerCount;++i) ticking+=String(s.players[i].turnTime)=="1:05";
+    assert(ticking==1 && String(s.gameClock)=="1:05"); }
+  seatPass(); testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(currentScreen().round==1);
+  seatPass(); testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(currentScreen().round==1);
+  seatPass(); testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(currentScreen().round==2);
   uint8_t active=0;
   for (uint8_t i=0;i<s.playerCount;++i) {
     assert(s.players[i].life==game.lifeTotal(s.players[i].number));
@@ -2115,7 +2158,7 @@ static void atlasScreens() {
 static void harnessScreen() {
   using namespace TurnHubProtocol;
   resetTouchControls(); resetHarnessLink(); freshLobby(2); pairingActive=false;
-  AtlasScreen s=currentScreen();
+  openMenuScreen(); AtlasScreen s=currentScreen();
   assert(!screenButton(s,TouchAction::OpenTests) && harnessSigilId(testNow)==INVALID_ID);
   // A report from an ordinary Sigil is ignored.
   HarnessReportFields running; running.state=HarnessRunState::Running;
@@ -2128,8 +2171,8 @@ static void harnessScreen() {
   rec.helloInfoValid=true; rec.capabilities=CAPABILITY_MENU|CAPABILITY_HARNESS;
   assert(harnessSigilId(testNow)==2);
   s=currentScreen();
-  const TouchButton *pair=screenButton(s,TouchAction::Pair), *tests=screenButton(s,TouchAction::OpenTests);
-  assert(pair && tests && pair->w>=44 && tests->w>=44 && tests->x>=pair->x+pair->w);
+  const TouchButton *info=screenButton(s,TouchAction::OpenInfo), *tests=screenButton(s,TouchAction::OpenTests);
+  assert(info && tests && info->w>=44 && tests->w>=44 && info->x>=tests->x+tests->w && tests->y==info->y);
   tapButton(TouchAction::OpenTests); s=currentScreen();
   assert(String(s.title)=="Test harness" && String(s.detail)=="Ready: pick a test" && s.buttonCount==6);
   for (const TouchButton &b : s.buttons)
@@ -2153,11 +2196,12 @@ static void harnessScreen() {
   testNow+=HARNESS_REPORT_STALE_MS; assert(String(currentScreen().detail)=="Ready: pick a test");
   tapButton(TouchAction::CloseTests); assert(!screenButton(currentScreen(),TouchAction::StopTest));
   assert(String(currentScreen().title)!="Test harness");
-  enterEmptyLobby();
+  enterEmptyLobby(); openMenuScreen();
   // Without a harness the Tests button goes, and an open test screen offers only Back.
   tapButton(TouchAction::OpenTests); rec.capabilities=CAPABILITY_MENU; s=currentScreen();
   assert(String(s.detail)=="Harness offline" && s.buttonCount==1 && screenButton(s,TouchAction::CloseTests));
-  tapButton(TouchAction::CloseTests); assert(!screenButton(currentScreen(),TouchAction::OpenTests));
+  tapButton(TouchAction::CloseTests); assert(currentScreen().kind==ScreenKind::Menu);
+  assert(!screenButton(currentScreen(),TouchAction::OpenTests));
   rec.helloInfoValid=false; rec.capabilities=0; resetTouchControls(); resetHarnessLink();
 }
 

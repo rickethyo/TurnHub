@@ -35,7 +35,7 @@ over ESP-NOW:
   the menus Atlas offers and picks from them; it never decides an outcome.
 - Shared ESP-NOW packet definitions come from `../shared/include/protocol.h`;
   do not copy them into this project.
-- Pairing goes through Atlas's real pairing window (tap **Pair a Sigil** on the
+- Pairing goes through Atlas's real pairing window (tap **Menu → Pair a Sigil** on the
   touchscreen); the harness never edits Atlas's pairing storage.
 - It must not depend on Atlas GPIO or display hardware.
 
@@ -55,7 +55,7 @@ over ESP-NOW:
 ## From the Atlas touchscreen
 
 V1 advertises `CAPABILITY_HARNESS`, so while the harness is online the Atlas
-lobby shows **Tests** beside Pair a Sigil. It opens the premade tests: **Radio**
+lobby's **Menu** shows **Tests** beside Info. It opens the premade tests: **Radio**
 (radio check), **2p game**, **4p game**, **Rematch** (3 players: a game, a
 rematch and a second game) and **Soak x5**. Tap one and the harness plays it
 through its Sigils. The title and detail lines show the test, the current
@@ -69,7 +69,7 @@ screen stays up through the game until **Back**. Atlas and the harness speak
 | Command | What it does |
 |---|---|
 | `status` | Radio, Atlas MAC, each virtual Sigil's MAC, ID, online state, seats and life, picker page and current menu |
-| `pair` | Sends PairRequest from every unpaired virtual Sigil for 30 s. Tap **Pair a Sigil** on Atlas during that time |
+| `pair` | Sends PairRequest from every unpaired virtual Sigil for 30 s. Tap **Menu → Pair a Sigil** on Atlas during that time |
 | `forget` | Forgets the pairing on the harness only. Forget the two Sigils in the portal's Device Settings as well |
 | `sigils <1\|2>` | Use one or both virtual Sigils |
 | `pace <ms>` | Pause before each menu choice (default 1500 ms, 0-10000, kept in NVS) so a run can be followed on the Atlas screen |

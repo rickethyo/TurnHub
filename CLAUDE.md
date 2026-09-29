@@ -84,7 +84,7 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 ```
 pio run -e harness --target upload --upload-port COMx   # the harness is a CP210x port too; ask which one
 ```
-Serial console (115200): `status`, `pair` (tap Pair a Sigil on Atlas), `test` (premade tests), `run game [players] [turns]`, `pace <ms>`. It pairs as two Sigils (its station and soft-AP MACs), and the first advertises `CAPABILITY_HARNESS` so Atlas shows **Tests** in the lobby.
+Serial console (115200): `status`, `pair` (tap Menu → Pair a Sigil on Atlas), `test` (premade tests), `run game [players] [turns]`, `pace <ms>`. It pairs as two Sigils (its station and soft-AP MACs), and the first advertises `CAPABILITY_HARNESS` so Atlas shows **Tests** under the lobby's Menu.
 
 ## Architecture: rules that span files
 

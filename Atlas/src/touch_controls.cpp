@@ -1,8 +1,8 @@
 // Atlas touchscreen: the TFT's screen model and its touch buttons. The touch
 // adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
 // decide. The exceptions change no table state: Cancel takes a presence code
-// off the screen (front_panel.cpp), the Info, QR, Tests and Table buttons
-// switch screens, and a test is started on the harness. Drawing lives in
+// off the screen (front_panel.cpp), the Menu, Info, QR, Tests and Table
+// buttons switch screens, and a test is started on the harness. Drawing lives in
 // atlas_display.cpp.
 
 #include "avatars.h"
@@ -118,11 +118,34 @@ bool matchInProgress() {
   return hubState == HubState::Running || hubState == HubState::Paused;
 }
 
+// The Menu belongs between games (the lobby and a finished game).
+bool menuAvailable() {
+  return hubState == HubState::Lobby || hubState == HubState::GameOver;
+}
+
 // A code a phone asked for shows over whatever screen is open. The Table
-// screen belongs to a match and closes when it ends.
+// screen belongs to a match and closes when it ends; the Menu closes when
+// a game starts.
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
+  if (openScreen == ScreenKind::Menu && !menuAvailable()) openScreen = ScreenKind::Status;
   return pendingPresenceCode(nowMs) != nullptr ? ScreenKind::Code : openScreen;
+}
+
+// Between games: Pair (lobby only) and QR codes above; Tests (while a
+// harness is connected), Info and Back below.
+void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
+  ButtonSpec upper[2];
+  uint8_t n = 0;
+  if (hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
+  upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
+  addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
+  ButtonSpec lower[3];
+  n = 0;
+  if (harnessSigilId(nowMs) != INVALID_ID) lower[n++] = {TouchAction::OpenTests, "Tests", 0, 1};
+  lower[n++] = {TouchAction::OpenInfo, "Info", 0, 1};
+  lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
+  addRow(screen, BUTTON_ROW_Y, lower, n);
 }
 
 // In-game controls kept off the main row: Master pass (a stuck turn, running
@@ -152,6 +175,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Table:
       layoutTable(screen);
       return;
+    case ScreenKind::Menu:
+      layoutMenu(screen, nowMs);
+      return;
     case ScreenKind::Info: {
       const ButtonSpec row[] = {{TouchAction::OpenQr, "QR codes", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
       addRow(screen, BUTTON_ROW_Y, row, 2);
@@ -168,18 +194,13 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   }
 
   switch (hubState) {
+    // Start and Clear up front; Pair, QR codes, Tests and Info wait under Menu.
     case HubState::Lobby: {
-      ButtonSpec row[6];
+      ButtonSpec row[3];
       uint8_t n = 0;
       if (lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
       if (lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", LOBBY_CLEAR_HOLD_MS, 2};
-      row[n++] = {TouchAction::Pair, "Pair", 0, 3};
-      row[n++] = {TouchAction::OpenQr, "QR", 0, 2};
-      if (harnessSigilId(nowMs) != INVALID_ID) row[n++] = {TouchAction::OpenTests, "Tests", 0, 2};
-      row[n++] = {TouchAction::OpenInfo, "Info", 0, 2};
-      // A full row (players joined and a harness connected): equal widths keep
-      // every button at least a finger wide.
-      if (n == 6) for (uint8_t i = 0; i < n; ++i) row[i].weight = 1;
+      row[n++] = {TouchAction::OpenMenu, "Menu", 0, 2};
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
     }
@@ -197,8 +218,8 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     }
     case HubState::GameOver: {
       const ButtonSpec row[] = {{TouchAction::Rematch, "Rematch", 0, 3}, {TouchAction::ResetTable, "Reset", 0, 2},
-          {TouchAction::OpenQr, "QR", 0, 2}, {TouchAction::OpenInfo, "Info", 0, 2}};
-      addRow(screen, BUTTON_ROW_Y, row, 4);
+          {TouchAction::OpenMenu, "Menu", 0, 2}};
+      addRow(screen, BUTTON_ROW_Y, row, 3);
       break;
     }
     case HubState::Starting: {
@@ -255,6 +276,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::RunFullGame: return "RUN_FULL_GAME";
     case TouchAction::RunRematchGame: return "RUN_REMATCH_GAME";
     case TouchAction::RunSoak: return "RUN_SOAK";
+    case TouchAction::OpenMenu: return "OPEN_MENU";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -288,15 +310,23 @@ const char *holdPurpose(TouchAction action) {
   return "end the match";
 }
 
-// Screen changes: no Intent, no table state, no notice.
+// Screen changes: no Intent, no table state, no notice. Back leaves the
+// Menu's own screens (Info, QR codes, Tests) for the Menu while it is
+// available, and everything else for the status screen.
 bool navigate(TouchAction action) {
   switch (action) {
+    case TouchAction::OpenMenu: openScreen = ScreenKind::Menu; return true;
     case TouchAction::OpenInfo: openScreen = ScreenKind::Info; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::CloseScreen:
-    case TouchAction::CloseTests: openScreen = ScreenKind::Status; return true;
+    case TouchAction::CloseTests: {
+      const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
+          openScreen == ScreenKind::Tests;
+      openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
+      return true;
+    }
     case TouchAction::QrWifi:
     case TouchAction::QrPortal:
     case TouchAction::QrSignIn: qrChoice = action; return true;
@@ -332,8 +362,10 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.type = tableIntentType(action);
       intent.actor.origin = IntentOrigin::AtlasHardware;
       result = intents.dispatch(intent);
-      // After a master pass or End match, show the table what happened.
-      if (result.accepted() && (action == TouchAction::MasterPass || action == TouchAction::EndMatch)) {
+      // After a master pass, End match or Pair (from the Menu), show the
+      // table what happened: the turn, the result or the pairing countdown.
+      if (result.accepted() && (action == TouchAction::MasterPass || action == TouchAction::EndMatch ||
+          action == TouchAction::Pair)) {
         openScreen = ScreenKind::Status;
       }
       break;
@@ -440,6 +472,12 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
     if (TurnHubAvatars::validPresetAvatar(avatar)) p.avatar = avatar;
     if (inGame) {
       p.life = game.lifeTotal(seat.playerNumber);
+      uint32_t turnMs = 0;
+      if (const TurnHub::PlayerStats *stats = game.statsForPlayer(seat.playerNumber)) turnMs = stats->totalTurnMs;
+      if (hubState != HubState::GameOver && seat.playerNumber == game.activePlayerNumber()) {
+        turnMs += game.currentTurnElapsedMs(nowMs);
+      }
+      formatClock(p.turnTime, sizeof(p.turnTime), turnMs);
       if (hubState != HubState::GameOver && seat.playerNumber == game.activePlayerNumber()) p.flags |= CHIP_ACTIVE;
       if (game.isEliminated(seat.playerNumber)) p.flags |= CHIP_OUT;
       if (hubState == HubState::GameOver && seat.playerNumber == game.winnerPlayerNumber()) p.flags |= CHIP_WINNER;
@@ -457,8 +495,32 @@ const char *nameOfPlayer(const AtlasScreen &screen, uint8_t number) {
   return "";
 }
 
+// The round: each living player's completed turns, where the starter's turn
+// opens a new round. The highest count among the living is the rounds
+// finished by the players furthest along; if the active player is one of
+// them, their turn opens the next round.
+uint16_t currentRound() {
+  uint32_t most = 0;
+  uint32_t active = 0;
+  for (uint8_t i = 0; i < game.playerCount(); ++i) {
+    const PlayerSeat *seat = game.playerAt(i);
+    if (seat == nullptr || game.isEliminated(seat->playerNumber)) continue;
+    const TurnHub::PlayerStats *stats = game.statsForPlayer(seat->playerNumber);
+    const uint32_t done = stats != nullptr ? stats->turnsCompleted : 0;
+    if (done > most) most = done;
+    if (seat->playerNumber == game.activePlayerNumber()) active = done;
+  }
+  const uint32_t round = active == most ? most + 1 : most;
+  return static_cast<uint16_t>(round > 9999 ? 9999 : round);
+}
+
 void formatTurnClock(AtlasScreen &screen, uint32_t nowMs) {
-  if (hubState != HubState::Running && hubState != HubState::Paused) return;
+  const bool over = hubState == HubState::GameOver && game.hasPlayers();
+  if (hubState != HubState::Running && hubState != HubState::Paused && !over) return;
+  // A finished game keeps its final round and length in the header.
+  screen.round = currentRound();
+  formatClock(screen.gameClock, sizeof(screen.gameClock), game.gameElapsedMs(nowMs));
+  if (over) return;
   if (game.turnTimerMs() > 0) {
     const uint32_t left = game.turnRemainingMs(nowMs);
     screen.timerPermille = static_cast<int16_t>(static_cast<uint64_t>(left) * 1000 / game.turnTimerMs());
@@ -489,12 +551,11 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
             static_cast<unsigned>(screen.sigilsOnline), screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
       }
       if (screen.playerCount == 0) {
-        // An empty table: how to join, with the portal's QR code.
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Join from a Sigil menu,");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "or scan to open the");
-        snprintf(screen.lines[2], sizeof(screen.lines[2]), "table portal.");
+        // An empty table: how to join. The portal's QR code is under Menu.
+        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Join from a Sigil's menu, or from");
+        snprintf(screen.lines[1], sizeof(screen.lines[1]), "a phone on the table portal.");
+        snprintf(screen.lines[2], sizeof(screen.lines[2]), "Menu: pair a Sigil, QR codes, info.");
         screen.lineCount = 3;
-        snprintf(screen.qr, sizeof(screen.qr), "%s/portal", PORTAL_ORIGIN);
       }
       break;
     }
@@ -619,6 +680,13 @@ void formatTable(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.detail, sizeof(screen.detail), "Stuck turn? Master pass skips %s", name);
 }
 
+void formatMenu(AtlasScreen &screen) {
+  snprintf(screen.badge, sizeof(screen.badge), "MENU");
+  snprintf(screen.title, sizeof(screen.title), "Table menu");
+  snprintf(screen.detail, sizeof(screen.detail), "%s",
+      hubState == HubState::Lobby ? "Pair Sigils, share codes, table info" : "Share codes, table info");
+}
+
 void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "INFO");
   snprintf(screen.title, sizeof(screen.title), "Table info");
@@ -688,8 +756,17 @@ bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b) {
       sameText(a.name, b.name);
 }
 
+bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
+  return sameText(a.turnTime, b.turnTime);
+}
+
 bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sigilsOnline == b.sigilsOnline;
+  return sameText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sigilsOnline == b.sigilsOnline &&
+      a.round == b.round;
+}
+
+bool sameGameClock(const AtlasScreen &a, const AtlasScreen &b) {
+  return sameText(a.gameClock, b.gameClock);
 }
 
 bool sameHero(const AtlasScreen &a, const AtlasScreen &b) {
@@ -708,7 +785,9 @@ bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
     return false;
   }
   for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameText(a.lines[i], b.lines[i])) return false;
-  for (uint8_t i = 0; i < a.playerCount; ++i) if (!samePlayer(a.players[i], b.players[i])) return false;
+  for (uint8_t i = 0; i < a.playerCount; ++i) {
+    if (!samePlayer(a.players[i], b.players[i]) || !samePlayerTime(a.players[i], b.players[i])) return false;
+  }
   return true;
 }
 
@@ -729,7 +808,8 @@ bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
 }
 
 bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameHeader(a, b) && sameHero(a, b) && sameTimer(a, b) && sameBody(a, b) && sameButtons(a, b);
+  return sameHeader(a, b) && sameGameClock(a, b) && sameHero(a, b) && sameTimer(a, b) && sameBody(a, b) &&
+      sameButtons(a, b);
 }
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
@@ -744,6 +824,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;
     case ScreenKind::Table: formatTable(screen, nowMs); break;
+    case ScreenKind::Menu: formatMenu(screen); break;
   }
   layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
