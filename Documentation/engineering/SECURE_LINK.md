@@ -46,7 +46,7 @@ saves only the per-packet cipher step, which mbedTLS gives us anyway.
   for this feature; it affects both firmwares, display and SD libraries.
 
 **What our choice costs:**
-- 14 bytes per packet (the 110-byte display packet becomes 124 of ESP-NOW's
+- 15 bytes per packet (the 110-byte display packet becomes 125 of ESP-NOW's
   250) and a little CPU; the ESP32's hardware AES makes that negligible.
 - We own the envelope, nonce and counter code. We use standard mbedTLS
   primitives only (X25519, AES-128-CCM, HMAC-SHA256), never home-made
@@ -129,8 +129,8 @@ version | type = Secure | sigilId | counter (4, per direction)
 
 The CCM nonce combines the direction, Sigil ID, counter and session, so no
 nonce repeats under one key. The receiver requires the counter to rise,
-so duplicates and replays inside a session are dropped. Overhead is 14 bytes:
-the 110-byte display packet becomes 124, well under ESP-NOW's 250.
+so duplicates and replays inside a session are dropped. Overhead is 15 bytes:
+the 110-byte display packet becomes 125, well under ESP-NOW's 250.
 
 Only `PairRequest2`/`PairAccept2` stay cleartext. Atlas drops any other
 cleartext or failed-tag packet from a paired MAC and logs it (counts only,
@@ -180,8 +180,9 @@ The harness and the Wokwi fake Atlas get the same code (shared header).
 Commit after each step and tick it here.
 
 - [x] Design record (2026-09-28).
-- [ ] Shared `secure_link.h`: envelope layout, nonce, counter/session logic,
-      crypto interface; host tests with a test crypto backend.
+- [x] Shared `secure_link.h`: envelope layout, nonce, counter/session logic,
+      crypto interface; host tests with a test crypto backend (2026-09-28,
+      `Sigil/tests/host/secure_link_scenarios.cpp`; Atlas and Sigil host suites pass).
 - [ ] mbedTLS backend and boot-time known-answer self-test (Atlas and Sigil).
 - [ ] Pairing v2 on Atlas and Sigil; pair key in NVS; keyless records cleared.
 - [ ] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with

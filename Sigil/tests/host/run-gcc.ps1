@@ -21,6 +21,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Menu test compilation failed.' }
     & ..\..\.pio\host-tests\menu_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Menu scenarios failed.' }
+    & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include secure_link_scenarios.cpp -o ../../.pio/host-tests/secure_link_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Secure link test compilation failed.' }
+    & ..\..\.pio\host-tests\secure_link_scenarios.exe
+    if ($LASTEXITCODE -ne 0) { throw 'Secure link scenarios failed.' }
 } finally {
     Pop-Location
     $env:PATH = $previousPath

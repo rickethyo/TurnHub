@@ -123,6 +123,17 @@ enum class PacketType : uint8_t {
   // patterns on this table clock, so every Sigil blinks and breathes in step.
   // Older Sigils ignore it. Presentation only.
   TableClock = 39,
+  // Secure link (secure_link.h; Planned, see SECURE_LINK.md). Not sent by any
+  // firmware yet: pairing key agreement, the pairing-code result, the
+  // authenticated Hello/Ack that starts a session, and the sealed envelope
+  // that carries every other packet once a session exists.
+  PairRequest2 = 40,
+  PairAccept2 = 41,
+  PairConfirmed = 42,
+  PairRejected = 43,
+  SecureHello = 44,
+  SecureHelloAck = 45,
+  Secure = 46,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,

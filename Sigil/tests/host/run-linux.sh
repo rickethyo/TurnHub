@@ -23,3 +23,7 @@ mkdir -p "$build_dir"
 "$compiler" "${flags[@]}" "${includes[@]}" \
   menu_scenarios.cpp ../../src/sigil_menu.cpp -o "$build_dir/menu_scenarios"
 "$build_dir/menu_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}" \
+  secure_link_scenarios.cpp -o "$build_dir/secure_link_scenarios"
+"$build_dir/secure_link_scenarios"
