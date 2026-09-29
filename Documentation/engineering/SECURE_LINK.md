@@ -241,7 +241,7 @@ Commit after each step and tick it here.
          it (and counts as a Hello); every send to a Sigil is sealed in the app
          task (counters stay in order); every non-pairing packet from a Sigil
          must open. Keyless records are forgotten at boot.
-      4. [ ] Sigil: SecureHello when there is no session or Atlas went quiet
+      4. [x] Sigil: SecureHello when there is no session or Atlas went quiet
          (> 2 Hello intervals), otherwise a sealed Hello as the keep-alive;
          everything it sends is sealed, and only sealed frames from its Atlas
          are handled. A keyless binding counts as unpaired.

@@ -22,6 +22,7 @@
 #include "sigil_led.h"
 #include "received_packet.h"
 #include "pairing_v2.h"
+#include "secure_session.h"
 #include "secure_link_mbedtls.h"
 
 #ifndef TURNHUB_INPUT_JOYSTICK
@@ -248,6 +249,11 @@ TurnHubSecureLink::SigilPairing pairingV2;
 TurnHubSecureLink::PairRequest2Packet pairRequest2{};
 uint8_t atlasPairKey[TurnHubSecureLink::KEY_BYTES] = {};
 bool atlasPairKeyValid = false;
+// The secure session with the saved Atlas (secure_session.h). Everything
+// but pairing and the handshake travels sealed in it; RAM only.
+TurnHubSecureLink::SigilSession linkSession;
+// When a packet from Atlas last opened (or its handshake answer arrived).
+uint32_t lastAtlasFrameMs = 0;
 // The code on screen while the owner checks it (read by the display task).
 volatile bool pairingCodeShown = false;
 volatile uint16_t pairingCodeValue = 0;
@@ -317,26 +323,17 @@ void rememberAtlas(const uint8_t *mac) {
   ensurePeer(atlasMac);
 }
 
-void sendPacket(
-    PacketType type,
-    int32_t value = 0,
-    bool forceBroadcast = false) {
-  if (!espNowReady || (type != PacketType::PairRequest && !atlasKnown)) {
+// Every packet to Atlas travels sealed in the current session; with none
+// (before Atlas answers SecureHello) nothing is sent.
+void sendPacket(PacketType type, int32_t value = 0) {
+  if (!espNowReady || !atlasKnown || !linkSession.ready() || !ensurePeer(atlasMac)) {
     return;
   }
-
-  const uint8_t *destination =
-      (forceBroadcast || !atlasKnown) ? BROADCAST_MAC : atlasMac;
-
-  if (!ensurePeer(destination)) {
-    return;
-  }
-
   const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
-  const esp_err_t result = esp_now_send(
-      destination,
-      reinterpret_cast<const uint8_t *>(&packet),
-      sizeof(packet));
+  uint8_t frame[sizeof(Packet) + TurnHubSecureLink::SECURE_OVERHEAD];
+  const size_t length = linkSession.seal(linkCrypto, &packet, sizeof(packet), frame, sizeof(frame));
+  if (length == 0) return;
+  const esp_err_t result = esp_now_send(atlasMac, frame, length);
 
   if (result != ESP_OK) {
     Serial.print("SIGIL|ESP_NOW|SEND_ERROR|");
@@ -355,15 +352,27 @@ void sendBroadcastRaw(const void *data, size_t length) {
   }
 }
 
+// Every HELLO_INTERVAL_MS. With a session and Atlas heard lately, a sealed
+// Hello keeps it alive; otherwise (boot, pairing, Atlas restarted or quiet)
+// a SecureHello starts a new one.
 void sendHello() {
-  if (!atlasKnown) return;
+  lastHelloMs = millis();
+  if (!atlasKnown || !linkSession.hasKey()) return;
   const int32_t helloInfo = TurnHubProtocol::encodeHelloInfo(
       TurnHubSigilFirmware::MAJOR,
       TurnHubSigilFirmware::MINOR,
       TurnHubSigilFirmware::PATCH,
       DEVICE_CAPABILITIES);
-  sendPacket(PacketType::Hello, helloInfo);
-  lastHelloMs = millis();
+  if (linkSession.ready() && millis() - lastAtlasFrameMs <= 2 * HELLO_INTERVAL_MS) {
+    sendPacket(PacketType::Hello, helloInfo);
+    return;
+  }
+  TurnHubSecureLink::SecureHelloPacket hello;
+  if (!espNowReady || !linkSession.makeHello(linkCrypto, helloInfo, hello) ||
+      !ensurePeer(atlasMac)) {
+    return;
+  }
+  esp_now_send(atlasMac, reinterpret_cast<const uint8_t *>(&hello), sizeof(hello));
 }
 
 // Renders the current light state to the Jewel ring (hardware Sigils) or the
@@ -862,6 +871,7 @@ void forgetPairing(const char *reason) {
   pairingCodeShown = false;
   TurnHubSecureLink::wipe(atlasPairKey, sizeof(atlasPairKey));
   atlasPairKeyValid = false;
+  linkSession.clear();
   ledModel.setAtlasLost(false, millis());
   ledModel.clear();
 #if TURNHUB_MENU
@@ -937,6 +947,7 @@ void storePairingV2(const uint8_t *mac, uint8_t slot, const uint8_t *key) {
   }
   memcpy(atlasPairKey, key, TurnHubSecureLink::KEY_BYTES);
   atlasPairKeyValid = true;
+  linkSession.configure(slot, key);
   pairingCodeShown = false;
   rememberAtlas(mac);
   sigilId = slot;
@@ -970,10 +981,12 @@ void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
 }
 
 void noteAtlasHeard() {
+  lastAtlasFrameMs = millis();
   applyAtlasLinkChange(atlasLink.heard(millis()));
 }
 
-void handleEspNowReceive(
+// A packet from Atlas that opened in the current session (handleEspNowReceive).
+void handleAtlasPacket(
     const uint8_t *mac,
     const uint8_t *incomingData,
     int length) {
@@ -1012,36 +1025,6 @@ void handleEspNowReceive(
     if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
     return;
   }
-  if (length == sizeof(TurnHubSecureLink::PairAccept2Packet)) {
-    TurnHubSecureLink::PairAccept2Packet accept{};
-    memcpy(&accept, incomingData, sizeof(accept));
-    uint8_t ownMac[6];
-    if (!pairingActive || esp_wifi_get_mac(WIFI_IF_STA, ownMac) != ESP_OK ||
-        !pairingV2.accept(linkCrypto, accept, mac, ownMac, millis())) {
-      return;
-    }
-    // The window has done its job; the code check keeps the pairing light on.
-    pairingActive = false;
-    pairingCodeValue = pairingV2.code();
-    pairingCodeShown = true;
-    Serial.printf("SIGIL|PAIR|V2|CODE_SHOWN|%u\n", static_cast<unsigned>(accept.sigilId));
-    displayNeedsRefresh = true;
-    notifyDisplayTask();
-    return;
-  }
-  if (length == sizeof(TurnHubSecureLink::PairResultPacket)) {
-    TurnHubSecureLink::PairResultPacket result{};
-    memcpy(&result, incomingData, sizeof(result));
-    uint8_t key[TurnHubSecureLink::KEY_BYTES];
-    const TurnHubSecureLink::PairVerdict verdict = pairingV2.result(linkCrypto, result, mac, key);
-    if (verdict == TurnHubSecureLink::PairVerdict::Confirmed) {
-      storePairingV2(mac, result.sigilId, key);
-    } else if (verdict == TurnHubSecureLink::PairVerdict::Rejected) {
-      endPairingCodeCheck("REJECTED");
-    }
-    TurnHubSecureLink::wipe(key, sizeof(key));
-    return;
-  }
   if (length != sizeof(Packet)) {
     return;
   }
@@ -1053,28 +1036,6 @@ void handleEspNowReceive(
     return;
   }
 
-  if (packet.type == PacketType::PairAccept) {
-    if (!pairingActive || millis() - pairingStartMs >= PAIRING_DURATION_MS ||
-        packet.value != pairingToken || packet.sigilId >= TurnHubProtocol::MAX_SIGILS) return;
-    uint8_t binding[PAIRING_BINDING_SIZE];
-    memcpy(binding, mac, 6);
-    binding[6] = packet.sigilId;
-    Preferences prefs;
-    if (!prefs.begin(PAIRING_NAMESPACE, false)) return;
-    const bool stored = prefs.putBytes(PAIRING_KEY, binding, sizeof(binding)) == sizeof(binding);
-    prefs.end();
-    if (!stored) { Serial.println("SIGIL|PAIR|STORE_ERROR"); return; }
-    rememberAtlas(mac);
-    sigilId = packet.sigilId;
-    atlasLink.start(millis());
-    pairingActive = false;
-    ledModel.setPairing(false, millis());
-    profileSyncStartPending = true;
-    queueReadyDisplay();
-    Serial.println("SIGIL|PAIR|SUCCESS");
-    sendHello();
-    return;
-  }
   if (!atlasKnown || memcmp(mac, atlasMac, 6) != 0) return;
 
   if (packet.type == PacketType::Ack &&
@@ -1221,6 +1182,64 @@ void handleEspNowReceive(
     default:
       break;
   }
+}
+
+// Everything the radio delivers. Pairing and the session handshake are the
+// only unsealed packets; anything else from Atlas must open in the current
+// session (right key, rising counter) or it is dropped.
+void handleEspNowReceive(
+    const uint8_t *mac,
+    const uint8_t *incomingData,
+    int length) {
+  PacketType type;
+  if (!TurnHubSecureLink::framePacketType(incomingData, static_cast<size_t>(length), type)) return;
+  if (length == sizeof(TurnHubSecureLink::PairAccept2Packet)) {
+    TurnHubSecureLink::PairAccept2Packet accept{};
+    memcpy(&accept, incomingData, sizeof(accept));
+    uint8_t ownMac[6];
+    if (!pairingActive || esp_wifi_get_mac(WIFI_IF_STA, ownMac) != ESP_OK ||
+        !pairingV2.accept(linkCrypto, accept, mac, ownMac, millis())) {
+      return;
+    }
+    // The window has done its job; the code check keeps the pairing light on.
+    pairingActive = false;
+    pairingCodeValue = pairingV2.code();
+    pairingCodeShown = true;
+    Serial.printf("SIGIL|PAIR|V2|CODE_SHOWN|%u\n", static_cast<unsigned>(accept.sigilId));
+    displayNeedsRefresh = true;
+    notifyDisplayTask();
+    return;
+  }
+  if (length == sizeof(TurnHubSecureLink::PairResultPacket)) {
+    TurnHubSecureLink::PairResultPacket result{};
+    memcpy(&result, incomingData, sizeof(result));
+    uint8_t key[TurnHubSecureLink::KEY_BYTES];
+    const TurnHubSecureLink::PairVerdict verdict = pairingV2.result(linkCrypto, result, mac, key);
+    if (verdict == TurnHubSecureLink::PairVerdict::Confirmed) {
+      storePairingV2(mac, result.sigilId, key);
+    } else if (verdict == TurnHubSecureLink::PairVerdict::Rejected) {
+      endPairingCodeCheck("REJECTED");
+    }
+    TurnHubSecureLink::wipe(key, sizeof(key));
+    return;
+  }
+  if (!atlasKnown || memcmp(mac, atlasMac, 6) != 0) return;
+  if (length == sizeof(TurnHubSecureLink::SecureHelloAckPacket) &&
+      type == PacketType::SecureHelloAck) {
+    TurnHubSecureLink::SecureHelloAckPacket ack{};
+    memcpy(&ack, incomingData, sizeof(ack));
+    if (linkSession.acceptAck(linkCrypto, ack)) {
+      Serial.println("SIGIL|SECURE|SESSION_READY");
+      noteAtlasHeard();
+    }
+    return;
+  }
+  if (type != PacketType::Secure) return;  // Unsealed from Atlas: dropped.
+  uint8_t inner[TurnHubSigil::ReceivedPacket::MAX_BYTES];
+  const size_t innerLength = linkSession.open(linkCrypto, incomingData,
+      static_cast<size_t>(length), inner, sizeof(inner));
+  if (innerLength == 0) return;
+  handleAtlasPacket(mac, inner, static_cast<int>(innerLength));
 }
 
 #if TURNHUB_MENU
@@ -1549,8 +1568,19 @@ void loadSavedPairing() {
           prefs.getBytesLength(PAIRING_KEY_V2) == TurnHubSecureLink::KEY_BYTES &&
           prefs.getBytes(PAIRING_KEY_V2, atlasPairKey, TurnHubSecureLink::KEY_BYTES) ==
               TurnHubSecureLink::KEY_BYTES;
-      // Keyless: paired before pairing v2; pair again for the secure link.
-      Serial.println(atlasPairKeyValid ? "SIGIL|PAIR|LOADED|SECURE" : "SIGIL|PAIR|LOADED|KEYLESS");
+      if (atlasPairKeyValid) {
+        linkSession.configure(sigilId, atlasPairKey);
+        Serial.println("SIGIL|PAIR|LOADED|SECURE");
+      } else {
+        // Paired before pairing v2: no key, so it can't talk to Atlas any
+        // more. Forget it; the owner pairs it again.
+        prefs.remove(PAIRING_KEY);
+        atlasKnown = false;
+        memset(atlasMac, 0, sizeof(atlasMac));
+        sigilId = UNASSIGNED_SIGIL_ID;
+        atlasLink.stop();
+        Serial.println("SIGIL|PAIR|KEYLESS_FORGOTTEN");
+      }
     }
     prefs.end();
   }
