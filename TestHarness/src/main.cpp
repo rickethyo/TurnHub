@@ -16,7 +16,9 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+#include "pairing_v2.h"
 #include "protocol.h"
+#include "secure_link_mbedtls.h"
 
 namespace {
 
@@ -48,7 +50,9 @@ constexpr uint8_t CAPABILITIES = TurnHubProtocol::CAPABILITY_MENU |
     TurnHubProtocol::CAPABILITY_GAME_DISPLAY | TurnHubProtocol::CAPABILITY_LED_STATE;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PAIR_REQUEST_INTERVAL_MS = 1000;
-constexpr uint32_t PAIR_ATTEMPT_MS = 30000;
+// Atlas's 15 s window plus the owner's code check for each virtual Sigil
+// (up to about a minute; both ask at once).
+constexpr uint32_t PAIR_ATTEMPT_MS = 90000;
 constexpr uint32_t SEND_TIMEOUT_MS = 60;
 constexpr uint32_t ACK_TIMEOUT_MS = 600;
 constexpr uint8_t UNASSIGNED = 0xFF;
@@ -58,6 +62,8 @@ constexpr uint8_t RX_QUEUE_LENGTH = 24;
 constexpr uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 constexpr char PREF_NAMESPACE[] = "th_harness";
 constexpr char PREF_KEY[] = "pair";  // Atlas MAC + one Sigil ID per virtual Sigil.
+// Pairing v2 keys: per virtual Sigil a has-key byte and the 16-byte pair key.
+constexpr char PREF_KEY_V2[] = "pairk";
 
 // Atlas's timings (Atlas/include/atlas_app.h), with margin for radio latency.
 constexpr uint32_t START_WAIT_MS = 3000 + 4000;
@@ -77,6 +83,12 @@ struct VirtualSigil {
   bool pairing = false;
   int32_t pairingToken = 0;
   uint32_t lastPairRequestMs = 0;
+  // Pairing v2 (SECURE_LINK.md), like a real Sigil: a key agreement, the code
+  // printed here and on Atlas, and the pair key once the owner confirms.
+  TurnHubSecureLink::SigilPairing v2;
+  TurnHubSecureLink::PairRequest2Packet request{};
+  bool hasPairKey = false;
+  uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
   uint32_t lastHelloMs = 0;
   uint32_t lastHelloAckMs = 0;
   bool menuValid = false;
@@ -101,6 +113,7 @@ VirtualSigil sigils[VIRTUAL_SIGILS] = {{"V1", WIFI_IF_STA}, {"V2", WIFI_IF_AP}};
 uint8_t activeSigils = VIRTUAL_SIGILS;
 bool atlasKnown = false;
 uint8_t atlasMac[6] = {};
+TurnHubSecureLink::MbedtlsCrypto linkCrypto;
 bool verbose = false;
 // Pause before each menu choice so a person can follow the run on Atlas and
 // the portal (owner request, 2026-09-25). "pace <ms>" changes it; kept in NVS.
@@ -232,11 +245,20 @@ void savePairing() {
   uint8_t blob[6 + VIRTUAL_SIGILS];
   memcpy(blob, atlasMac, 6);
   for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) blob[6 + i] = sigils[i].sigilId;
+  uint8_t keys[VIRTUAL_SIGILS * (1 + TurnHubSecureLink::KEY_BYTES)] = {};
+  for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
+    uint8_t *entry = keys + i * (1 + TurnHubSecureLink::KEY_BYTES);
+    entry[0] = sigils[i].hasPairKey ? 1 : 0;
+    memcpy(entry + 1, sigils[i].pairKey, TurnHubSecureLink::KEY_BYTES);
+  }
   if (atlasKnown) {
     prefs.putBytes(PREF_KEY, blob, sizeof(blob));
+    prefs.putBytes(PREF_KEY_V2, keys, sizeof(keys));
   } else {
     prefs.remove(PREF_KEY);
+    prefs.remove(PREF_KEY_V2);
   }
+  TurnHubSecureLink::wipe(keys, sizeof(keys));
   prefs.end();
 }
 
@@ -250,6 +272,17 @@ void loadPairing() {
     atlasKnown = true;
     for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
       sigils[i].sigilId = blob[6 + i] < TurnHubProtocol::MAX_SIGILS ? blob[6 + i] : UNASSIGNED;
+    }
+    // Keys from pairing v2; a pairing from before loads as keyless.
+    uint8_t keys[VIRTUAL_SIGILS * (1 + TurnHubSecureLink::KEY_BYTES)];
+    if (prefs.getBytesLength(PREF_KEY_V2) == sizeof(keys) &&
+        prefs.getBytes(PREF_KEY_V2, keys, sizeof(keys)) == sizeof(keys)) {
+      for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
+        const uint8_t *entry = keys + i * (1 + TurnHubSecureLink::KEY_BYTES);
+        sigils[i].hasPairKey = entry[0] == 1 && sigils[i].sigilId != UNASSIGNED;
+        memcpy(sigils[i].pairKey, entry + 1, TurnHubSecureLink::KEY_BYTES);
+      }
+      TurnHubSecureLink::wipe(keys, sizeof(keys));
     }
   }
   paceMs = min(prefs.getUInt("pace", DEFAULT_PACE_MS), MAX_PACE_MS);
@@ -305,6 +338,58 @@ VirtualSigil *sigilById(uint8_t sigilId) {
     if (sigils[i].sigilId == sigilId) return &sigils[i];
   }
   return nullptr;
+}
+
+// Pairing v2: Atlas answered one of the virtual Sigils (matched by token);
+// its code goes on the console and Atlas's screen for the owner to compare.
+void handlePairAccept2(const uint8_t *mac, const uint8_t *data) {
+  TurnHubSecureLink::PairAccept2Packet accept;
+  memcpy(&accept, data, sizeof(accept));
+  for (uint8_t i = 0; i < activeSigils; ++i) {
+    VirtualSigil &v = sigils[i];
+    if (!v.pairing || !v.v2.accept(linkCrypto, accept, mac, v.mac, millis())) continue;
+    v.pairing = false;
+    char code[5];
+    TurnHubSecureLink::formatPairingCode(v.v2.code(), code);
+    Serial.printf("HARNESS|PAIR|V2|CODE|%s|%s|slot=%u|tap Codes match on Atlas if its screen shows %s\n",
+        v.name, code, static_cast<unsigned>(accept.sigilId), code);
+    return;
+  }
+}
+
+// Atlas's verdict. Only a result MAC'd with the new key counts (pairing_v2.h).
+void handlePairResult(const uint8_t *mac, const uint8_t *data) {
+  TurnHubSecureLink::PairResultPacket result;
+  memcpy(&result, data, sizeof(result));
+  for (uint8_t i = 0; i < activeSigils; ++i) {
+    VirtualSigil &v = sigils[i];
+    uint8_t key[TurnHubSecureLink::KEY_BYTES];
+    const TurnHubSecureLink::PairVerdict verdict = v.v2.result(linkCrypto, result, mac, key);
+    if (verdict == TurnHubSecureLink::PairVerdict::None) continue;
+    if (verdict == TurnHubSecureLink::PairVerdict::Rejected) {
+      Serial.printf("HARNESS|PAIR|V2|REJECTED|%s|nothing stored\n", v.name);
+      return;
+    }
+    if (atlasKnown && memcmp(mac, atlasMac, 6) != 0) {
+      // A different Atlas: the harness follows one Atlas at a time.
+      for (auto &other : sigils) {
+        other.sigilId = UNASSIGNED;
+        other.hasPairKey = false;
+      }
+    }
+    memcpy(atlasMac, mac, 6);
+    atlasKnown = true;
+    v.sigilId = result.sigilId;
+    v.hasPairKey = true;
+    memcpy(v.pairKey, key, TurnHubSecureLink::KEY_BYTES);
+    TurnHubSecureLink::wipe(key, sizeof(key));
+    v.menuValid = false;
+    savePairing();
+    Serial.printf("HARNESS|PAIR|ACCEPTED|%s|sigil=%u|atlas=%s|SECURE\n", v.name,
+        static_cast<unsigned>(v.sigilId), macText(mac).c_str());
+    sendHello(v);
+    return;
+  }
 }
 
 void handlePacket(const uint8_t *mac, const Packet &packet) {
@@ -512,15 +597,23 @@ void pump() {
       handleGameDisplay(frame.mac, frame.data);
     } else if (frame.length == sizeof(ProfilePickerPacket)) {
       handlePicker(frame.mac, frame.data);
+    } else if (frame.length == sizeof(TurnHubSecureLink::PairAccept2Packet)) {
+      handlePairAccept2(frame.mac, frame.data);
+    } else if (frame.length == sizeof(TurnHubSecureLink::PairResultPacket)) {
+      handlePairResult(frame.mac, frame.data);
     }
   }
   const uint32_t now = millis();
   for (uint8_t i = 0; i < activeSigils; ++i) {
     VirtualSigil &v = sigils[i];
+    if (v.v2.expired(now)) {
+      v.v2.cancel();
+      Serial.printf("HARNESS|PAIR|V2|TIMEOUT|%s|no answer on Atlas; nothing stored\n", v.name);
+    }
     if (v.pairing) {
       if (now - v.lastPairRequestMs >= PAIR_REQUEST_INTERVAL_MS) {
         v.lastPairRequestMs = now;
-        sendPacket(v, PacketType::PairRequest, v.pairingToken, true);
+        sendFrom(v, BROADCAST_MAC, &v.request, sizeof(v.request));
       }
     } else if (now - v.lastHelloMs >= HELLO_INTERVAL_MS) {
       sendHello(v);
@@ -870,24 +963,38 @@ void startPairing() {
   bool any = false;
   for (uint8_t i = 0; i < activeSigils; ++i) {
     VirtualSigil &v = sigils[i];
-    if (v.sigilId != UNASSIGNED) continue;
-    v.pairing = true;
+    // Paired the old way (keyless) pairs again for the secure link.
+    if (v.sigilId != UNASSIGNED && v.hasPairKey) continue;
     v.pairingToken = static_cast<int32_t>(esp_random());
+    if (!v.v2.begin(linkCrypto, v.pairingToken, v.request)) {
+      Serial.printf("HARNESS|PAIR|V2|KEY_ERROR|%s\n", v.name);
+      continue;
+    }
+    v.pairing = true;
     v.lastPairRequestMs = millis() - PAIR_REQUEST_INTERVAL_MS;
     any = true;
   }
   if (!any) {
-    Serial.println("HARNESS|PAIR|ALREADY_PAIRED|use 'forget' first to pair again");
+    Serial.println("HARNESS|PAIR|ALREADY_PAIRED|all securely paired; use 'forget' first to pair again");
     return;
   }
-  Serial.println("HARNESS|PAIR|WAITING|tap Menu, then 'Pair a Sigil', on the Atlas touchscreen now");
+  Serial.println("HARNESS|PAIR|WAITING|tap Menu, then 'Pair a Sigil', on the Atlas touchscreen now; "
+      "then Codes match for each code printed here");
+  // Done once every virtual Sigil has had its answer: no request still
+  // broadcasting and no code still waiting on Atlas.
   const bool done = waitUntil([] {
     for (uint8_t i = 0; i < activeSigils; ++i) {
-      if (sigils[i].pairing) return false;
+      if (sigils[i].pairing ||
+          sigils[i].v2.state() != TurnHubSecureLink::SigilPairing::State::Idle) {
+        return false;
+      }
     }
     return true;
   }, PAIR_ATTEMPT_MS);
-  for (auto &v : sigils) v.pairing = false;
+  for (auto &v : sigils) {
+    v.pairing = false;
+    v.v2.cancel();
+  }
   Serial.println(done ? "HARNESS|PAIR|DONE" : "HARNESS|PAIR|TIMEOUT");
 }
 
@@ -952,8 +1059,9 @@ void printStatus() {
       static_cast<unsigned>(activeSigils), static_cast<unsigned long>(paceMs), policyName(lifeRequestPolicy));
   for (uint8_t i = 0; i < activeSigils; ++i) {
     const VirtualSigil &v = sigils[i];
-    Serial.printf("HARNESS|STATUS|%s|mac=%s|sigil=%s|online=%s|seats=%s|picker=%s|menu=%s\n", v.name,
+    Serial.printf("HARNESS|STATUS|%s|mac=%s|sigil=%s|pairing=%s|online=%s|seats=%s|picker=%s|menu=%s\n", v.name,
         macText(v.mac).c_str(), v.sigilId == UNASSIGNED ? "unpaired" : String(v.sigilId).c_str(),
+        v.sigilId == UNASSIGNED ? "none" : v.hasPairKey ? "secure" : "keyless",
         online(v) ? "yes" : "no", seatsText(v).c_str(), pickerText(v).c_str(), menuText(v).c_str());
   }
 }
@@ -997,6 +1105,8 @@ void handleCommand(String command) {
     for (auto &v : sigils) {
       v.sigilId = UNASSIGNED;
       v.menuValid = false;
+      v.hasPairKey = false;
+      TurnHubSecureLink::wipe(v.pairKey, sizeof(v.pairKey));
     }
     atlasKnown = false;
     savePairing();

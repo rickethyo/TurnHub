@@ -104,7 +104,7 @@ cannot change it. Display library: LovyanGFX.
 | Touch CS / IRQ | 33 / 36 | Active low |
 | microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Mounted at boot at 4 MHz (`SD_SPI_HZ`), never formatted; FAT32 cards only. Optional storage, see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage). *Verified* on the board by the owner (2026-09-24): the card mounts and registers |
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
-| RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot |
+| RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot. Red blinks 250 ms on / 250 ms off while the pairing window is open (2026-09-29, same rhythm as a pairing Sigil; `front_panel.cpp`); *Needs verification* on hardware |
 | Speaker amp enable | 4 | Active low. On only while a tone plays |
 | Speaker audio | 26 | LEDC channel 4 square wave (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
 | Battery voltage ADC | 34 | Input only. Not used yet |

@@ -27,3 +27,7 @@ mkdir -p "$build_dir"
 "$compiler" "${flags[@]}" "${includes[@]}" \
   secure_link_scenarios.cpp -o "$build_dir/secure_link_scenarios"
 "$build_dir/secure_link_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}" \
+  pairing_scenarios.cpp -o "$build_dir/pairing_scenarios"
+"$build_dir/pairing_scenarios"

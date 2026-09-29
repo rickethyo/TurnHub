@@ -223,9 +223,12 @@ or elimination selection is open. It logs `ATLAS|GAME|MASTER_PASS` and a
 line. `StartGame`, `CancelStart`, `Rematch` and `ResetGame` also accept the
 Atlas touchscreen (`AtlasHardware`, no controller): it stands at the table, so
 Start needs no seat or arming (two or more players still), and Rematch and
-Reset work only after a game. `PairConfirm` remains
-unsupported; it is *Planned* as the pairing-code confirmation from the Atlas
-screen or the portal (see [Secure Link](SECURE_LINK.md)). General counters and nudges
+Reset work only after a game. `PairConfirm` (2026-09-29) is the pairing-code
+check: `value` is the waiting Sigil's slot plus `PAIR_CONFIRM_ACCEPT` for
+**Codes match** (without it, Reject). It accepts the Atlas touchscreen
+(`AtlasHardware`) or a portal Admin (`moderatorId`, verified at the table by the
+route), in the lobby, for a slot that is actually waiting (see
+[Secure Link](SECURE_LINK.md)). General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
 requires a seated actor in the lobby (any seat; no table host); `flags` is the game-profile enum,

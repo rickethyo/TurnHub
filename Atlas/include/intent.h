@@ -128,6 +128,10 @@ enum class StarterSelection : int32_t { ExactSeat = 0, CycleModule = 1, Random =
 constexpr int32_t FORGET_ALL_SIGILS = -1;
 // FactoryReset payload.value for Atlas itself (otherwise a Sigil ID).
 constexpr int32_t FACTORY_RESET_ATLAS = -1;
+// PairConfirm payload.value: the waiting Sigil's slot, plus PAIR_CONFIRM_ACCEPT
+// when the owner says the codes match (without it: reject). From the Atlas
+// touchscreen, or a portal Admin with moderatorId (as for ForgetPairing).
+constexpr int32_t PAIR_CONFIRM_ACCEPT = 0x100;
 
 // Moderate payload.value. moderatorId and profileId name the accounts.
 enum class ModerationAction : int32_t {

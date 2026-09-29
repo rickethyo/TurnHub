@@ -21,6 +21,7 @@
 #include "sigil_display.h"
 #include "sigil_led.h"
 #include "received_packet.h"
+#include "pairing_v2.h"
 #include "secure_link_mbedtls.h"
 
 #ifndef TURNHUB_INPUT_JOYSTICK
@@ -238,6 +239,18 @@ volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
 uint32_t lastPairRequestMs = 0;
+// Pairing v2 (pairing_v2.h, SECURE_LINK.md): the key agreement and code check,
+// and the pair key for the saved Atlas (none for a Sigil paired the old way).
+// Traffic stays cleartext until the secure-session step.
+constexpr char PAIRING_KEY_V2[] = "atlas_k";
+TurnHubSecureLink::MbedtlsCrypto linkCrypto;
+TurnHubSecureLink::SigilPairing pairingV2;
+TurnHubSecureLink::PairRequest2Packet pairRequest2{};
+uint8_t atlasPairKey[TurnHubSecureLink::KEY_BYTES] = {};
+bool atlasPairKeyValid = false;
+// The code on screen while the owner checks it (read by the display task).
+volatile bool pairingCodeShown = false;
+volatile uint16_t pairingCodeValue = 0;
 // Hold thresholds: Atlas sends them from the seated players' accessibility
 // preferences (InputTiming). Runtime only; a reboot returns to the defaults
 // until Atlas resends them.
@@ -325,6 +338,17 @@ void sendPacket(
       reinterpret_cast<const uint8_t *>(&packet),
       sizeof(packet));
 
+  if (result != ESP_OK) {
+    Serial.print("SIGIL|ESP_NOW|SEND_ERROR|");
+    Serial.println(static_cast<int>(result));
+  }
+}
+
+// A pairing v2 request (38 bytes), broadcast like the old PairRequest.
+void sendBroadcastRaw(const void *data, size_t length) {
+  if (!espNowReady || !ensurePeer(BROADCAST_MAC)) return;
+  const esp_err_t result =
+      esp_now_send(BROADCAST_MAC, static_cast<const uint8_t *>(data), length);
   if (result != ESP_OK) {
     Serial.print("SIGIL|ESP_NOW|SEND_ERROR|");
     Serial.println(static_cast<int>(result));
@@ -610,13 +634,27 @@ void updateDisplay() {
   // Atlas lost replaces every screen. Once it answers again, redraw the last
   // state it sent (Atlas resends it too, but unchanged packets draw nothing).
   static bool lostDrawn = false;
+  static bool codeDrawn = false;
+  static uint16_t drawnCode = 0;
+  if (pairingCodeShown) {
+    displayNeedsRefresh = false;
+    const uint16_t code = pairingCodeValue;
+    if (!codeDrawn || code != drawnCode) sigilDisplay.showPairingCode(code);
+    codeDrawn = true;
+    drawnCode = code;
+    return;
+  }
+  // After the code or Atlas lost, redraw whatever comes next in full.
+  bool overlayEnded = codeDrawn;
+  codeDrawn = false;
   if (atlasLostShown && sigilId != UNASSIGNED_SIGIL_ID) {
     displayNeedsRefresh = false;
-    if (!lostDrawn) sigilDisplay.showAtlasLost(sigilId);
+    if (!lostDrawn || overlayEnded) sigilDisplay.showAtlasLost(sigilId);
     lostDrawn = true;
     return;
   }
-  if (lostDrawn) {
+  overlayEnded = overlayEnded || lostDrawn;
+  if (overlayEnded) {
     lostDrawn = false;
     renderedGameValid = false;
 #if TURNHUB_PICKER
@@ -802,7 +840,8 @@ void forgetPairing(const char *reason) {
   Preferences prefs;
   bool erased = false;
   if (prefs.begin(PAIRING_NAMESPACE, false)) {
-    erased = !prefs.isKey(PAIRING_KEY) || prefs.remove(PAIRING_KEY);
+    erased = (!prefs.isKey(PAIRING_KEY) || prefs.remove(PAIRING_KEY)) &&
+        (!prefs.isKey(PAIRING_KEY_V2) || prefs.remove(PAIRING_KEY_V2));
     prefs.end();
   }
   if (!erased) {
@@ -819,6 +858,10 @@ void forgetPairing(const char *reason) {
   winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
   atlasLink.stop();
   atlasLostShown = false;
+  pairingV2.cancel();
+  pairingCodeShown = false;
+  TurnHubSecureLink::wipe(atlasPairKey, sizeof(atlasPairKey));
+  atlasPairKeyValid = false;
   ledModel.setAtlasLost(false, millis());
   ledModel.clear();
 #if TURNHUB_MENU
@@ -859,6 +902,50 @@ bool runSecureLinkSelfTest() {
   Serial.printf("SIGIL|SECURE_LINK|SELF_TEST|PASS|%lums\n",
       static_cast<unsigned long>(millis() - startMs));
   return true;
+}
+
+// Ends a pairing v2 code check without storing anything (rejected on Atlas,
+// lapsed, or the Sigil gave up). Any earlier pairing is untouched.
+void endPairingCodeCheck(const char *reason) {
+  pairingV2.cancel();
+  pairingActive = false;
+  pairingCodeShown = false;
+  ledModel.setPairing(false, millis());
+  Serial.print("SIGIL|PAIR|V2|");
+  Serial.println(reason);
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
+// Atlas confirmed the code: save Atlas, the slot and the pair key, then carry
+// on exactly as after the old pairing.
+void storePairingV2(const uint8_t *mac, uint8_t slot, const uint8_t *key) {
+  uint8_t binding[PAIRING_BINDING_SIZE];
+  memcpy(binding, mac, 6);
+  binding[6] = slot;
+  Preferences prefs;
+  bool stored = false;
+  if (prefs.begin(PAIRING_NAMESPACE, false)) {
+    stored = prefs.putBytes(PAIRING_KEY, binding, sizeof(binding)) == sizeof(binding) &&
+        prefs.putBytes(PAIRING_KEY_V2, key, TurnHubSecureLink::KEY_BYTES) ==
+            TurnHubSecureLink::KEY_BYTES;
+    prefs.end();
+  }
+  if (!stored) {
+    endPairingCodeCheck("STORE_ERROR");
+    return;
+  }
+  memcpy(atlasPairKey, key, TurnHubSecureLink::KEY_BYTES);
+  atlasPairKeyValid = true;
+  pairingCodeShown = false;
+  rememberAtlas(mac);
+  sigilId = slot;
+  atlasLink.start(millis());
+  ledModel.setPairing(false, millis());
+  profileSyncStartPending = true;
+  queueReadyDisplay();
+  Serial.println("SIGIL|PAIR|SUCCESS|SECURE");
+  sendHello();
 }
 
 // Shows or clears "Atlas lost" (atlas_link.h). Runs on the loop task.
@@ -923,6 +1010,36 @@ void handleEspNowReceive(
     gameDisplayValid = true;
     portEXIT_CRITICAL(&displayProfileMux);
     if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
+  if (length == sizeof(TurnHubSecureLink::PairAccept2Packet)) {
+    TurnHubSecureLink::PairAccept2Packet accept{};
+    memcpy(&accept, incomingData, sizeof(accept));
+    uint8_t ownMac[6];
+    if (!pairingActive || esp_wifi_get_mac(WIFI_IF_STA, ownMac) != ESP_OK ||
+        !pairingV2.accept(linkCrypto, accept, mac, ownMac, millis())) {
+      return;
+    }
+    // The window has done its job; the code check keeps the pairing light on.
+    pairingActive = false;
+    pairingCodeValue = pairingV2.code();
+    pairingCodeShown = true;
+    Serial.printf("SIGIL|PAIR|V2|CODE_SHOWN|%u\n", static_cast<unsigned>(accept.sigilId));
+    displayNeedsRefresh = true;
+    notifyDisplayTask();
+    return;
+  }
+  if (length == sizeof(TurnHubSecureLink::PairResultPacket)) {
+    TurnHubSecureLink::PairResultPacket result{};
+    memcpy(&result, incomingData, sizeof(result));
+    uint8_t key[TurnHubSecureLink::KEY_BYTES];
+    const TurnHubSecureLink::PairVerdict verdict = pairingV2.result(linkCrypto, result, mac, key);
+    if (verdict == TurnHubSecureLink::PairVerdict::Confirmed) {
+      storePairingV2(mac, result.sigilId, key);
+    } else if (verdict == TurnHubSecureLink::PairVerdict::Rejected) {
+      endPairingCodeCheck("REJECTED");
+    }
+    TurnHubSecureLink::wipe(key, sizeof(key));
     return;
   }
   if (length != sizeof(Packet)) {
@@ -1292,11 +1409,17 @@ void updatePassButton() {
 
 // Only a physical Pair press enables broadcast association requests.
 void startPairing() {
-  if (pairingActive) {
+  if (pairingActive ||
+      pairingV2.state() == TurnHubSecureLink::SigilPairing::State::AwaitingConfirm) {
     return;
   }
 
   pairingToken = static_cast<int32_t>(esp_random());
+  // A fresh key pair per press (about 0.2 s of X25519 on the ESP32).
+  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2)) {
+    Serial.println("SIGIL|PAIR|V2|KEY_ERROR");
+    return;
+  }
   lastPairRequestMs = millis() - HELLO_INTERVAL_MS;
   pairingStartMs = millis();
   pairingActive = true;
@@ -1306,6 +1429,11 @@ void startPairing() {
 }
 
 void updatePairing() {
+  // Waiting for the owner's code check on Atlas: give up if no verdict comes.
+  if (pairingV2.state() == TurnHubSecureLink::SigilPairing::State::AwaitingConfirm) {
+    if (pairingV2.expired(millis())) endPairingCodeCheck("TIMEOUT");
+    return;
+  }
   if (!pairingActive) {
     return;
   }
@@ -1313,13 +1441,14 @@ void updatePairing() {
   const uint32_t elapsedMs = millis() - pairingStartMs;
   if (elapsedMs >= PAIRING_DURATION_MS) {
     pairingActive = false;
+    pairingV2.cancel();
     ledModel.setPairing(false, millis());
     Serial.println("SIGIL|PAIR|TIMEOUT");
     return;
   }
 
   if (millis() - lastPairRequestMs >= HELLO_INTERVAL_MS) {
-    sendPacket(PacketType::PairRequest, pairingToken, true);
+    sendBroadcastRaw(&pairRequest2, sizeof(pairRequest2));
     lastPairRequestMs = millis();
   }
 }
@@ -1416,7 +1545,12 @@ void loadSavedPairing() {
       atlasKnown = true;
       sigilId = binding[6];
       atlasLink.start(millis());
-      Serial.println("SIGIL|PAIR|LOADED");
+      atlasPairKeyValid = prefs.isKey(PAIRING_KEY_V2) &&
+          prefs.getBytesLength(PAIRING_KEY_V2) == TurnHubSecureLink::KEY_BYTES &&
+          prefs.getBytes(PAIRING_KEY_V2, atlasPairKey, TurnHubSecureLink::KEY_BYTES) ==
+              TurnHubSecureLink::KEY_BYTES;
+      // Keyless: paired before pairing v2; pair again for the secure link.
+      Serial.println(atlasPairKeyValid ? "SIGIL|PAIR|LOADED|SECURE" : "SIGIL|PAIR|LOADED|KEYLESS");
     }
     prefs.end();
   }

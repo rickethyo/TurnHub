@@ -52,6 +52,33 @@ bool SigilBus::forget(uint8_t id) {
   if(id>=MAX_PHYSICAL_SIGILS||!fixtureRadio||fixtureForgotten[id]||fixtureForgetFails) return false;
   ++fixtureUnpairs[id]; fixtureForgotten[id]=true; return true;
 }
+// Pairing v2 waiting slots (the real state machine is tested in
+// Sigil/tests/host/pairing_scenarios.cpp); decisions are recorded here.
+static TurnHubSecureLink::PendingPairing fixturePending[MAX_PHYSICAL_SIGILS];
+static int fixturePairDecisions[MAX_PHYSICAL_SIGILS]{};  // +1 confirmed, -1 rejected.
+static bool fixturePairStoreFails=false;
+const TurnHubSecureLink::PendingPairing *SigilBus::pendingPairing(uint8_t slot) const {
+  return slot<MAX_PHYSICAL_SIGILS&&fixturePending[slot].used?&fixturePending[slot]:nullptr;
+}
+uint8_t SigilBus::pendingPairingCount() const {
+  uint8_t n=0; for (const auto &p:fixturePending) n+=p.used?1:0; return n;
+}
+bool SigilBus::decidePairing(uint8_t slot, bool confirm) {
+  if(slot>=MAX_PHYSICAL_SIGILS||!fixturePending[slot].used) return false;
+  fixturePending[slot]=TurnHubSecureLink::PendingPairing{};
+  if(confirm&&fixturePairStoreFails){ fixturePairDecisions[slot]=-1; return false; }
+  fixturePairDecisions[slot]=confirm?1:-1;
+  if(confirm){ fixtureForgotten[slot]=false; fixtureRecords[slot].hasPairKey=true; }
+  return true;
+}
+void SigilBus::cancelPendingPairings() {
+  for (uint8_t s=0;s<MAX_PHYSICAL_SIGILS;++s) if(fixturePending[s].used) decidePairing(s,false);
+}
+static void fixtureWaitForCode(uint8_t slot, uint16_t code) {
+  fixturePending[slot]=TurnHubSecureLink::PendingPairing{};
+  fixturePending[slot].used=true; fixturePending[slot].slot=slot; fixturePending[slot].code=code;
+  fixturePairDecisions[slot]=0;
+}
 bool SigilBus::poll(SigilEvent&) { return false; }
 uint8_t SigilBus::activeCount(uint32_t) const { return 0; }
 bool SigilBus::isOnline(uint8_t id,uint32_t) const { return fixtureRadio && id < MAX_PHYSICAL_SIGILS; }
@@ -2558,6 +2585,120 @@ static void resetTableFromPortal() {
 // between games. A Sigil is told to erase itself and is forgotten; Atlas
 // erases its NVS and restarts after the reply has gone.
 extern unsigned fixtureFactoryResets;
+// Pairing v2 code check: the Atlas screen or a portal Admin, lobby only,
+// only for a Sigil that is actually waiting; confirm stores, reject doesn't.
+static void pairConfirmIntent() {
+  freshLobby(2);
+  String adminId,playerId;
+  registerPhone("Pair admin",adminId); registerPhone("Pair player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+  const auto decide=[](IntentOrigin origin,const String &who,int32_t value) {
+    Intent intent; intent.type=IntentType::PairConfirm; intent.actor.origin=origin;
+    intent.payload.value=value; strncpy(intent.payload.moderatorId,who.c_str(),8);
+    return intents.dispatch(intent).status;
+  };
+  const int32_t accept=TurnHub::PAIR_CONFIRM_ACCEPT;
+
+  // Nothing waiting: refused.
+  assert(decide(IntentOrigin::AtlasHardware,"",5|accept)==IntentStatus::InvalidActor);
+  TurnHub::fixtureWaitForCode(5,427);
+  assert(sigilBus.pendingPairingCount()==1 && sigilBus.pendingPairing(5)->code==427);
+  // Not an Admin, a Sigil, or out of range: refused and still waiting.
+  assert(decide(IntentOrigin::Browser,playerId,5|accept)==IntentStatus::Unauthorized);
+  assert(decide(IntentOrigin::PhysicalSigil,adminId,5|accept)==IntentStatus::Unauthorized);
+  assert(decide(IntentOrigin::AtlasHardware,"",99|accept)==IntentStatus::InvalidActor);
+  assert(decide(IntentOrigin::AtlasHardware,"",-1)==IntentStatus::InvalidActor);
+  assert(sigilBus.pendingPairing(5) && TurnHub::fixturePairDecisions[5]==0);
+  // Not during a match.
+  startFromHost();
+  assert(decide(IntentOrigin::AtlasHardware,"",5|accept)==IntentStatus::InvalidState);
+  enterEmptyLobby();
+  TurnHub::fixtureWaitForCode(5,427);
+
+  // The Atlas screen confirms; the Sigil is stored with its key.
+  assert(decide(IntentOrigin::AtlasHardware,"",5|accept)==IntentStatus::Accepted);
+  assert(TurnHub::fixturePairDecisions[5]==1 && !sigilBus.pendingPairing(5) &&
+      sigilBus.record(5) && sigilBus.record(5)->hasPairKey);
+  // A portal Admin rejects another; nothing is stored.
+  TurnHub::fixtureWaitForCode(6,1234);
+  assert(decide(IntentOrigin::Browser,adminId,6)==IntentStatus::Accepted);
+  assert(TurnHub::fixturePairDecisions[6]==-1 && !sigilBus.pendingPairing(6));
+  // A failed store is reported, and the Sigil is told no.
+  TurnHub::fixtureWaitForCode(7,9);
+  TurnHub::fixturePairStoreFails=true;
+  assert(decide(IntentOrigin::AtlasHardware,"",7|accept)==IntentStatus::Rejected);
+  assert(TurnHub::fixturePairDecisions[7]==-1 && !sigilBus.pendingPairing(7));
+  TurnHub::fixturePairStoreFails=false;
+  enterEmptyLobby();
+}
+
+// The Atlas screen shows a waiting Sigil's code over the lobby, with Codes
+// match and Reject acting through PairConfirm; a phone's presence code
+// comes first, and the screen closes once nothing is waiting.
+static void pairCodeTouchScreen() {
+  resetTouchControls(); freshLobby(2);
+  assert(currentScreen().kind==ScreenKind::Status);
+  TurnHub::fixtureWaitForCode(2,7);
+  TurnHub::fixturePending[2].startedMs=testNow;
+  AtlasScreen s=currentScreen();
+  assert(s.kind==ScreenKind::PairCode && strcmp(s.code,"0007")==0 && strcmp(s.badge,"PAIR")==0);
+  assert(strcmp(s.title,"Pair Sigil 3")==0 && startsWith(s.detail,"Check the Sigil (60 s)"));
+  assert(s.lineCount==2 && strcmp(s.lines[1],"If not, Reject.")==0);
+  assert(screenButton(s,TouchAction::PairConfirm) && screenButton(s,TouchAction::PairReject));
+  // A second Sigil waits its turn.
+  TurnHub::fixtureWaitForCode(5,4321);
+  assert(strcmp(currentScreen().lines[1],"1 more waiting after")==0);
+  tapButton(TouchAction::PairConfirm);
+  assert(TurnHub::fixturePairDecisions[2]==1 && !sigilBus.pendingPairing(2));
+  s=currentScreen();
+  assert(s.kind==ScreenKind::PairCode && strcmp(s.code,"4321")==0 && strcmp(s.title,"Pair Sigil 6")==0);
+  tapButton(TouchAction::PairReject);
+  assert(TurnHub::fixturePairDecisions[5]==-1 && currentScreen().kind==ScreenKind::Status);
+  // Not shown outside the lobby.
+  TurnHub::fixtureWaitForCode(4,1);
+  startFromHost();
+  assert(currentScreen().kind!=ScreenKind::PairCode);
+  TurnHub::fixturePending[4]=TurnHubSecureLink::PendingPairing{};
+  enterEmptyLobby();
+}
+
+// The portal's pairing-code check: listed in /api/devices, answered by an
+// Admin verified at the table, through PairConfirm.
+static void pairConfirmFromPortal() {
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configurePresence(presenceHooks());
+  resetPresence(); resetTouchControls();
+  freshLobby(2);
+  String adminId,playerId;
+  const String admin=registerPhone("Portal pair admin",adminId),player=registerPhone("Portal pair player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+  TurnHub::fixtureWaitForCode(3,58); TurnHub::fixturePending[3].startedMs=testNow;
+
+  assert(request("/api/devices",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"pendingPairings\":[{\"id\":3,\"code\":\"0058\",\"secondsLeft\":60}]")!=std::string::npos);
+  assert(server.body.find("\"securePairing\":false")!=std::string::npos);
+  // Admin only, and only once verified at the table.
+  assert(request("/api/device/pair-confirm",admin,{{"module","3"},{"accept","1"}})==403);
+  verifyAtTable(admin);
+  assert(request("/api/device/pair-confirm",player,{{"module","3"},{"accept","1"}})==403);
+  assert(request("/api/device/pair-confirm",admin,{{"accept","1"}})==400);
+  assert(request("/api/device/pair-confirm",admin,{{"module","4"},{"accept","1"}})==409);
+  assert(TurnHub::fixturePairDecisions[3]==0 && sigilBus.pendingPairing(3));
+  // Codes match: stored with its key, and shown as secure.
+  assert(request("/api/device/pair-confirm",admin,{{"module","3"},{"accept","1"}})==200);
+  assert(TurnHub::fixturePairDecisions[3]==1 && !sigilBus.pendingPairing(3));
+  assert(request("/api/devices",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"pendingPairings\":[]")!=std::string::npos &&
+      server.body.find("\"securePairing\":true")!=std::string::npos);
+  // Reject stores nothing.
+  TurnHub::fixtureWaitForCode(6,1);
+  assert(request("/api/device/pair-confirm",admin,{{"module","6"},{"accept","0"}})==200);
+  assert(TurnHub::fixturePairDecisions[6]==-1);
+  TurnHub::fixtureRecords[3].hasPairKey=false;
+}
+
 static void factoryResetFromPortal() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configurePresence(presenceHooks());
@@ -2779,6 +2920,9 @@ int main() {
   oledSigilSeatsOnePlayer(); std::cout<<"PASS OLED Sigil seats one player: Seat B refused, e-paper still shares, start blocked by a stale Seat B\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
+  pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
+  pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;
+  pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";

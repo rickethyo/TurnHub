@@ -6,7 +6,9 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 
+#include "pairing_v2.h"
 #include "protocol.h"
+#include "secure_link_mbedtls.h"
 
 // Wokwi does not currently simulate ESP-NOW. This header is force-included only
 // by the sigil-wokwi PlatformIO environment and replaces the small ESP-NOW API
@@ -40,6 +42,12 @@ static String seatNameB = "Player B";
 static bool sigilPaired = false;
 static bool pairingOpen = false;
 static uint32_t pairingOpenedMs = 0;
+// Pairing v2 (pairing_v2.h), as on the real Atlas: the Sigil's PairRequest2
+// gets an answer and a code; the console's `confirm` / `reject` stand in for
+// the Atlas screen's Codes match / Reject buttons.
+static TurnHubSecureLink::MbedtlsCrypto pairCrypto;
+static TurnHubSecureLink::AtlasPairings pendingPairings;
+static uint8_t pendingSigilMac[6] = {};
 // Hold thresholds Atlas sends (InputTiming) to Sigils that advertise support;
 // the real Atlas takes them from the seated players' accessibility settings.
 static uint16_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
@@ -64,6 +72,27 @@ inline void injectPacket(PacketType type, int32_t value = 0) {
       FAKE_ATLAS_MAC,
       reinterpret_cast<const uint8_t *>(&packet),
       sizeof(packet));
+}
+
+// A pairing v2 answer or verdict, delivered like any radio packet.
+inline void injectRaw(const void *data, size_t length) {
+  if (receiveCallback == nullptr) return;
+  receiveCallback(FAKE_ATLAS_MAC, static_cast<const uint8_t *>(data), static_cast<int>(length));
+}
+
+// The console's confirm / reject for the Sigil waiting on its code.
+inline void decidePairing(bool confirm) {
+  TurnHubSecureLink::PairResultPacket result;
+  uint8_t key[TurnHubSecureLink::KEY_BYTES];
+  uint8_t mac[6];
+  if (!pendingPairings.decide(pairCrypto, assignedSigilId, confirm, result, key, mac)) {
+    Serial.println("WOKWI|ERROR|no Sigil is waiting for its code (type 'pair', then press PAIR)");
+    return;
+  }
+  TurnHubSecureLink::wipe(key, sizeof(key));
+  if (confirm) sigilPaired = true;
+  Serial.println(confirm ? "WOKWI|ATLAS|PAIRING|V2|CONFIRMED" : "WOKWI|ATLAS|PAIRING|V2|REJECTED");
+  injectRaw(&result, sizeof(result));
 }
 
 inline void sendAck(PacketType acknowledgedType) {
@@ -150,6 +179,7 @@ inline void printHelp() {
   Serial.println("WOKWI ATLAS COMMANDS");
   Serial.println("  help");
   Serial.println("  pair                  open Atlas's 15 s pairing window (then press the Sigil's PAIR)");
+  Serial.println("  confirm | reject      answer the pairing code check (the Atlas screen's buttons)");
   Serial.println("  id <0-7>              Sigil ID the next pairing assigns");
   Serial.println("  forget                Atlas forgets the Sigil and sends it Unpair");
   Serial.println("  timing <longMs> <winMs>  hold thresholds, e.g. timing 3000 6000");
@@ -187,6 +217,11 @@ inline void handleConsoleCommand(String line) {
     pairingOpenedMs = millis();
     Serial.print("WOKWI|ATLAS|PAIRING|OPEN|");
     Serial.println(TurnHubProtocol::PAIRING_WINDOW_MS);
+    return;
+  }
+
+  if (command == "confirm" || command == "reject") {
+    decidePairing(command == "confirm");
     return;
   }
 
@@ -408,6 +443,32 @@ inline esp_err_t espNowSend(
     const uint8_t *,
     const uint8_t *data,
     size_t length) {
+  if (data != nullptr && length == sizeof(TurnHubSecureLink::PairRequest2Packet)) {
+    if (!pairingWindowActive()) {
+      Serial.println("WOKWI|ATLAS|PAIRING|IGNORED|WINDOW_CLOSED (type 'pair' first)");
+      return ESP_OK;
+    }
+    TurnHubSecureLink::PairRequest2Packet request;
+    memcpy(&request, data, sizeof(request));
+    if (esp_wifi_get_mac(WIFI_IF_STA, pendingSigilMac) != ESP_OK) return ESP_FAIL;
+    const bool repeat = pendingPairings.findSlot(assignedSigilId) != nullptr &&
+        pendingPairings.findSlot(assignedSigilId)->token == request.token;
+    TurnHubSecureLink::PairAccept2Packet accept;
+    const TurnHubSecureLink::PendingPairing *pending = pendingPairings.request(pairCrypto,
+        FAKE_ATLAS_MAC, pendingSigilMac, request, assignedSigilId, millis(), accept);
+    if (pending == nullptr) {
+      Serial.println("WOKWI|ATLAS|PAIRING|V2|REJECT|REQUEST");
+      return ESP_OK;
+    }
+    if (!repeat) {
+      // A test fake, so the code is printed: compare it with the Sigil's screen.
+      char code[5];
+      TurnHubSecureLink::formatPairingCode(pending->code, code);
+      Serial.printf("WOKWI|ATLAS|PAIRING|V2|CODE|%s (type 'confirm' or 'reject')\n", code);
+    }
+    injectRaw(&accept, sizeof(accept));
+    return ESP_OK;
+  }
   if (data == nullptr || length != sizeof(Packet)) {
     return ESP_ERR_INVALID_ARG;
   }

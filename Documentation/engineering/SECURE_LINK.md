@@ -192,11 +192,56 @@ Commit after each step and tick it here.
       each in mbedTLS's generic bignum code), so pairing costs about 0.4 s per
       side. Follow-up: trim the boot test (for example to one RFC agreement)
       or run it off the boot path, since it delays every start by 1.6 s.
-- [ ] Pairing v2 on Atlas and Sigil; pair key in NVS; keyless records cleared.
-- [ ] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
-      Confirm/Reject on the Atlas screen and in the portal; 60 s timeout.
+- [x] **Bench result, 2026-09-29 (*Verified*):** CI build `be7ec45` on Atlas
+      `B4:BF:E9:12:85:74`, e-ink Sigil `F4:65:0B:C4:FF:38` and OLED Sigil
+      `20:E7:C8:94:49:80`. Both Sigils booted `PAIR|LOADED|KEYLESS`, then
+      re-paired: Atlas `PAIRING|V2|CODE_SHOWN`, Sigil `PAIR|V2|CODE_SHOWN`,
+      owner tapped Codes match on the Atlas screen, Atlas
+      `PAIRING|V2|CONFIRMED` (slots 0 and 1) and each Sigil
+      `PAIR|SUCCESS|SECURE`. The Sigil only accepts a confirmation whose MAC
+      checks with its own new key, so both ends derived the same key (the MAC
+      inputs to the derivation are right). Not yet exercised on hardware: Reject,
+      the 60 s timeout, the portal's Codes match, and forged or replayed verdicts.
+- [x] Pairing v2 on Atlas and Sigil; pair key in NVS (2026-09-29, branch
+      `secure-link-pairing-v2`; host-tested and CI-built, *Needs
+      verification* on hardware). Shared state machines in
+      `shared/include/pairing_v2.h` (`Sigil/tests/host/pairing_scenarios.cpp`;
+      the host stand-in crypto is `Sigil/tests/host/test_crypto.h`). Atlas:
+      `SigilBus` takes 38-byte `PairRequest2` in its window and answers
+      `PairAccept2`; the key goes in NVS `th_pair_v1/k<slot>` beside the MAC
+      (`s<slot>`), so records from before load as keyless. Sigil: Pair
+      broadcasts `PairRequest2`; the key goes in `th_pair_v1/atlas_k` beside the
+      7-byte binding. "Keyless records cleared" moves to the envelope step
+      (below), which is when they stop working.
+- [x] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
+      Confirm/Reject on the Atlas screen and in the portal; 60 s timeout
+      (2026-09-29; host-tested, *Needs verification* on hardware). Atlas
+      screen: a `PairCode` screen over the lobby (after any presence code),
+      **Codes match** / **Reject**, one Sigil at a time. Portal: Device
+      Settings lists waiting Sigils with their codes in a live region;
+      `POST /api/device/pair-confirm` needs an Admin verified at the table.
+      Sigils show the code (e-ink: "Code 0427 / Confirm on Atlas"; OLED: big
+      Oswald digits) with the pairing light on, and give up after 65 s.
+      Atlas's on-board LED blinks red while its pairing window is open.
+      **Transition (decided 2026-09-29):** `VERSION` stays 1 and all other
+      traffic stays cleartext until the envelope step. Atlas still accepts the
+      old 7-byte `PairRequest` (stored keyless), so the TestHarness keeps
+      pairing the old way until it learns v2; Sigils built from this branch
+      send only v2. The portal marks keyless Sigils "pair again for the secure
+      link".
 - [ ] Secure Hello/session and the envelope on every packet, both directions.
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
+      Done so far: the Wokwi fake Atlas speaks v2 (`confirm` / `reject` on the
+      console); portal shows secure vs keyless; engineering docs and the manual's
+      pairing section; the TestHarness (2026-09-29, `6ad6eb4`): `pair` runs v2
+      for each virtual Sigil without a key and stores the keys
+      (`th_harness/pairk`). *Verified* on the bench the same day: harness
+      `D4:E9:F4:B4:27:3C` re-paired V1 (station MAC, slot 2, code 1587) and V2
+      (soft-AP MAC `...:3D`, slot 3, code 6902) with two pending at once, both
+      confirmed on the Atlas screen one after the other and logged
+      `HARNESS|PAIR|ACCEPTED|...|SECURE`. That also proves the derivation with
+      a sender on the soft-AP interface. Nothing still uses the old
+      `PairRequest`; it can go with the envelope step.
 - [ ] Hardware: 8 Sigils (or harness plus Sigils) paired and playing; forged,
       replayed and cleartext packets rejected.
 

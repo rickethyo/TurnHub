@@ -491,7 +491,11 @@ void handleLifeResponse(uint8_t sigilId, int32_t value) {
 }
 
 void processSigilEvents() {
-  if (hubState != HubState::Lobby) sigilBus.closePairing();
+  if (hubState != HubState::Lobby) {
+    sigilBus.closePairing();
+    // A code check can't finish outside the lobby: tell each waiting Sigil no.
+    if (sigilBus.pendingPairingCount() > 0) sigilBus.cancelPendingPairings();
+  }
   SigilEvent event;
   while (sigilBus.poll(event)) {
     if (event.sigilId >= MAX_PHYSICAL_SIGILS) continue;

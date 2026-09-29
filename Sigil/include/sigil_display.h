@@ -46,6 +46,10 @@ class SigilDisplay {
   // screen, with no action menu (nothing can reach Atlas), until Atlas is
   // heard again and the last state is redrawn.
   virtual void showAtlasLost(uint8_t sigilId) = 0;
+  // Pairing v2: the 4-digit code the owner compares with Atlas's screen
+  // before confirming there (SECURE_LINK.md). Replaces every other screen,
+  // with no action menu, until Atlas confirms, rejects or the check lapses.
+  virtual void showPairingCode(uint16_t code) = 0;
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,

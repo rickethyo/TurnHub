@@ -1,4 +1,5 @@
 #include "epaper_display.h"
+#include "secure_link.h"
 #include "brass_fonts.h"
 #include "life_heart.h"
 #include "display_name.h"
@@ -577,6 +578,15 @@ void EpaperDisplay::showAtlasLost(uint8_t sigilId) {
   (void)sigilId;
   // No legend: none of the actions can reach Atlas now.
   drawStatus("Atlas lost", "Searching...", false);
+}
+
+void EpaperDisplay::showPairingCode(uint16_t code) {
+  char digits[5];
+  TurnHubSecureLink::formatPairingCode(code, digits);
+  char line[16];
+  snprintf(line, sizeof(line), "Code %s", digits);
+  // No legend: the Sigil waits for the owner to confirm on Atlas.
+  drawStatus(line, "Confirm on Atlas", false);
 }
 
 void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {

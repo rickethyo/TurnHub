@@ -2,10 +2,12 @@
 
 #include <WiFi.h>
 #include <cstring>
+#include <esp_wifi.h>
 
 #include "profile_store.h"
 #include "optional_preferences.h"
 #include "web_api.h"
+#include "secure_link_mbedtls.h"
 #include "serial_log.h"
 
 using TurnHub::serialLog;
@@ -16,6 +18,13 @@ using TurnHubProtocol::Packet;
 using TurnHubProtocol::PacketType;
 
 namespace {
+
+// The secure link's crypto (mbedTLS; checked at boot by secure_link_backend).
+TurnHubSecureLink::MbedtlsCrypto linkCrypto;
+
+// NVS key of a slot's pair key, beside its MAC ("s<slot>"). Kept separate so
+// records from before pairing v2 still load, as keyless.
+String pairKeyName(uint8_t slot) { return String("k") + String(slot); }
 
 void displaySafeName(const String &name,
     char (&safe)[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1]) {
@@ -59,6 +68,11 @@ bool SigilBus::begin() {
     records_[i].id = i;
     memcpy(records_[i].mac, mac, 6);
     records_[i].lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
+    const String keyName = pairKeyName(i);
+    records_[i].hasPairKey = prefs.isKey(keyName.c_str()) &&
+        prefs.getBytesLength(keyName.c_str()) == TurnHubSecureLink::KEY_BYTES &&
+        prefs.getBytes(keyName.c_str(), records_[i].pairKey, TurnHubSecureLink::KEY_BYTES) ==
+            TurnHubSecureLink::KEY_BYTES;
   }
   prefs.end();
   rxQueue_ = xQueueCreate(32, sizeof(RxRequest));
@@ -115,7 +129,9 @@ bool SigilBus::forget(uint8_t sigilId) {
     serialLog.println("ATLAS|PAIRING|STORE_ERROR");
     return false;
   }
-  const bool removed = !prefs.isKey(key.c_str()) || prefs.remove(key.c_str());
+  const String keyName = pairKeyName(sigilId);
+  const bool removed = (!prefs.isKey(key.c_str()) || prefs.remove(key.c_str())) &&
+      (!prefs.isKey(keyName.c_str()) || prefs.remove(keyName.c_str()));
   prefs.end();
   if (!removed) {
     serialLog.println("ATLAS|PAIRING|STORE_ERROR");
@@ -129,7 +145,9 @@ bool SigilBus::forget(uint8_t sigilId) {
   serialLog.print("|");
   printMac(sigil.mac);
   serialLog.println();
+  TurnHubSecureLink::wipe(sigil.pairKey, sizeof(sigil.pairKey));
   sigil = SigilRecord{};
+  pairings_.cancelSlot(sigilId);
   return true;
 }
 
@@ -139,9 +157,26 @@ bool SigilBus::poll(SigilEvent &event) {
   // Radio callbacks only copy packets; pairing, NVS and records belong to loop().
   for (uint8_t n = 0; rxQueue_ && n < 32 &&
        xQueueReceive(rxQueue_, &request, 0) == pdTRUE; ++n) {
-    if (request.packet.type == PacketType::PairRequest &&
-        (!pairingActive() || request.receivedAt - pairingStartedMs_ >= pairingWindowMs_)) continue;
-    handleReceive(request.mac, reinterpret_cast<const uint8_t *>(&request.packet), sizeof(Packet));
+    const bool inWindow = pairingActive() &&
+        request.receivedAt - pairingStartedMs_ < pairingWindowMs_;
+    if (request.length == sizeof(TurnHubSecureLink::PairRequest2Packet)) {
+      if (!inWindow) continue;
+      TurnHubSecureLink::PairRequest2Packet pairRequest;
+      memcpy(&pairRequest, request.data, sizeof(pairRequest));
+      handlePairRequest2(request.mac, pairRequest, request.receivedAt);
+      continue;
+    }
+    Packet packet;
+    memcpy(&packet, request.data, sizeof(packet));
+    if (packet.type == PacketType::PairRequest && !inWindow) continue;
+    handleReceive(request.mac, request.data, sizeof(Packet));
+  }
+  // Unconfirmed pairings lapse after PAIR_CONFIRM_TIMEOUT_MS; the Sigil is told.
+  TurnHubSecureLink::PairResultPacket lapsed;
+  uint8_t lapsedMac[6];
+  while (pairings_.expireOne(linkCrypto, millis(), lapsed, lapsedMac)) {
+    sendRaw(lapsedMac, &lapsed, sizeof(lapsed));
+    serialLog.printf("ATLAS|PAIRING|V2|EXPIRED|%u\n", static_cast<unsigned>(lapsed.sigilId));
   }
   if (eventQueue_ == nullptr) {
     return false;
@@ -236,10 +271,15 @@ void SigilBus::receiveThunk(
     const uint8_t *incomingData,
     int length) {
   if (instance_ != nullptr) {
-    if (length != sizeof(Packet) || instance_->rxQueue_ == nullptr) return;
+    if ((length != sizeof(Packet) &&
+         length != sizeof(TurnHubSecureLink::PairRequest2Packet)) ||
+        instance_->rxQueue_ == nullptr) {
+      return;
+    }
     RxRequest request;
     memcpy(request.mac, mac, 6);
-    memcpy(&request.packet, incomingData, sizeof(Packet));
+    memcpy(request.data, incomingData, static_cast<size_t>(length));
+    request.length = static_cast<uint8_t>(length);
     request.receivedAt = millis();
     xQueueSend(instance_->rxQueue_, &request, 0);
   }
@@ -366,6 +406,129 @@ void SigilBus::handleReceive(
   }
 }
 
+// A pairing v2 request during Atlas's window: agree a key and show the code.
+// The Sigil keeps its slot if it was paired before; otherwise it gets a free
+// one. Nothing is stored until the owner confirms (decidePairing).
+void SigilBus::handlePairRequest2(const uint8_t *mac,
+    const TurnHubSecureLink::PairRequest2Packet &packet, uint32_t receivedAt) {
+  uint8_t slot = INVALID_ID;
+  if (const SigilRecord *known = findByMac(mac)) {
+    slot = known->id;
+  } else {
+    for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS && slot == INVALID_ID; ++i) {
+      const TurnHubSecureLink::PendingPairing *pending = pairings_.findSlot(i);
+      if (pending != nullptr && memcmp(pending->mac, mac, 6) == 0) slot = i;
+    }
+    for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS && slot == INVALID_ID; ++i) {
+      if (slotFree(i)) slot = i;
+    }
+  }
+  if (slot == INVALID_ID) {
+    serialLog.println("ATLAS|PAIRING|V2|REJECT|CAPACITY");
+    return;
+  }
+  // ESP-NOW goes out on the station interface, so this is the MAC a Sigil
+  // sees (and Atlas's THA- ID).
+  uint8_t atlasMac[6];
+  if (esp_wifi_get_mac(WIFI_IF_STA, atlasMac) != ESP_OK) return;
+  const TurnHubSecureLink::PendingPairing *existing = pairings_.findSlot(slot);
+  const bool repeat = existing != nullptr && existing->token == packet.token &&
+      memcmp(existing->mac, mac, 6) == 0;
+  TurnHubSecureLink::PairAccept2Packet accept;
+  if (pairings_.request(linkCrypto, atlasMac, mac, packet, slot, receivedAt, accept) == nullptr) {
+    serialLog.println("ATLAS|PAIRING|V2|REJECT|REQUEST");
+    return;
+  }
+  sendRaw(mac, &accept, sizeof(accept));
+  if (!repeat) {
+    // The code itself is shown on the screens, never logged.
+    serialLog.printf("ATLAS|PAIRING|V2|CODE_SHOWN|%u|PENDING|%u\n",
+        static_cast<unsigned>(slot), static_cast<unsigned>(pairings_.count()));
+  }
+}
+
+const TurnHubSecureLink::PendingPairing *SigilBus::pendingPairing(uint8_t slot) const {
+  return pairings_.findSlot(slot);
+}
+
+uint8_t SigilBus::pendingPairingCount() const { return pairings_.count(); }
+
+bool SigilBus::decidePairing(uint8_t slot, bool confirm) {
+  const TurnHubSecureLink::PendingPairing *pending = pairings_.findSlot(slot);
+  if (pending == nullptr) return false;
+  uint8_t mac[6];
+  memcpy(mac, pending->mac, 6);
+  TurnHubSecureLink::PairResultPacket result;
+  uint8_t key[TurnHubSecureLink::KEY_BYTES] = {};
+  uint8_t sigilMac[6];
+  // Store before telling the Sigil: one told "confirmed" must find Atlas
+  // holding its key. A failed store turns the confirm into a reject.
+  if (confirm && !storeRecord(slot, pending->mac, pending->pairKey)) {
+    if (pairings_.decide(linkCrypto, slot, false, result, key, sigilMac)) {
+      sendRaw(mac, &result, sizeof(result));
+    }
+    serialLog.printf("ATLAS|PAIRING|V2|STORE_ERROR|%u\n", static_cast<unsigned>(slot));
+    return false;
+  }
+  const bool ok = pairings_.decide(linkCrypto, slot, confirm, result, key, sigilMac);
+  TurnHubSecureLink::wipe(key, sizeof(key));
+  if (!ok) return false;
+  sendRaw(mac, &result, sizeof(result));
+  serialLog.printf("ATLAS|PAIRING|V2|%s|%u\n", confirm ? "CONFIRMED" : "REJECTED",
+      static_cast<unsigned>(slot));
+  return true;
+}
+
+void SigilBus::cancelPendingPairings() {
+  for (uint8_t slot = 0; slot < MAX_PHYSICAL_SIGILS; ++slot) {
+    if (pairings_.findSlot(slot) != nullptr) decidePairing(slot, false);
+  }
+}
+
+bool SigilBus::slotFree(uint8_t slot) const {
+  return !records_[slot].used && pairings_.findSlot(slot) == nullptr;
+}
+
+// Saves a confirmed Sigil in its slot: the MAC as before, plus the pair key.
+bool SigilBus::storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey) {
+  if (slot >= MAX_PHYSICAL_SIGILS) return false;
+  SigilRecord &record = records_[slot];
+  if (record.used && memcmp(record.mac, mac, 6) != 0) return false;
+  OptionalPreferences prefs;
+  if (!prefs.begin("th_pair_v1", false)) return false;
+  const String key = String("s") + String(slot);
+  const String keyName = pairKeyName(slot);
+  const bool stored = prefs.putBytes(key.c_str(), mac, 6) == 6 &&
+      prefs.putBytes(keyName.c_str(), pairKey, TurnHubSecureLink::KEY_BYTES) ==
+          TurnHubSecureLink::KEY_BYTES;
+  prefs.end();
+  if (!stored) return false;
+  const bool wasUsed = record.used;
+  record.used = true;
+  record.id = slot;
+  memcpy(record.mac, mac, 6);
+  record.hasPairKey = true;
+  memcpy(record.pairKey, pairKey, TurnHubSecureLink::KEY_BYTES);
+  if (!wasUsed) {
+    record.lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
+    serialLog.print("ATLAS|SIGIL|DISCOVERED|");
+    serialLog.print(slot);
+    serialLog.print("|");
+    printMac(mac);
+    serialLog.println("|SECURE");
+  }
+  return true;
+}
+
+bool SigilBus::sendRaw(const uint8_t *mac, const void *data, uint8_t length) {
+  if (txQueue_ == nullptr || length > sizeof(TxRequest::data) || !ensurePeer(mac)) return false;
+  TxRequest request;
+  memcpy(request.mac, mac, 6);
+  memcpy(request.data, data, length);
+  request.length = length;
+  return xQueueSend(txQueue_, &request, 0) == pdTRUE;
+}
+
 SigilRecord *SigilBus::findByMac(const uint8_t *mac) {
   for (auto &sigil : records_) {
     if (sigil.used && memcmp(sigil.mac, mac, 6) == 0) {
@@ -383,7 +546,7 @@ SigilRecord *SigilBus::remember(const uint8_t *mac) {
 
   for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
     SigilRecord &candidate = records_[i];
-    if (candidate.used) {
+    if (!slotFree(i)) {
       continue;
     }
 

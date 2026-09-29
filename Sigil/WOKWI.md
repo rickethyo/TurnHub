@@ -66,10 +66,15 @@ pairs. As with a real Atlas, both sides must be in pairing mode:
 1. Type `pair` in the serial console. This stands in for tapping **Pair a
    Sigil** on the Atlas touchscreen and opens the fake Atlas's 15-second window.
 2. Press the Sigil's PAIR button (`R`) within those 15 seconds. The red LED
-   blinks while the Sigil broadcasts `PairRequest`.
-3. The fake Atlas answers `PairAccept` with the Sigil ID set by `id` (default 0).
-   The Sigil stores it (`SIGIL|PAIR|SUCCESS`), sends Hello, and asks for player
-   names.
+   blinks while the Sigil broadcasts `PairRequest2` (pairing v2, see
+   `Documentation/engineering/SECURE_LINK.md`).
+3. The fake Atlas answers `PairAccept2` with the Sigil ID set by `id` (default
+   0) and prints the pairing code (`WOKWI|ATLAS|PAIRING|V2|CODE|0427`). The
+   Sigil's screen shows the same code.
+4. Type `confirm` (the Atlas screen's **Codes match**) or `reject`. On
+   `confirm` the Sigil stores Atlas and the pair key
+   (`SIGIL|PAIR|SUCCESS|SECURE`), sends Hello, and asks for player names. On
+   `reject`, or no answer for about a minute, nothing is stored.
 
 Pressing PAIR without an open window ends in `SIGIL|PAIR|TIMEOUT`, as on real
 hardware. After pairing the fake Atlas only acknowledges Hello, PASS, the

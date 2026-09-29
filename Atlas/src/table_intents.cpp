@@ -832,6 +832,31 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
 }
 
 // Payload: value = Atlas pairing window in milliseconds (15, 30 or 60 s).
+// Pairing v2 code check (SECURE_LINK.md). The owner compares the code on the
+// Sigil with the one on Atlas and confirms or rejects: at the Atlas screen
+// (physically at the table), or as a portal Admin through the same
+// presence-checked device path as Forget. Nothing is stored before Confirm.
+IntentResult handlePairConfirmIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware && !adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  if (hubState != HubState::Lobby) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Pair devices in the lobby");
+  }
+  const int32_t value = intent.payload.value;
+  const bool confirm = (value & TurnHub::PAIR_CONFIRM_ACCEPT) != 0;
+  const int32_t slot = value & ~TurnHub::PAIR_CONFIRM_ACCEPT;
+  if (slot < 0 || slot >= MAX_PHYSICAL_SIGILS || !sigilBus.pendingPairing(slot)) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "No Sigil is waiting for that code");
+  }
+  if (!sigilBus.decidePairing(static_cast<uint8_t>(slot), confirm)) {
+    return IntentResult::reject(IntentStatus::Rejected,
+        confirm ? "Could not save the pairing; nothing was stored" : "Could not reject the pairing");
+  }
+  leds.invalidate(static_cast<uint8_t>(slot));
+  return IntentResult::accept(confirm ? "Sigil paired securely" : "Pairing rejected");
+}
+
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *) {
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
