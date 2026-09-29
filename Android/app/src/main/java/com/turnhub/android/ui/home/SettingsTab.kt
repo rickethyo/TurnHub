@@ -299,7 +299,7 @@ private fun SigilsCard(admin: AdminState, actions: AdminActions) {
     forget?.let { device ->
         ConfirmDialog(
             "Forget this Sigil?",
-            "Atlas forgets “${device.label}”. Pair it again (Pair a Sigil on the Atlas screen, then the Sigil's Pair button) before anyone uses it.",
+            "Atlas forgets “${device.label}”. Pair it again (Menu → Pair a Sigil on the Atlas screen, then the Sigil's Pair button) before anyone uses it.",
             "Forget Sigil",
             onConfirm = { forget = null; actions.run { forgetDevice(device.id) } },
             onDismiss = { forget = null },

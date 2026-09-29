@@ -87,7 +87,8 @@ def metrics(face, size):
 def vlw_font(face, size, chars):
     """Processing VLW: big-endian header, 7-word glyph records, 8-bit bitmaps."""
     ascent, descent = metrics(face, size)
-    glyphs = [render(face, size, ch) + (ord(ch),) for ch in chars]
+    # LovyanGFX looks glyphs up by binary search: keep the table sorted.
+    glyphs = [render(face, size, ch) + (ord(ch),) for ch in sorted(set(chars))]
     out = bytearray(struct.pack(">6i", len(glyphs), 11, size, 0, ascent, descent))
     for w, h, left, top, adv, _, code in glyphs:
         if code == 0x20:

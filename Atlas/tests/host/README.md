@@ -26,8 +26,18 @@ the account limit. No saved user records are deleted by this filtering.
 `src/secure_link_backend.cpp` (mbedTLS self-test) are firmware-only too;
 `test_globals.cpp` stubs them (no speaker, no card, self-test passes), and the
 speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
-`src/atlas_display.cpp` is firmware-only (it needs LovyanGFX), so it is not in
-any runner's source list. `test_globals.cpp` provides a no-op `beginAtlasDisplay()`.
+`src/atlas_display.cpp` and `src/atlas_art.cpp` are firmware-only (they need
+LovyanGFX), so they are not in any runner's source list. `test_globals.cpp`
+provides a no-op `beginAtlasDisplay()`.
+
+**Screen previews (Linux, optional).** `bash render-atlas-screens.sh` builds
+LovyanGFX from PlatformIO's download (`pio pkg install -e atlas` in `Atlas/`
+first) with its framebuffer back end, runs the real `atlas_art.cpp` against an
+off-screen sprite, writes one PNG per scene to `build/screens/`, and checks
+that region-by-region redraws land on exactly the pixels of a full redraw
+(clock tick, turn pass, life change, timer warning, hold progress, screen
+changes). It exits non-zero on a mismatch. Previews are not hardware
+acceptance: colors are RGB565 as the panel receives them, not as it shows them.
 
 With GCC/Clang on another host, from this directory:
 

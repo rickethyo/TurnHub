@@ -552,9 +552,9 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       }
       if (screen.playerCount == 0) {
         // An empty table: how to join. The portal's QR code is under Menu.
-        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Join from a Sigil's menu, or from");
-        snprintf(screen.lines[1], sizeof(screen.lines[1]), "a phone on the table portal.");
-        snprintf(screen.lines[2], sizeof(screen.lines[2]), "Menu: pair a Sigil, QR codes, info.");
+        snprintf(screen.lines[0], sizeof(screen.lines[0]), "Join from a Sigil's menu,");
+        snprintf(screen.lines[1], sizeof(screen.lines[1]), "or on the table portal.");
+        snprintf(screen.lines[2], sizeof(screen.lines[2]), "Menu: pair, QR codes, info.");
         screen.lineCount = 3;
       }
       break;
@@ -747,70 +747,8 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
-bool sameText(const char *a, const char *b) { return strcmp(a, b) == 0; }
 
 }  // namespace
-
-bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b) {
-  return a.number == b.number && a.life == b.life && a.flags == b.flags && a.avatar == b.avatar &&
-      sameText(a.name, b.name);
-}
-
-bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
-  return sameText(a.turnTime, b.turnTime);
-}
-
-bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sigilsOnline == b.sigilsOnline &&
-      a.round == b.round;
-}
-
-bool sameGameClock(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameText(a.gameClock, b.gameClock);
-}
-
-bool sameHero(const AtlasScreen &a, const AtlasScreen &b) {
-  return a.kind == b.kind && sameText(a.title, b.title) && sameText(a.detail, b.detail) &&
-      sameText(a.notice, b.notice);
-}
-
-bool sameTimer(const AtlasScreen &a, const AtlasScreen &b) {
-  return a.timerPermille == b.timerPermille && a.timerWarning == b.timerWarning && sameText(a.clock, b.clock);
-}
-
-bool sameBody(const AtlasScreen &a, const AtlasScreen &b) {
-  if (a.kind != b.kind || a.playerCount != b.playerCount || a.showLife != b.showLife ||
-      a.lineCount != b.lineCount || !sameText(a.qr, b.qr) || !sameText(a.qrCaption, b.qrCaption) ||
-      !sameText(a.code, b.code)) {
-    return false;
-  }
-  for (uint8_t i = 0; i < a.lineCount; ++i) if (!sameText(a.lines[i], b.lines[i])) return false;
-  for (uint8_t i = 0; i < a.playerCount; ++i) {
-    if (!samePlayer(a.players[i], b.players[i]) || !samePlayerTime(a.players[i], b.players[i])) return false;
-  }
-  return true;
-}
-
-bool sameButtons(const AtlasScreen &a, const AtlasScreen &b) {
-  if (a.buttonCount != b.buttonCount || a.pressed != b.pressed ||
-      a.holdSecondsLeft != b.holdSecondsLeft || a.holdPermille != b.holdPermille) {
-    return false;
-  }
-  for (uint8_t i = 0; i < a.buttonCount; ++i) {
-    const TouchButton &x = a.buttons[i];
-    const TouchButton &y = b.buttons[i];
-    if (x.action != y.action || x.x != y.x || x.y != y.y || x.w != y.w || x.h != y.h ||
-        x.selected != y.selected || strcmp(x.label, y.label) != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool sameScreen(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameHeader(a, b) && sameGameClock(a, b) && sameHero(a, b) && sameTimer(a, b) && sameBody(a, b) &&
-      sameButtons(a, b);
-}
 
 void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen = AtlasScreen();
