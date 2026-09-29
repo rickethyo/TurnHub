@@ -42,13 +42,23 @@ namespace TurnHubAtlas {
 // Construction order matters: the renderers and OTA hold references to
 // sigilBus and server, which are defined first.
 SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
-Lobby lobby;
-GameEngine game;
 IntentDispatcher intents;
 LedRenderer leds(sigilBus);
 AudioController audio(sigilBus);
 OtaManager ota(server, otaAllowed);
-TurnHub::ClientState clientState;
+
+GameTable tables[MAX_GAME_TABLES];
+Lobby &lobby = tables[0].lobby;
+GameEngine &game = tables[0].game;
+TurnHub::ClientState &clientState = tables[0].clientState;
+HubState &hubState = tables[0].hubState;
+PendingPassState &pendingPass = tables[0].pendingPass;
+uint32_t &countdownStartedAtMs = tables[0].countdownStartedAtMs;
+int8_t &lastCountdownSecond = tables[0].lastCountdownSecond;
+uint8_t &eliminationTargetPlayer = tables[0].eliminationTargetPlayer;
+uint8_t &winArmedModule = tables[0].winArmedModule;
+uint8_t &winArmedPlayer = tables[0].winArmedPlayer;
+TurnTimerCueState &turnTimerCue = tables[0].turnTimerCue;
 
 TurnHub::GameSettings nextGameSettings;
 bool gameSettingsAvailable = true;

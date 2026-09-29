@@ -85,13 +85,10 @@ using TurnHubProtocol::PASS_GRACE_MS;
 // --- Runtime objects (defined in main.cpp) ----------------------------------
 
 extern SigilBus sigilBus;
-extern Lobby lobby;
-extern GameEngine game;
 extern IntentDispatcher intents;
 extern LedRenderer leds;
 extern AudioController audio;
 extern OtaManager ota;
-extern TurnHub::ClientState clientState;
 
 // Settings the next match will start with; persisted by game_settings_store.
 extern TurnHub::GameSettings nextGameSettings;
@@ -110,23 +107,48 @@ struct PendingPassState {
   IntentOrigin origin = IntentOrigin::Unknown;
 };
 
-extern HubState hubState;
-extern PendingPassState pendingPass;
-extern uint32_t countdownStartedAtMs;
-extern int8_t lastCountdownSecond;
-// Player selected for elimination while paused; 0 when none.
-extern uint8_t eliminationTargetPlayer;
-// Controller/player that armed a win claim with the long-press pause gesture.
-extern uint8_t winArmedModule;
-extern uint8_t winArmedPlayer;
-
 // Turn-timer cue tracking (see updateTurnTimerCues). Exposed for host tests.
 struct TurnTimerCueState {
   uint8_t player = 0;
   uint32_t turnsCompleted = 0;
   TurnHub::TurnTimerPhase phase = TurnHub::TurnTimerPhase::Normal;
 };
-extern TurnTimerCueState turnTimerCue;
+
+// Everything that belongs to one game at the table: its lobby, engine,
+// table decisions and client projection. Groundwork for the venue model
+// (several games on one Atlas, STAGED_CHANGES.md); Atlas runs one for now.
+struct GameTable {
+  Lobby lobby;
+  GameEngine game;
+  TurnHub::ClientState clientState;
+  HubState hubState = HubState::Lobby;
+  PendingPassState pendingPass;
+  uint32_t countdownStartedAtMs = 0;
+  int8_t lastCountdownSecond = -1;
+  // Player selected for elimination while paused; 0 when none.
+  uint8_t eliminationTargetPlayer = 0;
+  // Controller/player that armed a win claim with the long-press pause gesture.
+  uint8_t winArmedModule = INVALID_ID;
+  uint8_t winArmedPlayer = 0;
+  TurnTimerCueState turnTimerCue;
+};
+
+constexpr uint8_t MAX_GAME_TABLES = 1;
+extern GameTable tables[MAX_GAME_TABLES];
+
+// The single-game names used across Atlas; each refers into tables[0] until
+// the call sites take a GameTable explicitly.
+extern Lobby &lobby;
+extern GameEngine &game;
+extern TurnHub::ClientState &clientState;
+extern HubState &hubState;
+extern PendingPassState &pendingPass;
+extern uint32_t &countdownStartedAtMs;
+extern int8_t &lastCountdownSecond;
+extern uint8_t &eliminationTargetPlayer;
+extern uint8_t &winArmedModule;
+extern uint8_t &winArmedPlayer;
+extern TurnTimerCueState &turnTimerCue;
 
 // --- main.cpp ----------------------------------------------------------------
 
