@@ -235,6 +235,9 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 ### Next implementation priority: Sigil OTA
 
+In progress (2026-09-28): design, feature gate and a step-by-step resume
+checklist are in [Sigil OTA](SIGIL_OTA.md). Upload is through the web portal.
+
 Owner direction (2026-09-25): move Sigil OTA ahead of session history and SD
 theme packs. Repeated USB flashing and COM-port tracking across devices is the
 immediate workflow problem. Continue the already-in-progress profile/life work
