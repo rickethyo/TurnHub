@@ -88,7 +88,7 @@ int main() {
   assert(panel.reset == 22 && panel.resetRequested);
   d.showBooting(); assert(has("Booting") && has("TurnHub") && panel.shapes > 0);
   d.showUnpaired(); assert(has("UNPAIRED") && has("Press Pair on both"));
-  d.showReady(7); assert(has("SIGIL 8") && has("Ready for game"));
+  d.showReady(7); assert(has("SIGIL 8") && has("OTA TEST 1"));
   d.showUpdate("Downloading", 40); assert(has("UPDATE") && has("40%") && has("Downloading") && has("Keep it powered"));
   d.showUpdate("Joining Atlas Wi-Fi", -1); assert(has("...") && has("Joining Atlas Wi-Fi"));
   assert(d.setSeatName(1, "ABCDEFGHIJKLmore"));
@@ -115,7 +115,7 @@ int main() {
   d.showState(0, DisplayMode::Lobby, 4, 0, 1, 0);
   assert(has("Player 4"));
   d.showState(0, DisplayMode::Ready, 0, 0, 0, 0);
-  assert(has("Ready for game"));
+  assert(has("OTA TEST 1"));
 
   GameDisplayPacket s{};
   s.version = VERSION; s.type = PacketType::GameDisplay; s.sigilId = 7;

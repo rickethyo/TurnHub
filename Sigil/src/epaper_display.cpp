@@ -571,7 +571,7 @@ void EpaperDisplay::showUnpaired() {
 void EpaperDisplay::showReady(uint8_t sigilId) {
   char title[24];
   snprintf(title, sizeof(title), "Sigil %u", static_cast<unsigned>(sigilId + 1));
-  drawStatus(title, "Ready for game");
+  drawStatus(title, "OTA TEST 1");
 }
 
 void EpaperDisplay::showAtlasLost(uint8_t sigilId) {
