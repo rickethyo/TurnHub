@@ -65,8 +65,12 @@ worker task handles hot-plug (`sd_card.cpp`, timing in `sd_hotplug.h`):
   can't reach a card the worker just dropped. Gameplay never waits for it.
   Diagnostics add `mounts` (successful mounts since boot).
 
-Host tests cover the timing policy (`storage_scenarios`); *Needs verification*
-on hardware (**D04**).
+Host tests cover the timing policy (`storage_scenarios`). *Verified* on the
+bench, 2026-09-28 (Atlas `B4:BF:E9:12:85:74`, 7580 MB SDHC card): pulling the
+card logged `ATLAS|SD|REMOVED` and `ATLAS|SD|STATS|CORE_ONLY`; reinserting it
+logged `MOUNTED`, `SELF_TEST|OK`, `STATS|CARD` and `LOG|READY` with no restart.
+Still *Needs verification* (**D04**): statistics across a swap during and after
+a game (no double counting), a different card, and the screen warning.
 
 Writes are flushed and closed, but logs are best effort. Power loss can lose
 buffered text, interrupt rotation, or damage FAT metadata. CRC/read-back and
