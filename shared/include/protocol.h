@@ -4,7 +4,10 @@
 
 namespace TurnHubProtocol {
 
-constexpr uint8_t VERSION = 1;
+// 2 since the secure link (SECURE_LINK.md, 2026-09-29): apart from pairing
+// and the session handshake, every packet travels sealed. Version 1 devices
+// can't talk to version 2 ones; reflash both device types together.
+constexpr uint8_t VERSION = 2;
 constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;

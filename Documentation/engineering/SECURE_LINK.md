@@ -235,7 +235,7 @@ Commit after each step and tick it here.
       1. [x] Shared `secure_session.h`: Sigil and Atlas session endpoints over
          `Channel` (SecureHello with a fresh nonce and MAC, SecureHelloAck,
          session key), host-tested.
-      2. [ ] `VERSION` 1 -> 2; receive buffers take sealed frames (22, 66 and
+      2. [x] `VERSION` 1 -> 2; receive buffers take sealed frames (22, 66 and
          125 bytes) and the 23/27-byte handshake.
       3. [ ] Atlas: a session per paired Sigil; SecureHello starts or replaces
          it (and counts as a Hello); every send to a Sigil is sealed in the app
