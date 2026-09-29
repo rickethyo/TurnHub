@@ -85,6 +85,9 @@ enum class IntentType : uint8_t {
   // then joins or attaches it like BindProfile.
   PickProfile,
 
+  // Presence-verified Admin: payload.value = paired Sigil ID.
+  UpdateSigil,
+
   Count,
 };
 
@@ -242,6 +245,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::FactoryReset: return "FACTORY_RESET";
     case IntentType::MasterPass: return "MASTER_PASS";
     case IntentType::PickProfile: return "PICK_PROFILE";
+    case IntentType::UpdateSigil: return "UPDATE_SIGIL";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

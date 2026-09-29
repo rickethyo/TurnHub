@@ -365,7 +365,8 @@ void SigilBus::handleReceive(
   Packet packet{};
   memcpy(&packet, incomingData, sizeof(packet));
 
-  if (packet.version != TurnHubProtocol::VERSION) {
+  if (packet.version != TurnHubProtocol::VERSION &&
+      !(packet.type == PacketType::SigilUpdateStatus && TurnHubProtocol::updatableVersion(packet.version))) {
     serialLog.printf(
         "ATLAS|ESP_NOW|BAD_VERSION|%u\n",
         static_cast<unsigned>(packet.version));
@@ -382,6 +383,7 @@ void SigilBus::handleReceive(
 
   switch (packet.type) {
     case PacketType::Hello:
+      sigil->confirmedSessionGeneration = sigil->sessionGeneration;
       updateHelloInfo(*sigil, packet.value);
       sendAck(mac, *sigil, packet.type);
       enqueue(*sigil, packet);
@@ -397,6 +399,7 @@ void SigilBus::handleReceive(
     case PacketType::PickerKey:
     case PacketType::LifeAdjust:
     case PacketType::LifeResponse:
+    case PacketType::SigilUpdateStatus:
     case PacketType::HarnessReport:
     case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
@@ -536,6 +539,7 @@ void SigilBus::handleSecureHello(const uint8_t *mac,
   }
   sendRaw(mac, &ack, sizeof(ack));
   sigil->lastSeenMs = millis();
+  ++sigil->sessionGeneration;
   updateHelloInfo(*sigil, hello.info);
   const Packet asHello = TurnHubProtocol::makePacket(PacketType::Hello, sigil->id, hello.info);
   enqueue(*sigil, asHello);
@@ -674,6 +678,11 @@ bool SigilBus::sendToMac(
 }
 
 bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet) {
+  SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
+  return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
+}
+
+bool SigilBus::sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet) {
   SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
   return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
 }

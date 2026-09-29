@@ -27,6 +27,8 @@ struct SigilRecord {
   uint8_t mac[6] = {};
   uint32_t lastSeenMs = 0;
 
+  uint32_t sessionGeneration = 0;
+  uint32_t confirmedSessionGeneration = 0;
   bool helloInfoValid = false;
   uint8_t firmwareMajor = 0;
   uint8_t firmwareMinor = 0;
@@ -81,6 +83,7 @@ class SigilBus {
   void syncDisplayProfile(uint8_t sigilId);
 
   bool sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet);
+  bool sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet);
   bool sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &packet);
 
   bool setBlue(uint8_t sigilId, uint8_t brightness);

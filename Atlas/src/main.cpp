@@ -8,6 +8,7 @@
 #include <WiFi.h>
 
 #include "atlas_app.h"
+#include "sigil_update_service.h"
 #include "sigil_menu.h"
 #include "profile_picker.h"
 #include "atlas_display.h"
@@ -222,6 +223,7 @@ bool configureIntentHandlers() {
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
       {IntentType::ResetTable, handleResetTableIntent},
       {IntentType::FactoryReset, handleFactoryResetIntent},
+      {IntentType::UpdateSigil, handleUpdateSigilIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {
@@ -338,6 +340,7 @@ void startNetworking() {
     serveDeveloperJson(TurnHub::activityJson());
   });
   ota.begin();
+  beginSigilUpdates();
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
 
@@ -427,6 +430,7 @@ void refreshSdLuxuryStore() {
 
 void loop() {
   processSigilEvents();
+  serviceSigilUpdates(millis());
   server.handleClient();
   refreshSdLuxuryStore();
 

@@ -47,6 +47,17 @@ bool SigilPackageStore::loadStaged() {
   if (TurnHubFirmwarePackage::checkHeader(*crypto_, policy(), header) != Error::None) {
     return false;
   }
+  // A valid header can survive an interrupted upload. Verify the image too.
+  if (!crypto_->hashBegin()) return false;
+  uint8_t buffer[1024];
+  for (uint32_t at = 0; at < header.imageSize;) {
+    size_t n = header.imageSize - at;
+    if (n > sizeof(buffer)) n = sizeof(buffer);
+    if (!flash_->read(sizeof(Header) + at, buffer, n) || !crypto_->hashUpdate(buffer, n)) return false;
+    at += n;
+  }
+  uint8_t digest[TurnHubFirmwarePackage::HASH_BYTES];
+  if (!crypto_->hashFinish(digest) || memcmp(digest, header.imageHash, sizeof(digest))) return false;
   header_ = header;
   packageSize_ = static_cast<uint32_t>(sizeof(Header)) + header.imageSize;
   staged_ = true;

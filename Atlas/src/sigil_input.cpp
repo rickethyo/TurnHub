@@ -21,6 +21,7 @@
 // the same Intents the gestures above would.
 
 #include "atlas_app.h"
+#include "sigil_update_service.h"
 #include "controller_profiles.h"
 #include "harness_link.h"
 #include "profile_picker.h"
@@ -503,6 +504,10 @@ void processSigilEvents() {
       leds.invalidate(event.sigilId);
       invalidateSigilMenu(event.sigilId);
       invalidateProfilePicker(event.sigilId);
+      continue;
+    }
+    if (event.type == PacketType::SigilUpdateStatus) {
+      noteSigilUpdateStatus(event.sigilId, event.value, millis());
       continue;
     }
     // Test-harness progress is shown on the touchscreen; it is not gameplay.

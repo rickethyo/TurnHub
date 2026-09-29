@@ -42,6 +42,8 @@ static bool fixtureRadio=false;
 SigilBus::SigilBus(uint8_t channel) : wifiChannel_(channel) { fixtureBus=this; }
 SigilBus *SigilBus::activeInstance() { return fixtureBus; }
 bool SigilBus::begin() { return true; }
+static TurnHubProtocol::SigilUpdateOfferPacket fixtureUpdateOffer{};
+bool SigilBus::sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &p) { fixtureUpdateOffer=p; return true; }
 static uint32_t fixturePairingWindowMs=0;
 bool SigilBus::openPairing(uint32_t windowMs) { fixturePairingWindowMs=windowMs; return fixtureRadio; }
 // Forgotten slots read as unpaired until the next freshLobby() re-pairs them.
@@ -2890,6 +2892,8 @@ static void gameRecoveryLifecycle() {
   enterEmptyLobby();
 }
 
+#include "ota_service_scenarios.inc"
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -2941,6 +2945,7 @@ int main() {
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
   serialLogStream();
   serialLogCapture(); std::cout<<"PASS serial log capture, redaction, stream draining, ring overflow and self-describing log lines\n";
+  otaServiceScenarios(); std::cout<<"PASS OTA service: authorization, variant checks, jobs, single-use downloads, fresh reboot confirmation\n";
   // Recovery fault injection runs last; see the recovery fixture comment.
   completionRecoveryOrdering(); std::cout<<"PASS completion checkpoint before stats: interrupted profile writes, failed/uncertain commits, protected records, no replay\n";
   gameRecoveryLifecycle(); std::cout<<"PASS interrupted-match recovery: boot load, checkpoint-after-intent, downtime exclusion, corrupt fail-safe\n";

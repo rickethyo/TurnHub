@@ -35,8 +35,7 @@ class SigilPackageStore : private TurnHubFirmwarePackage::Sink {
   void begin(PackageFlash &flash, TurnHubFirmwarePackage::PackageCrypto &crypto,
       const uint8_t *publicKey, const uint8_t *keyId);
 
-  // After a restart: the header still in flash is re-checked (signature,
-  // product); the image hash is checked again by the Sigil itself.
+  // After a restart: re-check the signed header and the complete image hash.
   bool loadStaged();
 
   void startUpload();
@@ -104,7 +103,8 @@ class SigilUpdateJobs {
   bool busy() const;
   // The Sigil's SigilUpdateStatus.
   void onStatus(uint8_t sigilId, int32_t value, uint32_t nowMs);
-  // Called every loop with that Sigil's reported firmware (from its Hello).
+  // Called every loop. haveVersion must mean a fresh, authenticated Hello
+  // from after the install/reboot, never merely cached version metadata.
   // Returns true when an offer should go out now.
   bool tick(uint32_t nowMs, bool haveVersion, TurnHubFirmwarePackage::Version reported);
   // While the Sigil may download: the route checks the token.

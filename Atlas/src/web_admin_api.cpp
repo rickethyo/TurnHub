@@ -3,6 +3,7 @@
 // settings additionally require admin to be unlocked on the Atlas screen.
 
 #include <WiFi.h>
+#include "sigil_update_service.h"
 
 #include "account_access.h"
 #include "config.h"
@@ -344,6 +345,7 @@ void handleNetworkInfo(WebServer &server) {
 
 // Saves a new AP password and restarts Atlas so the AP uses it.
 void handleNetworkPassword(WebServer &server) {
+  if (TurnHubAtlas::sigilUpdatesBusy()) { sendError(server, 409, "Wait for the firmware update to finish"); return; }
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   if (!requirePhysicalPresence(server)) return;
   if (!server.hasArg("password")) {

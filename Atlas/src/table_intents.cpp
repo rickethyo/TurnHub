@@ -4,6 +4,7 @@
 // transitions (empty lobby, rematch lobby, game start, game over).
 
 #include "atlas_app.h"
+#include "sigil_update_service.h"
 #include "account_access.h"
 #include "controller_profiles.h"
 #include "game_settings_store.h"
@@ -504,6 +505,7 @@ IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
 // browser seat may start without arming. The Atlas touchscreen (Start in the
 // lobby) is at the table itself, so it starts without a seat or arming.
 IntentResult handleStartIntent(const Intent &intent, void *) {
+  if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
   const bool touchscreen = intent.actor.origin == IntentOrigin::AtlasHardware &&
       intent.type == IntentType::StartGame;
   IntentResult rejection;
@@ -544,6 +546,7 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
 
 // System-only: the countdown finished (see updateCountdown).
 IntentResult handleCompleteStartIntent(const Intent &intent, void *) {
+  if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
   if (intent.actor.origin != IntentOrigin::System || hubState != HubState::Starting ||
       millis() - countdownStartedAtMs < START_COUNTDOWN_MS) {
     return IntentResult::reject(IntentStatus::InvalidState, "Countdown is not complete");
@@ -790,6 +793,7 @@ bool forgetSigil(uint8_t sigilId) {
 // Payload: value = Sigil ID or FORGET_ALL_SIGILS. Lobby only, and never a
 // Sigil with seated players, so no participant loses their controller.
 IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
+  if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
@@ -937,6 +941,7 @@ uint32_t atlasResetAtMs = 0;
 //   Sigil: Atlas tells it to erase and restart (FactoryReset packet), then
 //   forgets it. A Sigil out of range is only forgotten here.
 IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
+  if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }

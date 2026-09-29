@@ -26,30 +26,90 @@ Status of everything below: *Planned* unless marked otherwise.
 
 The owner's dev PC crashes intermittently. Keep this list current and commit
 after each step, so a new session can resume from the repository alone.
-Firmware builds run on GitHub Actions, not locally.
+Firmware builds run on GitHub Actions, not locally. Host suites can run locally.
 
 - [x] **Prerequisite:** the encrypted Atlas-Sigil link in
       [Secure Link](SECURE_LINK.md). Done 2026-09-29 (protocol `VERSION` 2,
       every packet sealed; *Verified* on the bench at boot).
 - [x] Step 1a: design record and feature gate (2026-09-28; signing and app
       delivery added 2026-09-29).
-- [ ] Step 1b: package format and descriptor. `shared/include/firmware_package.h`
+- [x] Step 1b: package format and descriptor. `shared/include/firmware_package.h`
       (embedded descriptor, `.thfw` header, parser, version rules), the
       descriptor built into Atlas and Sigil images, host tests.
-- [ ] Step 1c: signing tools and CI. `tools/firmware/` (key generation,
+- [x] Step 1c: signing tools and CI. `tools/firmware/` (key generation,
       packaging, verification), `firmware_signing_key.h` (public key), CI
       signs every firmware build when the secret exists, and a tag-triggered
       release workflow publishes packages and the release feed.
-- [ ] Step 1d: radio. `SigilUpdateOffer` / `SigilUpdateStatus` packets (sealed),
+- [x] Step 1d: radio. `SigilUpdateOffer` / `SigilUpdateStatus` packets (sealed),
       bigger receive buffers, and the version-tolerant handshake (below).
-- [ ] Step 1e: Sigil updater: offer, Wi-Fi join, download into the idle slot,
+- [x] Step 1e: Sigil updater: offer, Wi-Fi join, download into the idle slot,
       signature and hash check, deferred boot validation, update screen.
-- [ ] Step 1f: Atlas: signed Atlas OTA (raw `.bin` refused), Sigil package
+- [x] Step 1f: Atlas: signed Atlas OTA (raw `.bin` refused), Sigil package
       staging in the idle app slot, one-time download route.
-- [ ] Step 1g: `UpdateSigil` Intent, portal Sigil firmware section, one Sigil
-      end to end on hardware.
+- [x] Step 1g (software): `UpdateSigil` Intent and portal Sigil firmware page.
+- [ ] Step 1g (bench): both display variants end to end on hardware, including
+      interrupted transfers and rollback. See the checklist below.
 - [ ] Step 2a: Android: read the release feed, download and verify packages.
 - [ ] Step 2b: Android: install on Atlas, then the Sigils (presence-gated).
+
+### Codex integration, 2026-09-29
+
+Branch `codex/finish-sigil-ota` continues Claude's `5dd016b`. The checked
+steps above mean source implementation, not hardware certification. The new
+integration still needs a firmware CI build and the bench checks below.
+Android delivery remains a separate step.
+
+Local validation passed: Atlas application/service, storage and package/job
+host suites; Sigil host suites; Python signing-tool tests; adapter audit;
+client contract checks; portal JavaScript syntax. Host suites used ASan and
+UBSan with leak detection disabled because this execution host blocks the
+LeakSanitizer process inspection. Real mbedTLS/flash/network behavior remains
+covered by the pending firmware build and bench gates, not by host stand-ins.
+
+Device Settings links to `/sigil-update`: upload one signed `.thfw` package,
+choose a matching online Sigil, and start its update. Verify at the table
+before uploading. Raw `.bin` is now rejected by Atlas's own `/update` page;
+use the signed Atlas `.thfw` artifact. An old Atlas without this change still
+needs its usual `.bin` update to acquire the signed-package reader. Each Sigil
+needs one USB flash of an updater-capable build before its first OTA.
+
+Atlas checks product/variant, version, online session, Admin and physical
+presence, idle table, and absence of another update. The Sigil independently
+checks product in the offer AND in the signed package before writing flash.
+The packaging tool derives product from the embedded build descriptor, not
+the filename. Rename tests therefore cannot bypass product checks.
+
+The package is re-hashed when loaded from flash after an Atlas restart, so
+an incomplete upload cannot become staged merely because its header survived.
+Game starts, device forget/reset and network-password changes are refused while
+Sigil OTA is active; Atlas OTA cannot overwrite its package then. Each job
+allows one HTTP download. Retry starts a new job/token. Completion requires a
+new secure session followed by a sealed Hello, so cached version data and a
+handshake alone cannot claim success.
+
+### Portal OTA bench checklist (not yet verified)
+
+- [ ] CI builds Atlas, both Sigil variants, Wokwi and the harness; signed
+      artifacts verify against the committed public key.
+- [ ] Install updater-capable Sigils by USB; pair securely, verify at the table.
+- [ ] Update OLED and e-ink individually through Device Settings. Observe
+      progress, reboot, a fresh secure session, and `done` in the portal.
+- [ ] Try e-ink on OLED and OLED on e-ink. Atlas refuses; also directly test
+      the Sigil's own wrong-product rejection before flash writes.
+- [ ] Reject a raw `.bin`, wrong signature, altered image and older version.
+      Allow a correctly signed same-version reinstall.
+- [ ] Drop Wi-Fi and cut Sigil power during transfer. Old firmware still boots;
+      failure is readable and a new job can retry.
+- [ ] Interrupt package upload, restart Atlas, confirm no corrupt package is staged.
+- [ ] Start a game, replace the package, update Atlas, forget/reset a Sigil, or
+      change network password during OTA. Each conflicting action is refused.
+- [ ] Reuse the download token or use a wrong token: route returns 403.
+- [ ] Test a signed image that deliberately fails to reconnect. Confirm the
+      bootloader rolls back and Atlas reports failure, with no USB recovery.
+- [ ] Restart Atlas during a Sigil job. Confirm the Sigil safely completes or
+      fails and reconnects; Atlas job state is intentionally RAM-only.
+- [ ] Check keyboard navigation, screen reader labels/status and both Sigil
+      progress screens. Test a table with multiple paired Sigils present.
 
 ## What is already in place (*Verified* from source, 2026-09-28)
 

@@ -1,4 +1,8 @@
 #include "ota_manager.h"
+#include "sigil_update_service.h"
+#include "firmware_package_mbedtls.h"
+#include "firmware_signing_key.h"
+#include "firmware_version.h"
 
 #include <Update.h>
 #include <esp_ota_ops.h>
@@ -13,6 +17,20 @@ using TurnHub::serialLog;
 namespace TurnHub {
 
 namespace {
+class AtlasFlashSink final : public TurnHubFirmwarePackage::Sink {
+ public:
+  bool header(const TurnHubFirmwarePackage::Header &h) override {
+    TurnHubAtlas::invalidateSigilPackage();
+    return Update.begin(h.imageSize, U_FLASH);
+  }
+  bool image(const uint8_t *data, size_t n) override {
+    return Update.write(const_cast<uint8_t *>(data), n) == n;
+  }
+};
+AtlasFlashSink atlasSink;
+TurnHubFirmwarePackage::MbedtlsPackageCrypto atlasCrypto;
+TurnHubFirmwarePackage::Reader atlasReader;
+
 
 void printPartitionDiagnostic(
     const char *role,
@@ -80,12 +98,12 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
   <header class="page-head"><a class="brand" href="/portal"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Firmware</span></span></a><a class="btn small ghost" href="/portal">← Back to TurnHub</a></header>
   <main class="card">
     <h1>Atlas Firmware Update</h1>
-    <p class="small">Upload the Atlas <code>firmware.bin</code> produced by PlatformIO.</p>
+    <p class="small">Upload a signed Atlas <code>.thfw</code> package.</p>
     <div class="notice" style="margin-top:14px">
       For safety, start updates only from Lobby or Game Over and <strong>verify at the table first (Device Settings in the portal: Verify at the table, then the code the Atlas screen shows), then upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
     </div>
     <div id="current" class="status">Reading current firmware...</div>
-    <div class="drop"><label for="file">Firmware image</label><input id="file" type="file" accept=".bin,application/octet-stream"></div>
+    <div class="drop"><label for="file">Firmware image</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
     <button id="upload" class="primary" disabled>Upload &amp; Verify</button>
     <progress id="progress" max="100" value="0" aria-label="Upload progress"></progress>
     <p id="message" role="status" aria-live="polite"></p>
@@ -269,16 +287,19 @@ void OtaManager::handleUpload() {
       resetAttempt();
 
       if (!TurnHubWebApi::requirePermission(server_,TurnHubAccounts::Admin) || !TurnHubWebApi::verifiedAtTable(server_) ||
-          allowedCallback_ == nullptr || !allowedCallback_()) {
+          allowedCallback_ == nullptr || !allowedCallback_() || TurnHubAtlas::sigilUpdatesBusy() || restartAtMs_ != 0) {
         denied_ = true;
         serialLog.println("ATLAS|OTA|DENIED");
         return;
       }
 
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-        fail(static_cast<uint8_t>(Update.getError()));
-        Update.printError(Serial);
-        return;
+      {
+        const auto *slot = esp_ota_get_next_update_partition(nullptr);
+        if (!slot) { fail(static_cast<uint8_t>(TurnHubFirmwarePackage::Error::Storage)); return; }
+        atlasReader.begin(atlasCrypto, {TurnHubFirmwarePackage::PUBLIC_KEY,
+            TurnHubFirmwarePackage::KEY_ID,
+            TurnHubFirmwarePackage::productBit(TurnHubFirmwarePackage::Product::Atlas),
+            {TurnHubFirmware::MAJOR, TurnHubFirmware::MINOR, TurnHubFirmware::PATCH}, slot->size}, atlasSink);
       }
 
       inProgress_ = true;
@@ -291,8 +312,8 @@ void OtaManager::handleUpload() {
         return;
       }
 
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        fail(static_cast<uint8_t>(Update.getError()));
+      if (!atlasReader.write(upload.buf, upload.currentSize)) {
+        fail(static_cast<uint8_t>(atlasReader.error()));
         Update.printError(Serial);
         Update.abort();
         return;
@@ -306,8 +327,10 @@ void OtaManager::handleUpload() {
         return;
       }
 
-      if (!Update.end(true)) {
-        fail(static_cast<uint8_t>(Update.getError()));
+      if (!atlasReader.finish() || !Update.end()) {
+        fail(static_cast<uint8_t>(atlasReader.error() == TurnHubFirmwarePackage::Error::None
+            ? TurnHubFirmwarePackage::Error::Storage : atlasReader.error()));
+        Update.abort();
         Update.printError(Serial);
         return;
       }
@@ -380,7 +403,7 @@ void OtaManager::update(uint32_t nowMs) {
 }
 
 bool OtaManager::inProgress() const {
-  return inProgress_;
+  return inProgress_ || restartAtMs_ != 0;
 }
 
 }  // namespace TurnHub

@@ -35,3 +35,15 @@ namespace TurnHubAtlas { void eraseSettingsAndRestart() { ++fixtureFactoryResets
 // The speaker is firmware-only (ESP32 DAC); host builds have none.
 TurnHub::ToneOutput *TurnHubAtlas::beginAtlasSpeaker() { return nullptr; }
 void TurnHubAtlas::serviceAtlasSpeaker(uint32_t) {}
+
+#include "sigil_bus.h"
+#include "../../../Sigil/tests/host/test_crypto.h"
+#include <cassert>
+void fixtureConnectOta(TurnHub::SigilRecord &r) {
+  TurnHubTest::TestCrypto crypto;
+  TurnHubSecureLink::SigilSession peer;
+  uint8_t key[TurnHubSecureLink::KEY_BYTES]={1};peer.configure(0,key);
+  TurnHubSecureLink::SecureHelloPacket hello;TurnHubSecureLink::SecureHelloAckPacket ack;
+  assert(peer.makeHello(crypto,TurnHubProtocol::encodeHelloInfo(0,8,0,TurnHubProtocol::CAPABILITY_DISPLAY_OLED),hello));
+  assert(r.session.acceptHello(crypto,key,0,hello,ack));
+}

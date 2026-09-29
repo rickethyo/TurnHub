@@ -100,6 +100,13 @@ void stagingChecksEverything() {
   assert(again.loadStaged() && again.header().version.minor == 9 &&
       again.packageSize() == oled.size());
 
+  // Valid header but truncated/corrupt flash must not resurrect after reboot.
+  flash.bytes[sizeof(Header) + 100] ^= 1;
+  SigilPackageStore interrupted;
+  interrupted.begin(flash, crypto, KEY, KEY_ID_TEST);
+  assert(!interrupted.loadStaged());
+  flash.bytes[sizeof(Header) + 100] ^= 1;
+
   // An e-ink package replaces it; any version is staged (each Sigil decides).
   assert(upload(store, makePackage(Product::SigilEink, {0, 1, 0}, 9000)) &&
       store.header().product == 2);

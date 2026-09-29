@@ -2,6 +2,8 @@
 #include <Arduino.h>
 constexpr int WIFI_AP_STA=0;
 struct WiFiStub {
+  String softAPSSID() { return "TurnHub"; }
+  String softAPPSK() { return "test-password"; }
   void mode(int) {}
   bool softAP(const char*,const char*,int,bool,int) { return true; }
   const char *softAPIP() { return "192.168.4.1"; }
