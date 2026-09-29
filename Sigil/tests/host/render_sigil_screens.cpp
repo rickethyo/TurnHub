@@ -221,6 +221,60 @@ int main(int argc, char **argv) {
   picker.itemCount = 1;
   display.showPicker(picker, 0); shot("picker-confirm");
 
+  // Picker page with a notice above the rows.
+  picker.mode = PickerMode::List;
+  picker.itemCount = 3;
+  picker.notice = PickerNotice::NeedsPhone;
+  display.showPicker(picker, 1); shot("picker-notice");
+
+  // A pending life change being gathered, and another player's pass.
+  LifeOverlay gathering = overlay;
+  gathering.pending = -4;
+  gathering.pendingPlayer = 3;
+  display.setLifeOverlay(gathering);
+  display.setMenuView(compass(true));
+  display.showGame(game(true, 32)); shot("life-pending");
+  LifeOverlay otherPass = overlay;
+  otherPass.passingPlayer = 1;
+  display.setLifeOverlay(otherPass);
+  display.setMenuView(compass(false));
+  display.showGame(game(false, 27)); shot("other-passing");
+
+  // The widest life total, and a shared seat with commander damage.
+  display.setLifeOverlay(overlay);
+  display.showGame(game(true, -1000000)); shot("life-widest");
+  GameDisplayPacket sharedCmd = shared;
+  sharedCmd.commander = 1;
+  sharedCmd.sourceCount = 1;
+  sharedCmd.sources[0] = cmd.sources[0];
+  display.showGame(sharedCmd); shot("shared-commander");
+
+  // State screens not covered above.
+  display.setMenuView(MenuView());
+  display.showState(2, DisplayMode::Starting, 3, 4, 0, DISPLAY_FLAG_STARTER); shot("starting-shared");
+  display.showState(2, DisplayMode::Paused, 3, 0, 9, 0); shot("paused");
+  display.showState(2, DisplayMode::GameOver, 3, 0, 12, 0); shot("game-over");
+
+  // The open menu list (OLED) with a hold in progress.
+  SigilMenu menu(MenuLayout::List);
+  MenuStateFields fields;
+  for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::ClaimWin,
+                        SigilAction::BeginElimination, SigilAction::LinkPhone}) {
+    fields.actions |= sigilActionBit(a);
+  }
+  fields.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
+  menu.applyMenuState(encodeMenuState(fields), 0);
+  menu.keyDown(Key::Up, 0);
+  menu.keyDown(Key::Down, 1);
+  menu.keyDown(Key::Down, 2);
+  display.setMenuView(menu.view());
+  display.showGame(game(true, 32)); shot("menu-list");
+  menu.setHoldTimes(2000, 5000);
+  menu.keyDown(Key::Select, 20);
+  display.setMenuView(menu.view());
+  display.showGame(game(true, 32)); shot("menu-hold");
+  display.setMenuView(MenuView());
+
   printf("%s\n", failures ? "FAILED" : "OK");
   return failures ? 1 : 0;
 }

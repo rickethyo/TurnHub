@@ -34,6 +34,16 @@ class OledDisplay final : public SigilDisplay {
   bool validConfig() const;
   int16_t text(const char *value, int16_t y, uint8_t maxSize, Align align,
       bool inverse = false, int16_t left = 0, int16_t right = -1);
+  // Brass text (brass_fonts.h) inside the rows [top, bottom) and columns
+  // [left, right), baseline as low as the band allows. Returns the x just past
+  // the text, or -1 (nothing drawn) if it does not fit, so the caller can
+  // fall back to the built-in font.
+  int16_t fontText(const char *value, const GFXfont *font, int16_t top, int16_t bottom,
+      Align align, bool inverse = false, int16_t left = 0, int16_t right = -1);
+  // A rule with a center diamond, the Brass divider.
+  void rule(int16_t y, int16_t left, int16_t right);
+  // A status screen's big line (Cinzel, else built-in size 2) over a rule.
+  void bigLine(const char *big);
   void header(const char *title, const char *right, bool host = false);
   void banner(const char *message, int16_t y, bool highlight, Icon kind);
   void icon(Icon kind, int16_t x, int16_t y, uint16_t color);
