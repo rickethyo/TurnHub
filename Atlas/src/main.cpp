@@ -47,6 +47,8 @@ bool espNowReady = false;
 uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
 
 namespace {
+// The SD card generation the luxury store was last pointed for.
+uint32_t luxuryStoreGeneration = 0;
 
 // Polling cadence for the elapsed-clock recovery checkpoint (see below).
 constexpr uint32_t RECOVERY_POLL_INTERVAL_MS = 1000;
@@ -355,6 +357,8 @@ void setup() {
   beginSdCard();
   // Luxury records (detailed statistics) go to the card; without one Atlas
   // keeps only the core counts. Move any detail older firmware left in NVS.
+  // A card inserted or pulled later is picked up by refreshSdLuxuryStore().
+  luxuryStoreGeneration = sdCardGeneration();
   TurnHubProfiles::setLuxuryStore(sdBlobStore());
   if (TurnHubProfiles::begin()) {
     const size_t moved = TurnHubProfiles::migrateDetailedStats();
@@ -391,9 +395,25 @@ void setup() {
   serialLog.println("ATLAS|READY");
 }
 
+// The SD worker mounted or dropped a card (hot-plug): point detailed
+// statistics at the card, or at nothing, and move any NVS detail onto a card
+// that just arrived. Application task only, like every luxury-store call.
+void refreshSdLuxuryStore() {
+  const uint32_t generation = sdCardGeneration();
+  if (generation == luxuryStoreGeneration) return;
+  luxuryStoreGeneration = generation;
+  TurnHubStorage::BlobStore *store = sdBlobStore();
+  TurnHubProfiles::setLuxuryStore(store);
+  serialLog.println(store ? "ATLAS|SD|STATS|CARD" : "ATLAS|SD|STATS|CORE_ONLY");
+  if (store == nullptr) return;
+  const size_t moved = TurnHubProfiles::migrateDetailedStats();
+  if (moved > 0) serialLog.printf("ATLAS|SD|STATS_MIGRATED|%u\n", static_cast<unsigned>(moved));
+}
+
 void loop() {
   processSigilEvents();
   server.handleClient();
+  refreshSdLuxuryStore();
 
   const uint32_t nowMs = millis();
   updatePairingWindow(nowMs);

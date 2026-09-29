@@ -5,10 +5,11 @@
 
 // Atlas's microSD slot. Optional storage: gameplay never waits for or depends
 // on the card. Only luxury records (detailed statistics) and diagnostics live
-// on it; core records stay in NVS. Diagnostics are drained by a separate
-// low-priority task, never the gameplay loop. The card is mounted
-// once at boot; a card inserted later needs a restart. Firmware-only (needs
-// the Arduino SD library); host tests use the stubs in test_globals.cpp.
+// on it; core records stay in NVS. A separate low-priority worker task drains
+// diagnostics and handles hot-plug (sd_hotplug.h): it notices a pulled card
+// and mounts one inserted later, without a restart, never on the gameplay
+// loop. Firmware-only (needs the Arduino SD library); host tests use the
+// stubs in test_globals.cpp.
 
 namespace TurnHubAtlas {
 
@@ -27,5 +28,8 @@ String sdCardDiagnosticsJson();
 TurnHubStorage::BlobStore *sdBlobStore();
 // A card is mounted and its store works (the "NO SD CARD" warning otherwise).
 bool sdCardReady();
+// Changes whenever a card is mounted or dropped. The application loop
+// compares it to re-point the luxury store (refreshSdLuxuryStore, main.cpp).
+uint32_t sdCardGeneration();
 
 }  // namespace TurnHubAtlas

@@ -5,7 +5,7 @@ Stabilization started (2026-09-26, `codex/prototype-v1-stabilization`): use the
 The first code change commits the finished-match recovery record before profile
 statistics. This closes the reproduced duplicate-counting window; interrupted
 statistics writes can still leave missing/partial results. Durable completion
-receipts, Sigil OTA, SD hot-plug and physical acceptance remain open. See
+receipts, Sigil OTA, SD hot-plug hardware checks and physical acceptance remain open. See
 [completion ordering](COMPLETION_RECOVERY.md). Do not infer firmware or bench
 verification from a host result.
 
@@ -83,7 +83,8 @@ Owner decisions (2026-09-25, end of day):
   wins, and which stats are merged or kept apart. Also where game-night
   results are written.
 - **Cards pulled mid-session must be re-recognized** when reinserted (hot-plug
-  remount), not left out until a restart.
+  remount), not left out until a restart. Implemented 2026-09-28, *Needs
+  verification* on hardware (see [SD Diagnostics](SD_DIAGNOSTICS.md#hot-plug-2026-09-28)).
 - **No statistics rollback option.** Detail moved to the card is not copied
   back to NVS on request.
 - **Sigil OTA over Wi-Fi first (owner accepted the recommendation, 2026-09-25;
@@ -213,8 +214,8 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   Proposed, not started.
   Decided 2026-09-25 (see the owner decisions at the top of this file): no
   statistics rollback. A card pulled mid-session must be re-recognized when
-  reinserted; today it still needs a restart, so hot-plug remount is to
-  build. Cards are multi-Atlas, with owner ID plus game-night or merge-in
+  reinserted; hot-plug remount was built 2026-09-28 (hardware check
+  pending). Cards are multi-Atlas, with owner ID plus game-night or merge-in
   slots; to design.
 - Done 2026-09-25: player names, life and the turn clock on the status
   screen, Info and QR code screens, the NO SD CARD warning (bench check of

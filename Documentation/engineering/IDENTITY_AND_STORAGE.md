@@ -159,9 +159,11 @@ and checks. The statistics store and the log worker share one card lock
 - `sdBlobStore()` returns `nullptr` unless the card mounted and the directory
   exists, the write/read-back self-test passed, and the diagnostic worker has
   not reported an I/O error; callers treat that and every error as "card unavailable".
-  A card removed while running makes operations fail with `IoError`; remount
-  needs a restart. The logger is currently the only post-boot SD consumer;
-  future blob/package access must share a serialized SD owner with it.
+  A card removed while running makes operations fail until the SD worker
+  notices and unmounts it; a card inserted later is mounted without a restart
+  and detailed statistics move back to it (see
+  [SD Diagnostics](SD_DIAGNOSTICS.md#hot-plug-2026-09-28)). Future
+  blob/package access must go through the same worker-owned card lock.
 
 Detailed statistics are the first records on the card (see the table above).
 Not decided yet (see [Staged changes](STAGED_CHANGES.md)): which other records move,

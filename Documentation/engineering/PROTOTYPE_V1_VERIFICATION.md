@@ -44,7 +44,8 @@ and verification remain eligible.
   variant and integrity checks, named-device update/queue, retained compatible
   reinstall, boot confirmation and interrupted-update recovery. See **U01-U06**.
 - [ ] **P04** Implement safe SD removal/reinsertion and remount, including resuming
-  consumers without racing the diagnostics worker. Current firmware needs a restart.
+  consumers without racing the diagnostics worker. Implemented 2026-09-28 (the
+  worker owns hot-plug; host-tested timing, Atlas build); hardware check is **D04**.
 - [ ] **P05** Set the field kit's required profile-selection behavior, including
   e-ink Seat B, duplicate-name labels and startup choice. Finish required paths;
   record any explicitly deferred option. Do not treat the Seat-A picker as all
