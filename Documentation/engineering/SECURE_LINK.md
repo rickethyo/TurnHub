@@ -192,18 +192,39 @@ Commit after each step and tick it here.
       each in mbedTLS's generic bignum code), so pairing costs about 0.4 s per
       side. Follow-up: trim the boot test (for example to one RFC agreement)
       or run it off the boot path, since it delays every start by 1.6 s.
-- [ ] Pairing v2 on Atlas and Sigil; pair key in NVS; keyless records cleared.
-      In progress on branch `secure-link-pairing-v2` (2026-09-29): the shared
-      state machines are done and host-tested (`shared/include/pairing_v2.h`,
-      `Sigil/tests/host/pairing_scenarios.cpp`; `TestCrypto` now in
-      `Sigil/tests/host/test_crypto.h`). Next: wire them into `sigil_bus.cpp`
-      and `Sigil/src/main.cpp` (widen the Atlas rx queue for 38/39/15-byte
-      packets), then NVS. Transition rule: VERSION stays 1 and traffic stays
-      cleartext until the envelope step; keyless v1 pairings keep working.
-- [ ] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
-      Confirm/Reject on the Atlas screen and in the portal; 60 s timeout.
+- [x] Pairing v2 on Atlas and Sigil; pair key in NVS (2026-09-29, branch
+      `secure-link-pairing-v2`; host-tested and CI-built, *Needs
+      verification* on hardware). Shared state machines in
+      `shared/include/pairing_v2.h` (`Sigil/tests/host/pairing_scenarios.cpp`;
+      the host stand-in crypto is `Sigil/tests/host/test_crypto.h`). Atlas:
+      `SigilBus` takes 38-byte `PairRequest2` in its window and answers
+      `PairAccept2`; the key goes in NVS `th_pair_v1/k<slot>` beside the MAC
+      (`s<slot>`), so records from before load as keyless. Sigil: Pair
+      broadcasts `PairRequest2`; the key goes in `th_pair_v1/atlas_k` beside the
+      7-byte binding. "Keyless records cleared" moves to the envelope step
+      (below), which is when they stop working.
+- [x] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
+      Confirm/Reject on the Atlas screen and in the portal; 60 s timeout
+      (2026-09-29; host-tested, *Needs verification* on hardware). Atlas
+      screen: a `PairCode` screen over the lobby (after any presence code),
+      **Codes match** / **Reject**, one Sigil at a time. Portal: Device
+      Settings lists waiting Sigils with their codes in a live region;
+      `POST /api/device/pair-confirm` needs an Admin verified at the table.
+      Sigils show the code (e-ink: "Code 0427 / Confirm on Atlas"; OLED: big
+      Oswald digits) with the pairing light on, and give up after 65 s.
+      Atlas's on-board LED blinks red while its pairing window is open.
+      **Transition (decided 2026-09-29):** `VERSION` stays 1 and all other
+      traffic stays cleartext until the envelope step. Atlas still accepts the
+      old 7-byte `PairRequest` (stored keyless), so the TestHarness keeps
+      pairing the old way until it learns v2; Sigils built from this branch
+      send only v2. The portal marks keyless Sigils "pair again for the secure
+      link".
 - [ ] Secure Hello/session and the envelope on every packet, both directions.
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
+      Done so far: the Wokwi fake Atlas speaks v2 (`confirm` / `reject` on the
+      console); portal shows secure vs keyless; engineering docs and the manual's
+      pairing section. Still to do: the TestHarness (v1 pairing until the
+      envelope step).
 - [ ] Hardware: 8 Sigils (or harness plus Sigils) paired and playing; forged,
       replayed and cleartext packets rejected.
 

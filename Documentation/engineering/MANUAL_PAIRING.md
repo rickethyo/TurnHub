@@ -1,5 +1,34 @@
 # Manual prototype pairing
 
+## Current: pairing v2 with a code check (2026-09-29)
+
+*Host-tested and CI-built; Needs verification on hardware.* Design and reasons
+in [Secure Link](SECURE_LINK.md).
+
+1. In the Atlas lobby, tap **Menu → Pair a Sigil**. Atlas's pairing window opens
+   (15 s by default, 30/60 s if set in Device Settings); the Atlas screen shows
+   the countdown and Atlas's on-board LED blinks red.
+2. Press the Sigil's Pair button. It blinks red and broadcasts `PairRequest2`
+   with a fresh X25519 key every 2 s until answered.
+3. Atlas answers `PairAccept2` and both sides derive the same pair key and a
+   4-digit code. The Sigil shows the code; the Atlas screen shows **Pair Sigil N**
+   with the same code, **Codes match** and **Reject**. The portal's Device
+   Settings lists it too (Admin, verified at the table).
+4. **Codes match** (either place) stores the Sigil's MAC and pair key on Atlas
+   (`th_pair_v1/s<slot>` and `k<slot>`) and tells the Sigil, which stores Atlas,
+   its slot and the key (`th_pair_v1/atlas` and `atlas_k`) and carries on as
+   before (`SIGIL|PAIR|SUCCESS|SECURE`).
+5. **Reject**, 60 s without an answer (Atlas), or 65 s (the Sigil's own limit)
+   stores nothing; a Sigil that was already paired keeps its old pairing.
+   Leaving the lobby rejects every waiting Sigil.
+
+Until the secure-session step, all other traffic is still cleartext
+(`VERSION` 1) and Atlas also accepts the old `PairRequest` below (stored without
+a key, shown in the portal as "pair again for the secure link"). The
+TestHarness still pairs that way.
+
+## History: the first manual pairing (2026-09-22)
+
 Implemented 2026-09-22 after the owner confirmed the hardware buttons report correctly.
 This supersedes the five-second visual mock and the planned temporary boot trigger.
 
