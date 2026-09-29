@@ -35,3 +35,6 @@ mkdir -p "$build_dir"
 "$compiler" "${flags[@]}" "${includes[@]}" \
   session_scenarios.cpp -o "$build_dir/session_scenarios"
 "$build_dir/session_scenarios"
+
+"$compiler" "${flags[@]}" "${includes[@]}"   firmware_package_scenarios.cpp -o "$build_dir/firmware_package_scenarios"
+"$build_dir/firmware_package_scenarios"
