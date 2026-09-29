@@ -109,8 +109,8 @@ class SigilBus {
   };
   struct TxRequest {
     uint8_t mac[6] = {};
-    // The largest sealed packet: a game display plus the envelope.
-    uint8_t data[sizeof(TurnHubProtocol::GameDisplayPacket) + TurnHubSecureLink::SECURE_OVERHEAD] = {};
+    // The largest sealed packet: an update offer plus the envelope.
+    uint8_t data[sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + TurnHubSecureLink::SECURE_OVERHEAD] = {};
     uint8_t length = 0;
   };
 

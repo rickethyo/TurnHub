@@ -53,8 +53,10 @@ class SigilSession {
   }
 
   // Atlas's answer to the latest Hello (and only that one) starts the session.
+  // Any updatable protocol version is taken, so a newer Atlas can still update
+  // this Sigil (MIN_UPDATABLE_VERSION); the caller decides what else to accept.
   bool acceptAck(Crypto &crypto, const SecureHelloAckPacket &ack) {
-    if (!hasKey_ || !helloPending_ || ack.version != TurnHubProtocol::VERSION ||
+    if (!hasKey_ || !helloPending_ || !TurnHubProtocol::updatableVersion(ack.version) ||
         ack.type != PacketType::SecureHelloAck || ack.sigilId != sigilId_ ||
         !equalBytes(ack.sigilNonce, nonce_, NONCE_BYTES)) {
       return false;
@@ -105,9 +107,11 @@ class AtlasSession {
   // starts a new session (replacing any old one) and fills the answer. A
   // replayed Hello only restarts the session with a fresh Atlas nonce, so the
   // replayer learns nothing; the real Sigil reconnects on its next Hello.
+  // Any updatable protocol version is taken (MIN_UPDATABLE_VERSION): hello.version
+  // tells the caller whether the Sigil needs an update.
   bool acceptHello(Crypto &crypto, const uint8_t pairKey[KEY_BYTES], uint8_t sigilId,
       const SecureHelloPacket &hello, SecureHelloAckPacket &ack) {
-    if (hello.version != TurnHubProtocol::VERSION || hello.type != PacketType::SecureHello ||
+    if (!TurnHubProtocol::updatableVersion(hello.version) || hello.type != PacketType::SecureHello ||
         hello.sigilId != sigilId) {
       return false;
     }

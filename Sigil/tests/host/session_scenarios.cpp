@@ -136,12 +136,104 @@ void newSessionsLeaveOldFramesBehind() {
   assert(!atlas.ready());
 }
 
+// The handshake is frozen so an out-of-date Sigil stays updatable: any
+// version from MIN_UPDATABLE_VERSION up is taken (SIGIL_OTA.md), older isn't.
+void handshakeToleratesNewerVersions() {
+  TestCrypto crypto;
+  SigilSession sigil;
+  AtlasSession atlas;
+  sigil.configure(4, PAIR_KEY);
+  SecureHelloPacket hello;
+  SecureHelloAckPacket ack;
+
+  // A newer Sigil's Hello (re-MACed as that Sigil would) reaches this Atlas.
+  assert(sigil.makeHello(crypto, INFO, hello));
+  SecureHelloPacket newer = hello;
+  newer.version = TurnHubProtocol::VERSION + 1;
+  assert(helloMac(crypto, PAIR_KEY, newer, newer.mac));
+  assert(atlas.acceptHello(crypto, PAIR_KEY, 4, newer, ack));
+
+  // A newer Atlas's ack reaches this Sigil.
+  assert(atlas.acceptHello(crypto, PAIR_KEY, 4, hello, ack));
+  SecureHelloAckPacket newerAck = ack;
+  newerAck.version = TurnHubProtocol::VERSION + 1;
+  assert(helloAckMac(crypto, PAIR_KEY, newerAck, newerAck.mac));
+  assert(sigil.acceptAck(crypto, newerAck) && sigil.ready());
+
+  // Below MIN_UPDATABLE_VERSION: refused both ways, even correctly MACed.
+  assert(sigil.makeHello(crypto, INFO, hello));
+  SecureHelloPacket old = hello;
+  old.version = TurnHubProtocol::MIN_UPDATABLE_VERSION - 1;
+  assert(helloMac(crypto, PAIR_KEY, old, old.mac));
+  assert(!atlas.acceptHello(crypto, PAIR_KEY, 4, old, ack));
+  assert(atlas.acceptHello(crypto, PAIR_KEY, 4, hello, ack));
+  SecureHelloAckPacket oldAck = ack;
+  oldAck.version = TurnHubProtocol::MIN_UPDATABLE_VERSION - 1;
+  assert(helloAckMac(crypto, PAIR_KEY, oldAck, oldAck.mac));
+  assert(!sigil.acceptAck(crypto, oldAck));
+}
+
+// The update packets: offer validation and the status encoding.
+void updatePackets() {
+  using namespace TurnHubProtocol;
+  SigilUpdateOfferPacket offer{};
+  offer.version = VERSION;
+  offer.type = PacketType::SigilUpdateOffer;
+  offer.sigilId = 3;
+  offer.product = 3;
+  offer.packageSize = 900000;
+  strcpy(offer.ssid, "TurnHub-Atlas");
+  strcpy(offer.password, "TurnHub-Setup");
+  assert(validUpdateOffer(offer));
+  SigilUpdateOfferPacket bad = offer;
+  bad.version = VERSION + 1;
+  assert(validUpdateOffer(bad));  // A newer Atlas may update this Sigil.
+  bad.version = MIN_UPDATABLE_VERSION - 1;
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  bad.product = 1;  // Atlas firmware is never offered to a Sigil.
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  bad.sigilId = MAX_SIGILS;
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  bad.packageSize = 128;
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  bad.ssid[0] = '\0';
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  memset(bad.password, 'x', sizeof(bad.password));  // Not terminated.
+  assert(!validUpdateOffer(bad));
+  bad = offer;
+  memset(bad.ssid, 'x', sizeof(bad.ssid));
+  assert(!validUpdateOffer(bad));
+
+  // Sealed, it fits one frame.
+  assert(sizeof(offer) + SECURE_OVERHEAD <= ESPNOW_MAX_BYTES);
+
+  UpdateStatusFields f{};
+  assert(decodeUpdateStatus(encodeUpdateStatus(UpdateStage::Downloading, 40, 0, 0xAB), f));
+  assert(f.stage == UpdateStage::Downloading && f.progress == 40 && f.error == 0 &&
+      f.tokenTag == 0xAB);
+  assert(decodeUpdateStatus(
+      encodeUpdateStatus(UpdateStage::Failed, 0, static_cast<uint8_t>(UpdateError::WifiJoin), 7), f));
+  assert(f.stage == UpdateStage::Failed && f.error == 20 && f.tokenTag == 7);
+  assert(decodeUpdateStatus(encodeUpdateStatus(UpdateStage::Downloading, 250, 0, 0), f) &&
+      f.progress == 100);
+  assert(!decodeUpdateStatus(0, f));
+  assert(!decodeUpdateStatus(6, f));
+  assert(!decodeUpdateStatus(2 | (101 << 8), f));
+}
+
 }  // namespace
 
 int main() {
   handshakeThenSealedTrafficBothWays();
   forgedAndStaleHandshakesFail();
   newSessionsLeaveOldFramesBehind();
-  std::cout << "PASS secure sessions: handshake, sealed traffic both ways, forged/stale handshakes, old sessions, replayed Hello\n";
+  handshakeToleratesNewerVersions();
+  updatePackets();
+  std::cout << "PASS secure sessions: handshake, sealed traffic both ways, forged/stale handshakes, old sessions, replayed Hello, version tolerance, update packets\n";
   return 0;
 }

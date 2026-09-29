@@ -10,13 +10,17 @@ namespace TurnHubSigil {
 // from the session handshake and pairing. The unsealed sizes stay accepted
 // here only so the loop can recognise and drop them.
 struct ReceivedPacket {
+  // The largest: a sealed update offer (SIGIL_OTA.md).
   static constexpr size_t MAX_BYTES =
-      sizeof(TurnHubProtocol::GameDisplayPacket) + TurnHubSecureLink::SECURE_OVERHEAD;
+      sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + TurnHubSecureLink::SECURE_OVERHEAD;
   uint8_t mac[6];
   uint16_t length;
   uint8_t data[MAX_BYTES];
   static_assert(sizeof(TurnHubProtocol::ProfilePickerPacket) <= sizeof(TurnHubProtocol::GameDisplayPacket),
       "Picker page must fit the receive buffer");
+  static_assert(sizeof(TurnHubProtocol::GameDisplayPacket) <= sizeof(TurnHubProtocol::SigilUpdateOfferPacket),
+      "Game display must fit the receive buffer");
+  static_assert(MAX_BYTES <= TurnHubSecureLink::ESPNOW_MAX_BYTES, "Receive buffer past one frame");
 
   static bool acceptedSize(int size) {
     using TurnHubSecureLink::SECURE_OVERHEAD;
@@ -30,6 +34,7 @@ struct ReceivedPacket {
       case sizeof(TurnHubProtocol::Packet) + SECURE_OVERHEAD:
       case sizeof(TurnHubProtocol::ProfilePickerPacket) + SECURE_OVERHEAD:
       case sizeof(TurnHubProtocol::GameDisplayPacket) + SECURE_OVERHEAD:
+      case sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + SECURE_OVERHEAD:
         return true;
       default:
         return false;

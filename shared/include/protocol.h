@@ -8,6 +8,17 @@ namespace TurnHubProtocol {
 // and the session handshake, every packet travels sealed. Version 1 devices
 // can't talk to version 2 ones; reflash both device types together.
 constexpr uint8_t VERSION = 2;
+// Oldest Sigil protocol Atlas can still update over the air (SIGIL_OTA.md,
+// "Version rules"). The secure-session handshake and the two update packets
+// are frozen at their VERSION 2 layout and accepted from any version at or
+// above this, so a Sigil left behind by an Atlas update is never stranded.
+constexpr uint8_t MIN_UPDATABLE_VERSION = 2;
+// Bumping VERSION? Atlas must then keep old Sigils talking just enough to be
+// updated: record each Sigil's version from its SecureHello, show it as
+// needing an update, never seat it, and still send it SigilUpdateOffer.
+static_assert(VERSION == MIN_UPDATABLE_VERSION,
+    "Implement needs-update handling for older Sigils before bumping VERSION (SIGIL_OTA.md)");
+inline bool updatableVersion(uint8_t version) { return version >= MIN_UPDATABLE_VERSION; }
 constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
@@ -145,6 +156,12 @@ enum class PacketType : uint8_t {
   SecureHello = 44,
   SecureHelloAck = 45,
   Secure = 46,
+  // Sigil OTA (SIGIL_OTA.md), both sealed, layouts frozen (see
+  // MIN_UPDATABLE_VERSION). Atlas -> Sigil: install the staged package
+  // (SigilUpdateOfferPacket). Sigil -> Atlas: how it is going, a Packet whose
+  // value is encodeUpdateStatus.
+  SigilUpdateOffer = 47,
+  SigilUpdateStatus = 48,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
@@ -174,6 +191,91 @@ struct __attribute__((packed)) Packet {
 };
 
 static_assert(sizeof(Packet) == 7, "TurnHub ESP-NOW packet layout changed");
+
+// --- Sigil OTA ------------------------------------------------------------------
+constexpr size_t UPDATE_TOKEN_BYTES = 16;
+constexpr size_t UPDATE_SSID_BYTES = 33;      // 32 + NUL.
+constexpr size_t UPDATE_PASSWORD_BYTES = 65;  // 64 + NUL.
+
+// Atlas -> Sigil, sealed: download http://192.168.4.1/api/sigil-package?token=
+// (hex token) over Atlas's AP and install it. Resent until the Sigil answers.
+struct __attribute__((packed)) SigilUpdateOfferPacket {
+  uint8_t version;  // Atlas's VERSION; any updatableVersion() is accepted.
+  PacketType type;  // SigilUpdateOffer
+  uint8_t sigilId;
+  uint8_t product;  // TurnHubFirmwarePackage::Product
+  uint8_t major;
+  uint8_t minor;
+  uint8_t patch;
+  uint32_t packageSize;  // Header plus image.
+  uint8_t token[UPDATE_TOKEN_BYTES];
+  char ssid[UPDATE_SSID_BYTES];
+  char password[UPDATE_PASSWORD_BYTES];
+};
+static_assert(sizeof(SigilUpdateOfferPacket) == 125, "Update offer layout is frozen");
+
+inline bool terminatedWithin(const char *text, size_t capacity) {
+  for (size_t i = 0; i < capacity; ++i) {
+    if (text[i] == '\0') return true;
+  }
+  return false;
+}
+
+inline bool validUpdateOffer(const SigilUpdateOfferPacket &p) {
+  return updatableVersion(p.version) && p.type == PacketType::SigilUpdateOffer &&
+      p.sigilId < MAX_SIGILS && p.product >= 2 && p.product <= 3 && p.packageSize > 128 &&
+      p.ssid[0] != '\0' && terminatedWithin(p.ssid, UPDATE_SSID_BYTES) &&
+      terminatedWithin(p.password, UPDATE_PASSWORD_BYTES);
+}
+
+enum class UpdateStage : uint8_t {
+  Accepted = 1,     // Offer taken; joining Atlas's Wi-Fi.
+  Downloading = 2,  // progress = percent of the package received.
+  Installed = 3,    // Checked and set to boot; restarting.
+  Failed = 4,       // error says why; the running firmware is untouched.
+  Refused = 5,      // Offer not taken (wrong product, older version, busy).
+};
+
+// Failure reasons: 1-12 are TurnHubFirmwarePackage::Error values; these follow.
+enum class UpdateError : uint8_t {
+  None = 0,
+  WifiJoin = 20,
+  Download = 21,     // HTTP error or connection lost.
+  Timeout = 22,
+  FlashBegin = 23,   // No idle slot, or it can't be opened.
+  FlashFinish = 24,  // The written image didn't validate or couldn't be set to boot.
+  Busy = 25,         // Already updating.
+};
+
+// value: stage (bits 0-7), progress 0-100 (8-15), error (16-23), and the
+// first byte of the job's token (24-31), so a late status from an older job
+// is ignored.
+inline int32_t encodeUpdateStatus(UpdateStage stage, uint8_t progress, uint8_t error,
+    uint8_t tokenTag) {
+  return static_cast<int32_t>(static_cast<uint32_t>(stage) |
+      (static_cast<uint32_t>(progress > 100 ? 100 : progress) << 8) |
+      (static_cast<uint32_t>(error) << 16) | (static_cast<uint32_t>(tokenTag) << 24));
+}
+struct UpdateStatusFields {
+  UpdateStage stage;
+  uint8_t progress;
+  uint8_t error;
+  uint8_t tokenTag;
+};
+inline bool decodeUpdateStatus(int32_t value, UpdateStatusFields &out) {
+  const uint32_t v = static_cast<uint32_t>(value);
+  const uint8_t stage = v & 0xFF;
+  const uint8_t progress = (v >> 8) & 0xFF;
+  if (stage < static_cast<uint8_t>(UpdateStage::Accepted) ||
+      stage > static_cast<uint8_t>(UpdateStage::Refused) || progress > 100) {
+    return false;
+  }
+  out.stage = static_cast<UpdateStage>(stage);
+  out.progress = progress;
+  out.error = (v >> 16) & 0xFF;
+  out.tokenTag = static_cast<uint8_t>(v >> 24);
+  return true;
+}
 
 // Atomic rendering snapshot, little-endian like Packet. Never authoritative.
 constexpr uint8_t DISPLAY_COMMANDER_SOURCES = 3;
