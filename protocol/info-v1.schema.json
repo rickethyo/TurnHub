@@ -36,7 +36,9 @@
       "const": "0.1"
     },
     "radioProtocolVersion": {
-      "const": 1
+      "description": "Atlas-Sigil ESP-NOW protocol version (2 since the secure link, 2026-09-29). Informational: clients do not use the radio.",
+      "type": "integer",
+      "minimum": 1
     },
     "bootId": {
       "type": "string",
