@@ -73,6 +73,14 @@ bool SigilBus::begin() {
         prefs.getBytesLength(keyName.c_str()) == TurnHubSecureLink::KEY_BYTES &&
         prefs.getBytes(keyName.c_str(), records_[i].pairKey, TurnHubSecureLink::KEY_BYTES) ==
             TurnHubSecureLink::KEY_BYTES;
+    // Since the secure link every packet is sealed with the pair key, so a
+    // Sigil paired before pairing v2 can't talk to Atlas: forget it (it must
+    // pair again). Its MAC is logged; the pair key never is.
+    if (!records_[i].hasPairKey) {
+      prefs.remove(key.c_str());
+      serialLog.printf("ATLAS|PAIRING|KEYLESS_FORGOTTEN|%u\n", static_cast<unsigned>(i));
+      records_[i] = SigilRecord{};
+    }
   }
   prefs.end();
   rxQueue_ = xQueueCreate(32, sizeof(RxRequest));
@@ -166,10 +174,13 @@ bool SigilBus::poll(SigilEvent &event) {
       handlePairRequest2(request.mac, pairRequest, request.receivedAt);
       continue;
     }
-    Packet packet;
-    memcpy(&packet, request.data, sizeof(packet));
-    if (packet.type == PacketType::PairRequest && !inWindow) continue;
-    handleReceive(request.mac, request.data, sizeof(Packet));
+    if (request.length == sizeof(TurnHubSecureLink::SecureHelloPacket)) {
+      TurnHubSecureLink::SecureHelloPacket hello;
+      memcpy(&hello, request.data, sizeof(hello));
+      handleSecureHello(request.mac, hello);
+      continue;
+    }
+    handleSealed(request.mac, request.data, request.length);
   }
   // Unconfirmed pairings lapse after PAIR_CONFIRM_TIMEOUT_MS; the Sigil is told.
   TurnHubSecureLink::PairResultPacket lapsed;
@@ -271,7 +282,8 @@ void SigilBus::receiveThunk(
     const uint8_t *incomingData,
     int length) {
   if (instance_ != nullptr) {
-    if ((length != sizeof(Packet) &&
+    if ((length != sizeof(Packet) + TurnHubSecureLink::SECURE_OVERHEAD &&
+         length != sizeof(TurnHubSecureLink::SecureHelloPacket) &&
          length != sizeof(TurnHubSecureLink::PairRequest2Packet)) ||
         instance_->rxQueue_ == nullptr) {
       return;
@@ -360,22 +372,12 @@ void SigilBus::handleReceive(
     return;
   }
 
+  // Only packets opened in a Sigil's session get here (handleSealed), so the
+  // sender is a paired Sigil holding its pair key.
   SigilRecord *sigil = findByMac(mac);
-  if (packet.type == PacketType::PairRequest) {
-    if (!pairingActive()) return;
-    if (!sigil) sigil = remember(mac);
-    if (!sigil) serialLog.println("ATLAS|PAIRING|REJECT|CAPACITY_OR_STORAGE");
-    if (sigil) {
-      sendToMac(mac, PacketType::PairAccept, sigil->id, packet.value);
-      serialLog.printf("ATLAS|PAIRING|ACCEPT|%u\n", sigil->id);
-    }
+  if (sigil == nullptr || packet.sigilId != sigil->id) {
     return;
   }
-  if (sigil == nullptr) {
-    return;
-  }
-
-  if (packet.type != PacketType::Hello && packet.sigilId != sigil->id) return;
   sigil->lastSeenMs = millis();
 
   switch (packet.type) {
@@ -520,6 +522,54 @@ bool SigilBus::storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pair
   return true;
 }
 
+// A SecureHello from a paired Sigil holding its pair key starts (or
+// restarts) its session, and counts as its Hello: Atlas answers, notes its
+// firmware, and resends its lights, menu and screen (sealed, after the ack).
+void SigilBus::handleSecureHello(const uint8_t *mac,
+    const TurnHubSecureLink::SecureHelloPacket &hello) {
+  SigilRecord *sigil = findByMac(mac);
+  if (sigil == nullptr || !sigil->hasPairKey) return;
+  TurnHubSecureLink::SecureHelloAckPacket ack;
+  if (!sigil->session.acceptHello(linkCrypto, sigil->pairKey, sigil->id, hello, ack)) {
+    serialLog.printf("ATLAS|SECURE|HELLO_REJECTED|%u\n", static_cast<unsigned>(sigil->id));
+    return;
+  }
+  sendRaw(mac, &ack, sizeof(ack));
+  sigil->lastSeenMs = millis();
+  updateHelloInfo(*sigil, hello.info);
+  const Packet asHello = TurnHubProtocol::makePacket(PacketType::Hello, sigil->id, hello.info);
+  enqueue(*sigil, asHello);
+}
+
+// A sealed packet from a paired Sigil: it must open in that Sigil's current
+// session (right key, rising counter), or it is dropped. Opened packets go
+// through the same handling as before the secure link.
+void SigilBus::handleSealed(const uint8_t *mac, const uint8_t *frame, size_t length) {
+  SigilRecord *sigil = findByMac(mac);
+  if (sigil == nullptr) return;
+  uint8_t inner[sizeof(Packet)];
+  if (sigil->session.open(linkCrypto, sigil->id, frame, length, inner, sizeof(inner)) !=
+      sizeof(Packet)) {
+    return;  // Forged, replayed, from an old session, or before SecureHello.
+  }
+  handleReceive(mac, inner, sizeof(Packet));
+}
+
+bool SigilBus::sendSealed(SigilRecord &sigil, const void *inner, size_t length) {
+  if (txQueue_ == nullptr || !sigil.session.ready() || !ensurePeer(sigil.mac)) return false;
+  TxRequest request;
+  memcpy(request.mac, sigil.mac, 6);
+  const size_t sealed = sigil.session.seal(linkCrypto, sigil.id, inner, length, request.data,
+      sizeof(request.data));
+  if (sealed == 0) return false;
+  request.length = static_cast<uint8_t>(sealed);
+  if (xQueueSend(txQueue_, &request, 0) != pdTRUE) {
+    serialLog.println("ATLAS|ESP_NOW|TX_QUEUE_FULL");
+    return false;
+  }
+  return true;
+}
+
 bool SigilBus::sendRaw(const uint8_t *mac, const void *data, uint8_t length) {
   if (txQueue_ == nullptr || length > sizeof(TxRequest::data) || !ensurePeer(mac)) return false;
   TxRequest request;
@@ -535,47 +585,6 @@ SigilRecord *SigilBus::findByMac(const uint8_t *mac) {
       return &sigil;
     }
   }
-  return nullptr;
-}
-
-SigilRecord *SigilBus::remember(const uint8_t *mac) {
-  SigilRecord *existing = findByMac(mac);
-  if (existing != nullptr) {
-    return existing;
-  }
-
-  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
-    SigilRecord &candidate = records_[i];
-    if (!slotFree(i)) {
-      continue;
-    }
-
-    OptionalPreferences prefs;
-    const String key = String("s") + String(i);
-    if (!prefs.begin("th_pair_v1", false)) return nullptr;
-    const bool stored = prefs.putBytes(key.c_str(), mac, 6) == 6;
-    prefs.end();
-    if (!stored) {
-      serialLog.println("ATLAS|PAIRING|STORE_ERROR");
-      return nullptr;
-    }
-    candidate.used = true;
-    candidate.id = i;
-    memcpy(candidate.mac, mac, 6);
-    candidate.lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
-
-    serialLog.print("ATLAS|SIGIL|DISCOVERED|");
-    serialLog.print(candidate.id);
-    serialLog.print("|THS-");
-    for (uint8_t byte : candidate.mac) {
-      serialLog.printf("%02X", byte);
-    }
-    serialLog.print("|");
-    printMac(candidate.mac);
-    serialLog.println();
-    return &candidate;
-  }
-
   return nullptr;
 }
 
@@ -658,39 +667,22 @@ bool SigilBus::sendToMac(
     return false;
   }
 
-  TxRequest request;
-  memcpy(request.mac, mac, 6);
+  SigilRecord *sigil = findByMac(mac);
+  if (sigil == nullptr) return false;
   const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
-  memcpy(request.data, &packet, sizeof(packet));
-  request.length = sizeof(packet);
-
-  if (xQueueSend(txQueue_, &request, 0) != pdTRUE) {
-    serialLog.println("ATLAS|ESP_NOW|TX_QUEUE_FULL");
-    return false;
-  }
-
-  return true;
+  return sendSealed(*sigil, &packet, sizeof(packet));
 }
 
 bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet) {
-  const SigilRecord *sigil = record(packet.sigilId);
-  if (!sigil || !txQueue_ || !ensurePeer(sigil->mac)) return false;
-  TxRequest request;
-  memcpy(request.mac, sigil->mac, 6);
-  memcpy(request.data, &packet, sizeof(packet));
-  request.length = sizeof(packet);
-  return xQueueSend(txQueue_, &request, 0) == pdTRUE;
+  SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
+  return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
 }
 
 bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &packet) {
-  static_assert(sizeof(packet) <= sizeof(TxRequest::data), "Picker page must fit a TxRequest");
-  const SigilRecord *sigil = record(packet.sigilId);
-  if (!sigil || !txQueue_ || !ensurePeer(sigil->mac)) return false;
-  TxRequest request;
-  memcpy(request.mac, sigil->mac, 6);
-  memcpy(request.data, &packet, sizeof(packet));
-  request.length = sizeof(packet);
-  return xQueueSend(txQueue_, &request, 0) == pdTRUE;
+  static_assert(sizeof(packet) + TurnHubSecureLink::SECURE_OVERHEAD <= sizeof(TxRequest::data),
+      "A sealed picker page must fit a TxRequest");
+  SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
+  return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
 }
 
 void SigilBus::sendAck(
