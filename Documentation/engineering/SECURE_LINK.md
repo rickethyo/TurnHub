@@ -230,6 +230,25 @@ Commit after each step and tick it here.
       send only v2. The portal marks keyless Sigils "pair again for the secure
       link".
 - [ ] Secure Hello/session and the envelope on every packet, both directions.
+      **In progress, branch `secure-link-envelope` (from 2026-09-29).** Plan,
+      in commit order (tick as done; resume from the first unticked):
+      1. [ ] Shared `secure_session.h`: Sigil and Atlas session endpoints over
+         `Channel` (SecureHello with a fresh nonce and MAC, SecureHelloAck,
+         session key), host-tested.
+      2. [ ] `VERSION` 1 -> 2; receive buffers take sealed frames (22, 66 and
+         125 bytes) and the 23/27-byte handshake.
+      3. [ ] Atlas: a session per paired Sigil; SecureHello starts or replaces
+         it (and counts as a Hello); every send to a Sigil is sealed in the app
+         task (counters stay in order); every non-pairing packet from a Sigil
+         must open. Keyless records are forgotten at boot.
+      4. [ ] Sigil: SecureHello when there is no session or Atlas went quiet
+         (> 2 Hello intervals), otherwise a sealed Hello as the keep-alive;
+         everything it sends is sealed, and only sealed frames from its Atlas
+         are handled. A keyless binding counts as unpaired.
+      5. [ ] TestHarness and the Wokwi fake Atlas do the same.
+      6. [ ] Remove the old `PairRequest`/`PairAccept` path.
+      7. [ ] Docs and manual; CI; flash all four boards; bench test (play, Atlas
+         restart recovery, forged/replayed/cleartext packets rejected).
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
       Done so far: the Wokwi fake Atlas speaks v2 (`confirm` / `reject` on the
       console); portal shows secure vs keyless; engineering docs and the manual's
