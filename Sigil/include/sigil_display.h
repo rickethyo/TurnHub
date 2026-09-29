@@ -42,6 +42,10 @@ class SigilDisplay {
   virtual void showBooting() = 0;
   virtual void showUnpaired() = 0;
   virtual void showReady(uint8_t sigilId) = 0;
+  // The paired Atlas stopped answering (atlas_link.h). Replaces every other
+  // screen, with no action menu (nothing can reach Atlas), until Atlas is
+  // heard again and the last state is redrawn.
+  virtual void showAtlasLost(uint8_t sigilId) = 0;
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,

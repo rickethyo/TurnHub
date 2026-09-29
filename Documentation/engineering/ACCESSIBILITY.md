@@ -310,6 +310,8 @@ in the portal/app, and win confirmations on the Sigil display.
 
 - Sigil-local Pairing/Disconnected/Error lights still use fixed firmware
   patterns, not the player's light style (Atlas cannot style an unpaired Sigil).
+  The Atlas lost light (2026-09-28) follows Reduced motion if Atlas last sent
+  it, and always comes with the "Atlas lost" text on the Sigil screen.
 - Text/display scale on the e-ink screen, an extended life-approval window
   (15 s), and a monochrome-safe portal theme separate from High contrast.
 - On hold (owner, 2026-09-24): LED intensity and buzzer volume. The current

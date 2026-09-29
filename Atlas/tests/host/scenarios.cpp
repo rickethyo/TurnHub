@@ -470,7 +470,8 @@ static void physicalCompanionFlow() {
   assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
   assert(ProfileFixture::profiles[id].stats.gamesWon==1);
   assert(request("/api/session/me",secondPhone,{},HTTP_GET)==200);
-  assert(TurnHubControllers::profileForSeat(0,1).length()==0);
+  // The winner's name stays on the Sigil through GameOver (released on reset).
+  assert(TurnHubControllers::profileForSeat(0,1)==id);
   assert(request("/api/control/rematch",phone)==200);
   assert(TurnHubControllers::profileForSeat(0,1)==id);
   assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);

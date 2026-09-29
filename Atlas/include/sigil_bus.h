@@ -75,7 +75,7 @@ class SigilBus {
 
   // The bus constructed in main.cpp, for modules without a reference to it.
   static SigilBus *activeInstance();
-  static constexpr uint32_t SIGIL_TIMEOUT_MS = 7000;
+  static constexpr uint32_t SIGIL_TIMEOUT_MS = TurnHubProtocol::LINK_TIMEOUT_MS;
 
  private:
   struct RxRequest {

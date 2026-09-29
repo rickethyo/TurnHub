@@ -5,9 +5,33 @@ Stabilization started (2026-09-26, `codex/prototype-v1-stabilization`): use the
 The first code change commits the finished-match recovery record before profile
 statistics. This closes the reproduced duplicate-counting window; interrupted
 statistics writes can still leave missing/partial results. Durable completion
-receipts, Sigil OTA, SD hot-plug and physical acceptance remain open. See
+receipts, Sigil OTA, SD hot-plug hardware checks and physical acceptance remain open. See
 [completion ordering](COMPLETION_RECOVERY.md). Do not infer firmware or bench
 verification from a host result.
+
+Owner decision (2026-09-28): **the OLED Sigil is the internal leading design
+for pre-prototype 1.** Test users preferred it. New Sigil UI work lands on the
+OLED first; the e-ink Sigil stays buildable and supported, but it follows the
+OLED and may drop non-essential extras when they cost it full refreshes.
+
+Test feedback fixes (2026-09-28, host-tested only, *Needs verification* on
+hardware):
+
+- Commander damage is hidden on both Sigils until the player has taken some.
+  The OLED now shows it: two rows under a smaller life total, with "+N more
+  cmd sources" when more have hit. On the e-ink it sits just above the compass
+  legend, the life total shrinks to make room, and rows that don't fit join
+  the "+N" count, so the legend no longer covers it.
+- Sigils keep the winner's name on the Game Over screen. Atlas used to release
+  seat bindings at game end, blanking names just before "WINNER!". Bindings now
+  last through GameOver: Reset releases them and Rematch rebinds them.
+- E-ink refreshes: an update that would draw identical content is skipped
+  (menu hold feedback, the OLED-only list cursor and other overlay fields used
+  to force a full refresh). Another player's pending pass is no longer drawn
+  on the e-ink, which cost every Sigil two full refreshes per pass. The
+  status ring, the OLED and Atlas still show it.
+- Open: Atlas stuck on the pause screen during Soak x5. Not yet reproduced;
+  needs the harness serial log and Atlas's diagnostics log.
 
 Current pairing update (2026-09-22): physical buttons are owner-verified and manual
 15-second pairing with persistent MAC associations is now implemented. The boot
@@ -59,7 +83,8 @@ Owner decisions (2026-09-25, end of day):
   wins, and which stats are merged or kept apart. Also where game-night
   results are written.
 - **Cards pulled mid-session must be re-recognized** when reinserted (hot-plug
-  remount), not left out until a restart.
+  remount), not left out until a restart. Implemented 2026-09-28, *Needs
+  verification* on hardware (see [SD Diagnostics](SD_DIAGNOSTICS.md#hot-plug-2026-09-28)).
 - **No statistics rollback option.** Detail moved to the card is not copied
   back to NVS on request.
 - **Sigil OTA over Wi-Fi first (owner accepted the recommendation, 2026-09-25;
@@ -113,7 +138,9 @@ host/Android tests and an Atlas build; hardware acceptance is pending. See
 - Partly done (2026-09-25): Sigils render the light themselves from Atlas's
   `LedState`, and the local Pairing blink follows Reduced motion. Still to
   check: Sigil-local Disconnected/Error looks honor the player's light style
-  (Standard, Reduced motion, Monochrome-safe).
+  (Standard, Reduced motion, Monochrome-safe). The Atlas lost state
+  (2026-09-28, see Protocol and Pairing) follows Reduced motion; Monochrome-safe
+  still to check.
 
 Sigil accessibility preferences (2026-09-24): the owner chose per-player settings
 that follow the profile. Sigil sound, light style (Standard, Reduced motion,
@@ -187,8 +214,8 @@ The on-board speaker now plays table-wide cues at an Admin-chosen volume (see
   Proposed, not started.
   Decided 2026-09-25 (see the owner decisions at the top of this file): no
   statistics rollback. A card pulled mid-session must be re-recognized when
-  reinserted; today it still needs a restart, so hot-plug remount is to
-  build. Cards are multi-Atlas, with owner ID plus game-night or merge-in
+  reinserted; hot-plug remount was built 2026-09-28 (hardware check
+  pending). Cards are multi-Atlas, with owner ID plus game-night or merge-in
   slots; to design.
 - Done 2026-09-25: player names, life and the turn clock on the status
   screen, Info and QR code screens, the NO SD CARD warning (bench check of
@@ -210,6 +237,11 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 ## Current baseline
 
 ### Next implementation priority: Sigil OTA
+
+In progress (2026-09-28): design, feature gate and a step-by-step resume
+checklist are in [Sigil OTA](SIGIL_OTA.md). Upload is through the web portal.
+The encrypted Atlas-Sigil link ([Secure Link](SECURE_LINK.md)) comes first,
+because the update offer carries the Atlas Wi-Fi password.
 
 Owner direction (2026-09-25): move Sigil OTA ahead of session history and SD
 theme packs. Repeated USB flashing and COM-port tracking across devices is the

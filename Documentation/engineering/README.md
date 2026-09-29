@@ -24,6 +24,8 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Completed-match Recovery Ordering](COMPLETION_RECOVERY.md) - checkpoint-before-statistics fix and the remaining interrupted-write limitation.
 - [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
 - [Size and Change History](SIZE_AND_CHANGE_HISTORY.md) - milestone source-size snapshots, firmware RAM/flash measurements, and notable change checkpoints.
+- [Sigil OTA](SIGIL_OTA.md) - planned Sigil firmware updates over Atlas's Wi-Fi: feature gate, image descriptor, update sequence, rollback limits and a resume checklist.
+- [Secure Link](SECURE_LINK.md) - planned encrypted Atlas-Sigil radio link: why application-layer encryption over ESP-NOW's built-in kind, pairing key agreement, sessions and the secure frame.
 - [SD Diagnostics](SD_DIAGNOSTICS.md) - optional bounded logs, reboot markers, failure behavior and planned Sigil OTA package retention.
 - [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
 - [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.

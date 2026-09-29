@@ -30,12 +30,47 @@ activity, is readable by anyone with physical access to the card; these are not
 profile statistics or a match-history database. Existing browser permissions and
 the RAM-only HTTP log download are unchanged.
 
-An absent card or failed boot write/read test disables SD consumers. File errors
-(including a full or removed card) stop logging until restart. No automatic
-formatting, background retries, or deletion outside the logger's four owned
-paths occurs. An unexpected oversized current log is preserved and logging is
-disabled. Card capacity/usage in diagnostics is sampled at startup to avoid
-filesystem access from the HTTP task while the worker is writing.
+An absent card or a failed write/read self-test disables SD consumers until a
+usable card mounts. No automatic formatting or deletion outside the logger's
+four owned paths occurs. An unexpected oversized current log is preserved and
+logging is disabled. Card capacity/usage in diagnostics is sampled at each
+mount to avoid filesystem access from the HTTP task while the worker is writing.
+
+### Hot-plug (2026-09-28)
+
+Before this, the card was mounted once at boot: a pulled card stopped logging
+and statistics, and a reinserted (or first) card needed a restart. Now the same
+worker task handles hot-plug (`sd_card.cpp`, timing in `sd_hotplug.h`):
+
+- **Removal.** A failed log write, or a raw sector read (every 3 s when
+  nothing else touched the card), finds the card gone. The worker unmounts
+  (`SD.end()`) and logs `ATLAS|SD|REMOVED`. A raw read reaches the card
+  itself; a file check could be answered from the file system's cache.
+- **Insertion.** With no card the worker tries to mount every 2 s (the
+  "no card" line is logged once). A card that answers but fails the store check
+  or self-test is retried every 30 s, not every 2 s.
+- **Present but refusing writes** (full, read-only, oversized log): logging and
+  the record store stop for that mount, as before, without remount loops; the
+  probe still notices when it is pulled.
+- **Statistics.** The application loop sees each mount/unmount
+  (`sdCardGeneration()`) and points detailed statistics at the card, or at
+  nothing (NVS core counts only), and moves any NVS detail onto a card that just
+  arrived (`refreshSdLuxuryStore()` in `main.cpp`). The Atlas screen's
+  "NO SD CARD" warning follows `sdCardReady()`.
+- **Log.** A remount writes `ATLAS|SD|LOG|REMOUNTED` with the boot ID and
+  uptime; text logged while the card was out appears as a lost-byte marker if
+  the RAM ring overran.
+- All mounting, probing and unmounting happen on the worker under the card
+  lock; the store re-checks the card inside the lock, so a statistics write
+  can't reach a card the worker just dropped. Gameplay never waits for it.
+  Diagnostics add `mounts` (successful mounts since boot).
+
+Host tests cover the timing policy (`storage_scenarios`). *Verified* on the
+bench, 2026-09-28 (Atlas `B4:BF:E9:12:85:74`, 7580 MB SDHC card): pulling the
+card logged `ATLAS|SD|REMOVED` and `ATLAS|SD|STATS|CORE_ONLY`; reinserting it
+logged `MOUNTED`, `SELF_TEST|OK`, `STATS|CARD` and `LOG|READY` with no restart.
+Still *Needs verification* (**D04**): statistics across a swap during and after
+a game (no double counting), a different card, and the screen warning.
 
 Writes are flushed and closed, but logs are best effort. Power loss can lose
 buffered text, interrupt rotation, or damage FAT metadata. CRC/read-back and

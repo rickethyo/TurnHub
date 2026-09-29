@@ -60,7 +60,7 @@ match/controller records, not a claim that those repositories already exist.
 
 | Data | Owner | Current/planned location |
 | --- | --- | --- |
-| Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Profile and device-label records use `turnhub` NVS; both physical-seat bindings are RAM-only and clear on restart/reconnect and game end |
+| Profile identity, name, PIN hash, physical-seat binding, device label | Profile repository | Profile and device-label records use `turnhub` NVS; both physical-seat bindings are RAM-only and clear on restart/reconnect and when the table leaves GameOver (Reset clears them, Rematch rebinds the match's profiles; they stay through GameOver so Sigils can name the winner, 2026-09-28) |
 | Lifetime/latest-game statistics | Profile statistics repository | Split 2026-09-25 (owner decision). **Core, NVS, always:** `c<profileId>` in `turnhub`, 12 bytes little-endian (schema 1, last result, last game profile, reserved, games played and won as uint32). **Detail, microSD:** the v1 72-byte `s<profileId>` record in the card's store. Its reserved byte 67 now holds the last game's profile; older records read 0 = Generic. Without a card only the core counts are recorded ("limp mode"), and the stats API reports `"detailed": false`. A v1 record older firmware left in NVS stays the detail, and is updated in place, until a card is present. Then boot migrates it: written, read back and compared on the card, core record written, and only then removed from NVS. Different detail already on the card is never overwritten. Last-game result byte 4 is `Draw` (2026-09-24; it was the never-written `Completed`), so the v1 image and older firmware still accept draws |
 | Private moderation history (connection resets, game removals) | Profile statistics repository | `o<profileId>` blob in `turnhub`: schema byte 1, then two little-endian uint32 counts. Served only to the owner's PIN-verified session; never exported. Counts older firmware kept in `u<profileId>` migrate on first account load (2026-09-24) |
 | Account access control (permissions, archived, nudge mute, reconnect-required) | Atlas account repository | `u<profileId>` blob in `turnhub` (12 bytes, schema 2); its count bytes are legacy and read only for migration |
@@ -159,9 +159,11 @@ and checks. The statistics store and the log worker share one card lock
 - `sdBlobStore()` returns `nullptr` unless the card mounted and the directory
   exists, the write/read-back self-test passed, and the diagnostic worker has
   not reported an I/O error; callers treat that and every error as "card unavailable".
-  A card removed while running makes operations fail with `IoError`; remount
-  needs a restart. The logger is currently the only post-boot SD consumer;
-  future blob/package access must share a serialized SD owner with it.
+  A card removed while running makes operations fail until the SD worker
+  notices and unmounts it; a card inserted later is mounted without a restart
+  and detailed statistics move back to it (see
+  [SD Diagnostics](SD_DIAGNOSTICS.md#hot-plug-2026-09-28)). Future
+  blob/package access must go through the same worker-owned card lock.
 
 Detailed statistics are the first records on the card (see the table above).
 Not decided yet (see [Staged changes](STAGED_CHANGES.md)): which other records move,

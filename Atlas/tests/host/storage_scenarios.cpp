@@ -12,6 +12,7 @@
 #include "accessibility_prefs.h"
 #include "sd_blob_store.h"
 #include "diagnostic_log.h"
+#include "sd_hotplug.h"
 #include "speaker_settings.h"
 
 using namespace TurnHubStorage;
@@ -436,6 +437,51 @@ struct FakeFs final : FileSystem {
   bool mkdir(const char *path) override { dirs[path] = true; return true; }
 };
 
+// microSD hot-plug timing: probe while mounted, unmount on a failed access,
+// retry mounting quickly without a card and slowly with a bad one.
+void sdHotplugPolicy() {
+  using TurnHubAtlas::SdHotplug;
+  using TurnHubAtlas::SdMountResult;
+  using TurnHubAtlas::SdStep;
+  SdHotplug plug;
+
+  // No card at boot: retry every RETRY_MS, never probe.
+  plug.start(SdMountResult::NoCard, 1000);
+  assert(!plug.mounted() && plug.next(1000 + SdHotplug::RETRY_MS - 1) == SdStep::Idle);
+  assert(plug.next(1000 + SdHotplug::RETRY_MS) == SdStep::Mount);
+  plug.mountAttempted(SdMountResult::NoCard, 3000);
+  assert(plug.next(4999) == SdStep::Idle && plug.next(5000) == SdStep::Mount);
+
+  // Card inserted: mounted, then probed only after PROBE_MS without access.
+  plug.mountAttempted(SdMountResult::Ok, 5000);
+  assert(plug.mounted() && plug.next(5000 + SdHotplug::PROBE_MS - 1) == SdStep::Idle);
+  assert(plug.next(5000 + SdHotplug::PROBE_MS) == SdStep::Probe);
+  plug.accessed(true, 7000);  // A log write counts as a presence check.
+  assert(plug.next(9999) == SdStep::Idle && plug.next(10000) == SdStep::Probe);
+
+  // Pulled: the failed access asks for an unmount at once, then retries.
+  plug.accessed(false, 10000);
+  assert(plug.next(10000) == SdStep::Unmount && plug.mounted());
+  plug.unmounted(10001);
+  assert(!plug.mounted() && plug.next(10001 + SdHotplug::RETRY_MS) == SdStep::Mount);
+
+  // A card that answers but fails its checks is retried slowly.
+  plug.mountAttempted(SdMountResult::CardError, 20000);
+  assert(!plug.mounted() && plug.next(20000 + SdHotplug::RETRY_MS) == SdStep::Idle);
+  assert(plug.next(20000 + SdHotplug::BAD_CARD_RETRY_MS) == SdStep::Mount);
+  // ...and a later good card goes back to normal timing.
+  plug.mountAttempted(SdMountResult::Ok, 60000);
+  plug.accessed(false, 61000);
+  plug.unmounted(61000);
+  assert(plug.next(61000 + SdHotplug::RETRY_MS) == SdStep::Mount);
+
+  // A failed access while unmounted changes nothing; millis() wrap is safe.
+  plug.accessed(false, 62000);
+  assert(plug.next(62000) != SdStep::Unmount);
+  plug.mountAttempted(SdMountResult::Ok, 0xFFFFFF00u);
+  assert(plug.next(0x00000010u) == SdStep::Idle);
+}
+
 void sdRecords() {
   FakeFs fs;
   SdBlobStore store;
@@ -637,5 +683,6 @@ int main() {
   speakerVolumeRecords();
   accessibilityRecords();
   sdRecords();
-  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences, speaker volume, NVS failures and SD records\n";
+  sdHotplugPolicy();
+  std::cout << "PASS: identity, statistics, moderation history, profile policy, game settings, accessibility preferences, speaker volume, NVS failures, SD records and SD hot-plug timing\n";
 }

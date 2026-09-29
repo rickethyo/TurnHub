@@ -221,6 +221,30 @@ stream, and a new Sigil still follows those packets from an older Atlas.
 Pairing blink and the Pass acknowledgement flash stay Sigil-local. Protocol
 version stays 1. *Needs verification* on hardware.
 
+### Atlas lost (2026-09-28)
+
+Before this, a Sigil kept showing its last state when Atlas went away (for
+example "Ready for game" with a running light while Atlas was off). Now a
+paired Sigil that hears nothing valid from its Atlas for `LINK_TIMEOUT_MS`
+(7 s, in `protocol.h`; the same silence after which Atlas marks a Sigil
+offline) shows **Atlas lost**. The timer starts at boot or pairing, so a Sigil
+that starts with Atlas off shows it too. Logic: `Sigil/include/atlas_link.h`.
+
+- **Screen:** "Atlas lost / Searching..." (e-ink) or "NO ATLAS / Atlas not
+  responding / Searching..." (OLED), with no action menu.
+- **Light:** one orange pixel sweeping back and forth around the ring, center
+  dark; with Reduced motion, two opposite pixels steady orange; on a one-LED
+  Sigil, an orange double blink. Only the pairing blink outranks it.
+- **Input:** menu and life keys are ignored while Atlas is lost; the stale
+  menu, any unsent life change and any life request are dropped. Pair still
+  works.
+- **Serial:** `SIGIL|ATLAS|LOST`, then `SIGIL|ATLAS|RESTORED`.
+
+The Sigil keeps sending Hello every 2 s. The first valid packet from its Atlas
+restores the last screen; Atlas's answer to that Hello resends the light,
+menu, screen and life state. No protocol change. Host-tested
+(`led_scenarios`); *Needs verification* on hardware.
+
 ### Unpair (2026-09-24)
 
 `Unpair = 12` (Atlas -> Sigil, `value` 0) tells a Sigil that Atlas forgot it. The

@@ -16,6 +16,7 @@ class EpaperDisplay final : public SigilDisplay {
   void showBooting() override;
   void showUnpaired() override;
   void showReady(uint8_t sigilId) override;
+  void showAtlasLost(uint8_t sigilId) override;
   bool setSeatName(uint8_t slot, const char *name) override;
   void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) override;
   void showState(
@@ -42,7 +43,7 @@ class EpaperDisplay final : public SigilDisplay {
  private:
   void drawHeader(const char *title, uint8_t sigilId = 0xFF,
       bool host = false, uint8_t turnNumber = 0);
-  void drawStatus(const char *line1, const char *line2 = nullptr);
+  void drawStatus(const char *line1, const char *line2 = nullptr, bool legend = true);
   void drawBanner(const char *message, int16_t y, bool highlight, Icon kind, uint8_t maxSize = 1);
   void drawLife(int32_t life, int16_t y, uint8_t maxSize);
   void drawCentered(const char *text, int16_t y, uint8_t maxSize = 1);
@@ -83,6 +84,29 @@ class EpaperDisplay final : public SigilDisplay {
 
   char seatNameA_[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
   char seatNameB_[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
+
+  // Everything a game or state screen actually draws. A full refresh takes
+  // seconds and flashes, so an update that would draw the same pixels is
+  // skipped (test feedback, 2026-09-28: menu hold feedback, the OLED list
+  // cursor and other overlay fields used to force refreshes). Built on a
+  // zeroed struct so memcmp is exact.
+  struct DrawnInputs {
+    uint8_t kind;  // 1 = game, 2 = state.
+    TurnHubProtocol::GameDisplayPacket game;
+    uint8_t state[6];  // sigilId, mode, primary, secondary, turn, flags.
+    char names[2][TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
+    bool menuActive;
+    bool menuLife;
+    uint8_t compass[KEY_COUNT];
+    TurnHubProtocol::LifeRequestFields request;
+    int32_t startingLife;
+    bool passPending;
+  };
+  // Adds the shared inputs (legend, overlay, seat names) to a zeroed out that
+  // already holds the screen's own; true if the panel shows exactly these.
+  bool alreadyDrawn(DrawnInputs &out) const;
+  DrawnInputs drawn_{};
+  bool drawnValid_ = false;
 
   bool gameFrameValid_ = false;
   bool gameFrameShared_ = false;

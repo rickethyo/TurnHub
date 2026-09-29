@@ -152,6 +152,11 @@ void SigilLedModel::setPairing(bool active, uint32_t nowMs) {
   pairing_ = active;
 }
 
+void SigilLedModel::setAtlasLost(bool lost, uint32_t nowMs) {
+  if (lost && !atlasLost_) atlasLostStartMs_ = nowMs;
+  atlasLost_ = lost;
+}
+
 void SigilLedModel::setPassPending(bool active, bool mine, uint32_t nowMs) {
   if (active && !passPending_) passPendingStartMs_ = nowMs;
   passPending_ = active;
@@ -193,6 +198,21 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   if (pairing_) {
     const bool rm = reduced(state_.style);
     fill(scaled(RED, rm ? static_cast<uint8_t>(255) : blink(nowMs - pairingStartMs_, 500, 250)));
+    return frame;
+  }
+  if (atlasLost_) {
+    // Searching: one pixel sweeps 1..6 and back, unlike any Atlas cue (the
+    // unassigned cue circles one way in white). Center dark.
+    const uint32_t t = nowMs - atlasLostStartMs_;
+    if (reduced(state_.style)) {
+      frame.pixels[1] = ORANGE;
+      frame.pixels[4] = ORANGE;
+      frame.single = scaled(ORANGE, slow(t));
+    } else {
+      const uint32_t step = (t / 200) % 10;
+      frame.pixels[step < 6 ? 1 + step : 11 - step] = ORANGE;
+      frame.single = scaled(ORANGE, pulses(t, 2000, 150, 2));
+    }
     return frame;
   }
   if (holdProgress_ > 0) {

@@ -1,4 +1,5 @@
 #include "sigil_led.h"
+#include "atlas_link.h"
 #include <cassert>
 #include <iostream>
 
@@ -106,6 +107,33 @@ int main() {
   m.flashPassAck(1000);
   assert(m.render(1100).single == (Rgb{0, 255, 0}) && m.render(1250).single.b > 0);
 
+  // Atlas lost: Atlas's cue is replaced by one orange pixel sweeping 1..6
+  // and back, center dark; the one-LED view double-blinks. Pairing still
+  // outranks it; clearing it hands Atlas's cue back.
+  {
+    const Rgb orange{255, 50, 0};
+    m.setAtlasLost(true, 2000);
+    const uint8_t expected[] = {1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1};
+    for (uint8_t step = 0; step < sizeof(expected); ++step) {
+      const LedFrame lost = m.render(2000 + step * 200u + 50);
+      assert(lit(lost) == 1 && lost.pixels[expected[step]] == orange);
+      assert(dark(lost.pixels[LED_CENTER]));
+    }
+    assert(m.render(2000).single == orange && dark(m.render(2200).single) &&
+        m.render(2300).single == orange && dark(m.render(2500).single));
+    m.setAtlasLost(true, 9000);  // Still lost: the sweep keeps its start.
+    assert(m.render(2050).pixels[1] == orange);
+    m.setPairing(true, 3000);
+    assert(m.render(3000).pixels[1] == (Rgb{255, 0, 0}));
+    m.setPairing(false, 3100);
+    m.applyLedState(led(LedCue::Waiting, 0, 0, 1, false, LedStyle::ReducedMotion), 3100);
+    const LedFrame still = m.render(3100);
+    assert(lit(still) == 2 && still.pixels[1] == orange && still.pixels[4] == orange &&
+        still.pixels[1] == m.render(4700).pixels[1]);
+    m.setAtlasLost(false, 5000);
+    assert(!m.atlasLost() && m.render(5000).pixels[1].b > 0);
+  }
+
   // A pending pass counts down on the ring: six pixels, emptying to one.
   m.setPassPending(true, true, 5000);
   f = m.render(5000);
@@ -190,5 +218,26 @@ int main() {
     b.syncTableClock(10, bBoot + 9000);
     assert(b.tableNow(bBoot + 9000) == 10);
   }
-  std::cout << "LED wire format, cue rendering, seat halves, overlays, local states and table clock passed\n";
+  // Atlas link: lost after LINK_TIMEOUT_MS of silence (counted from boot or
+  // pairing), restored by the next packet, inert while unpaired.
+  {
+    AtlasLink link;
+    assert(link.update(100000) == LinkChange::None && !link.lost());  // Unpaired.
+    link.start(1000);
+    assert(link.update(1000 + LINK_TIMEOUT_MS - 1) == LinkChange::None);
+    assert(link.heard(3000) == LinkChange::None);
+    assert(link.update(3000 + LINK_TIMEOUT_MS - 1) == LinkChange::None && !link.lost());
+    assert(link.update(3000 + LINK_TIMEOUT_MS) == LinkChange::Lost && link.lost());
+    assert(link.update(60000) == LinkChange::None && link.lost());  // Reported once.
+    assert(link.heard(61000) == LinkChange::Restored && !link.lost());
+    assert(link.heard(61500) == LinkChange::None);
+    // millis() wrapping past zero doesn't fake a loss.
+    link.heard(0xFFFFF000u);
+    assert(link.update(0x00000100u) == LinkChange::None);
+    link.stop();
+    assert(link.update(0x7FFFFFFFu) == LinkChange::None && !link.lost());
+    assert(link.heard(0x7FFFFFFFu) == LinkChange::None);
+  }
+
+  std::cout << "LED wire format, cue rendering, seat halves, overlays, local states, Atlas lost, link timeout and table clock passed\n";
 }

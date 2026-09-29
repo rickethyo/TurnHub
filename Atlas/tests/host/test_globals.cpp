@@ -4,6 +4,7 @@
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "sd_card.h"
+#include "secure_link_backend.h"
 
 uint32_t testNow = 1000;
 int testDigitalRead = HIGH;
@@ -23,6 +24,10 @@ String TurnHubAtlas::sdCardDiagnosticsJson() { return "{\"state\":\"no_card\"}";
 TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
 bool fixtureSdCardReady = true;
 bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
+uint32_t TurnHubAtlas::sdCardGeneration() { return 0; }
+// Firmware-only (mbedTLS); the link logic itself is host-tested in
+// Sigil/tests/host/secure_link_scenarios.cpp.
+bool TurnHubAtlas::runSecureLinkSelfTest() { return true; }
 // Firmware-only NVS erase + restart (factory_reset.cpp): counted instead.
 unsigned fixtureFactoryResets = 0;
 namespace TurnHubAtlas { void eraseSettingsAndRestart() { ++fixtureFactoryResets; } }

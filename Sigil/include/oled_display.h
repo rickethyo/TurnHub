@@ -16,6 +16,7 @@ class OledDisplay final : public SigilDisplay {
   void showBooting() override;
   void showUnpaired() override;
   void showReady(uint8_t sigilId) override;
+  void showAtlasLost(uint8_t sigilId) override;
   bool setSeatName(uint8_t slot, const char *name) override;
   void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) override;
   void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,

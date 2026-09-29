@@ -224,7 +224,8 @@ line. `StartGame`, `CancelStart`, `Rematch` and `ResetGame` also accept the
 Atlas touchscreen (`AtlasHardware`, no controller): it stands at the table, so
 Start needs no seat or arming (two or more players still), and Rematch and
 Reset work only after a game. `PairConfirm` remains
-unsupported. General counters and nudges
+unsupported; it is *Planned* as the pairing-code confirmation from the Atlas
+screen or the portal (see [Secure Link](SECURE_LINK.md)). General counters and nudges
 remain unsupported. Local life-counter work binds `ChangeLife`: `targetPlayer`
 must match the validated actor, and `value` is the signed delta. `ConfigureGame`
 requires a seated actor in the lobby (any seat; no table host); `flags` is the game-profile enum,

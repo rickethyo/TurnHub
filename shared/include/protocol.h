@@ -20,6 +20,10 @@ constexpr int32_t FACTORY_RESET_CONFIRM = 0x46524553;
 // A queued PASS commits after this grace period unless the same seat cancels
 // it. Atlas owns the timer; a Sigil uses it only to draw the countdown.
 constexpr uint32_t PASS_GRACE_MS = 3000;
+// Silence after which each side treats the other as gone: Atlas marks a Sigil
+// offline, and a Sigil shows "Searching for Atlas". Hellos go every 2 s, so
+// this allows for three missed exchanges.
+constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 
 constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
 constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
@@ -123,6 +127,17 @@ enum class PacketType : uint8_t {
   // patterns on this table clock, so every Sigil blinks and breathes in step.
   // Older Sigils ignore it. Presentation only.
   TableClock = 39,
+  // Secure link (secure_link.h; Planned, see SECURE_LINK.md). Not sent by any
+  // firmware yet: pairing key agreement, the pairing-code result, the
+  // authenticated Hello/Ack that starts a session, and the sealed envelope
+  // that carries every other packet once a session exists.
+  PairRequest2 = 40,
+  PairAccept2 = 41,
+  PairConfirmed = 42,
+  PairRejected = 43,
+  SecureHello = 44,
+  SecureHelloAck = 45,
+  Secure = 46,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,

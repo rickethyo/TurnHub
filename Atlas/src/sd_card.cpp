@@ -15,6 +15,7 @@
 #include "game_recovery.h"
 #include "runtime_diagnostics.h"
 #include "sd_blob_store.h"
+#include "sd_hotplug.h"
 #include "serial_log.h"
 
 namespace TurnHubAtlas {
@@ -74,12 +75,17 @@ TurnHubStorage::SdBlobStore sdStore;
 
 enum class CardState : uint8_t { NotStarted, NoCard, Mounted, StoreError, SelfTestError };
 enum class LogState : uint32_t { Off, Starting, Ready, IoError, TaskUnavailable };
-CardState cardState = CardState::NotStarted;
+// Written by the SD worker (and boot), read by the application and HTTP.
+std::atomic<CardState> cardState{CardState::NotStarted};
 std::atomic<LogState> logState{LogState::Off};
 std::atomic<uint32_t> logLostBytes{0};
-Status storeStatus = Status::Unavailable;
-Status selfTestStatus = Status::Unavailable;
-// Sample before starting the worker; HTTP diagnostics must not access SD.
+std::atomic<Status> storeStatus{Status::Unavailable};
+std::atomic<Status> selfTestStatus{Status::Unavailable};
+// Bumped on every mount and unmount; the application watches it
+// (sdCardGeneration). mountCount is successful mounts, for diagnostics.
+std::atomic<uint32_t> cardGeneration{0};
+std::atomic<uint32_t> mountCount{0};
+// Sampled at each mount; HTTP diagnostics must not access SD.
 const char *mountedType = "none";
 uint32_t cardMB = 0, totalMB = 0, usedKB = 0;
 
@@ -105,8 +111,9 @@ const char *logStateName(LogState state) {
   return "unknown";
 }
 
-// One lock for the card: the log worker and the application's record store
-// (detailed statistics) never use the SD library at the same time.
+// One lock for the card: the SD worker (logging, probing, remounting) and the
+// application's record store (detailed statistics) never use the SD library
+// at the same time.
 SemaphoreHandle_t cardLock = nullptr;
 
 class CardLock {
@@ -118,74 +125,37 @@ class CardLock {
 };
 
 bool storeUsable() {
-  return cardState == CardState::Mounted &&
-      TurnHubStorage::sdStorageReady(storeStatus, selfTestStatus) &&
+  return cardState.load() == CardState::Mounted &&
+      TurnHubStorage::sdStorageReady(storeStatus.load(), selfTestStatus.load()) &&
       logState.load() != LogState::IoError;
 }
 
-// The record store the application sees: every call takes the card lock and
-// re-checks the card, so a store handed out at boot stops (Unavailable)
-// after a later logging I/O error instead of touching a failed card.
+// The record store the application sees. It re-checks the card inside the
+// lock too, because the worker may have unmounted it (card pulled) between
+// the first check and taking the lock.
 class LockedSdStore final : public TurnHubStorage::BlobStore {
  public:
   Status read(const char *key, void *data, size_t capacity, size_t &size) override {
     size = 0;
     if (!storeUsable()) return Status::Unavailable;
     CardLock lock;
+    if (!storeUsable()) return Status::Unavailable;
     return sdStore.read(key, data, capacity, size);
   }
   Status write(const char *key, const void *data, size_t size) override {
     if (!storeUsable()) return Status::Unavailable;
     CardLock lock;
+    if (!storeUsable()) return Status::Unavailable;
     return sdStore.write(key, data, size);
   }
   Status remove(const char *key) override {
     if (!storeUsable()) return Status::Unavailable;
     CardLock lock;
+    if (!storeUsable()) return Status::Unavailable;
     return sdStore.remove(key);
   }
 };
 LockedSdStore lockedStore;
-
-void sdLogTask(void *) {
-  TurnHubStorage::DiagnosticLog log;
-  char marker[160];
-  const int length = snprintf(marker, sizeof(marker),
-      "\nATLAS|BOOT_RECORD|FW|%s|BOOT_ID|%08lX|RESET|%s\n",
-      TurnHubFirmware::VERSION, static_cast<unsigned long>(esp_random()),
-      TurnHub::resetReason());
-  bool ok = false;
-  {
-    CardLock lock;
-    ok = length > 0 && static_cast<size_t>(length) < sizeof(marker) &&
-         log.begin(sdFileSystem) && log.append(marker, static_cast<size_t>(length));
-  }
-  if (ok) {
-    logState.store(LogState::Ready);
-    serialLog.println("ATLAS|SD|LOG|READY");
-  }
-  uint64_t cursor = 0;
-  char buffer[2048];
-  while (ok) {
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    uint64_t lost = 0;
-    const size_t count = serialLog.readSince(cursor, buffer, sizeof(buffer), lost);
-    if (!lost && !count) continue;
-    CardLock lock;
-    if (lost) {
-      const uint32_t before = logLostBytes.load();
-      logLostBytes.store(lost > UINT32_MAX - before ? UINT32_MAX : before + static_cast<uint32_t>(lost));
-      const int n = snprintf(marker, sizeof(marker), "\nATLAS|SD|LOG|LOST_BYTES|%llu\n",
-                             static_cast<unsigned long long>(lost));
-      ok = n > 0 && static_cast<size_t>(n) < sizeof(marker) &&
-           log.append(marker, static_cast<size_t>(n));
-    }
-    if (ok && count) ok = log.append(buffer, count);
-  }
-  logState.store(LogState::IoError);
-  serialLog.println("ATLAS|SD|LOG|IO_ERROR");
-  vTaskDelete(nullptr);
-}
 
 const char *cardTypeName() {
   switch (SD.cardType()) {
@@ -214,76 +184,220 @@ Status runSelfTest() {
              ? Status::Ok
              : Status::Corrupt;
 }
+
+// Mounts the card (never formatting it), checks the store and runs the
+// self-test. Boot calls it directly; afterwards only the worker does, under
+// the card lock. Repeated "no card" results are logged once.
+SdMountResult mountCard() {
+  // format_if_empty = false: an unreadable card is reported, never wiped.
+  if (!SD.begin(AtlasConfig::SD_CS_PIN, sdSpi, AtlasConfig::SD_SPI_HZ, "/sd",
+                4, false) ||
+      SD.cardType() == CARD_NONE) {
+    SD.end();
+    if (cardState.exchange(CardState::NoCard) != CardState::NoCard) {
+      serialLog.println("ATLAS|SD|NO_CARD");
+    }
+    return SdMountResult::NoCard;
+  }
+  mountedType = cardTypeName();
+  cardMB = static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL));
+  totalMB = static_cast<uint32_t>(SD.totalBytes() / (1024ULL * 1024ULL));
+  usedKB = static_cast<uint32_t>(SD.usedBytes() / 1024ULL);
+  serialLog.print("ATLAS|SD|MOUNTED|");
+  serialLog.print(mountedType);
+  serialLog.print("|");
+  serialLog.print(String(cardMB));
+  serialLog.println("MB");
+
+  const Status store = sdStore.begin(sdFileSystem, "/turnhub");
+  storeStatus.store(store);
+  if (store != Status::Ok) {
+    cardState.store(CardState::StoreError);
+    serialLog.print("ATLAS|SD|STORE|");
+    serialLog.println(TurnHub::storageStatusName(store));
+    SD.end();
+    return SdMountResult::CardError;
+  }
+  const Status selfTest = runSelfTest();
+  selfTestStatus.store(selfTest);
+  serialLog.print("ATLAS|SD|SELF_TEST|");
+  serialLog.println(TurnHub::storageStatusName(selfTest));
+  if (!TurnHubStorage::sdStorageReady(store, selfTest)) {
+    cardState.store(CardState::SelfTestError);
+    sdStore.end();
+    SD.end();
+    return SdMountResult::CardError;
+  }
+  cardState.store(CardState::Mounted);
+  mountCount.fetch_add(1);
+  cardGeneration.fetch_add(1);
+  return SdMountResult::Ok;
+}
+
+// The card was pulled or failed: drop the mount so a later SD.begin() starts
+// clean. Under the card lock.
+void unmountCard() {
+  cardState.store(CardState::NoCard);
+  logState.store(LogState::Off);
+  sdStore.end();
+  SD.end();
+  mountedType = "none";
+  cardGeneration.fetch_add(1);
+  serialLog.println("ATLAS|SD|REMOVED");
+}
+
+// A raw sector read reaches the card itself; a file check could be answered
+// from the file system's cache after the card is gone.
+bool cardAnswers() {
+  static uint8_t sector[512];
+  return SD.readRAW(sector, 0);
+}
+
+// The SD worker: drains the diagnostic log to the card and handles hot-plug
+// (SdHotplug). Low priority, never the gameplay loop.
+void sdTask(void *) {
+  TurnHubStorage::DiagnosticLog log;
+  SdHotplug plug;
+  plug.start(cardState.load() == CardState::Mounted ? SdMountResult::Ok
+                                                    : SdMountResult::NoCard,
+             millis());
+  bool logOpen = false;
+  bool logBlocked = false;  // This mount's card refused the log.
+  bool firstOpen = true;
+  const uint32_t bootId = esp_random();
+  uint64_t cursor = 0;
+  char buffer[2048];
+  char marker[160];
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    uint32_t nowMs = millis();
+
+    if (plug.mounted() && !logBlocked) {
+      uint64_t lost = 0;
+      const size_t count = serialLog.readSince(cursor, buffer, sizeof(buffer), lost);
+      if (!logOpen || lost || count) {
+        CardLock lock;
+        bool ok = true;
+        if (!logOpen) {
+          // A boot record the first time, a remount marker after a card swap.
+          const int n = firstOpen
+              ? snprintf(marker, sizeof(marker),
+                    "\nATLAS|BOOT_RECORD|FW|%s|BOOT_ID|%08lX|RESET|%s\n",
+                    TurnHubFirmware::VERSION, static_cast<unsigned long>(bootId),
+                    TurnHub::resetReason())
+              : snprintf(marker, sizeof(marker),
+                    "\nATLAS|SD|LOG|REMOUNTED|BOOT_ID|%08lX|UPTIME_MS|%lu\n",
+                    static_cast<unsigned long>(bootId), static_cast<unsigned long>(nowMs));
+          ok = n > 0 && static_cast<size_t>(n) < sizeof(marker) &&
+               log.begin(sdFileSystem) && log.append(marker, static_cast<size_t>(n));
+          if (ok) {
+            logOpen = true;
+            firstOpen = false;
+            logState.store(LogState::Ready);
+            serialLog.println("ATLAS|SD|LOG|READY");
+          }
+        }
+        if (ok && lost) {
+          const uint32_t before = logLostBytes.load();
+          logLostBytes.store(lost > UINT32_MAX - before ? UINT32_MAX : before + static_cast<uint32_t>(lost));
+          const int n = snprintf(marker, sizeof(marker), "\nATLAS|SD|LOG|LOST_BYTES|%llu\n",
+                                 static_cast<unsigned long long>(lost));
+          ok = n > 0 && static_cast<size_t>(n) < sizeof(marker) &&
+               log.append(marker, static_cast<size_t>(n));
+        }
+        if (ok && count) ok = log.append(buffer, count);
+        if (ok) {
+          plug.accessed(true, nowMs);
+        } else if (cardAnswers()) {
+          // The card is there but won't take the log (full, read-only or an
+          // unexpected log file): stop logging and the record store for this
+          // mount, as before hot-plug, rather than remounting in a loop. The
+          // probe still notices when it is pulled.
+          logState.store(LogState::IoError);
+          logBlocked = true;
+          serialLog.println("ATLAS|SD|LOG|IO_ERROR");
+          plug.accessed(true, nowMs);
+        } else {
+          plug.accessed(false, nowMs);  // Gone: unmount below.
+        }
+      }
+    }
+
+    nowMs = millis();
+    switch (plug.next(nowMs)) {
+      case SdStep::Idle:
+        break;
+      case SdStep::Probe: {
+        bool ok;
+        {
+          CardLock lock;
+          ok = cardAnswers();
+        }
+        plug.accessed(ok, nowMs);
+        break;
+      }
+      case SdStep::Unmount: {
+        CardLock lock;
+        unmountCard();
+        logOpen = false;
+        logBlocked = false;
+        plug.unmounted(millis());
+        break;
+      }
+      case SdStep::Mount: {
+        SdMountResult result;
+        {
+          CardLock lock;
+          result = mountCard();
+        }
+        plug.mountAttempted(result, millis());
+        break;
+      }
+    }
+  }
+}
 }  // namespace
 
 void beginSdCard() {
   sdSpi.begin(AtlasConfig::SD_SCLK_PIN, AtlasConfig::SD_MISO_PIN,
               AtlasConfig::SD_MOSI_PIN, AtlasConfig::SD_CS_PIN);
-  // format_if_empty = false: an unreadable card is reported, never wiped.
-  if (!SD.begin(AtlasConfig::SD_CS_PIN, sdSpi, AtlasConfig::SD_SPI_HZ, "/sd",
-                4, false) ||
-      SD.cardType() == CARD_NONE) {
-    cardState = CardState::NoCard;
-    serialLog.println("ATLAS|SD|NO_CARD");
-    return;
-  }
-  serialLog.print("ATLAS|SD|MOUNTED|");
-  serialLog.print(cardTypeName());
-  serialLog.print("|");
-  serialLog.print(String(static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL))));
-  serialLog.println("MB");
-  mountedType = cardTypeName();
-  cardMB = static_cast<uint32_t>(SD.cardSize() / (1024ULL * 1024ULL));
-  totalMB = static_cast<uint32_t>(SD.totalBytes() / (1024ULL * 1024ULL));
-  usedKB = static_cast<uint32_t>(SD.usedBytes() / 1024ULL);
-
-  storeStatus = sdStore.begin(sdFileSystem, "/turnhub");
-  if (storeStatus != Status::Ok) {
-    cardState = CardState::StoreError;
-    serialLog.print("ATLAS|SD|STORE|");
-    serialLog.println(TurnHub::storageStatusName(storeStatus));
-    return;
-  }
-  cardState = CardState::Mounted;
-  selfTestStatus = runSelfTest();
-  serialLog.print("ATLAS|SD|SELF_TEST|");
-  serialLog.println(TurnHub::storageStatusName(selfTestStatus));
-  if (!TurnHubStorage::sdStorageReady(storeStatus, selfTestStatus)) {
-    cardState = CardState::SelfTestError;
-    sdStore.end();
-    return;
-  }
+  // Boot mounts synchronously so profiles start with the card if it is there.
+  mountCard();
   // Without the card lock the worker would race the record store, so no lock
-  // means no worker (the store stays usable from the application task alone).
+  // means no worker: the boot mount (if any) stays, without logging or
+  // hot-plug.
   if (cardLock == nullptr) cardLock = xSemaphoreCreateMutex();
   if (cardLock == nullptr) {
     logState.store(LogState::TaskUnavailable);
     serialLog.println("ATLAS|SD|LOG|TASK_UNAVAILABLE");
     return;
   }
-  logState.store(LogState::Starting);
+  if (cardState.load() == CardState::Mounted) logState.store(LogState::Starting);
   // SD writes are isolated from gameplay and radio callbacks. ESP32 stack size
   // is bytes; includes the 2 KiB drain buffer plus filesystem call headroom.
-  if (xTaskCreate(sdLogTask, "sd-log", 6144, nullptr, 1, nullptr) != pdPASS) {
+  // The worker runs with or without a card: it mounts one inserted later.
+  if (xTaskCreate(sdTask, "sd-card", 6144, nullptr, 1, nullptr) != pdPASS) {
     logState.store(LogState::TaskUnavailable);
     serialLog.println("ATLAS|SD|LOG|TASK_UNAVAILABLE");
   }
 }
 
 String sdCardDiagnosticsJson() {
-  String json = String("{\"state\":\"") + cardStateName(cardState) + "\"";
-  if (cardState == CardState::Mounted || cardState == CardState::StoreError ||
-      cardState == CardState::SelfTestError) {
+  const CardState state = cardState.load();
+  String json = String("{\"state\":\"") + cardStateName(state) + "\"";
+  if (state == CardState::Mounted || state == CardState::StoreError ||
+      state == CardState::SelfTestError) {
     json += String(",\"type\":\"") + mountedType + "\"";
     json += ",\"cardMB\":" + String(cardMB);
     json += ",\"totalMB\":" + String(totalMB);
-    json += ",\"usedKB\":" + String(usedKB) + ",\"usageSample\":\"boot\"";
-    json += String(",\"store\":\"") + TurnHub::storageStatusName(storeStatus) + "\"";
+    json += ",\"usedKB\":" + String(usedKB) + ",\"usageSample\":\"mount\"";
+    json += String(",\"store\":\"") + TurnHub::storageStatusName(storeStatus.load()) + "\"";
   }
-  if (cardState == CardState::Mounted || cardState == CardState::SelfTestError) {
+  if (state == CardState::Mounted || state == CardState::SelfTestError) {
     json += String(",\"selfTest\":\"") +
-            TurnHub::storageStatusName(selfTestStatus) + "\"";
+            TurnHub::storageStatusName(selfTestStatus.load()) + "\"";
   }
+  json += ",\"mounts\":" + String(mountCount.load());
   json += String(",\"logging\":{\"state\":\"") + logStateName(logState.load()) +
           "\",\"lostBytes\":" + String(logLostBytes.load()) + "}";
   json += "}";
@@ -295,5 +409,7 @@ TurnHubStorage::BlobStore *sdBlobStore() {
 }
 
 bool sdCardReady() { return storeUsable(); }
+
+uint32_t sdCardGeneration() { return cardGeneration.load(); }
 
 }  // namespace TurnHubAtlas

@@ -3,6 +3,7 @@
 #include "avatars.h"
 #include "display_name.h"
 #include "life_heart.h"
+#include "commander_damage.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -313,6 +314,20 @@ void OledDisplay::showReady(uint8_t sigilId) {
   status("READY", big, "Ready for game");
 }
 
+void OledDisplay::showAtlasLost(uint8_t sigilId) {
+  if (!ready_) return;
+  // Drawn directly, not through status(): an open menu list must not cover
+  // it, since none of its actions can reach Atlas now.
+  char label[12];
+  snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
+  display_->clearDisplay();
+  header("TurnHub", label);
+  text("NO ATLAS", 18, 2, Align::Center);
+  text("Atlas not responding", 41, 1, Align::Center);
+  text("Searching...", 52, 1, Align::Center);
+  display_->display();
+}
+
 void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (!ready_ || drawMenuList()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);
@@ -350,24 +365,51 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (asking) snprintf(line, sizeof(line), "\x1b deny   approve \x1a");
   else if (pending) snprintf(line, sizeof(line), "%+ld, sending...", static_cast<long>(life_.pending));
   if (!shared) {
+    // Commander damage, once taken, gets the bottom two rows; the life total
+    // drops to size 2 to make room and the key help gives way.
+    const bool cmdShown = commanderDamageShown(s);
+    const int16_t lifeY = cmdShown ? 32 : 36;
     text(asking || pending ? line : s.primary.name, 24, 1, Align::Center);
-    lifeTotal(shownLife, 32, 3);
+    lifeTotal(shownLife, 32, cmdShown ? 2 : 3);
     // Left of the life total, when the number leaves room (up to 3 digits).
     char digits[12];
     snprintf(digits, sizeof(digits), "%ld", static_cast<long>(shownLife));
     const uint8_t mine = primary < secondary || !secondary ? life_.avatar[0] : life_.avatar[1];
     if (mine && strlen(digits) <= 3) {
-      display_->fillRect(0, 36, 18, 16, SH110X_BLACK);
-      TurnHubAvatars::drawAvatar(*display_, mine, 0, 36, SH110X_WHITE);
+      display_->fillRect(0, lifeY, 18, 16, SH110X_BLACK);
+      TurnHubAvatars::drawAvatar(*display_, mine, 0, lifeY, SH110X_WHITE);
     }
-    // One quiet line of key help (turntest, 2026-09-26). The ask line above
-    // already names its keys.
-    const char *help = nullptr;
-    if (life_.passPending) help = "Click again to undo";
-    else if (asking || pending || !menu_.active) help = nullptr;
-    else if (menu_.life) help = "\x1b\x1a life  press: menu";
-    else help = "Press any key: menu";
-    if (help) text(help, 56, 1, Align::Center);
+    if (cmdShown) {
+      // "Cmd <source>" left, damage right. With more than two sources the
+      // second row counts the rest; Atlas and the web portal list them all.
+      // A pending pass keeps its undo hint on the bottom row.
+      const uint8_t total = s.sourceCount + s.omittedSources;
+      const uint8_t rows = life_.passPending ? 1 : 2;
+      for (uint8_t i = 0; i < rows && i < s.sourceCount; ++i) {
+        const int16_t y = 48 + 8 * i;
+        if (i == rows - 1 && total > rows) {
+          snprintf(label, sizeof(label), "+%u more cmd sources", static_cast<unsigned>(total - i));
+          text(label, y, 1, Align::Left, false, 0, w);
+          break;
+        }
+        char damage[24];
+        formatCommanderDamage(s.sources[i], damage, sizeof(damage));
+        const int16_t damageStart = w - static_cast<int16_t>(strlen(damage)) * 6;
+        snprintf(label, sizeof(label), "Cmd %s", s.sources[i].name);
+        text(label, y, 1, Align::Left, false, 0, damageStart - 6);
+        text(damage, y, 1, Align::Right, false, damageStart);
+      }
+      if (life_.passPending) text("Click again to undo", 56, 1, Align::Center);
+    } else {
+      // One quiet line of key help (turntest, 2026-09-26). The ask line above
+      // already names its keys.
+      const char *help = nullptr;
+      if (life_.passPending) help = "Click again to undo";
+      else if (asking || pending || !menu_.active) help = nullptr;
+      else if (menu_.life) help = "\x1b\x1a life  press: menu";
+      else help = "Press any key: menu";
+      if (help) text(help, 56, 1, Align::Center);
+    }
   } else {
     snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
     text(asking || pending ? line : label, 27, 1, Align::Center);

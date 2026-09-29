@@ -22,8 +22,9 @@ and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
 guest reads/writes, temporary bindings, legacy remember-key cleanup and placeholder filtering before
 the account limit. No saved user records are deleted by this filtering.
 
-`src/atlas_speaker.cpp` (ESP32 DAC) and `src/sd_card.cpp` (Arduino SD) are
-firmware-only too; `test_globals.cpp` stubs them (no speaker, no card), and the
+`src/atlas_speaker.cpp` (ESP32 DAC), `src/sd_card.cpp` (Arduino SD) and
+`src/secure_link_backend.cpp` (mbedTLS self-test) are firmware-only too;
+`test_globals.cpp` stubs them (no speaker, no card, self-test passes), and the
 speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
 `src/atlas_display.cpp` is firmware-only (it needs LovyanGFX), so it is not in
 any runner's source list. `test_globals.cpp` provides a no-op `beginAtlasDisplay()`.
