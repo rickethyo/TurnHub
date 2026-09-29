@@ -120,7 +120,7 @@ FOOTPRINTS = {
     'C1': 'Capacitor_THT:CP_Radial_D8.0mm_P3.50mm',
     'C2': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
     'SW': 'Button_Switch_THT:SW_PUSH_6mm',
-    'U1': 'Sigil:ESP32_DevKit_38_Socket_Row22.86mm',
+    'U1': 'Sigil:ESP32_DevKit_38_Socket_Row22.225mm',
     'U2': 'Package_TO_SOT_SMD:SOT-23-5',
     'C3': 'Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm',
 }
@@ -249,23 +249,26 @@ capacitor = custom('Capacitor', [pin('1', '~', -7.62, 0, 0), pin('2', '~', 7.62,
 # U1 footprint, carrier top view with the DevKit plugged in face up and its
 # micro-USB end at the top. That view mirrors the rear photo, so the A row
 # (A1 = CLK) is on the LEFT and the J row (J1 = 5V) on the RIGHT; A1/J1 are at
-# the USB end (J1 is 5V, J19 is 3V3 by the antenna). Rows 22.86 mm (0.9 in)
-# apart: the owner's DevKit straddles a standard breadboard leaving one free hole
-# outside each row (columns b and i), which contradicts the published 25.4 mm.
-# Pitch 2.54 mm. Outline 27.5 mm wide (published) and about 53.9 mm long, NOT
+# the USB end (J1 is 5V, J19 is 3V3 by the antenna). Rows 22.225 mm (7/8 in) apart,
+# per the owner's measurement (2026-09-28). An earlier breadboard fit suggested
+# 22.86 mm (0.9 in); the 0.635 mm difference is why the footprint needs a test-fit.
+# Pitch 2.54 mm. Outline 25.4 x 53.975 mm (1 x 2 1/8 in), NOT
 # centred on the pins: on the owner's breadboard (2026-09-28) the first pins sit in
 # row 1 with the USB end flush with the breadboard end (about 3.4 mm before A1/J1)
-# and the antenna end just reaches row 21 (about 4.8 mm past A19/J19). A keep-out covers the WROOM-32E antenna past the A19/J19 end.
+# and the antenna end just reaches row 21 (about 4.86 mm past A19/J19). A keep-out covers the WROOM-32E antenna past the A19/J19 end.
+# The keep-out spans only the antenna (3/4 in wide, 1/8 in margin each side), so the pin rows stay routable.
 # Needs verification with calipers.
-DEVKIT_ROW = 22.86
+DEVKIT_ROW = 22.225
+DEVKIT_WIDTH = 25.4         # mm board width (owner measurement, 1 in)
 DEVKIT_USB_END = 3.4       # mm from the A1/J1 pin centres to the USB end of the board
-DEVKIT_ANTENNA_END = 4.8   # mm from the A19/J19 pin centres to the antenna end
-DEVKIT_FP = 'ESP32_DevKit_38_Socket_Row22.86mm'
-ANTENNA_KEEPOUT = 7.0   # mm in from the board's antenna edge; estimate, measure it
+DEVKIT_ANTENNA_END = 4.855   # mm from the A19/J19 pin centres to the antenna end
+DEVKIT_FP = 'ESP32_DevKit_38_Socket_Row22.225mm'
+ANTENNA_KEEPOUT = 6.35   # mm in from the board's antenna edge: the measured antenna length (1/4 in)
+ANTENNA_MARGIN = 3.175  # mm of plain board beside the antenna on each side (1/8 in); the pin rows lie in this margin
 def devkit_footprint():
     mid = round(DEVKIT_ROW/2, 2)
     L = [f'(footprint "{DEVKIT_FP}" (version 20241229) (generator "Sigil") (layer "F.Cu")',
-         '(descr "Two 1x19 2.54 mm female sockets, rows 22.86 mm (0.9 in) apart, for the removable Inland ESP32-WROOM-32E DevKit (micro-USB), with an antenna keep-out. Needs verification.")',
+         '(descr "Two 1x19 2.54 mm female sockets, rows 22.225 mm (7/8 in) apart, for the removable Inland ESP32-WROOM-32E DevKit (micro-USB), with an antenna keep-out. Needs verification.")',
          '(attr through_hole)',
          f'(property "Reference" "U1" (at {mid} -8.5 0) (layer "F.SilkS") (effects (font (size 1 1) (thickness 0.15))))',
          f'(property "Value" "ESP32 DevKit 38" (at {mid} 53 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))']
@@ -273,7 +276,7 @@ def devkit_footprint():
         L.append(f'(fp_line (start {x1} {y1}) (end {x2} {y2}) (stroke (width {w}) (type solid)) (layer "{layer}"))')
     def text(t, x, y, layer='F.SilkS'):
         L.append(f'(fp_text user "{t}" (at {x} {y} 0) (layer "{layer}") (effects (font (size 1 1) (thickness 0.15))))')
-    x0, x1 = round(mid-27.5/2, 2), round(mid+27.5/2, 2)
+    x0, x1 = round(mid-DEVKIT_WIDTH/2, 2), round(mid+DEVKIT_WIDTH/2, 2)
     y0, y1 = -DEVKIT_USB_END, round(45.72 + DEVKIT_ANTENNA_END, 2)
     def rect(grow, layer, w):
         l, t, rr, b = round(x0-grow, 2), round(y0-grow, 2), round(x1+grow, 2), round(y1+grow, 2)
@@ -283,12 +286,13 @@ def devkit_footprint():
     text('DevKit outline: verify', mid, 22.86, 'F.Fab')
     # No tracks, vias, pours or parts under the module antenna; the socket's own pads stay.
     ka = round(y1-ANTENNA_KEEPOUT, 2)
+    ax0, ax1 = round(x0+ANTENNA_MARGIN, 3), round(x1-ANTENNA_MARGIN, 3)
     text('ANTENNA KEEP-OUT', mid, round((ka+y1)/2, 2), 'F.Fab')
     L.append('(zone (net 0) (net_name "") (layers "F.Cu" "B.Cu") (name "U1 antenna keep-out") (hatch edge 0.5) '
              '(connect_pads (clearance 0)) (min_thickness 0.25) '
              '(keepout (tracks not_allowed) (vias not_allowed) (pads allowed) (copperpour not_allowed) (footprints not_allowed)) '
              '(fill (thermal_gap 0.5) (thermal_bridge_width 0.5)) '
-             f'(polygon (pts (xy {x0} {ka}) (xy {x1} {ka}) (xy {x1} {y1}) (xy {x0} {y1}))))')
+             f'(polygon (pts (xy {ax0} {ka}) (xy {ax1} {ka}) (xy {ax1} {y1}) (xy {ax0} {y1}))))')
     for row, x in [('A', 0), ('J', DEVKIT_ROW)]:
         for i in range(19):
             shape = 'rect' if i == 0 else 'circle'
@@ -478,10 +482,10 @@ def build(project, v):
              '6. Buttons and LEDs are removed while the controls are redesigned; their GPIOs are NC here.\n')
     note('SCHEMATIC REVIEW / RELEASE HOLDS\n'
          '1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n'
-         '2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.86 mm (0.9 in) apart from the breadboard fit (Inland publishes 25.4 mm), 53.9 x 27.5 mm outline (length from the breadboard fit). Caliper-check and test-fit before ordering.\n'
+         '2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.225 mm (7/8 in, owner measurement 2026-09-28) apart, 25.4 x 53.975 mm outline (1 x 2 1/8 in). Caliper-check and test-fit before ordering.\n'
          '3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n'
-         '4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 7 mm antenna keep-out at the A19/J19 end (estimate): measure the WROOM-32E antenna.\n'
-         '5. Footprints: 2.54 mm sockets/headers, JST-XH J5/J6, axial R1/R2, radial C2-C4, SOT-23-5 U2/U3' + (', 6 mm switches' if has_buttons else '') + '; U1 rows 22.86 mm from the breadboard fit: caliper-check first.\n'
+         '4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 6.35 mm antenna keep-out at the A19/J19 end (measured, 1/4 in).\n'
+         '5. Footprints: 2.54 mm sockets/headers, JST-XH J5/J6, axial R1/R2, radial C2-C4, SOT-23-5 U2/U3' + (', 6 mm switches' if has_buttons else '') + '; U1 rows 22.225 mm from the owner measurement: test-fit before ordering.\n'
          + hold6 +
          '7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed.', 28, 211)
     out.append('(embedded_fonts no))')

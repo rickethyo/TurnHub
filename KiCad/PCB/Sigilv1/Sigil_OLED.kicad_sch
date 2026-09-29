@@ -1921,7 +1921,7 @@
 		)
 		(uuid "0c88bc96-84ae-5571-9ab9-3000cf11b85e")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.86 mm (0.9 in) apart from the breadboard fit (Inland publishes 25.4 mm), 53.9 x 27.5 mm outline (length from the breadboard fit). Caliper-check and test-fit before ordering.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 7 mm antenna keep-out at the A19/J19 end (estimate): measure the WROOM-32E antenna.\n5. Footprints: 2.54 mm sockets/headers, JST-XH J5/J6, axial R1/R2, radial C2-C4, SOT-23-5 U2/U3, 6 mm switches; U1 rows 22.86 mm from the breadboard fit: caliper-check first.\n6. Discrete LEDs and the old buttons are removed; SW1-SW5 are the five menu pushbuttons (GPIO to a common GND); J5 is the Jewel adapter cable on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed."
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.225 mm (7/8 in, owner measurement 2026-09-28) apart, 25.4 x 53.975 mm outline (1 x 2 1/8 in). Caliper-check and test-fit before ordering.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 6.35 mm antenna keep-out at the A19/J19 end (measured, 1/4 in).\n5. Footprints: 2.54 mm sockets/headers, JST-XH J5/J6, axial R1/R2, radial C2-C4, SOT-23-5 U2/U3, 6 mm switches; U1 rows 22.225 mm from the owner measurement: test-fit before ordering.\n6. Discrete LEDs and the old buttons are removed; SW1-SW5 are the five menu pushbuttons (GPIO to a common GND); J5 is the Jewel adapter cable on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed."
 		(exclude_from_sim no)
 		(at 28 211 0)
 		(effects
@@ -3836,7 +3836,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Sigil:ESP32_DevKit_38_Socket_Row22.86mm"
+		(property "Footprint" "Sigil:ESP32_DevKit_38_Socket_Row22.225mm"
 			(at 88.9 101.6 0)
 			(hide yes)
 			(show_name no)

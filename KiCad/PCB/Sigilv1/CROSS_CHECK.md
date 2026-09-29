@@ -80,7 +80,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | J6 | FRONT LIGHT CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
 | R2 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
-| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.86mm` |
+| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.225mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 | U3 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 
@@ -164,7 +164,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | SW3 | LEFT (GPIO19, A12) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW4 | RIGHT (GPIO21, A14) | `Button_Switch_THT:SW_PUSH_6mm` |
 | SW5 | SELECT (GPIO32, J13) | `Button_Switch_THT:SW_PUSH_6mm` |
-| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.86mm` |
+| U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.225mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 | U3 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 
