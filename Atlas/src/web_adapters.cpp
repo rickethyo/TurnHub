@@ -214,7 +214,7 @@ bool manageDevices(const String &actor, IntentType type, int32_t value, String &
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
        type != IntentType::ConfigureSpeaker && type != IntentType::ResetTable &&
-       type != IntentType::FactoryReset)) {
+       type != IntentType::FactoryReset && type != IntentType::PairConfirm)) {
     message = "Invalid request";
     return false;
   }

@@ -124,7 +124,28 @@ void handleDevices(WebServer &server) {
     json += "\",\"maxPlayers\":"; json += String(oled ? 1 : 2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
-    json += "\"}";
+    // Pairing v2: paired with a key (ready for the secure link), or the old way.
+    json += "\",\"securePairing\":"; json += jsonBool(record->hasPairKey);
+    json += "}";
+  }
+  // Sigils waiting for the owner's pairing-code check (SECURE_LINK.md). The
+  // code only proves both ends agreed the same key; it is not a secret.
+  json += "],\"pendingPairings\":[";
+  first = true;
+  for (uint8_t id = 0; bus != nullptr && id < MAX_PHYSICAL_SIGILS; ++id) {
+    const TurnHubSecureLink::PendingPairing *pending = bus->pendingPairing(id);
+    if (pending == nullptr) continue;
+    if (!first) json += ',';
+    first = false;
+    char code[5];
+    TurnHubSecureLink::formatPairingCode(pending->code, code);
+    const uint32_t elapsed = nowMs - pending->startedMs;
+    const uint32_t leftS = elapsed >= TurnHubSecureLink::PAIR_CONFIRM_TIMEOUT_MS ? 0 :
+        (TurnHubSecureLink::PAIR_CONFIRM_TIMEOUT_MS - elapsed + 999) / 1000;
+    json += "{\"id\":"; json += String(id);
+    json += ",\"code\":\""; json += code;
+    json += "\",\"secondsLeft\":"; json += String(leftS);
+    json += "}";
   }
   json += "]}";
   sendJson(server, 200, json);
@@ -259,6 +280,27 @@ void handleResetTable(WebServer &server) {
 // Factory reset: atlas=1 for Atlas itself, or module=<id> for one Sigil.
 // Admin, and admin unlocked on the Atlas screen; Atlas re-checks both, and
 // that no match is running, in the FactoryReset Intent handler.
+// Pairing v2 code check from the portal: an Admin verified at the table says
+// whether the Sigil shows the same code as Atlas (PairConfirm Intent).
+void handlePairConfirm(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!requirePhysicalPresence(server)) return;
+  if (!server.hasArg("module")) {
+    sendError(server, 400, "Choose the waiting Sigil");
+    return;
+  }
+  const int32_t slot = server.arg("module").toInt();
+  const bool accept = server.arg("accept") == "1";
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::PairConfirm, slot | (accept ? TurnHub::PAIR_CONFIRM_ACCEPT : 0),
+          message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
 void handleFactoryReset(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   if (!requirePhysicalPresence(server)) return;

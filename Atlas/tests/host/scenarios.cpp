@@ -2663,6 +2663,42 @@ static void pairCodeTouchScreen() {
   enterEmptyLobby();
 }
 
+// The portal's pairing-code check: listed in /api/devices, answered by an
+// Admin verified at the table, through PairConfirm.
+static void pairConfirmFromPortal() {
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configurePresence(presenceHooks());
+  resetPresence(); resetTouchControls();
+  freshLobby(2);
+  String adminId,playerId;
+  const String admin=registerPhone("Portal pair admin",adminId),player=registerPhone("Portal pair player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+  TurnHub::fixtureWaitForCode(3,58); TurnHub::fixturePending[3].startedMs=testNow;
+
+  assert(request("/api/devices",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"pendingPairings\":[{\"id\":3,\"code\":\"0058\",\"secondsLeft\":60}]")!=std::string::npos);
+  assert(server.body.find("\"securePairing\":false")!=std::string::npos);
+  // Admin only, and only once verified at the table.
+  assert(request("/api/device/pair-confirm",admin,{{"module","3"},{"accept","1"}})==403);
+  verifyAtTable(admin);
+  assert(request("/api/device/pair-confirm",player,{{"module","3"},{"accept","1"}})==403);
+  assert(request("/api/device/pair-confirm",admin,{{"accept","1"}})==400);
+  assert(request("/api/device/pair-confirm",admin,{{"module","4"},{"accept","1"}})==409);
+  assert(TurnHub::fixturePairDecisions[3]==0 && sigilBus.pendingPairing(3));
+  // Codes match: stored with its key, and shown as secure.
+  assert(request("/api/device/pair-confirm",admin,{{"module","3"},{"accept","1"}})==200);
+  assert(TurnHub::fixturePairDecisions[3]==1 && !sigilBus.pendingPairing(3));
+  assert(request("/api/devices",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"pendingPairings\":[]")!=std::string::npos &&
+      server.body.find("\"securePairing\":true")!=std::string::npos);
+  // Reject stores nothing.
+  TurnHub::fixtureWaitForCode(6,1);
+  assert(request("/api/device/pair-confirm",admin,{{"module","6"},{"accept","0"}})==200);
+  assert(TurnHub::fixturePairDecisions[6]==-1);
+  TurnHub::fixtureRecords[3].hasPairKey=false;
+}
+
 static void factoryResetFromPortal() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configurePresence(presenceHooks());
@@ -2886,6 +2922,7 @@ int main() {
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
   pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;
+  pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";

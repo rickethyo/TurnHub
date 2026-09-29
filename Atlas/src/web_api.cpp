@@ -175,6 +175,7 @@ void begin(WebServer &server) {
   route("/api/speaker", HTTP_POST, handleSaveSpeakerSettings);
   route("/api/table/reset", HTTP_POST, handleResetTable);
   route("/api/device/factory-reset", HTTP_POST, handleFactoryReset);
+  route("/api/device/pair-confirm", HTTP_POST, handlePairConfirm);
   route("/api/network", HTTP_GET, handleNetworkInfo);
   route("/api/network/password", HTTP_POST, handleNetworkPassword);
 
