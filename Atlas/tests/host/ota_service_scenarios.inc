@@ -22,7 +22,7 @@ static void otaServiceScenarios() {
   freshLobby(2); enterEmptyLobby(); resetPresence();
   TurnHubWebApi::configureDevices(manageDevices, [](){return pairingWindowMs;});
   TurnHubWebApi::configurePresence(presenceHooks());
-  beginSigilUpdates();
+  beginSigilUpdates("OTA test AP", "test-password");
   String adminId, playerId;
   const String admin=registerPhone("OTA admin",adminId), player=registerPhone("OTA player",playerId);
   TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
@@ -53,6 +53,8 @@ static void otaServiceScenarios() {
   hubState=HubState::Running;assert(request("/api/sigil-update",admin,{{"module","0"}})==409);hubState=HubState::Lobby;
   assert(request("/api/sigil-update",admin,{{"module","0"}})==200 && sigilUpdatesBusy());
   serviceSigilUpdates(testNow);
+  assert(strcmp(fixtureUpdateOffer.ssid, "OTA test AP")==0);
+  assert(strcmp(fixtureUpdateOffer.password, "test-password")==0);
   assert(fixtureUpdateOffer.product==3 && fixtureUpdateOffer.packageSize==otaTestPackage(3).size());
   assert(upload(admin,otaTestPackage(2))==403); // Cannot replace an active package.
   Intent start;start.type=IntentType::StartGame;assert(intents.dispatch(start).status==IntentStatus::Conflict);

@@ -340,7 +340,7 @@ void startNetworking() {
     serveDeveloperJson(TurnHub::activityJson());
   });
   ota.begin();
-  beginSigilUpdates();
+  beginSigilUpdates(AtlasConfig::WIFI_SSID, wifiPassword.c_str());
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
 

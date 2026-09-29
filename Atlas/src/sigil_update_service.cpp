@@ -6,7 +6,6 @@
 #include "firmware_signing_key.h"
 #include "web_api_internal.h"
 #include "account_access.h"
-#include <WiFi.h>
 #include <esp_ota_ops.h>
 #include <esp_system.h>
 
@@ -29,6 +28,8 @@ class IdleFlash final : public PackageFlash {
 TurnHubFirmwarePackage::MbedtlsPackageCrypto crypto;
 SigilPackageStore store;
 SigilUpdateJobs jobs;
+char apSsid[TurnHubProtocol::UPDATE_SSID_BYTES] = {};
+char apPassword[TurnHubProtocol::UPDATE_PASSWORD_BYTES] = {};
 uint32_t initialSession = 0;
 bool downloadUsed = false;
 bool uploadOk = false;
@@ -155,13 +156,17 @@ void serviceSigilUpdates(uint32_t nowMs) {
   offer.major = store.header().version.major; offer.minor = store.header().version.minor;
   offer.patch = store.header().version.patch; offer.packageSize = store.packageSize();
   memcpy(offer.token, jobs.token(), sizeof(offer.token));
-  strncpy(offer.ssid, WiFi.softAPSSID().c_str(), sizeof(offer.ssid) - 1);
-  strncpy(offer.password, WiFi.softAPPSK().c_str(), sizeof(offer.password) - 1);
+  memcpy(offer.ssid, apSsid, sizeof(offer.ssid));
+  memcpy(offer.password, apPassword, sizeof(offer.password));
   sigilBus.sendUpdateOffer(offer);
   TurnHubSecureLink::wipe(&offer, sizeof(offer));
 }
 
-void beginSigilUpdates() {
+void beginSigilUpdates(const char *ssid, const char *password) {
+  memset(apSsid, 0, sizeof(apSsid));
+  TurnHubSecureLink::wipe(apPassword, sizeof(apPassword));
+  if (ssid) strncpy(apSsid, ssid, sizeof(apSsid) - 1);
+  if (password) strncpy(apPassword, password, sizeof(apPassword) - 1);
   flash.slot = esp_ota_get_next_update_partition(nullptr);
   store.begin(flash, crypto, TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID);
   store.loadStaged();
