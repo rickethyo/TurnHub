@@ -880,7 +880,7 @@ void startPairing() {
     Serial.println("HARNESS|PAIR|ALREADY_PAIRED|use 'forget' first to pair again");
     return;
   }
-  Serial.println("HARNESS|PAIR|WAITING|tap 'Pair a Sigil' on the Atlas touchscreen now");
+  Serial.println("HARNESS|PAIR|WAITING|tap Menu, then 'Pair a Sigil', on the Atlas touchscreen now");
   const bool done = waitUntil([] {
     for (uint8_t i = 0; i < activeSigils; ++i) {
       if (sigils[i].pairing) return false;

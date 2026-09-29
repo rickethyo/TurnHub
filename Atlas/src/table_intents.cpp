@@ -743,7 +743,7 @@ IntentResult handleEliminationIntent(const Intent &intent, void *) {
 // Pairing is deliberately authorized by the Atlas hardware Intent.
 IntentResult handlePairRequestIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
-    return IntentResult::reject(IntentStatus::Unauthorized, "Use Pair a Sigil on the Atlas screen");
+    return IntentResult::reject(IntentStatus::Unauthorized, "Use Menu, then Pair a Sigil, on the Atlas screen");
   }
   if (hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Pair devices in the lobby");
