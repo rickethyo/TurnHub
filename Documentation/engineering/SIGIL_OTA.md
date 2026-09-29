@@ -11,10 +11,24 @@ firmware page. Status of everything below: *Planned* unless marked otherwise.
 The owner's dev PC crashes intermittently. Keep this list current and commit
 after each step, so a new session can resume from the repository alone.
 
-- [ ] **Prerequisite:** the encrypted Atlas-Sigil link in
-      [Secure Link](SECURE_LINK.md) (owner, 2026-09-28). The OTA offer that
-      carries the Wi-Fi password is only sent over it. Steps 1b and 2 don't
-      depend on it; 1c onward do.
+- [x] **Prerequisite:** the encrypted Atlas-Sigil link in
+      [Secure Link](SECURE_LINK.md) (owner, 2026-09-28). Done 2026-09-29:
+      pairing v2 with a code check, then protocol `VERSION` 2 with a secure
+      session per Sigil and every packet sealed (AES-128-CCM). *Verified* on
+      the bench: Atlas, both Sigils and the harness's two virtual Sigils boot
+      into sealed sessions. What it means for OTA:
+      - The offer that carries the Wi-Fi password goes out sealed like any
+        packet (`SigilBus::sendSealed` on Atlas; the Sigil only handles frames
+        that open in its session), so nobody listening can read it, and a
+        forged or replayed offer doesn't open.
+      - The offer (SSID 32 + password 64 + SHA-256 32 + size 4 + token 16 +
+        version and variant, about 155 bytes) fits a sealed frame
+        (`MAX_INNER_BYTES` 235), but not today's receive buffers: the Sigil's
+        `ReceivedPacket::MAX_BYTES` and Atlas's `TxRequest` hold 125 bytes (a
+        sealed game display). Step 1c grows them, with size asserts, and adds
+        the new sealed size to `ReceivedPacket::acceptedSize`.
+      - Pairing windows are now at least 60 s everywhere (owner, 2026-09-29);
+        OTA doesn't pair, so no change here.
 - [x] Step 1a: this design record and feature gate (2026-09-28).
 - [ ] Step 1b: embedded firmware descriptor in Sigil builds (`sigil_firmware_descriptor`),
       shared descriptor layout and parser in `shared/include/`, host tests.
@@ -77,8 +91,8 @@ after each step, so a new session can resume from the repository alone.
    update controls later, if wanted.
 6. **Protocol/contract change.** `protocol.h`: new `SigilUpdateOffer`
    (Atlas -> Sigil) and `SigilUpdateStatus` (Sigil -> Atlas) packets, and the
-   shared firmware descriptor layout. Existing packets are unchanged, so older
-   Sigils ignore the offer. HTTP: new admin routes (upload, catalog, start
+   shared firmware descriptor layout. Both go sealed (protocol `VERSION` 2),
+   and a Sigil without the updater ignores the unknown type once opened. HTTP: new admin routes (upload, catalog, start
    update, status) and a one-time image download URL for the Sigil. These are
    admin portal routes, not part of the `protocol/` client contract. Both
    device types need one last USB flash to carry the updater.
@@ -112,9 +126,10 @@ source. The Wokwi build has no variant and is rejected.
 
 1. Admin chooses **Update** for a Sigil and enters the table presence code.
 2. `UpdateSigil` is validated; Atlas creates a job with a random one-time
-   token and sends `SigilUpdateOffer` over ESP-NOW (resent until acknowledged
-   or timeout): AP SSID and password, image size, SHA-256, target version,
-   token. The Sigil checks that it came from its paired Atlas and that the
+   token and sends `SigilUpdateOffer` sealed in that Sigil's secure session
+   (resent until acknowledged or timeout): AP SSID and password, image size,
+   SHA-256, target version, token. Only an offer that opens in the session
+   counts, so it came from the paired Atlas; the Sigil also checks that the
    variant and version are sane.
 3. The Sigil shows "Updating", reports `Accepted`, joins the Atlas AP on the
    same channel (ESP-NOW stays up) and downloads
@@ -145,9 +160,11 @@ download route serves nothing to anyone without a live job.
 - **Power loss during download** leaves the running slot intact (the idle
   slot is only made bootable after a full, hash-checked write).
 - **Harness boards** advertise `CAPABILITY_HARNESS` and are refused.
-- **The AP password crosses the radio.** Today's ESP-NOW links are
-  unencrypted (`peer.encrypt = false`), so the offer is sent only over the
-  encrypted link from [Secure Link](SECURE_LINK.md).
+- **The AP password crosses the radio**, sealed in the Sigil's secure session
+  ([Secure Link](SECURE_LINK.md), protocol `VERSION` 2 since 2026-09-29). The
+  radio peers stay `encrypt = false`; the encryption is TurnHub's own, per
+  Sigil, with no 7-peer limit. A Sigil that downloads over Wi-Fi reconnects
+  with a new SecureHello afterwards, as after any link loss.
 
 ## Open decisions
 

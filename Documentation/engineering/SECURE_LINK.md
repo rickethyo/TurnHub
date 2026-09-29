@@ -248,7 +248,7 @@ Commit after each step and tick it here.
       pairing the old way until it learns v2; Sigils built from this branch
       send only v2. The portal marks keyless Sigils "pair again for the secure
       link".
-- [ ] Secure Hello/session and the envelope on every packet, both directions.
+- [x] Secure Hello/session and the envelope on every packet, both directions.
       **In progress, branch `secure-link-envelope` (from 2026-09-29).** Plan,
       in commit order (tick as done; resume from the first unticked):
       1. [x] Shared `secure_session.h`: Sigil and Atlas session endpoints over
@@ -266,8 +266,16 @@ Commit after each step and tick it here.
          are handled. A keyless binding counts as unpaired.
       5. [x] TestHarness and the Wokwi fake Atlas do the same.
       6. [x] Remove the old `PairRequest`/`PairAccept` path (IDs 10 and 11 stay reserved).
-      7. [ ] Docs and manual; CI; flash all four boards; bench test (play, Atlas
-         restart recovery, forged/replayed/cleartext packets rejected).
+      7. [x] Docs and manual; CI (run 36617520681, `1df68ca`, all jobs green);
+         flashed all four boards. **Bench boot, 2026-09-29 (*Verified*):** all
+         four reset together; every one booted (self-test PASS on Atlas and both
+         Sigils) and formed a sealed session on its own: OLED Sigil
+         `SESSION_READY` at 3.8 s, the harness's V1 and V2 at 4.4 s (Atlas logged
+         each SecureHello as `ATLAS|SIGIL|INFO`), e-ink Sigil at 7.2 s (it booted
+         before Atlas and retried). Sealed Hello acks then flowed (10 and 8 in
+         25 s) and the harness showed both virtual Sigils online with their menu,
+         so Atlas's sealed MenuState opened. Still to try on hardware: a game,
+         Atlas restart recovery, and forged/replayed/cleartext packets.
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
       Done so far: the Wokwi fake Atlas speaks v2 (`confirm` / `reject` on the
       console); portal shows secure vs keyless; engineering docs and the manual's
