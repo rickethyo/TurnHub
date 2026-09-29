@@ -379,7 +379,7 @@ void setup() {
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;
   if (!gameSettingsAvailable) serialLog.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
-  // A missing or unreadable setting keeps the 15-second default.
+  // A missing or unreadable setting keeps the 60-second default (and minimum).
   const auto pairingStatus = TurnHub::loadPairingWindow(pairingWindowMs);
   if (pairingStatus != TurnHubStorage::Status::Ok &&
       pairingStatus != TurnHubStorage::Status::NotFound) {

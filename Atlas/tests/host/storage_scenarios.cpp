@@ -232,25 +232,31 @@ void pairingWindowRecords() {
   NvsBlobStore store;
   assert(store.begin("turnhub")==Status::Ok);
   uint32_t windowMs=DEFAULT_PAIRING_WINDOW_MS;
-  assert(readPairingWindow(store,windowMs)==Status::NotFound && windowMs==15000);
-  for (uint32_t choice : {15000u,30000u,60000u}) {
+  assert(readPairingWindow(store,windowMs)==Status::NotFound && windowMs==60000);
+  for (uint32_t choice : {60000u,90000u,120000u}) {
     assert(writePairingWindow(store,choice)==Status::Ok);
     assert((FakeNvs::blobs["pairwin"]==std::vector<uint8_t>{1,static_cast<uint8_t>(choice/1000)}));
     uint32_t again=0; assert(readPairingWindow(store,again)==Status::Ok && again==choice);
   }
-  for (uint32_t bad : {0u,1000u,14999u,20000u,45000u,61000u,255000u}) {
+  // Never below the 60 s minimum, including the old 15 and 30 s choices.
+  for (uint32_t bad : {0u,1000u,15000u,30000u,59999u,61000u,75000u,121000u,255000u}) {
     assert(writePairingWindow(store,bad)==Status::InvalidArgument);
   }
-  assert((FakeNvs::blobs["pairwin"]==std::vector<uint8_t>{1,60}));
-  for (const auto &bytes : {std::vector<uint8_t>{}, {1}, {1,30,0}, {1,20}, {1,0}, {2,30}}) {
+  assert((FakeNvs::blobs["pairwin"]==std::vector<uint8_t>{1,120}));
+  // A 15 or 30 s record saved before the minimum reads as 60 s.
+  for (uint8_t old : {15,30}) {
+    FakeNvs::blobs["pairwin"]=std::vector<uint8_t>{1,old};
+    windowMs=0; assert(readPairingWindow(store,windowMs)==Status::Ok && windowMs==60000);
+  }
+  for (const auto &bytes : {std::vector<uint8_t>{}, {1}, {1,30,0}, {1,20}, {1,0}, {1,45}, {2,60}}) {
     FakeNvs::blobs["pairwin"]=bytes;
-    windowMs=15000;
+    windowMs=60000;
     const Status expected=bytes.size()==2&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
-    assert(readPairingWindow(store,windowMs)==expected && windowMs==15000);
+    assert(readPairingWindow(store,windowMs)==expected && windowMs==60000);
   }
   FakeNvs::blobs.clear();
   FakeNvs::setError=ESP_ERR_NVS_INVALID_HANDLE;
-  assert(writePairingWindow(store,30000)==Status::IoError);
+  assert(writePairingWindow(store,90000)==Status::IoError);
   FakeNvs::setError=ESP_OK;
 }
 

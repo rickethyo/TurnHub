@@ -831,7 +831,8 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   return IntentResult::accept(all ? "All Sigils forgotten" : "Sigil forgotten");
 }
 
-// Payload: value = Atlas pairing window in milliseconds (15, 30 or 60 s).
+// Payload: value = Atlas pairing window in milliseconds (60, 90 or 120 s;
+// never below the 60 s minimum).
 // Pairing v2 code check (SECURE_LINK.md). The owner compares the code on the
 // Sigil with the one on Atlas and confirms or rejects: at the Atlas screen
 // (physically at the table), or as a portal Admin through the same
@@ -863,7 +864,7 @@ IntentResult handleConfigurePairingIntent(const Intent &intent, void *) {
   }
   const uint32_t windowMs = static_cast<uint32_t>(intent.payload.value);
   if (intent.payload.value <= 0 || !TurnHub::validPairingWindowMs(windowMs)) {
-    return IntentResult::reject(IntentStatus::Rejected, "Pairing window must be 15, 30 or 60 seconds");
+    return IntentResult::reject(IntentStatus::Rejected, "Pairing window must be 60, 90 or 120 seconds");
   }
   if (TurnHub::savePairingWindow(windowMs) != TurnHubStorage::Status::Ok) {
     return IntentResult::reject(IntentStatus::Rejected, "Pairing window could not be saved");

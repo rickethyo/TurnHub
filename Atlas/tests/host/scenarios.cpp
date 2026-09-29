@@ -2400,7 +2400,7 @@ static void deviceManagement() {
   // Admin only, re-checked by the Intent handler as well as the route.
   assert(request("/api/device/forget",player,{{"module","3"}})==403 && sigilBus.record(3));
   assert(request("/api/pairing",player,{},HTTP_GET)==403);
-  assert(request("/api/pairing",player,{{"windowMs","30000"}})==403);
+  assert(request("/api/pairing",player,{{"windowMs","90000"}})==403);
   Intent forged; forged.type=IntentType::ForgetPairing; forged.actor.origin=IntentOrigin::Browser;
   strncpy(forged.payload.moderatorId,playerId.c_str(),8); forged.payload.value=3;
   assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && sigilBus.record(3));
@@ -2430,27 +2430,28 @@ static void deviceManagement() {
   for (uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) assert(!sigilBus.record(id));
   assert(request("/api/device/forget",admin,{{"all","1"}})==409);
 
-  // Pairing window: 15 s default, admins choose 15/30/60 s, Atlas uses it.
+  // Pairing window: 60 s default and minimum, admins choose 60/90/120 s,
+  // never shorter (the old 15 and 30 s are refused), and Atlas uses it.
   assert(request("/api/pairing",admin,{},HTTP_GET)==200);
-  assert(server.body.find("\"windowMs\":15000")!=std::string::npos &&
-      server.body.find("\"sigilWindowMs\":15000")!=std::string::npos &&
-      server.body.find("\"choicesMs\":[15000,30000,60000]")!=std::string::npos);
-  for (const char *bad : {"20000","0","-15000","600000","abc"}) {
-    assert(request("/api/pairing",admin,{{"windowMs",bad}})==409 && pairingWindowMs==15000);
+  assert(server.body.find("\"windowMs\":60000")!=std::string::npos &&
+      server.body.find("\"sigilWindowMs\":60000")!=std::string::npos &&
+      server.body.find("\"choicesMs\":[60000,90000,120000]")!=std::string::npos);
+  for (const char *bad : {"15000","30000","20000","0","-60000","600000","abc"}) {
+    assert(request("/api/pairing",admin,{{"windowMs",bad}})==409 && pairingWindowMs==60000);
   }
   assert(request("/api/pairing",admin)==400);
-  assert(request("/api/pairing",admin,{{"windowMs","30000"}})==200 && pairingWindowMs==30000);
-  assert(TurnHub::fixturePairingWindowSaved==30000);
+  assert(request("/api/pairing",admin,{{"windowMs","90000"}})==200 && pairingWindowMs==90000);
+  assert(TurnHub::fixturePairingWindowSaved==90000);
   ProfileFixture::gameSettingsWritable=false;
-  assert(request("/api/pairing",admin,{{"windowMs","60000"}})==409 && pairingWindowMs==30000);
+  assert(request("/api/pairing",admin,{{"windowMs","120000"}})==409 && pairingWindowMs==90000);
   ProfileFixture::gameSettingsWritable=true;
 
   freshLobby(2); pairingActive=false;
   Intent pair; pair.type=IntentType::PairRequest; pair.actor.origin=IntentOrigin::AtlasHardware;
-  assert(intents.dispatch(pair).accepted() && TurnHub::fixturePairingWindowMs==30000);
-  testNow+=29999; updatePairingWindow(testNow); assert(pairingActive);
+  assert(intents.dispatch(pair).accepted() && TurnHub::fixturePairingWindowMs==90000);
+  testNow+=89999; updatePairingWindow(testNow); assert(pairingActive);
   ++testNow; updatePairingWindow(testNow); assert(!pairingActive);
-  assert(request("/api/pairing",admin,{{"windowMs","15000"}})==200 && pairingWindowMs==15000);
+  assert(request("/api/pairing",admin,{{"windowMs","60000"}})==200 && pairingWindowMs==60000);
   enterEmptyLobby();
 }
 

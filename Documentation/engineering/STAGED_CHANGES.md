@@ -115,7 +115,8 @@ Owner decisions and follow-through (2026-09-24, later the same day):
 - **Forget pairings:** implemented. A 10 s Sigil Pair hold erases the Sigil's
   pairing; admins forget one or all Sigils in Device Settings, and Atlas sends
   `Unpair`. See [Manual Pairing](MANUAL_PAIRING.md#forgetting-a-pairing-2026-09-24).
-- **Pairing window:** Atlas's window is admin-adjustable (15/30/60 s).
+- **Pairing window:** Atlas's window is admin-adjustable (60/90/120 s since
+  2026-09-29; 60 s is the minimum on every device).
 - **On hold:** buzzer volume (current hardware cannot vary it). Unblocked
   (2026-09-25): the physical profile picker (both Sigils now have five-way
   input: the E-ink joystick and the OLED d-pad, with Sigil menus) and LED

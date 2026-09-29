@@ -253,7 +253,8 @@ menu, screen and life state. No protocol change. Host-tested
 Sigil honors it only from its saved Atlas MAC with its own Sigil ID, then erases
 its pairing. It is best effort and unacknowledged. Older Sigils ignore it.
 `FORGET_PAIRING_HOLD_MS` (10 s) is the Sigil's Pair hold that forgets locally.
-`PAIRING_WINDOW_MS` stays 15 s: it is the Sigil's window and Atlas's default.
+`PAIRING_WINDOW_MS` is the Sigil's window and Atlas's default: 15 s until
+2026-09-29, then 60 s, the minimum on every device (owner decision).
 Protocol version stays 1.
 
 ### Hold timing (2026-09-24)

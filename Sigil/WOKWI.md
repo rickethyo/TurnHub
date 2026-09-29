@@ -64,8 +64,8 @@ A new Sigil is unpaired: the screen says so and it ignores everything until it
 pairs. As with a real Atlas, both sides must be in pairing mode:
 
 1. Type `pair` in the serial console. This stands in for tapping **Pair a
-   Sigil** on the Atlas touchscreen and opens the fake Atlas's 15-second window.
-2. Press the Sigil's PAIR button (`R`) within those 15 seconds. The red LED
+   Sigil** on the Atlas touchscreen and opens the fake Atlas's 60-second window.
+2. Press the Sigil's PAIR button (`R`) within those 60 seconds. The red LED
    blinks while the Sigil broadcasts `PairRequest2` (pairing v2, see
    `Documentation/engineering/SECURE_LINK.md`).
 3. The fake Atlas answers `PairAccept2` with the Sigil ID set by `id` (default
@@ -149,7 +149,7 @@ Flags can be combined, for example `0x18` means active + host.
 
 ## What this tests
 
-The simulation exercises the production Sigil's button debounce and hold timing (including Atlas-sent thresholds), the manual pairing handshake and its 15-second window, packet creation, packet receive handling, ACK behavior, LED commands, buzzer commands, profile-name chunk assembly, display-state decoding, display-task scheduling, and the production 2.13" display driver against an SSD1680 model.
+The simulation exercises the production Sigil's button debounce and hold timing (including Atlas-sent thresholds), the manual pairing handshake and its 60-second window, packet creation, packet receive handling, ACK behavior, LED commands, buzzer commands, profile-name chunk assembly, display-state decoding, display-task scheduling, and the production 2.13" display driver against an SSD1680 model.
 
 It does **not** test the ESP-NOW radio itself, RF behavior, peer discovery, packet loss, or real Atlas/Sigil wireless interoperability. Those still require physical ESP32 hardware.
 

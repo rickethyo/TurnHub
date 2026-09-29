@@ -36,7 +36,7 @@ static String seatNameA = "Player A";
 static String seatNameB = "Player B";
 
 // Mirrors the real Atlas (Atlas/src/sigil_bus.cpp): a Sigil is unknown until it
-// pairs; pairing is accepted only while Atlas's 15-second window is open (the
+// pairs; pairing is accepted only while Atlas's 60-second window is open (the
 // console `pair` command stands in for Atlas's Pair button); afterwards only
 // Hello and control packets from the paired Sigil are acknowledged.
 static bool sigilPaired = false;
@@ -178,7 +178,7 @@ inline void printHelp() {
   Serial.println();
   Serial.println("WOKWI ATLAS COMMANDS");
   Serial.println("  help");
-  Serial.println("  pair                  open Atlas's 15 s pairing window (then press the Sigil's PAIR)");
+  Serial.println("  pair                  open Atlas's 60 s pairing window (then press the Sigil's PAIR)");
   Serial.println("  confirm | reject      answer the pairing code check (the Atlas screen's buttons)");
   Serial.println("  id <0-7>              Sigil ID the next pairing assigns");
   Serial.println("  forget                Atlas forgets the Sigil and sends it Unpair");
