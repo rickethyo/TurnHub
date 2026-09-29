@@ -86,9 +86,28 @@ the same code runs on Atlas, Sigils, the harness and the Wokwi fake Atlas.
    the secret, both MACs and both public keys:
    - the 16-byte **pair key** (stored in NVS: on Atlas in the Sigil's pairing
      record, on the Sigil with Atlas's MAC); and
-   - a 4-digit **pairing code** (see open decision 1).
+   - a 4-digit **pairing code**.
 4. The private keys are discarded. Someone who only listens to pairing learns
    nothing that lets them compute the pair key.
+5. **Code check (owner decision, 2026-09-28).** Both the Sigil display and the
+   Atlas screen show the code. Nothing is stored yet: Atlas holds the Sigil as
+   *awaiting confirmation*. The owner checks the codes match and confirms
+   with a `PairConfirm` Intent from either:
+   - the web portal (Device Settings, and the Android app later over the same
+     HTTP route): signed-in Admin, through the same presence-verified
+     device-management path as Forget and Factory reset; or
+   - a **Confirm** button on the Atlas screen, the fallback for anyone not
+     using the portal or app (`AtlasHardware` origin, as `PairRequest`).
+
+   The portal shows the code as text too, so a screen reader user can compare
+   it with the Sigil (or have someone read the Sigil).
+   On Confirm, Atlas stores the pair key and sends the Sigil a `PairConfirmed`
+   sealed with the new key; the Sigil stores the key only when that checks
+   out. **Reject** (both places), a mismatch, or no confirmation within 60 s
+   discards the key on both sides and nothing is stored. A Sigil that
+   impersonator traffic tricked would show a different code, which is what
+   the comparison catches. Several Sigils can await confirmation at once;
+   each is listed with its own code.
 
 ### Sessions (stop replayed packets)
 
@@ -128,9 +147,10 @@ The harness and the Wokwi fake Atlas get the same code (shared header).
 
 1. **State owner.** Atlas owns each Sigil's pair key and session state in
    `SigilBus`; each Sigil owns its Atlas pair key. No game state changes.
-2. **Intent.** None new: pairing and sessions are transport, below the
-   adapters. If the pairing-code confirmation is chosen, confirming it uses
-   the existing pairing controls on the Atlas screen.
+2. **Intent.** Bind the reserved `PairConfirm` (payload: Sigil slot and
+   accept/reject) from the Atlas touchscreen and the portal's
+   device-management path. Key agreement and sessions themselves are
+   transport, below the adapters.
 3. **Validator.** `SigilBus` (and the Sigil receive path): tag, counter,
    session and Sigil ID checks before anything reaches `IntentDispatcher`.
 4. **Persistence owner.** NVS: Atlas's existing pairing store (record grows by
@@ -138,9 +158,11 @@ The harness and the Wokwi fake Atlas get the same code (shared header).
    never logged and are erased by forget/unpair/factory reset. NVS isn't
    flash-encrypted, so someone holding a board can read its keys; physical
    extraction is out of scope for now.
-5. **Rendering clients.** Sigil and Atlas screens (pairing code, if chosen;
-   "pair again" notice for Sigils cleared by the upgrade). Portal: per-Sigil
-   link status (secure / needs pairing). Android: none.
+5. **Rendering clients.** Sigil display: the pairing code, then paired or
+   rejected. Atlas screen: pending Sigils with their codes and Confirm/Reject
+   buttons; "pair again" for Sigils cleared by the upgrade. Portal: the same
+   pending list with Confirm/Reject, and per-Sigil link status (secure /
+   needs pairing). Android: confirmation later, over the portal's route.
 6. **Protocol/contract change.** `protocol.h` VERSION 2, `PairRequest2`,
    `PairAccept2`, secure Hello fields and the `Secure` envelope. Both device
    types and the harness must be reflashed together. No HTTP client-contract
@@ -162,6 +184,8 @@ Commit after each step and tick it here.
       crypto interface; host tests with a test crypto backend.
 - [ ] mbedTLS backend and boot-time known-answer self-test (Atlas and Sigil).
 - [ ] Pairing v2 on Atlas and Sigil; pair key in NVS; keyless records cleared.
+- [ ] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
+      Confirm/Reject on the Atlas screen and in the portal; 60 s timeout.
 - [ ] Secure Hello/session and the envelope on every packet, both directions.
 - [ ] Harness and Wokwi shim updated; portal link status; manual and docs.
 - [ ] Hardware: 8 Sigils (or harness plus Sigils) paired and playing; forged,
@@ -169,11 +193,11 @@ Commit after each step and tick it here.
 
 ## Open decisions
 
-1. **Pairing code check.** Listening can't break the key agreement, but a
-   device actively impersonating both sides during the pairing window could.
-   (a) Show a 4-digit code on the Sigil and on Atlas and have the owner tap
-   Confirm on Atlas if they match (one extra tap per pairing). (b) Rely on
-   the short, physically started window only. *Undecided.*
+1. **Pairing code check.** *Decided 2026-09-28:* code on the Sigil and Atlas
+   screens, confirmed in the portal/app or with the Atlas screen button (see
+   step 5 of the key agreement). Listening can't break the key agreement; the
+   code check stops a device actively impersonating both sides during the
+   window.
 2. **Upgrade path.** Re-pair every Sigil once after the reflash (planned
    above), or keep accepting cleartext from old pairings for a while.
    *Planned: re-pair once*, since every Sigil needs a USB flash anyway.
