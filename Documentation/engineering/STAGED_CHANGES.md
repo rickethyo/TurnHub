@@ -237,6 +237,8 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 In progress (2026-09-28): design, feature gate and a step-by-step resume
 checklist are in [Sigil OTA](SIGIL_OTA.md). Upload is through the web portal.
+The encrypted Atlas-Sigil link ([Secure Link](SECURE_LINK.md)) comes first,
+because the update offer carries the Atlas Wi-Fi password.
 
 Owner direction (2026-09-25): move Sigil OTA ahead of session history and SD
 theme packs. Repeated USB flashing and COM-port tracking across devices is the

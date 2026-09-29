@@ -11,6 +11,10 @@ firmware page. Status of everything below: *Planned* unless marked otherwise.
 The owner's dev PC crashes intermittently. Keep this list current and commit
 after each step, so a new session can resume from the repository alone.
 
+- [ ] **Prerequisite:** the encrypted Atlas-Sigil link in
+      [Secure Link](SECURE_LINK.md) (owner, 2026-09-28). The OTA offer that
+      carries the Wi-Fi password is only sent over it. Steps 1b and 2 don't
+      depend on it; 1c onward do.
 - [x] Step 1a: this design record and feature gate (2026-09-28).
 - [ ] Step 1b: embedded firmware descriptor in Sigil builds (`sigil_firmware_descriptor`),
       shared descriptor layout and parser in `shared/include/`, host tests.
@@ -141,19 +145,16 @@ download route serves nothing to anyone without a live job.
 - **Power loss during download** leaves the running slot intact (the idle
   slot is only made bootable after a full, hash-checked write).
 - **Harness boards** advertise `CAPABILITY_HARNESS` and are refused.
-- **Open decision: the AP password crosses the radio unencrypted.** ESP-NOW
-  links are set up with `peer.encrypt = false` on both sides, so anyone
-  capturing 2.4 GHz traffic near the table during an update could read the
-  Atlas Wi-Fi password. See the options in the next section.
+- **The AP password crosses the radio.** Today's ESP-NOW links are
+  unencrypted (`peer.encrypt = false`), so the offer is sent only over the
+  encrypted link from [Secure Link](SECURE_LINK.md).
 
 ## Open decisions
 
-1. **AP password over unencrypted ESP-NOW.** Options: (a) accept for the
-   prototype, sending it only for an Admin-started, presence-verified update
-   and documenting the exposure; (b) add ESP-NOW encryption (a per-Sigil key
-   agreed at pairing, which itself needs a key exchange that sniffing cannot
-   defeat); (c) use ESP-NOW-only transfer, which avoids Wi-Fi credentials but
-   takes 1-3 min per Sigil. *Undecided.*
+1. **AP password over the radio.** *Decided 2026-09-28:* encrypt the link
+   first (owner chose this over sending it in the clear or ESP-NOW-only
+   transfer). Application-layer encryption, not ESP-NOW's built-in kind; the
+   reasons are in [Secure Link](SECURE_LINK.md).
 2. **Retained package count** on SD (see
    [SD Diagnostics](SD_DIAGNOSTICS.md#sigil-update-packages-planned)).
    *Undecided*; start with the current image plus one previous per variant.
