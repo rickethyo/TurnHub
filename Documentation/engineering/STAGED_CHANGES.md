@@ -610,6 +610,84 @@ Steps:
 Feature gate still to write before step 2 (state owner, Intent, validator,
 persistence, clients, contract, dependencies, accessibility).
 
+## Sigil sleep (*Planned*)
+
+Owner, 2026-09-30: after 5 to 10 minutes with no physical input, a Sigil
+sleeps and mostly drops off the radio until its buttons are pressed or Atlas
+wants it. Mainly for future battery power (the board's battery connector,
+charger and battery ADC on GPIO 34 are unused so far, see the hardware
+reference), and also for fewer active radio devices in a large game where
+people play from phones. A seated player's Sigil may sleep mid-game; Atlas
+wakes it when it's needed.
+
+**The radio constraint.** An ESP32 has no wake-on-radio: with the radio off a
+Sigil can't hear Atlas. So "Atlas sends a wake" is a duty cycle. The Sigil
+light-sleeps (RAM kept, radio and CPU off) and wakes every few seconds (3 to
+5 s, to tune) to send one check-in and listen briefly. Atlas answers a
+sleeping Sigil's check-in with Wake or Stay asleep. ESP-NOW doesn't buffer
+frames for sleeping peers, so Atlas only ever answers in that window. Worst
+wake latency is one check-in interval. Deep sleep (lower current, but a
+reboot and reconnect on every wake, and no Atlas wake at all) is a later
+option for a battery Sigil left unused for hours.
+
+**Wake sources.**
+- Buttons: light sleep can wake on any GPIO. OLED Sigil: all five keys.
+  E-ink Sigil: the stick click (GPIO 32, SW); the analog directions (GPIO 34
+  and 35) can't wake it, so the Sigil screen says "Press the stick to wake".
+- Atlas: at a check-in, when the Sigil's player becomes active (their turn, or
+  a pass, win claim, elimination or life request that involves them), when a
+  game starts or is armed, when pairing or an update targets it, and from the
+  portal/app device list ("Wake").
+- The press that wakes a Sigil only wakes it (the screen shows "Awake"); it
+  is not also sent as input, so a sleeping Sigil never passes a turn by
+  accident.
+
+**Rules (Atlas owns them).**
+- Never sleep while the Sigil's player is the active player, during a
+  countdown, with a decision pending on that player, during an update, or
+  while pairing.
+- Timeout: a table setting (off, 5, 10 minutes; default to decide), sent to
+  Sigils like the input timing. Atlas can refuse a sleep request (answer
+  Wake) if a rule above applies.
+- A sleeping Sigil is **Asleep**, not **Offline**: its seat, participant and
+  statistics are untouched, and it stays out of the "controller lost"
+  handling. Asleep that stops checking in for longer than the link timeout
+  plus one interval becomes Offline as today.
+
+**Feature gate.**
+1. **State owner:** Atlas (`SigilBus` keeps Awake/Asleep per Sigil, from the
+   radio; the timeout is a game setting). The Sigil owns only its own idle
+   timer.
+2. **Intent:** none for the radio handshake (transport state, like Hello).
+   Admin setting change: the existing settings Intent path. Portal/app
+   "Wake": a new `WakeSigil` Intent (validator: Admin or the seated player).
+3. **Validator:** Atlas answers each sleep request by the rules above.
+4. **Persistence:** the timeout in `game_settings_store` (NVS); sleep state is
+   RAM-only.
+5. **Rendering clients:** Sigil screens ("Asleep", "Press ... to wake");
+   Atlas touchscreen and portal/app device list show Asleep; `/api/devices`
+   gains `asleep`.
+6. **Protocol/contract:** `shared/include/protocol.h`: new packet types
+   (SleepRequest, CheckIn, WakeDecision) and a capability for "can sleep".
+   **The Hello capability byte is full** (all eight bits used through
+   `CAPABILITY_HARNESS`), so this needs a second capability byte or a
+   capability-extension packet first. Reflash Atlas and every Sigil; a good
+   first update to deliver over Wi-Fi OTA rather than USB. `/api/devices`
+   and the Android `DeviceInfo` model add the field.
+7. **Third-party dependencies:** none (ESP-IDF light sleep in the Arduino
+   core).
+8. **Accessibility:** the wake-up press must not also act, so a player who
+   can't see the screen never passes by accident. Sleep can't hide a cue: a
+   Sigil whose player has a pending cue (turn, request) is woken first, and
+   the cue plays on waking, not only by LED or buzzer while asleep. A
+   per-player accessibility preference "Never sleep my Sigil" (like the hold
+   timings) for players who rely on its LEDs/buzzer between turns.
+
+**Open questions.** The default timeout; whether the e-paper keeps its last
+image or shows an "Asleep" card (e-paper holds either with no power); LED ring
+behavior (off while asleep); measured current in light sleep versus today
+(ties into verification item H03); how long a battery lasts either way.
+
 ## OLED Sigil
 
 - **One player per OLED Sigil:** implemented and host-tested (2026-09-24),
