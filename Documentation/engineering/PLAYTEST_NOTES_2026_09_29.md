@@ -120,7 +120,7 @@ firmwares need reflashing (`protocol.h` changed: `SigilAction::SwitchSeat`).
 | 3 | Playtest #3, #4 | Sigil menu **Switch seat** shows (and so adjusts life for) the other living seat until the turn comes round to that Sigil; an eliminated seat never leads over a living one. | Root cause found in code |
 | 4 | Playtest #3, #4 | Sigils show the table round (as on the Atlas header), labelled `R` (OLED) and "Round" (e-ink). It was the shown player's own next-turn count. | Root cause found in code |
 | 5 | Playtest #5 | `/api/v1/state` carries `displayName`; the Atlas screen names phone-joined players in the lobby. | Two causes found; *Needs verification* on Android |
-| 6 | Playtest #6 | E-ink life ramp: repeats from 0.7 s every 0.3 s, steps of 5 from 3 s; both Sigils scale with the hold-timing preference. | Tuning, owner to judge |
+| 6 | Playtest #6 | E-ink life hold: +1 from 0.7 s, then +1 every 0.3 s, never steps of 5 (owner: jumps of 5 cannot be counted on the LEDs). The OLED keeps its steps of 5. Both scale with the hold-timing preference. | Tuning, owner to judge |
 | 7 | Playtest #7 | Seat B's turn: azure, double pulse, B's half of the ring (LedState Sigils). | New |
 | 8 | Playtest #8 | Add seat B opens the profile picker for seat B. | New |
 | 9 | Playtest #9 | Tap a chip in a match: Player screen with -5/-1/+1/+5 and Concede (asks again). | New; Moderate path *Planned* |

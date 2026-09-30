@@ -211,7 +211,8 @@ int main() {
     assert(oled.repeatDelayMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS &&
         oled.repeatMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_MS);
     const LifePace eink = lifePaceFor(true, DEFAULT_LONG_PRESS_MS);
-    assert(eink.repeatDelayMs == 700 && eink.repeatMs == 300 && eink.fastAfterMs == 3000);
+    assert(eink.repeatDelayMs == 700 && eink.repeatMs == 300 && eink.fastStep == 1);
+    assert(oled.fastStep == TurnHubProtocol::LIFE_ADJUST_FAST_STEP);
     const LifePace patient = lifePaceFor(true, 4000);
     assert(patient.repeatDelayMs == 1400 && patient.repeatMs == 600 && patient.fastAfterMs == 6000);
     LifeAdjuster slow;
@@ -221,6 +222,9 @@ int main() {
     slow.press(1, 2, 0);
     for (uint32_t t = 0; t <= 2000; t += 10) assert(!slow.update(t, delta, player));
     assert(slow.pending() == 1 + 5);  // Tap, then +1 at 0.7, 1.0, 1.3, 1.6 and 1.9 s.
+    // A long hold never jumps: ones all the way (+1 every 0.3 s to 4 s).
+    for (uint32_t t = 2010; t <= 4000; t += 10) assert(!slow.update(t, delta, player));
+    assert(slow.pending() == 1 + 12);
   }
 
   // Every action has a short label.

@@ -1,8 +1,8 @@
 #pragma once
 
 // Batched life changes from Left/Right (AdjustLife). A tap is +/-1; holding
-// repeats (LifePace), in steps of LIFE_ADJUST_FAST_STEP once held long
-// enough, so +11 or -39 are quick. The total goes to Atlas as one LifeAdjust once no key
+// repeats (LifePace); on the OLED in steps of LIFE_ADJUST_FAST_STEP once held
+// long enough, so +11 or -39 are quick, and always in ones on e-ink. The total goes to Atlas as one LifeAdjust once no key
 // is held and nothing changed for LIFE_ADJUST_COMMIT_MS. Atlas decides
 // whether it applies. Pure logic, host-tested.
 
@@ -21,9 +21,14 @@ struct LifePace {
   uint32_t repeatDelayMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS;
   uint32_t repeatMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_MS;
   uint32_t fastAfterMs = TurnHubProtocol::LIFE_ADJUST_FAST_AFTER_MS;
+  // Step once held past fastAfterMs.
+  int32_t fastStep = TurnHubProtocol::LIFE_ADJUST_FAST_STEP;
 };
 
-constexpr LifePace EINK_LIFE_PACE = {700, 300, 3000};
+// E-ink always counts in ones: the panel can't show every step, so the
+// player counts the status-light blinks, and jumps of 5 can't be followed
+// by eye (owner decision 2026-09-29).
+constexpr LifePace EINK_LIFE_PACE = {700, 300, 3000, 1};
 
 inline LifePace lifePaceFor(bool eink, uint32_t longPressMs) {
   LifePace pace = eink ? EINK_LIFE_PACE : LifePace();
@@ -62,8 +67,7 @@ class LifeAdjuster {
       const uint32_t heldMs = nowMs - heldSinceMs_;
       if (heldMs >= pace_.repeatDelayMs && nowMs - lastRepeatMs_ >= pace_.repeatMs) {
         lastRepeatMs_ = nowMs;
-        add(heldMs >= pace_.fastAfterMs
-            ? held_ * TurnHubProtocol::LIFE_ADJUST_FAST_STEP : held_, nowMs);
+        add(heldMs >= pace_.fastAfterMs ? held_ * pace_.fastStep : held_, nowMs);
       }
       return false;
     }
