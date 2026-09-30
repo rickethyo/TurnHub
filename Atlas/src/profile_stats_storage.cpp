@@ -5,8 +5,9 @@
 namespace TurnHubProfiles {
 using TurnHubStorage::Status;
 
-// v1 is the ESP32's deployed struct image, including four trailing padding
-// bytes. Freeze its ABI until an explicit versioned migration replaces it.
+// v1 is the ESP32's struct image, including four trailing padding bytes. The
+// asserts catch an accidental layout change; a deliberate one just needs a
+// factory reset until TurnHub saves live stats (owner, 2026-09-30).
 static_assert(sizeof(ProfileStats) == 72, "v1 statistics size changed");
 static_assert(offsetof(ProfileStats, schemaVersion) == 64, "v1 schema offset changed");
 static_assert(offsetof(ProfileStats, lastGameResult) == 66, "v1 result offset changed");

@@ -75,7 +75,7 @@ class SigilLedModel {
   void applySeatColor(int32_t value);
   // Atlas's clock (TableClock). Looping cue and overlay patterns run on it,
   // so every Sigil at the table shows them in step. Before the first sample
-  // (or from an older Atlas) they run on this Sigil's own clock.
+  // they run on this Sigil's own clock.
   void syncTableClock(int32_t atlasMs, uint32_t nowMs);
   uint32_t tableNow(uint32_t nowMs) const { return nowMs + tableOffset_; }
 

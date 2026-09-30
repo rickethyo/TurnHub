@@ -290,7 +290,7 @@ bool configureIntentHandlers() {
 
 // --- HTTP ------------------------------------------------------------------------------
 
-// Legacy compact status for the diagnostics page. Clients use /api/v1/state.
+// Compact status for the diagnostics page. Clients use /api/v1/state.
 void handleStatus() {
   PlayerSeat selected;
   const uint8_t starter = lobby.selectedStarter(selected)

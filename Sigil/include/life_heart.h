@@ -17,7 +17,7 @@ struct HeartLook {
 
 inline HeartLook lifeHeartLook(int32_t life, int32_t startingLife) {
   HeartLook look;
-  if (startingLife <= 0) return look;  // No game, or an older Atlas: plain heart.
+  if (startingLife <= 0) return look;  // No game: plain heart.
   if (life <= 0) {
     look.fill = 0;
     return look;

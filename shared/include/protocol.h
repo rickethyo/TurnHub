@@ -71,8 +71,8 @@ constexpr uint16_t MAX_WIN_HOLD_MS = 10000;
 constexpr uint16_t MIN_HOLD_GAP_MS = 1000;
 constexpr uint16_t HOLD_STEP_MS = 250;
 
-// Shared ESP-NOW message types. Keep the values stable once devices begin
-// shipping so newer Atlas firmware can identify older Sigil packets.
+// Shared ESP-NOW message types. Once hardware ships, keep the values stable so
+// newer Atlas firmware can identify older Sigil packets.
 enum class PacketType : uint8_t {
   Hello = 1,
   Ack = 2,
@@ -113,17 +113,17 @@ enum class PacketType : uint8_t {
   // none (encodeSeatColor). Resent with every Hello.
   SeatColor = 36,
   // Atlas -> Sigil: the running game's starting life (0 = no game), so the
-  // Sigil's heart can shrink or grow against it. Resent with every Hello;
-  // older Sigils ignore it. Presentation only.
+  // Sigil's heart can shrink or grow against it. Resent with every Hello.
+  // Presentation only.
   StartingLife = 37,
   // Atlas -> Sigil: the player number whose pass is in its grace period
   // (0 = none), sent to every Sigil so the whole table sees it. Resent with
-  // every Hello; older Sigils ignore it. Presentation only.
+  // every Hello. Presentation only.
   PassPending = 38,
   // Atlas -> Sigil: Atlas's millis() at send (TABLE_CLOCK_INTERVAL_MS apart
   // and with every fresh LedState stream). Sigils run their looping light
   // patterns on this table clock, so every Sigil blinks and breathes in step.
-  // Older Sigils ignore it. Presentation only.
+  // Presentation only.
   TableClock = 39,
   // Secure link (secure_link.h, pairing_v2.h, secure_session.h; see
   // SECURE_LINK.md): pairing key agreement, the pairing-code result, the
