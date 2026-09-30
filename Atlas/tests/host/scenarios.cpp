@@ -778,6 +778,11 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/diagnostics/log",gm,{},HTTP_GET)==403);
   assert(request("/api/diagnostics/log",dev,{},HTTP_GET)==200);
   assert(server.body.rfind("# TurnHub Atlas serial log\n# atlasId=THA-",0)==0);
+  { // The streamed download ends with exactly what the ring holds.
+    const String held=TurnHub::serialLog.snapshot();
+    assert(server.body.size()>held.size() &&
+           server.body.compare(server.body.size()-held.size(),held.size(),held)==0);
+  }
   assert(server.body.find(std::string("ATLAS|LOBBY|JOIN|BROWSER|"))!=std::string::npos);
   assert(server.body.find(std::string("|PROFILE|")+devId.c_str()+"\n")!=std::string::npos);
 }

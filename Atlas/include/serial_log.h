@@ -16,7 +16,9 @@ namespace TurnHub {
 // messages bypass Print and are not captured.
 class SerialLog : public Print {
  public:
-  static constexpr size_t CAPACITY = 16384;
+  // 8 KiB since 2026-09-30 (was 16): RAM is short once phones connect, and
+  // the SD worker keeps the full history on a card.
+  static constexpr size_t CAPACITY = 8192;
 
   size_t write(uint8_t byte) override;
   size_t write(const uint8_t *data, size_t size) override;
@@ -27,8 +29,12 @@ class SerialLog : public Print {
   // ring. Both are written as one complete line.
   void printlnRedacted(const char *serialText, const char *capturedText);
 
-  // Captured text, oldest first, starting at a whole line.
+  // Captured text, oldest first, starting at a whole line. Allocates a copy
+  // of the ring: host tests only; firmware streams with firstLineCursor().
   String snapshot() const;
+  // Cursor of the oldest whole line still held, so a reader can stream what
+  // snapshot() would return through readSince() without copying the ring.
+  uint64_t firstLineCursor() const;
   // Bounded streaming read for a background consumer. Cursor is an absolute
   // byte position, initially zero; lost reports overwritten/cleared bytes.
   // Copies under the ring lock, with no allocation, formatting or file I/O.

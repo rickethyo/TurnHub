@@ -3,6 +3,7 @@
 #include <map>
 #include <functional>
 constexpr int HTTP_GET=0, HTTP_POST=1;
+#define CONTENT_LENGTH_UNKNOWN ((size_t) -1)
 using HTTPMethod = int;  // ESP32 core: enum from HTTP_Method.h
 enum { UPLOAD_FILE_START, UPLOAD_FILE_WRITE, UPLOAD_FILE_END, UPLOAD_FILE_ABORTED };
 struct HTTPUpload { int status=UPLOAD_FILE_START; uint8_t *buf=nullptr; size_t currentSize=0; String filename; };
@@ -25,6 +26,9 @@ class WebServer {
   void sendHeader(const char*,const String &) {}
   void send(int code,const char*,const String &value) { status=code; body=value; }
   void send_P(int code,const char *type,const char *value) { send(code,type,value); }
+  // Chunked responses append to the body sent with send().
+  void sendContent(const String &value) { body+=value; }
+  void sendContent(const char *value,size_t size) { body.append(value,size); }
   String header(const char *key) { return headers[key]; }
   String arg(const char *key) { return arguments[key]; }
   bool hasArg(const char *key) { return arguments.count(key) != 0; }

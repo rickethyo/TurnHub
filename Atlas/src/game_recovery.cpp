@@ -19,6 +19,10 @@ constexpr char RECORD_KEY[] = "checkpoint";
 constexpr size_t HEADER_SIZE = 4 + 4 + 7 + 5 * 4;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
+constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4;
+static_assert(GAME_CHECKPOINT_CAPACITY ==
+                  MIN_RECORD_SIZE + MAX_PLAYERS * (PLAYER_SIZE + MAX_PLAYERS * 2 * 4),
+              "GAME_CHECKPOINT_CAPACITY must match the largest record");
 
 // Bounds-checked little-endian writer; ok turns false on overflow.
 struct Writer {
@@ -43,6 +47,11 @@ uint32_t crc32(const uint8_t *bytes, size_t size) {
     for (uint8_t bit=0;bit<8;++bit) crc = (crc>>1) ^ (0xEDB88320u & (0u-(crc&1u)));
   }
   return ~crc;
+}
+// The CRC of an encoded record's contents, without its trailing CRC. (A CRC
+// over the whole record is the same constant for every record.)
+uint32_t payloadCrc(const uint8_t *record, size_t size) {
+  return crc32(record, size - CRC_SIZE);
 }
 }  // namespace
 
@@ -169,7 +178,8 @@ TurnHubStorage::Status GameRecovery::saveCompleted(const GameEngine &game, uint3
 void GameRecovery::rememberSaved(uint32_t nowMs) {
   scratch_.gameElapsed = 0;
   scratch_.turnElapsed = 0;
-  previousSize_ = encodeCheckpoint(scratch_, previous_, sizeof(previous_));
+  previousSize_ = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
+  previousCrc_ = previousSize_ ? payloadCrc(bytes_, previousSize_) : 0;
   lastSavedMs_ = nowMs;
 }
 // Writes only when the match changed (ignoring elapsed clocks) or, for a
@@ -184,7 +194,8 @@ TurnHubStorage::Status GameRecovery::save(const GameEngine &game, uint32_t nowMs
   scratch_.turnElapsed = 0;
   const size_t normalizedSize = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
   if (!normalizedSize) return status_ = Status::InvalidArgument;
-  const bool changed = normalizedSize != previousSize_ || memcmp(bytes_, previous_, normalizedSize);
+  const bool changed = normalizedSize != previousSize_ ||
+      payloadCrc(bytes_, normalizedSize) != previousCrc_;
   const bool clockDue = game.hasPlayers() && !game.paused() && !game.gameOver() &&
       nowMs - lastSavedMs_ >= CLOCK_CHECKPOINT_MS;
   if (!changed && !clockDue) return status_;

@@ -128,6 +128,24 @@ String SerialLog::snapshot() const {
   return out;
 }
 
+uint64_t SerialLog::firstLineCursor() const {
+  SERIAL_LOG_LOCK();
+  const uint64_t oldest = captured_ - (wrapped_ ? CAPACITY : head_);
+  uint64_t cursor = oldest;
+  if (wrapped_) {
+    // The oldest line was partly overwritten; start at the next whole line.
+    cursor = captured_;
+    for (size_t i = 0; i < CAPACITY; ++i) {
+      if (ring_[(head_ + i) % CAPACITY] == '\n') {
+        cursor = oldest + i + 1;
+        break;
+      }
+    }
+  }
+  SERIAL_LOG_UNLOCK();
+  return cursor;
+}
+
 uint32_t SerialLog::droppedBytes() const {
   SERIAL_LOG_LOCK();
   const uint32_t dropped = dropped_;

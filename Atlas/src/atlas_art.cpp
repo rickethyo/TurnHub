@@ -46,6 +46,12 @@ constexpr int16_t BODY_H = BUTTON_ROW_Y - 4 - SCREEN_BODY_Y;
 constexpr int16_t QR_COLUMN_W = 150;  // QR screen: code on the left.
 constexpr int16_t GAUGE_W = 76;
 constexpr int16_t GAUGE_H = HERO_H;
+// The header and the gauge are buffered in bands to save RAM (16-bit color:
+// 8.3 KB and 4 KB instead of 16.6 KB and 7.9 KB).
+constexpr int16_t HEADER_BAND_H = SCREEN_HEADER_H / 2;
+constexpr int16_t GAUGE_BAND_H = GAUGE_H / 2;
+static_assert(SCREEN_HEADER_H % HEADER_BAND_H == 0 && GAUGE_H % GAUGE_BAND_H == 0,
+              "bands must tile the header and the gauge");
 constexpr int16_t GAUGE_X = W - CLOCK_W + (CLOCK_W - GAUGE_W) / 2;
 constexpr uint32_t GEAR_FRAME_MS = 100;  // The header gear turns while a game runs.
 
@@ -106,8 +112,8 @@ uint32_t lastGearFrameMs = 0;
 bool createBuffers() {
   headerSprite.setColorDepth(16);
   gaugeSprite.setColorDepth(16);
-  headerBuffered = headerSprite.createSprite(W, SCREEN_HEADER_H) != nullptr;
-  gaugeBuffered = gaugeSprite.createSprite(GAUGE_W, GAUGE_H) != nullptr;
+  headerBuffered = headerSprite.createSprite(W, HEADER_BAND_H) != nullptr;
+  gaugeBuffered = gaugeSprite.createSprite(GAUGE_W, GAUGE_BAND_H) != nullptr;
   return headerBuffered && gaugeBuffered;
 }
 
@@ -299,29 +305,28 @@ void headerInk(Gfx &g, uint32_t ink, bool buffered) {
   else g.setTextColor(ink, BRASS);
 }
 
-void drawHeader(const AtlasScreen &screen, uint32_t nowMs) {
-  Gfx &g = headerBuffered ? static_cast<Gfx &>(headerSprite) : tft();
-  const bool buffered = headerBuffered;
+// Draws the header with its top at y = oy (negative for a lower band).
+void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffered, int16_t oy) {
   constexpr int16_t H = SCREEN_HEADER_H;
   if (buffered) {
-    for (int16_t y = 0; y < H - 2; ++y) g.drawFastHLine(0, y, W, brassRow(y, H - 2));
+    for (int16_t y = 0; y < H - 2; ++y) g.drawFastHLine(0, oy + y, W, brassRow(y, H - 2));
   } else {
-    g.fillRect(0, 0, W, H - 2, BRASS);
-    g.drawFastHLine(0, 1, W, BRASS_HI);
+    g.fillRect(0, oy, W, H - 2, BRASS);
+    g.drawFastHLine(0, oy + 1, W, BRASS_HI);
   }
-  g.drawFastHLine(0, H - 2, W, BRASS_DEEP);
-  g.drawFastHLine(0, H - 1, W, mix(BRASS_DEEP, WALNUT, 128));
-  brassRivet(g, 6, H / 2 - 1);
-  brassRivet(g, W - 7, H / 2 - 1);
+  g.drawFastHLine(0, oy + H - 2, W, BRASS_DEEP);
+  g.drawFastHLine(0, oy + H - 1, W, mix(BRASS_DEEP, WALNUT, 128));
+  brassRivet(g, 6, oy + H / 2 - 1);
+  brassRivet(g, W - 7, oy + H / 2 - 1);
 
   // The gear turns while a game runs (redrawn by serviceGear).
   const float angle = gearTurning(screen) && buffered ? static_cast<float>((nowMs / 50) % 360) : 0.0f;
-  gear(g, 22, H / 2 - 1, 8, 8, angle, BRASS_DEEP, 3, buffered ? brassRow(H / 2 - 1, H - 2) : BRASS);
+  gear(g, 22, oy + H / 2 - 1, 8, 8, angle, BRASS_DEEP, 3, buffered ? brassRow(H / 2 - 1, H - 2) : BRASS);
 
   g.setFont(labelFont.get());
   g.setTextDatum(lgfx::middle_left);
   headerInk(g, INK, buffered);
-  g.drawString(screen.badge, 35, H / 2);
+  g.drawString(screen.badge, 35, oy + H / 2);
   const int16_t leftLimit = 35 + g.textWidth(screen.badge) + 12;
 
   int16_t right = W - 15;
@@ -329,11 +334,11 @@ void drawHeader(const AtlasScreen &screen, uint32_t nowMs) {
     // Red, and written out: the card holds the luxury records.
     g.setFont(&fonts::DejaVu9);
     const int16_t w = g.textWidth("NO SD CARD") + 12;
-    g.fillRoundRect(right - w, 5, w, 15, 3, DANGER_DEEP);
-    g.drawRoundRect(right - w, 5, w, 15, 3, 0x3A0A06);
+    g.fillRoundRect(right - w, oy + 5, w, 15, 3, DANGER_DEEP);
+    g.drawRoundRect(right - w, oy + 5, w, 15, 3, 0x3A0A06);
     g.setTextDatum(lgfx::middle_center);
     g.setTextColor(CREAM, DANGER_DEEP);
-    g.drawString("NO SD CARD", right - w / 2, 13);
+    g.drawString("NO SD CARD", right - w / 2, oy + 13);
     right -= w + 8;
   }
 
@@ -359,10 +364,10 @@ void drawHeader(const AtlasScreen &screen, uint32_t nowMs) {
   if (showSigils) {
     g.setFont(nameFont.get());
     headerInk(g, INK, buffered);
-    g.drawString(sigils, right, H / 2);
+    g.drawString(sigils, right, oy + H / 2);
     right -= sigilsW + 8;
     if (round[0]) {
-      g.drawFastVLine(right, 6, H - 14, BRASS_LO);
+      g.drawFastVLine(right, oy + 6, H - 14, BRASS_LO);
       right -= 8;
     }
   }
@@ -370,18 +375,31 @@ void drawHeader(const AtlasScreen &screen, uint32_t nowMs) {
     if (showClock) {
       g.setFont(clockFont.get());
       headerInk(g, INK, buffered);
-      g.drawString(screen.gameClock, right, H / 2);
+      g.drawString(screen.gameClock, right, oy + H / 2);
       right -= clockW + 7;
-      diamond(g, right, H / 2 - 1, 2, BRASS_DEEP);
+      diamond(g, right, oy + H / 2 - 1, 2, BRASS_DEEP);
       right -= 7;
     }
     if (right - roundW >= leftLimit) {
       g.setFont(nameFont.get());
       headerInk(g, INK, buffered);
-      g.drawString(round, right, H / 2);
+      g.drawString(round, right, oy + H / 2);
     }
   }
-  if (buffered) headerSprite.pushSprite(target, 0, 0);
+}
+
+// Buffered, the header is drawn band by band through one strip-sized sprite
+// and each band pushed whole, so it never blinks. Half the RAM of a
+// full-header buffer, for twice the drawing.
+void drawHeader(const AtlasScreen &screen, uint32_t nowMs) {
+  if (!headerBuffered) {
+    drawHeaderTo(tft(), screen, nowMs, false, 0);
+    return;
+  }
+  for (int16_t top = 0; top < SCREEN_HEADER_H; top += HEADER_BAND_H) {
+    drawHeaderTo(headerSprite, screen, nowMs, true, static_cast<int16_t>(-top));
+    headerSprite.pushSprite(target, 0, top);
+  }
 }
 
 // Keeps the header gear turning while a game runs (buffered header only).
@@ -526,8 +544,11 @@ void drawTimer(const AtlasScreen &screen) {
   drawTube(screen);
   if (!hasClock(screen)) return;
   if (gaugeBuffered) {
-    drawGaugeTo(gaugeSprite, 0, 0, screen, true);
-    gaugeSprite.pushSprite(target, GAUGE_X, SCREEN_HERO_Y);
+    // Band by band through a half-height sprite, like the header.
+    for (int16_t top = 0; top < GAUGE_H; top += GAUGE_BAND_H) {
+      drawGaugeTo(gaugeSprite, 0, static_cast<int16_t>(-top), screen, true);
+      gaugeSprite.pushSprite(target, GAUGE_X, SCREEN_HERO_Y + top);
+    }
   } else {
     drawGaugeTo(tft(), GAUGE_X, SCREEN_HERO_Y, screen, false);
   }

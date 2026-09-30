@@ -38,7 +38,10 @@ class FileSystem {
 // intact; FAT metadata and the card itself are not power-loss transactional.
 class SdBlobStore final : public BlobStore {
  public:
-  static constexpr size_t MAX_RECORD_BYTES = 4096;
+  // Today's records are under 100 bytes. The whole file passes through
+  // buffer_, so this limit is RAM: a much larger future record (an avatar,
+  // say) should stream from the card instead of raising it.
+  static constexpr size_t MAX_RECORD_BYTES = 1024;
   static constexpr size_t HEADER_BYTES = 16;
 
   SdBlobStore() = default;

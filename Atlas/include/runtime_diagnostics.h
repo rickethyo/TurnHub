@@ -11,7 +11,9 @@
 
 namespace TurnHub {
 namespace Diagnostics {
-constexpr uint8_t ACTIVITY_CAPACITY = 40;
+// The newest events only (40 before 2026-09-30); the serial log and its SD
+// copy keep the full history.
+constexpr uint8_t ACTIVITY_CAPACITY = 16;
 constexpr size_t ACTIVITY_KIND_LENGTH = 16;
 constexpr size_t ACTIVITY_MESSAGE_LENGTH = 96;
 
@@ -47,7 +49,7 @@ inline void recordActivity(const char *kind, const String &message) {
 inline String activityJson() {
   const ActivityLog &log = activityLog();
   String json = "{\"events\":[";
-  json.reserve(5200);
+  json.reserve(ACTIVITY_CAPACITY * 170);
   const uint8_t count = log.count;
   const uint8_t newest = log.next == 0 ? ACTIVITY_CAPACITY - 1 : log.next - 1;
   for (uint8_t offset = 0; offset < count; ++offset) {

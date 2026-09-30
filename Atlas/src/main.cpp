@@ -113,6 +113,18 @@ void logRuntimeHealth(uint32_t nowMs) {
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
 }
 
+// Free heap after a start-up step, so each boot shows what every part costs
+// (ATLAS|HEAP|<step>|free=<bytes>|largest=<bytes>).
+void logHeapStep(const char *step) {
+  uint32_t freeHeap = 0, largestBlock = 0;
+#if defined(ARDUINO_ARCH_ESP32)
+  freeHeap = esp_get_free_heap_size();
+  largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+#endif
+  serialLog.printf("ATLAS|HEAP|%s|free=%lu|largest=%lu\n", step,
+      static_cast<unsigned long>(freeHeap), static_cast<unsigned long>(largestBlock));
+}
+
 // The owner-set password if one is stored, otherwise the shipped pre-setup
 // default. The default is never written to NVS, so a stored password always
 // means the owner chose it, and erasing NVS returns Atlas to the default.
@@ -363,8 +375,10 @@ void startNetworking() {
 
   serialLog.print("ATLAS|MAC|");
   serialLog.println(WiFi.macAddress());
+  logHeapStep("WIFI_AP");
 
   espNowReady = sigilBus.begin();
+  logHeapStep("ESP_NOW");
 
   registerWebCallbacks();
   server.on("/", HTTP_GET, handleRoot);
@@ -383,6 +397,7 @@ void startNetworking() {
   beginSigilUpdates(AtlasConfig::WIFI_SSID, wifiPassword.c_str());
   server.onNotFound([]() { server.send(404, "text/plain", "Not found"); });
   server.begin();
+  logHeapStep("WEB");
 
   serialLog.println("ATLAS|WEB|READY");
 }
@@ -408,11 +423,14 @@ void setup() {
   serialLog.print("ATLAS|DIAGNOSTICS|");
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
+  logHeapStep("DISPLAY");
   // Secure-link crypto check against published vectors (SECURE_LINK.md). Not
   // used by the radio yet; logged so each board's result is on record.
   runSecureLinkSelfTest();
+  logHeapStep("SECURE_LINK");
   // Optional storage: a missing or failed card is logged and never blocks play.
   beginSdCard();
+  logHeapStep("SD_CARD");
   // Luxury records (detailed statistics) go to the card; without one Atlas
   // keeps only the core counts. Move any detail older firmware left in NVS.
   // A card inserted or pulled later is picked up by refreshSdLuxuryStore().
@@ -428,6 +446,7 @@ void setup() {
   observeClientState();
   intents.setObserver(observeIntent);
   restoreInterruptedMatch();
+  logHeapStep("PROFILES_AND_RECOVERY");
 
   const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
@@ -450,6 +469,7 @@ void setup() {
   }
   audio.setSpeaker(beginAtlasSpeaker());
   audio.setSpeakerVolume(speakerVolume);
+  logHeapStep("SPEAKER");
   startNetworking();
   serialLog.println("ATLAS|READY");
 }

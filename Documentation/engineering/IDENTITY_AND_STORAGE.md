@@ -147,7 +147,7 @@ and checks. The statistics store and the log worker share one card lock
 - `SdBlobStore` implements `BlobStore` over a small `FileSystem` interface, so
   host tests run it against an in-memory, fault-injecting fake. Keys follow the
   NVS rules (1-15 characters) restricted to letters, digits, `_` and `-`.
-  Records are at most 4096 bytes. Each file holds a 16-byte header (`THSD`
+  Records are at most 1024 bytes (4096 before 2026-09-30; lowered to save RAM). Each file holds a 16-byte header (`THSD`
   magic, format 1, little-endian payload length, CRC-32 of the payload) and
   then the payload. A bad magic, length or checksum reads as `Corrupt`; another
   format number reads as `UnsupportedSchema`.

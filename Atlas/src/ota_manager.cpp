@@ -10,6 +10,9 @@
 #include "web_api.h"
 #include "web_pages.h"
 #include "portal_qr_asset.h"
+#if defined(TURNHUB_GZIP_PAGES)
+#include "web_pages_gzip.h"
+#endif
 #include "serial_log.h"
 
 using TurnHub::serialLog;
@@ -239,14 +242,27 @@ void OtaManager::begin() {
     server_.send_P(200, "application/javascript", reinterpret_cast<const char *>(TurnHubWeb::QR_SCRIPT_GZIP), sizeof(TurnHubWeb::QR_SCRIPT_GZIP));
   });
 
+  // Firmware builds send the gzip copies (tools/gzip_web_pages.py): about a
+  // quarter of the bytes, so each phone's page load holds far fewer Wi-Fi
+  // transmit buffers.
   server_.on("/theme.css", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-cache");
+#if defined(TURNHUB_GZIP_PAGES)
+    server_.sendHeader("Content-Encoding", "gzip");
+    server_.send_P(200, "text/css", reinterpret_cast<const char *>(TurnHubWeb::THEME_CSS_GZIP), sizeof(TurnHubWeb::THEME_CSS_GZIP));
+#else
     server_.send_P(200, "text/css", TurnHubWeb::THEME_CSS);
+#endif
   });
 
   server_.on("/portal", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
+#if defined(TURNHUB_GZIP_PAGES)
+    server_.sendHeader("Content-Encoding", "gzip");
+    server_.send_P(200, "text/html", reinterpret_cast<const char *>(TurnHubWeb::PORTAL_HTML_GZIP), sizeof(TurnHubWeb::PORTAL_HTML_GZIP));
+#else
     server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
+#endif
   });
 
   server_.on("/dev", HTTP_GET, [this]() {

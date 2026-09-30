@@ -309,7 +309,7 @@ void sdTask(void *) {
   bool firstOpen = true;
   const uint32_t bootId = esp_random();
   uint64_t cursor = 0;
-  char buffer[2048];
+  char buffer[1024];
   char marker[160];
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -340,15 +340,22 @@ void sdTask(void *) {
             serialLog.println("ATLAS|SD|LOG|READY");
           }
         }
-        if (ok && lost) {
-          const uint32_t before = logLostBytes.load();
-          logLostBytes.store(lost > UINT32_MAX - before ? UINT32_MAX : before + static_cast<uint32_t>(lost));
-          const int n = snprintf(marker, sizeof(marker), "\nATLAS|SD|LOG|LOST_BYTES|%llu\n",
-                                 static_cast<unsigned long long>(lost));
-          ok = n > 0 && static_cast<size_t>(n) < sizeof(marker) &&
-               log.append(marker, static_cast<size_t>(n));
+        // Drain the whole ring while the card is locked: the RAM ring is small
+        // (serial_log.h), so a burst of lines must not wait for later passes.
+        size_t chunk = count;
+        for (;;) {
+          if (ok && lost) {
+            const uint32_t before = logLostBytes.load();
+            logLostBytes.store(lost > UINT32_MAX - before ? UINT32_MAX : before + static_cast<uint32_t>(lost));
+            const int n = snprintf(marker, sizeof(marker), "\nATLAS|SD|LOG|LOST_BYTES|%llu\n",
+                                   static_cast<unsigned long long>(lost));
+            ok = n > 0 && static_cast<size_t>(n) < sizeof(marker) &&
+                 log.append(marker, static_cast<size_t>(n));
+          }
+          if (ok && chunk) ok = log.append(buffer, chunk);
+          if (!ok || chunk < sizeof(buffer)) break;
+          chunk = serialLog.readSince(cursor, buffer, sizeof(buffer), lost);
         }
-        if (ok && count) ok = log.append(buffer, count);
         if (ok) {
           plug.accessed(true, nowMs);
         } else if (cardAnswers()) {
@@ -417,9 +424,10 @@ void beginSdCard() {
   }
   if (cardState.load() == CardState::Mounted) logState.store(LogState::Starting);
   // SD writes are isolated from gameplay and radio callbacks. ESP32 stack size
-  // is bytes; includes the 2 KiB drain buffer plus filesystem call headroom.
+  // is bytes; includes the 1 KiB drain buffer plus filesystem call headroom
+  // (the headroom the earlier 2 KiB buffer had in 6 KiB).
   // The worker runs with or without a card: it mounts one inserted later.
-  if (xTaskCreate(sdTask, "sd-card", 6144, nullptr, 1, nullptr) != pdPASS) {
+  if (xTaskCreate(sdTask, "sd-card", 5120, nullptr, 1, nullptr) != pdPASS) {
     logState.store(LogState::TaskUnavailable);
     serialLog.println("ATLAS|SD|LOG|TASK_UNAVAILABLE");
   }

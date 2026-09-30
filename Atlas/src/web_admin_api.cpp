@@ -386,35 +386,45 @@ void handleNetworkPassword(WebServer &server) {
 // --- Diagnostics -------------------------------------------------------------------------------
 
 // Recent serial output as a text file, so a table without a USB cable can
-// still hand over a log. The ring is RAM-only (see serial_log.h).
+// still hand over a log. The ring is RAM-only (see serial_log.h). It streams
+// in small chunks straight from the ring: building the file as one String
+// used to need about 32 KB of free heap at once.
 void handleSerialLogDownload(WebServer &server) {
   server.sendHeader("Cache-Control", "no-store");
   if (!requirePermission(server, TurnHubAccounts::Developer)) return;
   const String atlasId = atlasHardwareId();
-  const String captured = serialLog.snapshot();
-  String body;
-  body.reserve(captured.length() + 256);
-  body = "# TurnHub Atlas serial log\n# atlasId=";
-  body += atlasId;
-  body += " bootId=";
-  body += bootId;
-  body += " firmware=";
-  body += TurnHubFirmware::VERSION;
-  body += " uptimeMs=";
-  body += String(millis());
-  body += "\n# Lines are stamped with Atlas uptime in seconds. RAM only: cleared on reboot.\n";
+  String header = "# TurnHub Atlas serial log\n# atlasId=";
+  header += atlasId;
+  header += " bootId=";
+  header += bootId;
+  header += " firmware=";
+  header += TurnHubFirmware::VERSION;
+  header += " uptimeMs=";
+  header += String(millis());
+  header += "\n# Lines are stamped with Atlas uptime in seconds. RAM only: cleared on reboot.\n";
   const uint32_t dropped = serialLog.droppedBytes();
   if (dropped > 0) {
-    body += "# Earlier output dropped: ";
-    body += String(dropped);
-    body += " bytes did not fit in the ";
-    body += String(static_cast<uint32_t>(TurnHub::SerialLog::CAPACITY));
-    body += "-byte buffer.\n";
+    header += "# Earlier output dropped: ";
+    header += String(dropped);
+    header += " bytes did not fit in the ";
+    header += String(static_cast<uint32_t>(TurnHub::SerialLog::CAPACITY));
+    header += "-byte buffer. A microSD card keeps the full log (turnhub/diagnostics.log).\n";
   }
-  body += captured;
   server.sendHeader("Content-Disposition",
       String("attachment; filename=\"turnhub-") + atlasId + "-" + String(bootId).substring(0, 8) + ".log\"");
-  server.send(200, "text/plain; charset=utf-8", body);
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/plain; charset=utf-8", "");
+  server.sendContent(header);
+  char chunk[512];
+  uint64_t cursor = serialLog.firstLineCursor(), lost = 0;
+  size_t sent = 0, count;
+  // Lines logged while this runs may follow; the bound keeps it finite.
+  while (sent < TurnHub::SerialLog::CAPACITY &&
+         (count = serialLog.readSince(cursor, chunk, sizeof(chunk), lost)) > 0) {
+    server.sendContent(chunk, count);
+    sent += count;
+  }
+  server.sendContent("");
 }
 
 // --- Accounts ------------------------------------------------------------------------------------
