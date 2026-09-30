@@ -1,6 +1,8 @@
 #pragma once
 #include <Arduino.h>
 #include <nvs.h>
+#include <map>
+#include <string>
 // Mimics the framework's error reporting contract; NVS faults are injectable.
 class Preferences {
  protected:
@@ -14,11 +16,15 @@ class Preferences {
     _started=true; _readOnly=readOnly; return true;
   }
   void end() { _started=false; }
-  String getString(const char*,String fallback=String()) {
+  // Strings written with putString read back (the Wi-Fi password); any
+  // other present key reads as "stored".
+  static std::map<std::string,String> &strings() { static std::map<std::string,String> saved; return saved; }
+  String getString(const char *key,String fallback=String()) {
     if(readError!=ESP_OK) { log_e("read"); return fallback; }
-    return "stored";
+    const auto found=strings().find(key);
+    return found!=strings().end()?found->second:String("stored");
   }
   size_t getBytesLength(const char*) { if(readError!=ESP_OK) { log_e("blob"); return 0; } return 4; }
   bool remove(const char*) { log_e("erase"); return false; }
-  size_t putString(const char*,const String &s) { return s.length(); }
+  size_t putString(const char *key,const String &s) { strings()[key]=s; return s.length(); }
 };

@@ -786,6 +786,7 @@ bool primaryAction(TouchAction action) {
     case TouchAction::Pause:
     case TouchAction::Resume:
     case TouchAction::Pair:
+    case TouchAction::SetupPair:
       return true;
     default:
       return false;
