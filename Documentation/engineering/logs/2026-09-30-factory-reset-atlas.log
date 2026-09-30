@@ -1,0 +1,17 @@
+# Atlas first boot after the USB reflash of master 2ddea31 and an NVS erase
+# (esptool erase_region 0x9000 0x5000) on all four boards, 2026-09-30.
+# Tail of a 10 s capture; touch calibration restarts because atlas-touch/cal2 was wiped.
+ATLAS|PARTITION|BOOT|app0|ADDRESS|0x10000|SIZE|1966080
+ATLAS|PARTITION|NEXT_OTA|app1|ADDRESS|0x1F0000|SIZE|1966080
+ATLAS|PARTITION|BOOT_MATCHES_RUNNING|YES
+ATLAS|WEB_API|READY|PROFILES|YES
+ATLAS|SD|LOG|READY
+ATLAS|HEAP|WEB|free=99000|largest=98292
+ATLAS|WEB|READY
+ATLAS|READY
+ATLAS|TOUCH|CALIBRATION|START
+ATLAS|ACCESSIBILITY|SIGIL|0|SOUND|ON|LEDS|standard|HOLD_MS|2000|5000
+ATLAS|HEALTH|stations=0|{"uptimeMs":4264,"resetReason":"power_on","freeHeap":99000,"minimumFreeHeap":91628,"largestFreeBlock":98292,"loopStackFreeBytes":3932}
+ATLAS|ACCESSIBILITY|SIGIL|1..7|SOUND|ON|LEDS|standard|HOLD_MS|2000|5000   (same line for seats 1-7, condensed)
+ATLAS|TOUCH|RAW|476|684|SCREEN|293|209
+ATLAS|TOUCH|RAW|3427|646|SCREEN|24|211
