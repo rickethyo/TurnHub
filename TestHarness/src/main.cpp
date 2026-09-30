@@ -985,6 +985,21 @@ bool scenarioGame(uint8_t players, uint8_t turns, bool rematch) {
   return step(reset, HarnessStep::ResetTable, allMenus());
 }
 
+// Local only: Atlas keeps its slots until an admin forgets them in the portal
+// (Device Settings), which also sends Unpair.
+void forgetPairing() {
+  for (auto &v : sigils) {
+    v.sigilId = UNASSIGNED;
+    v.menuValid = false;
+    v.hasPairKey = false;
+    TurnHubSecureLink::wipe(v.pairKey, sizeof(v.pairKey));
+    v.session.clear();
+  }
+  atlasKnown = false;
+  savePairing();
+  Serial.println("HARNESS|FORGET|DONE|local only; forget them on Atlas too");
+}
+
 void startPairing() {
   bool any = false;
   for (uint8_t i = 0; i < activeSigils; ++i) {
@@ -1126,18 +1141,7 @@ void handleCommand(String command) {
   } else if (verb == "pair") {
     startPairing();
   } else if (verb == "forget") {
-    // Local only: Atlas keeps its slots until an admin forgets them in the
-    // portal (Device Settings), which also sends Unpair.
-    for (auto &v : sigils) {
-      v.sigilId = UNASSIGNED;
-      v.menuValid = false;
-      v.hasPairKey = false;
-      TurnHubSecureLink::wipe(v.pairKey, sizeof(v.pairKey));
-      v.session.clear();
-    }
-    atlasKnown = false;
-    savePairing();
-    Serial.println("HARNESS|FORGET|DONE|local only; forget them on Atlas too");
+    forgetPairing();
   } else if (verb == "sigils") {
     const long count = numberOr(token(command, 1), VIRTUAL_SIGILS);
     activeSigils = static_cast<uint8_t>(constrain(count, 1L, static_cast<long>(VIRTUAL_SIGILS)));
@@ -1274,12 +1278,50 @@ void pollSerial() {
   }
 }
 
+// The DevKit's BOOT button (GPIO0), as on a Sigil: a press pairs, and holding
+// it for FORGET_PAIRING_HOLD_MS (10 s) forgets the pairing instead. GPIO0 is
+// a strapping pin only at reset (holding BOOT through a reset enters the ROM
+// downloader). Acts on release, since pairing blocks until Atlas answers.
+constexpr uint8_t PAIR_BUTTON = 0;
+constexpr uint32_t BUTTON_DEBOUNCE_MS = 30;
+bool buttonDown = false;
+bool buttonForgot = false;
+uint32_t buttonChangedMs = 0;
+uint32_t buttonDownMs = 0;
+
+void updatePairButton() {
+  const uint32_t now = millis();
+  const bool down = digitalRead(PAIR_BUTTON) == LOW;
+  if (down != buttonDown) {
+    if (now - buttonChangedMs < BUTTON_DEBOUNCE_MS) return;
+    buttonChangedMs = now;
+    buttonDown = down;
+    if (down) {
+      buttonDownMs = now;
+      buttonForgot = false;
+      Serial.println("HARNESS|BUTTON|DOWN");
+    } else if (!buttonForgot) {
+      Serial.println("HARNESS|BUTTON|PAIR");
+      startPairing();
+    }
+    return;
+  }
+  if (down && !buttonForgot && now - buttonDownMs >= TurnHubProtocol::FORGET_PAIRING_HOLD_MS) {
+    buttonForgot = true;
+    Serial.println("HARNESS|BUTTON|FORGET");
+    forgetPairing();
+  }
+}
+
 }  // namespace
 
 void setup() {
   Serial.begin(SERIAL_BAUD);
   delay(250);
   Serial.println("HARNESS|BOOT");
+  pinMode(PAIR_BUTTON, INPUT_PULLUP);
+  buttonDown = digitalRead(PAIR_BUTTON) == LOW;
+  buttonForgot = buttonDown;  // Held since boot: not a press.
   loadPairing();
   startRadio();
   printStatus();
@@ -1288,6 +1330,7 @@ void setup() {
 
 void loop() {
   pollSerial();
+  updatePairButton();
   pump();
   if (pendingTest >= 0) {
     const auto test = static_cast<HarnessTest>(pendingTest);
