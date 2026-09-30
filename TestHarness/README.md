@@ -15,9 +15,9 @@ over ESP-NOW:
   password-protected; it exists only to own the second MAC on channel 6.
 - Each virtual Sigil can take Seat B too, so one board seats up to **four
   players**.
-- They report firmware **0.8.0** and advertise `CAPABILITY_MENU`,
-  `CAPABILITY_GAME_DISPLAY` and `CAPABILITY_LED_STATE` in Hello, so Atlas
-  treats them like a current menu Sigil (OLED d-pad or E-ink joystick): it
+- They report firmware **0.9.0**. Atlas treats every Sigil as a baseline
+  Sigil (menu, game display, LedState; no capability bits needed since
+  2026-09-30), and only V1 advertises `CAPABILITY_HARNESS`. So Atlas
   sends `MenuState2` (with **Leave** and **AdjustLife**), the profile picker,
   life requests and the game display with each seat's life. They act only
   through the packets a real Sigil sends: `SelectAction`, `PickerKey`,
@@ -108,9 +108,8 @@ no table host since 2026-09-25), so V1 starts it. Its steps:
    then `LEAVE` (the last harness Sigil leaves the rematch lobby) and `JOIN`
    again.
 
-The harness needs Atlas firmware that sends `MenuState2` to a 0.8.0 harness
-(2026-09-26 or later). Against an older Atlas, V1 gets only `MenuState`, so
-`LIFE` fails for want of AdjustLife.
+The harness 0.9.0 needs Atlas firmware from 2026-09-30 or later, which reads
+its capability byte in the Sigil 0.9.0 layout.
 
 Every step prints `HARNESS|PASS|<step>|...` or `HARNESS|FAIL|<step>|...` with
 the menus at that moment, and each run ends with

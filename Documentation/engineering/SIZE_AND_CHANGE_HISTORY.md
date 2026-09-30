@@ -527,6 +527,28 @@ previous entry's figures came from an earlier commit on `turnhub-integration`;
 the setup code itself is small (a two-byte NVS record, one Intent, two routes,
 one screen). No setup web page was added: the Android app is the setup client.
 
+### 2026-09-30: Baseline Sigil, Sigil 0.9.0 (branch `oobe-polish`)
+
+Atlas assumes the features every Sigil has; the Hello capability byte keeps
+only OLED vs e-paper, d-pad vs thumbstick and the test harness
+([Protocol and Pairing](PROTOCOL_AND_PAIRING.md), "Baseline Sigil"). Removed:
+Atlas's three-button gesture adapter and pause-to-win arm, the per-channel LED
+stream and Atlas's copy of the LED cadence tables, the old `MenuState`, every
+capability and 0.8 firmware check; on the Sigil the three-button fallback, the
+menu/picker/ring build switches, old `MenuState`, legacy LED channels and the
+one-LED view. About 1,570 source lines out, 505 in (tests included). Local
+builds (PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32 2.0.17):
+
+| Build | Static RAM | Flash |
+| --- | --- | --- |
+| Atlas | 88,132 B (was 90,228) | 1,403,485 B (was 1,411,293) |
+| Sigil e-ink (`sigil`) 0.9.0 | 53,620 B | 920,489 B |
+| Sigil OLED (`sigil-oled`) 0.9.0 | 49,396 B | 924,957 B |
+| `sigil-wokwi` (now joystick + ring) | 50,576 B | 878,173 B |
+| Harness 0.9.0 | 44,544 B | 777,133 B |
+
+Protocol version stays 2.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

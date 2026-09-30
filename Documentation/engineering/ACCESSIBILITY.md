@@ -256,18 +256,19 @@ per-browser because they describe the device in hand, not the player.
    settings, changed through `GET/POST /api/session/accessibility` by the
    signed-in profile only. The portal and Android use that one endpoint and its
    one validator. Nothing here changes what a gameplay Intent means: a longer
-   hold still produces the same `ActionLong`/`ActionWin` and the same Intent.
+   hold still produces the same menu choice (`SelectAction`) and the same Intent.
 3. **Validator:** `validAccessibilityPrefs()` in Atlas (ranges, 250 ms steps,
    1 s gap), shared with the radio contract (`validInputTiming()` in `protocol.h`)
    and re-checked by the Sigil before applying.
 4. **Persistence:** Atlas NVS, `x<profileId>`, schema 1. Sigils keep the applied
    values in RAM only (Invariant 7).
-5. **Rendering clients:** Sigil LEDs (`LedRenderer` per-Sigil profile), buzzer
-   (`AudioController` mute mask), Sigil buttons (`InputTiming`); portal and
+5. **Rendering clients:** Sigil light (`LedRenderer` sends each Sigil its
+   seated players' style in `LedState`; the Sigil draws it), buzzer
+   (`AudioController` mute mask), Sigil keys (`InputTiming`); portal and
    Android only edit them.
 6. **Contract change:** new HTTP endpoint and `accessibility-v1.schema.json`;
-   radio `InputTiming = 24` and `CAPABILITY_INPUT_TIMING = 0x08` (backward
-   compatible; Sigil firmware 0.5.4 needed for adjustable holds).
+   radio `InputTiming = 24`, sent to every Sigil (the `CAPABILITY_INPUT_TIMING`
+   bit was retired 2026-09-30 with the baseline Sigil, PROTOCOL_AND_PAIRING.md).
 7. **Dependencies:** none added.
 8. **Accessibility:** this is the accessibility path. Every option also has a
    non-Sigil route (the portal/app show all state as text and offer pause and
@@ -306,13 +307,29 @@ many steady pixels and a shared seat as its half of the ring, so neither needs
 counting flashes or color. The light never carries information found nowhere
 else: the Sigil display, Atlas screen and portal/app show it as text.
 
+**Since 2026-09-30 every Sigil draws its own ring**, and Atlas's copy of the
+cadence tables (which only drove the retired per-channel stream) is gone. The
+style guarantees are now checked on what the ring actually shows
+(`Sigil/tests/host/led_scenarios.cpp`): under Reduced motion every Atlas cue
+and overlay, on either seat, changes no faster than once a second; your turn
+is at least twice as bright as waiting; and under both Monochrome-safe and
+Reduced motion, time over versus a long turn and confirming a win versus
+choosing an elimination differ in timing. Moving the checks found two pairs
+the ring still told apart only by color, now fixed: on a one-seat Sigil,
+choosing an elimination was a steady red ring beside a steady magenta win
+confirmation (now a slow 4-second blink under Monochrome-safe and Reduced
+motion), and under Reduced motion a long turn was a steady cyan center beside
+the steady red of time over (now the slow blink). *Host-tested; needs
+verification on hardware.*
+
 ### Sigil menus (2026-09-25)
 
 Menu actions are named in text on the Sigil screen (the compass legend or the
 OLED list), never only by position, color or sound. Deliberate actions keep the
 seated players' hold thresholds, and hold progress shows both on the light (the
 ring fills) and, on the OLED, as text. A menu choice produces the same Intent as
-the equivalent button gesture or portal action.
+the equivalent portal action. Since 2026-09-30 the menu is the only Sigil input:
+the older button gestures are retired.
 
 ### Decision-needed sound
 

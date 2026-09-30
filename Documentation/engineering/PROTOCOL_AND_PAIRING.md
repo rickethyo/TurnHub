@@ -68,6 +68,48 @@ Current/experimental packet concepts include:
 
 The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
 
+### Baseline Sigil and the Hello capability byte (2026-09-30)
+
+Owner decision: every Sigil is built the same way, so Atlas assumes the
+features they all have and the Hello capability byte carries only what varies.
+The **baseline**, which nothing announces: a screen that shows the player's
+profile and the game (`GameDisplay`), five-key input with Atlas's action menu
+(`MenuState2`, `SelectAction`), the profile picker, life keys (`LifeAdjust`,
+`LifeResponse`), adjustable hold times (`InputTiming`) and the NeoPixel Jewel
+ring drawn from `LedState`.
+
+| Bit | Name | Meaning |
+| --- | --- | --- |
+| 0x01 | `CAPABILITY_INPUT_DPAD` | Five-button d-pad; clear: analog thumbstick (its click is Select) |
+| 0x10 | `CAPABILITY_DISPLAY_OLED` | OLED display; clear: e-paper. Also picks the OTA package |
+| 0x80 | `CAPABILITY_HARNESS` | The hardware test harness (unchanged) |
+| 0x02, 0x04, 0x08, 0x20, 0x40 | free | Retired below; available for new meanings |
+
+The retired bits were `DISPLAY` (0x01), `DISPLAY_PROFILE` (0x02),
+`GAME_DISPLAY` (0x04), `INPUT_TIMING` (0x08), `LED_STATE` (0x20) and `MENU`
+(0x40). Every protocol-2 Sigil is firmware 0.8.0 or later (0.8 shipped
+2026-09-25, protocol 2 on 2026-09-29) and sent all of them, so no Sigil that
+can still connect lacked any of those features.
+
+**Why this stays protocol version 2.** `MIN_UPDATABLE_VERSION` forbids a
+version bump until Atlas can still update older Sigils over the air (see
+[Sigil OTA](SIGIL_OTA.md)). Instead the new layout is keyed on Sigil firmware
+0.9.0, which the Hello already carries: Atlas reads the byte only through
+`helloCapabilities()`, which keeps just the stable bits (OLED, harness) from
+older firmware and infers the d-pad from OLED for it (true of every build
+before 0.9.0). That is how 0x01 could be reused safely. A freed bit may take a
+new meaning the same way (in the firmware release that introduces it), or with
+the next protocol version.
+
+**Retired packet numbers** (reserved, never reused): 3-8 (`Pass`,
+`ActionDown/Up/Short/Long/Win`, the three-button gestures), 20-22
+(`SetBlue/SetRed/SetGreen`, the per-channel light stream) and 26 (`MenuState`,
+the pre-0.8 menu encoding). Atlas also dropped its gesture adapter (the
+Action + Pass chords and the long-press pause that armed a win hold) and its
+copy of the LED cadence tables; the Sigil dropped the three-button fallback
+and the one-LED view. Host-tested (Atlas, Sigil); *Needs verification* on
+hardware with Sigil 0.9.0.
+
 ### Sigil menus: MenuState and SelectAction (2026-09-25)
 
 Sigils with five-key input advertise `CAPABILITY_MENU` (0x40). Atlas then sends
@@ -86,6 +128,8 @@ the Sigil with the seated players' InputTiming thresholds.
 
 Sigils without the bit keep the Action/Pass gestures, and a menu Sigil talking
 to an older Atlas falls back to them. Protocol version stays 1.
+*Superseded 2026-09-30:* every Sigil has the menu; the gestures, the fallback
+and `MenuState` are retired (see "Baseline Sigil" above).
 
 ### Factory reset: FactoryReset (2026-09-25)
 
@@ -134,7 +178,8 @@ every Hello, so a Sigil never stays on a page Atlas forgot. Older Sigils
 keep joining as a guest; a new Sigil with an older Atlas never
 receives a page. The OLED draws it as a list and sends the same keys.
 Protocol version stays 1; both device types need reflashing
-to use it. *Needs verification* on hardware.
+to use it. *Needs verification* on hardware. Since 2026-09-30 the only gate is
+`CAPABILITY_HARNESS`: every other Sigil gets the picker.
 
 `MenuState2 = 34` (2026-09-25) replaces `MenuState` for the same 0.8.0+ Sigils
 (since 2026-09-26 the 0.8.0 test harness too, which plays life changes and
@@ -220,6 +265,10 @@ the Sigil only draws it (`Sigil/src/sigil_led.cpp`): full color on an RGB LED
 (player number as lit pixels, a shared seat as its ring half, the top overlay in
 the center). Sigils without the bit keep the `SetBlue`/`SetRed`/`SetGreen`
 stream, and a new Sigil still follows those packets from an older Atlas.
+*Superseded 2026-09-30:* every Sigil has the Jewel and gets `LedState`; the
+channel stream and the RGB-LED view are retired. The accessibility checks on
+the ring (reduced motion never faster than 1 s; monochrome-safe pairs differ
+by timing) now run in `Sigil/tests/host/led_scenarios.cpp`.
 Pairing blink and the Pass acknowledgement flash stay Sigil-local. Protocol
 version stays 1. *Needs verification* on hardware.
 
@@ -235,8 +284,8 @@ that starts with Atlas off shows it too. Logic: `Sigil/include/atlas_link.h`.
 - **Screen:** "Atlas lost / Searching..." (e-ink) or "NO ATLAS / Atlas not
   responding / Searching..." (OLED), with no action menu.
 - **Light:** one orange pixel sweeping back and forth around the ring, center
-  dark; with Reduced motion, two opposite pixels steady orange; on a one-LED
-  Sigil, an orange double blink. Only the pairing blink outranks it.
+  dark; with Reduced motion, two opposite pixels steady orange. Only the pairing
+  blink outranks it.
 - **Input:** menu and life keys are ignored while Atlas is lost; the stale
   menu, any unsent life change and any life request are dropped. Pair still
   works.
@@ -280,6 +329,9 @@ uses the defaults until Atlas resends (every 10 s, or on change). Older Sigils
 ignore the unknown type and keep their fixed thresholds. Protocol version stays
 1. The thresholds only change when a gesture is recognized; the resulting
 packets (`ActionLong`, `ActionWin`) and their Intents mean the same thing.
+*Since 2026-09-30* every Sigil gets `InputTiming` (no capability bit); on the
+menu they time the deliberate choices: the long hold confirms Leave,
+Eliminate and Reset, the win hold confirms a win claim.
 Atlas picks the values from the seated players' accessibility preferences
 (ACCESSIBILITY.md).
 
@@ -289,7 +341,8 @@ Sigils advertise `CAPABILITY_GAME_DISPLAY = 0x04` in Hello. Atlas sends those
 peers `GameDisplay = 32` while running; existing seven-byte packet meanings,
 protocol version 1, `DisplayState = 30`, and seat-name chunks (`31`) are unchanged.
 Older peers retain their existing display. Lobby, pairing, ready, pause, and
-game-over screens continue using the existing display/profile path.
+game-over screens continue using the existing display/profile path. *Since
+2026-09-30* every Sigil gets `GameDisplay` (no capability bit).
 
 The new packed ESP-NOW datagram is 110 bytes, with little-endian integers:
 

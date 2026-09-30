@@ -318,9 +318,8 @@ really is common-anode.
 | Menu keys, E-ink (`sigil`) | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V |
 | Menu keys, OLED (`sigil-oled`) | 25 Up, 27 Down, 19 Left, 21 Right, 32 Select | Five discrete pushbuttons SW1-SW5 (no d-pad module), each GPIO to a common GND with INPUT_PULLUP; sockets J11, J9, A12, A14, J13. *Planned*: being wired |
 | Status ring, both hardware Sigils | 26 | NeoPixel Jewel 7 RGBW Data Input via 330 ohm; PWR from USB 5V (J1). The only status light (no separate LED since 2026-09-25) |
-| Pass / Action / Pause-Win buttons (Wokwi only) | 26 / 25 / 32 | The three-button gesture layout; closes to GND, INPUT_PULLUP |
 | Buzzer | 33 | Current development wiring |
-| Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build keeps its Pair pushbutton on GPIO19 (A12). |
+| Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build, the E-ink Sigil with the same thumbstick and ring since 2026-09-30, keeps its Pair pushbutton on GPIO19 (A12). |
 
 ### E-ink interface
 
@@ -376,11 +375,11 @@ Update Atlas and the OLED Sigil. Shared-seat controls still need hardware verifi
 
 **Status:** Implemented in firmware and host-tested; *Needs verification* on hardware
 
-Both hardware Sigils have five keys (Up, Down, Left, Right, Select) and show
-Atlas's action menu instead of the button gestures below. Atlas sends which
-actions each Sigil may use now (`MenuState`), the Sigil sends the one chosen
-(`SelectAction`), and Atlas dispatches the same Intents the gestures used
-(see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
+Every Sigil has five keys (Up, Down, Left, Right, Select) and shows Atlas's
+action menu; the button gestures below are historical (retired 2026-09-30,
+Sigil 0.9.0). Atlas sends which actions each Sigil may use now (`MenuState2`),
+the Sigil sends the one chosen (`SelectAction`), and Atlas dispatches the
+Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
 
 - **E-ink (joystick): compass.** Every action has a fixed key, listed at the
   bottom of the screen, so the panel redraws only when the menu changes. Click

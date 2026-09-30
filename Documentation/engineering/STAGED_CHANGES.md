@@ -276,31 +276,22 @@ Implemented and host-tested (Atlas scenarios, Android JVM tests); *Needs
 verification* on hardware. Next: CI firmware build, a first signed release,
 the bench run from a factory reset, then the portal steps and the manual.
 
-### In progress: baseline Sigil, capability bits retired (branch `oobe-polish`)
+### Done, awaiting hardware: baseline Sigil, capability bits retired (branch `oobe-polish`)
 
 Owner, 2026-09-30: Atlas assumes the six features every Sigil has and keeps
-only the distinctions that vary: OLED vs e-ink, joystick vs d-pad, and the
-test harness. Remove the code that only served Sigils without them ("ghost
-code has to go"); retire the freed bits cleanly and reuse them where needed.
+only the distinctions that vary (OLED vs e-ink, joystick vs d-pad, the test
+harness); code that only served Sigils without them is removed, and the freed
+bits are retired cleanly for reuse. Implemented and host-tested the same day
+(Sigil 0.9.0, harness 0.9.0, protocol version still 2; the reasoning and the
+new byte are in [Protocol and Pairing](PROTOCOL_AND_PAIRING.md), "Baseline
+Sigil"). Moving the LED accessibility checks onto the Sigil ring found and
+fixed two color-only pairs ([Accessibility](ACCESSIBILITY.md)).
 
-Why it's safe: every protocol-2 Sigil is firmware 0.8.0+ (0.8 on 09-25, v2 on
-09-29) and sends all six. `MIN_UPDATABLE_VERSION` blocks a protocol bump
-until Atlas can update older Sigils, so this stays at VERSION 2 and keys the
-new byte layout on Sigil firmware 0.9.0. Older 0.8 Sigils keep only the OLED
-and harness bits; d-pad is inferred from OLED for them (true of both builds).
-
-Steps (commit after each):
-1. `protocol.h`: new layout (`CAPABILITY_INPUT_DPAD` 0x01, OLED 0x10,
-   harness 0x80, the rest free); retire packets Pass, Action*, SetBlue/Red/
-   Green and MenuState (numbers reserved); drop the 0.8 version helpers.
-2. Atlas: assume the baseline; delete the gesture adapter (Action/Pass
-   chords, Lobby held/chord flags), the LED channel stream, old MenuState,
-   the capability and 0.8 checks; `/api/devices` gains `input`; host tests.
-3. Sigil 0.9.0: delete the non-menu three-button path and discrete LEDs;
-   Wokwi becomes an e-ink d-pad Sigil with the Jewel ring, and its shim
-   speaks the menu. Harness sends the new bits.
-4. Docs, size history, builds, all tests, reflash every board.
-
+*Needs verification* on hardware: flash Atlas and both Sigils together (0.8
+Sigils still connect but get no d-pad/joystick distinction beyond OLED), then
+check a full game from the menu, the profile picker, life keys, the ring in
+each light style (elimination and long turn now blink under Monochrome-safe
+and Reduced motion), and a harness run.
 ### Next implementation priority: Sigil OTA and signed updates
 
 In progress: the design, feature gate and step-by-step resume checklist are in
@@ -698,12 +689,12 @@ option for a battery Sigil left unused for hours.
    Atlas touchscreen and portal/app device list show Asleep; `/api/devices`
    gains `asleep`.
 6. **Protocol/contract:** `shared/include/protocol.h`: new packet types
-   (SleepRequest, CheckIn, WakeDecision) and a capability for "can sleep".
-   **The Hello capability byte is full** (all eight bits used through
-   `CAPABILITY_HARNESS`), so this needs a second capability byte or a
-   capability-extension packet first. Reflash Atlas and every Sigil; a good
-   first update to deliver over Wi-Fi OTA rather than USB. `/api/devices`
-   and the Android `DeviceInfo` model add the field.
+   (SleepRequest, CheckIn, WakeDecision) and a capability for "can sleep",
+   taking one of the bits freed by the baseline Sigil (0x02, 0x04, 0x08, 0x20,
+   0x40), read through `helloCapabilities()` from the firmware that
+   introduces it. Reflash Atlas and every Sigil; a good first update to
+   deliver over Wi-Fi OTA rather than USB. `/api/devices` and the Android
+   `DeviceInfo` model add the field.
 7. **Third-party dependencies:** none (ESP-IDF light sleep in the Arduino
    core).
 8. **Accessibility:** the wake-up press must not also act, so a player who
