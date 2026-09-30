@@ -91,15 +91,12 @@ The retired bits were `DISPLAY` (0x01), `DISPLAY_PROFILE` (0x02),
 2026-09-25, protocol 2 on 2026-09-29) and sent all of them, so no Sigil that
 can still connect lacked any of those features.
 
-**Why this stays protocol version 2.** `MIN_UPDATABLE_VERSION` forbids a
-version bump until Atlas can still update older Sigils over the air (see
-[Sigil OTA](SIGIL_OTA.md)). Instead the new layout is keyed on Sigil firmware
-0.9.0, which the Hello already carries: Atlas reads the byte only through
-`helloCapabilities()`, which keeps just the stable bits (OLED, harness) from
-older firmware and infers the d-pad from OLED for it (true of every build
-before 0.9.0). That is how 0x01 could be reused safely. A freed bit may take a
-new meaning the same way (in the firmware release that introduces it), or with
-the next protocol version.
+**Protocol 3.** First this shipped inside protocol 2, keyed on Sigil firmware
+0.9.0, because `MIN_UPDATABLE_VERSION` blocked a bump. The same day the owner
+set the rule that backward compatibility applies only to released hardware
+(see "Protocol 3" below), so the byte now simply means what the table says
+and a freed bit takes a new meaning with the protocol version that
+introduces it.
 
 **Retired packet numbers** (reserved, never reused): 3-8 (`Pass`,
 `ActionDown/Up/Short/Long/Win`, the three-button gestures), 20-22
@@ -295,6 +292,21 @@ The Sigil keeps sending Hello every 2 s. The first valid packet from its Atlas
 restores the last screen; Atlas's answer to that Hello resends the light,
 menu, screen and life state. No protocol change. Host-tested
 (`led_scenarios`); *Needs verification* on hardware.
+
+### Protocol 3: no compatibility before release (2026-09-30)
+
+`VERSION` is 3. Owner decision: backward compatibility applies only to released
+hardware; until then every board is reflashed together, and saved data needs
+no migrations until TurnHub saves live stats. So nothing tolerates another
+protocol version any more: `MIN_UPDATABLE_VERSION` and the frozen
+secure-session handshake are gone, and a handshake, update offer or update
+status from another version is refused. Retired packet numbers (3-8, 10-11,
+20-22, 26) are free again. Pairings are one record each (MAC and pair key,
+[Manual Pairing](MANUAL_PAIRING.md)), and Atlas's saved-data migrations and
+the Android app's fallbacks for older Atlas firmware are removed. Upgrading
+from earlier builds: reflash every board, factory-reset Atlas, pair again.
+Host-tested; *needs verification* on hardware. What release will need back is
+listed in [Sigil OTA](SIGIL_OTA.md), "Version rules".
 
 ### Secure link, protocol version 2 (2026-09-29)
 

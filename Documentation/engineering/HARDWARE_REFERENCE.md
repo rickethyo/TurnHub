@@ -406,12 +406,12 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
 - **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:
   the long press) are sent only once the key is held for the seated players'
   thresholds. The E-ink ring fills in white while held; the OLED row says HOLD.
-- Until Atlas sends a menu (an older Atlas), the keys fall back to the gestures:
-  Select is PASS, Right is Action, Down is Pause / Win.
+- Until Atlas sends a menu the keys do nothing (the gesture fallback was retired
+  2026-09-30).
 
 ### Auxiliary control revision
 
-**Status:** Historical on the hardware Sigils (superseded by the menu controls above); still the Wokwi layout
+**Status:** Historical (superseded by the menu controls above; the Wokwi build moved to the thumbstick on 2026-09-30)
 
 The current controls extend the original two-button layout:
 

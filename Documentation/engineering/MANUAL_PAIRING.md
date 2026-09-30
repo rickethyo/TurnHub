@@ -15,9 +15,10 @@ in [Secure Link](SECURE_LINK.md).
    with the same code, **Codes match** and **Reject**. The portal's Device
    Settings lists it too (Admin, verified at the table).
 4. **Codes match** (either place) stores the Sigil's MAC and pair key on Atlas
-   (`th_pair_v1/s<slot>` and `k<slot>`) and tells the Sigil, which stores Atlas,
-   its slot and the key (`th_pair_v1/atlas` and `atlas_k`) and carries on as
-   before (`SIGIL|PAIR|SUCCESS|SECURE`).
+   as one record (`th_pair/s<slot>`) and tells the Sigil, which stores Atlas's
+   MAC, its slot and the key as one record (`th_pair/atlas`) and carries on
+   (`SIGIL|PAIR|SUCCESS|SECURE`). A record of the wrong size isn't a pairing
+   and is dropped at boot.
 5. **Reject**, 60 s without an answer (Atlas), or 65 s (the Sigil's own limit)
    stores nothing; a Sigil that was already paired keeps its old pairing.
    Leaving the lobby rejects every waiting Sigil.
@@ -25,10 +26,9 @@ in [Secure Link](SECURE_LINK.md).
 Since the secure link (protocol `VERSION` 2, 2026-09-29) this is the only way
 to pair: once paired, a Sigil starts a secure session with `SecureHello` and
 every other packet travels sealed (see [Secure Link](SECURE_LINK.md)). The old
-keyless `PairRequest` below is retired. A Sigil or harness paired before
-pairing v2 has no key, so both ends forget that pairing at boot
-(`ATLAS|PAIRING|KEYLESS_FORGOTTEN`, `SIGIL|PAIR|KEYLESS_FORGOTTEN`) and it is
-paired again once.
+keyless `PairRequest` below is retired. Since 2026-09-30 a pairing and its key
+are one record, so a keyless pairing can't exist; records from earlier builds
+(`th_pair_v1`) are ignored, and those devices simply pair again.
 
 ## History: the first manual pairing (2026-09-22)
 
@@ -55,9 +55,10 @@ Atlas closes pairing when leaving the lobby. Reboots never open pairing windows.
 
 ## Storage and packet rules
 
-Atlas stores each accepted MAC under a stable slot in NVS namespace `th_pair_v1`
-(`s0` through `s7`). Sigil stores the Atlas MAC plus assigned slot in the same
+Atlas stored each accepted MAC under a stable slot in NVS namespace `th_pair_v1`
+(`s0` through `s7`). Sigil stored the Atlas MAC plus assigned slot in the same
 namespace under `atlas`. Neither operation changes player profiles or statistics.
+(Since 2026-09-30: namespace `th_pair`, each record with its pair key.)
 Old automatic associations were never durable; pair each device once after updating.
 
 PairRequest (10) carries a fresh per-window random token; PairAccept (11) echoes
@@ -94,7 +95,7 @@ and factory-reset integration remain future work.
 - **On Atlas (admins):** Device Settings -> Paired Sigils has Forget for each
   Sigil and Forget all Sigils (`POST /api/device/forget`). This is the
   `ForgetPairing` Intent: Admin permission re-checked, lobby only, refused while
-  anyone is seated on that Sigil. Atlas removes `th_pair_v1/s<N>`, frees the slot,
+  anyone is seated on that Sigil. Atlas removes `th_pair/s<N>`, frees the slot,
   releases that Sigil's saved seat bindings (its custom name stays) and sends a
   best-effort `Unpair = 12` packet. A Sigil on 0.5.5+ that hears it from its saved
   Atlas erases its own pairing (`SIGIL|PAIR|FORGOTTEN|ATLAS`); one that misses it

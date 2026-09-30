@@ -227,7 +227,7 @@ Commit after each step and tick it here.
       `shared/include/pairing_v2.h` (`Sigil/tests/host/pairing_scenarios.cpp`;
       the host stand-in crypto is `Sigil/tests/host/test_crypto.h`). Atlas:
       `SigilBus` takes 38-byte `PairRequest2` in its window and answers
-      `PairAccept2`; the key goes in NVS `th_pair_v1/k<slot>` beside the MAC
+      `PairAccept2`; the key goes in NVS `th_pair_v1/k<slot>` beside the MAC (since 2026-09-30 one record per pairing in `th_pair`, see [Manual Pairing](MANUAL_PAIRING.md))
       (`s<slot>`), so records from before load as keyless. Sigil: Pair
       broadcasts `PairRequest2`; the key goes in `th_pair_v1/atlas_k` beside the
       7-byte binding. "Keyless records cleared" moves to the envelope step

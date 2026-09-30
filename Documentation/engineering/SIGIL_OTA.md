@@ -226,13 +226,17 @@ descriptor and can't be packaged.
 - A device refuses a package **older** than what it runs. The same version is
   allowed (reinstall). Downgrades need USB.
 - Atlas firmware gains major/minor/patch constants (it only had a string).
-- **Old Sigils must stay updatable after Atlas moves on.** The secure-session
-  handshake and the update packets are frozen at their `VERSION` 2 layout. A
-  later protocol `VERSION` must still accept a SecureHello from any Sigil at
-  `MIN_UPDATABLE_VERSION` (2) or newer and still send it an update offer;
-  Atlas then shows that Sigil as "needs update" and doesn't seat it. Without
-  this, updating Atlas first would strand every Sigil until someone used USB.
-- So the recommended order is Atlas first, then the Sigils.
+- **Before hardware is released, protocol versions must match.** Owner,
+  2026-09-30: backward compatibility applies only to released hardware, so
+  `MIN_UPDATABLE_VERSION` and the frozen handshake are gone (protocol 3): a
+  handshake, update offer or update status from another protocol version is
+  refused, and a protocol bump means reflashing every board together.
+- *Needed for release:* old Sigils must stay updatable after Atlas moves on.
+  Freeze the secure-session handshake and the update packets, have a later
+  Atlas still accept a SecureHello from an older Sigil and send it an update
+  offer, show that Sigil as "needs update" and never seat it. Without this,
+  updating Atlas first would strand every Sigil until someone used USB. The
+  recommended order is then Atlas first, then the Sigils.
 
 ### Keys and signing
 
