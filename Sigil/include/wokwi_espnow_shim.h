@@ -195,8 +195,8 @@ inline void printHelp() {
   Serial.println("  id <0-7>              Sigil ID the next pairing assigns");
   Serial.println("  forget                Atlas forgets the Sigil and sends it Unpair");
   Serial.println("  timing <longMs> <winMs>  hold thresholds, e.g. timing 3000 6000");
-  Serial.println("  menu <actionMask> [default]  offer menu actions (MenuState2), e.g. menu 0x3 1");
-  Serial.println("        bits are SigilAction numbers: 0 Join, 1 CycleStarter, 6 StartGame, 8 Pass, ...");
+  Serial.println("  menu <actionMask> [default]  offer menu actions (MenuState2), e.g. menu 0xA1 0");
+  Serial.println("        bits are SigilAction numbers: 0 Join, 1 CycleStarter, 5 StartGame, 7 Pass, ...");
   Serial.println("  led <cue> [overlays] [player] [style]  status ring (LedState), e.g. led 5 0x10 1 0");
   Serial.println("        cues: 1 Unassigned 2 Joined 3 Starting 4 TurnStarted 5 YourTurn 6 Waiting");
   Serial.println("              7 Paused 8 ConfirmationNeeded 9 EliminationSelect 10 GameOver");
