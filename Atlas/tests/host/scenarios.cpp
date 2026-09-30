@@ -362,8 +362,11 @@ static int request(const char *path,const String &token=String(),
     std::map<std::string,String> args={},int method=HTTP_POST) {
   server.arguments=args; server.headers.clear(); server.headers["X-TurnHub-Token"]=token;
   server.status=0; server.body.clear();
-  auto found=server.routes.find(std::to_string(method)+path); assert(found!=server.routes.end());
-  found->second(); return server.status;
+  auto found=server.routes.find(std::to_string(method)+path);
+  if(found!=server.routes.end()) { found->second(); return server.status; }
+  for(RequestHandler *handler:server.handlers)  // web_api.cpp's route table
+    if(handler->canHandle(method,path)) { assert(handler->handle(server,method,path)); return server.status; }
+  assert(!"no route"); return 0;
 }
 // Table presence over HTTP, as a phone does it: ask for a code, read it off
 // the Atlas screen (the pending request), and enter it.

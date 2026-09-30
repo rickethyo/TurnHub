@@ -121,6 +121,131 @@ void configureSpeaker(SpeakerVolumeCallback volume) {
 
 // --- Routes ---------------------------------------------------------------------------
 
+namespace {
+// Handlers that carry a fixed argument, as plain functions so the route
+// table can stay constant data in flash.
+template <WebControl C> void controlRoute(WebServer &server) { runControl(server, C); }
+template <TurnHub::IntentType T> void counterRoute(WebServer &server) { handleCounterControl(server, T); }
+void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
+void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
+void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
+void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
+void servePage(WebServer &server, const char *html) {
+  server.sendHeader("Cache-Control", "no-store");
+  server.send_P(200, "text/html", html);
+}
+void statsPage(WebServer &server) { servePage(server, TurnHubStatsPage::STATS_HTML); }
+void loginPage(WebServer &server) { servePage(server, TurnHubLoginPage::HTML); }
+
+struct Route {
+  const char *uri;
+  HTTPMethod method;
+  void (*handler)(WebServer &);
+};
+
+// One table, matched by one request handler. A server.on() per route cost
+// about 140 bytes of heap each (handler object, URI object, path copy):
+// roughly 10 KB for these routes.
+const Route ROUTES[] = {
+  // Client contract (protocol/http-v1.md).
+  {"/api/v1/info", HTTP_GET, handleInfo},
+  {"/api/v1/state", HTTP_GET, handleState},
+
+  // Pages served outside the portal.
+  {"/stats", HTTP_GET, statsPage},
+  {"/login", HTTP_GET, loginPage},
+
+  // Accounts and administration.
+  {"/api/accounts/setup", HTTP_GET, accountSetupStatus},
+  {"/api/accounts/setup", HTTP_POST, accountSetupCreate},
+  {"/api/presence", HTTP_GET, handlePresenceStatus},
+  {"/api/presence/request", HTTP_POST, handlePresenceRequest},
+  {"/api/presence/confirm", HTTP_POST, handlePresenceConfirm},
+  {"/api/presence/lock", HTTP_POST, handlePresenceLock},
+  {"/api/accounts", HTTP_GET, handleAccounts},
+  {"/api/accounts/permissions", HTTP_POST, handleAccountPermissions},
+  {"/api/accounts/archive", HTTP_POST, handleAccountArchive},
+  {"/api/accounts/moderate", HTTP_POST, handleModerate},
+  {"/api/diagnostics/log", HTTP_GET, handleSerialLogDownload},
+  {"/api/devices", HTTP_GET, handleDevices},
+  {"/api/device/name", HTTP_POST, handleDeviceName},
+  {"/api/device/forget", HTTP_POST, handleForgetDevice},
+  {"/api/pairing", HTTP_GET, handlePairingSettings},
+  {"/api/pairing", HTTP_POST, handleSavePairingSettings},
+  {"/api/speaker", HTTP_GET, handleSpeakerSettings},
+  {"/api/speaker", HTTP_POST, handleSaveSpeakerSettings},
+  {"/api/table/reset", HTTP_POST, handleResetTable},
+  {"/api/device/factory-reset", HTTP_POST, handleFactoryReset},
+  {"/api/device/pair-confirm", HTTP_POST, handlePairConfirm},
+  {"/api/network", HTTP_GET, handleNetworkInfo},
+  {"/api/network/password", HTTP_POST, handleNetworkPassword},
+
+  // Profiles and sessions.
+  {"/api/seats", HTTP_GET, handleSeats},
+  {"/api/profiles", HTTP_GET, handleProfiles},
+  {"/api/profiles/register", HTTP_POST, handleRegistration},
+  {"/api/session/join", HTTP_POST, joinSession},
+  {"/api/session/leave", HTTP_POST, leaveSession},
+  {"/api/session/request", HTTP_POST, handleSessionRequest},
+  {"/api/session/poll", HTTP_GET, handleSessionPoll},
+  {"/api/session/login", HTTP_POST, handleSessionLogin},
+  {"/api/session/me", HTTP_GET, handleSessionMe},
+  {"/api/session/profile", HTTP_POST, handleProfile},
+  {"/api/session/policy", HTTP_POST, handleProfilePolicy},
+  {"/api/session/accessibility", HTTP_GET, handleAccessibility},
+  {"/api/session/accessibility", HTTP_POST, handleSaveAccessibility},
+  {"/api/session/personalization", HTTP_GET, handlePersonalization},
+  {"/api/session/personalization", HTTP_POST, handleSavePersonalization},
+  {"/api/avatars", HTTP_GET, handleAvatars},
+  {"/api/session/stats", HTTP_GET, handleProfileStats},
+  {"/api/session/stats/export", HTTP_GET, handleProfileStatsExport},
+  {"/api/session/logout", HTTP_POST, handleLogout},
+
+  // Game settings and counters.
+  {"/api/game/settings", HTTP_GET, handleGameSettings},
+  {"/api/game/settings", HTTP_POST, handleSaveGameSettings},
+  {"/api/game/counters", HTTP_GET, handleCounters},
+  {"/api/control/life", HTTP_POST, handleChangeLife},
+  {"/api/control/life/request", HTTP_POST, counterRoute<TurnHub::IntentType::RequestLifeChange>},
+  {"/api/control/life/respond", HTTP_POST, counterRoute<TurnHub::IntentType::RespondLifeChange>},
+  {"/api/control/commander", HTTP_POST, counterRoute<TurnHub::IntentType::ChangeCounter>},
+
+  // Session controls.
+  {"/api/control/pass", HTTP_POST, controlRoute<WebControl::Pass>},
+  {"/api/control/pause", HTTP_POST, controlRoute<WebControl::PauseResume>},
+  {"/api/control/concede", HTTP_POST, controlRoute<WebControl::Concede>},
+  {"/api/control/win", HTTP_POST, controlRoute<WebControl::ClaimWin>},
+  {"/api/control/confirm", HTTP_POST, controlRoute<WebControl::ConfirmWin>},
+  {"/api/control/deny", HTTP_POST, controlRoute<WebControl::DenyWin>},
+  {"/api/control/starter", HTTP_POST, controlRoute<WebControl::SelectStarter>},
+  {"/api/control/start", HTTP_POST, controlRoute<WebControl::Start>},
+  {"/api/control/cancel-start", HTTP_POST, controlRoute<WebControl::CancelStart>},
+  {"/api/control/rematch", HTTP_POST, controlRoute<WebControl::Rematch>},
+  {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
+};
+
+const Route *findRoute(HTTPMethod method, const String &uri) {
+  for (const Route &route : ROUTES) {
+    if (route.method == method && uri == route.uri) return &route;
+  }
+  return nullptr;
+}
+
+class RouteTableHandler final : public RequestHandler {
+ public:
+  bool canHandle(HTTPMethod method, String uri) override {
+    return findRoute(method, uri) != nullptr;
+  }
+  bool handle(WebServer &server, HTTPMethod method, String uri) override {
+    const Route *route = findRoute(method, uri);
+    if (route == nullptr) return false;
+    route->handler(server);
+    return true;
+  }
+};
+RouteTableHandler routeTable;
+}  // namespace
+
 void begin(WebServer &server) {
   if (webServer != nullptr) return;  // Routes are registered once per boot.
   webServer = &server;
@@ -129,98 +254,7 @@ void begin(WebServer &server) {
 
   static const char *headerKeys[] = {TOKEN_HEADER};
   server.collectHeaders(headerKeys, 1);
-
-  const auto route = [&server](const char *uri, HTTPMethod method, void (*handler)(WebServer &)) {
-    server.on(uri, method, [&server, handler]() { handler(server); });
-  };
-  const auto control = [&server](const char *uri, WebControl webControl) {
-    server.on(uri, HTTP_POST, [&server, webControl]() { runControl(server, webControl); });
-  };
-  const auto counter = [&server](const char *uri, TurnHub::IntentType type) {
-    server.on(uri, HTTP_POST, [&server, type]() { handleCounterControl(server, type); });
-  };
-  const auto page = [&server](const char *uri, const char *html) {
-    server.on(uri, HTTP_GET, [&server, html]() {
-      server.sendHeader("Cache-Control", "no-store");
-      server.send_P(200, "text/html", html);
-    });
-  };
-
-  // Client contract (protocol/http-v1.md).
-  route("/api/v1/info", HTTP_GET, handleInfo);
-  route("/api/v1/state", HTTP_GET, handleState);
-
-  // Pages served outside the portal.
-  page("/stats", TurnHubStatsPage::STATS_HTML);
-  page("/login", TurnHubLoginPage::HTML);
-
-  // Accounts and administration.
-  server.on("/api/accounts/setup", HTTP_GET, [&server]() { handleAccountSetup(server, true); });
-  server.on("/api/accounts/setup", HTTP_POST, [&server]() { handleAccountSetup(server, false); });
-  route("/api/presence", HTTP_GET, handlePresenceStatus);
-  route("/api/presence/request", HTTP_POST, handlePresenceRequest);
-  route("/api/presence/confirm", HTTP_POST, handlePresenceConfirm);
-  route("/api/presence/lock", HTTP_POST, handlePresenceLock);
-  route("/api/accounts", HTTP_GET, handleAccounts);
-  route("/api/accounts/permissions", HTTP_POST, handleAccountPermissions);
-  route("/api/accounts/archive", HTTP_POST, handleAccountArchive);
-  route("/api/accounts/moderate", HTTP_POST, handleModerate);
-  route("/api/diagnostics/log", HTTP_GET, handleSerialLogDownload);
-  route("/api/devices", HTTP_GET, handleDevices);
-  route("/api/device/name", HTTP_POST, handleDeviceName);
-  route("/api/device/forget", HTTP_POST, handleForgetDevice);
-  route("/api/pairing", HTTP_GET, handlePairingSettings);
-  route("/api/pairing", HTTP_POST, handleSavePairingSettings);
-  route("/api/speaker", HTTP_GET, handleSpeakerSettings);
-  route("/api/speaker", HTTP_POST, handleSaveSpeakerSettings);
-  route("/api/table/reset", HTTP_POST, handleResetTable);
-  route("/api/device/factory-reset", HTTP_POST, handleFactoryReset);
-  route("/api/device/pair-confirm", HTTP_POST, handlePairConfirm);
-  route("/api/network", HTTP_GET, handleNetworkInfo);
-  route("/api/network/password", HTTP_POST, handleNetworkPassword);
-
-  // Profiles and sessions.
-  route("/api/seats", HTTP_GET, handleSeats);
-  route("/api/profiles", HTTP_GET, handleProfiles);
-  route("/api/profiles/register", HTTP_POST, handleRegistration);
-  server.on("/api/session/join", HTTP_POST, [&server]() { handleParticipation(server, WebControl::Join); });
-  server.on("/api/session/leave", HTTP_POST, [&server]() { handleParticipation(server, WebControl::Leave); });
-  route("/api/session/request", HTTP_POST, handleSessionRequest);
-  route("/api/session/poll", HTTP_GET, handleSessionPoll);
-  route("/api/session/login", HTTP_POST, handleSessionLogin);
-  route("/api/session/me", HTTP_GET, handleSessionMe);
-  route("/api/session/profile", HTTP_POST, handleProfile);
-  route("/api/session/policy", HTTP_POST, handleProfilePolicy);
-  route("/api/session/accessibility", HTTP_GET, handleAccessibility);
-  route("/api/session/accessibility", HTTP_POST, handleSaveAccessibility);
-  route("/api/session/personalization", HTTP_GET, handlePersonalization);
-  route("/api/session/personalization", HTTP_POST, handleSavePersonalization);
-  route("/api/avatars", HTTP_GET, handleAvatars);
-  route("/api/session/stats", HTTP_GET, handleProfileStats);
-  route("/api/session/stats/export", HTTP_GET, handleProfileStatsExport);
-  route("/api/session/logout", HTTP_POST, handleLogout);
-
-  // Game settings and counters.
-  route("/api/game/settings", HTTP_GET, handleGameSettings);
-  route("/api/game/settings", HTTP_POST, handleSaveGameSettings);
-  route("/api/game/counters", HTTP_GET, handleCounters);
-  route("/api/control/life", HTTP_POST, handleChangeLife);
-  counter("/api/control/life/request", TurnHub::IntentType::RequestLifeChange);
-  counter("/api/control/life/respond", TurnHub::IntentType::RespondLifeChange);
-  counter("/api/control/commander", TurnHub::IntentType::ChangeCounter);
-
-  // Session controls.
-  control("/api/control/pass", WebControl::Pass);
-  control("/api/control/pause", WebControl::PauseResume);
-  control("/api/control/concede", WebControl::Concede);
-  control("/api/control/win", WebControl::ClaimWin);
-  control("/api/control/confirm", WebControl::ConfirmWin);
-  control("/api/control/deny", WebControl::DenyWin);
-  control("/api/control/starter", WebControl::SelectStarter);
-  control("/api/control/start", WebControl::Start);
-  control("/api/control/cancel-start", WebControl::CancelStart);
-  control("/api/control/rematch", WebControl::Rematch);
-  control("/api/control/reset", WebControl::Reset);
+  server.addHandler(&routeTable);
 
   serialLog.print("ATLAS|WEB_API|READY|PROFILES|");
   serialLog.println(profileStoreReady ? "YES" : "NO");

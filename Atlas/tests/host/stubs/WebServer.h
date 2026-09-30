@@ -2,17 +2,28 @@
 #include <Arduino.h>
 #include <map>
 #include <functional>
+#include <vector>
 constexpr int HTTP_GET=0, HTTP_POST=1;
 #define CONTENT_LENGTH_UNKNOWN ((size_t) -1)
 using HTTPMethod = int;  // ESP32 core: enum from HTTP_Method.h
 enum { UPLOAD_FILE_START, UPLOAD_FILE_WRITE, UPLOAD_FILE_END, UPLOAD_FILE_ABORTED };
 struct HTTPUpload { int status=UPLOAD_FILE_START; uint8_t *buf=nullptr; size_t currentSize=0; String filename; };
 struct TestHttpClient { size_t write(const uint8_t *, size_t n) { return n; } void stop() {} };
+class WebServer;
+// The ESP32 core's RequestHandler, reduced to what Atlas overrides.
+class RequestHandler {
+ public:
+  virtual ~RequestHandler() {}
+  virtual bool canHandle(HTTPMethod, String) { return false; }
+  virtual bool handle(WebServer &, HTTPMethod, String) { return false; }
+};
 class WebServer {
  public:
   std::map<std::string,String> arguments, headers;
   std::map<std::string,std::function<void()>> routes;
   std::map<std::string,std::function<void()>> uploads;
+  std::vector<RequestHandler *> handlers;
+  void addHandler(RequestHandler *handler) { handlers.push_back(handler); }
   HTTPUpload uploadState;
   HTTPUpload &upload() { return uploadState; }
   TestHttpClient client() { return {}; }

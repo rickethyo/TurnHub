@@ -190,8 +190,11 @@ Status runSelfTest() {
 // the card lock. Repeated "no card" results are logged once.
 SdMountResult mountCard() {
   // format_if_empty = false: an unreadable card is reported, never wiped.
+  // At most 2 open files (was 4): each slot reserves a 4 KB sector cache
+  // (CONFIG_FATFS_PER_FILE_CACHE), and every access runs under the card lock
+  // with at most one file open (a wipe adds a directory, which takes no slot).
   if (!SD.begin(AtlasConfig::SD_CS_PIN, sdSpi, AtlasConfig::SD_SPI_HZ, "/sd",
-                4, false) ||
+                2, false) ||
       SD.cardType() == CARD_NONE) {
     SD.end();
     if (cardState.exchange(CardState::NoCard) != CardState::NoCard) {
