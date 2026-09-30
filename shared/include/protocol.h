@@ -823,7 +823,7 @@ inline const char *harnessTestName(uint8_t test) {
 enum class HarnessStep : uint8_t {
   None = 0, Paired, HelloAck, Menu, Lobby, Join, SeatB, Host, Start, Turn, Pause, Resume,
   Eliminate, ResumeAfterElimination, ClaimWin, ConfirmWin, GameOver, RematchLobby, ResetTable,
-  // Harness 0.8.0+: join through the profile picker (Guest), a life change
+  // Join through the profile picker (Guest), a life change
   // checked against the game display, and leaving the lobby.
   Picker, Life, Leave,
   Count

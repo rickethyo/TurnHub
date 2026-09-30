@@ -14,17 +14,17 @@ static int32_t menu(std::initializer_list<A> actions, A fallback, uint8_t revisi
   for (A a : actions) f.actions |= sigilActionBit(a);
   f.defaultAction = static_cast<uint8_t>(fallback);
   f.revision = revision;
-  return encodeMenuState(f);
+  return encodeMenuState2(f);
 }
 static uint8_t id(A a) { return static_cast<uint8_t>(a); }
 
 int main() {
   // Wire format: mask, default and revision; bad defaults read as none.
   {
-    const MenuStateFields f = decodeMenuState(menu({A::Pass, A::Pause, A::LinkPhone}, A::Pass, 45));
+    const MenuStateFields f = decodeMenuState2(menu({A::Pass, A::Pause, A::LinkPhone}, A::Pass, 5));
     assert(f.actions == (sigilActionBit(A::Pass) | sigilActionBit(A::Pause) | sigilActionBit(A::LinkPhone)));
-    assert(f.defaultAction == id(A::Pass) && f.revision == 45);
-    assert(decodeMenuState(menu({A::Pause}, A::Pass, 1)).defaultAction == SIGIL_ACTION_NONE);
+    assert(f.defaultAction == id(A::Pass) && f.revision == 5);
+    assert(decodeMenuState2(menu({A::Pause}, A::Pass, 1)).defaultAction == SIGIL_ACTION_NONE);
     const int32_t select = encodeSelectAction(A::ClaimWin, 63);
     assert(selectedAction(select) == id(A::ClaimWin) && selectedRevision(select) == 63);
   }
@@ -53,7 +53,7 @@ int main() {
   compass.keyDown(Key::Select, 0);
   assert(!compass.active() && !compass.update(0).ready && !compass.view().active);
 
-  compass.applyMenuState(menu({A::Pass, A::Pause, A::ClaimWin}, A::Pass, 7), 0);
+  compass.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin}, A::Pass, 7), 0);
   assert(compass.active());
   compass.keyDown(Key::Select, 100);
   MenuChoice c = compass.update(100);
@@ -76,19 +76,19 @@ int main() {
   compass.keyDown(Key::Down, 20000);
   assert(compass.view().holdAction == MENU_NONE && compass.holdProgress(21000) > 0);
   // A held action that stops being offered is dropped.
-  compass.applyMenuState(menu({A::Resume}, A::Resume, 8), 21000);
+  compass.applyMenuState2(menu({A::Resume}, A::Resume, 8), 21000);
   assert(!compass.update(30000).ready && compass.holdProgress(30000) == 0);
   compass.keyUp(Key::Down, 30000);
 
   // Compass view: the legend's actions per key.
-  compass.applyMenuState(menu({A::ConfirmWin, A::DenyWin}, A::ConfirmWin, 9), 0);
+  compass.applyMenuState2(menu({A::ConfirmWin, A::DenyWin}, A::ConfirmWin, 9), 0);
   MenuView v = compass.view();
   assert(v.active && v.compass[static_cast<uint8_t>(Key::Select)] == id(A::ConfirmWin));
   assert(v.compass[static_cast<uint8_t>(Key::Left)] == id(A::DenyWin) && v.compass[0] == MENU_NONE);
 
   // List: the first key opens at the default; Up/Down move; Select chooses.
   SigilMenu list(MenuLayout::List);
-  list.applyMenuState(menu({A::Pass, A::Pause, A::ClaimWin}, A::Pass, 3), 0);
+  list.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin}, A::Pass, 3), 0);
   assert(!list.view().listOpen);
   list.keyDown(Key::Down, 0);
   v = list.view();
@@ -120,11 +120,11 @@ int main() {
   // A new menu keeps the cursor on a surviving action, else the default.
   list.keyDown(Key::Up, 20000); list.keyDown(Key::Down, 20100);
   assert(list.view().items[list.view().cursor] == id(A::Pause));
-  list.applyMenuState(menu({A::Pause, A::Resume, A::ClaimWin}, A::Resume, 4), 20200);
+  list.applyMenuState2(menu({A::Pause, A::Resume, A::ClaimWin}, A::Resume, 4), 20200);
   assert(list.view().items[list.view().cursor] == id(A::Pause));
-  list.applyMenuState(menu({A::Resume, A::BeginElimination}, A::Resume, 5), 20300);
+  list.applyMenuState2(menu({A::Resume, A::BeginElimination}, A::Resume, 5), 20300);
   assert(list.view().items[list.view().cursor] == id(A::Resume));
-  list.applyMenuState(menu({}, A::Count, 6), 20400);
+  list.applyMenuState2(menu({}, A::Count, 6), 20400);
   assert(!list.view().listOpen);
   list.keyDown(Key::Select, 20500);  // Nothing to open.
   assert(!list.view().listOpen);
@@ -133,7 +133,7 @@ int main() {
   list.clear();
   assert(!list.active() && !list.view().active);
 
-  // MenuState2 carries Leave (action 21), which MenuState cannot; Leave is a
+  // MenuState2 carries Leave (action 21) and later actions; Leave is a
   // long-press hold on Down, and a waiting phone link outranks it.
   {
     MenuStateFields f;
@@ -142,7 +142,6 @@ int main() {
     f.revision = 5;
     const MenuStateFields back = decodeMenuState2(encodeMenuState2(f));
     assert(back.actions == f.actions && back.defaultAction == id(A::Leave) && back.revision == 5);
-    assert((decodeMenuState(encodeMenuState(f)).actions & sigilActionBit(A::Leave)) == 0);
     assert(SigilMenu::compassAction(f.actions, Key::Down) == id(A::Leave));
     assert(SigilMenu::compassAction(f.actions | sigilActionBit(A::LinkPhone), Key::Down) == id(A::LinkPhone));
     assert(sigilActionHold(A::Leave) == ActionHold::Long);
@@ -236,11 +235,11 @@ int main() {
     // OLED: Select passes, and pressed again in the grace period it undoes
     // the pass without opening the list.
     SigilMenu oled(MenuLayout::List);
-    oled.applyMenuState(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
+    oled.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
     oled.keyDown(Key::Select, 10); oled.keyUp(Key::Select, 20);
     MenuChoice c = oled.update(20);
     assert(c.ready && c.action == A::Pass);
-    oled.applyMenuState(menu({A::CancelPass, A::Pause, A::ClaimWin, A::LinkPhone}, A::CancelPass, 2), 30);
+    oled.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::LinkPhone}, A::CancelPass, 2), 30);
     oled.keyDown(Key::Select, 40); oled.keyUp(Key::Select, 50);
     c = oled.update(50);
     assert(c.ready && c.action == A::CancelPass && !oled.view().listOpen);

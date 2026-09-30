@@ -7,9 +7,8 @@
 // One frame covers the NeoPixel Jewel 7: pixel 0 is the center, 1-6 the
 // ring. The ring shows the primary cue (spatially where that helps: player
 // number as lit pixels, seat A/B as ring halves); the center shows the most
-// important overlay. single() is the same state for a one-LED Sigil, carried
-// by timing instead of position. Every cue differs by pattern or position,
-// not only by color (ACCESSIBILITY.md).
+// important overlay. Every cue differs by pattern or position, not only by
+// color (ACCESSIBILITY.md).
 
 #include <stdint.h>
 
@@ -33,17 +32,12 @@ constexpr uint32_t PASS_ACK_FLASH_MS = 250;
 
 struct LedFrame {
   Rgb pixels[LED_PIXELS];
-  Rgb single;  // One-LED view of the same state.
 };
 
 class SigilLedModel {
  public:
-  // Atlas's semantic state. Replaces any legacy channel values.
+  // Atlas's semantic state (LedState).
   void applyLedState(int32_t value, uint32_t nowMs);
-  // Legacy SetRed/SetGreen/SetBlue from an Atlas that predates LedState.
-  void applyLegacyRed(bool on);
-  void applyLegacyGreen(bool on);
-  void applyLegacyBlue(uint8_t level);
   // Unpaired or forgotten: dark until Atlas says otherwise.
   void clear();
 
@@ -51,25 +45,24 @@ class SigilLedModel {
   void setPairing(bool active, uint32_t nowMs);
   // The paired Atlas stopped answering (atlas_link.h): Atlas's last state is
   // stale, so it is replaced by one orange pixel sweeping back and forth
-  // (reduced motion: two opposite pixels steady; one LED: an orange double
-  // blink). Only pairing outranks it. The screen says so in words too.
+  // (reduced motion: two opposite pixels steady). Only pairing outranks it. The screen says so in words too.
   void setAtlasLost(bool lost, uint32_t nowMs);
   bool atlasLost() const { return atlasLost_; }
   // A firmware update is downloading (SIGIL_OTA.md): the ring fills
   // clockwise in cyan with the percent received, over dim blue, and the center
-  // blinks cyan once a second (reduced motion: steady). One LED breathes cyan.
+  // blinks cyan once a second (reduced motion: steady).
   // Outranks everything: the Sigil does nothing else meanwhile. The screen
   // shows the percent in words.
   void setUpdating(bool active, uint8_t percent, uint32_t nowMs);
   bool updating() const { return updating_; }
   void flashPassAck(uint32_t nowMs);
   // A pass is in Atlas's grace period: the ring empties counter-clockwise
-  // over PASS_GRACE_MS, the center stays lit, and a single LED flickers.
+  // over PASS_GRACE_MS and the center stays lit.
   // Green on the passer's own Sigil (mine), amber on every other Sigil.
   // Timed from when it was first seen.
   void setPassPending(bool active, bool mine, uint32_t nowMs);
   // A deliberate menu action being held: 0 (none) to 255 (done). The ring
-  // fills clockwise in white; a single LED brightens.
+  // fills clockwise in white.
   void setHoldProgress(uint8_t level) { holdProgress_ = level; }
   // A life change not yet sent (LifeAdjuster), shown at once while the
   // e-ink catches up: gains fill the ring clockwise in green, losses
@@ -89,14 +82,11 @@ class SigilLedModel {
   LedFrame render(uint32_t nowMs) const;
 
   const TurnHubProtocol::LedStateFields &state() const { return state_; }
-  bool semantic() const { return semantic_; }
 
  private:
   TurnHubProtocol::LedStateFields state_;
-  bool semantic_ = false;
+  bool semantic_ = false;  // A LedState has arrived since pairing.
   uint32_t anchorMs_ = 0;
-  bool legacyRed_ = false, legacyGreen_ = false;
-  uint8_t legacyBlue_ = 0;
   bool pairing_ = false;
   uint32_t pairingStartMs_ = 0;
   bool atlasLost_ = false;

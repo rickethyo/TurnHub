@@ -126,7 +126,7 @@ void sealedFramesRoundTripAndRejectTampering() {
   uint8_t frame[ESPNOW_MAX_BYTES], inner[ESPNOW_MAX_BYTES];
 
   // No session yet: nothing seals or opens.
-  const auto pass = TurnHubProtocol::makePacket(PacketType::Pass, 2, 0);
+  const auto pass = TurnHubProtocol::makePacket(PacketType::SelectAction, 2, 0);
   assert(sigil.seal(crypto, 2, reinterpret_cast<const uint8_t *>(&pass), sizeof(pass),
       frame, sizeof(frame)) == 0);
 
@@ -180,7 +180,7 @@ void outOfOrderAndOldSessionsAreDropped() {
   pairBoth(crypto, atlasPair, sigilPair);
   Channel atlas, sigil;
   startSession(crypto, atlasPair, 1, atlas, sigil);
-  const auto packet = TurnHubProtocol::makePacket(PacketType::ActionWin, 1, 0);
+  const auto packet = TurnHubProtocol::makePacket(PacketType::LifeAdjust, 1, 0);
   const uint8_t *raw = reinterpret_cast<const uint8_t *>(&packet);
   uint8_t first[64], second[64], inner[64];
   const size_t n1 = sigil.seal(crypto, 1, raw, sizeof(packet), first, sizeof(first));
@@ -211,7 +211,7 @@ void eightSigilsHaveIndependentSessions() {
     pairBoth(crypto, pairs[id], sigilSide);
     startSession(crypto, pairs[id], id, atlas[id], sigil[id]);
   }
-  const auto pass = TurnHubProtocol::makePacket(PacketType::Pass, 0, 0);
+  const auto pass = TurnHubProtocol::makePacket(PacketType::SelectAction, 0, 0);
   uint8_t frame[64], inner[64];
   for (uint8_t id = 0; id < 8; ++id) {
     const size_t n = sigil[id].seal(crypto, id, reinterpret_cast<const uint8_t *>(&pass),

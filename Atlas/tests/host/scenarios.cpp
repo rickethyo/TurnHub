@@ -2511,6 +2511,24 @@ static void deviceManagement() {
 // Android app and the portal share.
 namespace TurnHub { extern int fixtureSetupStageSaved; }
 namespace TurnHubAccounts { extern String primary; extern std::map<std::string,Account> accounts; }
+// The Hello capability byte from Sigil 0.9.0 carries only what varies; older
+// protocol-2 firmware still sets the retired feature bits, which must never
+// read as the new meanings (protocol.h, helloCapabilities).
+static void helloCapabilityLayout() {
+  using namespace TurnHubProtocol;
+  // 0.9.0+: the byte as sent.
+  assert(helloCapabilities(encodeHelloInfo(0,9,0,CAPABILITY_INPUT_DPAD|CAPABILITY_DISPLAY_OLED)) ==
+      (CAPABILITY_INPUT_DPAD|CAPABILITY_DISPLAY_OLED));
+  assert(helloCapabilities(encodeHelloInfo(0,9,0,0)) == 0);  // E-paper with the thumbstick.
+  assert(helloCapabilities(encodeHelloInfo(1,0,0,CAPABILITY_HARNESS)) == CAPABILITY_HARNESS);
+  // 0.8.x e-paper Sigil: 0x6F (old display, profile, game display, timing,
+  // LedState, menu). Bit 0x01 was "display", never "d-pad".
+  assert(helloCapabilities(encodeHelloInfo(0,8,2,0x6F)) == 0);
+  // 0.8.x OLED Sigil: the OLED bit stays and the d-pad is inferred.
+  assert(helloCapabilities(encodeHelloInfo(0,8,2,0x7F)) == (CAPABILITY_DISPLAY_OLED|CAPABILITY_INPUT_DPAD));
+  // 0.8.0 harness: harness stays, its old feature bits go.
+  assert(helloCapabilities(encodeHelloInfo(0,8,0,0x64|CAPABILITY_HARNESS)) == CAPABILITY_HARNESS);
+}
 static void firstRunSetup() {
   using TurnHub::SetupStage;
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
@@ -3127,6 +3145,7 @@ int main() {
   pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
+  helloCapabilityLayout(); std::cout<<"PASS Hello capability layout: 0.9.0 byte, retired bits from 0.8 firmware, inferred d-pad\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";

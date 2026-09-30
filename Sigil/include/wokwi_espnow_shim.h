@@ -55,11 +55,14 @@ static uint8_t pendingSigilMac[6] = {};
 // sealed in it.
 static uint8_t sigilPairKey[TurnHubSecureLink::KEY_BYTES] = {};
 static TurnHubSecureLink::AtlasSession linkSession;
-// Hold thresholds Atlas sends (InputTiming) to Sigils that advertise support;
-// the real Atlas takes them from the seated players' accessibility settings.
+// Hold thresholds Atlas sends (InputTiming); the real Atlas takes them from
+// the seated players' accessibility settings.
 static uint16_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
 static uint16_t winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
-static bool sigilSupportsTiming = false;
+static bool timingSent = false;
+// The menu last sent (MenuState2); its revision moves on with every change,
+// and a SelectAction must name it, as on the real Atlas.
+static uint8_t menuRevision = 0;
 
 inline bool pairingWindowActive() {
   if (pairingOpen && millis() - pairingOpenedMs >= TurnHubProtocol::PAIRING_WINDOW_MS) {
@@ -117,10 +120,6 @@ inline void sendHelloAck() {
 }
 
 inline void sendInputTiming() {
-  if (!sigilSupportsTiming) {
-    Serial.println("WOKWI|ATLAS|TIMING|SKIPPED|SIGIL_HAS_NO_CAPABILITY");
-    return;
-  }
   injectPacket(PacketType::InputTiming, TurnHubProtocol::encodeInputTiming(longPressMs, winHoldMs));
 }
 
@@ -196,9 +195,12 @@ inline void printHelp() {
   Serial.println("  id <0-7>              Sigil ID the next pairing assigns");
   Serial.println("  forget                Atlas forgets the Sigil and sends it Unpair");
   Serial.println("  timing <longMs> <winMs>  hold thresholds, e.g. timing 3000 6000");
-  Serial.println("  blue <0-255>");
-  Serial.println("  red <0|1>");
-  Serial.println("  green <0|1>");
+  Serial.println("  menu <actionMask> [default]  offer menu actions (MenuState2), e.g. menu 0x3 1");
+  Serial.println("        bits are SigilAction numbers: 0 Join, 1 CycleStarter, 6 StartGame, 8 Pass, ...");
+  Serial.println("  led <cue> [overlays] [player] [style]  status ring (LedState), e.g. led 5 0x10 1 0");
+  Serial.println("        cues: 1 Unassigned 2 Joined 3 Starting 4 TurnStarted 5 YourTurn 6 Waiting");
+  Serial.println("              7 Paused 8 ConfirmationNeeded 9 EliminationSelect 10 GameOver");
+  Serial.println("        styles: 0 default, 1 reduced motion, 2 monochrome-safe");
   Serial.println("  buzz <frequencyHz> <durationMs>");
   Serial.println("  name <A|B> <player name>");
   Serial.println("  profile");
@@ -249,7 +251,7 @@ inline void handleConsoleCommand(String line) {
     sigilPaired = false;
     linkSession.clear();
     TurnHubSecureLink::wipe(sigilPairKey, sizeof(sigilPairKey));
-    sigilSupportsTiming = false;
+    timingSent = false;
     Serial.println("WOKWI|ATLAS|FORGOTTEN");
     return;
   }
@@ -285,18 +287,36 @@ inline void handleConsoleCommand(String line) {
     return;
   }
 
-  if (command == "blue") {
-    injectPacket(PacketType::SetBlue, constrain(arguments.toInt(), 0, 255));
+  if (command == "menu") {
+    unsigned long mask = 0;
+    int defaultAction = TurnHubProtocol::SIGIL_ACTION_NONE;
+    if (sscanf(arguments.c_str(), "%li %i", reinterpret_cast<long *>(&mask), &defaultAction) < 1) {
+      Serial.println("WOKWI|ERROR|menu <actionMask> [default]");
+      return;
+    }
+    TurnHubProtocol::MenuStateFields fields;
+    fields.actions = static_cast<uint32_t>(mask);
+    fields.defaultAction = static_cast<uint8_t>(defaultAction);
+    menuRevision = static_cast<uint8_t>((menuRevision + 1) & TurnHubProtocol::MENU_REVISION_MASK);
+    fields.revision = menuRevision;
+    injectPacket(PacketType::MenuState2, TurnHubProtocol::encodeMenuState2(fields));
     return;
   }
 
-  if (command == "red") {
-    injectPacket(PacketType::SetRed, arguments.toInt() != 0 ? 1 : 0);
-    return;
-  }
-
-  if (command == "green") {
-    injectPacket(PacketType::SetGreen, arguments.toInt() != 0 ? 1 : 0);
+  if (command == "led") {
+    int cue = 0, overlays = 0, player = 0, style = 0;
+    if (sscanf(arguments.c_str(), "%i %i %i %i", &cue, &overlays, &player, &style) < 1 ||
+        cue < 0 || cue >= static_cast<int>(TurnHubProtocol::LedCue::Count) || style < 0 || style > 2) {
+      Serial.println("WOKWI|ERROR|led <cue> [overlays] [player] [style]");
+      return;
+    }
+    TurnHubProtocol::LedStateFields fields;
+    fields.cue = static_cast<TurnHubProtocol::LedCue>(cue);
+    fields.overlays = static_cast<uint8_t>(overlays);
+    fields.playerNumber = static_cast<uint8_t>(player);
+    fields.style = static_cast<TurnHubProtocol::LedStyle>(style);
+    injectPacket(PacketType::TableClock, static_cast<int32_t>(millis()));
+    injectPacket(PacketType::LedState, TurnHubProtocol::encodeLedState(fields));
     return;
   }
 
@@ -539,24 +559,26 @@ inline esp_err_t espNowSend(
   switch (packet.type) {
     case PacketType::Hello: {
       const uint8_t capabilities = TurnHubProtocol::helloCapabilities(packet.value);
-      const bool timing = (capabilities & TurnHubProtocol::CAPABILITY_INPUT_TIMING) != 0;
       Serial.printf("WOKWI|ATLAS|HELLO|FIRMWARE|%u.%u.%u|CAPABILITIES|0x%02X\n",
           TurnHubProtocol::helloFirmwareMajor(packet.value),
           TurnHubProtocol::helloFirmwareMinor(packet.value),
           TurnHubProtocol::helloFirmwarePatch(packet.value), capabilities);
       sendHelloAck();
-      if (timing && !sigilSupportsTiming) {
-        sigilSupportsTiming = true;
-        sendInputTiming();  // The real Atlas sends timing to capable Sigils.
+      if (!timingSent) {
+        timingSent = true;
+        sendInputTiming();  // The real Atlas sends every Sigil its hold times.
       }
       break;
     }
-    case PacketType::Pass:
-    case PacketType::ActionDown:
-    case PacketType::ActionUp:
-    case PacketType::ActionShort:
-    case PacketType::ActionLong:
-    case PacketType::ActionWin:
+    case PacketType::SelectAction:
+      Serial.printf("WOKWI|ATLAS|MENU|SELECT|%u|REVISION|%u%s\n",
+          TurnHubProtocol::selectedAction(packet.value), TurnHubProtocol::selectedRevision(packet.value),
+          TurnHubProtocol::selectedRevision(packet.value) == menuRevision ? "" : "|STALE");
+      sendAck(packet.type);
+      break;
+    case PacketType::PickerKey:
+    case PacketType::LifeAdjust:
+    case PacketType::LifeResponse:
       sendAck(packet.type);
       break;
     case PacketType::DisplayProfileRequest:

@@ -114,10 +114,6 @@ void SigilMenu::applyMenuState2(int32_t value, uint32_t nowMs) {
   applyFields(TurnHubProtocol::decodeMenuState2(value), nowMs);
 }
 
-void SigilMenu::applyMenuState(int32_t value, uint32_t nowMs) {
-  applyFields(TurnHubProtocol::decodeMenuState(value), nowMs);
-}
-
 void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f, uint32_t nowMs) {
   const uint8_t cursorAction = listOpen_ ? itemAt(cursor_) : MENU_NONE;
   const bool changed = !active_ || f.actions != actions_;

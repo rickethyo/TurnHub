@@ -4,7 +4,7 @@
 // MAC and its soft-AP MAC each pair as a separate Sigil, and each can seat two
 // players (Seat A and B), so one board plays up to four players. It speaks
 // only the shared ESP-NOW contract (protocol.h) and drives the game through
-// the same SelectAction choices a real menu Sigil sends. Like a 0.8.0 Sigil it
+// the same SelectAction choices a real Sigil sends. Like a real Sigil it
 // also joins through the profile picker, changes its players' life with
 // LifeAdjust and answers life requests with LifeResponse. Atlas stays the
 // sole authority: the harness reads the menus Atlas offers and never decides
@@ -39,16 +39,13 @@ using TurnHubProtocol::HarnessTest;
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Must match Atlas's soft-AP channel (and Sigil's WIFI_CHANNEL).
 constexpr uint8_t WIFI_CHANNEL = 6;
-// 0.8.0 is the Sigil release that decodes MenuState2 (Leave, AdjustLife),
-// the profile picker and life requests; Atlas gates those on it.
+// 0.9.0 sends the capability layout of Sigil 0.9.0 (protocol.h).
 constexpr uint8_t FIRMWARE_MAJOR = 0;
-constexpr uint8_t FIRMWARE_MINOR = 8;
+constexpr uint8_t FIRMWARE_MINOR = 9;
 constexpr uint8_t FIRMWARE_PATCH = 0;
-// Menu Sigil with a shared (two-seat) display. The game display carries each
-// seat's life, which the life checks read back; LedState keeps Atlas's light
-// traffic to one packet per change instead of three channel packets.
-constexpr uint8_t CAPABILITIES = TurnHubProtocol::CAPABILITY_MENU |
-    TurnHubProtocol::CAPABILITY_GAME_DISPLAY | TurnHubProtocol::CAPABILITY_LED_STATE;
+// Plays as a baseline Sigil (menu, game display with each seat's life, which
+// the life checks read back, and LedState); only V1 adds CAPABILITY_HARNESS.
+constexpr uint8_t CAPABILITIES = 0;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
 constexpr uint32_t PAIR_REQUEST_INTERVAL_MS = 1000;
 // Atlas's pairing window (at least 60 s) plus the owner's code check for
@@ -438,11 +435,8 @@ void handlePacket(const uint8_t *mac, const Packet &packet) {
         ++v->ackCount;
       }
       break;
-    case PacketType::MenuState:
     case PacketType::MenuState2:
-      v->menu = packet.type == PacketType::MenuState2
-          ? TurnHubProtocol::decodeMenuState2(packet.value)
-          : TurnHubProtocol::decodeMenuState(packet.value);
+      v->menu = TurnHubProtocol::decodeMenuState2(packet.value);
       v->menuValid = true;
       v->menuAtMs = millis();
       if (verbose) {
@@ -805,7 +799,7 @@ bool gameOver() {
   return offering(SigilAction::Rematch) != nullptr;
 }
 
-// Join: a picker Sigil (0.8.0+, not V1, which carries CAPABILITY_HARNESS)
+// Join: every Sigil but V1 (which carries CAPABILITY_HARNESS)
 // first gets Atlas's profile picker; the harness picks Guest from it, so the
 // run never plays as, or changes, a real profile.
 bool join(VirtualSigil &v) {

@@ -41,13 +41,13 @@ int main() {
 
   SigilLedModel m;
   // Nothing received yet: dark.
-  assert(lit(m.render(1000)) == 0 && dark(m.render(1000).single));
+  assert(lit(m.render(1000)) == 0 && dark(m.render(1000).pixels[LED_CENTER]));
 
-  // Waiting: whole ring and single LED a steady dim blue.
+  // Waiting: the whole Jewel a steady dim blue.
   m.applyLedState(led(LedCue::Waiting), 1000);
   LedFrame f = m.render(1000);
   assert(lit(f) == 6 && f.pixels[1].b > 0 && f.pixels[1].r == 0 && f.pixels[1] == m.render(5000).pixels[1]);
-  assert(f.single == f.pixels[1] && f.pixels[LED_CENTER] == f.pixels[1]);
+  assert(f.pixels[LED_CENTER] == f.pixels[1]);
 
   // Your turn breathes green; reduced motion holds it steady.
   m.applyLedState(led(LedCue::YourTurn), 0);
@@ -66,16 +66,11 @@ int main() {
   m.applyLedState(led(LedCue::YourTurn, 0, 0, 2, true, LedStyle::ReducedMotion), 0);
   assert(m.render(0).pixels[4].b == 255 && dark(m.render(2500).pixels[4]));  // Slow blink, not steady.
 
-  // Joined: player number as that many ring pixels; the single LED flashes it.
+  // Joined: player number as that many steady ring pixels.
   m.applyLedState(led(LedCue::Joined, 0, 4), 0);
   f = m.render(0);
   assert(lit(f) == 4 && dark(f.pixels[5]) && dark(f.pixels[LED_CENTER]));
-  unsigned flashes = 0; bool was = false;
-  for (uint32_t t = 0; t < 4 * 360 + 3000; t += 10) {
-    const bool on = !dark(m.render(t).single);
-    flashes += on && !was; was = on;
-  }
-  assert(flashes == 4);
+  assert(m.render(2000).pixels[4] == f.pixels[4]);
   m.applyLedState(led(LedCue::Joined, 0, 8), 0);
   assert(lit(m.render(0)) == 6 && !dark(m.render(0).pixels[LED_CENTER]));
 
@@ -92,10 +87,10 @@ int main() {
   // Overlays take the center by priority; Host never hides the cue on one LED.
   m.applyLedState(led(LedCue::YourTurn, bit(LedOverlay::Host) | bit(LedOverlay::TimerExpired)), 0);
   f = m.render(1300);
-  assert(f.pixels[LED_CENTER] == (Rgb{255, 0, 0}) && f.single == f.pixels[LED_CENTER] && f.pixels[1].g > 240);
+  assert(f.pixels[LED_CENTER] == (Rgb{255, 0, 0}) && f.pixels[1].g > 240);
   m.applyLedState(led(LedCue::YourTurn, bit(LedOverlay::Host)), 0);
   f = m.render(1300);
-  assert(f.pixels[LED_CENTER].b == 255 && f.single == f.pixels[1]);
+  assert(f.pixels[LED_CENTER].b == 255 && f.pixels[1].g > 240);
 
   // Anchored cues keep their phase from Atlas's anchor, not packet arrival.
   m.applyLedState(led(LedCue::TurnStarted, 0, 0, 1, false, LedStyle::Default, 208), 5000);
@@ -118,10 +113,10 @@ int main() {
   m.setPairing(false, 400);
   assert(m.render(400).pixels[1].b > 0);
   m.flashPassAck(1000);
-  assert(m.render(1100).single == (Rgb{0, 255, 0}) && m.render(1250).single.b > 0);
+  assert(m.render(1100).pixels[1] == (Rgb{0, 255, 0}) && m.render(1250).pixels[1].b > 0);
 
   // Atlas lost: Atlas's cue is replaced by one orange pixel sweeping 1..6
-  // and back, center dark; the one-LED view double-blinks. Pairing still
+  // and back, center dark. Pairing still
   // outranks it; clearing it hands Atlas's cue back.
   {
     const Rgb orange{255, 50, 0};
@@ -132,8 +127,6 @@ int main() {
       assert(lit(lost) == 1 && lost.pixels[expected[step]] == orange);
       assert(dark(lost.pixels[LED_CENTER]));
     }
-    assert(m.render(2000).single == orange && dark(m.render(2200).single) &&
-        m.render(2300).single == orange && dark(m.render(2500).single));
     m.setAtlasLost(true, 9000);  // Still lost: the sweep keeps its start.
     assert(m.render(2050).pixels[1] == orange);
     m.setPairing(true, 3000);
@@ -188,11 +181,11 @@ int main() {
   m.setPassPending(false, false, 9300);
   assert(m.render(9100).pixels[1].b > 0);
 
-  // A held menu action fills the ring in white; the single LED brightens.
+  // A held menu action fills the ring in white.
   m.applyLedState(led(LedCue::Waiting), 0);
   m.setHoldProgress(128);
   f = m.render(3000);
-  assert(lit(f) == 4 && f.pixels[4] == (Rgb{120, 100, 70}) && dark(f.pixels[5]) && f.single.r == 60);
+  assert(lit(f) == 4 && f.pixels[4] == (Rgb{120, 100, 70}) && dark(f.pixels[5]));
   m.setHoldProgress(0);
   assert(m.render(3000).pixels[1].b > 0 && m.render(3000).pixels[1].r == 0);
 
@@ -259,9 +252,7 @@ int main() {
     }
   }
 
-  // Legacy channels from an older Atlas; clear() goes dark.
-  m.applyLegacyRed(true); m.applyLegacyBlue(128);
-  assert(!m.semantic() && m.render(2000).single == (Rgb{255, 0, 128}));
+  // clear() (unpaired) goes dark until the next LedState.
   m.clear();
   assert(lit(m.render(0)) == 0);
 
@@ -314,7 +305,6 @@ int main() {
     for (uint32_t t = 0; t < 6000; t += 137) {
       const LedFrame fa = a.render(aBoot + t), fb = b.render(bBoot + t);
       for (uint8_t i = 0; i < LED_PIXELS; ++i) assert(fa.pixels[i] == fb.pixels[i]);
-      assert(fa.single == fb.single);
     }
     // Atlas restarts (its clock jumps back): the old samples are dropped.
     b.syncTableClock(10, bBoot + 9000);

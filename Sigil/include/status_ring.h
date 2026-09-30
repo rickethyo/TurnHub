@@ -1,8 +1,7 @@
 #pragma once
 
-// NeoPixel Jewel 7 (RGBW) on the E-ink Sigil: shows each LedFrame
-// (sigil_led.h) pixel for pixel. Compiled only when TURNHUB_STATUS_RING is
-// set: other builds still use the ring's GPIO as the Pass button.
+// NeoPixel Jewel 7 (RGBW), the status light on every Sigil: shows each
+// LedFrame (sigil_led.h) pixel for pixel.
 
 #include <stdint.h>
 

@@ -39,7 +39,7 @@ void handshakeThenSealedTrafficBothWays() {
   connect(crypto, sigil, atlas, 2);
 
   uint8_t frame[ESPNOW_MAX_BYTES], inner[ESPNOW_MAX_BYTES];
-  const Packet pass = TurnHubProtocol::makePacket(PacketType::Pass, 2, 0);
+  const Packet pass = TurnHubProtocol::makePacket(PacketType::SelectAction, 2, 0);
   size_t n = sigil.seal(crypto, &pass, sizeof(pass), frame, sizeof(frame));
   assert(n == sizeof(pass) + SECURE_OVERHEAD);
   PacketType type;
@@ -103,7 +103,7 @@ void newSessionsLeaveOldFramesBehind() {
   sigil.configure(0, PAIR_KEY);
   connect(crypto, sigil, atlas, 0);
   uint8_t old[64], inner[64];
-  const Packet win = TurnHubProtocol::makePacket(PacketType::ActionWin, 0, 0);
+  const Packet win = TurnHubProtocol::makePacket(PacketType::LifeAdjust, 0, 0);
   const size_t n = sigil.seal(crypto, &win, sizeof(win), old, sizeof(old));
 
   // Reconnect (Atlas restarted, or the link dropped): the recorded win claim

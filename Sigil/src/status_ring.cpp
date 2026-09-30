@@ -1,7 +1,5 @@
 #include "status_ring.h"
 
-#if TURNHUB_STATUS_RING
-
 #include <Adafruit_NeoPixel.h>
 #include <new>
 
@@ -11,6 +9,11 @@ namespace {
 // 560 mA for the ring: more than a USB port supplies. 48/255 keeps the
 // worst case this firmware can request (white, RGB only) near 70 mA.
 constexpr uint8_t RING_BRIGHTNESS = 48;
+#ifdef TURNHUB_WOKWI
+constexpr neoPixelType RING_TYPE = NEO_GRB + NEO_KHZ800;  // Wokwi's ring is RGB.
+#else
+constexpr neoPixelType RING_TYPE = NEO_GRBW + NEO_KHZ800;  // The Jewel 7 is RGBW.
+#endif
 
 Adafruit_NeoPixel *ring = nullptr;
 LedFrame shown;
@@ -18,7 +21,7 @@ LedFrame shown;
 
 void statusRingBegin(uint8_t pin) {
   if (ring) return;
-  ring = new (std::nothrow) Adafruit_NeoPixel(LED_PIXELS, pin, NEO_GRBW + NEO_KHZ800);
+  ring = new (std::nothrow) Adafruit_NeoPixel(LED_PIXELS, pin, RING_TYPE);
   if (!ring) return;
   ring->begin();
   ring->setBrightness(RING_BRIGHTNESS);
@@ -42,4 +45,3 @@ void statusRingShow(const LedFrame &frame) {
 
 }  // namespace TurnHubSigil
 
-#endif  // TURNHUB_STATUS_RING

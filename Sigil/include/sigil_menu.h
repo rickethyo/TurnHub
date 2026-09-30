@@ -1,6 +1,6 @@
 #pragma once
 
-// Sigil action menu (CAPABILITY_MENU). Atlas sends which actions this Sigil
+// Sigil action menu (every Sigil). Atlas sends which actions this Sigil
 // may use (MenuState); this module lets the player choose one with five keys
 // and yields a SelectAction to send. It decides nothing about the game: Atlas
 // validates every choice. Pure logic, host-tested.
@@ -32,7 +32,7 @@ const char *sigilActionLabel(TurnHubProtocol::SigilAction action);
 
 // Everything a display needs to draw the menu; copied to the display task.
 struct MenuView {
-  bool active = false;          // Atlas sends menus (else legacy gestures).
+  bool active = false;          // Atlas has sent a menu (none yet after pairing).
   uint8_t compass[KEY_COUNT];   // Action per key (MENU_NONE if none).
   bool listOpen = false;
   uint8_t items[MENU_MAX_ITEMS];
@@ -56,9 +56,8 @@ class SigilMenu {
  public:
   explicit SigilMenu(MenuLayout layout) : layout_(layout) {}
 
-  void applyMenuState(int32_t value, uint32_t nowMs);
-  void applyMenuState2(int32_t value, uint32_t nowMs);  // MenuState2 (Leave and later).
-  void clear();  // Unpaired: back to legacy gestures until Atlas sends a menu.
+  void applyMenuState2(int32_t value, uint32_t nowMs);
+  void clear();  // Unpaired: no menu until Atlas sends one.
   void setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs);
 
   bool active() const { return active_; }

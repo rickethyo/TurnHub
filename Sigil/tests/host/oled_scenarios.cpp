@@ -171,7 +171,7 @@ int main() {
     for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::Resume,
                           SigilAction::ClaimWin, SigilAction::LinkPhone}) f.actions |= sigilActionBit(a);
     f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
-    m.applyMenuState(encodeMenuState(f), 0);
+    m.applyMenuState2(encodeMenuState2(f), 0);
     d.setMenuView(m.view());
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
     assert(has("YOUR TURN") && !has("MENU"));  // Closed: the normal screen.

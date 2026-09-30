@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
     fields.actions |= sigilActionBit(a);
   }
   fields.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
-  menu.applyMenuState(encodeMenuState(fields), 0);
+  menu.applyMenuState2(encodeMenuState2(fields), 0);
   menu.keyDown(Key::Up, 0);
   menu.keyDown(Key::Down, 1);
   menu.keyDown(Key::Down, 2);

@@ -51,14 +51,6 @@ uint8_t pulses(uint32_t t, uint32_t periodMs, uint32_t onMs, uint8_t count) {
   return 0;
 }
 
-// Player number as flashes: n flashes, then a gap.
-uint8_t countFlashes(uint32_t t, uint8_t n) {
-  constexpr uint32_t FLASH_MS = 360, ON_MS = 180, GAP_MS = 3000;
-  if (n == 0) return 0;
-  const uint32_t p = t % (n * FLASH_MS + GAP_MS);
-  return p < n * FLASH_MS && p % FLASH_MS < ON_MS ? 255 : 0;
-}
-
 struct Look {
   Rgb color;
   uint8_t level;  // Temporal level now (0-255).
@@ -84,7 +76,7 @@ Look cueLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, uint32_t an
   const bool rm = reduced(s.style);
   switch (s.cue) {
     case LedCue::Unassigned: return {WHITE, rm ? slow(now) : blink(now, 1500, 500)};
-    case LedCue::Joined: return {CYAN, rm ? static_cast<uint8_t>(80) : countFlashes(now, s.playerNumber)};
+    case LedCue::Joined: return {CYAN, 255};  // The ring shows the number as pixels.
     case LedCue::Starting: return {AMBER, rm ? static_cast<uint8_t>(255) : blink(anchored, 1000, 250)};
     // Seat B of a shared Sigil: its own color and a double pulse (a slow
     // blink with reduced motion), and only its half of the ring, so the two
@@ -107,9 +99,8 @@ Look cueLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, uint32_t an
   }
 }
 
-// Highest-priority overlay for the center pixel, if any. Host is lowest and
-// is left off the one-LED view, where it would hide the cue.
-bool overlayLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, bool includeHost, Look &out) {
+// Highest-priority overlay for the center pixel, if any. Host is lowest.
+bool overlayLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, Look &out) {
   const auto has = [&s](LedOverlay o) { return (s.overlays & (1u << static_cast<uint8_t>(o))) != 0; };
   const bool rm = reduced(s.style);
   if (has(LedOverlay::TimerExpired)) { out = {RED, 255}; return true; }
@@ -122,7 +113,7 @@ bool overlayLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, bool in
     out = {CYAN, rm ? slow(now) : mono(s.style) ? blink(now, 4000, 250) : static_cast<uint8_t>(255)};
     return true;
   }
-  if (includeHost && has(LedOverlay::Host)) { out = {PURPLE, 255}; return true; }
+  if (has(LedOverlay::Host)) { out = {PURPLE, 255}; return true; }
   return false;
 }
 
@@ -133,10 +124,6 @@ void SigilLedModel::applyLedState(int32_t value, uint32_t nowMs) {
   semantic_ = true;
   anchorMs_ = nowMs - state_.anchorAgeMs;
 }
-
-void SigilLedModel::applyLegacyRed(bool on) { semantic_ = false; legacyRed_ = on; }
-void SigilLedModel::applyLegacyGreen(bool on) { semantic_ = false; legacyGreen_ = on; }
-void SigilLedModel::applyLegacyBlue(uint8_t level) { semantic_ = false; legacyBlue_ = level; }
 
 void SigilLedModel::applySeatColor(int32_t value) {
   const uint8_t slot = TurnHubProtocol::seatColorSlot(value);
@@ -157,8 +144,6 @@ void SigilLedModel::clear() {
   seatColorSet_[0] = seatColorSet_[1] = false;
   state_ = TurnHubProtocol::LedStateFields();
   semantic_ = false;
-  legacyRed_ = legacyGreen_ = false;
-  legacyBlue_ = 0;
   passAck_ = false;
   passPending_ = false;
 }
@@ -213,7 +198,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   LedFrame frame;
   const auto fill = [&frame](Rgb color) {
     for (auto &pixel : frame.pixels) pixel = color;
-    frame.single = color;
   };
 
   // Sigil-local states win: Atlas cannot see them.
@@ -223,7 +207,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     const uint8_t lit = static_cast<uint8_t>((updatePercent_ * 6 + 99) / 100);
     for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = i <= lit ? CYAN : scaled(BLUE, 40);
     frame.pixels[LED_CENTER] = scaled(CYAN, rm ? static_cast<uint8_t>(255) : blink(t, 1000, 500));
-    frame.single = scaled(CYAN, rm ? static_cast<uint8_t>(255) : breathe(t, 2000));
     return frame;
   }
   if (pairing_) {
@@ -238,11 +221,9 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     if (reduced(state_.style)) {
       frame.pixels[1] = ORANGE;
       frame.pixels[4] = ORANGE;
-      frame.single = scaled(ORANGE, slow(t));
     } else {
       const uint32_t step = (t / 200) % 10;
       frame.pixels[step < 6 ? 1 + step : 11 - step] = ORANGE;
-      frame.single = scaled(ORANGE, pulses(t, 2000, 150, 2));
     }
     return frame;
   }
@@ -250,7 +231,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     const uint8_t lit = static_cast<uint8_t>((holdProgress_ * 6 + 254) / 255);
     for (uint8_t i = 1; i <= lit && i < LED_PIXELS; ++i) frame.pixels[i] = WHITE;
     frame.pixels[LED_CENTER] = WHITE;
-    frame.single = scaled(WHITE, holdProgress_);
     return frame;
   }
   if (lifePending_ != 0) {
@@ -271,7 +251,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       frame.pixels[LED_CENTER] = color;
     }
     for (uint8_t i = 0; i < lit; ++i) frame.pixels[gain ? 1 + i : 6 - i] = color;
-    frame.single = color;
     return frame;
   }
   if (passPending_) {
@@ -283,7 +262,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     const Rgb color = passMine_ ? GREEN : AMBER;
     for (uint8_t i = 1; i <= lit; ++i) frame.pixels[i] = color;
     frame.pixels[LED_CENTER] = color;
-    frame.single = scaled(color, reduced(state_.style) ? static_cast<uint8_t>(255) : blink(elapsed, 300, 150));
     return frame;
   }
   if (passAck_ && static_cast<int32_t>(nowMs - passAckUntilMs_) < 0) {
@@ -291,11 +269,7 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     return frame;
   }
 
-  if (!semantic_) {
-    fill(Rgb{static_cast<uint8_t>(legacyRed_ ? 255 : 0), static_cast<uint8_t>(legacyGreen_ ? 255 : 0),
-        legacyBlue_});
-    return frame;
-  }
+  if (!semantic_) return frame;  // Nothing from Atlas yet: dark.
 
   const TurnHubProtocol::LedStateFields &s = state_;
   const uint32_t anchored = nowMs - anchorMs_;
@@ -338,7 +312,7 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   }
 
   Look overlay{Rgb(), 0};
-  const bool hasOverlay = overlayLook(s, table, true, overlay);
+  const bool hasOverlay = overlayLook(s, table, overlay);
   // A winner's whole ring celebrates in gold once the game is over.
   if (s.cue == LedCue::GameOver && hasOverlay && overlay.color == GOLD) {
     for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = scaled(GOLD, overlay.level);
@@ -354,14 +328,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     frame.pixels[LED_CENTER] = cueColor;
   }
 
-  // One LED: an overlay (not Host) replaces the cue; otherwise the cue's
-  // temporal form (player number as flashes, seat as one or two pulses).
-  Look single{Rgb(), 0};
-  if (overlayLook(s, table, false, single)) {
-    frame.single = scaled(single.color, single.level);
-  } else {
-    frame.single = cueColor;
-  }
   return frame;
 }
 
