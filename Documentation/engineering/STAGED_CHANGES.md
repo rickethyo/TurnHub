@@ -646,9 +646,14 @@ option for a battery Sigil left unused for hours.
 - Never sleep while the Sigil's player is the active player, during a
   countdown, with a decision pending on that player, during an update, or
   while pairing.
-- Timeout: a table setting (off, 5, 10 minutes; default to decide), sent to
-  Sigils like the input timing. Atlas can refuse a sleep request (answer
-  Wake) if a rule above applies.
+- Timeout (owner, 2026-09-30): short outside a game, about 3 minutes in the
+  lobby or with the Sigil unseated, and at least 10 minutes while a game is
+  running (someone may go a long while between their own turns). Atlas
+  picks which applies and sends it to Sigils like the input timing, so the
+  Sigil's idle timer changes when a game starts or ends. Admins can
+  lengthen either or turn sleep off; the in-game value never goes below 10
+  minutes. Atlas can refuse a sleep request (answer Wake) if a rule above
+  applies.
 - A sleeping Sigil is **Asleep**, not **Offline**: its seat, participant and
   statistics are untouched, and it stays out of the "controller lost"
   handling. Asleep that stops checking in for longer than the link timeout
@@ -662,8 +667,8 @@ option for a battery Sigil left unused for hours.
    Admin setting change: the existing settings Intent path. Portal/app
    "Wake": a new `WakeSigil` Intent (validator: Admin or the seated player).
 3. **Validator:** Atlas answers each sleep request by the rules above.
-4. **Persistence:** the timeout in `game_settings_store` (NVS); sleep state is
-   RAM-only.
+4. **Persistence:** the two timeouts (out of game, in game) in
+   `game_settings_store` (NVS); sleep state is RAM-only.
 5. **Rendering clients:** Sigil screens ("Asleep", "Press ... to wake");
    Atlas touchscreen and portal/app device list show Asleep; `/api/devices`
    gains `asleep`.
@@ -683,7 +688,7 @@ option for a battery Sigil left unused for hours.
    per-player accessibility preference "Never sleep my Sigil" (like the hold
    timings) for players who rely on its LEDs/buzzer between turns.
 
-**Open questions.** The default timeout; whether the e-paper keeps its last
+**Open questions.** Exact defaults (about 3 and 10 minutes above); whether the e-paper keeps its last
 image or shows an "Asleep" card (e-paper holds either with no power); LED ring
 behavior (off while asleep); measured current in light sleep versus today
 (ties into verification item H03); how long a battery lasts either way.
