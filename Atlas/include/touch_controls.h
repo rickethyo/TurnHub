@@ -54,7 +54,10 @@ enum class TouchAction : uint8_t {
   // Between games: the Menu screen holding Pair, QR codes, Tests and Info.
   OpenMenu,
   // Pairing v2 code check: the codes on the Sigil and Atlas match, or not.
-  PairConfirm, PairReject
+  PairConfirm, PairReject,
+  // In a game: tap a player's chip for that player's screen, which changes
+  // their life (ChangeLife) and concedes for them (Concede, asked twice).
+  OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede, ConfirmConcede, CancelConcede
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -62,7 +65,8 @@ enum class TouchAction : uint8_t {
 // Menu: the between-games extras (Pair, QR codes, Tests, Info) kept off the
 // lobby's main row.
 // PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode };
+// Player: one player's life and Concede, from their chip (in a game).
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -96,6 +100,20 @@ constexpr uint8_t CHIP_OUT = 0x02;      // Eliminated.
 constexpr uint8_t CHIP_WINNER = 0x08;
 constexpr uint8_t CHIP_STARTER = 0x10;  // Starts the next game.
 constexpr uint8_t CHIP_WAITING = 0x20;  // Atlas is waiting on this player (win confirmation).
+
+// Where player chip `index` of `count` sits in the body. The drawing and the
+// touch adapter share it, so a tap lands on the chip the player sees.
+inline void screenChipCell(uint8_t index, uint8_t count, int16_t &x, int16_t &y, int16_t &w, int16_t &h) {
+  constexpr int16_t PAD = 8;
+  constexpr int16_t GAP = 6;
+  constexpr int16_t BODY_H = BUTTON_ROW_Y - 4 - SCREEN_BODY_Y;
+  const uint8_t cols = count == 0 ? 1 : (count <= 4 ? count : 4);
+  const uint8_t rows = count <= 4 ? 1 : 2;
+  w = (ATLAS_SCREEN_WIDTH - 2 * PAD - (cols - 1) * GAP) / cols;
+  h = (BODY_H - (rows - 1) * GAP) / rows;
+  x = PAD + (index % cols) * (w + GAP);
+  y = SCREEN_BODY_Y + (index / cols) * (h + GAP);
+}
 
 struct ScreenPlayer {
   uint8_t number = 0;

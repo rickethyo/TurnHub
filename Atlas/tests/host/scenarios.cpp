@@ -2131,6 +2131,27 @@ static void touchControls() {
       !screenButton(s,TouchAction::MasterPass) && screenButton(s,TouchAction::EndMatch)->hold());
   tapButton(TouchAction::CloseScreen); tapButton(TouchAction::Resume); assert(hubState==HubState::Running);
 
+  // Playtest 2026-09-29 item 9: a player's chip opens their screen, which
+  // changes their own life and concedes only after asking again.
+  {
+    const PlayerSeat second=*game.playerAt(1);
+    const int32_t life=game.lifeTotal(second.playerNumber);
+    int16_t cx,cy,cw,ch; screenChipCell(1,game.playerCount(),cx,cy,cw,ch);
+    touchAt(cx+cw/2,cy+ch/2); testNow+=30; touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    s=currentScreen();
+    assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==6 &&
+        screenButton(s,TouchAction::LifeMinus5) && screenButton(s,TouchAction::CloseScreen) &&
+        !screenButton(s,TouchAction::Concede)->hold());
+    for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None) assert(b.w>=44 && b.h>=44);
+    tapButton(TouchAction::LifeMinus5); tapButton(TouchAction::LifePlus1);
+    assert(game.lifeTotal(second.playerNumber)==life-4);
+    tapButton(TouchAction::Concede); s=currentScreen();
+    assert(!game.isEliminated(second.playerNumber) && screenButton(s,TouchAction::ConfirmConcede) &&
+        screenButton(s,TouchAction::CancelConcede) && startsWith(s.detail,"Concede for "));
+    tapButton(TouchAction::CancelConcede); assert(!game.isEliminated(second.playerNumber));
+    tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
+  }
+
   // End match needs the full hold, shows a countdown, and acts once.
   tapButton(TouchAction::OpenTable); s=currentScreen();
   assert(s.kind==ScreenKind::Table && String(s.badge)=="TABLE" && s.buttonCount==3 &&
@@ -2158,6 +2179,19 @@ static void touchControls() {
   assert(s.kind==ScreenKind::Menu && !screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) &&
       screenButton(s,TouchAction::OpenInfo));
   tapButton(TouchAction::CloseScreen);
+
+  // A confirmed concession from the Player screen goes through Concede: the
+  // player is out, the match goes on, and their screen closes.
+  enterEmptyLobby(); freshLobby(3); startFromHost();
+  {
+    const uint8_t third=game.playerAt(2)->playerNumber;
+    int16_t cx,cy,cw,ch; screenChipCell(2,game.playerCount(),cx,cy,cw,ch);
+    touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    tapButton(TouchAction::Concede); tapButton(TouchAction::ConfirmConcede);
+    assert(game.isEliminated(third) && hubState==HubState::Running && currentScreen().kind==ScreenKind::Status);
+    // An eliminated player's chip opens nothing.
+    touchAt(cx+cw/2,cy+ch/2); touchRelease(); assert(currentScreen().kind==ScreenKind::Status);
+  }
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();

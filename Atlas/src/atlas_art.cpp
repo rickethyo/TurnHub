@@ -671,14 +671,9 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   drawChipTime(p, x, y, w, h);
 }
 
+// Shared with the touch adapter, so tapping a chip opens that player.
 void chipCell(uint8_t index, uint8_t count, int16_t &x, int16_t &y, int16_t &w, int16_t &h) {
-  const uint8_t cols = count <= 4 ? count : 4;
-  const uint8_t rows = count <= 4 ? 1 : 2;
-  constexpr int16_t GAP = 6;
-  w = (W - 2 * PAD - (cols - 1) * GAP) / cols;
-  h = (BODY_H - (rows - 1) * GAP) / rows;
-  x = PAD + (index % cols) * (w + GAP);
-  y = SCREEN_BODY_Y + (index / cols) * (h + GAP);
+  screenChipCell(index, count, x, y, w, h);
 }
 
 // A QR code on white, in a brass frame (the white keeps its quiet zone).
@@ -736,7 +731,7 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
   }
   // Their buttons use the body.
   if (screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table ||
-      screen.kind == ScreenKind::Menu) return;
+      screen.kind == ScreenKind::Menu || screen.kind == ScreenKind::Player) return;
 
   // Chips alone: redraw only those that changed, and only the time line of
   // a chip whose time alone moved.
@@ -848,7 +843,7 @@ bool sameButtonLayout(const AtlasScreen &a, const AtlasScreen &b) {
 
 void drawButtons(const AtlasScreen &screen) {
   const int16_t top = screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table ||
-      screen.kind == ScreenKind::Menu ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
+      screen.kind == ScreenKind::Menu || screen.kind == ScreenKind::Player ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
   tft().fillRect(0, top, W, ATLAS_SCREEN_HEIGHT - top, WALNUT);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) drawButton(screen, screen.buttons[i]);
 }

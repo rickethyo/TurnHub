@@ -47,6 +47,11 @@ uint32_t noticeAtMs = 0;
 // Which screen is up, and the QR code chosen on the QR screen.
 ScreenKind openScreen = ScreenKind::Status;
 TouchAction qrChoice = TouchAction::QrPortal;
+// The Player screen: whose it is, and whether Concede is waiting for its
+// confirmation. pressedPlayer is the chip under the finger.
+uint8_t shownPlayer = 0;
+bool concedeArmed = false;
+uint8_t pressedPlayer = 0;
 
 struct NameCache {
   char profileId[9] = {};
@@ -140,6 +145,12 @@ uint8_t waitingPairSlot() {
 // a game starts.
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
+  // A player's screen closes with the match or once that player is out.
+  if (openScreen == ScreenKind::Player && (!matchInProgress() ||
+      game.playerByNumber(shownPlayer) == nullptr || game.isEliminated(shownPlayer))) {
+    openScreen = ScreenKind::Status;
+    concedeArmed = false;
+  }
   if (openScreen == ScreenKind::Menu && !menuAvailable()) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
@@ -174,6 +185,55 @@ void layoutTable(AtlasScreen &screen) {
   addRow(screen, BUTTON_ROW_Y, lower, 2);
 }
 
+// One player's screen (playtest 2026-09-29, item 9): life steps above,
+// Concede and Back below. Concede never acts on one touch or on a hold
+// alone: it asks again with Concede / Cancel.
+void layoutPlayer(AtlasScreen &screen) {
+  if (concedeArmed) {
+    const ButtonSpec lower[] = {{TouchAction::ConfirmConcede, "Concede", 0, 3},
+        {TouchAction::CancelConcede, "Cancel", 0, 2}};
+    addRow(screen, BUTTON_ROW_Y, lower, 2);
+    return;
+  }
+  const ButtonSpec upper[] = {{TouchAction::LifeMinus5, "-5", 0, 1}, {TouchAction::LifeMinus1, "-1", 0, 1},
+      {TouchAction::LifePlus1, "+1", 0, 1}, {TouchAction::LifePlus5, "+5", 0, 1}};
+  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 4);
+  const ButtonSpec lower[] = {{TouchAction::Concede, "Concede", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, lower, 2);
+}
+
+// The chip of `player` on the status screen during a match, as a touch
+// target (chips are drawn as chips, not buttons).
+bool chipButton(uint8_t player, uint32_t nowMs, TouchButton &out) {
+  if (player == 0 || activeScreen(nowMs) != ScreenKind::Status || !matchInProgress()) return false;
+  const uint8_t count = game.playerCount() < MAX_SCREEN_PLAYERS ? game.playerCount() : MAX_SCREEN_PLAYERS;
+  for (uint8_t i = 0; i < count; ++i) {
+    const PlayerSeat *seat = game.playerAt(i);
+    if (seat == nullptr || seat->playerNumber != player) continue;
+    out = TouchButton();
+    out.action = TouchAction::OpenPlayer;
+    screenChipCell(i, count, out.x, out.y, out.w, out.h);
+    return true;
+  }
+  return false;
+}
+
+// The living player whose chip is at (x, y), or 0.
+uint8_t chipAt(int16_t x, int16_t y, uint32_t nowMs) {
+  if (activeScreen(nowMs) != ScreenKind::Status || !matchInProgress()) return 0;
+  const uint8_t count = game.playerCount() < MAX_SCREEN_PLAYERS ? game.playerCount() : MAX_SCREEN_PLAYERS;
+  for (uint8_t i = 0; i < count; ++i) {
+    const PlayerSeat *seat = game.playerAt(i);
+    TouchButton chip;
+    if (seat == nullptr || game.isEliminated(seat->playerNumber) ||
+        !chipButton(seat->playerNumber, nowMs, chip)) {
+      continue;
+    }
+    if (chip.contains(x, y)) return seat->playerNumber;
+  }
+  return 0;
+}
+
 // The buttons for the open screen and the table state.
 void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   screen.buttonCount = 0;
@@ -197,6 +257,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       return;
     case ScreenKind::Menu:
       layoutMenu(screen, nowMs);
+      return;
+    case ScreenKind::Player:
+      layoutPlayer(screen);
       return;
     case ScreenKind::Info: {
       const ButtonSpec row[] = {{TouchAction::OpenQr, "QR codes", 0, 3}, {TouchAction::CloseScreen, "Back", 0, 2}};
@@ -252,6 +315,10 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
 
 // The current layout's button for an action, or nullptr if it is gone.
 const TouchButton *currentButton(TouchAction action, AtlasScreen &layout, uint32_t nowMs) {
+  if (action == TouchAction::OpenPlayer) {
+    static TouchButton chip;
+    return chipButton(pressedPlayer, nowMs, chip) ? &chip : nullptr;
+  }
   layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
     if (layout.buttons[i].action == action) return &layout.buttons[i];
@@ -265,7 +332,8 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
     if (layout.buttons[i].contains(x, y)) return layout.buttons[i].action;
   }
-  return TouchAction::None;
+  pressedPlayer = chipAt(x, y, nowMs);
+  return pressedPlayer != 0 ? TouchAction::OpenPlayer : TouchAction::None;
 }
 
 const char *actionName(TouchAction action) {
@@ -299,6 +367,14 @@ const char *actionName(TouchAction action) {
     case TouchAction::RunRematchGame: return "RUN_REMATCH_GAME";
     case TouchAction::RunSoak: return "RUN_SOAK";
     case TouchAction::OpenMenu: return "OPEN_MENU";
+    case TouchAction::OpenPlayer: return "OPEN_PLAYER";
+    case TouchAction::LifeMinus5: return "LIFE_MINUS_5";
+    case TouchAction::LifeMinus1: return "LIFE_MINUS_1";
+    case TouchAction::LifePlus1: return "LIFE_PLUS_1";
+    case TouchAction::LifePlus5: return "LIFE_PLUS_5";
+    case TouchAction::Concede: return "CONCEDE_ASK";
+    case TouchAction::ConfirmConcede: return "CONCEDE";
+    case TouchAction::CancelConcede: return "CONCEDE_CANCEL";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -342,8 +418,17 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
+    case TouchAction::OpenPlayer:
+      openScreen = ScreenKind::Player;
+      shownPlayer = pressedPlayer;
+      concedeArmed = false;
+      return true;
+    // Concede asks again; only ConfirmConcede sends the Intent.
+    case TouchAction::Concede: concedeArmed = true; return true;
+    case TouchAction::CancelConcede: concedeArmed = false; return true;
     case TouchAction::CloseScreen:
     case TouchAction::CloseTests: {
+      concedeArmed = false;
       const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
           openScreen == ScreenKind::Tests;
       openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
@@ -413,6 +498,39 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       }
       const IntentType type = action == TouchAction::Pause ? IntentType::Pause : IntentType::Resume;
       result = dispatchSeatIntent(type, IntentOrigin::AtlasHardware, *active);
+      break;
+    }
+    // The Player screen acts for the player whose chip was tapped, as their
+    // own Sigil would: ChangeLife for their own life, and Concede. The
+    // handlers decide; nothing here changes the game.
+    case TouchAction::LifeMinus5:
+    case TouchAction::LifeMinus1:
+    case TouchAction::LifePlus1:
+    case TouchAction::LifePlus5:
+    case TouchAction::ConfirmConcede: {
+      const PlayerSeat *seat = game.playerByNumber(shownPlayer);
+      if (seat == nullptr) {
+        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
+        break;
+      }
+      Intent intent;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.actor.controllerId = seat->controllerId;
+      intent.actor.slot = seat->slot;
+      intent.actor.playerNumber = seat->playerNumber;
+      if (action == TouchAction::ConfirmConcede) {
+        intent.type = IntentType::Concede;
+      } else {
+        intent.type = IntentType::ChangeLife;
+        intent.payload.targetPlayer = seat->playerNumber;
+        intent.payload.value = action == TouchAction::LifeMinus5 ? -5 : action == TouchAction::LifeMinus1 ? -1
+            : action == TouchAction::LifePlus1 ? 1 : 5;
+      }
+      result = intents.dispatch(intent);
+      if (action == TouchAction::ConfirmConcede) {
+        concedeArmed = false;
+        if (result.accepted()) openScreen = ScreenKind::Status;
+      }
       break;
     }
     // A test plays through the harness's own Sigils and Atlas's normal handlers.
@@ -802,6 +920,23 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   }
 }
 
+// One player's screen: their name, and their life in words (or the
+// concession question).
+void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
+  const PlayerSeat *seat = game.playerByNumber(shownPlayer);
+  if (seat == nullptr) return;
+  snprintf(screen.badge, sizeof(screen.badge), "PLAYER");
+  char name[SCREEN_NAME_LENGTH + 1];
+  playerName(*seat, profileIdForTableSeat(*seat, true), nowMs, name);
+  snprintf(screen.title, sizeof(screen.title), "%s", name);
+  if (concedeArmed) {
+    snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
+  } else {
+    snprintf(screen.detail, sizeof(screen.detail), "Life %ld%s",
+        static_cast<long>(game.lifeTotal(seat->playerNumber)),
+        game.activePlayerNumber() == seat->playerNumber ? ", their turn" : "");
+  }
+}
 
 }  // namespace
 
@@ -819,6 +954,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
     case ScreenKind::Table: formatTable(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
+    case ScreenKind::Player: formatPlayer(screen, nowMs); break;
   }
   layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
@@ -889,6 +1025,8 @@ void resetTouchControls() {
   noticeText[0] = '\0';
   openScreen = ScreenKind::Status;
   qrChoice = TouchAction::QrPortal;
+  shownPlayer = pressedPlayer = 0;
+  concedeArmed = false;
   for (auto &cache : names) cache = NameCache();
 }
 
