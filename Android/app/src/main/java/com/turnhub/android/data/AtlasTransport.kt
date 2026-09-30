@@ -33,7 +33,7 @@ interface AtlasTransport {
     /** `GET /api/seats`: display names, which the v1 state snapshot doesn't carry. */
     suspend fun getSeats(): List<SeatEntry>
 
-    /** `GET /api/avatars`: preset avatar icons. Older Atlas firmware has none. */
+    /** `GET /api/avatars`: preset avatar icons. */
     suspend fun getAvatars(): List<AvatarIcon> = emptyList()
 }
 
@@ -177,7 +177,7 @@ interface AtlasSessionTransport {
     /** `POST /api/profiles/register` (public): a new account, signed in. Atlas's refusal is [AtlasFailure.Rejected]. */
     suspend fun register(name: String, pin: String): LoginResult = unsupported()
 
-    /** `GET /api/setup` (public): Atlas's first-run setup stage. An older Atlas without it reads as complete. */
+    /** `GET /api/setup` (public): Atlas's first-run setup stage. */
     suspend fun getSetup(): SetupStatus = unsupported()
 
     /**

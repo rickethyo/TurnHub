@@ -35,7 +35,7 @@ data class SessionInfo(
     val host: Boolean,
     val active: Boolean,
     val eliminated: Boolean,
-    /** Account permission bits (see [AccountPermission]); 0 from older firmware. */
+    /** Account permission bits (see [AccountPermission]). */
     val permissions: Int = 0,
 ) {
     fun has(permission: AccountPermission): Boolean = permissions and permission.bit != 0

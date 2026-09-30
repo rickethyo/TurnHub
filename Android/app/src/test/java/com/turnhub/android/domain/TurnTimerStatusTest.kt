@@ -66,16 +66,6 @@ class TurnTimerStatusTest {
         assertTrue(TurnTimerStatus.of(long, 50_000)!!.notice!!.contains("five minutes"))
     }
 
-    @Test
-    fun `older firmware without timer fields still shows elapsed time`() {
-        val older = summary {
-            remove("turnTimer")
-            getJSONObject("settings").remove("turnTimerMs")
-        }
-        val status = TurnTimerStatus.of(older, 50_000)!!
-        assertEquals("Turn", status.label)
-        assertEquals(TurnTimerPhase.NORMAL, status.phase)
-    }
 
     @Test
     fun `no turn clock outside a running or paused game`() {

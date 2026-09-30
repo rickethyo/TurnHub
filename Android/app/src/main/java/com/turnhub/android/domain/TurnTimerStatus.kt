@@ -25,7 +25,7 @@ data class TurnTimerStatus(
             ) {
                 return null
             }
-            val phase = summary.turnTimer?.phase ?: TurnTimerPhase.NORMAL
+            val phase = summary.turnTimer.phase
             val remaining = TableClock.turnRemainingMs(summary, nowMs)
             return when {
                 phase == TurnTimerPhase.EXPIRED -> TurnTimerStatus(

@@ -53,21 +53,12 @@ class AtlasWireParserTest {
         assertEquals(TurnTimer(TurnTimerPhase.NORMAL, remainingMs = null), Fixtures.state("lobby.response.json").turnTimer)
     }
 
-    @Test
-    fun `firmware without the turn timer reads as off`() {
-        val state = Fixtures.state("running.response.json") {
-            remove("turnTimer")
-            getJSONObject("settings").remove("turnTimerMs")
-        }
-
-        assertEquals(0L, state.settings.turnTimerMs)
-        assertEquals(false, state.settings.turnTimerEnabled)
-        assertNull(state.turnTimer)
-    }
 
     @Test
     fun `an unknown timer phase or bad remaining time is malformed`() {
         listOf<JSONObject.() -> Unit>(
+            { remove("turnTimer") },
+            { getJSONObject("settings").remove("turnTimerMs") },
             { getJSONObject("turnTimer").put("phase", "PANIC") },
             { getJSONObject("turnTimer").remove("remainingMs") },
             { getJSONObject("turnTimer").put("remainingMs", -1) },
@@ -118,9 +109,10 @@ class AtlasWireParserTest {
         assertEquals(15_000L to 3_600_000L, settings.turnTimerMinMs to settings.turnTimerMaxMs)
         assertEquals(true to false, settings.available to settings.canEdit)
 
-        val older = AtlasWireParser.parseGameSettings("""{"gameProfile":"generic","startingLife":40,"available":true,"canEdit":true}""")
-        assertEquals(0L, older.settings.turnTimerMs)
-        assertTrue(older.turnTimerPresetsMs.isEmpty())
+        // Every Atlas sends the timer fields; without them the answer is malformed.
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            AtlasWireParser.parseGameSettings("""{"gameProfile":"generic","startingLife":40,"available":true,"canEdit":true}""")
+        }
     }
 
     @Test

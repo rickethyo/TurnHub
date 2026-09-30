@@ -31,8 +31,6 @@ data class SetupStatus(
     val ssid: String,
 ) {
     companion object {
-        /** An older Atlas without setup stages answers 404; treat it as set up. */
-        val NOT_SUPPORTED = SetupStatus(SetupStage.COMPLETE, adminExists = true, passwordIsDefault = false, ssid = "")
 
         /** Throws [AtlasWireException.Malformed] for a body that isn't the documented shape. */
         fun parse(body: String): SetupStatus {

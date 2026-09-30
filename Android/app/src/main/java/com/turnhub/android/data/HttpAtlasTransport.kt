@@ -86,8 +86,7 @@ class HttpAtlasTransport(
 
     override suspend fun getAvatars(): List<AvatarIcon> {
         val response = request("GET", "/api/avatars")
-        // Older Atlas firmware has no avatars: show none rather than fail.
-        if (response.code != HttpURLConnection.HTTP_OK) return emptyList()
+        requireOk(response, "Could not read the avatars")
         return parse { AtlasWireParser.parseAvatars(response.body) }
     }
 
@@ -304,8 +303,6 @@ class HttpAtlasTransport(
 
     override suspend fun getSetup(): SetupStatus {
         val response = request("GET", "/api/setup")
-        // An Atlas from before first-run setup has no such route: it is set up.
-        if (response.code == HttpURLConnection.HTTP_NOT_FOUND) return SetupStatus.NOT_SUPPORTED
         requireOk(response, "Could not read the setup status")
         return parse { SetupStatus.parse(response.body) }
     }

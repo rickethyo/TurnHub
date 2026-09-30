@@ -26,8 +26,7 @@ data class StateSnapshot(
     val sampledAtMs: Long,
     val gameElapsedMs: Long,
     val turnElapsedMs: Long,
-    /** Null from firmware that predates the turn timer. */
-    val turnTimer: TurnTimer?,
+    val turnTimer: TurnTimer,
     val pending: PendingDecisions,
     val players: List<Player>,
 )

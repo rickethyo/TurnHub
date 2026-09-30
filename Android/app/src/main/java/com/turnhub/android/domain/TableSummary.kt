@@ -34,8 +34,8 @@ data class TableSummary(
     /** Atlas-sampled clocks; may change while [revision] stays the same. */
     val gameElapsedMs: Long,
     val turnElapsedMs: Long,
-    /** Atlas's turn-timer phase and countdown sample; null from older firmware. */
-    val turnTimer: TurnTimer?,
+    /** Atlas's turn-timer phase and countdown sample. */
+    val turnTimer: TurnTimer,
     /**
      * Local monotonic time (ms) when this snapshot arrived. Lets the UI render
      * clocks between polls as `sampled + (now - receivedAtMs)`; the next

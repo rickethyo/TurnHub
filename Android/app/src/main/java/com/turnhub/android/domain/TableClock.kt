@@ -29,7 +29,7 @@ object TableClock {
      * zero. Null when the timer is off or no turn is running.
      */
     fun turnRemainingMs(summary: TableSummary, nowMs: Long): Long? {
-        val sampled = summary.turnTimer?.remainingMs ?: return null
+        val sampled = summary.turnTimer.remainingMs ?: return null
         return if (summary.state == TableState.RUNNING) (sampled - sinceReceived(summary, nowMs)).coerceAtLeast(0)
         else sampled
     }

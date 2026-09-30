@@ -78,7 +78,7 @@ object AtlasWireParser {
                 sampledAtMs = root.uint32("sampledAtMs"),
                 gameElapsedMs = root.uint32("gameElapsedMs"),
                 turnElapsedMs = root.uint32("turnElapsedMs"),
-                turnTimer = if (root.isAbsentOrNull("turnTimer")) null else parseTurnTimer(root.obj("turnTimer")),
+                turnTimer = parseTurnTimer(root.obj("turnTimer")),
                 pending = parsePending(root.obj("pending")),
                 players = root.array("players").objects().map(::parsePlayer),
             )
@@ -145,31 +145,31 @@ object AtlasWireParser {
                 host = root.boolean("host"),
                 active = root.boolean("active"),
                 eliminated = root.boolean("eliminated"),
-                permissions = if (root.has("permissions")) root.optInt("permissions", 0) else 0,
+                permissions = root.int("permissions"),
             )
         }
     }
 
-    /** `GET /api/game/settings`. The timer fields are optional for older firmware. */
+    /** `GET /api/game/settings`. */
     fun parseGameSettings(body: String): GameSettingsInfo {
         val root = parseObject(body) { AtlasWireException.Malformed("Game settings response is not JSON") }
         return wrap {
-            val timer = if (root.isAbsentOrNull("turnTimer")) null else root.obj("turnTimer")
+            val timer = root.obj("turnTimer")
             GameSettingsInfo(
                 settings = TableSettings(
                     profile = root.string("gameProfile").let {
                         GameProfile.fromWire(it) ?: malformed("Unknown game profile '$it'")
                     },
                     startingLife = root.int("startingLife"),
-                    turnTimerMs = if (root.isAbsentOrNull("turnTimerMs")) 0L else root.uint32("turnTimerMs"),
+                    turnTimerMs = root.uint32("turnTimerMs"),
                 ),
                 available = root.boolean("available"),
                 canEdit = root.boolean("canEdit"),
-                turnTimerPresetsMs = timer?.array("presetsMs")?.let { presets ->
+                turnTimerPresetsMs = timer.array("presetsMs").let { presets ->
                     List(presets.length()) { index -> wholeNumber(presets.get(index), "presetsMs[$index]") }
-                }.orEmpty(),
-                turnTimerMinMs = timer?.uint32("minMs") ?: 0L,
-                turnTimerMaxMs = timer?.uint32("maxMs") ?: 0L,
+                },
+                turnTimerMinMs = timer.uint32("minMs"),
+                turnTimerMaxMs = timer.uint32("maxMs"),
             )
         }
     }
@@ -225,7 +225,7 @@ object AtlasWireParser {
     private fun parseSettings(settings: JSONObject, profileKey: String) = TableSettings(
         profile = GameProfile.fromWire(profileKey) ?: malformed("Unknown game profile '$profileKey'"),
         startingLife = settings.int("startingLife"),
-        turnTimerMs = if (settings.isAbsentOrNull("turnTimerMs")) 0L else settings.uint32("turnTimerMs"),
+        turnTimerMs = settings.uint32("turnTimerMs"),
     )
 
     private fun parseTurnTimer(timer: JSONObject): TurnTimer {

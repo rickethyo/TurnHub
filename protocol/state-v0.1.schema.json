@@ -15,7 +15,8 @@
     "sampledAtMs",
     "gameElapsedMs",
     "turnElapsedMs",
-    "pending"
+    "pending",
+    "turnTimer"
   ],
   "properties": {
     "protocolVersion": {
