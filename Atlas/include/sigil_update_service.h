@@ -1,4 +1,6 @@
 #pragma once
+#include <stddef.h>
+#include <stdint.h>
 #include "intent.h"
 namespace TurnHubAtlas {
 // Startup supplies the credentials actually used to bring up the AP.

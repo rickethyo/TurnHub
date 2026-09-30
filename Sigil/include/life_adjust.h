@@ -17,18 +17,25 @@ namespace TurnHubSigil {
 // counts slower (playtest 2026-09-29, item 6). Both scale with the seated
 // player's hold-timing preference (InputTiming long press, default 2 s): a
 // player who needs longer holds also gets a slower ramp.
+// A constructor rather than default member values: the ESP32 toolchain
+// builds as C++11, where such a struct can't be brace-initialized.
 struct LifePace {
-  uint32_t repeatDelayMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS;
-  uint32_t repeatMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_MS;
-  uint32_t fastAfterMs = TurnHubProtocol::LIFE_ADJUST_FAST_AFTER_MS;
-  // Step once held past fastAfterMs.
-  int32_t fastStep = TurnHubProtocol::LIFE_ADJUST_FAST_STEP;
+  uint32_t repeatDelayMs;
+  uint32_t repeatMs;
+  uint32_t fastAfterMs;
+  int32_t fastStep;  // Step once held past fastAfterMs.
+
+  constexpr LifePace(uint32_t delayMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS,
+      uint32_t everyMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_MS,
+      uint32_t fastMs = TurnHubProtocol::LIFE_ADJUST_FAST_AFTER_MS,
+      int32_t step = TurnHubProtocol::LIFE_ADJUST_FAST_STEP)
+      : repeatDelayMs(delayMs), repeatMs(everyMs), fastAfterMs(fastMs), fastStep(step) {}
 };
 
 // E-ink always counts in ones: the panel can't show every step, so the
 // player counts the status-light blinks, and jumps of 5 can't be followed
 // by eye (owner decision 2026-09-29).
-constexpr LifePace EINK_LIFE_PACE = {700, 300, 3000, 1};
+constexpr LifePace EINK_LIFE_PACE(700, 300, 3000, 1);
 
 inline LifePace lifePaceFor(bool eink, uint32_t longPressMs) {
   LifePace pace = eink ? EINK_LIFE_PACE : LifePace();
