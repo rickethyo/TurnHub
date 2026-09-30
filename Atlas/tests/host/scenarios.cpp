@@ -1170,11 +1170,29 @@ static void profilePicker() {
   pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
   assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
 
+  // Playtest 2026-09-29 item 8: Add seat B opens the picker for seat B, and a
+  // picked profile adds seat B in one step. Seat A's Alice is not offered.
+  pick(1, A::AddSeatB);
+  assert(pickerOpen(1) && !lobby.hasSecondary(1));
+  page = profilePickerPage(1);
+  assert(!strcmp(page.items[1].name, "bob") && !strcmp(page.items[2].name, "Carol"));
+  key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
+  assert(lobby.hasSecondary(1) && TurnHubControllers::profileForSeat(1, 2) == "0000000B" && !pickerOpen(1));
+  pick(1, A::RemoveSeatB); assert(!lobby.hasSecondary(1));
+  { // A profile already at the table cannot take seat B, whatever the page said.
+    Intent twice; twice.type = IntentType::PickProfile; twice.actor.origin = IntentOrigin::PhysicalSigil;
+    twice.actor.controllerId = 1; twice.actor.slot = 2; strcpy(twice.payload.profileId, "0000000A");
+    assert(intents.dispatch(twice).status == IntentStatus::Conflict && !lobby.hasSecondary(1));
+  }
+
   // The OLED Sigil gets the same picker (it draws it as a list); Guest joins.
   pick(2, A::Join); assert(pickerOpen(2) && !lobby.isJoined(2));
   key(2, PickerKeyCode::Up); assert(lobby.isJoined(2) && !pickerOpen(2));
   pick(4, A::Join); key(4, PickerKeyCode::Up);
   assert(lobby.isJoined(4) && TurnHubControllers::profileForSeat(4, 1).length() == 0 && !pickerOpen(4));
+  pick(4, A::AddSeatB); key(4, PickerKeyCode::Up);  // Guest in seat B.
+  assert(lobby.hasSecondary(4) && TurnHubControllers::profileForSeat(4, 2).length() == 0 && !pickerOpen(4));
+  pick(4, A::RemoveSeatB); assert(!lobby.hasSecondary(4));
 
   // Alice now plays on a Sigil, so she is no longer offered elsewhere.
   pick(5, A::Join);

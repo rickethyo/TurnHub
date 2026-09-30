@@ -296,8 +296,16 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
   if (joined && existing == module && existingSlot == slot) {
     return IntentResult::accept("Controller already attached");
   }
-  if (slot == 2 && !lobby.hasSecondary(module)) {
+  // The Sigil's picker may add seat B with the chosen profile in one step
+  // (playtest 2026-09-29, item 8); a phone binds only to a seat B that exists.
+  const bool addsSeatB = slot == 2 && intent.type == IntentType::PickProfile &&
+      lobby.isJoined(module) && !lobby.hasSecondary(module);
+  if (slot == 2 && !lobby.hasSecondary(module) && !addsSeatB) {
     return IntentResult::reject(IntentStatus::Conflict, "Join seat B on the Sigil first");
+  }
+  if (addsSeatB && joined) {
+    return IntentResult::reject(IntentStatus::Conflict,
+        "That profile is already at the table; leave there first");
   }
   const bool occupied = slot == 1 ? lobby.isJoined(module) : lobby.hasSecondary(module);
   // Physical confirmation can adopt a guest, but not another account.
@@ -323,6 +331,13 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
       lobby.replaceController(existing, module);
     }
     TurnHubControllers::releaseBrowser(existing);
+  } else if (addsSeatB) {
+    bool added = false;
+    PlayerSeat affected;
+    if (!lobby.toggleSecondary(module, added, affected) || !added) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Could not add seat B");
+    }
+    audio.sharedPlayerAdded(module);
   } else if (!joined && !occupied) {
     lobby.join(module);
   }
@@ -348,8 +363,9 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
   if (intent.type == IntentType::PickProfile) {
     // Chosen on the Sigil itself: no phone proved who is holding it, so the
     // profile's "Allow physical use without a PIN" choice decides.
-    if (intent.actor.slot != 1) {
-      return IntentResult::reject(IntentStatus::Conflict, "The picker chooses seat A only");
+    // Seat B is picked from the same Sigil once seat A is at the table.
+    if (intent.actor.slot == 2 && !lobby.isJoined(intent.actor.controllerId)) {
+      return IntentResult::reject(IntentStatus::Conflict, "Join seat A first");
     }
     if (!TurnHubWebApi::physicalUseAllowed(profile)) {
       return IntentResult::reject(IntentStatus::Unauthorized,

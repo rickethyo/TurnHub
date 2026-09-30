@@ -27,6 +27,7 @@ constexpr size_t MAX_ENTRIES = TurnHubProfiles::MAX_LOGIN_PROFILES + 1;  // + Gu
 
 struct PickerCache {
   bool open = false;
+  uint8_t slot = 1;            // The seat being filled: A (Join) or B (Add seat B).
   bool sent = false;           // The Sigil has the current page (or Closed).
   PickerMode mode = PickerMode::Closed;
   PickerNotice notice = PickerNotice::None;
@@ -178,7 +179,7 @@ void chooseItem(uint8_t sigilId, uint8_t item) {
   if (cache.items[item].flags & TurnHubProtocol::PICKER_ITEM_GUEST) {
     serialLog.print("ATLAS|PICKER|GUEST|");
     serialLog.println(sigilId);
-    finish(sigilId, dispatchModuleIntent(IntentType::Join, sigilId, 1));
+    finish(sigilId, dispatchModuleIntent(IntentType::Join, sigilId, cache.slot));
     return;
   }
   if (cache.items[item].flags & TurnHubProtocol::PICKER_ITEM_LOCKED) {
@@ -195,10 +196,12 @@ void confirmChoice(uint8_t sigilId) {
   intent.type = IntentType::PickProfile;
   intent.actor.origin = IntentOrigin::PhysicalSigil;
   intent.actor.controllerId = sigilId;
-  intent.actor.slot = 1;
+  intent.actor.slot = cache.slot;
   strncpy(intent.payload.profileId, cache.ids[0], sizeof(intent.payload.profileId) - 1);
   serialLog.print("ATLAS|PICKER|PICK|");
   serialLog.print(sigilId);
+  serialLog.print("|SLOT|");
+  serialLog.print(cache.slot);
   serialLog.print("|PROFILE|");
   serialLog.println(cache.ids[0]);
   finish(sigilId, intents.dispatch(intent));
@@ -219,10 +222,11 @@ bool pickerOpen(uint8_t sigilId) {
   return sigilId < MAX_PHYSICAL_SIGILS && pickers[sigilId].open;
 }
 
-void openProfilePicker(uint8_t sigilId, uint32_t nowMs) {
-  if (sigilId >= MAX_PHYSICAL_SIGILS || !pickerSigil(sigilId)) return;
+void openProfilePicker(uint8_t sigilId, uint32_t nowMs, uint8_t slot) {
+  if (sigilId >= MAX_PHYSICAL_SIGILS || !pickerSigil(sigilId) || (slot != 1 && slot != 2)) return;
   PickerCache &cache = pickers[sigilId];
   cache.open = true;
+  cache.slot = slot;
   cache.page = 0;
   cache.lastKeyMs = nowMs;
   showList(cache, PickerNotice::None);
@@ -299,7 +303,10 @@ void syncProfilePickers(uint32_t nowMs) {
     PickerCache &cache = pickers[id];
     if (cache.open) {
       if (hubState != HubState::Lobby) closePicker(id, "NOT_LOBBY");
-      else if (lobby.isJoined(id)) closePicker(id, "JOINED_ELSEWHERE");
+      else if (cache.slot == 1 && lobby.isJoined(id)) closePicker(id, "JOINED_ELSEWHERE");
+      else if (cache.slot == 2 && (!lobby.isJoined(id) || lobby.hasSecondary(id))) {
+        closePicker(id, "SEAT_B_CHANGED");
+      }
       else if (!sigilBus.isOnline(id, nowMs) || !pickerSigil(id)) closePicker(id, "OFFLINE");
       else if (nowMs - cache.lastKeyMs >= PICKER_IDLE_MS) closePicker(id, "IDLE");
     }

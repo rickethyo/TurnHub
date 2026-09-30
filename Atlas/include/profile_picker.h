@@ -21,8 +21,9 @@ constexpr uint32_t PICKER_IDLE_MS = 60000;
 // This Sigil draws the picker (menu, new enough firmware, not a harness).
 bool pickerSigil(uint8_t sigilId);
 bool pickerOpen(uint8_t sigilId);
-// Opens the list on its first page (the menu's Join on a picker Sigil).
-void openProfilePicker(uint8_t sigilId, uint32_t nowMs);
+// Opens the list on its first page: the menu's Join on a picker Sigil fills
+// seat A, its Add seat B fills seat B (playtest 2026-09-29, item 8).
+void openProfilePicker(uint8_t sigilId, uint32_t nowMs, uint8_t slot = 1);
 // A PickerKey from the Sigil. Keys from an older page are dropped.
 void handlePickerKey(uint8_t sigilId, int32_t value, uint32_t nowMs);
 // Closes pickers that no longer apply (not the lobby, joined another way,

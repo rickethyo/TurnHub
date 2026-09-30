@@ -362,6 +362,11 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
           static_cast<int32_t>(TurnHub::StarterSelection::Random)));
       break;
     case SigilAction::AddSeatB:
+      // A picker Sigil chooses who sits in seat B, as Join does for seat A.
+      if (pickerSigil(sigilId)) {
+        openProfilePicker(sigilId, millis(), 2);
+        break;
+      }
       logRejected("MENU|SECONDARY", sigilId, dispatchModuleIntent(IntentType::Join, sigilId, 2));
       break;
     case SigilAction::RemoveSeatB:
