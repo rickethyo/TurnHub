@@ -10,6 +10,7 @@ import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.SessionInfo
+import com.turnhub.android.protocol.SetupStatus
 import com.turnhub.android.protocol.StateSnapshot
 
 /**
@@ -172,6 +173,20 @@ interface AtlasSessionTransport {
 
     /** `POST /api/session/personalization`: `color` (`#rrggbb` or `none`) and/or `avatar`. */
     suspend fun savePersonalization(token: String, color: String?, avatar: Int?): Personalization = unsupported()
+
+    /** `POST /api/profiles/register` (public): a new account, signed in. Atlas's refusal is [AtlasFailure.Rejected]. */
+    suspend fun register(name: String, pin: String): LoginResult = unsupported()
+
+    /** `GET /api/setup` (public): Atlas's first-run setup stage. An older Atlas without it reads as complete. */
+    suspend fun getSetup(): SetupStatus = unsupported()
+
+    /**
+     * A signed `.thfw` package as `multipart/form-data` (field [field]) to
+     * [path]: `/api/firmware` for Atlas, `/api/sigil-firmware` to stage a
+     * Sigil package. Returned as-is, like [raw].
+     */
+    suspend fun upload(path: String, token: String, field: String, fileName: String, bytes: ByteArray): RawResponse =
+        unsupported()
 }
 
 fun interface AtlasSessionTransportFactory {

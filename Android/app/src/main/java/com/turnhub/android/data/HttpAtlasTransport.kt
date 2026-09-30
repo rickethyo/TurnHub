@@ -10,6 +10,7 @@ import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.SeatEntry
 import com.turnhub.android.protocol.SessionInfo
+import com.turnhub.android.protocol.SetupStatus
 import com.turnhub.android.protocol.AtlasWireException
 import com.turnhub.android.protocol.AtlasWireParser
 import com.turnhub.android.protocol.StateSnapshot
@@ -295,6 +296,38 @@ class HttpAtlasTransport(
         return RawResponse(response.code, response.body)
     }
 
+    override suspend fun register(name: String, pin: String): LoginResult {
+        val response = request("POST", "/api/profiles/register", formBody = form("name" to name, "pin" to pin))
+        requireOk(response, "Could not create the account")
+        return parse { AtlasWireParser.parseLogin(response.body) }
+    }
+
+    override suspend fun getSetup(): SetupStatus {
+        val response = request("GET", "/api/setup")
+        // An Atlas from before first-run setup has no such route: it is set up.
+        if (response.code == HttpURLConnection.HTTP_NOT_FOUND) return SetupStatus.NOT_SUPPORTED
+        requireOk(response, "Could not read the setup status")
+        return parse { SetupStatus.parse(response.body) }
+    }
+
+    override suspend fun upload(path: String, token: String, field: String, fileName: String, bytes: ByteArray): RawResponse {
+        val boundary = "TurnHubPackage" + System.nanoTime().toString(16)
+        val head = "--$boundary\r\nContent-Disposition: form-data; name=\"$field\"; filename=\"$fileName\"\r\n" +
+            "Content-Type: application/octet-stream\r\n\r\n"
+        val tail = "\r\n--$boundary--\r\n"
+        val body = head.toByteArray(Charsets.UTF_8) + bytes + tail.toByteArray(Charsets.UTF_8)
+        val response = request(
+            "POST",
+            path,
+            headers = auth(token),
+            rawBody = body,
+            contentType = "multipart/form-data; boundary=$boundary",
+            // Atlas writes flash while it receives; allow for a slow AP.
+            readTimeout = UPLOAD_TIMEOUT_MS,
+        )
+        return RawResponse(response.code, response.body)
+    }
+
     private fun auth(token: String) = mapOf(TOKEN_HEADER to token)
 
     private fun form(vararg fields: Pair<String, String>): String =
@@ -330,6 +363,9 @@ class HttpAtlasTransport(
         path: String,
         headers: Map<String, String> = emptyMap(),
         formBody: String? = null,
+        rawBody: ByteArray? = null,
+        contentType: String? = null,
+        readTimeout: Int = readTimeoutMs,
     ): Response = withContext(ioDispatcher) {
         val connection = try {
             opener.open(URL(endpoint.baseUrl + path))
@@ -339,7 +375,7 @@ class HttpAtlasTransport(
         try {
             connection.requestMethod = method
             connection.connectTimeout = connectTimeoutMs
-            connection.readTimeout = readTimeoutMs
+            connection.readTimeout = readTimeout
             connection.useCaches = false
             // A captive portal or other device redirecting us is not an Atlas.
             connection.instanceFollowRedirects = false
@@ -349,6 +385,11 @@ class HttpAtlasTransport(
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
                 connection.outputStream.use { it.write(formBody.toByteArray(Charsets.UTF_8)) }
+            } else if (rawBody != null) {
+                connection.doOutput = true
+                connection.setFixedLengthStreamingMode(rawBody.size)
+                connection.setRequestProperty("Content-Type", contentType ?: "application/octet-stream")
+                connection.outputStream.use { it.write(rawBody) }
             }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -395,5 +436,8 @@ class HttpAtlasTransport(
 
         /** Session token header (protocol/http-v1.md). */
         const val TOKEN_HEADER = "X-TurnHub-Token"
+
+        /** A firmware upload: about 1.3 MB over the Atlas AP while Atlas writes flash. */
+        const val UPLOAD_TIMEOUT_MS = 180_000
     }
 }

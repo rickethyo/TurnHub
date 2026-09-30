@@ -82,6 +82,39 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         }
     }
 
+    /** Creates an account and signs in to it, like [signIn]; throws [AtlasException] with Atlas's reason. */
+    suspend fun register(endpoint: AtlasEndpoint, name: String, pin: String) {
+        mutex.withLock {
+            val transport = transports.create(endpoint)
+            val login = call { transport.register(name, pin) }
+            val info = try {
+                call { transport.me(login.token) }
+            } catch (_: AtlasException) {
+                null
+            }
+            this.endpoint = endpoint
+            token = login.token
+            _feedback.value = null
+            _state.value = PlayerSessionState.SignedIn(login.profileId, info?.name ?: name, info)
+        }
+    }
+
+    /** `GET /api/setup`; no sign-in needed. Throws [AtlasException]. */
+    suspend fun setupStatus(endpoint: AtlasEndpoint): com.turnhub.android.protocol.SetupStatus =
+        call { transports.create(endpoint).getSetup() }
+
+    /** A firmware package upload as the signed-in account; null when signed out. */
+    suspend fun upload(path: String, field: String, fileName: String, bytes: ByteArray): RawResponse? {
+        val endpoint = endpoint ?: return null
+        val token = token ?: return null
+        val response = call { transports.create(endpoint).upload(path, token, field, fileName, bytes) }
+        if (response.code == 401) {
+            clear()
+            _feedback.value = ActionFeedback(AtlasFailure.SessionExpired.userMessage, isError = true)
+        }
+        return response
+    }
+
     /** Re-reads `/api/session/me` (after state changes). Quietly signs out if Atlas dropped the session. */
     suspend fun refresh() {
         if (mutex.isLocked) return

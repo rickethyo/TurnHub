@@ -32,7 +32,15 @@ data class DeviceInfo(
     val firmware: String,
     val display: String,
     val sessionCount: Int,
-)
+    /** Hello capability bits (shared/include/protocol.h); 0x80 marks a test harness. */
+    val capabilities: Int = 0,
+) {
+    val isHarness: Boolean get() = capabilities and CAPABILITY_HARNESS != 0
+
+    companion object {
+        const val CAPABILITY_HARNESS = 0x80
+    }
+}
 
 /** One account from `/api/accounts`. */
 data class AccountInfo(
@@ -130,6 +138,7 @@ class AtlasAdminConsole(private val session: AtlasPlayerSession) {
                         firmware = x.optString("firmware"),
                         display = x.optString("display"),
                         sessionCount = x.optInt("sessionCount"),
+                        capabilities = x.optInt("capabilities"),
                     )
                 }
                 _state.update {
