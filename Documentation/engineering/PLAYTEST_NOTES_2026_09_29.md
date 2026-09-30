@@ -24,8 +24,8 @@ below are suspicions to check, not findings.
    - Hardware-only use is fine.
    - Check: web server and connection limits, heap use, `/api/v1/state`
      polling load, session handling.
-   - Unknown: how many phones trigger it. A serial log or the
-     `/api/diagnostics/log` download from a crash would help.
+   - Reported with 4 phones connected. A serial log or the
+     `/api/diagnostics/log` download from a crash would still help.
 
 2. **Sigil OTA soft lock.**
    - The upload never gets past "uploading", and no failure is ever shown.
@@ -68,10 +68,10 @@ below are suspicions to check, not findings.
 9. **Player-card menu on the Atlas touchscreen.**
    - Tap a player card to open a menu for that player.
    - The menu adjusts that player's life total.
-   - A hold action removes the player. It could double as an easy concede, so
-     it shouldn't be framed as a moderation action.
-   - Design questions: are "removed" and "conceded" the same outcome, given
-     they affect statistics and the win flow differently; how it interacts
+   - Decided: the card offers **Concede** for that player. Removing a player
+     is a separate, later **Moderate** path behind admin sign-in (see
+     section E).
+   - Design questions: how it interacts
      with the 15 s life approval (`LIFE_APPROVAL_MS`); no action may rely on a
      hold alone.
    - It must go through existing Intents, with `touch_controls.cpp` staying a
@@ -84,10 +84,11 @@ below are suspicions to check, not findings.
       (the table code flow).
     - Follow the Android layering rules in CLAUDE.md.
 
-11. **Set turn order from the Atlas screen, the app or the web.**
+11. **Set turn order from the Atlas screen.**
+    - Decided: lobby / setup only, Atlas touchscreen only, any player may set
+      it (see section E).
     - Touches Lobby starter selection and seating.
     - Needs a new Intent and validator.
-    - Three clients could issue it, so define who may and when (lobby only?).
 
 ## D. Suggested order
 1. Crash (1) and OTA soft lock (2), since both block play testing.
@@ -95,8 +96,14 @@ below are suspicions to check, not findings.
 3. Small items (6, 7, 8).
 4. Features (9, 10, 11), each starting with a feature-gate outline.
 
-## E. Open questions for the owner
-- How many phones does it take to crash Atlas, and can you capture a log?
-- Should the OTA TEST 1 label and version bump stay in the branch?
-- Are "remove" and "concede" the same outcome (item 9)?
-- Who may set turn order, and only in the lobby (item 11)?
+## E. Owner answers (2026-09-29)
+- **Crash (item 1):** it happened with 4 phones connected. No log captured
+  yet.
+- **OTA TEST 1 label and 0.8.1-dev bump:** keep them on the branch for now.
+  The OTA path still needs testing, but that is not the current priority.
+- **Remove vs concede (item 9):** they are two different paths. The player
+  card offers **Concede** only for now. A separate **Moderate** button that
+  requires some form of admin sign-in, and would carry the remove action, is
+  deferred (*Planned*).
+- **Turn order (item 11):** only in the lobby / game setup, and only from the
+  Atlas touchscreen. Any player may set it. The app and web do not issue it.
