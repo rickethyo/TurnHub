@@ -94,9 +94,25 @@ void SigilUpdater::fail(uint8_t error, const char *why) {
   leaveWifi();
   memory_.running = false;
   Serial.printf("SIGIL|OTA|FAILED|%u|%s\n", static_cast<unsigned>(error), why);
-  status(UpdateStage::Failed, 0, error);
-  if (hooks_.showProgress != nullptr) hooks_.showProgress("Update failed", -1);
-  delay(2000);
+  // Sent a few times like Installed, so one lost packet can't leave Atlas
+  // waiting for its silence timeout.
+  for (uint8_t i = 0; i < 3; ++i) {
+    status(UpdateStage::Failed, 0, error);
+    delay(150);
+  }
+  // The reason in words, long enough to read; Atlas's screen and portal
+  // show the same failure.
+  const char *shown = "Update failed";
+  switch (static_cast<UpdateError>(error)) {
+    case UpdateError::WifiJoin: shown = "Failed: Wi-Fi"; break;
+    case UpdateError::Download: shown = "Failed: download"; break;
+    case UpdateError::Timeout: shown = "Failed: stalled"; break;
+    case UpdateError::FlashBegin:
+    case UpdateError::FlashFinish: shown = "Failed: install"; break;
+    default: break;
+  }
+  if (hooks_.showProgress != nullptr) hooks_.showProgress(shown, -1);
+  delay(5000);
   if (hooks_.finished != nullptr) hooks_.finished();
 }
 
@@ -160,16 +176,19 @@ void SigilUpdater::run() {
   uint8_t nextReport = 10;
   if (hooks_.showProgress != nullptr) hooks_.showProgress("Downloading", 0);
   while (received < job_.packageSize) {
+    // Checked on every pass, so a read that keeps returning nothing still
+    // ends as a stall instead of looping forever.
+    if (millis() - lastDataMs > STALL_MS) break;
     const size_t available = stream->available();
     if (available == 0) {
-      if (!http.connected() || millis() - lastDataMs > STALL_MS) break;
+      if (!http.connected()) break;
       delay(2);
       continue;
     }
     size_t want = available < sizeof(buffer) ? available : sizeof(buffer);
     if (want > job_.packageSize - received) want = job_.packageSize - received;
     const int n = stream->readBytes(buffer, want);
-    if (n <= 0) continue;
+    if (n <= 0) { delay(2); continue; }
     if (!reader.write(buffer, static_cast<size_t>(n))) break;
     received += static_cast<uint32_t>(n);
     lastDataMs = millis();

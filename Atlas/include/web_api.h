@@ -87,6 +87,9 @@ void configure(
 // web-control endpoints on the Atlas WebServer.
 void begin(WebServer &server);
 bool requirePermission(WebServer &server,uint8_t permission);
+// The same check without sending an error response: upload callbacks use it,
+// because a response sent mid-upload leaves the browser waiting.
+bool hasPermission(WebServer &server,uint8_t permission);
 // The request's signed-in profile is verified at the table (presence code).
 bool verifiedAtTable(WebServer &server);
 void serveRestrictedPage(WebServer &server,const char *html,uint8_t permission);

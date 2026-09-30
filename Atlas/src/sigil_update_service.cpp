@@ -6,8 +6,11 @@
 #include "firmware_signing_key.h"
 #include "web_api_internal.h"
 #include "account_access.h"
+#include "serial_log.h"
 #include <esp_ota_ops.h>
 #include <esp_system.h>
+
+using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 namespace {
@@ -35,6 +38,8 @@ bool downloadUsed = false;
 bool uploadOk = false;
 bool uploadDenied = false;
 bool uploadSeen = false;
+constexpr uint32_t UPLOAD_STALL_MS = 30000;
+uint32_t lastUploadChunkMs = 0;
 bool betweenGames() { return hubState == HubState::Lobby || hubState == HubState::GameOver; }
 using namespace TurnHubWebApi::internal;
 
@@ -62,18 +67,49 @@ void uploadChunk() {
     if (uploadSeen) { store.abortUpload(); uploadDenied = true; uploadOk = false; return; }
     uploadSeen = true;
     uploadOk = false;
-    uploadDenied = !TurnHubWebApi::requirePermission(server, TurnHubAccounts::Admin) ||
+    // No response may be sent from here: the browser is still sending the
+    // body. The POST handler answers once the upload is over.
+    uploadDenied = !TurnHubWebApi::hasPermission(server, TurnHubAccounts::Admin) ||
         !TurnHubWebApi::verifiedAtTable(server) || !betweenGames() || sigilUpdatesBusy() || ota.inProgress();
     if (!uploadDenied) store.startUpload();
+    lastUploadChunkMs = millis();
+    serialLog.println(uploadDenied ? "ATLAS|SIGIL_OTA|UPLOAD|DENIED" : "ATLAS|SIGIL_OTA|UPLOAD|START");
   } else if (u.status == UPLOAD_FILE_WRITE && !uploadDenied) {
     store.writeUpload(u.buf, u.currentSize);
+    lastUploadChunkMs = millis();
   } else if (u.status == UPLOAD_FILE_END && !uploadDenied) {
     uploadOk = store.finishUpload();
+    serialLog.print("ATLAS|SIGIL_OTA|UPLOAD|");
+    serialLog.println(uploadOk ? "STAGED" : TurnHubFirmwarePackage::errorName(store.error()));
   } else if (u.status == UPLOAD_FILE_ABORTED) {
     if (!uploadDenied) store.abortUpload();
     uploadOk = false;
     uploadSeen = false;
+    serialLog.println("ATLAS|SIGIL_OTA|UPLOAD|ABORTED");
   }
+}
+
+// An upload the web server never finished or aborted (the phone left
+// mid-transfer) would keep sigilUpdatesBusy() true and block every game
+// start. Chunks arrive inside handleClient(), so the loop only sees this
+// silence when the upload is really orphaned.
+void expireOrphanedUpload(uint32_t nowMs) {
+  if (!store.uploading() || nowMs - lastUploadChunkMs < UPLOAD_STALL_MS) return;
+  store.abortUpload();
+  uploadOk = uploadDenied = uploadSeen = false;
+  serialLog.println("ATLAS|SIGIL_OTA|UPLOAD|STALLED");
+}
+
+// Logs each job stage change and remembers when a job ended, so the Atlas
+// screen can show the outcome for a while (sigilUpdateNotice).
+UpdateJobStage loggedStage = UpdateJobStage::Idle;
+uint32_t jobEndedMs = 0;
+void noteJobStage(uint32_t nowMs) {
+  if (jobs.stage() == loggedStage) return;
+  loggedStage = jobs.stage();
+  if (loggedStage == UpdateJobStage::Done || loggedStage == UpdateJobStage::Failed) jobEndedMs = nowMs;
+  serialLog.printf("ATLAS|SIGIL_OTA|JOB|%u|%s|%s\n", static_cast<unsigned>(jobs.sigilId()),
+      updateJobStageName(loggedStage), jobs.message());
 }
 
 void downloadRoute() {
@@ -101,6 +137,34 @@ void downloadRoute() {
 }  // namespace
 
 bool sigilUpdatesBusy() { return store.uploading() || jobs.busy(); }
+
+bool sigilUpdateNotice(char *out, size_t size, uint32_t nowMs) {
+  constexpr uint32_t OUTCOME_SHOWN_MS = 60000;
+  if (size == 0) return false;
+  out[0] = '\0';
+  noteJobStage(nowMs);
+  const UpdateJobStage stage = jobs.stage();
+  const unsigned sigil = static_cast<unsigned>(jobs.sigilId()) + 1;
+  if (jobs.busy()) {
+    if (stage == UpdateJobStage::Downloading) {
+      snprintf(out, size, "Sigil %u update: %u%%", sigil, static_cast<unsigned>(jobs.progress()));
+    } else {
+      snprintf(out, size, "Sigil %u update: %s", sigil, jobs.message());
+    }
+    return true;
+  }
+  if (store.uploading()) {
+    snprintf(out, size, "Receiving Sigil firmware");
+    return true;
+  }
+  if ((stage == UpdateJobStage::Failed || stage == UpdateJobStage::Done) &&
+      nowMs - jobEndedMs < OUTCOME_SHOWN_MS) {
+    snprintf(out, size, stage == UpdateJobStage::Done ? "Sigil %u updated" : "Sigil %u update failed: %s",
+        sigil, jobs.message());
+    return true;
+  }
+  return false;
+}
 void invalidateSigilPackage() { store.invalidate(); }
 void noteSigilUpdateStatus(uint8_t id, int32_t value, uint32_t nowMs) {
   const auto before = jobs.stage();
@@ -141,6 +205,8 @@ TurnHub::IntentResult handleUpdateSigilIntent(const TurnHub::Intent &intent, voi
 }
 
 void serviceSigilUpdates(uint32_t nowMs) {
+  expireOrphanedUpload(nowMs);
+  noteJobStage(nowMs);
   if (!jobs.busy()) return;
   const auto *r = sigilBus.record(jobs.sigilId());
   if (!r) { jobs.cancel("The Sigil is no longer paired"); return; }

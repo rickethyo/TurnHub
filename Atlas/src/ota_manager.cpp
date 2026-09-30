@@ -211,6 +211,11 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
       setMessage('Connection lost during upload before Atlas confirmed the image write.', 'error');
       button.disabled = false;
     };
+    xhr.timeout = 180000;
+    xhr.ontimeout = () => {
+      setMessage('The upload took too long and was stopped. Check the Wi-Fi connection and try again.', 'error');
+      button.disabled = false;
+    };
     xhr.setRequestHeader('X-TurnHub-Token',localStorage.getItem('turnhubSessionToken')||'');
     xhr.send(form);
   });
@@ -286,7 +291,7 @@ void OtaManager::handleUpload() {
     case UPLOAD_FILE_START:
       resetAttempt();
 
-      if (!TurnHubWebApi::requirePermission(server_,TurnHubAccounts::Admin) || !TurnHubWebApi::verifiedAtTable(server_) ||
+      if (!TurnHubWebApi::hasPermission(server_,TurnHubAccounts::Admin) || !TurnHubWebApi::verifiedAtTable(server_) ||
           allowedCallback_ == nullptr || !allowedCallback_() || TurnHubAtlas::sigilUpdatesBusy() || restartAtMs_ != 0) {
         denied_ = true;
         serialLog.println("ATLAS|OTA|DENIED");

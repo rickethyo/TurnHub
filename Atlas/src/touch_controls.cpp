@@ -18,6 +18,7 @@
 #include "profile_store.h"
 #include "sd_card.h"
 #include "serial_log.h"
+#include "sigil_update_service.h"
 #include "wifi_password_store.h"
 
 using TurnHub::serialLog;
@@ -636,6 +637,14 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
             nameOfPlayer(screen, game.winnerPlayerNumber()));
       }
       break;
+  }
+  // Sigil updates run between games; their progress and outcome, in words,
+  // take the detail line so a failure is never silent at the table.
+  if (hubState == HubState::Lobby || hubState == HubState::GameOver) {
+    char update[sizeof(screen.detail)];
+    if (sigilUpdateNotice(update, sizeof(update), nowMs)) {
+      snprintf(screen.detail, sizeof(screen.detail), "%s", update);
+    }
   }
 }
 

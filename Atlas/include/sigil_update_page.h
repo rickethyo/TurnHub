@@ -11,7 +11,20 @@ const char SIGIL_UPDATE_HTML[] PROGMEM = R"HTML(
 <p id="job" role="status" aria-live="polite"></p><p id="message" role="status" aria-live="polite"></p></section></main>
 <script>
 const el=id=>document.getElementById(id); let state=null,devices=[],working=false;
-async function request(url,options){const r=await fetch(url,options);const j=await r.json();if(!r.ok)throw Error(j.error||'Request failed');return j;}
+// Every call carries the portal sign-in; each one gives up after a while so the page never waits forever.
+const auth=()=>({'X-TurnHub-Token':localStorage.getItem('turnhubSessionToken')||''});
+async function request(url,options={}){const c=new AbortController(),t=setTimeout(()=>c.abort(),10000);
+ try{const r=await fetch(url,{...options,cache:'no-store',headers:{...auth(),...(options.headers||{})},signal:c.signal});let j={};try{j=await r.json()}catch(_){}if(!r.ok)throw Error(j.error||'Request failed ('+r.status+')');return j;}
+ catch(e){throw e.name==='AbortError'?Error('Atlas did not answer. Check the Wi-Fi connection and try again.'):e}finally{clearTimeout(t)}}
+// The upload reports progress and fails with a message instead of hanging.
+function uploadPackage(file){return new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST','/api/sigil-firmware');
+ const token=auth()['X-TurnHub-Token'];x.setRequestHeader('X-TurnHub-Token',token);x.timeout=180000;
+ x.upload.onprogress=e=>{if(e.lengthComputable)el('message').textContent='Uploading package… '+Math.round(e.loaded*100/e.total)+'%'};
+ x.upload.onload=()=>{el('message').textContent='Checking package…'};
+ x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(_){}x.status>=200&&x.status<300?resolve(j):reject(Error(j.error||'Upload failed ('+x.status+')'))};
+ x.onerror=()=>reject(Error('The connection to Atlas was lost during the upload. Try again.'));
+ x.ontimeout=()=>reject(Error('The upload took too long and was stopped. Try again.'));
+ const form=new FormData();form.append('firmware',file);x.send(form);});}
 function render(){
  el('packageInfo').textContent=state.staged?'Ready: '+(state.product===3?'OLED':'E-paper')+' '+state.version:'No package staged. Upload a signed package first.';
  const selected=el('sigil').value; el('sigil').replaceChildren();
@@ -22,11 +35,11 @@ function render(){
  else {const first=[...el('sigil').options].find(o=>!o.disabled);if(first)el('sigil').value=first.value;}
  el('uploadButton').disabled=working||state.busy;el('package').disabled=working||state.busy;
  el('startButton').disabled=working||state.busy||!el('sigil').selectedOptions.length||el('sigil').selectedOptions[0].disabled;
- const text=state.stage==='idle'?'No update running.':'Sigil '+(state.sigilId+1)+': '+state.message+(state.stage==='downloading'?' '+state.progress+'%':'');
+ const text=state.stage==='idle'?'No update running.':'Sigil '+(state.sigilId+1)+(state.stage==='failed'?' update failed: ':': ')+state.message+(state.stage==='downloading'?' '+state.progress+'%':'');
  if(el('job').textContent!==text)el('job').textContent=text;
 }
 async function refresh(){try{const [s,d]=await Promise.all([request('/api/sigil-firmware'),request('/api/devices')]);state=s;devices=d.devices;render();}catch(e){el('message').textContent=e.message;el('startButton').disabled=true;}finally{setTimeout(refresh,2000);}}
-el('uploadForm').onsubmit=async e=>{e.preventDefault();working=true;render();el('message').textContent='Uploading and checking package…';try{const form=new FormData();form.append('firmware',el('package').files[0]);const r=await request('/api/sigil-firmware',{method:'POST',body:form});el('message').textContent=r.message;}catch(e){el('message').textContent=e.message;}finally{working=false;}};
+el('uploadForm').onsubmit=async e=>{e.preventDefault();if(!el('package').files.length)return;working=true;if(state)render();el('message').textContent='Uploading package…';try{const r=await uploadPackage(el('package').files[0]);el('message').textContent=r.message;}catch(e){el('message').textContent=e.message;}finally{working=false;if(state)render();}};
 el('startButton').onclick=async()=>{working=true;render();try{const body=new URLSearchParams({module:el('sigil').value});const r=await request('/api/sigil-update',{method:'POST',body});el('message').textContent=r.message;}catch(e){el('message').textContent=e.message;}finally{working=false;}};
 refresh();
 </script></body></html>

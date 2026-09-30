@@ -657,6 +657,11 @@ void revokeConnections(const String &id) {
   }
 }
 
+bool hasPermission(WebServer &server, uint8_t permission) {
+  WebSession *session = sessionForRequest(server);
+  return session != nullptr && TurnHubAccounts::has(String(session->profileId), permission);
+}
+
 bool requirePermission(WebServer &server, uint8_t permission) {
   WebSession *session = sessionForRequest(server);
   if (!session) {

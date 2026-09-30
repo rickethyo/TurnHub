@@ -68,5 +68,14 @@ static void otaServiceScenarios() {
   ++r.sessionGeneration;serviceSigilUpdates(testNow);assert(sigilUpdatesBusy()); // Handshake alone is insufficient.
   r.confirmedSessionGeneration=r.sessionGeneration;serviceSigilUpdates(testNow);assert(!sigilUpdatesBusy());
   assert(request("/api/sigil-firmware",admin,{},HTTP_GET)==200 && server.body.find("\"stage\":\"done\"")!=std::string::npos);
+  char notice[48];
+  assert(sigilUpdateNotice(notice,sizeof(notice),testNow) && strcmp(notice,"Sigil 1 updated")==0);
+  assert(!sigilUpdateNotice(notice,sizeof(notice),testNow+61000)); // The outcome shows for a minute.
+  { // A phone that leaves mid-upload cannot keep games locked out.
+    server.headers.clear(); server.headers["X-TurnHub-Token"]=admin;
+    auto &u=server.uploadState; u.status=UPLOAD_FILE_START; server.uploads["/api/sigil-firmware"]();
+    assert(sigilUpdatesBusy() && sigilUpdateNotice(notice,sizeof(notice),testNow));
+    testNow+=31000; serviceSigilUpdates(testNow); assert(!sigilUpdatesBusy());
+  }
   fixtureRadio=false; resetPresence();
 }
