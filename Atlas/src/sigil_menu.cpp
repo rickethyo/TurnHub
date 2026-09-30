@@ -146,6 +146,13 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       hasLivingSeat && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
     add(SigilAction::AdjustLife);
   }
+  // Two living seats on one Sigil: either one can be shown, and so have its
+  // life changed, on any turn.
+  PlayerSeat shared[2];
+  if (menu2Sigil(sigilId) && (hubState == HubState::Running || hubState == HubState::Paused) &&
+      game.livingPlayersForController(sigilId, shared, 2) == 2) {
+    add(SigilAction::SwitchSeat);
+  }
 
   MenuStateFields fields;
   fields.actions = actions;

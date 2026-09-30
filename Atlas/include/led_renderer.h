@@ -45,7 +45,20 @@ class LedRenderer {
       uint8_t winConfirmationPlayer,
       uint32_t nowMs);
 
+  // A shared Sigil shows one of its seats full screen, and its life keys
+  // change the shown seat. This switches to its other living seat (the
+  // Sigil menu's Switch seat). The choice holds until the turn comes round to
+  // one of this Sigil's seats, which is then shown. View state only: it
+  // changes no game state and needs no Intent. False if there is nothing to
+  // switch to.
+  bool switchShownSeat(uint8_t sigilId, const GameEngine &game);
+
  private:
+  struct SeatFocus {
+    uint8_t player = 0;            // 0: default (the active seat, else seat A).
+    uint8_t activeWhenChosen = 0;  // The active player when it was chosen.
+  };
+
   struct Cache {
     bool blueValid = false;
     bool redValid = false;
@@ -78,6 +91,7 @@ class LedRenderer {
   SigilBus &bus_;
   const LedCueProfile *profiles_[MAX_PHYSICAL_SIGILS];
   Cache cache_[MAX_PHYSICAL_SIGILS];
+  SeatFocus focus_[MAX_PHYSICAL_SIGILS];
 };
 
 }  // namespace TurnHub

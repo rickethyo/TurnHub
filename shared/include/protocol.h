@@ -436,6 +436,8 @@ inline uint16_t toneDuration(int32_t value) {
   return static_cast<uint16_t>(static_cast<uint32_t>(value) & 0xFFFFu);
 }
 
+// turnNumber is the table round (GameEngine::currentRound, capped at 255),
+// the same number the Atlas screen shows; Sigils label it as a round.
 inline int32_t encodeDisplayState(
     DisplayMode mode,
     uint8_t primaryPlayer,
@@ -628,6 +630,9 @@ enum class SigilAction : uint8_t {
   // MenuState2 only: Left/Right (when no other action has them) change this
   // Sigil's shown player's life; sent as LifeAdjust, never SelectAction.
   AdjustLife = 22,
+  // MenuState2 only: a Sigil with two living seats shows (and adjusts the
+  // life of) its other seat. View only; Atlas changes no game state.
+  SwitchSeat = 23,
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 31;

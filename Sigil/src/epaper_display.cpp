@@ -426,7 +426,7 @@ void EpaperDisplay::drawHeader(
     if (host) drawIcon(display_, Icon::Crown, MARGIN + fontWidth(sigil, &BrassFonts::EinkSmall) + 4, 24, GxEPD_WHITE);
     if (turnNumber != 0) {
       char turn[12];
-      snprintf(turn, sizeof(turn), "Turn %u", static_cast<unsigned>(turnNumber));
+      snprintf(turn, sizeof(turn), "Round %u", static_cast<unsigned>(turnNumber));
       fontAt(turn, w - MARGIN - fontWidth(turn, &BrassFonts::EinkSmall) - 1, 32, &BrassFonts::EinkSmall);
     }
   }

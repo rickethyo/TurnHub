@@ -486,7 +486,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const int16_t w = display_->width();
   char label[32];
   display_->clearDisplay();
-  snprintf(label, sizeof(label), "S%u T%u", static_cast<unsigned>(s.sigilId + 1),
+  snprintf(label, sizeof(label), "S%u R%u", static_cast<unsigned>(s.sigilId + 1),
       static_cast<unsigned>(TurnHubProtocol::displayTurnNumber(s.state)));
   header(s.commander ? "COMMANDER" : "GAME", label,
       TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST));
@@ -601,7 +601,7 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
   }
   display_->clearDisplay();
   char label[32];
-  snprintf(label, sizeof(label), "S%u T%u", static_cast<unsigned>(sigilId + 1),
+  snprintf(label, sizeof(label), "S%u R%u", static_cast<unsigned>(sigilId + 1),
       static_cast<unsigned>(turnNumber));
   header(title, label, flags & TurnHubProtocol::DISPLAY_FLAG_HOST);
   if (secondaryPlayer && indicateSeat) {

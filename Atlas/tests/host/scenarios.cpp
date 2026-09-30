@@ -1022,6 +1022,28 @@ static void physicalGameDisplay() {
   assert(sentGameDisplays[0].primary.life == 40 && sentGameDisplays[0].secondary.life < 0);
   assert(!sentGameDisplays[0].sourceCount);
   count = gameDisplaySends; renderer.invalidate(0); render(); assert(gameDisplaySends == count + 1);
+  // Playtest 2026-09-29 items 3 and 4. Another Sigil's turn: seat A shows,
+  // with the table round (not A's own next-turn count).
+  assert(engine.passTurn(0,300)); render();
+  assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 1 && displayTurnNumber(sentGameDisplays[0].state) == 1);
+  // Switch seat shows seat B (so its life keys work) and holds while the
+  // turn goes round the other Sigils...
+  assert(renderer.switchShownSeat(0,engine)); render();
+  assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 2);
+  for (uint8_t controller : {1,2,8,9}) {
+    assert(engine.passTurn(controller,400)); render();
+    if (controller != 9) assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 2);
+  }
+  // ...until the turn comes back to this Sigil, whose active seat shows.
+  assert(engine.activePlayerNumber() == 1 && displayPrimaryPlayer(sentGameDisplays[0].state) == 1);
+  assert(displayTurnNumber(sentGameDisplays[0].state) == 2 && engine.currentRound() == 2);
+  // An eliminated seat A never leads over a living seat B, and there is
+  // nothing to switch to any more.
+  assert(engine.passTurn(0,500) && engine.passTurn(0,500) && engine.activePlayerNumber() == 3);
+  assert(engine.pause(600)); bool finished = false;
+  assert(engine.eliminatePlayer(1,600,finished) && !finished); render();
+  assert(displayPrimaryPlayer(sentGameDisplays[0].state) == 2);
+  assert(!renderer.switchShownSeat(0,engine));
   engine.reset(); settings.profile = GameProfile::Magic; settings.startingLife = 20;
   assert(engine.start(seats,6,seats[0],100,settings));
   renderer.invalidateAll(); render();
@@ -1194,6 +1216,8 @@ static void sigilLife() {
   assert(!offered(0));  // Lobby.
   startFromHost();
   assert(offered(0) && offered(1));
+  // One seat per Sigil here: nothing to switch to (two-seat case: physicalGameDisplay).
+  assert(!(sigilMenuFor(0).actions & sigilActionBit(SigilAction::SwitchSeat)));
   // A 0.8.0+ test harness plays life like a real Sigil; an older one cannot.
   fixtureRecords[1].capabilities |= CAPABILITY_HARNESS;
   assert(offered(1));

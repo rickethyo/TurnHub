@@ -122,6 +122,20 @@ const LedCueProfile &LedRenderer::profile(uint8_t sigilId) const {
   return *profiles_[sigilId < MAX_PHYSICAL_SIGILS ? sigilId : 0];
 }
 
+bool LedRenderer::switchShownSeat(uint8_t sigilId, const GameEngine &game) {
+  if (sigilId >= MAX_PHYSICAL_SIGILS) return false;
+  PlayerSeat seats[2];
+  if (game.livingPlayersForController(sigilId, seats, 2) < 2) return false;
+  const Cache &cache = cache_[sigilId];
+  const uint8_t shown = cache.displayValid
+      ? TurnHubProtocol::displayPrimaryPlayer(cache.displayPayload)
+      : seats[0].playerNumber;
+  focus_[sigilId].player = shown == seats[0].playerNumber ? seats[1].playerNumber : seats[0].playerNumber;
+  focus_[sigilId].activeWhenChosen = game.activePlayerNumber();
+  cache_[sigilId].displayValid = false;
+  return true;
+}
+
 void LedRenderer::invalidate(uint8_t sigilId) {
   if (sigilId < MAX_PHYSICAL_SIGILS) {
     cache_[sigilId].blueValid = false;
@@ -233,6 +247,7 @@ void LedRenderer::syncDisplay(
   uint8_t flags = 0;
 
   if (state == HubState::Lobby || state == HubState::Starting) {
+    focus_[sigilId] = SeatFocus();
     if (lobby.isJoined(sigilId)) {
       mode = state == HubState::Starting
           ? TurnHubProtocol::DisplayMode::Starting
@@ -279,14 +294,35 @@ void LedRenderer::syncDisplay(
     }
 
     const PlayerSeat *active = game.activePlayer();
-    if ((state == HubState::Running || state == HubState::Paused) &&
-        active != nullptr && active->controllerId == sigilId) {
+    const bool activeHere = (state == HubState::Running || state == HubState::Paused) &&
+        active != nullptr && active->controllerId == sigilId;
+    if (activeHere) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_ACTIVE;
       if (active->playerNumber == secondary && secondary != 0) {
         const uint8_t originalPrimary = primary;
         primary = secondary;
         secondary = originalPrimary;
       }
+    }
+
+    // Shared seats: the seat chosen with Switch seat stays shown until the
+    // turn comes round to this Sigil again (playtest 2026-09-29, item 3).
+    SeatFocus &focus = focus_[sigilId];
+    const uint8_t activeNumber = active != nullptr ? active->playerNumber : 0;
+    if (focus.player != 0 &&
+        ((activeHere && activeNumber != focus.activeWhenChosen) || secondary == 0 ||
+         (focus.player != primary && focus.player != secondary) || game.isEliminated(focus.player))) {
+      focus = SeatFocus();
+    }
+    if (focus.player != 0 && focus.player == secondary) {
+      secondary = primary;
+      primary = focus.player;
+    }
+    // Never lead with an eliminated seat while the other one still plays.
+    if (secondary != 0 && game.isEliminated(primary) && !game.isEliminated(secondary)) {
+      const uint8_t originalPrimary = primary;
+      primary = secondary;
+      secondary = originalPrimary;
     }
 
     const PlayerSeat *starter = game.playerByNumber(game.starterPlayerNumber());
@@ -317,12 +353,12 @@ void LedRenderer::syncDisplay(
       }
     }
 
+    // The table round, as on the Atlas screen. It was the shown player's own
+    // next-turn count, which ran ahead of the table after their turn and
+    // jumped when a shared Sigil switched seats (playtest 2026-09-29, item 4).
     if (primary != 0) {
-      const PlayerStats *stats = game.statsForPlayer(primary);
-      if (stats != nullptr) {
-        const uint32_t ordinal = stats->turnsCompleted + 1;
-        turnNumber = static_cast<uint8_t>(ordinal > 255 ? 255 : ordinal);
-      }
+      const uint16_t round = game.currentRound();
+      turnNumber = static_cast<uint8_t>(round > 255 ? 255 : round);
     }
   }
 

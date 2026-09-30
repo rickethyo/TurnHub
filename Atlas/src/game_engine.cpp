@@ -594,6 +594,21 @@ bool GameEngine::controllerInGame(uint8_t controllerId) const {
   return false;
 }
 
+uint16_t GameEngine::currentRound() const {
+  if (playerCount_ == 0) return 0;
+  uint32_t most = 0;
+  uint32_t active = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    if (eliminated_[i]) continue;
+    const PlayerStats *stats = statsForPlayer(players_[i].playerNumber);
+    const uint32_t done = stats != nullptr ? stats->turnsCompleted : 0;
+    if (done > most) most = done;
+    if (i == activeIndex_) active = done;
+  }
+  const uint32_t round = active == most ? most + 1 : most;
+  return static_cast<uint16_t>(round > 9999 ? 9999 : round);
+}
+
 bool GameEngine::isEliminated(uint8_t playerNumber) const {
   const int index = indexForPlayerNumber(playerNumber);
   return index >= 0 ? eliminated_[index] : false;

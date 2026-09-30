@@ -167,6 +167,10 @@ class GameEngine {
   uint32_t turnRemainingMs(uint32_t nowMs) const;
   uint32_t turnTimerMs() const { return settings_.turnTimerMs; }
   const PlayerStats *statsForPlayer(uint8_t playerNumber) const;
+  // The table round (1-based; 0 with no players): the most turns any living
+  // player has completed, plus one while the active player is on that count.
+  // The Atlas header and every Sigil show this same number.
+  uint16_t currentRound() const;
 
  private:
   int indexForSeat(const PlayerSeat &seat) const;

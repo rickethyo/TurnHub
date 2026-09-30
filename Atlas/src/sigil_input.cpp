@@ -383,6 +383,10 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
     case SigilAction::AdjustLife:
       // Not selectable: it only frees Left/Right, which send LifeAdjust packets.
       break;
+    case SigilAction::SwitchSeat:
+      // View state only (which seat the display and life keys follow).
+      if (leds.switchShownSeat(sigilId, game)) invalidateSigilMenu(sigilId);
+      break;
     case SigilAction::CancelPass:
       logRejected("MENU|CANCEL_PASS", sigilId, dispatchModuleIntent(IntentType::CancelPass, sigilId));
       break;

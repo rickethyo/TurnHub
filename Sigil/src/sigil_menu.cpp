@@ -75,6 +75,7 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::LinkPhone: return "Link phone";
     case SigilAction::Leave: return "Leave lobby";
     case SigilAction::AdjustLife: return "Change life";
+    case SigilAction::SwitchSeat: return "Switch seat";
     default: return "";
   }
 }
