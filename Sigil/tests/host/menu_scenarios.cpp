@@ -203,6 +203,25 @@ int main() {
     assert(life.pending() == -1 && life.player() == 3);
     life.cancel(); assert(life.pending() == 0 && !life.update(30000, delta, player));
   }
+  {
+    // E-ink counts slower than the OLED, and a longer hold preference slows
+    // either one (playtest 2026-09-29, item 6).
+    using TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+    const LifePace oled = lifePaceFor(false, DEFAULT_LONG_PRESS_MS);
+    assert(oled.repeatDelayMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS &&
+        oled.repeatMs == TurnHubProtocol::LIFE_ADJUST_REPEAT_MS);
+    const LifePace eink = lifePaceFor(true, DEFAULT_LONG_PRESS_MS);
+    assert(eink.repeatDelayMs == 700 && eink.repeatMs == 300 && eink.fastAfterMs == 3000);
+    const LifePace patient = lifePaceFor(true, 4000);
+    assert(patient.repeatDelayMs == 1400 && patient.repeatMs == 600 && patient.fastAfterMs == 6000);
+    LifeAdjuster slow;
+    slow.setPace(eink);
+    int32_t delta = 0;
+    uint8_t player = 0;
+    slow.press(1, 2, 0);
+    for (uint32_t t = 0; t <= 2000; t += 10) assert(!slow.update(t, delta, player));
+    assert(slow.pending() == 1 + 5);  // Tap, then +1 at 0.7, 1.0, 1.3, 1.6 and 1.9 s.
+  }
 
   // Every action has a short label.
   for (uint8_t a = 0; a < static_cast<uint8_t>(A::Count); ++a) {

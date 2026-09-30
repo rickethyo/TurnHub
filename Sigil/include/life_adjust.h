@@ -1,9 +1,8 @@
 #pragma once
 
 // Batched life changes from Left/Right (AdjustLife). A tap is +/-1; holding
-// repeats every LIFE_ADJUST_REPEAT_MS after LIFE_ADJUST_REPEAT_DELAY_MS, in
-// steps of LIFE_ADJUST_FAST_STEP once held LIFE_ADJUST_FAST_AFTER_MS, so +11
-// or -39 are quick. The total goes to Atlas as one LifeAdjust once no key
+// repeats (LifePace), in steps of LIFE_ADJUST_FAST_STEP once held long
+// enough, so +11 or -39 are quick. The total goes to Atlas as one LifeAdjust once no key
 // is held and nothing changed for LIFE_ADJUST_COMMIT_MS. Atlas decides
 // whether it applies. Pure logic, host-tested.
 
@@ -13,8 +12,35 @@
 
 namespace TurnHubSigil {
 
+// How fast a held life key repeats. The protocol constants suit the OLED,
+// which redraws every step; an e-ink panel shows only some of them, so it
+// counts slower (playtest 2026-09-29, item 6). Both scale with the seated
+// player's hold-timing preference (InputTiming long press, default 2 s): a
+// player who needs longer holds also gets a slower ramp.
+struct LifePace {
+  uint32_t repeatDelayMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS;
+  uint32_t repeatMs = TurnHubProtocol::LIFE_ADJUST_REPEAT_MS;
+  uint32_t fastAfterMs = TurnHubProtocol::LIFE_ADJUST_FAST_AFTER_MS;
+};
+
+constexpr LifePace EINK_LIFE_PACE = {700, 300, 3000};
+
+inline LifePace lifePaceFor(bool eink, uint32_t longPressMs) {
+  LifePace pace = eink ? EINK_LIFE_PACE : LifePace();
+  if (longPressMs == 0) longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+  const auto scale = [longPressMs](uint32_t ms) {
+    return ms * longPressMs / TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
+  };
+  pace.repeatDelayMs = scale(pace.repeatDelayMs);
+  pace.repeatMs = scale(pace.repeatMs);
+  pace.fastAfterMs = scale(pace.fastAfterMs);
+  return pace;
+}
+
 class LifeAdjuster {
  public:
+  void setPace(const LifePace &pace) { pace_ = pace; }
+
   // A Left (-1) or Right (+1) key went down for `player` (the shown player).
   // A different player drops the old total first.
   void press(int8_t sign, uint8_t player, uint32_t nowMs) {
@@ -34,10 +60,9 @@ class LifeAdjuster {
   bool update(uint32_t nowMs, int32_t &delta, uint8_t &player) {
     if (held_ != 0) {
       const uint32_t heldMs = nowMs - heldSinceMs_;
-      if (heldMs >= TurnHubProtocol::LIFE_ADJUST_REPEAT_DELAY_MS &&
-          nowMs - lastRepeatMs_ >= TurnHubProtocol::LIFE_ADJUST_REPEAT_MS) {
+      if (heldMs >= pace_.repeatDelayMs && nowMs - lastRepeatMs_ >= pace_.repeatMs) {
         lastRepeatMs_ = nowMs;
-        add(heldMs >= TurnHubProtocol::LIFE_ADJUST_FAST_AFTER_MS
+        add(heldMs >= pace_.fastAfterMs
             ? held_ * TurnHubProtocol::LIFE_ADJUST_FAST_STEP : held_, nowMs);
       }
       return false;
@@ -62,6 +87,7 @@ class LifeAdjuster {
     lastChangeMs_ = nowMs;
   }
 
+  LifePace pace_;
   int32_t pending_ = 0;
   uint8_t player_ = 0;
   int8_t held_ = 0;

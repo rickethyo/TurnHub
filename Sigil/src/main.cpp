@@ -1464,6 +1464,7 @@ void updateLife(uint32_t nowMs) {
 void updateMenuKeys() {
   const uint32_t nowMs = millis();
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
+  lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(!TURNHUB_DISPLAY_OLED, longPressMs));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
     // Nothing reaches a lost Atlas; the screen says so instead.

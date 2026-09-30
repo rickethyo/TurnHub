@@ -35,7 +35,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Session scenarios failed.' }
     & $Compiler -std=c++14 -Wall -Wextra -Werror -mno-ms-bitfields -static -Istubs -I../../include -I../../../shared/include firmware_package_scenarios.cpp -o ../../.pio/host-tests/firmware_package_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Firmware package test compilation failed.' }
-    & ..\..\.pio\host-testsirmware_package_scenarios.exe
+    & ..\..\.pio\host-tests\firmware_package_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Firmware package scenarios failed.' }
 } finally {
     Pop-Location
