@@ -267,11 +267,14 @@ download to the card copy, and cap the number of hotspot stations.
 ### In progress: first-run guided setup (branch `oobe-guided-setup`)
 
 Started 2026-09-30 (owner: "begin working on the initial guided setup").
-Design, feature gate and resume checklist: [First-run setup](FIRST_RUN_SETUP.md).
-A new Atlas shows typed Welcome instructions (no QR codes; owner, 2026-09-30),
-the Android app runs four setup steps (owner, 2026-09-30: app over portal) (account, table code, Wi-Fi
-password, finish), and Atlas restarts to a "You're all set" screen. Resume
-from the checklist at the end of that file.
+Design, feature gate, resume checklist and bench list:
+[First-run setup](FIRST_RUN_SETUP.md). Owner decisions that day: lead with
+typed text, not QR codes; one flow for app and portal with the Android app
+first; check for updates during setup with GitHub Releases hosting the
+firmware; pair Sigils during setup so one prompt updates every device.
+Implemented and host-tested (Atlas scenarios, Android JVM tests); *Needs
+verification* on hardware. Next: CI firmware build, a first signed release,
+the bench run from a factory reset, then the portal steps and the manual.
 
 ### Next implementation priority: Sigil OTA and signed updates
 

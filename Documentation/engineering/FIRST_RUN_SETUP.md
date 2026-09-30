@@ -172,23 +172,45 @@ simply runs again: sign in, verify, re-enter a password.
 ## Resume checklist
 
 - [x] Design and feature gate (this file); branch created.
-- [ ] `first_run_setup.h/.cpp`: stage codec, load/save, boot migration.
-- [ ] `IntentType::AdvanceSetup`, handler, binding, host scenarios.
-- [ ] Touchscreen `ScreenKind::Setup` (Welcome / All set), Skip, Menu entry,
-      drawing in `atlas_art.cpp`, host scenarios.
-- [ ] `GET /api/setup`, `POST /api/setup/finish`.
-- [ ] Android: `AtlasSetup` client + setup flow UI after Connect, JVM tests.
-- [ ] Android: Sigil pairing step (watch `/api/devices`, the Atlas screen
-      does the code check).
-- [ ] Android: release feed reader and the all-devices update step
-      (download over the phone's network, size/SHA-256 check, Atlas through
-      `/api/firmware`, then each Sigil through the existing Sigil update
-      routes).
-- [ ] Owner: publish a first signed GitHub release (tag `v*`) so the step
-      has something to find; needs the `TURNHUB_FIRMWARE_SIGNING_KEY` secret.
-- [ ] Source lists: `run.cmd`, `run-gcc.ps1`, `run-linux.sh`, host README.
-- [ ] Host suite green; firmware build through CI (`gh workflow run ci.yml`).
-- [ ] Docs: OOBE.md, STAGED_CHANGES.md, user manual note, size history.
-- [ ] Portal: the same four steps on the same endpoints (after the app).
-- Later: Atlas name;
-  bench run from a factory reset.
+- [x] `setup_stage.h`: stage codec, load/save (`game_settings_store.cpp`),
+      boot migration (`beginFirstRunSetup` in `table_intents.cpp`).
+- [x] `IntentType::AdvanceSetup`, handler, binding, host scenario
+      `firstRunSetup`.
+- [x] Touchscreen `ScreenKind::Setup` (Welcome with Pair a Sigil, Skip and
+      Menu; "You're all set" with Pair a Sigil and Done), Setup under Menu.
+      Drawn by the generic text-lines layout; no `atlas_art.cpp` layout change.
+- [x] `GET /api/setup`, `POST /api/setup/finish` (host scenario).
+- [x] Android: `AtlasSetupAssistant`, `SetupScreen`, `HomeViewModel` wiring,
+      account registration, `GitHubFirmwareReleases`, `UpdatePlan`,
+      multipart package upload; JVM tests (`AtlasSetupAssistantTest`,
+      `FirmwareReleasesTest`).
+- [x] Source lists: no new Atlas `.cpp` files, so the runners are unchanged.
+- [ ] Firmware build through CI on this branch (started 2026-09-30).
+- [ ] Portal: the same steps on the same endpoints (after the app).
+- [ ] Owner: publish a first signed GitHub release (tag `v*`) so the update
+      step has something to find; needs the `TURNHUB_FIRMWARE_SIGNING_KEY`
+      secret.
+- [ ] User manual: a "Setting up a new table" section (not written yet).
+- [ ] Size history snapshot once CI reports the Atlas image size.
+- Later: Atlas name.
+
+## Verification
+
+- *Verified on the host (2026-09-30):* all Atlas host scenarios including
+  `firstRunSetup`, the adapter audit and the client-contract check (MinGW
+  runner); all 129 Android JVM tests; `assembleDebug` builds.
+- *Needs verification* on hardware, from a factory-reset Atlas:
+  1. Welcome shows on the Atlas screen; Skip hides it until restart; Setup
+     under Menu brings it back; Pair a Sigil opens pairing and the countdown.
+  2. The app: Connect shows setup; create an account; the code screen on
+     Atlas makes it the Admin.
+  3. Pair two Sigils (one of each display); the app lists them.
+  4. With a published release: install all. Atlas restarts, the app
+     reconnects and signs in by itself, one new code, then each Sigil
+     updates; interrupt one (power) and confirm the app reports it and setup
+     continues. Without internet: the step says so and Continue works.
+  5. Finish with a new password: Atlas restarts, the app rejoins by itself,
+     Atlas shows "You're all set"; Done returns to the lobby; a restart
+     afterwards shows the ordinary lobby.
+  6. An Atlas already set up before this firmware boots straight to the
+     lobby (it has an Admin).

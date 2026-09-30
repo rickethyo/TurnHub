@@ -107,6 +107,27 @@ ends verification. Protected requests without verification return
 `403 {"presenceRequired": true}`. See
 [Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
 
+## First-run setup (2026-09-30)
+
+One flow for the Android app and the portal
+([First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md)).
+
+- `GET /api/setup` (no sign-in): `{"stage":"welcome"|"finished"|"complete",
+  "adminExists":bool,"passwordIsDefault":bool,"ssid":"TurnHub-Atlas"}`.
+  Never carries the password. An Atlas from before this route answers 404;
+  clients treat that as `complete`.
+- `POST /api/setup/finish` with `password` (8 to 63 characters, not the
+  printed default): an Admin verified at the table, stage `welcome`, between
+  games. Stores the Wi-Fi password, moves the stage to `finished`, answers
+  `{"ok":true,"restarting":true,...}` and restarts Atlas onto the new
+  password. 400 for a bad password, 403 (with `presenceRequired` when only
+  the code is missing) and 409 when setup is already finished or the Intent
+  is refused.
+- Setup also uses `POST /api/profiles/register`, the presence routes above,
+  `POST /api/accounts/setup`, `GET /api/devices`, `POST /api/firmware`
+  (multipart field `firmware`), `POST /api/sigil-firmware`,
+  `POST /api/sigil-update` and `GET /api/sigil-firmware`.
+
 ## Draws
 
 `state: "GAME_OVER"` with `winnerPlayer: null` means the match ended as a draw:

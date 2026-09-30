@@ -218,7 +218,11 @@ Recommended recovery controls:
 
 1. Introduce a dedicated provisioning/network configuration service. (Partial, 2026-09-24: the stored AP password is now read through one helper, `wifi_password_store.h`, shared by startup and `web_admin_api.cpp`; writes still live in the admin endpoint.)
 2. Add an explicit provisioned/unprovisioned boot state.
-3. Build the first-run setup wizard and owner-profile creation.
+3. Build the first-run setup wizard and owner-profile creation. (Started
+   2026-09-30 on `oobe-guided-setup`: setup stages on Atlas, the Welcome and
+   "You're all set" screens, and the Android app as the first client, with
+   pairing and one update prompt for every device. See
+   [First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md).)
 4. Refactor browser sessions from seat identity to profile identity and capability checks.
 5. Add Standalone/Home network selection and connection validation.
 6. Implement Sigil dynamic channel discovery.
