@@ -169,10 +169,27 @@ Build and test from `Android/` (Android Studio's bundled JDK works):
 a physical Atlas over its existing HTTP API. `MockAtlasRepository` is gone;
 production always uses `HttpAtlasRepository`.
 
-1. Open the app and tap Connect. The address defaults to `http://192.168.4.1`
-   and stays editable. For that address the app first joins Atlas's Wi-Fi
-   itself (see "Targeted Wi-Fi" below); other addresses must already be
-   reachable.
+1. Open the app. It asks for "Nearby devices" (local network on Android 17,
+   Wi-Fi scan results on 13+), then finds the table by itself
+   (`HomeViewModel.onAppStarted`, 2026-09-30, *Needs verification* on
+   hardware):
+   - The saved table is in range: join it with the saved password (Android
+     remembers its approval, so no dialog) and connect.
+   - A `TurnHub-*` network is in range but no saved password opens it: a new
+     or factory-reset table. The screen asks "Set up this table?", which
+     joins with the printed default; first-run setup then opens.
+   - Nothing in range: "No table nearby", and the app looks again every 15 s
+     for five minutes (`WifiScanAtlasScanner` reads Android's scan results;
+     Android throttles fresh scans).
+   - Without scan results (Android 12 or older, or the permission refused)
+     it only tries the saved table, and otherwise waits for Connect.
+   Connect still works as before. The address defaults to
+   `http://192.168.4.1` and is under Advanced. For that address the app
+   first joins Atlas's Wi-Fi itself (see "Targeted Wi-Fi" below); other
+   addresses must already be reachable.
+   Anything that restarts Atlas from the app (setup's Finish and updates,
+   Settings > Wi-Fi password, factory reset) saves the password Atlas comes
+   back with and rejoins by itself.
 2. `GET /api/v1/info` must be a TurnHub Atlas with API `1`, protocol `0.1`
    and state snapshots; anything else fails with a clear message.
 3. `GET /api/v1/state` is mapped into the Home screen; only then is the app

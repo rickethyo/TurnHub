@@ -67,12 +67,24 @@ Atlas restarts, setup stage = Finished
     Rejoin TurnHub-Atlas with the new password.
     Next: pair your Sigils.
     [Pair a Sigil] [Done]   (either one leaves setup: stage = Complete)
+  If a Sigil (not the test harness) was already paired when the phone
+  finished, Atlas skips this screen and goes straight to Complete
+  (owner, 2026-09-30): it only exists to say "pair your Sigils".
 ```
 
 After Connect, the app reads `GET /api/setup`. While the stage is Welcome it
-opens the setup steps instead of the table view. After the restart, the app
-rejoins with the password it just set (it saves it, like any password it
-used), so the owner doesn't retype it.
+opens the setup steps instead of the table view. On launch the app looks for
+tables itself: a `TurnHub-*` network that no saved password opens is offered
+as "New table found: Set up this table?" (Android/README.md). After the
+restart, the app rejoins with the password it just set (it saves it, like
+any password it used), so the owner doesn't retype it, and shows its own
+"You're all set" step.
+
+The first owner run on hardware (2026-09-30) went through every step, but the
+app crashed when Atlas restarted onto the new password: the `SetupHost`
+object's `reconnectAfterRestart()` called itself (a `StackOverflowError`, log
+in `logs/2026-09-30-app-crash-setup-finish.log`). Fixed the same day; the
+update step used the same path.
 
 ## Checking for updates during setup
 
@@ -138,7 +150,8 @@ two bytes `{1, stage}`):
    backwards; only factory reset returns to Welcome.
 3. **Validator:** `handleAdvanceSetupIntent`. To Finished: an Admin, verified
    at the table, between games (Lobby or GameOver), with an owner-set Wi-Fi
-   password already stored. To Complete: the current stage is Finished.
+   password already stored. With a real Sigil already paired, the same
+   request stores Complete instead. To Complete: the current stage is Finished.
 4. **Persistence owner:** `first_run_setup.cpp` through the `turnhub`
    `NvsBlobStore`, like the pairing window and speaker volume. The Wi-Fi
    password keeps its own store (`wifi_password_store.h`).
@@ -210,8 +223,14 @@ simply runs again: sign in, verify, re-enter a password.
      reconnects and signs in by itself, one new code, then each Sigil
      updates; interrupt one (power) and confirm the app reports it and setup
      continues. Without internet: the step says so and Continue works.
-  5. Finish with a new password: Atlas restarts, the app rejoins by itself,
-     Atlas shows "You're all set"; Done returns to the lobby; a restart
-     afterwards shows the ordinary lobby.
+  5. Finish with a new password: Atlas restarts and the app rejoins by itself
+     (no crash). With no Sigils paired, Atlas shows "You're all set" and Done
+     returns to the lobby; with Sigils paired, Atlas goes straight to the
+     lobby. A restart afterwards shows the ordinary lobby.
+  7. App launch: near the set-up table the app connects with no taps; near a
+     factory-reset table it offers "Set up this table"; with no table on, it
+     says "No table nearby" and connects once Atlas is switched on.
+  8. Settings > Wi-Fi password and Atlas factory reset: the app rejoins by
+     itself (factory reset then opens setup).
   6. An Atlas already set up before this firmware boots straight to the
      lobby (it has an Admin).
