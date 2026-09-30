@@ -2602,6 +2602,12 @@ static void firstRunSetup() {
   assert(strstr(screen.lines[0],"TurnHub app") && strstr(screen.lines[2],AtlasConfig::WIFI_SSID));
   assert(strstr(screen.lines[3],AtlasConfig::WIFI_DEFAULT_PASSWORD) && strstr(screen.lines[4],"192.168.4.1"));
   assert(screenButton(screen,TouchAction::SkipSetup) && screenButton(screen,TouchAction::OpenMenu));
+  // Pairing is part of setup (one update prompt for every device): the
+  // Welcome screen opens it and shows the countdown.
+  tapButton(TouchAction::Pair);
+  assert(pairingActive && currentScreen().kind==ScreenKind::Setup &&
+      startsWith(currentScreen().detail,"Pairing open"));
+  pairingActive=false;
   // Skip for now shows the lobby; Setup under Menu brings Welcome back.
   tapButton(TouchAction::SkipSetup); assert(currentScreen().kind==ScreenKind::Status);
   openMenuScreen(); tapButton(TouchAction::OpenSetup); assert(currentScreen().kind==ScreenKind::Setup);

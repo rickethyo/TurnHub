@@ -331,9 +331,11 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
             {TouchAction::SetupDone, "Done", 0, 2}};
         addRow(screen, BUTTON_ROW_Y, row, 2);
       } else {
-        const ButtonSpec row[] = {{TouchAction::SkipSetup, "Skip for now", 0, 3},
-            {TouchAction::OpenMenu, "Menu", 0, 2}};
-        addRow(screen, BUTTON_ROW_Y, row, 2);
+        // Pairing belongs to setup too (the app's Sigils step), so every
+        // device can take one update prompt; opening it stays a touch here.
+        const ButtonSpec row[] = {{TouchAction::Pair, "Pair a Sigil", 0, 3},
+            {TouchAction::SkipSetup, "Skip", 0, 2}, {TouchAction::OpenMenu, "Menu", 0, 2}};
+        addRow(screen, BUTTON_ROW_Y, row, 3);
       }
       return;
     }
@@ -1016,7 +1018,13 @@ void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
     return;
   }
   snprintf(screen.title, sizeof(screen.title), "Welcome to TurnHub");
-  snprintf(screen.detail, sizeof(screen.detail), "Set up this table from a phone");
+  const uint32_t pairingMs = pairingRemainingMs(nowMs);
+  if (pairingMs > 0) {
+    snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
+        static_cast<unsigned long>((pairingMs + 999) / 1000));
+  } else {
+    snprintf(screen.detail, sizeof(screen.detail), "Set up this table from a phone");
+  }
   snprintf(screen.lines[0], sizeof(screen.lines[0]), "1. Open the TurnHub app, tap Connect.");
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "   It joins this table's Wi-Fi itself.");
   snprintf(screen.lines[2], sizeof(screen.lines[2]), "2. No app? Join Wi-Fi %s,", AtlasConfig::WIFI_SSID);
