@@ -1,0 +1,20 @@
+[  10.63s] --- reset issued ---
+[  10.64s] ets Jul 29 2019 12:21:46
+[  10.64s] 
+[  10.64s] rst:0x1 (POWERON_RESET),boot:0x13 (S[  10.84s] PI_FAST_FLASH_BOOT)
+[  10.84s] configsip: 0, SPIWP:0xee
+[  10.84s] clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+[  10.84s] mode:DIO, clock div:2
+[  10.84s] load:0x3fff0030,len:1184
+[  10.84s] load:0x40078000,len:13232
+[  10.84s] load:0x40080400,len:3028
+[  10.84s] entry 0x400805e4
+[  11.44s] HARNESS|BOOT
+[  11.44s] HARNESS|STATUS|fw=0.8.0|protocol=2|channel=6|radio=ready|atlas=B4:BF:E9:12:85:74|sigils=2|pace=1500|lifereq=approve
+[  11.44s] HARNESS|STATUS|V1|mac=D4:E9:F4:B4:27:3C|sigil=2|pairing=secure|online=no|seats=none|picker=closed|menu=none
+[  11.44s] HARNESS|STATUS|V2|mac=D4:E9:F4:B4:27:3D|sigil=3|pairing=secure|online=no|seats=none|picker=closed|menu=none
+[  11.44s] HARNESS|HELP|status | pair | forget | sigils <1|2> | pace <ms> | verbose <on|off> | menu
+[  11.44s] HARNESS|HELP|select <V1|V2> <action> | pick <V1|V2> <up|down|left|right|select>
+[  11.44s] HARNESS|HELP|life <V1|V2> <delta> [player] | lifereq <approve|deny|ignore>
+[  11.44s] HARNESS|HELP|run smoke | run game [players 2-4] [turns] [rematch]
+[  11.44s] HARNESS|HELP|run soak [gam[  11.65s] es] [players] | test [n] (the premade tests Atlas offers) | x (abort a run)

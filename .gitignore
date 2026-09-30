@@ -350,3 +350,4 @@ Claude outputs/
 
 # Captured bench logs are kept as engineering evidence (Documentation/engineering/logs/README.md)
 !Documentation/engineering/logs/
+!Documentation/engineering/logs/*.log
