@@ -1824,6 +1824,7 @@ static void saveClientFixture(const char *name, const String &json) {
 
 static void nativeClientBoundary() {
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
+  clientState.setNameLookup(displayNameForTableSeat);  // As setup() does.
   enterEmptyLobby(); testNow = 1000;
   nextGameSettings = TurnHub::GameSettings{};
   assert(request("/api/v1/info", "", {}, HTTP_GET) == 200);
@@ -1846,9 +1847,20 @@ static void nativeClientBoundary() {
   assert(request("/api/session/join", first) == 200);
   assert(clientRevision() == joinedRevision); // Accepted no-op.
   assert(request("/api/session/join", second) == 200);
+  // Playtest 2026-09-29 item 5: phone-joined players carry their names in
+  // the state itself and on the Atlas screen, in the lobby and in the game.
+  const auto namesAgree = []() {
+    assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
+    assert(server.body.find("\"displayName\":\"Native first\"") != std::string::npos);
+    assert(server.body.find("\"displayName\":\"Native second\"") != std::string::npos);
+    AtlasScreen screen; buildAtlasScreen(testNow, screen);
+    assert(screen.playerCount == 2 && !strcmp(screen.players[0].name, "Native first"));
+  };
+  namesAgree();
   assert(request("/api/control/start", first) == 200);
   testNow += 3000; updateCountdown(testNow);
   assert(hubState == HubState::Running);
+  namesAgree();
   const auto runningRevision = clientRevision();
   testNow += 100; dispatchSystemIntent(IntentType::ExpireLifeChanges);
   assert(clientRevision() == runningRevision); // Clock samples are not mutations.

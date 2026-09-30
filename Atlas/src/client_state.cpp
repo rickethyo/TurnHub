@@ -1,5 +1,9 @@
 #include "client_state.h"
 
+#include <string.h>
+
+#include "json_text.h"
+
 namespace TurnHub {
 namespace {
 template <typename T> bool update(T &previous, T value) {
@@ -54,10 +58,20 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   for (uint8_t i = 0; i < count; ++i) {
     const auto &seat = inGame_ ? *game.playerAt(i) : seats[i];
     auto &p = players_[i];
-    changed |= update(p.number, seat.playerNumber);
-    changed |= update(p.controller, seat.controllerId);
-    changed |= update(p.slot, seat.slot);
-    changed |= update(p.participant, seat.participantId);
+    bool occupant = update(p.number, seat.playerNumber);
+    occupant |= update(p.controller, seat.controllerId);
+    occupant |= update(p.slot, seat.slot);
+    occupant |= update(p.participant, seat.participantId);
+    changed |= occupant;
+    if (nameLookup_ != nullptr && (occupant || namesStale_ || !initialized_)) {
+      char name[NAME_LENGTH + 1] = {};
+      const String value = nameLookup_(seat, inGame_);
+      strncpy(name, value.c_str(), NAME_LENGTH);
+      if (strcmp(name, p.name) != 0) {
+        memcpy(p.name, name, sizeof(name));
+        changed = true;
+      }
+    }
     changed |= update(p.eliminated, inGame_ && game.isEliminated(seat.playerNumber));
     changed |= update(p.life, inGame_ ? game.lifeTotal(seat.playerNumber) : int32_t(0));
     const auto *stats = inGame_ ? game.statsForPlayer(seat.playerNumber) : nullptr;
@@ -78,6 +92,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     changed |= update(p.request.state, value.state);
   }
   initialized_ = true;
+  namesStale_ = false;
   if (changed) ++revision_;
 }
 
@@ -134,6 +149,8 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += "{\"playerNumber\":"; out += String(p.number);
     out += ",\"moduleId\":"; out += String(p.controller);
     out += ",\"slot\":"; out += String(p.slot);
+    out += ",\"displayName\":";
+    if (p.name[0]) { out += '"'; out += jsonEscape(p.name); out += '"'; } else out += "null";
     out += ",\"participantId\":"; out += String(p.participant);
     out += ",\"turnsCompleted\":"; out += String(p.turnsCompleted);
     out += ",\"eliminated\":"; out += p.eliminated ? "true" : "false";

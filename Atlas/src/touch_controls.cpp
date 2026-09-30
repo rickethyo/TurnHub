@@ -497,8 +497,8 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
     const PlayerSeat &seat = seats[i];
     ScreenPlayer &p = screen.players[screen.playerCount++];
     p.number = seat.playerNumber;
-    const String profile = inGame ? String(seat.profileId)
-        : TurnHubControllers::existingProfileForSeat(seat.controllerId, seat.slot);
+    // Phone-joined players included (they showed as "Player N" in the lobby).
+    const String profile = profileIdForTableSeat(seat, inGame);
     playerName(seat, profile, nowMs, p.name);
     // Only preset avatars reach Atlas's screen; custom ones stay signed-in only.
     const uint8_t avatar = TurnHubProfiles::avatarForProfile(
@@ -533,26 +533,11 @@ const char *nameOfPlayer(const AtlasScreen &screen, uint8_t number) {
 // opens a new round. The highest count among the living is the rounds
 // finished by the players furthest along; if the active player is one of
 // them, their turn opens the next round.
-uint16_t currentRound() {
-  uint32_t most = 0;
-  uint32_t active = 0;
-  for (uint8_t i = 0; i < game.playerCount(); ++i) {
-    const PlayerSeat *seat = game.playerAt(i);
-    if (seat == nullptr || game.isEliminated(seat->playerNumber)) continue;
-    const TurnHub::PlayerStats *stats = game.statsForPlayer(seat->playerNumber);
-    const uint32_t done = stats != nullptr ? stats->turnsCompleted : 0;
-    if (done > most) most = done;
-    if (seat->playerNumber == game.activePlayerNumber()) active = done;
-  }
-  const uint32_t round = active == most ? most + 1 : most;
-  return static_cast<uint16_t>(round > 9999 ? 9999 : round);
-}
-
 void formatTurnClock(AtlasScreen &screen, uint32_t nowMs) {
   const bool over = hubState == HubState::GameOver && game.hasPlayers();
   if (hubState != HubState::Running && hubState != HubState::Paused && !over) return;
   // A finished game keeps its final round and length in the header.
-  screen.round = currentRound();
+  screen.round = game.currentRound();
   formatClock(screen.gameClock, sizeof(screen.gameClock), game.gameElapsedMs(nowMs));
   if (over) return;
   if (game.turnTimerMs() > 0) {

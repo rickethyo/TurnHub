@@ -171,6 +171,12 @@ uint16_t gameAudioMask();
 // Seat lookups against the running game, or the lobby before a game starts.
 bool seatForModuleSlot(uint8_t controllerId, uint8_t slot, PlayerSeat &seat);
 bool firstLivingSeatForModule(uint8_t controllerId, PlayerSeat &seat);
+// Who sits in a seat, for display: the profile captured at game start, or
+// before a game the Sigil seat's bound profile or the phone's own profile.
+// One lookup for the Atlas screen and /api/v1/state, so they always agree.
+String profileIdForTableSeat(const PlayerSeat &seat, bool inGame);
+// That profile's name, or "" for a guest (clients show "Player N").
+String displayNameForTableSeat(const PlayerSeat &seat, bool inGame);
 // The canonical seat named by an Intent actor, or nullptr if the actor's
 // controller/slot/player triple no longer agrees with the game.
 const PlayerSeat *seatForIntentActor(const Intent &intent);

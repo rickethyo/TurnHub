@@ -3,6 +3,7 @@
 
 #include "atlas_app.h"
 #include "controller_profiles.h"
+#include "profile_store.h"
 
 namespace TurnHubAtlas {
 
@@ -18,6 +19,20 @@ const char *intentOriginName(IntentOrigin origin) {
     default:
       return "UNKNOWN";
   }
+}
+
+String profileIdForTableSeat(const PlayerSeat &seat, bool inGame) {
+  if (inGame) return String(seat.profileId);
+  // Phone participants have no Sigil binding; their seat is their profile.
+  if (seat.controllerId >= MAX_PHYSICAL_SIGILS) {
+    return TurnHubControllers::profileForSeat(seat.controllerId, seat.slot);
+  }
+  return TurnHubControllers::existingProfileForSeat(seat.controllerId, seat.slot);
+}
+
+String displayNameForTableSeat(const PlayerSeat &seat, bool inGame) {
+  const String profileId = profileIdForTableSeat(seat, inGame);
+  return profileId.length() ? TurnHubProfiles::nameForProfile(profileId) : String();
 }
 
 uint16_t lobbyAudioMask() {

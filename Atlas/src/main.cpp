@@ -91,6 +91,17 @@ constexpr uint32_t HEAP_LOG_INTERVAL_MS = 60000;
 uint32_t lastHeapLogMs = 0;
 int lastStationCount = -1;
 
+// Names in /api/v1/state are re-read when a seat's occupant changes; this
+// also picks up a rename (profile page, Sigil picker) within a few seconds.
+constexpr uint32_t CLIENT_NAME_REFRESH_MS = 5000;
+uint32_t lastClientNameRefreshMs = 0;
+
+void refreshClientNames(uint32_t nowMs) {
+  if (nowMs - lastClientNameRefreshMs < CLIENT_NAME_REFRESH_MS) return;
+  lastClientNameRefreshMs = nowMs;
+  clientState.refreshNames();
+}
+
 void logRuntimeHealth(uint32_t nowMs) {
   const int stations = WiFi.softAPgetStationNum();
   if (stations == lastStationCount && nowMs - lastHeapLogMs < HEAP_LOG_INTERVAL_MS) return;
@@ -412,6 +423,7 @@ void setup() {
   }
 
   configureIntentHandlers();
+  clientState.setNameLookup(displayNameForTableSeat);
   observeClientState();
   intents.setObserver(observeIntent);
   restoreInterruptedMatch();
@@ -480,6 +492,7 @@ void loop() {
   syncSigilMenus(nowMs);
   syncProfilePickers(nowMs);
   ota.update(nowMs);
+  refreshClientNames(nowMs);
   logRuntimeHealth(nowMs);
 
   delay(1);
