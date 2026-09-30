@@ -31,5 +31,11 @@ bool sdCardReady();
 // Changes whenever a card is mounted or dropped. The application loop
 // compares it to re-point the luxury store (refreshSdLuxuryStore, main.cpp).
 uint32_t sdCardGeneration();
+// Atlas factory reset (owner decision 2026-09-29): deletes everything on a
+// mounted card, then unmounts it, under the card lock, so the card is empty
+// as after a format (this framework cannot reformat a card). Atlas recreates
+// its folder at the next mount. Returns the entries removed, or -1 with no
+// working card. Blocks the caller; only for the reset just before restart.
+int wipeSdCard();
 
 }  // namespace TurnHubAtlas

@@ -131,12 +131,19 @@ during a match. Atlas re-checks all of that in the handler.
   NVS partition (`nvs_flash_erase`, `factory_reset.cpp`) and restarts. That
   removes every profile, PIN hash, core statistic, account, pairing, the Wi-Fi
   password (back to the default), game settings, speaker volume and touch
-  calibration, so Atlas asks to calibrate again. The microSD card is **not**
-  erased. The portal asks the Admin to type RESET first.
+  calibration, so Atlas asks to calibrate again. Since 2026-09-29 (owner
+  decision) it first empties the microSD card: `wipeSdCard()` (`sd_card.cpp`)
+  deletes everything on the card under the card lock, logs
+  `ATLAS|SD|WIPE|REMOVED|<n>` and unmounts it, so no detailed statistics or
+  diagnostic logs outlive their profiles. This framework (Arduino-ESP32 2.0 /
+  IDF 4.4) cannot reformat a card, so it is emptied rather than formatted;
+  Atlas recreates `/turnhub` at the next mount. No card, or a failing one,
+  never stops the NVS erase. The portal asks the Admin to type RESET first.
 
 *Needs verification* on hardware: host scenarios cover permission, the unlock
 window, refusal while seated or in a match, the packet and forget, and the
-delayed Atlas erase. The Sigil and Atlas erases are firmware-only and untested.
+delayed Atlas erase (card wiped before NVS). The Sigil and Atlas erases and
+the card wipe are firmware-only and untested on hardware.
 
 ## Verification
 

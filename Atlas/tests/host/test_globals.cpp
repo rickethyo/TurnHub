@@ -28,9 +28,18 @@ uint32_t TurnHubAtlas::sdCardGeneration() { return 0; }
 // Firmware-only (mbedTLS); the link logic itself is host-tested in
 // Sigil/tests/host/secure_link_scenarios.cpp.
 bool TurnHubAtlas::runSecureLinkSelfTest() { return true; }
-// Firmware-only NVS erase + restart (factory_reset.cpp): counted instead.
+// Firmware-only NVS erase + restart (factory_reset.cpp) and SD wipe
+// (sd_card.cpp): counted instead, with the order they ran in.
 unsigned fixtureFactoryResets = 0;
-namespace TurnHubAtlas { void eraseSettingsAndRestart() { ++fixtureFactoryResets; } }
+unsigned fixtureSdWipes = 0;
+bool fixtureSdWipedBeforeErase = false;
+namespace TurnHubAtlas {
+void eraseSettingsAndRestart() {
+  fixtureSdWipedBeforeErase = fixtureSdWipes > fixtureFactoryResets;
+  ++fixtureFactoryResets;
+}
+int wipeSdCard() { ++fixtureSdWipes; return fixtureSdCardReady ? 0 : -1; }
+}
 
 // The speaker is firmware-only (ESP32 DAC); host builds have none.
 TurnHub::ToneOutput *TurnHubAtlas::beginAtlasSpeaker() { return nullptr; }

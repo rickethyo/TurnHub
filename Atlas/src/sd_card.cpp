@@ -246,6 +246,49 @@ void unmountCard() {
   serialLog.println("ATLAS|SD|REMOVED");
 }
 
+// Deletes everything under `path` (not `path` itself). One entry per pass,
+// with no handle open while it is removed; an entry that will not go is
+// skipped rather than retried forever. Depth-limited. Under the card lock.
+int removeTree(const String &path, uint8_t depth) {
+  constexpr uint8_t MAX_DEPTH = 8;
+  int removed = 0;
+  uint16_t skip = 0;
+  for (;;) {
+    File dir = SD.open(path);
+    if (!dir || !dir.isDirectory()) {
+      if (dir) dir.close();
+      return removed;
+    }
+    File child = dir.openNextFile();
+    for (uint16_t i = 0; child && i < skip; ++i) {
+      child.close();
+      child = dir.openNextFile();
+    }
+    if (!child) {
+      dir.close();
+      return removed;
+    }
+    const String childPath = child.path();
+    const bool isDirectory = child.isDirectory();
+    child.close();
+    dir.close();
+    bool gone = false;
+    if (isDirectory) {
+      if (depth < MAX_DEPTH) removed += removeTree(childPath, depth + 1);
+      gone = SD.rmdir(childPath);
+    } else {
+      gone = SD.remove(childPath);
+    }
+    if (gone) {
+      ++removed;
+    } else {
+      ++skip;
+      serialLog.print("ATLAS|SD|WIPE|KEPT|");
+      serialLog.println(childPath);
+    }
+  }
+}
+
 // A raw sector read reaches the card itself; a file check could be answered
 // from the file system's cache after the card is gone.
 bool cardAnswers() {
@@ -409,6 +452,21 @@ TurnHubStorage::BlobStore *sdBlobStore() {
 }
 
 bool sdCardReady() { return storeUsable(); }
+
+int wipeSdCard() {
+  CardLock lock;
+  if (cardState.load() != CardState::Mounted) {
+    serialLog.println("ATLAS|SD|WIPE|NO_CARD");
+    return -1;
+  }
+  const int removed = removeTree("/", 0);
+  serialLog.print("ATLAS|SD|WIPE|REMOVED|");
+  serialLog.println(String(removed));
+  // Unmounted, so neither the log worker nor the luxury store writes again
+  // before the restart.
+  unmountCard();
+  return removed;
+}
 
 uint32_t sdCardGeneration() { return cardGeneration.load(); }
 

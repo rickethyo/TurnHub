@@ -11,6 +11,7 @@
 #include "pairing_settings.h"
 #include "speaker_settings.h"
 #include "profile_store.h"
+#include "sd_card.h"
 #include "serial_log.h"
 
 using TurnHub::serialLog;
@@ -986,7 +987,7 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
       atlasResetAtMs = millis() + FACTORY_RESET_DELAY_MS;
       serialLog.println("ATLAS|FACTORY_RESET|ATLAS|SCHEDULED");
     }
-    return IntentResult::accept("Atlas is erasing its settings and restarting");
+    return IntentResult::accept("Atlas is erasing its settings and microSD card, then restarting");
   }
   if (hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Sigils in the lobby, between games");
@@ -1020,6 +1021,10 @@ void serviceFactoryReset(uint32_t nowMs) {
   if (!atlasResetScheduled || static_cast<int32_t>(nowMs - atlasResetAtMs) < 0) return;
   atlasResetScheduled = false;
   serialLog.println("ATLAS|FACTORY_RESET|ATLAS|ERASING");
+  // The card first, while the log still reaches the serial port: a factory
+  // reset leaves no TurnHub data on the microSD card either (owner decision
+  // 2026-09-29). No card, or a card that fails, never stops the NVS erase.
+  wipeSdCard();
   eraseSettingsAndRestart();
 }
 

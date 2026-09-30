@@ -2693,6 +2693,8 @@ static void resetTableFromPortal() {
 // between games. A Sigil is told to erase itself and is forgotten; Atlas
 // erases its NVS and restarts after the reply has gone.
 extern unsigned fixtureFactoryResets;
+extern unsigned fixtureSdWipes;
+extern bool fixtureSdWipedBeforeErase;
 // Pairing v2 code check: the Atlas screen or a portal Admin, lobby only,
 // only for a Sigil that is actually waiting; confirm stores, reject doesn't.
 static void pairConfirmIntent() {
@@ -2843,9 +2845,12 @@ static void factoryResetFromPortal() {
 
   // Atlas: scheduled, then erased once the reply has had time to leave.
   assert(request("/api/device/factory-reset",admin,{{"atlas","1"}})==200 && factoryResetScheduled());
-  serviceFactoryReset(millis()); assert(fixtureFactoryResets==0);
-  serviceFactoryReset(millis()+2000); assert(fixtureFactoryResets==1 && !factoryResetScheduled());
-  serviceFactoryReset(millis()+4000); assert(fixtureFactoryResets==1);
+  assert(server.body.find("microSD")!=std::string::npos);
+  serviceFactoryReset(millis()); assert(fixtureFactoryResets==0 && fixtureSdWipes==0);
+  // The microSD card is emptied first, then NVS (owner decision 2026-09-29).
+  serviceFactoryReset(millis()+2000);
+  assert(fixtureFactoryResets==1 && fixtureSdWipes==1 && fixtureSdWipedBeforeErase && !factoryResetScheduled());
+  serviceFactoryReset(millis()+4000); assert(fixtureFactoryResets==1 && fixtureSdWipes==1);
   TurnHub::fixtureUnpairs[3]=0;
   resetPresence();
 }
