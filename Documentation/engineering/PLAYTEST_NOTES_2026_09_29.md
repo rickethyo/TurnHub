@@ -153,3 +153,32 @@ or turn order.
 
 Open question for the owner: should the app also sign in (and then act as a
 controller), or only create accounts?
+
+## G. What the Atlas SD card logged (read 2026-09-30)
+
+The card's `diagnostics.log` and two archives (11,121 lines, 80 boots; backed
+up off-repo before the card was formatted) show more than the one crash noted
+above. Timestamps are uptime only, so which boot was which session is
+*Reconstructed* from the profiles and controllers in each.
+
+- **Three panics.** (1) A harness soak game, 4 players, while a pass waited
+  out its grace; no phones. (2) The lobby, two Sigil players and two phone
+  players rejoining after it emptied. (3) Mid-game with phone players, just
+  after a Master Pass from the Atlas screen. No common trigger. Panic
+  backtraces go to the USB port only, so the cause is not in the log.
+- **A 73 s radio stall.** In the boot between panics 2 and 3 (two Sigils, two
+  phone players, game then started and paused), `esp_now_send` failed with
+  12391 (`ESP_ERR_ESPNOW_NO_MEM`: no Wi-Fi transmit buffers) 729 times, each a
+  packet dropped after 4 retries. Nothing else was logged; the log then stops
+  and the next boot is a power-on, so Atlas most likely hung and was
+  power-cycled. Probably the reported "crash".
+- **Low heap.** The health lines of the playtest-fix build (flashed
+  2026-09-29) showed ~48 KB free (largest block
+  ~47 KB) after start-up with no phones. Wi-Fi transmit buffers come from the
+  same heap, so phone traffic can starve ESP-NOW and then crash an
+  allocation. *Reconstructed*: this is the likely common cause, not proven.
+
+Response (2026-09-30): the RAM reduction in `STAGED_CHANGES.md` (gzipped
+portal, streamed log download, smaller buffers and sprites, per-step boot
+heap lines). Next time, keep a USB serial monitor on Atlas during the playtest
+to catch any panic backtrace.

@@ -23,12 +23,15 @@ most 256 KiB, for at most 1 MiB of file contents. Filesystem overhead is extra.
 Each boot appends a firmware/reset-reason/random boot-ID marker. Timestamps are
 uptime, not wall-clock time. The current file is appended across reboots.
 
-The worker copies at most 2 KiB once per second. If the RAM ring overtakes it,
+Once per second the worker drains the whole RAM ring in 1 KiB pieces (since
+2026-09-30; before that at most 2 KiB per second from a 16 KiB ring, now 8 KiB
+to save RAM). If the RAM ring still overtakes it,
 the next write includes an explicit lost-byte marker. Existing secret redaction
 also applies to the card. Other diagnostic data, including identifiers and game
 activity, is readable by anyone with physical access to the card; these are not
 profile statistics or a match-history database. Existing browser permissions and
-the RAM-only HTTP log download are unchanged.
+the RAM-only HTTP log download are unchanged (it streams the ring in chunks
+since 2026-09-30 and names the card copy when older lines were dropped).
 
 An absent card or a failed write/read self-test disables SD consumers until a
 usable card mounts. No automatic formatting or deletion outside the logger's

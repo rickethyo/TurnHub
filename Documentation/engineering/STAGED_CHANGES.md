@@ -251,6 +251,17 @@ Atlas factory reset now also empties the microSD card (2026-09-29, owner
 decision; see [Manual Pairing](MANUAL_PAIRING.md#factory-reset-2026-09-25)).
 Host-tested; *Needs verification* on hardware with a card holding files.
 
+Atlas RAM reduction (2026-09-30, owner: "aggressively reduce RAM", prefer the
+card): the playtest SD logs showed three panics and a 73 s ESP-NOW `NO_MEM`
+stall with phones connected, with only ~48 KB of heap free after start-up.
+Details are in the playtest notes, section G. Done: gzipped portal and CSS, a
+streamed log download, an 8 KB log ring drained fully to the card, smaller
+recovery, SD-record and activity buffers, banded screen sprites, and
+`ATLAS|HEAP|<step>` boot lines. *Needs verification*: flash Atlas and compare
+the HEAP and HEALTH lines with the ~48 KB baseline, then replay the 4-phone
+session. Possible next steps if that is still short: move the Developer log
+download to the card copy, and cap the number of hotspot stations.
+
 ### Next implementation priority: Sigil OTA and signed updates
 
 In progress: the design, feature gate and step-by-step resume checklist are in
@@ -734,7 +745,7 @@ keeps that split; if the case lets one light face both ways, drop it.
 - Serial-log browser download (`GET /api/diagnostics/log`, Developer page
   button). *Needs verification* on hardware: host scenarios cover capture,
   redaction, overflow and the permission gate, but the ESP32 build, the
-  cross-task spinlock and the 16 KB DRAM cost have not been confirmed on a
+  cross-task spinlock and the DRAM cost (16 KB, 8 KB since 2026-09-30) have not been confirmed on a
   flashed Atlas yet.
 - *Planned* follow-up: capture framework `log_e`/ESP-IDF output as well (for
   example via a vprintf hook). Today only the Atlas `serialLog` stream is kept.
