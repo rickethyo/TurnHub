@@ -344,8 +344,7 @@ void SigilBus::handleReceive(
   Packet packet{};
   memcpy(&packet, incomingData, sizeof(packet));
 
-  if (packet.version != TurnHubProtocol::VERSION &&
-      !(packet.type == PacketType::SigilUpdateStatus && TurnHubProtocol::updatableVersion(packet.version))) {
+  if (packet.version != TurnHubProtocol::VERSION) {
     serialLog.printf(
         "ATLAS|ESP_NOW|BAD_VERSION|%u\n",
         static_cast<unsigned>(packet.version));

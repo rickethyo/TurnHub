@@ -1016,8 +1016,7 @@ void handleAtlasPacket(
     const uint8_t *incomingData,
     int length) {
 #if TURNHUB_OTA
-  // Checked before the version test below: a newer Atlas may still update
-  // this Sigil (MIN_UPDATABLE_VERSION).
+  // Told apart by length, like the picker page below.
   if (length == sizeof(TurnHubProtocol::SigilUpdateOfferPacket)) {
     handleUpdateOffer(mac, incomingData);
     return;

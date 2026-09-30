@@ -4,21 +4,13 @@
 
 namespace TurnHubProtocol {
 
-// 2 since the secure link (SECURE_LINK.md, 2026-09-29): apart from pairing
-// and the session handshake, every packet travels sealed. Version 1 devices
-// can't talk to version 2 ones; reflash both device types together.
-constexpr uint8_t VERSION = 2;
-// Oldest Sigil protocol Atlas can still update over the air (SIGIL_OTA.md,
-// "Version rules"). The secure-session handshake and the two update packets
-// are frozen at their VERSION 2 layout and accepted from any version at or
-// above this, so a Sigil left behind by an Atlas update is never stranded.
-constexpr uint8_t MIN_UPDATABLE_VERSION = 2;
-// Bumping VERSION? Atlas must then keep old Sigils talking just enough to be
-// updated: record each Sigil's version from its SecureHello, show it as
-// needing an update, never seat it, and still send it SigilUpdateOffer.
-static_assert(VERSION == MIN_UPDATABLE_VERSION,
-    "Implement needs-update handling for older Sigils before bumping VERSION (SIGIL_OTA.md)");
-inline bool updatableVersion(uint8_t version) { return version >= MIN_UPDATABLE_VERSION; }
+// 3 since the baseline Sigil (2026-09-30): the Hello capability byte carries
+// only what varies between Sigils. 2 was the secure link (SECURE_LINK.md):
+// apart from pairing and the session handshake, every packet travels sealed.
+// Devices of different versions don't talk at all; until hardware is released
+// every board is reflashed together (owner, 2026-09-30), so nothing tolerates
+// an older version. Released hardware will need a supported upgrade path.
+constexpr uint8_t VERSION = 3;
 constexpr uint8_t MAX_SIGILS = 8;
 constexpr uint8_t DISPLAY_NAME_MAX_LENGTH = 12;
 constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
@@ -49,11 +41,8 @@ constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 // (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
 // The byte carries only what varies (owner, 2026-09-30).
 //
-// Five feature bits that announced the baseline were retired 2026-09-30 with
-// Sigil 0.9.0; 0x02, 0x04, 0x08, 0x20 and 0x40 are free for new meanings, and
-// 0x01 is reused below. Protocol-2 Sigils before 0.9.0 still set the old bits,
-// so read the byte only through helloCapabilities(), which keeps a new meaning
-// away from old firmware.
+// 0x02, 0x04, 0x08, 0x20 and 0x40 are free (the feature bits protocol 2 used
+// to announce the baseline).
 //
 // Five-button d-pad; clear: analog thumbstick (its click is Select).
 constexpr uint8_t CAPABILITY_INPUT_DPAD = 0x01;
@@ -65,11 +54,7 @@ constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
 // harness answers with HarnessReport. It still plays only through the normal
 // Sigil packets, so it gains no authority.
 constexpr uint8_t CAPABILITY_HARNESS = 0x80;
-// The bits that mean the same thing in every protocol-2 firmware.
-constexpr uint8_t CAPABILITIES_STABLE = CAPABILITY_DISPLAY_OLED | CAPABILITY_HARNESS;
-// First Sigil firmware with this layout.
-constexpr uint8_t CAPABILITY_LAYOUT_MAJOR = 0;
-constexpr uint8_t CAPABILITY_LAYOUT_MINOR = 9;
+
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
 // accessibility preferences and sends them in InputTiming; the Sigil applies
@@ -91,14 +76,10 @@ constexpr uint16_t HOLD_STEP_MS = 250;
 enum class PacketType : uint8_t {
   Hello = 1,
   Ack = 2,
-  // 3-8 retired 2026-09-30 (Sigil 0.9.0): Pass and the ActionDown/Up/Short/
-  // Long/Win gestures of three-button Sigils. Every Sigil uses the menu
-  // (SelectAction). Reserved; never reuse.
+  // Unused numbers (3-8, 10-11, 20-22, 26) belonged to retired packets: the
+  // three-button gestures, keyless pairing, the per-channel light stream and
+  // the pre-0.8 menu. Free for new packets from protocol 3 on.
   DisplayProfileRequest = 9,
-  // Retired with the secure link (VERSION 2): keyless pairing. Pairing is
-  // PairRequest2/PairAccept2 now. Keep the numbers reserved; never reuse them.
-  PairRequest = 10,
-  PairAccept = 11,
   // Atlas -> Sigil: Atlas forgot this Sigil; it erases its saved pairing.
   // Best effort: a Sigil that misses it stays paired until re-paired or reset.
   Unpair = 12,
@@ -114,13 +95,9 @@ enum class PacketType : uint8_t {
   // Sigil -> Atlas: approve or deny the life request shown
   // (encodeLifeResponse).
   LifeResponse = 17,
-  // 20-22 retired 2026-09-30: SetBlue/SetRed/SetGreen, the per-channel light
-  // stream for Sigils that couldn't draw LedState. Reserved; never reuse.
   Buzzer = 23,
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
-  // 26 retired 2026-09-30: MenuState, the pre-0.8.0 menu encoding (MenuState2
-  // replaced it). Reserved; never reuse.
   HarnessCommand = 27,  // Atlas -> harness: run or stop a test (encodeHarnessCommand).
   // Atlas -> Sigil: erase all saved settings (NVS) and restart. Only honored
   // from the paired Atlas, for this Sigil's ID, with FACTORY_RESET_CONFIRM.
@@ -159,10 +136,9 @@ enum class PacketType : uint8_t {
   SecureHello = 44,
   SecureHelloAck = 45,
   Secure = 46,
-  // Sigil OTA (SIGIL_OTA.md), both sealed, layouts frozen (see
-  // MIN_UPDATABLE_VERSION). Atlas -> Sigil: install the staged package
-  // (SigilUpdateOfferPacket). Sigil -> Atlas: how it is going, a Packet whose
-  // value is encodeUpdateStatus.
+  // Sigil OTA (SIGIL_OTA.md), both sealed. Atlas -> Sigil: install the staged
+  // package (SigilUpdateOfferPacket). Sigil -> Atlas: how it is going, a
+  // Packet whose value is encodeUpdateStatus.
   SigilUpdateOffer = 47,
   SigilUpdateStatus = 48,
   DisplayState = 30,
@@ -203,7 +179,7 @@ constexpr size_t UPDATE_PASSWORD_BYTES = 65;  // 64 + NUL.
 // Atlas -> Sigil, sealed: download http://192.168.4.1/api/sigil-package?token=
 // (hex token) over Atlas's AP and install it. Resent until the Sigil answers.
 struct __attribute__((packed)) SigilUpdateOfferPacket {
-  uint8_t version;  // Atlas's VERSION; any updatableVersion() is accepted.
+  uint8_t version;  // VERSION
   PacketType type;  // SigilUpdateOffer
   uint8_t sigilId;
   uint8_t product;  // TurnHubFirmwarePackage::Product
@@ -215,7 +191,7 @@ struct __attribute__((packed)) SigilUpdateOfferPacket {
   char ssid[UPDATE_SSID_BYTES];
   char password[UPDATE_PASSWORD_BYTES];
 };
-static_assert(sizeof(SigilUpdateOfferPacket) == 125, "Update offer layout is frozen");
+static_assert(sizeof(SigilUpdateOfferPacket) == 125, "Update offer layout changed");
 
 inline bool terminatedWithin(const char *text, size_t capacity) {
   for (size_t i = 0; i < capacity; ++i) {
@@ -225,7 +201,7 @@ inline bool terminatedWithin(const char *text, size_t capacity) {
 }
 
 inline bool validUpdateOffer(const SigilUpdateOfferPacket &p) {
-  return updatableVersion(p.version) && p.type == PacketType::SigilUpdateOffer &&
+  return p.version == VERSION && p.type == PacketType::SigilUpdateOffer &&
       p.sigilId < MAX_SIGILS && p.product >= 2 && p.product <= 3 && p.packageSize > 128 &&
       p.ssid[0] != '\0' && terminatedWithin(p.ssid, UPDATE_SSID_BYTES) &&
       terminatedWithin(p.password, UPDATE_PASSWORD_BYTES);
@@ -415,21 +391,8 @@ inline uint8_t helloFirmwareMinor(int32_t value) {
 inline uint8_t helloFirmwareMajor(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
 }
-// The capability byte in today's layout. Firmware before 0.9.0 (the test
-// harness too) keeps only the stable bits; its retired bits are dropped. Its
-// input is inferred: every OLED build before 0.9.0 has the d-pad, every
-// e-paper build the thumbstick.
 inline uint8_t helloCapabilities(int32_t value) {
-  const uint8_t raw = static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
-  const uint8_t major = helloFirmwareMajor(value);
-  const uint8_t minor = helloFirmwareMinor(value);
-  if (major > CAPABILITY_LAYOUT_MAJOR ||
-      (major == CAPABILITY_LAYOUT_MAJOR && minor >= CAPABILITY_LAYOUT_MINOR)) {
-    return raw;
-  }
-  uint8_t caps = raw & CAPABILITIES_STABLE;
-  if ((caps & CAPABILITY_DISPLAY_OLED) != 0) caps |= CAPABILITY_INPUT_DPAD;
-  return caps;
+  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
 }
 
 inline int32_t encodeTone(uint16_t frequencyHz, uint16_t durationMs) {

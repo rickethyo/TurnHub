@@ -53,6 +53,6 @@ void fixtureConnectOta(TurnHub::SigilRecord &r) {
   TurnHubSecureLink::SigilSession peer;
   uint8_t key[TurnHubSecureLink::KEY_BYTES]={1};peer.configure(0,key);
   TurnHubSecureLink::SecureHelloPacket hello;TurnHubSecureLink::SecureHelloAckPacket ack;
-  assert(peer.makeHello(crypto,TurnHubProtocol::encodeHelloInfo(0,8,0,TurnHubProtocol::CAPABILITY_DISPLAY_OLED),hello));
+  assert(peer.makeHello(crypto,TurnHubProtocol::encodeHelloInfo(0,9,0,TurnHubProtocol::CAPABILITY_DISPLAY_OLED|TurnHubProtocol::CAPABILITY_INPUT_DPAD),hello));
   assert(r.session.acceptHello(crypto,key,0,hello,ack));
 }

@@ -136,9 +136,9 @@ void newSessionsLeaveOldFramesBehind() {
   assert(!atlas.ready());
 }
 
-// The handshake is frozen so an out-of-date Sigil stays updatable: any
-// version from MIN_UPDATABLE_VERSION up is taken (SIGIL_OTA.md), older isn't.
-void handshakeToleratesNewerVersions() {
+// Before release every board runs the same protocol (owner, 2026-09-30): a
+// handshake from any other version is refused both ways, even correctly MACed.
+void handshakeNeedsSameVersion() {
   TestCrypto crypto;
   SigilSession sigil;
   AtlasSession atlas;
@@ -146,31 +146,21 @@ void handshakeToleratesNewerVersions() {
   SecureHelloPacket hello;
   SecureHelloAckPacket ack;
 
-  // A newer Sigil's Hello (re-MACed as that Sigil would) reaches this Atlas.
-  assert(sigil.makeHello(crypto, INFO, hello));
-  SecureHelloPacket newer = hello;
-  newer.version = TurnHubProtocol::VERSION + 1;
-  assert(helloMac(crypto, PAIR_KEY, newer, newer.mac));
-  assert(atlas.acceptHello(crypto, PAIR_KEY, 4, newer, ack));
-
-  // A newer Atlas's ack reaches this Sigil.
-  assert(atlas.acceptHello(crypto, PAIR_KEY, 4, hello, ack));
-  SecureHelloAckPacket newerAck = ack;
-  newerAck.version = TurnHubProtocol::VERSION + 1;
-  assert(helloAckMac(crypto, PAIR_KEY, newerAck, newerAck.mac));
-  assert(sigil.acceptAck(crypto, newerAck) && sigil.ready());
-
-  // Below MIN_UPDATABLE_VERSION: refused both ways, even correctly MACed.
-  assert(sigil.makeHello(crypto, INFO, hello));
-  SecureHelloPacket old = hello;
-  old.version = TurnHubProtocol::MIN_UPDATABLE_VERSION - 1;
-  assert(helloMac(crypto, PAIR_KEY, old, old.mac));
-  assert(!atlas.acceptHello(crypto, PAIR_KEY, 4, old, ack));
-  assert(atlas.acceptHello(crypto, PAIR_KEY, 4, hello, ack));
-  SecureHelloAckPacket oldAck = ack;
-  oldAck.version = TurnHubProtocol::MIN_UPDATABLE_VERSION - 1;
-  assert(helloAckMac(crypto, PAIR_KEY, oldAck, oldAck.mac));
-  assert(!sigil.acceptAck(crypto, oldAck));
+  for (const int delta : {1, -1}) {
+    const uint8_t other = static_cast<uint8_t>(TurnHubProtocol::VERSION + delta);
+    assert(sigil.makeHello(crypto, INFO, hello));
+    SecureHelloPacket otherHello = hello;
+    otherHello.version = other;
+    assert(helloMac(crypto, PAIR_KEY, otherHello, otherHello.mac));
+    assert(!atlas.acceptHello(crypto, PAIR_KEY, 4, otherHello, ack));
+    assert(atlas.acceptHello(crypto, PAIR_KEY, 4, hello, ack));
+    SecureHelloAckPacket otherAck = ack;
+    otherAck.version = other;
+    assert(helloAckMac(crypto, PAIR_KEY, otherAck, otherAck.mac));
+    assert(!sigil.acceptAck(crypto, otherAck) && !sigil.ready());
+  }
+  // The same version still connects.
+  assert(sigil.acceptAck(crypto, ack) && sigil.ready());
 }
 
 // The update packets: offer validation and the status encoding.
@@ -187,8 +177,8 @@ void updatePackets() {
   assert(validUpdateOffer(offer));
   SigilUpdateOfferPacket bad = offer;
   bad.version = VERSION + 1;
-  assert(validUpdateOffer(bad));  // A newer Atlas may update this Sigil.
-  bad.version = MIN_UPDATABLE_VERSION - 1;
+  assert(!validUpdateOffer(bad));
+  bad.version = VERSION - 1;
   assert(!validUpdateOffer(bad));
   bad = offer;
   bad.product = 1;  // Atlas firmware is never offered to a Sigil.
@@ -232,8 +222,8 @@ int main() {
   handshakeThenSealedTrafficBothWays();
   forgedAndStaleHandshakesFail();
   newSessionsLeaveOldFramesBehind();
-  handshakeToleratesNewerVersions();
+  handshakeNeedsSameVersion();
   updatePackets();
-  std::cout << "PASS secure sessions: handshake, sealed traffic both ways, forged/stale handshakes, old sessions, replayed Hello, version tolerance, update packets\n";
+  std::cout << "PASS secure sessions: handshake, sealed traffic both ways, forged/stale handshakes, old sessions, replayed Hello, same version only, update packets\n";
   return 0;
 }

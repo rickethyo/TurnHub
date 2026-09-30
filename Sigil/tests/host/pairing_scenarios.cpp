@@ -137,7 +137,7 @@ void acceptsMustMatchTheRequest() {
 
   // Atlas rejects malformed requests and bad slots.
   PairRequest2Packet bad = request;
-  bad.type = PacketType::PairRequest;
+  bad.type = PacketType::Hello;
   assert(!atlas.request(crypto, ATLAS_MAC, OTHER_MAC, bad, 1, 0, accept));
   assert(!atlas.request(crypto, ATLAS_MAC, OTHER_MAC, request, TurnHubProtocol::MAX_SIGILS, 0, accept));
 }
