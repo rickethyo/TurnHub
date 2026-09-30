@@ -23,9 +23,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Profile store test compilation failed.' }
     & .\build\profile_store_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Profile store scenarios failed.' }
-    & $Compiler @flags -Istubs -I../../include -I../../../shared/include update_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/update_scenarios.exe
+    # Not "update_*": Windows installer detection demands elevation for unsigned .exe names with "update", "setup" or "install".
+    & $Compiler @flags -Istubs -I../../include -I../../../shared/include ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Update test compilation failed.' }
-    & .\build\update_scenarios.exe
+    & .\build\ota_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Update scenarios failed.' }
 } finally {
     Pop-Location

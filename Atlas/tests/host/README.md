@@ -63,11 +63,11 @@ c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../
     ../../src/profile_policy.cpp -o build/profile_store_scenarios
 ./build/profile_store_scenarios
 c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include \
-    update_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/update_scenarios
-./build/update_scenarios
+    ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
+./build/ota_scenarios
 ```
 
-`update_scenarios` covers Sigil OTA on Atlas (`sigil_update_jobs.cpp`):
+`ota_scenarios` covers Sigil OTA on Atlas (`sigil_update_jobs.cpp`):
 staging a Sigil package with every check, reloading it after a restart, and
 one update job from offer to done or each failure.
 
