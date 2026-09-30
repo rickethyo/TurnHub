@@ -68,6 +68,7 @@ Android/
         TableSummary.kt             UI aggregate (+ TablePlayer, ControllerHandle,
                                     PhysicalSigilAtTable)
         TableSummaryMapper.kt       info + state -> TableSummary
+        UserManual.kt               parser for the bundled manual asset
       data/
         AtlasRepository.kt          the only seam the UI talks through
         HttpAtlasRepository.kt      connect handshake, polling, reconnect rules
@@ -79,9 +80,11 @@ Android/
         AtlasFailure.kt             user-facing failure types
       ui/
         home/                       HomeScreen, HomeUiState, HomeViewModel
+        manual/                     ManualScreen (the "?" in the top bar)
         components/                 ConnectionStateBadge, TableSummaryCard,
                                     PlayerRow, PhysicalSigilRow
         theme/
+    src/main/assets/manual.md       generated user manual (see below)
     src/main/res/xml/network_security_config.xml
     src/test/java/com/turnhub/android/
       testing/Fixtures.kt           loads ../protocol/examples/*.json
@@ -99,6 +102,13 @@ snapshot) and so aren't a 1:1 mirror of any single schema.
 below it. As lobby/game/player/settings/scanner screens are added, `ui/`
 should grow one subpackage per screen alongside `ui/home`, following the same
 pattern.
+
+The app carries the user manual so it reads offline, before connecting to
+any Atlas. `app/src/main/assets/manual.md` is generated from the newest
+`Documentation/User Manual/TurnHub Manual V*.docx`; never edit it by hand.
+After changing or adding a manual version, run
+`python Android/tools/export_manual.py` (standard library only) and commit the
+result. CI runs it with `--check` and fails when the asset is stale.
 
 The exact Java/Kotlin package/application ID (`com.turnhub.android`) is a
 development placeholder, not a frozen choice -- see `app/build.gradle.kts`.

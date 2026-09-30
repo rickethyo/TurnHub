@@ -84,6 +84,7 @@ bash Atlas/tests/host/run-linux.sh
 bash Sigil/tests/host/run-linux.sh
 python3 Atlas/tests/host/audit_adapters.py
 python3 Atlas/tests/host/check_client_contract.py
+python3 Android/tools/export_manual.py --check
 ```
 
 The Linux runners build and run the existing suites; they do not introduce new

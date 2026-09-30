@@ -3,6 +3,7 @@ package com.turnhub.android.ui.home
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -76,6 +78,7 @@ import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.ui.theme.palette
 import com.turnhub.android.ui.setup.SetupActions
 import com.turnhub.android.ui.setup.SetupScreen
+import com.turnhub.android.ui.manual.ManualScreen
 
 private enum class HomeTab(val label: String) {
     GAME("Game"), PLAYERS("Players"), ACCOUNT("Account"), SETTINGS("Settings"), DEV("Dev"),
@@ -139,11 +142,20 @@ fun HomeScreen(
     // Presence also says whether Atlas still needs its first Admin.
     androidx.compose.runtime.LaunchedEffect(info?.profileId) { if (info != null) adminActions.onRefresh() }
     val incomingRequest = me?.lifeRequest?.let { it.state == LifeRequestState.PENDING && it.target == me.playerNumber } == true
+    // The bundled user manual, reachable from the top bar before or after connecting.
+    var showManual by rememberSaveable { mutableStateOf(false) }
+    if (showManual) {
+        ManualScreen(onClose = { showManual = false }, modifier = modifier)
+        return
+    }
 
     Scaffold(
         modifier = modifier.tableBackground(p),
         containerColor = Color.Transparent,
-        topBar = { BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion) },
+        topBar = {
+            BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion,
+                onManualClick = { showManual = true })
+        },
         bottomBar = {
             if (summary != null && !setup.visible) {
                 NavigationBar(containerColor = p.surface, tonalElevation = 0.dp) {
@@ -221,7 +233,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean) {
+private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boolean, onManualClick: () -> Unit) {
     val p = palette
     Row(
         Modifier
@@ -239,6 +251,34 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
             Text("ATLAS TABLE CONSOLE", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
         }
         ConnectionPill(uiState)
+        ManualButton(onManualClick)
+    }
+}
+
+/** A round "?" that opens the user manual; TalkBack reads it as "User manual". */
+@Composable
+private fun ManualButton(onClick: () -> Unit) {
+    val p = palette
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "User manual" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(p.inset)
+                .border(1.dp, p.line, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("?", color = if (p.dark) p.accentHi else p.accent,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier.clearAndSetSemantics { })
+        }
     }
 }
 
