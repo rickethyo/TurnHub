@@ -292,6 +292,22 @@ Sigils still connect but get no d-pad/joystick distinction beyond OLED), then
 check a full game from the menu, the profile picker, life keys, the ring in
 each light style (elimination and long turn now blink under Monochrome-safe
 and Reduced motion), and a harness run.
+### In progress: no compatibility code before release (branch `oobe-polish`)
+
+Owner, 2026-09-30: backward compatibility applies only to released hardware,
+and saved data needs no migrations until the owner says TurnHub is saving live
+stats. Every board is a prototype reflashed together, so remove the remaining
+compatibility paths. Steps (commit after each; full reflash and an Atlas
+factory reset at the end):
+1. Protocol 3: drop `MIN_UPDATABLE_VERSION` and the old-version tolerance, and
+   the 0.8 handling in `helloCapabilities()`.
+2. Pairing: drop keyless (pre-secure-link) pairing records on Atlas, Sigil and
+   harness.
+3. Atlas saved data: drop the NVS migrations (seat names, detailed stats,
+   moderation counts in accounts, MAC+slot PIN hashes, old touch key) and
+   the legacy seat sign-in.
+4. Older-Atlas fallbacks in the Android app and Sigil; docs.
+
 ### Next implementation priority: Sigil OTA and signed updates
 
 In progress: the design, feature gate and step-by-step resume checklist are in
