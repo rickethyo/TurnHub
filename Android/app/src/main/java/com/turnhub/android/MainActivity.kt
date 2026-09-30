@@ -187,6 +187,12 @@ class MainActivity : ComponentActivity() {
                         onSignInDismiss = homeViewModel::onSignInDismissed,
                         onAccessibilitySave = homeViewModel::onAccessibilitySaved,
                         onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
+                        setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,
+                        setupActions = com.turnhub.android.ui.setup.SetupActions(
+                            run = homeViewModel::onSetup,
+                            dismiss = homeViewModel::onSetupDismissed,
+                            close = homeViewModel::onSetupClosed,
+                        ),
                     )
                 }
             }

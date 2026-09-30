@@ -93,6 +93,7 @@ extern DeviceIntentCallback deviceHandler;
 extern PairingWindowCallback readPairingWindow;
 extern PresenceHooks presenceHooks;
 extern SpeakerVolumeCallback readSpeakerVolume;
+extern SetupStageCallback readSetupStage;
 extern AccessibilityChangedCallback accessibilityChanged;
 extern StateCallback readClientState;
 extern RevisionCallback readClientRevision;
@@ -186,6 +187,8 @@ void handleFactoryReset(WebServer &server);
 void handlePairConfirm(WebServer &server);
 void handleNetworkInfo(WebServer &server);
 void handleNetworkPassword(WebServer &server);
+void handleSetupStatus(WebServer &server);
+void handleSetupFinish(WebServer &server);
 void handleSerialLogDownload(WebServer &server);
 void handleAccountSetup(WebServer &server, bool readOnly);
 // Table presence: GET /api/presence, POST /api/presence/request, /confirm, /lock.

@@ -2,6 +2,7 @@
 #include "account_access.h"
 #include "game_settings_store.h"
 #include "pairing_settings.h"
+#include "setup_stage.h"
 #include "speaker_settings.h"
 namespace TurnHub {
 GameSettings fixtureSettings;
@@ -18,6 +19,16 @@ TurnHubStorage::Status loadPairingWindow(uint32_t &windowMs) {
 TurnHubStorage::Status savePairingWindow(uint32_t windowMs) {
   if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
   fixturePairingWindowSaved=windowMs;return TurnHubStorage::Status::Ok;
+}
+// -1: no record (a new Atlas), otherwise the saved SetupStage.
+int fixtureSetupStageSaved=-1;
+TurnHubStorage::Status loadSetupStage(SetupStage &stage) {
+  if (fixtureSetupStageSaved<0) return TurnHubStorage::Status::NotFound;
+  stage=static_cast<SetupStage>(fixtureSetupStageSaved);return TurnHubStorage::Status::Ok;
+}
+TurnHubStorage::Status saveSetupStage(SetupStage stage) {
+  if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
+  fixtureSetupStageSaved=static_cast<int>(stage);return TurnHubStorage::Status::Ok;
 }
 int fixtureSpeakerVolumeSaved=-1;
 TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {

@@ -32,6 +32,7 @@ DeviceIntentCallback deviceHandler = nullptr;
 PairingWindowCallback readPairingWindow = nullptr;
 PresenceHooks presenceHooks;
 SpeakerVolumeCallback readSpeakerVolume = nullptr;
+SetupStageCallback readSetupStage = nullptr;
 AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
@@ -119,6 +120,10 @@ void configureSpeaker(SpeakerVolumeCallback volume) {
   readSpeakerVolume = volume;
 }
 
+void configureSetup(SetupStageCallback stage) {
+  readSetupStage = stage;
+}
+
 // --- Routes ---------------------------------------------------------------------------
 
 namespace {
@@ -179,6 +184,9 @@ const Route ROUTES[] = {
   {"/api/device/pair-confirm", HTTP_POST, handlePairConfirm},
   {"/api/network", HTTP_GET, handleNetworkInfo},
   {"/api/network/password", HTTP_POST, handleNetworkPassword},
+  // First-run setup, shared by the Android app and the portal.
+  {"/api/setup", HTTP_GET, handleSetupStatus},
+  {"/api/setup/finish", HTTP_POST, handleSetupFinish},
 
   // Profiles and sessions.
   {"/api/seats", HTTP_GET, handleSeats},

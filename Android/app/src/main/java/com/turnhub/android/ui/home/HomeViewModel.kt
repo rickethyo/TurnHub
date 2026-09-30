@@ -31,6 +31,13 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import com.turnhub.android.data.AtlasSetupAssistant
+import com.turnhub.android.data.FirmwareReleaseSource
+import com.turnhub.android.data.GitHubFirmwareReleases
+import com.turnhub.android.data.SetupHost
+import com.turnhub.android.data.SetupState
 
 /**
  * Combines [AtlasRepository] state and the screen's own inputs into
@@ -52,6 +59,7 @@ class HomeViewModel(
     private val wifiLink: AtlasWifiLink,
     private val credentialStore: WifiCredentialStore,
     private val playerSession: AtlasPlayerSession,
+    releases: FirmwareReleaseSource = GitHubFirmwareReleases(),
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -59,6 +67,24 @@ class HomeViewModel(
     /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
     private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(playerSession)
     val adminState: StateFlow<com.turnhub.android.data.AdminState> = adminConsole.state
+
+    /**
+     * First-run setup (Documentation/engineering/FIRST_RUN_SETUP.md): shown
+     * instead of the table while Atlas reports its Welcome stage. Checked on
+     * every new Atlas boot.
+     */
+    private val setupAssistant = AtlasSetupAssistant(
+        playerSession,
+        releases,
+        object : SetupHost {
+            override fun endpoint(): AtlasEndpoint? = repository.endpoint.value
+            override fun atlasFirmware(): String? = repository.tableSummary.value?.firmwareVersion
+            override fun wifiPasswordChanged(ssid: String, password: String) =
+                credentialStore.save(WifiCredentials(ssid, password))
+            override suspend fun reconnectAfterRestart(): Boolean = reconnectAfterRestart()
+        },
+    )
+    val setupState: StateFlow<SetupState> = setupAssistant.state
 
     /** Everything this screen owns that the repository doesn't. */
     private data class LocalState(
@@ -166,6 +192,10 @@ class HomeViewModel(
                         if (summary == null) local.update { it.copy(signIn = null) }
                     }
                     last != null && summary.revision != last.revision -> launch { playerSession.refresh() }
+                }
+                // A new Atlas (or a new boot of it): is it still being set up?
+                if (summary != null && (last == null || summary.atlasId != last.atlasId || summary.bootId != last.bootId)) {
+                    launch { setupAssistant.check() }
                 }
                 previous = summary
             }
@@ -323,6 +353,53 @@ class HomeViewModel(
 
     fun onAdminMessageDismissed() = adminConsole.clearMessage()
 
+    // --- first-run setup --------------------------------------------------------
+
+    /** Runs one setup step; the outcome shows in [setupState]. */
+    fun onSetup(block: suspend AtlasSetupAssistant.() -> Unit) {
+        viewModelScope.launch { setupAssistant.block() }
+    }
+
+    fun onSetupDismissed() = setupAssistant.dismiss()
+
+    fun onSetupClosed() = setupAssistant.close()
+
+    /**
+     * Atlas restarts during setup (an update, the new Wi-Fi password). Waits
+     * for it to go down, then rejoins its Wi-Fi with the saved password and
+     * reconnects until a new boot answers. Sessions reset for the new boot.
+     */
+    private suspend fun reconnectAfterRestart(): Boolean {
+        val endpoint = repository.endpoint.value ?: AtlasEndpoint.DEFAULT
+        val oldBoot = repository.tableSummary.value?.bootId
+        delay(RESTART_GRACE_MS)
+        repository.disconnect()
+        wifiLink.release()
+        val back = withTimeoutOrNull(RECONNECT_TIMEOUT_MS) {
+            var connected = false
+            while (!connected) {
+                if (endpoint == AtlasEndpoint.DEFAULT) {
+                    val ssid = credentialStore.lastSsid() ?: WifiCredentials.DEFAULT_ATLAS_SSID
+                    val credentials = credentialStore.load(ssid)
+                        ?: WifiCredentials(ssid, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
+                    if (wifiLink.join(credentials) == WifiJoinResult.Joined) repository.connect(endpoint)
+                } else {
+                    repository.connect(endpoint)
+                }
+                val summary = repository.tableSummary.value
+                connected = summary != null && summary.bootId != oldBoot
+                if (!connected) {
+                    repository.disconnect()
+                    delay(RECONNECT_RETRY_MS)
+                }
+            }
+            true
+        } ?: false
+        // Let the session reset for the new boot run before setup signs in again.
+        if (back) delay(500)
+        return back
+    }
+
     /** Reads what the signed-in account may administer. */
     fun onAdminRefresh() {
         val info = (playerSession.state.value as? PlayerSessionState.SignedIn)?.info ?: return
@@ -470,6 +547,13 @@ class HomeViewModel(
 
     companion object {
         private val PIN_PATTERN = Regex("^\\d{4,8}$")
+
+        /** Atlas answers, then restarts about a second later. */
+        private const val RESTART_GRACE_MS = 4_000L
+        private const val RECONNECT_RETRY_MS = 4_000L
+
+        /** An update boot plus the Wi-Fi coming back; well past a normal restart. */
+        private const val RECONNECT_TIMEOUT_MS = 150_000L
 
         /**
          * Minimal manual-DI factory: no framework is introduced for one ViewModel.

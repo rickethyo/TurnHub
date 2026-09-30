@@ -214,6 +214,16 @@ Portal parity (2026-09-26, *Needs verification* on hardware):
   the Developer activity feed, raw status/devices/seats/diagnostics JSON and
   a shareable serial log (`AtlasAdminConsole`). Atlas firmware updates stay
   on the portal's firmware page.
+- **First-run setup** (2026-09-30, FIRST_RUN_SETUP.md): after Connect the
+  app reads `GET /api/setup`; while Atlas is new it shows the setup steps in
+  place of the table (`AtlasSetupAssistant`, `ui/setup/SetupScreen.kt`):
+  account (create or sign in), table code (makes the account the Admin),
+  Sigil pairing, one update prompt for Atlas and every paired Sigil, and the
+  table's own Wi-Fi password. Firmware comes from the public GitHub release
+  feed (`GitHubFirmwareReleases`) over the phone's own internet, checked for
+  size and SHA-256; Atlas checks each package's signature. After an Atlas
+  restart the app rejoins with the saved password and signs in again with
+  the PIN typed during setup (kept in memory only).
 - **Quick app switch:** Android releases an app's `WifiNetworkSpecifier`
   network once the app leaves the foreground. When the app leaves the screen
   while connected, `AtlasLinkHoldService` (a `connectedDevice` foreground

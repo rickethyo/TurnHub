@@ -53,6 +53,9 @@ TouchAction qrChoice = TouchAction::QrPortal;
 PlayerSeat shownSeat;
 bool concedeArmed = false;
 PlayerSeat pressedSeat;
+// Skip for now on the setup Welcome screen: hidden until the next start-up,
+// or until Setup under Menu. Presentation only; the stage stays Atlas's.
+bool setupSkipped = false;
 
 struct NameCache {
   char profileId[9] = {};
@@ -173,6 +176,13 @@ bool currentShownSeat(PlayerSeat &seat) {
   return false;
 }
 
+// First-run setup takes the lobby's status screen until it is complete
+// (Welcome can be skipped for now; "You're all set" waits for Done).
+bool setupScreenDue() {
+  if (hubState != HubState::Lobby || setupStage == TurnHub::SetupStage::Complete) return false;
+  return !(setupStage == TurnHub::SetupStage::Welcome && setupSkipped);
+}
+
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
   // A player's screen closes when the lobby or match it belongs to ends, or
@@ -185,14 +195,18 @@ ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Menu && !menuAvailable()) openScreen = ScreenKind::Status;
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
+  if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
   return openScreen;
 }
 
 // Between games: Pair (lobby only) and QR codes above; Tests (while a
 // harness is connected), Info and Back below.
 void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
-  ButtonSpec upper[2];
+  ButtonSpec upper[3];
   uint8_t n = 0;
+  if (hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
+    upper[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
+  }
   if (hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
@@ -311,6 +325,20 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       addRow(screen, BUTTON_ROW_Y, row, 4);
       return;
     }
+    case ScreenKind::Setup: {
+      if (setupStage == TurnHub::SetupStage::Finished) {
+        const ButtonSpec row[] = {{TouchAction::SetupPair, "Pair a Sigil", 0, 3},
+            {TouchAction::SetupDone, "Done", 0, 2}};
+        addRow(screen, BUTTON_ROW_Y, row, 2);
+      } else {
+        // Pairing belongs to setup too (the app's Sigils step), so every
+        // device can take one update prompt; opening it stays a touch here.
+        const ButtonSpec row[] = {{TouchAction::Pair, "Pair a Sigil", 0, 3},
+            {TouchAction::SkipSetup, "Skip", 0, 2}, {TouchAction::OpenMenu, "Menu", 0, 2}};
+        addRow(screen, BUTTON_ROW_Y, row, 3);
+      }
+      return;
+    }
     case ScreenKind::Status:
       break;
   }
@@ -416,6 +444,10 @@ const char *actionName(TouchAction action) {
     case TouchAction::CancelConcede: return "CONCEDE_CANCEL";
     case TouchAction::MoveEarlier: return "MOVE_EARLIER";
     case TouchAction::MoveLater: return "MOVE_LATER";
+    case TouchAction::SkipSetup: return "SKIP_SETUP";
+    case TouchAction::OpenSetup: return "OPEN_SETUP";
+    case TouchAction::SetupPair: return "SETUP_PAIR";
+    case TouchAction::SetupDone: return "SETUP_DONE";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -478,6 +510,14 @@ bool navigate(TouchAction action) {
     case TouchAction::QrWifi:
     case TouchAction::QrPortal:
     case TouchAction::QrSignIn: qrChoice = action; return true;
+    case TouchAction::SkipSetup:
+      setupSkipped = true;
+      openScreen = ScreenKind::Status;
+      return true;
+    case TouchAction::OpenSetup:
+      setupSkipped = false;
+      openScreen = ScreenKind::Status;
+      return true;
     default: return false;
   }
 }
@@ -588,6 +628,22 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.payload.targetPlayer = seat.playerNumber;
       intent.payload.value = action == TouchAction::MoveEarlier ? -1 : 1;
       result = intents.dispatch(intent);
+      break;
+    }
+    // "You're all set": leave setup, and for Pair a Sigil open pairing too.
+    case TouchAction::SetupDone:
+    case TouchAction::SetupPair: {
+      Intent intent;
+      intent.type = IntentType::AdvanceSetup;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.value = static_cast<int32_t>(TurnHub::SetupStage::Complete);
+      result = intents.dispatch(intent);
+      if (result.accepted() && action == TouchAction::SetupPair) {
+        Intent pair;
+        pair.type = IntentType::PairRequest;
+        pair.actor.origin = IntentOrigin::AtlasHardware;
+        result = intents.dispatch(pair);
+      }
       break;
     }
     // A test plays through the harness's own Sigils and Atlas's normal handlers.
@@ -931,6 +987,56 @@ void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   screen.lineCount = 5;
 }
 
+// The owner-set Wi-Fi password, or "" for the shipped default. The screen
+// rebuilds every 50 ms; NVS is read at most every 2 s.
+const String &customWifiPassword(uint32_t nowMs) {
+  static String stored;
+  static uint32_t readAtMs = 0;
+  static bool read = false;
+  if (!read || nowMs - readAtMs >= 2000) {
+    stored = TurnHub::readStoredWifiPassword();
+    if (!TurnHub::validWifiPassword(stored) || stored == AtlasConfig::WIFI_DEFAULT_PASSWORD) stored = String();
+    readAtMs = nowMs;
+    read = true;
+  }
+  return stored;
+}
+
+// First-run setup, all in words (no QR code needed; owner, 2026-09-30):
+// Welcome says how to start from a phone, the app first; after the phone
+// finishes, "You're all set" says what changed and what comes next.
+void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
+  snprintf(screen.badge, sizeof(screen.badge), "SETUP");
+  if (setupStage == TurnHub::SetupStage::Finished) {
+    snprintf(screen.title, sizeof(screen.title), "You're all set");
+    snprintf(screen.detail, sizeof(screen.detail), "This table is ready to play");
+    snprintf(screen.lines[0], sizeof(screen.lines[0]), "Its Wi-Fi now has your password.");
+    snprintf(screen.lines[1], sizeof(screen.lines[1]), "The app reconnects by itself; other");
+    snprintf(screen.lines[2], sizeof(screen.lines[2]), "phones rejoin %s.", AtlasConfig::WIFI_SSID);
+    snprintf(screen.lines[3], sizeof(screen.lines[3]), "Next: pair your Sigils, or tap Done.");
+    screen.lineCount = 4;
+    return;
+  }
+  snprintf(screen.title, sizeof(screen.title), "Welcome to TurnHub");
+  const uint32_t pairingMs = pairingRemainingMs(nowMs);
+  if (pairingMs > 0) {
+    snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
+        static_cast<unsigned long>((pairingMs + 999) / 1000));
+  } else {
+    snprintf(screen.detail, sizeof(screen.detail), "Set up this table from a phone");
+  }
+  snprintf(screen.lines[0], sizeof(screen.lines[0]), "1. Open the TurnHub app, tap Connect.");
+  snprintf(screen.lines[1], sizeof(screen.lines[1]), "   It joins this table's Wi-Fi itself.");
+  snprintf(screen.lines[2], sizeof(screen.lines[2]), "2. No app? Join Wi-Fi %s,", AtlasConfig::WIFI_SSID);
+  if (customWifiPassword(nowMs).length()) {
+    snprintf(screen.lines[3], sizeof(screen.lines[3]), "   with the table's own password,");
+  } else {
+    snprintf(screen.lines[3], sizeof(screen.lines[3]), "   password %s,", AtlasConfig::WIFI_DEFAULT_PASSWORD);
+  }
+  snprintf(screen.lines[4], sizeof(screen.lines[4]), "   then open 192.168.4.1");
+  screen.lineCount = 5;
+}
+
 // The Wi-Fi code carries the password. The shipped default is public, so it
 // shows freely; an admin-set password needs the admin unlock window.
 void formatQr(AtlasScreen &screen, uint32_t nowMs) {
@@ -938,16 +1044,8 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   switch (qrChoice) {
     case TouchAction::QrWifi: {
       snprintf(screen.title, sizeof(screen.title), "Join the Wi-Fi");
-      // The screen rebuilds every 50 ms; read NVS at most every 2 s.
-      static String stored;
-      static uint32_t readAtMs = 0;
-      static bool read = false;
-      if (!read || nowMs - readAtMs >= 2000) {
-        stored = TurnHub::readStoredWifiPassword();
-        readAtMs = nowMs;
-        read = true;
-      }
-      const bool custom = TurnHub::validWifiPassword(stored) && stored != AtlasConfig::WIFI_DEFAULT_PASSWORD;
+      const String &stored = customWifiPassword(nowMs);
+      const bool custom = stored.length() > 0;
       if (custom && !anyPresenceActive(nowMs)) {
         snprintf(screen.detail, sizeof(screen.detail), "Network: %s", AtlasConfig::WIFI_SSID);
         snprintf(screen.lines[0], sizeof(screen.lines[0]), "This network has a private");
@@ -1018,6 +1116,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::Table: formatTable(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
     case ScreenKind::Player: formatPlayer(screen, nowMs); break;
+    case ScreenKind::Setup: formatSetup(screen, nowMs); break;
   }
   layoutButtons(screen, nowMs);
   if (noticeText[0] != '\0' && nowMs - noticeAtMs < TOUCH_NOTICE_MS) {
@@ -1090,6 +1189,7 @@ void resetTouchControls() {
   qrChoice = TouchAction::QrPortal;
   shownSeat = pressedSeat = PlayerSeat();
   concedeArmed = false;
+  setupSkipped = false;
   for (auto &cache : names) cache = NameCache();
 }
 

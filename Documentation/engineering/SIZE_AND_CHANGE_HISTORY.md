@@ -516,6 +516,17 @@ with no phones connected, free heap after start-up went from ~48 KB to 99 KB
 (largest block 98 KB). Per-step costs are now: SD card 21 KB, Wi-Fi hotspot
 54 KB, ESP-NOW 13 KB, web server 2.6 KB.
 
+### 2026-09-30: First-run guided setup (branch `oobe-guided-setup`)
+
+Setup stages, the Welcome and "You're all set" touchscreen screens,
+`GET /api/setup` and `POST /api/setup/finish` (see
+[First-run setup](FIRST_RUN_SETUP.md)). CI build of the branch (run
+36679680047; PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32 2.0.17):
+Atlas static RAM 90,228 B, flash 1,411,185 B of 1,966,080 (71.8%). The
+previous entry's figures came from an earlier commit on `turnhub-integration`;
+the setup code itself is small (a two-byte NVS record, one Intent, two routes,
+one screen). No setup web page was added: the Android app is the setup client.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -528,4 +539,4 @@ with no phones connected, free heap after start-up went from ~48 KB to 99 KB
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30

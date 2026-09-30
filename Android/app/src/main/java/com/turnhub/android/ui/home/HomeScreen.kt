@@ -73,6 +73,8 @@ import com.turnhub.android.ui.components.rememberNowMs
 import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.TurnHubThemeChoice
 import com.turnhub.android.ui.theme.palette
+import com.turnhub.android.ui.setup.SetupActions
+import com.turnhub.android.ui.setup.SetupScreen
 
 private enum class HomeTab(val label: String) {
     GAME("Game"), PLAYERS("Players"), ACCOUNT("Account"), SETTINGS("Settings"), DEV("Dev"),
@@ -105,6 +107,8 @@ fun HomeScreen(
     onAccessibilityDismiss: () -> Unit = {},
     admin: com.turnhub.android.data.AdminState = com.turnhub.android.data.AdminState(),
     adminActions: AdminActions = AdminActions(),
+    setup: com.turnhub.android.data.SetupState = com.turnhub.android.data.SetupState(),
+    setupActions: SetupActions = SetupActions(),
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -139,7 +143,7 @@ fun HomeScreen(
         containerColor = Color.Transparent,
         topBar = { BrandBar(uiState, running = summary?.state == TableState.RUNNING, reduceMotion = reduceMotion) },
         bottomBar = {
-            if (summary != null) {
+            if (summary != null && !setup.visible) {
                 NavigationBar(containerColor = p.surface, tonalElevation = 0.dp) {
                     tabs.forEach { entry ->
                         NavigationBarItem(
@@ -186,7 +190,9 @@ fun HomeScreen(
                 uiState.errorMessage?.let {
                     ErrorCard(it, uiState.errorDetail, uiState.isRetrying, onOpenAppSettings.takeIf { uiState.offerAppSettings })
                 }
-                if (summary == null) {
+                if (setup.visible) {
+                    SetupScreen(setup, setupActions)
+                } else if (summary == null) {
                     ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, reduceMotion)
                 } else {
                     when (tab) {

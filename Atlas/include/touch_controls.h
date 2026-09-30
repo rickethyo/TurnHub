@@ -59,7 +59,12 @@ enum class TouchAction : uint8_t {
   // their life (ChangeLife) and concedes for them (Concede, asked twice).
   OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede, ConfirmConcede, CancelConcede,
   // In the lobby, the same screen sets turn order (MoveSeat).
-  MoveEarlier, MoveLater
+  MoveEarlier, MoveLater,
+  // First-run setup (FIRST_RUN_SETUP.md). Skip for now hides the Welcome
+  // screen until the next start-up (presentation only); Setup under Menu
+  // brings it back. Pair a Sigil and Done leave "You're all set"
+  // (AdvanceSetup to Complete); Pair a Sigil also opens pairing.
+  SkipSetup, OpenSetup, SetupPair, SetupDone
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -69,7 +74,8 @@ enum class TouchAction : uint8_t {
 // PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
 // Player: one player's screen, from their chip: life and Concede in a game,
 // turn order in the lobby.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player };
+// Setup: first-run setup in the lobby, Welcome or "You're all set".
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

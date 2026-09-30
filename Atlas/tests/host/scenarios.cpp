@@ -2570,6 +2570,129 @@ static void deviceManagement() {
   enterEmptyLobby();
 }
 
+// First-run guided setup (FIRST_RUN_SETUP.md): the boot stage, the Welcome
+// and "You're all set" screens, and the phone's steps over HTTP, which the
+// Android app and the portal share.
+namespace TurnHub { extern int fixtureSetupStageSaved; }
+namespace TurnHubAccounts { extern String primary; extern std::map<std::string,Account> accounts; }
+static void firstRunSetup() {
+  using TurnHub::SetupStage;
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configureSetup([]() { return static_cast<uint8_t>(setupStage); });
+  const String previousPrimary=TurnHubAccounts::primary;
+  freshLobby(2); resetPresence(); resetTouchControls(); testNow+=1000; pairingActive=false;
+  Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
+
+  // Boot: an Atlas set up before this feature (an Admin exists) skips it; a
+  // new one starts at Welcome; either answer is saved, and a saved stage wins.
+  TurnHub::fixtureSetupStageSaved=-1; TurnHubAccounts::primary="00000001";
+  beginFirstRunSetup(); assert(setupStage==SetupStage::Complete && TurnHub::fixtureSetupStageSaved==2);
+  TurnHub::fixtureSetupStageSaved=-1; TurnHubAccounts::primary="";
+  beginFirstRunSetup(); assert(setupStage==SetupStage::Welcome && TurnHub::fixtureSetupStageSaved==0);
+  TurnHubAccounts::primary="00000001"; beginFirstRunSetup(); assert(setupStage==SetupStage::Welcome);
+  TurnHubAccounts::primary="";
+  // Storage faults never lock the table in setup.
+  assert(TurnHub::bootSetupStage(TurnHubStorage::Status::IoError,SetupStage::Welcome,false)==SetupStage::Complete);
+  assert(TurnHub::bootSetupStage(TurnHubStorage::Status::Corrupt,SetupStage::Welcome,false)==SetupStage::Complete);
+
+  // Welcome, in words: the app first, then the Wi-Fi by hand. No QR code.
+  AtlasScreen screen=currentScreen();
+  assert(screen.kind==ScreenKind::Setup && strcmp(screen.badge,"SETUP")==0);
+  assert(strcmp(screen.title,"Welcome to TurnHub")==0 && screen.qr[0]=='\0' && screen.lineCount==5);
+  assert(strstr(screen.lines[0],"TurnHub app") && strstr(screen.lines[2],AtlasConfig::WIFI_SSID));
+  assert(strstr(screen.lines[3],AtlasConfig::WIFI_DEFAULT_PASSWORD) && strstr(screen.lines[4],"192.168.4.1"));
+  assert(screenButton(screen,TouchAction::SkipSetup) && screenButton(screen,TouchAction::OpenMenu));
+  // Pairing is part of setup (one update prompt for every device): the
+  // Welcome screen opens it and shows the countdown.
+  tapButton(TouchAction::Pair);
+  assert(pairingActive && currentScreen().kind==ScreenKind::Setup &&
+      startsWith(currentScreen().detail,"Pairing open"));
+  pairingActive=false;
+  // Skip for now shows the lobby; Setup under Menu brings Welcome back.
+  tapButton(TouchAction::SkipSetup); assert(currentScreen().kind==ScreenKind::Status);
+  openMenuScreen(); tapButton(TouchAction::OpenSetup); assert(currentScreen().kind==ScreenKind::Setup);
+  // Only in the lobby: a game played before setup shows the game.
+  startFromHost(); assert(currentScreen().kind==ScreenKind::Status);
+  enterEmptyLobby(); { const uint32_t now=testNow; freshLobby(2); testNow=now; }
+  assert(currentScreen().kind==ScreenKind::Setup);
+
+  // The phone's first look, without signing in, never shows the password.
+  assert(request("/api/setup","",{},HTTP_GET)==200);
+  assert(server.body.find("\"stage\":\"welcome\"")!=std::string::npos &&
+      server.body.find("\"adminExists\":false")!=std::string::npos &&
+      server.body.find("\"passwordIsDefault\":true")!=std::string::npos &&
+      server.body.find(AtlasConfig::WIFI_DEFAULT_PASSWORD)==std::string::npos);
+
+  // Step 1, an account; step 2, the table code, which makes it the Admin.
+  String ownerId,guestId;
+  const String owner=registerPhone("Owner",ownerId),guest=registerPhone("Guest",guestId);
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==403);
+  verifyAtTable(owner); assert(request("/api/accounts/setup",owner)==200);
+  assert(request("/api/setup","",{},HTTP_GET)==200 && server.body.find("\"adminExists\":true")!=std::string::npos);
+  assert(request("/api/setup/finish",guest,{{"password","table-pass-1"}})==403);
+
+  // Step 3, the Wi-Fi password: never the printed one, 8 to 63 characters.
+  assert(request("/api/setup/finish",owner,{{"password",AtlasConfig::WIFI_DEFAULT_PASSWORD}})==400);
+  assert(request("/api/setup/finish",owner,{{"password","short"}})==400);
+  assert(setupStage==SetupStage::Welcome);
+  // The validator: an Admin with a private password, not the touchscreen.
+  Intent advance; advance.type=IntentType::AdvanceSetup; advance.actor.origin=IntentOrigin::Browser;
+  strncpy(advance.payload.moderatorId,ownerId.c_str(),8);
+  advance.payload.value=static_cast<int32_t>(SetupStage::Finished);
+  assert(intents.dispatch(advance).status==IntentStatus::Rejected);  // Still the printed password.
+  advance.actor.origin=IntentOrigin::AtlasHardware;
+  assert(intents.dispatch(advance).status==IntentStatus::Unauthorized);
+  advance.actor.origin=IntentOrigin::Browser; advance.payload.value=7;
+  assert(intents.dispatch(advance).status==IntentStatus::Rejected && setupStage==SetupStage::Welcome);
+  // Not mid-match (Atlas restarts afterwards). freshLobby rewinds the test
+  // clock, which would expire the owner's table code.
+  { const uint32_t now=testNow; freshLobby(2); testNow=now; }
+  startFromHost();
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==409 && setupStage==SetupStage::Welcome);
+  // A refused finish leaves the Wi-Fi as it was (the printed password).
+  assert(!TurnHub::validWifiPassword(TurnHub::readStoredWifiPassword()));
+  enterEmptyLobby();
+
+  // Step 4, finish: the password is stored, the stage saved, Atlas restarts.
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==200);
+  assert(server.body.find("\"restarting\":true")!=std::string::npos);
+  assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
+  assert(Preferences::strings()[AtlasConfig::WIFI_PREF_KEY]=="table-pass-1");
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-2"}})==409);
+  assert(request("/api/setup","",{},HTTP_GET)==200 && server.body.find("\"stage\":\"finished\"")!=std::string::npos &&
+      server.body.find("\"passwordIsDefault\":false")!=std::string::npos &&
+      server.body.find("table-pass-1")==std::string::npos);
+  advance.payload.value=static_cast<int32_t>(SetupStage::Welcome);
+  assert(intents.dispatch(advance).status==IntentStatus::InvalidState);
+
+  // "You're all set": no password on screen, Pair a Sigil or Done.
+  screen=currentScreen();
+  assert(screen.kind==ScreenKind::Setup && strcmp(screen.title,"You're all set")==0);
+  for (uint8_t i=0;i<screen.lineCount;++i) assert(!strstr(screen.lines[i],"table-pass-1"));
+  assert(screenButton(screen,TouchAction::SetupPair) && screenButton(screen,TouchAction::SetupDone) &&
+      !screenButton(screen,TouchAction::SkipSetup));
+  advance.payload.value=static_cast<int32_t>(SetupStage::Complete);
+  strncpy(advance.payload.moderatorId,guestId.c_str(),8);
+  assert(intents.dispatch(advance).status==IntentStatus::Unauthorized && setupStage==SetupStage::Finished);
+  // Pair a Sigil leaves setup and opens pairing.
+  tapButton(TouchAction::SetupPair);
+  assert(setupStage==SetupStage::Complete && TurnHub::fixtureSetupStageSaved==2 && pairingActive);
+  assert(currentScreen().kind==ScreenKind::Status);
+  advance.actor.origin=IntentOrigin::AtlasHardware;
+  assert(intents.dispatch(advance).status==IntentStatus::InvalidState);
+  openMenuScreen(); assert(!screenButton(currentScreen(),TouchAction::OpenSetup));
+  tapButton(TouchAction::CloseScreen);
+
+  assert(request("/api/session/logout",owner)==200 && request("/api/session/logout",guest)==200);
+  // The fixture's profile store is small; later scenarios need the room.
+  for (const String &id : {ownerId,guestId}) {
+    ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str());
+  }
+  TurnHubAccounts::primary=previousPrimary; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
+  TurnHub::fixtureSetupStageSaved=-1; setupStage=SetupStage::Complete; pairingActive=false;
+  resetPresence(); resetTouchControls(); enterEmptyLobby();
+}
+
 // Atlas's speaker plays table-wide cues, including for a table with no
 // Sigil; lobby feedback stays on Sigils. Volume 0 silences only the speaker,
 // and muting every Sigil leaves it. Admins set the volume through an Intent.
@@ -3048,6 +3171,7 @@ int main() {
   pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
+  firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";
