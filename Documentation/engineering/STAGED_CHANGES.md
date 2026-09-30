@@ -276,6 +276,31 @@ Implemented and host-tested (Atlas scenarios, Android JVM tests); *Needs
 verification* on hardware. Next: CI firmware build, a first signed release,
 the bench run from a factory reset, then the portal steps and the manual.
 
+### In progress: baseline Sigil, capability bits retired (branch `oobe-polish`)
+
+Owner, 2026-09-30: Atlas assumes the six features every Sigil has and keeps
+only the distinctions that vary: OLED vs e-ink, joystick vs d-pad, and the
+test harness. Remove the code that only served Sigils without them ("ghost
+code has to go"); retire the freed bits cleanly and reuse them where needed.
+
+Why it's safe: every protocol-2 Sigil is firmware 0.8.0+ (0.8 on 09-25, v2 on
+09-29) and sends all six. `MIN_UPDATABLE_VERSION` blocks a protocol bump
+until Atlas can update older Sigils, so this stays at VERSION 2 and keys the
+new byte layout on Sigil firmware 0.9.0. Older 0.8 Sigils keep only the OLED
+and harness bits; d-pad is inferred from OLED for them (true of both builds).
+
+Steps (commit after each):
+1. `protocol.h`: new layout (`CAPABILITY_INPUT_DPAD` 0x01, OLED 0x10,
+   harness 0x80, the rest free); retire packets Pass, Action*, SetBlue/Red/
+   Green and MenuState (numbers reserved); drop the 0.8 version helpers.
+2. Atlas: assume the baseline; delete the gesture adapter (Action/Pass
+   chords, Lobby held/chord flags), the LED channel stream, old MenuState,
+   the capability and 0.8 checks; `/api/devices` gains `input`; host tests.
+3. Sigil 0.9.0: delete the non-menu three-button path and discrete LEDs;
+   Wokwi becomes an e-ink d-pad Sigil with the Jewel ring, and its shim
+   speaks the menu. Harness sends the new bits.
+4. Docs, size history, builds, all tests, reflash every board.
+
 ### Next implementation priority: Sigil OTA and signed updates
 
 In progress: the design, feature gate and step-by-step resume checklist are in
