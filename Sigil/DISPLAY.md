@@ -139,7 +139,7 @@ initialization completed; write-only SPI cannot confirm physical panel presence.
 Booting, Unpaired plus the existing pairing instruction, and assigned/ready
 screens use text. State-only screens cover lobby, starting, running, paused
 and game over, including shared-seat focus and host/turn metadata. `H` in the
-header means host; `S` identifies the Sigil and `T` is the turn number.
+header means host; `S` identifies the Sigil and `R` is the table round (the number the Atlas header shows).
 
 A running snapshot shows the full primary name, LIFE value and explicit
 YOUR TURN / WAITING FOR TURN text. YOUR TURN also uses inverse contrast. Shared
@@ -220,7 +220,7 @@ sign and every digit through the supported -1,000,000 to 1,000,000 range.
 `include/sigil_icons.h`: turn arrows, pause bars, crown, heart and the
 hourglass emblem, drawn from primitives on either display. The e-paper panel
 now matches the OLED:
-- a solid black title bar (title, Sigil number, crown and HOST, turn number)
+- a solid black title bar (title, Sigil number, crown and HOST, table round)
 - the boot, unpaired and ready screens carry the emblem
 - status lines sit in banners: filled with icons on both sides when they
   concern this Sigil now, framed otherwise
@@ -289,7 +289,7 @@ Sigils, one bit deep:
 
 | Vertical area | Contents |
 | --- | --- |
-| y=4-36 | Game/Commander title, Sigil number, HOST flag, turn number, divider |
+| y=4-36 | Game/Commander title, Sigil number, HOST flag, table round, divider |
 | y=40-59 | YOUR TURN banner, or WAITING FOR TURN, directly above the primary player |
 | y=66-99 | Primary player's full transmitted name, up to two lines |
 | y=104-163 | Large life total and LIFE label (shared view uses a shorter primary block) |

@@ -52,6 +52,17 @@ int main() {
   assert(m.render(0).pixels[1].g < 10 && m.render(1300).pixels[1].g > 240);
   m.applyLedState(led(LedCue::YourTurn, 0, 0, 1, false, LedStyle::ReducedMotion), 0);
   assert(m.render(0).pixels[1].g == 255 && m.render(1300).pixels[1].g == 255);
+  // Seat B's turn on a shared Sigil: azure, a double pulse and only B's half
+  // of the ring, so the two seats never differ by color alone.
+  m.applyLedState(led(LedCue::YourTurn, 0, 0, 2, true), 0);
+  f = m.render(0);
+  assert(f.pixels[4].b == 255 && f.pixels[4].g == 110 && f.pixels[4].r == 0 && dark(f.pixels[1]));
+  assert(dark(m.render(200).pixels[4]) && m.render(400).pixels[4].b == 255 && dark(m.render(900).pixels[4]));
+  m.applyLedState(led(LedCue::YourTurn, 0, 0, 1, true), 0);  // Seat A: green, A's half.
+  f = m.render(1300);
+  assert(f.pixels[1].g > 240 && f.pixels[1].b == 0 && dark(f.pixels[4]));
+  m.applyLedState(led(LedCue::YourTurn, 0, 0, 2, true, LedStyle::ReducedMotion), 0);
+  assert(m.render(0).pixels[4].b == 255 && dark(m.render(2500).pixels[4]));  // Slow blink, not steady.
 
   // Joined: player number as that many ring pixels; the single LED flashes it.
   m.applyLedState(led(LedCue::Joined, 0, 4), 0);

@@ -24,6 +24,7 @@ constexpr Rgb CYAN{0, 200, 200};
 constexpr Rgb PURPLE{150, 0, 255};
 constexpr Rgb ORANGE{255, 50, 0};
 constexpr Rgb GOLD{255, 170, 0};
+constexpr Rgb AZURE{0, 110, 255};  // Seat B's turn on a shared Sigil.
 constexpr uint8_t WAITING_LEVEL = 64;
 
 Rgb scaled(Rgb color, uint8_t level) {
@@ -76,6 +77,8 @@ uint8_t seatLevel(const TurnHubProtocol::LedStateFields &s, uint32_t t, uint32_t
   return s.sharedSeat ? pulses(t, 1800, onMs, s.seatSlot) : 255;
 }
 
+bool seatBTurn(const TurnHubProtocol::LedStateFields &s) { return s.sharedSeat && s.seatSlot == 2; }
+
 // Primary cue as one color and a temporal level.
 Look cueLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, uint32_t anchored) {
   const bool rm = reduced(s.style);
@@ -83,8 +86,15 @@ Look cueLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, uint32_t an
     case LedCue::Unassigned: return {WHITE, rm ? slow(now) : blink(now, 1500, 500)};
     case LedCue::Joined: return {CYAN, rm ? static_cast<uint8_t>(80) : countFlashes(now, s.playerNumber)};
     case LedCue::Starting: return {AMBER, rm ? static_cast<uint8_t>(255) : blink(anchored, 1000, 250)};
-    case LedCue::TurnStarted: return {GREEN, rm ? static_cast<uint8_t>(255) : blink(anchored, 400, 200)};
-    case LedCue::YourTurn: return {GREEN, rm ? static_cast<uint8_t>(255) : breathe(now, 2600)};
+    // Seat B of a shared Sigil: its own color and a double pulse (a slow
+    // blink with reduced motion), and only its half of the ring, so the two
+    // seats never differ by color alone (playtest 2026-09-29, item 7).
+    case LedCue::TurnStarted:
+      if (seatBTurn(s)) return {AZURE, rm ? slow(now) : pulses(anchored, 800, 150, 2)};
+      return {GREEN, rm ? static_cast<uint8_t>(255) : blink(anchored, 400, 200)};
+    case LedCue::YourTurn:
+      if (seatBTurn(s)) return {AZURE, rm ? slow(now) : pulses(now, 1800, 180, 2)};
+      return {GREEN, rm ? static_cast<uint8_t>(255) : breathe(now, 2600)};
     case LedCue::Waiting: return {BLUE, WAITING_LEVEL};
     case LedCue::Paused: return {AMBER, rm ? slow(now) : breathe(now, 2600)};
     case LedCue::ConfirmationNeeded: return {MAGENTA, seatLevel(s, now, 180)};
@@ -304,6 +314,8 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       break;
     case LedCue::ConfirmationNeeded:
     case LedCue::EliminationSelect:
+    case LedCue::TurnStarted:
+    case LedCue::YourTurn:
       // Shared Sigil: only the focused seat's half (A = 1-3, B = 4-6).
       for (uint8_t i = 1; i < LED_PIXELS; ++i) {
         const bool seatB = i >= 4;

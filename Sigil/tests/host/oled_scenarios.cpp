@@ -97,7 +97,7 @@ int main() {
   assert(d.setSeatName(2, "Second"));
   d.showState(7, DisplayMode::Lobby, 1, 2, 255, DISPLAY_FLAG_HOST);
   assert(has("A: ABCDEFGHIJKL") && !has("B: Second") && has("SHARED SIGIL"));
-  assert(highlighted("LOBBY") && highlighted("S8 T255"));
+  assert(highlighted("LOBBY") && highlighted("S8 R255"));
   assert(!highlighted("SHARED SIGIL"));
   d.showState(0, DisplayMode::Starting, 2, 1, 1, DISPLAY_FLAG_STARTER);
   assert(highlighted("GO FIRST: B") && has("B: Second") && !has("A: ABCDEFGHIJKL"));

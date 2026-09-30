@@ -73,6 +73,8 @@ SigilLedState selectSigilLedState(
     const uint32_t turnElapsed = game.currentTurnElapsedMs(nowMs);
     cue.cue = turnElapsed < TURN_STARTED_CUE_MS ? LedCue::TurnStarted : LedCue::YourTurn;
     cue.anchorMs = nowMs - turnElapsed;
+    // Which seat's turn, so a shared Sigil can show A and B differently.
+    if (const PlayerSeat *active = game.activePlayer()) setSeat(cue, game, sigilId, *active, true);
     addTimerOverlay(cue, game, nowMs);
     return cue;
   }
