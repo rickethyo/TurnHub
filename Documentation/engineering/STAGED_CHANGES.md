@@ -237,6 +237,14 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 ## Current baseline
 
+### In progress: 2026-09-29 playtest fixes
+
+Working from [the playtest notes](PLAYTEST_NOTES_2026_09_29.md) on
+`turnhub-integration`, one local commit per item, in the notes' suggested
+order. Check `git log` for which items already landed ("Playtest #N" in the
+subject). Next step if resuming: the lowest-numbered item without a commit.
+Item 10 (Android account creation) gets a feature-gate outline only.
+
 ### Next implementation priority: Sigil OTA and signed updates
 
 In progress: the design, feature gate and step-by-step resume checklist are in
