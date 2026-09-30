@@ -432,14 +432,11 @@ void setup() {
   beginSdCard();
   logHeapStep("SD_CARD");
   // Luxury records (detailed statistics) go to the card; without one Atlas
-  // keeps only the core counts. Move any detail older firmware left in NVS.
+  // keeps only the core counts.
   // A card inserted or pulled later is picked up by refreshSdLuxuryStore().
   luxuryStoreGeneration = sdCardGeneration();
   TurnHubProfiles::setLuxuryStore(sdBlobStore());
-  if (TurnHubProfiles::begin()) {
-    const size_t moved = TurnHubProfiles::migrateDetailedStats();
-    if (moved > 0) serialLog.printf("ATLAS|SD|STATS_MIGRATED|%u\n", static_cast<unsigned>(moved));
-  }
+  TurnHubProfiles::begin();
 
   configureIntentHandlers();
   clientState.setNameLookup(displayNameForTableSeat);
@@ -485,9 +482,6 @@ void refreshSdLuxuryStore() {
   TurnHubStorage::BlobStore *store = sdBlobStore();
   TurnHubProfiles::setLuxuryStore(store);
   serialLog.println(store ? "ATLAS|SD|STATS|CARD" : "ATLAS|SD|STATS|CORE_ONLY");
-  if (store == nullptr) return;
-  const size_t moved = TurnHubProfiles::migrateDetailedStats();
-  if (moved > 0) serialLog.printf("ATLAS|SD|STATS_MIGRATED|%u\n", static_cast<unsigned>(moved));
 }
 
 void loop() {

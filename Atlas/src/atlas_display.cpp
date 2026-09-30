@@ -41,7 +41,6 @@ constexpr char TOUCH_PREF_NAMESPACE[] = "atlas-touch";
 // a calibration saved under the old "cal" key is discarded (and removed on
 // the next save) and Atlas recalibrates once.
 constexpr char TOUCH_PREF_KEY[] = "cal2";
-constexpr char TOUCH_PREF_LEGACY_KEY[] = "cal";
 
 enum class DisplayMode : uint8_t { Splash, Status, Calibrate, CalibrateResult };
 
@@ -189,7 +188,6 @@ bool saveTouchCalibration(const TouchCalibration &cal) {
   TurnHub::OptionalPreferences prefs;
   if (!prefs.begin(TOUCH_PREF_NAMESPACE, false)) return false;
   const bool ok = prefs.putBytes(TOUCH_PREF_KEY, &cal, sizeof(cal)) == sizeof(cal);
-  if (ok && prefs.getBytesLength(TOUCH_PREF_LEGACY_KEY) > 0) prefs.remove(TOUCH_PREF_LEGACY_KEY);
   prefs.end();
   return ok;
 }

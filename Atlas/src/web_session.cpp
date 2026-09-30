@@ -64,16 +64,6 @@ String sha256Hex(const String &material) {
   return String(hex);
 }
 
-// Pre-profile firmware hashed PINs against the Sigil hardware ID and seat.
-String legacyPinHash(const uint8_t mac[6], uint8_t slot, const String &pin) {
-  String material = sigilHardwareId(mac);
-  material += ':';
-  material += String(slot);
-  material += ':';
-  material += pin;
-  return sha256Hex(material);
-}
-
 bool pinMatches(uint8_t controllerId, uint8_t slot, const String &pin) {
   const SigilRecord *record = recordForModule(controllerId);
   if (record == nullptr) return false;
@@ -81,26 +71,10 @@ bool pinMatches(uint8_t controllerId, uint8_t slot, const String &pin) {
   const String profileId = TurnHubProfiles::profileIdForSeat(record->mac, slot);
   if (!TurnHubProfiles::profileExists(profileId)) return false;
 
-  bool legacySource = false;
-  const String stored = TurnHubProfiles::storedPinHashForSeat(record->mac, slot, &legacySource);
-  if (stored.length() != PIN_HASH_LENGTH) return false;
-
-  const String currentCandidate = profilePinHash(profileId, pin);
-  if (currentCandidate.length() == PIN_HASH_LENGTH && stored.equalsIgnoreCase(currentCandidate)) {
-    return true;
-  }
-
-  // Existing firmware hashed PINs against THS-MAC + seat. Accept that once,
-  // then rewrite it against the durable profile ID so the PIN can follow the
-  // player to another physical or future virtual seat.
-  const String legacyCandidate = legacyPinHash(record->mac, slot, pin);
-  if (legacyCandidate.length() != PIN_HASH_LENGTH || !stored.equalsIgnoreCase(legacyCandidate)) {
-    return false;
-  }
-  if (currentCandidate.length() == PIN_HASH_LENGTH) {
-    TurnHubProfiles::setPinHashForSeat(record->mac, slot, currentCandidate);
-  }
-  return true;
+  const String stored = TurnHubProfiles::storedPinHashForSeat(record->mac, slot);
+  const String candidate = profilePinHash(profileId, pin);
+  return stored.length() == PIN_HASH_LENGTH && candidate.length() == PIN_HASH_LENGTH &&
+      stored.equalsIgnoreCase(candidate);
 }
 
 WebSession *createSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs, bool pinVerified) {
@@ -146,7 +120,7 @@ void handleProfileLogin(WebServer &server) {
   if (!admitRateLimited(server, id)) return;
   const String stored = TurnHubProfiles::storedPinHashForProfile(id);
   if (stored.length() != PIN_HASH_LENGTH || !stored.equalsIgnoreCase(profilePinHash(id, pin))) {
-    sendError(server, 401, "Profile or PIN was not accepted. Older profiles may need physical sign-in once");
+    sendError(server, 401, "Profile or PIN was not accepted");
     return;
   }
   loginLimiter.success(id.c_str());
@@ -154,7 +128,7 @@ void handleProfileLogin(WebServer &server) {
   sendLogin(server, createProfileSession(id, millis(), true));
 }
 
-// Legacy seat login: the PIN is checked against the physical seat binding.
+// Seat login (the portal's Sign in on a Sigil seat): the PIN is checked for the\n// profile bound to that seat.
 void handleSeatLogin(WebServer &server) {
   if (!server.hasArg("module") || !server.hasArg("slot") || !server.hasArg("pin")) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Module, slot, and PIN are required\"}");
@@ -472,8 +446,7 @@ void handleSessionPoll(WebServer &server) {
   sendJson(server, 404, "{\"ok\":false,\"status\":\"expired\",\"error\":\"Claim expired or was already collected\"}");
 }
 
-// profileId + PIN signs into a profile; module + slot + PIN is the legacy
-// seat login.
+// profileId + PIN signs into a profile; module + slot + PIN signs into the\n// profile bound to that Sigil seat.
 void handleSessionLogin(WebServer &server) {
   if (server.hasArg("profileId")) {
     handleProfileLogin(server);

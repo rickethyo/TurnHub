@@ -342,12 +342,13 @@ void gameSettingsRecords() {
 static void accountRecords(){
   FakeNvs::blobs.clear();FakeNvs::setError=FakeNvs::commitError=FakeNvs::readError=ESP_OK;
   NvsBlobStore store;assert(store.begin("turnhub")==Status::Ok);
-  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.reconnectRequired=true;a.legacyConnectionResets=513;a.legacyGameRemovals=7;
+  TurnHubAccounts::Account a;a.permissions=31;a.nudgeMuted=true;a.archived=true;a.reconnectRequired=true;
   assert(TurnHubAccounts::write(store,"u12345678",a)==Status::Ok);
-  assert(FakeNvs::blobs["u12345678"]==std::vector<uint8_t>({2,31,1,1,1,2,0,0,7,0,0,0}));
+  assert(FakeNvs::blobs["u12345678"]==std::vector<uint8_t>({3,31,3,1}));
   NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
-  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.legacyConnectionResets==513&&loaded.permissions==31);
-  FakeNvs::blobs["u12345678"][0]=3;assert(TurnHubAccounts::write(store,"u12345678",a)==Status::UnsupportedSchema);
+  TurnHubAccounts::Account loaded;assert(TurnHubAccounts::read(reopened,"u12345678",loaded)==Status::Ok&&loaded.permissions==31&&
+      loaded.nudgeMuted&&loaded.archived&&loaded.reconnectRequired);
+  FakeNvs::blobs["u12345678"][0]=4;assert(TurnHubAccounts::write(store,"u12345678",a)==Status::UnsupportedSchema);
   FakeNvs::blobs["u12345678"]={1};assert(TurnHubAccounts::read(store,"u12345678",loaded)==Status::Corrupt);
   FakeNvs::blobs.clear();FakeNvs::commitError=ESP_ERR_NVS_INVALID_HANDLE;
   assert(TurnHubAccounts::write(store,"u12345678",a)==Status::IoError);FakeNvs::commitError=ESP_OK;

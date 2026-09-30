@@ -48,12 +48,8 @@ static void existingAccounts() {
   assert(saveStatsForProfile(id, stats));
   assert(bindSeatToProfile(mac, 1, id));
   assert(bindSeatToProfile(mac, 2, id));
-  FakeNvs::strings["b010203040506A"] = id;
-  FakeNvs::bytes["r010203040506A"] = 1;
   assert(resetTransientSeatBindings(mac));
   assert(profileIdForSeat(mac, 1).length() == 0 && profileIdForSeat(mac, 2).length() == 0);
-  assert(!FakeNvs::strings.count("b010203040506A"));
-  assert(!FakeNvs::bytes.count("r010203040506A"));
   const int writes = FakeNvs::writes;
   assert(profileIdForSeat(mac, 1).length() == 0);
   assert(profileExists(id) && nameForProfile(id) == "Owner" && hasPinForProfile(id));
@@ -91,12 +87,11 @@ static void legacyPlaceholders() {
   assert(id.length() == 8 && listProfileIds(ids, MAX_LOGIN_PROFILES) == 1);
   assert(String(ids[0]) == id);
   // Preserve every kind of user data, including unreadable/future blobs.
-  FakeNvs::strings["n00000000"] = "Legacy name";
   FakeNvs::strings["p00000001"] = hashPin("", "");
   FakeNvs::blobs["s00000002"] = {255};
   FakeNvs::blobs["a00000003"] = {255};
   FakeNvs::blobs["u00000004"] = {255};
-  assert(listProfileIds(ids, MAX_LOGIN_PROFILES) == 6);
+  assert(listProfileIds(ids, MAX_LOGIN_PROFILES) == 5);
   assert(listProfileIds(ids, 2) == 2);
   assert(profileExists("00000005")); // Hidden is not deleted.
   // An old bound placeholder remains available for physical recovery.
@@ -104,39 +99,7 @@ static void legacyPlaceholders() {
   assert(bindSeatToProfile(mac, 1, "00000005"));
   assert(profileIdForSeat(mac, 1) == "00000005");
   assert(setNameForSeat(mac, 1, "Recovered"));
-  assert(listProfileIds(ids, MAX_LOGIN_PROFILES) == 7);
-}
-
-// Counts that older firmware kept in u<id> move once into o<id>. A power loss
-// between the two writes must neither lose nor double them, and an unreadable
-// o<id> record fails closed instead of being overwritten.
-static void moderationMigration() {
-  const String id = createProfileWithCredentials("Moderated", "1234", hashPin);
-  assert(id.length() == 8);
-  const std::string account = std::string("u") + id.c_str(), history = std::string("o") + id.c_str();
-  const std::vector<uint8_t> legacy{2, 0, 0, 1, 5, 0, 0, 0, 2, 0, 0, 0};
-  const std::vector<uint8_t> cleared{2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
-  FakeNvs::blobs[account] = legacy;
-
-  ModerationStats stats;
-  assert(loadModerationStatsForProfile(id, stats) && stats.connectionResets == 5 && stats.gameRemovals == 2);
-  assert(FakeNvs::blobs[account] == cleared);
-  TurnHubAccounts::Account loaded;
-  assert(TurnHubAccounts::load(id, loaded) && loaded.reconnectRequired && !loaded.legacyConnectionResets);
-
-  // Interrupted after o<id> was written: the account is cleared, not re-added.
-  FakeNvs::blobs[account] = legacy;
-  assert(loadModerationStatsForProfile(id, stats) && stats.connectionResets == 5 && stats.gameRemovals == 2);
-  assert(FakeNvs::blobs[account] == cleared);
-
-  stats.gameRemovals = 3;
-  assert(saveModerationStatsForProfile(id, stats));
-  assert(loadModerationStatsForProfile(id, stats) && stats.gameRemovals == 3);
-
-  FakeNvs::blobs[history] = {9, 0, 0, 0, 0, 0, 0, 0, 0};
-  FakeNvs::blobs[account] = legacy;
-  assert(!TurnHubAccounts::load(id, loaded) && !loadModerationStatsForProfile(id, stats));
-  assert(FakeNvs::blobs[account] == legacy && FakeNvs::blobs[history][0] == 9);
+  assert(listProfileIds(ids, MAX_LOGIN_PROFILES) == 6);
 }
 
 static void accessibilityPreferences() {
@@ -212,28 +175,6 @@ static void statisticsSplit() {
   assert(saveStatsForProfile(id, stats));
   card.broken = false;
 
-  // Migration: a v1 record older firmware left in NVS moves to the card
-  // (written, read back, compared) and only then leaves NVS.
-  const String old = createProfileWithCredentials("Old", "1234", hashPin);
-  const std::string oldDetail = std::string("s") + old.c_str(), oldCore = std::string("c") + old.c_str();
-  ProfileStats legacy; legacy.gamesPlayed = 7; legacy.gamesWon = 5; legacy.fastestTurnMs = 800;
-  std::vector<uint8_t> image(sizeof(legacy));
-  memcpy(image.data(), &legacy, sizeof(legacy));
-  FakeNvs::blobs[oldDetail] = image;
-  setLuxuryStore(nullptr);
-  assert(migrateDetailedStats() == 0 && FakeNvs::blobs.count(oldDetail));  // No card: nothing deleted.
-  assert(loadStatsForProfile(old, stats, &detailed) && detailed && stats.fastestTurnMs == 800);
-  setLuxuryStore(&card);
-  assert(migrateDetailedStats() == 1);
-  assert(!FakeNvs::blobs.count(oldDetail) && card.records[oldDetail] == image && FakeNvs::blobs.count(oldCore));
-  assert(loadStatsForProfile(old, stats, &detailed) && detailed && stats.gamesPlayed == 7 &&
-      stats.gamesWon == 5 && stats.fastestTurnMs == 800);
-  assert(migrateDetailedStats() == 0);
-  // A card that already holds different detail is never overwritten.
-  FakeNvs::blobs[oldDetail] = image; ProfileStats other = legacy; other.fastestTurnMs = 1;
-  memcpy(card.records[oldDetail].data(), &other, sizeof(other));
-  assert(migrateDetailedStats() == 0 && FakeNvs::blobs.count(oldDetail));
-  FakeNvs::blobs.erase(oldDetail);
   setLuxuryStore(nullptr);
 }
 
@@ -242,8 +183,7 @@ int main() {
   guestLookups();
   existingAccounts();
   legacyPlaceholders();
-  moderationMigration();
   accessibilityPreferences();
   statisticsSplit();
-  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, moderation-count migration, accessibility preferences and the NVS/SD statistics split\n";
+  std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, accessibility preferences and the NVS/SD statistics split\n";
 }

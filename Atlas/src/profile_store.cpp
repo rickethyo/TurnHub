@@ -43,18 +43,6 @@ TransientSeatBinding *transientSeatFor(const uint8_t mac[6], uint8_t slot, bool 
   return nullptr;
 }
 
-String seatKey(char prefix, const uint8_t mac[6], uint8_t slot) {
-  char key[16];
-  snprintf(
-      key,
-      sizeof(key),
-      "%c%02X%02X%02X%02X%02X%02X%c",
-      prefix,
-      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-      slot == 1 ? 'A' : 'B');
-  return String(key);
-}
-
 String deviceNameKey(const uint8_t mac[6]) {
   char key[14];
   snprintf(
@@ -94,21 +82,6 @@ bool ensureMarker(const String &profileId) {
     return true;
   }
   return preferences.putUChar(markerKey.c_str(), 1) != 0;
-}
-
-void migrateLegacyName(
-    const uint8_t mac[6],
-    uint8_t slot,
-    const String &profileId) {
-  if (!validProfileId(profileId) || nameForProfile(profileId).length() > 0) {
-    return;
-  }
-
-  const String legacyKey = seatKey('n', mac, slot);
-  const String legacy = preferences.getString(legacyKey.c_str(), "");
-  if (legacy.length() > 0 && setNameForProfile(profileId, legacy)) {
-    preferences.remove(legacyKey.c_str());
-  }
 }
 
 }  // namespace
@@ -379,21 +352,14 @@ bool loadStatsForProfile(const String &profileId, ProfileStats &stats, bool *det
   }
   if (statsStorage.begin(PREF_NAMESPACE) != Status::Ok) return false;
 
-  // NVS: the core record, and a v1 record older firmware left (the detail
-  // until it moves to the card). A fresh profile has neither. Any other
-  // failure must stop the completion callback from replacing an unreadable
-  // record with zero totals.
+  // NVS: the core record (none for a fresh profile). Any other failure must
+  // stop the completion callback from replacing an unreadable record with
+  // zero totals.
   CoreStats core;
   const Status coreStatus = readCoreStats(statsStorage, profileKey(CORE_STATS_PREFIX, profileId).c_str(), core);
   if (coreStatus != Status::Ok && coreStatus != Status::NotFound) return false;
-  ProfileStats legacy{};
-  const Status legacyStatus = readStoredStats(statsStorage, profileKey('s', profileId).c_str(), legacy);
-  if (legacyStatus != Status::Ok && legacyStatus != Status::NotFound) return false;
 
-  if (legacyStatus == Status::Ok) {
-    stats = legacy;
-    if (detailed) *detailed = true;
-  } else if (luxuryStore != nullptr) {
+  if (luxuryStore != nullptr) {
     // A card problem only costs the detail; the core counts still load.
     ProfileStats detail{};
     const Status detailStatus = readStoredStats(*luxuryStore, profileKey('s', profileId).c_str(), detail);
@@ -422,60 +388,14 @@ bool saveStatsForProfile(const String &profileId, const ProfileStats &stats) {
       Status::Ok) {
     return false;
   }
-  ProfileStats legacy{};
-  const bool legacyInNvs = readStoredStats(statsStorage, detailKey.c_str(), legacy) == Status::Ok;
-  if (luxuryStore != nullptr && writeStoredStats(*luxuryStore, detailKey.c_str(), stats) == Status::Ok) {
-    // The card has the detail now; free the NVS copy.
-    if (legacyInNvs) statsStorage.remove(detailKey.c_str());
-    return true;
-  }
-  // No card (or it failed): an NVS detail record from older firmware stays
-  // current in place (same size); otherwise only the core counts are kept.
-  if (legacyInNvs) writeStoredStats(statsStorage, detailKey.c_str(), stats);
+  // The detail goes to the card when there is one; without it only the core
+  // counts are kept.
+  if (luxuryStore != nullptr) writeStoredStats(*luxuryStore, detailKey.c_str(), stats);
   return true;
-}
-
-size_t migrateDetailedStats() {
-  using TurnHubStorage::Status;
-  if (luxuryStore == nullptr || !preferencesReady ||
-      statsStorage.begin(PREF_NAMESPACE) != Status::Ok) {
-    return 0;
-  }
-  char ids[MAX_LOGIN_PROFILES][PROFILE_ID_LENGTH + 1];
-  const size_t count = listProfileIds(ids, MAX_LOGIN_PROFILES);
-  size_t moved = 0;
-  for (size_t i = 0; i < count; ++i) {
-    const String id(ids[i]);
-    const String detailKey = profileKey('s', id);
-    ProfileStats legacy{};
-    if (readStoredStats(statsStorage, detailKey.c_str(), legacy) != Status::Ok) continue;
-    // Keep the core record ahead of the detail: the counts must never be
-    // lost between the two writes.
-    const String coreKey = profileKey(CORE_STATS_PREFIX, id);
-    CoreStats core;
-    const Status coreStatus = readCoreStats(statsStorage, coreKey.c_str(), core);
-    if (coreStatus == Status::NotFound &&
-        writeCoreStats(statsStorage, coreKey.c_str(), coreOf(legacy)) != Status::Ok) continue;
-    if (coreStatus != Status::Ok && coreStatus != Status::NotFound) continue;
-    // A detail record already on the card (this card was used before) is
-    // never overwritten by an older NVS copy; both stay for a person to sort.
-    ProfileStats onCard{};
-    const Status cardStatus = readStoredStats(*luxuryStore, detailKey.c_str(), onCard);
-    if (cardStatus == Status::NotFound) {
-      if (writeStoredStats(*luxuryStore, detailKey.c_str(), legacy) != Status::Ok) continue;
-      if (readStoredStats(*luxuryStore, detailKey.c_str(), onCard) != Status::Ok) continue;
-    } else if (cardStatus != Status::Ok) {
-      continue;
-    }
-    if (memcmp(&onCard, &legacy, sizeof(legacy)) != 0) continue;
-    if (statsStorage.remove(detailKey.c_str()) == Status::Ok) ++moved;
-  }
-  return moved;
 }
 
 bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats) {
   stats = ModerationStats{};
-  // Loading the account first migrates any counts it still holds.
   TurnHubAccounts::Account account;
   if (!preferencesReady || !TurnHubAccounts::load(profileId, account)) return false;
   if (statsStorage.begin(PREF_NAMESPACE) != TurnHubStorage::Status::Ok) return false;
@@ -494,9 +414,7 @@ bool saveModerationStatsForProfile(const String &profileId, const ModerationStat
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot) {
   // Looking up a Sigil, including its unused secondary seat, must never
   // manufacture a durable account. Unbound seats are guests.
-  const String profileId = boundProfileIdForSeat(mac, slot);
-  migrateLegacyName(mac, slot, profileId);
-  return profileId;
+  return boundProfileIdForSeat(mac, slot);
 }
 
 String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot) {
@@ -519,11 +437,7 @@ bool resetTransientSeatBindings(const uint8_t mac[6]) {
       binding->used = false;
       binding->profileId = String();
     }
-    // Retire legacy remembered-seat keys, without deleting Atlas accounts/stats.
-    for (char prefix : {'b', 'r'}) {
-      const String key = seatKey(prefix, mac, slot);
-      if (preferences.isKey(key.c_str())) ok = preferences.remove(key.c_str()) && ok;
-    }
+
   }
   return ok;
 }
@@ -557,37 +471,15 @@ bool setNameForSeat(const uint8_t mac[6], uint8_t slot, const String &name) {
   if (!validProfileId(profileId)) {
     return false;
   }
-  const bool ok = setNameForProfile(profileId, name);
-  if (ok) {
-    preferences.remove(seatKey('n', mac, slot).c_str());
-  }
-  return ok;
+  return setNameForProfile(profileId, name);
 }
 
-String storedPinHashForSeat(
-    const uint8_t mac[6],
-    uint8_t slot,
-    bool *legacySource) {
-  if (legacySource != nullptr) {
-    *legacySource = false;
-  }
+String storedPinHashForSeat(const uint8_t mac[6], uint8_t slot) {
   if (!preferencesReady && !begin()) {
     return String();
   }
-
   const String profileId = profileIdForSeat(mac, slot);
-  if (validProfileId(profileId)) {
-    const String stored = storedPinHashForProfile(profileId);
-    if (stored.length() == 64) {
-      return stored;
-    }
-  }
-
-  const String legacy = preferences.getString(seatKey('p', mac, slot).c_str(), "");
-  if (legacy.length() == 64 && legacySource != nullptr) {
-    *legacySource = true;
-  }
-  return legacy;
+  return validProfileId(profileId) ? storedPinHashForProfile(profileId) : String();
 }
 
 bool setPinHashForSeat(
@@ -598,11 +490,7 @@ bool setPinHashForSeat(
   if (!validProfileId(profileId)) {
     return false;
   }
-  const bool ok = setPinHashForProfile(profileId, hash);
-  if (ok) {
-    preferences.remove(seatKey('p', mac, slot).c_str());
-  }
-  return ok;
+  return setPinHashForProfile(profileId, hash);
 }
 
 bool clearPinForSeat(const uint8_t mac[6], uint8_t slot) {
@@ -610,12 +498,11 @@ bool clearPinForSeat(const uint8_t mac[6], uint8_t slot) {
   if (validProfileId(profileId)) {
     clearPinForProfile(profileId);
   }
-  preferences.remove(seatKey('p', mac, slot).c_str());
   return true;
 }
 
 bool hasPinForSeat(const uint8_t mac[6], uint8_t slot) {
-  return storedPinHashForSeat(mac, slot, nullptr).length() == 64;
+  return storedPinHashForSeat(mac, slot).length() == 64;
 }
 
 String deviceName(const uint8_t mac[6]) {
@@ -666,28 +553,6 @@ String accountKey(const String &id) {
   return String("u") + id;
 }
 
-// Moves counts that older firmware kept in the account record into the
-// profile's moderation statistics, then clears them from the account. The
-// statistics record is written first; if power fails before the account is
-// cleared, the next load sees an existing record and only clears the account.
-bool migrateLegacyModerationCounts(TurnHubStorage::BlobStore &store, const String &id, Account &account) {
-  String statsKey;
-  statsKey += TurnHubProfiles::MODERATION_STATS_PREFIX;
-  statsKey += id;
-  TurnHubProfiles::ModerationStats stats;
-  const Status status = TurnHubProfiles::readStoredModerationStats(store, statsKey.c_str(), stats);
-  if (status == Status::NotFound) {
-    stats.connectionResets = account.legacyConnectionResets;
-    stats.gameRemovals = account.legacyGameRemovals;
-    if (TurnHubProfiles::writeStoredModerationStats(store, statsKey.c_str(), stats) != Status::Ok) return false;
-  } else if (status != Status::Ok) {
-    return false;  // Never guess over an unreadable record.
-  }
-  account.legacyConnectionResets = 0;
-  account.legacyGameRemovals = 0;
-  return write(store, accountKey(id).c_str(), account) == Status::Ok;
-}
-
 }  // namespace
 
 bool load(const String &id, Account &account) {
@@ -698,9 +563,6 @@ bool load(const String &id, Account &account) {
   if (status == Status::NotFound) {
     account = Account{};
   } else if (status != Status::Ok) {
-    return false;
-  } else if ((account.legacyConnectionResets || account.legacyGameRemovals) &&
-      !migrateLegacyModerationCounts(store, id, account)) {
     return false;
   }
   String primary;

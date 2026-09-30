@@ -17,8 +17,7 @@ enum class LastGameResult : uint8_t {
   Win = 1,
   Loss = 2,
   Eliminated = 3,
-  // Value 4 was reserved as "Completed" but never written; draws reuse it,
-  // so the v1 statistics image and older firmware still accept it.
+  // Value 4 was reserved as "Completed" but never written; draws reuse it.
   Draw = 4,
 };
 
@@ -99,8 +98,7 @@ bool saveAvatarForProfile(const String &profileId, uint8_t avatar);
 // Statistics are split (owner decision 2026-09-25): a small core record in
 // NVS (games played and won, last result and game profile) that every Atlas
 // keeps, and the full v1 record as luxury data on the microSD card. Without
-// a card the detail is not recorded ("limp mode"); a v1 record still in NVS
-// from older firmware keeps serving as the detail until it is migrated.
+// a card the detail is not recorded ("limp mode").
 // Load returns the combined view; *detailed says whether the detail fields
 // are backed by a record (false: only the core counts are real).
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats, bool *detailed = nullptr);
@@ -112,20 +110,17 @@ bool luxuryStoreAvailable();
 // Moves detailed statistics still in NVS to the card: each is written, read
 // back and compared, its core record written, and only then removed from
 // NVS. Without a card nothing moves or is deleted. Returns profiles moved.
-size_t migrateDetailedStats();
-// A missing record reads as zero counts. Loading also migrates counts that
-// older firmware kept in the account record.
+// A missing record reads as zero counts.
 bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats);
 bool saveModerationStatsForProfile(const String &profileId, const ModerationStats &stats);
 
 // Physical-seat binding adapter. This is deliberately separate from profile
 // storage so the same profile can later bind to a persistent virtual seat.
-// Returns empty for guests; never creates a profile. Migrates names only for
-// an already-bound profile.
+// Returns empty for guests; never creates a profile.
 String profileIdForSeat(const uint8_t mac[6], uint8_t slot);
 // Read an existing binding without creating a profile for an unused seat.
 String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
-// Release both seat bindings and remove legacy remembered-seat keys.
+// Release both seat bindings.
 // Atlas profile records and statistics remain durable.
 bool resetTransientSeatBindings(const uint8_t mac[6]);
 // Move a profile between this Sigil's seats, leaving the source as a guest.
@@ -135,15 +130,11 @@ bool bindSeatToProfile(
     uint8_t slot,
     const String &profileId);
 
-// Compatibility helpers for existing physical-seat call sites and migration.
+// Seat helpers: the profile bound to a physical seat.
 String nameForSeat(const uint8_t mac[6], uint8_t slot);
 bool setNameForSeat(const uint8_t mac[6], uint8_t slot, const String &name);
 
-// legacySource is set when the returned hash came from the old MAC+slot key.
-String storedPinHashForSeat(
-    const uint8_t mac[6],
-    uint8_t slot,
-    bool *legacySource = nullptr);
+String storedPinHashForSeat(const uint8_t mac[6], uint8_t slot);
 bool setPinHashForSeat(
     const uint8_t mac[6],
     uint8_t slot,

@@ -112,7 +112,7 @@ bool saveAccessibilityForProfile(const String &id,const AccessibilityPrefs &pref
 }
 bool setPinHashForProfile(const String &id,const String &hash) { if(!profileExists(id))return false;profiles[id].hash=hash;return true; }
 bool clearPinForProfile(const String &id) { return setPinHashForProfile(id,""); }
-String storedPinHashForSeat(const uint8_t *mac,uint8_t slot,bool *legacy) { if(legacy)*legacy=false;return storedPinHashForProfile(profileIdForSeat(mac,slot)); }
+String storedPinHashForSeat(const uint8_t *mac,uint8_t slot) { return storedPinHashForProfile(profileIdForSeat(mac,slot)); }
 bool setPinHashForSeat(const uint8_t *mac,uint8_t slot,const String &hash) { return setPinHashForProfile(profileIdForSeat(mac,slot),hash); }
 bool clearPinForSeat(const uint8_t *mac,uint8_t slot) { return clearPinForProfile(profileIdForSeat(mac,slot)); }
 bool hasPinForSeat(const uint8_t *mac,uint8_t slot) { return hasPinForProfile(profileIdForSeat(mac,slot)); }
@@ -143,7 +143,6 @@ bool saveAvatarForProfile(const String &id, uint8_t avatar) {
 }
 void setLuxuryStore(TurnHubStorage::BlobStore *) {}
 bool luxuryStoreAvailable() { return true; }
-size_t migrateDetailedStats() { return 0; }
 bool saveStatsForProfile(const String &id,const ProfileStats &stats) {
   if(!profileExists(id))return false;
   profiles[id].stats=stats;
