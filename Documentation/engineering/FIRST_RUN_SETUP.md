@@ -185,13 +185,14 @@ simply runs again: sign in, verify, re-enter a password.
       multipart package upload; JVM tests (`AtlasSetupAssistantTest`,
       `FirmwareReleasesTest`).
 - [x] Source lists: no new Atlas `.cpp` files, so the runners are unchanged.
-- [ ] Firmware build through CI on this branch (started 2026-09-30).
+- [x] Firmware build through CI on this branch: run 36679680047, all jobs
+      green (every firmware environment, Linux host tests, Android).
 - [ ] Portal: the same steps on the same endpoints (after the app).
 - [ ] Owner: publish a first signed GitHub release (tag `v*`) so the update
       step has something to find; needs the `TURNHUB_FIRMWARE_SIGNING_KEY`
       secret.
 - [ ] User manual: a "Setting up a new table" section (not written yet).
-- [ ] Size history snapshot once CI reports the Atlas image size.
+- [x] Size history snapshot (SIZE_AND_CHANGE_HISTORY.md).
 - Later: Atlas name.
 
 ## Verification
