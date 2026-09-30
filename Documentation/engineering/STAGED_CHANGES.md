@@ -269,7 +269,7 @@ download to the card copy, and cap the number of hotspot stations.
 Started 2026-09-30 (owner: "begin working on the initial guided setup").
 Design, feature gate and resume checklist: [First-run setup](FIRST_RUN_SETUP.md).
 A new Atlas shows typed Welcome instructions (no QR codes; owner, 2026-09-30),
-the phone runs a four-step `/setup` wizard (account, table code, Wi-Fi
+the Android app runs four setup steps (owner, 2026-09-30: app over portal) (account, table code, Wi-Fi
 password, finish), and Atlas restarts to a "You're all set" screen. Resume
 from the checklist at the end of that file.
 

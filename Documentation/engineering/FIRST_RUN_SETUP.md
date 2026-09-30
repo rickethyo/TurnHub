@@ -25,6 +25,11 @@ product adds:
 - **Never block play.** A table that wants to play first can tap **Skip for
   now**. Sigils and phones join as usual, and setup comes back at the next
   start-up and under Menu.
+- **The Android app is the setup client** (owner, 2026-09-30: prioritize
+  the app over the web portal). The app already joins Atlas's Wi-Fi by itself
+  (`TargetedAtlasWifiLink`, default passphrase first). A browser can still
+  reach first-Admin setup through the portal's existing banner, but gets no
+  new wizard page (web-portal feature freeze).
 - **No QR codes needed.** Owner, 2026-09-30: the QR codes have seen little
   use. The Atlas screen gives setup as typed text (network name, password,
   address). QR codes stay where they already are, but setup doesn't depend on
@@ -38,12 +43,13 @@ product adds:
 ```text
 Atlas powers on, setup stage = Welcome
   Atlas screen: "Welcome to TurnHub"
-    1. Join Wi-Fi  TurnHub-Atlas
-       password    TurnHub-Setup
-    2. Open 192.168.4.1   (the portal redirects to /setup)
+    1. Open the TurnHub app and tap Connect
+       (it joins the table's Wi-Fi itself)
+    2. No app? Wi-Fi TurnHub-Atlas,
+       password TurnHub-Setup, then 192.168.4.1
     [Skip for now] [Menu]
 
-Phone at /setup (one page, one step at a time, progress "Step n of 4"):
+Android app, "Set up this table" (one step per screen, "Step n of 4"):
   1. Your account   create one (name + PIN) or sign in to an existing one
   2. At the table   Atlas shows a six-digit code; type it on the phone.
                     That makes this account the Admin.
@@ -57,9 +63,10 @@ Atlas restarts, setup stage = Finished
     [Pair a Sigil] [Done]   (either one leaves setup: stage = Complete)
 ```
 
-A phone that opens `192.168.4.1` while the stage is Welcome is redirected to
-`/setup` instead of the portal. Once setup is Complete, `/setup` just says so
-and links to the portal.
+After Connect, the app reads `GET /api/setup`. While the stage is Welcome it
+opens the setup steps instead of the table view. After the restart, the app
+rejoins with the password it just set (it saves it, like any password it
+used), so the owner doesn't retype it.
 
 ## Setup stages
 
@@ -95,10 +102,10 @@ two bytes `{1, stage}`):
 4. **Persistence owner:** `first_run_setup.cpp` through the `turnhub`
    `NvsBlobStore`, like the pairing window and speaker volume. The Wi-Fi
    password keeps its own store (`wifi_password_store.h`).
-5. **Rendering clients:** the Atlas touchscreen (`ScreenKind::Setup`), the new
-   `/setup` page, and `GET /api/setup` for any client. The Android app's
-   existing first-Admin card keeps working. Moving the app onto the same
-   steps is a follow-up.
+5. **Rendering clients:** the Atlas touchscreen (`ScreenKind::Setup`) and the
+   Android app's setup steps, both reading `GET /api/setup`. The portal is
+   unchanged apart from what the new stage needs; its first-Admin banner
+   still works.
 6. **Protocol/contract:** no radio change. New portal-private HTTP routes
    `GET /api/setup` and `POST /api/setup/finish`. They are not part of the
    `/api/v1` client contract, so no schema change.
@@ -129,10 +136,10 @@ simply runs again: sign in, verify, re-enter a password.
 - [ ] `IntentType::AdvanceSetup`, handler, binding, host scenarios.
 - [ ] Touchscreen `ScreenKind::Setup` (Welcome / All set), Skip, Menu entry,
       drawing in `atlas_art.cpp`, host scenarios.
-- [ ] `GET /api/setup`, `POST /api/setup/finish`, `/` redirect while Welcome.
-- [ ] `/setup` wizard page.
+- [ ] `GET /api/setup`, `POST /api/setup/finish`.
+- [ ] Android: `AtlasSetup` client + setup flow UI after Connect, JVM tests.
 - [ ] Source lists: `run.cmd`, `run-gcc.ps1`, `run-linux.sh`, host README.
 - [ ] Host suite green; firmware build through CI (`gh workflow run ci.yml`).
 - [ ] Docs: OOBE.md, STAGED_CHANGES.md, user manual note, size history.
-- Later: Android app onto the same steps; Atlas name; bench run from a
-  factory reset.
+- Later: Atlas name; a browser fallback page if the app isn't available;
+  bench run from a factory reset.
