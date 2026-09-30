@@ -3,8 +3,10 @@
 Status: **Partially implemented locally**: Atlas profile-policy settings,
 authorization checks, Atlas-owned primary-seat persistence and, since
 2026-09-25, a seat-A picker on the e-ink Sigil (host-tested, *Needs
-verification* on hardware), shown on the OLED Sigil too as a list.
-Selectable startup, seat B and duplicate-name labels remain planned. Parts of the proposal below (two-button
+verification* on hardware), shown on the OLED Sigil too as a list. Since
+2026-09-29 the same picker fills seat B (below; host-tested, *Needs
+verification*). Selectable startup and duplicate-name labels remain planned.
+Parts of the proposal below (two-button
 input, remembered last profile) predate the five-key menu Sigils; the picker
 section describes what was built.
 
@@ -33,9 +35,17 @@ once per page rather than once per cursor move:
   Sigil turns the chosen row into the compass key Atlas expects
   (`Sigil/include/picker_list.h`), so Atlas has one picker protocol.
 
+**Seat B (2026-09-29, playtest item 8):** on a picker Sigil whose seat A is
+at the table, **Add seat B** opens the same picker for seat B. Guest adds seat
+B as before. A profile goes through `PickProfile` with slot 2, whose handler
+adds seat B and binds the profile in one step; a profile already at the table
+is refused (it must leave there first). The profile's physical-use policy
+applies exactly as for seat A. The harness and older firmware keep the direct
+Add seat B.
+
 Feature gate: state owner Atlas (`profile_picker.cpp` holds only browsing state
 in RAM; the lobby stays authoritative); Intent: the existing `Join` for Guest
-and a new `PickProfile` (seat A), handled with `BindProfile` after checking
+and a new `PickProfile` (seat A, or seat B since 2026-09-29), handled with `BindProfile` after checking
 `physicalUseAllowed()`, so the policy is enforced by the handler whatever the
 page showed; validator: `handleProfileParticipationIntent`; persistence: none
 new (seat bindings stay temporary); rendering: the e-ink Sigil; contract:

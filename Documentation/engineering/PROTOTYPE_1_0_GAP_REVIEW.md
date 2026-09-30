@@ -28,7 +28,7 @@ identical field-test Sigils practical.
 
 | # | Lane item | Status | Evidence / gap |
 |---|---|---|---|
-| 1 | Physical profile selection, reusable Sigils | *Partially implemented* | Seat-A picker on e-ink and OLED Sigils (host-tested). Selectable startup, seat B and duplicate-name labels remain; see [PHYSICAL_PROFILE_SELECTION.md](PHYSICAL_PROFILE_SELECTION.md). Hardware: *Needs verification*. |
+| 1 | Physical profile selection, reusable Sigils | *Partially implemented* | Seat-A and seat-B picker on e-ink and OLED Sigils (host-tested; seat B since 2026-09-29). Selectable startup and duplicate-name labels remain; see [PHYSICAL_PROFILE_SELECTION.md](PHYSICAL_PROFILE_SELECTION.md). Hardware: *Needs verification*. |
 | 2 | Freeze major portal features | **Not held** | Since the lane was written: avatars, a Personalization card, Admin/GM/Developer tabs in Android, touchscreen table actions and more. Needs an explicit freeze from here on. |
 | 3 | Interrupted-match recovery | *Implemented, host-tested* | Wired into `setup()`/dispatcher observer on 2026-09-23. Discard is the 5 s End match hold. The abrupt-power test matrix (backlog lines 109-118) is still open; those checkboxes also need updating to match what was built. |
 | 4 | Auxiliary button path | *Superseded* | GPIO32 now carries the joystick click (e-ink) or the Select key (OLED); Pause/Win became menu actions. The backlog's "revisit Action long-press" item can be closed or restated. |

@@ -107,3 +107,49 @@ below are suspicions to check, not findings.
   deferred (*Planned*).
 - **Turn order (item 11):** only in the lobby / game setup, and only from the
   Atlas touchscreen. Any player may set it. The app and web do not issue it.
+
+## F. Status after the fix pass (2026-09-29, `turnhub-integration`)
+
+All of this is host-tested only: *Needs verification* on hardware. Both
+firmwares need reflashing (`protocol.h` changed: `SigilAction::SwitchSeat`).
+
+| # | Commit | What changed | Confidence |
+|---|---|---|---|
+| 1 | Playtest #1 | Portal polls live data each second and the rest every fifth tick or on change; hidden tabs stop. `ATLAS|HEALTH` logs heap and Wi-Fi clients every minute and on each join/leave. | Suspected cause, *Needs verification* with 4 phones and a log |
+| 2 | Playtest #2 | Sigil update page sends the sign-in token (it never did), uploads with progress and a timeout; upload callbacks no longer answer mid-upload; an orphaned upload is dropped after 30 s instead of blocking game starts; the Atlas screen and the Sigil show the outcome. | Root cause found in code |
+| 3 | Playtest #3, #4 | Sigil menu **Switch seat** shows (and so adjusts life for) the other living seat until the turn comes round to that Sigil; an eliminated seat never leads over a living one. | Root cause found in code |
+| 4 | Playtest #3, #4 | Sigils show the table round (as on the Atlas header), labelled `R` (OLED) and "Round" (e-ink). It was the shown player's own next-turn count. | Root cause found in code |
+| 5 | Playtest #5 | `/api/v1/state` carries `displayName`; the Atlas screen names phone-joined players in the lobby. | Two causes found; *Needs verification* on Android |
+| 6 | Playtest #6 | E-ink life ramp: repeats from 0.7 s every 0.3 s, steps of 5 from 3 s; both Sigils scale with the hold-timing preference. | Tuning, owner to judge |
+| 7 | Playtest #7 | Seat B's turn: azure, double pulse, B's half of the ring (LedState Sigils). | New |
+| 8 | Playtest #8 | Add seat B opens the profile picker for seat B. | New |
+| 9 | Playtest #9 | Tap a chip in a match: Player screen with -5/-1/+1/+5 and Concede (asks again). | New; Moderate path *Planned* |
+| 10 | - | Not implemented: feature-gate outline below. | *Planned* |
+| 11 | Playtest #11 | Tap a chip in the lobby: Earlier / Later (MoveSeat, Atlas screen only). | New |
+
+Not done in this pass: the user manual (V0.4) does not yet describe Switch
+seat, the round label, seat B's colors, the seat B picker, the Player screen
+or turn order.
+
+### Item 10 feature-gate outline: create accounts from the Android app
+
+1. **State owner:** Atlas (profile store, accounts); the app only asks.
+2. **Intent / endpoint:** the existing `POST /api/profiles/register` (name,
+   PIN) already creates a profile and returns a session; the app would call
+   it rather than add a new Intent. First-Admin setup stays behind the table
+   presence code (`/api/presence/*`), which the app would also need.
+3. **Validator:** the existing registration checks (profile policy, name and
+   PIN rules, the profile limit).
+4. **Persistence:** NVS profile records, as today; the app stores only the
+   session token (Android Keystore-backed storage).
+5. **Rendering clients:** Android gains its first write screens (sign in,
+   register), which ends its read-only milestone; the portal is unchanged.
+6. **Protocol/contract:** document register/login in `http-v1.md` as client
+   contract, add schemas and examples in `protocol/`, and follow the Android
+   layering (`protocol/` DTOs, `data/` networking behind `AtlasRepository`).
+7. **Third-party dependencies:** none expected.
+8. **Accessibility:** TalkBack labels, no timing-only steps, PIN entry that
+   works with a screen reader.
+
+Open question for the owner: should the app also sign in (and then act as a
+controller), or only create accounts?

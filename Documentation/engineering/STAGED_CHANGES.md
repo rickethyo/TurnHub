@@ -237,13 +237,15 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 ## Current baseline
 
-### In progress: 2026-09-29 playtest fixes
+### 2026-09-29 playtest fixes: awaiting hardware verification
 
-Working from [the playtest notes](PLAYTEST_NOTES_2026_09_29.md) on
-`turnhub-integration`, one local commit per item, in the notes' suggested
-order. Check `git log` for which items already landed ("Playtest #N" in the
-subject). Next step if resuming: the lowest-numbered item without a commit.
-Item 10 (Android account creation) gets a feature-gate outline only.
+Items 1-9 and 11 of [the playtest notes](PLAYTEST_NOTES_2026_09_29.md) are
+implemented and host-tested on `turnhub-integration` ("Playtest #N" commits);
+see section F there for each one's confidence. Next: reflash Atlas and both
+Sigil types, replay the 4-phone session with the serial log, and check each
+item at the table. Still *Planned*: item 10 (Android account creation,
+outline in the notes), the Moderate path (remove a player, admin sign-in)
+beside the Player screen's Concede, and the user manual update.
 
 ### Next implementation priority: Sigil OTA and signed updates
 

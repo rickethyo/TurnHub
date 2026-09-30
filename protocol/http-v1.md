@@ -25,7 +25,12 @@ does this: it tries a saved password, then this default, then prompts.
 2. `GET /api/v1/state` returns one main-loop snapshot conforming to
    [state-v0.1.schema.json](state-v0.1.schema.json). This is public table state,
    consistent with `/api/status` and `/api/seats`. No profile statistics or
-   credentials are included. Names remain presentation metadata from `/api/seats`.
+   credentials are included. Each player carries `displayName` (the profile
+   name, or `null` for an unnamed guest; clients show "Player N"), so names
+   arrive with the state they belong to (since 2026-09-29). Atlas re-reads
+   names when a seat's occupant changes and at least every 5 s, so a rename
+   may appear without a revision change. `/api/seats` still carries names and
+   avatars.
 3. Use `GET /api/profiles`, then `POST /api/session/login` with form fields
    `profileId` and `pin`, or `POST /api/profiles/register` with `name` and `pin`.
    Keep the returned token private; send it in `X-TurnHub-Token` on authenticated
