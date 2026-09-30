@@ -247,6 +247,12 @@ item at the table. Still *Planned*: item 10 (Android account creation,
 outline in the notes), the Moderate path (remove a player, admin sign-in)
 beside the Player screen's Concede, and the user manual update.
 
+Owner expectation (2026-09-29, *Planned*): Atlas's factory reset should also
+return the microSD card to a fresh install (today it erases NVS only, and the
+firmware cannot format a card). Minimum: delete TurnHub's files (luxury
+statistics `s<profileId>`, diagnostics logs) through `sd_card.cpp` under the
+card lock before the NVS erase; a real FAT format is optional.
+
 ### Next implementation priority: Sigil OTA and signed updates
 
 In progress: the design, feature gate and step-by-step resume checklist are in
