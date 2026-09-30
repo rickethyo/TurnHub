@@ -36,10 +36,7 @@ struct SigilRecord {
   uint8_t capabilities = 0;
   bool profileRequestSeen = false;
   uint32_t lastProfileRequestMs = 0;
-  // Pairing v2 (SECURE_LINK.md): the key agreed at pairing, stored in NVS.
-  // False for a Sigil paired the old way; it must pair again for the secure
-  // link. Never logged.
-  bool hasPairKey = false;
+  // The key agreed at pairing (SECURE_LINK.md), stored in NVS with the MAC.
   uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
   // The current secure session (secure_session.h), started by the Sigil's
   // SecureHello. Every packet either way is sealed in it; RAM only.

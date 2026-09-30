@@ -42,8 +42,8 @@ over ESP-NOW:
 ## Feature gate
 
 1. **State owner:** Atlas. The harness owns only transient run state and its
-   own pairing record (NVS `th_harness/pair`: Atlas MAC and the two Sigil IDs;
-   `th_harness/pairk`: each virtual Sigil's pairing v2 key).
+   own pairing record (NVS `th_harness/pair`: Atlas's MAC, then each virtual
+   Sigil's ID and pair key).
 2. **Intent/request:** the existing Sigil packets (PairRequest2, Hello,
    SelectAction, PickerKey, LifeAdjust, LifeResponse). No test-only gameplay semantics.
 3. **Validator:** Atlas's normal transport adapters and Intent handlers.
@@ -70,7 +70,7 @@ screen stays up through the game until **Back**. Atlas and the harness speak
 | Command | What it does |
 |---|---|
 | `status` | Radio, Atlas MAC, each virtual Sigil's MAC, ID, online state, seats and life, picker page and current menu |
-| `pair` | Pairing v2 (2026-09-29): every virtual Sigil without a pair key (unpaired, or paired the old way) broadcasts PairRequest2. Tap **Menu → Pair a Sigil** on Atlas; each code is printed (`HARNESS|PAIR|V2|CODE|V1|0427`) and shown on Atlas one at a time: tap **Codes match** for each. Waits up to 90 s; `status` then shows `pairing=secure` |
+| `pair` | Every unpaired virtual Sigil broadcasts PairRequest2. Tap **Menu → Pair a Sigil** on Atlas; each code is printed (`HARNESS|PAIR|V2|CODE|V1|0427`) and shown on Atlas one at a time: tap **Codes match** for each. Waits up to 90 s; `status` then shows `pairing=secure` |
 | `forget` | Forgets the pairing on the harness only. Forget the two Sigils in the portal's Device Settings as well |
 | BOOT button | As on a Sigil (2026-09-30): a press does `pair`; holding it for 10 s does `forget`. Acts on release, and not while a test is running |
 | `sigils <1\|2>` | Use one or both virtual Sigils |

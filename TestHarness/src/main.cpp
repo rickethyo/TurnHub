@@ -59,9 +59,9 @@ constexpr uint8_t RX_QUEUE_LENGTH = 24;
 
 constexpr uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 constexpr char PREF_NAMESPACE[] = "th_harness";
-constexpr char PREF_KEY[] = "pair";  // Atlas MAC + one Sigil ID per virtual Sigil.
-// Pairing v2 keys: per virtual Sigil a has-key byte and the 16-byte pair key.
-constexpr char PREF_KEY_V2[] = "pairk";
+// The pairing, one record: Atlas's MAC, then per virtual Sigil its ID
+// (UNASSIGNED if unpaired) and its pair key.
+constexpr char PREF_KEY[] = "pair";
 
 // Atlas's timings (Atlas/include/atlas_app.h), with margin for radio latency.
 constexpr uint32_t START_WAIT_MS = 3000 + 4000;
@@ -81,11 +81,11 @@ struct VirtualSigil {
   bool pairing = false;
   int32_t pairingToken = 0;
   uint32_t lastPairRequestMs = 0;
-  // Pairing v2 (SECURE_LINK.md), like a real Sigil: a key agreement, the code
+  // Pairing (SECURE_LINK.md), like a real Sigil: a key agreement, the code
   // printed here and on Atlas, and the pair key once the owner confirms.
+  // Paired exactly when sigilId is set; the key comes with it.
   TurnHubSecureLink::SigilPairing v2;
   TurnHubSecureLink::PairRequest2Packet request{};
-  bool hasPairKey = false;
   uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
   // Its secure session with Atlas (secure_session.h), exactly like a real
   // Sigil: everything but pairing and the handshake travels sealed.
@@ -243,66 +243,48 @@ String pickerText(const VirtualSigil &v) {
 
 // --- Persistence ---------------------------------------------------------------
 
+constexpr size_t PAIR_ENTRY_BYTES = 1 + TurnHubSecureLink::KEY_BYTES;
+constexpr size_t PAIR_RECORD_BYTES = 6 + VIRTUAL_SIGILS * PAIR_ENTRY_BYTES;
+
 void savePairing() {
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, false)) return;
-  uint8_t blob[6 + VIRTUAL_SIGILS];
-  memcpy(blob, atlasMac, 6);
-  for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) blob[6 + i] = sigils[i].sigilId;
-  uint8_t keys[VIRTUAL_SIGILS * (1 + TurnHubSecureLink::KEY_BYTES)] = {};
-  for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
-    uint8_t *entry = keys + i * (1 + TurnHubSecureLink::KEY_BYTES);
-    entry[0] = sigils[i].hasPairKey ? 1 : 0;
-    memcpy(entry + 1, sigils[i].pairKey, TurnHubSecureLink::KEY_BYTES);
-  }
   if (atlasKnown) {
-    prefs.putBytes(PREF_KEY, blob, sizeof(blob));
-    prefs.putBytes(PREF_KEY_V2, keys, sizeof(keys));
+    uint8_t record[PAIR_RECORD_BYTES] = {};
+    memcpy(record, atlasMac, 6);
+    for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
+      uint8_t *entry = record + 6 + i * PAIR_ENTRY_BYTES;
+      entry[0] = sigils[i].sigilId;
+      memcpy(entry + 1, sigils[i].pairKey, TurnHubSecureLink::KEY_BYTES);
+    }
+    prefs.putBytes(PREF_KEY, record, sizeof(record));
+    TurnHubSecureLink::wipe(record, sizeof(record));
   } else {
     prefs.remove(PREF_KEY);
-    prefs.remove(PREF_KEY_V2);
   }
-  TurnHubSecureLink::wipe(keys, sizeof(keys));
   prefs.end();
 }
 
 void loadPairing() {
   Preferences prefs;
   if (!prefs.begin(PREF_NAMESPACE, true)) return;
-  uint8_t blob[6 + VIRTUAL_SIGILS];
-  if (prefs.getBytesLength(PREF_KEY) == sizeof(blob) &&
-      prefs.getBytes(PREF_KEY, blob, sizeof(blob)) == sizeof(blob)) {
-    memcpy(atlasMac, blob, 6);
+  uint8_t record[PAIR_RECORD_BYTES];
+  if (prefs.getBytesLength(PREF_KEY) == sizeof(record) &&
+      prefs.getBytes(PREF_KEY, record, sizeof(record)) == sizeof(record)) {
+    memcpy(atlasMac, record, 6);
     atlasKnown = true;
     for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
-      sigils[i].sigilId = blob[6 + i] < TurnHubProtocol::MAX_SIGILS ? blob[6 + i] : UNASSIGNED;
-    }
-    // Keys from pairing v2; a pairing from before loads as keyless.
-    uint8_t keys[VIRTUAL_SIGILS * (1 + TurnHubSecureLink::KEY_BYTES)];
-    if (prefs.getBytesLength(PREF_KEY_V2) == sizeof(keys) &&
-        prefs.getBytes(PREF_KEY_V2, keys, sizeof(keys)) == sizeof(keys)) {
-      for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
-        const uint8_t *entry = keys + i * (1 + TurnHubSecureLink::KEY_BYTES);
-        sigils[i].hasPairKey = entry[0] == 1 && sigils[i].sigilId != UNASSIGNED;
-        memcpy(sigils[i].pairKey, entry + 1, TurnHubSecureLink::KEY_BYTES);
-      }
-      TurnHubSecureLink::wipe(keys, sizeof(keys));
-    }
-    // Since the secure link a pairing needs its key: a keyless one (from
-    // before pairing v2) counts as unpaired; 'pair' pairs it again.
-    for (uint8_t i = 0; i < VIRTUAL_SIGILS; ++i) {
       VirtualSigil &v = sigils[i];
-      if (v.hasPairKey) {
-        v.session.configure(v.sigilId, v.pairKey);
-      } else {
-        v.sigilId = UNASSIGNED;
-      }
+      const uint8_t *entry = record + 6 + i * PAIR_ENTRY_BYTES;
+      v.sigilId = entry[0] < TurnHubProtocol::MAX_SIGILS ? entry[0] : UNASSIGNED;
+      memcpy(v.pairKey, entry + 1, TurnHubSecureLink::KEY_BYTES);
+      if (v.sigilId != UNASSIGNED) v.session.configure(v.sigilId, v.pairKey);
     }
+    TurnHubSecureLink::wipe(record, sizeof(record));
   }
   paceMs = min(prefs.getUInt("pace", DEFAULT_PACE_MS), MAX_PACE_MS);
   prefs.end();
 }
-
 // --- Radio ---------------------------------------------------------------------
 
 // ESP-NOW keys peers by MAC alone, so the one Atlas (or broadcast) peer is
@@ -398,14 +380,12 @@ void handlePairResult(const uint8_t *mac, const uint8_t *data) {
       // A different Atlas: the harness follows one Atlas at a time.
       for (auto &other : sigils) {
         other.sigilId = UNASSIGNED;
-        other.hasPairKey = false;
         other.session.clear();
       }
     }
     memcpy(atlasMac, mac, 6);
     atlasKnown = true;
     v.sigilId = result.sigilId;
-    v.hasPairKey = true;
     memcpy(v.pairKey, key, TurnHubSecureLink::KEY_BYTES);
     v.session.configure(v.sigilId, v.pairKey);
     TurnHubSecureLink::wipe(key, sizeof(key));
@@ -991,7 +971,6 @@ void forgetPairing() {
   for (auto &v : sigils) {
     v.sigilId = UNASSIGNED;
     v.menuValid = false;
-    v.hasPairKey = false;
     TurnHubSecureLink::wipe(v.pairKey, sizeof(v.pairKey));
     v.session.clear();
   }
@@ -1004,8 +983,7 @@ void startPairing() {
   bool any = false;
   for (uint8_t i = 0; i < activeSigils; ++i) {
     VirtualSigil &v = sigils[i];
-    // Paired the old way (keyless) pairs again for the secure link.
-    if (v.sigilId != UNASSIGNED && v.hasPairKey) continue;
+    if (v.sigilId != UNASSIGNED) continue;
     v.pairingToken = static_cast<int32_t>(esp_random());
     if (!v.v2.begin(linkCrypto, v.pairingToken, v.request)) {
       Serial.printf("HARNESS|PAIR|V2|KEY_ERROR|%s\n", v.name);
@@ -1102,7 +1080,7 @@ void printStatus() {
     const VirtualSigil &v = sigils[i];
     Serial.printf("HARNESS|STATUS|%s|mac=%s|sigil=%s|pairing=%s|online=%s|seats=%s|picker=%s|menu=%s\n", v.name,
         macText(v.mac).c_str(), v.sigilId == UNASSIGNED ? "unpaired" : String(v.sigilId).c_str(),
-        v.sigilId == UNASSIGNED ? "none" : v.hasPairKey ? "secure" : "keyless",
+        v.sigilId == UNASSIGNED ? "none" : "secure",
         online(v) ? "yes" : "no", seatsText(v).c_str(), pickerText(v).c_str(), menuText(v).c_str());
   }
 }

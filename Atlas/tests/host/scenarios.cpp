@@ -70,7 +70,7 @@ bool SigilBus::decidePairing(uint8_t slot, bool confirm) {
   fixturePending[slot]=TurnHubSecureLink::PendingPairing{};
   if(confirm&&fixturePairStoreFails){ fixturePairDecisions[slot]=-1; return false; }
   fixturePairDecisions[slot]=confirm?1:-1;
-  if(confirm){ fixtureForgotten[slot]=false; fixtureRecords[slot].hasPairKey=true; }
+  if(confirm){ fixtureForgotten[slot]=false; }
   return true;
 }
 void SigilBus::cancelPendingPairings() {
@@ -2826,7 +2826,7 @@ static void pairConfirmIntent() {
   // The Atlas screen confirms; the Sigil is stored with its key.
   assert(decide(IntentOrigin::AtlasHardware,"",5|accept)==IntentStatus::Accepted);
   assert(TurnHub::fixturePairDecisions[5]==1 && !sigilBus.pendingPairing(5) &&
-      sigilBus.record(5) && sigilBus.record(5)->hasPairKey);
+      sigilBus.record(5));
   // A portal Admin rejects another; nothing is stored.
   TurnHub::fixtureWaitForCode(6,1234);
   assert(decide(IntentOrigin::Browser,adminId,6)==IntentStatus::Accepted);
@@ -2885,7 +2885,6 @@ static void pairConfirmFromPortal() {
 
   assert(request("/api/devices",admin,{},HTTP_GET)==200);
   assert(server.body.find("\"pendingPairings\":[{\"id\":3,\"code\":\"0058\",\"secondsLeft\":60}]")!=std::string::npos);
-  assert(server.body.find("\"securePairing\":false")!=std::string::npos);
   // Admin only, and only once verified at the table.
   assert(request("/api/device/pair-confirm",admin,{{"module","3"},{"accept","1"}})==403);
   verifyAtTable(admin);
@@ -2893,17 +2892,16 @@ static void pairConfirmFromPortal() {
   assert(request("/api/device/pair-confirm",admin,{{"accept","1"}})==400);
   assert(request("/api/device/pair-confirm",admin,{{"module","4"},{"accept","1"}})==409);
   assert(TurnHub::fixturePairDecisions[3]==0 && sigilBus.pendingPairing(3));
-  // Codes match: stored with its key, and shown as secure.
+  // Codes match: stored with its key, and listed.
   assert(request("/api/device/pair-confirm",admin,{{"module","3"},{"accept","1"}})==200);
   assert(TurnHub::fixturePairDecisions[3]==1 && !sigilBus.pendingPairing(3));
   assert(request("/api/devices",admin,{},HTTP_GET)==200);
   assert(server.body.find("\"pendingPairings\":[]")!=std::string::npos &&
-      server.body.find("\"securePairing\":true")!=std::string::npos);
+      server.body.find("{\"id\":3,")!=std::string::npos);
   // Reject stores nothing.
   TurnHub::fixtureWaitForCode(6,1);
   assert(request("/api/device/pair-confirm",admin,{{"module","6"},{"accept","0"}})==200);
   assert(TurnHub::fixturePairDecisions[6]==-1);
-  TurnHub::fixtureRecords[3].hasPairKey=false;
 }
 
 static void factoryResetFromPortal() {

@@ -128,8 +128,7 @@ void handleDevices(WebServer &server) {
     json += "\",\"maxPlayers\":"; json += String(2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
-    // Pairing v2: paired with a key (ready for the secure link), or the old way.
-    json += "\",\"securePairing\":"; json += jsonBool(record->hasPairKey);
+    json += "\"";
     json += "}";
   }
   // Sigils waiting for the owner's pairing-code check (SECURE_LINK.md). The

@@ -133,10 +133,12 @@ constexpr uint8_t PROFILE_REQUEST_MAX_ATTEMPTS = 4;
 constexpr uint8_t PROFILE_SLOT_MASK = 0x03;
 constexpr uint8_t RECEIVE_QUEUE_LENGTH = 32;
 
-// NVS pairing binding: Atlas MAC (6 bytes) followed by the assigned Sigil ID.
-constexpr char PAIRING_NAMESPACE[] = "th_pair_v1";
+// The saved pairing in NVS, one record: Atlas's MAC (6 bytes), this Sigil's
+// ID (1) and the pair key agreed at pairing (SECURE_LINK.md). A record of any
+// other size isn't a pairing and is dropped.
+constexpr char PAIRING_NAMESPACE[] = "th_pair";
 constexpr char PAIRING_KEY[] = "atlas";
-constexpr size_t PAIRING_BINDING_SIZE = 7;
+constexpr size_t PAIRING_RECORD_SIZE = 7 + TurnHubSecureLink::KEY_BYTES;
 
 constexpr uint8_t BROADCAST_MAC[6] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -209,15 +211,12 @@ volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
 uint32_t lastPairRequestMs = 0;
-// Pairing v2 (pairing_v2.h, SECURE_LINK.md): the key agreement and code check,
-// and the pair key for the saved Atlas (none for a Sigil paired the old way).
-// Traffic stays cleartext until the secure-session step.
-constexpr char PAIRING_KEY_V2[] = "atlas_k";
+// Pairing (pairing_v2.h, SECURE_LINK.md): the key agreement and code check,
+// and the pair key for the saved Atlas.
 TurnHubSecureLink::MbedtlsCrypto linkCrypto;
 TurnHubSecureLink::SigilPairing pairingV2;
 TurnHubSecureLink::PairRequest2Packet pairRequest2{};
 uint8_t atlasPairKey[TurnHubSecureLink::KEY_BYTES] = {};
-bool atlasPairKeyValid = false;
 // The secure session with the saved Atlas (secure_session.h). Everything
 // but pairing and the handshake travels sealed in it; RAM only.
 TurnHubSecureLink::SigilSession linkSession;
@@ -827,8 +826,7 @@ void forgetPairing(const char *reason) {
   Preferences prefs;
   bool erased = false;
   if (prefs.begin(PAIRING_NAMESPACE, false)) {
-    erased = (!prefs.isKey(PAIRING_KEY) || prefs.remove(PAIRING_KEY)) &&
-        (!prefs.isKey(PAIRING_KEY_V2) || prefs.remove(PAIRING_KEY_V2));
+    erased = !prefs.isKey(PAIRING_KEY) || prefs.remove(PAIRING_KEY);
     prefs.end();
   }
   if (!erased) {
@@ -848,7 +846,6 @@ void forgetPairing(const char *reason) {
   pairingV2.cancel();
   pairingCodeShown = false;
   TurnHubSecureLink::wipe(atlasPairKey, sizeof(atlasPairKey));
-  atlasPairKeyValid = false;
   linkSession.clear();
   ledModel.setAtlasLost(false, millis());
   ledModel.clear();
@@ -902,25 +899,24 @@ void endPairingCodeCheck(const char *reason) {
 }
 
 // Atlas confirmed the code: save Atlas, the slot and the pair key, then carry
-// on exactly as after the old pairing.
+// on paired.
 void storePairingV2(const uint8_t *mac, uint8_t slot, const uint8_t *key) {
-  uint8_t binding[PAIRING_BINDING_SIZE];
-  memcpy(binding, mac, 6);
-  binding[6] = slot;
+  uint8_t record[PAIRING_RECORD_SIZE];
+  memcpy(record, mac, 6);
+  record[6] = slot;
+  memcpy(record + 7, key, TurnHubSecureLink::KEY_BYTES);
   Preferences prefs;
   bool stored = false;
   if (prefs.begin(PAIRING_NAMESPACE, false)) {
-    stored = prefs.putBytes(PAIRING_KEY, binding, sizeof(binding)) == sizeof(binding) &&
-        prefs.putBytes(PAIRING_KEY_V2, key, TurnHubSecureLink::KEY_BYTES) ==
-            TurnHubSecureLink::KEY_BYTES;
+    stored = prefs.putBytes(PAIRING_KEY, record, sizeof(record)) == sizeof(record);
     prefs.end();
   }
+  TurnHubSecureLink::wipe(record, sizeof(record));
   if (!stored) {
     endPairingCodeCheck("STORE_ERROR");
     return;
   }
   memcpy(atlasPairKey, key, TurnHubSecureLink::KEY_BYTES);
-  atlasPairKeyValid = true;
   linkSession.configure(slot, key);
   pairingCodeShown = false;
   rememberAtlas(mac);
@@ -1492,33 +1488,25 @@ void updatePairButton() {
 void loadSavedPairing() {
   Preferences prefs;
   if (prefs.begin(PAIRING_NAMESPACE, false)) {
-    uint8_t binding[PAIRING_BINDING_SIZE];
-    if (prefs.isKey(PAIRING_KEY) && prefs.getBytesLength(PAIRING_KEY) == sizeof(binding) &&
-        prefs.getBytes(PAIRING_KEY, binding, sizeof(binding)) == sizeof(binding) &&
-        binding[6] < TurnHubProtocol::MAX_SIGILS) {
-      // Read before the first screen, but register the peer only after ESP-NOW
-      // starts. A saved binding remains paired even if radio startup fails.
-      memcpy(atlasMac, binding, sizeof(atlasMac));
-      atlasKnown = true;
-      sigilId = binding[6];
-      atlasLink.start(millis());
-      atlasPairKeyValid = prefs.isKey(PAIRING_KEY_V2) &&
-          prefs.getBytesLength(PAIRING_KEY_V2) == TurnHubSecureLink::KEY_BYTES &&
-          prefs.getBytes(PAIRING_KEY_V2, atlasPairKey, TurnHubSecureLink::KEY_BYTES) ==
-              TurnHubSecureLink::KEY_BYTES;
-      if (atlasPairKeyValid) {
+    uint8_t record[PAIRING_RECORD_SIZE];
+    if (prefs.isKey(PAIRING_KEY)) {
+      if (prefs.getBytesLength(PAIRING_KEY) == sizeof(record) &&
+          prefs.getBytes(PAIRING_KEY, record, sizeof(record)) == sizeof(record) &&
+          record[6] < TurnHubProtocol::MAX_SIGILS) {
+        // Read before the first screen, but register the peer only after
+        // ESP-NOW starts. A saved pairing stays paired even if the radio fails.
+        memcpy(atlasMac, record, sizeof(atlasMac));
+        atlasKnown = true;
+        sigilId = record[6];
+        memcpy(atlasPairKey, record + 7, TurnHubSecureLink::KEY_BYTES);
         linkSession.configure(sigilId, atlasPairKey);
+        atlasLink.start(millis());
         Serial.println("SIGIL|PAIR|LOADED|SECURE");
       } else {
-        // Paired before pairing v2: no key, so it can't talk to Atlas any
-        // more. Forget it; the owner pairs it again.
         prefs.remove(PAIRING_KEY);
-        atlasKnown = false;
-        memset(atlasMac, 0, sizeof(atlasMac));
-        sigilId = UNASSIGNED_SIGIL_ID;
-        atlasLink.stop();
-        Serial.println("SIGIL|PAIR|KEYLESS_FORGOTTEN");
+        Serial.println("SIGIL|PAIR|BAD_RECORD_DROPPED");
       }
+      TurnHubSecureLink::wipe(record, sizeof(record));
     }
     prefs.end();
   }
