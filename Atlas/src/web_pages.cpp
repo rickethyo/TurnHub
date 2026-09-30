@@ -869,17 +869,25 @@ async function pollJson(path,headers={}){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
  try{const r=await fetch(path,{cache:'no-store',headers,signal:controller.signal});if(!r.ok)throw new Error('Refresh failed');return await r.json()}finally{clearTimeout(timer)}
 }
-function refreshAll(){
+// Atlas serves one request at a time on the loop that also runs the game, so
+// the timer polls live data only; devices, settings and admin data follow on
+// every POLL_FULL_EVERY-th tick or whenever an action calls refreshAll().
+const POLL_MS=1000,POLL_FULL_EVERY=5;let pollTick=0;
+function pollTimer(){if(document.hidden)return;refreshAll(++pollTick%POLL_FULL_EVERY===0)}
+function refreshAll(full=true){
  if(refreshInFlight)return refreshInFlight;
  refreshInFlight=(async()=>{
   try{
    const s=await pollJson('/api/status');
-   const d=await pollJson('/api/devices');
+   // A table-state or Sigil-count change pulls everything straight away.
+   const slow=full||!gameSettingsData||!statusData||s.state!==statusData.state||s.sigils!==statusData.sigils;
+   const d=slow?await pollJson('/api/devices'):deviceData;
    const seats=await pollJson('/api/seats');
    await refreshSession();
-   const n=(sessionInfo&&sessionInfo.permissions&1)?await pollJson('/api/network',authHeaders()):null;
-   const pairing=n?await pollJson('/api/pairing',authHeaders()):null;const speaker=n?await pollJson('/api/speaker',authHeaders()):null;
-   gameSettingsData=await pollJson('/api/game/settings',authHeaders());
+   const admin=!!(sessionInfo&&sessionInfo.permissions&1);
+   const n=admin?(slow||!networkData?await pollJson('/api/network',authHeaders()):networkData):null;
+   const pairing=n&&slow?await pollJson('/api/pairing',authHeaders()):null;const speaker=n&&slow?await pollJson('/api/speaker',authHeaders()):null;
+   if(slow)gameSettingsData=await pollJson('/api/game/settings',authHeaders());
    counterData=sessionInfo&&sessionInfo.participating&&sessionInfo.lifeAvailable?await pollJson('/api/game/counters',authHeaders()):null;
    deviceData=d;seatData=seats;networkData=n;
    renderDevices(d);renderDeviceSettings(d);if(n)renderNetwork(n);if(pairing)renderPairing(pairing);if(speaker)renderSpeaker(speaker);renderStatus(s);renderGameLife();renderCounterControls();renderAccess();
@@ -1057,7 +1065,7 @@ async function moderate(id,action){const meaning={reset:'Invalidate all browser 
 let savedTheme=null;try{savedTheme=localStorage.getItem('turnhubTheme')}catch(_){}
 setTheme(savedTheme||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass'),false);loadMotionPref();buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
 let savedTab='game';try{savedTab=localStorage.getItem('turnhubPortalTab')||'game'}catch(_){}
-showTab(savedTab);refreshAll();setInterval(refreshAll,800);loadSetup();
+showTab(savedTab);refreshAll();setInterval(pollTimer,POLL_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll()});loadSetup();
 </script>
 </body>
 </html>

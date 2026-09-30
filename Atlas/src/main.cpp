@@ -84,6 +84,24 @@ void updateGameRecoveryClock(uint32_t nowMs) {
   TurnHub::checkpointGame(game, nowMs);
 }
 
+// Heap and Wi-Fi client figures, logged periodically and whenever the phone
+// count changes, so a crash under load leaves a trail in the serial log, the
+// RAM log download and the SD diagnostics log (playtest 2026-09-29, item 1).
+constexpr uint32_t HEAP_LOG_INTERVAL_MS = 60000;
+uint32_t lastHeapLogMs = 0;
+int lastStationCount = -1;
+
+void logRuntimeHealth(uint32_t nowMs) {
+  const int stations = WiFi.softAPgetStationNum();
+  if (stations == lastStationCount && nowMs - lastHeapLogMs < HEAP_LOG_INTERVAL_MS) return;
+  lastHeapLogMs = nowMs;
+  lastStationCount = stations;
+  serialLog.print("ATLAS|HEALTH|stations=");
+  serialLog.print(stations);
+  serialLog.print("|");
+  serialLog.println(TurnHub::runtimeDiagnosticsJson());
+}
+
 // The owner-set password if one is stored, otherwise the shipped pre-setup
 // default. The default is never written to NVS, so a stored password always
 // means the owner chose it, and erasing NVS returns Atlas to the default.
@@ -462,6 +480,7 @@ void loop() {
   syncSigilMenus(nowMs);
   syncProfilePickers(nowMs);
   ota.update(nowMs);
+  logRuntimeHealth(nowMs);
 
   delay(1);
 }
