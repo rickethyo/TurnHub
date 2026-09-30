@@ -506,6 +506,16 @@ Firmware builds (local PlatformIO 6.2.0, same toolchain; no board flashed):
 Sigil host suites (OLED stub now checks custom-font glyph bounds and
 overlaps), Atlas host suites and the Sigil screen previews pass.
 
+### 2026-09-30: Atlas RAM reduction
+
+After the playtest crashes (see the playtest notes, section G), Atlas's RAM
+use was cut. CI builds (PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32
+2.0.17). Static RAM went from 109,748 to 90,196 B, and flash from 1,512,720 to
+1,412,896 B, since the portal and CSS are now stored gzipped. Measured on Atlas
+with no phones connected, free heap after start-up went from ~48 KB to 99 KB
+(largest block 98 KB). Per-step costs are now: SD card 21 KB, Wi-Fi hotspot
+54 KB, ESP-NOW 13 KB, web server 2.6 KB.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

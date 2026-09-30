@@ -257,8 +257,10 @@ stall with phones connected, with only ~48 KB of heap free after start-up.
 Details are in the playtest notes, section G. Done: gzipped portal and CSS, a
 streamed log download, an 8 KB log ring drained fully to the card, smaller
 recovery, SD-record and activity buffers, banded screen sprites, and
-`ATLAS|HEAP|<step>` boot lines. *Needs verification*: flash Atlas and compare
-the HEAP and HEALTH lines with the ~48 KB baseline, then replay the 4-phone
+`ATLAS|HEAP|<step>` boot lines, one route-table handler for the web API and
+two SD open-file slots. *Verified* on Atlas (flashed 2026-09-30, no phones):
+free heap after start-up 99 KB, largest block 98 KB (was ~48 KB). *Needs
+verification*: the gzipped portal on a phone, and a replay of the 4-phone
 session. Possible next steps if that is still short: move the Developer log
 download to the card copy, and cap the number of hotspot stations.
 
