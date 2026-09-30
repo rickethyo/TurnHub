@@ -25,11 +25,12 @@ product adds:
 - **Never block play.** A table that wants to play first can tap **Skip for
   now**. Sigils and phones join as usual, and setup comes back at the next
   start-up and under Menu.
-- **The Android app is the setup client** (owner, 2026-09-30: prioritize
-  the app over the web portal). The app already joins Atlas's Wi-Fi by itself
-  (`TargetedAtlasWifiLink`, default passphrase first). A browser can still
-  reach first-Admin setup through the portal's existing banner, but gets no
-  new wizard page (web-portal feature freeze).
+- **One flow, app first** (owner, 2026-09-30). Atlas defines the steps and
+  client-neutral endpoints; the Android app and the portal both run through
+  the same flow. The app is built first because it is much easier to connect:
+  it joins Atlas's Wi-Fi by itself (`TargetedAtlasWifiLink`, default
+  passphrase first). The portal follows with the same steps on the same
+  endpoints; until then its existing first-Admin banner still works.
 - **No QR codes needed.** Owner, 2026-09-30: the QR codes have seen little
   use. The Atlas screen gives setup as typed text (network name, password,
   address). QR codes stay where they already are, but setup doesn't depend on
@@ -141,5 +142,6 @@ simply runs again: sign in, verify, re-enter a password.
 - [ ] Source lists: `run.cmd`, `run-gcc.ps1`, `run-linux.sh`, host README.
 - [ ] Host suite green; firmware build through CI (`gh workflow run ci.yml`).
 - [ ] Docs: OOBE.md, STAGED_CHANGES.md, user manual note, size history.
-- Later: Atlas name; a browser fallback page if the app isn't available;
+- [ ] Portal: the same four steps on the same endpoints (after the app).
+- Later: Atlas name;
   bench run from a factory reset.
