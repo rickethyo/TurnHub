@@ -1,6 +1,7 @@
 #include "game_settings_store.h"
 #include "nvs_blob_store.h"
 #include "pairing_settings.h"
+#include "setup_stage.h"
 #include "speaker_settings.h"
 namespace TurnHub {
 namespace { TurnHubStorage::NvsBlobStore store; }
@@ -27,5 +28,13 @@ TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {
 TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
   const auto status=store.begin("turnhub");
   return status==TurnHubStorage::Status::Ok?writeSpeakerVolume(store,volume):status;
+}
+TurnHubStorage::Status loadSetupStage(SetupStage &stage) {
+  const auto status=store.begin("turnhub");
+  return status==TurnHubStorage::Status::Ok?readSetupStage(store,stage):status;
+}
+TurnHubStorage::Status saveSetupStage(SetupStage stage) {
+  const auto status=store.begin("turnhub");
+  return status==TurnHubStorage::Status::Ok?writeSetupStage(store,stage):status;
 }
 } // namespace TurnHub

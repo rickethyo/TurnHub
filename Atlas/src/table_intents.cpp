@@ -10,6 +10,7 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "speaker_settings.h"
+#include "wifi_password_store.h"
 #include "profile_store.h"
 #include "sd_card.h"
 #include "serial_log.h"
@@ -924,6 +925,76 @@ IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
   serialLog.print("ATLAS|SPEAKER|VOLUME|");
   serialLog.println(TurnHub::speakerVolumeName(volume));
   return IntentResult::accept("Speaker volume saved");
+}
+
+// --- First-run setup (FIRST_RUN_SETUP.md) ---------------------------------
+
+void beginFirstRunSetup() {
+  TurnHub::SetupStage stored = TurnHub::SetupStage::Complete;
+  const auto status = TurnHub::loadSetupStage(stored);
+  String admin;
+  const bool adminExists = TurnHubAccounts::primaryAdmin(admin) && admin.length() > 0;
+  setupStage = TurnHub::bootSetupStage(status, stored, adminExists);
+  if (status == TurnHubStorage::Status::NotFound) {
+    // Record the answer, so an Admin made during setup doesn't skip the rest
+    // after a restart.
+    if (TurnHub::saveSetupStage(setupStage) != TurnHubStorage::Status::Ok) {
+      serialLog.println("ATLAS|SETUP|STAGE|SAVE_FAILED");
+    }
+  } else if (status != TurnHubStorage::Status::Ok) {
+    serialLog.println("ATLAS|SETUP|STAGE|LOAD_FAILED");
+  }
+  serialLog.print("ATLAS|SETUP|STAGE|");
+  serialLog.println(TurnHub::setupStageName(setupStage));
+}
+
+// Payload: value = the next SetupStage. Stages only move forward; a factory
+// reset is the way back to Welcome.
+IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
+  using TurnHub::SetupStage;
+  if (!TurnHub::validSetupStage(intent.payload.value)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Unknown setup step");
+  }
+  const SetupStage next = static_cast<SetupStage>(intent.payload.value);
+  if (next == SetupStage::Finished) {
+    // The phone's last step: an Admin at the table who has replaced the
+    // shipped Wi-Fi password. Atlas restarts afterwards, so not mid-match.
+    if (!adminIntent(intent)) {
+      return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+    }
+    if (!presenceConfirmedFor(String(intent.payload.moderatorId), millis())) {
+      return IntentResult::reject(IntentStatus::Unauthorized,
+          "Verify at the table first: enter the code the Atlas screen shows");
+    }
+    if (setupStage != SetupStage::Welcome) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Setup is already finished");
+    }
+    if (hubState != HubState::Lobby && hubState != HubState::GameOver) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Finish setup between games");
+    }
+    const String password = TurnHub::readStoredWifiPassword();
+    if (!TurnHub::validWifiPassword(password) || password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
+      return IntentResult::reject(IntentStatus::Rejected, "Choose the table's own Wi-Fi password first");
+    }
+  } else if (next == SetupStage::Complete) {
+    // "You're all set" acknowledged at the table, or by an Admin.
+    if (intent.actor.origin != IntentOrigin::AtlasHardware && !adminIntent(intent)) {
+      return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+    }
+    if (setupStage != SetupStage::Finished) {
+      return IntentResult::reject(IntentStatus::InvalidState,
+          setupStage == SetupStage::Complete ? "Setup is already complete" : "Finish setup on a phone first");
+    }
+  } else {
+    return IntentResult::reject(IntentStatus::InvalidState, "Setup can't go back; use factory reset");
+  }
+  if (TurnHub::saveSetupStage(next) != TurnHubStorage::Status::Ok) {
+    return IntentResult::reject(IntentStatus::Rejected, "Setup progress could not be saved");
+  }
+  setupStage = next;
+  serialLog.print("ATLAS|SETUP|STAGE|");
+  serialLog.println(TurnHub::setupStageName(next));
+  return IntentResult::accept(next == SetupStage::Finished ? "Setup finished" : "Setup complete");
 }
 
 // An Admin's way back to an empty lobby from any state, for example while the

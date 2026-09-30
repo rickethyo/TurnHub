@@ -94,6 +94,11 @@ enum class IntentType : uint8_t {
   // (later). The seat's whole Sigil or phone moves, seat B with seat A.
   MoveSeat,
 
+  // First-run guided setup (setup_stage.h): payload.value = the next stage.
+  // To Finished: a presence-verified Admin from a phone (payload.moderatorId).
+  // To Complete: the Atlas touchscreen, or an Admin from a phone.
+  AdvanceSetup,
+
   Count,
 };
 
@@ -253,6 +258,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::PickProfile: return "PICK_PROFILE";
     case IntentType::UpdateSigil: return "UPDATE_SIGIL";
     case IntentType::MoveSeat: return "MOVE_SEAT";
+    case IntentType::AdvanceSetup: return "ADVANCE_SETUP";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

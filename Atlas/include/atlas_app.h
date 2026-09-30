@@ -41,6 +41,7 @@
 #include "lobby.h"
 #include "ota_manager.h"
 #include "protocol.h"
+#include "setup_stage.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
 #include "web_api.h"
@@ -97,6 +98,10 @@ extern bool gameSettingsAvailable;
 extern bool espNowReady;
 // Atlas's pairing window; admins choose it (pairing_settings.h).
 extern uint32_t pairingWindowMs;
+// How far this Atlas is through first-run setup (setup_stage.h). Loaded at
+// boot by beginFirstRunSetup(); changed only by handleAdvanceSetupIntent.
+extern TurnHub::SetupStage setupStage;
+void beginFirstRunSetup();
 
 // --- Canonical table-decision state (mutated only by Intent handlers) -------
 
@@ -235,6 +240,7 @@ IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);
 IntentResult handleFactoryResetIntent(const Intent &intent, void *);
+IntentResult handleAdvanceSetupIntent(const Intent &intent, void *);
 // Runs a scheduled Atlas factory reset once the web reply has had time to
 // leave (called from loop()). eraseSettingsAndRestart() is firmware-only
 // (factory_reset.cpp); host tests stub it.

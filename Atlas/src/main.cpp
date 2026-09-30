@@ -64,6 +64,7 @@ TurnHub::GameSettings nextGameSettings;
 bool gameSettingsAvailable = true;
 bool espNowReady = false;
 uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
+TurnHub::SetupStage setupStage = TurnHub::SetupStage::Complete;
 
 namespace {
 // The SD card generation the luxury store was last pointed for.
@@ -276,6 +277,7 @@ bool configureIntentHandlers() {
       {IntentType::FactoryReset, handleFactoryResetIntent},
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
       {IntentType::MoveSeat, handleMoveSeatIntent},
+      {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {
@@ -458,6 +460,7 @@ void setup() {
       pairingStatus != TurnHubStorage::Status::NotFound) {
     serialLog.println("ATLAS|PAIRING|WINDOW|STORAGE_ERROR");
   }
+  beginFirstRunSetup();
   // The speaker plays table-wide cues; a missing or unreadable volume keeps
   // the default.
   uint8_t speakerVolume = TurnHub::DEFAULT_SPEAKER_VOLUME;

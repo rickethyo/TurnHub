@@ -108,6 +108,11 @@ void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window)
 // callback as ConfigureSpeaker.
 using SpeakerVolumeCallback = uint8_t (*)();
 void configureSpeaker(SpeakerVolumeCallback volume);
+
+// First-run setup: the current TurnHub::SetupStage, for GET /api/setup. The
+// stage itself changes through the device callback (IntentType::AdvanceSetup).
+using SetupStageCallback = uint8_t (*)();
+void configureSetup(SetupStageCallback stage);
 // Told after a profile's accessibility preferences were saved, so Atlas can
 // restyle that player's Sigil straight away.
 using AccessibilityChangedCallback = void (*)();

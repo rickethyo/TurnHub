@@ -10,6 +10,7 @@
 #include "firmware_version.h"
 #include "optional_preferences.h"
 #include "pairing_settings.h"
+#include "setup_stage.h"
 #include "speaker_settings.h"
 #include "wifi_password_store.h"
 #include "serial_log.h"
@@ -343,6 +344,38 @@ void handleNetworkInfo(WebServer &server) {
   sendJson(server, 200, response);
 }
 
+namespace {
+
+// Stores an owner-chosen AP password (used from the next start-up). Sends the
+// error and returns false if it is invalid or could not be saved.
+bool storeWifiPassword(WebServer &server, const String &password, bool &changed) {
+  if (!TurnHub::validWifiPassword(password)) {
+    sendJson(server, 400, "{\"ok\":false,\"error\":\"Wi-Fi password must be 8 to 63 characters\"}");
+    return false;
+  }
+  TurnHub::OptionalPreferences prefs;
+  if (!prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, false)) {
+    sendJson(server, 500, "{\"ok\":false,\"error\":\"Network settings storage unavailable\"}");
+    return false;
+  }
+  changed = prefs.getString(AtlasConfig::WIFI_PREF_KEY, "") != password;
+  const size_t written = changed ? prefs.putString(AtlasConfig::WIFI_PREF_KEY, password) : password.length();
+  prefs.end();
+  if (written == 0) {
+    sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save Wi-Fi password\"}");
+    return false;
+  }
+  if (changed) serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|UPDATED_FROM_PORTAL");
+  return true;
+}
+
+void restartSoon() {
+  delay(450);  // Let the response reach the phone before the AP drops.
+  ESP.restart();
+}
+
+}  // namespace
+
 // Saves a new AP password and restarts Atlas so the AP uses it.
 void handleNetworkPassword(WebServer &server) {
   if (TurnHubAtlas::sigilUpdatesBusy()) { sendError(server, 409, "Wait for the firmware update to finish"); return; }
@@ -352,35 +385,67 @@ void handleNetworkPassword(WebServer &server) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"New password is required\"}");
     return;
   }
-
-  const String password = server.arg("password");
-  if (!TurnHub::validWifiPassword(password)) {
-    sendJson(server, 400, "{\"ok\":false,\"error\":\"Wi-Fi password must be 8 to 63 characters\"}");
-    return;
-  }
-
-  TurnHub::OptionalPreferences prefs;
-  if (!prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, false)) {
-    sendJson(server, 500, "{\"ok\":false,\"error\":\"Network settings storage unavailable\"}");
-    return;
-  }
-  if (prefs.getString(AtlasConfig::WIFI_PREF_KEY, "") == password) {
-    prefs.end();
+  bool changed = false;
+  if (!storeWifiPassword(server, server.arg("password"), changed)) return;
+  if (!changed) {
     sendJson(server, 200, "{\"ok\":true,\"changed\":false,\"message\":\"Wi-Fi password is already set to that value\"}");
     return;
   }
-  const size_t written = prefs.putString(AtlasConfig::WIFI_PREF_KEY, password);
-  prefs.end();
-  if (written == 0) {
-    sendJson(server, 500, "{\"ok\":false,\"error\":\"Could not save Wi-Fi password\"}");
-    return;
-  }
-
-  serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|UPDATED_FROM_PORTAL");
   sendJson(server, 200,
       "{\"ok\":true,\"changed\":true,\"restarting\":true,\"message\":\"Password saved. Atlas is restarting.\"}");
-  delay(450);  // Let the response reach the browser before the AP drops.
-  ESP.restart();
+  restartSoon();
+}
+
+// --- First-run setup (FIRST_RUN_SETUP.md) --------------------------------------------------
+// One flow for the Android app and the portal: account, table code (which
+// makes the first Admin through /api/accounts/setup), Wi-Fi password, finish.
+
+// No sign-in: a phone that has just joined needs to know where to start.
+// Never includes the password.
+void handleSetupStatus(WebServer &server) {
+  const uint8_t stage = readSetupStage ? readSetupStage() : static_cast<uint8_t>(TurnHub::SetupStage::Complete);
+  String primary;
+  const bool adminExists = TurnHubAccounts::primaryAdmin(primary) && primary.length() > 0;
+  const String stored = TurnHub::readStoredWifiPassword();
+  const bool passwordIsDefault = !TurnHub::validWifiPassword(stored) || stored == AtlasConfig::WIFI_DEFAULT_PASSWORD;
+  String json = "{\"stage\":\"";
+  json += TurnHub::setupStageName(static_cast<TurnHub::SetupStage>(stage));
+  json += "\",\"adminExists\":";
+  json += jsonBool(adminExists);
+  json += ",\"passwordIsDefault\":";
+  json += jsonBool(passwordIsDefault);
+  json += ",\"ssid\":\"";
+  json += jsonEscape(String(AtlasConfig::WIFI_SSID));
+  json += "\"}";
+  sendJson(server, 200, json);
+}
+
+// The last step: store the table's own Wi-Fi password, mark setup finished
+// (AdvanceSetup, which Atlas validates) and restart onto the new password.
+void handleSetupFinish(WebServer &server) {
+  if (TurnHubAtlas::sigilUpdatesBusy()) { sendError(server, 409, "Wait for the firmware update to finish"); return; }
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  if (!requirePhysicalPresence(server)) return;
+  if (readSetupStage && readSetupStage() != static_cast<uint8_t>(TurnHub::SetupStage::Welcome)) {
+    sendError(server, 409, "Setup is already finished");
+    return;
+  }
+  const String password = server.arg("password");
+  if (password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
+    sendError(server, 400, "Choose a password other than the one printed for setup");
+    return;
+  }
+  bool changed = false;
+  if (!storeWifiPassword(server, password, changed)) return;
+  String message = "Setup unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId, TurnHub::IntentType::AdvanceSetup,
+          static_cast<int32_t>(TurnHub::SetupStage::Finished), message)) {
+    sendError(server, 409, message);
+    return;
+  }
+  sendJson(server, 200,
+      "{\"ok\":true,\"restarting\":true,\"message\":\"Setup finished. Atlas is restarting with the new Wi-Fi password.\"}");
+  restartSoon();
 }
 
 // --- Diagnostics -------------------------------------------------------------------------------

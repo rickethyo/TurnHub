@@ -214,7 +214,8 @@ bool manageDevices(const String &actor, IntentType type, int32_t value, String &
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
        type != IntentType::ConfigureSpeaker && type != IntentType::ResetTable &&
-       type != IntentType::FactoryReset && type != IntentType::PairConfirm && type != IntentType::UpdateSigil)) {
+       type != IntentType::FactoryReset && type != IntentType::PairConfirm && type != IntentType::UpdateSigil &&
+       type != IntentType::AdvanceSetup)) {
     message = "Invalid request";
     return false;
   }
@@ -241,6 +242,7 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureAccessibility([]() { applyAllSigilAccessibility(millis()); });
   TurnHubWebApi::configurePresence(presenceHooks());
   TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
+  TurnHubWebApi::configureSetup([]() { return static_cast<uint8_t>(setupStage); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
 }
 
