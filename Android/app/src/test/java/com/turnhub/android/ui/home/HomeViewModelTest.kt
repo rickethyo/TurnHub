@@ -7,7 +7,6 @@ import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasFailure
 import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
-import com.turnhub.android.data.AtlasScanner
 import com.turnhub.android.data.AtlasSessionTransport
 import com.turnhub.android.data.AtlasWifiLink
 import com.turnhub.android.data.ControlAction
@@ -173,29 +172,20 @@ class HomeViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun TestScope.viewModel(scanner: AtlasScanner = AtlasScanner.NONE): HomeViewModel {
-        val viewModel = HomeViewModel({ repository }, link, store, playerSession, scanner = scanner)
+    private fun TestScope.viewModel(): HomeViewModel {
+        val viewModel = HomeViewModel({ repository }, link, store, playerSession)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
 
     // --- finding the table on launch ---------------------------------------------
 
-    /** Scan results, one set per scan; the last one repeats. */
-    private class FakeScanner(vararg results: Set<String>?) : AtlasScanner {
-        private val queue = ArrayDeque(results.toList())
-        var scans = 0
-        override suspend fun visibleAtlasNetworks(): Set<String>? {
-            scans++
-            return if (queue.size > 1) queue.removeFirst() else queue.firstOrNull()
-        }
-    }
-
     @Test
-    fun `launch rejoins the saved table silently when it is in range`() = runTest {
+    fun `launch rejoins the saved table silently`() = runTest {
         val saved = WifiCredentials("TurnHub-Atlas", "owner-chosen-pass")
         store.save(saved)
-        val viewModel = viewModel(FakeScanner(setOf("TurnHub-Atlas")))
+        val viewModel = viewModel()
+        assertTrue(viewModel.uiState.value.hasSavedTable)
 
         viewModel.onAppStarted()
         viewModel.onAppStarted() // Once per ViewModel (rotation).
@@ -207,16 +197,29 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `a table the saved password no longer opens is offered for setup, never a password prompt`() = runTest {
+    fun `a saved table that doesn't answer offers a retry or setup, never a password prompt`() = runTest {
         store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
         link.results.addLast(WifiJoinResult.Unavailable)
-        val viewModel = viewModel(FakeScanner(setOf("TurnHub-Atlas")))
+        val viewModel = viewModel()
 
         viewModel.onAppStarted()
 
-        assertEquals(Discovery.NewTable("TurnHub-Atlas"), viewModel.uiState.value.discovery)
+        assertEquals(Discovery.NotFound, viewModel.uiState.value.discovery)
         assertNull(viewModel.uiState.value.wifiPrompt)
         assertTrue(repository.connects.isEmpty())
+
+        viewModel.onSearchAgain()
+        assertEquals(2, link.joins.size)
+        assertEquals(1, repository.connects.size)
+        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
+    }
+
+    @Test
+    fun `setting up a new table joins with the printed password`() = runTest {
+        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
+        link.results.addLast(WifiJoinResult.Unavailable)
+        val viewModel = viewModel()
+        viewModel.onAppStarted()
 
         viewModel.onSetUpNewTable()
 
@@ -227,60 +230,13 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `a phone with no saved table asks before joining a new one`() = runTest {
-        val viewModel = viewModel(FakeScanner(setOf("TurnHub-Atlas")))
+    fun `a phone that never joined a table joins nothing on launch`() = runTest {
+        val viewModel = viewModel()
 
         viewModel.onAppStarted()
 
-        assertEquals(Discovery.NewTable("TurnHub-Atlas"), viewModel.uiState.value.discovery)
         assertTrue(link.joins.isEmpty())
-        viewModel.onNewTableDismissed()
-        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
-        assertTrue(link.joins.isEmpty())
-    }
-
-    @Test
-    fun `no table in range joins nothing and keeps looking until one appears`() = runTest {
-        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
-        val scanner = FakeScanner(emptySet(), emptySet(), setOf("TurnHub-Atlas"))
-        val viewModel = viewModel(scanner)
-
-        viewModel.onAppStarted()
-        assertEquals(Discovery.NotFound, viewModel.uiState.value.discovery)
-        assertTrue(link.joins.isEmpty())
-
-        testScheduler.advanceTimeBy(31_000)
-
-        assertEquals(4, scanner.scans) // Launch, two watches, then the search that joins.
-        assertEquals("owner-chosen-pass", link.joins.single().passphrase)
-        assertEquals(1, repository.connects.size)
-    }
-
-    @Test
-    fun `without scan results the saved table is still tried, and nothing else`() = runTest {
-        val viewModel = viewModel(FakeScanner(null))
-        viewModel.onAppStarted()
-        assertTrue(link.joins.isEmpty())
-        assertEquals(Discovery.NotFound, viewModel.uiState.value.discovery)
-
-        val saved = WifiCredentials("TurnHub-Atlas", "owner-chosen-pass")
-        store.save(saved)
-        viewModel.onSearchAgain()
-        assertEquals(listOf(saved), link.joins)
-        assertEquals(1, repository.connects.size)
-    }
-
-    @Test
-    fun `Connect stops the search`() = runTest {
-        val scanner = FakeScanner(emptySet())
-        val viewModel = viewModel(scanner)
-        viewModel.onAppStarted()
-        viewModel.onConnectClicked()
-        val scans = scanner.scans
-
-        testScheduler.advanceTimeBy(60_000)
-
-        assertEquals(scans, scanner.scans)
+        assertEquals(false, viewModel.uiState.value.hasSavedTable)
         assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
     }
 

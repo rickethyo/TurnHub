@@ -53,26 +53,6 @@ interface AtlasWifiLink {
     fun release()
 }
 
-/**
- * Which Atlas access points are in range, without joining any, so the app can
- * connect by itself on launch and spot a new table (Android/README.md).
- */
-fun interface AtlasScanner {
-    /**
-     * SSIDs of the Atlas networks in range, or null when the phone can't tell
-     * (no "Nearby devices" permission, or Android older than 13).
-     */
-    suspend fun visibleAtlasNetworks(): Set<String>?
-
-    companion object {
-        /** Every Atlas access point is named like this (`TurnHub-Atlas`). */
-        const val SSID_PREFIX = "TurnHub-"
-
-        /** For hosts that can't scan: the app then only joins when asked. */
-        val NONE = AtlasScanner { null }
-    }
-}
-
 /** Remembers Atlas Wi-Fi passwords that have successfully joined. */
 interface WifiCredentialStore {
     /** The SSID the user last joined, used as the prompt's default. */

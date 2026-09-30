@@ -305,17 +305,17 @@ private fun TabIcon(tab: HomeTab, color: Color) {
     }
 }
 
-/** The connect screen's search for a table and its new-table prompt. */
+/** The connect screen's retry and new-table actions. */
 data class DiscoveryActions(
     val onSearchAgain: () -> Unit = {},
     val onSetUpNewTable: () -> Unit = {},
-    val onNotNow: () -> Unit = {},
 )
 
 /**
  * Before a table answers: one heading, one status line and one main action.
- * On launch the app finds the table by itself (HomeViewModel.onAppStarted),
- * so most of the time this only says what it's doing. The address is for
+ * On launch the app rejoins the saved table by itself
+ * (HomeViewModel.onAppStarted), so most of the time this only says what it's
+ * doing; a phone with no saved table leads with setup. The address is for
  * unusual setups and stays under Advanced.
  */
 @Composable
@@ -328,7 +328,6 @@ private fun ConnectCard(
     reduceMotion: Boolean,
 ) {
     val p = palette
-    val found = uiState.discovery as? Discovery.NewTable
     val working = uiState.rejoining || uiState.joiningSsid != null ||
         uiState.connectionState == AtlasConnectionState.CONNECTING || uiState.discovery == Discovery.Searching
     val (title, status) = when {
@@ -337,12 +336,12 @@ private fun ConnectCard(
         uiState.joiningSsid != null -> "Joining your table" to
             "Joining ${uiState.joiningSsid}. If Android asks to connect, choose Connect."
         uiState.connectionState == AtlasConnectionState.CONNECTING -> "Joining your table" to "Connecting to Atlas…"
-        uiState.discovery == Discovery.Searching -> "Looking for your table" to "Searching for a TurnHub table nearby…"
-        found != null -> "New table found" to
-            "${found.ssid} is nearby and isn't set up with this phone yet. Set it up now? It takes a few " +
-            "minutes: an account, a code from the Atlas screen, your Sigils and a Wi-Fi password."
-        uiState.discovery == Discovery.NotFound -> "No table nearby" to
-            "Check that Atlas is switched on and close by. The app keeps looking for a few minutes."
+        uiState.discovery == Discovery.Searching -> "Looking for your table" to "Rejoining your table's Wi-Fi…"
+        uiState.discovery == Discovery.NotFound -> "Couldn't reach your table" to
+            "Check that Atlas is switched on and close by. If it was factory reset, set it up again."
+        !uiState.hasSavedTable -> "Welcome to TurnHub" to
+            "Setting up a new table takes a few minutes: an account, a code from the Atlas screen, your " +
+            "Sigils and a Wi-Fi password. Joining a table someone already set up? Connect to it instead."
         else -> "Join your table" to "TurnHub joins the Atlas Wi-Fi for you, then shows the live table."
     }
     BrassCard {
@@ -359,15 +358,15 @@ private fun ConnectCard(
         }
         when {
             working -> Unit
-            found != null -> {
-                AccentButton("Set up this table", discovery.onSetUpNewTable, Modifier.fillMaxWidth().height(56.dp))
-                ToneButton("Not now", discovery.onNotNow, Modifier.fillMaxWidth())
-            }
             uiState.connectionState == AtlasConnectionState.CONNECTED ->
                 ToneButton("Disconnect", onDisconnectClick, Modifier.fillMaxWidth())
             uiState.discovery == Discovery.NotFound -> {
-                AccentButton("Search again", discovery.onSearchAgain, Modifier.fillMaxWidth().height(56.dp))
-                ToneButton("Connect anyway", onConnectClick, Modifier.fillMaxWidth())
+                AccentButton("Try again", discovery.onSearchAgain, Modifier.fillMaxWidth().height(56.dp))
+                ToneButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
+            }
+            !uiState.hasSavedTable -> {
+                AccentButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth().height(56.dp))
+                ToneButton("Connect to a table", onConnectClick, Modifier.fillMaxWidth())
             }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().height(56.dp))
         }

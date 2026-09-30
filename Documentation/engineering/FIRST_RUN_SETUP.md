@@ -73,9 +73,10 @@ Atlas restarts, setup stage = Finished
 ```
 
 After Connect, the app reads `GET /api/setup`. While the stage is Welcome it
-opens the setup steps instead of the table view. On launch the app looks for
-tables itself: a `TurnHub-*` network that no saved password opens is offered
-as "New table found: Set up this table?" (Android/README.md). After the
+opens the setup steps instead of the table view. On launch the app rejoins
+its saved table by itself; a phone with no saved table, or whose table no
+longer answers (factory reset), offers "Set up a new table" (Android/README.md;
+no Wi-Fi scan, which would need location permission). After the
 restart, the app rejoins with the password it just set (it saves it, like
 any password it used), so the owner doesn't retype it, and shows its own
 "You're all set" step.
@@ -227,9 +228,11 @@ simply runs again: sign in, verify, re-enter a password.
      (no crash). With no Sigils paired, Atlas shows "You're all set" and Done
      returns to the lobby; with Sigils paired, Atlas goes straight to the
      lobby. A restart afterwards shows the ordinary lobby.
-  7. App launch: near the set-up table the app connects with no taps; near a
-     factory-reset table it offers "Set up this table"; with no table on, it
-     says "No table nearby" and connects once Atlas is switched on.
+  7. App launch: near the set-up table the app connects with no taps
+     (*Verified* on the Pixel Fold, 2026-09-30); with the table off or
+     factory-reset it says "Couldn't reach your table" and Set up a new
+     table opens setup. Still to check: whether Android shows its own
+     dialog while rejoining a table that is switched off.
   8. Settings > Wi-Fi password and Atlas factory reset: the app rejoins by
      itself (factory reset then opens setup).
   6. An Atlas already set up before this firmware boots straight to the

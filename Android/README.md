@@ -169,20 +169,20 @@ Build and test from `Android/` (Android Studio's bundled JDK works):
 a physical Atlas over its existing HTTP API. `MockAtlasRepository` is gone;
 production always uses `HttpAtlasRepository`.
 
-1. Open the app. It asks for "Nearby devices" (local network on Android 17,
-   Wi-Fi scan results on 13+), then finds the table by itself
-   (`HomeViewModel.onAppStarted`, 2026-09-30, *Needs verification* on
-   hardware):
-   - The saved table is in range: join it with the saved password (Android
-     remembers its approval, so no dialog) and connect.
-   - A `TurnHub-*` network is in range but no saved password opens it: a new
-     or factory-reset table. The screen asks "Set up this table?", which
+1. Open the app. It asks for "Nearby devices" (local network, Android 17),
+   then rejoins the saved table by itself (`HomeViewModel.onAppStarted`):
+   Android remembers its approval, so this is silent when the table is
+   there. *Verified* on the Pixel Fold, 2026-09-30: a cold start opens the
+   live lobby with no taps.
+   - The saved table doesn't answer: "Couldn't reach your table" with Try
+     again and Set up a new table (a factory-reset Atlas).
+   - A phone that never joined a table leads with Set up a new table, which
      joins with the printed default; first-run setup then opens.
-   - Nothing in range: "No table nearby", and the app looks again every 15 s
-     for five minutes (`WifiScanAtlasScanner` reads Android's scan results;
-     Android throttles fresh scans).
-   - Without scan results (Android 12 or older, or the permission refused)
-     it only tries the saved table, and otherwise waits for Connect.
+   - No Wi-Fi scan. Spotting tables in range was tried first
+     (NEARBY_WIFI_DEVICES, `neverForLocation`), but on this Android scan
+     results need location permission (`WifiService`: "has no location
+     permission", zero results), and the owner chose not to ask for location
+     (2026-09-30).
    Connect still works as before. The address defaults to
    `http://192.168.4.1` and is under Advanced. For that address the app
    first joins Atlas's Wi-Fi itself (see "Targeted Wi-Fi" below); other

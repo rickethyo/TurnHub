@@ -31,7 +31,6 @@ import com.turnhub.android.data.HttpAtlasRepository
 import com.turnhub.android.data.HttpAtlasTransport
 import com.turnhub.android.data.PreferencesWifiCredentialStore
 import com.turnhub.android.data.TargetedAtlasWifiLink
-import com.turnhub.android.data.WifiScanAtlasScanner
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
@@ -57,33 +56,28 @@ class MainActivity : ComponentActivity() {
             wifiLink = wifiLink,
             credentialStore = PreferencesWifiCredentialStore(applicationContext),
             playerSession = playerSession,
-            scanner = WifiScanAtlasScanner(applicationContext),
         )
     }
 
-    // On launch: "Nearby devices" (local network on Android 17, Wi-Fi scan
-    // results on 13+; one prompt), then look for the table. Without scan
-    // results the app still rejoins a saved table, or waits for Connect.
-    private val launchPermissions =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-            if (results[Manifest.permission.ACCESS_LOCAL_NETWORK] == false) {
-                homeViewModel.onLocalNetworkPermissionDenied()
-            } else {
-                homeViewModel.onAppStarted()
-            }
+    // On launch: local network permission (Android 17), then rejoin the saved table.
+    private val launchPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) homeViewModel.onAppStarted() else homeViewModel.onLocalNetworkPermissionDenied()
         }
 
     private fun findTableOnLaunch() {
-        val wanted = buildList {
-            if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.NEARBY_WIFI_DEVICES)
-        }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
-        if (wanted.isEmpty()) homeViewModel.onAppStarted() else launchPermissions.launch(wanted.toTypedArray())
+        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK &&
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+        ) {
+            launchPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        } else {
+            homeViewModel.onAppStarted()
+        }
     }
 
     // Android 17 blocks local-network traffic (so every Atlas request would just
     // time out) until the user grants ACCESS_LOCAL_NETWORK ("Nearby devices").
-    // Asked for at the moment it's needed: when the user taps Connect.
+    // Asked on launch, and again here on Connect if it was refused then.
     private val localNetworkPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) homeViewModel.onConnectClicked() else homeViewModel.onLocalNetworkPermissionDenied()
@@ -179,7 +173,6 @@ class MainActivity : ComponentActivity() {
                         discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
                             onSearchAgain = homeViewModel::onSearchAgain,
                             onSetUpNewTable = homeViewModel::onSetUpNewTable,
-                            onNotNow = homeViewModel::onNewTableDismissed,
                         ),
                         gameActions = GameActions(
                             onControl = homeViewModel::onControl,
