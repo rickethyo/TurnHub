@@ -217,6 +217,8 @@ void updateTurnTimerCues(uint32_t nowMs);
 // --- table_intents.cpp -------------------------------------------------------
 
 IntentResult handleProfileParticipationIntent(const Intent &intent, void *);
+// Turn order in the lobby, from the Atlas touchscreen only (MoveSeat).
+IntentResult handleMoveSeatIntent(const Intent &intent, void *);
 IntentResult handleSeatMembershipIntent(const Intent &intent, void *);
 IntentResult handleSelectStarterIntent(const Intent &intent, void *);
 IntentResult handleStartIntent(const Intent &intent, void *);

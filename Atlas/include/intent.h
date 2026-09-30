@@ -81,12 +81,18 @@ enum class IntentType : uint8_t {
   // for a stuck turn. Logged as a master pass (ATLAS|GAME|MASTER_PASS).
   MasterPass,
   // A player chose a profile in a Sigil's profile picker (payload.profileId;
-  // actor = that Sigil, slot 1). Checks the profile's physical-use policy,
-  // then joins or attaches it like BindProfile.
+  // actor = that Sigil, slot 1 for seat A or slot 2 to add seat B). Checks
+  // the profile's physical-use policy, then joins or attaches it like
+  // BindProfile.
   PickProfile,
 
   // Presence-verified Admin: payload.value = paired Sigil ID.
   UpdateSigil,
+
+  // Turn order, from the Atlas touchscreen in the lobby only (any player may):
+  // payload.targetPlayer = a lobby seat, payload.value = -1 (earlier) or +1
+  // (later). The seat's whole Sigil or phone moves, seat B with seat A.
+  MoveSeat,
 
   Count,
 };
@@ -246,6 +252,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::MasterPass: return "MASTER_PASS";
     case IntentType::PickProfile: return "PICK_PROFILE";
     case IntentType::UpdateSigil: return "UPDATE_SIGIL";
+    case IntentType::MoveSeat: return "MOVE_SEAT";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

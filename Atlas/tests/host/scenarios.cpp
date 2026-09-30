@@ -2180,9 +2180,36 @@ static void touchControls() {
       screenButton(s,TouchAction::OpenInfo));
   tapButton(TouchAction::CloseScreen);
 
+  // Playtest 2026-09-29 item 11: in the lobby a chip opens that seat's turn
+  // order; any player may move it, from the Atlas screen only.
+  enterEmptyLobby(); freshLobby(3);
+  {
+    PlayerSeat seats[3]; lobby.buildPlayers(seats,3);
+    const uint8_t mover=seats[2].controllerId;
+    int16_t cx,cy,cw,ch; screenChipCell(2,3,cx,cy,cw,ch);
+    touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    s=currentScreen();
+    assert(s.kind==ScreenKind::Player && String(s.badge)=="ORDER" && startsWith(s.detail,"Turn order: 3 of 3") &&
+        screenButton(s,TouchAction::MoveEarlier) && screenButton(s,TouchAction::MoveLater) &&
+        !screenButton(s,TouchAction::Concede));
+    tapButton(TouchAction::MoveEarlier);
+    assert(lobby.playerNumber(mover)==2 && startsWith(currentScreen().detail,"Turn order: 2 of 3"));
+    tapButton(TouchAction::MoveEarlier); assert(lobby.playerNumber(mover)==1);
+    tapButton(TouchAction::MoveEarlier);
+    assert(lobby.playerNumber(mover)==1 && startsWith(currentScreen().notice,"Already first"));
+    Intent fromPhone; fromPhone.type=IntentType::MoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
+    fromPhone.payload.targetPlayer=1; fromPhone.payload.value=1;
+    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && lobby.playerNumber(mover)==1);
+    tapButton(TouchAction::CloseScreen);
+    // The new order is the game's turn order.
+    startFromHost(); assert(game.playerAt(0)->controllerId==mover);
+    Intent late; late.type=IntentType::MoveSeat; late.actor.origin=IntentOrigin::AtlasHardware;
+    late.payload.targetPlayer=1; late.payload.value=1;
+    assert(intents.dispatch(late).status==IntentStatus::InvalidState);
+  }
+
   // A confirmed concession from the Player screen goes through Concede: the
   // player is out, the match goes on, and their screen closes.
-  enterEmptyLobby(); freshLobby(3); startFromHost();
   {
     const uint8_t third=game.playerAt(2)->playerNumber;
     int16_t cx,cy,cw,ch; screenChipCell(2,game.playerCount(),cx,cy,cw,ch);

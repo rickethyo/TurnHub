@@ -47,11 +47,12 @@ uint32_t noticeAtMs = 0;
 // Which screen is up, and the QR code chosen on the QR screen.
 ScreenKind openScreen = ScreenKind::Status;
 TouchAction qrChoice = TouchAction::QrPortal;
-// The Player screen: whose it is, and whether Concede is waiting for its
-// confirmation. pressedPlayer is the chip under the finger.
-uint8_t shownPlayer = 0;
+// The Player screen: whose it is (by controller and slot, since lobby player
+// numbers change with the turn order), and whether Concede is waiting for
+// its confirmation. pressedSeat is the chip under the finger.
+PlayerSeat shownSeat;
 bool concedeArmed = false;
-uint8_t pressedPlayer = 0;
+PlayerSeat pressedSeat;
 
 struct NameCache {
   char profileId[9] = {};
@@ -143,11 +144,41 @@ uint8_t waitingPairSlot() {
 // pairing code waiting to be checked. The Table
 // screen belongs to a match and closes when it ends; the Menu closes when
 // a game starts.
+// The chips on the status screen, in the order they are drawn: the lobby's
+// seats, or the match's players while one is in progress.
+uint8_t chipSeats(PlayerSeat *out) {
+  if (hubState == HubState::Lobby) return lobby.buildPlayers(out, MAX_SCREEN_PLAYERS);
+  if (!matchInProgress()) return 0;
+  const uint8_t count = game.playerCount() < MAX_SCREEN_PLAYERS ? game.playerCount() : MAX_SCREEN_PLAYERS;
+  for (uint8_t i = 0; i < count; ++i) out[i] = *game.playerAt(i);
+  return count;
+}
+
+bool sameSeat(const PlayerSeat &a, const PlayerSeat &b) {
+  return a.controllerId == b.controllerId && a.slot == b.slot;
+}
+
+// The shown seat as it is now (its current player number), if it still
+// plays: at the table in the lobby, or not out in a match.
+bool currentShownSeat(PlayerSeat &seat) {
+  if (hubState != HubState::Lobby && !matchInProgress()) return false;
+  PlayerSeat seats[MAX_SCREEN_PLAYERS];
+  const uint8_t count = chipSeats(seats);
+  for (uint8_t i = 0; i < count; ++i) {
+    if (!sameSeat(seats[i], shownSeat)) continue;
+    if (hubState != HubState::Lobby && game.isEliminated(seats[i].playerNumber)) return false;
+    seat = seats[i];
+    return true;
+  }
+  return false;
+}
+
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
-  // A player's screen closes with the match or once that player is out.
-  if (openScreen == ScreenKind::Player && (!matchInProgress() ||
-      game.playerByNumber(shownPlayer) == nullptr || game.isEliminated(shownPlayer))) {
+  // A player's screen closes when the lobby or match it belongs to ends, or
+  // once that player is out.
+  PlayerSeat shown;
+  if (openScreen == ScreenKind::Player && !currentShownSeat(shown)) {
     openScreen = ScreenKind::Status;
     concedeArmed = false;
   }
@@ -189,6 +220,15 @@ void layoutTable(AtlasScreen &screen) {
 // Concede and Back below. Concede never acts on one touch or on a hold
 // alone: it asks again with Concede / Cancel.
 void layoutPlayer(AtlasScreen &screen) {
+  // Lobby: turn order (item 11). Earlier and Later, then Back.
+  if (hubState == HubState::Lobby) {
+    const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
+        {TouchAction::MoveLater, "Later", 0, 1}};
+    addRow(screen, BUTTON_UPPER_ROW_Y, upper, 2);
+    const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+    addRow(screen, BUTTON_ROW_Y, lower, 1);
+    return;
+  }
   if (concedeArmed) {
     const ButtonSpec lower[] = {{TouchAction::ConfirmConcede, "Concede", 0, 3},
         {TouchAction::CancelConcede, "Cancel", 0, 2}};
@@ -202,14 +242,15 @@ void layoutPlayer(AtlasScreen &screen) {
   addRow(screen, BUTTON_ROW_Y, lower, 2);
 }
 
-// The chip of `player` on the status screen during a match, as a touch
-// target (chips are drawn as chips, not buttons).
-bool chipButton(uint8_t player, uint32_t nowMs, TouchButton &out) {
-  if (player == 0 || activeScreen(nowMs) != ScreenKind::Status || !matchInProgress()) return false;
-  const uint8_t count = game.playerCount() < MAX_SCREEN_PLAYERS ? game.playerCount() : MAX_SCREEN_PLAYERS;
+// The chip of `seat` on the status screen, as a touch target (chips are
+// drawn as chips, not buttons). Eliminated players' chips open nothing.
+bool chipButton(const PlayerSeat &seat, uint32_t nowMs, TouchButton &out) {
+  if (seat.controllerId == INVALID_ID || activeScreen(nowMs) != ScreenKind::Status) return false;
+  PlayerSeat seats[MAX_SCREEN_PLAYERS];
+  const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
-    const PlayerSeat *seat = game.playerAt(i);
-    if (seat == nullptr || seat->playerNumber != player) continue;
+    if (!sameSeat(seats[i], seat)) continue;
+    if (hubState != HubState::Lobby && game.isEliminated(seats[i].playerNumber)) return false;
     out = TouchButton();
     out.action = TouchAction::OpenPlayer;
     screenChipCell(i, count, out.x, out.y, out.w, out.h);
@@ -218,20 +259,18 @@ bool chipButton(uint8_t player, uint32_t nowMs, TouchButton &out) {
   return false;
 }
 
-// The living player whose chip is at (x, y), or 0.
-uint8_t chipAt(int16_t x, int16_t y, uint32_t nowMs) {
-  if (activeScreen(nowMs) != ScreenKind::Status || !matchInProgress()) return 0;
-  const uint8_t count = game.playerCount() < MAX_SCREEN_PLAYERS ? game.playerCount() : MAX_SCREEN_PLAYERS;
+// The seat whose chip is at (x, y), if any.
+bool chipAt(int16_t x, int16_t y, uint32_t nowMs, PlayerSeat &found) {
+  PlayerSeat seats[MAX_SCREEN_PLAYERS];
+  const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
-    const PlayerSeat *seat = game.playerAt(i);
     TouchButton chip;
-    if (seat == nullptr || game.isEliminated(seat->playerNumber) ||
-        !chipButton(seat->playerNumber, nowMs, chip)) {
-      continue;
+    if (chipButton(seats[i], nowMs, chip) && chip.contains(x, y)) {
+      found = seats[i];
+      return true;
     }
-    if (chip.contains(x, y)) return seat->playerNumber;
   }
-  return 0;
+  return false;
 }
 
 // The buttons for the open screen and the table state.
@@ -317,7 +356,7 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
 const TouchButton *currentButton(TouchAction action, AtlasScreen &layout, uint32_t nowMs) {
   if (action == TouchAction::OpenPlayer) {
     static TouchButton chip;
-    return chipButton(pressedPlayer, nowMs, chip) ? &chip : nullptr;
+    return chipButton(pressedSeat, nowMs, chip) ? &chip : nullptr;
   }
   layoutButtons(layout, nowMs);
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
@@ -332,8 +371,8 @@ TouchAction buttonAt(int16_t x, int16_t y, uint32_t nowMs) {
   for (uint8_t i = 0; i < layout.buttonCount; ++i) {
     if (layout.buttons[i].contains(x, y)) return layout.buttons[i].action;
   }
-  pressedPlayer = chipAt(x, y, nowMs);
-  return pressedPlayer != 0 ? TouchAction::OpenPlayer : TouchAction::None;
+  pressedSeat = PlayerSeat();
+  return chipAt(x, y, nowMs, pressedSeat) ? TouchAction::OpenPlayer : TouchAction::None;
 }
 
 const char *actionName(TouchAction action) {
@@ -375,6 +414,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::Concede: return "CONCEDE_ASK";
     case TouchAction::ConfirmConcede: return "CONCEDE";
     case TouchAction::CancelConcede: return "CONCEDE_CANCEL";
+    case TouchAction::MoveEarlier: return "MOVE_EARLIER";
+    case TouchAction::MoveLater: return "MOVE_LATER";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -420,7 +461,7 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::OpenPlayer:
       openScreen = ScreenKind::Player;
-      shownPlayer = pressedPlayer;
+      shownSeat = pressedSeat;
       concedeArmed = false;
       return true;
     // Concede asks again; only ConfirmConcede sends the Intent.
@@ -508,21 +549,21 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::LifePlus1:
     case TouchAction::LifePlus5:
     case TouchAction::ConfirmConcede: {
-      const PlayerSeat *seat = game.playerByNumber(shownPlayer);
-      if (seat == nullptr) {
+      PlayerSeat seat;
+      if (!currentShownSeat(seat) || hubState == HubState::Lobby) {
         result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
         break;
       }
       Intent intent;
       intent.actor.origin = IntentOrigin::AtlasHardware;
-      intent.actor.controllerId = seat->controllerId;
-      intent.actor.slot = seat->slot;
-      intent.actor.playerNumber = seat->playerNumber;
+      intent.actor.controllerId = seat.controllerId;
+      intent.actor.slot = seat.slot;
+      intent.actor.playerNumber = seat.playerNumber;
       if (action == TouchAction::ConfirmConcede) {
         intent.type = IntentType::Concede;
       } else {
         intent.type = IntentType::ChangeLife;
-        intent.payload.targetPlayer = seat->playerNumber;
+        intent.payload.targetPlayer = seat.playerNumber;
         intent.payload.value = action == TouchAction::LifeMinus5 ? -5 : action == TouchAction::LifeMinus1 ? -1
             : action == TouchAction::LifePlus1 ? 1 : 5;
       }
@@ -531,6 +572,22 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         concedeArmed = false;
         if (result.accepted()) openScreen = ScreenKind::Status;
       }
+      break;
+    }
+    // Turn order in the lobby: the table device asks, the handler decides.
+    case TouchAction::MoveEarlier:
+    case TouchAction::MoveLater: {
+      PlayerSeat seat;
+      if (!currentShownSeat(seat)) {
+        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
+        break;
+      }
+      Intent intent;
+      intent.type = IntentType::MoveSeat;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.payload.targetPlayer = seat.playerNumber;
+      intent.payload.value = action == TouchAction::MoveEarlier ? -1 : 1;
+      result = intents.dispatch(intent);
       break;
     }
     // A test plays through the harness's own Sigils and Atlas's normal handlers.
@@ -923,18 +980,24 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
 // One player's screen: their name, and their life in words (or the
 // concession question).
 void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
-  const PlayerSeat *seat = game.playerByNumber(shownPlayer);
-  if (seat == nullptr) return;
-  snprintf(screen.badge, sizeof(screen.badge), "PLAYER");
+  PlayerSeat seat;
+  if (!currentShownSeat(seat)) return;
+  const bool inLobby = hubState == HubState::Lobby;
+  snprintf(screen.badge, sizeof(screen.badge), inLobby ? "ORDER" : "PLAYER");
   char name[SCREEN_NAME_LENGTH + 1];
-  playerName(*seat, profileIdForTableSeat(*seat, true), nowMs, name);
+  playerName(seat, profileIdForTableSeat(seat, !inLobby), nowMs, name);
   snprintf(screen.title, sizeof(screen.title), "%s", name);
-  if (concedeArmed) {
+  if (inLobby) {
+    // Seat B moves with its Sigil's seat A; say so where it applies.
+    snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u%s",
+        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(lobby.playerCount()),
+        lobby.hasSecondary(seat.controllerId) ? ", with its Sigil" : "");
+  } else if (concedeArmed) {
     snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
   } else {
     snprintf(screen.detail, sizeof(screen.detail), "Life %ld%s",
-        static_cast<long>(game.lifeTotal(seat->playerNumber)),
-        game.activePlayerNumber() == seat->playerNumber ? ", their turn" : "");
+        static_cast<long>(game.lifeTotal(seat.playerNumber)),
+        game.activePlayerNumber() == seat.playerNumber ? ", their turn" : "");
   }
 }
 
@@ -1025,7 +1088,7 @@ void resetTouchControls() {
   noticeText[0] = '\0';
   openScreen = ScreenKind::Status;
   qrChoice = TouchAction::QrPortal;
-  shownPlayer = pressedPlayer = 0;
+  shownSeat = pressedSeat = PlayerSeat();
   concedeArmed = false;
   for (auto &cache : names) cache = NameCache();
 }

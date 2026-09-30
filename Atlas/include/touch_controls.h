@@ -57,7 +57,9 @@ enum class TouchAction : uint8_t {
   PairConfirm, PairReject,
   // In a game: tap a player's chip for that player's screen, which changes
   // their life (ChangeLife) and concedes for them (Concede, asked twice).
-  OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede, ConfirmConcede, CancelConcede
+  OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede, ConfirmConcede, CancelConcede,
+  // In the lobby, the same screen sets turn order (MoveSeat).
+  MoveEarlier, MoveLater
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -65,7 +67,8 @@ enum class TouchAction : uint8_t {
 // Menu: the between-games extras (Pair, QR codes, Tests, Info) kept off the
 // lobby's main row.
 // PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
-// Player: one player's life and Concede, from their chip (in a game).
+// Player: one player's screen, from their chip: life and Concede in a game,
+// turn order in the lobby.
 enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player };
 
 struct TouchButton {

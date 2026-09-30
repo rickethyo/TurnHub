@@ -110,6 +110,17 @@ bool Lobby::replaceController(uint8_t oldController, uint8_t newController) {
   return true;
 }
 
+bool Lobby::moveController(uint8_t controllerId, int8_t direction) {
+  const int index = joinedIndex(controllerId);
+  if (index < 0 || (direction != -1 && direction != 1)) return false;
+  const int other = index + direction;
+  if (other < 0 || other >= joinedCount_) return false;
+  joinedOrder_[index] = joinedOrder_[other];
+  joinedOrder_[other] = controllerId;
+  clearStartArm();
+  return true;
+}
+
 uint8_t Lobby::buildPlayers(PlayerSeat *out, uint8_t capacity) const {
   if (out == nullptr || capacity == 0) {
     return 0;

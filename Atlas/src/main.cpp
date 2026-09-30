@@ -263,6 +263,7 @@ bool configureIntentHandlers() {
       {IntentType::ResetTable, handleResetTableIntent},
       {IntentType::FactoryReset, handleFactoryResetIntent},
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
+      {IntentType::MoveSeat, handleMoveSeatIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {

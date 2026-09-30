@@ -30,6 +30,10 @@ class Lobby {
   bool replaceController(uint8_t oldController, uint8_t newController);
   // Adds or removes seat B; reports which and the affected seat.
   bool toggleSecondary(uint8_t controllerId, bool &added, PlayerSeat &affected);
+  // Turn order: moves a joined controller (its seat B with it) one place
+  // earlier (-1) or later (+1). Player numbers follow the new order; the
+  // chosen starter stays the same seat. False at either end.
+  bool moveController(uint8_t controllerId, int8_t direction);
 
   // 0 when that seat is not at the table.
   uint8_t playerNumber(uint8_t controllerId, uint8_t slot = 1) const;
