@@ -1,0 +1,23 @@
+﻿# Pixel Fold, TurnHub app crash at the end of first-run setup (Finish with a new Wi-Fi password), 2026-09-30.
+# The repeated reconnectAfterRestart(HomeViewModel.kt:84) frames are condensed to one.
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: FATAL EXCEPTION: main
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: Process: com.turnhub.android, PID: 7640
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: java.lang.StackOverflowError: stack size 8188KB
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: 	at com.turnhub.android.ui.home.HomeViewModel$setupAssistant$1.reconnectAfterRestart(HomeViewModel.kt:84)
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: 	at com.turnhub.android.ui.home.HomeViewModel$setupAssistant$1.reconnectAfterRestart(HomeViewModel.kt:84)
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: 	at com.turnhub.android.ui.home.HomeViewModel$setupAssistant$1.reconnectAfterRestart(HomeViewModel.kt:84)
+        ... (same frame repeated until the stack overflowed) ...
+09-30 11:28:34.838  7640  7640 E AndroidRuntime: java.lang.StackOverflowError: stack size 8188KB
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at com.turnhub.android.data.AtlasSetupAssistant$finish$2.invokeSuspend(AtlasSetupAssistant.kt:325)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:1082)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at android.os.Handler.dispatchMessageImpl(Handler.java:135)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:126)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:295)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:398)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:9569)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:575)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:918)
+09-30 11:28:34.910  7640  7640 E AndroidRuntime: 	Suppressed: kotlinx.coroutines.internal.DiagnosticCoroutineContextException: [StandaloneCoroutine{Cancelling}@17cecb3, Dispatchers.Main.immediate]

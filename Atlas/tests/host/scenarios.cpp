@@ -2580,6 +2580,7 @@ static void firstRunSetup() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configureSetup([]() { return static_cast<uint8_t>(setupStage); });
   const String previousPrimary=TurnHubAccounts::primary;
+  const bool previousRadio=TurnHub::fixtureRadio;
   freshLobby(2); resetPresence(); resetTouchControls(); testNow+=1000; pairingActive=false;
   Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
 
@@ -2654,10 +2655,12 @@ static void firstRunSetup() {
   enterEmptyLobby();
 
   // Step 4, finish: the password is stored, the stage saved, Atlas restarts.
+  TurnHub::fixtureRadio=false;  // No Sigils paired: "You're all set" says to pair them.
   assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==200);
   assert(server.body.find("\"restarting\":true")!=std::string::npos);
   assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
   assert(Preferences::strings()[AtlasConfig::WIFI_PREF_KEY]=="table-pass-1");
+  TurnHub::fixtureRadio=previousRadio;
   assert(request("/api/setup/finish",owner,{{"password","table-pass-2"}})==409);
   assert(request("/api/setup","",{},HTTP_GET)==200 && server.body.find("\"stage\":\"finished\"")!=std::string::npos &&
       server.body.find("\"passwordIsDefault\":false")!=std::string::npos &&
@@ -2682,6 +2685,23 @@ static void firstRunSetup() {
   assert(intents.dispatch(advance).status==IntentStatus::InvalidState);
   openMenuScreen(); assert(!screenButton(currentScreen(),TouchAction::OpenSetup));
   tapButton(TouchAction::CloseScreen);
+
+  // Sigils paired during the phone's steps: nothing is left for "You're all
+  // set" to say, so finishing goes straight to Complete. The test harness
+  // alone doesn't count as a Sigil.
+  TurnHub::fixtureRadio=true;
+  TurnHub::SigilRecord savedRecords[MAX_PHYSICAL_SIGILS]; memcpy(savedRecords,TurnHub::fixtureRecords,sizeof(savedRecords));
+  for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=true; record.capabilities=TurnHubProtocol::CAPABILITY_HARNESS; }
+  setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-3"}})==200);
+  assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
+  TurnHub::fixtureRecords[1].capabilities=TurnHubProtocol::CAPABILITY_MENU;
+  setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-3"}})==200);
+  assert(server.body.find("\"restarting\":true")!=std::string::npos);
+  assert(setupStage==SetupStage::Complete && TurnHub::fixtureSetupStageSaved==2);
+  assert(currentScreen().kind==ScreenKind::Status);
+  memcpy(TurnHub::fixtureRecords,savedRecords,sizeof(savedRecords)); TurnHub::fixtureRadio=previousRadio;
 
   assert(request("/api/session/logout",owner)==200 && request("/api/session/logout",guest)==200);
   // The fixture's profile store is small; later scenarios need the room.

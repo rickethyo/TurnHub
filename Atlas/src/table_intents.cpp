@@ -948,6 +948,16 @@ void beginFirstRunSetup() {
   serialLog.println(TurnHub::setupStageName(setupStage));
 }
 
+// A real Sigil (not the test harness) is already paired, e.g. during the
+// phone's Sigils step.
+static bool sigilPaired() {
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    const TurnHub::SigilRecord *record = sigilBus.record(id);
+    if (record != nullptr && (record->capabilities & TurnHubProtocol::CAPABILITY_HARNESS) == 0) return true;
+  }
+  return false;
+}
+
 // Payload: value = the next SetupStage. Stages only move forward; a factory
 // reset is the way back to Welcome.
 IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
@@ -955,7 +965,7 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
   if (!TurnHub::validSetupStage(intent.payload.value)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown setup step");
   }
-  const SetupStage next = static_cast<SetupStage>(intent.payload.value);
+  SetupStage next = static_cast<SetupStage>(intent.payload.value);
   if (next == SetupStage::Finished) {
     // The phone's last step: an Admin at the table who has replaced the
     // shipped Wi-Fi password. Atlas restarts afterwards, so not mid-match.
@@ -976,6 +986,9 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
     if (!TurnHub::validWifiPassword(password) || password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
       return IntentResult::reject(IntentStatus::Rejected, "Choose the table's own Wi-Fi password first");
     }
+    // "You're all set" exists to say "Next: pair your Sigils". With Sigils
+    // already paired there is nothing left to say (owner, 2026-09-30).
+    if (sigilPaired()) next = SetupStage::Complete;
   } else if (next == SetupStage::Complete) {
     // "You're all set" acknowledged at the table, or by an Admin.
     if (intent.actor.origin != IntentOrigin::AtlasHardware && !adminIntent(intent)) {
