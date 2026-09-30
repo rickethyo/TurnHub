@@ -54,8 +54,10 @@ Android app, "Set up this table" (one step per screen, "Step n of 4"):
   1. Your account   create one (name + PIN) or sign in to an existing one
   2. At the table   Atlas shows a six-digit code; type it on the phone.
                     That makes this account the Admin.
-  3. Secure Wi-Fi   choose the table's own Wi-Fi password (8-63 characters)
-  4. Finish         Atlas saves it, marks setup finished and restarts
+  3. Updates       the app compares Atlas's firmware with the latest GitHub
+                    release; if newer: Install now (recommended) or Later
+  4. Secure Wi-Fi   choose the table's own Wi-Fi password (8-63 characters);
+                    Finish saves it, marks setup finished and restarts Atlas
 
 Atlas restarts, setup stage = Finished
   Atlas screen: "You're all set"
@@ -68,6 +70,35 @@ After Connect, the app reads `GET /api/setup`. While the stage is Welcome it
 opens the setup steps instead of the table view. After the restart, the app
 rejoins with the password it just set (it saves it, like any password it
 used), so the owner doesn't retype it.
+
+## Checking for updates during setup
+
+Owner, 2026-09-30: check for updates during setup, with GitHub hosting the
+firmware "at least for now". This reuses the Sigil OTA delivery design
+([Sigil OTA](SIGIL_OTA.md), "Release feed" and "App delivery"):
+
+- **Host:** GitHub Releases on the public `rickethyo/TurnHub` repository. A
+  `v*` tag runs `release.yml`, which builds, signs and publishes the `.thfw`
+  packages and `turnhub-firmware.json`. The app reads
+  `https://github.com/rickethyo/TurnHub/releases/latest/download/turnhub-firmware.json`
+  with no token (public repository). Moving to another host later only
+  changes that URL. *Planned:* no release has been published yet, so until
+  the first one the step reports "no release published yet" and moves on.
+- **Where in setup:** after the table code, because installing needs a
+  verified Admin. It comes before the Wi-Fi password, so an Atlas restart for
+  the update still uses the printed password and the app reconnects by
+  itself. Sigils aren't paired yet during setup, so only Atlas is offered.
+  Sigils update later from the normal Updates screen.
+- **Internet:** the app joins Atlas with a network specifier, which leaves
+  the phone's own internet as the default network, so the feed and package
+  download go over the phone's connection while the install goes to Atlas.
+  With no internet, the step says so and offers Skip; setup never depends on
+  it.
+- **Trust:** the app checks each download's size and SHA-256 against the
+  feed; Atlas checks the package signature itself on `/api/firmware` and
+  refuses anything unsigned or for another board. A tampered feed can only
+  point at a package that fails those checks.
+- **Never forced:** Later always works; an out-of-date Atlas still plays.
 
 ## Setup stages
 
@@ -139,6 +170,10 @@ simply runs again: sign in, verify, re-enter a password.
       drawing in `atlas_art.cpp`, host scenarios.
 - [ ] `GET /api/setup`, `POST /api/setup/finish`.
 - [ ] Android: `AtlasSetup` client + setup flow UI after Connect, JVM tests.
+- [ ] Android: release feed reader, Atlas update step (download over the
+      phone's network, size/SHA-256 check, upload to `/api/firmware`).
+- [ ] Owner: publish a first signed GitHub release (tag `v*`) so the step
+      has something to find; needs the `TURNHUB_FIRMWARE_SIGNING_KEY` secret.
 - [ ] Source lists: `run.cmd`, `run-gcc.ps1`, `run-linux.sh`, host README.
 - [ ] Host suite green; firmware build through CI (`gh workflow run ci.yml`).
 - [ ] Docs: OOBE.md, STAGED_CHANGES.md, user manual note, size history.
