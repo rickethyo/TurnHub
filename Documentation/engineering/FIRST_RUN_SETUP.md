@@ -202,9 +202,9 @@ simply runs again: sign in, verify, re-enter a password.
 - [x] Firmware build through CI on this branch: run 36679680047, all jobs
       green (every firmware environment, Linux host tests, Android).
 - [ ] Portal: the same steps on the same endpoints (after the app).
-- [ ] Owner: publish a first signed GitHub release (tag `v*`) so the update
-      step has something to find; needs the `TURNHUB_FIRMWARE_SIGNING_KEY`
-      secret.
+- [x] First signed GitHub release: `v0.9.1` (2026-09-30, run 36784495173):
+      Atlas 0.6.1, Sigils 0.9.1, protocol 3. The feed is live at the
+      `releases/latest` URL above.
 - [ ] User manual: a "Setting up a new table" section (not written yet).
 - [x] Size history snapshot (SIZE_AND_CHANGE_HISTORY.md).
 - Later: Atlas name.
