@@ -50,13 +50,16 @@ Atlas powers on, setup stage = Welcome
        password TurnHub-Setup, then 192.168.4.1
     [Skip for now] [Menu]
 
-Android app, "Set up this table" (one step per screen, "Step n of 4"):
+Android app, "Set up this table" (one step per screen, "Step n of 5"):
   1. Your account   create one (name + PIN) or sign in to an existing one
   2. At the table   Atlas shows a six-digit code; type it on the phone.
                     That makes this account the Admin.
-  3. Updates       the app compares Atlas's firmware with the latest GitHub
-                    release; if newer: Install now (recommended) or Later
-  4. Secure Wi-Fi   choose the table's own Wi-Fi password (8-63 characters);
+  3. Sigils         pair each Sigil (the usual code check on the Atlas
+                    screen); "I have no Sigils yet" skips it
+  4. Updates        one prompt for every device: Atlas and each paired Sigil,
+                    running and available versions. Install all (recommended)
+                    or Later. Atlas first, then the Sigils one at a time.
+  5. Secure Wi-Fi   choose the table's own Wi-Fi password (8-63 characters);
                     Finish saves it, marks setup finished and restarts Atlas
 
 Atlas restarts, setup stage = Finished
@@ -84,11 +87,16 @@ firmware "at least for now". This reuses the Sigil OTA delivery design
   with no token (public repository). Moving to another host later only
   changes that URL. *Planned:* no release has been published yet, so until
   the first one the step reports "no release published yet" and moves on.
-- **Where in setup:** after the table code, because installing needs a
-  verified Admin. It comes before the Wi-Fi password, so an Atlas restart for
-  the update still uses the printed password and the app reconnects by
-  itself. Sigils aren't paired yet during setup, so only Atlas is offered.
-  Sigils update later from the normal Updates screen.
+- **Where in setup:** after the table code (installing needs a verified
+  Admin) and after pairing, so one prompt updates every device and gets it
+  out of the way (owner, 2026-09-30: "update all devices at the same time
+  initially ... if the user accepts the update prompt"). Atlas updates first
+  and the app waits for it to come back, then each Sigil in turn (the Sigil
+  OTA order). All of it comes before the Wi-Fi password, so every restart
+  still uses the printed password and the app reconnects by itself. Atlas
+  sessions and table verification are RAM-only, so after Atlas restarts the
+  app signs in again with the PIN from step 1 and asks for one new table code
+  before updating the Sigils.
 - **Internet:** the app joins Atlas with a network specifier, which leaves
   the phone's own internet as the default network, so the feed and package
   download go over the phone's connection while the install goes to Atlas.
@@ -170,8 +178,12 @@ simply runs again: sign in, verify, re-enter a password.
       drawing in `atlas_art.cpp`, host scenarios.
 - [ ] `GET /api/setup`, `POST /api/setup/finish`.
 - [ ] Android: `AtlasSetup` client + setup flow UI after Connect, JVM tests.
-- [ ] Android: release feed reader, Atlas update step (download over the
-      phone's network, size/SHA-256 check, upload to `/api/firmware`).
+- [ ] Android: Sigil pairing step (watch `/api/devices`, the Atlas screen
+      does the code check).
+- [ ] Android: release feed reader and the all-devices update step
+      (download over the phone's network, size/SHA-256 check, Atlas through
+      `/api/firmware`, then each Sigil through the existing Sigil update
+      routes).
 - [ ] Owner: publish a first signed GitHub release (tag `v*`) so the step
       has something to find; needs the `TURNHUB_FIRMWARE_SIGNING_KEY` secret.
 - [ ] Source lists: `run.cmd`, `run-gcc.ps1`, `run-linux.sh`, host README.
