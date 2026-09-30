@@ -86,9 +86,6 @@ class SigilBus {
   bool sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet);
   bool sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &packet);
 
-  bool setBlue(uint8_t sigilId, uint8_t brightness);
-  bool setRed(uint8_t sigilId, bool on);
-  bool setGreen(uint8_t sigilId, bool on);
   bool buzzer(uint8_t sigilId, int32_t value);
 
   bool send(

@@ -29,12 +29,10 @@ class LedRenderer {
   void invalidate(uint8_t sigilId);
   void invalidateAll();
 
-  // The one presentation/config boundary: swap styles without game changes.
-  // setProfile() styles every Sigil; the per-Sigil overload applies one
-  // player's accessibility choice (profiles must outlive the renderer).
-  void setProfile(const LedCueProfile &profile);
-  void setProfile(uint8_t sigilId, const LedCueProfile &profile);
-  const LedCueProfile &profile(uint8_t sigilId = 0) const;
+  // The seated player's accessibility style for one Sigil's light, sent with
+  // every LedState; the Sigil draws it.
+  void setStyle(uint8_t sigilId, TurnHubProtocol::LedStyle style);
+  TurnHubProtocol::LedStyle style(uint8_t sigilId) const;
 
   void render(
       HubState state,
@@ -60,13 +58,6 @@ class LedRenderer {
   };
 
   struct Cache {
-    bool blueValid = false;
-    bool redValid = false;
-    bool greenValid = false;
-    uint8_t blue = 0;
-    bool red = false;
-    bool green = false;
-    uint32_t lastBlueTxMs = 0;
     bool ledStateValid = false;
     uint32_t ledStateKey = 0;
     bool clockValid = false;  // TableClock reached the Sigil; resent every interval.
@@ -76,9 +67,7 @@ class LedRenderer {
     TurnHubProtocol::GameDisplayPacket gameDisplay{};
   };
 
-  void set(uint8_t sigilId, const LedLevels &levels, uint32_t nowMs);
-  // Sigils with CAPABILITY_LED_STATE render cues themselves: one packet per
-  // change instead of the per-frame channel stream.
+  // One LedState packet per change; the Sigil draws the cue.
   void sendLedState(uint8_t sigilId, const SigilLedState &cue, uint32_t nowMs);
   void syncDisplay(
       uint8_t sigilId,
@@ -89,7 +78,7 @@ class LedRenderer {
       uint8_t winConfirmationPlayer);
 
   SigilBus &bus_;
-  const LedCueProfile *profiles_[MAX_PHYSICAL_SIGILS];
+  TurnHubProtocol::LedStyle styles_[MAX_PHYSICAL_SIGILS];
   Cache cache_[MAX_PHYSICAL_SIGILS];
   SeatFocus focus_[MAX_PHYSICAL_SIGILS];
 };

@@ -1,25 +1,8 @@
-// Physical Sigil adapter. Translates ESP-NOW button events into Intents and
-// keeps the transport-local gesture bookkeeping (held, chord and suppression
-// flags) that decides which Intent a press means. It never mutates canonical
-// table state directly; audit_adapters.py enforces that.
-//
-// Gesture map ("win hold" is Sigil's 5 s ActionWin hold):
-//   Lobby     Action short: join, then cycle starter  Action long: arm start
-//             release after arming: start (host)      Action + PASS: toggle seat B
-//             PASS: random starter (host)             win hold while armed: reset
-//   Starting  Action down: cancel the countdown
-//   Running   PASS: queue/cancel a pass               Action down: cancel queued pass
-//             Action long: pause and arm a win claim
-//   Paused    Action long: resume / cancel elimination
-//             Action + PASS: begin elimination        PASS: eliminate selection
-//             Action short: cycle elimination         win hold: claim win (armed)
-//   Win claim Action short: confirm                   PASS: deny
-//   GameOver  Action short: rematch (host)            Action long: reset (host)
-//
-// Menu Sigils (CAPABILITY_MENU) send SelectAction instead: the player picks
-// from the actions sigil_menu.cpp offered, and handleSelectAction dispatches
-// the same Intents the gestures above would.
-
+// Physical Sigil adapter. Translates ESP-NOW events into Intents: every Sigil
+// picks from the action menu Atlas offers (sigil_menu.cpp) and sends
+// SelectAction, and its Left/Right keys send LifeAdjust and LifeResponse. The
+// adapter never mutates canonical table state directly; audit_adapters.py
+// enforces that.
 #include "atlas_app.h"
 #include "sigil_update_service.h"
 #include "controller_profiles.h"
@@ -36,14 +19,6 @@ namespace TurnHubAtlas {
 
 namespace {
 
-// Released Action presses are ignored this long after they canceled a PASS,
-// so the canceling press does not also trigger its own gesture.
-constexpr uint32_t ACTION_CANCEL_RELEASE_CLEAR_MS = 250;
-
-bool eliminationChord[MAX_PHYSICAL_SIGILS] = {};
-bool suppressEliminationShort[MAX_PHYSICAL_SIGILS] = {};
-bool suppressActionAfterPassCancel[MAX_PHYSICAL_SIGILS] = {};
-uint32_t suppressActionReleasedAtMs[MAX_PHYSICAL_SIGILS] = {};
 
 // ATLAS|<prefix>|REJECTED|<sigil>|<message>
 void logRejected(const char *prefix, uint8_t sigilId, const IntentResult &result) {
@@ -75,8 +50,8 @@ void dispatchPauseOrResume(uint8_t sigilId, IntentType type) {
     serialLog.println(sigilId);
     return;
   }
-  const uint32_t flags = type == IntentType::Pause ? TurnHub::ARM_WIN_ON_PAUSE : 0;
-  const IntentResult result = dispatchSeatIntent(type, IntentOrigin::PhysicalSigil, actor, flags);
+  const IntentResult result = dispatchSeatIntent(type, IntentOrigin::PhysicalSigil, actor);
+
   if (!result.accepted()) {
     serialLog.print("ATLAS|INTENT|");
     serialLog.print(name);
@@ -87,12 +62,7 @@ void dispatchPauseOrResume(uint8_t sigilId, IntentType type) {
 
 const char *activityKind(PacketType type) {
   switch (type) {
-    case PacketType::Pass: return "sigil_pass";
-    case PacketType::ActionDown: return "sigil_down";
-    case PacketType::ActionUp: return "sigil_up";
-    case PacketType::ActionShort: return "sigil_short";
-    case PacketType::ActionLong: return "sigil_long";
-    case PacketType::ActionWin: return "sigil_win";
+
     case PacketType::SelectAction: return "sigil_menu";
     case PacketType::PickerKey: return "sigil_picker";
     case PacketType::LifeAdjust:
@@ -127,69 +97,8 @@ bool connectionBlocked(uint8_t sigilId) {
   return blocked;
 }
 
-}  // namespace
-
-void resetGestureState() {
-  for (uint8_t i = 0; i < MAX_PHYSICAL_SIGILS; ++i) {
-    eliminationChord[i] = false;
-    suppressEliminationShort[i] = false;
-    suppressActionAfterPassCancel[i] = false;
-    suppressActionReleasedAtMs[i] = 0;
-  }
-}
-
-void updateActionCancelSuppression(uint32_t nowMs) {
-  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
-    if (suppressActionAfterPassCancel[id] && suppressActionReleasedAtMs[id] != 0 &&
-        nowMs - suppressActionReleasedAtMs[id] >= ACTION_CANCEL_RELEASE_CLEAR_MS) {
-      suppressActionAfterPassCancel[id] = false;
-      suppressActionReleasedAtMs[id] = 0;
-    }
-  }
-}
-
-void handleLobbyShort(uint8_t sigilId) {
-  const auto result = dispatchModuleIntent(
-      lobby.isJoined(sigilId) ? IntentType::SelectStarter : IntentType::Join,
-      sigilId, 1, static_cast<int32_t>(TurnHub::StarterSelection::CycleModule));
-  TurnHub::recordActivity(result.accepted() ? "lobby_action" : "lobby_rejected",
-      String("sigil=") + String(sigilId) + " result=" + result.message);
-  logRejected("LOBBY|JOIN", sigilId, result);
-}
-
-void handlePass(uint8_t sigilId) {
-  if (hubState == HubState::Lobby) {
-    if (lobby.isHeld(sigilId)) {
-      // Action + PASS chord toggles the secondary seat.
-      lobby.setSharedChord(sigilId, true);
-      lobby.setSuppressNextShort(sigilId, true);
-      const auto result = dispatchModuleIntent(
-          lobby.hasSecondary(sigilId) ? IntentType::Leave : IntentType::Join, sigilId, 2);
-      logRejected("LOBBY|SECONDARY", sigilId, result);
-      return;
-    }
-    const auto result = dispatchModuleIntent(IntentType::SelectStarter, sigilId, 1,
-        static_cast<int32_t>(TurnHub::StarterSelection::Random));
-    logRejected("LOBBY|STARTER", sigilId, result);
-    return;
-  }
-
-  if (hubState == HubState::Paused) {
-    if (game.hasWinClaim()) {
-      respondToWinClaim(sigilId, IntentType::DenyWin);
-      return;
-    }
-    if (lobby.isHeld(sigilId)) {
-      // Action + PASS chord begins an elimination selection.
-      eliminationChord[sigilId] = true;
-      suppressEliminationShort[sigilId] = true;
-      dispatchModuleIntent(IntentType::BeginElimination, sigilId);
-      return;
-    }
-    if (eliminationTargetPlayer != 0) dispatchModuleIntent(IntentType::Eliminate, sigilId);
-    return;
-  }
-
+// The menu's Pass: queues or cancels the pass for this Sigil's active seat.
+void passFromMenu(uint8_t sigilId) {
   if (hubState != HubState::Running) return;
   const PlayerSeat *active = game.activePlayer();
   if (active == nullptr || active->controllerId != sigilId) return;
@@ -197,133 +106,7 @@ void handlePass(uint8_t sigilId) {
       dispatchSeatIntent(IntentType::Pass, IntentOrigin::PhysicalSigil, *active));
 }
 
-void handleActionDown(uint8_t sigilId) {
-  lobby.setHeld(sigilId, true);
-  lobby.setActionLong(sigilId, false);
-  lobby.setSharedChord(sigilId, false);
-  eliminationChord[sigilId] = false;
-
-  if (hubState == HubState::Running &&
-      dispatchModuleIntent(IntentType::CancelPass, sigilId).accepted()) {
-    suppressActionAfterPassCancel[sigilId] = true;
-    suppressActionReleasedAtMs[sigilId] = 0;
-    return;
-  }
-  if (hubState == HubState::Starting) dispatchModuleIntent(IntentType::CancelStart, sigilId);
-}
-
-void handleActionUp(uint8_t sigilId) {
-  lobby.setHeld(sigilId, false);
-
-  const bool usedLobbyChord = lobby.sharedChord(sigilId);
-  const bool usedEliminationChord = eliminationChord[sigilId];
-  const bool wasLong = lobby.actionLong(sigilId);
-
-  lobby.setSharedChord(sigilId, false);
-  eliminationChord[sigilId] = false;
-  lobby.setActionLong(sigilId, false);
-
-  if (suppressActionAfterPassCancel[sigilId]) {
-    suppressActionReleasedAtMs[sigilId] = millis();
-    return;
-  }
-  // A long chord already consumed its release; a short chord's release is
-  // still followed by an ActionShort that the suppression flag swallows.
-  if (usedLobbyChord) {
-    if (wasLong) lobby.setSuppressNextShort(sigilId, false);
-    return;
-  }
-  if (usedEliminationChord) {
-    if (wasLong) suppressEliminationShort[sigilId] = false;
-    return;
-  }
-  if (hubState == HubState::Lobby && lobby.startArmedBy() == sigilId) {
-    dispatchModuleIntent(IntentType::StartGame, sigilId);
-  }
-}
-
-void handleActionShort(uint8_t sigilId) {
-  if (suppressActionAfterPassCancel[sigilId]) {
-    suppressActionAfterPassCancel[sigilId] = false;
-    suppressActionReleasedAtMs[sigilId] = 0;
-    return;
-  }
-  if (lobby.consumeSuppressNextShort(sigilId)) return;
-  if (suppressEliminationShort[sigilId]) {
-    suppressEliminationShort[sigilId] = false;
-    return;
-  }
-
-  if (hubState == HubState::Paused && game.hasWinClaim()) {
-    respondToWinClaim(sigilId, IntentType::ConfirmWin);
-    return;
-  }
-  if (hubState == HubState::Paused && eliminationTargetPlayer != 0) {
-    dispatchModuleIntent(IntentType::CycleElimination, sigilId);
-    return;
-  }
-  if (hubState == HubState::Lobby) {
-    handleLobbyShort(sigilId);
-    return;
-  }
-  if (hubState == HubState::GameOver) {
-    dispatchModuleIntent(IntentType::Rematch, sigilId);
-  }
-}
-
-void handleActionLong(uint8_t sigilId) {
-  if (suppressActionAfterPassCancel[sigilId]) return;
-
-  lobby.setActionLong(sigilId, true);
-  if (hubState == HubState::Lobby && lobby.sharedChord(sigilId)) return;
-  if (hubState == HubState::Paused && eliminationChord[sigilId]) return;
-
-  switch (hubState) {
-    case HubState::Lobby:
-      dispatchModuleIntent(IntentType::ArmStart, sigilId);
-      break;
-    case HubState::Running:
-      dispatchPauseOrResume(sigilId, IntentType::Pause);
-      break;
-    case HubState::Paused:
-      if (game.hasWinClaim()) {
-        serialLog.println("ATLAS|GAME|RESUME|DENIED_WIN_CLAIM");
-      } else if (eliminationTargetPlayer != 0) {
-        dispatchModuleIntent(IntentType::CancelElimination, sigilId);
-      } else {
-        dispatchPauseOrResume(sigilId, IntentType::Resume);
-      }
-      break;
-    case HubState::GameOver:
-      dispatchModuleIntent(IntentType::ResetGame, sigilId);
-      break;
-    default:
-      break;
-  }
-}
-
-void handleActionWin(uint8_t sigilId) {
-  if (suppressActionAfterPassCancel[sigilId]) return;
-
-  if (hubState == HubState::Lobby && lobby.startArmedBy() == sigilId) {
-    dispatchModuleIntent(IntentType::ResetGame, sigilId);
-    return;
-  }
-  if (hubState != HubState::Paused || eliminationTargetPlayer != 0 || game.hasWinClaim()) return;
-
-  // Only completes the gesture armed by this Sigil's own long-press pause.
-  const PlayerSeat *active = game.activePlayer();
-  if (active == nullptr || sigilId != winArmedModule || winArmedPlayer == 0 ||
-      active->controllerId != sigilId || active->playerNumber != winArmedPlayer ||
-      game.isEliminated(active->playerNumber)) {
-    serialLog.print("ATLAS|GAME|WIN|IGNORED|SIGIL|");
-    serialLog.println(sigilId);
-    return;
-  }
-  dispatchSeatIntent(IntentType::ClaimWin, IntentOrigin::PhysicalSigil, *active,
-      TurnHub::CLAIM_FROM_ARMED_PAUSE);
-}
-
+}  // namespace
 void handleSelectAction(uint8_t sigilId, int32_t value) {
   using TurnHubProtocol::SigilAction;
   const uint8_t raw = TurnHubProtocol::selectedAction(value);
@@ -383,7 +166,7 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       logRejected("MENU|CANCEL_START", sigilId, dispatchModuleIntent(IntentType::CancelStart, sigilId));
       break;
     case SigilAction::Pass:
-      handlePass(sigilId);
+      passFromMenu(sigilId);
       break;
     case SigilAction::AdjustLife:
       // Not selectable: it only frees Left/Right, which send LifeAdjust packets.
@@ -438,7 +221,7 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       logRejected("MENU|LEAVE", sigilId, dispatchModuleIntent(IntentType::Leave, sigilId, 1));
       break;
     case SigilAction::LinkPhone:
-      // Proof of possession, as a physical Action press was before menus.
+      // Proof of possession: only someone holding this Sigil can choose it.
       TurnHubWebApi::notePhysicalAction(sigilId);
       break;
     case SigilAction::Count:
@@ -527,12 +310,7 @@ void processSigilEvents() {
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));
     if (connectionBlocked(event.sigilId)) continue;
     switch (event.type) {
-      case PacketType::Pass: handlePass(event.sigilId); break;
-      case PacketType::ActionDown: handleActionDown(event.sigilId); break;
-      case PacketType::ActionUp: handleActionUp(event.sigilId); break;
-      case PacketType::ActionShort: handleActionShort(event.sigilId); break;
-      case PacketType::ActionLong: handleActionLong(event.sigilId); break;
-      case PacketType::ActionWin: handleActionWin(event.sigilId); break;
+
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;
       case PacketType::PickerKey: handlePickerKey(event.sigilId, event.value, millis()); break;
       case PacketType::LifeAdjust: handleLifeAdjust(event.sigilId, event.value); break;

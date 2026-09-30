@@ -92,8 +92,6 @@ static int32_t fixtureInputTiming[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureInputTimingSends=0;
 static int32_t fixtureLedState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureLedStateSends=0;
-static unsigned fixtureChannelSends=0;
-static int32_t fixtureMenuState[MAX_PHYSICAL_SIGILS]{};
 static unsigned fixtureMenuStateSends=0;
 static int32_t fixtureMenuState2[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureLifeRequest[MAX_PHYSICAL_SIGILS]{};
@@ -108,7 +106,6 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   assert(id<MAX_PHYSICAL_SIGILS);++fixtureSends;
   if(type==TurnHubProtocol::PacketType::InputTiming&&fixtureRadio) { fixtureInputTiming[id]=value; ++fixtureInputTimingSends; }
   if(type==TurnHubProtocol::PacketType::LedState&&fixtureRadio) { fixtureLedState[id]=value; ++fixtureLedStateSends; }
-  if(type==TurnHubProtocol::PacketType::MenuState&&fixtureRadio) { fixtureMenuState[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::MenuState2&&fixtureRadio) { fixtureMenuState2[id]=value; ++fixtureMenuStateSends; }
   if(type==TurnHubProtocol::PacketType::LifeRequest&&fixtureRadio) fixtureLifeRequest[id]=value;
   if(type==TurnHubProtocol::PacketType::PassPending&&fixtureRadio) fixturePassPending[id]=value;
@@ -116,8 +113,6 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::SeatColor&&fixtureRadio) fixtureSeatColor[id][TurnHubProtocol::seatColorSlot(value)&1]=value;
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
-  if(type==TurnHubProtocol::PacketType::SetBlue||type==TurnHubProtocol::PacketType::SetRed||
-     type==TurnHubProtocol::PacketType::SetGreen) ++fixtureChannelSends;
   return fixtureRadio;
 }
 static TurnHubProtocol::GameDisplayPacket sentGameDisplays[MAX_PHYSICAL_SIGILS]{};
@@ -136,9 +131,6 @@ bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &p) 
   ++pickerSends;
   return fixtureRadio;
 }
-bool SigilBus::setBlue(uint8_t id,uint8_t v) { return send(id,PacketType::SetBlue,v); }
-bool SigilBus::setRed(uint8_t id,bool v) { return send(id,PacketType::SetRed,v); }
-bool SigilBus::setGreen(uint8_t id,bool v) { return send(id,PacketType::SetGreen,v); }
 static unsigned fixtureBuzzes[MAX_PHYSICAL_SIGILS]{};
 static std::vector<int32_t> fixtureTones[MAX_PHYSICAL_SIGILS];
 bool SigilBus::buzzer(uint8_t id,int32_t v) { ++fixtureBuzzes[id]; fixtureTones[id].push_back(v); return send(id,PacketType::Buzzer,v); }
@@ -152,6 +144,14 @@ static void completed(const GameEngine &g) {
   ++completedGames;
   TurnHubProfileStats::persistCompletedGame(g);  // The firmware's own bridge.
 }
+using TurnHubProtocol::SigilAction;
+// A Sigil choosing from its menu, through the real adapter (SelectAction on
+// the current revision). A choice that isn't on offer is dropped, as on
+// hardware.
+static void choose(uint8_t id,SigilAction action) {
+  syncSigilMenus(testNow);
+  handleSelectAction(id,TurnHubProtocol::encodeSelectAction(action,sigilMenuRevision(id)));
+}
 static void freshLobby(int modules=3,bool shared=false) {
   // Fixture reset; all actions under test go through adapters/dispatcher.
   enterEmptyLobby();
@@ -161,15 +161,15 @@ static void freshLobby(int modules=3,bool shared=false) {
   for(uint8_t i=0;i<MAX_PHYSICAL_SIGILS;++i) {
     TurnHub::fixtureForgotten[i]=false;
     TurnHub::fixtureRecords[i].id=i; TurnHub::fixtureRecords[i].mac[5]=i;
+    // No Hello yet: Join seats the Sigil directly (the picker needs Hello info).
+    TurnHub::fixtureRecords[i].helloInfoValid=false; TurnHub::fixtureRecords[i].capabilities=0;
   }
-  for(int i=0;i<modules;++i) handleActionShort(static_cast<uint8_t>(i));
-  if(shared) {
-    handleActionDown(0); handlePass(0); handleActionUp(0); handleActionShort(0);
-  }
+  for(int i=0;i<modules;++i) choose(static_cast<uint8_t>(i),SigilAction::Join);
+  if(shared) choose(0,SigilAction::AddSeatB);
   assert(lobby.playerCount()==modules+(shared?1:0));
 }
 static void startFromHost() {
-  handleActionDown(0); handleActionLong(0); handleActionUp(0);
+  choose(0,SigilAction::StartGame);
   assert(hubState==HubState::Starting);
   testNow+=2999; updateCountdown(testNow); assert(hubState==HubState::Starting);
   ++testNow; updateCountdown(testNow); assert(hubState==HubState::Running);
@@ -222,30 +222,25 @@ static void lobbyLifecycle() {
   lobby.clearStartArm();
   assert(web(0,2,WebControl::SelectStarter));
   PlayerSeat selected; assert(lobby.selectedStarter(selected)&&selected.slot==2);
-  handleActionShort(0); assert(lobby.selectedStarter(selected)&&selected.slot==1);
+  choose(0,SigilAction::CycleStarter); assert(lobby.selectedStarter(selected)&&selected.slot==1);
   // Any seated Sigil may ask for a random starter now (no table host).
-  handlePass(1); assert(lobby.selectedStarter(selected));
+  choose(1,SigilAction::RandomStarter); assert(lobby.selectedStarter(selected));
   assert(dispatchModuleIntent(IntentType::Leave,0,2).accepted());
   assert(lobby.playerCount()==2&&!lobby.hasSecondary(0));
   assert(!dispatchModuleIntent(IntentType::Leave,0,2).accepted());
   assert(dispatchModuleIntent(IntentType::Join,0,2).accepted());
   assert(!dispatchModuleIntent(IntentType::Join,0,2).accepted());
-  handleActionDown(1);
-  assert(!dispatchModuleIntent(IntentType::ArmStart,0).accepted());
-  handleActionUp(1);
-  handleActionDown(0); handleActionLong(0); handleActionUp(0);
+  choose(0,SigilAction::StartGame);
   assert(hubState==HubState::Starting);
   assert(!dispatchModuleIntent(IntentType::Join,2).accepted());
   assert(!dispatchSystemIntent(IntentType::CompleteStart).accepted());
-  handleActionDown(1); assert(hubState==HubState::Lobby); handleActionUp(1);
+  choose(1,SigilAction::CancelStart); assert(hubState==HubState::Lobby);
   assert(!dispatchModuleIntent(IntentType::StartGame,0).accepted());
   assert(dispatchModuleIntent(IntentType::Leave,0).accepted());
   assert(lobby.hostController()==1&&lobby.playerCount()==1);
   freshLobby(); startFromHost();
   assert(!dispatchModuleIntent(IntentType::Rematch,0).accepted());
   assert(!dispatchModuleIntent(IntentType::ResetGame,0).accepted());
-  freshLobby(2); handleActionDown(0); handleActionLong(0); handleActionWin(0);
-  assert(hubState==HubState::Lobby&&lobby.playerCount()==0);
 }
 static void winDecisions() {
   freshLobby(3,true); startFromHost();
@@ -254,26 +249,24 @@ static void winDecisions() {
   assert(game.nextWinConfirmationPlayerNumber()==3);
   assert(!web(0,2,WebControl::ConfirmWin));
   assert(!web(2,1,WebControl::DenyWin));
-  handleActionShort(1); assert(game.nextWinConfirmationPlayerNumber()==4);
+  choose(1,SigilAction::ConfirmWin); assert(game.nextWinConfirmationPlayerNumber()==4);
   assert(web(2,1,WebControl::ConfirmWin));
   assert(game.nextWinConfirmationPlayerNumber()==2);
-  handleActionShort(0);
+  choose(0,SigilAction::ConfirmWin);
   assert(game.gameOver()&&game.winnerPlayerNumber()==1&&completedGames==1);
   assert(!web(0,2,WebControl::ConfirmWin)); assert(completedGames==1);
   // Any seated Sigil may call the rematch (no table host).
   assert(dispatchModuleIntent(IntentType::Rematch,1).accepted());
   assert(hubState==HubState::Lobby&&lobby.playerCount()==4&&!game.hasPlayers());
   startFromHost(); assert(web(0,1,WebControl::ClaimWin));
-  handlePass(1); assert(hubState==HubState::Running&&!game.hasWinClaim());
+  choose(1,SigilAction::DenyWin); assert(hubState==HubState::Running&&!game.hasWinClaim());
   assert(web(1,1,WebControl::PauseResume));
   assert(web(0,1,WebControl::ClaimWin));
   assert(web(1,1,WebControl::DenyWin)); assert(hubState==HubState::Paused);
   assert(web(1,1,WebControl::PauseResume));
-  handleActionDown(0); handleActionLong(0); assert(hubState==HubState::Paused);
-  handleActionWin(0); assert(game.hasWinClaim());
+  // A claim chosen during play resumes play when denied.
+  choose(0,SigilAction::ClaimWin); assert(game.hasWinClaim());
   assert(web(1,1,WebControl::DenyWin)); assert(hubState==HubState::Running);
-  assert(!dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::Simulator,player(1),
-      TurnHub::CLAIM_FROM_ARMED_PAUSE).accepted());
 }
 static void eliminationAndConcession() {
   freshLobby(3,true); startFromHost();
@@ -283,18 +276,18 @@ static void eliminationAndConcession() {
   request.actor.controllerId=0;request.actor.slot=1;request.actor.playerNumber=1;
   request.payload.targetPlayer=3;request.payload.value=-1;
   assert(intents.dispatch(request).accepted());
-  handleActionDown(0); handlePass(0); handleActionUp(0); handleActionShort(0);
+  choose(0,SigilAction::BeginElimination);
   assert(eliminationTargetPlayer==1);
   assert(game.lifeChangeFor(3)->state==TurnHub::LifeChangeState::Cancelled);
-  handleActionShort(0); assert(eliminationTargetPlayer==2);
-  handlePass(1); assert(!game.isEliminated(2));
-  handlePass(0); assert(game.isEliminated(2)&&hubState==HubState::Paused);
+  choose(0,SigilAction::NextTarget); assert(eliminationTargetPlayer==2);
+  choose(1,SigilAction::Eliminate); assert(!game.isEliminated(2));  // Not its seat: not offered.
+  choose(0,SigilAction::Eliminate); assert(game.isEliminated(2)&&hubState==HubState::Paused);
   assert(!web(0,2,WebControl::Concede));
   assert(web(1,1,WebControl::PauseResume));
   assert(web(1,1,WebControl::Concede)); assert(hubState==HubState::Running&&game.isEliminated(3));
   assert(web(0,1,WebControl::Concede)); assert(hubState==HubState::GameOver&&game.winnerPlayerNumber()==4);
   assert(completedGames==1);
-  handleActionLong(0); assert(hubState==HubState::Lobby&&lobby.playerCount()==0);
+  choose(0,SigilAction::ResetTable); assert(hubState==HubState::Lobby&&lobby.playerCount()==0);
   freshLobby(); startFromHost();
   assert(web(1,1,WebControl::PauseResume));
   assert(dispatchModuleIntent(IntentType::BeginElimination,0).accepted());
@@ -310,14 +303,13 @@ static void passTimingAndActors() {
   assert(!web(1,1,WebControl::Pass));
   Intent stale; stale.type=IntentType::ClaimWin; stale.actor={IntentOrigin::Browser,1,1,1};
   assert(!intents.dispatch(stale).accepted());
-  handlePass(0); assert(pendingPass.active);
+  choose(0,SigilAction::Pass); assert(pendingPass.active);
   assert(!dispatchModuleIntent(IntentType::CommitPass,0).accepted());
   testNow+=2999; updatePendingPass(testNow); assert(game.activePlayerNumber()==1);
   ++testNow; updatePendingPass(testNow); assert(game.activePlayerNumber()==2&&!pendingPass.active);
   assert(game.statsForPlayer(1)->turnsCompleted==1);
   assert(web(1,1,WebControl::Pass));
-  handleActionDown(1); assert(!pendingPass.active);
-  handleActionUp(1); handleActionShort(1); assert(hubState==HubState::Running);
+  choose(1,SigilAction::CancelPass); assert(!pendingPass.active&&hubState==HubState::Running);
   assert(web(1,1,WebControl::Pass)); assert(web(1,1,WebControl::Pass)); assert(!pendingPass.active);
   assert(web(1,1,WebControl::Pass)); assert(web(0,1,WebControl::PauseResume)); assert(!pendingPass.active);
   testNow+=3000; updatePendingPass(testNow); assert(game.activePlayerNumber()==2);
@@ -493,7 +485,7 @@ static void physicalCompanionFlow() {
   assert(request("/api/session/join",secondPhone)==200 && lobby.playerCount()==2);
   assert(request("/api/control/start",phone)==200);
   testNow+=3000;updateCountdown(testNow);
-  handlePass(0); assert(pendingPass.active);
+  choose(0,SigilAction::Pass); assert(pendingPass.active);
   assert(request("/api/control/pass",secondPhone)==200 && !pendingPass.active);
   assert(request("/api/control/pass",phone)==200);
   testNow+=3000;updatePendingPass(testNow);
@@ -510,7 +502,7 @@ static void physicalCompanionFlow() {
   assert(request("/api/control/reset",phone)==200);
   assert(request("/api/session/join",phone)==200); // Can play by phone again.
   assert(lobby.playerCount()==1);
-  handleActionShort(0); // Finished-game binding cleared: this is now a guest.
+  choose(0,SigilAction::Join); // Finished-game binding cleared: this is now a guest.
   assert(lobby.playerCount()==2);
   assert(TurnHubControllers::profileForSeat(0,1).length()==0);
   TurnHub::fixtureRadio=false;
@@ -984,7 +976,6 @@ static void physicalGameDisplay() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
   fixtureRadio = true;
-  fixtureRecords[0].capabilities = CAPABILITY_GAME_DISPLAY;
   GameEngine engine;
   Lobby table;
   PlayerSeat seats[6] = {{1,0,1},{2,0,2},{3,1,1},{4,2,1},{5,8,1},{6,9,1}};
@@ -1056,19 +1047,15 @@ static void physicalGameDisplay() {
   assert(engine.start(seats,6,seats[0],100,settings));
   renderer.invalidateAll(); render();
   assert(!sentGameDisplays[0].commander && !sentGameDisplays[0].sourceCount && sentGameDisplays[0].primary.life == 20);
-  fixtureRecords[0].capabilities = 0; renderer.invalidateAll(); count = gameDisplaySends;
-  render(); assert(gameDisplaySends == count); // Legacy peers keep the seven-byte protocol.
   fixtureRadio = false;
 }
 
-// Sigils with CAPABILITY_LED_STATE get one semantic LedState packet per
-// change (and on invalidation, i.e. every Hello) instead of channel frames.
+// Every Sigil draws its own light: one semantic LedState packet per change
+// (and on invalidation, i.e. every Hello), with the seated player's style.
 static void ledStateTransport() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
   fixtureRadio = true;
-  for (auto &record : fixtureRecords) { record.helloInfoValid = true; record.capabilities = 0; }
-  fixtureRecords[0].capabilities = CAPABILITY_LED_STATE;
   GameEngine engine;
   Lobby table;
   PlayerSeat seats[2] = {{1,0,1},{2,1,1}};
@@ -1076,25 +1063,26 @@ static void ledStateTransport() {
   assert(engine.start(seats,2,seats[0],100,settings));
   LedRenderer renderer(sigilBus);
   auto render = [&](uint32_t now) { renderer.render(HubState::Running,table,engine,0,0,0,now); };
-  const unsigned states = fixtureLedStateSends, channels = fixtureChannelSends;
+  const unsigned states = fixtureLedStateSends;
   render(200);
-  assert(fixtureLedStateSends == states + 1 && fixtureChannelSends > channels);  // Sigil 1 is legacy.
+  assert(fixtureLedStateSends == states + MAX_PHYSICAL_SIGILS);  // One each, seated or not.
   LedStateFields fields = decodeLedState(fixtureLedState[0]);
   assert(fields.cue == LedCue::TurnStarted && fields.anchorAgeMs == 96);  // 100 ms, 16 ms units.
+  assert(decodeLedState(fixtureLedState[1]).style == LedStyle::Default);
+  const unsigned sent = fixtureLedStateSends;
   render(300); render(2000);
-  assert(fixtureLedStateSends == states + 1);  // Same cue: nothing more to send.
+  assert(fixtureLedStateSends == sent);  // Same cues: nothing more to send.
   render(3100);
-  assert(fixtureLedStateSends == states + 2 && decodeLedState(fixtureLedState[0]).cue == LedCue::YourTurn);
-  renderer.setProfile(0, reducedMotionLedCueProfile());
+  assert(fixtureLedStateSends == sent + 1 && decodeLedState(fixtureLedState[0]).cue == LedCue::YourTurn);
+  renderer.setStyle(0, LedStyle::ReducedMotion);
   renderer.invalidate(0); render(3200);
   fields = decodeLedState(fixtureLedState[0]);
-  assert(fixtureLedStateSends == states + 3 && fields.style == TurnHubProtocol::LedStyle::ReducedMotion);
-  for (auto &record : fixtureRecords) { record.helloInfoValid = false; record.capabilities = 0; }
+  assert(fixtureLedStateSends == sent + 2 && fields.style == LedStyle::ReducedMotion);
   fixtureRadio = false;
 }
 
 namespace TurnHubAccounts { extern std::map<std::string, Account> accounts; }
-// Profile picker on e-ink menu Sigils: gating, pages by name, locked and
+// Profile picker on Sigils: gating, pages by name, locked and
 // blocked profiles, stale keys, Guest, confirm/back, policy at the handler,
 // and closing when idle or when the game starts.
 static void profilePicker() {
@@ -1114,13 +1102,11 @@ static void profilePicker() {
   freshLobby(1);  // Sigil 0 joined.
   resetSigilMenus(); resetProfilePickers();
   for (auto &record : fixtureRecords) {
-    record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
-    record.firmwareMajor = 0; record.firmwareMinor = 8;
+    record.helloInfoValid = true; record.capabilities = 0;
   }
   fixtureRecords[2].capabilities |= CAPABILITY_DISPLAY_OLED;
-  fixtureRecords[3].firmwareMinor = 7;
   fixtureRecords[6].capabilities |= CAPABILITY_HARNESS;
-  assert(pickerSigil(1) && pickerSigil(2) && !pickerSigil(3) && !pickerSigil(6));
+  assert(pickerSigil(1) && pickerSigil(2) && pickerSigil(3) && !pickerSigil(6));
   const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
   const auto key = [](uint8_t id, PickerKeyCode k) {
     handlePickerKey(id, encodePickerKey(k, profilePickerPage(id).revision), testNow);
@@ -1167,12 +1153,10 @@ static void profilePicker() {
   assert(!pickerOpen(1) && profilePickerPage(1).mode == PickerMode::Closed);
   syncProfilePickers(testNow); assert(sentPickers[1].mode == PickerMode::Closed);
 
-  // Leave (MenuState2 Sigils only): the whole Sigil leaves the lobby.
+  // Leave: the whole Sigil leaves the lobby.
   resetSigilMenus(); syncSigilMenus(testNow);
   assert((sigilMenuFor(1).actions & sigilActionBit(A::Leave)) != 0);
   assert((decodeMenuState2(fixtureMenuState2[1]).actions & sigilActionBit(A::Leave)) != 0);
-  fixtureRecords[3].capabilities = CAPABILITY_MENU;  // Sigil 0.7: no Leave, old encoding.
-  pick(3, A::Join); assert(lobby.isJoined(3) && (sigilMenuFor(3).actions & sigilActionBit(A::Leave)) == 0);
   pick(1, A::Leave);
   assert(!lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1).length() == 0);
   pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
@@ -1218,7 +1202,7 @@ static void profilePicker() {
   syncProfilePickers(testNow); assert(!pickerOpen(5));
 
   for (auto &record : fixtureRecords) {
-    record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
+    record.helloInfoValid = false; record.capabilities = 0;
   }
   resetSigilMenus(); resetProfilePickers();
   enterEmptyLobby();
@@ -1227,7 +1211,7 @@ static void profilePicker() {
   TurnHubAccounts::accounts = savedAccounts;
 }
 
-// Life on 0.8.0+ Sigils: AdjustLife only while ChangeLife could succeed, a
+// Life on Sigils: AdjustLife only while ChangeLife could succeed, a
 // batched LifeAdjust for the Sigil's own player only, and life requests
 // shown on (and answered from) the target's Sigil, tag-checked.
 static void sigilLife() {
@@ -1235,8 +1219,7 @@ static void sigilLife() {
   using namespace TurnHubProtocol;
   freshLobby(2); resetSigilMenus();
   for (auto &record : fixtureRecords) {
-    record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
-    record.firmwareMajor = 0; record.firmwareMinor = 8;
+    record.helloInfoValid = true; record.capabilities = 0;
   }
   const auto offered = [](uint8_t id) { return (sigilMenuFor(id).actions & sigilActionBit(SigilAction::AdjustLife)) != 0; };
   assert(!offered(0));  // Lobby.
@@ -1244,12 +1227,10 @@ static void sigilLife() {
   assert(offered(0) && offered(1));
   // One seat per Sigil here: nothing to switch to (two-seat case: physicalGameDisplay).
   assert(!(sigilMenuFor(0).actions & sigilActionBit(SigilAction::SwitchSeat)));
-  // A 0.8.0+ test harness plays life like a real Sigil; an older one cannot.
+  // The test harness plays life like a real Sigil.
   fixtureRecords[1].capabilities |= CAPABILITY_HARNESS;
   assert(offered(1));
-  fixtureRecords[1].firmwareMinor = 1;
-  assert(!offered(1));
-  fixtureRecords[1].capabilities = CAPABILITY_MENU; fixtureRecords[1].firmwareMinor = 8;
+  fixtureRecords[1].capabilities = 0;
   const PlayerSeat a = *game.playerByNumber(lobby.playerNumber(0, 1));
   const PlayerSeat b = *game.playerByNumber(lobby.playerNumber(1, 1));
   const int32_t start = game.lifeTotal(a.playerNumber);
@@ -1303,13 +1284,13 @@ static void sigilLife() {
   dispatchModuleIntent(IntentType::BeginElimination, 0);
   assert(eliminationTargetPlayer != 0 && !offered(0));
   for (auto &record : fixtureRecords) {
-    record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
+    record.helloInfoValid = false; record.capabilities = 0;
   }
   resetSigilMenus(); enterEmptyLobby();
 }
 
 // Jewel color: the signed-in profile sets or clears it; a seat bound to that
-// profile gets a SeatColor on 0.8.0+ Sigils, and a guest seat gets none.
+// profile gets a SeatColor, and a guest seat gets none.
 static void jewelColors() {
   using namespace TurnHubProtocol;
   enterEmptyLobby(); TurnHub::fixtureRadio = true;
@@ -1322,8 +1303,7 @@ static void jewelColors() {
   assert(request("/api/session/personalization", owner, {{"color", "#FF8800"}}) == 200);
   assert(server.body.find("\"color\":\"#ff8800\"") != std::string::npos);
   for (auto &record : TurnHub::fixtureRecords) {
-    record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU;
-    record.firmwareMajor = 0; record.firmwareMinor = 8;
+    record.helloInfoValid = true; record.capabilities = 0;
   }
   resetSigilMenus();
   assert(TurnHubProfiles::bindSeatToProfile(TurnHub::fixtureRecords[0].mac, 1, id));
@@ -1340,7 +1320,7 @@ static void jewelColors() {
   assert(seatAvatar(c) == 3 && seatColorRgb(c) == 0xFF8800);
   assert(request("/api/avatars", "", {}, HTTP_GET) == 200 && server.body.find("\"key\":\"sword\"") != std::string::npos &&
       server.body.find("\"id\":12") != std::string::npos);
-  handleActionShort(0);
+  assert(dispatchModuleIntent(IntentType::Join, 0, 1).accepted());  // Sigil 0 joins as its bound profile.
   assert(request("/api/seats", "", {}, HTTP_GET) == 200 && server.body.find("\"avatar\":3") != std::string::npos);
   AtlasScreen screen; buildAtlasScreen(testNow, screen);
   assert(screen.playerCount == 1 && screen.players[0].avatar == 3);
@@ -1353,12 +1333,12 @@ static void jewelColors() {
   assert(!seatColorSet(sigilSeatColorFor(0, 1)));
   syncSigilMenus(testNow); assert(!seatColorSet(TurnHub::fixtureSeatColor[0][1]));
   for (auto &record : TurnHub::fixtureRecords) {
-    record.helloInfoValid = false; record.capabilities = 0; record.firmwareMajor = 0; record.firmwareMinor = 0;
+    record.helloInfoValid = false; record.capabilities = 0;
   }
   resetSigilMenus(); enterEmptyLobby(); ProfileFixture::bindings.clear();
 }
 
-// Menu Sigils: availability per state, the default action, MenuState
+// Sigil menus: availability per state, the default action, MenuState2
 // transport and revisions, and SelectAction dispatching through Intents.
 static void sigilMenus() {
   using namespace TurnHub;
@@ -1374,36 +1354,40 @@ static void sigilMenus() {
 
   freshLobby(2);  // Sigils 0 and 1 joined.
   resetSigilMenus();
-  for (auto &record : fixtureRecords) { record.helloInfoValid = true; record.capabilities = CAPABILITY_MENU; }
+  for (auto &record : fixtureRecords) { record.helloInfoValid = true; record.capabilities = 0; }
 
   // Lobby: every joined Sigil can start and pick a random starter (no table
   // host), cycle the starter or add Seat B; an unjoined Sigil can only join.
-  assert(only(0, {A::CycleStarter, A::AddSeatB, A::StartGame, A::RandomStarter}));
+  assert(only(0, {A::CycleStarter, A::AddSeatB, A::StartGame, A::RandomStarter, A::Leave}));
   assert(sigilMenuFor(0).defaultAction == static_cast<uint8_t>(A::StartGame));
-  assert(only(1, {A::CycleStarter, A::AddSeatB, A::StartGame, A::RandomStarter}));
+  assert(only(1, {A::CycleStarter, A::AddSeatB, A::StartGame, A::RandomStarter, A::Leave}));
   assert(only(2, {A::Join}) && sigilMenuFor(2).defaultAction == static_cast<uint8_t>(A::Join));
 
-  // Transport: one MenuState per Sigil, none while unchanged, resend when invalidated.
+  // Transport: one MenuState2 per Sigil, none while unchanged, resend when invalidated.
   const unsigned sends = fixtureMenuStateSends;
   syncSigilMenus(testNow);
   assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
-  MenuStateFields sent = decodeMenuState(fixtureMenuState[2]);
+  MenuStateFields sent = decodeMenuState2(fixtureMenuState2[2]);
   assert(sent.actions == sigilActionBit(A::Join) && sent.defaultAction == static_cast<uint8_t>(A::Join));
   syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   invalidateSigilMenu(2); syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS + 1);
 
   // Joining changes Sigil 2's menu: its revision moves on.
   const uint8_t oldRevision = sigilMenuRevision(2);
-  pick(2, A::Join); assert(lobby.isJoined(2) && lobby.playerCount() == 3);
+  pick(2, A::Join); assert(pickerOpen(2));  // Every Sigil picks who joins; Guest is Up.
+  handlePickerKey(2, encodePickerKey(PickerKeyCode::Up, profilePickerPage(2).revision), testNow);
+  assert(lobby.isJoined(2) && lobby.playerCount() == 3);
   syncSigilMenus(testNow);
-  assert(sigilMenuRevision(2) != oldRevision && decodeMenuState(fixtureMenuState[2]).revision == sigilMenuRevision(2));
+  assert(sigilMenuRevision(2) != oldRevision && decodeMenuState2(fixtureMenuState2[2]).revision == sigilMenuRevision(2));
   // A choice from the old menu is dropped (and the menu resent).
   handleSelectAction(2, encodeSelectAction(A::Join, oldRevision));
   assert(lobby.playerCount() == 3);
   // Unoffered actions are dropped even at the current revision.
   pick(1, A::Rematch); assert(hubState == HubState::Lobby && lobby.playerCount() == 3);
 
-  pick(1, A::AddSeatB); assert(lobby.hasSecondary(1) && has(1, A::RemoveSeatB));
+  pick(1, A::AddSeatB);  // Seat B opens the picker too; Guest.
+  handlePickerKey(1, encodePickerKey(PickerKeyCode::Up, profilePickerPage(1).revision), testNow);
+  assert(lobby.hasSecondary(1) && has(1, A::RemoveSeatB));
   pick(1, A::RemoveSeatB); assert(!lobby.hasSecondary(1));
 
   // Start from the menu: one choice arms and starts; anyone seated may cancel.
@@ -1414,19 +1398,20 @@ static void sigilMenus() {
   testNow += 3000; updateCountdown(testNow); assert(hubState == HubState::Running);
 
   // Running: the active Sigil passes, claims or pauses; others may pause.
+  // Every living seat can change its own life.
   const uint8_t activeId = game.activePlayer()->controllerId;
   const uint8_t otherId = activeId == 0 ? 1 : 0;
-  assert(only(activeId, {A::Pass, A::ClaimWin, A::Pause}));
+  assert(only(activeId, {A::Pass, A::ClaimWin, A::Pause, A::AdjustLife}));
   assert(sigilMenuFor(activeId).defaultAction == static_cast<uint8_t>(A::Pass));
-  assert(only(otherId, {A::Pause}));
+  assert(only(otherId, {A::Pause, A::AdjustLife}));
   pick(activeId, A::Pass); assert(pendingPass.active);
   assert(has(activeId, A::CancelPass) && !has(activeId, A::Pass));
   pick(activeId, A::CancelPass); assert(!pendingPass.active);
 
   // Paused: resume, "I'm out", and a claim for the active player.
   pick(otherId, A::Pause); assert(hubState == HubState::Paused);
-  assert(only(otherId, {A::Resume, A::BeginElimination}));
-  assert(only(activeId, {A::Resume, A::BeginElimination, A::ClaimWin}));
+  assert(only(otherId, {A::Resume, A::BeginElimination, A::AdjustLife}));
+  assert(only(activeId, {A::Resume, A::BeginElimination, A::ClaimWin, A::AdjustLife}));
   pick(otherId, A::BeginElimination);
   assert(eliminationTargetPlayer != 0 && game.playerByNumber(eliminationTargetPlayer)->controllerId == otherId);
   assert(only(otherId, {A::Eliminate, A::CancelElimination}));
@@ -1534,23 +1519,20 @@ static void turnTimerEngine() {
   assert(restored.turnTimerMs() == 120000 && restored.turnRemainingMs(900000) == 90000);
 }
 
+// Which cue each Sigil gets. How a cue looks (colors, cadences, the player's
+// style) is the Sigil's job: Sigil/tests/host/led_scenarios.cpp.
 static void ledCueSelection() {
   using namespace TurnHub;
-  const auto &style = defaultLedCueProfile();
-  // Lobby: player 1 flashes red once per cycle. There is no host overlay (no
-  // table host since 2026-09-25).
+  // Lobby: each joined Sigil shows its player number. There is no host
+  // overlay (no table host since 2026-09-25).
   freshLobby(2);
   auto lobbyCue = [](uint8_t id, uint32_t now) {
     return selectSigilLedState(id,HubState::Lobby,lobby,game,0,0,0,now);
   };
   const auto host = lobbyCue(0,0);
   assert(host.cue == LedCue::Joined && host.playerNumber == 1 && !host.has(LedOverlay::Host));
-  assert(ledLevels(style,host,0).red && !ledLevels(style,host,200).red);
   assert(!lobbyCue(1,0).has(LedOverlay::Host) && lobbyCue(1,0).playerNumber == 2);
-  const auto invite = lobbyCue(5,0);
-  assert(invite.cue == LedCue::Unassigned);
-  assert(ledLevels(style,invite,100).blue == 255 && ledLevels(style,invite,700).green &&
-      ledLevels(style,invite,1200).red);
+  assert(lobbyCue(5,0).cue == LedCue::Unassigned);
 
   GameEngine engine; Lobby table;
   PlayerSeat seats[2] = {{1,0,1},{2,1,1}};
@@ -1560,30 +1542,17 @@ static void ledCueSelection() {
     return selectSigilLedState(id,HubState::Running,table,engine,0,0,0,now);
   };
   assert(cue(0,1000).cue == LedCue::TurnStarted && cue(0,4000).cue == LedCue::YourTurn);
+  assert(cue(0,1000).anchorMs == 1000);  // TurnStarted runs from the turn's own start.
   assert(cue(1,4000).cue == LedCue::Waiting && !cue(0,4000).overlays);
   assert(cue(0,51000).has(LedOverlay::TurnWarning) && cue(0,61000).has(LedOverlay::TimerExpired));
   assert(!cue(1,61000).overlays);  // Only the active Sigil shows its timer.
-  auto levels = [&](uint32_t now) { return ledLevels(style,cue(0,now),now); };
-  // Warning pulses slowly; expiry is steady: distinguishable without color.
-  assert(levels(51000).red && !levels(51750).red && !levels(51000).green);
-  assert(levels(61000).red && levels(61750).red);
-  assert(ledLevels(style,cue(1,61000),61000).blue == 255);
-  // TurnStarted flashes from the turn's own start.
-  assert(levels(1000).blue == 255 && levels(1200).blue == 0 && levels(1400).blue == 255);
 
   GameEngine untimed; GameSettings off;
   assert(untimed.start(seats,2,seats[0],1000,off));
   const auto longTurn = selectSigilLedState(0,HubState::Running,table,untimed,0,0,0,1000 + TURN_TIMER_LONG_TURN_MS);
-  assert(longTurn.has(LedOverlay::LongTurn) && ledLevels(style,longTurn,0).green && !ledLevels(style,longTurn,0).red);
-
-  // Another profile changes presentation only: same state, different channels.
-  LedCueProfile alternate = style;
-  alternate.overlays[static_cast<uint8_t>(LedOverlay::TimerExpired)] =
-      CueStyle{LedStyles::off(), LedStyles::off(), LedStyles::blink(2000,1000)};
-  assert(!ledLevels(alternate,cue(0,62000),62000).red && ledLevels(alternate,cue(0,62000),62000).green);
+  assert(longTurn.has(LedOverlay::LongTurn) && !longTurn.has(LedOverlay::TimerExpired));
   enterEmptyLobby();
 }
-
 static void turnTimerCuesAndMute() {
   using namespace TurnHub;
   freshLobby(2);
@@ -1609,7 +1578,7 @@ static void turnTimerCuesAndMute() {
   resetBuzzes(); updateTurnTimerCues(testNow); drainAudio();
   assert(totalBuzzes() == 0);
   // The next turn re-arms, and muted audio stays silent while LEDs still render.
-  handlePass(active); testNow += 3000; updatePendingPass(testNow);
+  choose(active,SigilAction::Pass); testNow += 3000; updatePendingPass(testNow);
   const uint8_t next = game.activeController();
   assert(next != active);
   resetBuzzes();
@@ -1633,42 +1602,11 @@ static bool heardActionRequired(uint8_t id) {
 }
 static void clearTones() { drainAudio(); for (auto &tones : TurnHub::fixtureTones) tones.clear(); }
 
-static bool onlyPatterns(const TurnHub::CueStyle &style, bool (*ok)(const TurnHub::ChannelStyle &)) {
-  return ok(style.blue) && ok(style.red) && ok(style.green);
-}
-
 static void accessibilityPreferences() {
   using namespace TurnHub;
   using TurnHubProfiles::AccessibilityPrefs;
   using TurnHubProfiles::LedStyle;
-  // Reduced motion: only steady, dim or slow (>= 4 s) blinking lights.
-  const auto calm = +[](const ChannelStyle &c) {
-    return c.pattern == LedPattern::Off || c.pattern == LedPattern::Solid || c.pattern == LedPattern::Dim ||
-        (c.pattern == LedPattern::Blink && c.periodMs >= 4000 && c.onMs >= 1000);
-  };
-  const LedCueProfile &calmProfile = reducedMotionLedCueProfile();
-  for (const auto &style : calmProfile.cues) assert(onlyPatterns(style, calm));
-  for (const auto &style : calmProfile.overlays) assert(onlyPatterns(style, calm));
-  // Your turn and waiting differ by brightness, not only by color.
-  SigilLedState yours; yours.cue = LedCue::YourTurn;
-  SigilLedState waiting; waiting.cue = LedCue::Waiting;
-  assert(ledLevels(calmProfile, yours, 1000).blue == 255 && ledLevels(calmProfile, waiting, 1000).blue > 0 &&
-      ledLevels(calmProfile, waiting, 1000).blue < 128);
-  // Monochrome-safe: cues sharing a situation differ in cadence, not only hue.
-  const LedCueProfile &mono = monochromeSafeLedCueProfile();
-  const auto sameCadence = [](const CueStyle &a, const CueStyle &b) {
-    const auto lit = [](const CueStyle &c) {
-      return c.blue.pattern != LedPattern::Off ? c.blue : c.red.pattern != LedPattern::Off ? c.red : c.green;
-    };
-    const ChannelStyle x = lit(a), y = lit(b);
-    return x.pattern == y.pattern && x.periodMs == y.periodMs && x.onMs == y.onMs;
-  };
-  assert(!sameCadence(mono.overlay(LedOverlay::TimerExpired), mono.overlay(LedOverlay::LongTurn)));
-  assert(!sameCadence(mono.cue(LedCue::ConfirmationNeeded), mono.cue(LedCue::EliminationSelect)));
-  assert(!sameCadence(calmProfile.overlay(LedOverlay::TimerExpired), calmProfile.overlay(LedOverlay::LongTurn)));
-  assert(!sameCadence(calmProfile.cue(LedCue::ConfirmationNeeded), calmProfile.cue(LedCue::EliminationSelect)));
-  assert(sameCadence(defaultLedCueProfile().overlay(LedOverlay::TimerExpired),
-      defaultLedCueProfile().overlay(LedOverlay::LongTurn)));  // Why the alternatives exist.
+  // How each style looks on the ring is tested on the Sigil (led_scenarios.cpp).
 
   // Sharing a Sigil keeps each player's accommodation.
   AccessibilityPrefs a, b;
@@ -1709,23 +1647,21 @@ static void accessibilityPreferences() {
       saved.longPressMs == 3000 && saved.winHoldMs == 6000);
   assert(ProfileFixture::profiles[bobId.c_str()].accessibility.sigilSound);
 
-  // Applying: Alice is bound to Sigil 1; Sigil 1 supports InputTiming, Sigil 2 does not.
+  // Applying: Alice is bound to Sigils 1 and 2; each gets her style, mute and hold times.
   ProfileFixture::bindings.clear();
   ProfileFixture::bindings[ProfileFixture::key(fixtureRecords[1].mac, 1).c_str()] = aliceId;
   ProfileFixture::bindings[ProfileFixture::key(fixtureRecords[2].mac, 1).c_str()] = aliceId;
-  fixtureRecords[1].helloInfoValid = true;
-  fixtureRecords[1].capabilities = TurnHubProtocol::CAPABILITY_INPUT_TIMING;
-  fixtureRecords[2].helloInfoValid = true; fixtureRecords[2].capabilities = 0;
+  fixtureRecords[1].helloInfoValid = true; fixtureRecords[2].helloInfoValid = true;
   fixtureInputTiming[1] = fixtureInputTiming[2] = 0;
   applyAllSigilAccessibility(testNow);
-  assert(&leds.profile(1) == &monochromeSafeLedCueProfile() && &leds.profile(0) == &defaultLedCueProfile());
+  assert(leds.style(1) == TurnHubProtocol::LedStyle::MonochromeSafe && leds.style(0) == TurnHubProtocol::LedStyle::Default);
   assert(audio.mutedSigils() == static_cast<uint16_t>((1u << 1) | (1u << 2)));
   assert(fixtureInputTiming[1] == TurnHubProtocol::encodeInputTiming(3000, 6000));
-  assert(fixtureInputTiming[2] == 0);  // Older Sigil firmware keeps its defaults.
+  assert(fixtureInputTiming[2] == TurnHubProtocol::encodeInputTiming(3000, 6000));
   // Not resent until the keepalive interval, then resent.
   const unsigned sends = fixtureInputTimingSends;
   applyAllSigilAccessibility(testNow + 1000); assert(fixtureInputTimingSends == sends);
-  applyAllSigilAccessibility(testNow + 10000); assert(fixtureInputTimingSends == sends + 1);
+  applyAllSigilAccessibility(testNow + 10000); assert(fixtureInputTimingSends > sends);
   // A muted Sigil hears nothing, including queued notes; others still do.
   clearTones(); resetBuzzes();
   audio.actionRequired(1); audio.actionRequired(0); drainAudio();
@@ -1734,13 +1670,13 @@ static void accessibilityPreferences() {
   ProfileFixture::bindings[ProfileFixture::key(fixtureRecords[1].mac, 2).c_str()] = bobId;
   assert(request("/api/session/accessibility", bob,
       {{"ledStyle", "reduced-motion"}, {"longPressMs", "2500"}, {"winHoldMs", "7000"}}) == 200);
-  assert(&leds.profile(1) == &reducedMotionLedCueProfile());
+  assert(leds.style(1) == TurnHubProtocol::LedStyle::ReducedMotion);
   assert(fixtureInputTiming[1] == TurnHubProtocol::encodeInputTiming(3000, 7000));
   assert(audio.mutedSigils() & (1u << 1));
   // Unbinding restores the defaults (and sound) on the next refresh.
   ProfileFixture::bindings.clear();
   for (uint32_t t = 0; t < 8 * 250 + 250; t += 250) updateSigilAccessibility(testNow + 20000 + t);
-  assert(audio.mutedSigils() == 0 && &leds.profile(1) == &defaultLedCueProfile());
+  assert(audio.mutedSigils() == 0 && leds.style(1) == TurnHubProtocol::LedStyle::Default);
   assert(fixtureInputTiming[1] == TurnHubProtocol::encodeInputTiming(2000, 5000));
   fixtureRecords[1] = SigilRecord{}; fixtureRecords[2] = SigilRecord{};
   assert(request("/api/session/logout", alice) == 200 && request("/api/session/logout", bob) == 200);
@@ -1756,15 +1692,15 @@ static void actionRequiredCues() {
   assert(heardActionRequired(first) && !heardActionRequired(0));
   for (uint8_t id = 0; id < 3; ++id) if (id != first) assert(!heardActionRequired(id));
   clearTones();
-  handleActionShort(first); drainAudio();
+  choose(first,SigilAction::ConfirmWin); drainAudio();
   const uint8_t second = player(game.nextWinConfirmationPlayerNumber()).controllerId;
   assert(second != first && heardActionRequired(second) && !heardActionRequired(first));
   clearTones();
-  handleActionShort(second); drainAudio();
+  choose(second,SigilAction::ConfirmWin); drainAudio();
   assert(game.gameOver());
   for (uint8_t id = 0; id < 3; ++id) assert(!heardActionRequired(id));  // Nothing left to decide.
   // A life change request reaches only the recipient, who must approve it.
-  handleActionShort(0); assert(hubState == HubState::Lobby);
+  choose(0,SigilAction::Rematch); assert(hubState == HubState::Lobby);
   startFromHost();
   clearTones();
   TurnHub::IntentPayload payload; payload.targetPlayer = 2; payload.value = -3; String message;
@@ -2044,7 +1980,7 @@ static void oledSigilSeatsTwoPlayers() {
   using TurnHubProtocol::CAPABILITY_DISPLAY_OLED;
   freshLobby(2);
   TurnHub::fixtureRecords[1].capabilities=CAPABILITY_DISPLAY_OLED;
-  handleActionDown(1); handlePass(1); handleActionUp(1); handleActionShort(1);
+  choose(1,SigilAction::AddSeatB);
   assert(lobby.hasSecondary(1) && lobby.playerCount()==3);
   assert(dispatchModuleIntent(IntentType::Leave,1,2).accepted());
   assert(dispatchModuleIntent(IntentType::Join,1,2).accepted() && lobby.hasSecondary(1));
@@ -2310,7 +2246,7 @@ static void harnessScreen() {
   assert(!harnessReport(testNow,r));
 
   TurnHub::SigilRecord &rec=TurnHub::fixtureRecords[2];
-  rec.helloInfoValid=true; rec.capabilities=CAPABILITY_MENU|CAPABILITY_HARNESS;
+  rec.helloInfoValid=true; rec.capabilities=CAPABILITY_HARNESS;
   assert(harnessSigilId(testNow)==2);
   s=currentScreen();
   const TouchButton *info=screenButton(s,TouchAction::OpenInfo), *tests=screenButton(s,TouchAction::OpenTests);
@@ -2340,7 +2276,7 @@ static void harnessScreen() {
   assert(String(currentScreen().title)!="Test harness");
   enterEmptyLobby(); openMenuScreen();
   // Without a harness the Tests button goes, and an open test screen offers only Back.
-  tapButton(TouchAction::OpenTests); rec.capabilities=CAPABILITY_MENU; s=currentScreen();
+  tapButton(TouchAction::OpenTests); rec.capabilities=0; s=currentScreen();
   assert(String(s.detail)=="Harness offline" && s.buttonCount==1 && screenButton(s,TouchAction::CloseTests));
   tapButton(TouchAction::CloseTests); assert(currentScreen().kind==ScreenKind::Menu);
   assert(!screenButton(currentScreen(),TouchAction::OpenTests));
@@ -2695,7 +2631,7 @@ static void firstRunSetup() {
   setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
   assert(request("/api/setup/finish",owner,{{"password","table-pass-3"}})==200);
   assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
-  TurnHub::fixtureRecords[1].capabilities=TurnHubProtocol::CAPABILITY_MENU;
+  TurnHub::fixtureRecords[1].capabilities=0;
   setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
   assert(request("/api/setup/finish",owner,{{"password","table-pass-3"}})==200);
   assert(server.body.find("\"restarting\":true")!=std::string::npos);
@@ -2827,13 +2763,13 @@ static void resetTableFromPortal() {
   assert(hubState==HubState::Lobby && lobby.playerCount()==0 && !game.hasPlayers() && completedGames==1);
 
   // From a lobby (or a countdown) it just empties the table.
-  handleActionShort(0); handleActionShort(1); completedGames=0; assert(lobby.playerCount()==2);
-  handleActionDown(0); handleActionLong(0); handleActionUp(0); assert(hubState==HubState::Starting);
+  choose(0,SigilAction::Join); choose(1,SigilAction::Join); completedGames=0; assert(lobby.playerCount()==2);
+  choose(0,SigilAction::StartGame); assert(hubState==HubState::Starting);
   assert(request("/api/table/reset",admin)==200 && hubState==HubState::Lobby && lobby.playerCount()==0);
   assert(completedGames==0);
 
   // Verification lapses after PRESENCE_GRANT_MS, even for the Admin.
-  handleActionShort(0); handleActionShort(1); testNow+=PRESENCE_GRANT_MS; updatePairingWindow(testNow);
+  choose(0,SigilAction::Join); choose(1,SigilAction::Join); testNow+=PRESENCE_GRANT_MS; updatePairingWindow(testNow);
   assert(request("/api/table/reset",admin)==403 && lobby.playerCount()==2);
   strncpy(forged.payload.moderatorId,adminId.c_str(),8);
   assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
@@ -3117,12 +3053,12 @@ static void gameRecoveryLifecycle() {
   // main.cpp's observer persists a checkpoint after every dispatched intent;
   // no code here calls checkpointGame() directly.
   startFromHost();
-  handlePass(0);
+  choose(0,SigilAction::Pass);
   testNow += PASS_GRACE_MS; updatePendingPass(testNow);
   assert(!pendingPass.active && game.activePlayerNumber() == 2);
   assert(testBlobs.count("checkpoint") == 1);
   testNow += 45000; // 45s of real play before "power loss".
-  handlePass(1);
+  choose(1,SigilAction::Pass);
   testNow += PASS_GRACE_MS; updatePendingPass(testNow);
   const uint32_t elapsedBeforeLoss = game.gameElapsedMs(testNow);
   assert(elapsedBeforeLoss >= 45000);
@@ -3199,7 +3135,7 @@ int main() {
   profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
   sigilLife(); std::cout<<"PASS Sigil life: AdjustLife availability, batched own-life changes, requests shown and answered with tag checks\n";
   jewelColors(); std::cout<<"PASS personalization: Jewel color and preset avatars, validation, /api/avatars, /api/seats, TFT chips, SeatColor; custom stays private\n";
-  sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState revisions, stale choices, SelectAction Intents\n";
+  sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState2 revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
   accessibilityPreferences(); std::cout<<"PASS per-player accessibility: LED profiles, merge rules, API, Sigil mute, hold-timing radio\n";

@@ -6,7 +6,6 @@
 
 #include "profile_store.h"
 #include "optional_preferences.h"
-#include "web_api.h"
 #include "secure_link_mbedtls.h"
 #include "serial_log.h"
 
@@ -220,14 +219,6 @@ bool SigilBus::poll(SigilEvent &event) {
     syncDisplayProfile(event.sigilId);
   }
 
-  // Physical confirmation is deliberately handled in the main-loop consumer,
-  // not inside the ESP-NOW receive callback. That keeps web-session state on a
-  // single execution path and prevents synthetic browser events from proving
-  // possession of a Sigil.
-  if (event.type == PacketType::ActionDown) {
-    TurnHubWebApi::notePhysicalAction(event.sigilId);
-  }
-
   return true;
 }
 
@@ -251,18 +242,6 @@ const SigilRecord *SigilBus::record(uint8_t sigilId) const {
     return nullptr;
   }
   return &records_[sigilId];
-}
-
-bool SigilBus::setBlue(uint8_t sigilId, uint8_t brightness) {
-  return send(sigilId, PacketType::SetBlue, brightness);
-}
-
-bool SigilBus::setRed(uint8_t sigilId, bool on) {
-  return send(sigilId, PacketType::SetRed, on ? 1 : 0);
-}
-
-bool SigilBus::setGreen(uint8_t sigilId, bool on) {
-  return send(sigilId, PacketType::SetGreen, on ? 1 : 0);
 }
 
 bool SigilBus::buzzer(uint8_t sigilId, int32_t value) {
@@ -389,12 +368,6 @@ void SigilBus::handleReceive(
       enqueue(*sigil, packet);
       break;
 
-    case PacketType::Pass:
-    case PacketType::ActionDown:
-    case PacketType::ActionUp:
-    case PacketType::ActionShort:
-    case PacketType::ActionLong:
-    case PacketType::ActionWin:
     case PacketType::SelectAction:
     case PacketType::PickerKey:
     case PacketType::LifeAdjust:

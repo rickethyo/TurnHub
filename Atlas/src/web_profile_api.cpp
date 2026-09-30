@@ -240,10 +240,9 @@ void handleProfile(WebServer &server) {
 
   if (server.hasArg("pin") || clearPin) endOtherSessions(*session, profileId);
 
-  // Sigils that render player names need the new name pushed to them.
+  // Every Sigil shows player names: push the new one.
   SigilBus *bus = SigilBus::activeInstance();
-  if (displayProfileChanged && record != nullptr && bus != nullptr && record->helloInfoValid &&
-      (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_PROFILE) != 0) {
+  if (displayProfileChanged && record != nullptr && bus != nullptr) {
     bus->syncDisplayProfile(session->controllerId);
   }
   sendJson(server, 200, "{\"ok\":true}");

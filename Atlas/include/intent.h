@@ -125,13 +125,6 @@ struct IntentActor {
 // Fixed-size generic payload keeps the application boundary transport-neutral
 // and heap-free. Each IntentType documents which fields it uses as it is
 // migrated into the dispatcher.
-// ClaimWin flag: complete an armed pause-to-claim gesture. Atlas verifies its
-// arm and restores running play on denial, unlike an ordinary paused claim.
-constexpr uint32_t CLAIM_FROM_ARMED_PAUSE = 1U;
-// Pause flag for a gesture that can continue into a win claim. This is semantic
-// gesture context, independent of transport or IntentOrigin.
-constexpr uint32_t ARM_WIN_ON_PAUSE = 1U;
-
 // SelectStarter payload.value: exact actor seat, cycle the module's seats,
 // or host-requested random choice. Join/Leave actor.slot: 1 = module, 2 =
 // secondary seat. Lifecycle module requests use playerNumber=0 (unresolved).

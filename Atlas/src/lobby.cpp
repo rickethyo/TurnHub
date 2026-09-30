@@ -80,10 +80,6 @@ bool Lobby::leave(uint8_t controllerId) {
 
   --joinedCount_;
   secondary_[controllerId] = false;
-  held_[controllerId] = false;
-  sharedChord_[controllerId] = false;
-  suppressNextShort_[controllerId] = false;
-  actionLong_[controllerId] = false;
 
   if (starterSelected_ && starterModule_ == controllerId) {
     starterSelected_ = false;
@@ -313,10 +309,6 @@ void Lobby::resetEmpty() {
   for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
     joinedOrder_[i] = INVALID_ID;
     secondary_[i] = false;
-    held_[i] = false;
-    sharedChord_[i] = false;
-    suppressNextShort_[i] = false;
-    actionLong_[i] = false;
   }
 }
 
@@ -344,32 +336,6 @@ void Lobby::resetForRematch() {
   starterModule_ = INVALID_ID;
   starterSlot_ = 1;
   startArmedBy_ = INVALID_ID;
-
-  for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
-    held_[i] = false;
-    sharedChord_[i] = false;
-    suppressNextShort_[i] = false;
-    actionLong_[i] = false;
-  }
-}
-
-void Lobby::setHeld(uint8_t controllerId, bool held) {
-  if (validModule(controllerId)) {
-    held_[controllerId] = held;
-  }
-}
-
-bool Lobby::isHeld(uint8_t controllerId) const {
-  return validModule(controllerId) && held_[controllerId];
-}
-
-bool Lobby::anyOtherHeld(uint8_t controllerId) const {
-  for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
-    if (i != controllerId && held_[i]) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void Lobby::setStartArmedBy(uint8_t controllerId) {
@@ -382,40 +348,6 @@ void Lobby::clearStartArm() {
 
 uint8_t Lobby::startArmedBy() const {
   return startArmedBy_;
-}
-
-void Lobby::setSharedChord(uint8_t controllerId, bool value) {
-  if (validModule(controllerId)) {
-    sharedChord_[controllerId] = value;
-  }
-}
-
-bool Lobby::sharedChord(uint8_t controllerId) const {
-  return validModule(controllerId) && sharedChord_[controllerId];
-}
-
-void Lobby::setSuppressNextShort(uint8_t controllerId, bool value) {
-  if (validModule(controllerId)) {
-    suppressNextShort_[controllerId] = value;
-  }
-}
-
-bool Lobby::consumeSuppressNextShort(uint8_t controllerId) {
-  if (!validModule(controllerId) || !suppressNextShort_[controllerId]) {
-    return false;
-  }
-  suppressNextShort_[controllerId] = false;
-  return true;
-}
-
-void Lobby::setActionLong(uint8_t controllerId, bool value) {
-  if (validModule(controllerId)) {
-    actionLong_[controllerId] = value;
-  }
-}
-
-bool Lobby::actionLong(uint8_t controllerId) const {
-  return validModule(controllerId) && actionLong_[controllerId];
 }
 
 }  // namespace TurnHub

@@ -401,7 +401,7 @@ inline SelfTestStep knownAnswerTest(Crypto &crypto) {
   PairingResult pairing;
   uint8_t session[KEY_BYTES], nonceA[NONCE_BYTES] = {1}, nonceB[NONCE_BYTES] = {2};
   uint8_t frame[ESPNOW_MAX_BYTES], inner[ESPNOW_MAX_BYTES];
-  const TurnHubProtocol::Packet packet = TurnHubProtocol::makePacket(PacketType::Pass, 1, 42);
+  const TurnHubProtocol::Packet packet = TurnHubProtocol::makePacket(PacketType::SelectAction, 1, 42);
   Channel sender, receiver;
   bool ok = derivePairing(crypto, secretA, macA, macB, pubA, pubB, pairing) &&
       deriveSessionKey(crypto, pairing.pairKey, 1, nonceA, nonceB, session);

@@ -33,11 +33,11 @@ AppliedPrefs applied[MAX_PHYSICAL_SIGILS];
 uint8_t nextSigil = 0;
 uint32_t lastTickMs = 0;
 
-const TurnHub::LedCueProfile &ledProfileFor(LedStyle style) {
+TurnHubProtocol::LedStyle ledStyleFor(LedStyle style) {
   switch (style) {
-    case LedStyle::ReducedMotion: return TurnHub::reducedMotionLedCueProfile();
-    case LedStyle::MonochromeSafe: return TurnHub::monochromeSafeLedCueProfile();
-    default: return TurnHub::defaultLedCueProfile();
+    case LedStyle::ReducedMotion: return TurnHubProtocol::LedStyle::ReducedMotion;
+    case LedStyle::MonochromeSafe: return TurnHubProtocol::LedStyle::MonochromeSafe;
+    default: return TurnHubProtocol::LedStyle::Default;
   }
 }
 
@@ -50,10 +50,7 @@ void mergeProfile(const String &profileId, AccessibilityPrefs &merged, bool &any
 }
 
 void sendTiming(uint8_t sigilId, AppliedPrefs &state, uint32_t nowMs) {
-  const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
-  if (record == nullptr || !record->helloInfoValid ||
-      (record->capabilities & TurnHubProtocol::CAPABILITY_INPUT_TIMING) == 0 ||
-      !sigilBus.isOnline(sigilId, nowMs)) {
+  if (sigilBus.record(sigilId) == nullptr || !sigilBus.isOnline(sigilId, nowMs)) {
     state.timingSent = false;  // Send as soon as it (re)appears.
     return;
   }
@@ -109,7 +106,7 @@ void applySigilAccessibility(uint8_t sigilId, uint32_t nowMs) {
   state.valid = true;
   if (timingChanged) state.timingSent = false;
 
-  leds.setProfile(sigilId, ledProfileFor(prefs.ledStyle));
+  leds.setStyle(sigilId, ledStyleFor(prefs.ledStyle));
   const uint16_t bit = AudioController::maskForSigil(sigilId);
   const uint16_t muted = audio.mutedSigils();
   audio.setMutedSigils(prefs.sigilSound ? static_cast<uint16_t>(muted & ~bit)

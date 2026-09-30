@@ -52,28 +52,13 @@ class Lobby {
   void resetEmpty();
   // Rebuilds the table from a recovered match's seats.
   bool restorePlayers(const PlayerSeat *players, uint8_t count, uint8_t starter);
-  // Keeps the seats; clears the starter, start arm and gesture flags.
+  // Keeps the seats; clears the starter and start arm.
   void resetForRematch();
-
-  // Physical gesture bookkeeping used by the Sigil adapter (not game state).
-
-  void setHeld(uint8_t controllerId, bool held);
-  bool isHeld(uint8_t controllerId) const;
-  bool anyOtherHeld(uint8_t controllerId) const;
 
   // The host controller that armed a start (INVALID_ID when unarmed).
   void setStartArmedBy(uint8_t controllerId);
   void clearStartArm();
   uint8_t startArmedBy() const;
-
-  void setSharedChord(uint8_t controllerId, bool value);
-  bool sharedChord(uint8_t controllerId) const;
-
-  void setSuppressNextShort(uint8_t controllerId, bool value);
-  bool consumeSuppressNextShort(uint8_t controllerId);
-
-  void setActionLong(uint8_t controllerId, bool value);
-  bool actionLong(uint8_t controllerId) const;
 
  private:
   int joinedIndex(uint8_t controllerId) const;
@@ -88,11 +73,6 @@ class Lobby {
   bool starterSelected_ = false;
   uint8_t starterModule_ = INVALID_ID;
   uint8_t starterSlot_ = 1;
-
-  bool held_[MAX_CONTROLLERS] = {};
-  bool sharedChord_[MAX_CONTROLLERS] = {};
-  bool suppressNextShort_[MAX_CONTROLLERS] = {};
-  bool actionLong_[MAX_CONTROLLERS] = {};
 
   uint8_t startArmedBy_ = INVALID_ID;
 };

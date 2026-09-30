@@ -1,7 +1,9 @@
 #include "sigil_led.h"
 #include "atlas_link.h"
 #include <cassert>
+#include <cstdint>
 #include <iostream>
+#include <string>
 
 using namespace TurnHubSigil;
 using namespace TurnHubProtocol;
@@ -193,6 +195,69 @@ int main() {
   assert(lit(f) == 4 && f.pixels[4] == (Rgb{120, 100, 70}) && dark(f.pixels[5]) && f.single.r == 60);
   m.setHoldProgress(0);
   assert(m.render(3000).pixels[1].b > 0 && m.render(3000).pixels[1].r == 0);
+
+  // Accessibility styles, checked on the ring itself (ACCESSIBILITY.md). These
+  // guarantees used to be tested on Atlas's own copy of the cadences, before
+  // every Sigil drew its ring from LedState.
+  {
+    const auto ringChanges = [](int32_t state, uint32_t &minGapMs) {
+      SigilLedModel s;
+      s.applyLedState(state, 0);
+      LedFrame last = s.render(0);
+      uint32_t lastChange = 0, changes = 0;
+      minGapMs = UINT32_MAX;
+      for (uint32_t t = 10; t <= 12000; t += 10) {
+        const LedFrame now = s.render(t);
+        bool same = true;
+        for (uint8_t i = 0; i < LED_PIXELS; ++i) same = same && now.pixels[i] == last.pixels[i];
+        if (!same) {
+          if (changes > 0 && t - lastChange < minGapMs) minGapMs = t - lastChange;
+          lastChange = t; ++changes; last = now;
+        }
+      }
+      return changes;
+    };
+    // Reduced motion: every Atlas cue and overlay is steady or changes at
+    // most once a second (no breathing, flashing or counting).
+    for (uint8_t cue = static_cast<uint8_t>(LedCue::Unassigned); cue <= static_cast<uint8_t>(LedCue::GameOver); ++cue) {
+      for (int overlay = -1; overlay < static_cast<int>(LedOverlay::Count); ++overlay) {
+        for (uint8_t seat = 1; seat <= 2; ++seat) {
+          const uint8_t bits = overlay < 0 ? 0 : bit(static_cast<LedOverlay>(overlay));
+          uint32_t gap = 0;
+          ringChanges(led(static_cast<LedCue>(cue), bits, 3, seat, seat == 2, LedStyle::ReducedMotion), gap);
+          if (gap < 1000) std::cout << "reduced motion too fast: cue " << unsigned(cue) << " overlay " << overlay
+                                    << " seat " << unsigned(seat) << " gap " << gap << "\n";
+          assert(gap >= 1000);
+        }
+      }
+    }
+    // Your turn and waiting differ by brightness, not only by color.
+    SigilLedModel s;
+    s.applyLedState(led(LedCue::YourTurn, 0, 0, 1, false, LedStyle::ReducedMotion), 0);
+    const Rgb yours = s.render(1000).pixels[1];
+    s.applyLedState(led(LedCue::Waiting, 0, 0, 1, false, LedStyle::ReducedMotion), 0);
+    const Rgb waiting = s.render(1000).pixels[1];
+    const auto peak = [](const Rgb &c) { return c.r > c.g ? (c.r > c.b ? c.r : c.b) : (c.g > c.b ? c.g : c.b); };
+    assert(peak(yours) >= 2 * peak(waiting) && peak(waiting) > 0);
+    // Cues that can meet in the same situation differ in timing, not only in
+    // hue, for monochrome-safe and reduced motion alike.
+    const auto onOff = [](int32_t state, uint8_t pixel) {
+      SigilLedModel m2;
+      m2.applyLedState(state, 0);
+      std::string trace;
+      for (uint32_t t = 0; t < 8000; t += 50) {
+        const Rgb c = m2.render(t).pixels[pixel];
+        trace += (c.r > 40 || c.g > 40 || c.b > 40) ? '1' : '0';
+      }
+      return trace;
+    };
+    for (LedStyle style : {LedStyle::MonochromeSafe, LedStyle::ReducedMotion}) {
+      assert(onOff(led(LedCue::YourTurn, bit(LedOverlay::TimerExpired), 0, 1, false, style), LED_CENTER) !=
+          onOff(led(LedCue::YourTurn, bit(LedOverlay::LongTurn), 0, 1, false, style), LED_CENTER));
+      assert(onOff(led(LedCue::ConfirmationNeeded, 0, 0, 1, false, style), 1) !=
+          onOff(led(LedCue::EliminationSelect, 0, 0, 1, false, style), 1));
+    }
+  }
 
   // Legacy channels from an older Atlas; clear() goes dark.
   m.applyLegacyRed(true); m.applyLegacyBlue(128);

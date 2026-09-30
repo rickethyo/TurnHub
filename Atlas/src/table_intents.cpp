@@ -81,10 +81,7 @@ void printPlayer(const PlayerSeat &player) {
 
 void clearDecisionState() {
   eliminationTargetPlayer = 0;
-  winArmedModule = INVALID_ID;
-  winArmedPlayer = 0;
   pendingPass = PendingPassState{};
-  resetGestureState();
 }
 
 void enterEmptyLobby(const Intent *cause) {
@@ -200,8 +197,6 @@ void finishGameState() {
   clearPendingPass("GAME_OVER");
   hubState = HubState::GameOver;
   eliminationTargetPlayer = 0;
-  winArmedModule = INVALID_ID;
-  winArmedPlayer = 0;
   leds.invalidateAll();
   audio.gameOver(gameAudioMask());
 
@@ -557,9 +552,6 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
   }
   if (intent.type == IntentType::ArmStart) {
-    if (lobby.anyOtherHeld(module)) {
-      return IntentResult::reject(IntentStatus::Conflict, "Another controller is held");
-    }
     lobby.setStartArmedBy(module);
     audio.startArmed(module);
     serialLog.print("ATLAS|LOBBY|START_ARM|");
@@ -669,8 +661,6 @@ void beginEliminationSelection(uint8_t sigilId) {
 
   eliminationTargetPlayer = candidates[0].playerNumber;
   game.cancelLifeChanges();
-  winArmedModule = INVALID_ID;
-  winArmedPlayer = 0;
   audio.eliminationArmed(sigilId);
   leds.invalidateAll();
 
@@ -810,10 +800,6 @@ bool forgetSigil(uint8_t sigilId) {
   // Saved seat bindings are released like after a game; the name is kept so
   // re-pairing the same Sigil restores it.
   TurnHubProfiles::resetTransientSeatBindings(mac);
-  lobby.setHeld(sigilId, false);
-  lobby.setSharedChord(sigilId, false);
-  lobby.setSuppressNextShort(sigilId, false);
-  lobby.setActionLong(sigilId, false);
   return true;
 }
 

@@ -122,7 +122,9 @@ void handleDevices(WebServer &server) {
     json += ",\"capabilities\":"; json += String(record->capabilities);
     // Both display variants support shared seating. The display bit still selects OTA firmware.
     const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
+    const bool dpad = (record->capabilities & TurnHubProtocol::CAPABILITY_INPUT_DPAD) != 0;
     json += ",\"display\":\""; json += !record->helloInfoValid ? "unknown" : oled ? "oled" : "epaper";
+    json += "\",\"input\":\""; json += !record->helloInfoValid ? "unknown" : dpad ? "dpad" : "joystick";
     json += "\",\"maxPlayers\":"; json += String(2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);

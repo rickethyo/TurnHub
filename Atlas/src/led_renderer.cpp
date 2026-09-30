@@ -8,7 +8,6 @@ namespace TurnHub {
 namespace {
 // How long a turn that just arrived counts as "TurnStarted" rather than "YourTurn".
 constexpr uint32_t TURN_STARTED_CUE_MS = 3000;
-constexpr uint32_t BLUE_REFRESH_MS = 40;
 
 void setSeat(SigilLedState &cue, const GameEngine &game, uint8_t sigilId, const PlayerSeat &seat,
     bool livingOnly) {
@@ -106,24 +105,17 @@ SigilLedState selectSigilLedState(
 
 LedRenderer::LedRenderer(SigilBus &bus)
     : bus_(bus) {
-  for (auto &profile : profiles_) profile = &defaultLedCueProfile();
+  for (auto &style : styles_) style = TurnHubProtocol::LedStyle::Default;
   invalidateAll();
 }
 
-void LedRenderer::setProfile(const LedCueProfile &profile) {
-  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) setProfile(id, profile);
+void LedRenderer::setStyle(uint8_t sigilId, TurnHubProtocol::LedStyle style) {
+  if (sigilId < MAX_PHYSICAL_SIGILS) styles_[sigilId] = style;
 }
 
-void LedRenderer::setProfile(uint8_t sigilId, const LedCueProfile &profile) {
-  if (sigilId >= MAX_PHYSICAL_SIGILS || profiles_[sigilId] == &profile) return;
-  profiles_[sigilId] = &profile;
-  // Levels are recomputed every frame; cached channel values need no reset.
+TurnHubProtocol::LedStyle LedRenderer::style(uint8_t sigilId) const {
+  return styles_[sigilId < MAX_PHYSICAL_SIGILS ? sigilId : 0];
 }
-
-const LedCueProfile &LedRenderer::profile(uint8_t sigilId) const {
-  return *profiles_[sigilId < MAX_PHYSICAL_SIGILS ? sigilId : 0];
-}
-
 bool LedRenderer::switchShownSeat(uint8_t sigilId, const GameEngine &game) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) return false;
   PlayerSeat seats[2];
@@ -140,9 +132,6 @@ bool LedRenderer::switchShownSeat(uint8_t sigilId, const GameEngine &game) {
 
 void LedRenderer::invalidate(uint8_t sigilId) {
   if (sigilId < MAX_PHYSICAL_SIGILS) {
-    cache_[sigilId].blueValid = false;
-    cache_[sigilId].redValid = false;
-    cache_[sigilId].greenValid = false;
     cache_[sigilId].ledStateValid = false;
     cache_[sigilId].clockValid = false;
     cache_[sigilId].displayValid = false;
@@ -151,54 +140,9 @@ void LedRenderer::invalidate(uint8_t sigilId) {
 
 void LedRenderer::invalidateAll() {
   for (auto &entry : cache_) {
-    entry.blueValid = false;
-    entry.redValid = false;
-    entry.greenValid = false;
     entry.ledStateValid = false;
     entry.clockValid = false;
     entry.displayValid = false;
-  }
-}
-
-void LedRenderer::set(uint8_t sigilId, const LedLevels &levels, uint32_t nowMs) {
-  if (sigilId >= MAX_PHYSICAL_SIGILS) {
-    return;
-  }
-
-  const uint8_t blue = levels.blue;
-  const bool red = levels.red;
-  const bool green = levels.green;
-  Cache &cache = cache_[sigilId];
-
-  if (!cache.blueValid || cache.blue != blue) {
-    // Smooth PWM values do not need millisecond transport updates. Cap them at
-    // 25 Hz so animated breathing cannot outrun ESP-NOW. Hard endpoints remain
-    // immediate because they are also used for flashes and state transitions.
-    const bool endpoint = blue == 0 || blue == 255;
-    const bool due =
-        !cache.blueValid ||
-        endpoint ||
-        nowMs - cache.lastBlueTxMs >= BLUE_REFRESH_MS;
-
-    if (due && bus_.setBlue(sigilId, blue)) {
-      cache.blue = blue;
-      cache.blueValid = true;
-      cache.lastBlueTxMs = nowMs;
-    }
-  }
-
-  if (!cache.redValid || cache.red != red) {
-    if (bus_.setRed(sigilId, red)) {
-      cache.red = red;
-      cache.redValid = true;
-    }
-  }
-
-  if (!cache.greenValid || cache.green != green) {
-    if (bus_.setGreen(sigilId, green)) {
-      cache.green = green;
-      cache.greenValid = true;
-    }
   }
 }
 
@@ -209,10 +153,8 @@ void LedRenderer::sendLedState(uint8_t sigilId, const SigilLedState &cue, uint32
   fields.playerNumber = cue.playerNumber < 15 ? cue.playerNumber : 15;
   fields.seatSlot = cue.seatSlot;
   fields.sharedSeat = cue.sharedSeat;
-  const LedCueProfile *profile = profiles_[sigilId];
-  fields.style = profile == &reducedMotionLedCueProfile() ? TurnHubProtocol::LedStyle::ReducedMotion
-      : profile == &monochromeSafeLedCueProfile() ? TurnHubProtocol::LedStyle::MonochromeSafe
-      : TurnHubProtocol::LedStyle::Default;
+  fields.style = styles_[sigilId];
+
   fields.anchorAgeMs = cue.anchorMs != 0 ? nowMs - cue.anchorMs : 0;
 
   const int32_t value = TurnHubProtocol::encodeLedState(fields);
@@ -372,9 +314,8 @@ void LedRenderer::syncDisplay(
       flags);
 
   Cache &cache = cache_[sigilId];
-  const auto *record = bus_.record(sigilId);
-  if (mode == TurnHubProtocol::DisplayMode::Running && record &&
-      (record->capabilities & TurnHubProtocol::CAPABILITY_GAME_DISPLAY)) {
+  if (mode == TurnHubProtocol::DisplayMode::Running) {
+
     TurnHubProtocol::GameDisplayPacket snapshot{};
     snapshot.version = TurnHubProtocol::VERSION;
     snapshot.type = TurnHubProtocol::PacketType::GameDisplay;
@@ -472,13 +413,8 @@ void LedRenderer::render(
     const SigilLedState cue = selectSigilLedState(
         id, state, lobby, game, countdownStartedAtMs,
         eliminationTargetPlayer, winConfirmationPlayer, nowMs);
-    const SigilRecord *record = bus_.record(id);
-    if (record != nullptr && record->helloInfoValid &&
-        (record->capabilities & TurnHubProtocol::CAPABILITY_LED_STATE) != 0) {
-      sendLedState(id, cue, nowMs);
-    } else {
-      set(id, ledLevels(*profiles_[id], cue, nowMs), nowMs);
-    }
+    sendLedState(id, cue, nowMs);
+
   }
 }
 

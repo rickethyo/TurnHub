@@ -150,7 +150,6 @@ IntentResult handleModerateIntent(const Intent &intent, void *) {
   }
   TurnHubWebApi::revokeConnections(target);
   if (joined) {
-    lobby.setHeld(controller, false);
     clearPendingPass("CONNECTION_RESET");
   }
   return IntentResult::accept(isReset ? "Connections reset; sign in again to reconnect" : "Removed from game");

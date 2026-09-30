@@ -1,6 +1,6 @@
 #pragma once
 
-// Sigil profile picker (menu Sigils 0.8.0+, e-ink and OLED; see ProfilePickerPacket in
+// Sigil profile picker (every Sigil but the test harness; see ProfilePickerPacket in
 // protocol.h). On a picker Sigil, the menu's Join opens a list of names
 // instead of joining as a guest: Guest first, then the saved profiles by
 // name. Atlas owns the list, the page and the choice; the Sigil draws a page

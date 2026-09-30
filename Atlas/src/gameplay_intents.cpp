@@ -42,11 +42,6 @@ bool tableDecisionPending() {
   return game.hasWinClaim() || eliminationTargetPlayer != 0;
 }
 
-void disarmWinClaim() {
-  winArmedModule = INVALID_ID;
-  winArmedPlayer = 0;
-}
-
 IntentResult rejectMissingSeat() {
   return IntentResult::reject(IntentStatus::InvalidActor, "This seat is no longer at the table");
 }
@@ -184,21 +179,11 @@ IntentResult handlePauseIntent(const Intent &intent, void *) {
   }
 
   clearPendingPass("PAUSE");
-  const PlayerSeat *active = game.activePlayer();
   if (!game.pause(millis())) {
     return IntentResult::reject(IntentStatus::Conflict, "Could not pause the game");
   }
 
   hubState = HubState::Paused;
-  // The long-press pause gesture may continue into a win claim, but only for
-  // the active player's own controller.
-  if ((intent.payload.flags & TurnHub::ARM_WIN_ON_PAUSE) != 0 &&
-      active != nullptr && active->controllerId == intent.actor.controllerId) {
-    winArmedModule = intent.actor.controllerId;
-    winArmedPlayer = active->playerNumber;
-  } else {
-    disarmWinClaim();
-  }
 
   audio.pause(gameAudioMask());
   leds.invalidateAll();
@@ -226,7 +211,6 @@ IntentResult handleResumeIntent(const Intent &intent, void *) {
   }
 
   hubState = HubState::Running;
-  disarmWinClaim();
   audio.resume(gameAudioMask());
   leds.invalidateAll();
   logIntent("RESUME", intent.actor.origin, seat->playerNumber);
@@ -370,18 +354,12 @@ IntentResult handleClaimWinIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState, "Only the active player can claim a win");
   }
 
-  const bool armedClaim = (intent.payload.flags & TurnHub::CLAIM_FROM_ARMED_PAUSE) != 0;
-  if (armedClaim && (hubState != HubState::Paused ||
-      winArmedModule != seat.controllerId || winArmedPlayer != seat.playerNumber)) {
-    return IntentResult::reject(IntentStatus::InvalidState, "Win claim is not armed");
-  }
   clearPendingPass("WIN_CLAIM");
-  // An armed claim came from running play, so a denial resumes it.
-  const bool restoreRunning = hubState == HubState::Running || armedClaim;
+  // A claim from running play resumes it on denial.
+  const bool restoreRunning = hubState == HubState::Running;
   if (!game.beginWinClaim(seat.playerNumber, restoreRunning, millis())) {
     return IntentResult::reject(IntentStatus::InvalidState, "Could not start the win claim");
   }
-  disarmWinClaim();
   leds.invalidateAll();
 
   if (game.gameOver()) {

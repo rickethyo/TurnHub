@@ -1,4 +1,4 @@
-// Menu Sigils: action availability and MenuState transport. See sigil_menu.h.
+// Sigil menus: action availability and MenuState2 transport. See sigil_menu.h.
 #include "sigil_menu.h"
 
 #include "atlas_app.h"
@@ -45,20 +45,6 @@ constexpr SigilAction DEFAULT_ORDER[] = {
     SigilAction::CancelStart, SigilAction::LinkPhone, SigilAction::CycleStarter,
     SigilAction::BeginElimination};
 
-bool menuSigil(uint8_t sigilId) {
-  const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
-  return record != nullptr && record->helloInfoValid &&
-      (record->capabilities & TurnHubProtocol::CAPABILITY_MENU) != 0;
-}
-
-// Decodes MenuState2 (actions past the first 21, such as Leave). The test
-// harness qualifies too from its 0.8.0 (it plays life changes and Leave like a
-// real Sigil); only the profile picker stays off for it (profile_picker.cpp).
-bool menu2Sigil(uint8_t sigilId) {
-  const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
-  return record != nullptr && record->helloInfoValid &&
-      TurnHubProtocol::menuState2Firmware(record->firmwareMajor, record->firmwareMinor);
-}
 
 }  // namespace
 
@@ -90,8 +76,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
         add(SigilAction::StartGame);
         add(SigilAction::RandomStarter);
       }
-      // Leave (both seats) fits only MenuState2.
-      if (menu2Sigil(sigilId)) add(SigilAction::Leave);
+      add(SigilAction::Leave);
       break;
 
     case HubState::Starting:
@@ -140,16 +125,16 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   }
 
   if (TurnHubWebApi::hasPendingClaim(sigilId)) add(SigilAction::LinkPhone);
-  // Left/Right life changes (MenuState2 Sigils), whenever ChangeLife could
+  // Left/Right life changes, whenever ChangeLife could
   // succeed: a living seat in a running or paused game, no table decision.
-  if (menu2Sigil(sigilId) && (hubState == HubState::Running || hubState == HubState::Paused) &&
+  if ((hubState == HubState::Running || hubState == HubState::Paused) &&
       hasLivingSeat && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
     add(SigilAction::AdjustLife);
   }
   // Two living seats on one Sigil: either one can be shown, and so have its
   // life changed, on any turn.
   PlayerSeat shared[2];
-  if (menu2Sigil(sigilId) && (hubState == HubState::Running || hubState == HubState::Paused) &&
+  if ((hubState == HubState::Running || hubState == HubState::Paused) &&
       game.livingPlayersForController(sigilId, shared, 2) == 2) {
     add(SigilAction::SwitchSeat);
   }
@@ -168,7 +153,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
 void syncSigilMenus(uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     MenuCache &cache = menus[id];
-    if (!sigilBus.isOnline(id, nowMs) || !menuSigil(id)) {
+    if (!sigilBus.isOnline(id, nowMs)) {
       cache.sent = false;
       continue;
     }
@@ -185,16 +170,13 @@ void syncSigilMenus(uint32_t nowMs) {
     if (cache.sent) continue;
     MenuStateFields fields = now;
     fields.revision = cache.revision;
-    const bool sent = menu2Sigil(id)
-        ? sigilBus.send(id, TurnHubProtocol::PacketType::MenuState2, TurnHubProtocol::encodeMenuState2(fields))
-        : sigilBus.send(id, TurnHubProtocol::PacketType::MenuState, TurnHubProtocol::encodeMenuState(fields));
-    if (sent) {
+    if (sigilBus.send(id, TurnHubProtocol::PacketType::MenuState2, TurnHubProtocol::encodeMenuState2(fields))) {
       cache.sent = true;
     }
   }
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     MenuCache &cache = menus[id];
-    if (!sigilBus.isOnline(id, nowMs) || !menu2Sigil(id)) {
+    if (!sigilBus.isOnline(id, nowMs)) {
       cache.lifeSent = false;
       cache.startingLifeSent = false;
       cache.passingSent = false;

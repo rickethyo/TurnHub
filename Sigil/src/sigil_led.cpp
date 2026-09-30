@@ -98,7 +98,11 @@ Look cueLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, uint32_t an
     case LedCue::Waiting: return {BLUE, WAITING_LEVEL};
     case LedCue::Paused: return {AMBER, rm ? slow(now) : breathe(now, 2600)};
     case LedCue::ConfirmationNeeded: return {MAGENTA, seatLevel(s, now, 180)};
-    case LedCue::EliminationSelect: return {RED, seatLevel(s, now, mono(s.style) ? 600 : 180)};
+    case LedCue::EliminationSelect:
+      // Monochrome-safe and reduced motion: a slow blink, so it never differs
+      // from a steady ConfirmationNeeded by color alone (ACCESSIBILITY.md).
+      if (rm || (mono(s.style) && !s.sharedSeat)) return {RED, slow(now)};
+      return {RED, seatLevel(s, now, mono(s.style) ? 600 : 180)};
     default: return Look{Rgb(), 0};
   }
 }
@@ -113,7 +117,9 @@ bool overlayLook(const TurnHubProtocol::LedStateFields &s, uint32_t now, bool in
   if (has(LedOverlay::Winner)) { out = {GOLD, seatLevel(s, now, 180)}; return true; }
   if (has(LedOverlay::Starter)) { out = {WHITE, seatLevel(s, now, 180)}; return true; }
   if (has(LedOverlay::LongTurn)) {
-    out = {CYAN, rm || !mono(s.style) ? static_cast<uint8_t>(255) : blink(now, 4000, 250)};
+    // Steady red means the timer ran out, so both accessibility styles make a
+    // long turn blink: briefly (monochrome-safe) or slowly (reduced motion).
+    out = {CYAN, rm ? slow(now) : mono(s.style) ? blink(now, 4000, 250) : static_cast<uint8_t>(255)};
     return true;
   }
   if (includeHost && has(LedOverlay::Host)) { out = {PURPLE, 255}; return true; }

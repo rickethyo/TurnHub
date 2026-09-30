@@ -15,7 +15,7 @@
 //                          countdown, rematch/reset, elimination, pairing
 //                          (open, forget, window), game settings
 //   moderation_intent.cpp  Game Master moderation
-//   sigil_input.cpp        ESP-NOW event adapter and physical gesture state
+//   sigil_input.cpp        ESP-NOW event adapter (menu choices, life keys)
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
 //   front_panel.cpp        pairing window, admin unlock window
 //   touch_controls.cpp     touchscreen buttons (adapter) and the TFT's
@@ -132,9 +132,6 @@ struct GameTable {
   int8_t lastCountdownSecond = -1;
   // Player selected for elimination while paused; 0 when none.
   uint8_t eliminationTargetPlayer = 0;
-  // Controller/player that armed a win claim with the long-press pause gesture.
-  uint8_t winArmedModule = INVALID_ID;
-  uint8_t winArmedPlayer = 0;
   TurnTimerCueState turnTimerCue;
 };
 
@@ -151,8 +148,6 @@ extern PendingPassState &pendingPass;
 extern uint32_t &countdownStartedAtMs;
 extern int8_t &lastCountdownSecond;
 extern uint8_t &eliminationTargetPlayer;
-extern uint8_t &winArmedModule;
-extern uint8_t &winArmedPlayer;
 extern TurnTimerCueState &turnTimerCue;
 
 // --- main.cpp ----------------------------------------------------------------
@@ -248,7 +243,7 @@ void serviceFactoryReset(uint32_t nowMs);
 bool factoryResetScheduled();
 void eraseSettingsAndRestart();
 
-// Clears Atlas-owned decisions and the physical gesture bookkeeping.
+// Clears Atlas-owned table decisions.
 void clearDecisionState();
 void enterEmptyLobby(const Intent *cause = nullptr);
 // Enters GameOver after the engine reports a finished match.
@@ -263,21 +258,11 @@ IntentResult handleModerateIntent(const Intent &intent, void *);
 // --- sigil_input.cpp ---------------------------------------------------------
 
 void processSigilEvents();
-void handlePass(uint8_t sigilId);
-void handleActionDown(uint8_t sigilId);
-void handleActionUp(uint8_t sigilId);
-void handleActionShort(uint8_t sigilId);
-void handleActionLong(uint8_t sigilId);
-void handleActionWin(uint8_t sigilId);
-// A menu Sigil's SelectAction payload (encodeSelectAction).
+// A Sigil's menu choice (SelectAction payload, encodeSelectAction).
 void handleSelectAction(uint8_t sigilId, int32_t value);
-// Life on 0.8.0+ Sigils: a batched LifeAdjust, and a LifeResponse to a request.
+// Life from a Sigil: a batched LifeAdjust, and a LifeResponse to a request.
 void handleLifeAdjust(uint8_t sigilId, int32_t value);
 void handleLifeResponse(uint8_t sigilId, int32_t value);
-// Loop tick: expires the post-cancel Action suppression window.
-void updateActionCancelSuppression(uint32_t nowMs);
-// Forgets held/chord/suppression bookkeeping for every physical Sigil.
-void resetGestureState();
 
 // --- sigil_accessibility.cpp -------------------------------------------------
 

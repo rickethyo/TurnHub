@@ -13,8 +13,7 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 
 # Adapter functions, grouped by the module that must define them.
 ADAPTERS = {
-    "sigil_input.cpp": ["handleLobbyShort", "handlePass", "handleActionDown", "handleActionUp",
-                        "handleActionShort", "handleActionLong", "handleActionWin",
+    "sigil_input.cpp": ["passFromMenu",
                         "processSigilEvents", "respondToWinClaim", "dispatchPauseOrResume",
                         "connectionBlocked", "handleSelectAction",
                         "handleLifeAdjust", "handleLifeResponse"],

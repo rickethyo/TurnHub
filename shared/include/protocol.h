@@ -41,28 +41,35 @@ constexpr uint32_t PASS_GRACE_MS = 3000;
 // this allows for three missed exchanges.
 constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 
-constexpr uint8_t CAPABILITY_DISPLAY = 0x01;
-constexpr uint8_t CAPABILITY_DISPLAY_PROFILE = 0x02;
-constexpr uint8_t CAPABILITY_GAME_DISPLAY = 0x04;
-// The Sigil applies InputTiming packets (adjustable hold thresholds).
-constexpr uint8_t CAPABILITY_INPUT_TIMING = 0x08;
-// The Sigil has the OLED display (sigil-oled build). Used for display identity
-// and OTA variant selection; both display variants support Seat B.
-// E-paper Sigils and older firmware leave it clear.
+// --- Hello capability byte ---------------------------------------------------
+// Every Sigil has the same baseline, which Atlas assumes and nothing
+// announces: a screen that shows the player's profile and the game, five-key
+// input (Up/Down/Left/Right/Select) with Atlas's action menu (MenuState2,
+// SelectAction, the profile picker, life keys), adjustable hold times
+// (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
+// The byte carries only what varies (owner, 2026-09-30).
+//
+// Five feature bits that announced the baseline were retired 2026-09-30 with
+// Sigil 0.9.0; 0x02, 0x04, 0x08, 0x20 and 0x40 are free for new meanings, and
+// 0x01 is reused below. Protocol-2 Sigils before 0.9.0 still set the old bits,
+// so read the byte only through helloCapabilities(), which keeps a new meaning
+// away from old firmware.
+//
+// Five-button d-pad; clear: analog thumbstick (its click is Select).
+constexpr uint8_t CAPABILITY_INPUT_DPAD = 0x01;
+// The Sigil has the OLED display (sigil-oled); clear: e-paper. Also picks the
+// OTA package. Both displays seat two players.
 constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
-// The Sigil renders its status light itself from LedState packets (full
-// color, and the NeoPixel ring's pixels). Atlas then sends LedState instead
-// of the SetBlue/SetRed/SetGreen channel stream; older Sigils keep that.
-constexpr uint8_t CAPABILITY_LED_STATE = 0x20;
-// The Sigil has five-key input (Up/Down/Left/Right/Select: joystick or d-pad)
-// and shows Atlas's action menu. Atlas then sends MenuState, and the Sigil
-// answers with SelectAction instead of the Action/Pass gestures.
-constexpr uint8_t CAPABILITY_MENU = 0x40;
 // A hardware test harness (TestHarness/), not a player controller. Atlas then
 // offers its premade tests on the touchscreen and sends HarnessCommand; the
 // harness answers with HarnessReport. It still plays only through the normal
 // Sigil packets, so it gains no authority.
 constexpr uint8_t CAPABILITY_HARNESS = 0x80;
+// The bits that mean the same thing in every protocol-2 firmware.
+constexpr uint8_t CAPABILITIES_STABLE = CAPABILITY_DISPLAY_OLED | CAPABILITY_HARNESS;
+// First Sigil firmware with this layout.
+constexpr uint8_t CAPABILITY_LAYOUT_MAJOR = 0;
+constexpr uint8_t CAPABILITY_LAYOUT_MINOR = 9;
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
 // accessibility preferences and sends them in InputTiming; the Sigil applies
@@ -84,12 +91,9 @@ constexpr uint16_t HOLD_STEP_MS = 250;
 enum class PacketType : uint8_t {
   Hello = 1,
   Ack = 2,
-  Pass = 3,
-  ActionDown = 4,
-  ActionUp = 5,
-  ActionShort = 6,
-  ActionLong = 7,
-  ActionWin = 8,
+  // 3-8 retired 2026-09-30 (Sigil 0.9.0): Pass and the ActionDown/Up/Short/
+  // Long/Win gestures of three-button Sigils. Every Sigil uses the menu
+  // (SelectAction). Reserved; never reuse.
   DisplayProfileRequest = 9,
   // Retired with the secure link (VERSION 2): keyless pairing. Pairing is
   // PairRequest2/PairAccept2 now. Keep the numbers reserved; never reuse them.
@@ -104,33 +108,32 @@ enum class PacketType : uint8_t {
   HarnessReport = 14,
   // Sigil -> Atlas: a key pressed in the profile picker (encodePickerKey).
   PickerKey = 15,
-  // Sigil -> Atlas (0.8.0+): change one of this Sigil's players' life by a
+  // Sigil -> Atlas: change one of this Sigil's players' life by a
   // batched amount (encodeLifeAdjust). Offered while AdjustLife is in the menu.
   LifeAdjust = 16,
-  // Sigil -> Atlas (0.8.0+): approve or deny the life request shown
+  // Sigil -> Atlas: approve or deny the life request shown
   // (encodeLifeResponse).
   LifeResponse = 17,
-  SetBlue = 20,
-  SetRed = 21,
-  SetGreen = 22,
+  // 20-22 retired 2026-09-30: SetBlue/SetRed/SetGreen, the per-channel light
+  // stream for Sigils that couldn't draw LedState. Reserved; never reuse.
   Buzzer = 23,
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
-  MenuState = 26,    // Atlas -> Sigil: actions available now (encodeMenuState).
+  // 26 retired 2026-09-30: MenuState, the pre-0.8.0 menu encoding (MenuState2
+  // replaced it). Reserved; never reuse.
   HarnessCommand = 27,  // Atlas -> harness: run or stop a test (encodeHarnessCommand).
   // Atlas -> Sigil: erase all saved settings (NVS) and restart. Only honored
   // from the paired Atlas, for this Sigil's ID, with FACTORY_RESET_CONFIRM.
   FactoryReset = 28,
   // Atlas -> Sigil: the profile picker page (ProfilePickerPacket, by length).
   ProfilePicker = 33,
-  // Atlas -> Sigil 0.8.0+: actions available now, with room for actions past
-  // the first 21 (encodeMenuState2). Older Sigils keep MenuState.
+  // Atlas -> Sigil: actions available now (encodeMenuState2).
   MenuState2 = 34,
-  // Atlas -> Sigil 0.8.0+: a pending life request for one of this Sigil's
+  // Atlas -> Sigil: a pending life request for one of this Sigil's
   // players, or none (encodeLifeRequest). Resent with every Hello.
   LifeRequest = 35,
   // Atlas -> Sigil: a seated profile's chosen Jewel color for one seat, or
-  // none (encodeSeatColor). Resent with every Hello; older Sigils ignore it.
+  // none (encodeSeatColor). Resent with every Hello.
   SeatColor = 36,
   // Atlas -> Sigil: the running game's starting life (0 = no game), so the
   // Sigil's heart can shrink or grow against it. Resent with every Hello;
@@ -319,16 +322,12 @@ inline bool validGameDisplay(const GameDisplayPacket &p) {
   return true;
 }
 
-// Profile picker (menu Sigils 0.8.0+: sent only to Sigils that advertise
-// CAPABILITY_MENU without CAPABILITY_HARNESS and report at least
-// PICKER_MIN_FIRMWARE). Atlas owns the list, the page and every rule; the
-// Sigil draws the page and reports compass keys. Keys map to fixed places so
-// an e-ink panel redraws once per page, not per cursor move (the OLED shows a
-// list and turns the chosen row into the same key):
+// Profile picker (every Sigil but the test harness). Atlas owns the list, the
+// page and every rule; the Sigil draws the page and reports compass keys. Keys
+// map to fixed places so an e-ink panel redraws once per page, not per cursor
+// move (the OLED shows a list and turns the chosen row into the same key):
 //   Up, Right, Down: the three names on the page     Left: back / cancel
 //   Select (click): more names (List) or yes (Confirm)
-constexpr uint8_t PICKER_MIN_FIRMWARE_MAJOR = 0;
-constexpr uint8_t PICKER_MIN_FIRMWARE_MINOR = 8;
 constexpr uint8_t PICKER_PAGE_ITEMS = 3;
 
 enum class PickerMode : uint8_t {
@@ -377,10 +376,6 @@ inline bool validProfilePicker(const ProfilePickerPacket &p) {
   }
   return true;
 }
-inline bool pickerFirmware(uint8_t major, uint8_t minor) {
-  return major > PICKER_MIN_FIRMWARE_MAJOR ||
-      (major == PICKER_MIN_FIRMWARE_MAJOR && minor >= PICKER_MIN_FIRMWARE_MINOR);
-}
 // PickerKey payload: bits 0-2 key (0 Up, 1 Down, 2 Left, 3 Right, 4 Select),
 // bits 3-10 the page revision it was pressed on.
 enum class PickerKeyCode : uint8_t { Up = 0, Down = 1, Left = 2, Right = 3, Select = 4, Count };
@@ -411,9 +406,6 @@ inline int32_t encodeHelloInfo(
       (static_cast<uint32_t>(firmwareMajor) << 24));
 }
 
-inline uint8_t helloCapabilities(int32_t value) {
-  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
-}
 inline uint8_t helloFirmwarePatch(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 8) & 0xFFu);
 }
@@ -422,6 +414,22 @@ inline uint8_t helloFirmwareMinor(int32_t value) {
 }
 inline uint8_t helloFirmwareMajor(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 24) & 0xFFu);
+}
+// The capability byte in today's layout. Firmware before 0.9.0 (the test
+// harness too) keeps only the stable bits; its retired bits are dropped. Its
+// input is inferred: every OLED build before 0.9.0 has the d-pad, every
+// e-paper build the thumbstick.
+inline uint8_t helloCapabilities(int32_t value) {
+  const uint8_t raw = static_cast<uint8_t>(static_cast<uint32_t>(value) & 0xFFu);
+  const uint8_t major = helloFirmwareMajor(value);
+  const uint8_t minor = helloFirmwareMinor(value);
+  if (major > CAPABILITY_LAYOUT_MAJOR ||
+      (major == CAPABILITY_LAYOUT_MAJOR && minor >= CAPABILITY_LAYOUT_MINOR)) {
+    return raw;
+  }
+  uint8_t caps = raw & CAPABILITIES_STABLE;
+  if ((caps & CAPABILITY_DISPLAY_OLED) != 0) caps |= CAPABILITY_INPUT_DPAD;
+  return caps;
 }
 
 inline int32_t encodeTone(uint16_t frequencyHz, uint16_t durationMs) {
@@ -625,7 +633,7 @@ enum class SigilAction : uint8_t {
   Rematch = 18,
   ResetTable = 19,
   LinkPhone = 20,         // Approve a waiting browser link for this Sigil.
-  // MenuState2 only (Sigil 0.8.0+): this Sigil leaves the lobby, both seats.
+  // This Sigil leaves the lobby, both seats.
   Leave = 21,
   // MenuState2 only: Left/Right (when no other action has them) change this
   // Sigil's shown player's life; sent as LifeAdjust, never SelectAction.
@@ -636,12 +644,11 @@ enum class SigilAction : uint8_t {
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 31;
-// MenuState carries actions 0-20; MenuState2 carries up to 24.
-constexpr uint32_t SIGIL_ACTION_MASK_BITS = 21;
+// MenuState2 carries up to 24 actions.
 constexpr uint32_t SIGIL_ACTION_MASK2_BITS = 24;
 static_assert(static_cast<uint8_t>(SigilAction::Count) <= SIGIL_ACTION_MASK2_BITS,
     "SigilAction must fit the MenuState2 mask");
-// Menu revisions wrap at 8 so both encodings can name them.
+// Menu revisions wrap at 8 (three bits in MenuState2).
 constexpr uint8_t MENU_REVISION_MASK = 0x07;
 
 constexpr uint32_t sigilActionBit(SigilAction action) {
@@ -661,38 +668,16 @@ inline ActionHold sigilActionHold(SigilAction action) {
   }
 }
 
-// MenuState payload: bits 0-20 available actions, 21-25 the default action
-// (SIGIL_ACTION_NONE if none), 26-31 menu revision (wraps). A SelectAction
-// names the revision it was chosen from, so Atlas ignores stale choices.
+// The menu Atlas offers a Sigil now. A SelectAction names the revision it was
+// chosen from, so Atlas ignores stale choices.
 struct MenuStateFields {
   uint32_t actions = 0;
   uint8_t defaultAction = SIGIL_ACTION_NONE;
   uint8_t revision = 0;
 };
 
-inline int32_t encodeMenuState(const MenuStateFields &f) {
-  return static_cast<int32_t>(
-      (f.actions & ((1u << SIGIL_ACTION_MASK_BITS) - 1)) |
-      ((static_cast<uint32_t>(f.defaultAction) & 0x1Fu) << 21) |
-      ((static_cast<uint32_t>(f.revision) & 0x3Fu) << 26));
-}
-
-inline MenuStateFields decodeMenuState(int32_t value) {
-  const uint32_t v = static_cast<uint32_t>(value);
-  MenuStateFields f;
-  f.actions = v & ((1u << SIGIL_ACTION_MASK_BITS) - 1) &
-      ((1u << static_cast<uint8_t>(SigilAction::Count)) - 1);
-  f.defaultAction = static_cast<uint8_t>((v >> 21) & 0x1Fu);
-  if (f.defaultAction >= static_cast<uint8_t>(SigilAction::Count) ||
-      (f.actions & (1u << f.defaultAction)) == 0) {
-    f.defaultAction = SIGIL_ACTION_NONE;
-  }
-  f.revision = static_cast<uint8_t>((v >> 26) & 0x3Fu);
-  return f;
-}
-
-// MenuState2 payload (Sigil 0.8.0+): bits 0-23 available actions, 24-28 the
-// default action (SIGIL_ACTION_NONE if none), 29-31 menu revision.
+// MenuState2 payload: bits 0-23 available actions, 24-28 the default action
+// (SIGIL_ACTION_NONE if none), 29-31 menu revision.
 inline int32_t encodeMenuState2(const MenuStateFields &f) {
   return static_cast<int32_t>(
       (f.actions & ((1u << SIGIL_ACTION_MASK2_BITS) - 1)) |
@@ -781,11 +766,6 @@ inline uint8_t seatAvatar(int32_t v) { return static_cast<uint8_t>((static_cast<
 inline uint8_t seatColorSlot(int32_t v) { return static_cast<uint8_t>(static_cast<uint32_t>(v) & 0x03u); }
 inline bool seatColorSet(int32_t v) { return (static_cast<uint32_t>(v) & 0x04u) != 0; }
 inline uint32_t seatColorRgb(int32_t v) { return (static_cast<uint32_t>(v) >> 8) & 0xFFFFFFu; }
-
-// Sigil firmware that decodes MenuState2 (the same release as the picker).
-inline bool menuState2Firmware(uint8_t major, uint8_t minor) {
-  return pickerFirmware(major, minor);
-}
 
 // SelectAction payload: bits 0-4 action, 5-10 menu revision.
 inline int32_t encodeSelectAction(SigilAction action, uint8_t revision) {

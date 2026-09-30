@@ -56,8 +56,6 @@ PendingPassState &pendingPass = tables[0].pendingPass;
 uint32_t &countdownStartedAtMs = tables[0].countdownStartedAtMs;
 int8_t &lastCountdownSecond = tables[0].lastCountdownSecond;
 uint8_t &eliminationTargetPlayer = tables[0].eliminationTargetPlayer;
-uint8_t &winArmedModule = tables[0].winArmedModule;
-uint8_t &winArmedPlayer = tables[0].winArmedPlayer;
 TurnTimerCueState &turnTimerCue = tables[0].turnTimerCue;
 
 TurnHub::GameSettings nextGameSettings;
@@ -503,7 +501,6 @@ void loop() {
   serviceAtlasDisplay(nowMs);
   serviceFactoryReset(nowMs);
   updatePendingPass(nowMs);
-  updateActionCancelSuppression(nowMs);
   updateCountdown(nowMs);
   updateTurnTimerCues(nowMs);
   dispatchSystemIntent(IntentType::ExpireLifeChanges);

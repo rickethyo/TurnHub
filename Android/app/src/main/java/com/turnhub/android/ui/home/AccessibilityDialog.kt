@@ -148,14 +148,14 @@ private fun Editor(
         }
 
         HoldStepper(
-            title = "Hold Action to pause",
+            title = "Hold to confirm Leave, Eliminate or Reset",
             valueMs = longMs,
             choices = limits.longPressChoices(),
             enabled = !prompt.busy,
             onChange = { longMs = it },
         )
         HoldStepper(
-            title = "Hold Action to claim a win",
+            title = "Hold to claim a win",
             valueMs = winMs,
             choices = limits.winHoldChoices(),
             enabled = !prompt.busy,
@@ -163,10 +163,10 @@ private fun Editor(
         )
         Text(
             if (valid) {
-                "On a shared Sigil the longer times apply. Needs Sigil firmware 0.5.4 or newer; " +
-                    "older Sigils keep 2 and 5 seconds. You can always pause here instead."
+                "How long a Sigil key is held to confirm those menu choices. On a shared Sigil the " +
+                    "longer times apply. You can always do these here instead."
             } else {
-                "The win hold must be at least ${limits.minGapMs / 1000} second longer than the pause hold."
+                "The win hold must be at least ${limits.minGapMs / 1000} second longer than the other hold."
             },
             style = MaterialTheme.typography.bodySmall,
             color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
