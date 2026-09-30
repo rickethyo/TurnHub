@@ -2649,6 +2649,8 @@ static void firstRunSetup() {
   { const uint32_t now=testNow; freshLobby(2); testNow=now; }
   startFromHost();
   assert(request("/api/setup/finish",owner,{{"password","table-pass-1"}})==409 && setupStage==SetupStage::Welcome);
+  // A refused finish leaves the Wi-Fi as it was (the printed password).
+  assert(!TurnHub::validWifiPassword(TurnHub::readStoredWifiPassword()));
   enterEmptyLobby();
 
   // Step 4, finish: the password is stored, the stage saved, Atlas restarts.

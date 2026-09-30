@@ -435,11 +435,24 @@ void handleSetupFinish(WebServer &server) {
     sendError(server, 400, "Choose a password other than the one printed for setup");
     return;
   }
+  // The validator reads the stored password, so it is written first; if
+  // Atlas then refuses, the previous one goes back, so a refused finish
+  // never changes the Wi-Fi at the next restart.
+  const String previous = TurnHub::readStoredWifiPassword();
   bool changed = false;
   if (!storeWifiPassword(server, password, changed)) return;
   String message = "Setup unavailable";
   if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId, TurnHub::IntentType::AdvanceSetup,
           static_cast<int32_t>(TurnHub::SetupStage::Finished), message)) {
+    if (changed) {
+      TurnHub::OptionalPreferences prefs;
+      if (prefs.begin(AtlasConfig::WIFI_PREF_NAMESPACE, false)) {
+        // An empty value reads as "no owner password": the printed default.
+        prefs.putString(AtlasConfig::WIFI_PREF_KEY, previous);
+        prefs.end();
+      }
+      serialLog.println("ATLAS|WIFI_AP|PASSWORD_STORE|RESTORED_AFTER_REFUSED_SETUP");
+    }
     sendError(server, 409, message);
     return;
   }
