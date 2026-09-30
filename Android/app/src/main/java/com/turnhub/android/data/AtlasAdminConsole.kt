@@ -77,6 +77,25 @@ data class AdminState(
 )
 
 /**
+ * Settings that restart Atlas. The screen that owns the connection remembers
+ * the Wi-Fi password Atlas comes back with and rejoins by itself, so the app
+ * reopens the table instead of dropping to the connect screen.
+ */
+interface AtlasRestarts {
+    suspend fun wifiPasswordChanged(password: String)
+
+    /** Atlas comes back as new, on the printed default password. */
+    suspend fun factoryReset()
+
+    companion object {
+        val NONE = object : AtlasRestarts {
+            override suspend fun wifiPasswordChanged(password: String) = Unit
+            override suspend fun factoryReset() = Unit
+        }
+    }
+}
+
+/**
  * The admin and developer side of the portal (Device Settings, account
  * permissions, Game Master moderation, the Developer page), over the same
  * routes. Atlas checks every permission and the table-presence code; this
@@ -84,7 +103,10 @@ data class AdminState(
  * `403 {"presenceRequired": true}` asks Atlas to show a code, and is retried
  * once after [confirmCode] succeeds, as the portal does.
  */
-class AtlasAdminConsole(private val session: AtlasPlayerSession) {
+class AtlasAdminConsole(
+    private val session: AtlasPlayerSession,
+    private val restarts: AtlasRestarts = AtlasRestarts.NONE,
+) {
 
     private val _state = MutableStateFlow(AdminState())
     val state: StateFlow<AdminState> = _state.asStateFlow()
@@ -246,8 +268,8 @@ class AtlasAdminConsole(private val session: AtlasPlayerSession) {
     suspend fun saveNetworkPassword(password: String) = protectedPost(
         "/api/network/password",
         listOf("password" to password),
-        success = "Password saved. Atlas is restarting; rejoin its Wi-Fi with the new password.",
-    )
+        success = "Password saved. Atlas is restarting; the app rejoins with the new password.",
+    ) { restarts.wifiPasswordChanged(password) }
 
     suspend fun renameDevice(id: Int, name: String) =
         protectedPost("/api/device/name", listOf("module" to id.toString(), "name" to name),
@@ -263,8 +285,8 @@ class AtlasAdminConsole(private val session: AtlasPlayerSession) {
     suspend fun factoryResetAtlas() = protectedPost(
         "/api/device/factory-reset",
         listOf("atlas" to "1"),
-        success = "Atlas is restarting as new. Rejoin its Wi-Fi with the default password, then set it up again.",
-    )
+        success = "Atlas is restarting as new. The app rejoins it, then setup starts again.",
+    ) { restarts.factoryReset() }
 
     suspend fun resetTable() =
         protectedPost("/api/table/reset", success = "The table is back to an empty lobby.")
@@ -313,19 +335,32 @@ class AtlasAdminConsole(private val session: AtlasPlayerSession) {
     }
 
     /** A POST Atlas may gate on table presence: on 403 presenceRequired, show a code and retry once verified. */
-    private suspend fun protectedPost(path: String, fields: List<Pair<String, String>> = emptyList(), success: String) {
+    /** [then] runs only after Atlas accepts (for example, rejoining after a restart). */
+    private suspend fun protectedPost(
+        path: String,
+        fields: List<Pair<String, String>> = emptyList(),
+        success: String,
+        then: (suspend () -> Unit)? = null,
+    ) {
         val response = send(path, fields) ?: return
         if (response.code == 403 && presenceRequired(response)) {
-            pendingRetry = { post(path, fields, success) }
+            pendingRetry = { post(path, fields, success, then) }
             requestCode()
             return
         }
         finish(response, success)
+        if (response.ok) then?.invoke()
     }
 
-    private suspend fun post(path: String, fields: List<Pair<String, String>> = emptyList(), success: String) {
+    private suspend fun post(
+        path: String,
+        fields: List<Pair<String, String>> = emptyList(),
+        success: String,
+        then: (suspend () -> Unit)? = null,
+    ) {
         val response = send(path, fields) ?: return
         finish(response, success)
+        if (response.ok) then?.invoke()
     }
 
     private suspend fun send(path: String, fields: List<Pair<String, String>>): RawResponse? {

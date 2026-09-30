@@ -38,6 +38,10 @@ data class HomeUiState(
     val avatars: List<com.turnhub.android.protocol.AvatarIcon> = emptyList(),
     /** The Sigil accessibility editor, while open. */
     val accessibility: AccessibilityPrompt? = null,
+    /** What the app found nearby before joining a table. */
+    val discovery: Discovery = Discovery.Idle,
+    /** Atlas is restarting (new Wi-Fi password, factory reset, update) and the app is rejoining it. */
+    val rejoining: Boolean = false,
 ) {
     /** The endpoint can only be changed while nothing is open or opening. */
     val endpointEditable: Boolean
@@ -45,6 +49,24 @@ data class HomeUiState(
 
     /** Connected, but the latest poll failed and is being retried. */
     val isRetrying: Boolean get() = connectionState == AtlasConnectionState.CONNECTED && errorMessage != null
+}
+
+/**
+ * The connect screen's search for a table. On launch the app rejoins the
+ * table it knows if that one is in range, and otherwise offers setup for any
+ * TurnHub table it can see.
+ */
+sealed interface Discovery {
+    /** Nothing automatic is running; Connect joins the usual way. */
+    data object Idle : Discovery
+
+    data object Searching : Discovery
+
+    /** No table in range (the app keeps looking for a while if it can scan). */
+    data object NotFound : Discovery
+
+    /** A table in range that this phone can't join with a saved password: new or factory-reset. */
+    data class NewTable(val ssid: String) : Discovery
 }
 
 /** The Atlas Wi-Fi password prompt: which network, and why we're asking. */

@@ -13,6 +13,8 @@ import com.turnhub.android.data.AtlasException
 import com.turnhub.android.data.AtlasFailure
 import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
+import com.turnhub.android.data.AtlasRestarts
+import com.turnhub.android.data.AtlasScanner
 import com.turnhub.android.data.AtlasWifiLink
 import com.turnhub.android.data.ControlAction
 import com.turnhub.android.data.PlayerSessionState
@@ -24,6 +26,7 @@ import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -60,12 +63,29 @@ class HomeViewModel(
     private val credentialStore: WifiCredentialStore,
     private val playerSession: AtlasPlayerSession,
     releases: FirmwareReleaseSource = GitHubFirmwareReleases(),
+    private val scanner: AtlasScanner = AtlasScanner.NONE,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
     /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
-    private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(playerSession)
+    private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(
+        playerSession,
+        object : AtlasRestarts {
+            override suspend fun wifiPasswordChanged(password: String) {
+                val ssid = wifiLink.joinedSsid.value ?: credentialStore.lastSsid() ?: WifiCredentials.DEFAULT_ATLAS_SSID
+                credentialStore.save(WifiCredentials(ssid, password))
+                this@HomeViewModel.reconnectAfterRestart()
+            }
+
+            override suspend fun factoryReset() {
+                credentialStore.save(
+                    WifiCredentials(WifiCredentials.DEFAULT_ATLAS_SSID, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE),
+                )
+                this@HomeViewModel.reconnectAfterRestart()
+            }
+        },
+    )
     val adminState: StateFlow<com.turnhub.android.data.AdminState> = adminConsole.state
 
     /**
@@ -81,7 +101,9 @@ class HomeViewModel(
             override fun atlasFirmware(): String? = repository.tableSummary.value?.firmwareVersion
             override fun wifiPasswordChanged(ssid: String, password: String) =
                 credentialStore.save(WifiCredentials(ssid, password))
-            override suspend fun reconnectAfterRestart(): Boolean = reconnectAfterRestart()
+            // Qualified: unqualified, this resolved to this override itself and
+            // recursed until the stack overflowed (crash after Finish, 2026-09-30).
+            override suspend fun reconnectAfterRestart(): Boolean = this@HomeViewModel.reconnectAfterRestart()
         },
     )
     val setupState: StateFlow<SetupState> = setupAssistant.state
@@ -95,6 +117,8 @@ class HomeViewModel(
         val joiningSsid: String? = null,
         val signIn: SignInPrompt? = null,
         val accessibilityOpen: Boolean = false,
+        val discovery: Discovery = Discovery.Idle,
+        val rejoining: Boolean = false,
     )
 
     private val local = MutableStateFlow(LocalState())
@@ -157,6 +181,8 @@ class HomeViewModel(
             } else {
                 null
             },
+            discovery = screen.discovery,
+            rejoining = screen.rejoining,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -365,39 +391,141 @@ class HomeViewModel(
     fun onSetupClosed() = setupAssistant.close()
 
     /**
-     * Atlas restarts during setup (an update, the new Wi-Fi password). Waits
+     * Atlas restarts (an update, a new Wi-Fi password, factory reset). Waits
      * for it to go down, then rejoins its Wi-Fi with the saved password and
      * reconnects until a new boot answers. Sessions reset for the new boot.
      */
     private suspend fun reconnectAfterRestart(): Boolean {
         val endpoint = repository.endpoint.value ?: AtlasEndpoint.DEFAULT
         val oldBoot = repository.tableSummary.value?.bootId
-        delay(RESTART_GRACE_MS)
-        repository.disconnect()
-        wifiLink.release()
-        val back = withTimeoutOrNull(RECONNECT_TIMEOUT_MS) {
-            var connected = false
-            while (!connected) {
-                if (endpoint == AtlasEndpoint.DEFAULT) {
-                    val ssid = credentialStore.lastSsid() ?: WifiCredentials.DEFAULT_ATLAS_SSID
-                    val credentials = credentialStore.load(ssid)
-                        ?: WifiCredentials(ssid, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
-                    if (wifiLink.join(credentials) == WifiJoinResult.Joined) repository.connect(endpoint)
-                } else {
-                    repository.connect(endpoint)
-                }
-                val summary = repository.tableSummary.value
-                connected = summary != null && summary.bootId != oldBoot
-                if (!connected) {
-                    repository.disconnect()
-                    delay(RECONNECT_RETRY_MS)
-                }
-            }
-            true
-        } ?: false
+        stopWatching()
+        local.update { it.copy(rejoining = true, discovery = Discovery.Idle) }
+        val back = try {
+            delay(RESTART_GRACE_MS)
+            repository.disconnect()
+            wifiLink.release()
+            withTimeoutOrNull(RECONNECT_TIMEOUT_MS) { rejoinUntilNewBoot(endpoint, oldBoot) } ?: false
+        } finally {
+            local.update { it.copy(rejoining = false) }
+        }
+        if (!back) local.update { it.copy(discovery = Discovery.NotFound) }
         // Let the session reset for the new boot run before setup signs in again.
         if (back) delay(500)
         return back
+    }
+
+    private suspend fun rejoinUntilNewBoot(endpoint: AtlasEndpoint, oldBoot: String?): Boolean {
+        while (true) {
+            if (endpoint == AtlasEndpoint.DEFAULT) {
+                val ssid = credentialStore.lastSsid() ?: WifiCredentials.DEFAULT_ATLAS_SSID
+                val credentials = credentialStore.load(ssid)
+                    ?: WifiCredentials(ssid, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE)
+                if (wifiLink.join(credentials) == WifiJoinResult.Joined) repository.connect(endpoint)
+            } else {
+                repository.connect(endpoint)
+            }
+            val summary = repository.tableSummary.value
+            if (summary != null && summary.bootId != oldBoot) return true
+            repository.disconnect()
+            delay(RECONNECT_RETRY_MS)
+        }
+    }
+
+    // --- finding a table on launch ----------------------------------------------
+
+    private var autoStarted = false
+    private var watchJob: Job? = null
+
+    /**
+     * The Activity calls this on launch, once permissions are settled. Rejoins
+     * the table this phone knows if it's in range, and otherwise offers setup
+     * for a TurnHub table it can see (new or factory-reset). Runs once per
+     * ViewModel, so rotating the phone doesn't search again.
+     */
+    fun onAppStarted() {
+        if (autoStarted) return
+        autoStarted = true
+        viewModelScope.launch { findTable() }
+    }
+
+    /** "Search again" on the connect screen. */
+    fun onSearchAgain() {
+        stopWatching()
+        viewModelScope.launch { findTable() }
+    }
+
+    /** "Set up this table": a new Atlas uses the printed password; setup opens once it answers. */
+    fun onSetUpNewTable() {
+        val found = local.value.discovery as? Discovery.NewTable ?: return
+        local.update { it.copy(discovery = Discovery.Idle, endpointText = AtlasEndpoint.DEFAULT.baseUrl) }
+        joinThenConnect(AtlasEndpoint.DEFAULT, WifiCredentials(found.ssid, WifiCredentials.DEFAULT_ATLAS_PASSPHRASE))
+    }
+
+    fun onNewTableDismissed() {
+        local.update { it.copy(discovery = Discovery.Idle) }
+    }
+
+    /** Nothing else is joining, connected, rejoining, asking or setting up. */
+    private fun idle(): Boolean {
+        val screen = local.value
+        return repository.connectionState.value == AtlasConnectionState.DISCONNECTED &&
+            screen.joiningSsid == null && screen.wifiPrompt == null && !screen.rejoining
+    }
+
+    private suspend fun findTable() {
+        if (!idle()) return
+        local.update { it.copy(discovery = Discovery.Searching, failure = null) }
+        val visible = scanner.visibleAtlasNetworks()
+        if (!idle()) return
+        if (visible != null && visible.isEmpty()) return notFound(watch = true)
+        // The table this phone knows: its Android approval is remembered, so
+        // this join is silent when the table is there.
+        val saved = credentialStore.lastSsid()?.let(credentialStore::load)
+        if (saved != null && (visible == null || saved.ssid in visible)) {
+            local.update { it.copy(discovery = Discovery.Idle) }
+            if (quietJoin(AtlasEndpoint.DEFAULT, saved)) return
+        }
+        // In range but the saved password (if any) didn't work: a new or reset table.
+        val found = visible?.let { names -> names.firstOrNull { it == WifiCredentials.DEFAULT_ATLAS_SSID } ?: names.first() }
+        if (found != null) {
+            local.update { it.copy(discovery = Discovery.NewTable(found)) }
+        } else {
+            notFound(watch = false)
+        }
+    }
+
+    /** Keeps looking for a few minutes (cheap: Android's own scan results), then stops. */
+    private fun notFound(watch: Boolean) {
+        local.update { it.copy(discovery = Discovery.NotFound) }
+        if (!watch || watchJob?.isActive == true) return
+        watchJob = viewModelScope.launch {
+            repeat(WATCH_ATTEMPTS) {
+                delay(WATCH_INTERVAL_MS)
+                if (local.value.discovery != Discovery.NotFound || !idle()) return@launch
+                val visible = scanner.visibleAtlasNetworks() ?: return@launch
+                if (visible.isNotEmpty()) {
+                    watchJob = null
+                    findTable()
+                    return@launch
+                }
+            }
+        }
+    }
+
+    private fun stopWatching() {
+        watchJob?.cancel()
+        watchJob = null
+    }
+
+    /** Joins and connects; false (and no prompt) if Android couldn't join. */
+    private suspend fun quietJoin(endpoint: AtlasEndpoint, credentials: WifiCredentials): Boolean {
+        local.update { it.copy(joiningSsid = credentials.ssid, failure = null) }
+        val result = wifiLink.join(credentials)
+        local.update { it.copy(joiningSsid = null) }
+        if (result != WifiJoinResult.Joined) return false
+        credentialStore.save(credentials)
+        connectRepository(endpoint)
+        return true
     }
 
     /** Reads what the signed-in account may administer. */
@@ -448,7 +576,10 @@ class HomeViewModel(
             }
             return
         }
-        local.update { it.copy(endpointText = endpoint.baseUrl, failure = null, wifiPrompt = null) }
+        stopWatching()
+        local.update {
+            it.copy(endpointText = endpoint.baseUrl, failure = null, wifiPrompt = null, discovery = Discovery.Idle)
+        }
         if (endpoint != AtlasEndpoint.DEFAULT) {
             // Not Atlas's own access point (e.g. a future Home/LAN address):
             // the phone must already be on that network.
@@ -495,6 +626,8 @@ class HomeViewModel(
     }
 
     fun onDisconnectClicked() {
+        stopWatching()
+        local.update { it.copy(discovery = Discovery.Idle) }
         viewModelScope.launch {
             repository.disconnect()
             wifiLink.release()
@@ -555,6 +688,10 @@ class HomeViewModel(
         /** An update boot plus the Wi-Fi coming back; well past a normal restart. */
         private const val RECONNECT_TIMEOUT_MS = 150_000L
 
+        /** With no table in range, look again every 15 s for five minutes. */
+        private const val WATCH_INTERVAL_MS = 15_000L
+        private const val WATCH_ATTEMPTS = 20
+
         /**
          * Minimal manual-DI factory: no framework is introduced for one ViewModel.
          * Revisit if/when the dependency graph actually grows past this.
@@ -564,8 +701,11 @@ class HomeViewModel(
             wifiLink: AtlasWifiLink,
             credentialStore: WifiCredentialStore,
             playerSession: AtlasPlayerSession,
+            scanner: AtlasScanner,
         ): ViewModelProvider.Factory = viewModelFactory {
-            initializer { HomeViewModel(repositoryFactory, wifiLink, credentialStore, playerSession) }
+            initializer {
+                HomeViewModel(repositoryFactory, wifiLink, credentialStore, playerSession, scanner = scanner)
+            }
         }
     }
 }

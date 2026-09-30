@@ -95,7 +95,11 @@ fun SetupScreen(state: SetupState, actions: SetupActions, modifier: Modifier = M
                 SetupStep.SIGILS -> Sigils(state, actions)
                 SetupStep.UPDATES -> Updates(state, actions)
                 SetupStep.WIFI -> Wifi(state, actions)
-                SetupStep.RESTARTING -> Text("Keep this screen open. The app rejoins the table's Wi-Fi by itself.", color = p.muted)
+                SetupStep.RESTARTING -> Text(
+                "Keep this screen open. The app rejoins the table's Wi-Fi by itself. " +
+                    "If Android asks to connect to the table's Wi-Fi, choose Connect.",
+                color = p.muted,
+            )
                 SetupStep.DONE -> Done(actions)
             }
         }
@@ -355,8 +359,8 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
 private fun Done(actions: SetupActions) {
     val p = palette
     Text(
-        "The table is yours and ready to play. Atlas's screen says the same and offers Pair a Sigil for any " +
-            "Sigil you add later. Players join from a Sigil's menu or from this app.",
+        "The table is yours and ready to play. Players join from a Sigil's menu or from this app. " +
+            "To add a Sigil later, tap Menu, then Pair a Sigil, on the Atlas screen.",
         color = p.muted,
     )
     AccentButton("Go to the table", actions.close, Modifier.fillMaxWidth())

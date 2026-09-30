@@ -13,7 +13,7 @@
       Android 17+ blocks all local-network traffic (including HTTP to
       192.168.4.1) for apps targeting API 37 unless this runtime permission
       ("Nearby devices") is granted; blocked TCP connections just time out.
-      Requested when the user taps Connect. Older Android ignores it.
+      Requested on launch (and again on Connect if refused). Older Android ignores it.
     -->
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!--
@@ -22,6 +22,18 @@
       shows its own approval dialog; the phone's normal connection is untouched.
     -->
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!--
+      On launch the app looks for Atlas networks in Wi-Fi scan results
+      (WifiScanAtlasScanner): it rejoins a known table by itself and offers
+      setup for a new one. Scan results need NEARBY_WIFI_DEVICES on Android 13+
+      (the same "Nearby devices" prompt as ACCESS_LOCAL_NETWORK); the app never
+      derives location from them. Older Android skips scanning.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
 
     <!--
       A quick app switch must not drop the Atlas Wi-Fi: Android releases an

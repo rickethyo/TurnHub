@@ -31,6 +31,7 @@ import com.turnhub.android.data.HttpAtlasRepository
 import com.turnhub.android.data.HttpAtlasTransport
 import com.turnhub.android.data.PreferencesWifiCredentialStore
 import com.turnhub.android.data.TargetedAtlasWifiLink
+import com.turnhub.android.data.WifiScanAtlasScanner
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
@@ -56,7 +57,28 @@ class MainActivity : ComponentActivity() {
             wifiLink = wifiLink,
             credentialStore = PreferencesWifiCredentialStore(applicationContext),
             playerSession = playerSession,
+            scanner = WifiScanAtlasScanner(applicationContext),
         )
+    }
+
+    // On launch: "Nearby devices" (local network on Android 17, Wi-Fi scan
+    // results on 13+; one prompt), then look for the table. Without scan
+    // results the app still rejoins a saved table, or waits for Connect.
+    private val launchPermissions =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            if (results[Manifest.permission.ACCESS_LOCAL_NETWORK] == false) {
+                homeViewModel.onLocalNetworkPermissionDenied()
+            } else {
+                homeViewModel.onAppStarted()
+            }
+        }
+
+    private fun findTableOnLaunch() {
+        val wanted = buildList {
+            if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (wanted.isEmpty()) homeViewModel.onAppStarted() else launchPermissions.launch(wanted.toTypedArray())
     }
 
     // Android 17 blocks local-network traffic (so every Atlas request would just
@@ -136,6 +158,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
+        // Not again on rotation (the ViewModel also runs it once).
+        if (savedInstanceState == null) findTableOnLaunch()
         setContent {
             TurnHubTheme(choice = theme) {
                 Surface(
@@ -152,6 +176,11 @@ class MainActivity : ComponentActivity() {
                         onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
                         onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
                         onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
+                        discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
+                            onSearchAgain = homeViewModel::onSearchAgain,
+                            onSetUpNewTable = homeViewModel::onSetUpNewTable,
+                            onNotNow = homeViewModel::onNewTableDismissed,
+                        ),
                         gameActions = GameActions(
                             onControl = homeViewModel::onControl,
                             onJoin = homeViewModel::onJoinClicked,

@@ -34,6 +34,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -96,6 +97,7 @@ fun HomeScreen(
     onUseCurrentWifi: () -> Unit,
     onWifiPromptDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    discoveryActions: DiscoveryActions = DiscoveryActions(),
     gameActions: GameActions = GameActions(),
     accountActions: AccountActions = AccountActions(),
     theme: TurnHubThemeChoice = TurnHubThemeChoice.BRASS,
@@ -193,7 +195,7 @@ fun HomeScreen(
                 if (setup.visible) {
                     SetupScreen(setup, setupActions)
                 } else if (summary == null) {
-                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, reduceMotion)
+                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                 } else {
                     when (tab) {
                         HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
@@ -303,43 +305,88 @@ private fun TabIcon(tab: HomeTab, color: Color) {
     }
 }
 
+/** The connect screen's search for a table and its new-table prompt. */
+data class DiscoveryActions(
+    val onSearchAgain: () -> Unit = {},
+    val onSetUpNewTable: () -> Unit = {},
+    val onNotNow: () -> Unit = {},
+)
+
+/**
+ * Before a table answers: one heading, one status line and one main action.
+ * On launch the app finds the table by itself (HomeViewModel.onAppStarted),
+ * so most of the time this only says what it's doing. The address is for
+ * unusual setups and stays under Advanced.
+ */
 @Composable
 private fun ConnectCard(
     uiState: HomeUiState,
     onEndpointChange: (String) -> Unit,
     onConnectClick: () -> Unit,
     onDisconnectClick: () -> Unit,
+    discovery: DiscoveryActions,
     reduceMotion: Boolean,
 ) {
     val p = palette
+    val found = uiState.discovery as? Discovery.NewTable
+    val working = uiState.rejoining || uiState.joiningSsid != null ||
+        uiState.connectionState == AtlasConnectionState.CONNECTING || uiState.discovery == Discovery.Searching
+    val (title, status) = when {
+        uiState.rejoining -> "Atlas is restarting" to
+            "Rejoining the table's Wi-Fi. If Android asks to connect, choose Connect."
+        uiState.joiningSsid != null -> "Joining your table" to
+            "Joining ${uiState.joiningSsid}. If Android asks to connect, choose Connect."
+        uiState.connectionState == AtlasConnectionState.CONNECTING -> "Joining your table" to "Connecting to Atlas…"
+        uiState.discovery == Discovery.Searching -> "Looking for your table" to "Searching for a TurnHub table nearby…"
+        found != null -> "New table found" to
+            "${found.ssid} is nearby and isn't set up with this phone yet. Set it up now? It takes a few " +
+            "minutes: an account, a code from the Atlas screen, your Sigils and a Wi-Fi password."
+        uiState.discovery == Discovery.NotFound -> "No table nearby" to
+            "Check that Atlas is switched on and close by. The app keeps looking for a few minutes."
+        else -> "Join your table" to "TurnHub joins the Atlas Wi-Fi for you, then shows the live table."
+    }
     BrassCard {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            GearMark(96.dp, spinning = uiState.connectionState == AtlasConnectionState.CONNECTING || uiState.joiningSsid != null,
-                reduceMotion = reduceMotion)
-            Text("Join your table", style = MaterialTheme.typography.headlineMedium, color = p.text,
+            GearMark(96.dp, spinning = working, reduceMotion = reduceMotion)
+            Text(title, style = MaterialTheme.typography.headlineMedium, color = p.text, textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() })
             Text(
-                "TurnHub joins the Atlas Wi-Fi for you, then shows the live table: turns, life, requests and your seat.",
+                status,
                 color = p.muted,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
-        Eyebrow("Atlas")
-        OutlinedTextField(
-            value = uiState.endpointText,
-            onValueChange = onEndpointChange,
-            enabled = uiState.endpointEditable,
-            singleLine = true,
-            label = { Text("Atlas address") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-            keyboardActions = KeyboardActions(onGo = { onConnectClick() }),
-            modifier = Modifier.fillMaxWidth(),
-        )
         when {
-            uiState.joiningSsid != null -> AccentButton("Joining ${uiState.joiningSsid} Wi-Fi…", {}, Modifier.fillMaxWidth(), enabled = false)
-            uiState.connectionState == AtlasConnectionState.CONNECTING -> AccentButton("Connecting…", {}, Modifier.fillMaxWidth(), enabled = false)
-            uiState.connectionState == AtlasConnectionState.CONNECTED -> ToneButton("Disconnect", onDisconnectClick, Modifier.fillMaxWidth())
+            working -> Unit
+            found != null -> {
+                AccentButton("Set up this table", discovery.onSetUpNewTable, Modifier.fillMaxWidth().height(56.dp))
+                ToneButton("Not now", discovery.onNotNow, Modifier.fillMaxWidth())
+            }
+            uiState.connectionState == AtlasConnectionState.CONNECTED ->
+                ToneButton("Disconnect", onDisconnectClick, Modifier.fillMaxWidth())
+            uiState.discovery == Discovery.NotFound -> {
+                AccentButton("Search again", discovery.onSearchAgain, Modifier.fillMaxWidth().height(56.dp))
+                ToneButton("Connect anyway", onConnectClick, Modifier.fillMaxWidth())
+            }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().height(56.dp))
+        }
+        var advanced by rememberSaveable { mutableStateOf(false) }
+        TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {
+            Text(if (advanced) "Hide Atlas address" else "Advanced: Atlas address", color = p.muted)
+        }
+        if (advanced) {
+            OutlinedTextField(
+                value = uiState.endpointText,
+                onValueChange = onEndpointChange,
+                enabled = uiState.endpointEditable,
+                singleLine = true,
+                label = { Text("Atlas address") },
+                supportingText = { Text("Leave it at http://192.168.4.1 unless Atlas joined another network.") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { onConnectClick() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
