@@ -425,12 +425,14 @@ void updateLeds() {
 }
 
 #if TURNHUB_INPUT_JOYSTICK
-// Both axes read reversed as the stick is mounted on the E-ink Sigil
-// (owner-verified 2026-09-25), so push right/down read as left/up raw.
+// The stick is mounted rotated 90 degrees on the E-ink Sigil after the
+// 2026-09-30 rewiring (owner pushes top/bottom/left/right read RIGHT/LEFT/UP/DOWN
+// before this fix), so the axes swap and X is reversed.
 TurnHubSigil::StickConfig stickConfig() {
   TurnHubSigil::StickConfig config;
+  config.swapAxes = true;
   config.invertX = true;
-  config.invertY = true;
+  config.invertY = false;
   return config;
 }
 TurnHubSigil::StickTracker stick(stickConfig());

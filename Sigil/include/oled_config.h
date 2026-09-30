@@ -40,7 +40,7 @@ inline OledConfig makeOledConfig() {
   c.bus = OledBus::SoftwareSpi;
   c.width = 128;
   c.height = 64;
-  c.rotation = 0;  // Native orientation (panel remounted 2026-09-24).
+  c.rotation = 2;  // Flipped 180 after the 2026-09-30 rewiring.
   c.power = OledPower::InternalChargePump;
   c.reset = 22;
   c.mosi = 23;

@@ -76,7 +76,7 @@ class EpaperDisplay final : public SigilDisplay {
 
   // Native portrait is 122 visible pixels by 250 (128 RAM columns).
   // Use 2 instead of 0 if the physical panel is mounted upside down.
-  static constexpr uint8_t DISPLAY_ROTATION = 0;
+  static constexpr uint8_t DISPLAY_ROTATION = 2;  // Rewired and flipped 180 (2026-09-30).
   // The panel's built-in (OTP) partial waveform fades it visibly after even one
   // update (owner bench, 2026-09-25), so games use full refreshes by default.
   // "epd on" re-enables partials for bench work; a clean fix needs a custom
