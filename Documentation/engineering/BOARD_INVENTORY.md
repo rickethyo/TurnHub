@@ -1,6 +1,6 @@
 # Board Inventory
 
-The owner's development boards, identified by factory MAC address. COM port
+Turnhub development board inventory, identified by factory MAC address. COM port
 numbers change whenever the PC restarts, so identify a board by MAC, never by
 port. Read a board's MAC (this resets the board) with:
 
