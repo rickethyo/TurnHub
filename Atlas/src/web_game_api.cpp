@@ -134,7 +134,7 @@ void handleState(WebServer &server) {
 }
 
 void handleSeats(WebServer &server) {
-  const uint32_t nowMs = millis();
+  resolveAllSessions(millis());
   String json = "{\"seats\":[";
   json.reserve(4200);
   bool first = true;
@@ -161,7 +161,7 @@ void handleSeats(WebServer &server) {
       json += "\",\"avatar\":";
       json += String(TurnHubAvatars::validPresetAvatar(avatar) ? avatar : 0);
       json += ",\"hasPin\":"; json += jsonBool(hasPin(controllerId, slot));
-      json += ",\"sessionClaimed\":"; json += jsonBool(seatHasSession(controllerId, slot, nowMs));
+      json += ",\"sessionClaimed\":"; json += jsonBool(seatHasSession(controllerId, slot));
       json += '}';
     }
   }

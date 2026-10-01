@@ -320,7 +320,7 @@ void handlePersonalization(WebServer &server) {
   uint32_t rgb = 0;
   const bool set = TurnHubProfiles::jewelColorForProfile(id, rgb);
   char color[8];
-  snprintf(color, sizeof(color), "#%06lx", static_cast<unsigned long>(rgb));
+  snprintf(color, sizeof(color), "#%06lx", static_cast<unsigned long>(rgb & 0xFFFFFFUL));
   String body = "{\"ok\":true,\"card\":";
   body += TurnHubProfiles::luxuryStoreAvailable() ? "true" : "false";
   body += ",\"color\":";

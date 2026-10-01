@@ -388,11 +388,12 @@ void OtaManager::handleComplete() {
   }
 
   if (!success_) {
-    char response[96];
+    char response[192];
     snprintf(
         response,
         sizeof(response),
-        "{\"ok\":false,\"error\":\"Firmware update failed\",\"code\":%u}",
+        "{\"ok\":false,\"error\":\"Firmware update failed: %s\",\"code\":%u}",
+        TurnHubFirmwarePackage::errorMessage(static_cast<TurnHubFirmwarePackage::Error>(errorCode_)),
         static_cast<unsigned>(errorCode_));
     server_.send(500, "application/json", response);
     return;

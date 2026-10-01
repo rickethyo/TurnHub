@@ -71,7 +71,7 @@ either count.
 
 The history is very private. Atlas serves it only to the account's own session,
 and only when that session is PIN-verified: it signed in with the PIN, registered
-with it, or set a new one. A session obtained by pressing Action on a Sigil sees
+with it, or set a new one. A session obtained by choosing Link phone on a Sigil sees
 that the history exists but not the counts. No other account can read it, whatever
 its permissions (Admin, Game Master or Developer). Public seats, Sigil displays,
 the account list and statistics downloads never include it. This is a counter

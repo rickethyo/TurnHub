@@ -1,6 +1,6 @@
 // Administration endpoints: paired devices and Sigil naming, the Wi-Fi AP
 // password, the downloadable serial log, and account administration. System
-// settings additionally require admin to be unlocked on the Atlas screen.
+// settings additionally need the Admin verified at the table (presence code).
 
 #include <WiFi.h>
 #include "sigil_update_service.h"
@@ -90,6 +90,7 @@ String atlasHardwareId() {
 void handleDevices(WebServer &server) {
   SigilBus *bus = SigilBus::activeInstance();
   const uint32_t nowMs = millis();
+  resolveAllSessions(nowMs);
 
   String json;
   json.reserve(3800);
@@ -126,7 +127,7 @@ void handleDevices(WebServer &server) {
     json += ",\"display\":\""; json += !record->helloInfoValid ? "unknown" : oled ? "oled" : "epaper";
     json += "\",\"input\":\""; json += !record->helloInfoValid ? "unknown" : dpad ? "dpad" : "joystick";
     json += "\",\"maxPlayers\":"; json += String(2);
-    json += ",\"sessionCount\":"; json += String(moduleSessionCount(id, nowMs));
+    json += ",\"sessionCount\":"; json += String(moduleSessionCount(id));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
     json += "\"";
     json += "}";
@@ -266,8 +267,8 @@ void handleSaveSpeakerSettings(WebServer &server) {
   sendOkMessage(server, message);
 }
 
-// Returns the table to an empty lobby (ResetTable). Admin, and admin unlocked
-// on the Atlas screen; Atlas re-checks both in the Intent handler.
+// Returns the table to an empty lobby (ResetTable). Admin, and verified
+// at the table; Atlas re-checks both in the Intent handler.
 void handleResetTable(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   if (!requirePhysicalPresence(server)) return;
@@ -280,9 +281,6 @@ void handleResetTable(WebServer &server) {
   sendOkMessage(server, message);
 }
 
-// Factory reset: atlas=1 for Atlas itself, or module=<id> for one Sigil.
-// Admin, and admin unlocked on the Atlas screen; Atlas re-checks both, and
-// that no match is running, in the FactoryReset Intent handler.
 // Pairing v2 code check from the portal: an Admin verified at the table says
 // whether the Sigil shows the same code as Atlas (PairConfirm Intent).
 void handlePairConfirm(WebServer &server) {
@@ -304,6 +302,9 @@ void handlePairConfirm(WebServer &server) {
   sendOkMessage(server, message);
 }
 
+// Factory reset: atlas=1 for Atlas itself, or module=<id> for one Sigil.
+// Admin, and verified at the table; Atlas re-checks both, and
+// that no match is running, in the FactoryReset Intent handler.
 void handleFactoryReset(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   if (!requirePhysicalPresence(server)) return;
@@ -328,7 +329,8 @@ void handleNetworkInfo(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   const String password = TurnHub::readStoredWifiPassword();
   // No owner-set password means Atlas is running on the shipped default.
-  const bool ownerSet = password.length() >= AtlasConfig::WIFI_PASSWORD_MIN_LENGTH;
+  const bool ownerSet = TurnHub::validWifiPassword(password) &&
+      password != AtlasConfig::WIFI_DEFAULT_PASSWORD;
   String response = "{\"ssid\":\"";
   response += jsonEscape(String(AtlasConfig::WIFI_SSID));
   response += "\",\"security\":\"WPA2-PSK\",\"passwordConfigured\":";
@@ -352,6 +354,12 @@ namespace {
 bool storeWifiPassword(WebServer &server, const String &password, bool &changed) {
   if (!TurnHub::validWifiPassword(password)) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Wi-Fi password must be 8 to 63 characters\"}");
+    return false;
+  }
+  // The shipped default is never stored: a stored password always means the
+  // owner chose it (main.cpp loadWifiPassword).
+  if (password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
+    sendError(server, 400, "Choose a password other than the one printed for setup");
     return false;
   }
   TurnHub::OptionalPreferences prefs;
@@ -432,10 +440,6 @@ void handleSetupFinish(WebServer &server) {
     return;
   }
   const String password = server.arg("password");
-  if (password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
-    sendError(server, 400, "Choose a password other than the one printed for setup");
-    return;
-  }
   // The validator reads the stored password, so it is written first; if
   // Atlas then refuses, the previous one goes back, so a refused finish
   // never changes the Wi-Fi at the next restart.
@@ -509,7 +513,7 @@ void handleSerialLogDownload(WebServer &server) {
 // --- Accounts ------------------------------------------------------------------------------------
 
 // GET reports whether first-run Admin setup is still needed. POST makes the
-// signed-in account the initial Admin (admin unlocked on the Atlas screen).
+// signed-in account the initial Admin (verified at the table).
 void handleAccountSetup(WebServer &server, bool readOnly) {
   String primary;
   if (!TurnHubAccounts::primaryAdmin(primary)) {

@@ -97,9 +97,10 @@ bool connectionBlocked(const String &id);
 void revokeConnections(const String &id);
 using ModerateCallback = bool (*)(const String &actor,const String &target,const String &action,String &message);
 void configureModeration(ModerateCallback callback);
-// Admin device management: ForgetPairing (value = Sigil ID or
-// FORGET_ALL_SIGILS) and ConfigurePairing (value = window in ms). actor is
-// the signed-in account; Atlas re-checks its Admin permission.
+// Admin device and table management (ForgetPairing, ConfigurePairing,
+// ConfigureSpeaker, PairConfirm, ResetTable, FactoryReset, UpdateSigil,
+// AdvanceSetup; intent.h documents each value). actor is the signed-in
+// account; Atlas re-checks its Admin permission.
 using DeviceIntentCallback = bool (*)(const String &actor, TurnHub::IntentType type,
     int32_t value, String &message);
 using PairingWindowCallback = uint32_t (*)();
@@ -130,9 +131,8 @@ struct PresenceHooks {
 };
 void configurePresence(const PresenceHooks &hooks);
 
-
-// Called only for real physical Sigil button activity. A pending browser claim
-// is approved when the user proves possession by pressing Action on that Sigil.
+// Called only for real physical Sigil activity. A pending browser claim is
+// approved when the user proves possession by choosing Link phone on that Sigil.
 void notePhysicalAction(uint8_t sigilId);
 // True while a browser waits for someone to confirm on this Sigil; menu
 // Sigils then offer Link phone (SigilAction::LinkPhone).

@@ -82,6 +82,7 @@ bool resetTransientSeatBindings(const uint8_t *mac) {
   bindings.erase(key(mac,2));
   return true;
 }
+bool releaseSeatBinding(const uint8_t *mac,uint8_t slot) { if(slot!=1&&slot!=2)return false; bindings.erase(key(mac,slot)); return true; }
 bool bindSeatToProfile(const uint8_t *mac,uint8_t slot,const String &id) { if(!profileExists(id))return false; bindings[key(mac,slot)]=id; return true; }
 bool moveSeatProfile(const uint8_t *mac,uint8_t from,uint8_t to,const String &id) {
   if(boundProfileIdForSeat(mac,from)!=id || boundProfileIdForSeat(mac,to).length())return false;

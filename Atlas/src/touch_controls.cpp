@@ -3,7 +3,7 @@
 // decide. The exceptions change no table state: Cancel takes a presence code
 // off the screen (front_panel.cpp), the Menu, Info, QR, Tests and Table
 // buttons switch screens, and a test is started on the harness. Drawing lives in
-// atlas_display.cpp.
+// atlas_art.cpp; the panel and touch reads in atlas_display.cpp.
 
 #include "avatars.h"
 #include "touch_controls.h"
@@ -143,10 +143,6 @@ uint8_t waitingPairSlot() {
   return INVALID_ID;
 }
 
-// A code a phone asked for shows over whatever screen is open, then a
-// pairing code waiting to be checked. The Table
-// screen belongs to a match and closes when it ends; the Menu closes when
-// a game starts.
 // The chips on the status screen, in the order they are drawn: the lobby's
 // seats, or the match's players while one is in progress.
 uint8_t chipSeats(PlayerSeat *out) {
@@ -183,6 +179,9 @@ bool setupScreenDue() {
   return !(setupStage == TurnHub::SetupStage::Welcome && setupSkipped);
 }
 
+// A code a phone asked for shows over whatever screen is open, then a
+// pairing code waiting to be checked. The Table screen belongs to a match and
+// closes when it ends; the Menu closes when a game starts.
 ScreenKind activeScreen(uint32_t nowMs) {
   if (openScreen == ScreenKind::Table && !matchInProgress()) openScreen = ScreenKind::Status;
   // A player's screen closes when the lobby or match it belongs to ends, or
@@ -249,8 +248,12 @@ void layoutPlayer(AtlasScreen &screen) {
     addRow(screen, BUTTON_ROW_Y, lower, 2);
     return;
   }
-  const ButtonSpec upper[] = {{TouchAction::LifeMinus5, "-5", 0, 1}, {TouchAction::LifeMinus1, "-1", 0, 1},
-      {TouchAction::LifePlus1, "+1", 0, 1}, {TouchAction::LifePlus5, "+5", 0, 1}};
+  // Yu-Gi-Oh! life moves in hundreds, as on the portal's life cards.
+  const bool hundreds = game.settings().profile == TurnHub::GameProfile::Yugioh;
+  const ButtonSpec upper[] = {{TouchAction::LifeMinus5, hundreds ? "-1000" : "-5", 0, 1},
+      {TouchAction::LifeMinus1, hundreds ? "-100" : "-1", 0, 1},
+      {TouchAction::LifePlus1, hundreds ? "+100" : "+1", 0, 1},
+      {TouchAction::LifePlus5, hundreds ? "+1000" : "+5", 0, 1}};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, 4);
   const ButtonSpec lower[] = {{TouchAction::Concede, "Concede", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
   addRow(screen, BUTTON_ROW_Y, lower, 2);
@@ -604,8 +607,11 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       } else {
         intent.type = IntentType::ChangeLife;
         intent.payload.targetPlayer = seat.playerNumber;
-        intent.payload.value = action == TouchAction::LifeMinus5 ? -5 : action == TouchAction::LifeMinus1 ? -1
-            : action == TouchAction::LifePlus1 ? 1 : 5;
+        // The small and big steps (LifeMinus1 / LifeMinus5 name the usual ones).
+        const int32_t step = game.settings().profile == TurnHub::GameProfile::Yugioh ? 100 : 1;
+        const int32_t bigStep = step == 100 ? 1000 : 5;
+        intent.payload.value = action == TouchAction::LifeMinus5 ? -bigStep
+            : action == TouchAction::LifeMinus1 ? -step : action == TouchAction::LifePlus1 ? step : bigStep;
       }
       result = intents.dispatch(intent);
       if (action == TouchAction::ConfirmConcede) {
@@ -838,6 +844,9 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       if (game.hasWinClaim()) {
         snprintf(screen.detail, sizeof(screen.detail), "Win claim: waiting on %s",
             nameOfPlayer(screen, game.nextWinConfirmationPlayerNumber()));
+      } else if (eliminationTargetPlayer != 0) {
+        snprintf(screen.detail, sizeof(screen.detail), "Eliminate %s? Their Sigil decides",
+            nameOfPlayer(screen, eliminationTargetPlayer));
       } else {
         snprintf(screen.detail, sizeof(screen.detail), "%s's turn",
             nameOfPlayer(screen, game.activePlayerNumber()));
@@ -1038,7 +1047,7 @@ void formatSetup(AtlasScreen &screen, uint32_t nowMs) {
 }
 
 // The Wi-Fi code carries the password. The shipped default is public, so it
-// shows freely; an admin-set password needs the admin unlock window.
+// shows freely; an admin-set password needs someone verified at the table.
 void formatQr(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "QR CODES");
   switch (qrChoice) {

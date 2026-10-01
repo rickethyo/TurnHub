@@ -9,8 +9,7 @@ namespace TurnHub {
 // Who is at the table before a game starts. Controllers join in order; each
 // has seat A (slot 1) and, for physical Sigils, an optional seat B (slot 2).
 // Player numbers are derived from join order, so they renumber as seats
-// change. The first joined controller is the host. Also holds the physical
-// gesture flags (held, chord, suppression) the Sigil adapter needs.
+// change. The first joined controller is the host.
 class Lobby {
  public:
   Lobby();

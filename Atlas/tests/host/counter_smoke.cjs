@@ -16,7 +16,7 @@ const api=http.createServer(async(req,res)=>{
  if(offline){res.statusCode=503;res.end('{}');return}
  const seats=names.map((name,n)=>({name,player:n+1,module:n+8,slot:1,slotName:'A',profileId:'PLAYER0'+(n+1),virtual:true,hasPin:true,lifeAvailable:true,life:life[n],active:n===0}));
  switch(url.pathname){
-  case '/api/status':result={state,players:3,sigils:0,host:8,starter:1,active:1,winner:0,winConfirm:0,eliminationTarget:0,firmware:'test',espNow:true};break;
+  case '/api/status':result={state,players:3,sigils:0,starter:1,active:1,winner:0,winConfirm:0,eliminationTarget:0,firmware:'test',espNow:true};break;
   case '/api/devices':result={atlas:{hardwareId:'FIXTURE',firmware:'test'},devices:[]};break;
   case '/api/seats':result={seats};break;
   case '/api/accounts/setup':result={setupRequired:false};break;

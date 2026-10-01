@@ -339,7 +339,12 @@ bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPre
       profileKey(ACCESSIBILITY_PREFIX, profileId).c_str(), prefs) == TurnHubStorage::Status::Ok;
 }
 
-void setLuxuryStore(TurnHubStorage::BlobStore *store) { luxuryStore = store; }
+void setLuxuryStore(TurnHubStorage::BlobStore *store) {
+  luxuryStore = store;
+  // A different card (or none) holds different Jewel colors and avatars.
+  for (auto &entry : jewelCache) entry = JewelCacheEntry{};
+  jewelCacheNext = 0;
+}
 
 bool luxuryStoreAvailable() { return luxuryStore != nullptr; }
 
@@ -429,17 +434,18 @@ String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot) {
       ? binding->profileId : String();
 }
 
-bool resetTransientSeatBindings(const uint8_t mac[6]) {
+bool releaseSeatBinding(const uint8_t mac[6], uint8_t slot) {
   if (!preferencesReady && !begin()) return false;
-  bool ok = true;
-  for (uint8_t slot : {1, 2}) {
-    if (auto *binding = transientSeatFor(mac, slot, false)) {
-      binding->used = false;
-      binding->profileId = String();
-    }
-
+  if (slot != 1 && slot != 2) return false;
+  if (auto *binding = transientSeatFor(mac, slot, false)) {
+    binding->used = false;
+    binding->profileId = String();
   }
-  return ok;
+  return true;
+}
+
+bool resetTransientSeatBindings(const uint8_t mac[6]) {
+  return releaseSeatBinding(mac, 1) && releaseSeatBinding(mac, 2);
 }
 
 bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId) {
@@ -577,18 +583,31 @@ bool save(const String &id, const Account &account) {
   return store.begin("turnhub") == Status::Ok && write(store, accountKey(id).c_str(), account) == Status::Ok;
 }
 
-bool primaryAdmin(String &id){
-  id="";TurnHubStorage::NvsBlobStore store;if(store.begin("turnhub")!=TurnHubStorage::Status::Ok)return false;
-  size_t n=0;auto s=store.read("acctadmin",nullptr,0,n);
-  if(s==TurnHubStorage::Status::NotFound)return true;
-  if(s!=TurnHubStorage::Status::Ok||n!=9)return false;
-  char b[9]={};s=store.read("acctadmin",b,sizeof(b),n);
-  if(s!=TurnHubStorage::Status::Ok||n!=9||b[8]!=0||!TurnHubProfiles::profileExists(String(b)))return false;
-  id=String(b);return true;
+// The first Admin's profile ID ("acctadmin", 8 characters plus NUL), or ""
+// when none was set yet. False only when the record can't be read.
+bool primaryAdmin(String &id) {
+  id = "";
+  TurnHubStorage::NvsBlobStore store;
+  if (store.begin("turnhub") != Status::Ok) return false;
+  size_t n = 0;
+  Status status = store.read("acctadmin", nullptr, 0, n);
+  if (status == Status::NotFound) return true;
+  if (status != Status::Ok || n != 9) return false;
+  char stored[9] = {};
+  status = store.read("acctadmin", stored, sizeof(stored), n);
+  if (status != Status::Ok || n != 9 || stored[8] != 0 ||
+      !TurnHubProfiles::profileExists(String(stored))) return false;
+  id = String(stored);
+  return true;
 }
-bool establishAdmin(const String &id){
-  String current;if(!primaryAdmin(current)||current.length()||!TurnHubProfiles::hasPinForProfile(id))return false;
-  Account a;if(!load(id,a))return false;
-  TurnHubStorage::NvsBlobStore store;return store.begin("turnhub")==TurnHubStorage::Status::Ok&&store.write("acctadmin",id.c_str(),9)==TurnHubStorage::Status::Ok;
+
+bool establishAdmin(const String &id) {
+  String current;
+  if (!primaryAdmin(current) || current.length() || !TurnHubProfiles::hasPinForProfile(id)) return false;
+  Account account;
+  if (!load(id, account)) return false;
+  TurnHubStorage::NvsBlobStore store;
+  return store.begin("turnhub") == Status::Ok && store.write("acctadmin", id.c_str(), 9) == Status::Ok;
 }
-}
+
+}  // namespace TurnHubAccounts

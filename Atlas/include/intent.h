@@ -71,7 +71,7 @@ enum class IntentType : uint8_t {
   ConfigurePairing,
   // Admin: payload.value = Atlas speaker volume, 0 (off) to 3 (high).
   ConfigureSpeaker,
-  // Admin at the table (admin unlocked on the Atlas screen): return the table
+  // Admin verified at the table (presence code): return the table
   // to an empty lobby, ending a match in progress as a draw first.
   ResetTable,
   // Admin at the table, between games: erase a device's saved settings (NVS).

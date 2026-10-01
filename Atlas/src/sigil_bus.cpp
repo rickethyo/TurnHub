@@ -195,7 +195,8 @@ bool SigilBus::poll(SigilEvent &event) {
   if (event.type == PacketType::DisplayProfileRequest) {
     SigilRecord *record = const_cast<SigilRecord *>(this->record(event.sigilId));
     const uint32_t nowMs = millis();
-    if (record != nullptr &&
+    const bool seated = seatedQuery_ != nullptr && seatedQuery_(event.sigilId);
+    if (record != nullptr && !seated &&
         (!record->profileRequestSeen || nowMs - record->lastProfileRequestMs > 5000)) {
       if (TurnHubProfiles::resetTransientSeatBindings(record->mac)) {
         serialLog.print("ATLAS|PROFILE|TRANSIENT_SEATS|CLEARED|");

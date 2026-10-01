@@ -11,6 +11,11 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
+// Player-facing messages below (and the portal's hints in web_pages.cpp)
+// spell these durations out; change the wording with the value.
+static_assert(PASS_GRACE_MS == 3000, "Update the \"within 3 seconds\" pass wording");
+static_assert(TurnHub::LIFE_APPROVAL_MS == 15000, "Update the \"15 seconds\" life-request wording");
+
 namespace {
 
 // The player whose answer the table now waits for hears ActionRequired on

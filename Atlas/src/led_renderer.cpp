@@ -315,7 +315,6 @@ void LedRenderer::syncDisplay(
 
   Cache &cache = cache_[sigilId];
   if (mode == TurnHubProtocol::DisplayMode::Running) {
-
     TurnHubProtocol::GameDisplayPacket snapshot{};
     snapshot.version = TurnHubProtocol::VERSION;
     snapshot.type = TurnHubProtocol::PacketType::GameDisplay;
@@ -369,7 +368,10 @@ void LedRenderer::syncDisplay(
       entry.damage[0] = a;
       entry.damage[1] = b;
     }
-    if (!cache.displayValid || memcmp(&snapshot, &cache.gameDisplay, sizeof(snapshot)) != 0) {
+    // The payload check catches a return from a DisplayState-only mode
+    // (Paused) even when the game snapshot itself did not change.
+    if (!cache.displayValid || cache.displayPayload != payload ||
+        memcmp(&snapshot, &cache.gameDisplay, sizeof(snapshot)) != 0) {
       if (bus_.sendGameDisplay(snapshot)) {
         cache.gameDisplay = snapshot;
         cache.displayPayload = payload;
@@ -414,7 +416,6 @@ void LedRenderer::render(
         id, state, lobby, game, countdownStartedAtMs,
         eliminationTargetPlayer, winConfirmationPlayer, nowMs);
     sendLedState(id, cue, nowMs);
-
   }
 }
 

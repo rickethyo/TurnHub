@@ -1,5 +1,5 @@
 // Browser authentication: session tokens, PIN hashing and verification,
-// the press-Action-on-the-Sigil claim flow, profile/seat login, and the
+// the Link-phone-on-the-Sigil claim flow, profile/seat login, and the
 // account policy queries Atlas uses to gate physical play.
 
 #include <esp_system.h>
@@ -128,7 +128,8 @@ void handleProfileLogin(WebServer &server) {
   sendLogin(server, createProfileSession(id, millis(), true));
 }
 
-// Seat login (the portal's Sign in on a Sigil seat): the PIN is checked for the\n// profile bound to that seat.
+// Seat login (the portal's Sign in on a Sigil seat): the PIN is checked for the
+// profile bound to that seat.
 void handleSeatLogin(WebServer &server) {
   if (!server.hasArg("module") || !server.hasArg("slot") || !server.hasArg("pin")) {
     sendJson(server, 400, "{\"ok\":false,\"error\":\"Module, slot, and PIN are required\"}");
@@ -255,20 +256,23 @@ String sessionProfileId(const WebSession &session) {
   return TurnHubProfiles::profileExists(profileId) ? profileId : String();
 }
 
-bool seatHasSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs) {
+void resolveAllSessions(uint32_t nowMs) {
   cleanup(nowMs);
   for (auto &session : sessions) {
     if (session.used) resolveSessionParticipant(session);
+  }
+}
+
+bool seatHasSession(uint8_t controllerId, uint8_t slot) {
+  for (const auto &session : sessions) {
     if (session.used && session.controllerId == controllerId && session.slot == slot) return true;
   }
   return false;
 }
 
-uint8_t moduleSessionCount(uint8_t controllerId, uint32_t nowMs) {
-  cleanup(nowMs);
+uint8_t moduleSessionCount(uint8_t controllerId) {
   uint8_t count = 0;
-  for (auto &session : sessions) {
-    if (session.used) resolveSessionParticipant(session);
+  for (const auto &session : sessions) {
     if (session.used && session.controllerId == controllerId) ++count;
   }
   return count;
@@ -325,7 +329,7 @@ String cleanName(const String &raw) {
 // --- Sigil-press claims ------------------------------------------------------------
 
 // Starts a claim: the browser asks for a seat and someone proves possession by
-// pressing Action on that Sigil (see notePhysicalAction). A signed-in browser
+// choosing Link phone on that Sigil (see notePhysicalAction). A signed-in browser
 // uses the same flow to attach its profile to the Sigil.
 void handleSessionRequest(WebServer &server) {
   SigilBus *bus = SigilBus::activeInstance();
@@ -402,7 +406,9 @@ void handleSessionRequest(WebServer &server) {
   response += String(slot);
   response += ",\"expiresMs\":";
   response += String(CLAIM_TIMEOUT_MS);
-  response += ",\"message\":\"Press Action on this Sigil to authorize this seat.\"}";
+  response += ",\"message\":\"On this Sigil, choose Link phone within ";
+  response += String(CLAIM_TIMEOUT_MS / 1000);
+  response += " seconds to authorize this seat.\"}";
   sendJson(server, 202, response);
 }
 
@@ -446,7 +452,8 @@ void handleSessionPoll(WebServer &server) {
   sendJson(server, 404, "{\"ok\":false,\"status\":\"expired\",\"error\":\"Claim expired or was already collected\"}");
 }
 
-// profileId + PIN signs into a profile; module + slot + PIN signs into the\n// profile bound to that Sigil seat.
+// profileId + PIN signs into a profile; module + slot + PIN signs into the
+// profile bound to that Sigil seat.
 void handleSessionLogin(WebServer &server) {
   if (server.hasArg("profileId")) {
     handleProfileLogin(server);
@@ -530,7 +537,7 @@ bool hasPendingClaim(uint8_t sigilId) {
   return false;
 }
 
-// Called for real Action presses: approves the oldest pending claim for that
+// Called when Link phone is chosen on the Sigil: approves the oldest pending claim for that
 // Sigil, attaching the requesting browser's profile or issuing a new session.
 void notePhysicalAction(uint8_t sigilId) {
   const uint32_t nowMs = millis();

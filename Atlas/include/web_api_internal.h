@@ -41,8 +41,8 @@ constexpr size_t PIN_HASH_LENGTH = 64;
 constexpr size_t MAX_NAME_LENGTH = 32;
 constexpr char TOKEN_HEADER[] = "X-TurnHub-Token";
 
-// A browser waiting for someone to press Action on a physical Sigil, which
-// proves possession and authorizes (or attaches) that seat.
+// A browser waiting for someone to choose Link phone on a physical Sigil,
+// which proves possession and authorizes (or attaches) that seat.
 struct PendingClaim {
   bool used = false;
   uint64_t requestId = 0;
@@ -129,8 +129,11 @@ void sendLogin(WebServer &server, WebSession *session);
 bool resolveSessionParticipant(WebSession &session);
 // The session's profile ID if the profile still exists, else empty.
 String sessionProfileId(const WebSession &session);
-bool seatHasSession(uint8_t controllerId, uint8_t slot, uint32_t nowMs);
-uint8_t moduleSessionCount(uint8_t controllerId, uint32_t nowMs);
+// Expires stale sessions and re-resolves every session's seat once, so a
+// listing can then ask seatHasSession / moduleSessionCount per seat cheaply.
+void resolveAllSessions(uint32_t nowMs);
+bool seatHasSession(uint8_t controllerId, uint8_t slot);
+uint8_t moduleSessionCount(uint8_t controllerId);
 bool validSlot(int slot);
 bool resolveSeatNow(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot);
 String profileIdForPhysicalSeat(uint8_t controllerId, uint8_t slot);

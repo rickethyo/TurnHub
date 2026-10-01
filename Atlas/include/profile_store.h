@@ -104,13 +104,11 @@ bool saveAvatarForProfile(const String &profileId, uint8_t avatar);
 bool loadStatsForProfile(const String &profileId, ProfileStats &stats, bool *detailed = nullptr);
 bool saveStatsForProfile(const String &profileId, const ProfileStats &stats);
 
-// The card's record store, or nullptr without one. Set once at boot.
+// The card's record store, or nullptr without one. Set at boot and again
+// when the card is inserted or pulled (main.cpp refreshSdLuxuryStore).
 void setLuxuryStore(TurnHubStorage::BlobStore *store);
 bool luxuryStoreAvailable();
-// Moves detailed statistics still in NVS to the card: each is written, read
-// back and compared, its core record written, and only then removed from
-// NVS. Without a card nothing moves or is deleted. Returns profiles moved.
-// A missing record reads as zero counts.
+// Private moderation history. A missing record reads as zero counts.
 bool loadModerationStatsForProfile(const String &profileId, ModerationStats &stats);
 bool saveModerationStatsForProfile(const String &profileId, const ModerationStats &stats);
 
@@ -123,6 +121,8 @@ String boundProfileIdForSeat(const uint8_t mac[6], uint8_t slot);
 // Release both seat bindings.
 // Atlas profile records and statistics remain durable.
 bool resetTransientSeatBindings(const uint8_t mac[6]);
+// Release one seat's binding (that seat becomes a guest).
+bool releaseSeatBinding(const uint8_t mac[6], uint8_t slot);
 // Move a profile between this Sigil's seats, leaving the source as a guest.
 bool moveSeatProfile(const uint8_t mac[6], uint8_t fromSlot, uint8_t toSlot, const String &profileId);
 bool bindSeatToProfile(

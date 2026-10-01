@@ -1,6 +1,6 @@
-// Atlas front panel state: the pairing window timer and the table presence
-// codes. The E32R28T board has no master, Pair or front-panel buttons; the
-// touchscreen (touch_controls.cpp) is Atlas's only physical input. A code the
+// Atlas front panel state: the pairing window timer, the table presence codes
+// and the board's BOOT button. The E32R28T board has no other buttons; the
+// touchscreen (touch_controls.cpp) is Atlas's main physical input. A code the
 // Atlas screen shows, typed or scanned on a phone, proves that phone's user is
 // at the table, which protected web actions (first Admin, system settings,
 // device names, OTA, Return to lobby, factory reset) require.
@@ -175,8 +175,6 @@ uint32_t pairingRemainingMs(uint32_t nowMs) {
   return elapsed < pairingIndicatorMs ? pairingIndicatorMs - elapsed : 0;
 }
 
-// The pairing window closes after its configured length or when the lobby
-// ends; a shown presence code closes after PRESENCE_CODE_MS.
 namespace {
 
 constexpr uint32_t BOOT_BUTTON_DEBOUNCE_MS = 30;
@@ -223,6 +221,8 @@ void updateBootButton(bool pressed, uint32_t nowMs) {
   }
 }
 
+// The pairing window closes after its configured length or when the lobby
+// ends; a shown presence code closes after PRESENCE_CODE_MS.
 void updatePairingWindow(uint32_t nowMs) {
   if (pairingActive &&
       (nowMs - pairingStartedAtMs >= pairingIndicatorMs || hubState != HubState::Lobby)) {

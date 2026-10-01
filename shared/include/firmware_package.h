@@ -157,6 +157,27 @@ inline const char *errorName(Error error) {
   return "unknown";
 }
 
+// The same outcome as a sentence for the person uploading (portal pages);
+// errorName() stays the log and wire spelling.
+inline const char *errorMessage(Error error) {
+  switch (error) {
+    case Error::None: return "No error";
+    case Error::BadMagic: return "That file is not a TurnHub firmware package (.thfw)";
+    case Error::BadFormat: return "The package is damaged or from an unknown format";
+    case Error::UnknownKey: return "The package is signed with a key this device does not trust";
+    case Error::BadSignature: return "The package signature is not valid";
+    case Error::WrongProduct: return "The package is for a different kind of device";
+    case Error::OlderVersion: return "Only the same or a newer version can be installed; a downgrade needs USB";
+    case Error::TooLarge: return "The firmware image is too large for this device";
+    case Error::Truncated: return "The upload ended early; try again";
+    case Error::TooLong: return "The upload has extra data after the package";
+    case Error::HashMismatch: return "The firmware image does not match its signature";
+    case Error::Storage: return "The device could not write the firmware to flash";
+    case Error::Crypto: return "The device could not check the package";
+  }
+  return "The firmware update failed";
+}
+
 // Where the checked bytes go: Atlas stages the whole package, a Sigil writes
 // only the image into its idle slot. header() comes once, after the header
 // has passed every check; image() only after that.

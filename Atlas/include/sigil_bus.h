@@ -78,6 +78,11 @@ class SigilBus {
   const SigilRecord *record(uint8_t sigilId) const;
   // Refresh names without requesting a reconnect handshake.
   void syncDisplayProfile(uint8_t sigilId);
+  // Whether a Sigil holds a seat at the table (lobby or match). A Sigil that
+  // starts up asks for its names; Atlas then frees its seat profiles, unless
+  // it is seated: a Sigil that rebooted mid-lobby keeps its player.
+  using SeatedQuery = bool (*)(uint8_t sigilId);
+  void setSeatedQuery(SeatedQuery query) { seatedQuery_ = query; }
 
   bool sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet);
   bool sendUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket &packet);
@@ -157,6 +162,7 @@ class SigilBus {
 
   uint8_t wifiChannel_;
   bool pairingOpen_ = false;
+  SeatedQuery seatedQuery_ = nullptr;
   uint32_t pairingStartedMs_ = 0;
   uint32_t pairingWindowMs_ = TurnHubProtocol::PAIRING_WINDOW_MS;
   QueueHandle_t rxQueue_ = nullptr;

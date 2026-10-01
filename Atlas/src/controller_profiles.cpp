@@ -47,6 +47,17 @@ void releaseBrowser(uint8_t controllerId) {
     browserProfiles[controllerId - TurnHub::MAX_PHYSICAL_SIGILS][0] = '\0';
   }
 }
+void releasePhysical(uint8_t controllerId, uint8_t slot) {
+  auto *bus = TurnHub::SigilBus::activeInstance();
+  const auto *record = controllerId < TurnHub::MAX_PHYSICAL_SIGILS && bus ? bus->record(controllerId) : nullptr;
+  if (!record) return;
+  if (slot == 1) {
+    TurnHubProfiles::resetTransientSeatBindings(record->mac);
+  } else {
+    TurnHubProfiles::releaseSeatBinding(record->mac, slot);
+  }
+  bus->syncDisplayProfile(controllerId);
+}
 bool bindPhysical(uint8_t controllerId, uint8_t slot, const String &profileId) {
   auto *bus = TurnHub::SigilBus::activeInstance();
   const auto *record = controllerId < TurnHub::MAX_PHYSICAL_SIGILS && bus ? bus->record(controllerId) : nullptr;

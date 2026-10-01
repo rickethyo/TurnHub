@@ -1331,7 +1331,8 @@ static void jewelColors() {
   assert(request("/api/session/personalization", owner, {{"avatar", "0"}}) == 200);
   assert(request("/api/session/personalization", owner, {{"color", "none"}}) == 200 && server.body.find("\"color\":null") != std::string::npos);
   assert(!seatColorSet(sigilSeatColorFor(0, 1)));
-  syncSigilMenus(testNow); assert(!seatColorSet(TurnHub::fixtureSeatColor[0][1]));
+  // Seat colors are re-read every 500 ms, not every loop pass.
+  syncSigilMenus(testNow + 500); assert(!seatColorSet(TurnHub::fixtureSeatColor[0][1]));
   for (auto &record : TurnHub::fixtureRecords) {
     record.helloInfoValid = false; record.capabilities = 0;
   }
@@ -2084,7 +2085,7 @@ static void touchControls() {
     touchAt(cx+cw/2,cy+ch/2); testNow+=30; touchAt(cx+cw/2,cy+ch/2); touchRelease();
     s=currentScreen();
     assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==6 &&
-        screenButton(s,TouchAction::LifeMinus5) && screenButton(s,TouchAction::CloseScreen) &&
+        String(screenButton(s,TouchAction::LifeMinus5)->label)=="-5" && screenButton(s,TouchAction::CloseScreen) &&
         !screenButton(s,TouchAction::Concede)->hold());
     for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None) assert(b.w>=44 && b.h>=44);
     tapButton(TouchAction::LifeMinus5); tapButton(TouchAction::LifePlus1);
@@ -2731,7 +2732,7 @@ static void atlasSpeaker() {
   audio.setSpeaker(nullptr); audio.setSpeakerVolume(0); audio.clear(); enterEmptyLobby();
 }
 
-// An Admin at the table (admin unlocked on the Atlas screen) returns the
+// An Admin verified at the table (presence code) returns the
 // table to an empty lobby from the portal; a match in progress ends as a draw.
 static void resetTableFromPortal() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });

@@ -45,6 +45,12 @@ constexpr SigilAction DEFAULT_ORDER[] = {
     SigilAction::CancelStart, SigilAction::LinkPhone, SigilAction::CycleStarter,
     SigilAction::BeginElimination};
 
+// Seat colors come from profile records (Jewel color, avatar). Looking them up
+// every loop pass cost a profile lookup and String churn per seat per pass, so
+// they are re-read at this cadence; a change shows within it.
+constexpr uint32_t SEAT_COLOR_REFRESH_MS = 500;
+uint32_t lastSeatColorRefreshMs = 0;
+bool seatColorsRead = false;
 
 }  // namespace
 
@@ -174,6 +180,11 @@ void syncSigilMenus(uint32_t nowMs) {
       cache.sent = true;
     }
   }
+  const bool refreshColors = !seatColorsRead || nowMs - lastSeatColorRefreshMs >= SEAT_COLOR_REFRESH_MS;
+  if (refreshColors) {
+    seatColorsRead = true;
+    lastSeatColorRefreshMs = nowMs;
+  }
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     MenuCache &cache = menus[id];
     if (!sigilBus.isOnline(id, nowMs)) {
@@ -182,12 +193,15 @@ void syncSigilMenus(uint32_t nowMs) {
       cache.passingSent = false;
       continue;
     }
-    for (uint8_t slot = 1; slot <= 2; ++slot) {
+    for (uint8_t slot = 1; slot <= 2 && refreshColors; ++slot) {
       const int32_t color = sigilSeatColorFor(id, slot);
       if (color != cache.seatColor[slot - 1]) {
         cache.seatColor[slot - 1] = color;
         cache.seatColorSent[slot - 1] = false;
       }
+    }
+    for (uint8_t slot = 1; slot <= 2; ++slot) {
+      const int32_t color = cache.seatColor[slot - 1];
       if (!cache.seatColorSent[slot - 1] &&
           sigilBus.send(id, TurnHubProtocol::PacketType::SeatColor, color)) {
         cache.seatColorSent[slot - 1] = true;
@@ -266,6 +280,7 @@ uint8_t sigilMenuRevision(uint8_t sigilId) {
 
 void resetSigilMenus() {
   for (auto &cache : menus) cache = MenuCache{};
+  seatColorsRead = false;
 }
 
 }  // namespace TurnHubAtlas

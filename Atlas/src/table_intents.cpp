@@ -59,12 +59,7 @@ void resetCountdown() {
 }
 
 void clearPhysicalSeatProfiles() {
-  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
-    const auto *record = sigilBus.record(id);
-    if (!record) continue;
-    TurnHubProfiles::resetTransientSeatBindings(record->mac);
-    sigilBus.syncDisplayProfile(id);
-  }
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) TurnHubControllers::releasePhysical(id, 1);
 }
 
 void printPlayer(const PlayerSeat &player) {
@@ -211,12 +206,16 @@ void finishGameState() {
 void updateCountdown(uint32_t nowMs) {
   if (hubState != HubState::Starting) return;
 
-  const uint32_t elapsed = nowMs - countdownStartedAtMs;
+  constexpr int8_t COUNTDOWN_SECONDS = static_cast<int8_t>(START_COUNTDOWN_MS / 1000);
+  // nowMs is sampled before the loop's handlers run, so a countdown begun
+  // later in the same pass reads as slightly in the future: treat it as 0.
+  uint32_t elapsed = nowMs - countdownStartedAtMs;
+  if (elapsed > 0x7FFFFFFFUL) elapsed = 0;
   const int8_t second = static_cast<int8_t>(elapsed / 1000);
-  if (second >= 0 && second < 3 && second != lastCountdownSecond) {
+  if (second < COUNTDOWN_SECONDS && second != lastCountdownSecond) {
     lastCountdownSecond = second;
     serialLog.print("ATLAS|LOBBY|COUNTDOWN|");
-    serialLog.println(3 - second);
+    serialLog.println(COUNTDOWN_SECONDS - second);
     audio.countdownTone(lobbyAudioMask(), static_cast<uint8_t>(second));
   }
   if (elapsed >= START_COUNTDOWN_MS) dispatchSystemIntent(IntentType::CompleteStart);
@@ -270,7 +269,14 @@ IntentResult leaveProfile(const Intent &intent, const String &profile, bool join
     }
     lobby.leave(existing);
   }
-  TurnHubControllers::releaseBrowser(existing);
+  // A profile seated on a Sigil (a phone leaving for it, or a Game Master
+  // removal) frees that seat, as the Sigil's own Leave does, so the Sigil
+  // stops showing the name and its next Join is not this profile.
+  if (existing < MAX_PHYSICAL_SIGILS) {
+    TurnHubControllers::releasePhysical(existing, existingSlot);
+  } else {
+    TurnHubControllers::releaseBrowser(existing);
+  }
   serialLog.print("ATLAS|LOBBY|LEAVE|BROWSER|");
   serialLog.print(existing);
   serialLog.print("|SLOT|");
@@ -322,7 +328,7 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
   }
   if (joined && existing != module) {
     if (occupied) {
-      // Keep the guest's table position, host and secondary seat.
+      // Keep the guest's table position and secondary seat.
       lobby.leave(existing);
     } else {
       lobby.replaceController(existing, module);
@@ -414,10 +420,10 @@ IntentResult seatChanged(bool joining) {
 }
 
 IntentResult toggleSecondarySeat(uint8_t module, bool joining) {
-  if (lobby.startArmedBy() == module) lobby.clearStartArm();
   if (!lobby.isJoined(module) || lobby.hasSecondary(module) == joining) {
     return IntentResult::reject(IntentStatus::Conflict, "Secondary seat is already in the requested state");
   }
+  if (lobby.startArmedBy() == module) lobby.clearStartArm();
   bool added = false;
   PlayerSeat affected;
   if (!lobby.toggleSecondary(module, added, affected)) {
@@ -426,6 +432,8 @@ IntentResult toggleSecondarySeat(uint8_t module, bool joining) {
   if (added) {
     audio.sharedPlayerAdded(module);
   } else {
+    // Like seat A leaving: seat B's profile goes with it.
+    TurnHubControllers::releasePhysical(module, 2);
     audio.sharedPlayerRemoved(module);
   }
   serialLog.print("ATLAS|LOBBY|SECONDARY|");
@@ -464,7 +472,7 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
     const String profile = TurnHubControllers::profileForSeat(module, slot);
     if (module < MAX_PHYSICAL_SIGILS && !TurnHubWebApi::physicalUseAllowed(profile)) {
       return IntentResult::reject(IntentStatus::Unauthorized,
-          "Sign into this profile in the portal before using its Sigil");
+          "Sign into this profile on a phone before using its Sigil");
     }
     uint8_t current = INVALID_ID, currentSlot = 1;
     if (resolveProfileParticipant(profile, current, currentSlot)) {
@@ -479,12 +487,7 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
   }
   // Seat profiles are temporary: a Sigil that leaves is free for anyone,
   // so its next Join (or the picker's Guest) is not the old profile.
-  if (module < MAX_PHYSICAL_SIGILS) {
-    if (const auto *record = sigilBus.record(module)) {
-      TurnHubProfiles::resetTransientSeatBindings(record->mac);
-      sigilBus.syncDisplayProfile(module);
-    }
-  }
+  TurnHubControllers::releasePhysical(module, 1);
   serialLog.print("ATLAS|LOBBY|LEAVE|SIGIL|");
   serialLog.println(module);
   return seatChanged(false);
@@ -537,7 +540,8 @@ IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
 // browser seat may start without arming. The Atlas touchscreen (Start in the
 // lobby) is at the table itself, so it starts without a seat or arming.
 IntentResult handleStartIntent(const Intent &intent, void *) {
-  if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
+  // A Sigil update, or an Atlas upload that restarts Atlas when it lands.
+  if (sigilUpdatesBusy() || ota.inProgress()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
   const bool touchscreen = intent.actor.origin == IntentOrigin::AtlasHardware &&
       intent.type == IntentType::StartGame;
   IntentResult rejection;
@@ -567,7 +571,7 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
 
 // System-only: the countdown finished (see updateCountdown).
 IntentResult handleCompleteStartIntent(const Intent &intent, void *) {
-  if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
+  if (sigilUpdatesBusy() || ota.inProgress()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
   if (intent.actor.origin != IntentOrigin::System || hubState != HubState::Starting ||
       millis() - countdownStartedAtMs < START_COUNTDOWN_MS) {
     return IntentResult::reject(IntentStatus::InvalidState, "Countdown is not complete");
@@ -851,8 +855,6 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   return IntentResult::accept(all ? "All Sigils forgotten" : "Sigil forgotten");
 }
 
-// Payload: value = Atlas pairing window in milliseconds (60, 90 or 120 s;
-// never below the 60 s minimum).
 // Pairing v2 code check (SECURE_LINK.md). The owner compares the code on the
 // Sigil with the one on Atlas and confirms or rejects: at the Atlas screen
 // (physically at the table), or as a portal Admin through the same
@@ -878,6 +880,8 @@ IntentResult handlePairConfirmIntent(const Intent &intent, void *) {
   return IntentResult::accept(confirm ? "Sigil paired securely" : "Pairing rejected");
 }
 
+// Payload: value = Atlas pairing window in milliseconds (60, 90 or 120 s;
+// never below the 60 s minimum).
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *) {
   if (!adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");

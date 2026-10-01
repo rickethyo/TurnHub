@@ -208,10 +208,13 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
 // Dispatcher observer: runs after every Intent, accepted or not.
 void observeIntent(const Intent &intent) {
   // The loop dispatches expiry every frame. Its no-op path must not rebuild
-  // the complete Commander matrix. Other completed handlers are infrequent.
-  if (intent.type != IntentType::ExpireLifeChanges || clientState.expirationDue(millis())) {
-    observeClientState();
-  }
+  // the complete Commander matrix or re-encode the recovery checkpoint (the
+  // once-a-second updateGameRecoveryClock poll still runs). The client
+  // projection still holds the old requests here, so expirationDue() says
+  // whether this tick just settled one. Other completed handlers are
+  // infrequent.
+  if (intent.type == IntentType::ExpireLifeChanges && !clientState.expirationDue(millis())) return;
+  observeClientState();
   // Persist a checkpoint after every dispatched intent. GameRecovery::save()
   // only actually touches NVS when the encoded game state changed or the
   // periodic clock checkpoint is due, so this is cheap to call unconditionally
@@ -312,7 +315,7 @@ void handleStatus() {
       json,
       sizeof(json),
       "{\"presenceActive\":%s,\"presenceCodeShown\":%s,\"sigils\":%u,\"players\":%u,"
-      "\"state\":\"%s\",\"host\":%d,\"starter\":%u,"
+      "\"state\":\"%s\",\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
       "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
       "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
@@ -323,7 +326,6 @@ void handleStatus() {
       static_cast<unsigned>(sigilBus.activeCount(nowMs)),
       static_cast<unsigned>(players),
       stateName(hubState),
-      -1,  // "host": there is no table host since 2026-09-25.
       static_cast<unsigned>(starter),
       static_cast<unsigned>(active),
       static_cast<unsigned>(game.winnerPlayerNumber()),
@@ -439,6 +441,7 @@ void setup() {
   TurnHubProfiles::begin();
 
   configureIntentHandlers();
+  sigilBus.setSeatedQuery([](uint8_t id) { return lobby.isJoined(id) || game.controllerInGame(id); });
   clientState.setNameLookup(displayNameForTableSeat);
   observeClientState();
   intents.setObserver(observeIntent);
@@ -473,8 +476,8 @@ void setup() {
 }
 
 // The SD worker mounted or dropped a card (hot-plug): point detailed
-// statistics at the card, or at nothing, and move any NVS detail onto a card
-// that just arrived. Application task only, like every luxury-store call.
+// statistics at the card, or at nothing. Application task only, like every
+// luxury-store call.
 void refreshSdLuxuryStore() {
   const uint32_t generation = sdCardGeneration();
   if (generation == luxuryStoreGeneration) return;

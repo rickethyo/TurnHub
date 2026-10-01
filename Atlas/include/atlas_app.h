@@ -17,7 +17,7 @@
 //   moderation_intent.cpp  Game Master moderation
 //   sigil_input.cpp        ESP-NOW event adapter (menu choices, life keys)
 //   web_adapters.cpp       browser callbacks registered with TurnHubWebApi
-//   front_panel.cpp        pairing window, admin unlock window
+//   front_panel.cpp        pairing window, table presence codes, BOOT button
 //   touch_controls.cpp     touchscreen buttons (adapter) and the TFT's
 //                          screen model (touch_controls.h)
 //   sigil_accessibility.cpp  seated players' accessibility preferences ->

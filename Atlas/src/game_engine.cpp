@@ -2,6 +2,19 @@
 
 namespace TurnHub {
 
+namespace {
+// Callers often sample millis() once per loop pass and then run handlers that
+// stamp state with a fresh, slightly later millis() (e.g. the countdown
+// starting a game, or a deferred pass committing). A clock read from before
+// the stamp is not a 49-day-old turn: treat it as zero elapsed instead of
+// letting the unsigned difference wrap. Genuine millis() rollover still works
+// because real spans stay far below 2^31 ms (~24.8 days).
+uint32_t elapsedBetween(uint32_t startMs, uint32_t endMs) {
+  const uint32_t elapsed = endMs - startMs;
+  return elapsed > 0x7FFFFFFFUL ? 0 : elapsed;
+}
+}  // namespace
+
 GameEngine::GameCompletedCallback GameEngine::gameCompletedCallback_ = nullptr;
 
 GameEngine::GameEngine() {
@@ -214,7 +227,12 @@ bool GameEngine::passTurn(
     return false;
   }
 
-  const uint32_t elapsed = nowMs - turnStartedAtMs_;
+  const int next = nextLivingIndex(activeIndex_);
+  if (next < 0) {
+    return false;
+  }
+
+  const uint32_t elapsed = elapsedBetween(turnStartedAtMs_, nowMs);
   PlayerStats &stats = stats_[activeIndex_];
   ++stats.turnsCompleted;
   stats.totalTurnMs += elapsed;
@@ -223,11 +241,6 @@ bool GameEngine::passTurn(
   }
   if (elapsed > stats.longestTurnMs) {
     stats.longestTurnMs = elapsed;
-  }
-
-  const int next = nextLivingIndex(activeIndex_);
-  if (next < 0) {
-    return false;
   }
 
   activeIndex_ = static_cast<uint8_t>(next);
@@ -250,7 +263,7 @@ bool GameEngine::resume(uint32_t nowMs) {
     return false;
   }
 
-  const uint32_t pauseDuration = nowMs - pauseStartedAtMs_;
+  const uint32_t pauseDuration = elapsedBetween(pauseStartedAtMs_, nowMs);
   totalPausedMs_ += pauseDuration;
   turnStartedAtMs_ += pauseDuration;
   pauseStartedAtMs_ = 0;
@@ -331,7 +344,7 @@ void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
   gameEndedAtMs_ = nowMs;
 
   if (paused_ && pauseStartedAtMs_ != 0) {
-    const uint32_t pauseDuration = nowMs - pauseStartedAtMs_;
+    const uint32_t pauseDuration = elapsedBetween(pauseStartedAtMs_, nowMs);
     totalPausedMs_ += pauseDuration;
     turnStartedAtMs_ += pauseDuration;
   }
@@ -648,18 +661,6 @@ uint8_t GameEngine::livingPlayersForController(
   return count;
 }
 
-namespace {
-// Callers often sample millis() once per loop pass and then run handlers that
-// stamp state with a fresh, slightly later millis() (e.g. the countdown
-// starting a game, or a deferred pass committing). A clock read from before
-// the stamp is not a 49-day-old turn: treat it as zero elapsed instead of
-// letting the unsigned difference wrap. Genuine millis() rollover still works
-// because real spans stay far below 2^31 ms (~24.8 days).
-uint32_t elapsedBetween(uint32_t startMs, uint32_t endMs) {
-  const uint32_t elapsed = endMs - startMs;
-  return elapsed > 0x7FFFFFFFUL ? 0 : elapsed;
-}
-}  // namespace
 
 uint32_t GameEngine::currentTurnElapsedMs(uint32_t nowMs) const {
   if (!hasPlayers()) {

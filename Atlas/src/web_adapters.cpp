@@ -197,7 +197,6 @@ bool moderateAccount(const String &actor, const String &target,
   return result.accepted();
 }
 
-
 // Table presence for the web API: authorization state in front_panel.cpp,
 // not table state, so it bypasses the Intent path like the old unlock window.
 TurnHubWebApi::PresenceHooks presenceHooks() {
@@ -210,6 +209,7 @@ TurnHubWebApi::PresenceHooks presenceHooks() {
   hooks.revoke = [](const String &profile) { revokePresence(profile); };
   return hooks;
 }
+
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
