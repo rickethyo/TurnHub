@@ -33,6 +33,8 @@ pio device monitor                    # serial, 115200 baud
 ```
 Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
 
+**One-button flash:** `tools\flash-all.cmd` (or `tools\flash-all.ps1`, options `-NoPull`, `-DryRun`) pulls the repo, reads each attached board's MAC and flashes Atlas and Sigils from `BOARD_INVENTORY.md`'s MAC table. It skips the harness and unknown MACs, and refuses to pull over uncommitted changes. Keep that table current when a board is added.
+
 **Serial ports:** never hard-code COM numbers (in `platformio.ini`, docs or scripts). They change whenever the PC restarts. Find the board each time (Atlas is the CH340 port, Sigils are CP210x; see "Identifying boards" below), pass `--upload-port` / `--port`, and ask the owner if several candidates are attached.
 
 ### Atlas host regression tests (no hardware)
