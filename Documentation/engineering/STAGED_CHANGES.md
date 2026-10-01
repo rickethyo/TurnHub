@@ -247,10 +247,10 @@ reports the release feed, Atlas blinks blue and says so on its screen.
 Manual V0.6 describes both. Host tests, all firmware builds and the Android
 tests pass. *Needs verification* on hardware: the OLED stick's directions
 (it shares the E-ink's swapped/inverted mounting in `stickConfig`), and the
-blue blink on Atlas with the app connected. Still to do: the `Sigil_OLED`
-KiCad schematic and board still draw pushbuttons SW1-SW5; regenerate them
-with the joystick header J4 (needs KiCad; `verify_schematic.py` then checks
-the OLED joystick rows).
+blue blink on Atlas with the app connected. The `Sigil_OLED` schematic now
+draws the joystick header J4 like the E-ink (SW1-SW5 removed); KiCad 10 CLI
+ERC passes on all three schematics and `verify_schematic.py` checks the OLED
+joystick rows. The OLED PCB is still an empty placeholder.
 
 ### 2026-10-01 code sweep: awaiting hardware verification
 

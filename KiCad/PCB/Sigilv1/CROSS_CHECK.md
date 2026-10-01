@@ -2,7 +2,7 @@
 
 Verified against exported KiCad netlists, current firmware, and the user-supplied rear-photo sequence. YES means GPIO/socket/net consistency; it does not verify peripheral parts or mechanical dimensions.
 
-Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. The Jewel moves to its own adapter board (with C1, 470 uF) on a pigtail into J5; C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.
+Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. The Jewel moves to its own adapter board (with C1, 470 uF) on a pigtail into J5; C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. Both schematics carry the same analog joystick (J4) and NeoPixel status ring (J5); only the display differs.
 
 ## E-ink (Sigil_EInk.kicad_sch)
 
@@ -40,7 +40,7 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 | 7 | VCC | +3V3 | red |
 | 8 | GND | GND | orange |
 
-Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build; the directions and click are the five menu keys.
+Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil envs `sigil` and `sigil-oled` (same stick and GPIOs); the directions and click are the five menu keys.
 
 | Header pin | Module label | Net |
 |---|---|---|
@@ -93,11 +93,9 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | OLED clock | GPIO18 | A11 | OLED_SCLK | `c.sclk = 18` | YES |
 | OLED reset | GPIO22 | A17 | OLED_RST | `c.reset = 22` | YES |
 | OLED data | GPIO23 | A18 | OLED_MOSI | `c.mosi = 23` | YES |
-| Up button (SW1) | GPIO25 | J11 | KEY_UP | `25 /* Up, J11 */` | YES |
-| Down button (SW2) | GPIO27 | J9 | KEY_DOWN | `27 /* Down, J9 */` | YES |
-| Left button (SW3) | GPIO19 | A12 | KEY_LEFT | `19 /* Left, A12 */` | YES |
-| Right button (SW4) | GPIO21 | A14 | KEY_RIGHT | `21 /* Right, A14 */` | YES |
-| Select button (SW5) | GPIO32 | J13 | KEY_SELECT | `32 /* Select, J13 */` | YES |
+| Joystick SW (Select) | GPIO32 | J13 | JOY_SW | `32 /* SW (J13) */` | YES |
+| Joystick VRY | GPIO35 | J14 | JOY_Y | `JOYSTICK_Y_PIN = 35` | YES |
+| Joystick VRX | GPIO34 | J15 | JOY_X | `JOYSTICK_X_PIN = 34` | YES |
 | Status ring data (via R1) | GPIO26 | J10 | RING_DIN | `STATUS_RING_PIN = 26` | YES |
 | Display-type strap (to GND = OLED) | GPIO4 | A7 | GND | `HW_TYPE_STRAP_PIN = 4` | YES |
 | Buzzer signal | GPIO33 | J12 | BUZZER | `BUZZER_PIN = 33` | YES |
@@ -106,7 +104,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |
 | Front light data (spare output) | GPIO13 | J5 | FRONT_DIN | No firmware yet | N/A |
 
-Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A10, A15, A16, J2, J3, J4, J7, J8, J14, J15, J16, J17, J18.
+Unused (NC) sockets: A1, A2, A3, A4, A5, A6, A10, A12, A14, A15, A16, J2, J3, J4, J7, J8, J9, J11, J16, J17, J18.
 
 Display header J2, in physical order (pin 1 at the top of the module header). Wire colors are the breadboard jumpers in the owner photos (2026-09-24), not a harness specification.
 
@@ -120,15 +118,15 @@ Display header J2, in physical order (pin 1 at the top of the module header). Wi
 | 6 | DC | OLED_DC | blue |
 | 7 | CS | OLED_CS | green |
 
-Menu keys SW1-SW5: five discrete momentary pushbuttons, each from its GPIO (pin 1) to one shared GND rail (pin 2), using the ESP32 internal pull-ups; no resistors. On a 4-leg tactile switch, pins 1 and 2 are legs on opposite sides (across the gap). Firmware: Sigil env `sigil-oled`, `KEY_PINS` in `main.cpp`.
+Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil envs `sigil` and `sigil-oled` (same stick and GPIOs); the directions and click are the five menu keys.
 
-| Switch | Key | GPIO | DevKit socket (breadboard) | Net (pin 1) | Pin 2 |
-|---|---|---|---|---|---|
-| SW1 | Up | GPIO25 | J11 | KEY_UP | GND |
-| SW2 | Down | GPIO27 | J9 | KEY_DOWN | GND |
-| SW3 | Left | GPIO19 | A12 | KEY_LEFT | GND |
-| SW4 | Right | GPIO21 | A14 | KEY_RIGHT | GND |
-| SW5 | Select | GPIO32 | J13 | KEY_SELECT | GND |
+| Header pin | Module label | Net |
+|---|---|---|
+| 1 | GND | GND |
+| 2 | +5V | +3V3 |
+| 3 | VRX | JOY_X |
+| 4 | VRY | JOY_Y |
+| 5 | SW | JOY_SW |
 
 Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.
 
@@ -155,15 +153,11 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 | C4 | 100nF | `Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm` |
 | J2 | INLAND 1.3" OLED HEADER (7-PIN) | `Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical` |
 | J3 | BUZZER 2-PIN HEADER | `Connector_PinHeader_2.54mm:PinHeader_1x02_P2.54mm_Vertical` |
+| J4 | ANALOG JOYSTICK HEADER (5-PIN) | `Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical` |
 | J5 | STATUS RING CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | J6 | FRONT LIGHT CABLE (JST-XH 3) | `Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical` |
 | R1 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
 | R2 | 330R | `Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P7.62mm_Horizontal` |
-| SW1 | UP (GPIO25, J11) | `Button_Switch_THT:SW_PUSH_6mm` |
-| SW2 | DOWN (GPIO27, J9) | `Button_Switch_THT:SW_PUSH_6mm` |
-| SW3 | LEFT (GPIO19, A12) | `Button_Switch_THT:SW_PUSH_6mm` |
-| SW4 | RIGHT (GPIO21, A14) | `Button_Switch_THT:SW_PUSH_6mm` |
-| SW5 | SELECT (GPIO32, J13) | `Button_Switch_THT:SW_PUSH_6mm` |
 | U1 | REMOVABLE ESP32 DEVKIT / 2 x 19 | `Sigil:ESP32_DevKit_38_Socket_Row22.225mm` |
 | U2 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
 | U3 | 74AHCT1G125 | `Package_TO_SOT_SMD:SOT-23-5` |
@@ -213,7 +207,7 @@ Parts and footprints (U1 is from published Inland DevKit dimensions; caliper-che
 
 Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.
 
-Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3, spare front light J6/U3/R2/C4 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
+Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), display strap, U2/R1/C2/C3, spare front light J6/U3/R2/C4 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.
 
 ## Jewel adapter (Sigil_JewelAdapter.kicad_sch)
 

@@ -23,7 +23,7 @@ POWER = {'A13': 'GND', 'A19': 'GND', 'J6': 'GND', 'J19': '+3V3'}
 
 # (function, GPIO, socket, net, firmware evidence, how to find it)
 BUZZER = ('Buzzer signal', 33, 'J12', 'BUZZER', 'BUZZER_PIN = 33', main)
-# Joystick header J4 (E-ink only): module order, "+5V" deliberately on +3V3.
+# Joystick header J4 (both drafts): module order, "+5V" deliberately on +3V3.
 JOYSTICK_HEADER = [('1','GND','GND','not recorded'), ('2','+5V','+3V3','not recorded'),
     ('3','VRX','JOY_X','not recorded'), ('4','VRY','JOY_Y','not recorded'),
     ('5','SW','JOY_SW','not recorded')]
@@ -31,7 +31,7 @@ JOYSTICK_ROWS = [
     ('Joystick SW (Select)', 32, 'J13', 'JOY_SW', '32 /* SW (J13) */', main),
     ('Joystick VRY', 35, 'J14', 'JOY_Y', 'JOYSTICK_Y_PIN = 35', main),
     ('Joystick VRX', 34, 'J15', 'JOY_X', 'JOYSTICK_X_PIN = 34', main)]
-# NeoPixel Jewel 7 header J5 (E-ink only): data from GPIO26 through R1;
+# NeoPixel Jewel 7 header J5 (both drafts): data from GPIO26 through R1;
 # Data Output is unconnected (None). USB 5V from J1 powers it.
 JEWEL_HEADER = [('1','+5V','+5V','not recorded'), ('2','DIN','RING_DIN_R','not recorded'),
     ('3','GND','GND','not recorded')]
@@ -42,12 +42,6 @@ EINK_POWER = {'J1': '+5V'}
 FRONT_HEADER = [('1','+5V','+5V','not recorded'), ('2','DIN','FRONT_DIN_R','not recorded'),
     ('3','GND','GND','not recorded')]
 FRONT_SOCKET = ('J5', 'FRONT_DIN')
-# OLED keys: five discrete pushbuttons, pin 1 on the key net, pin 2 on GND.
-BUTTONS = [('SW1','Up','KEY_UP',25,'J11'), ('SW2','Down','KEY_DOWN',27,'J9'),
-    ('SW3','Left','KEY_LEFT',19,'A12'), ('SW4','Right','KEY_RIGHT',21,'A14'),
-    ('SW5','Select','KEY_SELECT',32,'J13')]
-BUTTON_ROWS = [(f'{key} button ({ref})', gpio, sock, net, f'{gpio} /* {key}, {sock} */', main)
-    for ref, key, net, gpio, sock in BUTTONS]
 VARIANTS = [
     # Display header in physical order: (pin number, silkscreen label, net, wire color).
     ('Sigil_EInk', 'E-ink', 'EPD', [
@@ -69,7 +63,7 @@ VARIANTS = [
         ('OLED CS', 17, 'A9', 'OLED_CS', 'c.cs = 17', oled_config),
         ('OLED clock', 18, 'A11', 'OLED_SCLK', 'c.sclk = 18', oled_config),
         ('OLED reset', 22, 'A17', 'OLED_RST', 'c.reset = 22', oled_config),
-        ('OLED data', 23, 'A18', 'OLED_MOSI', 'c.mosi = 23', oled_config)] + BUTTON_ROWS + JEWEL_ROWS
+        ('OLED data', 23, 'A18', 'OLED_MOSI', 'c.mosi = 23', oled_config)] + JOYSTICK_ROWS + JEWEL_ROWS
         + [('Display-type strap (to GND = OLED)', 4, 'A7', 'GND', 'HW_TYPE_STRAP_PIN = 4', main)]),
 ]
 
@@ -81,7 +75,7 @@ def evidence_found(text, source):
 
 report = ['# Sigil Rev A cross-check tables', '',
     'Verified against exported KiCad netlists, current firmware, and the user-supplied rear-photo sequence. YES means GPIO/socket/net consistency; it does not verify peripheral parts or mechanical dimensions.', '',
-    'Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. The Jewel moves to its own adapter board (with C1, 470 uF) on a pigtail into J5; C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. The E-ink schematic carries the analog joystick (J4) and the NeoPixel status ring (J5) instead; the OLED schematic carries five discrete pushbuttons (SW1-SW5) and the same ring.', '']
+    'Discrete LEDs and the old buttons are gone; their GPIOs are explicitly NC. The Jewel moves to its own adapter board (with C1, 470 uF) on a pigtail into J5; C2 (10 uF) on +3V3, and U2 (74AHCT1G125, decoupled by C3) lifts the ring data to 5 V. GPIO4 (A7) is the display-type strap: open on the E-ink board, tied to GND on the OLED board. Both schematics carry the same analog joystick (J4) and NeoPixel status ring (J5); only the display differs.', '']
 for project, title, prefix, header, rows in VARIANTS:
     xml = ET.parse(sys.argv[1 if project == 'Sigil_EInk' else 2]).getroot()
     nets = {n.get('name'): {(p.get('ref'),p.get('pin')) for p in n.findall('node')} for n in xml.findall('nets/net')}
@@ -95,8 +89,7 @@ for project, title, prefix, header, rows in VARIANTS:
         assert evidence_found(evidence, source), (project, evidence)
         assert mapping[pos]=='GPIO'+str(gpio), (project, pos)
         assert by_pin[('U1',pos)]=='/'+net, (project, pos, by_pin.get(('U1',pos)))
-    has_joystick = project == 'Sigil_EInk'
-    has_buttons = project == 'Sigil_OLED'
+    has_joystick = True  # Both drafts carry the joystick (J4) since 2026-10-01.
     has_jewel = True  # Both drafts carry the status ring cable (J5).
     power = dict(POWER, **(EINK_POWER if has_jewel else {}))
     for pos,net in power.items(): assert by_pin[('U1',pos)]=='/'+net, (project, pos)
@@ -109,9 +102,6 @@ for project, title, prefix, header, rows in VARIANTS:
             assert nodes[num].get('pinfunction').split('_')[0]==name, (project, ref, num, name, nodes[num].attrib)
             if net is None: assert by_pin[(ref,num)].startswith('unconnected-'), (project, ref, num)
             else: assert by_pin[(ref,num)]=='/'+net, (project, ref, num, net)
-    if has_buttons:
-        for ref, _, net, _, _ in BUTTONS:
-            assert by_pin[(ref,'1')]=='/'+net and by_pin[(ref,'2')]=='/GND', (project, ref)
     if has_jewel:
         for num, net in [('1','GND'),('2','RING_DIN'),('3','GND'),('4','RING_DIN_5V'),('5','+5V')]:
             assert by_pin[('U2',num)]=='/'+net, (project, 'U2', num)
@@ -134,7 +124,7 @@ for project, title, prefix, header, rows in VARIANTS:
     for c in xml.findall('components/comp'):
         assert c.find('footprint') is not None, (project, c.get('ref'), 'needs a footprint')
     assert refs == {'U1','J2','J3','C2'} | ({'J4'} if has_joystick else set()) \
-        | ({'J5','R1','U2','C3','J6','R2','U3','C4'} if has_jewel else set()) | ({r[0] for r in BUTTONS} if has_buttons else set()), (project, refs)
+        | ({'J5','R1','U2','C3','J6','R2','U3','C4'} if has_jewel else set()), (project, refs)
     for n,pins in nets.items():
         if not n.startswith('unconnected-'): assert len(pins)>=2,(project,n,pins)
     assert xml.findtext("components/comp[@ref='U1']/footprint")=='Sigil:ESP32_DevKit_38_Socket_Row22.225mm'
@@ -144,7 +134,7 @@ for project, title, prefix, header, rows in VARIANTS:
     for f,g,p,n,e,_ in rows: report.append(f'| {f} | GPIO{g} | {p} | {n} | `{e}` | YES |')
     report += ['| Ground | — | A13, A19, J6 | GND | Hardware ground | YES |',
                '| 3.3 V rail | — | J19 | +3V3 | DevKit supply; not a GPIO | N/A |']
-    if not has_buttons: report.append('| Display-type strap (open = E-ink) | GPIO4 | A7 | NC | `HW_TYPE_STRAP_PIN = 4` | YES |')
+    if project == 'Sigil_EInk': report.append('| Display-type strap (open = E-ink) | GPIO4 | A7 | NC | `HW_TYPE_STRAP_PIN = 4` | YES |')
     if has_jewel: report += ['| USB 5 V (status ring) | — | J1 | +5V | DevKit USB supply; not a GPIO | N/A |',
                              '| Front light data (spare output) | GPIO13 | J5 | FRONT_DIN | No firmware yet | N/A |']
     report.append('')
@@ -154,14 +144,9 @@ for project, title, prefix, header, rows in VARIANTS:
     report += [f'| {num} | {name} | {net} | {color} |' for num,name,net,color in header]
     report.append('')
     if has_joystick:
-        report += ['Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil env `sigil`, the E-ink build; the directions and click are the five menu keys.', '',
+        report += ['Joystick header J4, in module order. The "+5V" pin is fed from +3V3 on purpose: VRX/VRY swing to the supply and the ESP32 ADC must not see 5 V. Firmware: Sigil envs `sigil` and `sigil-oled` (same stick and GPIOs); the directions and click are the five menu keys.', '',
             '| Header pin | Module label | Net |', '|---|---|---|']
         report += [f'| {num} | {name} | {net} |' for num,name,net,_ in JOYSTICK_HEADER]
-        report.append('')
-    if has_buttons:
-        report += ['Menu keys SW1-SW5: five discrete momentary pushbuttons, each from its GPIO (pin 1) to one shared GND rail (pin 2), using the ESP32 internal pull-ups; no resistors. On a 4-leg tactile switch, pins 1 and 2 are legs on opposite sides (across the gap). Firmware: Sigil env `sigil-oled`, `KEY_PINS` in `main.cpp`.', '',
-            '| Switch | Key | GPIO | DevKit socket (breadboard) | Net (pin 1) | Pin 2 |', '|---|---|---|---|---|---|']
-        report += [f'| {ref} | {key} | GPIO{gpio} | {sock} | {net} | GND |' for ref,key,net,gpio,sock in BUTTONS]
         report.append('')
     if has_jewel:
         report += ['Status ring cable J5 (JST-XH, 3 pins) to the Jewel adapter board, on USB 5 V. Data runs GPIO26 (J10, net RING_DIN) through U2 (74AHCT1G125, 5 V buffer, net RING_DIN_5V) and R1 (330 ohm) to DIN (net RING_DIN_R). Pin numbers are logical; the pads are labelled. Firmware caps brightness at 48/255.', '',
@@ -180,7 +165,7 @@ for project, title, prefix, header, rows in VARIANTS:
 report += ['## Socket positions', '', '| Socket position | DevKit silkscreen pin |', '|---|---|']
 report += [f'| {p} | {n} |' for p,n in mapping.items()]
 report += ['', 'Unused means no carrier connection; onboard flash, UART, BOOT and EN circuitry may still use these signals.', '',
-    'Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), pushbuttons (OLED) display strap, U2/R1/C2/C3, spare front light J6/U3/R2/C4 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.', '']
+    'Validation: 38 unique socket positions per schematic; display, joystick and status ring (both), display strap, U2/R1/C2/C3, spare front light J6/U3/R2/C4 and buzzer nets match firmware; power and all three grounds connected; every part has a footprint; every other socket explicitly NC; no dangling named nets. Peripheral interfaces remain unresolved; see README.md.', '']
 # Jewel adapter (third netlist): Jewel pads, C1 and pigtail, same order as J5.
 if len(sys.argv) > 3:
     xml = ET.parse(sys.argv[3]).getroot()
@@ -202,4 +187,4 @@ if len(sys.argv) > 3:
     report.append('')
 
 (ROOT/'CROSS_CHECK.md').write_text('\n'.join(report), encoding='utf-8')
-print('PASS: ' + ('all three schematics' if len(sys.argv) > 3 else 'both Sigil schematics') + ' match the socket mapping, firmware display/joystick/pushbutton/ring/buzzer pins, power, NC pins and the U1 socket footprint')
+print('PASS: ' + ('all three schematics' if len(sys.argv) > 3 else 'both Sigil schematics') + ' match the socket mapping, firmware display/joystick/ring/buzzer pins, power, NC pins and the U1 socket footprint')

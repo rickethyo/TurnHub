@@ -319,7 +319,7 @@ really is common-anode.
 | Function | GPIO | Notes |
 |---|---:|---|
 | Status LED blue / green / red (Wokwi only) | 27 / 14 / 13 | One RGB LED or three LEDs; PWM on all three. The hardware Sigils use the Jewel ring instead |
-| Menu keys, both Sigils | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V. The OLED Sigil's five pushbuttons (25/27/19/21/32) were replaced by the same joystick on the same GPIOs on 2026-10-01 (owner); its mounting orientation *Needs verification* (main.cpp `stickConfig`). The `Sigil_OLED` schematic still draws SW1-SW5 |
+| Menu keys, both Sigils | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V. The OLED Sigil's five pushbuttons (25/27/19/21/32) were replaced by the same joystick on the same GPIOs on 2026-10-01 (owner); its mounting orientation *Needs verification* (main.cpp `stickConfig`). Both KiCad schematics draw it as J4 |
 | Status ring, both hardware Sigils | 26 | NeoPixel Jewel 7 RGBW Data Input via 330 ohm; PWR from USB 5V (J1). The only status light (no separate LED since 2026-09-25) |
 | Buzzer | 33 | Current development wiring |
 | Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build, the E-ink Sigil with the same thumbstick and ring since 2026-09-30, keeps its Pair pushbutton on GPIO19 (A12). |

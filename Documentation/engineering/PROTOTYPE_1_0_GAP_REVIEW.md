@@ -40,7 +40,8 @@ identical field-test Sigils practical.
 
 - **Hardware:** Atlas moved to the LCDwiki E32R28T touchscreen board with an on-board
   speaker; Sigils gained the NeoPixel Jewel 7 ring, the analog joystick (e-ink) and
-  five pushbuttons (OLED), and a GPIO4 display-type strap.
+  five pushbuttons (OLED; replaced by the same joystick on 2026-10-01), and a GPIO4
+  display-type strap.
 - **Features:** Commander damage and life approvals, game profiles, accounts and
   moderation, microSD statistics/diagnostics, preset avatars, table-clock light sync,
   TestHarness 0.8.0, the Android client with Settings/Dev tabs.

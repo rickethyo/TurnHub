@@ -2045,6 +2045,17 @@
 		)
 		(uuid "6222e8a0-9d51-5ab3-8261-135830430c06")
 	)
+	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.225 mm (7/8 in, owner measurement 2026-09-28) apart, 25.4 x 53.975 mm outline (1 x 2 1/8 in). Caliper-check and test-fit before ordering.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 6.35 mm antenna keep-out at the A19/J19 end (measured, 1/4 in).\n5. Footprints: 2.54 mm sockets/headers, JST-XH J5/J6, axial R1/R2, radial C2-C4, SOT-23-5 U2/U3; U1 rows 22.225 mm from the owner measurement: test-fit before ordering.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the Jewel adapter cable on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed."
+		(exclude_from_sim no)
+		(at 28 211 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "635816b3-504c-525c-b2e3-c3796a40548b")
+	)
 	(text "Wire colors are the breadboard jumpers in the owner photos\n(2026-09-24), not a harness specification.\nInland e-paper driver board, write-only (GxEPD2_213_B74); no MISO.\nJ2 pins follow the board header, pin 1 = SDI (top).\nBoard switches P1 (3 / 0.47) and P2 (5VIN / 3.3VIN).\nSet P2 to 3.3VIN: J2 VCC is the DevKit 3.3 V rail (J19).\nWorking unit: P1 on 3, P2 on 3.3VIN (photo, 2026-09-28)."
 		(exclude_from_sim no)
 		(at 175 101.6 0)
@@ -2100,6 +2111,17 @@
 		)
 		(uuid "97c32a83-3269-548a-8d6c-b34cd68cc796")
 	)
+	(text "Unmarked 5-pin analog thumbstick; pins in module order.\n\"+5V\" pin is fed 3.3 V: VRX/VRY swing to the supply and the\nESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\nDirections + click are the five menu keys (on-screen compass).\nAxis direction depends on mounting; firmware can swap/invert.\nFirmware: Sigil PlatformIO envs sigil and sigil-oled."
+		(exclude_from_sim no)
+		(at 290 86.36 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "a1d96e01-99f9-54c5-bd11-026552f099a8")
+	)
 	(text "J6: spare front light output, e.g. 6-8 SK6812 RGBW pixels on\nthe case front lip facing the seated player. Own data line:\nGPIO13 -> U3 (74AHCT1G125, C4) -> R2 (330 ohm) -> DIN; pinout as J5.\nShares USB 5V with the ring: firmware must cap both (7 + 8 pixels\nat 48/255 is about 225 mA). Fitted; unused until a strip is added."
 		(exclude_from_sim no)
 		(at 290 226.06 0)
@@ -2133,17 +2155,6 @@
 		)
 		(uuid "ca663ed4-4872-5710-8ca3-5302d258e631")
 	)
-	(text "SCHEMATIC REVIEW / RELEASE HOLDS\n1. U1 uses A1-A19 / J1-J19 from SigilBackMarked.png (BACK view); never exchange row identities.\n2. U1 footprint (Sigil.pretty): 2.54 mm pitch, rows 22.225 mm (7/8 in, owner measurement 2026-09-28) apart, 25.4 x 53.975 mm outline (1 x 2 1/8 in). Caliper-check and test-fit before ordering.\n3. Future footprint: two 1x19 female sockets, unmistakable A1/J1 marks; verify insertion from carrier component side.\n4. Keep micro-USB, BOOT and EN/reset accessible. U1 carries a 6.35 mm antenna keep-out at the A19/J19 end (measured, 1/4 in).\n5. Footprints: 2.54 mm sockets/headers, JST-XH J5/J6, axial R1/R2, radial C2-C4, SOT-23-5 U2/U3; U1 rows 22.225 mm from the owner measurement: test-fit before ordering.\n6. Discrete LEDs and the old buttons are removed; J4 is the joystick (its \"+5V\" pin MUST be fed 3.3 V); J5 is the Jewel adapter cable on USB 5V.\n7. Rev A is an electrical draft, NOT fabrication-ready until U1 is checked against the real board. Power through DevKit USB; no second supply designed."
-		(exclude_from_sim no)
-		(at 28 211 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "ce46d1b4-9cd7-5996-9187-a9706d48434f")
-	)
 	(text "black wire"
 		(exclude_from_sim no)
 		(at 204.47 74.68 0)
@@ -2165,17 +2176,6 @@
 			(justify left top)
 		)
 		(uuid "e71be1ca-a673-5762-ae01-7c4b53d26db1")
-	)
-	(text "Unmarked 5-pin analog thumbstick; pins in module order.\n\"+5V\" pin is fed 3.3 V: VRX/VRY swing to the supply and the\nESP32 ADC must not see 5 V. SW is a switch to GND (internal pull-up).\nDirections + click are the five menu keys (on-screen compass).\nAxis direction depends on mounting; firmware can swap/invert.\nFirmware: Sigil PlatformIO env sigil (E-ink build)."
-		(exclude_from_sim no)
-		(at 290 86.36 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left top)
-		)
-		(uuid "ef19b7f6-9fc7-566c-a3bc-76a95a014368")
 	)
 	(text "J3 is a 2-pin header (1 SIG, 2 GND) for the buzzer on leads.\nOwner: a cheap passive piezo disc, driven directly by GPIO33\n(LEDC tone). A magnetic transducer would need a driver instead."
 		(exclude_from_sim no)
