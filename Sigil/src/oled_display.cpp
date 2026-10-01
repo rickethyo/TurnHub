@@ -24,8 +24,12 @@ bool availableOutputPin(int pin) {
   switch (pin) {
     case 1: case 3:  // Serial diagnostics.
     case 0: // Pair (the DevKit BOOT button).
-    case 13: case 14: case 27: // LEDs.
-    case 19: case 21: case 25: case 26: case 32: // D-pad keys (Wokwi: buttons, Pair on 19).
+    case 4:  // Display-type strap.
+    case 13: // Spare front light (J6).
+    case 19: // Wokwi's Pair button.
+    case 21: // BUSY on the shared display header.
+    case 26: // Status ring.
+    case 32: // Thumbstick click (VRX/VRY are input-only GPIO34/35).
     case 33: // Buzzer.
       return false;
     default: return true;
@@ -80,7 +84,7 @@ void OledDisplay::begin() {
         &Wire, c.reset, c.i2cClockHz, c.i2cClockHz));
   } else {
     // Software SPI uses only the explicit write-only pins, never default MISO
-    // (GPIO19 is the d-pad's Left key). No hardware SPI bus is started.
+    // (GPIO19, Wokwi's Pair button). No hardware SPI bus is started.
     display_.reset(new (std::nothrow) Adafruit_SH1106G(c.width, c.height,
         c.mosi, c.sclk, c.dc, c.reset, c.cs));
   }

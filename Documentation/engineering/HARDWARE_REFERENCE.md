@@ -319,8 +319,7 @@ really is common-anode.
 | Function | GPIO | Notes |
 |---|---:|---|
 | Status LED blue / green / red (Wokwi only) | 27 / 14 / 13 | One RGB LED or three LEDs; PWM on all three. The hardware Sigils use the Jewel ring instead |
-| Menu keys, E-ink (`sigil`) | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V |
-| Menu keys, OLED (`sigil-oled`) | 25 Up, 27 Down, 19 Left, 21 Right, 32 Select | Five discrete pushbuttons SW1-SW5 (no d-pad module), each GPIO to a common GND with INPUT_PULLUP; sockets J11, J9, A12, A14, J13. *Planned*: being wired |
+| Menu keys, both Sigils | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V. The OLED Sigil's five pushbuttons (25/27/19/21/32) were replaced by the same joystick on the same GPIOs on 2026-10-01 (owner); its mounting orientation *Needs verification* (main.cpp `stickConfig`). The `Sigil_OLED` schematic still draws SW1-SW5 |
 | Status ring, both hardware Sigils | 26 | NeoPixel Jewel 7 RGBW Data Input via 330 ohm; PWR from USB 5V (J1). The only status light (no separate LED since 2026-09-25) |
 | Buzzer | 33 | Current development wiring |
 | Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build, the E-ink Sigil with the same thumbstick and ring since 2026-09-30, keeps its Pair pushbutton on GPIO19 (A12). |
@@ -406,8 +405,9 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   life; the OLED shows it at once. A life request from another player shows as
   "P4: -3 life?": Right approves, Left denies, and ignoring it still accepts
   after 15 s.
-- **OLED (d-pad): list.** Any key opens the list at the likely action; Up and
-  Down move, Select or Right choose, Left closes, and ten idle seconds close it.
+- **OLED: list.** Any stick push or click opens the list at the likely action;
+  Up and Down move, the click or Right chooses, Left closes, and ten idle
+  seconds close it.
 - **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:
   the long press) are sent only once the key is held for the seated players'
   thresholds. The E-ink ring fills in white while held; the OLED row says HOLD.

@@ -64,7 +64,7 @@ There is no per-test filter. To run one group, build the single executable (the 
 ### Sigil firmware (run from `Sigil/`)
 ```
 pio run -e sigil                      # E-ink Sigil with analog joystick
-pio run -e sigil-oled                 # OLED Sigil with five-button d-pad
+pio run -e sigil-oled                 # OLED Sigil (same thumbstick, ring and GPIOs; only the display differs)
 pio run -e sigil-wokwi                # Wokwi simulation build (ESP-NOW replaced by wokwi_espnow_shim.h, which acts as a fake Atlas)
 ```
 Wokwi serial-console commands for driving the simulated Atlas are listed in `Sigil/WOKWI.md`.
@@ -123,7 +123,7 @@ durable completion receipts and replay-safe persistence exist. See
 
 **No compatibility before release:** every Atlas, Sigil and harness is a prototype the owner reflashes together. Backward compatibility (older protocol versions, older firmware, OTA upgrade paths) applies only once hardware is released, and saved data (profiles, stats, pairings) needs no migrations until the owner says TurnHub is saving live stats: a changed layout means a factory reset. Remove code that only served retired devices or formats rather than keeping fallbacks.
 
-**Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (60 s, the minimum on every device) or the Hello capability bits (only what varies between Sigils: OLED vs e-paper, d-pad vs thumbstick, the test harness; Atlas assumes the rest and reads the byte through `helloCapabilities()`). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
+**Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (60 s, the minimum on every device) or the Hello capability bits (only what varies between Sigils: OLED vs e-paper and the test harness; Atlas assumes the rest and reads the byte through `helloCapabilities()`). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
 
 **Client contract:** live HTTP is `GET /api/v1/state`, `GET /api/v1/info` and form-based session controls such as `POST /api/control/pass`. State carries a `revision` scoped to `atlasId` + `bootId`. The JSON Intent envelope (`intent-v0.1.schema.json`), `POST /api/v1/intent` and the events WebSocket are **drafts, not implemented**. Android `protocol/` models mirror these JSON schemas, not the C++ types.
 

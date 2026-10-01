@@ -40,17 +40,17 @@ constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 
 // --- Hello capability byte ---------------------------------------------------
 // Every Sigil has the same baseline, which Atlas assumes and nothing
-// announces: a screen that shows the player's profile and the game, five-key
-// input (Up/Down/Left/Right/Select) with Atlas's action menu (MenuState2,
-// SelectAction, the profile picker, life keys), adjustable hold times
+// announces: a screen that shows the player's profile and the game, the
+// analog thumbstick (Up/Down/Left/Right, its click is Select) with Atlas's
+// action menu (MenuState2, SelectAction, the profile picker, life keys),
+// adjustable hold times
 // (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
 // The byte carries only what varies (owner, 2026-09-30).
 //
-// 0x02, 0x04, 0x08, 0x20 and 0x40 are free (the feature bits protocol 2 used
-// to announce the baseline).
+// 0x01, 0x02, 0x04, 0x08, 0x20 and 0x40 are free (0x01 was the OLED Sigil's
+// five-button d-pad, retired 2026-10-01 when every Sigil got the thumbstick;
+// the others were the feature bits protocol 2 used to announce the baseline).
 //
-// Five-button d-pad; clear: analog thumbstick (its click is Select).
-constexpr uint8_t CAPABILITY_INPUT_DPAD = 0x01;
 // The Sigil has the OLED display (sigil-oled); clear: e-paper. Also picks the
 // OTA package. Both displays seat two players.
 constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;

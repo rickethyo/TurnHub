@@ -68,8 +68,8 @@ int main() {
   c = fixture(); c.reset = -2; rejected(c);
   c = fixture(); c.dc = c.cs; rejected(c);
   c = fixture(); c.reset = c.cs; rejected(c);
-  for (int pin : {-1, 0, 1, 3, 6, 7, 8, 9, 10, 11, 13, 14, 19, 20, 21, 24, 25, 26,
-      27, 28, 29, 30, 31, 32, 33, 34, 39}) {
+  for (int pin : {-1, 0, 1, 3, 4, 6, 7, 8, 9, 10, 11, 13, 19, 20, 21, 24, 26,
+      28, 29, 30, 31, 32, 33, 34, 35, 39}) {
     c = fixture(); c.mosi = pin; rejected(c);
   }
 
@@ -148,13 +148,13 @@ int main() {
   d.showState(0, DisplayMode::Paused, 1, 0, 1, 0);
   assert(!has("1000000")); // State-only packets must not retain stale life.
 
-  c = fixture(); c.bus = OledBus::I2c; c.sda = 4; c.scl = 22;
+  c = fixture(); c.bus = OledBus::I2c; c.sda = 25; c.scl = 22;
   c.reset = -1; c.rotation = 2; c.i2cClockHz = 100000;
   rejected(c); // Address remains explicitly unset.
   c.i2cAddress = 0x3c;
   resetTrace();
   { OledDisplay i2c(c); i2c.begin(); i2c.showBooting(); }
-  assert(!panel.spi && Wire.calls == 1 && Wire.sda == 4 && Wire.scl == 22);
+  assert(!panel.spi && Wire.calls == 1 && Wire.sda == 25 && Wire.scl == 22);
   assert(panel.address == 0x3c && panel.rotation == 2 && !panel.resetRequested);
   assert(panel.clockDuring == 100000 && panel.clockAfter == 100000 && has("Booting"));
   resetTrace(); Wire.succeeds = false;

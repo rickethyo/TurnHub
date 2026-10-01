@@ -123,9 +123,7 @@ void handleDevices(WebServer &server) {
     json += ",\"capabilities\":"; json += String(record->capabilities);
     // Both display variants support shared seating. The display bit still selects OTA firmware.
     const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
-    const bool dpad = (record->capabilities & TurnHubProtocol::CAPABILITY_INPUT_DPAD) != 0;
     json += ",\"display\":\""; json += !record->helloInfoValid ? "unknown" : oled ? "oled" : "epaper";
-    json += "\",\"input\":\""; json += !record->helloInfoValid ? "unknown" : dpad ? "dpad" : "joystick";
     json += "\",\"maxPlayers\":"; json += String(2);
     json += ",\"sessionCount\":"; json += String(moduleSessionCount(id));
     json += ",\"profileA\":\""; json += jsonEscape(profileA);
@@ -464,6 +462,68 @@ void handleSetupFinish(WebServer &server) {
   sendJson(server, 200,
       "{\"ok\":true,\"restarting\":true,\"message\":\"Setup finished. Atlas is restarting with the new Wi-Fi password.\"}");
   restartSoon();
+}
+
+// --- Newer firmware (update_notice.h) ---------------------------------------------------------
+
+namespace {
+
+void appendRelease(String &json, const char *name, const TurnHub::FirmwareRelease &release) {
+  json += '"'; json += name; json += "\":";
+  if (!release.known) {
+    json += "null";
+    return;
+  }
+  json += '"';
+  json += String(release.major); json += '.';
+  json += String(release.minor); json += '.';
+  json += String(release.patch);
+  json += '"';
+}
+
+void sendUpdateStatus(WebServer &server) {
+  const TurnHub::LatestFirmware *latest = updateNoticeHooks.latest ? updateNoticeHooks.latest() : nullptr;
+  String json = "{\"reported\":";
+  json += jsonBool(latest != nullptr);
+  json += ",\"latest\":{";
+  const TurnHub::LatestFirmware none;
+  const TurnHub::LatestFirmware &shown = latest ? *latest : none;
+  appendRelease(json, "atlas", shown.atlas); json += ',';
+  appendRelease(json, "sigilEink", shown.sigilEink); json += ',';
+  appendRelease(json, "sigilOled", shown.sigilOled);
+  json += "},\"atlasFirmware\":\"";
+  json += TurnHubFirmware::VERSION;
+  json += "\",\"updatesAvailable\":";
+  json += String(updateNoticeHooks.available ? updateNoticeHooks.available() : 0);
+  json += '}';
+  sendJson(server, 200, json);
+}
+
+}  // namespace
+
+void handleUpdateStatus(WebServer &server) { sendUpdateStatus(server); }
+
+// Public, like the feed it repeats. Omitted products stay unknown; a version
+// that doesn't parse refuses the whole report.
+void handleLatestFirmware(WebServer &server) {
+  TurnHub::LatestFirmware latest;
+  const struct { const char *field; TurnHub::FirmwareRelease *release; } fields[] = {
+      {"atlas", &latest.atlas}, {"sigilEink", &latest.sigilEink}, {"sigilOled", &latest.sigilOled}};
+  bool any = false;
+  for (const auto &entry : fields) {
+    if (!server.hasArg(entry.field)) continue;
+    if (!TurnHub::parseFirmwareRelease(server.arg(entry.field).c_str(), *entry.release)) {
+      sendError(server, 400, String(entry.field) + " must be a version such as 0.9.3");
+      return;
+    }
+    any = true;
+  }
+  if (!any) {
+    sendError(server, 400, "Report at least one of atlas, sigilEink and sigilOled");
+    return;
+  }
+  if (updateNoticeHooks.note) updateNoticeHooks.note(latest);
+  sendUpdateStatus(server);
 }
 
 // --- Diagnostics -------------------------------------------------------------------------------

@@ -44,22 +44,12 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 #define TURNHUB_OTA 0
 #endif
 
-#ifndef TURNHUB_INPUT_JOYSTICK
-#define TURNHUB_INPUT_JOYSTICK 0
-#endif
-#if TURNHUB_INPUT_JOYSTICK
 #include "joystick_input.h"
-#endif
 #ifndef TURNHUB_DISPLAY_OLED
 #define TURNHUB_DISPLAY_OLED 0
 #endif
-#ifndef TURNHUB_INPUT_DPAD
-#define TURNHUB_INPUT_DPAD 0
-#endif
-// Every Sigil has five keys and Atlas's action menu, and the Jewel ring.
-#if TURNHUB_INPUT_JOYSTICK == TURNHUB_INPUT_DPAD
-#error "Choose one five-key input: TURNHUB_INPUT_JOYSTICK or TURNHUB_INPUT_DPAD"
-#endif
+// Every Sigil has the same thumbstick (five keys), Atlas's action menu and
+// the Jewel ring, on the same GPIOs; only the display differs (2026-10-01).
 #include "sigil_menu.h"
 #include "picker_list.h"
 #include "life_adjust.h"
@@ -86,7 +76,6 @@ constexpr uint8_t STATUS_RING_PIN = 26;
 // Five keys (Up, Down, Left, Right, Select). Each is a debounced button: a
 // real GPIO switched to GND, or a virtual pin (0xE0+) read from the stick.
 constexpr uint8_t STICK_UP_PIN = 0xE0;  // 0xE0-0xE3: Up, Down, Left, Right.
-#if TURNHUB_INPUT_JOYSTICK
 // Analog thumbstick (powered from 3.3 V, never 5 V: VRX/VRY swing to the
 // supply); clicking it is Select. VRX/VRY must be ADC1 pins: ADC2 is unusable
 // while ESP-NOW has the radio. GPIO25 is unused; GPIO26 drives the ring.
@@ -96,11 +85,6 @@ constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
 constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
 constexpr uint8_t KEY_PINS[] = {STICK_UP_PIN, STICK_UP_PIN + 1, STICK_UP_PIN + 2,
     STICK_UP_PIN + 3, 32 /* SW (J13) */};
-#else
-// Five-button d-pad, each a switch to GND with the internal pull-up.
-constexpr uint8_t KEY_PINS[] = {25 /* Up, J11 */, 27 /* Down, J9 */, 19 /* Left, A12 */,
-    21 /* Right, A14 */, 32 /* Select, J13 */};
-#endif
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
 #if defined(TURNHUB_WOKWI)
@@ -115,9 +99,6 @@ constexpr uint8_t PAIR_BUTTON = 0;
 // Hello announces only what varies between Sigils (protocol.h); Atlas assumes
 // the rest. The display bit also picks the OTA package.
 constexpr uint8_t DEVICE_CAPABILITIES = 0
-#if TURNHUB_INPUT_DPAD
-    | TurnHubProtocol::CAPABILITY_INPUT_DPAD
-#endif
 #if TURNHUB_DISPLAY_OLED
     | TurnHubProtocol::CAPABILITY_DISPLAY_OLED
 #endif
@@ -368,10 +349,11 @@ void updateLeds() {
   ledOutputValid = true;
 }
 
-#if TURNHUB_INPUT_JOYSTICK
 // The stick is mounted rotated 90 degrees on the E-ink Sigil after the
 // 2026-09-30 rewiring (owner pushes top/bottom/left/right read RIGHT/LEFT/UP/DOWN
-// before this fix), so the axes swap and X is reversed.
+// before this fix), so the axes swap and X is reversed. The OLED Sigil's stick
+// (2026-10-01) uses the same mounting until it is checked on hardware; if it
+// reads turned, give TURNHUB_DISPLAY_OLED its own values here.
 TurnHubSigil::StickConfig stickConfig() {
   TurnHubSigil::StickConfig config;
 #ifndef TURNHUB_WOKWI  // The simulated stick reads the right way round.
@@ -411,18 +393,15 @@ void updateJoystick(uint32_t nowMs) {
     Serial.println(TurnHubSigil::stickDirectionName(after));
   }
 }
-#endif
 
 // Active-low reading; joystick virtual pins are LOW while pushed that way.
 bool readButton(uint8_t pin) {
-#if TURNHUB_INPUT_JOYSTICK
   if (pin >= STICK_UP_PIN && pin <= STICK_UP_PIN + 3) {
     static constexpr TurnHubSigil::StickDirection DIRECTIONS[] = {
         TurnHubSigil::StickDirection::Up, TurnHubSigil::StickDirection::Down,
         TurnHubSigil::StickDirection::Left, TurnHubSigil::StickDirection::Right};
     return stick.direction() == DIRECTIONS[pin - STICK_UP_PIN] ? LOW : HIGH;
   }
-#endif
   return digitalRead(pin);
 }
 
@@ -1629,9 +1608,7 @@ void setup() {
   for (auto &key : keys) {
     if (key.pin < STICK_UP_PIN) pinMode(key.pin, INPUT_PULLUP);
   }
-#if TURNHUB_INPUT_JOYSTICK
   calibrateJoystick();
-#endif
   for (auto &key : keys) key.rawState = key.stableState = readButton(key.pin);
 
   TurnHubSigil::statusRingBegin(STATUS_RING_PIN);
@@ -1727,9 +1704,7 @@ void loop() {
   updater.confirmBoot(linkSession.ready(), millis());
   if (updater.pending()) updater.run();  // Blocks; restarts on success.
 #endif
-#if TURNHUB_INPUT_JOYSTICK
   updateJoystick(millis());
-#endif
   updateMenuKeys();
   updatePairButton();
   updatePairing();
