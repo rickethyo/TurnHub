@@ -1176,6 +1176,17 @@ static void profilePicker() {
     twice.actor.controllerId = 1; twice.actor.slot = 2; strcpy(twice.payload.profileId, "0000000A");
     assert(intents.dispatch(twice).status == IntentStatus::Conflict && !lobby.hasSecondary(1));
   }
+  // Removing seat B freed bob's seat; leaving from a phone frees Alice's seat
+  // A too, so the Sigil no longer shows her and its next Join is not her.
+  assert(TurnHubControllers::profileForSeat(1, 2).length() == 0);
+  {
+    Intent leave; leave.type = IntentType::LeaveProfile; leave.actor.origin = IntentOrigin::Browser;
+    strcpy(leave.payload.profileId, "0000000A");
+    assert(intents.dispatch(leave).accepted() && !lobby.isJoined(1) &&
+        TurnHubControllers::profileForSeat(1, 1).length() == 0);
+  }
+  pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
+  assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
 
   // The OLED Sigil gets the same picker (it draws it as a list); Guest joins.
   pick(2, A::Join); assert(pickerOpen(2) && !lobby.isJoined(2));
