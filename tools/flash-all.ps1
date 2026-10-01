@@ -16,10 +16,25 @@
 
 .PARAMETER NoPull   Flash the working copy as it is, without fetching.
 .PARAMETER DryRun   Identify boards and show the plan; build and flash nothing.
+.PARAMETER Signed   Flash the signed GitHub release over USB instead of building: downloads
+                    the release's .thfw packages, checks size, SHA-256 and signature, strips
+                    the 128-byte signed header and writes that exact image. No pull, no build.
+.PARAMETER Release  With -Signed: a tag such as v0.9.2. Default: the latest release.
+.PARAMETER Sign     Build this working copy, sign it with the local key (Private\TurnHub-keys,
+                    via sign-local.ps1), verify it, and flash the signed package's payload over
+                    USB. The same package can be installed by OTA. No pull (it is your work).
+.PARAMETER Key      With -Sign: path to the PEM key. Default: the one .pem in Private\TurnHub-keys.
+
+  -Signed and -Sign write only the app image (and blank the OTA-selection sector so the
+  board boots it); settings, profiles and pairings in NVS are kept. Downgrades work over USB.
 #>
 param(
   [switch]$NoPull,
-  [switch]$DryRun
+  [switch]$DryRun,
+  [switch]$Signed,
+  [string]$Release = 'latest',
+  [switch]$Sign,
+  [string]$Key
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,6 +88,12 @@ function Read-Mac($pio, $port) {
 
 # --- 1. latest repo -------------------------------------------------------------
 Set-Location $root
+if ($Signed -and $Sign) { Fail 'Use either -Signed (the release) or -Sign (your local build), not both.' }
+if ($Signed) {
+  Write-Host "Signed mode: flashing the $Release GitHub release (no pull, no build)." -ForegroundColor Cyan
+} elseif ($Sign) {
+  Write-Host 'Local signing mode: building and signing this working copy (no pull).' -ForegroundColor Cyan
+} else {
 if (-not $NoPull) {
   Write-Host '== Updating the repo' -ForegroundColor Cyan
   if (git status --porcelain) {
@@ -84,6 +105,7 @@ if (-not $NoPull) {
 $branch = git branch --show-current
 Write-Host ("Flashing from {0} at {1}" -f $branch, (git log --oneline -1))
 if ($branch -ne 'master') { Write-Host "Note: this is not master." -ForegroundColor Yellow }
+}
 
 # --- 2. identify boards ---------------------------------------------------------
 $pio = Find-Pio
@@ -111,7 +133,93 @@ foreach ($p in $ports) {
 
 $toFlash = @($plan | Where-Object Action -eq 'flash')
 if (-not $toFlash.Count) { Fail 'No connected board matched a flashable firmware in BOARD_INVENTORY.md.' }
-if ($DryRun) { Write-Host "`nDry run: nothing was built or flashed." -ForegroundColor Yellow; exit 0 }
+if ($DryRun -and -not ($Signed -or $Sign)) { Write-Host "`nDry run: nothing was built or flashed." -ForegroundColor Yellow; exit 0 }
+
+# --- 2b. signed images over USB (-Signed release, -Sign local key) ------------------
+if ($Signed -or $Sign) {
+  $products = @{ 'atlas' = 'atlas'; 'sigil' = 'sigil-eink'; 'sigil-oled' = 'sigil-oled' }
+  $python = Join-Path $env:USERPROFILE '.platformio\penv\Scripts\python.exe'
+  if (-not (Test-Path $python)) { $python = 'python' }
+  & $python -c 'import cryptography' 2>$null
+  if ($LASTEXITCODE -ne 0) { Fail "python 'cryptography' is missing: python -m pip install cryptography==46.0.7" }
+  $thfw = Join-Path $root 'tools\firmware\thfw.py'
+  $work = Join-Path $env:TEMP 'turnhub-signed'
+  New-Item -ItemType Directory -Force $work | Out-Null
+  $packages = @{}   # firmware column -> .thfw path
+  $versions = @{}
+
+  if ($Signed) {
+    $repoUrl = 'https://github.com/rickethyo/TurnHub/releases'
+    $base = if ($Release -eq 'latest') { "$repoUrl/latest/download" } else { "$repoUrl/download/$Release" }
+    Write-Host "`n== Downloading the release feed" -ForegroundColor Cyan
+    $feed = Invoke-RestMethod "$base/turnhub-firmware.json"
+    Write-Host "Release $($feed.release)"
+    $label = "signed release $($feed.release)"
+    foreach ($fw in ($toFlash.Env | Select-Object -Unique)) {
+      $pkg = $feed.packages | Where-Object product -eq $products[$fw]
+      if (-not $pkg) { Fail "The release has no $($products[$fw]) package." }
+      $file = Join-Path $work $pkg.file
+      Write-Host "Downloading $($pkg.file) ($($pkg.version))"
+      Invoke-WebRequest "$base/$($pkg.file)" -OutFile $file
+      if ((Get-Item $file).Length -ne $pkg.size) { Fail "$($pkg.file) is not the size the release says." }
+      if ((Get-FileHash $file -Algorithm SHA256).Hash.ToLower() -ne $pkg.sha256) { Fail "$($pkg.file) does not match the release's SHA-256." }
+      $packages[$fw] = $file
+    }
+  } else {
+    $label = 'locally signed build'
+    $signDir = Join-Path (Join-Path (Split-Path -Parent $root) 'Private') ("TurnHub-builds\local-{0}-{1}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'), (git rev-parse --short=12 HEAD))
+    $signArgs = @('-Products', (($toFlash.Env | Select-Object -Unique | ForEach-Object { $products[$_] }) -join ','), '-OutDir', $signDir)
+    if ($Key) { $signArgs += @('-Key', $Key) }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'sign-local.ps1') @signArgs
+    if ($LASTEXITCODE -ne 0) { Fail 'Building or signing failed. Nothing was flashed.' }
+    foreach ($fw in ($toFlash.Env | Select-Object -Unique)) {
+      $file = Get-ChildItem $signDir -Filter "$($products[$fw])-*.thfw" | Select-Object -First 1
+      if (-not $file) { Fail "No signed package for $($products[$fw]) in $signDir." }
+      $packages[$fw] = $file.FullName
+    }
+  }
+
+  # Check every package's signature against the committed public key, then
+  # strip the 128-byte signed header: the rest is the plain app image.
+  $images = @{}
+  foreach ($fw in $packages.Keys) {
+    & $python $thfw verify $packages[$fw]
+    if ($LASTEXITCODE -ne 0) { Fail "$($packages[$fw]) failed signature verification. Nothing was flashed." }
+    $versions[$fw] = (& $python $thfw info $packages[$fw] | ConvertFrom-Json).version -join '.'
+    $bytes = [IO.File]::ReadAllBytes($packages[$fw])
+    $payload = New-Object byte[] ($bytes.Length - 128)
+    [Array]::Copy($bytes, 128, $payload, 0, $payload.Length)
+    $images[$fw] = Join-Path $work "$fw-$($versions[$fw]).bin"
+    [IO.File]::WriteAllBytes($images[$fw], $payload)
+  }
+
+  # An all-0xFF OTA-selection sector makes the bootloader start the app slot we write.
+  $blankBytes = New-Object byte[] 8192
+  for ($i = 0; $i -lt $blankBytes.Length; $i++) { $blankBytes[$i] = 255 }
+  $blank = Join-Path $work 'otadata-blank.bin'
+  [IO.File]::WriteAllBytes($blank, $blankBytes)
+
+  if ($DryRun) {
+    Write-Host "`nDry run: $label verified and extracted; nothing was written to a board." -ForegroundColor Yellow
+    exit 0
+  }
+
+  foreach ($row in $toFlash) {
+    Write-Host "`n== Flashing $($row.Env) $($versions[$row.Env]) ($label) to $($row.Board) on $($row.Port)" -ForegroundColor Cyan
+    & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $row.Port --chip esp32 write_flash 0xe000 $blank 0x10000 $images[$row.Env]
+    $row.Result = if ($LASTEXITCODE -eq 0) { "flashed $($versions[$row.Env]) ($label)" } else { 'UPLOAD FAILED' }
+  }
+
+  Write-Host "`n== Summary" -ForegroundColor Cyan
+  $bad = 0
+  foreach ($row in $plan) {
+    $text = if ($row.Result) { $row.Result } else { "skipped ($($row.Why))" }
+    $color = if ($row.Result -like 'flashed*') { 'Green' } elseif ($row.Result) { 'Red' } else { 'Yellow' }
+    if ($row.Result -and $row.Result -notlike 'flashed*') { $bad++ }
+    Write-Host ("  {0,-12} {1,-18} {2}" -f $row.Board, $row.Mac, $text) -ForegroundColor $color
+  }
+  exit $(if ($bad) { 1 } else { 0 })
+}
 
 # --- 3. build once per firmware, then flash each board --------------------------
 foreach ($fw in ($toFlash.Env | Select-Object -Unique)) {

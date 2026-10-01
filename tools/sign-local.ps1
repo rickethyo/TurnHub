@@ -21,7 +21,6 @@
 .PARAMETER OutDir    Where packages go. Default: ..\Private\TurnHub-builds\local-<time>-<commit>.
 #>
 param(
-  [ValidateSet('atlas', 'sigil-eink', 'sigil-oled')]
   [string[]]$Products = @('atlas', 'sigil-eink', 'sigil-oled'),
   [string]$Key,
   [string]$OutDir
@@ -33,6 +32,12 @@ $private = Join-Path (Split-Path -Parent $root) 'Private'
 $thfw = Join-Path $root 'tools\firmware\thfw.py'
 
 function Fail($message) { Write-Host "`nERROR: $message" -ForegroundColor Red; exit 1 }
+
+# `powershell -File ... -Products a,b` delivers one string "a,b": split it.
+$Products = @($Products | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+foreach ($p in $Products) {
+  if ($p -notin 'atlas', 'sigil-eink', 'sigil-oled') { Fail "Unknown product '$p' (atlas, sigil-eink, sigil-oled)." }
+}
 
 $map = @{
   'atlas'      = @{ Dir = 'Atlas'; Env = 'atlas' }
