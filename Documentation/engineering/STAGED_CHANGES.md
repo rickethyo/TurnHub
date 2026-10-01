@@ -237,6 +237,16 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 ## Current baseline
 
+### 2026-10-01 code sweep: awaiting hardware verification
+
+See [the review record](CODE_REVIEW_2026_10_01.md). Host suites, all five
+firmware builds and the Android unit tests pass; nothing was flashed (the
+Sigils are being rewired). When the boards are back, check at the table: an
+e-ink Sigil's Switch seat (compass), a Sigil power-cycled while seated in the
+lobby keeps its player, leaving from a phone frees the Sigil seat, resume from
+pause redraws every Sigil's game view, Yu-Gi-Oh! life steps on each client,
+and a 4-phone session with the serial log.
+
 ### 2026-09-29 playtest fixes: awaiting hardware verification
 
 Items 1-9 and 11 of [the playtest notes](PLAYTEST_NOTES_2026_09_29.md) are

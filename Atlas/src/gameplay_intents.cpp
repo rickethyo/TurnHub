@@ -119,7 +119,7 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
   serialLog.println(PASS_GRACE_MS);
   leds.invalidateAll();
   audio.passPending(gameAudioMask());
-  return IntentResult::accept("Pass queued. Press Pass or Action within 3 seconds to cancel.");
+  return IntentResult::accept("Pass queued. Pass again (Undo pass on a Sigil) within 3 seconds to cancel.");
 }
 
 // System-only: applies a pending PASS once its grace period has elapsed. The

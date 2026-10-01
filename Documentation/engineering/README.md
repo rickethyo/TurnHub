@@ -38,6 +38,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Manual V0.2 Review](MANUAL_V02_REVIEW.md) - intended prototype behavior compared with current implementation and remaining gaps.
 - [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - planned two-button e-ink selection, reusable controllers, authorization decision and migration slices.
 - [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - historical transports, message concepts, current pairing direction, and protocol design rules.
+- [Code review 2026-10-01](CODE_REVIEW_2026_10_01.md) - whole-repository sweep: bugs fixed, load reductions, wording, and what was left alone (earlier: [2026-09-26](CODE_REVIEW_2026_09_26.md)).
 - [Verification Backlog](VERIFICATION_BACKLOG.md) - facts that should be confirmed against physical prototypes, commits, schematics, or future design decisions.
 - [Legal and IP Working Reference](../legal/README.md) - dependency provenance, third-party notices, licensing/trademark tracking, and IP hygiene rules.
 
