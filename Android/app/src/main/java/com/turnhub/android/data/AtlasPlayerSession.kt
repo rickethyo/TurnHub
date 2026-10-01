@@ -201,6 +201,15 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         ActionFeedback("Sigil accessibility saved. Your Sigil updates within a few seconds.", isError = false)
     }
 
+    /** Tells Atlas the newest firmware versions (public route; no sign-in needed). */
+    suspend fun reportLatestFirmware(endpoint: AtlasEndpoint, fields: List<Pair<String, String>>): Boolean =
+        try {
+            call { transports.create(endpoint).reportLatestFirmware(fields) }
+            true
+        } catch (_: AtlasException) {
+            false
+        }
+
     /**
      * One authenticated request for the admin and developer screens. Not
      * serialized with player actions (they are reads and deliberate admin

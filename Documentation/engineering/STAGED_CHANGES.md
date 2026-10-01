@@ -237,6 +237,21 @@ Use this file instead of chat history for near-term changes. Keep it concise. On
 
 ## Current baseline
 
+### 2026-10-01: one Sigil input, update notice (awaiting hardware)
+
+Owner, 2026-10-01: the OLED Sigil gets the same thumbstick as the E-ink Sigil,
+on the same GPIOs (34 VRX, 35 VRY, 32 SW), so only the display differs; the
+five-button build and `CAPABILITY_INPUT_DPAD` are gone. And Atlas shows when
+newer firmware exists ([Sigil OTA](SIGIL_OTA.md), "Update notice"): the app
+reports the release feed, Atlas blinks blue and says so on its screen.
+Manual V0.6 describes both. Host tests, all firmware builds and the Android
+tests pass. *Needs verification* on hardware: the OLED stick's directions
+(it shares the E-ink's swapped/inverted mounting in `stickConfig`), and the
+blue blink on Atlas with the app connected. Still to do: the `Sigil_OLED`
+KiCad schematic and board still draw pushbuttons SW1-SW5; regenerate them
+with the joystick header J4 (needs KiCad; `verify_schematic.py` then checks
+the OLED joystick rows).
+
 ### 2026-10-01 code sweep: awaiting hardware verification
 
 See [the review record](CODE_REVIEW_2026_10_01.md). Host suites, all five

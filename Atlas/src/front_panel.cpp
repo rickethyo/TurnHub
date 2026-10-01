@@ -1,5 +1,5 @@
-// Atlas front panel state: the pairing window timer, the table presence codes
-// and the board's BOOT button. The E32R28T board has no other buttons; the
+// Atlas front panel state: the pairing window timer, the table presence codes,
+// the "update available" notice and the board's BOOT button. The E32R28T board has no other buttons; the
 // touchscreen (touch_controls.cpp) is Atlas's main physical input. A code the
 // Atlas screen shows, typed or scanned on a phone, proves that phone's user is
 // at the table, which protected web actions (first Admin, system settings,
@@ -10,6 +10,7 @@
 
 #include "atlas_app.h"
 #include "config.h"
+#include "firmware_version.h"
 #include "serial_log.h"
 #include "three_part_button.h"
 
@@ -24,8 +25,12 @@ namespace {
 uint32_t pairingStartedAtMs = 0;
 uint32_t pairingIndicatorMs = TurnHubProtocol::PAIRING_WINDOW_MS;
 
-// The on-board RGB LED's red channel as last written (active low).
-bool pairingLedLit = false;
+// The on-board RGB LED's red and blue channels as last written (active low).
+bool redLedLit = false;
+bool blueLedLit = false;
+
+bool latestReported = false;
+TurnHub::LatestFirmware latest;
 
 bool codeShown = false;
 PresenceRequest shownCode;
@@ -56,14 +61,48 @@ PresenceGrant *grantFor(const String &profileId) {
 }  // namespace
 
 // While Atlas's pairing window is open, its on-board LED blinks red in the
-// same rhythm as a pairing Sigil (250 ms on, 250 ms off). The Atlas screen
-// says so in words too; the light is an extra cue, never the only one.
+// same rhythm as a pairing Sigil (250 ms on, 250 ms off); while newer firmware
+// is available (and no pairing window is open) it blinks blue in that rhythm.
+// The Atlas screen says both in words; the light is an extra cue, never the
+// only one.
 static bool pairingLedOn(uint32_t elapsedMs) { return elapsedMs % 500 < 250; }
 
-static void setPairingLed(bool lit) {
-  if (lit == pairingLedLit) return;
-  pairingLedLit = lit;
-  digitalWrite(AtlasConfig::RGB_RED_PIN, lit ? LOW : HIGH);
+static void setStatusLed(bool red, bool blue) {
+  if (red != redLedLit) {
+    redLedLit = red;
+    digitalWrite(AtlasConfig::RGB_RED_PIN, red ? LOW : HIGH);
+  }
+  if (blue != blueLedLit) {
+    blueLedLit = blue;
+    digitalWrite(AtlasConfig::RGB_BLUE_PIN, blue ? LOW : HIGH);
+  }
+}
+
+void noteLatestFirmware(const TurnHub::LatestFirmware &reported) {
+  latest = reported;
+  latestReported = true;
+  serialLog.printf("ATLAS|UPDATES|LATEST|atlas=%u.%u.%u|eink=%u.%u.%u|oled=%u.%u.%u|AVAILABLE|%u\n",
+      latest.atlas.major, latest.atlas.minor, latest.atlas.patch,
+      latest.sigilEink.major, latest.sigilEink.minor, latest.sigilEink.patch,
+      latest.sigilOled.major, latest.sigilOled.minor, latest.sigilOled.patch,
+      static_cast<unsigned>(firmwareUpdatesAvailable()));
+}
+
+const TurnHub::LatestFirmware *latestFirmware() { return latestReported ? &latest : nullptr; }
+
+uint8_t firmwareUpdatesAvailable() {
+  if (!latestReported) return 0;
+  uint8_t count = TurnHub::releaseNewer(latest.atlas, TurnHubFirmware::MAJOR, TurnHubFirmware::MINOR,
+      TurnHubFirmware::PATCH) ? 1 : 0;
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    const TurnHub::SigilRecord *record = sigilBus.record(id);
+    if (record == nullptr || !record->helloInfoValid ||
+        (record->capabilities & TurnHubProtocol::CAPABILITY_HARNESS) != 0) continue;
+    const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
+    if (TurnHub::releaseNewer(oled ? latest.sigilOled : latest.sigilEink, record->firmwareMajor,
+            record->firmwareMinor, record->firmwarePatch)) ++count;
+  }
+  return count;
 }
 
 void beginFrontPanel() {
@@ -229,7 +268,9 @@ void updatePairingWindow(uint32_t nowMs) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }
-  setPairingLed(pairingActive && pairingLedOn(nowMs - pairingStartedAtMs));
+  const bool red = pairingActive && pairingLedOn(nowMs - pairingStartedAtMs);
+  const bool blue = !pairingActive && pairingLedOn(nowMs) && firmwareUpdatesAvailable() > 0;
+  setStatusLed(red, blue);
   if (codeShown && !codeLive(nowMs)) {
     codeShown = false;
     serialLog.println("ATLAS|PRESENCE|CODE_EXPIRED");

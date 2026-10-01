@@ -44,6 +44,7 @@
 #include "setup_stage.h"
 #include "sigil_bus.h"
 #include "turnhub_types.h"
+#include "update_notice.h"
 #include "web_api.h"
 
 // The portal/API server is shared with OtaManager and the host test harness.
@@ -348,5 +349,14 @@ void updatePairingWindow(uint32_t nowMs);
 void updateBootButton(bool pressed, uint32_t nowMs);
 // Time left in the open pairing window, or 0 when it is closed.
 uint32_t pairingRemainingMs(uint32_t nowMs);
+// Newer firmware (update_notice.h): an app reports the newest release, and
+// while Atlas or any paired Sigil runs something older the on-board LED
+// blinks blue (pairing's red blink comes first) and the screen says so.
+void noteLatestFirmware(const TurnHub::LatestFirmware &latest);
+// The last report, or nullptr since boot.
+const TurnHub::LatestFirmware *latestFirmware();
+// Devices (Atlas, and paired Sigils that have said their version) running
+// older firmware than the last report. Test harness boards don't count.
+uint8_t firmwareUpdatesAvailable();
 
 }  // namespace TurnHubAtlas

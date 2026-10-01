@@ -6,6 +6,7 @@
 #include "account_access.h"
 #include "game_engine.h"
 #include "intent.h"
+#include "update_notice.h"
 
 namespace TurnHubWebApi {
 
@@ -130,6 +131,16 @@ struct PresenceHooks {
   void (*revoke)(const String &profileId) = nullptr;
 };
 void configurePresence(const PresenceHooks &hooks);
+// Newer firmware (update_notice.h, front_panel.cpp). POST /api/updates/latest
+// (public: the release feed is public, and a report can only light the LED)
+// takes `atlas`, `sigilEink` and `sigilOled` versions; GET /api/updates
+// reports them and how many devices are behind.
+struct UpdateNoticeHooks {
+  void (*note)(const TurnHub::LatestFirmware &latest) = nullptr;
+  const TurnHub::LatestFirmware *(*latest)() = nullptr;
+  uint8_t (*available)() = nullptr;
+};
+void configureUpdateNotice(const UpdateNoticeHooks &hooks);
 
 // Called only for real physical Sigil activity. A pending browser claim is
 // approved when the user proves possession by choosing Link phone on that Sigil.

@@ -48,6 +48,18 @@ Controls dispatch through the same `IntentDispatcher` as Sigils and Atlas's
 button. PASS acceptance may arm **or cancel** the existing three-second grace
 period; it does not mean the next turn has started. State confirms the later commit.
 
+## Update notice
+
+Atlas has no internet. A client that can read the public release feed
+(`turnhub-firmware.json`) may report the newest versions with
+`POST /api/updates/latest`, form fields `atlas`, `sigilEink` and `sigilOled`
+(`major.minor.patch`, optional `-suffix`; at least one). No sign-in. Atlas keeps
+the report in RAM until it restarts, blinks its on-board LED blue while Atlas or
+any paired Sigil runs an older version, and says so on its screen.
+`GET /api/updates` returns `reported`, `latest` (each version or `null`),
+`atlasFirmware` and `updatesAvailable` (devices behind). The Android app reports
+daily (every minute in debug builds).
+
 ## Revisions and reconnect
 
 - Compare `(atlasId, bootId, revision)`. Boot ID is a public random epoch generated

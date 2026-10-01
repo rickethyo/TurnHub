@@ -31,6 +31,7 @@ ModerateCallback moderateHandler = nullptr;
 DeviceIntentCallback deviceHandler = nullptr;
 PairingWindowCallback readPairingWindow = nullptr;
 PresenceHooks presenceHooks;
+UpdateNoticeHooks updateNoticeHooks;
 SpeakerVolumeCallback readSpeakerVolume = nullptr;
 SetupStageCallback readSetupStage = nullptr;
 AccessibilityChangedCallback accessibilityChanged = nullptr;
@@ -116,6 +117,10 @@ void configurePresence(const PresenceHooks &hooks) {
   presenceHooks = hooks;
 }
 
+void configureUpdateNotice(const UpdateNoticeHooks &hooks) {
+  updateNoticeHooks = hooks;
+}
+
 void configureSpeaker(SpeakerVolumeCallback volume) {
   readSpeakerVolume = volume;
 }
@@ -187,6 +192,9 @@ const Route ROUTES[] = {
   // First-run setup, shared by the Android app and the portal.
   {"/api/setup", HTTP_GET, handleSetupStatus},
   {"/api/setup/finish", HTTP_POST, handleSetupFinish},
+  // Newer firmware, reported by the app from the public release feed.
+  {"/api/updates", HTTP_GET, handleUpdateStatus},
+  {"/api/updates/latest", HTTP_POST, handleLatestFirmware},
 
   // Profiles and sessions.
   {"/api/seats", HTTP_GET, handleSeats},

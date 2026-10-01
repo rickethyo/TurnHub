@@ -301,6 +301,11 @@ class HttpAtlasTransport(
         return parse { AtlasWireParser.parseLogin(response.body) }
     }
 
+    override suspend fun reportLatestFirmware(fields: List<Pair<String, String>>) {
+        val response = request("POST", "/api/updates/latest", formBody = form(*fields.toTypedArray()))
+        requireOk(response, "Atlas did not take the firmware report")
+    }
+
     override suspend fun getSetup(): SetupStatus {
         val response = request("GET", "/api/setup")
         requireOk(response, "Could not read the setup status")

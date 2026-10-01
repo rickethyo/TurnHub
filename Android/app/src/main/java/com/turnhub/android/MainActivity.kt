@@ -2,6 +2,7 @@ package com.turnhub.android
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.turnhub.android.data.AtlasLinkHoldService
 import com.turnhub.android.data.AtlasPlayerSession
+import com.turnhub.android.data.AtlasUpdateWatcher
 import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.ui.home.AccountActions
 import com.turnhub.android.ui.home.GameActions
@@ -56,6 +58,12 @@ class MainActivity : ComponentActivity() {
             wifiLink = wifiLink,
             credentialStore = PreferencesWifiCredentialStore(applicationContext),
             playerSession = playerSession,
+            // Development builds look for new firmware every minute, release builds daily.
+            updateCheckIntervalMs = if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+                AtlasUpdateWatcher.DEBUG_INTERVAL_MS
+            } else {
+                AtlasUpdateWatcher.RELEASE_INTERVAL_MS
+            },
         )
     }
 

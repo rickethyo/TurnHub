@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.5.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.6.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.4
+## Prototype Edition v0.6
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -49,7 +49,7 @@ Sigils are the player-facing devices placed around the table. The prototype has 
 
 - **E-ink Sigil:** a paper-like screen, a thumbstick that also clicks when pressed in, and a ring of lights. One E-ink Sigil can be shared by two players.
 
-- **OLED Sigil:** a small bright screen, five buttons (up, down, left, right and select) and the same ring of lights. An OLED Sigil is for one player.
+- **OLED Sigil:** a small bright screen, the same clicking thumbstick and the same ring of lights. An OLED Sigil can also be shared by two players.
 
 A Sigil shows who is playing on it, whether it is their turn, their life total, the game status, pairing status, prompts, and which of its controls does what right now.
 
@@ -115,7 +115,7 @@ Tap **Menu**, then QR codes, on the Atlas screen (in the lobby or after a game) 
 
 The chosen code is framed and marked “shown”. If an administrator has set their own Wi-Fi password, the Wi-Fi code only appears while an administrator is verified at the table (section 17), so the password is not shown to everyone. An empty lobby explains how to join; its codes are under Menu.
 
-**Info** (under Menu on the Atlas screen) shows the Wi-Fi name, the portal address, the firmware version, how many Sigils are online, the microSD card status and how long Atlas has been running.
+**Info** (under Menu on the Atlas screen) shows the Wi-Fi name, the portal address, the firmware version, how many Sigils are online, the microSD card status and how long Atlas has been running. When newer firmware is available, Atlas’s small light blinks blue (red means a pairing window is open), and Info and Menu say how many devices it is for. The TurnHub app checks for new firmware and tells Atlas, since Atlas itself has no internet; install it with the app or the portal’s update pages.
 
 ## Using the Android App
 
@@ -167,7 +167,7 @@ Profiles are separate from physical Sigils. A player is not permanently assigned
 
 ## Two Players on One Sigil
 
-An E-ink Sigil can carry two players. After joining, choose **Add seat B** from its menu for the second player. The screen shows both names, and prompts say which seat (A or B) they are for. An OLED Sigil seats one player only.
+Every Sigil can carry two players. After joining, choose **Add seat B** from its menu for the second player. The screen shows both names, and prompts say which seat (A or B) they are for.
 
 # 7. Starting a Game
 
@@ -199,7 +199,7 @@ Changes to the game settings apply from the next game that starts.
 
 TurnHub always maintains a current active player. The active player’s Sigil shows YOUR TURN, and the Atlas screen shows their name and turn clock.
 
-When finished, pass play to the next player: choose **Pass turn** on the Sigil (it is the likely choice on your turn), or in the browser or app. For 3 seconds after passing you can change your mind with **Undo pass** on the Sigil; after that the turn moves on. Meanwhile your Sigil shows PASSING and its light ring counts the 3 seconds down in green; every other Sigil shows which player is passing with an amber countdown, and the Atlas screen shows “Passing in 3s”. The table hears two falling ticks when a pass starts and two rising ticks if it is undone. On an OLED Sigil, pressing select again undoes the pass.
+When finished, pass play to the next player: choose **Pass turn** on the Sigil (it is the likely choice on your turn), or in the browser or app. For 3 seconds after passing you can change your mind with **Undo pass** on the Sigil; after that the turn moves on. Meanwhile your Sigil shows PASSING and its light ring counts the 3 seconds down in green; every other Sigil shows which player is passing with an amber countdown, and the Atlas screen shows “Passing in 3s”. The table hears two falling ticks when a pass starts and two rising ticks if it is undone. On an OLED Sigil, clicking the stick again undoes the pass.
 
 ## A Stuck Turn: Master Pass
 
@@ -237,9 +237,9 @@ A Sigil offers a short menu of what you can do right now. Atlas decides the choi
 
 The bottom of the screen shows a legend. Each line starts with a key: an arrow for a direction, or a filled circle for the click (pressing the stick straight in). Push the stick in the direction shown, or click, to choose that action. The click is always the most likely action.
 
-## OLED Sigil (Five Buttons)
+## OLED Sigil (Thumbstick)
 
-Press any button to open the menu list. It opens on the most likely action. Up and Down move through the list, Select or Right chooses, and Left closes it. The list closes by itself after 10 seconds without a press.
+Push or click the stick to open the menu list. It opens on the most likely action. Up and Down move through the list, a click or Right chooses, and Left closes it. The list closes by itself after 10 seconds without a press.
 
 ## Actions You Hold
 
@@ -247,7 +247,7 @@ Actions that are hard to undo must be held: **Claim win**, **Confirm out** and *
 
 ## Pair Control
 
-The Pair (BOOT) button is reserved for pairing: press it to pair, or hold it for 10 seconds to make the Sigil forget Atlas. This keeps pairing separate from normal gameplay.
+The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. This keeps pairing separate from normal gameplay.
 
 ## Light Ring
 
@@ -631,7 +631,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.4
+**Manual Version:** 0.6
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Development build (Atlas 0.6.0-dev, Sigil 0.7.0-dev)
+**Software:** Development build (Atlas 0.6.3-dev, Sigil 0.9.3-dev)
 **Product names and specifications subject to change.**

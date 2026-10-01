@@ -92,6 +92,7 @@ extern ModerateCallback moderateHandler;
 extern DeviceIntentCallback deviceHandler;
 extern PairingWindowCallback readPairingWindow;
 extern PresenceHooks presenceHooks;
+extern UpdateNoticeHooks updateNoticeHooks;
 extern SpeakerVolumeCallback readSpeakerVolume;
 extern SetupStageCallback readSetupStage;
 extern AccessibilityChangedCallback accessibilityChanged;
@@ -193,6 +194,9 @@ void handleNetworkPassword(WebServer &server);
 void handleSetupStatus(WebServer &server);
 void handleSetupFinish(WebServer &server);
 void handleSerialLogDownload(WebServer &server);
+// Newer firmware: GET /api/updates, POST /api/updates/latest.
+void handleUpdateStatus(WebServer &server);
+void handleLatestFirmware(WebServer &server);
 void handleAccountSetup(WebServer &server, bool readOnly);
 // Table presence: GET /api/presence, POST /api/presence/request, /confirm, /lock.
 void handlePresenceStatus(WebServer &server);

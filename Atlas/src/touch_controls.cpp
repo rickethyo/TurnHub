@@ -975,9 +975,20 @@ void formatTable(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.detail, sizeof(screen.detail), "Stuck turn? Master pass skips %s", name);
 }
 
+// "Update available", in words, for the on-board LED's blue blink.
+void formatUpdateLine(char *out, size_t size, uint8_t behind) {
+  snprintf(out, size, "Updates for %u %s: use the app", static_cast<unsigned>(behind),
+      behind == 1 ? "device" : "devices");
+}
+
 void formatMenu(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "MENU");
   snprintf(screen.title, sizeof(screen.title), "Table menu");
+  const uint8_t behind = firmwareUpdatesAvailable();
+  if (behind > 0) {
+    formatUpdateLine(screen.detail, sizeof(screen.detail), behind);
+    return;
+  }
   snprintf(screen.detail, sizeof(screen.detail), "%s",
       hubState == HubState::Lobby ? "Pair Sigils, share codes, table info" : "Share codes, table info");
 }
@@ -992,7 +1003,12 @@ void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "Portal: 192.168.4.1");
   snprintf(screen.lines[2], sizeof(screen.lines[2]), "Sigils online: %u", static_cast<unsigned>(screen.sigilsOnline));
   snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s", screen.sdMissing ? "NOT INSERTED" : "ready");
-  snprintf(screen.lines[4], sizeof(screen.lines[4]), "Up %s", uptime);
+  const uint8_t behind = firmwareUpdatesAvailable();
+  if (behind > 0) {
+    formatUpdateLine(screen.lines[4], sizeof(screen.lines[4]), behind);
+  } else {
+    snprintf(screen.lines[4], sizeof(screen.lines[4]), "Up %s", uptime);
+  }
   screen.lineCount = 5;
 }
 

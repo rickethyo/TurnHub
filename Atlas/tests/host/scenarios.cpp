@@ -2243,6 +2243,48 @@ static void atlasScreens() {
   resetTouchControls(); enterEmptyLobby();
 }
 
+// Newer firmware (update_notice.h): the app reports the release feed's
+// versions; Atlas counts itself and each paired Sigil that runs something
+// older (never the harness), and says so on the Menu and Info screens.
+static void updateNotice() {
+  using namespace TurnHubProtocol;
+  TurnHub::FirmwareRelease r;
+  assert(TurnHub::parseFirmwareRelease("0.9.3", r) && r.major==0 && r.minor==9 && r.patch==3);
+  assert(TurnHub::parseFirmwareRelease("1.2.3-dev", r) && r.major==1);
+  for (const char *bad : {"", "1.2", "1.2.3.4", "a.b.c", "1.2.256", "1.2.3x", "01234.1.1"})
+    assert(!TurnHub::parseFirmwareRelease(bad, r));
+  assert(TurnHub::releaseNewer(r, 1, 2, 2) && !TurnHub::releaseNewer(r, 1, 2, 3) && !TurnHub::releaseNewer(r, 1, 3, 0));
+
+  registerWebCallbacks();  // Production wiring of the update hooks.
+  resetTouchControls(); enterEmptyLobby(); pairingActive=false; TurnHub::fixtureRadio=true;
+  for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=false; record.capabilities=0; }
+  assert(request("/api/updates","",{},HTTP_GET)==200 && server.body.find("\"reported\":false")!=std::string::npos);
+  assert(request("/api/updates/latest","",{})==400);
+  assert(request("/api/updates/latest","",{{"atlas","nine"}})==400);
+  char newer[16];
+  snprintf(newer,sizeof(newer),"%u.%u.%u",TurnHubFirmware::MAJOR,TurnHubFirmware::MINOR,TurnHubFirmware::PATCH+1);
+  // Two e-ink Sigils on 0.9.2 and an OLED on 0.9.3, plus the harness on 0.1.0.
+  auto hello=[](uint8_t id,uint8_t caps,uint8_t patch){
+    auto &record=TurnHub::fixtureRecords[id];
+    record.helloInfoValid=true; record.capabilities=caps;
+    record.firmwareMajor=0; record.firmwareMinor=9; record.firmwarePatch=patch;
+  };
+  hello(0,0,2); hello(1,0,2); hello(2,CAPABILITY_DISPLAY_OLED,3); hello(3,CAPABILITY_HARNESS,0);
+  assert(request("/api/updates/latest","",{{"sigilEink","0.9.3"},{"sigilOled","0.9.3"}})==200);
+  assert(firmwareUpdatesAvailable()==2 && server.body.find("\"updatesAvailable\":2")!=std::string::npos &&
+      server.body.find("\"atlas\":null")!=std::string::npos);
+  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.4-dev"}})==200);
+  assert(firmwareUpdatesAvailable()==2);  // Atlas and the OLED Sigil.
+  openMenuScreen(); AtlasScreen s=currentScreen();
+  assert(String(s.detail)=="Updates for 2 devices: use the app");
+  tapButton(TouchAction::OpenInfo); assert(String(currentScreen().lines[4])=="Updates for 2 devices: use the app");
+  // Up to date again: the notice goes, and the uptime line comes back.
+  assert(request("/api/updates/latest","",{{"sigilEink","0.9.2"}})==200 && firmwareUpdatesAvailable()==0);
+  assert(startsWith(currentScreen().lines[4],"Up "));
+  for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=false; record.capabilities=0; }
+  resetTouchControls();
+}
+
 // A connected test harness (CAPABILITY_HARNESS) adds Tests to the lobby; its
 // screen starts premade tests over the radio and shows progress in words.
 static void harnessScreen() {
@@ -2526,9 +2568,8 @@ namespace TurnHubAccounts { extern String primary; extern std::map<std::string,A
 // The Hello capability byte carries only what varies (protocol 3).
 static void helloCapabilityLayout() {
   using namespace TurnHubProtocol;
-  assert(helloCapabilities(encodeHelloInfo(0,9,0,CAPABILITY_INPUT_DPAD|CAPABILITY_DISPLAY_OLED)) ==
-      (CAPABILITY_INPUT_DPAD|CAPABILITY_DISPLAY_OLED));
-  assert(helloCapabilities(encodeHelloInfo(0,9,0,0)) == 0);  // E-paper with the thumbstick.
+  assert(helloCapabilities(encodeHelloInfo(0,9,0,CAPABILITY_DISPLAY_OLED)) == CAPABILITY_DISPLAY_OLED);
+  assert(helloCapabilities(encodeHelloInfo(0,9,0,0)) == 0);  // E-paper.
   assert(helloCapabilities(encodeHelloInfo(1,2,3,CAPABILITY_HARNESS)) == CAPABILITY_HARNESS);
   assert(helloFirmwareMajor(encodeHelloInfo(1,2,3,0)) == 1 && helloFirmwareMinor(encodeHelloInfo(1,2,3,0)) == 2 &&
       helloFirmwarePatch(encodeHelloInfo(1,2,3,0)) == 3);
@@ -3183,6 +3224,7 @@ int main() {
   touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Table screen, end-match hold, slide-off, drop-out, stale press\n";
   harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
+  updateNotice(); std::cout<<"PASS update notice: app-reported versions, devices behind (harness excluded), Menu and Info text\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";

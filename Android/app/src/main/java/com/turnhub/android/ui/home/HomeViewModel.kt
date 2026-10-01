@@ -14,6 +14,7 @@ import com.turnhub.android.data.AtlasFailure
 import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
 import com.turnhub.android.data.AtlasRestarts
+import com.turnhub.android.data.AtlasUpdateWatcher
 import com.turnhub.android.data.AtlasWifiLink
 import com.turnhub.android.data.ControlAction
 import com.turnhub.android.data.PlayerSessionState
@@ -61,6 +62,8 @@ class HomeViewModel(
     private val credentialStore: WifiCredentialStore,
     private val playerSession: AtlasPlayerSession,
     releases: FirmwareReleaseSource = GitHubFirmwareReleases(),
+    /** Reports newer firmware to Atlas while connected; null in tests (no network). */
+    private val updateWatcher: AtlasUpdateWatcher? = null,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -220,6 +223,11 @@ class HomeViewModel(
                 // A new Atlas (or a new boot of it): is it still being set up?
                 if (summary != null && (last == null || summary.atlasId != last.atlasId || summary.bootId != last.bootId)) {
                     launch { setupAssistant.check() }
+                }
+                // Tell Atlas about newer firmware (it has no internet itself).
+                val endpoint = repository.endpoint.value
+                if (summary != null && endpoint != null && updateWatcher != null) {
+                    launch { updateWatcher.onTick(endpoint, summary.bootId) }
                 }
                 previous = summary
             }
@@ -660,9 +668,14 @@ class HomeViewModel(
             wifiLink: AtlasWifiLink,
             credentialStore: WifiCredentialStore,
             playerSession: AtlasPlayerSession,
+            updateCheckIntervalMs: Long = AtlasUpdateWatcher.RELEASE_INTERVAL_MS,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                HomeViewModel(repositoryFactory, wifiLink, credentialStore, playerSession)
+                val releases = GitHubFirmwareReleases()
+                HomeViewModel(
+                    repositoryFactory, wifiLink, credentialStore, playerSession, releases,
+                    AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
+                )
             }
         }
     }

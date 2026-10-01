@@ -327,6 +327,35 @@ nothing without a live job.
   phone internet. Downloading happens before joining (or the app uses the
   phone's default network for the feed and Atlas's for the install).
 
+### Update notice (2026-10-01, owner)
+
+Atlas has no internet, so it learns about new releases from the app.
+
+1. **State owner:** Atlas, RAM only (`front_panel.cpp`, `update_notice.h`):
+   the newest version of each product as last reported. Lost at reboot; the
+   app reports again on each Atlas boot.
+2. **Request:** `POST /api/updates/latest` with `atlas`, `sigilEink` and
+   `sigilOled` (`major.minor.patch`, any omitted). Not an Intent: it is
+   information, not table state, like the presence codes.
+3. **Validator:** version syntax only. Public on purpose (the feed is
+   public); a false report can only light the LED.
+4. **Persistence:** none.
+5. **Rendering:** Atlas counts itself and every paired Sigil that has said
+   its version (never the harness) running something older. While any is,
+   the on-board LED blinks blue in the pairing rhythm (pairing's red blink
+   wins), and the Atlas screen's Menu and Info say "Updates for N devices:
+   use the app". `GET /api/updates` reports the same for the app and portal.
+6. **Contract:** the two routes above (`protocol/http-v1.md`).
+7. **Dependencies:** none.
+8. **Accessibility:** the blink is never the only cue: the screen says it in
+   words.
+
+The app (`AtlasUpdateWatcher`) reads the feed at most once per interval while
+connected (every minute in debuggable builds, daily in release builds) and
+reports whenever the feed, the Atlas or its boot changes. Installing is still
+the deliberate update flow. *Host-tested only; needs verification on
+hardware* (the blue channel is GPIO17 on the E32R28T).
+
 ### Limits and risks
 
 - **Rollback covers crashes and failed reconnects after the app starts.** Do

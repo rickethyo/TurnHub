@@ -181,6 +181,13 @@ interface AtlasSessionTransport {
     suspend fun getSetup(): SetupStatus = unsupported()
 
     /**
+     * `POST /api/updates/latest` (public): the newest release versions
+     * (`atlas`, `sigilEink`, `sigilOled`), so Atlas can show that an update is
+     * available. Atlas's refusal is [AtlasFailure.Rejected].
+     */
+    suspend fun reportLatestFirmware(fields: List<Pair<String, String>>): Unit = unsupported()
+
+    /**
      * A signed `.thfw` package as `multipart/form-data` (field [field]) to
      * [path]: `/api/firmware` for Atlas, `/api/sigil-firmware` to stage a
      * Sigil package. Returned as-is, like [raw].

@@ -241,6 +241,11 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
   TurnHubWebApi::configureAccessibility([]() { applyAllSigilAccessibility(millis()); });
   TurnHubWebApi::configurePresence(presenceHooks());
+  TurnHubWebApi::UpdateNoticeHooks updates;
+  updates.note = noteLatestFirmware;
+  updates.latest = latestFirmware;
+  updates.available = firmwareUpdatesAvailable;
+  TurnHubWebApi::configureUpdateNotice(updates);
   TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
   TurnHubWebApi::configureSetup([]() { return static_cast<uint8_t>(setupStage); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
