@@ -426,8 +426,8 @@ void setup() {
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
   logHeapStep("DISPLAY");
-  // Secure-link crypto check against published vectors (SECURE_LINK.md). Not
-  // used by the radio yet; logged so each board's result is on record.
+  // Secure-link crypto check against published vectors (SECURE_LINK.md), which
+  // the radio depends on; logged so each board's result is on record.
   runSecureLinkSelfTest();
   logHeapStep("SECURE_LINK");
   // Optional storage: a missing or failed card is logged and never blocks play.

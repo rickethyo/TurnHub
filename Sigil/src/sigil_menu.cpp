@@ -44,6 +44,9 @@ Slots preferences(uint8_t action) {
     case SigilAction::NextTarget: return {{R, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
     case SigilAction::LinkPhone: return {{D, R, L, U, C}};
     case SigilAction::Leave: return {{D, L, KEY_NONE, KEY_NONE, KEY_NONE}};
+    // Whatever is left of click, Up and Down (never Left/Right: they change
+    // life). Waiting on another player's turn, that is the click.
+    case SigilAction::SwitchSeat: return {{C, U, D, KEY_NONE, KEY_NONE}};
     default: return {{KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
   }
 }

@@ -118,8 +118,9 @@ enum class PacketType : uint8_t {
   // none (encodeSeatColor). Resent with every Hello.
   SeatColor = 36,
   // Atlas -> Sigil: the running game's starting life (0 = no game), so the
-  // Sigil's heart can shrink or grow against it. Resent with every Hello.
-  // Presentation only.
+  // Sigil's heart can shrink or grow against it, and a game counted in
+  // hundreds gets life steps of 100 (life_adjust.h). Resent with every Hello.
+  // Presentation and input pacing only; Atlas still decides every change.
   StartingLife = 37,
   // Atlas -> Sigil: the player number whose pass is in its grace period
   // (0 = none), sent to every Sigil so the whole table sees it. Resent with
@@ -162,6 +163,8 @@ enum class DisplayMode : uint8_t {
 
 constexpr uint8_t DISPLAY_MODE_MASK = 0x07;
 constexpr uint8_t DISPLAY_FLAG_ACTIVE = 0x08;
+// Never set since the table host was retired (2026-09-25); the Sigils' crown
+// for it goes with the rest of "Retire host" (STAGED_CHANGES.md).
 constexpr uint8_t DISPLAY_FLAG_HOST = 0x10;
 constexpr uint8_t DISPLAY_FLAG_STARTER = 0x20;
 constexpr uint8_t DISPLAY_FLAG_WINNER = 0x40;
@@ -484,7 +487,6 @@ inline char displayNameChar(int32_t value, uint8_t index) {
   return static_cast<char>((static_cast<uint32_t>(value) >> (8u * (index + 1u))) & 0xFFu);
 }
 
-// InputTiming value: long-press ms in bits 0..15, win-hold ms in bits 16..31.
 // Status-light vocabulary. Atlas chooses the cue and overlays from game state
 // (it owns the meaning); the Sigil only renders them. Wire values are stable.
 // Every cue stays distinguishable by pattern or position, not only by hue
@@ -578,7 +580,8 @@ inline LedStateFields decodeLedState(int32_t value) {
 
 // Actions a menu Sigil can offer. Atlas decides which are available for each
 // Sigil (MenuState) and validates every choice through its Intent handlers;
-// the Sigil only lists them. Wire values are stable; at most 21 (mask bits).
+// the Sigil only lists them. Wire values are stable; at most 24 (the
+// MenuState2 mask).
 enum class SigilAction : uint8_t {
   Join = 0,
   CycleStarter = 1,
@@ -753,6 +756,7 @@ inline bool validInputTiming(uint16_t longPressMs, uint16_t winHoldMs) {
       longPressMs % HOLD_STEP_MS == 0 && winHoldMs % HOLD_STEP_MS == 0 &&
       static_cast<uint32_t>(winHoldMs) >= static_cast<uint32_t>(longPressMs) + MIN_HOLD_GAP_MS;
 }
+// InputTiming value: long-press ms in bits 0..15, win-hold ms in bits 16..31.
 inline int32_t encodeInputTiming(uint16_t longPressMs, uint16_t winHoldMs) {
   return static_cast<int32_t>(
       static_cast<uint32_t>(longPressMs) | (static_cast<uint32_t>(winHoldMs) << 16));

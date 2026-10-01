@@ -152,6 +152,8 @@ void closePicker(uint8_t sigilId, const char *reason) {
 }
 
 PickerNotice noticeFor(const IntentResult &result) {
+  // Joining a full table is refused under several statuses; say why.
+  if (lobby.playerCount() >= MAX_PLAYERS) return PickerNotice::TableFull;
   switch (result.status) {
     case IntentStatus::Unauthorized: return PickerNotice::NeedsPhone;
     case IntentStatus::Conflict:

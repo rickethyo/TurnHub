@@ -84,6 +84,18 @@ int main() {
     const uint32_t paused = sigilActionBit(A::Resume) | sigilActionBit(A::BeginElimination) | sigilActionBit(A::ClaimWin);
     assert(SigilMenu::compassAction(paused, Key::Select) == id(A::BeginElimination));
     assert(SigilMenu::compassAction(paused, Key::Down) == id(A::ClaimWin));
+    // A shared Sigil's Switch seat gets a free key on the compass too, and
+    // never Left/Right, which change life.
+    const uint32_t shared = sigilActionBit(A::Pause) | sigilActionBit(A::AdjustLife) |
+        sigilActionBit(A::SwitchSeat);
+    assert(SigilMenu::compassAction(shared, Key::Select) == id(A::SwitchSeat));
+    assert(SigilMenu::compassAction(shared, Key::Left) == MENU_NONE &&
+        SigilMenu::compassAction(shared, Key::Right) == MENU_NONE);
+    assert(SigilMenu::compassAction(paused | sigilActionBit(A::AdjustLife) | sigilActionBit(A::SwitchSeat),
+        Key::Down) == id(A::ClaimWin));
+    const uint32_t pausedWaiting = sigilActionBit(A::Resume) | sigilActionBit(A::BeginElimination) |
+        sigilActionBit(A::AdjustLife) | sigilActionBit(A::SwitchSeat);
+    assert(SigilMenu::compassAction(pausedWaiting, Key::Down) == id(A::SwitchSeat));
   }
 
   SigilMenu compass(MenuLayout::Compass);
@@ -267,6 +279,15 @@ int main() {
     life.press(-1, 3, 20100); life.release(20110);
     assert(life.pending() == -1 && life.player() == 3);
     life.cancel(); assert(life.pending() == 0 && !life.update(30000, delta, player));
+    // A game counted in hundreds: each step is 100 life; the ring counts steps.
+    assert(lifeUnitFor(40) == 1 && lifeUnitFor(8000) == 100 && lifeUnitFor(0) == 1);
+    life.press(1, 2, 40000); life.release(40010);
+    life.setUnit(100);  // A new unit drops the unsent total.
+    assert(life.pending() == 0);
+    life.press(-1, 2, 41000); life.release(41010);
+    life.press(-1, 2, 41100); life.release(41110);
+    assert(life.pending() == -200 && life.pendingSteps() == -2);
+    assert(life.update(43110, delta, player) && delta == -200);
   }
   {
     // E-ink counts slower than the OLED, and a longer hold preference slows

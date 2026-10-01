@@ -206,7 +206,7 @@ volatile uint8_t sigilId = UNASSIGNED_SIGIL_ID;
 uint32_t lastHelloMs = 0;
 uint32_t buzzerStopAtMs = 0;
 // Status light: Atlas's LedState plus Sigil-local
-// pairing and pass-ack, rendered to the RGB LED pins and the Jewel ring.
+// pairing and pass-ack, rendered to the Jewel ring.
 TurnHubSigil::SigilLedModel ledModel;
 uint32_t lastLedFrameMs = 0;
 bool ledOutputValid = false;
@@ -885,8 +885,8 @@ void forgetPairing(const char *reason) {
   Serial.println(reason);
 }
 
-// Secure-link crypto check against published vectors (SECURE_LINK.md). Not
-// used by the radio yet; logged so each board's result is on record.
+// Secure-link crypto check against published vectors (SECURE_LINK.md), which
+// the radio depends on; logged so each board's result is on record.
 bool runSecureLinkSelfTest() {
   TurnHubSecureLink::MbedtlsCrypto crypto;
   const uint32_t startMs = millis();
@@ -968,7 +968,6 @@ void noteAtlasHeard() {
   applyAtlasLinkChange(atlasLink.heard(millis()));
 }
 
-// A packet from Atlas that opened in the current session (handleEspNowReceive).
 #if TURNHUB_OTA
 void sendUpdateStatus(int32_t value) {
   sendPacket(PacketType::SigilUpdateStatus, value);
@@ -1022,6 +1021,7 @@ void handleUpdateOffer(const uint8_t *mac, const uint8_t *incomingData) {
 }
 #endif
 
+// A packet from Atlas that opened in the current session (handleEspNowReceive).
 void handleAtlasPacket(
     const uint8_t *mac,
     const uint8_t *incomingData,
@@ -1358,7 +1358,7 @@ void updateLife(uint32_t nowMs) {
     Serial.println(delta);
     sendPacket(PacketType::LifeAdjust, TurnHubProtocol::encodeLifeAdjust(player, delta));
   }
-  ledModel.setLifePending(lifeAdjuster.pending());
+  ledModel.setLifePending(lifeAdjuster.pendingSteps());
   publishLifeOverlay();
 }
 
@@ -1368,6 +1368,7 @@ void updateMenuKeys() {
   const uint32_t nowMs = millis();
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
   lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(!TURNHUB_DISPLAY_OLED, longPressMs));
+  lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
     // Nothing reaches a lost Atlas; the screen says so instead.
@@ -1588,8 +1589,8 @@ bool startEspNow() {
 
 #ifndef TURNHUB_WOKWI
 // Halts before the display, radio or pairing start when the strap names the
-// other display type: the serial line says why, and the status light (or the
-// red LED) flashes red.
+// other display type: the serial line says why, and the status light flashes
+// red.
 void checkHardwareType() {
   pinMode(HW_TYPE_STRAP_PIN, INPUT_PULLUP);
   delay(2);

@@ -1093,6 +1093,7 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
   serialLog.print("ATLAS|FACTORY_RESET|SIGIL|");
   serialLog.print(id);
   serialLog.println(reached ? "|SENT" : "|OFFLINE");
+  static_assert(TurnHubProtocol::UNPAIR_HOLD_MS == 3000, "Update the \"3 s\" Pair hold wording");
   return IntentResult::accept(reached
       ? "Sigil is erasing its settings and restarting; pair it again to use it"
       : "The Sigil is out of range: Atlas forgot it. Hold its Pair button for 3 s to clear it too");
