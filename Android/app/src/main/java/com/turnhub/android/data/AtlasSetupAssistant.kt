@@ -297,6 +297,9 @@ class AtlasSetupAssistant(
                 return finishUpdates(lines)
             }
             installSigils(pending.filter { it.sigilId != null }, lines, 0)
+        } catch (e: AtlasException) {
+            // Atlas restarting or dropping the upload is expected here; never let it crash the app.
+            abortUpdates(lines, e)
         } finally {
             _state.update { it.copy(busy = false) }
         }
@@ -409,9 +412,20 @@ class AtlasSetupAssistant(
                 }
             }
             finishUpdates(lines)
+        } catch (e: AtlasException) {
+            abortUpdates(lines, e)
         } finally {
             _state.update { it.copy(busy = false) }
         }
+    }
+
+    /** An Atlas request failed mid-update: every unfinished device shows why, and the step ends. */
+    private fun abortUpdates(lines: MutableList<UpdateProgress>, e: AtlasException) {
+        val reason = e.failure.userMessage
+        for (i in lines.indices) {
+            if (!lines[i].done && !lines[i].failed) lines[i] = lines[i].copy(state = reason, failed = true)
+        }
+        finishUpdates(lines)
     }
 
     private suspend fun updateOneSigil(target: UpdateTarget, pkg: FirmwarePackage): Pair<Boolean, String> {

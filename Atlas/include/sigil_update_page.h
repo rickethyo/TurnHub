@@ -10,7 +10,7 @@ const char SIGIL_UPDATE_HTML[] PROGMEM = R"HTML(
 <label for="sigil">Sigil to update</label><select id="sigil"></select><button id="startButton" type="button" disabled>Update selected Sigil</button>
 <p id="job" role="status" aria-live="polite"></p><p id="message" role="status" aria-live="polite"></p></section></main>
 <script>
-const el=id=>document.getElementById(id); let state=null,devices=[],working=false;
+const el=id=>document.getElementById(id); let state=null,devices=[],working=false,lastStage=null;
 // Every call carries the portal sign-in; each one gives up after a while so the page never waits forever.
 const auth=()=>({'X-TurnHub-Token':localStorage.getItem('turnhubSessionToken')||''});
 async function request(url,options={}){const c=new AbortController(),t=setTimeout(()=>c.abort(),10000);
@@ -37,6 +37,12 @@ function render(){
  el('startButton').disabled=working||state.busy||!el('sigil').selectedOptions.length||el('sigil').selectedOptions[0].disabled;
  const text=state.stage==='idle'?'No update running.':'Sigil '+(state.sigilId+1)+(state.stage==='failed'?' update failed: ':': ')+state.message+(state.stage==='downloading'?' '+state.progress+'%':'');
  if(el('job').textContent!==text)el('job').textContent=text;
+ // The start reply ("Update started") must not stay as the last word: say how the job ended.
+ if(lastStage&&lastStage!==state.stage){
+  if(state.stage==='done')el('message').textContent='Update complete: Sigil '+(state.sigilId+1)+' restarted on the new firmware.';
+  else if(state.stage==='failed')el('message').textContent='Update failed: '+state.message;
+ }
+ lastStage=state.stage;
 }
 async function refresh(){try{const [s,d]=await Promise.all([request('/api/sigil-firmware'),request('/api/devices')]);state=s;devices=d.devices;render();}catch(e){el('message').textContent=e.message;el('startButton').disabled=true;}finally{setTimeout(refresh,2000);}}
 el('uploadForm').onsubmit=async e=>{e.preventDefault();if(!el('package').files.length)return;working=true;if(state)render();el('message').textContent='Uploading package…';try{const r=await uploadPackage(el('package').files[0]);el('message').textContent=r.message;}catch(e){el('message').textContent=e.message;}finally{working=false;if(state)render();}};

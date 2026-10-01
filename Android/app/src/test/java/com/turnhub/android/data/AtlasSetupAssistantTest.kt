@@ -29,6 +29,7 @@ private class FakeAtlas : AtlasSessionTransport {
     var firmware = "0.6.0"
     var sigilFirmware = "0.8.0"
     var stagedSigilPackage = false
+    var failUpload: AtlasFailure? = null
 
     fun restart() {
         tokens.clear()
@@ -94,6 +95,7 @@ private class FakeAtlas : AtlasSessionTransport {
 
     override suspend fun upload(path: String, token: String, field: String, fileName: String, bytes: ByteArray): RawResponse {
         calls += "UPLOAD $path $fileName"
+        failUpload?.let { throw AtlasException(it) }
         val id = who(token) ?: return RawResponse(401, "{}")
         if (id != admin || id !in verified) return RawResponse(403, """{"error":"Update not armed"}""")
         return when (path) {
@@ -201,6 +203,24 @@ class AtlasSetupAssistantTest {
 
         assistant.close()
         assertFalse(assistant.state.value.visible)
+    }
+
+    @Test
+    fun `an upload Atlas cuts off ends the update step instead of crashing`() = runTest {
+        val (assistant, atlas) = setup()
+        assistant.check()
+        assistant.next()
+        assistant.createAccount("Owner", "2468")
+        assistant.requestCode()
+        assistant.confirmCode("123456")
+        assistant.sigilsDone()
+        atlas.failUpload = AtlasFailure.Timeout("SocketTimeoutException: timed out")
+
+        assistant.installUpdates()
+
+        val finished = assistant.state.value.updates as UpdatesState.Finished
+        assertTrue(finished.lines.all { it.failed && !it.done })
+        assertFalse(assistant.state.value.busy)
     }
 
     @Test
