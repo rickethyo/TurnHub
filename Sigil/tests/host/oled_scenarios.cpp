@@ -178,13 +178,13 @@ int main() {
     m.keyDown(Key::Up, 0);  // Select would pass; the other keys open the list.
     d.setMenuView(m.view());
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(highlighted("MENU") && highlighted("1/5") && !has("YOUR TURN"));
+    assert(highlighted("MENU") && highlighted("1/6") && !has("YOUR TURN"));
     assert(highlighted("Pass turn") && has("Claim win (hold)") && !has("Link phone"));
     for (uint32_t t = 1; t <= 4; ++t) m.keyDown(Key::Down, t);
     d.setMenuView(m.view());
     GameDisplayPacket g{}; g.sigilId = 0; g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
     d.showGame(g);
-    assert(highlighted("Link phone") && highlighted("5/5") && !has("Pass turn") && has("Pause"));
+    assert(highlighted("Link phone") && highlighted("5/6") && !has("Pass turn") && has("Pause"));
     m.setHoldTimes(2000, 5000);
     m.keyDown(Key::Up, 10); m.keyDown(Key::Select, 20);
     d.setMenuView(m.view()); d.showReady(0);

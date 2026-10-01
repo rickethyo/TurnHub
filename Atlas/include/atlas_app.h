@@ -341,6 +341,11 @@ void resetPresence();
 // OTA is allowed only between games (the upload also needs a verified Admin).
 bool otaAllowed();
 void updatePairingWindow(uint32_t nowMs);
+// Adapter for the board's BOOT button (raw level, debounced here): quick press
+// = Pair a Sigil, hold UNPAIR_HOLD_MS = forget all Sigils, hold
+// FACTORY_RESET_HOLD_MS = factory reset Atlas. Each becomes an Intent from
+// IntentOrigin::AtlasHardware, like the touchscreen's buttons.
+void updateBootButton(bool pressed, uint32_t nowMs);
 // Time left in the open pairing window, or 0 when it is closed.
 uint32_t pairingRemainingMs(uint32_t nowMs);
 

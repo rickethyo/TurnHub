@@ -85,8 +85,11 @@ status LED and Pair LED, none of which are carried over.
 - 2.8" 240x320 ILI9341V TFT, XPT2046 resistive touch controller.
 - microSD slot, common-anode RGB LED, speaker amplifier with connector,
   battery connector with charging circuit and a battery-voltage ADC.
-- RESET (EN) and BOOT (IO0) buttons. Both are for flashing and resets only;
-  the firmware reads neither. The touchscreen is Atlas's only physical input.
+- RESET (EN) and BOOT (IO0) buttons. RESET is for flashing and resets only. Since
+  2026-09-30 the firmware reads BOOT as the backup for the touchscreen: quick
+  press pairs, 3 s forgets all Sigils, 10 s factory resets Atlas (see
+  [Manual Pairing](MANUAL_PAIRING.md#the-boot-button-pair-unpair-factory-reset-2026-09-30)).
+  The touchscreen stays the primary input.
 
 PlatformIO (`Atlas/platformio.ini`): Espressif32, board `esp32dev`, Arduino,
 115200 baud, partition table `min_spiffs.csv` (two 1.9 MB OTA app slots, NVS at
@@ -109,9 +112,10 @@ cannot change it. Display library: LovyanGFX.
 | Speaker audio | 26 | LEDC channel 4 square wave (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
 | Battery voltage ADC | 34 | Input only. Not used yet |
 
-**No master button (owner decision, 2026-09-24).** The firmware no longer
-reads BOOT (IO0) or any other button. Everything the master button did now
-happens on the touchscreen:
+**No master button (owner decision, 2026-09-24).** The master button's game
+controls (pass, end match) are gone from BOOT (IO0); they happen on the
+touchscreen. BOOT was reused on 2026-09-30 for device recovery only (pair,
+unpair, factory reset), never for game actions. The master button's controls:
 
 - **Physical presence (presence code, 2026-09-25; replaced the 3 s "Unlock
   admin" hold):** in the portal, an Admin (or, before any Admin exists, any
@@ -368,8 +372,9 @@ Update Atlas and the OLED Sigil. Shared-seat controls still need hardware verifi
 - Pass acknowledgement green flash: 250 ms.
 - Atlas lost: after 7 s without a valid packet from the paired Atlas
   (`LINK_TIMEOUT_MS`); see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md#atlas-lost-2026-09-28).
-- Pair: a press opens the 60-second pairing window (15 s before 2026-09-29); holding it for 10 seconds
-  erases the Sigil's saved pairing (Sigil 0.5.5+). *Needs verification* on hardware.
+- Pair button (BOOT): released before 3 s it opens the 60-second pairing window; held 3 s it
+  erases the Sigil's saved pairing; held 10 s it factory resets the Sigil (2026-09-30).
+  *Needs verification* on hardware.
 
 ### Menu controls (2026-09-25)
 

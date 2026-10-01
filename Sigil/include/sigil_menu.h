@@ -24,6 +24,16 @@ enum class MenuLayout : uint8_t { Compass, List };
 
 constexpr uint8_t MENU_NONE = TurnHubProtocol::SIGIL_ACTION_NONE;
 constexpr uint8_t MENU_MAX_ITEMS = static_cast<uint8_t>(TurnHubProtocol::SigilAction::Count);
+// Device-local entry, only in the OLED list: it is never in Atlas's MenuState
+// (that 24-bit mask is full) and never sent to Atlas. Choosing it, by holding
+// MENU_FACTORY_RESET_HOLD_MS, makes main.cpp erase this Sigil. It stands beside
+// the Pair button's long hold, which also works when the screen or menu is not.
+constexpr uint8_t MENU_LOCAL_FACTORY_RESET = MENU_MAX_ITEMS;
+constexpr uint8_t MENU_ITEM_CAPACITY = MENU_LOCAL_FACTORY_RESET + 1;
+static_assert(MENU_ITEM_CAPACITY < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
+// True for actions chosen by holding a key (shown "(hold)" in the list).
+bool menuActionNeedsHold(uint8_t action);
 // An open list closes by itself after this long without a key.
 constexpr uint32_t MENU_LIST_IDLE_MS = 10000;
 
@@ -35,7 +45,7 @@ struct MenuView {
   bool active = false;          // Atlas has sent a menu (none yet after pairing).
   uint8_t compass[KEY_COUNT];   // Action per key (MENU_NONE if none).
   bool listOpen = false;
-  uint8_t items[MENU_MAX_ITEMS];
+  uint8_t items[MENU_ITEM_CAPACITY];
   uint8_t itemCount = 0;
   uint8_t cursor = 0;           // Index into items.
   uint8_t holdAction = MENU_NONE;  // Being held right now (hold feedback).
@@ -84,6 +94,7 @@ class SigilMenu {
   // AdjustLife is not a list item or compass slot: it frees Left/Right
   // (lifeOffered, main.cpp's LifeAdjuster).
   bool offered(uint8_t action) const {
+    if (action == MENU_LOCAL_FACTORY_RESET) return active_ && layout_ == MenuLayout::List;
     return action < MENU_MAX_ITEMS && action != static_cast<uint8_t>(TurnHubProtocol::SigilAction::AdjustLife) &&
         (actions_ & (1u << action)) != 0;
   }

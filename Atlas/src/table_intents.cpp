@@ -809,7 +809,8 @@ bool forgetSigil(uint8_t sigilId) {
 // Sigil with seated players, so no participant loses their controller.
 IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
-  if (!adminIntent(intent)) {
+  // The BOOT button held on Atlas itself (AtlasHardware) is physical presence.
+  if (!adminIntent(intent) && intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
   if (hubState != HubState::Lobby) {
@@ -1040,16 +1041,24 @@ uint32_t atlasResetAtMs = 0;
 //   forgets it. A Sigil out of range is only forgotten here.
 IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
   if (sigilUpdatesBusy()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
-  if (!adminIntent(intent)) {
-    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
-  }
-  if (!presenceConfirmedFor(String(intent.payload.moderatorId), millis())) {
-    return IntentResult::reject(IntentStatus::Unauthorized,
-        "Verify at the table first: enter the code the Atlas screen shows");
-  }
   const int32_t target = intent.payload.value;
+  // Atlas's own BOOT button held for FACTORY_RESET_HOLD_MS is the recovery path
+  // for a stuck or unresponsive screen: whoever holds it is at the table, so no
+  // Admin or table code is needed, and it works in any state (a match is lost
+  // with everything else). It resets Atlas only, never a Sigil.
+  const bool atBootButton = intent.actor.origin == IntentOrigin::AtlasHardware &&
+      target == TurnHub::FACTORY_RESET_ATLAS;
+  if (!atBootButton) {
+    if (!adminIntent(intent)) {
+      return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+    }
+    if (!presenceConfirmedFor(String(intent.payload.moderatorId), millis())) {
+      return IntentResult::reject(IntentStatus::Unauthorized,
+          "Verify at the table first: enter the code the Atlas screen shows");
+    }
+  }
   if (target == TurnHub::FACTORY_RESET_ATLAS) {
-    if (hubState != HubState::Lobby && hubState != HubState::GameOver) {
+    if (!atBootButton && hubState != HubState::Lobby && hubState != HubState::GameOver) {
       return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Atlas between games");
     }
     if (!atlasResetScheduled) {
@@ -1082,7 +1091,7 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
   serialLog.println(reached ? "|SENT" : "|OFFLINE");
   return IntentResult::accept(reached
       ? "Sigil is erasing its settings and restarting; pair it again to use it"
-      : "The Sigil is out of range: Atlas forgot it. Hold its Pair button for 10 s to clear it too");
+      : "The Sigil is out of range: Atlas forgot it. Hold its Pair button for 3 s to clear it too");
 }
 
 bool factoryResetScheduled() { return atlasResetScheduled; }

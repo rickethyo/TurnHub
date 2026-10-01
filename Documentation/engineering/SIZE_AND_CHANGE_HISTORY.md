@@ -549,6 +549,26 @@ builds (PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32 2.0.17):
 
 Protocol version stays 2.
 
+## 2026-09-30 BOOT button: pair, unpair, factory reset
+
+Atlas `0.6.2-dev` -> `0.6.3-dev`, Sigil `0.9.2-dev` -> `0.9.3-dev`. One shared
+`three_part_button.h` state machine drives the Sigil Pair button and Atlas's BOOT
+button: quick press pairs (on release), 3 s unpairs, 10 s factory resets
+(replacing the old 10 s forget-only hold). Atlas gains a BOOT-button adapter
+(`updateBootButton`) and lets `AtlasHardware` forget all Sigils and factory reset
+Atlas without an Admin; the OLED Sigil's menu list ends in a local Factory
+reset. Local builds (PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32 2.0.17):
+
+| Build | Static RAM | Flash |
+| --- | --- | --- |
+| Atlas 0.6.3 | 88,116 B | 1,399,941 B |
+| Sigil e-ink (`sigil`) 0.9.3 | 53,628 B | 920,809 B |
+| Sigil OLED (`sigil-oled`) 0.9.3 | 49,404 B | 925,217 B |
+| `sigil-wokwi` | 50,584 B | 878,461 B |
+| Harness | 44,552 B | 779,177 B |
+
+Protocol version stays 3.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

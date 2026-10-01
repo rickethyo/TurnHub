@@ -20,8 +20,13 @@ constexpr uint8_t DISPLAY_NAME_CHUNK_CHARS = 3;
 // to rush between the two devices. An Atlas admin may lengthen Atlas's own
 // window (pairing_settings.h), never shorten it below this.
 constexpr uint32_t PAIRING_WINDOW_MS = 60000;
-// Holding a Sigil's Pair button this long erases its saved Atlas pairing.
-constexpr uint32_t FORGET_PAIRING_HOLD_MS = 10000;
+// The BOOT button (Pair button) on Sigils and Atlas is three buttons in one
+// (three_part_button.h): released before UNPAIR_HOLD_MS it pairs; held to
+// UNPAIR_HOLD_MS it unpairs (a Sigil erases its saved Atlas pairing, Atlas
+// forgets every Sigil); held to FACTORY_RESET_HOLD_MS it erases the device's
+// saved settings and restarts it as new.
+constexpr uint32_t UNPAIR_HOLD_MS = 3000;
+constexpr uint32_t FACTORY_RESET_HOLD_MS = 10000;
 // FactoryReset payload: a fixed value ("FRES"), so no stray or corrupted
 // packet can wipe a Sigil.
 constexpr int32_t FACTORY_RESET_CONFIRM = 0x46524553;

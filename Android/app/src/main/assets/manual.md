@@ -1,4 +1,4 @@
-<!-- Generated from TurnHub Manual V0.4.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.5.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
@@ -125,7 +125,7 @@ The app shows the same turn clock as the Sigils and the browser, because Atlas k
 
 # 5. Pairing a Physical Sigil
 
-Atlas has no Pair button: pairing starts from its touchscreen. A Sigil’s Pair button is the small button marked **BOOT** on its controller board.
+Pairing normally starts from Atlas’s touchscreen (Menu, then Pair a Sigil). The small button marked **BOOT** on a board does three jobs: a quick press pairs, holding it for 3 seconds unpairs, and holding it for 10 seconds factory resets that board. On Atlas, BOOT is a backup for the touchscreen: a quick press opens pairing, 3 seconds forgets every Sigil, and 10 seconds erases Atlas. A tone sounds at 3 and at 10 seconds, so release at the tone to stop there. On the OLED Sigil, the menu also ends in Factory reset (hold it for 5 seconds).
 
 ## To Pair a Sigil
 
@@ -145,7 +145,7 @@ Do not hold the BOOT button while plugging a Sigil in or restarting it: that put
 
 A paired Sigil stays paired through restarts. To remove a pairing:
 
-- **On the Sigil:** hold its Pair button for 10 seconds. A short press only opens the pairing window; after 10 seconds the Sigil forgets Atlas, its lights go off and its screen shows “Unpaired”.
+- **On the Sigil:** hold its Pair button for 3 seconds. A quick press only opens the pairing window; after 3 seconds a tone sounds, the Sigil forgets Atlas, its lights go off and its screen shows “Unpaired”. Keep holding to 10 seconds to factory reset the Sigil instead.
 
 - **On Atlas:** an administrator opens Device Settings in the browser and chooses Forget next to a Sigil, or Forget all Sigils. This works in the lobby, for Sigils nobody is seated on. A Sigil that is switched on and in range also forgets Atlas.
 
@@ -155,7 +155,7 @@ A forgotten Sigil can be paired again at any time.
 
 Device Settings has **Factory reset** next to each Sigil and a **Factory reset Atlas** button. Both need an administrator who is verified at the table (section 17), and neither works during a game.
 
-- **A Sigil** erases everything it has saved, including its pairing, and restarts as new. Atlas forgets it. Nobody may be seated on it. If the Sigil is out of range, Atlas only forgets it; hold the Sigil’s Pair button for 10 seconds to clear it too.
+- **A Sigil** erases everything it has saved, including its pairing, and restarts as new. Atlas forgets it. Nobody may be seated on it. If the Sigil is out of range, Atlas only forgets it; hold the Sigil’s Pair button for 3 seconds to clear it too.
 
 - **Atlas** asks you to type RESET to confirm. It then erases every profile, PIN, statistic it holds, Sigil pairing, the Wi-Fi password (back to TurnHub-Setup) and all settings, and restarts as new, asking for touchscreen calibration. The microSD card is not erased. This cannot be undone.
 
@@ -515,7 +515,7 @@ TurnHub’s goal is to help manage the table without requiring players to hand o
 
 - Restart the Sigil if necessary.
 
-- If the Sigil was paired with a different Atlas, hold its Pair button for 10 seconds to make it forget, then pair it again.
+- If the Sigil was paired with a different Atlas, hold its Pair button for 3 seconds to make it forget, then pair it again.
 
 ## My Sigil Disconnected
 

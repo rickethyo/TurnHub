@@ -21,6 +21,7 @@ ADAPTERS = {
                          "changeLife", "changeCounter", "moderateAccount", "manageDevices",
                          "dispatchBrowserSeatIntent"],
     "touch_controls.cpp": ["updateTouchControls", "dispatchTouchAction"],
+    "front_panel.cpp": ["updateBootButton"],
     "profile_picker.cpp": ["openProfilePicker", "handlePickerKey", "syncProfilePickers",
                            "chooseItem", "confirmChoice", "finish"],
     "gameplay_intents.cpp": ["updatePendingPass"],

@@ -328,7 +328,7 @@ bool OledDisplay::drawMenuList() {
     const int16_t y = HEADER_HEIGHT + 2 + row * ROW_HEIGHT;
     if (selected) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
     char line[28];
-    const bool hold = TurnHubProtocol::sigilActionHold(action) != TurnHubProtocol::ActionHold::None;
+    const bool hold = menuActionNeedsHold(menu_.items[index]);
     if (menu_.holdAction == menu_.items[index]) {
       snprintf(line, sizeof(line), "HOLD: %s", sigilActionLabel(action));
     } else {

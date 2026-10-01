@@ -492,6 +492,7 @@ void loop() {
 
   const uint32_t nowMs = millis();
   updatePairingWindow(nowMs);
+  updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs);
   serviceAtlasDisplay(nowMs);
   serviceFactoryReset(nowMs);
   updatePendingPass(nowMs);

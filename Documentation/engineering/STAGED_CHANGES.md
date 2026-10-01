@@ -112,7 +112,7 @@ Owner decisions and follow-through (2026-09-24, later the same day):
   during a running or paused match (including a recovered one) sends `EndMatch`,
   which ends it with no winner and records a Draw for every player. This is the
   "Discard" path for a recovered match that item 3 below lacked.
-- **Forget pairings:** implemented. A 10 s Sigil Pair hold erases the Sigil's
+- **Forget pairings:** implemented. A 3 s Sigil Pair hold erases the Sigil's
   pairing; admins forget one or all Sigils in Device Settings, and Atlas sends
   `Unpair`. See [Manual Pairing](MANUAL_PAIRING.md#forgetting-a-pairing-2026-09-24).
 - **Pairing window:** Atlas's window is admin-adjustable (60/90/120 s since
@@ -864,7 +864,7 @@ keeps that split; if the case lets one light face both ways, drop it.
   accepted once its owner signs in on a phone, attaching to a phone-joined
   profile, idle close after a minute, and an older Sigil still joining as a
   guest. The OLED Sigil shows it as a list (Up/Down, Select/Right, Left). See [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25).
-- Forgetting pairings: 10 s Sigil Pair hold; admin Forget one/all with `Unpair`
+- Forgetting pairings: 3 s Sigil Pair hold; admin Forget one/all with `Unpair`
   reaching an in-range Sigil; the 30/60 s Atlas pairing window.
 
 - Serial-log browser download (`GET /api/diagnostics/log`, Developer page
@@ -888,3 +888,17 @@ keeps that split; if the case lets one light face both ways, drop it.
 8. Before treating a user-facing feature as complete, review its accessibility impact against `ACCESSIBILITY.md`.
 
 Last updated: 2026-09-24
+
+## BOOT button three-gesture follow-ups (2026-09-30)
+
+Implemented: quick press pairs, 3 s unpairs, 10 s factory resets, on both
+Sigils, Atlas and (unpair only) the harness; the OLED Sigil's menu ends in a
+5 s-hold Factory reset. Open:
+
+- **E-ink factory reset from the device UI.** The compass has no free key and
+  the owner is unsure about a compass entry. Revisit with a settings screen
+  (owner, 2026-09-30); until then the 10 s hold is the only way on the E-ink Sigil.
+- **Atlas touchscreen entry for the same actions.** Atlas's screen has no
+  factory reset; Admins use the portal or app. Only the BOOT button works at
+  the device.
+- **Hardware acceptance** of timing, tones and BOOT wiring on Atlas and both Sigils.

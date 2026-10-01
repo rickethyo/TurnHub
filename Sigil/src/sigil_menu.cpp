@@ -50,7 +50,14 @@ Slots preferences(uint8_t action) {
 
 }  // namespace
 
+bool menuActionNeedsHold(uint8_t action) {
+  return action == MENU_LOCAL_FACTORY_RESET ||
+      (action < MENU_MAX_ITEMS &&
+       TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action)) != ActionHold::None);
+}
+
 const char *sigilActionLabel(SigilAction action) {
+  if (static_cast<uint8_t>(action) == MENU_LOCAL_FACTORY_RESET) return "Factory reset";
   switch (action) {
     case SigilAction::Join: return "Join game";
     case SigilAction::CycleStarter: return "Next starter";
@@ -150,12 +157,12 @@ void SigilMenu::setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs) {
 
 uint8_t SigilMenu::itemCount() const {
   uint8_t count = 0;
-  for (uint8_t a = 0; a < MENU_MAX_ITEMS; ++a) count += offered(a);
+  for (uint8_t a = 0; a < MENU_ITEM_CAPACITY; ++a) count += offered(a);
   return count;
 }
 
 uint8_t SigilMenu::itemAt(uint8_t index) const {
-  for (uint8_t a = 0; a < MENU_MAX_ITEMS; ++a) {
+  for (uint8_t a = 0; a < MENU_ITEM_CAPACITY; ++a) {
     if (!offered(a)) continue;
     if (index-- == 0) return a;
   }
@@ -164,7 +171,7 @@ uint8_t SigilMenu::itemAt(uint8_t index) const {
 
 uint8_t SigilMenu::indexOf(uint8_t action) const {
   uint8_t index = 0;
-  for (uint8_t a = 0; a < action && a < MENU_MAX_ITEMS; ++a) index += offered(a);
+  for (uint8_t a = 0; a < action && a < MENU_ITEM_CAPACITY; ++a) index += offered(a);
   return index;
 }
 
@@ -176,6 +183,14 @@ void SigilMenu::emit(uint8_t action) {
 
 void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
   if (!offered(action)) return;
+  if (action == MENU_LOCAL_FACTORY_RESET) {
+    holding_ = true;
+    holdKey_ = key;
+    holdAction_ = action;
+    holdStartMs_ = nowMs;
+    holdMs_ = MENU_FACTORY_RESET_HOLD_MS;
+    return;
+  }
   const ActionHold hold = TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action));
   if (hold == ActionHold::None) {
     emit(action);

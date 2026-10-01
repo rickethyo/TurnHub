@@ -1,6 +1,7 @@
 #include "sigil_menu.h"
 #include "picker_list.h"
 #include "life_adjust.h"
+#include "three_part_button.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -19,6 +20,43 @@ static int32_t menu(std::initializer_list<A> actions, A fallback, uint8_t revisi
 static uint8_t id(A a) { return static_cast<uint8_t>(a); }
 
 int main() {
+  // One button, three gestures: quick press pairs (on release), a medium hold
+  // unpairs once, a long hold factory resets once; nothing more on release.
+  {
+    using G = ButtonGesture;
+    ThreePartButton b;
+    // Held through a reset: ignored until seen released.
+    assert(b.update(true, 0) == G::None && b.update(true, FACTORY_RESET_HOLD_MS + 5000) == G::None);
+    assert(b.update(false, 20000) == G::None);
+    // Quick press: nothing while held, Pair on release.
+    assert(b.update(true, 30000) == G::None && b.down());
+    assert(b.update(true, 30000 + UNPAIR_HOLD_MS - 1) == G::None);
+    assert(b.update(false, 30000 + UNPAIR_HOLD_MS - 1) == G::Pair && !b.down());
+    assert(b.update(false, 40000) == G::None);
+    // Medium hold: Unpair fires once at the threshold, no Pair on release.
+    assert(b.update(true, 50000) == G::None);
+    assert(b.update(true, 50000 + UNPAIR_HOLD_MS) == G::Unpair);
+    assert(b.heldMs(50000 + UNPAIR_HOLD_MS + 100) == UNPAIR_HOLD_MS + 100);
+    assert(b.update(true, 50000 + UNPAIR_HOLD_MS + 500) == G::None);
+    assert(b.update(false, 50000 + UNPAIR_HOLD_MS + 600) == G::None && b.heldMs(60000) == 0);
+    // Long hold: Unpair at 3 s, then FactoryReset once at 10 s, nothing on release.
+    assert(b.update(true, 70000) == G::None);
+    assert(b.update(true, 70000 + UNPAIR_HOLD_MS) == G::Unpair);
+    assert(b.update(true, 70000 + FACTORY_RESET_HOLD_MS - 1) == G::None);
+    assert(b.update(true, 70000 + FACTORY_RESET_HOLD_MS) == G::FactoryReset);
+    assert(b.update(true, 70000 + FACTORY_RESET_HOLD_MS + 5000) == G::None);
+    assert(b.update(false, 70000 + FACTORY_RESET_HOLD_MS + 6000) == G::None);
+    // A stalled loop that first sees the long hold goes straight to factory reset.
+    assert(b.update(true, 100000) == G::None);
+    assert(b.update(true, 100000 + FACTORY_RESET_HOLD_MS + 1) == G::FactoryReset);
+    assert(b.update(false, 120000) == G::None);
+    // The millis() counter wrapping mid-press changes nothing.
+    assert(b.update(true, 0xFFFFFFFFu - 1000) == G::None);
+    assert(b.update(true, 0xFFFFFFFFu - 1000 + UNPAIR_HOLD_MS) == G::Unpair);
+    assert(b.update(false, 0xFFFFFFFFu - 1000 + UNPAIR_HOLD_MS + 1) == G::None);
+    assert(UNPAIR_HOLD_MS < FACTORY_RESET_HOLD_MS && UNPAIR_HOLD_MS > 2000);
+  }
+
   // Wire format: mask, default and revision; bad defaults read as none.
   {
     const MenuStateFields f = decodeMenuState2(menu({A::Pass, A::Pause, A::LinkPhone}, A::Pass, 5));
@@ -92,10 +130,18 @@ int main() {
   assert(!list.view().listOpen);
   list.keyDown(Key::Down, 0);
   v = list.view();
-  assert(v.listOpen && v.itemCount == 3 && v.items[v.cursor] == id(A::Pass) && !list.update(0).ready);
+  assert(v.listOpen && v.itemCount == 4 && v.items[v.cursor] == id(A::Pass) && !list.update(0).ready);
   list.keyDown(Key::Down, 100);
   assert(list.view().items[list.view().cursor] == id(A::Pause));
-  list.keyDown(Key::Down, 200); list.keyDown(Key::Down, 300);  // Clamped at the end.
+  list.keyDown(Key::Down, 200);
+  assert(list.view().items[list.view().cursor] == id(A::ClaimWin));
+  // The device-local Factory reset is always the last row (OLED list only).
+  list.keyDown(Key::Down, 250); list.keyDown(Key::Down, 300);  // Clamped at the end.
+  assert(list.view().items[list.view().cursor] == MENU_LOCAL_FACTORY_RESET);
+  assert(menuActionNeedsHold(MENU_LOCAL_FACTORY_RESET) && !menuActionNeedsHold(id(A::Pass)) &&
+         menuActionNeedsHold(id(A::ClaimWin)));
+  assert(strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_FACTORY_RESET)), "Factory reset") == 0);
+  list.keyDown(Key::Up, 350);
   assert(list.view().items[list.view().cursor] == id(A::ClaimWin));
   // Deliberate: the list shows the hold on screen.
   list.setHoldTimes(2000, 5000);
@@ -125,9 +171,29 @@ int main() {
   list.applyMenuState2(menu({A::Resume, A::BeginElimination}, A::Resume, 5), 20300);
   assert(list.view().items[list.view().cursor] == id(A::Resume));
   list.applyMenuState2(menu({}, A::Count, 6), 20400);
+  // The open list stays, now with only the local row; Left closes it.
+  assert(list.view().listOpen && list.view().itemCount == 1);
+  list.keyDown(Key::Left, 20450);
   assert(!list.view().listOpen);
-  list.keyDown(Key::Select, 20500);  // Nothing to open.
-  assert(!list.view().listOpen);
+  // Atlas offers nothing: the list still opens, with only the local Factory reset.
+  list.keyDown(Key::Select, 20500);
+  v = list.view();
+  assert(v.listOpen && v.itemCount == 1 && v.items[0] == MENU_LOCAL_FACTORY_RESET);
+  // Releasing early abandons it; held to the end it is chosen (main.cpp erases the
+  // Sigil; the choice is never sent to Atlas).
+  list.keyDown(Key::Select, 20600);
+  assert(list.view().holdAction == MENU_LOCAL_FACTORY_RESET && list.holdProgress(20600 + 2500) > 100);
+  list.keyUp(Key::Select, 20700);
+  assert(list.view().holdAction == MENU_NONE && !list.update(20700 + MENU_FACTORY_RESET_HOLD_MS).ready);
+  list.keyDown(Key::Select, 30000);
+  assert(!list.update(30000 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
+  c = list.update(30000 + MENU_FACTORY_RESET_HOLD_MS);
+  assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !list.view().listOpen);
+  list.keyUp(Key::Select, 36000);
+  // The e-ink compass never carries it.
+  SigilMenu eink(MenuLayout::Compass);
+  eink.applyMenuState2(menu({}, A::Count, 1), 0);
+  assert(eink.view().itemCount == 0);
 
   // Unpaired: back to inactive.
   list.clear();

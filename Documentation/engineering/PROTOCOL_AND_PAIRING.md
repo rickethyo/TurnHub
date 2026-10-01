@@ -323,7 +323,8 @@ and version 2 devices cannot talk to each other: reflash every device together.
 `Unpair = 12` (Atlas -> Sigil, `value` 0) tells a Sigil that Atlas forgot it. The
 Sigil honors it only from its saved Atlas MAC with its own Sigil ID, then erases
 its pairing. It is best effort and unacknowledged. Older Sigils ignore it.
-`FORGET_PAIRING_HOLD_MS` (10 s) is the Sigil's Pair hold that forgets locally.
+`UNPAIR_HOLD_MS` (3 s) is the Sigil's Pair hold that forgets locally; `FACTORY_RESET_HOLD_MS` (10 s)
+erases the device (see [Manual Pairing](MANUAL_PAIRING.md#the-boot-button-pair-unpair-factory-reset-2026-09-30)).
 `PAIRING_WINDOW_MS` is the Sigil's window and Atlas's default: 15 s until
 2026-09-29, then 60 s, the minimum on every device (owner decision).
 Protocol version stays 1.

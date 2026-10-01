@@ -11,6 +11,7 @@
 #include "atlas_app.h"
 #include "config.h"
 #include "serial_log.h"
+#include "three_part_button.h"
 
 using TurnHub::serialLog;
 
@@ -73,6 +74,7 @@ void beginFrontPanel() {
   digitalWrite(AtlasConfig::RGB_RED_PIN, HIGH);
   digitalWrite(AtlasConfig::RGB_GREEN_PIN, HIGH);
   digitalWrite(AtlasConfig::RGB_BLUE_PIN, HIGH);
+  pinMode(AtlasConfig::BOOT_BUTTON_PIN, INPUT_PULLUP);
 }
 
 void startPairingIndicator(uint32_t nowMs) {
@@ -175,6 +177,52 @@ uint32_t pairingRemainingMs(uint32_t nowMs) {
 
 // The pairing window closes after its configured length or when the lobby
 // ends; a shown presence code closes after PRESENCE_CODE_MS.
+namespace {
+
+constexpr uint32_t BOOT_BUTTON_DEBOUNCE_MS = 30;
+bool bootRaw = false;
+bool bootStable = false;
+uint32_t bootChangedMs = 0;
+TurnHubProtocol::ThreePartButton bootGesture;
+
+void dispatchBootButtonIntent(IntentType type, int32_t value, const char *gesture) {
+  Intent intent;
+  intent.type = type;
+  intent.actor.origin = IntentOrigin::AtlasHardware;
+  intent.payload.value = value;
+  const IntentResult result = intents.dispatch(intent);
+  serialLog.print("ATLAS|BOOT_BUTTON|");
+  serialLog.print(gesture);
+  serialLog.print(result.accepted() ? "|OK|" : "|REJECTED|");
+  serialLog.println(result.message);
+}
+
+}  // namespace
+
+// Adapter: builds Intents only. The handlers decide what each gesture may do.
+void updateBootButton(bool pressed, uint32_t nowMs) {
+  if (pressed != bootRaw) {
+    bootRaw = pressed;
+    bootChangedMs = nowMs;
+  }
+  if (nowMs - bootChangedMs >= BOOT_BUTTON_DEBOUNCE_MS) bootStable = bootRaw;
+  switch (bootGesture.update(bootStable, nowMs)) {
+    case TurnHubProtocol::ButtonGesture::Pair:
+      dispatchBootButtonIntent(IntentType::PairRequest, 0, "PAIR");
+      break;
+    case TurnHubProtocol::ButtonGesture::Unpair:
+      audio.play(TurnHub::AudioCue::ActionRequired, TurnHub::AudioController::ATLAS_SPEAKER_MASK);
+      dispatchBootButtonIntent(IntentType::ForgetPairing, TurnHub::FORGET_ALL_SIGILS, "UNPAIR");
+      break;
+    case TurnHubProtocol::ButtonGesture::FactoryReset:
+      audio.play(TurnHub::AudioCue::TimerExpired, TurnHub::AudioController::ATLAS_SPEAKER_MASK);
+      dispatchBootButtonIntent(IntentType::FactoryReset, TurnHub::FACTORY_RESET_ATLAS, "FACTORY_RESET");
+      break;
+    case TurnHubProtocol::ButtonGesture::None:
+      break;
+  }
+}
+
 void updatePairingWindow(uint32_t nowMs) {
   if (pairingActive &&
       (nowMs - pairingStartedAtMs >= pairingIndicatorMs || hubState != HubState::Lobby)) {

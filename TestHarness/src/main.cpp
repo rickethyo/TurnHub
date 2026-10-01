@@ -1257,7 +1257,9 @@ void pollSerial() {
 }
 
 // The DevKit's BOOT button (GPIO0), as on a Sigil: a press pairs, and holding
-// it for FORGET_PAIRING_HOLD_MS (10 s) forgets the pairing instead. GPIO0 is
+// it for UNPAIR_HOLD_MS (3 s) forgets the pairing instead (a real Sigil also
+// factory resets at FACTORY_RESET_HOLD_MS; the harness has nothing to erase
+// beyond its pairing, so it stops at unpair). GPIO0 is
 // a strapping pin only at reset (holding BOOT through a reset enters the ROM
 // downloader). Acts on release, since pairing blocks until Atlas answers.
 constexpr uint8_t PAIR_BUTTON = 0;
@@ -1284,7 +1286,7 @@ void updatePairButton() {
     }
     return;
   }
-  if (down && !buttonForgot && now - buttonDownMs >= TurnHubProtocol::FORGET_PAIRING_HOLD_MS) {
+  if (down && !buttonForgot && now - buttonDownMs >= TurnHubProtocol::UNPAIR_HOLD_MS) {
     buttonForgot = true;
     Serial.println("HARNESS|BUTTON|FORGET");
     forgetPairing();

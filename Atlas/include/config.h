@@ -56,6 +56,12 @@ constexpr uint8_t RGB_RED_PIN = 22;
 constexpr uint8_t RGB_GREEN_PIN = 16;
 constexpr uint8_t RGB_BLUE_PIN = 17;
 
+// The board's BOOT button (GPIO0, pulled up, low when pressed). GPIO0 is a
+// strapping pin only at reset, so it is free to use once Atlas is running:
+// quick press pairs, a medium hold forgets every Sigil, a long hold factory
+// resets Atlas (three_part_button.h). A backup for the touchscreen.
+constexpr uint8_t BOOT_BUTTON_PIN = 0;
+
 // Speaker amplifier: enable is active low; audio input is IO26 (the DAC pin,
 // driven as an LEDC square wave by atlas_speaker.cpp).
 constexpr uint8_t AUDIO_ENABLE_PIN = 4;

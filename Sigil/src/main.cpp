@@ -18,6 +18,7 @@
 #include "atlas_link.h"
 #include "firmware_version.h"
 #include "protocol.h"
+#include "three_part_button.h"
 #include "sigil_display.h"
 #include "sigil_led.h"
 #include "received_packet.h"
@@ -156,6 +157,8 @@ struct ButtonState {
 };
 
 ButtonState pairButton(PAIR_BUTTON);
+// Quick press pairs, a medium hold unpairs, a long hold factory resets.
+TurnHubProtocol::ThreePartButton pairGesture;
 ButtonState keys[] = {ButtonState(KEY_PINS[0]), ButtonState(KEY_PINS[1]),
     ButtonState(KEY_PINS[2]), ButtonState(KEY_PINS[3]), ButtonState(KEY_PINS[4])};
 static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One button per key");
@@ -819,8 +822,20 @@ void updateBuzzer() {
   }
 }
 
+// Erases everything saved (pairing included) and restarts as a new Sigil: an
+// Admin's Factory reset in Device Settings, or the Pair button held to
+// FACTORY_RESET_HOLD_MS.
+void factoryResetDevice(const char *reason) {
+  Serial.print("SIGIL|FACTORY_RESET|ERASING|");
+  Serial.println(reason);
+  Serial.flush();
+  nvs_flash_erase();
+  delay(100);
+  ESP.restart();
+}
+
 // Erases the saved Atlas pairing and returns to the unpaired screen, from a
-// long Pair hold or Atlas's Unpair. Atlas keeps its own record until an admin
+// medium Pair hold or Atlas's Unpair. Atlas keeps its own record until an admin
 // forgets this Sigil there (which also sends Unpair if the Sigil is in range).
 void forgetPairing(const char *reason) {
   Preferences prefs;
@@ -1158,11 +1173,7 @@ void handleAtlasPacket(
       // An Admin chose Factory reset for this Sigil in Device Settings.
       // Erase everything saved (pairing included) and start over as new.
       if (packet.value != TurnHubProtocol::FACTORY_RESET_CONFIRM) break;
-      Serial.println("SIGIL|FACTORY_RESET|ERASING");
-      Serial.flush();
-      nvs_flash_erase();
-      delay(100);
-      ESP.restart();
+      factoryResetDevice("ATLAS");
       break;
 
     case PacketType::DisplayNameChunk:
@@ -1404,7 +1415,13 @@ void updateMenuKeys() {
   }
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
-  if (choice.ready) {
+  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_FACTORY_RESET) {
+    // Held to the end in the OLED menu: erase this Sigil. Atlas is not asked.
+    Serial.println("SIGIL|MENU|FACTORY_RESET");
+    playBuzzerPayload(TurnHubProtocol::encodeTone(440, 300));
+    delay(300);
+    factoryResetDevice("MENU");
+  } else if (choice.ready) {
     lastSelectedAction = choice.action;
     Serial.print("SIGIL|");
     Serial.print(sigilId);
@@ -1462,26 +1479,32 @@ void updatePairing() {
   }
 }
 
-// A press opens the pairing window; keeping Pair held for
-// FORGET_PAIRING_HOLD_MS (10 s) erases the saved pairing instead.
+// One button, three gestures (three_part_button.h): a quick press opens the
+// pairing window when released, holding to UNPAIR_HOLD_MS (3 s) erases the
+// saved pairing, holding to FACTORY_RESET_HOLD_MS (10 s) erases everything.
+// A short tone marks each hold gesture, so release when it sounds to stop
+// there; the screen shows the result too (Unpaired, then the boot screen).
 void updatePairButton() {
   const uint32_t nowMs = millis();
-  if (debouncedEdge(pairButton, nowMs)) {
-    if (pairButton.stableState == LOW) {
-      pairButton.pressStartMs = nowMs;
-      pairButton.longSent = false;
+  debouncedEdge(pairButton, nowMs);
+  switch (pairGesture.update(pairButton.stableState == LOW, nowMs)) {
+    case TurnHubProtocol::ButtonGesture::Pair:
       Serial.println("SIGIL|PAIR|BUTTON");
       startPairing();
-    } else {
-      pairButton.pressStartMs = 0;
-      Serial.println("SIGIL|PAIR|BUTTON|UP");
-    }
-    return;
-  }
-  if (pairButton.stableState == LOW && pairButton.pressStartMs != 0 && !pairButton.longSent &&
-      nowMs - pairButton.pressStartMs >= TurnHubProtocol::FORGET_PAIRING_HOLD_MS) {
-    pairButton.longSent = true;
-    forgetPairing("BUTTON");
+      break;
+    case TurnHubProtocol::ButtonGesture::Unpair:
+      Serial.println("SIGIL|PAIR|BUTTON|HOLD_UNPAIR");
+      forgetPairing("BUTTON");
+      playBuzzerPayload(TurnHubProtocol::encodeTone(880, 200));
+      break;
+    case TurnHubProtocol::ButtonGesture::FactoryReset:
+      Serial.println("SIGIL|PAIR|BUTTON|HOLD_FACTORY_RESET");
+      playBuzzerPayload(TurnHubProtocol::encodeTone(440, 300));
+      delay(300);
+      factoryResetDevice("BUTTON");
+      break;
+    case TurnHubProtocol::ButtonGesture::None:
+      break;
   }
 }
 

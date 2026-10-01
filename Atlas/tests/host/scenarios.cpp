@@ -2950,6 +2950,51 @@ static void factoryResetFromPortal() {
   resetPresence();
 }
 
+// The board's BOOT button: quick press pairs, a 3 s hold forgets every Sigil, a
+// 10 s hold factory resets Atlas, even mid-match (the backup for a frozen
+// screen). Each gesture is an AtlasHardware Intent; the handlers still apply
+// their rules (a Sigil with seated players is kept).
+static uint32_t bootT=1000000;
+static void bootPress(uint32_t heldMs) {
+  updateBootButton(false,bootT); bootT+=100; updateBootButton(false,bootT); bootT+=100;  // Seen released.
+  updateBootButton(true,bootT); bootT+=40; updateBootButton(true,bootT);                   // Debounced down.
+  for(uint32_t held=0;held<heldMs;held+=100){ bootT+=100; updateBootButton(true,bootT); }  // The loop keeps running.
+  bootT+=100; updateBootButton(false,bootT); bootT+=40; updateBootButton(false,bootT); bootT+=100;
+}
+static void bootButtonGestures() {
+  resetPresence(); resetTouchControls();
+  freshLobby(2);
+  TurnHub::fixtureUnpairs[3]=0; fixtureFactoryResets=0;
+
+  // Quick press: the pairing window opens (on release).
+  pairingActive=false;
+  bootPress(500);
+  assert(pairingActive);
+
+  // Medium hold: forget all Sigils, but never one with seated players.
+  assert(sigilBus.record(0) && sigilBus.record(3));
+  pairingActive=false;
+  bootPress(TurnHubProtocol::UNPAIR_HOLD_MS+500);
+  assert(sigilBus.record(0) && sigilBus.record(3) && TurnHub::fixtureUnpairs[3]==0);
+  assert(!pairingActive);  // A hold never pairs on release.
+  enterEmptyLobby();
+  bootPress(TurnHubProtocol::UNPAIR_HOLD_MS+500);
+  assert(!sigilBus.record(0) && !sigilBus.record(3) && TurnHub::fixtureUnpairs[3]==1);
+  assert(!factoryResetScheduled() && fixtureFactoryResets==0);
+
+  // Long hold in a match: Atlas erases itself, no Admin or table code needed. A
+  // Sigil in the match is not forgotten on the way (forget all is lobby-only).
+  freshLobby(2); startFromHost();
+  assert(!factoryResetScheduled());
+  bootPress(TurnHubProtocol::FACTORY_RESET_HOLD_MS+500);
+  assert(factoryResetScheduled() && sigilBus.record(0));
+  serviceFactoryReset(millis()); assert(fixtureFactoryResets==0);
+  serviceFactoryReset(millis()+2000);
+  assert(fixtureFactoryResets==1 && !factoryResetScheduled());
+  enterEmptyLobby();
+  TurnHub::fixtureUnpairs[3]=0;
+}
+
 struct CompletionPowerLoss {};
 static unsigned completionWritesBeforeLoss = 0;
 static void interruptCompletionWrite() {
@@ -3134,6 +3179,7 @@ int main() {
   pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;
   pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
+  bootButtonGestures(); std::cout<<"PASS BOOT button: quick press pairs, medium hold forgets all Sigils (seated kept), long hold factory resets Atlas even mid-match" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";

@@ -84,11 +84,37 @@ trust: ESP-NOW remains unencrypted and MAC spoofing is not prevented. The token
 correlates responses; it is not a cryptographic identity proof. Production trust
 and factory-reset integration remain future work.
 
+## The BOOT button: pair, unpair, factory reset (2026-09-30)
+
+One button, three gestures, on every board that has it (`three_part_button.h`,
+constants `UNPAIR_HOLD_MS` 3 s and `FACTORY_RESET_HOLD_MS` 10 s in `protocol.h`).
+It replaces the old 10 s hold that only forgot the pairing. Pairing now happens
+when the button is *released* before 3 s, so a hold never also opens the pairing
+window.
+
+| Gesture | Sigil (Pair button = BOOT, GPIO0) | Atlas (BOOT, GPIO0) |
+|---|---|---|
+| Quick press (released before 3 s) | Opens the Sigil's 60 s pairing window | Pair a Sigil: opens the pairing window (lobby only, like the touchscreen's button) |
+| Hold 3 s (tone) | Erases the saved Atlas pairing, shows "Unpaired" (`SIGIL|PAIR|BUTTON|HOLD_UNPAIR`) | Forgets every paired Sigil, lobby only and never one with seated players (`ForgetPairing` Intent, origin `AtlasHardware`) |
+| Hold 10 s (tone) | Erases the whole NVS partition and restarts as new (`SIGIL|FACTORY_RESET|ERASING|BUTTON`) | Factory reset Atlas: erases the microSD data and NVS, restarts as new. No Admin or table code, and it works in any state, mid-match included: it is the recovery path when the touchscreen stops responding (`FactoryReset` Intent, origin `AtlasHardware`) |
+
+- A hold passes through the shorter gestures: a 10 s hold unpairs at 3 s first,
+  then factory resets. Release at the tone to stop at that step.
+- A button already down when the board starts (BOOT held through a reset, which
+  enters the ROM downloader) is ignored until it is seen released.
+- The OLED Sigil's menu list also ends in **Factory reset** (hold 5 s). It is
+  device-local: never in Atlas's menu mask, never sent to Atlas, only offered
+  while the Sigil is paired and its menu is active. The E-ink Sigil has no menu
+  entry: its compass has no free key, so it relies on the button hold until a
+  settings screen exists (see `STAGED_CHANGES.md`).
+- The test harness stops at unpair (3 s); it has nothing else to erase.
+- Hardware verification of the tones, timing and BOOT wiring is *Needs verification*.
+
 ## Forgetting a pairing (2026-09-24)
 
-- **On a Sigil:** hold its Pair button for 10 seconds
-  (`FORGET_PAIRING_HOLD_MS`). The press first opens the pairing window as usual;
-  at 10 seconds the Sigil erases its saved `atlas` binding, turns its LEDs off,
+- **On a Sigil:** hold its Pair button for 3 seconds
+  (`UNPAIR_HOLD_MS`; a quick press pairs, 10 s factory resets, see above).
+  At 3 seconds the Sigil erases its saved `atlas` binding, turns its LEDs off,
   returns to the defaults for hold timing and shows "Unpaired"
   (`SIGIL|PAIR|FORGOTTEN|BUTTON`). Atlas keeps its record; forget it there too,
   or pair the Sigil again (the same MAC reuses its slot).
@@ -126,7 +152,7 @@ during a match. Atlas re-checks all of that in the handler.
   ID, with the confirmation value. It then erases its whole NVS partition,
   pairing included, logs `SIGIL|FACTORY_RESET|ERASING` and restarts as new.
   If the Sigil is out of range, Atlas only forgets it and says so; holding the
-  Sigil's Pair button for 10 s clears that side. The test harness clears only
+  Sigil's Pair button for 3 s clears that side. The test harness clears only
   that virtual Sigil's pairing.
 - **Atlas** (lobby or game over) replies first, then after 1.5 s erases its whole
   NVS partition (`nvs_flash_erase`, `factory_reset.cpp`) and restarts. That
