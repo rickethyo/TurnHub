@@ -1,7 +1,18 @@
 package com.turnhub.android.ui.setup
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.turnhub.android.data.presenceCodeFromQr
+import com.turnhub.android.ui.components.QrScanner
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -116,7 +127,7 @@ fun SetupScreen(state: SetupState, actions: SetupActions, modifier: Modifier = M
 private fun title(step: SetupStep) = when (step) {
     SetupStep.WELCOME -> "Welcome to TurnHub"
     SetupStep.ACCOUNT -> "Your account"
-    SetupStep.TABLE_CODE -> "Prove you're at the table"
+    SetupStep.TABLE_CODE -> "Confirm you're at the table"
     SetupStep.SIGILS -> "Pair your Sigils"
     SetupStep.UPDATES -> "Check for updates"
     SetupStep.WIFI -> "Secure the table's Wi-Fi"
@@ -128,8 +139,8 @@ private fun title(step: SetupStep) = when (step) {
 private fun Welcome(actions: SetupActions) {
     val p = palette
     Text(
-        "This Atlas is new. A few short steps make it yours: an account, a code from the Atlas screen, " +
-            "your Sigils, any updates, and the table's own Wi-Fi password. Stay near the table; it takes about five minutes.",
+        "This Atlas is new. Setup takes about five minutes, and you need to stay at the table. You'll make an " +
+            "account, confirm you're at the table, pair your Sigils, install any updates, and give the table its own Wi-Fi password.",
         color = p.muted,
     )
     AccentButton("Start", { actions.run { next() } }, Modifier.fillMaxWidth())
@@ -192,8 +203,8 @@ private fun Account(state: SetupState, actions: SetupActions) {
 private fun TableCode(state: SetupState, actions: SetupActions) {
     val p = palette
     Text(
-        "Only someone at the table can set it up. Atlas shows a six-digit code on its screen; " +
-            "typing it here makes your account this table's Admin.",
+        "Only someone at the table can set it up. Scan or type the code on the Atlas screen " +
+            "to make your account this table's Admin.",
         color = p.muted,
     )
     CodeEntry(state, actions)
@@ -207,7 +218,44 @@ private fun CodeEntry(state: SetupState, actions: SetupActions) {
         AccentButton("Show a code on Atlas", { actions.run { requestCode() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
         return
     }
-    Text("Enter the six digits on the Atlas screen. It shows them for 90 seconds.", color = p.muted)
+    val context = LocalContext.current
+    var scanning by rememberSaveable { mutableStateOf(false) }
+    var scanHint by rememberSaveable { mutableStateOf<String?>(null) }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        scanning = granted
+        if (!granted) scanHint = "Camera permission is off. Type the code instead."
+    }
+    Text("Atlas is showing a six-digit code and a QR code. Scan the QR or type the digits. They stay up for 90 seconds.", color = p.muted)
+    if (scanning) {
+        QrScanner(
+            onScanned = { text ->
+                val scanned = presenceCodeFromQr(text)
+                if (scanned != null) {
+                    scanning = false
+                    actions.run { confirmCode(scanned) }
+                } else {
+                    scanHint = "That isn't the table code. Scan the QR next to the six digits."
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(12.dp)),
+        )
+        ToneButton("Stop scanning", { scanning = false }, Modifier.fillMaxWidth())
+    } else {
+        ToneButton(
+            "Scan the QR code",
+            {
+                scanHint = null
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    scanning = true
+                } else {
+                    cameraPermission.launch(Manifest.permission.CAMERA)
+                }
+            },
+            Modifier.fillMaxWidth(),
+            enabled = !state.busy,
+        )
+    }
+    scanHint?.let { Text(it, color = p.muted) }
     OutlinedTextField(
         code,
         { code = it.filter(Char::isDigit).take(6) },
@@ -235,10 +283,10 @@ private fun Sigils(state: SetupState, actions: SetupActions) {
         }
     }
     Text(
-        "Pair each Sigil now so one update can cover every device.\n" +
+        "Pair your Sigils now so one update covers every device.\n" +
             "1. On the Atlas screen, tap Pair a Sigil.\n" +
-            "2. On the Sigil, start pairing (its Pair button or menu).\n" +
-            "3. If the Sigil and Atlas show the same code, tap Codes match on Atlas.",
+            "2. On the Sigil, start pairing from the menu.\n" +
+            "3. If both screens show the same code, tap Codes match on Atlas.",
         color = p.muted,
     )
     if (state.sigils.isEmpty()) {
@@ -266,7 +314,7 @@ private fun Updates(state: SetupState, actions: SetupActions) {
         UpdatesState.NotChecked, UpdatesState.Checking -> Text("Checking GitHub for the latest release…", color = p.muted)
         is UpdatesState.Unavailable -> {
             Text(u.reason, color = p.muted)
-            Text("Setup doesn't need it. You can update later from Settings.", color = p.muted)
+            Text("You can carry on and update later from Settings.", color = p.muted)
             ToneButton("Try again", { actions.run { checkUpdates() } }, Modifier.fillMaxWidth())
             AccentButton("Continue", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
         }
@@ -282,8 +330,8 @@ private fun Updates(state: SetupState, actions: SetupActions) {
             }
             if (u.plan.anyUpdate) {
                 Text(
-                    "Installing updates everything now, Atlas first, then each Sigil. Atlas restarts once and the " +
-                        "app reconnects by itself; you'll enter one new code. Allow about a minute per device.",
+                    "Atlas updates first, then each Sigil. Atlas restarts once and the app reconnects on its own, " +
+                        "then asks for one more table code. Allow about a minute per device.",
                     color = p.muted,
                 )
                 AccentButton("Install all updates (recommended)", { actions.run { installUpdates() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
@@ -328,9 +376,9 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
     var show by rememberSaveable { mutableStateOf(false) }
     val ssid = state.status?.ssid?.ifBlank { null } ?: "TurnHub-Atlas"
     Text(
-        "$ssid still uses the password printed for setup, which anyone can look up. Choose the table's own " +
-            "password (8 to 63 characters). Atlas restarts with it; this app rejoins by itself, and other phones " +
-            "join with the new password.",
+        "$ssid still uses the setup password, which anyone can look up. Choose a password of your own " +
+            "(8 to 63 characters). Atlas restarts with the new password and this app rejoins on its own. " +
+            "Other phones will need the new password.",
         color = p.muted,
     )
     val transform = if (show) VisualTransformation.None else PasswordVisualTransformation()
@@ -359,7 +407,7 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
 private fun Done(actions: SetupActions) {
     val p = palette
     Text(
-        "The table is yours and ready to play. Players join from a Sigil's menu or from this app. " +
+        "The table is ready to play. Players join from a Sigil's menu or from this app. " +
             "To add a Sigil later, tap Menu, then Pair a Sigil, on the Atlas screen.",
         color = p.muted,
     )

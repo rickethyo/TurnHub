@@ -127,14 +127,31 @@ class AtlasSetupAssistant(
         }
         val current = _state.value
         when {
-            status.stage == SetupStage.WELCOME && !current.visible ->
+            status.stage == SetupStage.WELCOME && !current.visible -> {
+                // A new run (first connect, or Atlas was factory reset): nothing from an earlier run counts.
+                resetProgress()
                 _state.value = SetupState(visible = true, status = status)
+            }
+            // Mid-setup but signed out of a table that is back at Welcome: Atlas was factory reset.
+            status.stage == SetupStage.WELCOME && !current.busy && current.step.number >= SetupStep.TABLE_CODE.number &&
+                current.step != SetupStep.RESTARTING && current.updates !is UpdatesState.Installing &&
+                session.state.value !is PlayerSessionState.SignedIn -> {
+                resetProgress()
+                _state.value = SetupState(visible = true, status = status)
+            }
             status.stage == SetupStage.WELCOME -> _state.update { it.copy(status = status) }
             current.visible && current.step == SetupStep.RESTARTING ->
                 _state.update { it.copy(status = status, step = SetupStep.DONE, busy = false, error = null) }
             current.visible && current.step == SetupStep.DONE -> _state.update { it.copy(status = status) }
             else -> _state.value = SetupState(status = status)
         }
+    }
+
+    private fun resetProgress() {
+        account = null
+        sigilsPassed = false
+        updatesPassed = false
+        afterCode = null
     }
 
     /** "Not now": back to the table until the next connection. Atlas keeps showing Welcome. */
@@ -157,6 +174,8 @@ class AtlasSetupAssistant(
         _state.update { it.copy(step = next) }
         when (next) {
             SetupStep.ACCOUNT -> loadProfiles()
+            // Atlas shows its code only when asked, so ask as the step opens: the screen and the app agree.
+            SetupStep.TABLE_CODE -> if (!_state.value.codeShowing) requestCodeQuietly()
             SetupStep.SIGILS -> refreshSigils()
             SetupStep.UPDATES -> if (_state.value.updates == UpdatesState.NotChecked) checkUpdates()
             else -> Unit
@@ -194,7 +213,7 @@ class AtlasSetupAssistant(
     suspend fun requestCode() = work {
         val response = session.raw("POST", "/api/presence/request") ?: return@work signedOut()
         if (!response.ok) return@work fail(errorOf(response) ?: "Atlas could not show a code.")
-        _state.update { it.copy(codeShowing = true, note = "Enter the six digits the Atlas screen shows.") }
+        _state.update { it.copy(codeShowing = true, note = "Atlas is showing a code. Scan it or type it in.") }
     }
 
     /** The code from the Atlas screen; then this account becomes the Admin if there is none yet. */
@@ -287,7 +306,7 @@ class AtlasSetupAssistant(
                 // Atlas restarted: sessions and verification are gone. Sign in
                 // again, then one new code before the Sigils.
                 if (pending.size > 1) {
-                    show("Atlas is back. Enter the new code on its screen to update the Sigils.")
+                    show("Atlas is back. Enter the new Atlas code to update the Sigils.")
                     if (!reSignIn()) return finishUpdates(lines)
                     val rest = pending.drop(atlasIndex + 1)
                     afterCode = { installSigils(rest, lines, atlasIndex + 1) }
@@ -336,7 +355,7 @@ class AtlasSetupAssistant(
     /** "You're all set" → the table. */
     fun close() {
         _state.value = SetupState(status = _state.value.status)
-        account = null
+        resetProgress()
     }
 
     // --- update helpers ---------------------------------------------------------
@@ -491,7 +510,7 @@ class AtlasSetupAssistant(
     private suspend fun requestCodeQuietly() {
         val response = session.raw("POST", "/api/presence/request") ?: return signedOut()
         if (!response.ok) return fail(errorOf(response) ?: "Atlas could not show a code.")
-        _state.update { it.copy(codeShowing = true, note = "Enter the six digits the Atlas screen shows.") }
+        _state.update { it.copy(codeShowing = true, note = "Atlas is showing a code. Scan it or type it in.") }
     }
 
     private suspend fun reSignIn(): Boolean {

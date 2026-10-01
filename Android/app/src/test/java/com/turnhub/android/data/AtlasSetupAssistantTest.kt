@@ -224,6 +224,33 @@ class AtlasSetupAssistantTest {
     }
 
     @Test
+    fun `a factory reset Atlas starts setup over and asks for its code as the step opens`() = runTest {
+        val (assistant, atlas) = setup()
+        assistant.check()
+        assistant.next()
+        assistant.createAccount("Owner", "2468")
+        assertTrue(assistant.state.value.codeShowing) // Asked for as the step opened.
+        assistant.confirmCode("123456")
+        assistant.sigilsDone()
+        assistant.skipUpdates()
+        assistant.next()
+        assertEquals(SetupStep.WIFI, assistant.state.value.step)
+
+        // Factory reset: Atlas forgets everything and shows Welcome again.
+        atlas.restart()
+        atlas.profiles.clear()
+        atlas.admin = null
+        atlas.stage = SetupStage.WELCOME
+        assistant.close()
+        assistant.check()
+        assistant.next()
+        assistant.createAccount("Owner", "2468")
+        assistant.confirmCode("123456")
+
+        assertEquals(SetupStep.SIGILS, assistant.state.value.step)
+    }
+
+    @Test
     fun `a set-up Atlas shows no setup`() = runTest {
         val (assistant, atlas) = setup()
         atlas.stage = SetupStage.COMPLETE
