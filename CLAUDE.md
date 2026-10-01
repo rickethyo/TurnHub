@@ -35,6 +35,8 @@ Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
 
 **One-button flash:** `tools\flash-all.cmd` (or `tools\flash-all.ps1`, options `-NoPull`, `-DryRun`) pulls the repo, reads each attached board's MAC and flashes Atlas and Sigils from `BOARD_INVENTORY.md`'s MAC table. It skips the harness and unknown MACs, and refuses to pull over uncommitted changes. Keep that table current when a board is added.
 
+**Local signing:** the git root is `D:\TurnHub\Include`; `D:\TurnHub\Private` (outside git) holds `TurnHub-keys`, `TurnHub-backups` and `TurnHub-builds`. Never move keys, backups or builds into the repo. `tools\sign-local.cmd` (or `.ps1`, `-Products atlas,sigil-eink,sigil-oled`) builds from the working copy and signs with the single `.pem` in `Private\TurnHub-keys`, then writes verified `.thfw` packages to `Private\TurnHub-builds\local-<time>-<commit>`. Install them from the Atlas portal's `/update` page, the Sigil firmware page, or the app. OTA accepts the same or a newer version only; raise `PATCH` in `firmware_version.h` to update over a running build, and a downgrade needs USB. Needs python `cryptography` 46.0.7 in PlatformIO's Python. Never print or open the key.
+
 **Serial ports:** never hard-code COM numbers (in `platformio.ini`, docs or scripts). They change whenever the PC restarts. Find the board each time (Atlas is the CH340 port, Sigils are CP210x; see "Identifying boards" below), pass `--upload-port` / `--port`, and ask the owner if several candidates are attached.
 
 ### Atlas host regression tests (no hardware)
