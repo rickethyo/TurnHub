@@ -448,6 +448,7 @@ private fun LifeCard(
     requestTarget?.let { target ->
         LifeRequestDialog(
             target = target,
+            steps = lifeSteps(summary.settings.profile),
             onSend = { delta -> requestTarget = null; actions.onRequestLife(target.playerNumber, delta) },
             onDismiss = { requestTarget = null },
         )
@@ -475,7 +476,7 @@ private fun LifeCard(
             }
         }
         if (me != null && canAct) {
-            MyLifePad(me.life, actions.onChangeMyLife, busy)
+            MyLifePad(me.life, actions.onChangeMyLife, busy, lifeSteps(summary.settings.profile))
             Text(
                 "Your own changes apply immediately. Tap another player to ask for a change; " +
                     "they have 15 seconds to respond before Atlas accepts it.",
@@ -576,8 +577,14 @@ private fun LifeTile(
     }
 }
 
+/** Life button steps: Yu-Gi-Oh! counts in hundreds, as on the portal, Atlas and the Sigils. */
+internal data class LifeSteps(val small: Int, val big: Int)
+
+internal fun lifeSteps(profile: GameProfile): LifeSteps =
+    if (profile == GameProfile.YUGIOH) LifeSteps(100, 1000) else LifeSteps(1, 5)
+
 @Composable
-private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean) {
+private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean, steps: LifeSteps) {
     val p = palette
     var custom by rememberSaveable { mutableStateOf("") }
     Column(
@@ -594,7 +601,7 @@ private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean) {
             Text(life?.toString() ?: "—", color = p.text, style = MaterialTheme.typography.headlineLarge)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf(-5, -1, 1, 5).forEach { step ->
+            listOf(-steps.big, -steps.small, steps.small, steps.big).forEach { step ->
                 ToneButton(
                     (if (step > 0) "+" else "−") + kotlin.math.abs(step),
                     { onChange(step) },
@@ -622,9 +629,9 @@ private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean) {
 }
 
 @Composable
-private fun LifeRequestDialog(target: TablePlayer, onSend: (Int) -> Unit, onDismiss: () -> Unit) {
+private fun LifeRequestDialog(target: TablePlayer, steps: LifeSteps, onSend: (Int) -> Unit, onDismiss: () -> Unit) {
     val p = palette
-    var amount by remember { mutableIntStateOf(-1) }
+    var amount by remember { mutableIntStateOf(-steps.small) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = p.surface,
@@ -636,8 +643,8 @@ private fun LifeRequestDialog(target: TablePlayer, onSend: (Int) -> Unit, onDism
                     color = p.muted,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ToneButton("−5", { amount -= 5 }, Modifier.weight(1f), tone = Tone.BAD)
-                    ToneButton("−1", { amount -= 1 }, Modifier.weight(1f), tone = Tone.BAD)
+                    ToneButton("−${steps.big}", { amount -= steps.big }, Modifier.weight(1f), tone = Tone.BAD)
+                    ToneButton("−${steps.small}", { amount -= steps.small }, Modifier.weight(1f), tone = Tone.BAD)
                     Text(
                         (if (amount > 0) "+" else "") + amount,
                         style = MaterialTheme.typography.headlineMedium,
@@ -645,8 +652,8 @@ private fun LifeRequestDialog(target: TablePlayer, onSend: (Int) -> Unit, onDism
                         modifier = Modifier.widthIn(min = 56.dp),
                         textAlign = TextAlign.Center,
                     )
-                    ToneButton("+1", { amount += 1 }, Modifier.weight(1f), tone = Tone.GOOD)
-                    ToneButton("+5", { amount += 5 }, Modifier.weight(1f), tone = Tone.GOOD)
+                    ToneButton("+${steps.small}", { amount += steps.small }, Modifier.weight(1f), tone = Tone.GOOD)
+                    ToneButton("+${steps.big}", { amount += steps.big }, Modifier.weight(1f), tone = Tone.GOOD)
                 }
                 target.life?.let { Text("$it → ${it + amount}", color = p.text, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) }
             }

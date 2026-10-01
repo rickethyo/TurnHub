@@ -141,6 +141,12 @@ and scoped to table participation; they do not survive a restart or reserve a Si
 - Guests have temporary slot participation. A released guest profile record is
   not treated as a remembered owner; cleanup/guest-directory presentation is
   separate from releasing the slot binding.
+- Seat bindings are released whenever the seat leaves (2026-10-01): the Sigil's
+  own Leave or Drop seat B, a phone leaving for a profile seated on a Sigil, and
+  a Game Master removal. A Sigil that reboots while seated keeps its seat
+  profiles; one that is not seated has them cleared when it asks for its names.
+  *Host-tested only (the reboot case is firmware-only); needs verification on
+  hardware.*
 
 ## Proposed physical interaction
 

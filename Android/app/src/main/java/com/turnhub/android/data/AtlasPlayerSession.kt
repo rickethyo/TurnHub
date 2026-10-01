@@ -300,7 +300,8 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     /**
-     * Settings only feed the host's editor, so a failed read just hides it. An
+     * Settings only feed the next-game editor (any seated player; Atlas still
+     * reports it as `host`), so a failed read just hides it. An
      * ended session is reported by the next `/api/session/me`, not from here.
      */
     private suspend fun refreshGameSettings(transport: AtlasSessionTransport, token: String, info: SessionInfo?) {

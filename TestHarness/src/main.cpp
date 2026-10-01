@@ -63,9 +63,10 @@ constexpr char PREF_NAMESPACE[] = "th_harness";
 // (UNASSIGNED if unpaired) and its pair key.
 constexpr char PREF_KEY[] = "pair";
 
-// Atlas's timings (Atlas/include/atlas_app.h), with margin for radio latency.
+// Atlas's timings (its 3 s start countdown, Atlas/include/atlas_app.h, and
+// the shared pass grace), with margin for radio latency.
 constexpr uint32_t START_WAIT_MS = 3000 + 4000;
-constexpr uint32_t PASS_WAIT_MS = 3000 + 4000;
+constexpr uint32_t PASS_WAIT_MS = TurnHubProtocol::PASS_GRACE_MS + 4000;
 constexpr uint32_t STEP_WAIT_MS = 5000;
 // A LifeAdjust is sent once, like a real Sigil's batch after
 // LIFE_ADJUST_COMMIT_MS; the game display should show it well within this.

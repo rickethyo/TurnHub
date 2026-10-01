@@ -94,17 +94,17 @@ if ($Signed) {
 } elseif ($Sign) {
   Write-Host 'Local signing mode: building and signing this working copy (no pull).' -ForegroundColor Cyan
 } else {
-if (-not $NoPull) {
-  Write-Host '== Updating the repo' -ForegroundColor Cyan
-  if (git status --porcelain) {
-    Fail 'You have uncommitted changes, so the repo was not updated. Commit or stash them, or run with -NoPull to flash this working copy.'
+  if (-not $NoPull) {
+    Write-Host '== Updating the repo' -ForegroundColor Cyan
+    if (git status --porcelain) {
+      Fail 'You have uncommitted changes, so the repo was not updated. Commit or stash them, or run with -NoPull to flash this working copy.'
+    }
+    git pull --ff-only
+    if ($LASTEXITCODE -ne 0) { Fail 'git pull failed (not a fast-forward, or no network). Nothing was flashed.' }
   }
-  git pull --ff-only
-  if ($LASTEXITCODE -ne 0) { Fail 'git pull failed (not a fast-forward, or no network). Nothing was flashed.' }
-}
-$branch = git branch --show-current
-Write-Host ("Flashing from {0} at {1}" -f $branch, (git log --oneline -1))
-if ($branch -ne 'master') { Write-Host "Note: this is not master." -ForegroundColor Yellow }
+  $branch = git branch --show-current
+  Write-Host ("Flashing from {0} at {1}" -f $branch, (git log --oneline -1))
+  if ($branch -ne 'master') { Write-Host "Note: this is not master." -ForegroundColor Yellow }
 }
 
 # --- 2. identify boards ---------------------------------------------------------

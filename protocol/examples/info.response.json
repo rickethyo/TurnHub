@@ -5,7 +5,7 @@
   "firmwareVersion": "0.6.0-dev",
   "apiVersion": "1",
   "protocolVersion": "0.1",
-  "radioProtocolVersion": 2,
+  "radioProtocolVersion": 3,
   "bootId": "0123456789ABCDEF0123456789ABCDEF",
   "revision": 0,
   "capabilities": {

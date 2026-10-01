@@ -115,7 +115,7 @@ private fun TurnTimerSetting(editor: TurnTimerEditor, enabled: Boolean, onChosen
     val customMs = editor.customMs(seconds)
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 8.dp)) {
-        Text("Turn timer (you are the host)", style = MaterialTheme.typography.titleSmall)
+        Text("Turn timer for the next game", style = MaterialTheme.typography.titleSmall)
         Text(
             "Off shows a gentle cue after five minutes. A timer warns at ten seconds left; " +
                 "running out never passes the turn.",

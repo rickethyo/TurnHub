@@ -14,7 +14,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
 | `TestHarness/` | ESP32 hardware-in-the-loop harness: plays as two virtual menu Sigils against a real Atlas; premade tests start from the Atlas touchscreen (see its README) | PlatformIO, Arduino ESP32, C++ |
-| `KiCad/` | Sigil PCB/schematic, plus Python scripts in `tools/` that build and verify the schematic | KiCad, Python |
+| `KiCad/` | Sigil PCB/schematic, plus Python scripts in `PCB/Sigilv1/tools/` that build and verify the schematic | KiCad, Python |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
 
 Earlier Python/Raspberry Pi generations are deliberately **not in this repo**; they survive only as history in `Documentation/engineering/GENERATION_HISTORY.md`. Don't reintroduce references to a `Controller/` directory, or its tooling (root `requirements.txt`, the Visual Studio Python project, the pySerial dependency).

@@ -36,7 +36,7 @@
       "const": "0.1"
     },
     "radioProtocolVersion": {
-      "description": "Atlas-Sigil ESP-NOW protocol version (2 since the secure link, 2026-09-29). Informational: clients do not use the radio.",
+      "description": "Atlas-Sigil ESP-NOW protocol version (3 since the baseline Sigil, 2026-09-30; 2 was the secure link). Informational: clients do not use the radio.",
       "type": "integer",
       "minimum": 1
     },

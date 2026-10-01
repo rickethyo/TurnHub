@@ -41,7 +41,12 @@ Join the table, then any seated player can save Game profile and life on the Gam
 Magic uses 20 life, Commander 40, Generic 40, and Yu-Gi-Oh! 8000; custom starting
 life is supported. Game shows everyone's totals and the signed-in player's own
 adjustment controls. Standard buttons use 1/5-point changes, or 100/1000 for
-Yu-Gi-Oh!, with a custom signed delta available. Changes are accepted while
+Yu-Gi-Oh!, with a custom signed delta available. Since 2026-10-01 every
+client counts Yu-Gi-Oh! in hundreds: the Android app's life pad and request
+dialog, and the Atlas screen's Player screen (100/1000). A Sigil steps by 100
+in any game that starts at 1000 life or more (it learns the starting life from
+`StartingLife`; `lifeUnitFor` in `life_adjust.h`), and its status ring counts
+steps. *Host-tested only; needs verification on hardware.* Changes are accepted while
 running or paused, except during a table decision or after elimination/game over.
 Zero/negative totals do not eliminate players. Hidden performance statistics do
 not hide public in-game life totals.
