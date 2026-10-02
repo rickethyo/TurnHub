@@ -595,7 +595,7 @@ void EpaperDisplay::showReady(uint8_t sigilId) {
 void EpaperDisplay::showAtlasLost(uint8_t sigilId) {
   (void)sigilId;
   // No legend: none of the actions can reach Atlas now.
-  drawStatus("Atlas lost", "Searching...", false);
+  drawStatus("Atlas lost", "Searching for Atlas", false);
 }
 
 void EpaperDisplay::showPairingCode(uint16_t code) {

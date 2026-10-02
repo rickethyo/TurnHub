@@ -525,9 +525,8 @@ void OledDisplay::showAtlasLost(uint8_t sigilId) {
   snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
   display_->clearDisplay();
   header("TurnHub", label);
-  bigLine("NO ATLAS");
-  text("Atlas not responding", 41, 1, Align::Center);
-  text("Searching...", 52, 1, Align::Center);
+  bigLine("ATLAS LOST");
+  text("Searching for Atlas", 41, 1, Align::Center);
   display_->display();
 }
 

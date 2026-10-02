@@ -279,8 +279,9 @@ paired Sigil that hears nothing valid from its Atlas for `LINK_TIMEOUT_MS`
 offline) shows **Atlas lost**. The timer starts at boot or pairing, so a Sigil
 that starts with Atlas off shows it too. Logic: `Sigil/include/atlas_link.h`.
 
-- **Screen:** "Atlas lost / Searching..." (e-ink) or "NO ATLAS / Atlas not
-  responding / Searching..." (OLED), with no action menu.
+- **Screen:** the same words on both displays (2026-10-02): "Atlas lost /
+  Searching for Atlas" (e-ink, sentence case) or "ATLAS LOST / Searching for
+  Atlas" (OLED, capitals), with no action menu.
 - **Light:** one orange pixel sweeping back and forth around the ring, center
   dark; with Reduced motion, two opposite pixels steady orange. Only the pairing
   blink outranks it.
