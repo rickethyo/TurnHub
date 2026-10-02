@@ -308,6 +308,28 @@ class HomeViewModel(
         local.update { it.copy(signIn = null) }
     }
 
+    // --- live turn notification ----------------------------------------------
+
+    /**
+     * Whose turn it is for the lock-screen notification, kept up to date even
+     * while the screen is not watching (the Activity shows it only in the
+     * background). Null unless this phone's player sits in a live game.
+     */
+    val liveTurn: StateFlow<com.turnhub.android.domain.LiveTurn?> = combine(
+        repository.tableSummary,
+        playerSession.state,
+    ) { summary, session ->
+        val info = (session as? PlayerSessionState.SignedIn)?.info
+        summary?.let {
+            com.turnhub.android.domain.LiveTurn.from(
+                it,
+                info?.takeIf { me -> me.participating }?.playerNumber,
+                com.turnhub.android.domain.TableClock.nowMs(),
+                System.currentTimeMillis(),
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     // --- app lock and automatic sign-in ---------------------------------------
 
     private val _appLock = MutableStateFlow<AppLockRequest?>(null)

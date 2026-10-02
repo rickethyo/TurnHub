@@ -30,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.turnhub.android.data.KeystoreProfileVault
+import com.turnhub.android.data.TurnNotifier
 import com.turnhub.android.ui.home.AppLockRequest
 import com.turnhub.android.data.UpdateNotifier
 import kotlinx.coroutines.launch
@@ -227,6 +228,18 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent.createChooser(send, "Share serial log"))
     }
 
+    private val turnNotifier by lazy { TurnNotifier(applicationContext) }
+
+    override fun onStart() {
+        super.onStart()
+        turnNotifier.clear()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) turnNotifier.show(homeViewModel.liveTurn.value)
+    }
+
     override fun onResume() {
         super.onResume()
         AtlasLinkHoldService.release(this)
@@ -245,7 +258,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (!isChangingConfigurations) AtlasLinkHoldService.release(this)
+        if (!isChangingConfigurations) {
+            AtlasLinkHoldService.release(this)
+            turnNotifier.clear()
+        }
         super.onDestroy()
     }
 
@@ -270,6 +286,13 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { homeViewModel.updatesAvailable.collect(::onUpdatesAvailable) }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) { homeViewModel.appLock.collect(::runAppLock) }
+        }
+        // The lock-screen turn clock: only while the app is out of sight (the
+        // screen itself shows the turn otherwise). Runs until the Activity ends.
+        lifecycleScope.launch {
+            homeViewModel.liveTurn.collect { turn ->
+                if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) turnNotifier.show(turn)
+            }
         }
         setContent {
             TurnHubTheme(choice = theme) {

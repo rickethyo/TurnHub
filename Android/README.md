@@ -217,6 +217,27 @@ checked on a phone):
   phone's player, ticks on the life buttons and tab changes, confirm/reject on
   Pass. Reduce motion turns the springs, halo and transitions off.
 
+V1 redesign, phases 7 and 8 (2026-10-02, *Implemented*, built by CI; not yet
+checked on a phone):
+
+- App lock and automatic sign-in (`data/ProfileVault.kt`, Android 11+): the
+  sign-in sheet's "Sign in automatically" keeps that profile's PIN or password
+  AES-GCM encrypted under an Android Keystore key that opens for 30 seconds
+  after the phone's fingerprint, face or screen lock. It is saved only after
+  Atlas accepts the secret. On each new Atlas boot the app asks for the
+  phone's lock and signs in; cancelling or signing out by hand is respected
+  until the next boot, and a rejected secret reopens the sheet. Me > This
+  phone turns it off. Excluded from backup and device transfer.
+- Sign-in is a bottom sheet with a grouped account list (`GroupedList`).
+- The seat controls rise in as the join flow moves through its stages.
+- Live turn notification (`data/TurnNotifier.kt`, `domain/LiveTurn.kt`): while
+  the app is in the background and its player sits in a game, the shade and
+  lock screen show whose turn it is with a running turn clock (or the turn
+  timer counting down). It alerts only when the turn comes to you and asks to
+  be a promoted live update on Android 16+. It lasts as long as the app holds
+  the Atlas connection.
+- Haptics use the vibrator's full-strength primitives (`ui/components/Haptics.kt`).
+
 Portal parity (2026-09-26):
 
 - The app now mirrors the Atlas portal's look and its player features. The

@@ -56,7 +56,7 @@ removed from this file. The hardware checks still open are in
   a slow, salted hash (PBKDF2 through mbedTLS) in place of the single SHA-256
   over profile ID and secret, which suits a PIN but is weak for a password if
   Atlas's NVS were ever read out. Changing the hash needs a factory reset.
-- **App lock and automatic sign-in** (owner, 2026-10-02; V1 plan phase 7).
+- **App lock and automatic sign-in** (owner, 2026-10-02; V1 plan phase 7). *Implemented* 2026-10-02 in the Android app (Android 11+; `Android/README.md`); *needs verification* on a phone.
   The Android app keeps one profile's secret in the Android Keystore, unlocked
   by the phone's fingerprint, face or screen lock (or an app PIN), and signs
   that profile in to Atlas whenever it connects. It gives the one-tap feel of a
