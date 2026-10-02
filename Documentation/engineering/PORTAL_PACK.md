@@ -1,11 +1,15 @@
 # Web Portal Pack
 
 The V1 web portal ships as a signed pack that Atlas unpacks onto its microSD
-card and serves at `/portal`. It is the only portal: the built-in flash portal
-was removed on 2026-10-02 (owner decision, to save flash). Without a pack,
-`/portal` serves a small install page (`web_pages.cpp` `INSTALL_PORTAL_HTML`):
-sign in, verify at the table, upload the pack. The TurnHub app does not need
-the pack.
+card and serves at `/portal`. The full flash portal was removed on 2026-10-02
+(owner decision, to save flash), but a failed or missing card must not take
+away the essentials, so flash keeps a **basic portal** (`web_pages.cpp`
+`BASIC_PORTAL_HTML`, about 14 KB, sent gzip): game status with the player's own
+controls (join, start, Pass, pause, life, concede, rematch), accessibility
+preferences, device settings (verify at the table, speaker, pairing window,
+Wi-Fi password, forget Sigils, return to lobby, factory reset), links to the
+Atlas and Sigil firmware pages, and the portal pack install. Host check:
+`node Atlas/tests/host/basic_portal_smoke.cjs`.
 
 Status: **Implemented** in source (2026-10-02, V1 phase 1). Host tests cover the
 installer and both portals in the browser smoke checks. Install, serving and
@@ -120,10 +124,10 @@ roll back, build the older source with a raised `VERSION`.
 
 | Route | Served from |
 |---|---|
-| `/portal` | the pack's `index.html` (no-cache), else the install page |
-| `/login`, `/update` | the pack's `login.html`, `update.html`, else the built-in page kept in flash so a pack can be installed (`/update` after the Admin check) |
-| `/stats`, `/sigil-update`, `/dev` | the pack's copy, else the install page (`/sigil-update` and `/dev` after the Admin or Developer check) |
-| any of those with `?classic=1` | the built-in page or install page, skipping the pack (a damaged pack can still be replaced) |
+| `/portal` | the pack's `index.html` (no-cache), else the basic portal |
+| `/login`, `/update`, `/sigil-update` | the pack's copy, else the built-in page (`/update` and `/sigil-update` after the Admin check) |
+| `/stats`, `/dev` | the pack's copy, else the basic portal (`/dev` after the Developer check) |
+| any of those with `?classic=1` | the built-in page or basic portal, skipping the pack (a damaged pack can still be replaced) |
 | `/assets/...` | the pack, `Cache-Control: immutable` (names are content-hashed) |
 
 A gzip copy is sent with `Content-Encoding: gzip`. Card reads take the same

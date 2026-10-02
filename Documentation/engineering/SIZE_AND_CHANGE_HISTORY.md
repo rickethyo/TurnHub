@@ -627,12 +627,13 @@ entry. Protocol version stays 3.
 
 ## 2026-10-02 Flash portal removed (owner decision)
 
-The SD portal pack is now the only web portal. Atlas's flash keeps the shared
-stylesheet, the sign-in and update pages and a small install page
-(`INSTALL_PORTAL_HTML`) that installs a pack. Removed from flash: the built-in
-portal (`PORTAL_HTML` and its gzip copy), `DEV_HTML`, `stats_page.cpp` and
-`sigil_update_page.h`. Source: `web_pages.cpp` 138,233 B → 24,130 B;
-`stats_page.cpp` (10,900 B) and `sigil_update_page.h` (5,418 B) deleted.
+The SD portal pack is now the full web portal. Atlas's flash keeps the shared
+stylesheet, the sign-in, firmware and Sigil firmware pages, and a basic portal
+(`BASIC_PORTAL_HTML`, 13.7 KB, 5.3 KB gzip) so a failed card still leaves game
+controls, accessibility, device settings and updates. Removed from flash: the
+built-in portal (`PORTAL_HTML` and its gzip copy), `DEV_HTML` and
+`stats_page.cpp`. Source: `web_pages.cpp` 138,233 B → about 38 KB;
+`stats_page.cpp` (10,900 B) deleted.
 Compiled flash was not read back for this entry.
 
 ## Tracking rules

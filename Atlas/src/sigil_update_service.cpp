@@ -1,5 +1,5 @@
 #include "sigil_update_service.h"
-#include "web_pages.h"
+#include "sigil_update_page.h"
 #include "atlas_app.h"
 #include "sigil_update_jobs.h"
 #include "firmware_package_mbedtls.h"
@@ -237,7 +237,7 @@ void beginSigilUpdates(const char *ssid, const char *password) {
   store.begin(flash, crypto, TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID);
   store.loadStaged();
   server.on("/sigil-update", HTTP_GET, []() {
-    TurnHubWebApi::serveRestrictedPage(server, TurnHubWeb::INSTALL_PORTAL_HTML, TurnHubAccounts::Admin, "sigil-update.html");
+    TurnHubWebApi::serveRestrictedPage(server, SIGIL_UPDATE_HTML, TurnHubAccounts::Admin, "sigil-update.html");
   });
   server.on("/api/sigil-firmware", HTTP_GET, statusRoute);
   server.on("/api/sigil-firmware", HTTP_POST, []() {

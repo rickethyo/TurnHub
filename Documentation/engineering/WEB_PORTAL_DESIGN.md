@@ -11,9 +11,10 @@ tests cover the layout.
 
 | Route | Source | Notes |
 |---|---|---|
-| `/portal` | the SD pack ([PORTAL_PACK.md](PORTAL_PACK.md)); without one, `web_pages.cpp` `INSTALL_PORTAL_HTML` | Game, Players, My Account, Device Settings |
+| `/portal` | the SD pack ([PORTAL_PACK.md](PORTAL_PACK.md)); without one, the basic portal `web_pages.cpp` `BASIC_PORTAL_HTML` | Game, Players, My Account, Device Settings (basic: game, accessibility, device, updates) |
 | `/login` | the pack, else `profile_login_page.cpp` | Sign in / create account |
-| `/stats`, `/dev`, `/sigil-update` | the pack only | Statistics, Developer diagnostics, Sigil firmware |
+| `/stats`, `/dev` | the pack, else the basic portal | Statistics, Developer diagnostics |
+| `/sigil-update` | the pack, else `sigil_update_page.h` | Sigil firmware |
 | `/update` | the pack, else `ota_manager.cpp` `UPDATE_HTML` | Admin firmware and portal pack upload |
 | `/theme.css` | `web_pages.cpp` `THEME_CSS` | Shared stylesheet, `Cache-Control: no-cache` |
 
@@ -147,5 +148,5 @@ is missing) and serve `/theme.css` from `THEME_CSS`.
 
 The V1 portal is served from the microSD card as a signed pack built from
 `Atlas/web/` and the shared `design/` system. The flash portal described above
-was removed on 2026-10-02; flash keeps `THEME_CSS`, the sign-in and update
-pages and a small install page. See [PORTAL_PACK.md](PORTAL_PACK.md).
+was removed on 2026-10-02; flash keeps `THEME_CSS`, the sign-in, firmware
+and Sigil firmware pages and the basic portal for a failed card. See [PORTAL_PACK.md](PORTAL_PACK.md).

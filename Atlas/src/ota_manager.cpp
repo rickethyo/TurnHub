@@ -137,7 +137,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     <h1>Atlas Firmware Update</h1>
     <p class="small">Upload a signed <code>.thfw</code> package: Atlas firmware, or the web portal pack (<code>portal-x.y.z.thfw</code>). A portal pack goes onto the microSD card and needs no restart.</p>
     <div class="notice" style="margin-top:14px">
-      For safety, start updates only from Lobby or Game Over and <strong>verify at the table first (Device Settings in the portal, or the install page at /portal before a portal is installed: Verify at the table, then the code the Atlas screen shows), then upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
+      For safety, start updates only from Lobby or Game Over and <strong>verify at the table first (Device Settings in the portal, or Device settings in the basic portal: Verify at the table, then the code the Atlas screen shows), then upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
     </div>
     <div id="current" class="status">Reading current firmware...</div>
     <div class="drop"><label for="file">Firmware or portal package</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
@@ -333,12 +333,17 @@ void OtaManager::begin() {
 #endif
   });
 
-  // The portal is the pack on the microSD card (PORTAL_PACK.md). Until one
-  // is installed, /portal is a small page that installs it.
+  // The full portal is the pack on the microSD card (PORTAL_PACK.md); without
+  // one, /portal is the basic portal in flash. ?classic=1 skips the pack.
   server_.on("/portal", HTTP_GET, [this]() {
-    if (TurnHubAtlas::sdServePortalFile(server_, "index.html", "no-cache")) return;
+    if (!server_.hasArg("classic") && TurnHubAtlas::sdServePortalFile(server_, "index.html", "no-cache")) return;
     server_.sendHeader("Cache-Control", "no-store");
-    server_.send_P(200, "text/html", TurnHubWeb::INSTALL_PORTAL_HTML);
+#if defined(TURNHUB_GZIP_PAGES)
+    server_.sendHeader("Content-Encoding", "gzip");
+    server_.send_P(200, "text/html", reinterpret_cast<const char *>(TurnHubWeb::BASIC_PORTAL_HTML_GZIP), sizeof(TurnHubWeb::BASIC_PORTAL_HTML_GZIP));
+#else
+    server_.send_P(200, "text/html", TurnHubWeb::BASIC_PORTAL_HTML);
+#endif
   });
   server_.addHandler(&portalAssetHandler);
 
@@ -359,7 +364,7 @@ void OtaManager::begin() {
       [this]() { handlePortalUpload(); });
 
   server_.on("/dev", HTTP_GET, [this]() {
-    TurnHubWebApi::serveRestrictedPage(server_, TurnHubWeb::INSTALL_PORTAL_HTML, TurnHubAccounts::Developer, "dev.html");
+    TurnHubWebApi::serveRestrictedPage(server_, TurnHubWeb::BASIC_PORTAL_HTML, TurnHubAccounts::Developer, "dev.html");
   });
 
   server_.on("/update", HTTP_GET, [this]() {
