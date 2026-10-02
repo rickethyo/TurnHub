@@ -360,13 +360,11 @@ void OtaManager::begin() {
       [this]() { handlePortalUpload(); });
 
   server_.on("/dev", HTTP_GET, [this]() {
-    server_.sendHeader("Cache-Control", "no-store");
-    TurnHubWebApi::serveRestrictedPage(server_,TurnHubWeb::DEV_HTML,TurnHubAccounts::Developer);
+    TurnHubWebApi::serveRestrictedPage(server_, TurnHubWeb::DEV_HTML, TurnHubAccounts::Developer, "dev.html");
   });
 
   server_.on("/update", HTTP_GET, [this]() {
-    server_.sendHeader("Cache-Control", "no-store");
-    TurnHubWebApi::serveRestrictedPage(server_,UPDATE_HTML,TurnHubAccounts::Admin);
+    TurnHubWebApi::serveRestrictedPage(server_, UPDATE_HTML, TurnHubAccounts::Admin, "update.html");
   });
 
   server_.on(

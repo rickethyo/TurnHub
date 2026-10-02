@@ -6,13 +6,7 @@
 <meta name="theme-color" content="#0A0B0E">
 <meta name="color-scheme" content="dark light">
 <title>TurnHub</title>
-<script>
-// Theme before first paint: a saved choice, else what the device asks for
-// (more contrast, light or dark). Midnight and Parchment were retired in V1.
-function deviceTheme(){const q=s=>matchMedia(s).matches;return q('(prefers-contrast: more)')?'contrast':q('(prefers-color-scheme: light)')?'daylight':'graphite'}
-function savedTheme(){try{const t=localStorage.getItem('turnhubTheme');const m={midnight:'graphite',parchment:'daylight'}[t]||t;return ['graphite','daylight','brass','contrast'].includes(m)?m:null}catch(_){return null}}
-try{const h=document.documentElement;h.dataset.theme=savedTheme()||deviceTheme();if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}
-</script>
+<script src="./theme-boot.js"></script>
 <link rel="preload" href="./../../../design/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <!-- build:css portal.css -->
 <link rel="stylesheet" href="../../../design/dist/tokens.css">
@@ -146,17 +140,29 @@ try{const h=document.documentElement;h.dataset.theme=savedTheme()||deviceTheme()
 <section id="view-players" class="view" hidden>
 <h1 class="sr-only">Players</h1>
 <div class="grid">
- <section class="card two-third"><div class="card-head"><div><h2 class="eyebrow">Players</h2><p class="small">Live table seats, browser links, turn state, and physical Sigil identity.</p></div><button class="small" onclick="refreshAll()">Refresh</button></div><div id="players" class="roster"></div></section>
- <section class="card third"><div class="card-head"><div><h2 class="eyebrow">Invite players</h2><p class="small">Connect to the table’s Wi-Fi, then scan a code to open TurnHub.</p></div></div><div class="qr-grid"><div class="qr-box"><h3>Table portal</h3><div id="portalQr"></div><a id="portalQrLink">Open portal</a></div><div class="qr-box"><h3>Sign in / join</h3><div id="joinQr"></div><a id="joinQrLink">Open sign in</a></div></div></section>
- <section class="card"><div class="card-head"><div><h2 class="eyebrow">Connect a Sigil</h2><p class="small">Sign into your account, then attach a Sigil. Account login and table participation are separate.</p></div></div><div id="devices" class="devices"></div></section>
+ <section class="card two-third"><div class="card-head"><div><h2 class="eyebrow">At the table</h2><p class="small">Who is playing, whose turn it is, and how each player is connected.</p></div><div class="actions"><button class="small" onclick="refreshAll()">Refresh</button><button class="small primary" onclick="openInvite()"><svg class="i" aria-hidden="true"><use href="#i-qr"/></svg>Invite players</button></div></div><ul id="players" class="roster rows" aria-live="polite"></ul></section>
+ <section class="card third"><div class="card-head"><div><h2 class="eyebrow">Connect a Sigil</h2><p class="small">A physical Sigil is optional. Sign in, pair it once, then attach a seat to your profile.</p></div></div><ol id="sigilSteps" class="steps"></ol></section>
+ <section class="card"><div class="card-head"><div><h2 class="eyebrow">Sigils</h2><p class="small">Paired controllers and their two seats. Account sign-in and table participation are separate.</p></div></div><div id="devices" class="devices"></div></section>
  <section class="card" id="gmPanel" hidden><div class="card-head"><h2 class="eyebrow">Game Master</h2></div><div id="gmAccounts"></div></section>
 </div>
+<dialog id="inviteSheet" class="sheet" aria-labelledby="inviteTitle"><form method="dialog"><h2 id="inviteTitle">Invite players</h2><p>Join the table’s Wi-Fi<span id="inviteSsid"></span>, then scan a code with the phone’s camera.</p>
+ <div class="qr-grid"><div class="qr-box"><h3>Table portal</h3><div id="portalQr"></div><a id="portalQrLink">Open portal</a></div><div class="qr-box"><h3>Sign in / join</h3><div id="joinQr"></div><a id="joinQrLink">Open sign in</a></div></div>
+ <div class="actions"><button value="close" class="primary">Done</button></div></form></dialog>
 </section>
 
 <section id="view-account" class="view" hidden>
 <h1 class="sr-only">My Account</h1>
 <div class="grid">
- <section class="card half"><div class="card-head"><h2 class="eyebrow">My account</h2></div>
+ <section id="profileHero" class="card profile-hero" hidden>
+  <span id="heroAvatar" class="avatar xl" aria-hidden="true">?</span>
+  <div class="profile-hero-text"><div id="heroName" class="who-name">Player</div><div id="heroMeta" class="small"></div><div id="heroRoles" class="badges" style="margin-top:10px"></div></div>
+  <div class="hero-stats">
+   <div class="dial sm" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="dial-track" cx="60" cy="60" r="50"/><circle id="heroDial" class="dial-fill" cx="60" cy="60" r="50" pathLength="100" stroke-dasharray="0 100"/></svg><div class="dial-text"><strong id="heroRate">—</strong><span>Win rate</span></div></div>
+   <div class="metrics two"><div class="metric"><label>Played</label><strong id="heroPlayed">—</strong></div><div class="metric"><label>Won</label><strong id="heroWon">—</strong></div></div>
+   <a class="btn small" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>All statistics</a>
+  </div>
+ </section>
+  <section class="card half"><div class="card-head"><h2 class="eyebrow">Sign-in and privacy</h2></div>
   <div id="profileSignedOut" class="notice info"><p>Sign in to save your name, PIN, privacy choices and statistics. New here? Create an account on the same page.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
   <div id="profileBox" hidden>
    <div class="who"><span id="profileAvatar" class="avatar lg" aria-hidden="true">?</span><div class="who-text"><div class="who-name" id="profileSeatTitle">My seat</div><div class="mono" id="profileSeatMeta"></div></div></div>
@@ -172,7 +178,7 @@ try{const h=document.documentElement;h.dataset.theme=savedTheme()||deviceTheme()
   </div>
  </section>
  <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Appearance and feedback</h2><p class="small">Saved in this browser only. No sign-in needed.</p></div></div>
-  <fieldset><legend class="sr-only">Portal theme</legend><p class="small" style="margin-top:0">Themes change only how this browser looks. They never change the game.</p>
+  <fieldset><legend class="sr-only">Portal theme</legend><p class="small" style="margin-top:0">Tap a theme to preview it; Save appearance keeps it in this browser. Themes never change the game.</p>
    <div class="themes">
     <label class="theme-opt"><input type="radio" name="theme" value="auto"><strong>Automatic</strong><span class="swatch" aria-hidden="true"><i style="background-image:linear-gradient(90deg,#0A0B0E 50%,#F2F3F6 50%)"></i><i style="background:#262A33"></i><i style="background:#F5B53F"></i><i style="background:#3DDBB1"></i></span><small>Follows this device: Graphite when it is dark, Daylight when it is light, High contrast when it asks for more contrast.</small></label>
     <label class="theme-opt"><input type="radio" name="theme" value="graphite"><strong>Graphite</strong><span class="swatch" aria-hidden="true"><i style="background:#0A0B0E"></i><i style="background:#262A33"></i><i style="background:#F5B53F"></i><i style="background:#3DDBB1"></i></span><small>Modern dark with one warm gold accent.</small></label>
@@ -270,6 +276,13 @@ const lifeSeen={};
 let browserPrefs={sound:true,vibration:true,volume:'medium'};
 try{browserPrefs=Object.assign(browserPrefs,JSON.parse(localStorage.getItem('turnhubBrowserPrefs')||'{}'))}catch(_){}
 const TABS=['game','players','account','settings'];
+const ROLES=[[1,'Admin'],[2,'Game Master'],[4,'Developer']];
+let heroStatsAt=0;
+// The profile header: who is signed in, their roles and a win-rate summary from /api/session/stats.
+function renderProfileHero(){const me=sessionInfo;profileHero.hidden=!(me&&me.authenticated);if(profileHero.hidden)return;const name=me.name||'Unnamed profile';
+ heroName.textContent=name;heroMeta.textContent=`Profile ${me.profileId}`+(me.participating?` · Player ${me.player} at the table`:'');heroAvatar.innerHTML=avatarSvg(myAvatar)||initials(name);heroAvatar.style.setProperty('--hue',hue(me.participating?me.player:0));
+ const roles=ROLES.filter(([bit])=>Number(me.permissions)&bit).map(([,label])=>badge(label,'blue')).join('')+(me.hasPin?badge('PIN or password set','good'):badge('No PIN yet','warn'));if(heroRoles.innerHTML!==roles)heroRoles.innerHTML=roles;if(!document.getElementById('view-account').hidden)loadHeroStats()}
+async function loadHeroStats(force=false){if(!sessionInfo||!sessionInfo.authenticated||(!force&&Date.now()-heroStatsAt<30000))return;heroStatsAt=Date.now();try{const r=await fetch('/api/session/stats',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw 0;const l=d.lifetime||{},played=Number(l.gamesPlayed)||0,won=Number(l.gamesWon)||0,rate=played?Math.round(100*won/played):0;heroPlayed.textContent=played;heroWon.textContent=won;heroRate.textContent=played?rate+'%':'—';requestAnimationFrame(()=>heroDial.setAttribute('stroke-dasharray',rate+' 100'))}catch(_){heroRate.textContent='—'}}
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function badge(t,c=''){return `<span class="badge ${c}">${esc(t)}</span>`}
@@ -317,6 +330,7 @@ function showTab(name){
  document.querySelectorAll('.tab').forEach(b=>{const on=b.dataset.tab===name;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
  try{localStorage.setItem('turnhubPortalTab',name)}catch(_){}
  if(name!=='game')refreshAccountList();
+ if(name==='account')loadHeroStats();
 }
 
 function loadMotionPref(){let on=false;try{on=localStorage.getItem('turnhubReduceMotion')==='1'}catch(_){}reduceMotionToggle.checked=on;if(on)document.documentElement.dataset.motion='reduce';else delete document.documentElement.dataset.motion}
@@ -375,7 +389,20 @@ function renderStatus(s){statusData=s;dot.className='dot online';connPill.classN
  renderGauge(s);renderPlayers();renderSession();processBrowserFeedback(s)}
 
 function playerStateText(s){if(s.eliminated)return 'Eliminated';if(statusData&&Number(statusData.winner)===Number(s.player))return 'Winner';if(s.active)return 'Active turn';if(statusData&&Number(statusData.winConfirm)===Number(s.player))return 'Response needed';return 'At table'}
-function renderPlayers(){const cards=seatData.seats.map(s=>{let cls='player';if(s.active)cls+=' active';if(statusData&&Number(statusData.winner)===Number(s.player))cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;let controls='';if(s.virtual&&!current)controls=`<a class="btn small" href="/login?profile=${encodeURIComponent(s.profileId)}">Sign into this profile</a>`;else if(current)controls='<button class="small" disabled>Current browser seat</button>';else{controls+=`<button class="small" onclick="claimSeat(${s.module},${s.slot})">Use this seat</button>`;if(s.hasPin&&!s.virtual)controls+=`<button class="small blue" onclick="pinLogin(${s.module},${s.slot})">PIN login</button>`}let flags='';if(s.active)flags+=badge('Active','active');if(s.sessionClaimed)flags+=badge('Browser linked','good');if(s.hasPin)flags+=badge('PIN');if(s.eliminated)flags+=badge('Out','bad');return `<article class="${cls}"><div class="player-head">${avatar(name,s.player,'',s.avatar)}<div><div class="player-name">${esc(name)}</div><div class="small">Player ${s.player} · ${esc(sigilLabel(s.module))} · Seat ${esc(s.slotName)}</div></div><span class="player-state ${s.active?'on':''}">${esc(playerStateText(s))}</span></div>${flags?`<div class="badges">${flags}</div>`:''}<div class="actions">${controls}</div></article>`});const html=cards.length?cards.join(''):'<div class="empty">No players have joined yet.</div>';if(players.innerHTML!==html)players.innerHTML=html}
+function renderPlayers(){const rows=seatData.seats.map(s=>{let cls='player row';if(s.active)cls+=' active';const won=statusData&&Number(statusData.winner)===Number(s.player);if(won)cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;
+ let controls='';if(s.virtual&&!current)controls=`<a class="btn small" href="/login?profile=${encodeURIComponent(s.profileId)}">Sign into this profile</a>`;else if(current)controls='<span class="badge good">You</span>';else{controls+=`<button class="small" onclick="claimSeat(${s.module},${s.slot})">Use this seat</button>`;if(s.hasPin&&!s.virtual)controls+=`<button class="small blue" onclick="pinLogin(${s.module},${s.slot})">PIN login</button>`}
+ const via=s.virtual?'Phone':`${esc(sigilLabel(s.module))} · seat ${esc(s.slotName)}`+(s.sessionClaimed?' + phone':'');
+ const life=s.lifeAvailable&&s.life!==undefined?`<span class="row-life" aria-label="Life ${Number(s.life)}">${Number(s.life)}</span>`:'';
+ return `<li class="${cls}">${avatar(name,s.player,'',s.avatar)}<div class="row-main"><div class="player-name">${esc(name)}${s.hasPin?' <svg class="i lock" aria-label="Has a PIN or password" role="img"><use href="#i-lock"/></svg>':''}</div><div class="small">Player ${s.player} · ${via}</div></div>${life}<span class="player-state ${s.active?'on':''}${won?' win':''}${s.eliminated?' out':''}">${esc(playerStateText(s))}</span><div class="row-actions actions">${controls}</div></li>`});
+ const html=rows.length?rows.join(''):'<li class="empty">No players have joined yet. Tap Invite players to show the QR codes.</li>';if(players.innerHTML!==html)players.innerHTML=html;renderSigilSteps()}
+// "Connect a Sigil" as numbered steps; each step's state comes from what Atlas reports.
+function renderSigilSteps(){const authed=!!(sessionInfo&&sessionInfo.authenticated),devs=(deviceData&&deviceData.devices)||[],paired=devs.length>0,mine=authed&&seatData.seats.some(s=>sameSessionSeat(s)&&!s.virtual),lobby=statusData&&statusData.state==='LOBBY';
+ const steps=[[authed,'Sign in on this phone',authed?`Signed in as ${esc(sessionInfo.name||'your profile')}.`:'<a href="/login">Sign in or create a profile</a>. Your statistics follow your profile, not the Sigil.'],
+  [paired,'Pair the Sigil with Atlas',paired?`${devs.length} Sigil${devs.length===1?'':'s'} paired.`:'On the Atlas screen open <strong>Menu → Pair a Sigil</strong>, then press <strong>Pair</strong> on the Sigil within 60 seconds.'],
+  [paired,'Check the codes match','The Sigil and Atlas show the same code. An Admin confirms it under Device Settings, or on the Atlas screen.'],
+  [mine,'Attach a seat to your profile',mine?'Your profile is on a Sigil seat.':lobby?'Under Sigils below, tap <strong>Attach seat A to my profile</strong>.':'Do this in the lobby, between games.']];
+ let current=steps.findIndex(x=>!x[0]);const html=steps.map(([done,title,text],i)=>`<li class="step ${done?'done':i===current?'current':''}"><span class="step-dot" aria-hidden="true">${done?'<svg class="i"><use href="#i-check"/></svg>':i+1}</span><div><strong>${title}</strong><span class="sr-only">${done?' (done)':i===current?' (next)':''}</span><p class="small">${text}</p></div></li>`).join('');if(sigilSteps.innerHTML!==html)sigilSteps.innerHTML=html}
+function openInvite(){inviteSsid.textContent=networkData&&networkData.ssid?` (${networkData.ssid})`:'';if(typeof inviteSheet.showModal==='function')inviteSheet.showModal();else inviteSheet.setAttribute('open','')}
 function seatsForModule(id){return seatData.seats.filter(s=>Number(s.module)===Number(id))}
 function capabilityHtml(x){const caps=[];if(x.display==='oled')caps.push(badge('OLED: up to 2 players','blue'));else if(x.display==='epaper')caps.push(badge('E-paper: up to 2 players','blue'));if(!x.metadata)caps.push(badge('No Hello yet','warn'));if(x.customName)caps.push(badge('Custom name','blue'));return caps.join('')}
 function renderDevices(d){renderPresence();
@@ -402,7 +429,7 @@ function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—
 
 function renderSession(){
  const authed=!!(sessionInfo&&sessionInfo.authenticated);
- if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;sigilAccessOwner=null;sigilAccessForm.hidden=true;sigilAccessSignedOut.hidden=false;jewelBox.hidden=true;personalSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';return}
+ if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;sigilAccessOwner=null;sigilAccessForm.hidden=true;sigilAccessSignedOut.hidden=false;jewelBox.hidden=true;personalSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';renderProfileHero();return}
  const policyOwnerChanged=profilePolicyOwner!==sessionInfo.profileId;
  if(policyOwnerChanged){profilePolicyDirty=false;profilePolicyOwner=sessionInfo.profileId}
  if(sigilAccessOwner!==sessionInfo.profileId){sigilAccessOwner=sessionInfo.profileId;sigilAccessForm.hidden=false;sigilAccessSignedOut.hidden=true;loadSigilAccess();loadJewel()}
@@ -417,6 +444,7 @@ function renderSession(){
  sessionTitle.textContent=name;sessionMeta.textContent=joined?`Player ${me.player} · ${me.virtual?'Phone play':sigilLabel(me.module)+' + phone'}`:'Signed in · not at the table';
  accountName.textContent=name;menuName.textContent=name;menuMeta.textContent=joined?`Player ${me.player} · at the table`:'Signed in · not at the table';accountButton.setAttribute('aria-label',`Account menu, ${name}`);
  for(const a of [sessionAvatar,profileAvatar,accountAvatar]){a.innerHTML=avatarSvg(myAvatar)||initials(name);a.style.setProperty('--hue',hue(joined?me.player:0))}
+ renderProfileHero();
  browserSeatMetric.textContent=joined?`${name} · Player ${me.player}`:name+' · signed in';claimHelp.hidden=true;signInButton.hidden=true;accountMenuWrap.hidden=false;moderationCard.hidden=false;profileBox.hidden=false;profileSignedOut.hidden=true;
  profileSeatTitle.textContent=name;profileSeatMeta.textContent=`Profile ${me.profileId}`;if(document.activeElement!==profileName)profileName.value=me.name||'';
  clearPinButton.hidden=!(me.hasPin&&joined&&!me.virtual);
@@ -693,7 +721,9 @@ async function archiveAccount(id,archived){if(!await uiAsk({title:archived?'Arch
 async function moderate(id,action){const meaning={reset:'Invalidate all browser sessions and suspend Sigil controls until this account signs in again? The seat and life totals stay.',remove:'Remove this player from the game and invalidate their connections?',pass:'Immediately pass this player’s turn?',mute:'Block this account from sending future nudges?',unmute:'Allow this account to send future nudges?'};if(!await uiAsk({title:'Game Master action',text:id+': '+meaning[action],ok:'Apply',danger:action==='remove'||action==='reset'}))return;try{await accountPost('moderate',{profileId:id,action});await refreshAll();await refreshAccountList();showToast('Moderation applied')}catch(e){showToast(e.message,true)}}
 
 // With no saved choice, follow the operating system's increased-contrast setting.
-setTheme(savedTheme()||'auto',false);loadMotionPref();buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
+setTheme(savedTheme()||'auto',false);loadMotionPref();
+document.querySelectorAll('input[name=theme]').forEach(r=>r.addEventListener('change',()=>{setTheme(r.value,false);appearanceStatus.textContent='Previewing this theme. Save appearance to keep it.'}));
+buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
 let savedTab='game';try{savedTab=localStorage.getItem('turnhubPortalTab')||'game'}catch(_){}
 showTab(savedTab);refreshAll();setInterval(pollTimer,POLL_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll()});loadSetup();
 </script>

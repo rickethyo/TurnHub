@@ -20,6 +20,8 @@ build:sprite):
       hashed assets too.
   href="./FILE" or src="./FILE"
       the file next to the page is published as /assets/FILE-stem.<hash>.ext.
+      In a referenced .webmanifest, "src": "./FILE" entries (icons) are
+      published the same way first.
 
 Hashed names never change for the same content, so Atlas serves /assets/ as
 immutable. index.html itself is served no-cache. Text files are stored gzip
@@ -64,6 +66,7 @@ STATIC = {
 
 CSS_BLOCK = re.compile(r"<!-- build:css ([A-Za-z0-9_-]+)\.css -->(.*?)<!-- /build:css -->", re.S)
 LOCAL_REF = re.compile(r'(href|src)="\./([^"]+)"')
+MANIFEST_REF = re.compile(r'"src":\s*"\./([^"]+)"')
 
 
 class BuildError(Exception):
@@ -124,7 +127,11 @@ def build_page(pack: Pack, src: Path) -> str:
 
     def local(m):
         target = (src.parent / m.group(2)).resolve()
-        return f'{m.group(1)}="{pack.asset(target.name, target.read_bytes())}"'
+        data = target.read_bytes()
+        if target.suffix == ".webmanifest":
+            data = MANIFEST_REF.sub(lambda r: f'"src": "{pack.asset(Path(r.group(1)).name, (target.parent / r.group(1)).resolve().read_bytes())}"',
+                                    data.decode("utf-8")).encode("utf-8")
+        return f'{m.group(1)}="{pack.asset(target.name, data)}"'
 
     html = LOCAL_REF.sub(local, html)
     # design/bundle.py's markers, with fonts as hashed assets instead of data: URIs.

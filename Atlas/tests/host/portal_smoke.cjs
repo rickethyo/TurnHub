@@ -5,7 +5,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=path.resolve(__dirname,'../..');
 const page=(file,name)=>fs.readFileSync(path.join(root,'src',file),'utf8').match(new RegExp('const char '+name+'\\[\\].*?R"HTML\\(([\\s\\S]*?)\\)HTML";'))[1];
 const pack=require('./portal_source.cjs');
-const portal=pack.html??page('web_pages.cpp','PORTAL_HTML'),login=page('profile_login_page.cpp','HTML');
+const portal=pack.html??page('web_pages.cpp','PORTAL_HTML'),login=pack.page('login.html')??page('profile_login_page.cpp','HTML');
 const theme=fs.readFileSync(path.join(root,'src','web_pages.cpp'),'utf8').match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
 let authenticated=false,joined=false,state='LOBBY',permissions=0,setupRequired=true;
 let policy={allowPhysicalWithoutPin:true,hideStatsWithoutAuthentication:true};
