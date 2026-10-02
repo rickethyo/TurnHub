@@ -66,8 +66,9 @@ class SigilDisplay {
     (void)page; (void)cursor;
   }
 
-  // The action menu drawn with the next screen: an e-ink compass legend, or
-  // the OLED's list while it is open. Set by the display task before show*().
+  // The action menu drawn with the next screen: the compass legend (the OLED
+  // shows it a line at a time), or the device menu while it is open. Set by
+  // the display task before show*().
   void setMenuView(const MenuView &view) { menu_ = view; }
   const MenuView &menuView() const { return menu_; }
   void setLifeOverlay(const LifeOverlay &life) { life_ = life; }

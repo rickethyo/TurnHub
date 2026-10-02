@@ -161,34 +161,57 @@ int main() {
   { OledDisplay i2c(c); i2c.begin(); i2c.showBooting(); }
   assert(panel.constructors == 0 && panel.frames == 0);
   assert(Serial.output.find("I2C_INIT_FAILED") != std::string::npos);
-  // The open menu list replaces the screen, scrolled to the cursor.
+  // The compass legend: one line at the bottom, a key at a time (click
+  // first), stepped by the display task's idle work.
   resetTrace();
   {
     OledDisplay d(fixture());
     d.begin();
-    SigilMenu m(MenuLayout::List);
+    SigilMenu m(true);
     MenuStateFields f;
-    for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::Resume,
-                          SigilAction::ClaimWin, SigilAction::LinkPhone}) f.actions |= sigilActionBit(a);
+    for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::ClaimWin}) f.actions |= sigilActionBit(a);
     f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
     m.applyMenuState2(encodeMenuState2(f), 0);
     d.setMenuView(m.view());
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(has("YOUR TURN") && !has("MENU"));  // Closed: the normal screen.
-    m.keyDown(Key::Up, 0);  // Select would pass; the other keys open the list.
-    d.setMenuView(m.view());
+    assert(has("YOUR TURN") && has("\x09 Pass turn") && !has("Pause"));
+    assert(d.idleWorkDueInMs(1000) == OledDisplay::LEGEND_STEP_MS);
+    assert(d.idleWorkDueInMs(1000 + OledDisplay::LEGEND_STEP_MS) == 0);
+    d.idleWork(1000 + OledDisplay::LEGEND_STEP_MS);
+    assert(has("\x18 Pause"));
+    d.idleWork(1000 + 2 * OledDisplay::LEGEND_STEP_MS);
+    assert(has("\x19 Claim win (hold)"));
+    // A redraw keeps the step; a new menu starts again from the click.
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(highlighted("MENU") && highlighted("1/6") && !has("YOUR TURN"));
-    assert(highlighted("Pass turn") && has("Claim win (hold)") && !has("Link phone"));
-    for (uint32_t t = 1; t <= 4; ++t) m.keyDown(Key::Down, t);
+    assert(has("\x19 Claim win (hold)"));
+    // Outside a game, Menu sits on the free Up key; it opens the device menu.
+    MenuStateFields ready;
+    ready.actions = sigilActionBit(SigilAction::Join);
+    m.applyMenuState2(encodeMenuState2(ready), 0);
     d.setMenuView(m.view());
-    GameDisplayPacket g{}; g.sigilId = 0; g.state = encodeDisplayState(DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    d.showGame(g);
-    assert(highlighted("Link phone") && highlighted("5/6") && !has("Pass turn") && has("Pause"));
-    m.setHoldTimes(2000, 5000);
-    m.keyDown(Key::Up, 10); m.keyDown(Key::Select, 20);
-    d.setMenuView(m.view()); d.showReady(0);
-    assert(highlighted("HOLD: Claim win"));
+    resetTrace(); d.showReady(0);
+    assert(has("Ready for game") && has("\x09 Join game"));
+    d.idleWork(20000);
+    assert(has("\x18 Menu"));
+    m.keyDown(Key::Up, 21000); m.keyUp(Key::Up, 21050);
+    d.setMenuView(m.view());
+    resetTrace(); d.showReady(0);
+    assert(highlighted("MENU") && has("\x09 Factory reset") && has("\x1b Back") &&
+        has("Hold 5 s to erase") && !has("Ready for game"));
+    m.keyDown(Key::Select, 22000);
+    d.setMenuView(m.view());
+    resetTrace(); d.showReady(0);
+    assert(highlighted("HOLD: Factory reset"));
+    // The device menu screen has no legend to step.
+    assert(d.idleWorkDueInMs(23000) == UINT32_MAX);
+    // Screens without a legend (the picker) do not step it either.
+    m.keyUp(Key::Select, 22500);
+    m.keyDown(Key::Left, 23000);
+    d.setMenuView(m.view());
+    ProfilePickerPacket page{};
+    page.mode = PickerMode::List; page.itemCount = 1; page.pageCount = 1;
+    resetTrace(); d.showPicker(page, 0);
+    assert(d.idleWorkDueInMs(24000) == UINT32_MAX);
   }
   resetTrace();
   {
@@ -196,7 +219,7 @@ int main() {
     // and a heart that drains or grows against the starting life.
     OledDisplay d(fixture());
     d.begin();
-    SigilMenu m(MenuLayout::List);
+    SigilMenu m(true);
     MenuStateFields f;
     for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::AdjustLife}) f.actions |= sigilActionBit(a);
     f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
@@ -209,7 +232,7 @@ int main() {
     life.startingLife = 40;
     d.setLifeOverlay(life);
     d.showGame(g);  // Also checks nothing overlaps at the widest life total.
-    assert(highlighted("YOUR TURN") && has("\x1b\x1a life  press: menu") && has("1000000"));
+    assert(highlighted("YOUR TURN") && has("\x09 Pass turn") && has("1000000"));
     life.passPending = true;
     d.setLifeOverlay(life);
     g.primary.life = 29; d.showGame(g);

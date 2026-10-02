@@ -256,24 +256,21 @@ int main(int argc, char **argv) {
   display.showState(2, DisplayMode::Paused, 3, 0, 9, 0); shot("paused");
   display.showState(2, DisplayMode::GameOver, 3, 0, 12, 0); shot("game-over");
 
-  // The open menu list (OLED) with a hold in progress.
-  SigilMenu menu(MenuLayout::List);
+  // The ready screen's Menu key, and the device menu with Factory reset held.
+  SigilMenu menu(true);
   MenuStateFields fields;
-  for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::ClaimWin,
-                        SigilAction::BeginElimination, SigilAction::LinkPhone}) {
-    fields.actions |= sigilActionBit(a);
-  }
-  fields.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
+  fields.actions = sigilActionBit(SigilAction::Join);
+  fields.defaultAction = static_cast<uint8_t>(SigilAction::Join);
   menu.applyMenuState2(encodeMenuState2(fields), 0);
-  menu.keyDown(Key::Up, 0);
-  menu.keyDown(Key::Down, 1);
-  menu.keyDown(Key::Down, 2);
   display.setMenuView(menu.view());
-  display.showGame(game(true, 32)); shot("menu-list");
-  menu.setHoldTimes(2000, 5000);
+  display.showReady(1); shot("ready-legend");
+  menu.keyDown(Key::Up, 0);
+  menu.keyUp(Key::Up, 10);
+  display.setMenuView(menu.view());
+  display.showReady(1); shot("device-menu");
   menu.keyDown(Key::Select, 20);
   display.setMenuView(menu.view());
-  display.showGame(game(true, 32)); shot("menu-hold");
+  display.showReady(1); shot("device-menu-hold");
   display.setMenuView(MenuView());
 
   printf("%s\n", failures ? "FAILED" : "OK");

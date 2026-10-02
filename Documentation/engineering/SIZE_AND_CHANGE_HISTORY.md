@@ -569,6 +569,26 @@ reset. Local builds (PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32 2.0.17):
 
 Protocol version stays 3.
 
+## 2026-10-02 Compass on both Sigils, device menu
+
+Sigil `0.9.3-dev` -> `0.9.4-dev`. The OLED Sigil's scrolling action list is
+replaced by the e-ink's compass (`MenuLayout` removed); the OLED shows the
+legend one key at a time on its bottom row, stepped by the display task's idle
+work. Both Sigils gain a device-local compass device menu (Menu on a free
+Up/Down key outside a game: Factory reset held 5 s, Back), so the e-ink can
+factory reset from its screen too. Undo pass moves to the click on both. The
+OLED profile picker stays a list. Manual V0.7. Local builds (PlatformIO 6.2.0,
+espressif32 7.1.3, Arduino-ESP32 2.0.17):
+
+| Build | Static RAM | Flash |
+| --- | --- | --- |
+| Sigil e-ink (`sigil`) 0.9.4 | 53,548 B | 920,901 B |
+| Sigil OLED (`sigil-oled`) 0.9.4 | 49,564 B | 932,721 B |
+| `sigil-wokwi` | 50,512 B | 878,565 B |
+
+Atlas and the harness are unchanged. Protocol version stays 3: nothing on the
+radio changed.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -581,4 +601,4 @@ Protocol version stays 3.
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-09-30
+Last updated: 2026-10-02

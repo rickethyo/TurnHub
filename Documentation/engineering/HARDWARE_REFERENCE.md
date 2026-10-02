@@ -385,11 +385,20 @@ Sigil 0.9.0). Atlas sends which actions each Sigil may use now (`MenuState2`),
 the Sigil sends the one chosen (`SelectAction`), and Atlas dispatches the
 Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
 
-- **E-ink (joystick): compass.** Every action has a fixed key, listed at the
-  bottom of the screen, so the panel redraws only when the menu changes. Click
-  is the likely action (Pass on your turn, Join, Start, Confirm win, Rematch);
+- **Both Sigils: compass** (the OLED since firmware 0.9.4, owner 2026-10-02;
+  it had a scrolling list before). Every action has a fixed key, so the e-ink
+  panel redraws only when the menu changes. The e-ink lists the keys at the
+  bottom of the screen; the OLED has room for one line, so its bottom row shows
+  one key at a time, the click first, stepping every 2.5 s. Click
+  is the likely action (Pass on your turn, Join, Start, Confirm win, Rematch,
+  and Undo pass during the pass grace: click again to undo);
   Up pauses or resumes; Down holds for Claim win or Reset table; Left is no,
   back or cancel; Right is yes or next. Link phone takes the first free key.
+- **Device menu (0.9.4):** outside a game, the first of Up and Down with
+  nothing on it reads **Menu**. It opens a device menu, also a compass:
+  **Factory reset** held 5 s on the click (erases this Sigil; Atlas is not
+  asked) and **Back** on Left. It closes after ten idle seconds or when a game
+  starts. In a game, the Pair button's 10 s hold remains the way to reset.
   Since firmware 0.8.0 (with a matching Atlas), Join opens the profile picker:
   Up, Right and Down pick a name, click shows more names or confirms, Left
   goes back (see [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25)).
@@ -397,20 +406,19 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   or else Left): both seats leave and the Sigil's seat profiles are released.
   A waiting phone link takes the last free key first.
 - **Life (0.8.0):** in a game, Left lowers and Right raises the shown player's
-  life whenever no menu action has those keys (on the OLED, while the list is
-  closed). A tap is 1; holding repeats, then counts in fives after 1.5 s. The
+  life whenever no menu action has those keys. A tap is 1; holding repeats, then counts in fives after 1.5 s. The
   Sigil sends one total 2 s after the last change. The e-ink shows the running
   total on the Jewel (green clockwise for a gain, red counter-clockwise for a
   loss, one pixel per point, center lit past six) and redraws once with the new
   life; the OLED shows it at once. A life request from another player shows as
   "P4: -3 life?": Right approves, Left denies, and ignoring it still accepts
   after 15 s.
-- **OLED: list.** Any stick push or click opens the list at the likely action;
-  Up and Down move, the click or Right chooses, Left closes, and ten idle
-  seconds close it.
 - **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:
   the long press) are sent only once the key is held for the seated players'
-  thresholds. The E-ink ring fills in white while held; the OLED row says HOLD.
+  thresholds. The ring fills in white while held; the OLED also says HOLD in
+  words while the device menu's Factory reset is held.
+- The OLED's profile picker stays a list (Up/Down move, click or Right
+  chooses, Left goes back); only the action menu became a compass.
 - Until Atlas sends a menu the keys do nothing (the gesture fallback was retired
   2026-09-30).
 

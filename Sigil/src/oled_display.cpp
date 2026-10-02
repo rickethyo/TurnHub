@@ -312,42 +312,115 @@ void OledDisplay::splash(const char *caption) {
   text(caption, 54, 1, Align::Center);
 }
 
-// Four rows under the header, scrolled to keep the cursor visible. The row
-// being held for a deliberate action says so; the status light shows progress.
-bool OledDisplay::drawMenuList() {
-  if (!menu_.active || !menu_.listOpen || menu_.itemCount == 0) return false;
-  constexpr uint8_t ROWS = 4;
-  constexpr int16_t ROW_HEIGHT = 12;
-  display_->clearDisplay();
-  char position[8];
-  snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(menu_.cursor + 1),
-      static_cast<unsigned>(menu_.itemCount));
-  header("MENU", position);
-  uint8_t first = menu_.cursor >= ROWS ? menu_.cursor - (ROWS - 1) : 0;
-  const int16_t w = display_->width();
-  for (uint8_t row = 0; row < ROWS && first + row < menu_.itemCount; ++row) {
-    const uint8_t index = first + row;
-    const auto action = static_cast<TurnHubProtocol::SigilAction>(menu_.items[index]);
-    const bool selected = index == menu_.cursor;
-    const int16_t y = HEADER_HEIGHT + 2 + row * ROW_HEIGHT;
-    if (selected) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
-    char line[28];
-    const bool hold = menuActionNeedsHold(menu_.items[index]);
-    if (menu_.holdAction == menu_.items[index]) {
-      snprintf(line, sizeof(line), "HOLD: %s", sigilActionLabel(action));
-    } else {
-      snprintf(line, sizeof(line), "%s%s", sigilActionLabel(action), hold ? " (hold)" : "");
-    }
-    text(line, y + 1, 1, Align::Left, selected, 3, w - 3);
+namespace {
+// Built-in font glyphs: 0x09 ring for the click, 0x18-0x1B arrows (as the e-ink legend).
+char keyGlyph(Key key) {
+  switch (key) {
+    case Key::Up: return 0x18;
+    case Key::Down: return 0x19;
+    case Key::Right: return 0x1A;
+    case Key::Left: return 0x1B;
+    default: return 0x09;
   }
+}
+constexpr Key LEGEND_KEYS[] = {Key::Select, Key::Up, Key::Down, Key::Left, Key::Right};
+constexpr int16_t LEGEND_Y = 56;  // The bottom text row.
+}  // namespace
+
+// The device menu as a compass: each row is a key and what it does. The row
+// being held says so; the status light shows the progress.
+bool OledDisplay::drawDeviceMenu() {
+  if (!menu_.active || !menu_.deviceMenu) return false;
+  constexpr int16_t ROW_HEIGHT = 12;
+  legendShown_ = false;
+  display_->clearDisplay();
+  header("MENU", "DEVICE");
+  const int16_t w = display_->width();
+  int16_t y = HEADER_HEIGHT + 3;
+  for (Key key : LEGEND_KEYS) {
+    const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
+    if (action == MENU_NONE) continue;
+    const char *label = sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
+    const bool held = menu_.holdAction == action;
+    char line[28];
+    if (held) snprintf(line, sizeof(line), "HOLD: %s", label);
+    else snprintf(line, sizeof(line), "%c %s", keyGlyph(key), label);
+    if (held) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
+    text(line, y + 1, 1, Align::Left, held, 3, w - 3);
+    y += ROW_HEIGHT;
+  }
+  // "(hold)" does not fit beside Factory reset (21 characters a row), so the
+  // hint says it in words.
+  text("Hold 5 s to erase", LEGEND_Y, 1, Align::Center);
   display_->display();
   return true;
+}
+
+uint8_t OledDisplay::legendEntries(char entries[][24]) const {
+  uint8_t count = 0;
+  if (!menu_.active) return 0;
+  for (Key key : LEGEND_KEYS) {
+    const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
+    if (action == MENU_NONE) continue;
+    snprintf(entries[count++], 24, "%c %s%s", keyGlyph(key),
+        sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action)),
+        menuActionNeedsHold(action) ? " (hold)" : "");
+  }
+  // Left/Right with nothing else on them change life.
+  if (menu_.life && menu_.compass[static_cast<uint8_t>(Key::Left)] == MENU_NONE &&
+      menu_.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE) {
+    snprintf(entries[count++], 24, "\x1b\x1a Life -/+ (hold)");
+  }
+  return count;
+}
+
+void OledDisplay::drawLegendRow() {
+  char entries[KEY_COUNT + 1][24];
+  const uint8_t count = legendEntries(entries);
+  if (count == 0) return;
+  display_->fillRect(0, LEGEND_Y, display_->width(), 8, SH110X_BLACK);
+  text(entries[legendIndex_ % count], LEGEND_Y, 1, Align::Center);
+}
+
+void OledDisplay::legend(bool drawn) {
+  // A different menu starts again from its click.
+  const bool same = legendMenu_.active == menu_.active && legendMenu_.life == menu_.life &&
+      memcmp(legendMenu_.compass, menu_.compass, sizeof(menu_.compass)) == 0;
+  if (!same) {
+    legendMenu_ = menu_;
+    legendIndex_ = 0;
+    legendTimed_ = false;
+  }
+  char entries[KEY_COUNT + 1][24];
+  legendShown_ = drawn && legendEntries(entries) > 0;
+  if (legendShown_) drawLegendRow();
+}
+
+uint32_t OledDisplay::idleWorkDueInMs(uint32_t nowMs) const {
+  char entries[KEY_COUNT + 1][24];
+  if (!ready_ || !legendShown_ || legendEntries(entries) < 2) return UINT32_MAX;
+  if (!legendTimed_) {
+    legendTimed_ = true;
+    legendSinceMs_ = nowMs;
+  }
+  const uint32_t elapsed = nowMs - legendSinceMs_;
+  return elapsed >= LEGEND_STEP_MS ? 0 : LEGEND_STEP_MS - elapsed;
+}
+
+void OledDisplay::idleWork(uint32_t nowMs) {
+  if (!ready_ || !legendShown_) return;
+  ++legendIndex_;
+  legendSinceMs_ = nowMs;
+  legendTimed_ = true;
+  drawLegendRow();
+  display_->display();
 }
 
 // Profile picker as a list (picker_list.h): the page's names, More names,
 // Back; or "Join as" a name with Yes / Back. Each row says in words what it
 // is, so nothing depends on the highlight alone.
 void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) {
+  legendShown_ = false;
   if (!ready_) return;
   using TurnHubProtocol::PickerNotice;
   constexpr int16_t ROW_HEIGHT = 12;
@@ -402,12 +475,13 @@ void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, u
 void OledDisplay::status(const char *headerRight, const char *big,
     const char *first, const char *second) {
   if (!ready_) return;
-  if (drawMenuList()) return;
+  if (drawDeviceMenu()) return;
   display_->clearDisplay();
   header("TurnHub", headerRight);
   bigLine(big);
   text(first, 41, 1, Align::Center);
   text(second, 52, 1, Align::Center);
+  legend(second == nullptr);  // The bottom row is free without a second line.
   display_->display();
 }
 
@@ -418,6 +492,7 @@ void OledDisplay::bigLine(const char *big) {
 }
 
 void OledDisplay::showBooting() {
+  legendShown_ = false;
   if (!ready_) return;
   display_->clearDisplay();
   splash("Booting");
@@ -435,6 +510,7 @@ void OledDisplay::showReady(uint8_t sigilId) {
 }
 
 void OledDisplay::showAtlasLost(uint8_t sigilId) {
+  legendShown_ = false;
   if (!ready_) return;
   // Drawn directly, not through status(): an open menu list must not cover
   // it, since none of its actions can reach Atlas now.
@@ -449,6 +525,7 @@ void OledDisplay::showAtlasLost(uint8_t sigilId) {
 }
 
 void OledDisplay::showPairingCode(uint16_t code) {
+  legendShown_ = false;
   if (!ready_) return;
   char digits[5];
   TurnHubSecureLink::formatPairingCode(code, digits);
@@ -464,6 +541,7 @@ void OledDisplay::showPairingCode(uint16_t code) {
 }
 
 void OledDisplay::showUpdate(const char *status, int8_t percent) {
+  legendShown_ = false;
   if (!ready_) return;
   // Drawn directly: an open menu list must not cover it.
   display_->clearDisplay();
@@ -481,7 +559,7 @@ void OledDisplay::showUpdate(const char *status, int8_t percent) {
 }
 
 void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
-  if (!ready_ || drawMenuList()) return;
+  if (!ready_ || drawDeviceMenu()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);
   const uint8_t secondary = TurnHubProtocol::displaySecondaryPlayer(s.state);
   const bool shared = secondary != 0;
@@ -558,16 +636,16 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
         text(label, y, 1, Align::Left, false, 0, damageStart - 6);
         text(damage, y, 1, Align::Right, false, damageStart);
       }
-      if (life_.passPending) text("Click again to undo", 56, 1, Align::Center);
+      if (life_.passPending) text("Click again to undo", LEGEND_Y, 1, Align::Center);
+      legend(false);
+    } else if (life_.passPending) {
+      // Undo pass is on the click (sigil_menu.cpp): say so plainly.
+      text("Click again to undo", LEGEND_Y, 1, Align::Center);
+      legend(false);
     } else {
-      // One quiet line of key help (turntest, 2026-09-26). The ask line above
-      // already names its keys.
-      const char *help = nullptr;
-      if (life_.passPending) help = "Click again to undo";
-      else if (asking || pending || !menu_.active) help = nullptr;
-      else if (menu_.life) help = "\x1b\x1a life  press: menu";
-      else help = "Press any key: menu";
-      if (help) text(help, 56, 1, Align::Center);
+      // One quiet line of key help (turntest, 2026-09-26): the compass legend,
+      // a key at a time. The ask line above already names its keys.
+      legend(!asking && !pending);
     }
   }
   display_->display();
@@ -575,7 +653,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
 
 void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
     uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber, uint8_t flags) {
-  if (!ready_ || drawMenuList()) return;
+  if (!ready_ || drawDeviceMenu()) return;
   const bool active = flags & TurnHubProtocol::DISPLAY_FLAG_ACTIVE;
   const bool starter = flags & TurnHubProtocol::DISPLAY_FLAG_STARTER;
   const bool winner = flags & TurnHubProtocol::DISPLAY_FLAG_WINNER;
@@ -630,10 +708,14 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
         fontText(name, &BrassFonts::OledSmall, 31, 42, Align::Center) < 0) {
       text(name, 30, 2, Align::Center);
     }
-    // A lone winner gets a crown under their name.
-    if (mode == TurnHubProtocol::DisplayMode::GameOver && winner) {
-      icon(Icon::Crown, display_->width() / 2 - 6, 52, SH110X_WHITE);
-    }
+  }
+  // The legend takes the bottom row; with none, a lone winner gets a crown
+  // under their name (the banner already says WINNER! in words).
+  char entries[KEY_COUNT + 1][24];
+  const bool legendFits = legendEntries(entries) > 0;
+  legend(legendFits);
+  if (!legendFits && !secondaryPlayer && mode == TurnHubProtocol::DisplayMode::GameOver && winner) {
+    icon(Icon::Crown, display_->width() / 2 - 6, 52, SH110X_WHITE);
   }
   display_->display();
 }

@@ -102,11 +102,12 @@ window.
   then factory resets. Release at the tone to stop at that step.
 - A button already down when the board starts (BOOT held through a reset, which
   enters the ROM downloader) is ignored until it is seen released.
-- The OLED Sigil's menu list also ends in **Factory reset** (hold 5 s). It is
+- Since firmware 0.9.4 (2026-10-02) both Sigils also offer **Factory reset**
+  (hold 5 s) in the device menu: outside a game, **Menu** on the first free of
+  Up/Down opens it (see `HARDWARE_REFERENCE.md`, menu controls). It is
   device-local: never in Atlas's menu mask, never sent to Atlas, only offered
-  while the Sigil is paired and its menu is active. The E-ink Sigil has no menu
-  entry: its compass has no free key, so it relies on the button hold until a
-  settings screen exists (see `STAGED_CHANGES.md`).
+  while the Sigil is paired and its menu is active. In a game there is no Menu
+  key, so the button hold is the way.
 - The test harness stops at unpair (3 s); it has nothing else to erase.
 - Hardware verification of the tones, timing and BOOT wiring is *Needs verification*.
 

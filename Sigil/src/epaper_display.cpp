@@ -99,11 +99,12 @@ void EpaperDisplay::drawLegend() {
     if (lifeRequestShown() && (key == Key::Left || key == Key::Right)) continue;
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
-    const auto a = static_cast<TurnHubProtocol::SigilAction>(action);
     drawKeycap(key, MARGIN, y);
     char line[24];
-    snprintf(line, sizeof(line), "%s%s", sigilActionLabel(a),
-        TurnHubProtocol::sigilActionHold(a) != TurnHubProtocol::ActionHold::None ? " (hold)" : "");
+    // "Factory reset (hold)" is too wide; the device menu screen says "hold" in words.
+    const bool hold = menuActionNeedsHold(action) && action != MENU_LOCAL_FACTORY_RESET;
+    snprintf(line, sizeof(line), "%s%s", sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action)),
+        hold ? " (hold)" : "");
     display_.setCursor(MARGIN + CAP + 4, y + 1);
     printClipped(line, (display_.width() - 2 * MARGIN - CAP - 4) / CHAR_WIDTH);
     y += LEGEND_LINE;
@@ -568,7 +569,16 @@ void EpaperDisplay::showUnpaired() {
   drawStatus("Unpaired", "Press Pair on both");
 }
 
+// The open device menu replaces the ready and lobby screens; its legend holds
+// Factory reset and Back. False if it is closed.
+bool EpaperDisplay::drawDeviceMenu() {
+  if (!menu_.active || !menu_.deviceMenu) return false;
+  drawStatus("Device menu", "Hold click to erase");
+  return true;
+}
+
 void EpaperDisplay::showReady(uint8_t sigilId) {
+  if (drawDeviceMenu()) return;
   char title[24];
   snprintf(title, sizeof(title), "Sigil %u", static_cast<unsigned>(sigilId + 1));
   drawStatus(title, "Ready for game");
@@ -747,6 +757,7 @@ void EpaperDisplay::showState(
     uint8_t secondaryPlayer,
     uint8_t turnNumber,
     uint8_t flags) {
+  if (drawDeviceMenu()) return;
   const bool active = (flags & TurnHubProtocol::DISPLAY_FLAG_ACTIVE) != 0;
   const bool host = (flags & TurnHubProtocol::DISPLAY_FLAG_HOST) != 0;
   const bool starter = (flags & TurnHubProtocol::DISPLAY_FLAG_STARTER) != 0;

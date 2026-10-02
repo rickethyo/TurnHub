@@ -70,6 +70,8 @@ class EpaperDisplay final : public SigilDisplay {
   uint8_t legendLines() const;
   bool lifeRequestShown() const;
   bool lifeKeysShown() const;
+  // Draws the open device menu instead of the ready/lobby screen; false if closed.
+  bool drawDeviceMenu();
   int16_t contentBottom() const;
   void drawLegend();
   void drawKeycap(Key key, int16_t x, int16_t y);

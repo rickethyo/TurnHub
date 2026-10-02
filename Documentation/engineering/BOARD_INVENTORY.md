@@ -46,5 +46,5 @@ The new E-ink and OLED Sigils' MACs were read with `read_mac` on 2026-10-01
 (E-ink plugged in first, OLED second). *Verified* 2026-10-01 (owner photo):
 the new E-ink Sigil, built into its wooden case, shows the paired lobby screen
 ("Sigil 2 · Ready for game") with the status ring lit, so its firmware and
-open strap are right. *Needs verification:* the new OLED Sigil's strap and boot
-banner.
+open strap are right. The new OLED Sigil is also up and running (owner,
+2026-10-01), so its IO4-to-GND strap is right.

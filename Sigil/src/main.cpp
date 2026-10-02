@@ -143,10 +143,9 @@ TurnHubProtocol::ThreePartButton pairGesture;
 ButtonState keys[] = {ButtonState(KEY_PINS[0]), ButtonState(KEY_PINS[1]),
     ButtonState(KEY_PINS[2]), ButtonState(KEY_PINS[3]), ButtonState(KEY_PINS[4])};
 static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One button per key");
-// The e-ink panel redraws in seconds, so it gets the fixed-key compass; the
-// OLED redraws instantly and gets the scrolling list.
-TurnHubSigil::SigilMenu sigilMenu(
-    TURNHUB_DISPLAY_OLED ? TurnHubSigil::MenuLayout::List : TurnHubSigil::MenuLayout::Compass);
+// Both Sigils use the fixed-key compass. Only the OLED, which redraws
+// instantly, names a held action on screen; the e-ink leaves that to the light.
+TurnHubSigil::SigilMenu sigilMenu(TURNHUB_DISPLAY_OLED != 0);
 TurnHubProtocol::SigilAction lastSelectedAction = TurnHubProtocol::SigilAction::Count;
 // Menu snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::MenuView publishedMenuView;
@@ -1286,7 +1285,7 @@ void publishLifeOverlay() {
 }
 
 // Left/Right: answer a shown life request (Right approves, Left denies), or
-// change life when no menu action has the key (and the OLED list is closed).
+// change life when no menu action has the key.
 // True when the key was used here.
 bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
   const uint8_t k = static_cast<uint8_t>(key);
@@ -1309,9 +1308,7 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
     publishLifeOverlay();
     return true;
   }
-  const bool free = sigilMenu.lifeOffered() &&
-      (TURNHUB_DISPLAY_OLED ? !sigilMenu.listOpen()
-          : TurnHubSigil::SigilMenu::compassAction(sigilMenu.actions(), key) == TurnHubSigil::MENU_NONE);
+  const bool free = sigilMenu.lifeOffered() && sigilMenu.keyAction(key) == TurnHubSigil::MENU_NONE;
   const uint8_t player = shownPlayer();
   if (!free || player == 0) return false;
   lifeAdjuster.press(right ? 1 : -1, player, nowMs);
@@ -1396,7 +1393,7 @@ void updateMenuKeys() {
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
   if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_FACTORY_RESET) {
-    // Held to the end in the OLED menu: erase this Sigil. Atlas is not asked.
+    // Held to the end in the device menu: erase this Sigil. Atlas is not asked.
     Serial.println("SIGIL|MENU|FACTORY_RESET");
     playBuzzerPayload(TurnHubProtocol::encodeTone(440, 300));
     delay(300);

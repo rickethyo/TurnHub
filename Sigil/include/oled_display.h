@@ -25,6 +25,10 @@ class OledDisplay final : public SigilDisplay {
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) override;
   void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
+  // The one-line compass legend steps to its next key every LEGEND_STEP_MS.
+  uint32_t idleWorkDueInMs(uint32_t nowMs) const override;
+  void idleWork(uint32_t nowMs) override;
+  static constexpr uint32_t LEGEND_STEP_MS = 2500;
 #ifdef TURNHUB_SCREEN_PREVIEW
   // The host screen preview reads the canvas back (tests/host/render_sigil_screens.cpp).
   Adafruit_GFX &previewGfx() { return *display_; }
@@ -53,12 +57,25 @@ class OledDisplay final : public SigilDisplay {
   void splash(const char *caption);
   void status(const char *headerRight, const char *big, const char *first,
       const char *second = nullptr);
-  // Draws the open menu list instead of the current screen; false if closed.
-  bool drawMenuList();
+  // Draws the open device menu instead of the current screen; false if closed.
+  bool drawDeviceMenu();
+  // The compass legend has room for one line here, so it shows one key at a
+  // time: the click first, then the others in turn (idleWork). Each entry is
+  // the key's glyph and its words. Returns the number of entries.
+  uint8_t legendEntries(char entries[][24]) const;
+  // Draws the current entry on the bottom row and remembers the row so
+  // idleWork can step it; drawn = false notes this screen has no legend.
+  void legend(bool drawn);
+  void drawLegendRow();
 
   const OledConfig config_;
   std::unique_ptr<Adafruit_SH1106G> display_;
   bool ready_ = false;
+  bool legendShown_ = false;
+  uint8_t legendIndex_ = 0;
+  MenuView legendMenu_;              // The menu the index belongs to.
+  mutable bool legendTimed_ = false;  // legendSinceMs_ is set.
+  mutable uint32_t legendSinceMs_ = 0;
   char seatNameA_[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
   char seatNameB_[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1] = {};
 };

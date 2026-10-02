@@ -215,7 +215,9 @@ its arc sweeps down below the starting life and an outer arc grows above it.
 `PASS_GRACE_MS` (3 s) moved into `protocol.h` so both firmwares agree on it;
 Atlas still owns the grace timer. A Sigil treats "Undo pass is in the menu" as
 its pass being pending and shows PASSING, a green ring countdown, and (OLED)
-"Click again to undo", where a second Select sends `CancelPass`. Feature gate:
+"Click again to undo", where a second Select sends `CancelPass`. Since Sigil
+0.9.4 Undo pass prefers the click on both Sigils' compass (the e-ink had it on
+Left). Feature gate:
 no new Intent (CancelPass already exists), no new state owner or persistence,
 rendering on both Sigils and the Atlas screen ("Passing in Ns"), no new
 dependency; the number and words still carry every meaning. *Host-tested*;

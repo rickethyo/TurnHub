@@ -98,7 +98,7 @@ int main() {
     assert(SigilMenu::compassAction(pausedWaiting, Key::Down) == id(A::SwitchSeat));
   }
 
-  SigilMenu compass(MenuLayout::Compass);
+  SigilMenu compass(false);
   // No menu yet: inactive, keys ignored (main.cpp falls back to gestures).
   compass.keyDown(Key::Select, 0);
   assert(!compass.active() && !compass.update(0).ready && !compass.view().active);
@@ -131,85 +131,82 @@ int main() {
   compass.keyUp(Key::Down, 30000);
 
   // Compass view: the legend's actions per key.
-  compass.applyMenuState2(menu({A::ConfirmWin, A::DenyWin}, A::ConfirmWin, 9), 0);
+  compass.applyMenuState2(menu({A::ConfirmWin, A::DenyWin, A::AdjustLife}, A::ConfirmWin, 9), 0);
   MenuView v = compass.view();
-  assert(v.active && v.compass[static_cast<uint8_t>(Key::Select)] == id(A::ConfirmWin));
+  assert(v.active && v.compass[static_cast<uint8_t>(Key::Select)] == id(A::ConfirmWin) && v.life);
   assert(v.compass[static_cast<uint8_t>(Key::Left)] == id(A::DenyWin) && v.compass[0] == MENU_NONE);
 
-  // List: the first key opens at the default; Up/Down move; Select chooses.
-  SigilMenu list(MenuLayout::List);
-  list.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin}, A::Pass, 3), 0);
-  assert(!list.view().listOpen);
-  list.keyDown(Key::Down, 0);
-  v = list.view();
-  assert(v.listOpen && v.itemCount == 4 && v.items[v.cursor] == id(A::Pass) && !list.update(0).ready);
-  list.keyDown(Key::Down, 100);
-  assert(list.view().items[list.view().cursor] == id(A::Pause));
-  list.keyDown(Key::Down, 200);
-  assert(list.view().items[list.view().cursor] == id(A::ClaimWin));
-  // The device-local Factory reset is always the last row (OLED list only).
-  list.keyDown(Key::Down, 250); list.keyDown(Key::Down, 300);  // Clamped at the end.
-  assert(list.view().items[list.view().cursor] == MENU_LOCAL_FACTORY_RESET);
-  assert(menuActionNeedsHold(MENU_LOCAL_FACTORY_RESET) && !menuActionNeedsHold(id(A::Pass)) &&
-         menuActionNeedsHold(id(A::ClaimWin)));
-  assert(strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_FACTORY_RESET)), "Factory reset") == 0);
-  list.keyDown(Key::Up, 350);
-  assert(list.view().items[list.view().cursor] == id(A::ClaimWin));
-  // Deliberate: the list shows the hold on screen.
-  list.setHoldTimes(2000, 5000);
-  list.keyDown(Key::Select, 400);
-  assert(list.view().holdAction == id(A::ClaimWin));
-  list.keyUp(Key::Select, 1000);
-  assert(list.view().holdAction == MENU_NONE && list.view().listOpen);
-  list.keyDown(Key::Up, 1100);
-  list.keyDown(Key::Right, 1200);  // Right chooses too.
-  c = list.update(1200);
-  assert(c.ready && c.action == A::Pause && c.revision == 3 && !list.view().listOpen);
-  // Left closes; an idle list closes by itself.
-  list.keyDown(Key::Up, 2000); assert(list.view().listOpen);
-  list.keyDown(Key::Left, 2100); assert(!list.view().listOpen);
-  list.keyDown(Key::Up, 3000); assert(list.view().listOpen);
-  list.update(3000 + MENU_LIST_IDLE_MS); assert(!list.view().listOpen);
-  // Select is Enter: with the list closed it passes, like the e-ink click.
-  list.keyDown(Key::Select, 19000);
-  c = list.update(19000);
-  assert(c.ready && c.action == A::Pass && !list.view().listOpen);
-  list.keyUp(Key::Select, 19100);
-  // A new menu keeps the cursor on a surviving action, else the default.
-  list.keyDown(Key::Up, 20000); list.keyDown(Key::Down, 20100);
-  assert(list.view().items[list.view().cursor] == id(A::Pause));
-  list.applyMenuState2(menu({A::Pause, A::Resume, A::ClaimWin}, A::Resume, 4), 20200);
-  assert(list.view().items[list.view().cursor] == id(A::Pause));
-  list.applyMenuState2(menu({A::Resume, A::BeginElimination}, A::Resume, 5), 20300);
-  assert(list.view().items[list.view().cursor] == id(A::Resume));
-  list.applyMenuState2(menu({}, A::Count, 6), 20400);
-  // The open list stays, now with only the local row; Left closes it.
-  assert(list.view().listOpen && list.view().itemCount == 1);
-  list.keyDown(Key::Left, 20450);
-  assert(!list.view().listOpen);
-  // Atlas offers nothing: the list still opens, with only the local Factory reset.
-  list.keyDown(Key::Select, 20500);
-  v = list.view();
-  assert(v.listOpen && v.itemCount == 1 && v.items[0] == MENU_LOCAL_FACTORY_RESET);
-  // Releasing early abandons it; held to the end it is chosen (main.cpp erases the
-  // Sigil; the choice is never sent to Atlas).
-  list.keyDown(Key::Select, 20600);
-  assert(list.view().holdAction == MENU_LOCAL_FACTORY_RESET && list.holdProgress(20600 + 2500) > 100);
-  list.keyUp(Key::Select, 20700);
-  assert(list.view().holdAction == MENU_NONE && !list.update(20700 + MENU_FACTORY_RESET_HOLD_MS).ready);
-  list.keyDown(Key::Select, 30000);
-  assert(!list.update(30000 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
-  c = list.update(30000 + MENU_FACTORY_RESET_HOLD_MS);
-  assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !list.view().listOpen);
-  list.keyUp(Key::Select, 36000);
-  // The e-ink compass never carries it.
-  SigilMenu eink(MenuLayout::Compass);
-  eink.applyMenuState2(menu({}, A::Count, 1), 0);
-  assert(eink.view().itemCount == 0);
+  // Device menu (both Sigils, owner 2026-10-02): outside a game, the first of
+  // Up/Down with nothing on it is Menu. The device menu is a compass too:
+  // the click holds Factory reset, Left goes back.
+  SigilMenu dev(true);  // The OLED: names the held action on screen.
+  dev.applyMenuState2(menu({A::Join}, A::Join, 3), 0);
+  v = dev.view();
+  assert(v.compass[static_cast<uint8_t>(Key::Select)] == id(A::Join) &&
+      v.compass[static_cast<uint8_t>(Key::Up)] == MENU_LOCAL_DEVICE_MENU &&
+      v.compass[static_cast<uint8_t>(Key::Down)] == MENU_NONE && !v.deviceMenu);
+  assert(strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_DEVICE_MENU)), "Menu") == 0 &&
+      strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_BACK)), "Back") == 0 &&
+      strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_FACTORY_RESET)), "Factory reset") == 0);
+  assert(menuActionNeedsHold(MENU_LOCAL_FACTORY_RESET) && !menuActionNeedsHold(MENU_LOCAL_DEVICE_MENU) &&
+      !menuActionNeedsHold(MENU_LOCAL_BACK) && !menuActionNeedsHold(id(A::Pass)) &&
+      menuActionNeedsHold(id(A::ClaimWin)));
+  // Up taken (Random start): Menu moves to Down; both taken: no Menu.
+  assert(dev.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
+  dev.applyMenuState2(menu({A::Join, A::RandomStarter}, A::Join, 4), 0);
+  assert(dev.keyAction(Key::Down) == MENU_LOCAL_DEVICE_MENU && dev.keyAction(Key::Up) == id(A::RandomStarter));
+  dev.applyMenuState2(menu({A::RandomStarter, A::Leave}, A::Leave, 5), 0);
+  assert(dev.keyAction(Key::Up) != MENU_LOCAL_DEVICE_MENU && dev.keyAction(Key::Down) != MENU_LOCAL_DEVICE_MENU);
+  // In a game (AdjustLife offered) there is no Menu, even with Up free.
+  dev.applyMenuState2(menu({A::Pass, A::AdjustLife}, A::Pass, 6), 0);
+  assert(dev.keyAction(Key::Up) == MENU_NONE && dev.keyAction(Key::Down) == MENU_NONE && dev.lifeOffered());
+  // Open it: nothing is sent; the compass now holds the device menu.
+  dev.applyMenuState2(menu({A::Join}, A::Join, 7), 0);
+  dev.keyDown(Key::Up, 1000);
+  assert(!dev.update(1000).ready && dev.deviceMenuOpen());
+  dev.keyUp(Key::Up, 1050);
+  v = dev.view();
+  assert(v.deviceMenu && v.compass[static_cast<uint8_t>(Key::Select)] == MENU_LOCAL_FACTORY_RESET &&
+      v.compass[static_cast<uint8_t>(Key::Left)] == MENU_LOCAL_BACK &&
+      v.compass[static_cast<uint8_t>(Key::Up)] == MENU_NONE &&
+      v.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE);
+  // Back closes it.
+  dev.keyDown(Key::Left, 1100);
+  assert(!dev.update(1100).ready && !dev.deviceMenuOpen());
+  dev.keyUp(Key::Left, 1150);
+  // Releasing Factory reset early abandons it; held to the end it is chosen
+  // (main.cpp erases the Sigil; the choice is never sent to Atlas).
+  dev.keyDown(Key::Up, 2000); dev.keyUp(Key::Up, 2050);
+  dev.keyDown(Key::Select, 2100);
+  assert(dev.view().holdAction == MENU_LOCAL_FACTORY_RESET && dev.holdProgress(2100 + 2500) > 100);
+  dev.keyUp(Key::Select, 2700);
+  assert(dev.view().holdAction == MENU_NONE && !dev.update(2700 + MENU_FACTORY_RESET_HOLD_MS).ready);
+  dev.keyDown(Key::Select, 3000);
+  assert(!dev.update(3000 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
+  c = dev.update(3000 + MENU_FACTORY_RESET_HOLD_MS);
+  assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !dev.deviceMenuOpen());
+  dev.keyUp(Key::Select, 9000);
+  // An idle device menu closes by itself; a game starting closes it too.
+  dev.keyDown(Key::Up, 10000); dev.keyUp(Key::Up, 10050);
+  dev.update(10000 + MENU_DEVICE_IDLE_MS - 1); assert(dev.deviceMenuOpen());
+  dev.update(10000 + MENU_DEVICE_IDLE_MS); assert(!dev.deviceMenuOpen());
+  dev.keyDown(Key::Up, 30000); dev.keyUp(Key::Up, 30050);
+  dev.applyMenuState2(menu({A::Pass, A::AdjustLife}, A::Pass, 8), 30100);
+  assert(!dev.deviceMenuOpen() && dev.lifeOffered());
+  // The e-ink (no on-screen hold) shows the same compass, never the hold.
+  SigilMenu eink(false);
+  eink.applyMenuState2(menu({A::Join}, A::Join, 1), 0);
+  eink.keyDown(Key::Up, 0); eink.keyUp(Key::Up, 10);
+  eink.keyDown(Key::Select, 20);
+  assert(eink.view().deviceMenu && eink.view().holdAction == MENU_NONE && eink.holdProgress(1000) > 0);
+  eink.keyUp(Key::Select, 1000);
 
-  // Unpaired: back to inactive.
-  list.clear();
-  assert(!list.active() && !list.view().active);
+  // Unpaired: back to inactive, device menu closed.
+  dev.applyMenuState2(menu({A::Join}, A::Join, 9), 40000);
+  dev.keyDown(Key::Up, 40000); dev.keyUp(Key::Up, 40050);
+  assert(dev.deviceMenuOpen());
+  dev.clear();
+  assert(!dev.active() && !dev.view().active && !dev.deviceMenuOpen());
 
   // MenuState2 carries Leave (action 21) and later actions; Leave is a
   // long-press hold on Down, and a waiting phone link outranks it.
@@ -223,7 +220,7 @@ int main() {
     assert(SigilMenu::compassAction(f.actions, Key::Down) == id(A::Leave));
     assert(SigilMenu::compassAction(f.actions | sigilActionBit(A::LinkPhone), Key::Down) == id(A::LinkPhone));
     assert(sigilActionHold(A::Leave) == ActionHold::Long);
-    SigilMenu leaver(MenuLayout::Compass);
+    SigilMenu leaver(false);
     leaver.applyMenuState2(encodeMenuState2(f), 0);
     leaver.keyDown(Key::Down, 10);
     assert(!leaver.update(1000).ready);
@@ -319,17 +316,18 @@ int main() {
     assert(label[0] && std::strlen(label) <= 12);
   }
   {
-    // OLED: Select passes, and pressed again in the grace period it undoes
-    // the pass without opening the list.
-    SigilMenu oled(MenuLayout::List);
-    oled.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
-    oled.keyDown(Key::Select, 10); oled.keyUp(Key::Select, 20);
-    MenuChoice c = oled.update(20);
+    // Both Sigils: Select passes, and pressed again in the grace period it
+    // undoes the pass (Undo pass is on the click, like Atlas's "pass again").
+    SigilMenu sigil(true);
+    sigil.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
+    sigil.keyDown(Key::Select, 10); sigil.keyUp(Key::Select, 20);
+    MenuChoice c = sigil.update(20);
     assert(c.ready && c.action == A::Pass);
-    oled.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::LinkPhone}, A::CancelPass, 2), 30);
-    oled.keyDown(Key::Select, 40); oled.keyUp(Key::Select, 50);
-    c = oled.update(50);
-    assert(c.ready && c.action == A::CancelPass && !oled.view().listOpen);
+    sigil.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::LinkPhone}, A::CancelPass, 2), 30);
+    assert(sigil.keyAction(Key::Select) == id(A::CancelPass));
+    sigil.keyDown(Key::Select, 40); sigil.keyUp(Key::Select, 50);
+    c = sigil.update(50);
+    assert(c.ready && c.action == A::CancelPass);
   }
-  std::cout << "Menu wire format, compass keys, list navigation, holds and stale menus passed\n";
+  std::cout << "Menu wire format, compass keys, device menu, holds and stale menus passed\n";
 }

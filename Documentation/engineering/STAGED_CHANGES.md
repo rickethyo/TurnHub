@@ -917,12 +917,12 @@ Last updated: 2026-09-24
 ## BOOT button three-gesture follow-ups (2026-09-30)
 
 Implemented: quick press pairs, 3 s unpairs, 10 s factory resets, on both
-Sigils, Atlas and (unpair only) the harness; the OLED Sigil's menu ends in a
-5 s-hold Factory reset. Open:
+Sigils, Atlas and (unpair only) the harness; since Sigil 0.9.4 (owner,
+2026-10-02) both Sigils have a compass device menu, opened by **Menu** on a free
+Up/Down key outside a game, with a 5 s-hold Factory reset. Open:
 
-- **E-ink factory reset from the device UI.** The compass has no free key and
-  the owner is unsure about a compass entry. Revisit with a settings screen
-  (owner, 2026-09-30); until then the 10 s hold is the only way on the E-ink Sigil.
+- ~~E-ink factory reset from the device UI~~ *Implemented* in 0.9.4 by that
+  device menu (it replaced the OLED list's entry).
 - **Atlas touchscreen entry for the same actions.** Atlas's screen has no
   factory reset; Admins use the portal or app. Only the BOOT button works at
   the device.

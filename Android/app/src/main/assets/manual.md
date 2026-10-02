@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.6.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.7.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.6
+## Prototype Edition v0.7
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -233,21 +233,29 @@ When time runs out, the Sigil plays two low notes and its light stays steady. Th
 
 A Sigil offers a short menu of what you can do right now. Atlas decides the choices, so the menu changes with the game: Join game in the lobby, Pass turn on your turn, Confirm win when a win claim is waiting on you, and so on.
 
-## E-ink Sigil (Thumbstick)
+## Choosing an Action
 
-The bottom of the screen shows a legend. Each line starts with a key: an arrow for a direction, or a filled circle for the click (pressing the stick straight in). Push the stick in the direction shown, or click, to choose that action. The click is always the most likely action.
+Both Sigils work the same way: each action has its own direction. Push the stick in the direction shown, or click (press the stick straight in), to choose that action. The click is always the most likely action. To undo a pass, click again while the Sigil says it is passing.
 
-## OLED Sigil (Thumbstick)
+- **E-ink Sigil:** the bottom of the screen lists every choice. Each line starts with a key: an arrow for a direction, or a filled circle for the click.
 
-Push or click the stick to open the menu list. It opens on the most likely action. Up and Down move through the list, a click or Right chooses, and Left closes it. The list closes by itself after 10 seconds without a press.
+- **OLED Sigil:** the bottom line shows one choice at a time, starting with the click, and moves on to the next every few seconds.
+
+## Device Menu
+
+Outside a game, Up (or Down, if Up is in use) shows **Menu**. It opens the Sigil's own menu:
+
+- **Factory reset:** hold the click for 5 seconds. The Sigil erases everything it has saved, including its pairing, and restarts as new.
+
+- **Back:** push Left to close the menu. It also closes by itself after 10 seconds.
 
 ## Actions You Hold
 
-Actions that are hard to undo must be held: **Claim win**, **Confirm out** and **Reset table**. While you hold, the light ring fills up (and the OLED list shows HOLD). Let go early to cancel. Each player can change the hold times; see Accessibility Settings in section 13.
+Actions that are hard to undo must be held: **Claim win**, **Confirm out**, **Reset table** and the device menu's **Factory reset**. While you hold, the light ring fills up. Let go early to cancel. Each player can change the hold times (except Factory reset's 5 seconds); see Accessibility Settings in section 13.
 
 ## Pair Control
 
-The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. This keeps pairing separate from normal gameplay.
+The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game, when the device menu is not offered.
 
 ## Light Ring
 
@@ -631,7 +639,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.6
+**Manual Version:** 0.7
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Development build (Atlas 0.6.3-dev, Sigil 0.9.3-dev)
+**Software:** Development build (Atlas 0.6.3-dev, Sigil 0.9.4-dev)
 **Product names and specifications subject to change.**
