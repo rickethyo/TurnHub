@@ -123,6 +123,14 @@ const api=http.createServer(async(req,res)=>{
   await recipient.setViewportSize({width:1440,height:1000});
   await recipient.evaluate(()=>window.scrollTo(0,0));
   await recipient.screenshot({path:path.join(__dirname,'build','counter-desktop.png'),fullPage:true});
+  // PORTAL_RENDERS=1: the same moment in every theme, phone and desktop, for design review.
+  if(process.env.PORTAL_RENDERS==='1')for(const theme of pack.enabled?['graphite','daylight','brass','contrast']:['brass','midnight','parchment','contrast']){
+   await recipient.evaluate(t=>{document.documentElement.dataset.theme=t},theme);
+   for(const [w,h,name] of [[1440,1000,'desktop'],[390,844,'phone']]){
+    await recipient.setViewportSize({width:w,height:h});await recipient.evaluate(()=>window.scrollTo(0,0));await recipient.waitForTimeout(400);
+    await recipient.screenshot({path:path.join(__dirname,'build',`render-${theme}-${name}.png`)});
+   }
+  }
   // Atlas's state, not a client-side timer, resolves the prompt.
   requests[0].state='automatic';life[1]+=requests[0].delta;requests[0].remainingMs=0;
   await recipient.evaluate(()=>refreshAll());

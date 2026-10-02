@@ -191,15 +191,23 @@ case '/api/speaker':if(req.method==='POST'){speakerVolume=Number(url.searchParam
   await contrastTab.goto(base);
   assert.equal(await contrastTab.evaluate(()=>document.documentElement.dataset.theme),'contrast');
   await contrastTab.getByRole('button',{name:'My Account',exact:true}).click();
-  assert(await contrastTab.getByRole('radio',{name:/^High contrast/}).isChecked());
+  // The pack portal marks Automatic (follow the device); the flash portal marks the theme itself.
+  assert(await contrastTab.getByRole('radio',{name:pack.enabled?/^Automatic/:/^High contrast/}).isChecked());
   assert.equal(await contrastTab.evaluate(()=>localStorage.getItem('turnhubTheme')),null);
-  await contrastTab.getByRole('radio',{name:/^Parchment/}).check();
+  await contrastTab.getByRole('radio',{name:pack.enabled?/^Daylight/:/^Parchment/}).check();
   await contrastTab.getByRole('button',{name:'Save appearance',exact:true}).click();
   await contrastTab.reload();
-  assert.equal(await contrastTab.evaluate(()=>document.documentElement.dataset.theme),'parchment');
+  assert.equal(await contrastTab.evaluate(()=>document.documentElement.dataset.theme),pack.enabled?'daylight':'parchment');
   await contrastContext.close();
   const plainTab=await (await browser.newContext()).newPage();await plainTab.goto(base);
-  assert.equal(await plainTab.evaluate(()=>document.documentElement.dataset.theme),'brass');
+  assert.equal(await plainTab.evaluate(()=>document.documentElement.dataset.theme),pack.enabled?'daylight':'brass');
+  if(pack.enabled){
+   // A dark device gets Graphite; a theme saved before V1 maps to its successor.
+   const darkTab=await (await browser.newContext({colorScheme:'dark'})).newPage();await darkTab.goto(base);
+   assert.equal(await darkTab.evaluate(()=>document.documentElement.dataset.theme),'graphite');
+   await darkTab.evaluate(()=>localStorage.setItem('turnhubTheme','midnight'));await darkTab.reload();
+   assert.equal(await darkTab.evaluate(()=>document.documentElement.dataset.theme),'graphite');
+  }
   console.log('PASS portal smoke: profiles, game setup, life controls/totals, policy save, Sigil accessibility, reduce motion, pairing window, forget Sigils, draw result, OS contrast default, mobile/desktop fit, no JS errors');
  }finally{await browser.close();api.close()}
 })().catch(e=>{console.error(e);api.close();process.exitCode=1});

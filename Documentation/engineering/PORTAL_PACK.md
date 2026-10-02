@@ -22,7 +22,7 @@ separately from firmware: a portal change does not need an Atlas flash.
 
 | Path | What |
 |---|---|
-| `Atlas/web/src/` | Portal pages (`index.html`) and their local files |
+| `Atlas/web/src/` | Portal pages (`index.html`) and their local files; `portal.css` styles the portal from the design tokens |
 | `Atlas/web/VERSION` | Pack version, `major.minor.patch`; raise it for every pack you install over another |
 | `Atlas/web/build.py` | Builds, checks, signs and previews the pack (standard library only) |
 | `design/` | Tokens, components, fonts and icons the pages pull in (`design/README.md`) |
@@ -33,11 +33,23 @@ python3 Atlas/web/build.py --check          # CI: build and check, write nothing
 python3 Atlas/web/build.py --serve          # preview at http://127.0.0.1:8080 against a real Atlas (192.168.4.1)
 tools\sign-local.cmd -Products portal       # signed dist package in Private\TurnHub-builds
 PORTAL_PACK=1 node Atlas/tests/host/portal_smoke.cjs   # smoke checks against the pack
+PORTAL_PACK=1 PORTAL_RENDERS=1 node Atlas/tests/host/counter_smoke.cjs   # also screenshots every theme to tests/host/build/render-*.png
 ```
 
 Stylesheets and local files referenced from a page become content-hashed
 assets under `/assets/`; `build.py`'s docstring lists the markers. Text files
 are stored gzip with a fixed timestamp, so a build is reproducible.
+
+## Look (V1 phase 2)
+
+The pack portal keeps the flash portal's markup, element IDs, labels and
+scripts, so both smoke checks run against it unchanged; only the styling and
+the theme choice differ. Themes: Automatic (follow the device: Graphite when
+dark, Daylight when light, High contrast when it asks for more), Graphite,
+Daylight, Brass and High contrast. A saved Midnight or Parchment choice from
+the flash portal maps to Graphite or Daylight. The turn hero is a ring in the
+modern themes and the original brass gauge in Brass. The footer links to
+`/portal-classic`.
 
 ## Package and archive
 

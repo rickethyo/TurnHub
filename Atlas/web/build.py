@@ -139,7 +139,13 @@ def build() -> tuple[tuple[int, int, int], Pack]:
     version = read_version()
     pack = Pack()
     for page in sorted(SRC.glob("*.html")):
-        pack.add(page.name, build_page(pack, page).encode("utf-8"))
+        html = build_page(pack, page)
+        # Atlas serves only /assets/ and the page itself: a relative reference
+        # left over would load nothing on the table.
+        leftover = re.findall(r'(?:href|src)="(\.[^"]*)"', html)
+        if leftover:
+            raise BuildError(f"{page.name}: unresolved local references {leftover}")
+        pack.add(page.name, html.encode("utf-8"))
     if "index.html" not in pack.files:
         raise BuildError("the pack needs src/index.html")
     for path, source in STATIC.items():

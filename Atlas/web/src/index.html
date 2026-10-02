@@ -3,218 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#110d09">
+<meta name="theme-color" content="#0A0B0E">
+<meta name="color-scheme" content="dark light">
 <title>TurnHub</title>
-<script>try{const h=document.documentElement;h.dataset.theme=localStorage.getItem('turnhubTheme')||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass');if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}</script>
-<link rel="stylesheet" href="/theme.css">
-<style>
-body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
-.shell{width:min(2000px,100%);margin:0 auto;padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left))}
-.appbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;padding:max(10px,env(safe-area-inset-top)) 0 10px;margin-bottom:12px;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-.appbar-end{display:flex;align-items:center;gap:8px;margin-left:auto}
-.conn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:99px;padding:6px 12px;font-size:.8rem;font-weight:650;color:var(--muted);background:var(--inset);white-space:nowrap}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px color-mix(in srgb,var(--bad) 22%,transparent)}
-.dot.online{background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
-.signin{min-height:40px;padding:8px 16px}
-.menu-wrap{position:relative}
-.acct-btn{min-height:44px;padding:4px 12px 4px 4px;border-radius:99px;gap:9px;background:var(--inset)}
-.acct-btn .avatar{width:34px;height:34px;font-size:.8rem;box-shadow:none}
-.acct-name{max-width:14ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.caret{width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-2px) rotate(45deg);transition:transform .15s}
-.acct-btn[aria-expanded=true] .caret{transform:translateY(1px) rotate(-135deg)}
-.menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:240px;padding:6px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-sm);box-shadow:0 24px 50px -16px rgba(0,0,0,.75)}
-.menu-head{display:grid;padding:10px 12px 12px;border-bottom:1px solid var(--line);margin-bottom:6px}
-.menu-head strong{font-family:var(--font-display);font-size:1.05rem}
-.menu-head span{color:var(--muted);font-size:.8rem}
-.menu-item{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:10px;background:transparent;color:var(--text);font-weight:600;font-size:.95rem;text-decoration:none}
-.menu-item:hover:not(:disabled){background:var(--surface-3);border-color:transparent}
-.menu-item.danger{color:var(--bad)}
-.tabs{display:flex;gap:4px;padding:4px;background:var(--inset);border:1px solid var(--line);border-radius:15px}
-.tab{min-height:40px;border:1px solid transparent;background:transparent;color:var(--muted);padding:8px 14px;border-radius:11px;font-weight:650;white-space:nowrap}
-.tab:hover:not(:disabled){background:var(--surface-2);border-color:var(--line)}
-.tab.active,.tab.active:hover:not(:disabled){background:var(--accent-grad);color:var(--on-accent);border-color:var(--accent-lo);box-shadow:0 1px 0 rgba(255,255,255,.3) inset}
-.req-alert{position:sticky;top:76px;z-index:35;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:14px;color:var(--text);border-left-color:var(--warn);background:var(--surface-3);box-shadow:0 16px 36px -14px rgba(0,0,0,.7);overflow:hidden}
-.req-alert .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--warn);transition:width .8s linear}
-#adminSetup{margin-bottom:14px}
-.board{display:grid;gap:16px}
-.board>.col{display:contents}
-.stage{order:1}.seat-card{order:2}.life-card{order:3}#commanderPanel{order:4}.setup-card{order:5}.table-card{order:6}
-.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
-.grid>*{grid-column:span 12}
-/* Stage: the turn, told by a brass gauge and in words. */
-.stage{display:grid;grid-template-columns:1fr;justify-items:center;text-align:center;gap:18px;overflow:hidden;padding:clamp(20px,3vw,34px)}
-.stage-cog{position:absolute!important;right:-110px;top:-120px;width:330px;height:330px;opacity:.07;pointer-events:none}
-[data-running] .stage-cog{animation:turn 60s linear infinite reverse}
-.stage-text{min-width:0;max-width:100%}
-#heroTitle{font-size:clamp(2.1rem,6vw,4.2rem);line-height:1.02;margin:.35rem 0 .45rem;overflow-wrap:anywhere;letter-spacing:.01em}
-.stage p{color:var(--muted);font-size:1.02rem;margin:0 0 14px;font-variant-numeric:tabular-nums}
-.stage .badges{justify-content:center}
-.stage .eyebrow{justify-content:center}
-.stage .eyebrow::after{display:none}
-.gauge{position:relative;width:min(240px,64vw);aspect-ratio:1;flex:none}
-.gauge svg{display:block;width:100%;height:100%;overflow:visible}
-.g-bezel{fill:url(#bezelGrad)}
-.stop-hi{stop-color:var(--accent-hi)}.stop-mid{stop-color:var(--accent)}.stop-lo{stop-color:var(--accent-lo)}
-.g-face{fill:var(--inset);stroke:var(--line-strong);stroke-width:1}
-.g-ticks line{stroke:var(--faint);stroke-width:1.4;stroke-linecap:round}
-.g-ticks line.major{stroke:var(--muted);stroke-width:2.6}
-.g-track{fill:none;stroke:var(--surface-3);stroke-width:9;stroke-linecap:round}
-.g-arc{fill:none;stroke:var(--gauge,var(--accent));stroke-width:9;stroke-linecap:round;transition:stroke-dasharray .7s cubic-bezier(.3,.8,.3,1),stroke .3s}
-.g-needle{transform-origin:100px 100px;transition:transform .7s cubic-bezier(.3,1.4,.4,1)}
-.g-needle path{fill:var(--gauge,var(--accent-hi))}
-.g-needle.snap,.g-arc.snap{transition:none}
-.g-hub{fill:url(#bezelGrad);stroke:var(--accent-lo);stroke-width:1}
-.g-hub-dot{fill:var(--inset)}
-.stage[data-phase=counting]{--gauge:var(--active)}
-.stage[data-phase=warning]{--gauge:var(--warn)}
-.stage[data-phase=expired]{--gauge:var(--bad)}
-.gauge-readout{position:absolute;left:50%;bottom:13%;transform:translateX(-50%);width:44%;text-align:center;line-height:1.05}
-.gauge-readout strong{display:block;font:700 clamp(1.25rem,4.4vw,1.7rem)/1.05 var(--font-display);font-variant-numeric:tabular-nums;white-space:nowrap}
-.gauge-readout span{display:block;color:var(--muted);font-size:.62rem;letter-spacing:var(--label-spacing);text-transform:uppercase;margin-top:3px;white-space:nowrap}
-.stage[data-phase=warning] .gauge-readout strong{color:var(--warn)}.stage[data-phase=expired] .gauge-readout strong{color:var(--bad)}
-/* Seat */
-.who{display:flex;align-items:center;gap:13px;min-width:0}
-.who-text{min-width:0;flex:1}
-.who-name{font:700 1.3rem/1.2 var(--font-display);overflow-wrap:anywhere}
-.seat-card .badges{margin-top:12px}
-.seat-card .badges:empty{display:none}
-.control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:16px}
-.control-grid .wide{grid-column:1/-1}
-.control-grid .xl{min-height:64px;font-size:1.15rem;font-family:var(--font-display);letter-spacing:.02em}
-#claimHelp{margin-top:14px}
-#claimHelp .btn{width:100%}
-/* Life */
-.life-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:12px}
-.life-grid>.empty,.roster>.empty,.devices>.empty{grid-column:1/-1}
-.life-player{position:relative;display:grid;gap:10px;align-content:start;background:var(--surface-2);border:1px solid var(--line);border-radius:16px;padding:14px;min-width:0;transition:border-color .2s,box-shadow .2s}
-.life-player.active{border-color:var(--active);box-shadow:0 0 0 1px var(--active) inset,0 0 36px -12px var(--active)}
-.life-player.me{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,transparent),transparent 70%),var(--surface-2)}
-.life-player.eliminated{opacity:.55}
-.life-head{display:flex;align-items:center;gap:10px;min-width:0}
-.life-head .avatar{width:34px;height:34px;font-size:.85rem}
-.life-head>div{min-width:0;flex:1}
-.life-head h3{font-size:1rem;overflow-wrap:anywhere;line-height:1.2}
-.life-tag{display:block;font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.life-player.active .life-tag{color:var(--active)}
-.life-num{position:relative;display:flex;justify-content:center;align-items:center;min-height:82px;border-radius:12px;background:var(--inset);border:1px solid var(--line)}
-.life-total{font:700 clamp(2.8rem,7vw,3.6rem)/1 var(--font-display);font-variant-numeric:tabular-nums lining-nums;letter-spacing:-.01em}
-.life-delta{position:absolute;right:10px;top:8px;font-weight:800;font-size:.9rem;font-variant-numeric:tabular-nums;animation:pop .35s ease-out}
-.life-delta.up{color:var(--good)}.life-delta.down{color:var(--bad)}
-@keyframes pop{from{transform:translateY(6px);opacity:0}}
-.life-buttons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.life-buttons button{padding:8px 2px;min-height:46px;font-variant-numeric:tabular-nums;font-size:1rem}
-.life-player .small{margin:0;font-size:.76rem;text-align:center}
-.my-life{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:16px;padding:12px 16px;border-radius:var(--radius-sm);background:var(--inset);border:1px solid var(--line)}
-.my-life h3{font-size:1rem;color:var(--muted);font-family:var(--font-body);font-weight:650}
-.my-life strong{font:700 1.9rem/1 var(--font-display);font-variant-numeric:tabular-nums}
-.pad{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
-.requests{margin-top:16px;padding-top:16px;border-top:1px dashed var(--line-strong)}
-.requests h3{margin-bottom:6px}
-#lifeRequestActions .actions{margin:8px 0}
-#lifeRequestActions button{flex:1}
-/* Players and devices */
-.roster,.devices{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:12px}
-.player,.device{background:var(--surface-2);border:1px solid var(--line);border-radius:16px;padding:15px;min-width:0}
-.player.active{border-color:var(--active);box-shadow:0 0 0 1px var(--active) inset}
-.player.winner{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.player.eliminated{opacity:.6}
-.player-head,.device-top{display:flex;align-items:center;gap:12px;min-width:0}
-.player-head>div,.device-top>div{min-width:0;flex:1}
-.player-name,.device-name{font:700 1.08rem/1.25 var(--font-display);overflow-wrap:anywhere}
-.player-state{font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right}
-.player-state.on{color:var(--active)}
-.player .badges,.device .badges{margin-top:10px}
-.player .actions,.device .actions{margin-top:12px}
-.device-state{font-size:.7rem;font-weight:800;letter-spacing:.08em;display:inline-flex;align-items:center;gap:6px}
-.device-state::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
-.online-text{color:var(--good)}.offline-text{color:var(--bad)}
-.seats{display:grid;gap:8px;margin-top:12px}
-.seat{display:grid;gap:8px;background:var(--inset);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-.seat.active{border-color:var(--active)}
-.seat-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.slot{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;border:1px solid var(--line-strong);font-weight:800;margin-right:8px;color:var(--accent-hi);font-size:.85rem}
-.qr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
-.qr-box{display:grid;justify-items:center;gap:10px;text-align:center;background:var(--inset);border:1px solid var(--line);border-radius:14px;padding:14px}
-.qr-box h3{font-size:.95rem}
-.qr-box>div{background:#fff;border-radius:10px;padding:6px;width:min(190px,100%)}
-.qr-box svg{display:block;width:100%;height:auto;aspect-ratio:1}
-.qr-box a{font-weight:650;font-size:.9rem}
-.setting-box{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0}
-.acct{display:grid;gap:4px}
-.acct .switch-row{padding:9px 0;font-size:.9rem}
-.acct+.acct,.setting-box+.setting-box{margin-top:10px}
-.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 20px;margin:6px 0 10px}
-/* Appearance picker */
-.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
-.theme-opt{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:6px 10px;margin:0;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--inset);cursor:pointer;color:var(--text);font-size:.92rem;letter-spacing:0}
-.theme-opt:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
-.theme-opt strong{font-weight:700}
-.swatch{grid-column:1/-1;display:flex;height:26px;border-radius:8px;overflow:hidden;border:1px solid var(--line-strong)}
-.swatch i{flex:1}
-.theme-opt small{grid-column:1/-1;font-weight:400;color:var(--muted);font-size:.78rem;line-height:1.35}
-.foot-note{color:var(--faint);font-size:.78rem;text-align:center;margin:26px 0 6px}
-@media (max-width:819px){
- /* backdrop-filter would become the containing block of the fixed tab bar */
- .appbar{gap:10px;-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--bg)}
- .brand-sub{display:none}
- .tabs{position:fixed;z-index:45;left:0;right:0;bottom:0;border-radius:18px 18px 0 0;border-width:1px 0 0;padding:6px max(8px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom));display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:color-mix(in srgb,var(--surface) 94%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 -12px 30px -18px rgba(0,0,0,.7)}
- .tab{display:flex;flex-direction:column;gap:3px;min-height:56px;padding:6px 2px;font-size:.7rem;border-radius:12px;white-space:normal;line-height:1.1}
- .tab .i{width:22px;height:22px}
- .toast{bottom:calc(88px + env(safe-area-inset-bottom))}
- .req-alert{top:70px;grid-template-columns:1fr}
- .acct-name{display:none}
- .acct-btn{padding:4px 10px 4px 4px}
- /* When connected, the dot is enough on a phone; problems always show in words. */
- .conn.ok .conn-text{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
- .conn.ok{padding:9px}
- .conn{padding:6px 10px}
-}
-@media (min-width:820px){
- body{padding-bottom:24px}
- .grid .half{grid-column:span 6}.grid .third{grid-column:span 4}.grid .two-third{grid-column:span 8}
- .stage{grid-template-columns:auto minmax(0,1fr);justify-items:start;text-align:left;gap:clamp(20px,4vw,48px)}
- .stage .badges,.stage .eyebrow{justify-content:flex-start}
- .gauge{width:clamp(200px,20vw,260px)}
-}
-@media (min-width:1000px){
- .board{grid-template-columns:minmax(0,1fr) minmax(320px,400px);align-items:start}
- .board>.col{display:flex;flex-direction:column;gap:16px;min-width:0}
-}
-@media (min-width:1500px){.board{grid-template-columns:minmax(0,1fr) 440px}}
-</style>
+<script>
+// Theme before first paint: a saved choice, else what the device asks for
+// (more contrast, light or dark). Midnight and Parchment were retired in V1.
+function deviceTheme(){const q=s=>matchMedia(s).matches;return q('(prefers-contrast: more)')?'contrast':q('(prefers-color-scheme: light)')?'daylight':'graphite'}
+function savedTheme(){try{const t=localStorage.getItem('turnhubTheme');const m={midnight:'graphite',parchment:'daylight'}[t]||t;return ['graphite','daylight','brass','contrast'].includes(m)?m:null}catch(_){return null}}
+try{const h=document.documentElement;h.dataset.theme=savedTheme()||deviceTheme();if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}
+</script>
+<link rel="preload" href="./../../../design/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
+<!-- build:css portal.css -->
+<link rel="stylesheet" href="../../../design/dist/tokens.css">
+<link rel="stylesheet" href="portal.css">
+<!-- /build:css -->
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-<symbol id="i-game" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13l4-4M12 5V3M9.5 3h5M19.5 6.5l1-1"/></symbol>
-<symbol id="i-players" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20c.8-3.5 3.3-5.4 6.2-5.4s5.4 1.9 6.2 5.4"/><circle cx="17.2" cy="9" r="2.6"/><path d="M16.8 14.6c2.4.3 4 2 4.5 5.4"/></symbol>
-<symbol id="i-account" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.9-4.1 3.9-6.4 7.5-6.4s6.6 2.3 7.5 6.4"/></symbol>
-<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></symbol>
-<symbol id="i-dev" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7.5 10l2.5 2.5-2.5 2.5M12.5 15h4"/></symbol>
-<symbol id="i-stats" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></symbol>
-<symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 16l-4-4 4-4M6 12h10"/></symbol>
-<symbol id="i-life" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.4a4.2 4.2 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"/></symbol>
-</svg>
+<!-- build:sprite -->
 <a class="skip" href="#main">Skip to content</a>
 <div class="shell">
 <header class="appbar">
  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Atlas table console</span></span></a>
  <nav class="tabs" aria-label="Portal sections">
-  <button class="tab active" data-tab="game" onclick="showTab('game')"><svg class="i" aria-hidden="true"><use href="#i-game"/></svg><span>Game</span></button>
-  <button class="tab" data-tab="players" onclick="showTab('players')"><svg class="i" aria-hidden="true"><use href="#i-players"/></svg><span>Players</span></button>
-  <button class="tab" data-tab="account" onclick="showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-account"/></svg><span>My Account</span></button>
-  <button id="deviceSettingsTab" class="tab" data-tab="settings" onclick="showTab('settings')" hidden><svg class="i" aria-hidden="true"><use href="#i-settings"/></svg><span>Device Settings</span></button>
+  <button class="tab active" data-tab="game" onclick="showTab('game')"><svg class="i" aria-hidden="true"><use href="#i-timer"/></svg><span>Game</span></button>
+  <button class="tab" data-tab="players" onclick="showTab('players')"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Players</span></button>
+  <button class="tab" data-tab="account" onclick="showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span>My Account</span></button>
+  <button id="deviceSettingsTab" class="tab" data-tab="settings" onclick="showTab('settings')" hidden><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span>Device Settings</span></button>
  </nav>
  <div class="appbar-end">
   <span id="connPill" class="conn"><span id="dot" class="dot"></span><span id="connection" class="conn-text">Connecting</span></span>
-  <a id="signInButton" class="btn primary signin" href="/login"><svg class="i" aria-hidden="true"><use href="#i-account"/></svg><span>Sign in</span></a>
+  <a id="signInButton" class="btn primary signin" href="/login"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span>Sign in</span></a>
   <div id="accountMenuWrap" class="menu-wrap" hidden>
    <button id="accountButton" class="acct-btn" aria-expanded="false" aria-controls="accountMenu" aria-label="Account menu" onclick="toggleAccountMenu()"><span id="accountAvatar" class="avatar" aria-hidden="true">?</span><span id="accountName" class="acct-name"></span><span class="caret" aria-hidden="true"></span></button>
    <div id="accountMenu" class="menu" hidden>
     <div class="menu-head"><strong id="menuName"></strong><span id="menuMeta"></span></div>
-    <button class="menu-item" onclick="closeAccountMenu();showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-account"/></svg>Account settings</button>
-    <a class="menu-item" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-stats"/></svg>My statistics</a>
-    <a id="devLink" class="menu-item" href="/dev" hidden><svg class="i" aria-hidden="true"><use href="#i-dev"/></svg>Developer</a>
-    <button class="menu-item danger" onclick="closeAccountMenu();logoutSession()"><svg class="i" aria-hidden="true"><use href="#i-exit"/></svg>Log out</button>
+    <button class="menu-item" onclick="closeAccountMenu();showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>Account settings</button>
+    <a class="menu-item" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>My statistics</a>
+    <a id="devLink" class="menu-item" href="/dev" hidden><svg class="i" aria-hidden="true"><use href="#i-sparkle"/></svg>Developer</a>
+    <button class="menu-item danger" onclick="closeAccountMenu();logoutSession()"><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>Log out</button>
    </div>
   </div>
  </div>
@@ -347,12 +174,13 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
  <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Appearance and feedback</h2><p class="small">Saved in this browser only. No sign-in needed.</p></div></div>
   <fieldset><legend class="sr-only">Portal theme</legend><p class="small" style="margin-top:0">Themes change only how this browser looks. They never change the game.</p>
    <div class="themes">
-    <label class="theme-opt"><input type="radio" name="theme" value="brass"><strong>Brass</strong><span class="swatch" aria-hidden="true"><i style="background:#110d09"></i><i style="background:#30251a"></i><i style="background:#e2ae4a"></i><i style="background:#62d6b2"></i></span><small>Steampunk gold, rivets and gauges.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="midnight"><strong>Midnight</strong><span class="swatch" aria-hidden="true"><i style="background:#0a0d14"></i><i style="background:#202a40"></i><i style="background:#e8b44f"></i><i style="background:#5ad8ca"></i></span><small>Clean modern dark with gold.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="parchment"><strong>Parchment</strong><span class="swatch" aria-hidden="true"><i style="background:#ece2cd"></i><i style="background:#fbf6ea"></i><i style="background:#8e5f0c"></i><i style="background:#0d7560"></i></span><small>Light sepia for bright rooms.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="contrast"><strong>High contrast</strong><span class="swatch" aria-hidden="true"><i style="background:#000"></i><i style="background:#fff"></i><i style="background:#ffd400"></i><i style="background:#00f0d8"></i></span><small>Maximum legibility. Chosen automatically when your device asks for more contrast.</small></label>
+    <label class="theme-opt"><input type="radio" name="theme" value="auto"><strong>Automatic</strong><span class="swatch" aria-hidden="true"><i style="background-image:linear-gradient(90deg,#0A0B0E 50%,#F2F3F6 50%)"></i><i style="background:#262A33"></i><i style="background:#F5B53F"></i><i style="background:#3DDBB1"></i></span><small>Follows this device: Graphite when it is dark, Daylight when it is light, High contrast when it asks for more contrast.</small></label>
+    <label class="theme-opt"><input type="radio" name="theme" value="graphite"><strong>Graphite</strong><span class="swatch" aria-hidden="true"><i style="background:#0A0B0E"></i><i style="background:#262A33"></i><i style="background:#F5B53F"></i><i style="background:#3DDBB1"></i></span><small>Modern dark with one warm gold accent.</small></label>
+    <label class="theme-opt"><input type="radio" name="theme" value="daylight"><strong>Daylight</strong><span class="swatch" aria-hidden="true"><i style="background:#F2F3F6"></i><i style="background:#FFFFFF"></i><i style="background:#9A5D00"></i><i style="background:#00775E"></i></span><small>Bright and clean for well-lit rooms.</small></label>
+    <label class="theme-opt"><input type="radio" name="theme" value="brass"><strong>Brass</strong><span class="swatch" aria-hidden="true"><i style="background:#110D09"></i><i style="background:#30251A"></i><i style="background:#E2AE4A"></i><i style="background:#62D6B2"></i></span><small>The classic TurnHub look: gold, rivets and a gauge.</small></label>
+    <label class="theme-opt"><input type="radio" name="theme" value="contrast"><strong>High contrast</strong><span class="swatch" aria-hidden="true"><i style="background:#000"></i><i style="background:#fff"></i><i style="background:#FFD400"></i><i style="background:#00F0D8"></i></span><small>Maximum legibility, no decoration.</small></label>
    </div></fieldset>
-  <div class="switch-row" style="margin-top:14px"><div><label for="reduceMotionToggle">Reduce motion</label><small id="reduceMotionHelp">Stops the turning gear, gauge sweeps and other animation in this browser. Your device's reduced-motion setting also does this.</small></div><input id="reduceMotionToggle" type="checkbox" aria-describedby="reduceMotionHelp"></div>
+  <div class="switch-row" style="margin-top:14px"><div><label for="reduceMotionToggle">Reduce motion</label><small id="reduceMotionHelp">Stops the turning gear, ring sweeps and other animation in this browser. Your device's reduced-motion setting also does this.</small></div><input id="reduceMotionToggle" type="checkbox" aria-describedby="reduceMotionHelp"></div>
   <h3 style="margin:22px 0 4px">Browser feedback</h3>
   <div class="switch-row"><div><label for="soundToggle">Browser sound</label><small id="soundToggleHelp">Play lightweight feedback tones on this device.</small></div><input id="soundToggle" type="checkbox" aria-describedby="soundToggleHelp"></div>
   <div class="switch-row"><div><label for="vibrationToggle">Vibration</label><small id="vibrationToggleHelp">Use haptics when supported by the browser.</small></div><input id="vibrationToggle" type="checkbox" aria-describedby="vibrationToggleHelp"></div>
@@ -428,7 +256,7 @@ body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <dialog id="uiDialog" aria-labelledby="uiDialogTitle"><form method="dialog"><h2 id="uiDialogTitle"></h2><p id="uiDialogText"></p><div id="uiDialogInputRow" hidden><label for="uiDialogInput" id="uiDialogLabel"></label><input id="uiDialogInput"></div><div class="actions"><button id="uiDialogOk" value="ok" class="primary">OK</button><button value="cancel" formnovalidate>Cancel</button></div></form></dialog>
-<p class="foot-note">TurnHub runs locally on Atlas. No cloud connection is required for table control.</p>
+<p class="foot-note">TurnHub runs locally on Atlas. No cloud connection is required for table control. <a href="/portal-classic">Classic portal</a></p>
 </div>
 <script src="/portal-qr.js"></script>
 <script>
@@ -461,7 +289,9 @@ loadAvatarIcons();
 function avatarSvg(id){const a=avatarIcons&&avatarIcons[Number(id)-1];if(!a)return '';let d='';a.rows.forEach((row,y)=>{let x=0;while(x<row.length){if(row[x]==='#'){let e=x;while(e<row.length&&row[e]==='#')e++;d+=`M${x} ${y}h${e-x}v1h-${e-x}z`;x=e}else x++}});return `<svg viewBox="0 0 16 16" width="70%" height="70%" shape-rendering="crispEdges" aria-hidden="true"><path d="${d}" fill="currentColor"/></svg>`}
 function avatar(name,n,cls='',icon=0){const svg=avatarSvg(icon);return `<span class="avatar ${cls}" style="--hue:${hue(n)}" aria-hidden="true">${svg||initials(name)}</span>`}
 function showToast(msg,bad=false){const e=document.getElementById('toast');e.textContent=msg;e.className='toast show'+(bad?' bad':'');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.className='toast',3500)}
-function setTheme(name,save=true){if(!['brass','midnight','parchment','contrast'].includes(name))name='brass';document.documentElement.dataset.theme=name;if(save)try{localStorage.setItem('turnhubTheme',name)}catch(_){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--meta').trim()||'#110d09';document.querySelectorAll('input[name=theme]').forEach(r=>r.checked=r.value===name)}
+function setTheme(name,save=true){const auto=name==='auto'||!['graphite','daylight','brass','contrast'].includes(name);const t=auto?deviceTheme():name;document.documentElement.dataset.theme=t;if(save)try{auto?localStorage.removeItem('turnhubTheme'):localStorage.setItem('turnhubTheme',t)}catch(_){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--c-bg').trim()||'#0A0B0E';document.querySelectorAll('input[name=theme]').forEach(r=>r.checked=r.value===(auto?'auto':t))}
+// With no saved choice the portal follows the device as its settings change.
+for(const q of ['(prefers-color-scheme: light)','(prefers-contrast: more)'])try{matchMedia(q).addEventListener('change',()=>{if(!savedTheme())setTheme('auto',false)})}catch(_){}
 
 // Modal confirm/prompt that matches the portal; falls back to the browser's own.
 function uiAsk({title,text,ok='Confirm',danger=false,input=null}){
@@ -505,7 +335,7 @@ async function saveSigilAccess(event){event.preventDefault();const style=documen
  sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({sigilSound:sigilSoundToggle.checked?'1':'0',ledStyle:style?style.value:'standard',longPressMs:String(longMs),winHoldMs:String(winMs)})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');renderSigilAccess(d);sigilAccessStatus.textContent='Saved. Your Sigil updates within a few seconds.';showToast('Sigil accessibility saved.')}catch(e){sigilAccessStatus.textContent=e.message}finally{sigilAccessFields.disabled=false}}
 function loadBrowserPrefs(){soundToggle.checked=!!browserPrefs.sound;vibrationToggle.checked=!!browserPrefs.vibration;volumeSelect.value=browserPrefs.volume||'medium'}
 function saveBrowserPrefs(){browserPrefs={sound:soundToggle.checked,vibration:vibrationToggle.checked,volume:volumeSelect.value};try{localStorage.setItem('turnhubBrowserPrefs',JSON.stringify(browserPrefs))}catch(_){}}
-function saveAppearance(){const t=document.querySelector('input[name=theme]:checked');setTheme(t?t.value:'brass');setReduceMotion(reduceMotionToggle.checked);saveBrowserPrefs();appearanceStatus.textContent='Saved in this browser.';showToast('Appearance saved.')}
+function saveAppearance(){const t=document.querySelector('input[name=theme]:checked');setTheme(t?t.value:'auto');setReduceMotion(reduceMotionToggle.checked);saveBrowserPrefs();appearanceStatus.textContent='Saved in this browser.';showToast('Appearance saved.')}
 function playFeedback(kind,force=false){if((browserPrefs.vibration||force)&&navigator.vibrate){const p=kind==='turn'?[70,35,70]:kind==='alert'?[100,50,100]:kind==='gameover'?[130,60,130]:[55];try{navigator.vibrate(p)}catch(_){}}
  if(!browserPrefs.sound&&!force)return;try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=window.turnhubAudioContext||(window.turnhubAudioContext=new Ctx());if(ctx.state==='suspended')ctx.resume();const gain=ctx.createGain();gain.gain.value=({low:.025,medium:.055,high:.1})[browserPrefs.volume]||.055;gain.connect(ctx.destination);let tones=[620];if(kind==='turn')tones=[700,900];else if(kind==='pause')tones=[440,330];else if(kind==='resume')tones=[440,660];else if(kind==='alert')tones=[760,760];else if(kind==='gameover')tones=[620,780,980];else if(kind==='test')tones=[620,820];tones.forEach((hz,i)=>{const o=ctx.createOscillator();o.type='sine';o.frequency.value=hz;o.connect(gain);const t=ctx.currentTime+i*.105;o.start(t);o.stop(t+.075)})}catch(_){}
 }
@@ -863,8 +693,7 @@ async function archiveAccount(id,archived){if(!await uiAsk({title:archived?'Arch
 async function moderate(id,action){const meaning={reset:'Invalidate all browser sessions and suspend Sigil controls until this account signs in again? The seat and life totals stay.',remove:'Remove this player from the game and invalidate their connections?',pass:'Immediately pass this player’s turn?',mute:'Block this account from sending future nudges?',unmute:'Allow this account to send future nudges?'};if(!await uiAsk({title:'Game Master action',text:id+': '+meaning[action],ok:'Apply',danger:action==='remove'||action==='reset'}))return;try{await accountPost('moderate',{profileId:id,action});await refreshAll();await refreshAccountList();showToast('Moderation applied')}catch(e){showToast(e.message,true)}}
 
 // With no saved choice, follow the operating system's increased-contrast setting.
-let savedTheme=null;try{savedTheme=localStorage.getItem('turnhubTheme')}catch(_){}
-setTheme(savedTheme||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass'),false);loadMotionPref();buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
+setTheme(savedTheme()||'auto',false);loadMotionPref();buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
 let savedTab='game';try{savedTab=localStorage.getItem('turnhubPortalTab')||'game'}catch(_){}
 showTab(savedTab);refreshAll();setInterval(pollTimer,POLL_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll()});loadSetup();
 </script>
