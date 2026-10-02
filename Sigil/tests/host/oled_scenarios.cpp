@@ -161,13 +161,13 @@ int main() {
   { OledDisplay i2c(c); i2c.begin(); i2c.showBooting(); }
   assert(panel.constructors == 0 && panel.frames == 0);
   assert(Serial.output.find("I2C_INIT_FAILED") != std::string::npos);
-  // The compass legend: one line at the bottom, a key at a time (click
-  // first), stepped by the display task's idle work.
+  // The key legend: one line at the bottom, a key at a time (click first),
+  // stepped by the display task's idle work. Up opens the menu list.
   resetTrace();
   {
     OledDisplay d(fixture());
     d.begin();
-    SigilMenu m(true);
+    SigilMenu m(MenuStyle::List);
     MenuStateFields f;
     for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::ClaimWin}) f.actions |= sigilActionBit(a);
     f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);
@@ -178,13 +178,34 @@ int main() {
     assert(d.idleWorkDueInMs(1000) == OledDisplay::LEGEND_STEP_MS);
     assert(d.idleWorkDueInMs(1000 + OledDisplay::LEGEND_STEP_MS) == 0);
     d.idleWork(1000 + OledDisplay::LEGEND_STEP_MS);
-    assert(has("\x18 Pause"));
-    d.idleWork(1000 + 2 * OledDisplay::LEGEND_STEP_MS);
-    assert(has("\x19 Claim win (hold)"));
+    assert(has("\x18 Menu"));
     // A redraw keeps the step; a new menu starts again from the click.
     d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(has("\x19 Claim win (hold)"));
-    // Outside a game, Menu sits on the free Up key; it opens the device menu.
+    assert(has("\x18 Menu"));
+    // The list, over the game: every action, the row under the cursor
+    // highlighted and counted in the header, held rows marked.
+    m.keyDown(Key::Up, 2000); m.keyUp(Key::Up, 2050);
+    d.setMenuView(m.view());
+    resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    assert(highlighted("MENU") && has("1/7") && highlighted("Pass turn") && has("Pause") &&
+        has("Claim win (hold)") && has("Sleep") && !has("YOUR TURN") && has("\x18\x19 Scroll the list"));
+    // Scrolling past the fourth row brings the rest into view; the legend
+    // keeps stepping rather than starting again.
+    d.idleWork(3000);
+    assert(has("\x09 Choose  \x1b Back"));
+    for (int i = 0; i < 4; ++i) { m.keyDown(Key::Down, 3100 + i * 20); m.keyUp(Key::Down, 3110 + i * 20); }
+    d.setMenuView(m.view());
+    resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    assert(has("5/7") && highlighted("Unpair (hold)") && has("Pause") && !has("Pass turn") &&
+        has("\x09 Choose  \x1b Back"));
+    m.keyDown(Key::Down, 3300); m.keyUp(Key::Down, 3310);
+    m.keyDown(Key::Select, 3400);
+    d.setMenuView(m.view());
+    resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    assert(highlighted("HOLD: Factory reset"));
+    m.keyUp(Key::Select, 3500);
+    m.keyDown(Key::Left, 3600); m.keyUp(Key::Left, 3610);
+    // Outside a game, Join on the click and Menu on Up.
     MenuStateFields ready;
     ready.actions = sigilActionBit(SigilAction::Join);
     m.applyMenuState2(encodeMenuState2(ready), 0);
@@ -196,16 +217,9 @@ int main() {
     m.keyDown(Key::Up, 21000); m.keyUp(Key::Up, 21050);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
-    assert(highlighted("MENU") && has("\x09 Unpair") && has("\x18 Sleep") && has("\x19 Factory reset") && has("\x1b Back") &&
-        has("Unpair/reset: hold") && !has("Ready for game"));
-    m.keyDown(Key::Down, 22000);
-    d.setMenuView(m.view());
-    resetTrace(); d.showReady(0);
-    assert(highlighted("HOLD: Factory reset"));
-    // The device menu screen has no legend to step.
-    assert(d.idleWorkDueInMs(23000) == UINT32_MAX);
-    // Screens without a legend (the picker) do not step it either.
-    m.keyUp(Key::Down, 22500);
+    assert(highlighted("MENU") && highlighted("Join game") && has("Sleep") && has("Unpair (hold)") &&
+        has("Factory reset (hold)") && !has("Ready for game"));
+    // Screens without a legend (the picker) do not step it.
     m.keyDown(Key::Left, 23000);
     d.setMenuView(m.view());
     ProfilePickerPacket page{};
@@ -222,7 +236,7 @@ int main() {
     // and a heart that drains or grows against the starting life.
     OledDisplay d(fixture());
     d.begin();
-    SigilMenu m(true);
+    SigilMenu m(MenuStyle::List);
     MenuStateFields f;
     for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::AdjustLife}) f.actions |= sigilActionBit(a);
     f.defaultAction = static_cast<uint8_t>(SigilAction::Pass);

@@ -74,8 +74,10 @@ window.
   click 3 s): outside a game, **Menu** on the first free of Up/Down opens it
   (see `HARDWARE_REFERENCE.md`, menu controls). Both are device-local: never in
   Atlas's menu mask, never sent to Atlas, only offered while the Sigil is
-  paired and its menu is active. In a game there is no Menu key, so the button
-  hold is the way. On the **Atlas lost** screen (owner 2026-10-02) Menu is on
+  paired and its menu is active. On the e-ink there is no Menu key in a game,
+  so the button hold is the way; since Sigil 0.9.8 the OLED's Menu list (Up,
+  any time) ends with Sleep, Unpair and Factory reset, held the same 3 s and
+  5 s on the click. On the **Atlas lost** screen (owner 2026-10-02) Menu is on
   Up whatever was happening, so a Sigil whose Atlas is gone can be unpaired or
   reset from its keys.
 - **Joystick backup for Pair (Sigil 0.9.6, owner 2026-10-02).** A case can hide
@@ -96,7 +98,8 @@ window.
 - **Sleep (owner 2026-10-02).** Both device menus have **Sleep**, a tap, and
   waking is a restart (deep sleep: saved data and pairings survive, RAM does
   not).
-  - Sigil: device menu, **Up**. The e-ink keeps an "Asleep / Click joystick to
+  - Sigil: device menu, **Up** on the e-ink, the **Sleep** row of the OLED's
+    Menu list. The e-ink keeps an "Asleep / Click joystick to
     wake" card; the OLED and ring go dark. A joystick click (GPIO32) or BOOT
     wakes it, and it reconnects. Atlas just sees it go quiet.
   - Atlas: Menu > Device > **Sleep**, between games, touchscreen only (the

@@ -26,7 +26,7 @@ class OledDisplay final : public SigilDisplay {
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) override;
   void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
-  // The one-line compass legend steps to its next key every LEGEND_STEP_MS.
+  // The one-line key legend steps to its next key every LEGEND_STEP_MS.
   uint32_t idleWorkDueInMs(uint32_t nowMs) const override;
   void idleWork(uint32_t nowMs) override;
   static constexpr uint32_t LEGEND_STEP_MS = 2500;
@@ -58,9 +58,9 @@ class OledDisplay final : public SigilDisplay {
   void splash(const char *caption);
   void status(const char *headerRight, const char *big, const char *first,
       const char *second = nullptr);
-  // Draws the open device menu instead of the current screen; false if closed.
+  // Draws the open menu list instead of the current screen; false if closed.
   bool drawDeviceMenu();
-  // The compass legend has room for one line here, so it shows one key at a
+  // The key legend has room for one line here, so it shows one key at a
   // time: the click first, then the others in turn (idleWork). Each entry is
   // the key's glyph and its words. Returns the number of entries.
   uint8_t legendEntries(char entries[][24]) const;

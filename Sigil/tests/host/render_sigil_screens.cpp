@@ -105,12 +105,23 @@ GameDisplayPacket game(bool active, int32_t life, uint8_t primary = 3, uint8_t s
   return p;
 }
 
+#ifdef TURNHUB_DISPLAY_OLED
+constexpr MenuStyle STYLE = MenuStyle::List;
+#else
+constexpr MenuStyle STYLE = MenuStyle::Compass;
+#endif
+
 MenuView compass(bool active) {
   MenuView m;
   m.active = true;
   if (active) m.compass[static_cast<uint8_t>(Key::Select)] = static_cast<uint8_t>(SigilAction::Pass);
+#ifdef TURNHUB_DISPLAY_OLED
+  m.list = true;
+  m.compass[static_cast<uint8_t>(Key::Up)] = MENU_LOCAL_DEVICE_MENU;  // The rest are in the list.
+#else
   m.compass[static_cast<uint8_t>(Key::Up)] = static_cast<uint8_t>(SigilAction::Pause);
   m.compass[static_cast<uint8_t>(Key::Down)] = static_cast<uint8_t>(SigilAction::BeginElimination);
+#endif
   m.life = true;
   return m;
 }
@@ -146,7 +157,7 @@ int main(int argc, char **argv) {
   display.showReady(2); shot("ready");
   {
     // Atlas lost offers only the device menu (Menu on Up).
-    SigilMenu offline(true);
+    SigilMenu offline(STYLE);
     offline.setOffline();
     display.setMenuView(offline.view());
   }
@@ -263,8 +274,9 @@ int main(int argc, char **argv) {
   display.showState(2, DisplayMode::Paused, 3, 0, 9, 0); shot("paused");
   display.showState(2, DisplayMode::GameOver, 3, 0, 12, 0); shot("game-over");
 
-  // The ready screen's Menu key, and the device menu with Factory reset held.
-  SigilMenu menu(true);
+  // The ready screen's Menu key, and the device menu with Factory reset held
+  // (the e-ink compass; the OLED's list, scrolled down to it).
+  SigilMenu menu(STYLE);
   MenuStateFields fields;
   fields.actions = sigilActionBit(SigilAction::Join);
   fields.defaultAction = static_cast<uint8_t>(SigilAction::Join);
@@ -275,9 +287,48 @@ int main(int argc, char **argv) {
   menu.keyUp(Key::Up, 10);
   display.setMenuView(menu.view());
   display.showReady(1); shot("device-menu");
+#ifdef TURNHUB_DISPLAY_OLED
+  for (int i = 0; i < 3; ++i) { menu.keyDown(Key::Down, 12); menu.keyUp(Key::Down, 14); }
   menu.keyDown(Key::Select, 20);
+#else
+  menu.keyDown(Key::Down, 20);
+#endif
   display.setMenuView(menu.view());
   display.showReady(1); shot("device-menu-hold");
+  menu.keyUp(Key::Select, 30);
+  menu.keyUp(Key::Down, 30);
+#ifdef TURNHUB_DISPLAY_OLED
+  // The menu list over a game, at the top and scrolled to the end.
+  SigilMenu gameMenu(STYLE);
+  MenuStateFields running;
+  for (SigilAction a : {SigilAction::Pass, SigilAction::Pause, SigilAction::ClaimWin,
+      SigilAction::BeginElimination, SigilAction::LinkPhone, SigilAction::AdjustLife}) {
+    running.actions |= sigilActionBit(a);
+  }
+  gameMenu.applyMenuState2(encodeMenuState2(running), 0);
+  display.setLifeOverlay(overlay);
+  display.setMenuView(gameMenu.view());
+  display.showGame(game(true, 32)); shot("game-legend");
+  gameMenu.keyDown(Key::Up, 0); gameMenu.keyUp(Key::Up, 10);
+  display.setMenuView(gameMenu.view());
+  display.showGame(game(true, 32)); shot("menu-list-game");
+  for (int i = 0; i < 5; ++i) { gameMenu.keyDown(Key::Down, 20); gameMenu.keyUp(Key::Down, 30); }
+  display.setMenuView(gameMenu.view());
+  display.showGame(game(true, 32)); shot("menu-list-scrolled");
+  // The lobby's list.
+  SigilMenu lobbyList(STYLE);
+  MenuStateFields lobbyFields;
+  for (SigilAction a : {SigilAction::StartGame, SigilAction::RandomStarter, SigilAction::CycleStarter,
+      SigilAction::AddSeatB, SigilAction::Leave}) {
+    lobbyFields.actions |= sigilActionBit(a);
+  }
+  lobbyList.applyMenuState2(encodeMenuState2(lobbyFields), 0);
+  display.setMenuView(lobbyList.view());
+  display.showState(2, DisplayMode::Lobby, 3, 0, 0, DISPLAY_FLAG_STARTER); shot("lobby-legend");
+  lobbyList.keyDown(Key::Up, 0); lobbyList.keyUp(Key::Up, 10);
+  display.setMenuView(lobbyList.view());
+  display.showState(2, DisplayMode::Lobby, 3, 0, 0, DISPLAY_FLAG_STARTER); shot("menu-list-lobby");
+#endif
   display.setMenuView(MenuView());
 
   printf("%s\n", failures ? "FAILED" : "OK");

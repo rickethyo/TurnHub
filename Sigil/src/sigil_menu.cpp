@@ -53,6 +53,19 @@ Slots preferences(uint8_t action) {
   }
 }
 
+// The OLED list's order: the likely actions of each stage first, so the
+// cursor starts on them; the deliberate ones (held) lower down.
+constexpr SigilAction LIST_ORDER[] = {
+    SigilAction::Pass, SigilAction::CancelPass, SigilAction::Join, SigilAction::StartGame,
+    SigilAction::CancelStart, SigilAction::Resume, SigilAction::Pause, SigilAction::ConfirmWin,
+    SigilAction::DenyWin, SigilAction::Eliminate, SigilAction::NextTarget,
+    SigilAction::CancelElimination, SigilAction::SwitchSeat, SigilAction::RandomStarter,
+    SigilAction::CycleStarter, SigilAction::AddSeatB, SigilAction::RemoveSeatB,
+    SigilAction::LinkPhone, SigilAction::ClaimWin, SigilAction::BeginElimination,
+    SigilAction::Rematch, SigilAction::Leave, SigilAction::ResetTable};
+// Every action but AdjustLife (Left/Right, never a row).
+static_assert(sizeof(LIST_ORDER) / sizeof(LIST_ORDER[0]) == MENU_MAX_ITEMS - 1, "list every action once");
+
 }  // namespace
 
 bool menuActionNeedsHold(uint8_t action) {
@@ -101,11 +114,14 @@ const char *sigilActionLabel(SigilAction action) {
 
 MenuView::MenuView() {
   memset(compass, MENU_NONE, sizeof(compass));
+  memset(rows, MENU_NONE, sizeof(rows));
 }
 
 bool MenuView::operator==(const MenuView &o) const {
   return active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
-      holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0;
+      holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0 &&
+      list == o.list && rowCount == o.rowCount && cursor == o.cursor &&
+      memcmp(rows, o.rows, rowCount) == 0;
 }
 
 uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
@@ -127,6 +143,35 @@ uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
   return owner[static_cast<uint8_t>(key)];
 }
 
+uint8_t SigilMenu::listRows(uint32_t actions, uint8_t rows[MENU_LIST_MAX]) {
+  uint8_t count = 0;
+  for (SigilAction action : LIST_ORDER) {
+    if (actions & TurnHubProtocol::sigilActionBit(action)) rows[count++] = static_cast<uint8_t>(action);
+  }
+  // Sleep is a tap; Unpair and Factory reset are held (the milder first).
+  for (uint8_t local : {MENU_LOCAL_SLEEP, MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET, MENU_LOCAL_BACK}) {
+    rows[count++] = local;
+  }
+  return count;
+}
+
+uint8_t SigilMenu::cursorRow(const uint8_t rows[], uint8_t count) const {
+  for (uint8_t i = 0; i < count; ++i) {
+    if (rows[i] == cursorAction_) return i;
+  }
+  return cursor_ < count ? cursor_ : count - 1;
+}
+
+void SigilMenu::moveCursor(int8_t step) {
+  uint8_t rows[MENU_LIST_MAX];
+  const uint8_t count = listRows(actions_, rows);
+  uint8_t row = cursorRow(rows, count);
+  if (step < 0 && row > 0) --row;
+  if (step > 0 && row + 1 < count) ++row;
+  cursor_ = row;
+  cursorAction_ = rows[row];
+}
+
 uint8_t SigilMenu::menuKey() const {
   if (!active_ || inGame()) return MENU_NONE;
   for (Key key : {Key::Up, Key::Down}) {
@@ -137,6 +182,21 @@ uint8_t SigilMenu::menuKey() const {
 
 uint8_t SigilMenu::keyAction(Key key) const {
   if (!active_ || key >= Key::Count) return MENU_NONE;
+  if (list_) {
+    if (deviceMenuOpen_) {
+      // Up/Down move the cursor (keyDown); the click or Right chooses its row.
+      if (key == Key::Left) return MENU_LOCAL_BACK;
+      if (key != Key::Select && key != Key::Right) return MENU_NONE;
+      uint8_t rows[MENU_LIST_MAX];
+      const uint8_t count = listRows(actions_, rows);
+      return rows[cursorRow(rows, count)];
+    }
+    // Closed: the click keeps the compass's likely action (Pass in a game,
+    // Undo pass while it is pending), Up opens the list, Left/Right are life.
+    if (key == Key::Select) return compassAction(actions_, Key::Select);
+    if (key == Key::Up) return MENU_LOCAL_DEVICE_MENU;
+    return MENU_NONE;
+  }
   if (deviceMenuOpen_) {
     // The milder action on the click; Down, the compass's deliberate key,
     // for the one that erases everything.
@@ -157,12 +217,14 @@ void SigilMenu::applyMenuState2(int32_t value, uint32_t nowMs) {
 }
 
 void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f) {
+  const bool wasInGame = active_ && inGame();
   active_ = true;
   offline_ = false;
   actions_ = f.actions;
   revision_ = f.revision;
   // A game starting closes the device menu: its keys belong to the game now.
-  if (deviceMenuOpen_ && inGame()) closeDeviceMenu();
+  // (The OLED list can be opened again during the game; later menus keep it.)
+  if (deviceMenuOpen_ && inGame() && !wasInGame) closeDeviceMenu();
   // A held action that is no longer offered stops counting.
   if (holding_ && !offered(holdAction_)) holding_ = false;
 }
@@ -202,6 +264,8 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
   if (!offered(action)) return;
   if (action == MENU_LOCAL_DEVICE_MENU) {
     deviceMenuOpen_ = true;
+    cursor_ = 0;
+    cursorAction_ = MENU_NONE;
     return;
   }
   if (action == MENU_LOCAL_BACK) {
@@ -219,6 +283,7 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     const ActionHold hold = TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action));
     if (hold == ActionHold::None) {
       emit(action);
+      if (list_) closeDeviceMenu();  // Chosen from the list: back to the screen.
       return;
     }
     holdMs = hold == ActionHold::Win ? winHoldMs_ : longPressMs_;
@@ -233,6 +298,10 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
 void SigilMenu::keyDown(Key key, uint32_t nowMs) {
   if (!active_ || key >= Key::Count) return;
   lastKeyMs_ = nowMs;
+  if (list_ && deviceMenuOpen_ && (key == Key::Up || key == Key::Down)) {
+    if (!holding_) moveCursor(key == Key::Up ? -1 : 1);
+    return;
+  }
   choose(keyAction(key), key, nowMs);
 }
 
@@ -245,7 +314,7 @@ MenuChoice SigilMenu::update(uint32_t nowMs) {
   if (holding_ && nowMs - holdStartMs_ >= holdMs_) {
     holding_ = false;
     emit(holdAction_);
-    if (holdAction_ == MENU_LOCAL_FACTORY_RESET || holdAction_ == MENU_LOCAL_UNPAIR) closeDeviceMenu();
+    if (list_ || holdAction_ == MENU_LOCAL_FACTORY_RESET || holdAction_ == MENU_LOCAL_UNPAIR) closeDeviceMenu();
   }
   if (deviceMenuOpen_ && !holding_ && nowMs - lastKeyMs_ >= MENU_DEVICE_IDLE_MS) closeDeviceMenu();
   const MenuChoice choice = pending_;
@@ -269,6 +338,11 @@ MenuView SigilMenu::view() const {
   v.deviceMenu = deviceMenuOpen_;
   v.holdAction = holding_ && holdOnScreen_ ? holdAction_ : MENU_NONE;
   v.life = lifeOffered();
+  v.list = list_;
+  if (list_ && deviceMenuOpen_) {
+    v.rowCount = listRows(actions_, v.rows);
+    v.cursor = cursorRow(v.rows, v.rowCount);
+  }
   return v;
 }
 

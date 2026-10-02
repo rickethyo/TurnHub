@@ -625,6 +625,18 @@ Signed OTA packages from the same run: Atlas 1,419,344 B, Sigil e-ink 0.9.7
 935,488 B. The Sigil RAM/flash figures were not read back from CI for this
 entry. Protocol version stays 3.
 
+## 2026-10-02 OLED Sigil menus become a scrolling list (Sigil 0.9.8)
+
+Sigil `0.9.7-dev` -> `0.9.8-dev`. `SigilMenu` gains a style: the e-ink keeps
+the compass; the OLED (`MenuStyle::List`) keeps the compass's click (Pass,
+Undo pass, Join, Start...) and Left/Right life, and Up opens one scrolling
+list of every offered action plus Sleep, Unpair, Factory reset and Back, in a
+game too (owner request). `MenuView` carries the rows and cursor; the OLED's
+device-menu screen became the list (header row count, scroll bar, "HOLD:"
+row) with its own stepping legend. Manual V0.11. Firmware sizes were not
+measured for this entry (cloud session; CI builds both Sigils). Protocol
+version stays 3: nothing on the radio changed.
+
 ## 2026-10-02 Flash portal removed (owner decision)
 
 The SD portal pack is now the full web portal. Atlas's flash keeps the shared

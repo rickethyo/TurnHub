@@ -321,11 +321,14 @@ verification on hardware.*
 
 ### Sigil menus (2026-09-25)
 
-Menu actions are named in text on the Sigil screen (the compass legend; on
-the OLED since 0.9.4 a one-line legend that steps through the keys every
-2.5 s), never only by position, color or sound. Deliberate actions keep the
-seated players' hold thresholds, and hold progress shows on the light (the
-ring fills); the OLED device menu also says HOLD in words. The OLED's stepping
+Menu actions are named in text on the Sigil screen (the e-ink's compass
+legend; on the OLED a one-line legend that steps through the keys every
+2.5 s, and since 0.9.8 a scrolling list behind Up that names every action,
+marks held ones "(hold)" and counts the highlighted row in the header, so the
+cursor is not shown by inversion alone), never only by position, color or
+sound. Deliberate actions keep the seated players' hold thresholds, and hold
+progress shows on the light (the ring fills); the OLED list also says HOLD in
+words. The OLED's stepping
 legend is time-based; watch in play that 2.5 s per key is long enough to
 read. A menu choice produces the same Intent as
 the equivalent portal action. Since 2026-09-30 the menu is the only Sigil input:
