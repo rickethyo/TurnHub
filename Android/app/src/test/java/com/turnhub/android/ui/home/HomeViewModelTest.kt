@@ -1,5 +1,6 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.data.ProfileSecret
 import com.turnhub.android.protocol.AccessibilitySettings
 import com.turnhub.android.protocol.AtlasWireParser
 import com.turnhub.android.protocol.LedStyle
@@ -456,7 +457,7 @@ class HomeViewModelTest {
         viewModel.onPlayFromPhoneClicked()
         val prompt = viewModel.uiState.value.signIn!!
         viewModel.onSignInSubmitted(prompt.profiles.single(), "12")
-        assertTrue(viewModel.uiState.value.signIn!!.error!!.contains("4 to 8"))
+        assertEquals(ProfileSecret.RULE, viewModel.uiState.value.signIn!!.error)
         assertTrue(sessionTransport.calls.isEmpty())
 
         viewModel.onSignInSubmitted(prompt.profiles.single(), "1234")
