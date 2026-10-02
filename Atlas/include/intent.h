@@ -99,6 +99,10 @@ enum class IntentType : uint8_t {
   // To Complete: the Atlas touchscreen, or an Admin from a phone.
   AdvanceSetup,
 
+  // Atlas touchscreen (Menu > Device), between games: deep sleep until the
+  // screen is touched or BOOT is pressed. Waking restarts Atlas.
+  Sleep,
+
   Count,
 };
 
@@ -252,6 +256,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::UpdateSigil: return "UPDATE_SIGIL";
     case IntentType::MoveSeat: return "MOVE_SEAT";
     case IntentType::AdvanceSetup: return "ADVANCE_SETUP";
+    case IntentType::Sleep: return "SLEEP";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

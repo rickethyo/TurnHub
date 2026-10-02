@@ -6,6 +6,7 @@
 
 #define SH110X_BLACK 0
 #define SH110X_WHITE 1
+#define SH110X_DISPLAYOFF 0xAE
 
 class Adafruit_SH1106G : public GFXcanvas1 {
  public:
@@ -15,5 +16,6 @@ class Adafruit_SH1106G : public GFXcanvas1 {
   void clearDisplay() { fillScreen(SH110X_BLACK); }
   void display() { ++frames; }
   void setContrast(uint8_t) {}
+  void oled_command(uint8_t) {}
   int frames = 0;
 };

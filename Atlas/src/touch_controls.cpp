@@ -221,16 +221,17 @@ void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
 }
 
 // Menu > Device: Unpair Sigils (lobby only, as the handler requires) and
-// Factory reset above, Back below. Both act only when held for the BOOT
-// button's times, which they stand in for.
+// Factory reset above, Sleep and Back below. Unpair and Factory reset act
+// only when held for the BOOT button's times, which they stand in for; Sleep
+// is a tap (nothing saved is lost, and a touch wakes Atlas).
 void layoutDevice(AtlasScreen &screen) {
   ButtonSpec upper[2];
   uint8_t n = 0;
   if (hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
   upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
-  const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, lower, 1);
+  const ButtonSpec lower[] = {{TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, lower, 2);
 }
 
 // In-game controls kept off the main row: Master pass (a stuck turn, running
@@ -473,6 +474,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenDevice: return "OPEN_DEVICE";
     case TouchAction::UnpairSigils: return "UNPAIR_SIGILS";
     case TouchAction::FactoryResetAtlas: return "FACTORY_RESET_ATLAS";
+    case TouchAction::SleepAtlas: return "SLEEP_ATLAS";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -691,6 +693,13 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         intent.type = IntentType::FactoryReset;
         intent.payload.value = TurnHub::FACTORY_RESET_ATLAS;
       }
+      result = intents.dispatch(intent);
+      break;
+    }
+    case TouchAction::SleepAtlas: {
+      Intent intent;
+      intent.type = IntentType::Sleep;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
       result = intents.dispatch(intent);
       break;
     }
@@ -1038,7 +1047,7 @@ void formatDevice(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "DEVICE");
   snprintf(screen.title, sizeof(screen.title), "Atlas device");
   snprintf(screen.detail, sizeof(screen.detail), "%s",
-      hubState == HubState::Lobby ? "Hold: Unpair 3 s, Factory reset 10 s" : "Hold 10 s to factory reset Atlas");
+      hubState == HubState::Lobby ? "Hold: Unpair 3 s, reset 10 s. Sleep: tap" : "Hold 10 s to reset. Sleep: tap");
 }
 
 void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
