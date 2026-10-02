@@ -1,8 +1,6 @@
 # Turn Timer and Presentation Cues
 
-Implemented locally on `android/testing`, 2026-09-24. Host scenarios, Android unit
-tests and firmware builds pass. **No hardware acceptance yet**: LED cadence,
-buzzer tone and the Sigil/phone/portal agreement all need the bench list below.
+Implemented 2026-09-24 and in use (owner, 2026-10-02).
 
 This restores TurnHub's original purpose, a turn timer (see
 [Generation History](GENERATION_HISTORY.md), Generation 0), on the current
@@ -123,29 +121,15 @@ Atlas state --selectSigilLedState()--> SigilLedState --LedCueProfile--> blue/red
 
 ## Clients
 
-- **Portal:** Turn timer select (presets plus custom seconds) in the host's game
-  settings; the running hero line shows time left, warning, time over or long turn
+- **Portal:** Turn timer select (presets plus custom seconds) in the game settings,
+  editable by any seated player; the running hero line shows time left, warning, time over or long turn
   as text with a badge.
 - **Android:** the table header shows "Time left", "Over time +m:ss" or "Turn"
   with a text notice (live region) for warning, expiry and long turn; the countdown
-  is extrapolated between 1 s polls and replaced by every snapshot. The host sees
+  is extrapolated between 1 s polls and replaced by every snapshot. Seated players see
   preset chips and a custom-seconds field in the lobby.
 - **Sigil e-ink:** unchanged, by owner decision (2026-09-24): e-ink refresh is
   not suited to a live timer. Timer display will be tried on a future LCD Sigil
   model instead; it will still need a radio-contract field (both display packets
   are full).
 
-## Bench acceptance (Needs verification)
-
-1. Update Atlas only (no Sigil flash needed). Existing `gamecfg` (schema 1) loads as
-   timer Off; profiles/stats intact.
-2. Host sets 1 minute on the phone and in the portal; both show the same setting.
-3. Active Sigil: blue flash then breathe; at 0:10 left, one short chirp and a slow
-   red pulse; at 0:00, two low notes and steady red. Waiting Sigils unchanged.
-4. Let it run a minute past zero: no pass, pause or extra sound; portal/app show time over.
-5. Pause during the warning; resume; no repeated chirp; remaining time continues.
-6. Pass: the next turn starts a fresh countdown; LEDs return to normal.
-7. Timer Off: after five minutes the active Sigil shows steady green, no sound.
-8. Power-cycle Atlas mid-turn with a timer: restores paused with the same timer.
-9. Check the red pulse versus steady red is distinguishable without color (for
-   example, in a monochrome photo or by a color-blind tester).

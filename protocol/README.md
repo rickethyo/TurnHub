@@ -132,13 +132,10 @@ A table QR or discovery mechanism identifies/reaches an Atlas. It must not by it
 
 Authentication/seat assignment is a separate step. Client-supplied player numbers are not trusted when Atlas can resolve identity from the authenticated session/device relationship.
 
-## Current migration priority
+## Current state
 
-Gameplay migration through Intents is implemented. Atlas `0.6.0-dev` adds profile
-login and phone-only/mixed participation through the same application handlers.
-See [implemented profile endpoints and ownership](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md).
+Every gameplay action goes through Atlas's Intents, and phones use the same
+application handlers as Sigils (see [profile endpoints and ownership](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md)).
 The generic v0.1 JSON envelope remains a draft. State/info routes and revision-aware
 session controls are live. Internal `controllerId` naming does not silently change the
 draft JSON schema's `moduleId` field or the ESP-NOW wire packet.
-
-Last established: 2026-09-19

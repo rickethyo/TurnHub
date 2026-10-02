@@ -1,7 +1,6 @@
 # Game profiles and life counters
 
-Status: implemented locally; native scenarios, browser smoke check, and Atlas
-firmware build pass. Not flashed or bench-accepted.
+Status: implemented and in use (owner, 2026-10-02).
 
 Implementation scope, 2026-09-21: Michael requested life counters and the Python
 game-profile selection flow. This first slice offers Generic (40), Magic (20),
@@ -46,7 +45,7 @@ client counts Yu-Gi-Oh! in hundreds: the Android app's life pad and request
 dialog, and the Atlas screen's Player screen (100/1000). A Sigil steps by 100
 in any game that starts at 1000 life or more (it learns the starting life from
 `StartingLife`; `lifeUnitFor` in `life_adjust.h`), and its status ring counts
-steps. *Host-tested only; needs verification on hardware.* Changes are accepted while
+steps. Changes are accepted while
 running or paused, except during a table decision or after elimination/game over.
 Zero/negative totals do not eliminate players. Hidden performance statistics do
 not hide public in-game life totals.
@@ -66,16 +65,12 @@ Life deltas never write flash. Existing statistics remain unchanged and unpartit
 Validation covers owner/host authorization, numeric bounds, storage errors,
 unchanged running settings, companion sessions, paused/negative life, eliminated
 players, and rematch reset. Browser verification covers preset selection, custom
-life, save/reload, public totals, and mobile layout. Remaining hardware acceptance:
-save settings, reboot Atlas, play with two phones, edit life, and rematch.
+life, save/reload, public totals, and mobile layout.
 
 ## Phone-only instability investigation
 
-Paused at the owner's request until serial-monitor data is available.
-
-Owner reported two Atlas resets with no physical Sigils connected, with stability
-when a physical Sigil was present. Reset cause is not established. The working
-change bounds portal polling to one refresh at a time with sequential requests and
-adds reset reason, uptime, free/minimum heap, largest heap block and loop-task stack
-headroom to diagnostics. Native simulations cannot establish physical power,
-Wi-Fi, watchdog or crash behavior; a no-Sigil bench run and reset log are required.
+History: the owner reported Atlas resets with phones and no Sigils
+(2026-09-21). Bounded portal polling and heap/reset diagnostics followed, and
+the 2026-09-29 playtest logs traced the panics to low heap with phones
+connected; the 2026-09-30 RAM reduction doubled free heap (see
+[playtest notes](PLAYTEST_NOTES_2026_09_29.md), section G).

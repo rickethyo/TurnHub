@@ -1,162 +1,60 @@
-# TurnHub Engineering Verification Backlog
+# TurnHub Verification Backlog
 
-This file exists so provisional documentation can be useful immediately without silently becoming permanent fact.
+Facts and decisions that are still open: historical details to recover,
+production decisions, and research. Prototype v1 field-test gates live in
+[Prototype v1 verification](PROTOTYPE_V1_VERIFICATION.md); agreed but
+unimplemented work lives in [Staged Changes](STAGED_CHANGES.md).
 
-For the current field-test gates, use [Prototype v1 Verification](PROTOTYPE_V1_VERIFICATION.md).
-This broader backlog includes historical research and production decisions.
-Implemented-source checks below do not certify physical behavior.
+When an item is settled, record it in the relevant reference document and
+delete it here.
 
-When an item is verified, update the relevant reference document and mark the item complete here with the evidence used.
+Settled and removed 2026-10-02 (the owner reports the current hardware is
+verified through playtesting and bench testing): the development boards and
+pin maps ([Board Inventory](BOARD_INVENTORY.md), [Hardware Reference](HARDWARE_REFERENCE.md)),
+pairing, re-pairing, unpair and factory reset ([Manual Pairing](MANUAL_PAIRING.md)),
+device identity and authenticated pairing ([Secure Link](SECURE_LINK.md)),
+the protocol version and capability bits ([Protocol and Pairing](PROTOCOL_AND_PAIRING.md)),
+the Intent migration, recovery wiring and storage boundary, and signed Atlas
+and Sigil OTA ([Sigil OTA](SIGIL_OTA.md)).
 
-## Historical hardware
+## Historical hardware (Generation 0 and the Raspberry Pi phase)
 
-- [ ] Identify the exact board used for the first standalone TurnHub prototype.
-- [ ] Recover the earliest known pinout for the Generation 0 prototype.
-- [ ] Confirm the exact potentiometer wiring and timer range from the earliest adjustable-timer version.
-- [ ] Confirm when the DIP-switch timer concept replaced or supplemented the potentiometer.
-- [ ] Verify the earliest buzzer pin and hardware type.
-- [ ] Verify the original two-player LED wiring and whether any red/green inversion existed before the Pi generation.
-- [ ] Photograph and label surviving Generation 0 hardware if still available.
+- [ ] Identify the board used for the first standalone prototype, and its pinout.
+- [ ] Confirm the potentiometer wiring and timer range of the earliest
+  adjustable timer, and when the DIP-switch timer replaced or joined it.
+- [ ] Verify the earliest buzzer pin and type, and the original two-player LED
+  wiring, including any red/green inversion before the Pi generation.
+- [ ] Confirm the Raspberry Pi model used in the wired phase (history says 3B).
+- [ ] Recover the wired ESP32 Module 0 pinout, whether Modules 0 and 1 used
+  identical controls throughout, and the Pi-to-module USB/serial topology.
+- [ ] Confirm when pause-on-module-disconnect and reconnect recovery arrived.
+- [ ] Photograph and label surviving prototypes from each generation.
 
-## Raspberry Pi / wired generation
+## Production decisions
 
-- [ ] Confirm the Raspberry Pi model/revision used throughout the wired phase. Current project history identifies a Raspberry Pi 3B.
-- [ ] Recover and document the wired ESP32 Module 0 pinout.
-- [ ] Confirm whether Module 0 and Module 1 used identical logical controls for the entire wired phase.
-- [ ] Document the exact USB/serial topology used between Pi and modules.
-- [ ] Confirm when automatic pause-on-module-disconnect and reconnect recovery were introduced.
-- [ ] Record the historical red/green inversion source in hardware if it can still be physically traced.
+- [ ] Production Sigil transport. ESP-NOW with the encrypted Secure Link is
+  the prototype's transport; BLE and other local options have not been
+  compared on latency, power, Sigil count, venue interference and complexity.
+- [ ] Maximum physical Sigil count for product hardware (firmware allows 8).
+- [ ] Two players per Sigil (shared e-ink seats): product feature, optional
+  mode, or prototype only.
+- [ ] Protocol version negotiation and firmware-compatibility messages, once
+  released hardware needs backward compatibility.
+- [ ] Atlas: separate USB-C power and data ports, input voltage and regulator
+  requirements, battery/backup power, and whether authenticity needs a secure
+  element.
+- [ ] Sigil: battery chemistry and form factor; onboard, external or
+  battery-swap charging.
 
-## Current Atlas development hardware
+## Mechanical and manufacturing
 
-- [ ] Record the exact development Atlas board manufacturer/model, not only the generic PlatformIO `esp32dev` target.
-- [ ] Produce a physical header-to-GPIO pin map for that board.
-- [ ] Confirm available safe GPIOs before assigning pairing/status/auxiliary hardware.
-- [ ] Decide whether the prototype/final Atlas keeps separate USB-C power and firmware/data ports.
-- [ ] Document regulator/input-voltage requirements.
-- [ ] Determine whether production Atlas requires battery/backup power.
-- [ ] Decide whether production authenticity uses a secure element and, if so, select the device and interface.
+- [ ] First reproducible Atlas and Sigil electrical revisions before assigning
+  `ATLAS-REV-A` / `SIGIL-REV-A`, with BOMs and schematics tied to each.
+- [ ] Enclosure mounting points around actual PCB geometry; docking/contact
+  geometry only after power and connectors settle.
+- [ ] Design-for-assembly and repair review with the small-batch PCBA maker.
 
-## Current Sigil development hardware
+## Documentation
 
-- [ ] Record the exact Sigil development board manufacturer/model.
-- [ ] Verify every current GPIO assignment against the physical breadboard.
-- [ ] Record the SPI clock/data pins used by the e-ink library/board defaults in addition to CS/DC/RST/BUSY.
-- [ ] Record the exact e-ink panel seller/model/revision and confirm it matches the current GxEPD2 target.
-- [ ] Verify portrait rotation and final usable resolution.
-- [ ] Measure full-refresh and partial-refresh behavior on the physical panel.
-- [ ] Measure approximate Sigil current draw during idle, radio activity, buzzer operation, and display refresh.
-- [ ] Decide final battery chemistry/form factor for portable Sigils.
-- [ ] Decide whether charging is onboard, external, or battery-swap based.
-- [x] Add and assign GPIO for the Pair button (GPIO19, verified working firmware). Since 2026-09-25 the real E-ink Sigil uses the DevKit BOOT button (GPIO0) for Pair; GPIO19 remains only in the Wokwi build.
-- [x] Add and assign GPIO for the auxiliary Pause / Win button (GPIO32; bench check pending).
-- [x] Verify the auxiliary path maps to semantic Atlas actions and introduces no
-  button-owned game rules (it reuses Action-long and Action-win).
-- [x] Auxiliary-button design superseded by joystick/Select menus (2026-09-25).
-  Pause/Win remain semantic actions. Current input acceptance is in the v1 checklist.
-
-## Wireless and pairing
-
-- [ ] Select the production Sigil transport. ESP-NOW is currently an implemented experiment, not the frozen product decision.
-- [ ] Compare BLE and other local/offline options against latency, power, OTA, multi-Sigil count, venue interference, and implementation complexity.
-- [ ] Define first-time pairing UX on Atlas.
-- [ ] Define first-time pairing UX on Sigil.
-- [x] Define re-pair/unpair behavior. See [Manual Pairing](MANUAL_PAIRING.md#forgetting-a-pairing-2026-09-24); bench acceptance pending.
-- [ ] Define factory-reset behavior for pairing data.
-- [ ] Define stable device-ID generation/storage.
-- [ ] Define how Atlas identifies itself to paired Sigils.
-- [ ] Decide whether pairing requires cryptographic authentication in prototype, production, or both.
-- [x] Prototype 1.0: replace passive proximity adoption with one Atlas-owned pairing
-  state machine using a 15-second window. See [Manual Pairing](MANUAL_PAIRING.md);
-  radio bench acceptance is still pending.
-- [x] ~~Prototype 1.0: temporary boot-triggered pairing~~ - superseded; the Pair
-  button was wired first, so no boot trigger was built.
-- [ ] Verify paired startup reconnects only to the retained Atlas relationship and
-  that re-pair/forget paths do not silently adopt a neighboring Atlas.
-
-## Protocol
-
-- [ ] Freeze semantic event names independently from transport encoding.
-- [ ] Define protocol version negotiation.
-- [ ] Define capability flags.
-- [ ] Define acknowledgement/retry requirements.
-- [ ] Define event deduplication strategy for user actions such as Pass.
-- [ ] Define reconnect/state-resynchronization behavior.
-- [ ] Define maximum supported physical Sigil count for Gen 1 product hardware.
-- [ ] Define two-player-per-Sigil support as either production feature, optional mode, or prototype-only capability.
-- [ ] Define firmware-update compatibility messages.
-
-## Software architecture
-
-- [x] Define identity/persistence ownership and introduce an NVS-backed statistics
-  storage boundary preserving existing data. Atlas build, native gameplay/storage
-  tests and adapter audit pass; see [contracts](IDENTITY_AND_STORAGE.md).
-- [ ] Physically verify the new storage path preserves an existing profile,
-  PIN/name and totals across update/reboot, and records one completed game once.
-
-- [x] Audit current Atlas migration code for any browser/Sigil logic that duplicates game-engine rules. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [x] Route running-game PASS requests from physical Sigils, browser controls, and Atlas's physical control (the master button then; the touchscreen Pass button 2026-09-24 to 25; since then the touchscreen's `MasterPass` hold, a separate Intent) through the shared authoritative `IntentDispatcher`.
-- [x] Investigate inconsistent PASS grace timing observed on hardware. The 2026-09-19 ESP32 Build Fix conversation reports three-second physical/browser pending-to-commit timing and Action cancellation on the pre-migration build. New native scenarios verify grace/cancellation/rollover; repeat the hardware test after this migration.
-- [x] Eliminate optional Preferences/NVS NOT_FOUND spam without reducing error logging. Native fault-injection policy tests and clean firmware build pass; see [verification record](ATLAS_INTENT_VERIFICATION.md).
-- [x] User reports gameplay migration checks tested after the supplied serial run.
-  The migration is now merged into master; on 2026-09-20 the owner also accepted
-  the repository build/current hardware baseline. See the
-  [post-migration hardware checklist](ATLAS_INTENT_VERIFICATION.md#hardware-verification-still-required).
-- [x] Migrate Pause/Resume through authoritative Intent handlers and remove controller-specific state mutation. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [x] Migrate Concede through an authoritative Intent handler. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [x] Migrate ClaimWin/ConfirmWin/DenyWin through authoritative Intent handlers. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [x] Migrate lobby/lifecycle actions through Intent handlers where they represent semantic requests rather than local input gestures. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [x] Phone-only and mixed participation use the same Intent handlers; profile
-  sessions resolve to a single participant shared with physical input. Native
-  HTTP/application regression checks pass; `0.6.0-dev` bench acceptance is pending.
-- [ ] Bench-check `0.6.0-dev`: old profiles, two-phone game with Sigils off,
-  concurrent phone/Sigil control, statistics once and persistence after reboot.
-- [x] Prototype 1.0 recovery: compact versioned record implemented in
-  `game_checkpoint.*` / `game_recovery.*` and wired into setup/observer.
-  Host-tested; abrupt-power hardware acceptance remains open below.
-- [ ] Prototype 1.0 recovery: allocate/persist MatchId and a completion receipt or
-  equivalent idempotency marker before automatic replay of completion/stat updates.
-- [ ] Prototype 1.0 recovery: physically verify bounded writes. Source saves
-  changed semantic state plus a 60-second running-clock checkpoint; rejected
-  actions and ordinary timer/display ticks should not continuously write flash.
-- [ ] Prototype 1.0 recovery: abrupt-power test from lobby, running, paused,
-  mid-turn, after pass, after concession, and around game completion. A recovered
-  match must open paused and must not charge downtime to a player.
-- [ ] Prototype 1.0 recovery (Discard = 5 s End match draw hold on the Atlas touchscreen, 2026-09-24): verify Resume/Discard, re-login, physical/controller
-  reattachment, corrupt/unsupported snapshot rejection, and exactly-once statistics.
-- [x] TestHarness uses the shared radio/menu contract to emulate two Sigils.
-  Source implementation is documented in `TestHarness/README.md`; candidate
-  hardware runs remain part of the v1 checklist.
-- [x] Add repeatable multi-player simulation scenarios. See [Atlas intent verification](ATLAS_INTENT_VERIFICATION.md) for source audit/native test evidence; hardware regression remains pending.
-- [ ] Review timer implementation for timestamp/derived-state behavior rather than unnecessary repeated state mutation.
-- [ ] Review e-ink update code for state-change/dirty-region opportunities.
-- [ ] Define the authoritative persistence format for paired devices separately from player profiles.
-
-## OTA
-
-- [ ] Re-test Atlas OTA after the recent migration issue where upload appeared accepted but application was uncertain.
-- [ ] Confirm update validation before reboot.
-- [ ] Define rollback/recovery behavior after failed Atlas update.
-- [ ] Choose Sigil OTA transport and architecture.
-- [ ] Define Atlas-to-Sigil update orchestration if Atlas distributes Sigil firmware.
-- [ ] Define hardware-revision compatibility checks before flashing.
-
-## Mechanical/manufacturing
-
-- [ ] Create first reproducible Atlas electrical revision before assigning `ATLAS-REV-A`.
-- [ ] Create first reproducible Sigil electrical revision before assigning `SIGIL-REV-A`.
-- [ ] Create BOMs for both Rev A designs.
-- [ ] Create wiring/schematic diagrams tied to each revision.
-- [ ] Define enclosure mounting points around actual PCB geometry.
-- [ ] Define docking/contact geometry only after power and connector decisions stabilize.
-- [ ] Review design-for-assembly and repair with the intended small-batch PCBA manufacturer.
-
-## Documentation process
-
-- [ ] Add photos of each surviving prototype generation.
-- [ ] Add dated architecture diagrams for each generation.
-- [ ] Add a formal decision log for major product decisions and reversals.
-- [ ] Tag future docs with hardware revision and firmware/protocol version where applicable.
-- [ ] Update this backlog whenever a provisional claim is added elsewhere.
-
-Last updated: 2026-09-26
+- [ ] Dated architecture diagrams for each generation.
+- [ ] A decision log for major product decisions and reversals.

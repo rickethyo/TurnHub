@@ -2,17 +2,15 @@
 
 Priority: profile login and fully virtual/mixed play precede game-scoped statistics.
 
-Implementation: Atlas `0.6.0-dev`; automated verification passed. The owner
-reports a successful compile/flash and working behavior on 2026-09-20, with the
-physical reuse gap below. Native Android UI remains future work; browser phones
-use the shared Atlas authorization and Intent services now.
+Implemented in Atlas `0.6.0-dev` (2026-09-20) and in use since. Phones in the
+browser and the Android app use the shared Atlas authorization and Intent
+services.
 
-Known remaining gap: physical join still uses the Sigil's saved profile binding.
-If that person has joined by phone, duplicate prevention blocks physical join;
-the Sigil cannot select another person using its buttons yet. Browser-assisted
-attachment remains available. [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md)
-records the next implementation; saved preference must be separated from live
-assignment rather than weakening duplicate protection.
+The physical reuse gap described next was closed by the Sigil profile picker
+([Physical profile selection](PHYSICAL_PROFILE_SELECTION.md)). Originally,
+physical join used the Sigil's saved profile binding, so if that person had
+joined by phone, duplicate prevention blocked physical join. Browser-assisted
+attachment remains available, and duplicate protection was kept.
 
 ## Required behavior
 
@@ -57,8 +55,7 @@ Test zero-hardware registration/login/complete game/rematch; mixed tables; two
 phone sessions plus a Sigil controlling one profile; duplicate joins; logout and
 re-login during a match; unauthorized/other-profile controls; host restrictions;
 capacity; PIN failure throttling; statistics once per participant; existing
-physical/shared-seat regression scenarios. Hardware radio/flash/browser behavior
-requires a separate bench acceptance run after automated checks.
+physical/shared-seat regression scenarios.
 
 ## Implemented boundaries and compatibility
 
@@ -124,8 +121,6 @@ bounded at 64 profiles; broader administration policy remains future work.
 - Native tests substitute storage, radio, clock and SHA implementation. They
   verify flow/ownership, not physical persistence or cryptographic strength.
 
-Bench acceptance: flash Atlas without erasing NVS; check an old profile, run a
-two-phone game with Sigils off, check statistics/re-login, then attach a Sigil
-in the lobby and exercise that same player from both phone and buttons. Reboot
-to confirm profile/PIN/statistics persistence. No claim of active-game recovery
-or seamless cross-device/Atlas restart is made.
+Phone-only games, phone and Sigil controlling one player, and persistence
+across reboots are verified in use (owner, 2026-10-02). Active-match recovery
+is covered separately ([completion ordering](COMPLETION_RECOVERY.md)).
