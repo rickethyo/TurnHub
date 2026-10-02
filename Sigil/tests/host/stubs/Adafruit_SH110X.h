@@ -9,6 +9,7 @@
 
 #define SH110X_BLACK 0
 #define SH110X_WHITE 1
+#define SH110X_DISPLAYOFF 0xAE
 
 // Records the real renderer's output, asserts all character cells (or, for
 // Adafruit GFX custom fonts, every glyph's ink box) fit, and simulates
@@ -33,6 +34,7 @@ struct PanelTrace {
   int address = -1, rotation = -1;
   uint32_t clockDuring = 0, clockAfter = 0;
   bool spi = false, resetRequested = false, beginSucceeds = true;
+  int lastCommand = -1;  // The last oled_command (SH110X_DISPLAYOFF on sleep).
   std::vector<DrawnLine> lines;
 };
 extern PanelTrace panel;
@@ -55,6 +57,7 @@ class Adafruit_SH1106G {
     return panel.beginSucceeds;
   }
   void setRotation(int r) { panel.rotation = r; }
+  void oled_command(uint8_t command) { panel.lastCommand = command; }
   void setTextWrap(bool wrap) { assert(!wrap); }
   void setTextColor(int color) { color_ = color; }
   void setTextSize(int size) { size_ = size; }

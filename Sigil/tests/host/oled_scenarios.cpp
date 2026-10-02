@@ -196,8 +196,8 @@ int main() {
     m.keyDown(Key::Up, 21000); m.keyUp(Key::Up, 21050);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
-    assert(highlighted("MENU") && has("\x09 Unpair") && has("\x19 Factory reset") && has("\x1b Back") &&
-        has("Hold a key to choose") && !has("Ready for game"));
+    assert(highlighted("MENU") && has("\x09 Unpair") && has("\x18 Sleep") && has("\x19 Factory reset") && has("\x1b Back") &&
+        has("Unpair/reset: hold") && !has("Ready for game"));
     m.keyDown(Key::Down, 22000);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
@@ -212,6 +212,9 @@ int main() {
     page.mode = PickerMode::List; page.itemCount = 1; page.pageCount = 1;
     resetTrace(); d.showPicker(page, 0);
     assert(d.idleWorkDueInMs(24000) == UINT32_MAX);
+    // Sleep: says how to wake, then the panel is switched off.
+    resetTrace(); d.showSleeping();
+    assert(panel.lastCommand == SH110X_DISPLAYOFF && d.idleWorkDueInMs(25000) == UINT32_MAX);
   }
   resetTrace();
   {

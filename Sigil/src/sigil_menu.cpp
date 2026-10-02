@@ -67,6 +67,7 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_DEVICE_MENU: return "Menu";
     case MENU_LOCAL_BACK: return "Back";
     case MENU_LOCAL_UNPAIR: return "Unpair";
+    case MENU_LOCAL_SLEEP: return "Sleep";
     default: break;
   }
   switch (action) {
@@ -140,6 +141,7 @@ uint8_t SigilMenu::keyAction(Key key) const {
     // The milder action on the click; Down, the compass's deliberate key,
     // for the one that erases everything.
     if (key == Key::Select) return MENU_LOCAL_UNPAIR;
+    if (key == Key::Up) return MENU_LOCAL_SLEEP;
     if (key == Key::Down) return MENU_LOCAL_FACTORY_RESET;
     if (key == Key::Left) return MENU_LOCAL_BACK;
     return MENU_NONE;
@@ -190,6 +192,12 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     return;
   }
   if (action == MENU_LOCAL_BACK) {
+    closeDeviceMenu();
+    return;
+  }
+  // A tap: sleeping loses nothing (a click wakes the Sigil, which reconnects).
+  if (action == MENU_LOCAL_SLEEP) {
+    emit(action);
     closeDeviceMenu();
     return;
   }

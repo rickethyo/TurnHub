@@ -331,12 +331,13 @@ constexpr int16_t LEGEND_Y = 56;  // The bottom text row.
 // being held says so; the status light shows the progress.
 bool OledDisplay::drawDeviceMenu() {
   if (!menu_.active || !menu_.deviceMenu) return false;
-  constexpr int16_t ROW_HEIGHT = 12;
+  // Four rows (Unpair, Sleep, Factory reset, Back) above the hint line.
+  constexpr int16_t ROW_HEIGHT = 10;
   legendShown_ = false;
   display_->clearDisplay();
   header("MENU", "DEVICE");
   const int16_t w = display_->width();
-  int16_t y = HEADER_HEIGHT + 3;
+  int16_t y = HEADER_HEIGHT + 2;
   for (Key key : LEGEND_KEYS) {
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
@@ -350,8 +351,8 @@ bool OledDisplay::drawDeviceMenu() {
     y += ROW_HEIGHT;
   }
   // "(hold)" does not fit beside Factory reset (21 characters a row), so the
-  // hint says it in words: Unpair takes 3 s, Factory reset 5 s.
-  text("Hold a key to choose", LEGEND_Y, 1, Align::Center);
+  // hint says it in words: Unpair takes 3 s, Factory reset 5 s; Sleep is a tap.
+  text("Unpair/reset: hold", LEGEND_Y, 1, Align::Center);
   display_->display();
   return true;
 }
@@ -546,6 +547,25 @@ void OledDisplay::showPairingCode(uint16_t code) {
   text("Same code on Atlas?", 41, 1, Align::Center);
   text("Confirm it there", 52, 1, Align::Center);
   display_->display();
+}
+
+// Shown long enough to read, then the panel goes dark: an OLED cannot keep an
+// image unpowered, and a dark screen is the point of sleeping.
+void OledDisplay::showSleeping() {
+  if (!ready_) return;
+  legendShown_ = false;
+  // Drawn directly: the device menu Sleep came from may still be open in the
+  // last menu view.
+  display_->clearDisplay();
+  header("TurnHub", "SLEEP");
+  bigLine("SLEEPING");
+  text("Click joystick", 41, 1, Align::Center);
+  text("to wake", 52, 1, Align::Center);
+  display_->display();
+  delay(1500);
+  display_->clearDisplay();
+  display_->display();
+  display_->oled_command(SH110X_DISPLAYOFF);
 }
 
 void OledDisplay::showUpdate(const char *status, int8_t percent) {

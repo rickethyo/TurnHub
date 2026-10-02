@@ -11,6 +11,9 @@
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
+#include <esp_sleep.h>
+#include <driver/rtc_io.h>
+#include <driver/gpio.h>
 #include <nvs_flash.h>
 #include <Preferences.h>
 #include <freertos/queue.h>
@@ -580,7 +583,24 @@ void updateDisplayProfileSync() {
   Serial.println(profileRequestAttempts);
 }
 
+// Device menu Sleep (owner, 2026-10-02): the display task draws the sleep
+// screen once (showSleeping), then loop() powers down in enterDeepSleep. A
+// joystick click (GPIO32, ext0) or the Pair/BOOT button (GPIO0, ext1) wakes
+// the Sigil, which restarts: its pairing is saved, so it reconnects.
+volatile bool sleepRequested = false;
+volatile bool sleepScreenDrawn = false;
+uint32_t sleepRequestedMs = 0;
+// The e-ink's full refresh takes a few seconds; never wait longer than this.
+constexpr uint32_t SLEEP_SCREEN_TIMEOUT_MS = 8000;
+constexpr gpio_num_t WAKE_CLICK_PIN = GPIO_NUM_32;  // KEY_PINS' thumbstick click.
+
 void updateDisplay() {
+  if (sleepRequested) {
+    if (!sleepScreenDrawn) sigilDisplay.showSleeping();
+    sleepScreenDrawn = true;
+    displayNeedsRefresh = false;
+    return;
+  }
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
   static bool pickerShown = false;
@@ -1434,7 +1454,15 @@ void updateMenuKeys() {
   }
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
-  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_UNPAIR) {
+  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
+    // Chosen in the device menu: Atlas is not asked (it sees the Sigil go
+    // quiet, as when it is unplugged).
+    Serial.println("SIGIL|MENU|SLEEP");
+    sleepRequested = true;
+    sleepRequestedMs = millis();
+    displayNeedsRefresh = true;
+    notifyDisplayTask();
+  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_UNPAIR) {
     // Held to the end in the device menu: forget Atlas, like the Pair button's
     // 3 s hold. Atlas keeps its record until an admin forgets this Sigil.
     Serial.println("SIGIL|MENU|UNPAIR");
@@ -1457,6 +1485,43 @@ void updateMenuKeys() {
   const uint8_t pairHold = updateJoystickPair(nowMs);
   ledModel.setHoldProgress(pairHold ? pairHold : sigilMenu.holdProgress(nowMs));
   publishMenuView();
+}
+
+// Powers down until a joystick click or the Pair button. The ring is dark and
+// its data line held low, so it cannot light while the ESP32 sleeps; the
+// click's pull-up moves to the RTC domain, which stays on. Never returns:
+// waking restarts the Sigil (setup() releases the holds).
+void enterDeepSleep() {
+  Serial.println("SIGIL|SLEEP|ENTER");
+  Serial.flush();
+  stopBuzzer();
+  TurnHubSigil::statusRingShow(TurnHubSigil::LedFrame{});
+  delay(5);
+  pinMode(STATUS_RING_PIN, OUTPUT);
+  digitalWrite(STATUS_RING_PIN, LOW);
+  gpio_hold_en(static_cast<gpio_num_t>(STATUS_RING_PIN));
+  gpio_deep_sleep_hold_en();
+  rtc_gpio_pullup_en(WAKE_CLICK_PIN);
+  rtc_gpio_pulldown_dis(WAKE_CLICK_PIN);
+  esp_sleep_enable_ext0_wakeup(WAKE_CLICK_PIN, 0);
+#ifndef TURNHUB_WOKWI
+  // The DevKit pulls BOOT (GPIO0, an RTC pin) up on the board.
+  esp_sleep_enable_ext1_wakeup(1ULL << PAIR_BUTTON, ESP_EXT1_WAKEUP_ALL_LOW);
+#endif
+  esp_deep_sleep_start();
+}
+
+// Waits for the sleep screen (or its timeout) and for every wake button to be
+// released, so the press that chose Sleep cannot wake the Sigil at once.
+void updateSleep(uint32_t nowMs) {
+  TurnHubSigil::statusRingShow(TurnHubSigil::LedFrame{});
+  const bool drawn = sleepScreenDrawn || nowMs - sleepRequestedMs >= SLEEP_SCREEN_TIMEOUT_MS;
+  const bool released = digitalRead(WAKE_CLICK_PIN) == HIGH
+#ifndef TURNHUB_WOKWI
+      && digitalRead(PAIR_BUTTON) == HIGH
+#endif
+      ;
+  if (drawn && released) enterDeepSleep();
 }
 
 // Only a physical Pair press enables broadcast association requests.
@@ -1645,8 +1710,21 @@ void checkHardwareType() {
 }  // namespace
 
 void setup() {
+  // Back from Sleep: give the click, Pair button and ring pins back to the
+  // digital GPIO driver before anything configures them.
+  const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
+  if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1) {
+    rtc_gpio_deinit(WAKE_CLICK_PIN);
+#ifndef TURNHUB_WOKWI
+    rtc_gpio_deinit(static_cast<gpio_num_t>(PAIR_BUTTON));
+#endif
+  }
+  gpio_hold_dis(static_cast<gpio_num_t>(STATUS_RING_PIN));
+  gpio_deep_sleep_hold_dis();
   Serial.begin(115200);
   delay(250);
+  if (wake == ESP_SLEEP_WAKEUP_EXT0) Serial.println("SIGIL|WAKE|CLICK");
+  if (wake == ESP_SLEEP_WAKEUP_EXT1) Serial.println("SIGIL|WAKE|PAIR_BUTTON");
 #ifndef TURNHUB_WOKWI
   checkHardwareType();
 #endif
@@ -1738,6 +1816,13 @@ void loop() {
 #if !defined(TURNHUB_WOKWI)
   readSerialCommands();
 #endif
+  // Going to sleep: nothing else runs (the display task draws the screen).
+  if (sleepRequested) {
+    if (displayTaskHandle == nullptr) updateDisplay();
+    updateSleep(millis());
+    delay(1);
+    return;
+  }
   ReceivedPacket received;
   // Bounded so a packet burst cannot starve the buttons.
   for (uint8_t n = 0; receiveQueue && n < RECEIVE_QUEUE_LENGTH &&

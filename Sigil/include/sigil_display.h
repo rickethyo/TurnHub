@@ -62,6 +62,10 @@ class SigilDisplay {
   // A firmware update (SIGIL_OTA.md): what is happening in words, and the
   // percent downloaded (or -1). Replaces every other screen, with no menu.
   virtual void showUpdate(const char *status, int8_t percent) = 0;
+  // Device menu Sleep: the last screen before deep sleep, saying how to wake
+  // (a joystick click). The e-ink keeps it unpowered; the OLED shows it
+  // briefly, then switches its panel off. Nothing is drawn after it.
+  virtual void showSleeping() {}
   virtual bool setSeatName(uint8_t slot, const char *name) = 0;
   virtual void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) = 0;
   virtual void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,

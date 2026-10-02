@@ -19,6 +19,7 @@ class EpaperDisplay final : public SigilDisplay {
   void showAtlasLost(uint8_t sigilId) override;
   void showPairingCode(uint16_t code) override;
   void showUpdate(const char *status, int8_t percent) override;
+  void showSleeping() override;
   bool setSeatName(uint8_t slot, const char *name) override;
   void showGame(const TurnHubProtocol::GameDisplayPacket &snapshot) override;
   void showState(

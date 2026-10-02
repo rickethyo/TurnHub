@@ -9,7 +9,8 @@
 // so muscle memory works and the e-ink only redraws when the menu changes.
 // Click (Select) is the likely action. Outside a game, the first of Up/Down
 // with nothing on it is Menu: a device menu, also a compass, with Unpair
-// (held) on the click, Factory reset (held longer) on Down and Back on Left.
+// (held) on the click, Sleep on Up, Factory reset (held longer) on Down and
+// Back on Left.
 // Deliberate actions (ActionHold) are sent only once their key is held.
 
 #include <stdint.h>
@@ -32,7 +33,10 @@ constexpr uint8_t MENU_LOCAL_FACTORY_RESET = MENU_MAX_ITEMS;
 constexpr uint8_t MENU_LOCAL_DEVICE_MENU = MENU_MAX_ITEMS + 1;  // Opens the device menu.
 constexpr uint8_t MENU_LOCAL_BACK = MENU_MAX_ITEMS + 2;         // Closes it.
 constexpr uint8_t MENU_LOCAL_UNPAIR = MENU_MAX_ITEMS + 3;
-static_assert(MENU_LOCAL_UNPAIR < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+// Deep sleep until the joystick is clicked (main.cpp's enterSleep). A tap:
+// nothing is lost, and the Sigil reconnects when it wakes.
+constexpr uint8_t MENU_LOCAL_SLEEP = MENU_MAX_ITEMS + 4;
+static_assert(MENU_LOCAL_SLEEP < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
 constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // True for actions chosen by holding a key (shown "(hold)" in the legend).
@@ -101,7 +105,8 @@ class SigilMenu {
   // AdjustLife is not a compass slot: it frees Left/Right (lifeOffered,
   // main.cpp's LifeAdjuster).
   bool offered(uint8_t action) const {
-    if (action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_UNPAIR || action == MENU_LOCAL_BACK) {
+    if (action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_UNPAIR || action == MENU_LOCAL_BACK ||
+        action == MENU_LOCAL_SLEEP) {
       return active_ && deviceMenuOpen_;
     }
     if (action == MENU_LOCAL_DEVICE_MENU) return active_ && !deviceMenuOpen_ && menuKey() != MENU_NONE;

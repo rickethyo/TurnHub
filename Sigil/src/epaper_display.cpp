@@ -590,7 +590,7 @@ void EpaperDisplay::showUnpaired() {
 // Factory reset and Back. False if it is closed.
 bool EpaperDisplay::drawDeviceMenu() {
   if (!menu_.active || !menu_.deviceMenu) return false;
-  drawStatus("Device menu", "Hold to choose");
+  drawStatus("Device menu", "Unpair/reset: hold");
   return true;
 }
 
@@ -614,6 +614,13 @@ void EpaperDisplay::showPairingCode(uint16_t code) {
   snprintf(line, sizeof(line), "Code %s", digits);
   // No legend: the Sigil waits for the owner to confirm on Atlas.
   drawStatus(line, "Confirm on Atlas", false);
+}
+
+// E-paper keeps this image with no power, so the sleeping Sigil says how to
+// wake it. No legend: no menu works until it wakes. The panel hibernates.
+void EpaperDisplay::showSleeping() {
+  drawStatus("Asleep", "Click joystick", false, "to wake");
+  display_.hibernate();
 }
 
 void EpaperDisplay::showUpdate(const char *status, int8_t percent) {

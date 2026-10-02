@@ -171,8 +171,10 @@ int main() {
   assert(v.deviceMenu && v.compass[static_cast<uint8_t>(Key::Select)] == MENU_LOCAL_UNPAIR &&
       v.compass[static_cast<uint8_t>(Key::Down)] == MENU_LOCAL_FACTORY_RESET &&
       v.compass[static_cast<uint8_t>(Key::Left)] == MENU_LOCAL_BACK &&
-      v.compass[static_cast<uint8_t>(Key::Up)] == MENU_NONE &&
+      v.compass[static_cast<uint8_t>(Key::Up)] == MENU_LOCAL_SLEEP &&
       v.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE);
+  assert(strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_SLEEP)), "Sleep") == 0 &&
+      !menuActionNeedsHold(MENU_LOCAL_SLEEP));
   // Back closes it.
   dev.keyDown(Key::Left, 1100);
   assert(!dev.update(1100).ready && !dev.deviceMenuOpen());
@@ -196,6 +198,13 @@ int main() {
   c = dev.update(9200 + MENU_UNPAIR_HOLD_MS);
   assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR && !dev.deviceMenuOpen());
   dev.keyUp(Key::Select, 9900);
+  // Sleep: a tap on Up, chosen at once (main.cpp sleeps until a click).
+  dev.keyDown(Key::Up, 9950); dev.keyUp(Key::Up, 9960);
+  assert(dev.deviceMenuOpen());
+  dev.keyDown(Key::Up, 9970);
+  c = dev.update(9970);
+  assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_SLEEP && !dev.deviceMenuOpen());
+  dev.keyUp(Key::Up, 9980);
   // An idle device menu closes by itself; a game starting closes it too.
   dev.keyDown(Key::Up, 10000); dev.keyUp(Key::Up, 10050);
   dev.update(10000 + MENU_DEVICE_IDLE_MS - 1); assert(dev.deviceMenuOpen());
