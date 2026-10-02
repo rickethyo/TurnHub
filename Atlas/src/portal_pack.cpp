@@ -12,7 +12,6 @@ using TurnHubFirmwarePackage::Version;
 
 constexpr size_t ARCHIVE_HEADER_BYTES = 12;
 constexpr size_t ENTRY_HEADER_BYTES = 6;
-constexpr char DESCRIPTOR_MAGIC[8] = {'T', 'H', 'F', 'W', 'D', 'S', 'C', '1'};
 
 uint16_t u16(const uint8_t *p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)); }
 uint32_t u32(const uint8_t *p) {
@@ -177,7 +176,7 @@ bool Installer::consume(const uint8_t *&data, size_t &length) {
         if (!collect(sizeof(Descriptor))) return true;
         Descriptor d;
         memcpy(&d, buffer_, sizeof(d));
-        if (memcmp(d.magic, DESCRIPTOR_MAGIC, sizeof(DESCRIPTOR_MAGIC)) != 0 ||
+        if (memcmp(d.magic, descriptorMagic_, sizeof(d.magic)) != 0 ||
             d.product != static_cast<uint8_t>(TurnHubFirmwarePackage::Product::Portal) ||
             TurnHubFirmwarePackage::compareVersions(d.version, version_) != 0) {
           return fail(ArchiveError::BadDescriptor);

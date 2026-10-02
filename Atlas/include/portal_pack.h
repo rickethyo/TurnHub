@@ -85,7 +85,10 @@ bool installedVersion(Files &files, TurnHubFirmwarePackage::Version &out);
 
 class Installer final : public TurnHubFirmwarePackage::Sink {
  public:
-  explicit Installer(Files &files) : files_(files) {}
+  // descriptorMagic: the 8-byte descriptor magic a pack must open with. Atlas
+  // passes its own firmware descriptor's, because that magic may appear only
+  // once in the firmware image (thfw.py refuses to package a build otherwise).
+  Installer(Files &files, const char *descriptorMagic) : files_(files), descriptorMagic_(descriptorMagic) {}
 
   // Sink: called by the package reader after the signed header checks out.
   bool header(const TurnHubFirmwarePackage::Header &header) override;
@@ -111,6 +114,7 @@ class Installer final : public TurnHubFirmwarePackage::Sink {
   bool ensureParents(const char *fullPath);
 
   Files &files_;
+  const char *descriptorMagic_;
   Stage stage_ = Stage::Idle;
   ArchiveError error_ = ArchiveError::None;
   TurnHubFirmwarePackage::Version version_ = {0, 0, 0};

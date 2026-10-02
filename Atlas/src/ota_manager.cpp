@@ -10,6 +10,9 @@
 #include "web_api.h"
 #include "web_pages.h"
 #include "portal_qr_asset.h"
+
+// This build's descriptor (main.cpp); a portal pack must carry the same magic.
+extern "C" const TurnHubFirmwarePackage::Descriptor atlasFirmwareDescriptor;
 #include "portal_pack.h"
 #include "sd_card.h"
 #if defined(TURNHUB_GZIP_PAGES)
@@ -432,7 +435,7 @@ void OtaManager::handlePortalUpload() {
         portalError_ = "Atlas needs its microSD card for the portal. Insert the card that came with Atlas and try again";
         return;
       }
-      if (portalInstaller == nullptr) portalInstaller = new TurnHubPortal::Installer(*files);
+      if (portalInstaller == nullptr) portalInstaller = new TurnHubPortal::Installer(*files, atlasFirmwareDescriptor.magic);
       TurnHubFirmwarePackage::Version running{0, 0, 0};
       TurnHubAtlas::sdPortalVersion(running);
       portalReader.begin(atlasCrypto, {TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID,

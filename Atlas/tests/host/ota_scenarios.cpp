@@ -179,6 +179,9 @@ struct PackFile {
   bool gzip;
 };
 
+// Firmware passes its own descriptor's magic to the installer.
+const char DESCRIPTOR_MAGIC[8] = {'T', 'H', 'F', 'W', 'D', 'S', 'C', '1'};
+
 std::vector<uint8_t> archive(Version version, const std::vector<PackFile> &entries, uint8_t product = 4) {
   std::vector<uint8_t> a = {'T', 'H', 'F', 'W', 'D', 'S', 'C', '1', product, version.major, version.minor,
       version.patch, 0, 0, 0, 0, 'T', 'H', 'W', 'E', 'B', 'A', 'R', '1'};
@@ -228,14 +231,14 @@ bool installPack(RamCard &, const std::vector<uint8_t> &pkg, Version running,
 void portalPackInstallsAndSwaps() {
   using namespace TurnHubPortal;
   RamCard card;
-  Installer installer(card);
+  Installer installer(card, DESCRIPTOR_MAGIC);
   Version installed{};
   assert(!installedVersion(card, installed));
 
   const Version v1{1, 0, 0};
   for (size_t chunk : {1u, 7u, 700u, 100000u}) {
     RamCard fresh;
-    Installer once(fresh);
+    Installer once(fresh, DESCRIPTOR_MAGIC);
     assert(installPack(fresh, packageFor(Product::Portal, v1, archive(v1, PORTAL_FILES)), {0, 0, 0}, once, chunk));
     assert(fresh.files.at("/turnhub/portal/live/index.html.gz") == PORTAL_FILES[0].data);
     assert(fresh.files.at("/turnhub/portal/live/assets/app.1a2b.css.gz").size() == 5000);
