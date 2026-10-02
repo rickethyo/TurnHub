@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.7.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.8.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.7
+## Prototype Edition v0.8
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -639,7 +639,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.7
+**Manual Version:** 0.8
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Development build (Atlas 0.6.3-dev, Sigil 0.9.4-dev)
+**Software:** Development build (Atlas 0.6.3-dev, Sigil 0.9.5-dev)
 **Product names and specifications subject to change.**
