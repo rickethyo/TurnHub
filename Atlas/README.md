@@ -3,7 +3,7 @@
 The ESP32 table controller: the authoritative game engine, the
 `TurnHub-Atlas` Wi-Fi access point and web portal, the HTTP API, the ESP-NOW
 radio to Sigils and NVS/microSD persistence. Firmware version: see
-`include/firmware_version.h` (0.6.4 at the time of writing).
+`include/firmware_version.h` (0.6.5 at the time of writing).
 
 Module layout and the Intent pipeline are described in the repository's
 `CLAUDE.md` and in [Software Architecture](../Documentation/engineering/SOFTWARE_ARCHITECTURE.md).

@@ -6,7 +6,7 @@ authoritative **Atlas** table controller runs the game; player-facing
 **Sigils**, phones (browser portal or the Android app) and the Atlas
 touchscreen request the same semantic actions from it.
 
-**Current firmware:** Atlas **0.6.4**, Sigil **0.9.6** (protocol 3), on `master`.
+**Current firmware:** Atlas **0.6.5**, Sigil **0.9.7** (protocol 3), on `master`.
 Signed releases are published on GitHub Releases and installed from the
 Android app or the Atlas portal.
 
