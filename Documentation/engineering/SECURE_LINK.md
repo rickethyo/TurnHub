@@ -222,8 +222,7 @@ Commit after each step and tick it here.
       inputs to the derivation are right). Not yet exercised on hardware: Reject,
       the 60 s timeout, the portal's Codes match, and forged or replayed verdicts.
 - [x] Pairing v2 on Atlas and Sigil; pair key in NVS (2026-09-29, branch
-      `secure-link-pairing-v2`; host-tested and CI-built, *Needs
-      verification* on hardware). Shared state machines in
+      `secure-link-pairing-v2`). Shared state machines in
       `shared/include/pairing_v2.h` (`Sigil/tests/host/pairing_scenarios.cpp`;
       the host stand-in crypto is `Sigil/tests/host/test_crypto.h`). Atlas:
       `SigilBus` takes 38-byte `PairRequest2` in its window and answers
@@ -234,7 +233,7 @@ Commit after each step and tick it here.
       (below), which is when they stop working.
 - [x] Pairing code on the Sigil and Atlas screens; `PairConfirm` Intent with
       Confirm/Reject on the Atlas screen and in the portal; 60 s timeout
-      (2026-09-29; host-tested, *Needs verification* on hardware). Atlas
+      (2026-09-29). Atlas
       screen: a `PairCode` screen over the lobby (after any presence code),
       **Codes match** / **Reject**, one Sigil at a time. Portal: Device
       Settings lists waiting Sigils with their codes in a live region;

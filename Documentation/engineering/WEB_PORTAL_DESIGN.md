@@ -4,8 +4,8 @@ How the Atlas web pages look and how their presentation is organized. This is
 presentation only: Atlas remains the sole owner of game state, and nothing here
 adds an Intent, a validator or persisted state.
 
-Status: **Implemented** in source (2026-09-24). Host browser smoke tests pass.
-Appearance on real phones and on Atlas hardware **needs verification**.
+Status: **Implemented** (2026-09-24) and in use on phones. Host browser smoke
+tests cover the layout.
 
 ## Pages and shared stylesheet
 

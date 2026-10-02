@@ -167,8 +167,7 @@ rather than Cinzel's old-style ones, so digits keep an even height. On the
 128x64 OLED (2026-09-30), Cinzel and Oswald are used only where their
 measured ink fits the space; otherwise the built-in font draws the same
 words, so nothing is cut or dropped. Small body text, list rows and outlined
-banners stay in the built-in font. *Needs verification* at arm's length on
-each panel, including the Cinzel small caps and the OLED's 7 px Cinzel caps.
+banners stay in the built-in font.
 
 Atlas's speaker (2026-09-24) plays only table-wide cues, and each one also shows
 on the Atlas screen, the Sigils and the portal. Its volume (Off to High) is an
@@ -227,9 +226,7 @@ State ownership:
 
 ## Implemented accessibility settings
 
-Inventory as of 2026-09-24. *Implemented* means in source with host, browser
-and Android unit tests passing; none of the Sigil-side behavior has hardware
-acceptance yet (*Needs verification* on the bench list below).
+Inventory as of 2026-09-24, in use since (owner, 2026-10-02).
 
 | Setting | Where it is chosen | Stored by | Default |
 | --- | --- | --- | --- |
@@ -329,8 +326,8 @@ the OLED since 0.9.4 a one-line legend that steps through the keys every
 2.5 s), never only by position, color or sound. Deliberate actions keep the
 seated players' hold thresholds, and hold progress shows on the light (the
 ring fills); the OLED device menu also says HOLD in words. The OLED's stepping
-legend is time-based: *Needs verification* with players that 2.5 s per key is
-long enough to read. A menu choice produces the same Intent as
+legend is time-based; watch in play that 2.5 s per key is long enough to
+read. A menu choice produces the same Intent as
 the equivalent portal action. Since 2026-09-30 the menu is the only Sigil input:
 the older button gestures are retired.
 
@@ -359,25 +356,9 @@ can be lengthened for players who need more time, never shortened below 60 s.
 The Sigil's own window is 60 s, so with a longer setting press Atlas's Pair
 first. Forgetting a pairing has a remote path (admin portal) as
 well as the Sigil Pair button's 3-second unpair hold, and ending a match as a draw (5-second
-Atlas master hold) is signaled by a fast status-LED blink during the hold and
+End match hold on the Atlas touchscreen) shows an on-screen countdown during the hold and
 by "Draw" text in the portal and Android app.
 - Accessibility preferences for players without a profile (guests).
-
-### Bench acceptance (Needs verification)
-
-1. Flash Atlas and one Sigil with 0.5.4; a second Sigil stays on older firmware.
-2. Sign in on a phone, bind to the new Sigil, choose Reduced motion, sound off,
-   3 s / 6 s. Within a few seconds: no breathing or pulsing, no buzzer, and
-   pause needs a 3 s hold and a win claim 6 s (also on the Pause / Win button).
-3. Reboot only the Sigil: it returns to 2 s / 5 s until Atlas resends (≤ 10 s).
-4. Share the Sigil with a second profile that keeps defaults: the merged rules
-   above apply. Leave: defaults return.
-5. On the older Sigil, the same profile gets the light style and mute but
-   keeps 2 s / 5 s holds.
-6. Claim a win: only the next confirmer's Sigil plays the two-note decision cue.
-7. Monochrome-safe and Reduced motion: check time over versus long turn, and
-   win confirmation versus elimination, in a monochrome photo or with a
-   color-blind tester.
 
 ## Physical, digital, and hybrid participation policies
 

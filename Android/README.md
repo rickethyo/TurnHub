@@ -35,16 +35,12 @@ Compose UI
 
 State flows back in the opposite direction.
 
-## Planned stack
+## Stack
 
-- Kotlin
-- Jetpack Compose
-- Unidirectional data flow
-- ViewModel at screen boundaries
+- Kotlin, Jetpack Compose, Material3
+- Unidirectional data flow with a ViewModel at screen boundaries
 - Repository abstraction around Atlas communication
 - Coroutines / Flow for asynchronous state
-- DataStore later for local preferences
-- QR scanning / Android connection bootstrap later
 
 ## Current source layout
 
@@ -116,21 +112,6 @@ That identifier becomes externally important once the application is
 published, so it should be chosen deliberately rather than inherited
 accidentally from this bootstrap.
 
-## First vertical slice
-
-The first useful app build should do only enough to prove the architecture:
-
-1. Launch natively. *(done)*
-2. Accept an Atlas endpoint manually or from a test QR payload. *(manual entry done)*
-3. Fetch `/api/v1/state`. *(done)*
-4. Render Atlas/table state. *(done, polled)*
-5. Bind to one player seat/session.
-6. Send semantic `PASS`, currently mapped by the adapter to `/api/control/pass`.
-7. Observe the resulting authoritative revision/state.
-8. Disconnect/reconnect and rebuild from a fresh snapshot. *(done)*
-
-If this works without duplicating game logic in Android, the architecture is doing its job.
-
 ## Development dependency order
 
 Android work may proceed in parallel with firmware, but these interfaces need to stabilize in roughly this order:
@@ -173,11 +154,12 @@ Build and test from `Android/` (Android Studio's bundled JDK works):
 ./gradlew testDebugUnitTest --tests "com.turnhub.android.data.HttpAtlasRepositoryTest"
 ```
 
-## Current milestone
+## What the app does
 
-**Live read-only Atlas (first real integration):** the installed app talks to
-a physical Atlas over its existing HTTP API. `MockAtlasRepository` is gone;
-production always uses `HttpAtlasRepository`.
+The app talks to a physical Atlas over its HTTP API; production always uses
+`HttpAtlasRepository`. It shows the live table, gives a signed-in player every
+control the portal offers, runs first-run setup, and installs firmware
+updates on Atlas and the Sigils.
 
 1. Open the app. It asks for "Nearby devices" (local network, Android 17),
    then rejoins the saved table by itself (`HomeViewModel.onAppStarted`):
@@ -211,7 +193,7 @@ production always uses `HttpAtlasRepository`.
    and clears state. A match Atlas recovered after a reboot is simply shown
    as `PAUSED`.
 
-Portal parity (2026-09-26, *Needs verification* on hardware):
+Portal parity (2026-09-26):
 
 - The app now mirrors the Atlas portal's look and its player features. The
   four portal themes (Brass, Midnight, Parchment, High contrast; `ui/theme/
@@ -239,8 +221,8 @@ Portal parity (2026-09-26, *Needs verification* on hardware):
   window, speaker volume, Return to lobby, Atlas factory reset, account
   permissions and archiving, Game Master moderation, first-Admin setup, and
   the Developer activity feed, raw status/devices/seats/diagnostics JSON and
-  a shareable serial log (`AtlasAdminConsole`). Atlas firmware updates stay
-  on the portal's firmware page.
+  a shareable serial log (`AtlasAdminConsole`). Firmware updates run from
+  first-run setup and the **Update now** card ([Sigil OTA](../Documentation/engineering/SIGIL_OTA.md)).
 - **First-run setup** (2026-09-30, FIRST_RUN_SETUP.md): after Connect the
   app reads `GET /api/setup`; while Atlas is new it shows the setup steps in
   place of the table (`AtlasSetupAssistant`, `ui/setup/SetupScreen.kt`):
@@ -303,17 +285,6 @@ Networking notes:
   keeps mobile data as the default route because Atlas has no internet.
   `WifiPreferringConnectionOpener` sends Atlas requests over the current Wi-Fi
   network (needs `ACCESS_NETWORK_STATE`).
-- `/api/v1/state` carries no player names today, so players show as
-  `Player N`. The "Physical Sigils at this table" list only covers handles
-  0-7 seated in `players[]`; Atlas publishes no paired-device inventory, so
-  none is shown or invented.
-
-Next milestone, prepared by `HttpAtlasTransport.request()` (form bodies and
-`X-TurnHub-Token` already supported): profiles -> login -> join ->
-`/api/session/me` -> authenticated `PASS` via the form-based
-`/api/control/pass` -> fetch state again. Never auto-replay a timed-out
-control. `/api/v1/intent`, events, BLE and QR discovery remain out of
-scope. OOBE setup networks and QR-provided credentials can reuse
-`AtlasWifiLink` as-is.
-
-Last established: 2026-09-24
+- `/api/v1/state` carries each player's `displayName`; players without one
+  show as `Player N`. Paired Sigils come from the Admin device list, not from
+  the state snapshot.
