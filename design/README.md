@@ -10,11 +10,12 @@ it in later phases; see the V1 plan and `Documentation/engineering/WEB_PORTAL_DE
 | `icons/*.svg` | The original icon set: 24-point grid, 1.75 stroke, round caps, `<path>` elements only | Yes, the source |
 | `fonts/` | Inter and Cinzel variable fonts, subset to Latin (TTF for Android, WOFF2 for the web), with their OFL licenses | Replace only with a recorded source |
 | `web/components.css` | The web component library (buttons, pills, lists, sheets, turn hero, life tiles, app shell), built only from tokens | Yes |
+| `avatars/*.svg` | The player icons: filled glyphs on the 24-point grid, `<path>` elements only, with an optional lighter tone (`opacity`) and holes (`fill-rule="evenodd"`). One file per preset in `shared/include/avatars.h`, same keys; the build refuses a missing or extra one | Yes, the source |
 | `styleguide.html` | Living specimen of all of the above, with a playable Game screen preview | Yes |
 | `build_tokens.py` | Generates every file below from `tokens.json` and `icons/`, and checks contrast | Yes |
 | `bundle.py` | Inlines stylesheets, fonts and the icon sprite into one HTML file | Yes |
-| `dist/tokens.css`, `dist/icons.svg` | Generated web tokens and icon sprite | No, generated |
-| `Android/.../ui/theme/DesignTokens.kt`, `Android/.../res/drawable/ic_th_*.xml`, `Android/.../res/font/*.ttf` | Generated Compose tokens and vector icons, and the fonts copied for Android | No, generated |
+| `dist/tokens.css`, `dist/icons.svg` | Generated web tokens and icon sprite (icons are `i-<name>`, player icons `a-<key>`) | No, generated |
+| `Android/.../ui/theme/DesignTokens.kt`, `Android/.../res/drawable/ic_th_*.xml`, `ic_avatar_*.xml`, `Android/.../res/font/*.ttf` | Generated Compose tokens and vector icons, and the fonts copied for Android | No, generated |
 
 ```
 python3 design/build_tokens.py            # regenerate after editing tokens.json or icons/

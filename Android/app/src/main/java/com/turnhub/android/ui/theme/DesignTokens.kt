@@ -234,4 +234,24 @@ object DesignTokens {
         @DrawableRes val volume: Int = R.drawable.ic_th_volume
         @DrawableRes val wifi: Int = R.drawable.ic_th_wifi
     }
+
+    /** The player avatars (design/avatars), by the preset key from GET /api/avatars. */
+    object Avatars {
+        @DrawableRes
+        fun forKey(key: String): Int? = when (key) {
+            "die" -> R.drawable.ic_avatar_die
+            "crown" -> R.drawable.ic_avatar_crown
+            "sword" -> R.drawable.ic_avatar_sword
+            "shield" -> R.drawable.ic_avatar_shield
+            "star" -> R.drawable.ic_avatar_star
+            "moon" -> R.drawable.ic_avatar_moon
+            "flame" -> R.drawable.ic_avatar_flame
+            "tree" -> R.drawable.ic_avatar_tree
+            "cat" -> R.drawable.ic_avatar_cat
+            "skull" -> R.drawable.ic_avatar_skull
+            "gem" -> R.drawable.ic_avatar_gem
+            "bolt" -> R.drawable.ic_avatar_bolt
+            else -> null
+        }
+    }
 }

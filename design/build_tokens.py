@@ -5,13 +5,16 @@
   python3 design/build_tokens.py --check  fail if a generated file is stale
                                           or a theme misses a contrast minimum
 
-Outputs (all generated; edit tokens.json or design/icons/*.svg instead):
+Outputs (all generated; edit tokens.json, design/icons/*.svg or
+design/avatars/*.svg instead):
 
   design/dist/tokens.css                  CSS custom properties, @font-face,
                                           one block per theme
-  design/dist/icons.svg                   SVG sprite (<symbol id="i-name">)
+  design/dist/icons.svg                   SVG sprite (<symbol id="i-name">, and
+                                          <symbol id="a-key"> per player avatar)
   Android/.../ui/theme/DesignTokens.kt    the same tokens for Compose
   Android/.../res/drawable/ic_th_*.xml    the icons as vector drawables
+  Android/.../res/drawable/ic_avatar_*.xml  the player avatars as vector drawables
   Android/.../res/font/*.ttf              Inter and Cinzel, copied from design/fonts
 
 Standard library only, so it runs with PlatformIO's Python as well.
@@ -30,12 +33,15 @@ ROOT = Path(__file__).resolve().parent.parent
 DESIGN = ROOT / "design"
 TOKENS = DESIGN / "tokens.json"
 ICONS = DESIGN / "icons"
+AVATARS = DESIGN / "avatars"
+AVATARS_HEADER = ROOT / "shared" / "include" / "avatars.h"
 CSS_OUT = DESIGN / "dist" / "tokens.css"
 SPRITE_OUT = DESIGN / "dist" / "icons.svg"
 ANDROID_MAIN = ROOT / "Android" / "app" / "src" / "main"
 KOTLIN_OUT = ANDROID_MAIN / "java" / "com" / "turnhub" / "android" / "ui" / "theme" / "DesignTokens.kt"
 DRAWABLE_DIR = ANDROID_MAIN / "res" / "drawable"
 DRAWABLE_PREFIX = "ic_th_"
+AVATAR_PREFIX = "ic_avatar_"
 FONT_DIR = ANDROID_MAIN / "res" / "font"
 # Android resource names must be lowercase; the variable TTFs carry every weight.
 FONTS = {"Inter-Variable.ttf": "inter_variable.ttf", "Cinzel-Variable.ttf": "cinzel_variable.ttf"}
@@ -222,12 +228,13 @@ def load_icons() -> dict[str, str]:
     return icons
 
 
-def build_sprite(icons) -> str:
+def build_sprite(icons, avatars) -> str:
     out = [f"<!-- {HEADER} -->",
            '<svg xmlns="http://www.w3.org/2000/svg" style="display:none">']
     for name, d in icons.items():
         out.append(f'<symbol id="i-{name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
                    f'stroke-width="{ICON_STROKE}" stroke-linecap="round" stroke-linejoin="round"><path d="{d}"/></symbol>')
+    out += avatar_symbols(avatars)
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
@@ -242,6 +249,65 @@ def build_drawable(d: str) -> str:
             f"        android:strokeWidth=\"{ICON_STROKE}\"\n"
             "        android:strokeLineCap=\"round\"\n        android:strokeLineJoin=\"round\" />\n"
             "</vector>\n")
+
+
+# --- Player avatars --------------------------------------------------------------
+# Filled glyphs on the same 24-point grid. Each <path> may carry opacity (the
+# lighter second tone) and fill-rule="evenodd" (holes). The keys and their order
+# are the presets in shared/include/avatars.h, whose 16x16 one-bit rows Atlas's
+# screen and the Sigils draw; these are the high-resolution drawings of the same
+# icons for the portal and the app.
+
+def avatar_keys() -> list[str]:
+    text = AVATARS_HEADER.read_text(encoding="utf-8")
+    return re.findall(r'^\s*\{"([a-z0-9-]+)", "[^"]*", \{\s*$', text, re.M)
+
+
+def load_avatars() -> dict[str, list[dict]]:
+    keys = avatar_keys()
+    files = {p.stem: p for p in AVATARS.glob("*.svg")}
+    if not keys or set(keys) != set(files):
+        raise SystemExit(f"design/avatars must hold one SVG per preset in shared/include/avatars.h: "
+                         f"missing {sorted(set(keys) - set(files))}, extra {sorted(set(files) - set(keys))}")
+    avatars = {}
+    for key in keys:
+        text = files[key].read_text(encoding="utf-8")
+        if re.search(r"<(?!/?svg\b|path\b)", text):
+            raise SystemExit(f"{files[key]}: avatars must be <path> elements only (Android converts them)")
+        layers = []
+        for attrs in re.findall(r"<path\s([^>]*?)/?>", text):
+            a = dict(re.findall(r'([a-z-]+)="([^"]*)"', attrs))
+            layers.append({"d": a["d"], "opacity": a.get("opacity"), "evenodd": a.get("fill-rule") == "evenodd"})
+        avatars[key] = layers
+    return avatars
+
+
+def avatar_symbols(avatars) -> list[str]:
+    out = []
+    for key, layers in avatars.items():
+        paths = "".join(
+            "<path" + (f' opacity="{l["opacity"]}"' if l["opacity"] else "")
+            + (' fill-rule="evenodd"' if l["evenodd"] else "") + f' d="{l["d"]}"/>' for l in layers)
+        out.append(f'<symbol id="a-{key}" viewBox="0 0 24 24" fill="currentColor" stroke="none">{paths}</symbol>')
+    return out
+
+
+def build_avatar_drawable(layers) -> str:
+    o = [f"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!-- {HEADER} -->",
+         "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"",
+         "    android:width=\"24dp\"\n    android:height=\"24dp\"",
+         "    android:viewportWidth=\"24\"\n    android:viewportHeight=\"24\">"]
+    for l in layers:
+        o.append("    <path")
+        o.append(f"        android:pathData=\"{l['d']}\"")
+        if l["opacity"]:
+            alpha = l["opacity"]
+            o.append(f"        android:fillAlpha=\"{'0' + alpha if alpha.startswith('.') else alpha}\"")
+        if l["evenodd"]:
+            o.append("        android:fillType=\"evenOdd\"")
+        o.append("        android:fillColor=\"#FF000000\" />")
+    o.append("</vector>")
+    return "\n".join(o) + "\n"
 
 
 # --- Kotlin ---------------------------------------------------------------------
@@ -267,7 +333,7 @@ def camel(name: str) -> str:
     return head + "".join(w.capitalize() for w in rest)
 
 
-def build_kotlin(tokens, icons) -> str:
+def build_kotlin(tokens, icons, avatars) -> str:
     color_names = list(next(iter(tokens["themes"].values()))["color"].keys())
     for key, theme in tokens["themes"].items():
         if list(theme["color"].keys()) != color_names:
@@ -360,7 +426,14 @@ def build_kotlin(tokens, icons) -> str:
     o += ["    }", "", "    /** The shared icon set (design/icons), as vector drawables. */", "    object Icons {"]
     for name in icons:
         o.append(f"        @DrawableRes val {camel(name)}: Int = R.drawable.{DRAWABLE_PREFIX}{kotlin_ident(name)}")
-    o += ["    }", "}", ""]
+    o += ["    }", "",
+          "    /** The player avatars (design/avatars), by the preset key from GET /api/avatars. */",
+          "    object Avatars {",
+          "        @DrawableRes",
+          "        fun forKey(key: String): Int? = when (key) {"]
+    for key in avatars:
+        o.append(f'            "{key}" -> R.drawable.{AVATAR_PREFIX}{kotlin_ident(key)}')
+    o += ["            else -> null", "        }", "    }", "}", ""]
     return "\n".join(o)
 
 
@@ -368,13 +441,16 @@ def build_kotlin(tokens, icons) -> str:
 
 def outputs(tokens) -> dict[Path, str]:
     icons = load_icons()
+    avatars = load_avatars()
     files = {
         CSS_OUT: build_css(tokens),
-        SPRITE_OUT: build_sprite(icons),
-        KOTLIN_OUT: build_kotlin(tokens, icons),
+        SPRITE_OUT: build_sprite(icons, avatars),
+        KOTLIN_OUT: build_kotlin(tokens, icons, avatars),
     }
     for name, d in icons.items():
         files[DRAWABLE_DIR / f"{DRAWABLE_PREFIX}{kotlin_ident(name)}.xml"] = build_drawable(d)
+    for key, layers in avatars.items():
+        files[DRAWABLE_DIR / f"{AVATAR_PREFIX}{kotlin_ident(key)}.xml"] = build_avatar_drawable(layers)
     return files
 
 
@@ -392,7 +468,8 @@ def main(argv=None) -> int:
     files = outputs(tokens)
     fonts = font_copies()
     expected_drawables = {p for p in files if p.parent == DRAWABLE_DIR}
-    stale_drawables = {p for p in DRAWABLE_DIR.glob(f"{DRAWABLE_PREFIX}*.xml")} - expected_drawables
+    stale_drawables = ({p for p in DRAWABLE_DIR.glob(f"{DRAWABLE_PREFIX}*.xml")}
+                       | {p for p in DRAWABLE_DIR.glob(f"{AVATAR_PREFIX}*.xml")}) - expected_drawables
 
     if args.check:
         for path, text in files.items():
@@ -402,11 +479,11 @@ def main(argv=None) -> int:
             if not path.exists() or path.read_bytes() != data:
                 problems.append(f"{path.relative_to(ROOT)} is stale; run python3 design/build_tokens.py")
         for path in sorted(stale_drawables):
-            problems.append(f"{path.relative_to(ROOT)} has no icon in design/icons; run python3 design/build_tokens.py")
+            problems.append(f"{path.relative_to(ROOT)} has no icon in design/icons or design/avatars; run python3 design/build_tokens.py")
         if problems:
             print("\n".join(problems), file=sys.stderr)
             return 1
-        print(f"Design tokens OK: {len(tokens['themes'])} themes, {len(files) - 3} icons.")
+        print(f"Design tokens OK: {len(tokens['themes'])} themes, {len(files) - 3} icons and avatars.")
         return 0
 
     if problems:
@@ -422,7 +499,7 @@ def main(argv=None) -> int:
             path.write_bytes(data)
     for path in stale_drawables:
         path.unlink()
-    print(f"Wrote {len(files)} files ({len(tokens['themes'])} themes, {len(files) - 3} icons).")
+    print(f"Wrote {len(files)} files ({len(tokens['themes'])} themes, {len(files) - 3} icons and avatars).")
     return 0
 
 

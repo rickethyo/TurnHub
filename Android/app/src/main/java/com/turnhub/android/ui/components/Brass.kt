@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -393,7 +394,7 @@ fun PlayerAvatar(
         modifier
             .size(size)
             .clip(CircleShape)
-            .background(p.avatarColor(playerNumber))
+            .background(avatarBrush(p.avatarColor(playerNumber)))
             .border(2.dp, p.lineStrong, CircleShape)
             .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
@@ -409,6 +410,10 @@ fun PlayerAvatar(
         }
     }
 }
+
+/** The player's hue, lit from above like the portal's avatar discs. */
+fun avatarBrush(color: Color): Brush =
+    Brush.verticalGradient(listOf(lerp(color, Color.White, .14f), lerp(color, Color.Black, .16f)))
 
 fun initials(name: String): String {
     val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }

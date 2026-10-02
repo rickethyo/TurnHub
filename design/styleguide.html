@@ -161,6 +161,12 @@
   <div class="card"><div class="icons" id="iconGrid"></div></div>
 </section>
 
+<section class="sg-section" aria-labelledby="h-avatars">
+  <header><span class="t-eyebrow">Player icons</span><h2 class="t-title2" id="h-avatars">Filled glyphs, two tones, on the player's color</h2>
+  <p class="secondary">The presets from <code>shared/include/avatars.h</code>, drawn on the same 24-point grid as solid shapes with a lighter second tone. Atlas's screen and the Sigils draw the 16x16 one-bit versions of the same icons.</p></header>
+  <div class="card"><div class="icons" id="avatarGrid"></div></div>
+</section>
+
 <section class="sg-section" aria-labelledby="h-motion">
   <header><span class="t-eyebrow">Motion</span><h2 class="t-title2" id="h-motion">Springs, not timelines</h2>
   <p class="secondary">Three springs cover every movement. The portal plays them through CSS <code>linear()</code> curves generated from the same physics Android uses, and Reduce motion turns them all off.</p></header>
@@ -290,6 +296,12 @@
     ih += '<div class="icon-cell"><svg class="i i-lg" aria-hidden="true"><use href="#' + s.id + '"/></svg><span>' + n + "</span></div>";
   });
   grid.innerHTML = ih;
+
+  var ah = "", hues = [38, 168, 12, 205, 95, 280, 330, 60];
+  document.querySelectorAll("symbol[id^='a-']").forEach(function (s, n) {
+    ah += '<div class="icon-cell"><span class="avatar lg" style="--hue:' + hues[n % 8] + '" aria-hidden="true"><svg class="avatar-glyph"><use href="#' + s.id + '"/></svg></span><span>' + s.id.slice(2) + "</span></div>";
+  });
+  document.getElementById("avatarGrid").innerHTML = ah;
 
   var cs0 = getComputedStyle(document.documentElement);
   [["1",2],["2",4],["3",8],["4",12],["5",16],["7",24],["8",32],["10",48],["11",64]].forEach(function (s) {

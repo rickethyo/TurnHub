@@ -1,6 +1,10 @@
 package com.turnhub.android.ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
+import com.turnhub.android.ui.theme.DesignTokens
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.geometry.Offset
@@ -146,12 +150,22 @@ fun PlayerCard(
 }
 
 /**
- * A preset avatar drawn pixel for pixel from Atlas's 16x16 rows, so it matches
- * Atlas's screen and the Sigils. Decorative: the card's description carries
- * the player's name.
+ * A preset avatar: the shared vector drawing for its key (design/avatars), or,
+ * for a key this build doesn't know, Atlas's 16x16 rows drawn pixel for pixel.
+ * Decorative: the card's description carries the player's name.
  */
 @Composable
 fun AvatarGlyph(icon: AvatarIcon, color: Color, size: Dp = 24.dp) {
+    val drawable = DesignTokens.Avatars.forKey(icon.key)
+    if (drawable != null) {
+        Image(
+            painter = painterResource(drawable),
+            contentDescription = null,
+            modifier = Modifier.size(size),
+            colorFilter = ColorFilter.tint(color),
+        )
+        return
+    }
     Canvas(modifier = Modifier.size(size)) {
         val cell = this.size.width / icon.rows.size
         icon.rows.forEachIndexed { y, row ->

@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.PlayerSessionState
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.AvatarGlyph
+import com.turnhub.android.ui.components.avatarBrush
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.PlayerAvatar
@@ -245,7 +246,7 @@ private fun AvatarChoice(label: String, selected: Boolean, onClick: () -> Unit, 
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(Modifier.size(44.dp).clip(CircleShape).background(p.avatarColor(1)), contentAlignment = Alignment.Center) { content() }
+        Box(Modifier.size(44.dp).clip(CircleShape).background(avatarBrush(p.avatarColor(1))), contentAlignment = Alignment.Center) { content() }
         Text(label, color = p.muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
