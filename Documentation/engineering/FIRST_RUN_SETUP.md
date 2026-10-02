@@ -1,8 +1,8 @@
 # First-run guided setup (out-of-box experience)
 
 Started 2026-09-30. Status: implemented in Atlas and the Android app and in
-use (owner, 2026-10-02); the portal steps and the manual section are still
-open (see the resume checklist).
+use (owner, 2026-10-02). The portal steps followed on 2026-10-02 in the SD
+portal pack (PORTAL_PACK.md, "Pages"); the manual section is still open.
 
 This is the first implementation slice of [Atlas OOBE](../../Atlas/OOBE.md)
 ("3. Setup wizard"). It builds on pieces that already exist: first-Admin
@@ -202,7 +202,9 @@ simply runs again: sign in, verify, re-enter a password.
 - [x] Source lists: no new Atlas `.cpp` files, so the runners are unchanged.
 - [x] Firmware build through CI on this branch: run 36679680047, all jobs
       green (every firmware environment, Linux host tests, Android).
-- [ ] Portal: the same steps on the same endpoints (after the app).
+- [x] Portal: account, presence code and Wi-Fi steps on the same endpoints, in
+      the SD portal pack (2026-10-02). Pairing and updates stay on the Atlas
+      screen and in the app.
 - [x] First signed GitHub release: `v0.9.1` (2026-09-30, run 36784495173):
       Atlas 0.6.1, Sigils 0.9.1, protocol 3. The feed is live at the
       `releases/latest` URL above.

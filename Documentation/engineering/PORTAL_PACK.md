@@ -22,7 +22,7 @@ separately from firmware: a portal change does not need an Atlas flash.
 
 | Path | What |
 |---|---|
-| `Atlas/web/src/` | Portal pages (`index.html`) and their local files; `portal.css` styles the portal from the design tokens |
+| `Atlas/web/src/` | Portal pages (`index.html`, `login.html`, `stats.html`, `update.html`, `sigil-update.html`, `dev.html`) and their local files: `portal.css` styles every page from the design tokens, `theme-boot.js` sets the theme before first paint, `manifest.webmanifest` and `icons/` let a phone add the portal to its home screen |
 | `Atlas/web/VERSION` | Pack version, `major.minor.patch`; raise it for every pack you install over another |
 | `Atlas/web/build.py` | Builds, checks, signs and previews the pack (standard library only) |
 | `design/` | Tokens, components, fonts and icons the pages pull in (`design/README.md`) |
@@ -50,6 +50,36 @@ Daylight, Brass and High contrast. A saved Midnight or Parchment choice from
 the flash portal maps to Graphite or Daylight. The turn hero is a ring in the
 modern themes and the original brass gauge in Brass. The footer links to
 `/portal-classic`.
+
+## Pages (V1 phases 3 and 4)
+
+Implemented 2026-10-02. Host smoke checks cover the portal and sign-in pages;
+the other pages and the first-run steps **need verification** on Atlas.
+
+- **Players:** one row per player with life and turn state. The QR codes open
+  in an Invite players sheet. Connect a Sigil is a list of numbered steps whose
+  ticks come from what Atlas reports (signed in, a Sigil paired, a seat on your
+  profile).
+- **My Account:** a profile header with roles and a win-rate summary from
+  `/api/session/stats`. Tapping a theme previews it; Save appearance keeps it.
+- **Device Settings:** an inline Verify at the table card (show the code,
+  type it, stop), Atlas facts with links to the update pages, Wi-Fi, paired
+  Sigils, Atlas hardware, a Reset group and account permissions.
+- **First-run setup:** while `GET /api/setup` reports `welcome`, the Game view
+  opens with the same steps as the app: account, presence code (first Admin),
+  and the table's own Wi-Fi password through `POST /api/setup/finish`. Pairing
+  and updates stay on the Atlas screen and in the app. Skip for now hides it
+  for the browser session.
+- **Sign-in, statistics, updates and Developer:** the built-in pages
+  restyled, with the same element IDs and scripts. Sign-in adds a Sign in /
+  Create account switch, Show buttons, a live PIN-or-password check
+  (`validPin`'s rule) and remembers the last account on that phone.
+- **Home screen and screen-on:** the manifest and Apple meta tags let a phone
+  add TurnHub to its home screen. Android only opens it full screen, and the
+  browser only grants the screen wake lock the Game view asks for during a
+  match, over HTTPS (secure context). Until Atlas serves HTTPS (planned) both
+  quietly fall back: a home-screen shortcut, and the phone's own screen
+  timeout.
 
 ## Package and archive
 
@@ -91,6 +121,9 @@ roll back, build the older source with a raised `VERSION`.
 |---|---|
 | `/portal` | the pack's `index.html` (no-cache), else the flash portal |
 | `/portal-classic` | always the flash portal |
+| `/login`, `/stats` | the pack's `login.html`, `stats.html`, else the built-in page |
+| `/update`, `/sigil-update`, `/dev` | the pack's copy, else the built-in page, after the same permission check (Admin; Developer for `/dev`) |
+| any of those with `?classic=1` | always the built-in page |
 | `/assets/...` | the pack, `Cache-Control: immutable` (names are content-hashed) |
 
 A gzip copy is sent with `Content-Encoding: gzip`. Card reads take the same

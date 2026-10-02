@@ -7,6 +7,13 @@
 <meta name="color-scheme" content="dark light">
 <title>TurnHub</title>
 <script src="./theme-boot.js"></script>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TurnHub">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="./../../../design/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <!-- build:css portal.css -->
 <link rel="stylesheet" href="../../../design/dist/tokens.css">
@@ -42,6 +49,19 @@
 </header>
 
 <section id="lifeRequestAlert" class="notice req-alert" hidden aria-label="Pending life change"><span id="lifeAlertText" role="status" aria-live="polite"></span><button class="primary" onclick="reviewLifeRequest()">Review life request</button><span id="lifeAlertBar" class="bar" aria-hidden="true"></span></section>
+<section id="setupWizard" class="card wizard" hidden aria-labelledby="wizardTitle">
+ <div class="wizard-head"><span class="brand-mark hero-mark" aria-hidden="true"></span><div><p class="eyebrow">New table</p><h2 id="wizardTitle">Set up this Atlas</h2><p class="small">Three short steps. Only someone at the table can finish them.</p></div><button class="small ghost" onclick="skipSetup()">Skip for now</button></div>
+ <div class="wizard-progress" aria-hidden="true"><span id="wizardBar"></span></div>
+ <p id="wizardStepLabel" class="sr-only" role="status" aria-live="polite"></p>
+ <ol id="wizardSteps" class="steps"></ol>
+ <form id="wizardWifi" class="wizard-wifi" hidden onsubmit="event.preventDefault();finishSetup()">
+  <label for="wizardPassword">New Wi-Fi password for <span id="wizardSsid">TurnHub-Atlas</span></label>
+  <div class="secret"><input id="wizardPassword" type="text" minlength="8" maxlength="63" autocomplete="new-password" placeholder="8–63 characters" required><button type="button" class="ghost small reveal" onclick="wizardPassword.value=newWifiPassword()">Generate</button></div>
+  <p class="hint">Write it down: every phone and the app rejoin with it after Atlas restarts.</p>
+  <button class="primary block">Finish and restart Atlas</button>
+ </form>
+ <p id="wizardMessage" class="msg" role="status" aria-live="polite"></p>
+</section>
 <section id="adminSetup" class="notice good" hidden><strong>Set up this Atlas</strong><p>Create or sign into your account in My Account, then select the button below. The Atlas screen shows a six-digit code; enter it here (or scan the QR code on the Atlas screen with this phone) to prove you are at the table.</p><button class="primary" onclick="setupAdmin()">Make my account the initial Admin</button></section>
 
 <main id="main">
@@ -229,25 +249,29 @@
 <section id="view-settings" class="view" hidden>
 <h1 class="sr-only">Device Settings</h1>
 <div class="grid">
- <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas Wi-Fi security</h2></div>
-  <div class="status-row"><span>Network</span><strong id="wifiSsidSetting">—</strong></div><div class="status-row"><span>Security</span><strong id="wifiSecuritySetting">—</strong></div><div class="status-row"><span>Connected clients</span><strong id="wifiClientsSetting">—</strong></div><div class="status-row"><span>Password</span><strong id="wifiPasswordState">—</strong></div>
-  <label for="networkPasswordInput">New Wi-Fi password</label><input id="networkPasswordInput" type="password" minlength="8" maxlength="63" autocomplete="new-password" placeholder="8–63 characters">
-  <div class="actions" style="margin-top:10px"><button onclick="generateNetworkPassword()">Generate</button><button id="wifiRevealButton" onclick="toggleNetworkPassword()">Show</button><button class="warn" onclick="saveNetworkPassword()">Save &amp; restart Atlas</button></div>
-  <div id="networkRestartNotice" class="notice" style="margin-top:14px">Saving asks for the code the Atlas screen shows, to prove you are at the table. Changing the password restarts Atlas and disconnects every Wi-Fi client until it reconnects with the new password.</div>
+ <section id="presenceCard" class="card presence" aria-labelledby="presenceTitle">
+  <span class="presence-icon" aria-hidden="true"><svg class="i"><use href="#i-shield"/></svg></span>
+  <div class="presence-text"><h2 id="presenceTitle">Verify at the table</h2><p id="presenceStatus" class="small" role="status" aria-live="polite">Changing Wi-Fi, device names, firmware and resets needs proof you are at the table.</p></div>
+  <div class="presence-actions">
+   <button id="presenceShow" class="primary" onclick="showPresenceCode()">Show a code on Atlas</button>
+   <form id="presenceForm" class="inline" hidden onsubmit="event.preventDefault();submitPresenceCode()"><label for="presenceCode" class="sr-only">Code from the Atlas screen</label><input id="presenceCode" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="6-digit code"><button class="primary">Verify</button></form>
+   <button id="presenceStop" class="small" onclick="stopVerification()" hidden>Stop</button>
+  </div>
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas</h2></div>
-  <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Verified at the table</span><strong id="adminUnlockMetric">No one</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
-  <div class="actions" style="margin-top:12px"><a class="btn" href="/update">Atlas firmware</a><a class="btn" href="/sigil-update">Sigil firmware</a><span class="small">Update from Lobby or Game Over.</span></div>
+  <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>Portal pack</span><strong id="portalPackMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Verified at the table</span><strong id="adminUnlockMetric">No one</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
+  <div class="link-list"><a href="/update"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span>Atlas firmware and portal</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a><a href="/sigil-update"><svg class="i" aria-hidden="true"><use href="#i-sigil"/></svg><span>Sigil firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a></div>
+  <p class="hint">Update from Lobby or Game Over.</p>
  </section>
- <section class="card half"><div class="card-head"><h2 class="eyebrow">Portal &amp; network</h2></div>
-  <div class="status-row"><span>Address</span><strong id="portalAddress" class="mono"></strong></div><div class="status-row"><span>Wi-Fi</span><strong id="wifiSsidSystem">—</strong></div><div class="status-row"><span>Security</span><strong id="wifiSecuritySystem">—</strong></div><div class="status-row"><span>Wi-Fi clients</span><strong id="wifiClientsSystem">—</strong></div><div class="status-row"><span>Browser seat</span><strong id="browserSeatMetric">Not signed in</strong></div><div class="status-row"><span>Connection</span><strong id="connectionMetric">Connecting</strong></div>
-  <div class="actions" style="margin-top:12px"><button onclick="refreshAll()">Refresh now</button></div>
+ <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas Wi-Fi security</h2></div>
+  <div class="status-row"><span>Network</span><strong id="wifiSsidSetting">—</strong></div><div class="status-row"><span>Security</span><strong id="wifiSecuritySetting">—</strong></div><div class="status-row"><span>Connected clients</span><strong id="wifiClientsSetting">—</strong></div><div class="status-row"><span>Password</span><strong id="wifiPasswordState">—</strong></div>
+  <label for="networkPasswordInput">New Wi-Fi password</label><div class="secret"><input id="networkPasswordInput" type="password" minlength="8" maxlength="63" autocomplete="new-password" placeholder="8–63 characters"><button id="wifiRevealButton" type="button" class="ghost small reveal" onclick="toggleNetworkPassword()">Show</button></div>
+  <div class="actions" style="margin-top:10px"><button onclick="generateNetworkPassword()">Generate</button><button class="warn" onclick="saveNetworkPassword()">Save &amp; restart Atlas</button></div>
+  <p id="networkRestartNotice" class="hint">Changing the password restarts Atlas and disconnects every Wi-Fi client until it reconnects with the new password.</p>
  </section>
- <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Paired Sigils</h2><p class="small">Renaming, Return table to lobby and Factory reset ask for the code the Atlas screen shows (Verify at the table). Forget removes a Sigil's pairing; pair it again with Menu → Pair a Sigil on the Atlas screen and the Sigil's Pair button. Forget works in the lobby, for Sigils nobody is seated on. Holding a Sigil's own Pair button for 10 seconds makes the Sigil forget Atlas.</p></div></div><div id="atlasDevice"></div><div id="pairingChecks" class="stack" style="margin-top:10px;gap:10px" role="status" aria-live="polite"></div><div id="deviceSettingsList" class="stack" style="margin-top:10px;gap:10px"></div>
-  <div class="actions" style="margin-top:10px"><button onclick="verifyAtTable()">Verify at the table</button><button onclick="stopVerification()">Stop</button><span id="presenceStatus" class="small" role="status" aria-live="polite"></span></div>
-  <div class="actions" style="margin-top:10px"><button class="warn" onclick="forgetAllSigils()">Forget all Sigils</button><button class="warn" onclick="resetTableToLobby()">Return table to lobby</button><button class="warn" onclick="factoryResetAtlas()">Factory reset Atlas</button></div>
-  <p class="hint">Return table to lobby ends a match in progress as a draw (every player gets a draw in their statistics) and clears the table, even if nobody can reach their Sigil. Factory reset erases everything a device has saved and restarts it: for a Sigil its pairing and settings; for Atlas every profile, PIN, pairing, Wi-Fi password and setting (the microSD card is kept). Once verified at the table, an Admin stays verified for 10 minutes.</p>
-  <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
+ <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Paired Sigils</h2><p class="small">Pair new Sigils with <strong>Menu → Pair a Sigil</strong> on the Atlas screen and the Sigil’s Pair button. Forget works in the lobby, for Sigils nobody is seated on.</p></div></div><div id="atlasDevice"></div><div id="pairingChecks" class="stack" style="margin-top:10px;gap:10px" role="status" aria-live="polite"></div><div id="deviceSettingsList" class="stack" style="margin-top:10px;gap:10px"></div>
+  <p class="hint">Holding a Sigil’s own Pair button for 10 seconds makes the Sigil forget Atlas.</p></section>
+ <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas hardware</h2></div>
   <label for="pairingWindowSelect">Atlas pairing window</label><select id="pairingWindowSelect" aria-describedby="pairingWindowHelp" onchange="atlasHardwareDirty=true"></select>
   <p id="pairingWindowHelp" class="hint">How long Atlas listens after Pair a Sigil is tapped on its screen (under Menu): at least 60 seconds, longer for players who need more time. A Sigil listens for 60 seconds, so with a longer window tap Pair on Atlas first, then press Pair on the Sigil.</p>
   <p id="pairingWindowStatus" class="msg" role="status" aria-live="polite"></p>
@@ -255,7 +279,19 @@
   <p id="speakerVolumeHelp" class="hint">Atlas's own speaker plays table-wide cues: the start countdown, turn changes, turn-timer warnings, pause and resume, eliminations, wins and game over, so players without a Sigil hear them too. Every cue also shows on screen. Sigil sound is set per player in their accessibility settings.</p>
   <p id="speakerVolumeStatus" class="msg" role="status" aria-live="polite"></p>
   <div class="actions" style="margin-top:12px"><button class="primary" onclick="saveAtlasHardware()">Save Atlas settings</button></div></section>
- <section class="card"><div class="card-head"><div><h2 class="eyebrow">Account permissions</h2><p class="small">Permissions can be combined. The initial Admin must remain an Admin. Privileged accounts require a PIN.</p></div><button class="small" onclick="refreshAccountList()">Refresh accounts</button></div><div id="adminAccounts"></div></section>
+ <section class="card half"><div class="card-head"><h2 class="eyebrow">Portal &amp; network</h2></div>
+  <div class="status-row"><span>Address</span><strong id="portalAddress" class="mono"></strong></div><div class="status-row"><span>Wi-Fi</span><strong id="wifiSsidSystem">—</strong></div><div class="status-row"><span>Security</span><strong id="wifiSecuritySystem">—</strong></div><div class="status-row"><span>Wi-Fi clients</span><strong id="wifiClientsSystem">—</strong></div><div class="status-row"><span>Browser seat</span><strong id="browserSeatMetric">Not signed in</strong></div><div class="status-row"><span>Connection</span><strong id="connectionMetric">Connecting</strong></div>
+  <div class="actions" style="margin-top:12px"><button onclick="refreshAll()">Refresh now</button></div>
+ </section>
+ <section class="card half danger-zone"><div class="card-head"><div><h2 class="eyebrow">Reset</h2><p class="small">These ask for the code on the Atlas screen first. Once verified, an Admin stays verified for 10 minutes.</p></div></div>
+  <div class="link-list danger">
+   <button onclick="resetTableToLobby()" aria-label="Return table to lobby"><span>Return table to lobby</span><small>Ends a match in progress as a draw (every player gets a draw in their statistics) and clears the table, even if nobody can reach their Sigil.</small></button>
+   <button onclick="forgetAllSigils()" aria-label="Forget all Sigils"><span>Forget all Sigils</span><small>Removes every pairing. Pair them again from the Atlas screen.</small></button>
+   <button onclick="factoryResetAtlas()" aria-label="Factory reset Atlas"><span>Factory reset Atlas</span><small>Erases every profile, PIN, pairing, Wi-Fi password and setting, then restarts. The microSD card and portal are kept.</small></button>
+  </div>
+  <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
+ </section>
+ <section class="card"><div class="card-head"><div><h2 class="eyebrow">Account permissions</h2><p class="small">Permissions can be combined. The initial Admin must remain an Admin. Privileged accounts require a PIN or password.</p></div><button class="small" onclick="refreshAccountList()">Refresh accounts</button></div><div id="adminAccounts"></div></section>
 </div>
 </section>
 </main>
@@ -386,7 +422,7 @@ function renderStatus(s){statusData=s;dot.className='dot online';connPill.classN
  else eye=s.state||'TurnHub';
  eyebrow.textContent=eye;heroTitle.textContent=title;heroSub.textContent=sub;if(heroBadges.innerHTML!==bs)heroBadges.innerHTML=bs;
  if(s.state==='RUNNING')document.documentElement.dataset.running='';else delete document.documentElement.dataset.running;
- renderGauge(s);renderPlayers();renderSession();processBrowserFeedback(s)}
+ renderGauge(s);renderPlayers();renderSession();processBrowserFeedback(s);renderSetupWizard();syncWakeLock()}
 
 function playerStateText(s){if(s.eliminated)return 'Eliminated';if(statusData&&Number(statusData.winner)===Number(s.player))return 'Winner';if(s.active)return 'Active turn';if(statusData&&Number(statusData.winConfirm)===Number(s.player))return 'Response needed';return 'At table'}
 function renderPlayers(){const rows=seatData.seats.map(s=>{let cls='player row';if(s.active)cls+=' active';const won=statusData&&Number(statusData.winner)===Number(s.player);if(won)cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;
@@ -502,7 +538,11 @@ async function verifyAtTable(){try{const r=await fetch('/api/presence/request',{
 async function ensureVerified(){const p=await presenceState();return (p&&p.verified)||verifyAtTable()}
 async function presenceFetch(url,opts){let r=await fetch(url,opts);if(r.status===403){const d=await r.clone().json().catch(()=>({}));if(d.presenceRequired&&await verifyAtTable())r=await fetch(url,opts)}return r}
 async function stopVerification(){try{await fetch('/api/presence/lock',{method:'POST',headers:authHeaders()});showToast('No longer verified at the table.')}catch(e){showToast(e.message,true)}renderPresence()}
-async function renderPresence(){const el=document.getElementById('presenceStatus');if(!el)return;const p=await presenceState();el.textContent=!p?'':p.verified?`Verified at the table: ${Math.ceil(Number(p.remainingMs)/60000)} min left`:'Not verified at the table'}
+async function renderPresence(){const el=document.getElementById('presenceStatus');if(!el)return;const p=await presenceState();const on=!!(p&&p.verified);presenceCard.classList.toggle('verified',on);presenceTitle.textContent=on?'Verified at the table':'Verify at the table';
+ el.textContent=!p?'Sign in with an Admin account to verify.':on?`${Math.ceil(Number(p.remainingMs)/60000)} min left. Settings that need proof work without asking again.`:'Changing Wi-Fi, device names, firmware and resets needs proof you are at the table.';
+ presenceShow.hidden=on||!presenceForm.hidden;presenceStop.hidden=!on;if(on)presenceForm.hidden=true}
+async function showPresenceCode(){try{const r=await fetch('/api/presence/request',{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Atlas could not show a code');presenceStatus.textContent='Atlas is showing a six-digit code now. Type it here.';presenceShow.hidden=true;presenceForm.hidden=false;presenceCode.value='';presenceCode.focus()}catch(e){showToast(e.message,true)}}
+async function submitPresenceCode(){if(await confirmPresence(presenceCode.value.trim())){presenceForm.hidden=true}}
 async function presenceFromHash(){const m=/^#code=(\d{6})$/.exec(location.hash);if(!m)return;history.replaceState(null,'',location.pathname+location.search);if(!token){showToast('Sign in on this phone first, then enter the code.',true);return}await confirmPresence(m[1])}
 async function renameSigil(id){const d=deviceById(id);if(!d)return;const next=await uiAsk({title:'Rename device',text:'You will be asked for the code the Atlas screen shows.',ok:'Save name',input:{label:`Custom name for ${d.defaultLabel||('Sigil '+(Number(id)+1))}`,value:d.customName||'',maxLength:32}});if(next===null)return;await saveSigilName(id,next.trim())}
 async function clearSigilName(id){const d=deviceById(id);if(!d)return;if(!await uiAsk({title:'Clear custom name?',text:`Clear the custom name “${d.label}”?`,ok:'Clear name',danger:true}))return;await saveSigilName(id,'')}
@@ -703,7 +743,7 @@ function renderPairingChecks(d){const html=(d.pendingPairings||[]).map(p=>`<div 
 async function pairConfirm(id,accept){try{const r=await presenceFetch(`/api/device/pair-confirm?module=${Number(id)}&accept=${accept?1:0}`,{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not answer the pairing');showToast(d.message||(accept?'Sigil paired securely.':'Pairing rejected.'));await refreshAll()}catch(e){showToast(e.message,true)}}
 function renderDeviceSettings(d){renderPairingChecks(d);const html=(d.devices||[]).map(x=>`<div class="setting-box"><div class="device-top"><div><div class="device-name">${esc(x.label)}</div><div class="mono">${esc(x.hardwareId)}</div></div><div class="actions"><button class="small" onclick="renameSigil(${x.id})">Rename</button>${x.customName?`<button class="small" onclick="clearSigilName(${x.id})">Clear name</button>`:''}<button class="small warn" onclick="forgetSigil(${x.id})" aria-label="Forget ${esc(x.label)}">Forget</button><button class="small warn" onclick="factoryResetSigil(${x.id})" aria-label="Factory reset ${esc(x.label)}">Factory reset</button></div></div></div>`).join('')||'<div class="empty">No Sigils discovered yet.</div>';if(deviceSettingsList.innerHTML!==html)deviceSettingsList.innerHTML=html}
 async function accountPost(path,data){const r=await fetch('/api/accounts/'+path,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
-async function setupAdmin(){try{if(!await ensureVerified())return;await accountPost('setup',{});adminSetup.hidden=true;await refreshAll();showTab('settings');showToast('Admin account established.')}catch(e){showToast(e.message,true)}}
+async function setupAdmin(){try{if(!await ensureVerified())return;await accountPost('setup',{});adminSetup.hidden=true;await refreshAll();if(setupWizard.hidden)showTab('settings');else loadSetupStage();showToast('Admin account established.')}catch(e){showToast(e.message,true)}}
 async function loadSetup(){try{const d=await pollJson('/api/accounts/setup');adminSetup.hidden=!d.setupRequired}catch(e){showToast('Account setup unavailable',true)}}
 const PERMISSIONS=[[1,'Admin'],[2,'Game Master'],[4,'Developer'],[8,'GM: reset connections'],[16,'GM: remove from game']];
 async function refreshAccountList(){
@@ -720,12 +760,35 @@ async function savePermissions(event,id){event.preventDefault();const form=event
 async function archiveAccount(id,archived){if(!await uiAsk({title:archived?'Archive account?':'Restore account?',text:id+': '+(archived?'Sign-in and Sigil use will be blocked; statistics stay saved. The account must first leave the table.':'Restore this account and its existing permissions?'),ok:archived?'Archive':'Restore',danger:archived}))return;try{await accountPost('archive',{profileId:id,archived:archived?'1':'0'});await refreshAll();await refreshAccountList();showToast(archived?'Account archived':'Account restored')}catch(e){showToast(e.message,true)}}
 async function moderate(id,action){const meaning={reset:'Invalidate all browser sessions and suspend Sigil controls until this account signs in again? The seat and life totals stay.',remove:'Remove this player from the game and invalidate their connections?',pass:'Immediately pass this player’s turn?',mute:'Block this account from sending future nudges?',unmute:'Allow this account to send future nudges?'};if(!await uiAsk({title:'Game Master action',text:id+': '+meaning[action],ok:'Apply',danger:action==='remove'||action==='reset'}))return;try{await accountPost('moderate',{profileId:id,action});await refreshAll();await refreshAccountList();showToast('Moderation applied')}catch(e){showToast(e.message,true)}}
 
+// First-run setup in the portal (FIRST_RUN_SETUP.md): the same steps and endpoints as the app.
+let setupInfo=null;
+function newWifiPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';const a=new Uint32Array(16);crypto.getRandomValues(a);return [...a].map(n=>chars[n%chars.length]).join('')}
+function skipSetup(){try{sessionStorage.setItem('turnhubSetupSkipped','1')}catch(_){}setupWizard.hidden=true;showToast('Setup comes back next time. You can also start it from the Atlas screen menu.')}
+function renderSetupWizard(){let skipped=false;try{skipped=sessionStorage.getItem('turnhubSetupSkipped')==='1'}catch(_){}
+ const show=!!(setupInfo&&setupInfo.stage==='welcome'&&!skipped);setupWizard.hidden=!show;if(!show)return;adminSetup.hidden=true;
+ const authed=!!(sessionInfo&&sessionInfo.authenticated),admin=authed&&(Number(sessionInfo.permissions)&1);
+ const steps=[[authed,'Your account',authed?`Signed in as ${esc(sessionInfo.name||'your profile')}.`:'Create an account or sign in. It becomes the table’s Admin.','<a class="btn small primary" href="/login">Sign in or create an account</a>'],
+  [admin,'Prove you are at the table',admin?'Your account is the Admin.':setupInfo.adminExists?'This Atlas already has an Admin. Sign in with that account to finish.':'Atlas shows a six-digit code on its screen. Type it here to make your account the Admin.',!admin&&!setupInfo.adminExists&&authed?'<button class="small primary" onclick="setupAdmin()">Make my account the Admin</button>':''],
+  [false,'Secure the table’s Wi-Fi','Replace the printed password with your own. Atlas restarts with it.','']];
+ const current=steps.findIndex(x=>!x[0]);wizardBar.style.width=Math.round(100*current/steps.length)+'%';wizardStepLabel.textContent=`Step ${current+1} of ${steps.length}: ${steps[current][1]}`;
+ const html=steps.map(([done,title,text,action],i)=>`<li class="step ${done?'done':i===current?'current':''}"><span class="step-dot" aria-hidden="true">${done?'<svg class="i"><use href="#i-check"/></svg>':i+1}</span><div><strong>${title}</strong><p class="small">${text}</p>${i===current&&action?`<div class="actions" style="margin-top:8px">${action}</div>`:''}</div></li>`).join('');
+ if(wizardSteps.innerHTML!==html)wizardSteps.innerHTML=html;wizardWifi.hidden=current!==2;wizardSsid.textContent=setupInfo.ssid||'TurnHub-Atlas'}
+async function loadSetupStage(){try{const r=await fetch('/api/setup',{cache:'no-store'});setupInfo=r.ok?await r.json():null}catch(_){setupInfo=null}renderSetupWizard()}
+async function finishSetup(){const password=wizardPassword.value;if(password.length<8||password.length>63){wizardMessage.textContent='Choose 8 to 63 characters.';return}
+ try{const r=await presenceFetch('/api/setup/finish',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Atlas could not finish setup');
+  wizardWifi.hidden=true;wizardBar.style.width='100%';wizardMessage.textContent=`You’re all set. Atlas is restarting: rejoin ${setupInfo.ssid||'TurnHub-Atlas'} with your new password, then open this page again.`;showToast('Setup finished. Atlas is restarting.')}catch(e){wizardMessage.textContent=e.message}}
+async function loadPortalPack(){try{const r=await fetch('/api/portal',{cache:'no-store'});const d=await r.json();portalPackMetric.textContent=d.installed?'v'+d.version:d.card?'Not installed':'No microSD card'}catch(_){portalPackMetric.textContent='—'}}
+// Keeps the screen on while this phone is in a running game. Browsers allow it only on HTTPS, so on Atlas's plain HTTP it does nothing until HTTPS arrives.
+let wakeLock=null;
+async function syncWakeLock(){const want=!!(sessionInfo&&sessionInfo.participating&&statusData&&['STARTING','RUNNING','PAUSED'].includes(statusData.state)&&!document.hidden);
+ if(!('wakeLock' in navigator))return;try{if(want&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}else if(!want&&wakeLock){await wakeLock.release();wakeLock=null}}catch(_){wakeLock=null}}
+
 // With no saved choice, follow the operating system's increased-contrast setting.
 setTheme(savedTheme()||'auto',false);loadMotionPref();
 document.querySelectorAll('input[name=theme]').forEach(r=>r.addEventListener('change',()=>{setTheme(r.value,false);appearanceStatus.textContent='Previewing this theme. Save appearance to keep it.'}));
 buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
 let savedTab='game';try{savedTab=localStorage.getItem('turnhubPortalTab')||'game'}catch(_){}
-showTab(savedTab);refreshAll();setInterval(pollTimer,POLL_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll()});loadSetup();
+showTab(savedTab);refreshAll();setInterval(pollTimer,POLL_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll();syncWakeLock()});loadSetup();loadSetupStage();loadPortalPack();
 </script>
 </body>
 </html>
