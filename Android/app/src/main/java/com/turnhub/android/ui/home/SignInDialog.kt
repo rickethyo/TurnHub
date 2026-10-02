@@ -1,5 +1,6 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.data.ProfileSecret
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,7 +37,7 @@ import com.turnhub.android.protocol.ProfileSummary
 /**
  * Picks an Atlas profile and takes its PIN. Profiles without a PIN can only
  * sign in physically, so they are listed but not selectable here. Atlas checks
- * the PIN (and throttles guesses); the app only checks it is 4-8 digits.
+ * the PIN or password (and throttles guesses); the app only checks ProfileSecret's rule.
  */
 @Composable
 fun SignInDialog(
@@ -93,12 +94,12 @@ fun SignInDialog(
                 }
                 OutlinedTextField(
                     value = pin,
-                    onValueChange = { value -> pin = value.filter(Char::isDigit).take(8) },
+                    onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
                     enabled = selected != null && !prompt.submitting,
                     singleLine = true,
-                    label = { Text("PIN") },
+                    label = { Text("PIN or password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Go),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
                     keyboardActions = KeyboardActions(onGo = { submit() }),
                     modifier = Modifier.fillMaxWidth(),
                 )

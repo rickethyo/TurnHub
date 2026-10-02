@@ -164,7 +164,7 @@ class AtlasSetupAssistantTest {
         assistant.next()
         assertEquals(SetupStep.ACCOUNT, assistant.state.value.step)
         assistant.createAccount("Owner", "12")
-        assertEquals("PINs are 4 to 8 digits.", assistant.state.value.error)
+        assertEquals(ProfileSecret.RULE, assistant.state.value.error)
         assistant.createAccount("Owner", "2468")
         assertEquals(SetupStep.TABLE_CODE, assistant.state.value.step)
 

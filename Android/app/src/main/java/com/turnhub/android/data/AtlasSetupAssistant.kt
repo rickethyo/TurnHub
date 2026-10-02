@@ -195,7 +195,7 @@ class AtlasSetupAssistant(
         val endpoint = host.endpoint() ?: return
         val clean = name.trim()
         if (clean.isEmpty() || clean.length > 32) return fail("Choose a name of 1 to 32 characters.")
-        if (!PIN.matches(pin)) return fail("PINs are 4 to 8 digits.")
+        if (!ProfileSecret.isValid(pin)) return fail(ProfileSecret.RULE)
         work {
             session.register(endpoint, clean, pin)
             val id = (session.state.value as? PlayerSessionState.SignedIn)?.profileId ?: return@work
@@ -206,7 +206,7 @@ class AtlasSetupAssistant(
 
     suspend fun signIn(profile: ProfileSummary, pin: String) {
         val endpoint = host.endpoint() ?: return
-        if (!PIN.matches(pin)) return fail("PINs are 4 to 8 digits.")
+        if (!ProfileSecret.isValid(pin)) return fail(ProfileSecret.RULE)
         work {
             session.signIn(endpoint, profile, pin)
             account = profile to pin
@@ -645,8 +645,6 @@ class AtlasSetupAssistant(
     }
 
     private companion object {
-        val PIN = Regex("^\\d{4,8}$")
-
         /** A code lasts 10 minutes; ask again below 2 so an update never runs out mid-way. */
         const val MIN_VERIFIED_MS = 120_000L
 

@@ -436,6 +436,20 @@ static void virtualProfileFlow() {
   assert(request("/api/session/me",returned,{},HTTP_GET)==401);
   assert(request("/api/session/me",companion,{},HTTP_GET)==401);
   assert(request("/api/session/me",afterLimit,{},HTTP_GET)==200);
+
+  // A password works wherever a PIN does: registration, change and login.
+  for(const char *bad:{"","123","pass1","seven77","tab\there!",
+      "this password is far too long to be accepted by atlas at all, honestly"})
+    assert(request("/api/profiles/register","",{{"name","Bad secret"},{"pin",bad}})==400);
+  assert(request("/api/profiles/register","",{{"name","Password user"},{"pin","correct horse battery"}})==200);
+  const String passwordId=responseField("profileId");
+  assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","correct horse battery"}})==200);
+  const String passwordSession=responseField("token");
+  assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","correct horse"}})==401);
+  assert(request("/api/session/profile",passwordSession,{{"pin","2468"}})==200);
+  assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","2468"}})==200);
+  assert(request("/api/session/profile",responseField("token"),{{"pin","Ünïcode pass 9"}})==200);
+  assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","Ünïcode pass 9"}})==200);
 }
 
 static void guestSigilsDoNotCreateAccounts() {

@@ -51,6 +51,11 @@ removed from this file. The hardware checks still open are in
   where game-night results are written. No statistics rollback to NVS.
 - **Portal theme packs** served from the card as extra token sets; built-in
   themes stay in flash ([Web Portal Design](WEB_PORTAL_DESIGN.md)).
+- **Passwords** (implemented 2026-10-02, see
+  [Accounts](ACCOUNTS_AND_MODERATION.md)): still to do are the user manual and
+  a slow, salted hash (PBKDF2 through mbedTLS) in place of the single SHA-256
+  over profile ID and secret, which suits a PIN but is weak for a password if
+  Atlas's NVS were ever read out. Changing the hash needs a factory reset.
 - **Custom avatars:** upload and Admin approval before one becomes public
   (`AVATAR_CUSTOM` is reserved; presets work today).
 
