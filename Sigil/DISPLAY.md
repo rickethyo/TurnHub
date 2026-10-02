@@ -40,7 +40,8 @@ not OLED. Do not upload the OLED target to the e-paper unit.
 ### Hardware-type strap (GPIO4)
 
 Each board carries its display type in hardware on carrier header pin A7
-(GPIO4, otherwise unused): **open = E-ink, wired to GND = OLED**. At boot,
+(GPIO4, the DevKit pin labelled `IO4`, otherwise unused; on a bare DevKit
+with no carrier, wire `IO4` straight to a `GND` pin): **open = E-ink, wired to GND = OLED**. At boot,
 before the display, radio or pairing start, the firmware reads the pin with
 its internal pull-up and prints `SIGIL|HW|EINK` or `SIGIL|HW|OLED`. If the
 strap names the other display, the build halts: it repeats

@@ -11,8 +11,8 @@ pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac
 | Board | Firmware | USB bridge | MAC | Notes |
 |---|---|---|---|---|
 | Atlas | Atlas | CH340 | `B4:BF:E9:12:85:74` | LCDwiki E32R28T 2.8" display board; this MAC is its `THA-` ID |
-| OLED Sigil | `sigil-oled` | CP210x | `4C:C3:82:28:1D:14` | New board, added 2026-10-01 (ESP32-D0WD-V3 rev 3.1). 128x64 OLED, analog joystick, A7 strap to GND. MAC differs from the E-ink Sigil's only in the last byte (`14` vs `84`) |
-| E-ink Sigil | `sigil` | CP210x | `4C:C3:82:28:1D:84` | New board, added 2026-10-01 (ESP32-D0WD-V3 rev 3.1). 122x250 e-ink, analog joystick, A7 strap open |
+| OLED Sigil | `sigil-oled` | CP210x | `4C:C3:82:28:1D:14` | New board, added 2026-10-01: ESP32-WROOM-32E 38-pin DevKit, USB-C (ESP32-D0WD-V3 rev 3.1). No carrier or breakout. 128x64 OLED, analog joystick, IO4 pin wired to GND. MAC differs from the E-ink Sigil's only in the last byte (`14` vs `84`) |
+| E-ink Sigil | `sigil` | CP210x | `4C:C3:82:28:1D:84` | New board, added 2026-10-01: ESP32-WROOM-32E 38-pin DevKit, USB-C (ESP32-D0WD-V3 rev 3.1). No carrier or breakout. 122x250 e-ink, analog joystick, IO4 pin left open |
 | TestHarness | `harness` | CP210x | `D4:E9:F4:B4:27:3C` | Also pairs as a second virtual Sigil on its soft-AP MAC `D4:E9:F4:B4:27:3D`. Never flash Sigil or Atlas firmware onto it. |
 
 ### Spare boards
@@ -25,9 +25,17 @@ bring one back, set its firmware column to `sigil` or `sigil-oled`.
 | Spare OLED Sigil (old) | `spare` | CP210x | `20:E7:C8:94:49:80` | Was the OLED Sigil until 2026-10-01; last ran `sigil-oled`. 128x64 OLED, analog joystick, A7 strap to GND |
 | Spare E-ink Sigil (old) | `spare` | CP210x | `F4:65:0B:C4:FF:38` | Was the E-ink Sigil until 2026-10-01; last ran `sigil`. 122x250 e-ink, analog joystick, A7 strap open |
 
-Sigils also carry their display type on a strap: header A7 (GPIO4) open on
-the E-ink Sigil, wired to GND on the OLED Sigil. A build for the wrong display
-halts at boot (see `Sigil/DISPLAY.md`).
+Sigils also carry their display type on a strap: GPIO4 open on the E-ink
+Sigil, wired to GND on the OLED Sigil. A build for the wrong display halts at
+boot (see `Sigil/DISPLAY.md`). On the new boards, which have no carrier or
+breakout, that means a jumper from the DevKit pin labelled `IO4` to any `GND`
+pin on the OLED Sigil. `A7` is the same pin's position on the KiCad carrier.
+
+The new DevKits have the same 38-pin layout and silkscreen labels as the old
+ones (`IO34`/`IO35`/`IO32` for the joystick, `IO4` between `IO16` and `IO0`), a
+USB-C connector and a CP2102 bridge whose USB serial number is the generic
+`0001`. Windows may not set up a second one while the first is plugged in;
+connect them one at a time if a board does not appear.
 
 *Verified* 2026-09-25 by reading each MAC with `read_mac` and matching each
 board's boot banner (`SIGIL|DISPLAY|OLED`, `SIGIL|DISPLAY|READY|122x250`,
