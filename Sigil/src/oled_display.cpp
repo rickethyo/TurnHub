@@ -350,8 +350,8 @@ bool OledDisplay::drawDeviceMenu() {
     y += ROW_HEIGHT;
   }
   // "(hold)" does not fit beside Factory reset (21 characters a row), so the
-  // hint says it in words.
-  text("Hold 5 s to erase", LEGEND_Y, 1, Align::Center);
+  // hint says it in words: Unpair takes 3 s, Factory reset 5 s.
+  text("Hold a key to choose", LEGEND_Y, 1, Align::Center);
   display_->display();
   return true;
 }
@@ -507,7 +507,9 @@ void OledDisplay::showBooting() {
 }
 
 void OledDisplay::showUnpaired() {
-  status("PAIR", "UNPAIRED", "Press Pair on both", "Sigil and Atlas");
+  // The BOOT button may be inside the case: the joystick hold always works
+  // (main.cpp's updateJoystickPair).
+  status("PAIR", "UNPAIRED", "Hold joystick to", "enter pairing mode");
 }
 
 void OledDisplay::showReady(uint8_t sigilId) {

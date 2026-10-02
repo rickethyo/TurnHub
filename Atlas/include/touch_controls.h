@@ -66,7 +66,10 @@ enum class TouchAction : uint8_t {
   // screen until the next start-up (presentation only); Setup under Menu
   // brings it back. Pair a Sigil and Done leave "You're all set"
   // (AdvanceSetup to Complete); Pair a Sigil also opens pairing.
-  SkipSetup, OpenSetup, SetupPair, SetupDone
+  SkipSetup, OpenSetup, SetupPair, SetupDone,
+  // Menu's Device screen (between games): unpair every Sigil (lobby only) or
+  // factory reset Atlas, each held like the BOOT button's gestures.
+  OpenDevice, UnpairSigils, FactoryResetAtlas
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -77,7 +80,8 @@ enum class TouchAction : uint8_t {
 // Player: one player's screen, from their chip: life and Concede in a game,
 // turn order in the lobby.
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup };
+// Device: under Menu, Unpair Sigils and Factory reset (held).
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup, Device };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -99,7 +103,8 @@ struct TouchButton {
   }
 };
 
-constexpr uint8_t MAX_TOUCH_BUTTONS = 6;
+// Seven: the Menu's three above, and Tests, Info, Device and Back below.
+constexpr uint8_t MAX_TOUCH_BUTTONS = 7;
 constexpr uint8_t SCREEN_NAME_LENGTH = 12;
 constexpr uint8_t MAX_SCREEN_PLAYERS = 8;
 

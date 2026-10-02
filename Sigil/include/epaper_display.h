@@ -58,7 +58,9 @@ class EpaperDisplay final : public SigilDisplay {
   // A rule across the page with a small-caps label (or a diamond) centered on it.
   void ornamentRule(int16_t y, const char *label = nullptr);
   void drawFrame();
-  void drawStatus(const char *line1, const char *line2 = nullptr, bool legend = true);
+  // line3 continues line2 on the next row (the Unpaired screen's instruction).
+  void drawStatus(const char *line1, const char *line2 = nullptr, bool legend = true,
+      const char *line3 = nullptr);
   void drawBanner(const char *message, int16_t y, bool highlight, Icon kind, uint8_t maxSize = 1);
   void drawLife(int32_t life, int16_t y, uint8_t maxSize);
   void drawCentered(const char *text, int16_t y, uint8_t maxSize = 1);

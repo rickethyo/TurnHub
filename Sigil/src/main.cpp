@@ -814,7 +814,7 @@ void factoryResetDevice(const char *reason) {
 }
 
 // Erases the saved Atlas pairing and returns to the unpaired screen, from a
-// medium Pair hold or Atlas's Unpair. Atlas keeps its own record until an admin
+// medium Pair hold, the device menu's Unpair or Atlas's Unpair. Atlas keeps its own record until an admin
 // forgets this Sigil there (which also sends Unpair if the Sigil is in range).
 void forgetPairing(const char *reason) {
   Preferences prefs;
@@ -1344,6 +1344,42 @@ void updateLife(uint32_t nowMs) {
   publishLifeOverlay();
 }
 
+// Backup Pair control (owner, 2026-10-02): in a closed case the BOOT button
+// cannot be reached, so while this Sigil is unpaired, holding the thumbstick
+// click for JOYSTICK_PAIR_HOLD_MS opens the pairing window, like a quick Pair
+// press. Only while unpaired: once paired, the click belongs to the menu. One
+// window per press. Returns the hold's 0-255 progress for the ring (0: none).
+constexpr uint32_t JOYSTICK_PAIR_HOLD_MS = 3000;
+void startPairing();
+bool joystickPairHolding = false;
+bool joystickPairUsed = false;  // This press already opened a window.
+uint32_t joystickPairStartMs = 0;
+
+uint8_t updateJoystickPair(uint32_t nowMs) {
+  const bool down = keys[static_cast<uint8_t>(TurnHubSigil::Key::Select)].stableState == LOW;
+  if (!down) joystickPairUsed = false;
+  const bool eligible = sigilId == UNASSIGNED_SIGIL_ID && !pairingActive &&
+      pairingV2.state() != TurnHubSecureLink::SigilPairing::State::AwaitingConfirm;
+  if (!down || !eligible || joystickPairUsed) {
+    joystickPairHolding = false;
+    return 0;
+  }
+  if (!joystickPairHolding) {
+    joystickPairHolding = true;
+    joystickPairStartMs = nowMs;
+  }
+  const uint32_t elapsed = nowMs - joystickPairStartMs;
+  if (elapsed >= JOYSTICK_PAIR_HOLD_MS) {
+    joystickPairHolding = false;
+    joystickPairUsed = true;
+    Serial.println("SIGIL|PAIR|JOYSTICK_HOLD");
+    startPairing();
+    return 0;
+  }
+  const uint32_t level = elapsed * 255 / JOYSTICK_PAIR_HOLD_MS;
+  return static_cast<uint8_t>(level == 0 ? 1 : level);
+}
+
 // Five-key input: key edges go to the menu, and a finished choice becomes a
 // SelectAction. Hold progress drives the status light.
 void updateMenuKeys() {
@@ -1398,7 +1434,13 @@ void updateMenuKeys() {
   }
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
-  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_FACTORY_RESET) {
+  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_UNPAIR) {
+    // Held to the end in the device menu: forget Atlas, like the Pair button's
+    // 3 s hold. Atlas keeps its record until an admin forgets this Sigil.
+    Serial.println("SIGIL|MENU|UNPAIR");
+    forgetPairing("MENU");
+    playBuzzerPayload(TurnHubProtocol::encodeTone(880, 200));
+  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_FACTORY_RESET) {
     // Held to the end in the device menu: erase this Sigil. Atlas is not asked.
     Serial.println("SIGIL|MENU|FACTORY_RESET");
     playBuzzerPayload(TurnHubProtocol::encodeTone(440, 300));
@@ -1412,7 +1454,8 @@ void updateMenuKeys() {
     Serial.println(TurnHubSigil::sigilActionLabel(choice.action));
     sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision));
   }
-  ledModel.setHoldProgress(sigilMenu.holdProgress(nowMs));
+  const uint8_t pairHold = updateJoystickPair(nowMs);
+  ledModel.setHoldProgress(pairHold ? pairHold : sigilMenu.holdProgress(nowMs));
   publishMenuView();
 }
 

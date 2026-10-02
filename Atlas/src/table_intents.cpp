@@ -1049,7 +1049,8 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
   // Atlas's own BOOT button held for FACTORY_RESET_HOLD_MS is the recovery path
   // for a stuck or unresponsive screen: whoever holds it is at the table, so no
   // Admin or table code is needed, and it works in any state (a match is lost
-  // with everything else). It resets Atlas only, never a Sigil.
+  // with everything else). The touchscreen's Menu > Device hold sends the same
+  // Intent, between games only. It resets Atlas only, never a Sigil.
   const bool atBootButton = intent.actor.origin == IntentOrigin::AtlasHardware &&
       target == TurnHub::FACTORY_RESET_ATLAS;
   if (!atBootButton) {

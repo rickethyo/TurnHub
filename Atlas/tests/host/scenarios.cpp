@@ -2322,7 +2322,7 @@ static void harnessScreen() {
   assert(info && tests && info->w>=44 && tests->w>=44 && info->x>=tests->x+tests->w && tests->y==info->y);
   tapButton(TouchAction::OpenTests); s=currentScreen();
   assert(String(s.title)=="Test harness" && String(s.detail)=="Ready: pick a test" && s.buttonCount==6);
-  for (const TouchButton &b : s.buttons)
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
   TurnHub::fixtureHarnessCommands=0; tapButton(TouchAction::RunFullGame);
@@ -3063,6 +3063,61 @@ static void bootButtonGestures() {
   TurnHub::fixtureUnpairs[3]=0;
 }
 
+// Menu > Device on the touchscreen (owner 2026-10-02): the BOOT button's
+// Unpair and Factory reset as held buttons, between games only.
+static void touchDeviceScreen() {
+  resetPresence(); resetTouchControls();
+  freshLobby(2);
+  TurnHub::fixtureUnpairs[3]=0; fixtureFactoryResets=0;
+  openMenuScreen();
+  AtlasScreen s=currentScreen();
+  assert(screenButton(s,TouchAction::OpenDevice) && s.buttonCount<=MAX_TOUCH_BUTTONS);
+  tapButton(TouchAction::OpenDevice); s=currentScreen();
+  assert(s.kind==ScreenKind::Device && String(s.badge)=="DEVICE");
+  const TouchButton *unpair=screenButton(s,TouchAction::UnpairSigils);
+  const TouchButton *reset=screenButton(s,TouchAction::FactoryResetAtlas);
+  assert(unpair && reset && screenButton(s,TouchAction::CloseScreen));
+  assert(unpair->holdMs==TurnHubProtocol::UNPAIR_HOLD_MS && reset->holdMs==TurnHubProtocol::FACTORY_RESET_HOLD_MS);
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=SCREEN_BODY_Y && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+
+  // A tap does nothing; a short hold says how long to keep holding.
+  tapButton(TouchAction::UnpairSigils);
+  assert(sigilBus.record(0) && sigilBus.record(3));
+  pressButton(TouchAction::UnpairSigils); testNow+=1000; pressButton(TouchAction::UnpairSigils);
+  assert(String(currentScreen().notice)=="Keep holding for 3 s to unpair every Sigil");
+  touchRelease(); assert(sigilBus.record(0));
+  // Held through: the handler still keeps a Sigil with seated players.
+  pressButton(TouchAction::UnpairSigils); testNow+=DEVICE_UNPAIR_HOLD_MS; pressButton(TouchAction::UnpairSigils); touchRelease();
+  assert(sigilBus.record(0) && sigilBus.record(3) && TurnHub::fixtureUnpairs[3]==0);
+  // With everyone out of the lobby, every Sigil is forgotten.
+  enterEmptyLobby(); resetTouchControls(); openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  pressButton(TouchAction::UnpairSigils); testNow+=DEVICE_UNPAIR_HOLD_MS; pressButton(TouchAction::UnpairSigils); touchRelease();
+  assert(!sigilBus.record(0) && !sigilBus.record(3) && TurnHub::fixtureUnpairs[3]==1);
+  assert(String(currentScreen().notice)=="All Sigils forgotten" && !factoryResetScheduled());
+  // Back returns to the Menu.
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
+
+  // After a game: no Unpair (lobby only), but Factory reset, held 10 s.
+  freshLobby(2); startFromHost(); holdEndMatch();
+  assert(hubState==HubState::GameOver);
+  openMenuScreen(); tapButton(TouchAction::OpenDevice); s=currentScreen();
+  assert(s.kind==ScreenKind::Device && !screenButton(s,TouchAction::UnpairSigils) &&
+      screenButton(s,TouchAction::FactoryResetAtlas));
+  pressButton(TouchAction::FactoryResetAtlas); testNow+=DEVICE_RESET_HOLD_MS-1000; pressButton(TouchAction::FactoryResetAtlas);
+  touchRelease(); assert(!factoryResetScheduled());
+  pressButton(TouchAction::FactoryResetAtlas); testNow+=DEVICE_RESET_HOLD_MS; pressButton(TouchAction::FactoryResetAtlas);
+  touchRelease();
+  assert(factoryResetScheduled());
+  serviceFactoryReset(millis()+2000);
+  assert(fixtureFactoryResets==1 && !factoryResetScheduled());
+  // A game starting closes the Device screen with the Menu.
+  enterEmptyLobby(); freshLobby(2); resetTouchControls(); openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  startFromHost(); assert(currentScreen().kind==ScreenKind::Status);
+  enterEmptyLobby(); resetTouchControls();
+  TurnHub::fixtureUnpairs[3]=0;
+}
+
 struct CompletionPowerLoss {};
 static unsigned completionWritesBeforeLoss = 0;
 static void interruptCompletionWrite() {
@@ -3249,6 +3304,7 @@ int main() {
   pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   bootButtonGestures(); std::cout<<"PASS BOOT button: quick press pairs, medium hold forgets all Sigils (seated kept), long hold factory resets Atlas even mid-match" << std::endl;
+  touchDeviceScreen(); std::cout<<"PASS touchscreen Device screen: held Unpair Sigils (lobby, seated kept) and Factory reset (between games)" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";

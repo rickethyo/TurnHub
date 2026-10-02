@@ -191,7 +191,9 @@ ScreenKind activeScreen(uint32_t nowMs) {
     openScreen = ScreenKind::Status;
     concedeArmed = false;
   }
-  if (openScreen == ScreenKind::Menu && !menuAvailable()) openScreen = ScreenKind::Status;
+  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device) && !menuAvailable()) {
+    openScreen = ScreenKind::Status;
+  }
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
   if (waitingPairSlot() != INVALID_ID) return ScreenKind::PairCode;
   if (openScreen == ScreenKind::Status && setupScreenDue()) return ScreenKind::Setup;
@@ -199,7 +201,7 @@ ScreenKind activeScreen(uint32_t nowMs) {
 }
 
 // Between games: Pair (lobby only) and QR codes above; Tests (while a
-// harness is connected), Info and Back below.
+// harness is connected), Info, Device and Back below.
 void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
   ButtonSpec upper[3];
   uint8_t n = 0;
@@ -209,12 +211,26 @@ void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
   if (hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
-  ButtonSpec lower[3];
+  ButtonSpec lower[4];
   n = 0;
   if (harnessSigilId(nowMs) != INVALID_ID) lower[n++] = {TouchAction::OpenTests, "Tests", 0, 1};
   lower[n++] = {TouchAction::OpenInfo, "Info", 0, 1};
+  lower[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
   lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
   addRow(screen, BUTTON_ROW_Y, lower, n);
+}
+
+// Menu > Device: Unpair Sigils (lobby only, as the handler requires) and
+// Factory reset above, Back below. Both act only when held for the BOOT
+// button's times, which they stand in for.
+void layoutDevice(AtlasScreen &screen) {
+  ButtonSpec upper[2];
+  uint8_t n = 0;
+  if (hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
+  upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
+  addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
+  const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, lower, 1);
 }
 
 // In-game controls kept off the main row: Master pass (a stuck turn, running
@@ -313,6 +329,9 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       return;
     case ScreenKind::Menu:
       layoutMenu(screen, nowMs);
+      return;
+    case ScreenKind::Device:
+      layoutDevice(screen);
       return;
     case ScreenKind::Player:
       layoutPlayer(screen);
@@ -451,6 +470,9 @@ const char *actionName(TouchAction action) {
     case TouchAction::OpenSetup: return "OPEN_SETUP";
     case TouchAction::SetupPair: return "SETUP_PAIR";
     case TouchAction::SetupDone: return "SETUP_DONE";
+    case TouchAction::OpenDevice: return "OPEN_DEVICE";
+    case TouchAction::UnpairSigils: return "UNPAIR_SIGILS";
+    case TouchAction::FactoryResetAtlas: return "FACTORY_RESET_ATLAS";
     case TouchAction::None: break;
   }
   return "NONE";
@@ -481,6 +503,8 @@ IntentType tableIntentType(TouchAction action) {
 const char *holdPurpose(TouchAction action) {
   if (action == TouchAction::MasterPass) return "pass this turn";
   if (action == TouchAction::ClearLobby) return "clear the lobby";
+  if (action == TouchAction::UnpairSigils) return "unpair every Sigil";
+  if (action == TouchAction::FactoryResetAtlas) return "erase Atlas";
   return "end the match";
 }
 
@@ -494,6 +518,7 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
+    case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
     case TouchAction::OpenPlayer:
       openScreen = ScreenKind::Player;
       shownSeat = pressedSeat;
@@ -506,7 +531,7 @@ bool navigate(TouchAction action) {
     case TouchAction::CloseTests: {
       concedeArmed = false;
       const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
-          openScreen == ScreenKind::Tests;
+          openScreen == ScreenKind::Tests || openScreen == ScreenKind::Device;
       openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
       return true;
     }
@@ -650,6 +675,23 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         pair.actor.origin = IntentOrigin::AtlasHardware;
         result = intents.dispatch(pair);
       }
+      break;
+    }
+    // Menu > Device, held: the BOOT button's Unpair and Factory reset, as the
+    // same AtlasHardware Intents (front_panel.cpp's updateBootButton). The
+    // handlers decide: Unpair needs the lobby and no seated Sigil.
+    case TouchAction::UnpairSigils:
+    case TouchAction::FactoryResetAtlas: {
+      Intent intent;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      if (action == TouchAction::UnpairSigils) {
+        intent.type = IntentType::ForgetPairing;
+        intent.payload.value = TurnHub::FORGET_ALL_SIGILS;
+      } else {
+        intent.type = IntentType::FactoryReset;
+        intent.payload.value = TurnHub::FACTORY_RESET_ATLAS;
+      }
+      result = intents.dispatch(intent);
       break;
     }
     // A test plays through the harness's own Sigils and Atlas's normal handlers.
@@ -992,6 +1034,13 @@ void formatMenu(AtlasScreen &screen) {
       hubState == HubState::Lobby ? "Pair Sigils, share codes, table info" : "Share codes, table info");
 }
 
+void formatDevice(AtlasScreen &screen) {
+  snprintf(screen.badge, sizeof(screen.badge), "DEVICE");
+  snprintf(screen.title, sizeof(screen.title), "Atlas device");
+  snprintf(screen.detail, sizeof(screen.detail), "%s",
+      hubState == HubState::Lobby ? "Hold: Unpair 3 s, Factory reset 10 s" : "Hold 10 s to factory reset Atlas");
+}
+
 void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "INFO");
   snprintf(screen.title, sizeof(screen.title), "Table info");
@@ -1140,6 +1189,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
     case ScreenKind::Table: formatTable(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
+    case ScreenKind::Device: formatDevice(screen); break;
     case ScreenKind::Player: formatPlayer(screen, nowMs); break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;
   }

@@ -197,7 +197,7 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   row(code, BUTTON_ROW_Y, {{TouchAction::CancelCode, "Cancel", 0, 1}});
   out.push_back({"presence-code", code});
 
-  AtlasScreen info = base("INFO", "Table info", "TurnHub Atlas v0.6.3-dev");
+  AtlasScreen info = base("INFO", "Table info", "TurnHub Atlas v0.6.4-dev");
   info.kind = ScreenKind::Info;
   const char *lines[] = {"Wi-Fi: TurnHub-Atlas", "Portal: 192.168.4.1", "Sigils online: 4",
       "SD card: NOT INSERTED", "Up 1:12:09"};

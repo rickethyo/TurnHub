@@ -138,7 +138,7 @@ int main() {
 
   // Device menu (both Sigils, owner 2026-10-02): outside a game, the first of
   // Up/Down with nothing on it is Menu. The device menu is a compass too:
-  // the click holds Factory reset, Left goes back.
+  // the click holds Unpair, Down holds Factory reset, Left goes back.
   SigilMenu dev(true);  // The OLED: names the held action on screen.
   dev.applyMenuState2(menu({A::Join}, A::Join, 3), 0);
   v = dev.view();
@@ -147,10 +147,12 @@ int main() {
       v.compass[static_cast<uint8_t>(Key::Down)] == MENU_NONE && !v.deviceMenu);
   assert(strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_DEVICE_MENU)), "Menu") == 0 &&
       strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_BACK)), "Back") == 0 &&
+      strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_UNPAIR)), "Unpair") == 0 &&
       strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_FACTORY_RESET)), "Factory reset") == 0);
-  assert(menuActionNeedsHold(MENU_LOCAL_FACTORY_RESET) && !menuActionNeedsHold(MENU_LOCAL_DEVICE_MENU) &&
-      !menuActionNeedsHold(MENU_LOCAL_BACK) && !menuActionNeedsHold(id(A::Pass)) &&
-      menuActionNeedsHold(id(A::ClaimWin)));
+  assert(menuActionNeedsHold(MENU_LOCAL_FACTORY_RESET) && menuActionNeedsHold(MENU_LOCAL_UNPAIR) &&
+      !menuActionNeedsHold(MENU_LOCAL_DEVICE_MENU) && !menuActionNeedsHold(MENU_LOCAL_BACK) &&
+      !menuActionNeedsHold(id(A::Pass)) && menuActionNeedsHold(id(A::ClaimWin)));
+  assert(MENU_UNPAIR_HOLD_MS < MENU_FACTORY_RESET_HOLD_MS);
   // Up taken (Random start): Menu moves to Down; both taken: no Menu.
   assert(dev.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
   dev.applyMenuState2(menu({A::Join, A::RandomStarter}, A::Join, 4), 0);
@@ -166,7 +168,8 @@ int main() {
   assert(!dev.update(1000).ready && dev.deviceMenuOpen());
   dev.keyUp(Key::Up, 1050);
   v = dev.view();
-  assert(v.deviceMenu && v.compass[static_cast<uint8_t>(Key::Select)] == MENU_LOCAL_FACTORY_RESET &&
+  assert(v.deviceMenu && v.compass[static_cast<uint8_t>(Key::Select)] == MENU_LOCAL_UNPAIR &&
+      v.compass[static_cast<uint8_t>(Key::Down)] == MENU_LOCAL_FACTORY_RESET &&
       v.compass[static_cast<uint8_t>(Key::Left)] == MENU_LOCAL_BACK &&
       v.compass[static_cast<uint8_t>(Key::Up)] == MENU_NONE &&
       v.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE);
@@ -177,15 +180,22 @@ int main() {
   // Releasing Factory reset early abandons it; held to the end it is chosen
   // (main.cpp erases the Sigil; the choice is never sent to Atlas).
   dev.keyDown(Key::Up, 2000); dev.keyUp(Key::Up, 2050);
-  dev.keyDown(Key::Select, 2100);
+  dev.keyDown(Key::Down, 2100);
   assert(dev.view().holdAction == MENU_LOCAL_FACTORY_RESET && dev.holdProgress(2100 + 2500) > 100);
-  dev.keyUp(Key::Select, 2700);
+  dev.keyUp(Key::Down, 2700);
   assert(dev.view().holdAction == MENU_NONE && !dev.update(2700 + MENU_FACTORY_RESET_HOLD_MS).ready);
-  dev.keyDown(Key::Select, 3000);
+  dev.keyDown(Key::Down, 3000);
   assert(!dev.update(3000 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
   c = dev.update(3000 + MENU_FACTORY_RESET_HOLD_MS);
   assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET && !dev.deviceMenuOpen());
-  dev.keyUp(Key::Select, 9000);
+  dev.keyUp(Key::Down, 9000);
+  // Unpair: the click, held MENU_UNPAIR_HOLD_MS (main.cpp forgets Atlas).
+  dev.keyDown(Key::Up, 9100); dev.keyUp(Key::Up, 9150);
+  dev.keyDown(Key::Select, 9200);
+  assert(dev.view().holdAction == MENU_LOCAL_UNPAIR && !dev.update(9200 + MENU_UNPAIR_HOLD_MS - 1).ready);
+  c = dev.update(9200 + MENU_UNPAIR_HOLD_MS);
+  assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR && !dev.deviceMenuOpen());
+  dev.keyUp(Key::Select, 9900);
   // An idle device menu closes by itself; a game starting closes it too.
   dev.keyDown(Key::Up, 10000); dev.keyUp(Key::Up, 10050);
   dev.update(10000 + MENU_DEVICE_IDLE_MS - 1); assert(dev.deviceMenuOpen());

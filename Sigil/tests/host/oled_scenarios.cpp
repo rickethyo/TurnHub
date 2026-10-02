@@ -87,7 +87,7 @@ int main() {
   assert(panel.mosi == 23 && panel.sclk == 18 && panel.cs == 17 && panel.dc == 16);
   assert(panel.reset == 22 && panel.resetRequested);
   d.showBooting(); assert(has("Booting") && has("TurnHub") && panel.shapes > 0);
-  d.showUnpaired(); assert(has("UNPAIRED") && has("Press Pair on both"));
+  d.showUnpaired(); assert(has("UNPAIRED") && has("Hold joystick to") && has("enter pairing mode"));
   d.showReady(7); assert(has("SIGIL 8") && has("Ready for game"));
   d.showUpdate("Downloading", 40); assert(has("UPDATE") && has("40%") && has("Downloading") && has("Keep it powered"));
   d.showUpdate("Joining Atlas Wi-Fi", -1); assert(has("...") && has("Joining Atlas Wi-Fi"));
@@ -196,16 +196,16 @@ int main() {
     m.keyDown(Key::Up, 21000); m.keyUp(Key::Up, 21050);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
-    assert(highlighted("MENU") && has("\x09 Factory reset") && has("\x1b Back") &&
-        has("Hold 5 s to erase") && !has("Ready for game"));
-    m.keyDown(Key::Select, 22000);
+    assert(highlighted("MENU") && has("\x09 Unpair") && has("\x19 Factory reset") && has("\x1b Back") &&
+        has("Hold a key to choose") && !has("Ready for game"));
+    m.keyDown(Key::Down, 22000);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
     assert(highlighted("HOLD: Factory reset"));
     // The device menu screen has no legend to step.
     assert(d.idleWorkDueInMs(23000) == UINT32_MAX);
     // Screens without a legend (the picker) do not step it either.
-    m.keyUp(Key::Select, 22500);
+    m.keyUp(Key::Down, 22500);
     m.keyDown(Key::Left, 23000);
     d.setMenuView(m.view());
     ProfilePickerPacket page{};

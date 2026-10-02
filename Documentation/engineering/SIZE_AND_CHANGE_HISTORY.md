@@ -589,6 +589,27 @@ espressif32 7.1.3, Arduino-ESP32 2.0.17):
 Atlas and the harness are unchanged. Protocol version stays 3: nothing on the
 radio changed.
 
+## 2026-10-02 Unpair everywhere, joystick pairing, Atlas Device screen
+
+Atlas `0.6.3-dev` -> `0.6.4-dev` (also covering the update-notice-everywhere
+work merged before it, which kept 0.6.3), Sigil `0.9.5-dev` -> `0.9.6-dev`.
+Sigil device menu: Unpair held 3 s on the click, Factory reset moved to Down
+(5 s). An unpaired Sigil opens its pairing window when the thumbstick click is
+held 3 s (BOOT may be inside a case); the Unpaired screens say so. Atlas's
+touchscreen gains Menu > Device with held Unpair Sigils (3 s) and Factory reset
+(10 s), the BOOT button's gestures as the same AtlasHardware Intents;
+`MAX_TOUCH_BUTTONS` 6 -> 7. Manual V0.9. Local builds (PlatformIO 6.2.0,
+espressif32 7.1.3, Arduino-ESP32 2.0.17):
+
+| Build | Static RAM | Flash |
+| --- | --- | --- |
+| Atlas 0.6.4 | 88,244 B | 1,405,041 B |
+| Sigil e-ink (`sigil`) 0.9.6 | 53,556 B | 921,553 B |
+| Sigil OLED (`sigil-oled`) 0.9.6 | 49,572 B | 933,209 B |
+| `sigil-wokwi` | 50,520 B | 879,213 B |
+
+Protocol version stays 3.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

@@ -56,7 +56,7 @@ Slots preferences(uint8_t action) {
 }  // namespace
 
 bool menuActionNeedsHold(uint8_t action) {
-  return action == MENU_LOCAL_FACTORY_RESET ||
+  return action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_UNPAIR ||
       (action < MENU_MAX_ITEMS &&
        TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action)) != ActionHold::None);
 }
@@ -66,6 +66,7 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_FACTORY_RESET: return "Factory reset";
     case MENU_LOCAL_DEVICE_MENU: return "Menu";
     case MENU_LOCAL_BACK: return "Back";
+    case MENU_LOCAL_UNPAIR: return "Unpair";
     default: break;
   }
   switch (action) {
@@ -136,7 +137,10 @@ uint8_t SigilMenu::menuKey() const {
 uint8_t SigilMenu::keyAction(Key key) const {
   if (!active_ || key >= Key::Count) return MENU_NONE;
   if (deviceMenuOpen_) {
-    if (key == Key::Select) return MENU_LOCAL_FACTORY_RESET;
+    // The milder action on the click; Down, the compass's deliberate key,
+    // for the one that erases everything.
+    if (key == Key::Select) return MENU_LOCAL_UNPAIR;
+    if (key == Key::Down) return MENU_LOCAL_FACTORY_RESET;
     if (key == Key::Left) return MENU_LOCAL_BACK;
     return MENU_NONE;
   }
@@ -189,8 +193,8 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     closeDeviceMenu();
     return;
   }
-  uint32_t holdMs = MENU_FACTORY_RESET_HOLD_MS;
-  if (action != MENU_LOCAL_FACTORY_RESET) {
+  uint32_t holdMs = action == MENU_LOCAL_UNPAIR ? MENU_UNPAIR_HOLD_MS : MENU_FACTORY_RESET_HOLD_MS;
+  if (action != MENU_LOCAL_FACTORY_RESET && action != MENU_LOCAL_UNPAIR) {
     const ActionHold hold = TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action));
     if (hold == ActionHold::None) {
       emit(action);
@@ -220,7 +224,7 @@ MenuChoice SigilMenu::update(uint32_t nowMs) {
   if (holding_ && nowMs - holdStartMs_ >= holdMs_) {
     holding_ = false;
     emit(holdAction_);
-    if (holdAction_ == MENU_LOCAL_FACTORY_RESET) closeDeviceMenu();
+    if (holdAction_ == MENU_LOCAL_FACTORY_RESET || holdAction_ == MENU_LOCAL_UNPAIR) closeDeviceMenu();
   }
   if (deviceMenuOpen_ && !holding_ && nowMs - lastKeyMs_ >= MENU_DEVICE_IDLE_MS) closeDeviceMenu();
   const MenuChoice choice = pending_;

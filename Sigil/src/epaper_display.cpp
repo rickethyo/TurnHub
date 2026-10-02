@@ -510,7 +510,7 @@ void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
   fontAt(number, left + total - static_cast<int16_t>(w) - x1, middle + static_cast<int16_t>(h) / 2, font);
 }
 
-void EpaperDisplay::drawStatus(const char *line1, const char *line2, bool legend) {
+void EpaperDisplay::drawStatus(const char *line1, const char *line2, bool legend, const char *line3) {
   drawnValid_ = false;
   gameFrameValid_ = false;
   partialRefreshCount_ = 0;
@@ -533,6 +533,13 @@ void EpaperDisplay::drawStatus(const char *line1, const char *line2, bool legend
         fontCentered(line2, 166, &BrassFonts::EinkSmall);
       } else {
         drawCentered(line2, 158);
+      }
+      if (line3 != nullptr) {
+        if (fontFits(line3, &BrassFonts::EinkSmall, display_.width() - 2 * MARGIN)) {
+          fontCentered(line3, 184, &BrassFonts::EinkSmall);
+        } else {
+          drawCentered(line3, 176);
+        }
       }
     }
     if (legend) drawLegend();
@@ -574,14 +581,16 @@ void EpaperDisplay::showBooting() {
 }
 
 void EpaperDisplay::showUnpaired() {
-  drawStatus("Unpaired", "Press Pair on both");
+  // The BOOT button may be inside the case: the joystick hold always works
+  // (main.cpp's updateJoystickPair). Unpaired has no menu, so no legend.
+  drawStatus("Unpaired", "Hold joystick to", false, "enter pairing mode");
 }
 
 // The open device menu replaces the ready and lobby screens; its legend holds
 // Factory reset and Back. False if it is closed.
 bool EpaperDisplay::drawDeviceMenu() {
   if (!menu_.active || !menu_.deviceMenu) return false;
-  drawStatus("Device menu", "Hold click to erase");
+  drawStatus("Device menu", "Hold to choose");
   return true;
 }
 

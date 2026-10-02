@@ -307,6 +307,11 @@ constexpr uint32_t END_MATCH_HOLD_MS = 5000;
 constexpr uint32_t MASTER_PASS_HOLD_MS = 2000;
 // Atlas touchscreen lobby hold: clear every player from an unstarted lobby.
 constexpr uint32_t LOBBY_CLEAR_HOLD_MS = 2000;
+// Touchscreen Device screen (Menu, between games; owner 2026-10-02): the
+// same holds as the BOOT button's gestures, which these buttons stand in for
+// when BOOT is out of reach inside a case.
+constexpr uint32_t DEVICE_UNPAIR_HOLD_MS = TurnHubProtocol::UNPAIR_HOLD_MS;
+constexpr uint32_t DEVICE_RESET_HOLD_MS = TurnHubProtocol::FACTORY_RESET_HOLD_MS;
 // Proof that someone is at the table (owner decision 2026-09-25; replaced the
 // 3 s "Unlock admin" hold). A signed-in phone asks for a code, the Atlas
 // screen shows it (digits and a QR code), and entering it on that phone

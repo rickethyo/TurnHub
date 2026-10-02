@@ -394,11 +394,17 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   and Undo pass during the pass grace: click again to undo);
   Up pauses or resumes; Down holds for Claim win or Reset table; Left is no,
   back or cancel; Right is yes or next. Link phone takes the first free key.
-- **Device menu (0.9.4):** outside a game, the first of Up and Down with
-  nothing on it reads **Menu**. It opens a device menu, also a compass:
-  **Factory reset** held 5 s on the click (erases this Sigil; Atlas is not
-  asked) and **Back** on Left. It closes after ten idle seconds or when a game
-  starts. In a game, the Pair button's 10 s hold remains the way to reset.
+- **Device menu (0.9.4; Unpair 0.9.6):** outside a game, the first of Up and
+  Down with nothing on it reads **Menu**. It opens a device menu, also a
+  compass: **Unpair** held 3 s on the click (forgets the saved Atlas pairing),
+  **Factory reset** held 5 s on Down (erases this Sigil) and **Back** on Left.
+  Atlas is asked about neither. It closes after ten idle seconds or when a game
+  starts. In a game, the Pair button's holds remain the way.
+- **Joystick pairing (0.9.6, owner 2026-10-02):** a case can hide the BOOT
+  button, so while a Sigil is unpaired, holding the thumbstick click 3 s opens
+  its pairing window, like a quick Pair press (the ring fills while held).
+  Paired, the click belongs to the menu. The Unpaired screen says "Hold
+  joystick to enter pairing mode".
   Since firmware 0.8.0 (with a matching Atlas), Join opens the profile picker:
   Up, Right and Down pick a name, click shows more names or confirms, Left
   goes back (see [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25)).

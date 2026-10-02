@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.8.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.9.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.8
+## Prototype Edition v0.9
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -125,13 +125,13 @@ The app shows the same turn clock as the Sigils and the browser, because Atlas k
 
 # 5. Pairing a Physical Sigil
 
-Pairing normally starts from Atlas’s touchscreen (Menu, then Pair a Sigil). The small button marked **BOOT** on a board does three jobs: a quick press pairs, holding it for 3 seconds unpairs, and holding it for 10 seconds factory resets that board. On Atlas, BOOT is a backup for the touchscreen: a quick press opens pairing, 3 seconds forgets every Sigil, and 10 seconds erases Atlas. A tone sounds at 3 and at 10 seconds, so release at the tone to stop there. On the OLED Sigil, the menu also ends in Factory reset (hold it for 5 seconds).
+Pairing normally starts from Atlas’s touchscreen (Menu, then Pair a Sigil). The small button marked **BOOT** on a board does three jobs: a quick press pairs, holding it for 3 seconds unpairs, and holding it for 10 seconds factory resets that board. A case can hide a Sigil's BOOT button, so an unpaired Sigil also goes into pairing mode when you hold its joystick in for 3 seconds; its screen says so. On Atlas, BOOT is a backup for the touchscreen: a quick press opens pairing, 3 seconds forgets every Sigil, and 10 seconds erases Atlas, the same as Menu, then Device, on the touchscreen. A tone sounds at 3 and at 10 seconds, so release at the tone to stop there. Each Sigil's device menu also has Unpair and Factory reset (section 9).
 
 ## To Pair a Sigil
 
 1. In the lobby, tap **Menu**, then Pair a Sigil, on the Atlas screen. Atlas returns to the lobby screen, opens a pairing window of 60 seconds and counts it down. An administrator can lengthen it to 90 or 120 seconds under Device Settings. Atlas’s small light blinks red while the window is open.
 
-2. Within that time, press the Pair (BOOT) button on the Sigil. Its light ring blinks while it looks for Atlas. The Sigil’s own window is always 60 seconds, so with a longer Atlas window tap Pair a Sigil on Atlas first, then press the Sigil’s button.
+2. Within that time, put the Sigil into pairing mode: hold its joystick in for 3 seconds (the light ring fills as you hold), or press its Pair (BOOT) button. Its light ring blinks while it looks for Atlas. The Sigil’s own window is always 60 seconds, so with a longer Atlas window tap Pair a Sigil on Atlas first, then start the Sigil.
 
 3. The Sigil and the Atlas screen each show the same 4-digit code. If they match, tap Codes match on Atlas (or, as an administrator verified at the table, in Device Settings in the browser). If they differ, tap Reject: something else answered the Sigil. After Codes match the Sigil shows its number.
 
@@ -145,7 +145,7 @@ Do not hold the BOOT button while plugging a Sigil in or restarting it: that put
 
 A paired Sigil stays paired through restarts. To remove a pairing:
 
-- **On the Sigil:** hold its Pair button for 3 seconds. A quick press only opens the pairing window; after 3 seconds a tone sounds, the Sigil forgets Atlas, its lights go off and its screen shows “Unpaired”. Keep holding to 10 seconds to factory reset the Sigil instead.
+- **On the Sigil:** open its device menu (section 9) and hold **Unpair** for 3 seconds, or hold its Pair button for 3 seconds. A tone sounds, the Sigil forgets Atlas, its lights go off and its screen shows “Unpaired”. Keep holding the Pair button to 10 seconds to factory reset the Sigil instead.
 
 - **On Atlas:** an administrator opens Device Settings in the browser and chooses Forget next to a Sigil, or Forget all Sigils. This works in the lobby, for Sigils nobody is seated on. A Sigil that is switched on and in range also forgets Atlas.
 
@@ -154,6 +154,8 @@ A forgotten Sigil can be paired again at any time.
 ## Factory Reset
 
 Device Settings has **Factory reset** next to each Sigil and a **Factory reset Atlas** button. Both need an administrator who is verified at the table (section 17), and neither works during a game.
+
+At Atlas itself, tap **Menu**, then **Device**, between games. Hold **Unpair Sigils** for 3 seconds (in the lobby, with nobody seated on a Sigil) to make Atlas forget every Sigil, or hold **Factory reset** for 10 seconds to erase Atlas. Like Atlas’s BOOT button, these need no administrator: anyone at the table can use them.
 
 - **A Sigil** erases everything it has saved, including its pairing, and restarts as new. Atlas forgets it. Nobody may be seated on it. If the Sigil is out of range, Atlas only forgets it; hold the Sigil’s Pair button for 3 seconds to clear it too.
 
@@ -245,17 +247,19 @@ Both Sigils work the same way: each action has its own direction. Push the stick
 
 Outside a game, Up (or Down, if Up is in use) shows **Menu**. It opens the Sigil's own menu:
 
-- **Factory reset:** hold the click for 5 seconds. The Sigil erases everything it has saved, including its pairing, and restarts as new.
+- **Unpair:** hold the click for 3 seconds. The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
+
+- **Factory reset:** hold Down for 5 seconds. The Sigil erases everything it has saved, including its pairing, and restarts as new.
 
 - **Back:** push Left to close the menu. It also closes by itself after 10 seconds.
 
 ## Actions You Hold
 
-Actions that are hard to undo must be held: **Claim win**, **Confirm out**, **Reset table** and the device menu's **Factory reset**. While you hold, the light ring fills up. Let go early to cancel. Each player can change the hold times (except Factory reset's 5 seconds); see Accessibility Settings in section 13.
+Actions that are hard to undo must be held: **Claim win**, **Confirm out**, **Reset table**, and the device menu's **Unpair** and **Factory reset**. While you hold, the light ring fills up. Let go early to cancel. Each player can change the hold times (except the device menu's 3 and 5 seconds); see Accessibility Settings in section 13.
 
 ## Pair Control
 
-The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game, when the device menu is not offered.
+The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game, when the device menu is not offered. If the case hides the button, an unpaired Sigil also starts pairing when you hold its joystick in for 3 seconds.
 
 ## Light Ring
 
@@ -517,13 +521,13 @@ TurnHub’s goal is to help manage the table without requiring players to hand o
 
 - Tap Pair on the Atlas screen again.
 
-- Press the Sigil’s Pair (BOOT) button within the pairing window. If you need more time, an administrator can lengthen Atlas’s window under Device Settings.
+- Hold the Sigil’s joystick in for 3 seconds (or press its Pair (BOOT) button) within the pairing window. If you need more time, an administrator can lengthen Atlas’s window under Device Settings.
 
 - Move the Sigil closer to Atlas.
 
 - Restart the Sigil if necessary.
 
-- If the Sigil was paired with a different Atlas, hold its Pair button for 3 seconds to make it forget, then pair it again.
+- If the Sigil was paired with a different Atlas, make it forget (Unpair in its device menu, or hold its Pair button for 3 seconds), then pair it again.
 
 ## My Sigil Disconnected
 
@@ -639,7 +643,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.8
+**Manual Version:** 0.9
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Development build (Atlas 0.6.3-dev, Sigil 0.9.5-dev)
+**Software:** Development build (Atlas 0.6.4-dev, Sigil 0.9.6-dev)
 **Product names and specifications subject to change.**

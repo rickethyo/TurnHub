@@ -8,8 +8,8 @@
 // A compass on both Sigils (owner, 2026-10-02): every action has a fixed key,
 // so muscle memory works and the e-ink only redraws when the menu changes.
 // Click (Select) is the likely action. Outside a game, the first of Up/Down
-// with nothing on it is Menu: a device menu, also a compass, with Factory
-// reset (held) on the click and Back on Left.
+// with nothing on it is Menu: a device menu, also a compass, with Unpair
+// (held) on the click, Factory reset (held longer) on Down and Back on Left.
 // Deliberate actions (ActionHold) are sent only once their key is held.
 
 #include <stdint.h>
@@ -24,13 +24,16 @@ constexpr uint8_t KEY_COUNT = static_cast<uint8_t>(Key::Count);
 constexpr uint8_t MENU_NONE = TurnHubProtocol::SIGIL_ACTION_NONE;
 constexpr uint8_t MENU_MAX_ITEMS = static_cast<uint8_t>(TurnHubProtocol::SigilAction::Count);
 // Device-local entries: never in Atlas's MenuState (that 24-bit mask is full)
-// and never sent to Atlas. Factory reset, held MENU_FACTORY_RESET_HOLD_MS in
-// the device menu, makes main.cpp erase this Sigil. It stands beside the Pair
-// button's long hold, which also works when the screen or menu is not.
+// and never sent to Atlas. Held in the device menu, Unpair makes main.cpp
+// forget the saved Atlas pairing, and Factory reset erases this Sigil. They
+// stand beside the Pair button's holds, which also work when the screen or
+// menu is not.
 constexpr uint8_t MENU_LOCAL_FACTORY_RESET = MENU_MAX_ITEMS;
 constexpr uint8_t MENU_LOCAL_DEVICE_MENU = MENU_MAX_ITEMS + 1;  // Opens the device menu.
 constexpr uint8_t MENU_LOCAL_BACK = MENU_MAX_ITEMS + 2;         // Closes it.
-static_assert(MENU_LOCAL_BACK < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+constexpr uint8_t MENU_LOCAL_UNPAIR = MENU_MAX_ITEMS + 3;
+static_assert(MENU_LOCAL_UNPAIR < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // True for actions chosen by holding a key (shown "(hold)" in the legend).
 bool menuActionNeedsHold(uint8_t action);
@@ -98,7 +101,9 @@ class SigilMenu {
   // AdjustLife is not a compass slot: it frees Left/Right (lifeOffered,
   // main.cpp's LifeAdjuster).
   bool offered(uint8_t action) const {
-    if (action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_BACK) return active_ && deviceMenuOpen_;
+    if (action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_UNPAIR || action == MENU_LOCAL_BACK) {
+      return active_ && deviceMenuOpen_;
+    }
     if (action == MENU_LOCAL_DEVICE_MENU) return active_ && !deviceMenuOpen_ && menuKey() != MENU_NONE;
     return action < MENU_MAX_ITEMS && action != static_cast<uint8_t>(TurnHubProtocol::SigilAction::AdjustLife) &&
         (actions_ & (1u << action)) != 0;

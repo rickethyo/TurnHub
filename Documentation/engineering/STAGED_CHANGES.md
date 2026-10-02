@@ -923,7 +923,8 @@ Up/Down key outside a game, with a 5 s-hold Factory reset. Open:
 
 - ~~E-ink factory reset from the device UI~~ *Implemented* in 0.9.4 by that
   device menu (it replaced the OLED list's entry).
-- **Atlas touchscreen entry for the same actions.** Atlas's screen has no
-  factory reset; Admins use the portal or app. Only the BOOT button works at
-  the device.
+- ~~Atlas touchscreen entry for the same actions~~ *Implemented* in Atlas
+  0.6.4 (owner, 2026-10-02): Menu > Device holds Unpair Sigils (3 s) and
+  Factory reset (10 s). Sigil 0.9.6 adds Unpair to the device menu and a 3 s
+  joystick hold that pairs an unpaired Sigil (BOOT can be inside the case).
 - **Hardware acceptance** of timing, tones and BOOT wiring on Atlas and both Sigils.

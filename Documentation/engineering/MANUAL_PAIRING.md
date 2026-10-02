@@ -103,11 +103,27 @@ window.
 - A button already down when the board starts (BOOT held through a reset, which
   enters the ROM downloader) is ignored until it is seen released.
 - Since firmware 0.9.4 (2026-10-02) both Sigils also offer **Factory reset**
-  (hold 5 s) in the device menu: outside a game, **Menu** on the first free of
-  Up/Down opens it (see `HARDWARE_REFERENCE.md`, menu controls). It is
-  device-local: never in Atlas's menu mask, never sent to Atlas, only offered
-  while the Sigil is paired and its menu is active. In a game there is no Menu
-  key, so the button hold is the way.
+  (hold Down 5 s) in the device menu, and since 0.9.6 **Unpair** (hold the
+  click 3 s): outside a game, **Menu** on the first free of Up/Down opens it
+  (see `HARDWARE_REFERENCE.md`, menu controls). Both are device-local: never in
+  Atlas's menu mask, never sent to Atlas, only offered while the Sigil is
+  paired and its menu is active. In a game there is no Menu key, so the button
+  hold is the way.
+- **Joystick backup for Pair (Sigil 0.9.6, owner 2026-10-02).** A case can hide
+  BOOT, so an *unpaired* Sigil also opens its pairing window when the
+  thumbstick click is held 3 s (`SIGIL|PAIR|JOYSTICK_HOLD`; main.cpp's
+  `updateJoystickPair`, one window per press, ring fills while held). Paired,
+  the click is the menu's. The Unpaired screen reads "Hold joystick to enter
+  pairing mode". Unpair from the device menu, then hold the joystick, to move a
+  cased Sigil to another Atlas.
+- **Atlas touchscreen (Atlas 0.6.4, owner 2026-10-02).** Menu > **Device**
+  (between games) holds **Unpair Sigils** (3 s, lobby only) and **Factory
+  reset** (10 s): the BOOT button's 3 s and 10 s gestures as the same
+  `AtlasHardware` Intents (`ForgetPairing` all, `FactoryReset` Atlas), for
+  when BOOT is inside a case. Like BOOT they need no Admin or table code: the
+  screen is physical presence. That is deliberate (owner request) and means
+  anyone at the table can erase Atlas between games; the 10 s hold, the
+  Menu > Device path and the countdown hint are the guard.
 - The test harness stops at unpair (3 s); it has nothing else to erase.
 - Hardware verification of the tones, timing and BOOT wiring is *Needs verification*.
 
