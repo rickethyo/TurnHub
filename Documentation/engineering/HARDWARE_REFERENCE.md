@@ -71,7 +71,8 @@ The exact ESP32 wired-module pinout should be recovered from the surviving `ESP3
 
 **Confidence:** Pin map *Reconstructed* from the vendor pin allocation table
 (LCDwiki "2.8inch ESP32-32E Display", E32R28T) and the board silkscreen; owner
-photo 2026-09-24. Nothing below is hardware-verified yet.
+photo 2026-09-24. In daily use since; the owner reports it verified through
+playtesting and bench testing (2026-10-02).
 
 ### Controller board
 
@@ -107,7 +108,7 @@ cannot change it. Display library: LovyanGFX.
 | Touch CS / IRQ | 33 / 36 | Active low |
 | microSD SCK / MOSI / MISO / CS | 18 / 23 / 19 / 5 | VSPI, shared with the SPI header. Mounted at boot at 4 MHz (`SD_SPI_HZ`), never formatted; FAT32 cards only. Optional storage, see [Identity and storage](IDENTITY_AND_STORAGE.md#optional-microsd-storage). *Verified* on the board by the owner (2026-09-24): the card mounts and registers |
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
-| RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot. Red blinks 250 ms on / 250 ms off while the pairing window is open (2026-09-29, same rhythm as a pairing Sigil; `front_panel.cpp`); *Needs verification* on hardware |
+| RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot. Red blinks 250 ms on / 250 ms off while the pairing window is open (2026-09-29, same rhythm as a pairing Sigil; `front_panel.cpp`) |
 | Speaker amp enable | 4 | Active low. On only while a tone plays |
 | Speaker audio | 26 | LEDC channel 4 square wave (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
 | Battery voltage ADC | 34 | Input only. Not used yet |
@@ -147,8 +148,6 @@ unpair, factory reset), never for game actions. The master button's controls:
 - **End a match as a draw:** on the Table screen, hold **End match** for 5
   seconds (`END_MATCH_HOLD_MS`).
 
-*Needs verification* on hardware.
-
 ### Atlas speaker
 
 The on-board amplifier and speaker play the **table-wide** cues, so players
@@ -172,9 +171,6 @@ sin(pi x duty); 50% would be loudest; each level was lowered about 10% on
 sine generator at 1/8, 1/4 and full scale, which was too quiet on the default
 Medium; a square wave is also much louder on a small speaker. Off silences only the Atlas speaker; each Sigil still
 follows its seated players' sound preference.
-
-*Needs verification* on hardware: loudness at each level, the square wave's
-tone quality, and that the amplifier stays quiet between notes.
 
 ### Atlas touchscreen
 
@@ -228,8 +224,7 @@ empty lobby's join plate. The header and the gauge draw into sprites and are
 pushed whole so their per-second updates do not blink; chip turn times and
 the header clock redraw in place. Fonts that fail to load fall back to DejaVu,
 and a failed sprite allocation falls back to drawing on the panel (both
-logged). *Needs verification* on the panel: brass legibility, the gauge at
-arm's length, and any tearing from the turning gear.
+logged).
 
 The display (`atlas_display.cpp`, with the drawing in `atlas_art.cpp`) only
 draws, region by region, when that region's part of the screen model
@@ -291,13 +286,6 @@ below the drawn button. So Atlas calibrates on the device:
 - Serial logs `ATLAS|TOUCH|CALIBRATION|LOADED/DEFAULT/SAVED|...` with the
   values, and each new press logs `ATLAS|TOUCH|RAW|x|y|SCREEN|x|y`.
 
-**Needs verification on hardware:** panel orientation (rotation 3 puts the
-pigtail at the top), color inversion and
-RGB/BGR order; 40 MHz TFT write clock; the pin table
-above, especially the small 3-pin header (silkscreen appears to read IO35/IO22/GND).
-Also confirm that GPIO0 reads high when BOOT is released and that the RGB LED
-really is common-anode.
-
 ### Future Atlas hardware items to define
 
 - Final ESP32-family module/SoC (the E32R28T is a development board).
@@ -319,10 +307,10 @@ really is common-anode.
 | Function | GPIO | Notes |
 |---|---:|---|
 | Status LED blue / green / red (Wokwi only) | 27 / 14 / 13 | One RGB LED or three LEDs; PWM on all three. The hardware Sigils use the Jewel ring instead |
-| Menu keys, both Sigils | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V. The OLED Sigil's five pushbuttons (25/27/19/21/32) were replaced by the same joystick on the same GPIOs on 2026-10-01 (owner); its mounting orientation *Needs verification* (main.cpp `stickConfig`). Both KiCad schematics draw it as J4 |
+| Menu keys, both Sigils | 34 VRX, 35 VRY, 32 SW | Analog joystick: directions are Up/Down/Left/Right, click is Select. Stick powered from 3.3 V. The OLED Sigil's five pushbuttons (25/27/19/21/32) were replaced by the same joystick on the same GPIOs on 2026-10-01 (owner) (mounting orientation in main.cpp `stickConfig`). Both KiCad schematics draw it as J4 |
 | Status ring, both hardware Sigils | 26 | NeoPixel Jewel 7 RGBW Data Input via 330 ohm; PWR from USB 5V (J1). The only status light (no separate LED since 2026-09-25) |
 | Buzzer | 33 | Current development wiring |
-| Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). *Needs verification* on hardware. The Wokwi build, the E-ink Sigil with the same thumbstick and ring since 2026-09-30, keeps its Pair pushbutton on GPIO19 (A12). |
+| Pair button | 0 (DevKit BOOT) | Since 2026-09-25 the DevKit's onboard BOOT button is Pair on both hardware builds; no carrier wiring. GPIO0 is a strap only at reset (holding BOOT through a reset enters the ROM downloader). The Wokwi build, the E-ink Sigil with the same thumbstick and ring since 2026-09-30, keeps its Pair pushbutton on GPIO19 (A12). |
 
 ### E-ink interface
 
@@ -339,7 +327,7 @@ GPIO19 is explicitly detached from SPI MISO; it was the Pair button until 2026-0
 
 The current display driver is `GxEPD2_213_B74`, a 2.13-inch-class monochrome e-ink target in the present implementation.
 
-### Experimental OLED display variant
+### OLED display variant
 
 A separate `sigil-oled` build selects the OLED renderer while `sigil` and
 `sigil-wokwi` keep e-paper. The owner's 2026-09-24 photos show an Inland
@@ -347,7 +335,7 @@ A separate `sigil-oled` build selects the OLED renderer while `sigil` and
 e-paper's GPIOs (CLK 18, MOSI 23, RES 22, DC 16, CS 17; GPIO21 unused) at 3.3 V,
 as selected in `Sigil/include/oled_config.h`; the owner verified that wiring and
 a working image on 2026-09-24. The SH1106 128x64 controller is inferred from the
-KS0056 vendor example and still **Needs verification**. The OLED header order and
+KS0056 vendor example; the panel works with it. The OLED header order and
 wire colors are in the `Sigil_OLED` schematic. See
 [display selection, sources, configuration and verification](../../Sigil/DISPLAY.md).
 
@@ -357,27 +345,24 @@ accepts Seat B joins and game starts. The OLED capability bit still identifies
 the display and protects OTA variant selection; it no longer limits seating.
 Each OLED player gets a full-screen view of the currently controlled seat,
 including its name, life and commander damage. No second-player panel is drawn.
-Update Atlas and the OLED Sigil. Shared-seat controls still need hardware verification.
 
 ### Current control timing
 
 - Debounce: 30 ms.
-- Action long press: 2 seconds by default; 1-4 seconds per player (Sigil firmware 0.5.4+).
-- Action win hold: 5 seconds by default; 3-10 seconds per player, always at least
-  1 second longer than the long press. The Pause / Win button uses the same win hold.
+- Long press: 2 seconds by default; 1-4 seconds per player.
+- Win hold: 5 seconds by default; 3-10 seconds per player, always at least
+  1 second longer than the long press.
   Atlas sends the seated players' choice (`InputTiming`, see
   [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)); the Sigil keeps it in RAM only.
-  *Needs verification* on hardware; host tests only cover Atlas's side.
 - Pass acknowledgement green flash: 250 ms.
 - Atlas lost: after 7 s without a valid packet from the paired Atlas
   (`LINK_TIMEOUT_MS`); see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md#atlas-lost-2026-09-28).
 - Pair button (BOOT): released before 3 s it opens the 60-second pairing window; held 3 s it
   erases the Sigil's saved pairing; held 10 s it factory resets the Sigil (2026-09-30).
-  *Needs verification* on hardware.
 
 ### Menu controls (2026-09-25)
 
-**Status:** Implemented in firmware and host-tested; *Needs verification* on hardware
+**Status:** Implemented.
 
 Every Sigil has five keys (Up, Down, Left, Right, Select) and shows Atlas's
 action menu; the button gestures below are historical (retired 2026-09-30,
@@ -408,7 +393,7 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   Since firmware 0.8.0 (with a matching Atlas), Join opens the profile picker:
   Up, Right and Down pick a name, click shows more names or confirms, Left
   goes back (see [Physical profile selection](PHYSICAL_PROFILE_SELECTION.md#e-ink-sigil-picker-2026-09-25)).
-  A joined 0.8.0 Sigil also offers **Leave lobby** (a long-press hold, on Down
+  A joined Sigil also offers **Leave lobby** (a long-press hold, on Down
   or else Left): both seats leave and the Sigil's seat profiles are released.
   A waiting phone link takes the last free key first.
 - **Life (0.8.0):** in a game, Left lowers and Right raises the shown player's
@@ -443,7 +428,7 @@ The Pause / Win auxiliary control uses GPIO32 / J13 on the breadboard. The Rev A
 
 ### Display orientation direction
 
-**Status:** Portrait firmware implemented; physical mounting direction awaits a bench check.
+**Status:** Implemented.
 
 The `GxEPD2_213_B74` driver targets GDEM0213B74 / SSD1680 with a **122 x 250**
 visible portrait area (128 controller RAM columns). Sigil now uses library
@@ -452,9 +437,9 @@ panel is upside down, rotation **2** is the opposite portrait orientation.
 
 The screen stacks player identity, life, shared-player information, received
 Commander damage and turn status. Other lifecycle screens stack shared seats
-vertically and retain host/starter/attention/winner indicators. Full refreshes
-are currently enabled for all screens: the partial-update bench trial caused
-progressive contrast loss. The owner identifies an unmarked Inland module from
+vertically and retain starter/attention/winner indicators. Game screens use
+partial refreshes with periodic full clean-ups (see `Sigil/DISPLAY.md`); the
+first partial-update trial caused progressive contrast loss. The owner identifies an unmarked Inland module from
 Micro Center; the panel revision remains unconfirmed. The FPC-A002 marking and
 the similar Keyestudio module's GDEM0213B74 example give conflicting identification
 leads; verify the panel and rear switch settings before another partial trial.

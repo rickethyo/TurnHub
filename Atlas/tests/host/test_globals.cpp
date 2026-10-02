@@ -17,6 +17,10 @@ EspStub ESP;
 // The TFT is firmware-only presentation; host builds draw nothing.
 void TurnHubAtlas::beginAtlasDisplay() {}
 void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
+// Deep sleep is firmware-only: counted instead.
+unsigned fixtureSleeps = 0;
+void TurnHubAtlas::sleepAtlas() { ++fixtureSleeps; }
+void TurnHubAtlas::releaseSleepWakePins() {}
 
 // The microSD card is firmware-only (Arduino SD library); host builds have no card.
 void TurnHubAtlas::beginSdCard() {}

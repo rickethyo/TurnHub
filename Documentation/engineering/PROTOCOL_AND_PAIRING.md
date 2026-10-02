@@ -1,11 +1,9 @@
 # TurnHub Protocol and Pairing
 
-Current pairing update (2026-09-22): physical buttons are owner-verified and manual
-15-second pairing with persistent MAC associations is now implemented. The boot
-pairing fallback and visual mock are superseded. Forgetting (Sigil 10-second Pair
-hold; admin Forget on Atlas with an `Unpair = 12` packet) and an admin-adjustable
-Atlas window were added 2026-09-24. Radio bench acceptance remains pending. See
-[Manual Pairing](MANUAL_PAIRING.md).
+Pairing is deliberate: Atlas opens an admin-adjustable window (60 s minimum),
+the Sigil requests within it, and both keep the pairing (MAC plus Secure Link
+key). Forgetting uses a 3 s BOOT hold or the Sigil device menu on the Sigil and
+Forget on Atlas (`Unpair = 12`). See [Manual Pairing](MANUAL_PAIRING.md).
 
 
 This document separates three things that are easy to confuse during rapid prototyping:
@@ -51,22 +49,16 @@ This protocol was simple, debuggable, and appropriate for a bench prototype, but
 
 ## ESP32 migration packet protocol
 
-**Status:** Implemented experimental transport/protocol on the current migration branch
+**Status:** the current prototype transport: ESP-NOW on channel 6, every packet
+sealed by the [Secure Link](SECURE_LINK.md), protocol version 3.
 
-The migration introduced compact binary packets and a shared `protocol.h` used by Atlas and Sigil firmware. Its single source is `shared/include/protocol.h`; both PlatformIO projects and the Atlas host tests add `shared/include` to their include path.
-
-Current/experimental packet concepts include:
-
-- Hello.
-- Acknowledgement.
-- Pass.
-- Action down/up/short/long/win.
-- LED commands.
-- Buzzer commands.
-- Display/profile synchronization.
-- Firmware/capability information.
-
-The early transitional protocol used versioned packed packets and a maximum of eight Sigils.
+Atlas and Sigil share compact packed packets defined once in
+`shared/include/protocol.h`; both PlatformIO projects and the host test runners
+add `shared/include` to their include path. The packet types (Hello and its
+acknowledgement, menu state and selections, life, light, buzzer, display
+snapshots, pairing, unpair, factory reset, harness and update packets) are
+listed there; the subsections below record why each one exists. Atlas supports
+at most eight physical Sigils.
 
 ### Baseline Sigil and the Hello capability byte (2026-09-30)
 
@@ -103,8 +95,7 @@ introduces it.
 the pre-0.8 menu encoding). Atlas also dropped its gesture adapter (the
 Action + Pass chords and the long-press pause that armed a win hold) and its
 copy of the LED cadence tables; the Sigil dropped the three-button fallback
-and the one-LED view. Host-tested (Atlas, Sigil); *Needs verification* on
-hardware with Sigil 0.9.0.
+and the one-LED view.
 
 ### Sigil menus: MenuState and SelectAction (2026-09-25)
 
@@ -154,7 +145,6 @@ harness plays only through `SelectAction` (and, from harness 0.8.0 on
 gained `PICKER`, `LIFE` and `LEAVE`), so it has no authority a real menu
 Sigil lacks. Sigils ignore both packet types. Protocol version stays 1.
 *Verified* on the owner's hardware (2026-09-25): Atlas receives the reports.
-*Needs verification:* starting a test from the touchscreen.
 
 ### Profile picker: ProfilePicker and PickerKey (2026-09-25)
 
@@ -174,7 +164,7 @@ every Hello, so a Sigil never stays on a page Atlas forgot. Older Sigils
 keep joining as a guest; a new Sigil with an older Atlas never
 receives a page. The OLED draws it as a list and sends the same keys.
 Protocol version stays 1; both device types need reflashing
-to use it. *Needs verification* on hardware. Since 2026-09-30 the only gate is
+to use it. Since 2026-09-30 the only gate is
 `CAPABILITY_HARNESS`: every other Sigil gets the picker.
 
 `MenuState2 = 34` (2026-09-25) replaces `MenuState` for the same 0.8.0+ Sigils
@@ -193,7 +183,7 @@ A pending life request aimed at one of a Sigil's players goes to it as
 `LifeRequest = 35` (target, requester, 6-bit request tag, delta; 0 = none),
 resent with every Hello; the Sigil answers `LifeResponse = 17` (target,
 approve, tag) and Atlas dispatches `RespondLifeChange` only if the tag still
-matches the pending request. *Needs verification* on hardware.
+matches the pending request.
 
 **Jewel color (2026-09-25).** `SeatColor = 36` (Atlas -> Sigil, value: seat,
 set bit, 0xRRGGBB) carries the color a seated profile chose in the portal,
@@ -203,7 +193,7 @@ color, and patterns still carry every meaning. Feature gate: state owner is
 the profile (a luxury record `k<profileId>` on the microSD card, cached in RAM;
 no card means no color); no new Intent (a profile setting, like accessibility,
 via `GET`/`POST /api/session/jewel` for the signed-in profile only); rendering
-on both Sigils' Jewel; no new dependency. *Needs verification* on hardware.
+on both Sigils' Jewel; no new dependency.
 
 **Starting life and pass grace (2026-09-26, turntest notes).** `StartingLife =
 37` (Atlas -> Sigil, value: the running or paused game's starting life, else 0)
@@ -220,8 +210,7 @@ its pass being pending and shows PASSING, a green ring countdown, and (OLED)
 Left). Feature gate:
 no new Intent (CancelPass already exists), no new state owner or persistence,
 rendering on both Sigils and the Atlas screen ("Passing in Ns"), no new
-dependency; the number and words still carry every meaning. *Host-tested*;
-*Needs verification* on hardware.
+dependency; the number and words still carry every meaning.
 
 `PassPending = 38` (Atlas -> every menu Sigil, value: the passing player's
 number, 0 = none, resent with every Hello) lets the whole table see a pending
@@ -252,8 +241,7 @@ blink, seat pulses, the unseated chase) runs on that table time, so all Sigils
 show them in step. Sigil-local states (pairing, hold progress, pass
 acknowledgement) stay on the Sigil's own clock. Until the first sample arrives
 (or from an Atlas that predates it) patterns use local time as before.
-Presentation only. *Needs verification:* host tests cover the offset
-logic; visual lock-step across real Sigils needs verification.
+Presentation only.
 
 A Sigil advertising `CAPABILITY_LED_STATE` (0x20) gets one LedState per change,
 plus a resend whenever its Hello arrives (about every 2 s), so a lost packet or
@@ -268,7 +256,7 @@ channel stream and the RGB-LED view are retired. The accessibility checks on
 the ring (reduced motion never faster than 1 s; monochrome-safe pairs differ
 by timing) now run in `Sigil/tests/host/led_scenarios.cpp`.
 Pairing blink and the Pass acknowledgement flash stay Sigil-local. Protocol
-version stays 1. *Needs verification* on hardware.
+version stays 1.
 
 ### Atlas lost (2026-09-28)
 
@@ -293,7 +281,7 @@ that starts with Atlas off shows it too. Logic: `Sigil/include/atlas_link.h`.
 The Sigil keeps sending Hello every 2 s. The first valid packet from its Atlas
 restores the last screen; Atlas's answer to that Hello resends the light,
 menu, screen and life state. No protocol change. Host-tested
-(`led_scenarios`); *Needs verification* on hardware.
+(`led_scenarios`).
 
 ### Protocol 3: no compatibility before release (2026-09-30)
 
@@ -307,7 +295,7 @@ status from another version is refused. Retired packet numbers (3-8, 10-11,
 [Manual Pairing](MANUAL_PAIRING.md)), and Atlas's saved-data migrations and
 the Android app's fallbacks for older Atlas firmware are removed. Upgrading
 from earlier builds: reflash every board, factory-reset Atlas, pair again.
-Host-tested; *needs verification* on hardware. What release will need back is
+What release will need back is
 listed in [Sigil OTA](SIGIL_OTA.md), "Version rules".
 
 ### Secure link, protocol version 2 (2026-09-29)
@@ -411,14 +399,13 @@ there is no new application acknowledgement protocol.
 Host scenarios cover wire size/round-trip/validation, named recipients and
 sources, received-vs-dealt semantics, partner damage, shared focus, negative life,
 source overflow, unchanged snapshots, resynchronization and legacy peers.
-Physical acceptance remains required for readability/ghosting, radio loss and
-reconnect behavior, and updates arriving during a panel refresh.
 
-### Important historical note
+### Historical note
 
-The current branch contains ESP-NOW implementation code, including broadcast discovery and peer registration. This represents a real development stage and should remain documented.
-
-It is **not the final product decision**. Product direction has moved toward explicit pairing and away from a design where nearby devices can simply discover one another and become associated by proximity.
+The first ESP-NOW builds used broadcast discovery, so nearby devices became
+associated by proximity. Explicit pairing replaced that on 2026-09-22. ESP-NOW
+remains the prototype transport; the production transport is not frozen (see
+the [verification backlog](VERIFICATION_BACKLOG.md)).
 
 ---
 
@@ -524,13 +511,17 @@ paired_atlas_id
 friendly_name (optional)
 ```
 
-Exact identity generation/storage is still to be chosen.
+Today a device is identified by its factory MAC address (Atlas shows its MAC as
+its `THA-` ID); Hello reports firmware version and capabilities, and the
+pairing record holds the peer's MAC and Secure Link key. A hardware revision
+field waits for the first PCB revision.
 
 ---
 
-## Explicit pairing direction
+## Explicit pairing
 
-**Status:** Planned
+**Status:** implemented 2026-09-22 (see [Manual Pairing](MANUAL_PAIRING.md)); the
+flow below is the design it follows.
 
 First-time association should require deliberate user action rather than passive proximity discovery.
 
@@ -580,22 +571,11 @@ It also gives us a natural place for:
 
 ## Capabilities
 
-Atlas should react to declared capabilities rather than scattering firmware-version checks across the codebase.
-
-Potential capability flags:
-
-- Display present.
-- E-ink display profile.
-- Buzzer.
-- Haptic motor.
-- RGB or discrete status LEDs.
-- Battery reporting.
-- Auxiliary action button.
-- Pair button.
-- Local storage.
-- OTA support.
-
-A future Sigil revision should be able to add a capability without forcing every older Sigil to emulate hardware it does not have.
+Atlas reacts to declared capabilities rather than scattering firmware-version
+checks across the codebase. Since 2026-09-30 Atlas assumes the baseline every
+Sigil has and the Hello capability byte carries only what varies (see
+"Baseline Sigil" above). A future Sigil revision adds a capability by taking a
+free bit, for example battery reporting or a haptic motor.
 
 ---
 
@@ -629,12 +609,10 @@ The production protocol should explicitly decide:
 - Ordering guarantees.
 - Maximum payload size.
 - State snapshot format.
-- Compatibility across protocol versions.
-- Behavior when Atlas is newer than Sigil.
-- Behavior when Sigil is newer than Atlas.
-- Security/integrity requirements.
-- How pairing data is cleared during factory reset.
+- Compatibility across protocol versions, and behavior when Atlas and a Sigil
+  run different versions (today: one version everywhere, see "Protocol 3").
 
-These should be specified before calling the protocol production-stable.
+Security and integrity ([Secure Link](SECURE_LINK.md)) and clearing pairings on
+factory reset ([Manual Pairing](MANUAL_PAIRING.md)) are settled. The rest should
+be specified before calling the protocol production-stable.
 
-Last reconstructed: 2026-09-19

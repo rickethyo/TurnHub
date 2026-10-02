@@ -2,13 +2,13 @@
 
 ## Current: pairing v2 with a code check (2026-09-29)
 
-*Host-tested and CI-built; Needs verification on hardware.* Design and reasons
-in [Secure Link](SECURE_LINK.md).
+Design and reasons are in [Secure Link](SECURE_LINK.md).
 
 1. In the Atlas lobby, tap **Menu → Pair a Sigil**. Atlas's pairing window opens
    (60 s by default and at least; 90 or 120 s if set in Device Settings); the Atlas screen shows
    the countdown and Atlas's on-board LED blinks red.
-2. Press the Sigil's Pair button. It blinks red and broadcasts `PairRequest2`
+2. Press the Sigil's Pair button (BOOT; or hold the thumbstick click 3 s on an
+   unpaired Sigil). It blinks red and broadcasts `PairRequest2`
    with a fresh X25519 key every 2 s until answered.
 3. Atlas answers `PairAccept2` and both sides derive the same pair key and a
    4-digit code. The Sigil shows the code; the Atlas screen shows **Pair Sigil N**
@@ -30,59 +30,26 @@ keyless `PairRequest` below is retired. Since 2026-09-30 a pairing and its key
 are one record, so a keyless pairing can't exist; records from earlier builds
 (`th_pair_v1`) are ignored, and those devices simply pair again.
 
-## History: the first manual pairing (2026-09-22)
+## Pairing rules
 
-Implemented 2026-09-22 after the owner confirmed the hardware buttons report correctly.
-This supersedes the five-second visual mock and the planned temporary boot trigger.
+- Atlas keeps up to eight pairings, offline ones included, in NVS namespace
+  `th_pair` (`s0`-`s7`); a Sigil keeps its Atlas under `atlas`. Pairing never
+  touches profiles or statistics.
+- Atlas stays open for its whole window and can pair several Sigils; tapping
+  Pair again restarts it. The Sigil's own window is 60 s, so with a longer
+  Atlas window open Atlas first. Leaving the lobby closes the window, and a
+  reboot never opens one.
+- Hello never registers an unknown device. A paired Sigil talks only to its
+  saved Atlas, and Atlas accepts packets only from saved Sigils over their
+  secure session. Pairing again replaces a Sigil's saved Atlas; a failed or
+  timed-out attempt keeps the old pairing. A full table of eight or a storage
+  failure refuses the pairing.
+- Radio callbacks only enqueue packets; NVS work runs in `loop()`.
 
-## Operation
-
-1. Install the updated firmware on Atlas and each Sigil.
-2. In the Atlas lobby, press Atlas Pair (GPIO32). Its Pair LED blinks for the
-   pairing window: 15 seconds by default, or 30/60 seconds if an admin chose that
-   under Device Settings (2026-09-24).
-3. Press the Sigil Pair button (GPIO19). Its red LED blinks while requesting pairing.
-4. Sigil logs `SIGIL|PAIR|SUCCESS`, stops blinking, and requests its Atlas state/profile.
-   Joining the table still uses the existing Action/profile workflow.
-
-Either button may be pressed first if the windows overlap. The Sigil's own
-window is always 15 seconds, so with a longer Atlas window press Atlas first,
-then the Sigil. Atlas stays open for its window and can accept multiple Sigils; only enable pairing on the intended
-Atlas nearby. Repeated Atlas presses restart its window. Repeated Sigil presses
-while pairing do not extend its window. Sigil retries every two seconds. Timeout
-restores its previous red LED state and preserves any previous association.
-Atlas closes pairing when leaving the lobby. Reboots never open pairing windows.
-
-## Storage and packet rules
-
-Atlas stored each accepted MAC under a stable slot in NVS namespace `th_pair_v1`
-(`s0` through `s7`). Sigil stored the Atlas MAC plus assigned slot in the same
-namespace under `atlas`. Neither operation changes player profiles or statistics.
-(Since 2026-09-30: namespace `th_pair`, each record with its pair key.)
-Old automatic associations were never durable; pair each device once after updating.
-
-PairRequest (10) carries a fresh per-window random token; PairAccept (11) echoes
-it. Sigil accepts that response only in its current local window with the matching
-token and a valid slot. Atlas persists before accepting; Sigil persists before
-reporting success. Radio callbacks only enqueue packets; NVS work runs in loop().
-Queued Atlas requests received before opening its window are rejected.
-
-Hello no longer registers unknown devices. Saved Sigils unicast Hello to their
-Atlas; other Sigil packets require the saved sender MAC and assigned slot. Sigils
-ignore commands from other Atlas MACs. Restored Atlas records remain offline until
-traffic arrives. An unknown device cannot consume a slot through Hello/gameplay.
-
-Pressing Pair again on both devices can replace the Sigil's saved Atlas. Failed
-or timed-out attempts keep its previous pairing. The previous Atlas retains its
-record until an admin forgets it (below). Capacity is eight saved
-Sigils, including offline ones. Capacity/storage failure does not grant association
-and reports a serial rejection/error. If an acceptance is lost, retries during
-the Atlas window are idempotent; after expiry, reopen both windows to retry.
-
-This is deliberate prototype association, not encrypted or authenticated device
-trust: ESP-NOW remains unencrypted and MAC spoofing is not prevented. The token
-correlates responses; it is not a cryptographic identity proof. Production trust
-and factory-reset integration remain future work.
+History: the first manual pairing (2026-09-22) replaced proximity discovery
+with a 15 s window on both devices and an unauthenticated MAC association.
+The Secure Link's code check replaced it on 2026-09-29, and the 60 s minimum
+window arrived the same day.
 
 ## The BOOT button: pair, unpair, factory reset (2026-09-30)
 
@@ -124,8 +91,24 @@ window.
   screen is physical presence. That is deliberate (owner request) and means
   anyone at the table can erase Atlas between games; the 10 s hold, the
   Menu > Device path and the countdown hint are the guard.
+- **Sleep (owner 2026-10-02).** Both device menus have **Sleep**, a tap, and
+  waking is a restart (deep sleep: saved data and pairings survive, RAM does
+  not).
+  - Sigil: device menu, **Up**. The e-ink keeps an "Asleep / Click joystick to
+    wake" card; the OLED and ring go dark. A joystick click (GPIO32) or BOOT
+    wakes it, and it reconnects. Atlas just sees it go quiet.
+  - Atlas: Menu > Device > **Sleep**, between games, touchscreen only (the
+    `Sleep` Intent; the web cannot send it). The notice "Going to sleep. Touch
+    the screen to wake" shows for 2.5 s, then the backlight, RGB LED and
+    amplifier are held off. A touch (the XPT2046 pen interrupt, GPIO36) or
+    BOOT (GPIO0) wakes it. The lobby empties and phones sign in again; Sigils
+    show Atlas lost until it is back. Refused during a firmware update or a
+    scheduled factory reset, and a factory reset is refused while Sleep is
+    pending.
+  - Current draw asleep is *Needs verification*: the DevKit regulator, USB
+    bridge, power LED and the Sigil's NeoPixels still draw a few mA, so this is
+    not yet a battery "off" (a soft-latch power switch would be).
 - The test harness stops at unpair (3 s); it has nothing else to erase.
-- Hardware verification of the tones, timing and BOOT wiring is *Needs verification*.
 
 ## Forgetting a pairing (2026-09-24)
 
@@ -140,19 +123,13 @@ window.
   `ForgetPairing` Intent: Admin permission re-checked, lobby only, refused while
   anyone is seated on that Sigil. Atlas removes `th_pair/s<N>`, frees the slot,
   releases that Sigil's saved seat bindings (its custom name stays) and sends a
-  best-effort `Unpair = 12` packet. A Sigil on 0.5.5+ that hears it from its saved
+  best-effort `Unpair = 12` packet. A Sigil that hears it from its saved
   Atlas erases its own pairing (`SIGIL|PAIR|FORGOTTEN|ATLAS`); one that misses it
   stays paired to a record Atlas no longer has, so its packets are ignored until
   it is re-paired or held-to-forget. A storage failure keeps the pairing.
-- **Pairing window:** Device Settings also has the Atlas pairing window (15, 30 or
-  60 seconds; `GET/POST /api/pairing`, `ConfigurePairing` Intent), stored in NVS
-  `turnhub/pairwin` as `{schema 1, seconds}`. Missing or unreadable values mean 15 s.
-  Since 2026-09-29 the choices are 60, 90 or 120 s (the 60 s minimum on every
-  device); a stored 15 or 30 reads as 60, and missing or unreadable means 60 s.
-
-*Needs verification* on hardware: host scenarios cover the Atlas handlers, HTTP
-routes, storage codec and portal; the Sigil hold and `Unpair` handling were built
-(`sigil`, `sigil-wokwi`) but not flashed.
+- **Pairing window:** Device Settings also has the Atlas pairing window (60, 90
+  or 120 s; `GET/POST /api/pairing`, `ConfigurePairing` Intent), stored in NVS
+  `turnhub/pairwin`. Missing or unreadable means 60 s.
 
 ## Factory reset (2026-09-25)
 
@@ -183,26 +160,3 @@ during a match. Atlas re-checks all of that in the handler.
   IDF 4.4) cannot reformat a card, so it is emptied rather than formatted;
   Atlas recreates `/turnhub` at the next mount. No card, or a failing one,
   never stops the NVS erase. The portal asks the Admin to type RESET first.
-
-*Needs verification* on hardware: host scenarios cover permission, the unlock
-window, refusal while seated or in a match, the packet and forget, and the
-delayed Atlas erase (card wiped before NVS). The Sigil and Atlas erases and
-the card wipe are firmware-only and untested on hardware.
-
-## Verification
-
-Atlas and Sigil PlatformIO builds pass. Native gameplay/storage regressions pass,
-including new PairRequest origin authorization, unavailable radio, 15-second
-expiry, clock rollover, and gameplay exclusion scenarios. These use the transport
-fixture and do not prove on-air delivery or physical NVS persistence.
-
-Bench acceptance still required (firmware has not been flashed by this change):
-
-- Boot an unpaired Sigil: no discovery/adoption; screen instructs Pair on both.
-- Press only one Pair button: no association; timeout at 15 seconds.
-- Press both: success, then normal join/pass/display behavior.
-- Reboot Atlas and Sigil independently: same slot, no new Pair press needed.
-- Try unknown Hello/actions and commands from another Atlas: no adoption/control.
-- Pair during a running game: rejected; a lobby window closes at game start.
-- Retry after lost acceptance; re-pair a saved device; check two nearby Atlases.
-- Fill all eight slots and exercise storage failure: no unsaved association.

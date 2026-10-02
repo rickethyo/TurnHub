@@ -1,100 +1,106 @@
 # TurnHub Engineering Reference
 
-This directory is the working engineering record for TurnHub hardware, firmware, software architecture, protocols, accessibility, and historical generations.
-
-The documents are intentionally useful before they are perfect. Early TurnHub development moved quickly and some historical details were never formally recorded at the time. Rather than invent precision, these references use explicit confidence labels so older information can be corrected later without losing the development story.
+The engineering record for TurnHub hardware, firmware, architecture,
+protocols and accessibility. Reference documents describe how things work
+now; dated records keep what was found or decided on a given day.
 
 ## Confidence labels
 
-- **Verified** - confirmed directly by repository source, surviving hardware, or a contemporaneous artifact.
-- **Reconstructed** - strongly supported by development history and project notes, but not yet checked against original hardware or a commit from that exact moment.
-- **Planned** - an agreed product direction that is not yet the implemented specification.
-- **Experimental** - code or hardware that existed during development but is not necessarily part of the intended product architecture.
-- **Needs verification** - useful placeholder that should not be treated as authoritative yet.
+- **Verified** - confirmed by repository source, hardware, or a contemporaneous artifact.
+- **Reconstructed** - strongly supported by history and notes, not checked against the original hardware or commit.
+- **Planned** - agreed direction, not yet the implemented specification.
+- **Experimental** - existed during development, not necessarily part of the intended product.
+- **Needs verification** - a useful placeholder, not authoritative yet.
 
-## Reference set
+Host tests passing is not hardware acceptance. As of 2026-10-02 the owner
+reports that playtesting and bench testing have verified nearly everything
+implemented; older "needs verification on hardware" notes in the dated
+records predate that.
 
-- [GitHub Actions checks](CONTINUOUS_INTEGRATION.md) - automated builds/tests, reading results, development artifacts and the separate branch-protection setup.
-- [Accounts and Moderation](ACCOUNTS_AND_MODERATION.md) - initial Admin setup, independent permissions, private moderation counts and portal organization.
-- [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard design rules that implementations must preserve.
-- [Accessibility Specification](ACCESSIBILITY.md) - cross-platform requirements for color, contrast, redundant cues, physical input, assistive controllers, digital accessibility, and accessibility testing.
-- [Intent Model](INTENT_MODEL.md) - the common request boundary for physical, browser, simulated, and future controllers.
-- [Staged Changes](STAGED_CHANGES.md) - concise durable queue for agreed work that has not yet been implemented or fully verified.
-- [Prototype v1 Verification](PROTOTYPE_V1_VERIFICATION.md) - line-item stabilization, build and field-test gates, with host and hardware evidence kept separate.
-- [Completed-match Recovery Ordering](COMPLETION_RECOVERY.md) - checkpoint-before-statistics fix and the remaining interrupted-write limitation.
-- [Generation History](GENERATION_HISTORY.md) - development generations from the earliest standalone timer through the ESP32 Atlas/Sigil migration.
-- [Size and Change History](SIZE_AND_CHANGE_HISTORY.md) - milestone source-size snapshots, firmware RAM/flash measurements, and notable change checkpoints.
-- [Sigil OTA](SIGIL_OTA.md) - planned Sigil firmware updates over Atlas's Wi-Fi: feature gate, image descriptor, update sequence, rollback limits and a resume checklist.
-- [Secure Link](SECURE_LINK.md) - planned encrypted Atlas-Sigil radio link: why application-layer encryption over ESP-NOW's built-in kind, pairing key agreement, sessions and the secure frame.
-- [SD Diagnostics](SD_DIAGNOSTICS.md) - optional bounded logs, reboot markers, failure behavior and planned Sigil OTA package retention.
-- [Hardware Reference](HARDWARE_REFERENCE.md) - known controllers, pin assignments, displays, buttons, indicators, and hardware-revision notes.
-- [Software Architecture](SOFTWARE_ARCHITECTURE.md) - how game-state ownership and controller responsibilities evolved.
-- [Identity and Storage Contracts](IDENTITY_AND_STORAGE.md) - typed identities, persistence ownership, legacy compatibility and migration/failure rules.
-- [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables and simultaneous phone/Sigil control.
-- [Game Profiles and Life Counters](GAME_PROFILES_AND_LIFE.md) - format selection, starting life, own-life controls, storage boundaries and bench acceptance.
-- [Life Approval and Commander Damage](LIFE_APPROVAL_AND_COMMANDER.md) - recipient approvals, Atlas deadlines and linked damage/life counters.
-- [Web Portal Pack](PORTAL_PACK.md) - the V1 portal as a signed pack on the microSD card: build, archive, install, serving and the flash fallback.
-- [Web Portal Design System](WEB_PORTAL_DESIGN.md) - shared stylesheet, selectable themes (Brass, Midnight, Parchment, High contrast), layout and the portal test contract.
-- [Turn Timer and Cues](TURN_TIMER_AND_CUES.md) - Atlas-owned turn timer, warning/expiry semantics, and the LED and audio cue layers.
-- [Manual V0.2 Review](MANUAL_V02_REVIEW.md) - intended prototype behavior compared with current implementation and remaining gaps.
-- [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - planned two-button e-ink selection, reusable controllers, authorization decision and migration slices.
-- [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - historical transports, message concepts, current pairing direction, and protocol design rules.
-- [Code review 2026-10-01](CODE_REVIEW_2026_10_01.md) - whole-repository sweep: bugs fixed, load reductions, wording, and what was left alone (earlier: [2026-09-26](CODE_REVIEW_2026_09_26.md)).
-- [Verification Backlog](VERIFICATION_BACKLOG.md) - facts that should be confirmed against physical prototypes, commits, schematics, or future design decisions.
-- [Legal and IP Working Reference](../legal/README.md) - dependency provenance, third-party notices, licensing/trademark tracking, and IP hygiene rules.
+## Start here
 
-## Current architectural rule
+- [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard rules every implementation preserves.
+- [Staged Changes](STAGED_CHANGES.md) - the queue of agreed, unimplemented work.
+- [Prototype v1 Verification](PROTOTYPE_V1_VERIFICATION.md) - field-test gates still open.
+- [Verification Backlog](VERIFICATION_BACKLOG.md) - historical facts and production decisions still open.
 
-The Atlas is the authoritative owner of table and game state. Sigils, browser clients, and future applications are controllers and views of that state rather than independent game engines.
+## Architecture and contracts
 
-Controller actions should converge on a semantic Intent before authoritative game behavior executes. Transport-specific code moves/authenticates requests; it does not own game semantics.
+- [Software Architecture](SOFTWARE_ARCHITECTURE.md) - game-state ownership and controller responsibilities, and how they evolved.
+- [Intent Model](INTENT_MODEL.md) - the common request boundary for every controller.
+- [Identity and Storage Contracts](IDENTITY_AND_STORAGE.md) - typed identities, persistence ownership, NVS and microSD.
+- [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - the radio contract, capability bits and protocol rules.
+- [Manual Pairing](MANUAL_PAIRING.md) - pairing window, forgetting and factory reset.
+- [Secure Link](SECURE_LINK.md) - the encrypted Atlas-Sigil radio link.
+- [Completed-match Recovery Ordering](COMPLETION_RECOVERY.md) - checkpoint before statistics, and the remaining limit.
+- HTTP client contract: [`protocol/http-v1.md`](../../protocol/http-v1.md).
 
-This principle is intended to reduce duplicate logic, avoid state disagreement, and allow physical and virtual controllers to use the same higher-level actions.
+## Features
 
-Accessibility is also a hard system requirement. Essential information and actions must not depend on one sensory cue or one input method when a practical alternative exists. Accessibility alternatives must still use the same Intent and authorization boundaries rather than creating parallel game logic.
+- [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables, phone and Sigil together.
+- [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - the Sigil profile picker and reusable Sigils.
+- [Accounts and Moderation](ACCOUNTS_AND_MODERATION.md) - first Admin, permissions, presence codes, moderation counts.
+- [Game Profiles and Life Counters](GAME_PROFILES_AND_LIFE.md) - formats, starting life, life controls.
+- [Life Approval and Commander Damage](LIFE_APPROVAL_AND_COMMANDER.md) - recipient approvals and linked counters.
+- [Turn Timer and Cues](TURN_TIMER_AND_CUES.md) - the turn timer and the LED and audio cue layers.
+- [First-run Setup](FIRST_RUN_SETUP.md) - guided setup from the app.
+- [Sigil OTA](SIGIL_OTA.md) - signed firmware packages and updates for Atlas and Sigils.
+- [SD Diagnostics](SD_DIAGNOSTICS.md) - optional card logs, hot-plug and failure behavior.
+- [Web Portal Design System](WEB_PORTAL_DESIGN.md) - stylesheet, themes and the portal test contract.
+- [Web Portal Pack](PORTAL_PACK.md) - the V1 portal as a signed pack on the microSD card, with the flash portal as fallback.
+- [Accessibility Specification](ACCESSIBILITY.md) - requirements and the implemented settings.
 
-## Mandatory feature gate
+## Hardware and tooling
 
-Before implementing a significant feature, define:
+- [Hardware Reference](HARDWARE_REFERENCE.md) - boards, pins, displays, controls and indicators.
+- [Board Inventory](BOARD_INVENTORY.md) - development boards by MAC, used by the flash scripts.
+- [Continuous Integration](CONTINUOUS_INTEGRATION.md) - GitHub Actions checks and artifacts.
+- [Serial logs](logs/README.md) - captured boot and OTA logs.
+- [Legal and IP Working Reference](../legal/README.md) - dependencies, notices, IP hygiene.
 
-1. State owner.
-2. Intent/request.
-3. Validator.
-4. Persistence owner, if any.
-5. Rendering/presentation clients.
-6. Shared protocol/contract changes, if any.
-7. Third-party dependency/asset impact, if any, and update `docs/legal` when applicable.
-8. Accessibility impact and alternate presentation/input path, if user-facing.
+## History and dated records
 
-If those boundaries are unclear, define them before implementation proceeds.
+- [Generation History](GENERATION_HISTORY.md) - from the first standalone timer to the ESP32 Atlas/Sigil system.
+- [Size and Change History](SIZE_AND_CHANGE_HISTORY.md) - source size and firmware RAM/flash snapshots.
+- [Code review 2026-10-01](CODE_REVIEW_2026_10_01.md) and [2026-09-26](CODE_REVIEW_2026_09_26.md).
+- [Playtest notes 2026-09-29](PLAYTEST_NOTES_2026_09_29.md).
+- [Prototype 1.0 gap review 2026-09-26](PROTOTYPE_1_0_GAP_REVIEW.md).
+- [Stabilization 2026-09-22](STABILIZATION_2026_09_22.md).
+- [Manual V0.2 review 2026-09-22](MANUAL_V02_REVIEW.md).
+- [Atlas Intent migration verification 2026-09-19](ATLAS_INTENT_VERIFICATION.md).
+- [PASS audio observation 2026-09-19](PASS_AUDIO_OBSERVATION.md).
 
-## Mandatory structural-change preflight
+Dated records are not updated as the code moves on; check the reference
+documents for current behavior.
 
-Before making any structural change to TurnHub, review the current Git documentation first. This is a project rule, not optional process guidance.
+## Rules
 
-At minimum, review:
+**Atlas is authoritative.** It owns table and game state. Sigils, phones, the
+touchscreen and simulators are controllers and views; every action converges
+on a semantic Intent before game behavior runs.
 
-1. This engineering index.
-2. `ARCHITECTURAL_INVARIANTS.md`.
-3. `STAGED_CHANGES.md`.
-4. The specific reference documents affected by the proposed change, such as the Accessibility specification, Intent model, software architecture, protocol/pairing, hardware reference, verification backlog, or legal/IP references.
+**Accessibility is a hard requirement.** Essential information and actions
+never depend on one sensory cue or one input method when a practical
+alternative exists, and alternatives use the same Intent and authorization
+path.
 
-Structural changes include architecture boundaries, state ownership, persistence models, shared contracts/protocols, controller abstractions, major file/module organization, branch/workflow structure, and hardware/software interface boundaries.
+**Feature gate.** Before a significant feature, define: (1) state owner,
+(2) Intent, (3) validator, (4) persistence owner, (5) rendering clients,
+(6) protocol/contract change, (7) third-party dependency impact (update
+`Documentation/legal/`), (8) accessibility impact.
 
-If the proposed change conflicts with the documented architecture, resolve the documentation and decision explicitly before changing structure. Do not silently make the codebase contradict the engineering record.
+**Structural-change preflight.** Before changing architecture boundaries,
+state ownership, persistence, shared contracts, controller abstractions,
+module layout or hardware/software interfaces, review this index,
+`ARCHITECTURAL_INVARIANTS.md`, `STAGED_CHANGES.md` and the affected
+references. If the change conflicts with them, resolve the documentation
+first rather than letting the code drift.
 
-## Staging rule
+**Keeping the record.**
 
-Planning and agreed near-term changes stay in `STAGED_CHANGES.md` on the active development branch rather than creating long-lived planning branches. Short-lived branches are reserved for code changes that genuinely need isolation, review, or experimental protection.
-
-## Document maintenance rule
-
-When a hardware or software decision changes, update the relevant reference rather than relying on chat history alone. If an implemented experiment is abandoned, preserve it in the generation history and mark it historical instead of rewriting history to imply it never existed.
-
-When a new external dependency, asset, reference design, copied implementation, or third-party branding reference enters the project, update the legal/IP working reference in the same development cycle.
-
-When a user-facing interaction, cue, display, timeout, or controller path changes, review `ACCESSIBILITY.md` in the same development cycle.
-
-At release candidates, firmware-version changes, major architecture milestones, and unusually large feature commits, update `SIZE_AND_CHANGE_HISTORY.md` with source-size and available compiled-footprint measurements. Preserve prior snapshots rather than overwriting them.
-
-Last reconstructed: 2026-09-21
+- Agreed, unimplemented work goes in `STAGED_CHANGES.md`, not long-lived branches.
+- When a decision changes, update the reference document. Abandoned
+  experiments are marked historical, not erased.
+- A new dependency, asset or third-party reference updates `Documentation/legal/` in the same cycle.
+- A changed user-facing interaction, cue, display or timeout gets an `ACCESSIBILITY.md` review, and the user manual, UI text and docs stay in agreement.
+- Firmware-version bumps and large feature commits append a snapshot to `SIZE_AND_CHANGE_HISTORY.md`.

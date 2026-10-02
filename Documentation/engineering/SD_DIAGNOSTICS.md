@@ -1,6 +1,7 @@
 # Optional SD diagnostics
 
-Status: Experimental implementation, 2026-09-25. Hardware acceptance pending.
+Status: implemented 2026-09-25 and in use. The checks still open are **D04**
+and **D05** in [Prototype v1 verification](PROTOTYPE_V1_VERIFICATION.md).
 
 ## Feature gate
 
@@ -91,10 +92,9 @@ Verified on the host (2026-09-25, GCC C++14): gameplay, storage and profile-stor
 scenario executables pass, including retention, append across restarts, rotation
 failure, short writes, self-test gating and redacted ring draining/overflow.
 The adapter-boundary audit and generated client-contract checks also pass.
-PlatformIO is unavailable here: no ESP32 firmware build or hardware test was run.
-Physical checks still needed:
-boot with no card, a read-only/full card, reboot markers across real restarts,
-rotation on the actual card, and gameplay responsiveness during slow SD writes.
+Booting without a card, failing cards and reboot markers are verified in use
+(owner, 2026-10-02). Rotation on a real card and responsiveness during slow
+writes remain **D05**.
 
 ## Sigil update packages (Planned)
 

@@ -1,7 +1,8 @@
 # Completed-match recovery ordering
 
-Status: implemented and host-tested on `codex/prototype-v1-stabilization`,
-2026-09-26. Atlas firmware build passes; hardware acceptance is pending. This is a conservative prototype fix, not transactional statistics.
+Status: implemented 2026-09-26. This is a conservative prototype fix, not
+transactional statistics. The deliberate power-cut checks are **R05-R07** in
+[Prototype v1 verification](PROTOTYPE_V1_VERIFICATION.md).
 
 ## Problem and boundary
 
