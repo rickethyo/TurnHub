@@ -56,8 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.turnhub.android.ui.components.rememberHaptics
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -160,8 +159,8 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
     val active = summary.activePlayerNumber?.let(labelFor)
     val myTurn = myNumber != null && summary.state == TableState.RUNNING && summary.activePlayerNumber == myNumber
     // A firm tap in the hand when the turn comes to this phone's player.
-    val haptics = LocalHapticFeedback.current
-    LaunchedEffect(myTurn) { if (myTurn) haptics.performHapticFeedback(HapticFeedbackType.Confirm) }
+    val haptics = rememberHaptics()
+    LaunchedEffect(myTurn) { if (myTurn) haptics.yourTurn() }
     val (title, subtitle) = when (summary.state) {
         TableState.LOBBY -> "Lobby" to when (summary.players.size) {
             0 -> "Waiting for players to join"
@@ -278,7 +277,7 @@ private fun StageBadges(summary: TableSummary, nowMs: Long, labelFor: (Int) -> S
 @Composable
 private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlayer?, actions: GameActions) {
     val p = palette
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     val panel = uiState.player
     val info = uiState.sessionInfo()
     val signedIn = panel?.signedIn == true
@@ -366,7 +365,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                 AccentButton(
                     if (passing) "Cancel pending pass" else "Pass turn",
                     {
-                        haptics.performHapticFeedback(if (passing) HapticFeedbackType.Reject else HapticFeedbackType.Confirm)
+                        if (passing) haptics.reject() else haptics.confirm()
                         actions.onControl(ControlAction.PASS)
                     },
                     Modifier.fillMaxWidth().height(64.dp),
@@ -703,7 +702,7 @@ internal fun lifeSteps(profile: GameProfile): LifeSteps =
 @Composable
 private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean, steps: LifeSteps) {
     val p = palette
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     var custom by rememberSaveable { mutableStateOf("") }
     val shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md)
     Column(
@@ -724,7 +723,7 @@ private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean, steps:
                 ToneButton(
                     (if (step > 0) "+" else "−") + kotlin.math.abs(step),
                     {
-                        haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                        haptics.tick()
                         onChange(step)
                     },
                     Modifier.weight(1f),

@@ -3,6 +3,8 @@
 
     <!-- HTTP to Atlas's local API (protocol/http-v1.md). -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Firm haptics on the Game screen (ui/components/Haptics.kt). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!--
       Lets requests to Atlas use the Wi-Fi network the user already joined even
       when mobile data stays the default route (Atlas's AP has no internet).
