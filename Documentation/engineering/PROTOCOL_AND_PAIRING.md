@@ -269,19 +269,23 @@ that starts with Atlas off shows it too. Logic: `Sigil/include/atlas_link.h`.
 
 - **Screen:** the same words on both displays (2026-10-02): "Atlas lost /
   Searching for Atlas" (e-ink, sentence case) or "ATLAS LOST / Searching for
-  Atlas" (OLED, capitals), with no action menu.
+  Atlas" (OLED, capitals). Its only action is **Menu** on Up, the device
+  menu (Unpair, Sleep, Factory reset, Back; owner 2026-10-02), so a Sigil whose
+  Atlas is gone for good can still be unpaired or reset without the Pair
+  button.
 - **Light:** one orange pixel sweeping back and forth around the ring, center
   dark; with Reduced motion, two opposite pixels steady orange. Only the pairing
   blink outranks it.
-- **Input:** menu and life keys are ignored while Atlas is lost; the stale
-  menu, any unsent life change and any life request are dropped. Pair still
-  works.
+- **Input:** Atlas's menu and life keys are ignored while Atlas is lost (only
+  the device menu works, `SigilMenu::setOffline`); the stale menu, any unsent
+  life change and any life request are dropped. Pair still works. A device-menu
+  hold fills the ring over the searching light.
 - **Serial:** `SIGIL|ATLAS|LOST`, then `SIGIL|ATLAS|RESTORED`.
 
 The Sigil keeps sending Hello every 2 s. The first valid packet from its Atlas
 restores the last screen; Atlas's answer to that Hello resends the light,
 menu, screen and life state. No protocol change. Host-tested
-(`led_scenarios`).
+(`led_scenarios`, `menu_scenarios`).
 
 ### Protocol 3: no compatibility before release (2026-09-30)
 

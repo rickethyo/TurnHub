@@ -643,7 +643,18 @@ void updateDisplay() {
   codeDrawn = false;
   if (atlasLostShown && sigilId != UNASSIGNED_SIGIL_ID) {
     displayNeedsRefresh = false;
-    if (!lostDrawn || overlayEnded) sigilDisplay.showAtlasLost(sigilId);
+    // Its legend offers the device menu, which replaces it while open.
+    bool lostMenuChanged = false;
+    TurnHubSigil::MenuView lostMenu;
+    portENTER_CRITICAL(&displayProfileMux);
+    if (menuViewChanged) {
+      lostMenu = pendingMenuView;
+      menuViewChanged = false;
+      lostMenuChanged = true;
+    }
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (lostMenuChanged) sigilDisplay.setMenuView(lostMenu);
+    if (!lostDrawn || overlayEnded || lostMenuChanged) sigilDisplay.showAtlasLost(sigilId);
     lostDrawn = true;
     return;
   }
@@ -951,10 +962,13 @@ void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
   if (lost) {
     // Stale: nothing here can reach Atlas. Atlas resends the menu and any
     // life request with its next Hello answer; an unsent life change is
-    // dropped rather than applied late.
-    sigilMenu.clear();
+    // dropped rather than applied late. Only the device menu stays, so a
+    // Sigil whose Atlas is gone can still be unpaired or reset.
+    sigilMenu.setOffline();
     lifeAdjuster.cancel();
     lifeRequest = TurnHubProtocol::LifeRequestFields{};
+  } else {
+    sigilMenu.endOffline();
   }
   ledModel.setAtlasLost(lost, millis());
   atlasLostShown = lost;
@@ -1409,9 +1423,13 @@ void updateMenuKeys() {
   lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
-    // Nothing reaches a lost Atlas; the screen says so instead.
-    if (atlasLink.lost()) continue;
     const auto key = static_cast<TurnHubSigil::Key>(k);
+    // Nothing reaches a lost Atlas; only the device menu works (setOffline).
+    if (atlasLink.lost()) {
+      if (keys[k].stableState == LOW) sigilMenu.keyDown(key, nowMs);
+      else sigilMenu.keyUp(key, nowMs);
+      continue;
+    }
     if (pickerActive) {
       // Keys choose on the picker's page, never a menu action.
       if (keys[k].stableState == LOW) {

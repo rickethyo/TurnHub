@@ -136,6 +136,12 @@ int main() {
     const LedFrame still = m.render(3100);
     assert(lit(still) == 2 && still.pixels[1] == orange && still.pixels[4] == orange &&
         still.pixels[1] == m.render(4700).pixels[1]);
+    // A device-menu hold (Unpair, Factory reset) shows over it.
+    m.setHoldProgress(128);
+    const LedFrame held = m.render(4800);
+    assert(lit(held) == 4 && held.pixels[LED_CENTER] == held.pixels[1] && !(held.pixels[1] == orange));
+    m.setHoldProgress(0);
+    assert(m.render(4800).pixels[1] == orange);
     m.setAtlasLost(false, 5000);
     assert(!m.atlasLost() && m.render(5000).pixels[1].b > 0);
   }

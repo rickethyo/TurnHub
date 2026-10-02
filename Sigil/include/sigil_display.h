@@ -52,8 +52,9 @@ class SigilDisplay {
   virtual void showUnpaired() = 0;
   virtual void showReady(uint8_t sigilId) = 0;
   // The paired Atlas stopped answering (atlas_link.h). Replaces every other
-  // screen, with no action menu (nothing can reach Atlas), until Atlas is
-  // heard again and the last state is redrawn.
+  // screen until Atlas is heard again and the last state is redrawn. Its
+  // only action is the device menu (SigilMenu::setOffline), drawn instead
+  // while open.
   virtual void showAtlasLost(uint8_t sigilId) = 0;
   // Pairing v2: the 4-digit code the owner compares with Atlas's screen
   // before confirming there (SECURE_LINK.md). Replaces every other screen,
