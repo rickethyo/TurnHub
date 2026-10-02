@@ -374,23 +374,39 @@ Sigil 0.9.0). Atlas sends which actions each Sigil may use now (`MenuState2`),
 the Sigil sends the one chosen (`SelectAction`), and Atlas dispatches the
 Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
 
-- **Both Sigils: compass** (the OLED since firmware 0.9.4, owner 2026-10-02;
-  it had a scrolling list before). Every action has a fixed key, so the e-ink
-  panel redraws only when the menu changes. The e-ink lists the keys at the
-  bottom of the screen; the OLED has room for one line, so its bottom row shows
-  one key at a time, the click first, stepping every 2.5 s. Click
-  is the likely action (Pass on your turn, Join, Start, Confirm win, Rematch,
-  and Undo pass during the pass grace: click again to undo);
-  Up pauses or resumes; Down holds for Claim win or Reset table; Left is no,
-  back or cancel; Right is yes or next. Link phone takes the first free key.
-- **Device menu (0.9.4; Unpair 0.9.6):** outside a game, the first of Up and
-  Down with nothing on it reads **Menu**. It opens a device menu, also a
-  compass: **Unpair** held 3 s on the click (forgets the saved Atlas pairing),
-  **Factory reset** held 5 s on Down (erases this Sigil) and **Back** on Left.
-  Atlas is asked about neither. It closes after ten idle seconds or when a game
-  starts. In a game, the Pair button's holds remain the way. While Atlas is
-  lost (owner 2026-10-02) Menu sits on Up, game or not, since nothing else
-  works then.
+- **E-ink Sigil: compass** (`MenuStyle::Compass`). Every action has a fixed
+  key, so the panel redraws only when the menu changes, and the bottom of the
+  screen lists the keys. Click is the likely action (Pass on your turn, Join,
+  Start, Confirm win, Rematch, and Undo pass during the pass grace: click
+  again to undo); Up pauses or resumes; Down holds for Claim win or Reset
+  table; Left is no, back or cancel; Right is yes or next. Link phone takes
+  the first free key. (The OLED used the compass from 0.9.4 to 0.9.7.)
+- **OLED Sigil: click plus a scrolling list** (`MenuStyle::List`, Sigil 0.9.8,
+  owner 2026-10-02: "all menus a scrolling list on the OLED, compass for the
+  e-ink, keep press to pass"). The click does what the compass click would
+  (Pass, Undo pass, Join, Start, Confirm win, Rematch...), Left/Right change
+  life in a game, and **Up opens Menu** at any time, in a game too: one list
+  of every action Atlas offers (a fixed order, likely ones first, held ones
+  marked "(hold)"), then Sleep, **Device recovery** and Back. Device recovery
+  (owner 2026-10-02: keep the erasing entries one level deeper) is a second
+  list, titled RECOVERY, with Unpair, Factory reset and Back; Back or Left
+  returns to its row in Menu. Up/Down move,
+  the click or Right chooses, Left goes back; the header counts the row
+  ("3/8") and a bar on the right shows the scroll. Choosing closes the list;
+  it also closes after ten idle seconds and when a game starts, and stays
+  open (cursor on the same action) when Atlas's menu changes mid-game. The
+  bottom row steps through one key hint every 2.5 s, the click first
+  ("○ Pass turn", "↑ Menu", "←→ Life -/+"; in the list "↑↓ Scroll the list",
+  "○ Choose ← Back").
+- **Device menu (0.9.4; Unpair 0.9.6):** on the e-ink, outside a game, the
+  first of Up and Down with nothing on it reads **Menu**. It opens a device
+  menu, also a compass: **Unpair** held 3 s on the click (forgets the saved
+  Atlas pairing), **Sleep** on Up, **Factory reset** held 5 s on Down (erases
+  this Sigil) and **Back** on Left. Atlas is asked about none. It closes after
+  ten idle seconds or when a game starts. In a game, the Pair button's holds
+  remain the way. On the OLED, Sleep ends its Menu list and Unpair and Factory
+  reset sit under Device recovery, so they are reachable in a game too. While Atlas is lost (owner 2026-10-02) Menu sits on
+  Up on both, game or not, with only these entries.
 - **Joystick pairing (0.9.6, owner 2026-10-02):** a case can hide the BOOT
   button, so while a Sigil is unpaired, holding the thumbstick click 3 s opens
   its pairing window, like a quick Pair press (the ring fills while held).
@@ -412,10 +428,10 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   after 15 s.
 - **Deliberate actions** (Claim win: the win hold; Confirm out, Reset table:
   the long press) are sent only once the key is held for the seated players'
-  thresholds. The ring fills in white while held; the OLED also says HOLD in
-  words while the device menu's Factory reset is held.
-- The OLED's profile picker stays a list (Up/Down move, click or Right
-  chooses, Left goes back); only the action menu became a compass.
+  thresholds. The ring fills in white while held; the OLED list also says
+  "HOLD: ..." in words on the row being held.
+- The OLED's profile picker is a list too (Up/Down move, click or Right
+  chooses, Left goes back).
 - Until Atlas sends a menu the keys do nothing (the gesture fallback was retired
   2026-09-30).
 

@@ -27,7 +27,7 @@ once per page rather than once per cursor move:
   not listed. A refused choice returns to the list with a reason in words.
 - The picker closes after a minute without a key, when the game starts, or
   when the Sigil is joined another way.
-- **OLED Sigil:** the same page as a list, keeping the OLED's navigation: the
+- **OLED Sigil:** the same page as a list, like the OLED's Menu list: the
   names, More names, and Back (Cancel on the first page); on confirm, Yes,
   join and Back. Up/Down move, Select or Right chooses, Left goes back. The
   Sigil turns the chosen row into the compass key Atlas expects

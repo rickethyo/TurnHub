@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <string>
 
 using namespace TurnHubSigil;
 using namespace TurnHubProtocol;
@@ -98,7 +99,7 @@ int main() {
     assert(SigilMenu::compassAction(pausedWaiting, Key::Down) == id(A::SwitchSeat));
   }
 
-  SigilMenu compass(false);
+  SigilMenu compass(MenuStyle::Compass);
   // No menu yet: inactive, keys ignored (main.cpp falls back to gestures).
   compass.keyDown(Key::Select, 0);
   assert(!compass.active() && !compass.update(0).ready && !compass.view().active);
@@ -136,10 +137,10 @@ int main() {
   assert(v.active && v.compass[static_cast<uint8_t>(Key::Select)] == id(A::ConfirmWin) && v.life);
   assert(v.compass[static_cast<uint8_t>(Key::Left)] == id(A::DenyWin) && v.compass[0] == MENU_NONE);
 
-  // Device menu (both Sigils, owner 2026-10-02): outside a game, the first of
-  // Up/Down with nothing on it is Menu. The device menu is a compass too:
-  // the click holds Unpair, Down holds Factory reset, Left goes back.
-  SigilMenu dev(true);  // The OLED: names the held action on screen.
+  // Device menu (the e-ink compass, owner 2026-10-02): outside a game, the
+  // first of Up/Down with nothing on it is Menu. The device menu is a compass
+  // too: the click holds Unpair, Down holds Factory reset, Left goes back.
+  SigilMenu dev(MenuStyle::Compass);
   dev.applyMenuState2(menu({A::Join}, A::Join, 3), 0);
   v = dev.view();
   assert(v.compass[static_cast<uint8_t>(Key::Select)] == id(A::Join) &&
@@ -183,9 +184,9 @@ int main() {
   // (main.cpp erases the Sigil; the choice is never sent to Atlas).
   dev.keyDown(Key::Up, 2000); dev.keyUp(Key::Up, 2050);
   dev.keyDown(Key::Down, 2100);
-  assert(dev.view().holdAction == MENU_LOCAL_FACTORY_RESET && dev.holdProgress(2100 + 2500) > 100);
+  assert(dev.holdProgress(2100 + 2500) > 100);
   dev.keyUp(Key::Down, 2700);
-  assert(dev.view().holdAction == MENU_NONE && !dev.update(2700 + MENU_FACTORY_RESET_HOLD_MS).ready);
+  assert(dev.holdProgress(2700) == 0 && !dev.update(2700 + MENU_FACTORY_RESET_HOLD_MS).ready);
   dev.keyDown(Key::Down, 3000);
   assert(!dev.update(3000 + MENU_FACTORY_RESET_HOLD_MS - 1).ready);
   c = dev.update(3000 + MENU_FACTORY_RESET_HOLD_MS);
@@ -194,7 +195,7 @@ int main() {
   // Unpair: the click, held MENU_UNPAIR_HOLD_MS (main.cpp forgets Atlas).
   dev.keyDown(Key::Up, 9100); dev.keyUp(Key::Up, 9150);
   dev.keyDown(Key::Select, 9200);
-  assert(dev.view().holdAction == MENU_LOCAL_UNPAIR && !dev.update(9200 + MENU_UNPAIR_HOLD_MS - 1).ready);
+  assert(dev.holdProgress(9300) > 0 && !dev.update(9200 + MENU_UNPAIR_HOLD_MS - 1).ready);
   c = dev.update(9200 + MENU_UNPAIR_HOLD_MS);
   assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR && !dev.deviceMenuOpen());
   dev.keyUp(Key::Select, 9900);
@@ -212,8 +213,8 @@ int main() {
   dev.keyDown(Key::Up, 30000); dev.keyUp(Key::Up, 30050);
   dev.applyMenuState2(menu({A::Pass, A::AdjustLife}, A::Pass, 8), 30100);
   assert(!dev.deviceMenuOpen() && dev.lifeOffered());
-  // The e-ink (no on-screen hold) shows the same compass, never the hold.
-  SigilMenu eink(false);
+  // The e-ink compass never carries the hold in its view.
+  SigilMenu eink(MenuStyle::Compass);
   eink.applyMenuState2(menu({A::Join}, A::Join, 1), 0);
   eink.keyDown(Key::Up, 0); eink.keyUp(Key::Up, 10);
   eink.keyDown(Key::Select, 20);
@@ -230,7 +231,7 @@ int main() {
   // Atlas lost: Atlas's menu (even mid-game) gives way to Menu on Up alone,
   // and its device menu still unpairs or resets the Sigil.
   {
-    SigilMenu lost(true);
+    SigilMenu lost(MenuStyle::Compass);
     lost.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::AdjustLife}, A::Pass, 3), 0);
     lost.setOffline();
     MenuView v = lost.view();
@@ -275,7 +276,7 @@ int main() {
     assert(SigilMenu::compassAction(f.actions, Key::Down) == id(A::Leave));
     assert(SigilMenu::compassAction(f.actions | sigilActionBit(A::LinkPhone), Key::Down) == id(A::LinkPhone));
     assert(sigilActionHold(A::Leave) == ActionHold::Long);
-    SigilMenu leaver(false);
+    SigilMenu leaver(MenuStyle::Compass);
     leaver.applyMenuState2(encodeMenuState2(f), 0);
     leaver.keyDown(Key::Down, 10);
     assert(!leaver.update(1000).ready);
@@ -370,10 +371,10 @@ int main() {
     const char *label = sigilActionLabel(static_cast<A>(a));
     assert(label[0] && std::strlen(label) <= 12);
   }
-  {
+  for (MenuStyle style : {MenuStyle::Compass, MenuStyle::List}) {
     // Both Sigils: Select passes, and pressed again in the grace period it
     // undoes the pass (Undo pass is on the click, like Atlas's "pass again").
-    SigilMenu sigil(true);
+    SigilMenu sigil(style);
     sigil.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::LinkPhone}, A::Pass, 1), 0);
     sigil.keyDown(Key::Select, 10); sigil.keyUp(Key::Select, 20);
     MenuChoice c = sigil.update(20);
@@ -384,5 +385,148 @@ int main() {
     c = sigil.update(50);
     assert(c.ready && c.action == A::CancelPass);
   }
-  std::cout << "Menu wire format, compass keys, device menu, holds and stale menus passed\n";
+  // OLED list (owner, 2026-10-02): the click keeps the likely action, Up
+  // opens one scrolling list of everything else, Left/Right stay life.
+  {
+    SigilMenu oled(MenuStyle::List);
+    const auto rowsOf = [](const MenuView &v) {
+      std::string out;
+      for (uint8_t i = 0; i < v.rowCount; ++i) {
+        out += (out.empty() ? "" : ",");
+        out += sigilActionLabel(static_cast<A>(v.rows[i]));
+      }
+      return out;
+    };
+    oled.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::AdjustLife, A::LinkPhone}, A::Pass, 1), 0);
+    MenuView v = oled.view();
+    assert(v.list && !v.deviceMenu && v.rowCount == 0 && v.life && oled.lifeOffered());
+    assert(v.compass[static_cast<uint8_t>(Key::Select)] == id(A::Pass) &&
+        v.compass[static_cast<uint8_t>(Key::Up)] == MENU_LOCAL_DEVICE_MENU &&
+        v.compass[static_cast<uint8_t>(Key::Down)] == MENU_NONE &&
+        v.compass[static_cast<uint8_t>(Key::Left)] == MENU_NONE &&
+        v.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE);
+    // Click passes at once, from the game screen.
+    oled.keyDown(Key::Select, 10); oled.keyUp(Key::Select, 20);
+    MenuChoice c = oled.update(20);
+    assert(c.ready && c.action == A::Pass && !oled.deviceMenuOpen());
+    // Up opens the list (in a game too): every action, then the device entries.
+    oled.keyDown(Key::Up, 100); oled.keyUp(Key::Up, 110);
+    assert(!oled.update(110).ready && oled.deviceMenuOpen() && oled.lifeOffered());
+    v = oled.view();
+    assert(rowsOf(v) == "Pass turn,Pause,Link phone,Claim win,Sleep,Device recovery,Back" && v.cursor == 0);
+    // Left/Right belong to the list while it is open: Left is Back.
+    assert(oled.keyAction(Key::Left) == MENU_LOCAL_BACK && oled.keyAction(Key::Right) == id(A::Pass));
+    // Down moves; the click chooses the row and closes the list.
+    oled.keyDown(Key::Down, 200); oled.keyUp(Key::Down, 210);
+    assert(oled.view().cursor == 1 && oled.keyAction(Key::Select) == id(A::Pause));
+    oled.keyDown(Key::Up, 220); oled.keyUp(Key::Up, 230);
+    oled.keyDown(Key::Up, 240); oled.keyUp(Key::Up, 250);  // Stops at the top.
+    assert(oled.view().cursor == 0);
+    oled.keyDown(Key::Down, 300); oled.keyUp(Key::Down, 310);
+    oled.keyDown(Key::Right, 320);
+    c = oled.update(320);
+    assert(c.ready && c.action == A::Pause && !oled.deviceMenuOpen());
+    oled.keyUp(Key::Right, 330);
+    // Held rows: Claim win needs the win hold, named on screen while held.
+    oled.setHoldTimes(2000, 5000);
+    oled.keyDown(Key::Up, 400); oled.keyUp(Key::Up, 410);
+    for (int i = 0; i < 3; ++i) { oled.keyDown(Key::Down, 420 + i * 20); oled.keyUp(Key::Down, 430 + i * 20); }
+    assert(oled.keyAction(Key::Select) == id(A::ClaimWin));
+    oled.keyDown(Key::Select, 1000);
+    assert(oled.view().holdAction == id(A::ClaimWin) && !oled.update(5999).ready);
+    oled.keyDown(Key::Down, 3000);  // Moving is ignored mid-hold.
+    assert(oled.view().cursor == 3);
+    c = oled.update(6000);
+    assert(c.ready && c.action == A::ClaimWin && !oled.deviceMenuOpen());
+    oled.keyUp(Key::Select, 6100);
+    // The cursor follows its action when Atlas's menu changes, the list
+    // stays open through it, and the last row wraps nothing.
+    oled.keyDown(Key::Up, 7000); oled.keyUp(Key::Up, 7010);
+    oled.keyDown(Key::Down, 7020); oled.keyUp(Key::Down, 7030);  // Pause.
+    oled.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::AdjustLife}, A::CancelPass, 2), 7040);
+    v = oled.view();
+    assert(oled.deviceMenuOpen() && rowsOf(v) == "Undo pass,Pause,Claim win,Sleep,Device recovery,Back" &&
+        v.cursor == 1);
+    for (int i = 0; i < 10; ++i) { oled.keyDown(Key::Down, 7100 + i * 20); oled.keyUp(Key::Down, 7110 + i * 20); }
+    assert(oled.view().cursor == 5 && oled.keyAction(Key::Select) == MENU_LOCAL_BACK);
+    oled.keyDown(Key::Select, 7400); oled.keyUp(Key::Select, 7410);
+    assert(!oled.update(7410).ready && !oled.deviceMenuOpen());
+    // Left closes it too; an idle list closes by itself.
+    oled.keyDown(Key::Up, 8000); oled.keyUp(Key::Up, 8010);
+    oled.keyDown(Key::Left, 8020); oled.keyUp(Key::Left, 8030);
+    assert(!oled.deviceMenuOpen() && !oled.update(8030).ready);
+    oled.keyDown(Key::Up, 9000); oled.keyUp(Key::Up, 9010);
+    oled.update(9000 + MENU_DEVICE_IDLE_MS - 1); assert(oled.deviceMenuOpen());
+    oled.update(9010 + MENU_DEVICE_IDLE_MS); assert(!oled.deviceMenuOpen());
+    // Reopening starts at the top.
+    oled.keyDown(Key::Up, 30000); oled.keyUp(Key::Up, 30010);
+    assert(oled.view().cursor == 0);
+    // Sleep is a tap, from any stage.
+    oled.keyDown(Key::Down, 30020); oled.keyUp(Key::Down, 30030);
+    oled.keyDown(Key::Down, 30040); oled.keyUp(Key::Down, 30050);
+    oled.keyDown(Key::Down, 30060); oled.keyUp(Key::Down, 30070);
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_SLEEP);
+    oled.keyDown(Key::Select, 30100);
+    c = oled.update(30100);
+    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_SLEEP && !oled.deviceMenuOpen());
+    oled.keyUp(Key::Select, 30110);
+    // Lobby: Join on the click, the rest in the list; Left/Right do nothing.
+    oled.applyMenuState2(menu({A::StartGame, A::RandomStarter, A::CycleStarter, A::AddSeatB, A::Leave},
+        A::StartGame, 3), 40000);
+    assert(oled.keyAction(Key::Select) == id(A::StartGame) && oled.keyAction(Key::Left) == MENU_NONE &&
+        oled.keyAction(Key::Right) == MENU_NONE && !oled.lifeOffered());
+    oled.keyDown(Key::Up, 40010); oled.keyUp(Key::Up, 40020);
+    assert(rowsOf(oled.view()) ==
+        "Start game,Random start,Next starter,Add seat B,Leave lobby,Sleep,Device recovery,Back");
+    // A game starting closes the list; later menus in the game keep it open.
+    oled.applyMenuState2(menu({A::Pass, A::AdjustLife}, A::Pass, 4), 40100);
+    assert(!oled.deviceMenuOpen());
+    // Unpair and Factory reset sit one list deeper, under Device recovery
+    // (owner, 2026-10-02); Back or Left returns to its row.
+    oled.keyDown(Key::Up, 41000); oled.keyUp(Key::Up, 41010);
+    oled.keyDown(Key::Down, 41020); oled.keyUp(Key::Down, 41030);
+    oled.keyDown(Key::Down, 41032); oled.keyUp(Key::Down, 41034);
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_RECOVERY &&
+        strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_RECOVERY)), "Device recovery") == 0);
+    oled.keyDown(Key::Select, 41040); oled.keyUp(Key::Select, 41050);
+    v = oled.view();
+    assert(!oled.update(41050).ready && v.recovery && v.cursor == 0 && rowsOf(v) == "Unpair,Factory reset,Back");
+    oled.keyDown(Key::Left, 41060); oled.keyUp(Key::Left, 41070);
+    v = oled.view();
+    assert(oled.deviceMenuOpen() && !v.recovery && v.cursor == 2 && rowsOf(v) == "Pass turn,Sleep,Device recovery,Back");
+    oled.keyDown(Key::Right, 41080); oled.keyUp(Key::Right, 41090);
+    for (int i = 0; i < 2; ++i) { oled.keyDown(Key::Down, 41100 + i * 20); oled.keyUp(Key::Down, 41110 + i * 20); }
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_BACK);
+    oled.keyDown(Key::Select, 41200); oled.keyUp(Key::Select, 41210);
+    assert(oled.deviceMenuOpen() && !oled.view().recovery && oled.view().cursor == 2);
+    oled.keyDown(Key::Select, 41300); oled.keyUp(Key::Select, 41310);
+    assert(oled.view().recovery && oled.keyAction(Key::Select) == MENU_LOCAL_UNPAIR);
+    oled.keyDown(Key::Select, 42000);
+    assert(oled.view().holdAction == MENU_LOCAL_UNPAIR && !oled.update(42000 + MENU_UNPAIR_HOLD_MS - 1).ready);
+    c = oled.update(42000 + MENU_UNPAIR_HOLD_MS);
+    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR && !oled.deviceMenuOpen() &&
+        !oled.view().recovery);
+    oled.keyUp(Key::Select, 46000);
+    // Atlas lost: the click does nothing; the list holds the device entries.
+    oled.setOffline();
+    assert(oled.keyAction(Key::Select) == MENU_NONE && oled.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
+    oled.keyDown(Key::Up, 50000); oled.keyUp(Key::Up, 50010);
+    assert(rowsOf(oled.view()) == "Sleep,Device recovery,Back");
+    oled.keyDown(Key::Down, 50020); oled.keyUp(Key::Down, 50030);
+    oled.keyDown(Key::Select, 50032); oled.keyUp(Key::Select, 50034);
+    oled.keyDown(Key::Down, 50040); oled.keyUp(Key::Down, 50050);
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_FACTORY_RESET);
+    oled.keyDown(Key::Select, 50100);
+    c = oled.update(50100 + MENU_FACTORY_RESET_HOLD_MS);
+    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET);
+    oled.keyUp(Key::Select, 60000);
+    // Every action but AdjustLife appears once, then the three device rows.
+    uint8_t rows[MENU_LIST_MAX];
+    assert(SigilMenu::listRows(0xFFFFFFu, rows) == MENU_LIST_MAX);
+    for (uint8_t i = 0; i < MENU_LIST_MAX; ++i) {
+      assert(rows[i] != id(A::AdjustLife));
+      for (uint8_t j = 0; j < i; ++j) assert(rows[i] != rows[j]);
+    }
+  }
+  std::cout << "Menu wire format, compass keys, OLED list, device menu, holds and stale menus passed\n";
 }

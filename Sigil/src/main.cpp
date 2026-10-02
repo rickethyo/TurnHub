@@ -146,9 +146,11 @@ TurnHubProtocol::ThreePartButton pairGesture;
 ButtonState keys[] = {ButtonState(KEY_PINS[0]), ButtonState(KEY_PINS[1]),
     ButtonState(KEY_PINS[2]), ButtonState(KEY_PINS[3]), ButtonState(KEY_PINS[4])};
 static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One button per key");
-// Both Sigils use the fixed-key compass. Only the OLED, which redraws
-// instantly, names a held action on screen; the e-ink leaves that to the light.
-TurnHubSigil::SigilMenu sigilMenu(TURNHUB_DISPLAY_OLED != 0);
+// The e-ink uses the fixed-key compass; the OLED, which redraws instantly, a
+// scrolling list behind Up (the click still passes) that names a held action
+// on screen. The e-ink leaves hold progress to the light.
+TurnHubSigil::SigilMenu sigilMenu(TURNHUB_DISPLAY_OLED ? TurnHubSigil::MenuStyle::List
+                                                       : TurnHubSigil::MenuStyle::Compass);
 TurnHubProtocol::SigilAction lastSelectedAction = TurnHubProtocol::SigilAction::Count;
 // Menu snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::MenuView publishedMenuView;
@@ -1337,7 +1339,8 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
   }
   if (key != TurnHubSigil::Key::Left && key != TurnHubSigil::Key::Right) return false;
   const bool right = key == TurnHubSigil::Key::Right;
-  if (lifeRequest.target != 0) {
+  // An open menu (the OLED's list) keeps its keys: Left goes back.
+  if (lifeRequest.target != 0 && !sigilMenu.deviceMenuOpen()) {
     Serial.print("SIGIL|");
     Serial.print(sigilId);
     Serial.println(right ? "|LIFE|APPROVE" : "|LIFE|DENY");

@@ -151,6 +151,14 @@ taken some: two rows under a smaller life total, then "+N more cmd sources".
 The design uses explicit text and monochrome contrast; existing light/sound and companion
 paths remain available, consistent with the accessibility reference.
 
+Since Sigil 0.9.8 (owner, 2026-10-02) the OLED's menu is a scrolling list
+(`OledDisplay::drawDeviceMenu`, fed by `MenuView::rows`): a `MENU` header with
+the row count ("3/8"), four 10-pixel rows with the highlighted one inverted,
+a scroll bar on the right, "(hold)" on held rows and "HOLD: ..." while one is
+held; Device recovery's list is titled `RECOVERY`. The bottom row keeps the
+stepping key legend. The click and Left/Right
+stay on the game screen; Up opens the list. The e-ink keeps its compass.
+
 ## Adding another display
 
 1. Implement `SigilDisplay` in a separate header/source. Keep pins, library,

@@ -129,6 +129,7 @@ class Adafruit_SH1106G {
   void fillRoundRect(int x, int y, int w, int h, int, int color) { box(x, y, w, h, color); }
   void drawRoundRect(int x, int y, int w, int h, int, int color) { box(x, y, w, h, color); }
   void drawFastHLine(int x, int y, int w, int color) { box(x, y, w, 1, color); }
+  void drawFastVLine(int x, int y, int h, int color) { box(x, y, 1, h, color); }
   void drawPixel(int x, int y, int color) { box(x, y, 1, 1, color); }
   void drawLine(int x0, int y0, int x1, int y1, int color) {
     box(std::min(x0, x1), std::min(y0, y1), std::abs(x1 - x0) + 1, std::abs(y1 - y0) + 1, color);

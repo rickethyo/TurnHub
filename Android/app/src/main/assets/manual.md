@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.10.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.11.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.10
+## Prototype Edition v0.11
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -239,23 +239,23 @@ A Sigil offers a short menu of what you can do right now. Atlas decides the choi
 
 ## Choosing an Action
 
-Both Sigils work the same way: each action has its own direction. Push the stick in the direction shown, or click (press the stick straight in), to choose that action. The click is always the most likely action. To undo a pass, click again while the Sigil says it is passing.
+Click (press the stick straight in) is always the most likely action: **Pass turn** on your turn, Join, Start game, Confirm win or Rematch. To undo a pass, click again while the Sigil says it is passing. In a game, Left and Right change your life (section 10). The two Sigils show their other actions differently:
 
-- **E-ink Sigil:** the bottom of the screen lists every choice. Each line starts with a key: an arrow for a direction, or a filled circle for the click.
+- **E-ink Sigil:** each action has its own direction. Push the stick the way shown, or click, to choose it. The bottom of the screen lists every choice; each line starts with a key: an arrow for a direction, or a filled circle for the click.
 
-- **OLED Sigil:** the bottom line shows one choice at a time, starting with the click, and moves on to the next every few seconds.
+- **OLED Sigil:** push Up for **Menu**, a scrolling list of everything you can do right now (such as Pause, Claim win, Link phone or Leave lobby), followed by the Sigil's own Sleep and Device recovery. Push Up or Down to move through it, click (or push Right) to choose the highlighted line, and push Left to go back. The top line counts where you are in the list, and lines you must hold say (hold). Choosing an action closes the list. The bottom line of the screen names one key at a time, starting with the click, and moves on every few seconds.
 
 ## Device Menu
 
-Outside a game, Up (or Down, if Up is in use) shows **Menu**. It opens the Sigil's own menu:
+Each Sigil has its own menu that Atlas is not asked about. On the E-ink Sigil, outside a game, Up (or Down, if Up is in use) shows **Menu** and opens it. On the OLED Sigil, Sleep ends its Menu list, which opens with Up at any time, even during a game, and Unpair and Factory reset sit one step further in, under Device recovery, so they stay out of the way of play.
 
-- **Unpair:** hold the click for 3 seconds. The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
+- **Unpair:** hold for 3 seconds (the click, on the E-ink Sigil). The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
 
-- **Sleep:** push Up. The Sigil shows how to wake it and sleeps; its lights go off. Click the joystick (or press its Pair button) to wake it; it restarts and reconnects to Atlas by itself.
+- **Sleep:** choose it (push Up, on the E-ink Sigil). The Sigil shows how to wake it and sleeps; its lights go off. Click the joystick (or press its Pair button) to wake it; it restarts and reconnects to Atlas by itself.
 
-- **Factory reset:** hold Down for 5 seconds. The Sigil erases everything it has saved, including its pairing, and restarts as new.
+- **Factory reset:** hold for 5 seconds (Down, on the E-ink Sigil). The Sigil erases everything it has saved, including its pairing, and restarts as new.
 
-- **Back:** push Left to close the menu. It also closes by itself after 10 seconds.
+- **Back:** push Left to close the menu (or choose Back at the end of the OLED list; in Device recovery, Back and Left return to Menu). It also closes by itself after 10 seconds.
 
 ## Actions You Hold
 
@@ -263,7 +263,7 @@ Actions that are hard to undo must be held: **Claim win**, **Confirm out**, **Re
 
 ## Pair Control
 
-The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game, when the device menu is not offered. If the case hides the button, an unpaired Sigil also starts pairing when you hold its joystick in for 3 seconds.
+The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game, when the E-ink Sigil's device menu is not offered. If the case hides the button, an unpaired Sigil also starts pairing when you hold its joystick in for 3 seconds.
 
 ## Light Ring
 

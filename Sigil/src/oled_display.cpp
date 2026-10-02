@@ -327,32 +327,44 @@ constexpr Key LEGEND_KEYS[] = {Key::Select, Key::Up, Key::Down, Key::Left, Key::
 constexpr int16_t LEGEND_Y = 56;  // The bottom text row.
 }  // namespace
 
-// The device menu as a compass: each row is a key and what it does. The row
-// being held says so; the status light shows the progress.
+// The menu as a scrolling list (SigilMenu's List style): every action on
+// offer, then Sleep, Device recovery and Back; Device recovery (titled
+// RECOVERY) holds Unpair, Factory reset and Back. The header counts the
+// highlighted row ("3/8"); a row that must be held says "(hold)", and while
+// held reads "HOLD: ..." (the status light shows the progress). The bottom
+// row steps through the keys like the other screens.
 bool OledDisplay::drawDeviceMenu() {
-  if (!menu_.active || !menu_.deviceMenu) return false;
-  // Four rows (Unpair, Sleep, Factory reset, Back) above the hint line.
+  if (!menu_.active || !menu_.deviceMenu || menu_.rowCount == 0) return false;
   constexpr int16_t ROW_HEIGHT = 10;
-  legendShown_ = false;
+  constexpr uint8_t FIT = 4;  // Rows between the header and the legend.
   display_->clearDisplay();
-  header("MENU", "DEVICE");
+  char position[8];
+  snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(menu_.cursor + 1),
+      static_cast<unsigned>(menu_.rowCount));
+  header(menu_.recovery ? "RECOVERY" : "MENU", position);
   const int16_t w = display_->width();
-  int16_t y = HEADER_HEIGHT + 2;
-  for (Key key : LEGEND_KEYS) {
-    const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
-    if (action == MENU_NONE) continue;
+  // Scroll so the cursor row stays visible.
+  const uint8_t first = menu_.cursor >= FIT ? menu_.cursor - (FIT - 1) : 0;
+  int16_t y = HEADER_HEIGHT + 3;
+  for (uint8_t i = first; i < menu_.rowCount && i < first + FIT; ++i, y += ROW_HEIGHT) {
+    const uint8_t action = menu_.rows[i];
     const char *label = sigilActionLabel(static_cast<TurnHubProtocol::SigilAction>(action));
-    const bool held = menu_.holdAction == action;
+    const bool selected = i == menu_.cursor;
     char line[28];
-    if (held) snprintf(line, sizeof(line), "HOLD: %s", label);
-    else snprintf(line, sizeof(line), "%c %s", keyGlyph(key), label);
-    if (held) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
-    text(line, y + 1, 1, Align::Left, held, 3, w - 3);
-    y += ROW_HEIGHT;
+    if (selected && menu_.holdAction == action) snprintf(line, sizeof(line), "HOLD: %s", label);
+    else snprintf(line, sizeof(line), "%s%s", label, menuActionNeedsHold(action) ? " (hold)" : "");
+    if (selected) display_->fillRect(0, y - 1, w - 4, ROW_HEIGHT - 1, SH110X_WHITE);
+    text(line, y, 1, Align::Left, selected, 3, w - 4);
   }
-  // "(hold)" does not fit beside Factory reset (21 characters a row), so the
-  // hint says it in words: Unpair takes 3 s, Factory reset 5 s; Sleep is a tap.
-  text("Unpair/reset: hold", LEGEND_Y, 1, Align::Center);
+  // A scroll bar on the right edge: where the visible rows sit in the list.
+  if (menu_.rowCount > FIT) {
+    const int16_t top = HEADER_HEIGHT + 2, height = FIT * ROW_HEIGHT;
+    const int16_t thumb = height * FIT / menu_.rowCount;
+    const int16_t offset = (height - thumb) * first / (menu_.rowCount - FIT);
+    display_->drawFastVLine(w - 2, top, height, SH110X_WHITE);
+    display_->fillRect(w - 3, top + offset, 3, thumb, SH110X_WHITE);
+  }
+  legend(true);
   display_->display();
   return true;
 }
@@ -364,6 +376,12 @@ uint8_t OledDisplay::legendEntries(char entries[][24]) const {
   const char *update = updateNoticeText(life_.update);
   if (!menu_.active) {
     if (update != nullptr) snprintf(entries[count++], 24, "%s", update);
+    return count;
+  }
+  if (menu_.deviceMenu && menu_.rowCount > 0) {
+    // The open list: how to move, choose and leave.
+    snprintf(entries[count++], 24, "\x18\x19 Scroll the list");
+    snprintf(entries[count++], 24, "\x09 Choose  \x1b Back");
     return count;
   }
   for (Key key : LEGEND_KEYS) {
@@ -391,8 +409,12 @@ void OledDisplay::drawLegendRow() {
 }
 
 void OledDisplay::legend(bool drawn) {
-  // A different menu starts again from its click.
-  const bool same = legendMenu_.active == menu_.active && legendMenu_.life == menu_.life &&
+  // A different menu starts again from its click. Scrolling the open list
+  // changes the click's row, not its legend, so it keeps stepping.
+  const bool listOpen = menu_.deviceMenu && menu_.rowCount > 0;
+  const bool same = listOpen ? legendMenu_.deviceMenu && legendMenu_.rowCount > 0 :
+      legendMenu_.active == menu_.active && legendMenu_.life == menu_.life &&
+      legendMenu_.deviceMenu == menu_.deviceMenu &&
       memcmp(legendMenu_.compass, menu_.compass, sizeof(menu_.compass)) == 0;
   if (!same) {
     legendMenu_ = menu_;
@@ -522,8 +544,8 @@ void OledDisplay::showReady(uint8_t sigilId) {
 void OledDisplay::showAtlasLost(uint8_t sigilId) {
   legendShown_ = false;
   if (!ready_) return;
-  // Only the device menu is offered (SigilMenu::setOffline): its legend
-  // (Menu on Up) on the bottom row, and the menu itself while open.
+  // Only the menu is offered (SigilMenu::setOffline): its legend (Menu on
+  // Up) on the bottom row, and the list of device entries while open.
   if (drawDeviceMenu()) return;
   char label[12];
   snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
@@ -556,7 +578,7 @@ void OledDisplay::showPairingCode(uint16_t code) {
 void OledDisplay::showSleeping() {
   if (!ready_) return;
   legendShown_ = false;
-  // Drawn directly: the device menu Sleep came from may still be open in the
+  // Drawn directly: the menu list Sleep came from may still be open in the
   // last menu view.
   display_->clearDisplay();
   header("TurnHub", "SLEEP");
@@ -673,7 +695,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
       text("Click again to undo", LEGEND_Y, 1, Align::Center);
       legend(false);
     } else {
-      // One quiet line of key help (turntest, 2026-09-26): the compass legend,
+      // One quiet line of key help (turntest, 2026-09-26): the key legend,
       // a key at a time. The ask line above already names its keys.
       legend(!asking && !pending);
     }
