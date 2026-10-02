@@ -132,6 +132,11 @@ persistence, clients, contract, dependencies, accessibility).
 
 ## Sigil sleep (*Planned*)
 
+*Shipped meanwhile (2026-10-02):* a manual **Sleep** in the Sigil device menu
+and on Atlas's Menu > Device screen, using deep sleep and a pin wake (see
+`MANUAL_PAIRING.md`). The automatic, Atlas-managed light sleep below is still
+planned.
+
 Owner, 2026-09-30: after 5 to 10 minutes with no physical input, a Sigil
 sleeps and mostly drops off the radio until its buttons are pressed or Atlas
 wants it. Mainly for future battery power (the board's battery connector,

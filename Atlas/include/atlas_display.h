@@ -12,5 +12,13 @@ namespace TurnHubAtlas {
 void beginAtlasDisplay();
 // Polls touch and redraws the status screen when it changes. Call every loop.
 void serviceAtlasDisplay(uint32_t nowMs);
+// Menu > Device Sleep (scheduled by handleSleepIntent, table_intents.cpp):
+// screen dark, outputs held off, then deep sleep until the screen is touched
+// (the XPT2046 pen interrupt, GPIO36) or BOOT (GPIO0) is pressed. Never
+// returns: waking restarts Atlas.
+void sleepAtlas();
+// First thing in setup(): after a Sleep wake, gives the wake pins back to the
+// digital GPIO driver and releases the held outputs.
+void releaseSleepWakePins();
 
 }  // namespace TurnHubAtlas

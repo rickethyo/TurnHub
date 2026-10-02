@@ -279,6 +279,7 @@ bool configureIntentHandlers() {
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
       {IntentType::MoveSeat, handleMoveSeatIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
+      {IntentType::Sleep, handleSleepIntent},
   };
   bool allBound = true;
   for (const auto &binding : bindings) {
@@ -409,6 +410,9 @@ void startNetworking() {
 using namespace TurnHubAtlas;
 
 void setup() {
+  // Back from Sleep: the wake pins return to the digital GPIO driver and the
+  // backlight's hold is released before anything configures them.
+  releaseSleepWakePins();
   Serial.begin(115200);
   delay(250);
   beginFrontPanel();
@@ -498,6 +502,7 @@ void loop() {
   updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs);
   serviceAtlasDisplay(nowMs);
   serviceFactoryReset(nowMs);
+  serviceSleep(nowMs);
   updatePendingPass(nowMs);
   updateCountdown(nowMs);
   updateTurnTimerCues(nowMs);

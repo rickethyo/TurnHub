@@ -158,6 +158,17 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
       {TouchAction::CloseScreen, "Back", 0, 1}});
   out.push_back({"menu", menu});
 
+  AtlasScreen device = base("DEVICE", "Atlas device", "Hold: Unpair 3 s, reset 10 s. Sleep: tap");
+  device.kind = ScreenKind::Device;
+  row(device, BUTTON_UPPER_ROW_Y, {{TouchAction::UnpairSigils, "Unpair Sigils", 3000, 1},
+      {TouchAction::FactoryResetAtlas, "Factory reset", 10000, 1}});
+  row(device, BUTTON_ROW_Y, {{TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}});
+  out.push_back({"device", device});
+
+  AtlasScreen sleeping = device;
+  text(sleeping.notice, sizeof(sleeping.notice), "Going to sleep. Touch the screen to wake");
+  out.push_back({"device-sleep", sleeping});
+
   AtlasScreen over = base("GAME OVER", "Game over", "Priya wins");
   over.round = 9;
   text(over.gameClock, sizeof(over.gameClock), "58:02");
@@ -197,7 +208,7 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   row(code, BUTTON_ROW_Y, {{TouchAction::CancelCode, "Cancel", 0, 1}});
   out.push_back({"presence-code", code});
 
-  AtlasScreen info = base("INFO", "Table info", "TurnHub Atlas v0.6.4-dev");
+  AtlasScreen info = base("INFO", "Table info", "TurnHub Atlas v0.6.5-dev");
   info.kind = ScreenKind::Info;
   const char *lines[] = {"Wi-Fi: TurnHub-Atlas", "Portal: 192.168.4.1", "Sigils online: 4",
       "SD card: NOT INSERTED", "Up 1:12:09"};
