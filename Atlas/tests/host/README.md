@@ -63,7 +63,7 @@ c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../
     ../../src/profile_policy.cpp -o build/profile_store_scenarios
 ./build/profile_store_scenarios
 c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include \
-    ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
+    ota_scenarios.cpp ../../src/sigil_update_jobs.cpp ../../src/portal_pack.cpp -o build/ota_scenarios
 ./build/ota_scenarios
 ```
 

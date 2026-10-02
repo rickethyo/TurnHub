@@ -1,12 +1,18 @@
 // Sigil OTA on Atlas (sigil_update_jobs.h): staging a Sigil package in flash
 // with every check, re-loading it after a restart, and one update job from
-// offer to done or failure. Crypto is the host stand-in shared with the
+// offer to done or failure. Also the web portal pack installer
+// (portal_pack.h): unpacking a signed pack into a staging folder and swapping
+// it live only when everything checks out. Crypto is the host stand-in shared with the
 // Sigil tests; ECDSA is checked on the device.
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <map>
+#include <set>
+#include <string>
 #include <vector>
 
+#include "portal_pack.h"
 #include "sigil_update_jobs.h"
 #include "../../../Sigil/tests/host/test_package_crypto.h"
 
@@ -68,6 +74,257 @@ std::vector<uint8_t> makePackage(Product product, Version version, size_t imageS
   std::vector<uint8_t> out(reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&h) + sizeof(h));
   out.insert(out.end(), img.begin(), img.end());
   return out;
+}
+
+std::vector<uint8_t> packageFor(Product product, Version version, const std::vector<uint8_t> &img) {
+  Header h{};
+  memcpy(h.magic, PACKAGE_MAGIC, sizeof(PACKAGE_MAGIC));
+  h.format = HEADER_FORMAT;
+  h.product = static_cast<uint8_t>(product);
+  h.version = version;
+  h.imageSize = static_cast<uint32_t>(img.size());
+  Sha256::digest(img.data(), img.size(), h.imageHash);
+  memcpy(h.keyId, KEY_ID_TEST, KEY_ID_BYTES);
+  uint8_t digest[HASH_BYTES];
+  Sha256::digest(reinterpret_cast<const uint8_t *>(&h), SIGNED_BYTES, digest);
+  TestPackageCrypto::sign(KEY, digest, h.signature);
+  std::vector<uint8_t> out(reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&h) + sizeof(h));
+  out.insert(out.end(), img.begin(), img.end());
+  return out;
+}
+
+// --- Portal pack -------------------------------------------------------------
+
+// A card in RAM: files by full path, folders as a set.
+class RamCard final : public TurnHubPortal::Files {
+ public:
+  bool exists(const char *path) override { return dirs.count(path) || files.count(path); }
+  bool makeDir(const char *path) override {
+    if (failAfterWrites >= 0 && writes >= failAfterWrites) return false;
+    dirs.insert(path);
+    return true;
+  }
+  bool removeTree(const char *path) override {
+    const std::string prefix = std::string(path) + "/";
+    for (auto it = files.begin(); it != files.end();) {
+      it = it->first.compare(0, prefix.size(), prefix) == 0 ? files.erase(it) : std::next(it);
+    }
+    for (auto it = dirs.begin(); it != dirs.end();) {
+      it = (*it == path || it->compare(0, prefix.size(), prefix) == 0) ? dirs.erase(it) : std::next(it);
+    }
+    return true;
+  }
+  bool rename(const char *from, const char *to) override {
+    if (failRename) return false;
+    const std::string f(from), t(to), fp = f + "/";
+    if (!dirs.count(f) || dirs.count(t)) return false;
+    std::map<std::string, std::string> moved;
+    for (auto it = files.begin(); it != files.end();) {
+      if (it->first.compare(0, fp.size(), fp) == 0) {
+        moved[t + it->first.substr(f.size())] = it->second;
+        it = files.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    std::set<std::string> movedDirs;
+    for (auto it = dirs.begin(); it != dirs.end();) {
+      if (*it == f || it->compare(0, fp.size(), fp) == 0) {
+        movedDirs.insert(t + it->substr(f.size()));
+        it = dirs.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    files.insert(moved.begin(), moved.end());
+    dirs.insert(movedDirs.begin(), movedDirs.end());
+    return true;
+  }
+  bool beginFile(const char *path) override {
+    assert(open.empty());
+    const std::string p(path);
+    assert(dirs.count(p.substr(0, p.rfind('/'))));  // Parent made first.
+    open = p;
+    files[open].clear();
+    return true;
+  }
+  bool writeFile(const uint8_t *data, size_t length) override {
+    assert(!open.empty());
+    if (failAfterWrites >= 0 && ++writes > failAfterWrites) return false;
+    files[open].append(reinterpret_cast<const char *>(data), length);
+    return true;
+  }
+  bool endFile() override {
+    open.clear();
+    return true;
+  }
+  bool readText(const char *path, char *out, size_t capacity) override {
+    auto it = files.find(path);
+    if (it == files.end() || it->second.size() >= capacity) return false;
+    memcpy(out, it->second.data(), it->second.size());
+    out[it->second.size()] = '\0';
+    return true;
+  }
+  std::map<std::string, std::string> files;
+  std::set<std::string> dirs;
+  std::string open;
+  int failAfterWrites = -1;
+  int writes = 0;
+  bool failRename = false;
+};
+
+struct PackFile {
+  std::string path;
+  std::string data;
+  bool gzip;
+};
+
+std::vector<uint8_t> archive(Version version, const std::vector<PackFile> &entries, uint8_t product = 4) {
+  std::vector<uint8_t> a = {'T', 'H', 'F', 'W', 'D', 'S', 'C', '1', product, version.major, version.minor,
+      version.patch, 0, 0, 0, 0, 'T', 'H', 'W', 'E', 'B', 'A', 'R', '1'};
+  a.push_back(static_cast<uint8_t>(entries.size()));
+  a.push_back(static_cast<uint8_t>(entries.size() >> 8));
+  a.push_back(0);
+  a.push_back(0);
+  for (const PackFile &e : entries) {
+    a.push_back(static_cast<uint8_t>(e.path.size()));
+    a.push_back(e.gzip ? 1 : 0);
+    const uint32_t n = static_cast<uint32_t>(e.data.size());
+    for (int i = 0; i < 4; ++i) a.push_back(static_cast<uint8_t>(n >> (8 * i)));
+    a.insert(a.end(), e.path.begin(), e.path.end());
+    a.insert(a.end(), e.data.begin(), e.data.end());
+  }
+  return a;
+}
+
+const std::vector<PackFile> PORTAL_FILES = {
+    {"index.html", "<!doctype html><title>TurnHub</title>", true},
+    {"assets/app.1a2b.css", std::string(5000, 'c'), true},
+    {"assets/fonts/Inter-Variable.woff2", std::string(3000, 'f'), false},
+    {"empty.txt", "", false},
+};
+
+// Feeds a whole package through the reader and the installer, in chunks. The
+// card argument names which card the installer writes, for readability.
+bool installPack(RamCard &, const std::vector<uint8_t> &pkg, Version running,
+    TurnHubPortal::Installer &installer, size_t chunk = 700) {
+  TestPackageCrypto crypto;
+  Reader reader;
+  reader.begin(crypto, {KEY, KEY_ID_TEST, productBit(Product::Portal), running, TurnHubPortal::MAX_PACK_BYTES},
+      installer);
+  for (size_t at = 0; at < pkg.size(); at += chunk) {
+    if (!reader.write(pkg.data() + at, std::min(chunk, pkg.size() - at))) {
+      installer.abort();
+      return false;
+    }
+  }
+  if (!reader.finish() || !installer.commit()) {
+    installer.abort();
+    return false;
+  }
+  return true;
+}
+
+void portalPackInstallsAndSwaps() {
+  using namespace TurnHubPortal;
+  RamCard card;
+  Installer installer(card);
+  Version installed{};
+  assert(!installedVersion(card, installed));
+
+  const Version v1{1, 0, 0};
+  for (size_t chunk : {1u, 7u, 700u, 100000u}) {
+    RamCard fresh;
+    Installer once(fresh);
+    assert(installPack(fresh, packageFor(Product::Portal, v1, archive(v1, PORTAL_FILES)), {0, 0, 0}, once, chunk));
+    assert(fresh.files.at("/turnhub/portal/live/index.html.gz") == PORTAL_FILES[0].data);
+    assert(fresh.files.at("/turnhub/portal/live/assets/app.1a2b.css.gz").size() == 5000);
+    assert(fresh.files.at("/turnhub/portal/live/assets/fonts/Inter-Variable.woff2").size() == 3000);
+    assert(fresh.files.at("/turnhub/portal/live/empty.txt").empty());
+    assert(fresh.files.at("/turnhub/portal/live/VERSION") == "1.0.0");
+    assert(!fresh.exists(STAGE_DIR) && !fresh.exists(OLD_DIR));
+    assert(once.filesWritten() == 4);
+  }
+
+  assert(installPack(card, packageFor(Product::Portal, v1, archive(v1, PORTAL_FILES)), {0, 0, 0}, installer));
+  assert(installedVersion(card, installed) && installed.major == 1 && installed.minor == 0);
+
+  // A newer pack replaces every file; files it no longer has are gone.
+  const Version v2{1, 1, 0};
+  const std::vector<PackFile> next = {{"index.html", "v2", true}, {"assets/app.9f9f.css", "x", true}};
+  assert(installPack(card, packageFor(Product::Portal, v2, archive(v2, next)), v1, installer));
+  assert(card.files.at("/turnhub/portal/live/index.html.gz") == "v2");
+  assert(!card.files.count("/turnhub/portal/live/assets/app.1a2b.css.gz"));
+  assert(installedVersion(card, installed) && installed.minor == 1);
+
+  // Failures never touch the live portal.
+  const std::string live = card.files.at("/turnhub/portal/live/index.html.gz");
+  const auto stillLive = [&]() {
+    assert(card.files.at("/turnhub/portal/live/index.html.gz") == live);
+    assert(!card.exists(STAGE_DIR));
+  };
+  // Older pack: refused by the version rule before anything is staged.
+  assert(!installPack(card, packageFor(Product::Portal, v1, archive(v1, PORTAL_FILES)), v2, installer));
+  stillLive();
+  // A firmware package is not a portal pack.
+  assert(!installPack(card, packageFor(Product::Atlas, {9, 0, 0}, archive({9, 0, 0}, PORTAL_FILES)), v2, installer));
+  stillLive();
+  // Descriptor must say Portal and match the signed version.
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 1}, PORTAL_FILES)), v2, installer));
+  assert(installer.error() == ArchiveError::BadDescriptor);
+  stillLive();
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 0}, PORTAL_FILES, 1)), v2, installer));
+  stillLive();
+  // Unsafe paths.
+  for (const char *bad : {"../x", "/abs", "a//b", "a/./b", "dir/", "sp ace.html", "VERSION", "a\\b"}) {
+    const std::vector<PackFile> evil = {{"index.html", "i", true}, {bad, "x", false}};
+    assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 0}, evil)), v2, installer));
+    assert(installer.error() == ArchiveError::BadPath);
+    stillLive();
+  }
+  // No index.html.
+  const std::vector<PackFile> noIndex = {{"assets/a.css", "x", true}};
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 0}, noIndex)), v2, installer));
+  assert(installer.error() == ArchiveError::NoIndex);
+  stillLive();
+  // Archive claims more files than it carries.
+  std::vector<uint8_t> shortArchive = archive({1, 2, 0}, PORTAL_FILES);
+  shortArchive[24] = 5;
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, shortArchive), v2, installer));
+  assert(installer.error() == ArchiveError::Truncated);
+  stillLive();
+  // Bytes after the last file.
+  std::vector<uint8_t> trailing = archive({1, 2, 0}, PORTAL_FILES);
+  trailing.push_back(0);
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, trailing), v2, installer));
+  assert(installer.error() == ArchiveError::TrailingData);
+  stillLive();
+  // Tampered archive: the hash catches it after everything was staged.
+  std::vector<uint8_t> pkg = packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 0}, PORTAL_FILES));
+  pkg.back() ^= 1;
+  assert(!installPack(card, pkg, v2, installer));
+  stillLive();
+  // The card fails mid-write.
+  card.failAfterWrites = card.writes + 2;
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 0}, PORTAL_FILES)), v2, installer));
+  assert(installer.error() == ArchiveError::Storage);
+  card.failAfterWrites = -1;
+  stillLive();
+  // The swap fails: the old portal stays live.
+  card.failRename = true;
+  assert(!installPack(card, packageFor(Product::Portal, {1, 2, 0}, archive({1, 2, 0}, PORTAL_FILES)), v2, installer));
+  card.failRename = false;
+  stillLive();
+  // Reinstalling the same version is allowed.
+  assert(installPack(card, packageFor(Product::Portal, v2, archive(v2, next)), v2, installer));
+
+  Version v{};
+  assert(parseVersion("1.12.255", v) && v.minor == 12 && v.patch == 255);
+  assert(parseVersion("2.0.1\n", v) && v.major == 2);
+  for (const char *bad : {"", "1.2", "1.2.3.4", "1..3", "1.2.256", "a.b.c", ".1.2", "1.2."}) assert(!parseVersion(bad, v));
+  char text[16];
+  formatVersion({3, 4, 5}, text, sizeof(text));
+  assert(strcmp(text, "3.4.5") == 0);
 }
 
 bool upload(SigilPackageStore &store, const std::vector<uint8_t> &bytes, size_t chunk = 1460) {
@@ -267,6 +524,7 @@ int main() {
   stagingChecksEverything();
   jobRunsToDone();
   jobsFail();
-  std::cout << "PASS Sigil OTA on Atlas: package staging and checks, reload, update jobs\n";
+  portalPackInstallsAndSwaps();
+  std::cout << "PASS Sigil OTA on Atlas: package staging and checks, reload, update jobs; portal pack install\n";
   return 0;
 }

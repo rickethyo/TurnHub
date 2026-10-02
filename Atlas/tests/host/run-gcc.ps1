@@ -24,7 +24,7 @@ try {
     & .\build\profile_store_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Profile store scenarios failed.' }
     # Not "update_*": Windows installer detection demands elevation for unsigned .exe names with "update", "setup" or "install".
-    & $Compiler @flags -Istubs -I../../include -I../../../shared/include ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios.exe
+    & $Compiler @flags -Istubs -I../../include -I../../../shared/include ota_scenarios.cpp ../../src/sigil_update_jobs.cpp ../../src/portal_pack.cpp -o build/ota_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Update test compilation failed.' }
     & .\build\ota_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Update scenarios failed.' }

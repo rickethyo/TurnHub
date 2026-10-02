@@ -224,7 +224,7 @@ void badImagesFailAtTheEnd() {
 void errorNames() {
   assert(strcmp(errorName(Error::BadSignature), "badSignature") == 0);
   assert(strcmp(errorName(Error::OlderVersion), "olderVersion") == 0);
-  assert(knownProduct(1) && knownProduct(3) && !knownProduct(0) && !knownProduct(4));
+  assert(knownProduct(1) && knownProduct(3) && knownProduct(4) && !knownProduct(0) && !knownProduct(5));
   assert(productForSigilCapabilities(0x10, 0x10) == Product::SigilOled);
   assert(productForSigilCapabilities(0x07, 0x10) == Product::SigilEink);
 }
