@@ -19,7 +19,7 @@ cl /nologo /std:c++17 /EHsc /W4 /Istorage_stubs /Istubs /I../../include /I../../
 if errorlevel 1 (popd & exit /b 1)
 build\profile_store_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
-cl /nologo /std:c++17 /EHsc /W4 /Istubs /I../../include /I../../../shared/include ota_scenarios.cpp ../../src/sigil_update_jobs.cpp /Fo:build/ /Fe:build/ota_scenarios.exe
+cl /nologo /std:c++17 /EHsc /W4 /Istubs /I../../include /I../../../shared/include ota_scenarios.cpp ../../src/sigil_update_jobs.cpp ../../src/portal_pack.cpp /Fo:build/ /Fe:build/ota_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
 build\ota_scenarios.exe
 set result=%errorlevel%

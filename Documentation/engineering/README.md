@@ -47,6 +47,7 @@ records predate that.
 - [Sigil OTA](SIGIL_OTA.md) - signed firmware packages and updates for Atlas and Sigils.
 - [SD Diagnostics](SD_DIAGNOSTICS.md) - optional card logs, hot-plug and failure behavior.
 - [Web Portal Design System](WEB_PORTAL_DESIGN.md) - stylesheet, themes and the portal test contract.
+- [Web Portal Pack](PORTAL_PACK.md) - the V1 portal as a signed pack on the microSD card, with the flash portal as fallback.
 - [Accessibility Specification](ACCESSIBILITY.md) - requirements and the implemented settings.
 
 ## Hardware and tooling

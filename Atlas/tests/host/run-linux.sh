@@ -41,5 +41,5 @@ rm -f build/client-*.json
 ./build/profile_store_scenarios
 
 "$compiler" "${flags[@]}" "${includes[@]}" \
-  ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
+  ota_scenarios.cpp ../../src/sigil_update_jobs.cpp ../../src/portal_pack.cpp -o build/ota_scenarios
 ./build/ota_scenarios

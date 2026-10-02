@@ -1,5 +1,6 @@
 package com.turnhub.android.ui.home
 
+import com.turnhub.android.data.ProfileSecret
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -153,14 +154,14 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = pin,
-                onValueChange = { pin = it.filter(Char::isDigit).take(8) },
-                label = { Text("New PIN (4–8 digits)") },
+                onValueChange = { pin = it.take(ProfileSecret.MAX_CHARS) },
+                label = { Text("New PIN or password") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 modifier = Modifier.weight(1f),
             )
-            ToneButton("Set PIN", { actions.onSavePin(pin); pin = "" }, enabled = pin.length in 4..8)
+            ToneButton("Set PIN", { actions.onSavePin(pin); pin = "" }, enabled = ProfileSecret.isValid(pin))
         }
         ToneButton("Log out", actions.onSignOut, Modifier.fillMaxWidth(), tone = Tone.BAD)
     }

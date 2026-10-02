@@ -143,9 +143,9 @@ element IDs, accessible names and a few page globals (`refreshAll`, `sessionInfo
 `gameSettingsData`, `counterData`). Keep those IDs, labels and globals stable when
 restyling. Both fixtures serve `/theme.css` from `THEME_CSS`.
 
-## Future: SD-card theme packs (Planned)
+## SD portal pack (V1)
 
-Once Atlas gains SD storage, additional theme packs could be served from the card
-as extra token blocks, and optionally original fonts or artwork with recorded
-provenance. The token contract above is the extension point. The built-in themes
-stay in flash so the portal never depends on the card being present.
+The V1 portal is served from the microSD card as a signed pack built from
+`Atlas/web/` and the shared `design/` system; this flash portal remains the
+fallback at `/portal-classic`. See [PORTAL_PACK.md](PORTAL_PACK.md). The smoke
+checks render the pack with `PORTAL_PACK=1`.

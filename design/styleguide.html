@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TurnHub Design System</title>
+<!-- build:inline -->
+<link rel="stylesheet" href="dist/tokens.css">
+<link rel="stylesheet" href="web/components.css">
+<!-- /build:inline -->
+<style>
+/* Style guide layout only: a left column of specimens beside a live phone
+   preview of the V1 Game screen. Components come from web/components.css. */
+.sg{max-width:1240px;margin:0 auto;padding-block:var(--s-8) var(--s-11);padding-inline:var(--s-5);display:flex;flex-direction:column;gap:var(--s-10)}
+.sg-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-5) var(--s-7)}
+.sg-head .brand-mark{width:40px;height:40px}
+.sg-head .grow{flex:1;min-width:240px;display:flex;flex-direction:column;gap:var(--s-2)}
+.sg-controls{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4)}
+.sg-section{display:flex;flex-direction:column;gap:var(--s-5)}
+.sg-section>header{display:flex;flex-direction:column;gap:var(--s-2);max-width:68ch}
+.sg-split{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:var(--s-9);align-items:start}
+@media (max-width:1040px){.sg-split{grid-template-columns:minmax(0,1fr)}}
+.phone{position:sticky;top:var(--s-6);width:100%;max-width:400px;margin:0 auto;border-radius:44px;padding:10px;
+  background:var(--c-surface3);box-shadow:var(--shadow-3),inset 0 0 0 1px var(--c-separator-strong)}
+.phone-screen{position:relative;height:780px;border-radius:36px;overflow:hidden;background:var(--c-bg);display:flex;flex-direction:column}
+.phone-screen .scroll{flex:1;overflow:auto;padding:var(--s-4) var(--s-4) calc(var(--tab-bar) + var(--s-6));display:flex;flex-direction:column;gap:var(--s-4);scrollbar-width:none}
+.phone-screen .scroll>*{flex:none}
+.phone-screen .appbar{position:relative;padding-top:var(--s-6)}
+.phone-screen .tabbar{position:absolute;inset:auto 0 0 0;justify-content:space-around;gap:0;padding:6px var(--s-3) 14px;
+  background:color-mix(in srgb,var(--c-surface1) 86%,transparent);-webkit-backdrop-filter:saturate(1.6) blur(20px);backdrop-filter:saturate(1.6) blur(20px);box-shadow:0 -1px 0 var(--c-separator)}
+.phone-screen .tabbar a{flex:1;max-width:120px;flex-direction:column;gap:3px;min-height:50px;padding:4px 0;border-radius:0;font-size:.6875rem;background:none}
+.phone-screen .tabbar .i{width:25px;height:25px}
+.phone-screen .tabbar [aria-current=page]{background:none;color:var(--c-accent)}
+.phone-screen .turn-hero{grid-template-columns:1fr;justify-items:center;text-align:center;padding:var(--s-7) var(--s-5) var(--s-6);gap:var(--s-5)}
+.phone-screen .turn-hero .who{align-items:center}
+.phone-screen .turn-hero .actions{justify-content:center}
+.phone-screen .ring{width:168px}
+.phone-screen .life-grid{grid-template-columns:1fr 1fr;gap:var(--s-3)}
+.phone-screen .life-tile{padding:var(--s-4);gap:var(--s-2)}
+.phone-screen .life-tile .t-hero{font-size:3rem;line-height:1}
+.phone-screen .stepper .btn{width:auto;flex:1;min-height:40px}
+.phone-screen .toast{position:absolute;bottom:calc(var(--tab-bar) + 16px)}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s-3)}
+.swatch{display:flex;flex-direction:column;border-radius:var(--r-md);overflow:hidden;background:var(--c-surface1);box-shadow:inset 0 0 0 1px var(--c-separator)}
+.swatch .chip{height:56px;box-shadow:inset 0 -1px 0 var(--c-separator)}
+.swatch .meta{padding:var(--s-3) var(--s-4);display:flex;flex-direction:column;gap:2px;min-width:0}
+.swatch code{font-family:var(--font-mono);font-size:.75rem;color:var(--c-text-secondary)}
+.type-row{display:grid;grid-template-columns:120px minmax(0,1fr);gap:var(--s-5);align-items:baseline;padding:var(--s-4) 0;border-top:1px solid var(--c-separator)}
+.type-row:first-child{border-top:0}
+.type-row .spec{display:flex;flex-direction:column;gap:2px}
+.type-row .sample{min-width:0;overflow-wrap:anywhere}
+@media (max-width:560px){.type-row{grid-template-columns:1fr;gap:var(--s-2)}}
+.icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:var(--s-2)}
+.icon-cell{display:flex;flex-direction:column;align-items:center;gap:var(--s-2);padding:var(--s-4) var(--s-2);border-radius:var(--r-md);color:var(--c-text);font-size:.75rem}
+.icon-cell span{color:var(--c-text-secondary);text-align:center;overflow-wrap:anywhere}
+.icon-cell:hover{background:var(--c-fill)}
+.demo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:var(--s-5)}
+.motion-demo{display:flex;align-items:center;gap:var(--s-4)}
+.motion-track{position:relative;flex:1;height:44px;border-radius:var(--r-full);background:var(--c-fill)}
+.motion-dot{position:absolute;top:6px;left:6px;width:32px;height:32px;border-radius:50%;background:var(--c-accent)}
+.motion-track[data-on=true] .motion-dot{left:calc(100% - 38px)}
+.scale-bar{display:flex;align-items:flex-end;gap:var(--s-3);flex-wrap:wrap}
+.scale-bar div{display:flex;flex-direction:column;align-items:center;gap:var(--s-2);font-size:.75rem;color:var(--c-text-secondary)}
+.scale-bar i{display:block;background:var(--c-accent-soft);box-shadow:inset 0 0 0 1px var(--c-accent)}
+.note{max-width:68ch}
+</style>
+</head>
+<body>
+<!-- build:sprite -->
+<a class="skip" href="#main">Skip to content</a>
+<main id="main" class="sg">
+
+<header class="sg-head">
+  <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4.5a11.5 11.5 0 1 1-9.96 5.75" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M2.9 6.2l3.14 4.05 4.86-1.67" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16" cy="16" r="4.25" fill="currentColor"/></svg>
+  <div class="grow">
+    <span class="t-eyebrow">TurnHub V1</span>
+    <h1 class="t-large-title">Design system</h1>
+    <p class="secondary">One set of tokens for the Atlas portal and the Android app. Pick a theme to see every specimen and the Game screen change together.</p>
+  </div>
+  <div class="sg-controls">
+    <div class="segmented" role="group" aria-label="Theme" id="themePicker">
+      <button type="button" data-theme-choice="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-theme-choice="graphite" aria-pressed="false">Graphite</button>
+      <button type="button" data-theme-choice="daylight" aria-pressed="false">Daylight</button>
+      <button type="button" data-theme-choice="brass" aria-pressed="false">Brass</button>
+      <button type="button" data-theme-choice="contrast" aria-pressed="false">High contrast</button>
+    </div>
+    <label class="row t-subhead" for="reduceMotion" style="gap:var(--s-3)"><input class="switch" type="checkbox" role="switch" id="reduceMotion"> Reduce motion</label>
+  </div>
+</header>
+
+<div class="sg-split">
+<div class="stack" style="gap:var(--s-10);min-width:0">
+
+<section class="sg-section" aria-labelledby="h-principles">
+  <header><span class="t-eyebrow">Direction</span><h2 class="t-title2" id="h-principles">Calm by default, loud only for the turn</h2>
+  <p class="secondary">The active turn, its clock and life totals are the only things that glow. Everything else sits back on quiet surfaces and hairlines, so a glance across the table lands on whose turn it is.</p></header>
+</section>
+
+<section class="sg-section" aria-labelledby="h-color">
+  <header><span class="t-eyebrow">Color</span><h2 class="t-title2" id="h-color">Semantic tokens</h2>
+  <p class="secondary">Components never name a color, only a role. Each theme fills the roles and the build checks their contrast against WCAG 2.2 before it writes a file.</p></header>
+  <div class="swatches" id="swatches"></div>
+</section>
+
+<section class="sg-section" aria-labelledby="h-type">
+  <header><span class="t-eyebrow">Type</span><h2 class="t-title2" id="h-type">Inter, with tabular figures for every number that changes</h2>
+  <p class="secondary">Clocks and life totals use tabular figures so digits never jitter as they count. Brass swaps the display face for Cinzel, the face already on the Atlas screen and the Sigils.</p></header>
+  <div class="card">
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Mega</strong><span class="t-caption tertiary">112 / 750</span></div><div class="sample t-mega">40</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Hero</strong><span class="t-caption tertiary">72 / 700</span></div><div class="sample t-hero">−7</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Clock</strong><span class="t-caption tertiary">56 / 650</span></div><div class="sample t-clock">1:24</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Large title</strong><span class="t-caption tertiary">36 / 750</span></div><div class="sample t-large-title">Maya's turn</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Title 1</strong><span class="t-caption tertiary">30 / 700</span></div><div class="sample t-title1">Game over</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Title 2</strong><span class="t-caption tertiary">24 / 650</span></div><div class="sample t-title2">Players at the table</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Title 3</strong><span class="t-caption tertiary">20 / 600</span></div><div class="sample t-title3">Commander damage</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Headline</strong><span class="t-caption tertiary">16 / 600</span></div><div class="sample t-headline">Pass the turn to Jonah</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Body</strong><span class="t-caption tertiary">16 / 400</span></div><div class="sample t-body">Other players have 15 seconds to approve a change to their life before Atlas accepts it.</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Subhead</strong><span class="t-caption tertiary">15 / 400</span></div><div class="sample t-subhead secondary">Sigil A on seat 2 · battery good</div></div>
+    <div class="type-row"><div class="spec"><strong class="t-subhead">Eyebrow</strong><span class="t-caption tertiary">12 / 600, caps</span></div><div class="sample t-eyebrow">Turn 7 · Round 2</div></div>
+  </div>
+</section>
+
+<section class="sg-section" aria-labelledby="h-components">
+  <header><span class="t-eyebrow">Components</span><h2 class="t-title2" id="h-components">Controls</h2></header>
+  <div class="demo-grid">
+    <div class="card stack">
+      <span class="t-eyebrow">Buttons</span>
+      <div class="row wrap"><button class="btn primary" type="button"><svg class="i"><use href="#i-pass"/></svg>Pass turn</button><button class="btn tinted" type="button"><svg class="i"><use href="#i-pause"/></svg>Pause</button></div>
+      <div class="row wrap"><button class="btn" type="button">Cancel</button><button class="btn plain" type="button">Details</button><button class="btn destructive" type="button"><svg class="i"><use href="#i-flag"/></svg>Concede</button></div>
+      <div class="row wrap"><button class="btn turn small" type="button"><svg class="i"><use href="#i-check"/></svg>Approve</button><button class="btn small" type="button" disabled>Waiting</button><button class="btn icon" type="button" aria-label="More"><svg class="i"><use href="#i-more"/></svg></button></div>
+    </div>
+    <div class="card stack">
+      <span class="t-eyebrow">Status</span>
+      <div class="row wrap"><span class="pill turn live">Active turn</span><span class="pill info">Paused</span><span class="pill warning">10 s left</span><span class="pill critical">Time's up</span></div>
+      <div class="row wrap"><span class="pill good">Connected</span><span class="pill accent">Host</span><span class="pill">Spectating</span><span class="pill plain">Seat 3</span></div>
+      <div class="segmented" role="group" aria-label="Turn timer"><button type="button" aria-pressed="false">Off</button><button type="button" aria-pressed="true">90 s</button><button type="button" aria-pressed="false">3 min</button><button type="button" aria-pressed="false">Custom</button></div>
+      <label class="row" for="demoSwitch"><span class="spacer">Sound on this Sigil</span><input class="switch" type="checkbox" role="switch" id="demoSwitch" checked></label>
+    </div>
+    <div class="stack" style="gap:var(--s-3)">
+      <span class="t-eyebrow" style="padding-left:var(--s-2)">Grouped list</span>
+      <ul class="list">
+        <li><button class="list-row has-icon" type="button"><span class="icon-tile"><svg class="i"><use href="#i-wifi"/></svg></span><span class="grow"><span class="title">Atlas Wi-Fi</span></span><span class="detail">TurnHub-Atlas</span><svg class="i chev"><use href="#i-chevron-right"/></svg></button></li>
+        <li><button class="list-row has-icon" type="button"><span class="icon-tile turn"><svg class="i"><use href="#i-sigil"/></svg></span><span class="grow"><span class="title">Paired Sigils</span></span><span class="detail num">4</span><svg class="i chev"><use href="#i-chevron-right"/></svg></button></li>
+        <li><button class="list-row has-icon" type="button"><span class="icon-tile info"><svg class="i"><use href="#i-volume"/></svg></span><span class="grow"><span class="title">Speaker volume</span></span><span class="detail">Medium</span><svg class="i chev"><use href="#i-chevron-right"/></svg></button></li>
+        <li><button class="list-row has-icon" type="button"><span class="icon-tile warning"><svg class="i"><use href="#i-upload"/></svg></span><span class="grow"><span class="title">Firmware</span></span><span class="pill warning">Update</span><svg class="i chev"><use href="#i-chevron-right"/></svg></button></li>
+      </ul>
+    </div>
+    <div class="card stack">
+      <span class="t-eyebrow">Fields</span>
+      <div class="field"><label for="demoLife">Starting life</label><input id="demoLife" type="number" value="40" inputmode="numeric"><span class="hint">Commander tables usually start at 40.</span></div>
+      <div class="field"><label for="demoProfile">Game profile</label><select id="demoProfile"><option>MTG Commander</option><option>Magic: The Gathering</option><option>Yu-Gi-Oh!</option><option>Generic</option></select></div>
+      <button class="btn tinted" type="button" id="openSheet">Show a sheet</button>
+    </div>
+  </div>
+</section>
+
+<section class="sg-section" aria-labelledby="h-icons">
+  <header><span class="t-eyebrow">Icons</span><h2 class="t-title2" id="h-icons">An original line set, one stroke weight</h2>
+  <p class="secondary">Drawn on a 24-point grid at 1.75 stroke with round ends. The same source becomes an SVG sprite for the portal and vector drawables for Android.</p></header>
+  <div class="card"><div class="icons" id="iconGrid"></div></div>
+</section>
+
+<section class="sg-section" aria-labelledby="h-motion">
+  <header><span class="t-eyebrow">Motion</span><h2 class="t-title2" id="h-motion">Springs, not timelines</h2>
+  <p class="secondary">Three springs cover every movement. The portal plays them through CSS <code>linear()</code> curves generated from the same physics Android uses, and Reduce motion turns them all off.</p></header>
+  <div class="card stack">
+    <div class="motion-demo"><span class="t-subhead" style="width:72px">Snappy</span><div class="motion-track" data-spring="snappy"><span class="motion-dot"></span></div></div>
+    <div class="motion-demo"><span class="t-subhead" style="width:72px">Gentle</span><div class="motion-track" data-spring="gentle"><span class="motion-dot"></span></div></div>
+    <div class="motion-demo"><span class="t-subhead" style="width:72px">Bouncy</span><div class="motion-track" data-spring="bouncy"><span class="motion-dot"></span></div></div>
+    <div><button class="btn tinted small" type="button" id="playMotion"><svg class="i"><use href="#i-play"/></svg>Play</button></div>
+  </div>
+</section>
+
+<section class="sg-section" aria-labelledby="h-space">
+  <header><span class="t-eyebrow">Space and shape</span><h2 class="t-title2" id="h-space">An 8-point grid</h2></header>
+  <div class="card stack">
+    <div class="scale-bar" id="spaceScale"></div>
+    <div class="scale-bar" id="radiusScale"></div>
+  </div>
+</section>
+
+</div>
+
+<aside aria-label="Game screen preview">
+  <div class="phone">
+    <div class="phone-screen" id="phone">
+      <header class="appbar">
+        <span class="brand"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4.5a11.5 11.5 0 1 1-9.96 5.75" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M2.9 6.2l3.14 4.05 4.86-1.67" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16" cy="16" r="4.25" fill="currentColor"/></svg><span>TurnHub</span></span>
+        <span class="spacer"></span>
+        <span class="pill good">Atlas</span>
+        <span class="avatar sm" style="--hue:205" aria-hidden="true">R</span>
+      </header>
+      <div class="scroll">
+        <section class="turn-hero" id="hero" data-phase="running" aria-live="polite">
+          <div class="ring" aria-hidden="true">
+            <svg viewBox="0 0 100 100"><circle class="track" cx="50" cy="50" r="44" pathLength="100"/><circle class="arc" cx="50" cy="50" r="44" pathLength="100"/></svg>
+            <div class="readout"><span class="t-clock" id="clock">1:30</span><span class="t-caption">left this turn</span></div>
+          </div>
+          <div class="who" id="who">
+            <span class="t-eyebrow" id="turnMeta">Turn 7 · Round 2</span>
+            <span class="name" id="activeName">Maya</span>
+            <div class="row wrap" style="justify-content:center;gap:var(--s-2)"><span class="pill turn live" id="turnPill">Active turn</span><span class="pill plain">Seat 2</span></div>
+          </div>
+          <div class="actions">
+            <button class="btn primary large" type="button" id="passBtn"><svg class="i"><use href="#i-pass"/></svg>Pass turn</button>
+            <button class="btn tinted large icon" type="button" id="pauseBtn" aria-label="Pause"><svg class="i"><use href="#i-pause"/></svg></button>
+          </div>
+        </section>
+        <div class="section-title"><span class="t-headline">Life</span><span class="t-footnote secondary">MTG Commander · 40</span></div>
+        <div class="life-grid" id="lifeGrid"></div>
+        <p class="t-footnote tertiary" style="padding:0 var(--s-2)">Sample table for the preview. Changes to another player's life wait 15 seconds for their approval.</p>
+      </div>
+      <nav class="tabbar" aria-label="Portal sections">
+        <a href="#game" aria-current="page"><svg class="i"><use href="#i-dice"/></svg>Game</a>
+        <a href="#players"><svg class="i"><use href="#i-users"/></svg>Players</a>
+        <a href="#me"><svg class="i"><use href="#i-user"/></svg>Me</a>
+        <a href="#settings"><svg class="i"><use href="#i-sliders"/></svg>Settings</a>
+      </nav>
+      <div class="toast" id="toast" data-state="hidden" role="status"></div>
+    </div>
+  </div>
+</aside>
+</div>
+
+</main>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <div class="sheet-grabber" aria-hidden="true"></div>
+  <div class="sheet-body">
+    <h2 class="t-title3" id="sheetTitle">Change Jonah's life</h2>
+    <p class="secondary">Jonah has 15 seconds to approve. If nobody answers, Atlas accepts the change.</p>
+    <div class="stepper"><button class="btn wide" type="button">−5</button><button class="btn wide" type="button">−1</button><button class="btn wide" type="button">+1</button><button class="btn wide" type="button">+5</button></div>
+    <div class="row"><button class="btn block" type="button" id="closeSheet">Cancel</button><button class="btn primary block" type="button" id="sendSheet">Send request</button></div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.body;
+  var COLORS = ["bg","surface1","surface2","surface3","fill","separator","text","textSecondary","textTertiary","accent","onAccent","accentSoft","turn","onTurn","turnSoft","good","warning","critical","info","focus"];
+  var kebab = function (s) { return s.replace(/[A-Z]/g, function (m) { return "-" + m.toLowerCase(); }); };
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) { /* preview without storage */ } }
+  };
+
+  // Themes. "Auto" follows the device: light or dark, or High contrast when asked.
+  var choice = store.get("sgTheme") || "auto";
+  function hostDark() {
+    var t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function applyTheme() {
+    var key = choice;
+    if (key === "auto") key = matchMedia("(prefers-contrast: more)").matches ? "contrast" : (hostDark() ? "graphite" : "daylight");
+    root.setAttribute("data-theme", key);
+    document.querySelectorAll("[data-theme-choice]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.themeChoice === choice)); });
+    renderSwatches();
+  }
+  document.getElementById("themePicker").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-theme-choice]"); if (!b) return;
+    choice = b.dataset.themeChoice; store.set("sgTheme", choice); applyTheme();
+  });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  var reduce = document.getElementById("reduceMotion");
+  reduce.checked = store.get("sgReduceMotion") === "1";
+  function applyMotion() { if (reduce.checked) root.setAttribute("data-motion", "reduce"); else root.removeAttribute("data-motion"); }
+  reduce.addEventListener("change", function () { store.set("sgReduceMotion", reduce.checked ? "1" : "0"); applyMotion(); });
+  applyMotion();
+
+  function renderSwatches() {
+    var cs = getComputedStyle(root), html = "";
+    COLORS.forEach(function (name) {
+      var v = cs.getPropertyValue("--c-" + kebab(name)).trim();
+      html += '<div class="swatch"><div class="chip" style="background:var(--c-' + kebab(name) + ')"></div><div class="meta"><strong class="t-subhead">' + name + '</strong><code>' + v + '</code></div></div>';
+    });
+    document.getElementById("swatches").innerHTML = html;
+  }
+
+  // Icons, read back from the sprite so the grid always matches it.
+  var grid = document.getElementById("iconGrid"), ih = "";
+  document.querySelectorAll("symbol[id^='i-']").forEach(function (s) {
+    var n = s.id.slice(2);
+    ih += '<div class="icon-cell"><svg class="i i-lg" aria-hidden="true"><use href="#' + s.id + '"/></svg><span>' + n + "</span></div>";
+  });
+  grid.innerHTML = ih;
+
+  var cs0 = getComputedStyle(document.documentElement);
+  [["1",2],["2",4],["3",8],["4",12],["5",16],["7",24],["8",32],["10",48],["11",64]].forEach(function (s) {
+    document.getElementById("spaceScale").insertAdjacentHTML("beforeend", '<div><i style="width:' + s[1] + 'px;height:' + s[1] + 'px"></i>' + s[1] + "</div>");
+  });
+  ["xs","sm","md","lg","xl"].forEach(function (r) {
+    var px = cs0.getPropertyValue("--r-" + r).trim();
+    document.getElementById("radiusScale").insertAdjacentHTML("beforeend", '<div><i style="width:64px;height:48px;border-radius:var(--r-' + r + ')"></i>' + r + " · " + px + "</div>");
+  });
+
+  // Motion demo.
+  document.querySelectorAll(".motion-track").forEach(function (t) {
+    var dot = t.querySelector(".motion-dot"), n = t.dataset.spring;
+    dot.style.transition = "left var(--spring-" + n + "-dur) var(--spring-" + n + ")";
+  });
+  document.getElementById("playMotion").addEventListener("click", function () {
+    document.querySelectorAll(".motion-track").forEach(function (t) { t.dataset.on = t.dataset.on === "true" ? "false" : "true"; });
+  });
+
+  // Sheet.
+  var sheet = document.getElementById("sheet");
+  document.getElementById("openSheet").addEventListener("click", function () { sheet.showModal(); });
+  document.getElementById("closeSheet").addEventListener("click", function () { sheet.close(); });
+  document.getElementById("sendSheet").addEventListener("click", function () { sheet.close(); toast("Request sent to Jonah"); });
+  sheet.addEventListener("click", function (e) { if (e.target === sheet) sheet.close(); });
+
+  // Game preview: a sample four-player Commander table.
+  var players = [
+    { name: "Ricky", seat: 1, hue: 205, life: 40 },
+    { name: "Maya", seat: 2, hue: 330, life: 33 },
+    { name: "Jonah", seat: 3, hue: 150, life: 28 },
+    { name: "Priya", seat: 4, hue: 42, life: 40 }
+  ];
+  var active = 1, turn = 7, TURN_S = 90, left = TURN_S, paused = false;
+  var hero = document.getElementById("hero");
+
+  function tile(p, i) {
+    return '<article class="life-tile" data-i="' + i + '" data-active="' + (i === active) + '" aria-label="' + p.name + ', ' + p.life + ' life">' +
+      '<div class="head"><span class="avatar sm" style="--hue:' + p.hue + '" aria-hidden="true">' + p.name[0] + '</span><span class="grow"><span class="title">' + p.name + '</span></span>' +
+      (i === active ? '<span class="pill turn plain">Turn</span>' : '') + "</div>" +
+      '<div class="value"><span class="total"><span class="t-hero">' + p.life + "</span></span></div>" +
+      '<div class="stepper"><button class="btn" type="button" data-d="-1" aria-label="' + p.name + ' loses 1 life"><svg class="i"><use href="#i-minus"/></svg></button>' +
+      '<button class="btn" type="button" data-d="1" aria-label="' + p.name + ' gains 1 life"><svg class="i"><use href="#i-plus"/></svg></button></div></article>';
+  }
+  function renderLife() { document.getElementById("lifeGrid").innerHTML = players.map(tile).join(""); }
+  document.getElementById("lifeGrid").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-d]"); if (!b) return;
+    var t = b.closest(".life-tile"), p = players[+t.dataset.i], d = +b.dataset.d;
+    p.life += d;
+    var total = t.querySelector(".total"), num = total.querySelector(".t-hero");
+    num.textContent = p.life; t.setAttribute("aria-label", p.name + ", " + p.life + " life");
+    total.dataset.dir = d > 0 ? "up" : "down";
+    num.style.animation = "none"; void num.offsetWidth; num.style.animation = "";
+    var old = t.querySelector(".delta"); if (old) old.remove();
+    var acc = (+(t.dataset.acc || 0)) + d; t.dataset.acc = acc;
+    clearTimeout(t._accTimer); t._accTimer = setTimeout(function () { t.dataset.acc = 0; }, 1500);
+    t.querySelector(".value").insertAdjacentHTML("beforeend", '<span class="delta ' + (acc > 0 ? "up" : "down") + '">' + (acc > 0 ? "+" : "−") + Math.abs(acc) + "</span>");
+  });
+
+  function fmt(s) { return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+  function renderClock() {
+    document.getElementById("clock").textContent = left > 0 ? fmt(left) : "0:00";
+    hero.style.setProperty("--progress", Math.max(0, left / TURN_S).toFixed(3));
+    hero.dataset.urgency = left <= 0 ? "over" : left <= 10 ? "warning" : "";
+    var pill = document.getElementById("turnPill");
+    if (paused) { pill.className = "pill info"; pill.textContent = "Paused"; }
+    else if (left <= 0) { pill.className = "pill critical"; pill.textContent = "Time's up"; }
+    else if (left <= 10) { pill.className = "pill warning live"; pill.textContent = left + " s left"; }
+    else { pill.className = "pill turn live"; pill.textContent = "Active turn"; }
+  }
+  function pass() {
+    active = (active + 1) % players.length; turn += 1; left = TURN_S; paused = false; hero.dataset.phase = "running";
+    var who = document.getElementById("who");
+    document.getElementById("activeName").textContent = players[active].name;
+    document.getElementById("turnMeta").textContent = "Turn " + turn + " · Round " + Math.ceil(turn / players.length);
+    who.classList.remove("swap-in"); void who.offsetWidth; who.classList.add("swap-in");
+    updatePause(); renderLife(); renderClock(); toast("Passed to " + players[active].name);
+  }
+  function updatePause() {
+    var b = document.getElementById("pauseBtn");
+    b.setAttribute("aria-label", paused ? "Resume" : "Pause");
+    b.innerHTML = '<svg class="i"><use href="#i-' + (paused ? "play" : "pause") + '"/></svg>';
+  }
+  document.getElementById("passBtn").addEventListener("click", pass);
+  document.getElementById("pauseBtn").addEventListener("click", function () {
+    paused = !paused; hero.dataset.phase = paused ? "paused" : "running"; updatePause(); renderClock();
+  });
+  setInterval(function () { if (!paused && left > -999) { left -= 1; renderClock(); } }, 1000);
+
+  var toastEl = document.getElementById("toast"), toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg; toastEl.dataset.state = "shown";
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.dataset.state = "hidden"; }, 2200);
+  }
+
+  applyTheme(); renderLife(); renderClock();
+})();
+</script>
+</body>
+</html>

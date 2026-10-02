@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.turnhub.android.data.ActionFeedback
 import com.turnhub.android.data.AtlasEndpoint
 import com.turnhub.android.data.AtlasException
+import com.turnhub.android.data.ProfileSecret
 import com.turnhub.android.data.AtlasFailure
 import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasRepository
@@ -269,8 +270,8 @@ class HomeViewModel(
     fun onSignInSubmitted(profile: ProfileSummary, pin: String) {
         val endpoint = repository.endpoint.value ?: return
         val prompt = local.value.signIn ?: return
-        if (!pin.matches(PIN_PATTERN)) {
-            local.update { it.copy(signIn = prompt.copy(error = "PINs are 4 to 8 digits.")) }
+        if (!ProfileSecret.isValid(pin)) {
+            local.update { it.copy(signIn = prompt.copy(error = ProfileSecret.RULE)) }
             return
         }
         local.update { it.copy(signIn = prompt.copy(submitting = true, error = null)) }
@@ -378,7 +379,7 @@ class HomeViewModel(
     }
 
     fun onSavePin(pin: String) {
-        if (!pin.matches(PIN_PATTERN)) {
+        if (!ProfileSecret.isValid(pin)) {
             playerSession.clearFeedback()
             return
         }
@@ -678,7 +679,6 @@ class HomeViewModel(
     }
 
     companion object {
-        private val PIN_PATTERN = Regex("^\\d{4,8}$")
 
         /** Atlas answers, then restarts about a second later. */
         private const val RESTART_GRACE_MS = 4_000L

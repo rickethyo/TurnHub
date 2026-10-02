@@ -300,13 +300,19 @@ bool hasPin(uint8_t controllerId, uint8_t slot) {
   return record != nullptr && TurnHubProfiles::hasPinForSeat(record->mac, slot);
 }
 
-// PINs are 4 to 8 decimal digits.
+// A profile secret is a PIN (4 to 8 decimal digits) or a password (8 to 64
+// bytes, no control characters; UTF-8 is fine). Both are hashed and checked
+// the same way, so the rest of Atlas only ever sees "the PIN".
 bool validPin(const String &pin) {
-  if (pin.length() < 4 || pin.length() > 8) return false;
-  for (size_t i = 0; i < pin.length(); ++i) {
-    if (pin[i] < '0' || pin[i] > '9') return false;
+  const size_t length = pin.length();
+  bool digitsOnly = true;
+  for (size_t i = 0; i < length; ++i) {
+    const uint8_t c = static_cast<uint8_t>(pin[i]);
+    if (c < 0x20 || c == 0x7F) return false;
+    if (c < '0' || c > '9') digitsOnly = false;
   }
-  return true;
+  if (digitsOnly && length >= 4 && length <= 8) return true;
+  return length >= MIN_PASSWORD_LENGTH && length <= MAX_PASSWORD_LENGTH;
 }
 
 String profilePinHash(const String &profileId, const String &pin) {

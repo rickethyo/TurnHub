@@ -1,5 +1,6 @@
 package com.turnhub.android.ui.setup
 
+import com.turnhub.android.data.ProfileSecret
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -160,8 +161,8 @@ private fun Account(state: SetupState, actions: SetupActions) {
     if (!existing || state.profiles.isEmpty()) {
         Text("This account becomes the table's Admin. Your name and statistics stay with it.", color = p.muted)
         OutlinedTextField(name, { name = it.take(32) }, label = { Text("Your name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        PinField(pin, { pin = it }, "Choose a PIN (4 to 8 digits)")
-        PinField(confirm, { confirm = it }, "Type the PIN again")
+        PinField(pin, { pin = it }, "Choose a PIN (4–8 digits) or a password")
+        PinField(confirm, { confirm = it }, "Type it again")
         val mismatch = confirm.isNotEmpty() && confirm != pin
         if (mismatch) Text("The PINs don't match.", color = p.bad)
         AccentButton(
@@ -189,7 +190,7 @@ private fun Account(state: SetupState, actions: SetupActions) {
                 }
             }
         }
-        PinField(pin, { pin = it }, "PIN")
+        PinField(pin, { pin = it }, "PIN or password")
         val profile: ProfileSummary? = state.profiles.firstOrNull { it.profileId == chosen }
         AccentButton(
             "Sign in",
@@ -437,11 +438,11 @@ private fun Done(actions: SetupActions) {
 private fun PinField(value: String, onChange: (String) -> Unit, label: String) {
     OutlinedTextField(
         value,
-        { onChange(it.filter(Char::isDigit).take(8)) },
+        { onChange(it.take(ProfileSecret.MAX_CHARS)) },
         label = { Text(label) },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         modifier = Modifier.fillMaxWidth(),
     )
 }
