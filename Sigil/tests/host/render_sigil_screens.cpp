@@ -144,7 +144,14 @@ int main(int argc, char **argv) {
   display.showUnpaired(); shot("unpaired");
   display.setMenuView(MenuView());
   display.showReady(2); shot("ready");
+  {
+    // Atlas lost offers only the device menu (Menu on Up).
+    SigilMenu offline(true);
+    offline.setOffline();
+    display.setMenuView(offline.view());
+  }
   display.showAtlasLost(2); shot("atlas-lost");
+  display.setMenuView(MenuView());
   display.showUpdate("Downloading", 40); shot("updating");
 
   display.setMenuView(compass(true));

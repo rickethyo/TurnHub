@@ -384,7 +384,9 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   compass: **Unpair** held 3 s on the click (forgets the saved Atlas pairing),
   **Factory reset** held 5 s on Down (erases this Sigil) and **Back** on Left.
   Atlas is asked about neither. It closes after ten idle seconds or when a game
-  starts. In a game, the Pair button's holds remain the way.
+  starts. In a game, the Pair button's holds remain the way. While Atlas is
+  lost (owner 2026-10-02) Menu sits on Up, game or not, since nothing else
+  works then.
 - **Joystick pairing (0.9.6, owner 2026-10-02):** a case can hide the BOOT
   button, so while a Sigil is unpaired, holding the thumbstick click 3 s opens
   its pairing window, like a quick Pair press (the ring fills while held).

@@ -158,6 +158,7 @@ void SigilMenu::applyMenuState2(int32_t value, uint32_t nowMs) {
 
 void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f) {
   active_ = true;
+  offline_ = false;
   actions_ = f.actions;
   revision_ = f.revision;
   // A game starting closes the device menu: its keys belong to the game now.
@@ -168,10 +169,22 @@ void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f) {
 
 void SigilMenu::clear() {
   active_ = false;
+  offline_ = false;
   actions_ = 0;
   deviceMenuOpen_ = false;
   holding_ = false;
   pending_ = MenuChoice();
+}
+
+void SigilMenu::setOffline() {
+  clear();
+  // No Atlas actions, so Up is free and opens the device menu (menuKey).
+  active_ = true;
+  offline_ = true;
+}
+
+void SigilMenu::endOffline() {
+  if (offline_) clear();
 }
 
 void SigilMenu::setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs) {

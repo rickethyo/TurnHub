@@ -227,6 +227,42 @@ int main() {
   dev.clear();
   assert(!dev.active() && !dev.view().active && !dev.deviceMenuOpen());
 
+  // Atlas lost: Atlas's menu (even mid-game) gives way to Menu on Up alone,
+  // and its device menu still unpairs or resets the Sigil.
+  {
+    SigilMenu lost(true);
+    lost.applyMenuState2(menu({A::Pass, A::Pause, A::ClaimWin, A::AdjustLife}, A::Pass, 3), 0);
+    lost.setOffline();
+    MenuView v = lost.view();
+    assert(lost.offline() && v.active && !v.life && !lost.lifeOffered());
+    assert(v.compass[static_cast<uint8_t>(Key::Up)] == MENU_LOCAL_DEVICE_MENU);
+    for (Key k : {Key::Select, Key::Down, Key::Left, Key::Right}) {
+      assert(v.compass[static_cast<uint8_t>(k)] == MENU_NONE);
+    }
+    lost.keyDown(Key::Select, 100); lost.keyUp(Key::Select, 150);
+    assert(!lost.update(150).ready && !lost.deviceMenuOpen());
+    lost.keyDown(Key::Up, 200); lost.keyUp(Key::Up, 250);
+    assert(lost.deviceMenuOpen());
+    lost.keyDown(Key::Select, 300);
+    MenuChoice c = lost.update(300 + MENU_UNPAIR_HOLD_MS);
+    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR);
+    lost.keyUp(Key::Select, 300 + MENU_UNPAIR_HOLD_MS);
+    lost.keyDown(Key::Up, 4000); lost.keyUp(Key::Up, 4050);
+    lost.keyDown(Key::Down, 4100);
+    c = lost.update(4100 + MENU_FACTORY_RESET_HOLD_MS);
+    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET);
+    lost.keyUp(Key::Down, 4100 + MENU_FACTORY_RESET_HOLD_MS);
+    // Atlas back: the offline menu goes until Atlas resends its own.
+    lost.keyDown(Key::Up, 20000); lost.keyUp(Key::Up, 20050);
+    lost.endOffline();
+    assert(!lost.active() && !lost.offline() && !lost.deviceMenuOpen());
+    // If Atlas's menu came first, ending offline keeps it.
+    lost.setOffline();
+    lost.applyMenuState2(menu({A::Join}, A::Join, 4), 21000);
+    lost.endOffline();
+    assert(lost.active() && !lost.offline() && lost.keyAction(Key::Select) == id(A::Join));
+  }
+
   // MenuState2 carries Leave (action 21) and later actions; Leave is a
   // long-press hold on Down, and a waiting phone link outranks it.
   {

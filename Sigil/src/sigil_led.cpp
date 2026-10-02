@@ -214,6 +214,14 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
     fill(scaled(RED, rm ? static_cast<uint8_t>(255) : blink(nowMs - pairingStartMs_, 500, 250)));
     return frame;
   }
+  // A device-menu hold (Unpair, Factory reset) still shows while Atlas is
+  // lost: the e-ink leaves its progress to the ring.
+  if (holdProgress_ > 0) {
+    const uint8_t lit = static_cast<uint8_t>((holdProgress_ * 6 + 254) / 255);
+    for (uint8_t i = 1; i <= lit && i < LED_PIXELS; ++i) frame.pixels[i] = WHITE;
+    frame.pixels[LED_CENTER] = WHITE;
+    return frame;
+  }
   if (atlasLost_) {
     // Searching: one pixel sweeps 1..6 and back, unlike any Atlas cue (the
     // unassigned cue circles one way in white). Center dark.
@@ -225,12 +233,6 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       const uint32_t step = (t / 200) % 10;
       frame.pixels[step < 6 ? 1 + step : 11 - step] = ORANGE;
     }
-    return frame;
-  }
-  if (holdProgress_ > 0) {
-    const uint8_t lit = static_cast<uint8_t>((holdProgress_ * 6 + 254) / 255);
-    for (uint8_t i = 1; i <= lit && i < LED_PIXELS; ++i) frame.pixels[i] = WHITE;
-    frame.pixels[LED_CENTER] = WHITE;
     return frame;
   }
   if (lifePending_ != 0) {
