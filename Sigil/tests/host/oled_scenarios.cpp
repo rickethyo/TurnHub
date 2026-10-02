@@ -187,7 +187,7 @@ int main() {
     m.keyDown(Key::Up, 2000); m.keyUp(Key::Up, 2050);
     d.setMenuView(m.view());
     resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(highlighted("MENU") && has("1/7") && highlighted("Pass turn") && has("Pause") &&
+    assert(highlighted("MENU") && has("1/6") && highlighted("Pass turn") && has("Pause") &&
         has("Claim win (hold)") && has("Sleep") && !has("YOUR TURN") && has("\x18\x19 Scroll the list"));
     // Scrolling past the fourth row brings the rest into view; the legend
     // keeps stepping rather than starting again.
@@ -196,15 +196,22 @@ int main() {
     for (int i = 0; i < 4; ++i) { m.keyDown(Key::Down, 3100 + i * 20); m.keyUp(Key::Down, 3110 + i * 20); }
     d.setMenuView(m.view());
     resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(has("5/7") && highlighted("Unpair (hold)") && has("Pause") && !has("Pass turn") &&
+    assert(has("5/6") && highlighted("Device recovery") && has("Pause") && !has("Pass turn") &&
         has("\x09 Choose  \x1b Back"));
+    // Device recovery: Unpair and Factory reset, one list deeper.
+    m.keyDown(Key::Select, 3200); m.keyUp(Key::Select, 3210);
+    d.setMenuView(m.view());
+    resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+    assert(highlighted("RECOVERY") && has("1/3") && highlighted("Unpair (hold)") &&
+        has("Factory reset (hold)") && has("Back") && !has("Sleep"));
     m.keyDown(Key::Down, 3300); m.keyUp(Key::Down, 3310);
     m.keyDown(Key::Select, 3400);
     d.setMenuView(m.view());
     resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
     assert(highlighted("HOLD: Factory reset"));
     m.keyUp(Key::Select, 3500);
-    m.keyDown(Key::Left, 3600); m.keyUp(Key::Left, 3610);
+    m.keyDown(Key::Left, 3600); m.keyUp(Key::Left, 3610);  // Up to the menu,
+    m.keyDown(Key::Left, 3620); m.keyUp(Key::Left, 3630);  // then closed.
     // Outside a game, Join on the click and Menu on Up.
     MenuStateFields ready;
     ready.actions = sigilActionBit(SigilAction::Join);
@@ -217,8 +224,8 @@ int main() {
     m.keyDown(Key::Up, 21000); m.keyUp(Key::Up, 21050);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
-    assert(highlighted("MENU") && highlighted("Join game") && has("Sleep") && has("Unpair (hold)") &&
-        has("Factory reset (hold)") && !has("Ready for game"));
+    assert(highlighted("MENU") && highlighted("Join game") && has("Sleep") && has("Device recovery") &&
+        !has("Unpair") && !has("Ready for game"));
     // Screens without a legend (the picker) do not step it.
     m.keyDown(Key::Left, 23000);
     d.setMenuView(m.view());

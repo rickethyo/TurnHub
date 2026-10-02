@@ -413,7 +413,7 @@ int main() {
     oled.keyDown(Key::Up, 100); oled.keyUp(Key::Up, 110);
     assert(!oled.update(110).ready && oled.deviceMenuOpen() && oled.lifeOffered());
     v = oled.view();
-    assert(rowsOf(v) == "Pass turn,Pause,Link phone,Claim win,Sleep,Unpair,Factory reset,Back" && v.cursor == 0);
+    assert(rowsOf(v) == "Pass turn,Pause,Link phone,Claim win,Sleep,Device recovery,Back" && v.cursor == 0);
     // Left/Right belong to the list while it is open: Left is Back.
     assert(oled.keyAction(Key::Left) == MENU_LOCAL_BACK && oled.keyAction(Key::Right) == id(A::Pass));
     // Down moves; the click chooses the row and closes the list.
@@ -445,10 +445,10 @@ int main() {
     oled.keyDown(Key::Down, 7020); oled.keyUp(Key::Down, 7030);  // Pause.
     oled.applyMenuState2(menu({A::CancelPass, A::Pause, A::ClaimWin, A::AdjustLife}, A::CancelPass, 2), 7040);
     v = oled.view();
-    assert(oled.deviceMenuOpen() && rowsOf(v) == "Undo pass,Pause,Claim win,Sleep,Unpair,Factory reset,Back" &&
+    assert(oled.deviceMenuOpen() && rowsOf(v) == "Undo pass,Pause,Claim win,Sleep,Device recovery,Back" &&
         v.cursor == 1);
     for (int i = 0; i < 10; ++i) { oled.keyDown(Key::Down, 7100 + i * 20); oled.keyUp(Key::Down, 7110 + i * 20); }
-    assert(oled.view().cursor == 6 && oled.keyAction(Key::Select) == MENU_LOCAL_BACK);
+    assert(oled.view().cursor == 5 && oled.keyAction(Key::Select) == MENU_LOCAL_BACK);
     oled.keyDown(Key::Select, 7400); oled.keyUp(Key::Select, 7410);
     assert(!oled.update(7410).ready && !oled.deviceMenuOpen());
     // Left closes it too; an idle list closes by itself.
@@ -461,7 +461,7 @@ int main() {
     // Reopening starts at the top.
     oled.keyDown(Key::Up, 30000); oled.keyUp(Key::Up, 30010);
     assert(oled.view().cursor == 0);
-    // Sleep is a tap; Unpair and Factory reset are held, from any stage.
+    // Sleep is a tap, from any stage.
     oled.keyDown(Key::Down, 30020); oled.keyUp(Key::Down, 30030);
     oled.keyDown(Key::Down, 30040); oled.keyUp(Key::Down, 30050);
     oled.keyDown(Key::Down, 30060); oled.keyUp(Key::Down, 30070);
@@ -477,32 +477,50 @@ int main() {
         oled.keyAction(Key::Right) == MENU_NONE && !oled.lifeOffered());
     oled.keyDown(Key::Up, 40010); oled.keyUp(Key::Up, 40020);
     assert(rowsOf(oled.view()) ==
-        "Start game,Random start,Next starter,Add seat B,Leave lobby,Sleep,Unpair,Factory reset,Back");
+        "Start game,Random start,Next starter,Add seat B,Leave lobby,Sleep,Device recovery,Back");
     // A game starting closes the list; later menus in the game keep it open.
     oled.applyMenuState2(menu({A::Pass, A::AdjustLife}, A::Pass, 4), 40100);
     assert(!oled.deviceMenuOpen());
-    // Unpair, held from the list.
+    // Unpair and Factory reset sit one list deeper, under Device recovery
+    // (owner, 2026-10-02); Back or Left returns to its row.
     oled.keyDown(Key::Up, 41000); oled.keyUp(Key::Up, 41010);
     oled.keyDown(Key::Down, 41020); oled.keyUp(Key::Down, 41030);
-    oled.keyDown(Key::Down, 41040); oled.keyUp(Key::Down, 41050);
-    assert(oled.keyAction(Key::Select) == MENU_LOCAL_UNPAIR);
+    oled.keyDown(Key::Down, 41032); oled.keyUp(Key::Down, 41034);
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_RECOVERY &&
+        strcmp(sigilActionLabel(static_cast<A>(MENU_LOCAL_RECOVERY)), "Device recovery") == 0);
+    oled.keyDown(Key::Select, 41040); oled.keyUp(Key::Select, 41050);
+    v = oled.view();
+    assert(!oled.update(41050).ready && v.recovery && v.cursor == 0 && rowsOf(v) == "Unpair,Factory reset,Back");
+    oled.keyDown(Key::Left, 41060); oled.keyUp(Key::Left, 41070);
+    v = oled.view();
+    assert(oled.deviceMenuOpen() && !v.recovery && v.cursor == 2 && rowsOf(v) == "Pass turn,Sleep,Device recovery,Back");
+    oled.keyDown(Key::Right, 41080); oled.keyUp(Key::Right, 41090);
+    for (int i = 0; i < 2; ++i) { oled.keyDown(Key::Down, 41100 + i * 20); oled.keyUp(Key::Down, 41110 + i * 20); }
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_BACK);
+    oled.keyDown(Key::Select, 41200); oled.keyUp(Key::Select, 41210);
+    assert(oled.deviceMenuOpen() && !oled.view().recovery && oled.view().cursor == 2);
+    oled.keyDown(Key::Select, 41300); oled.keyUp(Key::Select, 41310);
+    assert(oled.view().recovery && oled.keyAction(Key::Select) == MENU_LOCAL_UNPAIR);
     oled.keyDown(Key::Select, 42000);
     assert(oled.view().holdAction == MENU_LOCAL_UNPAIR && !oled.update(42000 + MENU_UNPAIR_HOLD_MS - 1).ready);
     c = oled.update(42000 + MENU_UNPAIR_HOLD_MS);
-    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR && !oled.deviceMenuOpen());
+    assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_UNPAIR && !oled.deviceMenuOpen() &&
+        !oled.view().recovery);
     oled.keyUp(Key::Select, 46000);
     // Atlas lost: the click does nothing; the list holds the device entries.
     oled.setOffline();
     assert(oled.keyAction(Key::Select) == MENU_NONE && oled.keyAction(Key::Up) == MENU_LOCAL_DEVICE_MENU);
     oled.keyDown(Key::Up, 50000); oled.keyUp(Key::Up, 50010);
-    assert(rowsOf(oled.view()) == "Sleep,Unpair,Factory reset,Back");
+    assert(rowsOf(oled.view()) == "Sleep,Device recovery,Back");
     oled.keyDown(Key::Down, 50020); oled.keyUp(Key::Down, 50030);
+    oled.keyDown(Key::Select, 50032); oled.keyUp(Key::Select, 50034);
     oled.keyDown(Key::Down, 50040); oled.keyUp(Key::Down, 50050);
+    assert(oled.keyAction(Key::Select) == MENU_LOCAL_FACTORY_RESET);
     oled.keyDown(Key::Select, 50100);
     c = oled.update(50100 + MENU_FACTORY_RESET_HOLD_MS);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_FACTORY_RESET);
     oled.keyUp(Key::Select, 60000);
-    // Every action but AdjustLife appears once, then the four device rows.
+    // Every action but AdjustLife appears once, then the three device rows.
     uint8_t rows[MENU_LIST_MAX];
     assert(SigilMenu::listRows(0xFFFFFFu, rows) == MENU_LIST_MAX);
     for (uint8_t i = 0; i < MENU_LIST_MAX; ++i) {

@@ -630,7 +630,8 @@ entry. Protocol version stays 3.
 Sigil `0.9.7-dev` -> `0.9.8-dev`. `SigilMenu` gains a style: the e-ink keeps
 the compass; the OLED (`MenuStyle::List`) keeps the compass's click (Pass,
 Undo pass, Join, Start...) and Left/Right life, and Up opens one scrolling
-list of every offered action plus Sleep, Unpair, Factory reset and Back, in a
+list of every offered action plus Sleep, Device recovery (a second list with
+Unpair and Factory reset) and Back, in a
 game too (owner request). `MenuView` carries the rows and cursor; the OLED's
 device-menu screen became the list (header row count, scroll bar, "HOLD:"
 row) with its own stepping legend. Manual V0.11. Firmware sizes were not

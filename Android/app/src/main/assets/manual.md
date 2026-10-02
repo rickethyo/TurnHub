@@ -243,11 +243,11 @@ Click (press the stick straight in) is always the most likely action: **Pass tur
 
 - **E-ink Sigil:** each action has its own direction. Push the stick the way shown, or click, to choose it. The bottom of the screen lists every choice; each line starts with a key: an arrow for a direction, or a filled circle for the click.
 
-- **OLED Sigil:** push Up for **Menu**, a scrolling list of everything you can do right now (such as Pause, Claim win, Link phone or Leave lobby), followed by the Sigil's own Sleep, Unpair and Factory reset. Push Up or Down to move through it, click (or push Right) to choose the highlighted line, and push Left to go back. The top line counts where you are in the list, and lines you must hold say (hold). Choosing an action closes the list. The bottom line of the screen names one key at a time, starting with the click, and moves on every few seconds.
+- **OLED Sigil:** push Up for **Menu**, a scrolling list of everything you can do right now (such as Pause, Claim win, Link phone or Leave lobby), followed by the Sigil's own Sleep and Device recovery. Push Up or Down to move through it, click (or push Right) to choose the highlighted line, and push Left to go back. The top line counts where you are in the list, and lines you must hold say (hold). Choosing an action closes the list. The bottom line of the screen names one key at a time, starting with the click, and moves on every few seconds.
 
 ## Device Menu
 
-Each Sigil has its own menu that Atlas is not asked about. On the E-ink Sigil, outside a game, Up (or Down, if Up is in use) shows **Menu** and opens it. On the OLED Sigil the same entries end its Menu list, which opens with Up at any time, even during a game.
+Each Sigil has its own menu that Atlas is not asked about. On the E-ink Sigil, outside a game, Up (or Down, if Up is in use) shows **Menu** and opens it. On the OLED Sigil, Sleep ends its Menu list, which opens with Up at any time, even during a game, and Unpair and Factory reset sit one step further in, under Device recovery, so they stay out of the way of play.
 
 - **Unpair:** hold for 3 seconds (the click, on the E-ink Sigil). The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
 
@@ -255,7 +255,7 @@ Each Sigil has its own menu that Atlas is not asked about. On the E-ink Sigil, o
 
 - **Factory reset:** hold for 5 seconds (Down, on the E-ink Sigil). The Sigil erases everything it has saved, including its pairing, and restarts as new.
 
-- **Back:** push Left to close the menu (or choose Back at the end of the OLED list). It also closes by itself after 10 seconds.
+- **Back:** push Left to close the menu (or choose Back at the end of the OLED list; in Device recovery, Back and Left return to Menu). It also closes by itself after 10 seconds.
 
 ## Actions You Hold
 

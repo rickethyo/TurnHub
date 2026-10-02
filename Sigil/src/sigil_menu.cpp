@@ -81,6 +81,7 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_BACK: return "Back";
     case MENU_LOCAL_UNPAIR: return "Unpair";
     case MENU_LOCAL_SLEEP: return "Sleep";
+    case MENU_LOCAL_RECOVERY: return "Device recovery";
     default: break;
   }
   switch (action) {
@@ -120,7 +121,7 @@ MenuView::MenuView() {
 bool MenuView::operator==(const MenuView &o) const {
   return active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
       holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0 &&
-      list == o.list && rowCount == o.rowCount && cursor == o.cursor &&
+      list == o.list && recovery == o.recovery && rowCount == o.rowCount && cursor == o.cursor &&
       memcmp(rows, o.rows, rowCount) == 0;
 }
 
@@ -143,15 +144,17 @@ uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
   return owner[static_cast<uint8_t>(key)];
 }
 
-uint8_t SigilMenu::listRows(uint32_t actions, uint8_t rows[MENU_LIST_MAX]) {
+uint8_t SigilMenu::listRows(uint32_t actions, uint8_t rows[MENU_LIST_MAX], bool recovery) {
   uint8_t count = 0;
+  if (recovery) {
+    // Both held (the milder first), and kept out of the way of play.
+    for (uint8_t local : {MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET, MENU_LOCAL_BACK}) rows[count++] = local;
+    return count;
+  }
   for (SigilAction action : LIST_ORDER) {
     if (actions & TurnHubProtocol::sigilActionBit(action)) rows[count++] = static_cast<uint8_t>(action);
   }
-  // Sleep is a tap; Unpair and Factory reset are held (the milder first).
-  for (uint8_t local : {MENU_LOCAL_SLEEP, MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET, MENU_LOCAL_BACK}) {
-    rows[count++] = local;
-  }
+  for (uint8_t local : {MENU_LOCAL_SLEEP, MENU_LOCAL_RECOVERY, MENU_LOCAL_BACK}) rows[count++] = local;
   return count;
 }
 
@@ -164,7 +167,7 @@ uint8_t SigilMenu::cursorRow(const uint8_t rows[], uint8_t count) const {
 
 void SigilMenu::moveCursor(int8_t step) {
   uint8_t rows[MENU_LIST_MAX];
-  const uint8_t count = listRows(actions_, rows);
+  const uint8_t count = listRows(actions_, rows, recoveryOpen_);
   uint8_t row = cursorRow(rows, count);
   if (step < 0 && row > 0) --row;
   if (step > 0 && row + 1 < count) ++row;
@@ -188,7 +191,7 @@ uint8_t SigilMenu::keyAction(Key key) const {
       if (key == Key::Left) return MENU_LOCAL_BACK;
       if (key != Key::Select && key != Key::Right) return MENU_NONE;
       uint8_t rows[MENU_LIST_MAX];
-      const uint8_t count = listRows(actions_, rows);
+      const uint8_t count = listRows(actions_, rows, recoveryOpen_);
       return rows[cursorRow(rows, count)];
     }
     // Closed: the click keeps the compass's likely action (Pass in a game,
@@ -268,7 +271,19 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     cursorAction_ = MENU_NONE;
     return;
   }
+  if (action == MENU_LOCAL_RECOVERY) {
+    recoveryOpen_ = true;
+    cursor_ = 0;
+    cursorAction_ = MENU_NONE;
+    return;
+  }
   if (action == MENU_LOCAL_BACK) {
+    if (recoveryOpen_) {
+      // Up a level, onto the row that opened it.
+      recoveryOpen_ = false;
+      cursorAction_ = MENU_LOCAL_RECOVERY;
+      return;
+    }
     closeDeviceMenu();
     return;
   }
@@ -340,7 +355,8 @@ MenuView SigilMenu::view() const {
   v.life = lifeOffered();
   v.list = list_;
   if (list_ && deviceMenuOpen_) {
-    v.rowCount = listRows(actions_, v.rows);
+    v.recovery = recoveryOpen_;
+    v.rowCount = listRows(actions_, v.rows, recoveryOpen_);
     v.cursor = cursorRow(v.rows, v.rowCount);
   }
   return v;

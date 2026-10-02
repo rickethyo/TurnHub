@@ -76,8 +76,8 @@ window.
   Atlas's menu mask, never sent to Atlas, only offered while the Sigil is
   paired and its menu is active. On the e-ink there is no Menu key in a game,
   so the button hold is the way; since Sigil 0.9.8 the OLED's Menu list (Up,
-  any time) ends with Sleep, Unpair and Factory reset, held the same 3 s and
-  5 s on the click. On the **Atlas lost** screen (owner 2026-10-02) Menu is on
+  any time) ends with Sleep and Device recovery, a second list holding Unpair
+  and Factory reset, held the same 3 s and 5 s on the click. On the **Atlas lost** screen (owner 2026-10-02) Menu is on
   Up whatever was happening, so a Sigil whose Atlas is gone can be unpaired or
   reset from its keys.
 - **Joystick backup for Pair (Sigil 0.9.6, owner 2026-10-02).** A case can hide

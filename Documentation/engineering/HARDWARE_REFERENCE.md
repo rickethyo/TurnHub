@@ -387,7 +387,10 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   (Pass, Undo pass, Join, Start, Confirm win, Rematch...), Left/Right change
   life in a game, and **Up opens Menu** at any time, in a game too: one list
   of every action Atlas offers (a fixed order, likely ones first, held ones
-  marked "(hold)"), then Sleep, Unpair, Factory reset and Back. Up/Down move,
+  marked "(hold)"), then Sleep, **Device recovery** and Back. Device recovery
+  (owner 2026-10-02: keep the erasing entries one level deeper) is a second
+  list, titled RECOVERY, with Unpair, Factory reset and Back; Back or Left
+  returns to its row in Menu. Up/Down move,
   the click or Right chooses, Left goes back; the header counts the row
   ("3/8") and a bar on the right shows the scroll. Choosing closes the list;
   it also closes after ten idle seconds and when a game starts, and stays
@@ -401,8 +404,8 @@ Intents (see [Protocol and Pairing](PROTOCOL_AND_PAIRING.md)).
   Atlas pairing), **Sleep** on Up, **Factory reset** held 5 s on Down (erases
   this Sigil) and **Back** on Left. Atlas is asked about none. It closes after
   ten idle seconds or when a game starts. In a game, the Pair button's holds
-  remain the way. On the OLED the same entries end its Menu list, so they are
-  reachable in a game too. While Atlas is lost (owner 2026-10-02) Menu sits on
+  remain the way. On the OLED, Sleep ends its Menu list and Unpair and Factory
+  reset sit under Device recovery, so they are reachable in a game too. While Atlas is lost (owner 2026-10-02) Menu sits on
   Up on both, game or not, with only these entries.
 - **Joystick pairing (0.9.6, owner 2026-10-02):** a case can hide the BOOT
   button, so while a Sigil is unpaired, holding the thumbstick click 3 s opens

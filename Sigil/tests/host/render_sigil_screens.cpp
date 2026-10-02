@@ -288,7 +288,12 @@ int main(int argc, char **argv) {
   display.setMenuView(menu.view());
   display.showReady(1); shot("device-menu");
 #ifdef TURNHUB_DISPLAY_OLED
-  for (int i = 0; i < 3; ++i) { menu.keyDown(Key::Down, 12); menu.keyUp(Key::Down, 14); }
+  // Device recovery (Unpair, Factory reset), one list deeper.
+  for (int i = 0; i < 2; ++i) { menu.keyDown(Key::Down, 12); menu.keyUp(Key::Down, 14); }
+  menu.keyDown(Key::Select, 15); menu.keyUp(Key::Select, 16);
+  display.setMenuView(menu.view());
+  display.showReady(1); shot("device-recovery");
+  menu.keyDown(Key::Down, 17); menu.keyUp(Key::Down, 18);
   menu.keyDown(Key::Select, 20);
 #else
   menu.keyDown(Key::Down, 20);

@@ -328,7 +328,8 @@ constexpr int16_t LEGEND_Y = 56;  // The bottom text row.
 }  // namespace
 
 // The menu as a scrolling list (SigilMenu's List style): every action on
-// offer, then Sleep, Unpair, Factory reset and Back. The header counts the
+// offer, then Sleep, Device recovery and Back; Device recovery (titled
+// RECOVERY) holds Unpair, Factory reset and Back. The header counts the
 // highlighted row ("3/8"); a row that must be held says "(hold)", and while
 // held reads "HOLD: ..." (the status light shows the progress). The bottom
 // row steps through the keys like the other screens.
@@ -340,7 +341,7 @@ bool OledDisplay::drawDeviceMenu() {
   char position[8];
   snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(menu_.cursor + 1),
       static_cast<unsigned>(menu_.rowCount));
-  header("MENU", position);
+  header(menu_.recovery ? "RECOVERY" : "MENU", position);
   const int16_t w = display_->width();
   // Scroll so the cursor row stays visible.
   const uint8_t first = menu_.cursor >= FIT ? menu_.cursor - (FIT - 1) : 0;

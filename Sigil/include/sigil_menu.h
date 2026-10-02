@@ -15,9 +15,10 @@
 // - List (OLED): the click still does the likely action (Pass in a game), as
 //   the compass would, Left/Right change life in a game, and Up opens Menu at
 //   any time: one scrolling list of every action Atlas offers, then Sleep,
-//   Unpair, Factory reset and Back. Up/Down move, the click (or Right)
-//   chooses, Left goes back. While Atlas is lost the list holds only the
-//   device entries.
+//   Device recovery and Back. Device recovery is one list deeper (owner,
+//   2026-10-02) and holds Unpair, Factory reset and Back. Up/Down move, the
+//   click (or Right) chooses, Left goes back a level. While Atlas is lost the
+//   list holds only the device entries.
 // Deliberate actions (ActionHold) are sent only once their key is held.
 #include <stdint.h>
 
@@ -42,12 +43,14 @@ constexpr uint8_t MENU_LOCAL_UNPAIR = MENU_MAX_ITEMS + 3;
 // Deep sleep until the joystick is clicked (main.cpp's enterSleep). A tap:
 // nothing is lost, and the Sigil reconnects when it wakes.
 constexpr uint8_t MENU_LOCAL_SLEEP = MENU_MAX_ITEMS + 4;
-static_assert(MENU_LOCAL_SLEEP < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+// OLED list only: opens the Device recovery list (Unpair, Factory reset).
+constexpr uint8_t MENU_LOCAL_RECOVERY = MENU_MAX_ITEMS + 5;
+static_assert(MENU_LOCAL_RECOVERY < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
 constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // The OLED list's most rows: every Atlas action but AdjustLife, then Sleep,
-// Unpair, Factory reset and Back.
-constexpr uint8_t MENU_LIST_MAX = MENU_MAX_ITEMS - 1 + 4;
+// Device recovery and Back.
+constexpr uint8_t MENU_LIST_MAX = MENU_MAX_ITEMS - 1 + 3;
 // True for actions chosen by holding a key (shown "(hold)" in the legend).
 bool menuActionNeedsHold(uint8_t action);
 // An open device menu (or OLED list) closes by itself after this long without a key.
@@ -66,6 +69,7 @@ struct MenuView {
   // List style (OLED) with the menu open: its rows (actions and device-local
   // entries, top first) and the highlighted row. Empty otherwise.
   bool list = false;
+  bool recovery = false;  // The Device recovery list (one level down) is shown.
   uint8_t rowCount = 0;
   uint8_t cursor = 0;
   uint8_t rows[MENU_LIST_MAX];
@@ -122,10 +126,10 @@ class SigilMenu {
   // The compass key for an action given the other actions on offer (fixed
   // preferences, first free; Link phone takes whatever is left).
   static uint8_t compassAction(uint32_t actions, Key key);
-  // The OLED list's rows for these actions (a fixed order, then the device
-  // entries and Back); returns the count. With none (Atlas lost) only the
-  // device entries remain.
-  static uint8_t listRows(uint32_t actions, uint8_t rows[MENU_LIST_MAX]);
+  // The OLED list's rows for these actions (a fixed order, then Sleep,
+  // Device recovery and Back); returns the count. With none (Atlas lost) only
+  // the device entries remain. recovery: the Device recovery list instead.
+  static uint8_t listRows(uint32_t actions, uint8_t rows[MENU_LIST_MAX], bool recovery = false);
 
  private:
   // Atlas offers AdjustLife only during a game.
@@ -136,7 +140,7 @@ class SigilMenu {
   // main.cpp's LifeAdjuster).
   bool offered(uint8_t action) const {
     if (action == MENU_LOCAL_FACTORY_RESET || action == MENU_LOCAL_UNPAIR || action == MENU_LOCAL_BACK ||
-        action == MENU_LOCAL_SLEEP) {
+        action == MENU_LOCAL_SLEEP || action == MENU_LOCAL_RECOVERY) {
       return active_ && deviceMenuOpen_;
     }
     if (action == MENU_LOCAL_DEVICE_MENU) return active_ && !deviceMenuOpen_ && (list_ || menuKey() != MENU_NONE);
@@ -149,7 +153,7 @@ class SigilMenu {
   void applyFields(const TurnHubProtocol::MenuStateFields &f);
   void choose(uint8_t action, Key key, uint32_t nowMs);
   void emit(uint8_t action);
-  void closeDeviceMenu() { deviceMenuOpen_ = false; }
+  void closeDeviceMenu() { deviceMenuOpen_ = false; recoveryOpen_ = false; }
   // The open list's highlighted row: the remembered action if still listed,
   // else the remembered position (clamped).
   uint8_t cursorRow(const uint8_t rows[], uint8_t count) const;
@@ -165,6 +169,7 @@ class SigilMenu {
   uint16_t winHoldMs_ = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
 
   bool deviceMenuOpen_ = false;
+  bool recoveryOpen_ = false;  // The list shows Device recovery (OLED).
   uint32_t lastKeyMs_ = 0;
   uint8_t cursor_ = 0;                // List row last highlighted.
   uint8_t cursorAction_ = MENU_NONE;  // What it held.
