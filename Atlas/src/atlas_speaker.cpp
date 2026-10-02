@@ -117,8 +117,11 @@ class AtlasSpeaker final : public TurnHub::ToneOutput {
     config.dma_buf_len = FRAMES_PER_BUFFER;
     config.use_apll = false;
     if (i2s_driver_install(SPEAKER_I2S, &config, 0, nullptr) != ESP_OK) return false;
-    i2s_set_pin(SPEAKER_I2S, nullptr);
-    // DAC channel 2 is IO26 (AUDIO_DAC_PIN); channel 1 (IO25) stays free.
+    // DAC channel 2 is IO26 (AUDIO_DAC_PIN). Channel 1 is IO25, the touch
+    // controller's clock, so it must stay a plain GPIO: i2s_set_pin(nullptr)
+    // would enable both DAC channels (and setting the mode afterwards never
+    // turns channel 1 off), leaving the DAC driving IO25 and every touch
+    // reading scrambled.
     i2s_set_dac_mode(I2S_DAC_CHANNEL_LEFT_EN);
     return xTaskCreatePinnedToCore(&AtlasSpeaker::run, "speaker", 3072, this, 3, nullptr, 0) == pdPASS;
   }

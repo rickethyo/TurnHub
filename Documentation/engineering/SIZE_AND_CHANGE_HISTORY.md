@@ -649,6 +649,17 @@ built-in portal (`PORTAL_HTML` and its gzip copy), `DEV_HTML` and
 `stats_page.cpp` (10,900 B) deleted.
 Compiled flash was not read back for this entry.
 
+## 2026-10-02 Touchscreen fix for the chime synthesizer (Atlas 0.6.6)
+
+The chime synthesizer (I2S into the built-in DAC) called `i2s_set_pin(nullptr)`,
+which in Arduino-ESP32 2.0.17's legacy I2S driver enables both DAC channels.
+Channel 1 is IO25, the XPT2046 touch clock, and setting the DAC mode to the
+left channel afterwards never turns channel 1 back off, so the DAC drove the
+touch clock and every reading came back scrambled (touch calibration rejected
+every attempt with "Those presses did not line up"). `atlas_speaker.cpp` now
+sets only the DAC mode (channel 2, IO26). Firmware sizes were not measured for
+this entry (cloud session; CI builds Atlas).
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
