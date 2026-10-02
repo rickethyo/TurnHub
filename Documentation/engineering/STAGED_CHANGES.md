@@ -56,6 +56,14 @@ removed from this file. The hardware checks still open are in
   a slow, salted hash (PBKDF2 through mbedTLS) in place of the single SHA-256
   over profile ID and secret, which suits a PIN but is weak for a password if
   Atlas's NVS were ever read out. Changing the hash needs a factory reset.
+- **App lock and automatic sign-in** (owner, 2026-10-02; V1 plan phase 7).
+  The Android app keeps one profile's secret in the Android Keystore, unlocked
+  by the phone's fingerprint, face or screen lock (or an app PIN), and signs
+  that profile in to Atlas whenever it connects. It gives the one-tap feel of a
+  passkey. Real passkeys (WebAuthn) do not fit an offline Atlas: the relying
+  party must be a domain name, not 192.168.4.1, with a certificate browsers
+  trust, and Android checks that domain online. HTTPS (planned) alone does not
+  change that.
 - **Custom avatars:** upload and Admin approval before one becomes public
   (`AVATAR_CUSTOM` is reserved; presets work today).
 
