@@ -243,6 +243,13 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *);
 void serviceFactoryReset(uint32_t nowMs);
 bool factoryResetScheduled();
 void eraseSettingsAndRestart();
+// Menu > Device Sleep (owner 2026-10-02): scheduled by handleSleepIntent, run
+// from loop() once the notice has been on screen. sleepAtlas() is firmware-
+// only (atlas_display.h); host tests stub it. Waking is a restart: saved data
+// survives, the lobby and sessions do not.
+IntentResult handleSleepIntent(const Intent &intent, void *);
+void serviceSleep(uint32_t nowMs);
+bool sleepScheduled();
 
 // Clears Atlas-owned table decisions.
 void clearDecisionState();

@@ -81,8 +81,8 @@ unavailable on a failed refresh; the page explains that Atlas's timer continues.
 Verify authorization, companion sessions, timer rollover and deadline races,
 concurrent edits, bounds/atomicity, decisions, concession, game completion and
 rematch. Check the rendered mobile/desktop portal and keyboard interaction, run
-the existing native/storage scenarios and adapter audit, then build Atlas. Flash
-and real table acceptance remain separate.
+the existing native/storage scenarios and adapter audit, then build Atlas.
+In use at the table since (owner, 2026-10-02).
 
 Automated evidence: `run-gcc.ps1` passes the existing scenarios plus approval
 authorization/replay, deadline races, rollover, pause/decision/cancellation,
@@ -91,4 +91,4 @@ concession/rematch and atomic Commander-boundary cases. `audit_adapters.py` chec
 `counter_smoke.cjs` checks two independent browsers, keyboard response/focus,
 cross-tab notification, corrections, reload, disconnect and responsive layout.
 Mobile and desktop screenshots were visually inspected. This is not a full
-accessibility conformance assessment or physical hardware verification.
+accessibility conformance assessment.

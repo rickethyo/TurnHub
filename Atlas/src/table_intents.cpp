@@ -4,6 +4,7 @@
 // transitions (empty lobby, rematch lobby, game start, game over).
 
 #include "atlas_app.h"
+#include "atlas_display.h"
 #include "sigil_update_service.h"
 #include "account_access.h"
 #include "controller_profiles.h"
@@ -1063,6 +1064,9 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
     }
   }
   if (target == TurnHub::FACTORY_RESET_ATLAS) {
+    if (sleepScheduled()) {
+      return IntentResult::reject(IntentStatus::Conflict, "Atlas is going to sleep");
+    }
     if (!atBootButton && hubState != HubState::Lobby && hubState != HubState::GameOver) {
       return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Atlas between games");
     }
@@ -1101,6 +1105,44 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
 }
 
 bool factoryResetScheduled() { return atlasResetScheduled; }
+
+namespace {
+// Long enough to read "touch the screen to wake it" before the screen goes dark.
+constexpr uint32_t SLEEP_DELAY_MS = 2500;
+bool atlasSleepScheduled = false;
+uint32_t atlasSleepAtMs = 0;
+}  // namespace
+
+// Menu > Device Sleep: the touchscreen only (whoever taps it is at the
+// table), between games, with no update or factory reset under way. Deep
+// sleep loses RAM, so the lobby empties and phones sign in again; nothing
+// saved is touched. Sigils show Atlas lost until Atlas wakes.
+IntentResult handleSleepIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Sleep from the Atlas screen");
+  }
+  if (hubState != HubState::Lobby && hubState != HubState::GameOver) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Put Atlas to sleep between games");
+  }
+  if (sigilUpdatesBusy() || ota.inProgress() || atlasResetScheduled) {
+    return IntentResult::reject(IntentStatus::Conflict, "Wait for the update or reset to finish");
+  }
+  if (!atlasSleepScheduled) {
+    atlasSleepScheduled = true;
+    atlasSleepAtMs = millis() + SLEEP_DELAY_MS;
+    serialLog.println("ATLAS|SLEEP|SCHEDULED");
+  }
+  return IntentResult::accept("Going to sleep. Touch the screen to wake");
+}
+
+bool sleepScheduled() { return atlasSleepScheduled; }
+
+void serviceSleep(uint32_t nowMs) {
+  if (!atlasSleepScheduled || static_cast<int32_t>(nowMs - atlasSleepAtMs) < 0) return;
+  atlasSleepScheduled = false;
+  serialLog.println("ATLAS|SLEEP|ENTER");
+  sleepAtlas();
+}
 
 void serviceFactoryReset(uint32_t nowMs) {
   if (!atlasResetScheduled || static_cast<int32_t>(nowMs - atlasResetAtMs) < 0) return;

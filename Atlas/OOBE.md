@@ -217,16 +217,18 @@ Recommended recovery controls:
 ## Implementation sequence
 
 1. Introduce a dedicated provisioning/network configuration service. (Partial, 2026-09-24: the stored AP password is now read through one helper, `wifi_password_store.h`, shared by startup and `web_admin_api.cpp`; writes still live in the admin endpoint.)
-2. Add an explicit provisioned/unprovisioned boot state.
-3. Build the first-run setup wizard and owner-profile creation. (Started
-   2026-09-30 on `oobe-guided-setup`: setup stages on Atlas, the Welcome and
-   "You're all set" screens, and the Android app as the first client, with
-   pairing and one update prompt for every device. See
-   [First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md).)
-4. Refactor browser sessions from seat identity to profile identity and capability checks.
+2. Add an explicit provisioned/unprovisioned boot state. (Done: the setup stage
+   in NVS, see [First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md).)
+3. Build the first-run setup wizard and owner-profile creation. (Done in Atlas
+   and the Android app, 2026-09-30: setup stages, the Welcome and "You're all
+   set" screens, pairing and one update prompt for every device. The portal
+   steps are still open.)
+4. Refactor browser sessions from seat identity to profile identity and
+   capability checks. (Done: profile login and permissions.)
 5. Add Standalone/Home network selection and connection validation.
 6. Implement Sigil dynamic channel discovery.
 7. Enable Home/LAN mode as a supported runtime mode only after ESP-NOW channel migration is verified on real hardware.
-8. Add recovery-mode UX and factory-reset behavior.
+8. Add recovery-mode UX. (Factory reset is done: the BOOT button's 10 s hold,
+   the touchscreen's Menu > Device, and Device Settings.)
 
 This sequence intentionally keeps the current stable standalone ESP-NOW behavior intact while the OOBE is introduced incrementally.

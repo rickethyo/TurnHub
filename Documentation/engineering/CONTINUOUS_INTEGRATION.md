@@ -70,10 +70,8 @@ rendered on the runner from the real display code
 a region-by-region redraw differs from a full redraw. Previews show the design,
 not the panel: colors, contrast and ghosting still need the bench.
 
-CI artifacts are not accepted releases. Buttons, displays, radio behavior,
-recovery after real power loss, physical updates, accessibility and independent
-setup still need bench acceptance. Browser smoke tests and Android device/UI
-tests are not included in this initial workflow.
+CI artifacts are not accepted releases; hardware behavior is checked on the
+bench. Browser smoke tests and Android device/UI tests are not part of CI.
 
 ## Local equivalents
 

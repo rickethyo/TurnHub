@@ -1,4 +1,4 @@
-# Sigil OTA and Signed Firmware Updates (In progress)
+# Sigil OTA and Signed Firmware Updates
 
 Owner direction, 2026-09-25: Sigil OTA is the next implementation priority, so
 Sigils stop needing USB flashing and COM-port tracking. Transport accepted the
@@ -20,7 +20,10 @@ Owner decision, 2026-09-29 (remote updates): accept this plan:
    below; what it adds is an HTTPS client on Atlas, a stored home Wi-Fi
    password and the channel switch (Sigils listen on channel 6 only).
 
-Status of everything below: *Planned* unless marked otherwise.
+Status: implemented. Signed releases have shipped since `v0.9.1`
+(2026-09-30), and the Android app and the portal install them on Atlas and
+both Sigil variants. The automatic-rollback test is still open (**U06** in
+[Prototype v1 verification](PROTOTYPE_V1_VERIFICATION.md)).
 
 ## Progress and resume point
 
@@ -47,17 +50,16 @@ Firmware builds run on GitHub Actions, not locally. Host suites can run locally.
 - [x] Step 1f: Atlas: signed Atlas OTA (raw `.bin` refused), Sigil package
       staging in the idle app slot, one-time download route.
 - [x] Step 1g (software): `UpdateSigil` Intent and portal Sigil firmware page.
-- [ ] Step 1g (bench): both display variants end to end on hardware, including
-      interrupted transfers and rollback. See the checklist below.
-- [ ] Step 2a: Android: read the release feed, download and verify packages.
-- [ ] Step 2b: Android: install on Atlas, then the Sigils (presence-gated).
+- [x] Step 1g (bench): both display variants end to end on hardware (owner,
+      2026-10-02). Interrupted transfers and rollback remain **U06**.
+- [x] Step 2a: Android: read the release feed, download and verify packages
+      (`FirmwareReleases.kt`).
+- [x] Step 2b: Android: install on Atlas, then the Sigils (presence-gated;
+      first-run setup and **Update now**).
 
 ### Codex integration, 2026-09-29
 
-Branch `codex/finish-sigil-ota` continues Claude's `5dd016b`. The checked
-steps above mean source implementation, not hardware certification. The new
-integration still needs a firmware CI build and the bench checks below.
-Android delivery remains a separate step.
+Branch `codex/finish-sigil-ota` continued Claude's `5dd016b`.
 
 Local validation passed: Atlas application/service, storage and package/job
 host suites; Sigil host suites; Python signing-tool tests; adapter audit;
@@ -69,9 +71,8 @@ covered by the pending firmware build and bench gates, not by host stand-ins.
 Device Settings links to `/sigil-update`: upload one signed `.thfw` package,
 choose a matching online Sigil, and start its update. Verify at the table
 before uploading. Raw `.bin` is now rejected by Atlas's own `/update` page;
-use the signed Atlas `.thfw` artifact. An old Atlas without this change still
-needs its usual `.bin` update to acquire the signed-package reader. Each Sigil
-needs one USB flash of an updater-capable build before its first OTA.
+use the signed Atlas `.thfw` artifact. A board new from the factory needs one
+USB flash of an updater-capable build before its first OTA.
 
 Atlas checks product/variant, version, online session, Admin and physical
 presence, idle table, and absence of another update. The Sigil independently
@@ -87,29 +88,15 @@ allows one HTTP download. Retry starts a new job/token. Completion requires a
 new secure session followed by a sealed Hello, so cached version data and a
 handshake alone cannot claim success.
 
-### Portal OTA bench checklist (not yet verified)
+### Bench checks
 
-- [ ] CI builds Atlas, both Sigil variants, Wokwi and the harness; signed
-      artifacts verify against the committed public key.
-- [ ] Install updater-capable Sigils by USB; pair securely, verify at the table.
-- [ ] Update OLED and e-ink individually through Device Settings. Observe
-      progress, reboot, a fresh secure session, and `done` in the portal.
-- [ ] Try e-ink on OLED and OLED on e-ink. Atlas refuses; also directly test
-      the Sigil's own wrong-product rejection before flash writes.
-- [ ] Reject a raw `.bin`, wrong signature, altered image and older version.
-      Allow a correctly signed same-version reinstall.
-- [ ] Drop Wi-Fi and cut Sigil power during transfer. Old firmware still boots;
-      failure is readable and a new job can retry.
-- [ ] Interrupt package upload, restart Atlas, confirm no corrupt package is staged.
-- [ ] Start a game, replace the package, update Atlas, forget/reset a Sigil, or
-      change network password during OTA. Each conflicting action is refused.
-- [ ] Reuse the download token or use a wrong token: route returns 403.
-- [ ] Test a signed image that deliberately fails to reconnect. Confirm the
-      bootloader rolls back and Atlas reports failure, with no USB recovery.
-- [ ] Restart Atlas during a Sigil job. Confirm the Sigil safely completes or
-      fails and reconnects; Atlas job state is intentionally RAM-only.
-- [ ] Check keyboard navigation, screen reader labels/status and both Sigil
-      progress screens. Test a table with multiple paired Sigils present.
+Ordinary updates of each variant from the portal and the app, refusal of
+wrong-variant, unsigned, altered and older packages, and conflicting actions
+during an update are verified in use (owner, 2026-10-02). Still to run
+deliberately (**U06**): drop Wi-Fi and cut Sigil power mid-transfer, interrupt
+a package upload and restart Atlas, restart Atlas during a Sigil job, and a
+signed image that fails to reconnect, confirming the bootloader rolls back
+without USB.
 
 ## What is already in place (*Verified* from source, 2026-09-28)
 
@@ -126,8 +113,7 @@ handshake alone cannot claim success.
 - **Rollback support in the bootloader.** The Arduino core (2.0.17) is built
   with `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y`. A new image boots in the
   pending-verify state if the app asks for it (`verifyRollbackLater()`);
-  otherwise the core marks it valid at startup. *Needs verification* on
-  hardware.
+  otherwise the core marks it valid at startup.
 - **Physical-presence gate.** Admin actions that change devices go portal (or
   app) -> presence code -> Intent -> radio. Android already has the Admin
   console and the presence-code flow (`AtlasAdminConsole`, `PresenceCode`).
@@ -367,11 +353,10 @@ first-run setup's: Admin sign-in, a table code, Atlas first, then each Sigil).
 When the count rises while the app is in the background it also posts a
 notification-bar "Update available" (`UpdateNotifier`; Android 13+ asks for the
 notification permission once, when the first update appears; refusing leaves the
-card). It only runs while the app holds an Atlas connection. *Needs
-verification on a phone.*
+card). It only runs while the app holds an Atlas connection.
 An Atlas restart drops the phone's session, so Sigils left after an Atlas
-update need Update now again once signed in. *Host-tested only; needs verification on
-hardware* (the blue channel is GPIO17 on the E32R28T).
+update need Update now again once signed in. (The blue channel is GPIO17 on the
+E32R28T.)
 
 ### Limits and risks
 

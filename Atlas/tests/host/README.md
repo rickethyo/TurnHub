@@ -106,9 +106,9 @@ HTTP fixtures and checks the rendered portal/login flow at phone and desktop siz
 It also checks policy saving/reloading and that polling preserves unsaved choices.
 The gameplay executable also covers ending a match as a draw through the real
 touchscreen adapter (hold threshold, overrides, statistics once, recovery
-validation), table presence codes (request, confirm, wrong codes, expiry), no table host, the OLED one-player limit, the
+validation), table presence codes (request, confirm, wrong codes, expiry), no table host, the
 Atlas speaker's cue routing and volume setting, and admin device management (forget one/all Sigils,
-seated/in-game refusal, storage failure, the 15/30/60-second pairing window). The
+seated/in-game refusal, storage failure, the 60/90/120-second pairing window). The
 storage executable checks the `pairwin` and `spkvol` codecs and the v1 `Draw` result byte.
 The portal smoke also covers the Paired Sigils card and the Draw label.
 

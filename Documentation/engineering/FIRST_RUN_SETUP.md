@@ -1,7 +1,8 @@
 # First-run guided setup (out-of-box experience)
 
-Branch `oobe-guided-setup`, started 2026-09-30. Status: *Planned*, then
-*Experimental* as each step below lands; nothing here is hardware-verified.
+Started 2026-09-30. Status: implemented in Atlas and the Android app and in
+use (owner, 2026-10-02); the portal steps and the manual section are still
+open (see the resume checklist).
 
 This is the first implementation slice of [Atlas OOBE](../../Atlas/OOBE.md)
 ("3. Setup wizard"). It builds on pieces that already exist: first-Admin

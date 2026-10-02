@@ -126,12 +126,9 @@ No statistics/checkpoint schema changes are included in this fix. See
 
 ## Optional microSD storage
 
-Status (2026-09-24): *Implemented* in firmware and host tests. *Verified* on
-the board by the owner: the card mounts and registers. Booting without a card
-still needs a bench check. Since 2026-09-25 detailed statistics live on the
-card (host-tested; *Needs verification* on hardware), and optional rotating
-diagnostics drain the serial log to it (*Experimental*, hardware acceptance
-pending). Every other record stays in NVS, and gameplay never depends on the
+Status: *Implemented* (2026-09-24) and in use. Since 2026-09-25 detailed
+statistics live on the card, and optional rotating diagnostics drain the
+serial log to it. Every other record stays in NVS, and gameplay never depends on the
 card. See [SD diagnostics](SD_DIAGNOSTICS.md) for retention, failure behavior
 and checks. The statistics store and the log worker share one card lock
 (`sd_card.cpp`), so the two never use the card at the same time.
@@ -228,8 +225,6 @@ Local validation for this foundation:
 - Windows GCC runner passed all six existing gameplay scenario groups and the
   identity/storage scenarios; compilation used `-Wall -Wextra` without warnings.
 - Adapter audit passed for all 12 checked adapters; `git diff --check` passed.
-- No hardware was flashed by this change. Physical acceptance remains pending.
 
-Hardware acceptance for this change: preserve an existing profile's name, PIN and
-totals across update/reboot, finish one game, verify one statistics increment and
-reboot/recheck. Do not erase NVS during that check.
+Profiles, PINs and totals surviving updates and reboots is verified in use
+(owner, 2026-10-02).

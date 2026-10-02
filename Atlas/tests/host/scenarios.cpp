@@ -3118,6 +3118,41 @@ static void touchDeviceScreen() {
   TurnHub::fixtureUnpairs[3]=0;
 }
 
+// Menu > Device Sleep (owner 2026-10-02): a tap, between games, from the
+// touchscreen only; Atlas sleeps once the notice has been shown.
+extern unsigned fixtureSleeps;
+static void touchDeviceSleep() {
+  resetPresence(); resetTouchControls();
+  freshLobby(2); fixtureSleeps=0; fixtureFactoryResets=0;
+  openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  AtlasScreen s=currentScreen();
+  const TouchButton *sleep=screenButton(s,TouchAction::SleepAtlas);
+  assert(sleep && !sleep->hold() && screenButton(s,TouchAction::CloseScreen) && s.buttonCount<=MAX_TOUCH_BUTTONS);
+  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
+    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
+  // Only the touchscreen may ask, and never in a match.
+  Intent web; web.type=IntentType::Sleep; web.actor.origin=IntentOrigin::Browser;
+  assert(intents.dispatch(web).status==IntentStatus::Unauthorized && !sleepScheduled());
+  tapButton(TouchAction::SleepAtlas);
+  assert(sleepScheduled() && String(currentScreen().notice)=="Going to sleep. Touch the screen to wake");
+  // Nothing else erases or updates Atlas meanwhile.
+  Intent reset; reset.type=IntentType::FactoryReset; reset.actor.origin=IntentOrigin::AtlasHardware;
+  reset.payload.value=TurnHub::FACTORY_RESET_ATLAS;
+  assert(intents.dispatch(reset).status==IntentStatus::Conflict && !factoryResetScheduled());
+  serviceSleep(millis()+1000); assert(fixtureSleeps==0 && sleepScheduled());
+  serviceSleep(millis()+3000); assert(fixtureSleeps==1 && !sleepScheduled());
+  serviceSleep(millis()+6000); assert(fixtureSleeps==1);
+  // After a game it is offered too; during one it is refused.
+  startFromHost(); holdEndMatch(); assert(hubState==HubState::GameOver);
+  openMenuScreen(); tapButton(TouchAction::OpenDevice);
+  assert(screenButton(currentScreen(),TouchAction::SleepAtlas));
+  enterEmptyLobby(); freshLobby(2); startFromHost();
+  Intent touch; touch.type=IntentType::Sleep; touch.actor.origin=IntentOrigin::AtlasHardware;
+  assert(intents.dispatch(touch).status==IntentStatus::InvalidState && !sleepScheduled());
+  enterEmptyLobby(); resetTouchControls();
+  assert(fixtureFactoryResets==0);
+}
+
 struct CompletionPowerLoss {};
 static unsigned completionWritesBeforeLoss = 0;
 static void interruptCompletionWrite() {
@@ -3305,6 +3340,7 @@ int main() {
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   bootButtonGestures(); std::cout<<"PASS BOOT button: quick press pairs, medium hold forgets all Sigils (seated kept), long hold factory resets Atlas even mid-match" << std::endl;
   touchDeviceScreen(); std::cout<<"PASS touchscreen Device screen: held Unpair Sigils (lobby, seated kept) and Factory reset (between games)" << std::endl;
+  touchDeviceSleep(); std::cout<<"PASS touchscreen Device screen: Sleep (a tap, between games, touchscreen only)" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";

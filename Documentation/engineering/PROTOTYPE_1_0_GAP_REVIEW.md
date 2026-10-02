@@ -1,7 +1,8 @@
 # Prototype 1.0 gap review (2026-09-26)
 
 A check of the current tree against the
-[Prototype 1.0 field-test priority lane](STAGED_CHANGES.md#prototype-10-field-test-priority-lane).
+Prototype 1.0 field-test priority lane, then in [Staged Changes](STAGED_CHANGES.md)
+(removed 2026-10-02; see git history).
 The goal of that lane is a build another person can use **without a development
 computer**. Confidence labels follow the engineering README: host tests passing is
 not hardware acceptance.

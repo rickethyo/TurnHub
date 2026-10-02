@@ -16,10 +16,8 @@ includes a panel driver or branches on display hardware.
   The scaffold supports SH1106 128x64, landscape rotation 0 or 2, through
   explicit I2C or four-wire software SPI. These are supported configurations,
   not an automatically selected hardware specification.
-  **Single-player only** (owner decision, 2026-09-24): shared seating (Seat A
-  and Seat B on one Sigil) is not supported on the OLED Sigil. Use an e-paper
-  Sigil for a shared seat. Atlas enforces it; see
-  [OLED limitations](#oled-limitations).
+  Both seats are supported since 2026-09-29; see
+  [OLED shared seating](#oled-shared-seating).
 
 Build from `Sigil/`:
 
@@ -61,7 +59,7 @@ retain their existing behavior. Name/frame caches are disposable presentation.
 The added dependency and its notices are recorded in the
 [dependency tracker](../Documentation/legal/DEPENDENCY_TRACKER.md).
 
-## OLED hardware evidence and unresolved settings
+## OLED hardware evidence
 
 Owner photos supplied on 2026-09-24 show **Inland 1.3-inch OLED V2.0**, seven
 header pins, and IIC/SPI selector markings. A later photo of the wired header
@@ -71,7 +69,8 @@ identifies part **KS0056**, 128x64. The
 [Keyestudio KS0056 example](https://wiki.keyestudio.com/Ks0056_keyestudio_1.3%22_128x64_OLED_Graphic_Display)
 selects an SH1106 128x64 software-SPI driver. **Inference:** this is the likely
 controller/geometry and SPI is consistent with the owner's identification.
-The exact physical module, jumper setting and pin order remain to be checked.
+The owner verified the module, SPI selection and pin order on the bench
+(2026-09-24).
 No Arduino example GPIO numbers were adopted for the ESP32.
 
 `OledConfig` fields default to unset values; `OLED_CONFIG` in `oled_config.h`
@@ -96,16 +95,13 @@ The matching e-ink header order and colors are in the
 Both seats are supported. Each player uses a full-screen view, with Atlas
 selecting the active player as turns change. The OLED shows only that player's
 name, life total and commander damage, with an A/B label for shared seats.
-Atlas and OLED firmware must both be updated. Verify turn changes and life
-adjustments for both seats on hardware.
 
 
 *Verified (owner hardware inspection):* the wiring above, 3.3 V VCC, common GND,
 and SPI (not I2C) as the module bus, and a working image. EPD_BUSY/GPIO21 is unused by the OLED.
-*Needs verification:* the SH1106 controller and 128x64 geometry (inferred from
-the vendor example). The owner confirmed a visible image on hardware on
-2026-09-24 at rotation 2 (180°). The panel was then remounted the other way up,
-so `OLED_CONFIG` now uses rotation 0; *Needs verification* on hardware.
+The SH1106 controller and 128x64 geometry were inferred from the vendor
+example and work on the panel. The first image (2026-09-24) used rotation 2;
+the panel was then remounted the other way up, so `OLED_CONFIG` uses rotation 0.
 
 Field reference:
 
@@ -150,12 +146,9 @@ and sign through -1,000,000..1,000,000. There is no new score field: LIFE render
 the protocol's existing numeric value. No timer, animation or new pairing state
 is introduced. State-only packets do not retain stale running-game life values.
 
-Commander damage detail is deliberately outside this minimal OLED layout;
-Commander snapshots show `Cmd` and `CMD: see companion`. Existing e-paper
-Commander rendering remains intact. Check detailed damage in the companion
-client. Physical readability, viewing distance, rotation, contrast, bus timing
-and coexistence with radio/buttons still require bench acceptance. The design
-uses explicit text and monochrome contrast; existing light/sound and companion
+Since 2026-09-28 the OLED shows received Commander damage once a player has
+taken some: two rows under a smaller life total, then "+N more cmd sources".
+The design uses explicit text and monochrome contrast; existing light/sound and companion
 paths remain available, consistent with the accessibility reference.
 
 ## Adding another display
@@ -229,8 +222,7 @@ now matches the OLED:
 - each compass legend line starts with a keycap: an arrow in a filled square,
   or a filled circle for the click
 
-The words carry every meaning; icons only add character. *Needs verification*
-on the panel (legibility of the white-on-black bar and the keycaps).
+The words carry every meaning; icons only add character.
 
 **Brass look (2026-09-29).** The portal's Brass theme carried onto both
 Sigils, one bit deep:
@@ -275,16 +267,12 @@ Sigils, one bit deep:
     to Oswald 18 px, then to the built-in font).
   - *Tests:* the host OLED stub understands custom fonts. It checks that each
     glyph's ink stays on the panel and clear of every other text run.
-  - Adds 8,060 bytes to the OLED image. *Needs verification* on the panel:
-    Cinzel caps at 7 px, and whether the filled Cinzel tickets read at arm's
-    length.
+  - Adds 8,060 bytes to the OLED image.
 - Fonts are bitmaps rendered by `tools/fonts/make_fonts.py` into
   `include/brass_fonts.h` (Cinzel and Oswald, SIL OFL 1.1). The ornament is
   drawn in the same full refresh, so refresh counts and timing are unchanged.
 - `bash tests/host/render-sigil-screens.sh` renders the real e-ink and OLED
   classes over Adafruit GFX's canvas to PNGs (`.pio/host-tests/screens/`).
-  *Needs verification* on both panels: serif legibility at arm's length, the
-  dial at small sizes, and e-ink ghosting around the heavier header.
 
 ### Running game snapshot
 
@@ -359,7 +347,7 @@ SIGIL|DISPLAY|READY|122x250|ROTATION|0
 SIGIL|DISPLAY|POLICY|FULL_ONLY
 ```
 
-### Partial refresh with clean-ups (2026-09-25, *Needs verification*)
+### Partial refresh with clean-ups (2026-09-25)
 
 Game screens now update with the partial waveform again, with the fading
 bounded instead of left to build up: a full refresh cleans up after
@@ -481,11 +469,6 @@ would miss coupled turn/name/Commander changes. A whole-screen partial waveform
 is the simpler first trial; smaller regions should not be assumed to shorten
 the panel's waveform time proportionally.
 
-Bench acceptance should measure BUSY/refresh latency, inspect alternating turn
-banners, 40-to-9 digit shrinkage, negative life and shared A/B focus changes, and
-check accumulated ghosting through the periodic full refresh. Also check cold
-power-up and button/radio responsiveness during refresh. Actual speed, ghosting
-and electrical behavior still need verification on the physical Sigil.
 
 ## Verification and physical review
 
@@ -520,15 +503,5 @@ Local validation for this change:
 - Generated review files live under ignored `.pio/portrait-review/` locally;
   they are not firmware sources or committed test infrastructure.
 
-Before accepting the mounting on hardware:
-
-1. Boot without a saved binding: confirm Unpaired and Pair. Reboot a paired
-   Sigil: confirm Booting appears first, without an Unpaired flash, then the
-   existing Ready/Atlas state. Repeat with Atlas powered off; the saved binding
-   must not be presented as unpaired. Check orientation and all four edges.
-2. Check a named single player and shared A/B players through lobby/start,
-   active/waiting turns, pause/attention and winner/game-complete states.
-3. Check life values and Commander rows, including C2-only and both commanders.
-4. Confirm Pass/Action still work during refresh and that GPIO19 Pair is usable.
-
-No firmware upload or physical-panel verification was performed for this change.
+The portrait mounting, pairing boot screens, game states and Commander rows
+are verified in use (owner, 2026-10-02).

@@ -1,11 +1,9 @@
 # Physical profile selection and controller assignment
 
-Status: **Partially implemented locally**: Atlas profile-policy settings,
-authorization checks, Atlas-owned primary-seat persistence and, since
-2026-09-25, a seat-A picker on the e-ink Sigil (host-tested, *Needs
-verification* on hardware), shown on the OLED Sigil too as a list. Since
-2026-09-29 the same picker fills seat B (below; host-tested, *Needs
-verification*). Selectable startup and duplicate-name labels remain planned.
+Status: **Implemented**, apart from selectable startup and duplicate-name
+labels (planned). Atlas profile-policy settings, authorization checks,
+Atlas-owned primary-seat persistence, and a picker on both Sigils for seat A
+(2026-09-25) and seat B (2026-09-29).
 Parts of the proposal below (two-button
 input, remembered last profile) predate the five-key menu Sigils; the picker
 section describes what was built.
@@ -145,8 +143,6 @@ and scoped to table participation; they do not survive a restart or reserve a Si
   own Leave or Drop seat B, a phone leaving for a profile seated on a Sigil, and
   a Game Master removal. A Sigil that reboots while seated keeps its seat
   profiles; one that is not seated has them cleared when it asks for its names.
-  *Host-tested only (the reboot case is firmware-only); needs verification on
-  hardware.*
 
 ## Proposed physical interaction
 

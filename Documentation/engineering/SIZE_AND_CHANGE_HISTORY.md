@@ -610,6 +610,21 @@ espressif32 7.1.3, Arduino-ESP32 2.0.17):
 
 Protocol version stays 3.
 
+## 2026-10-02 Sleep on Sigils and Atlas (Atlas 0.6.5, Sigil 0.9.7)
+
+Device-menu **Sleep** on both Sigils (Up; deep sleep, a joystick click or BOOT
+wakes) and on Atlas's Menu > Device (a tap between games; the new `Sleep`
+Intent; deep sleep, a touch or BOOT wakes). Manual V0.10. CI builds of
+`f799030` (PlatformIO 6.2.0, espressif32 7.1.3, Arduino-ESP32 2.0.17):
+
+| Build | Static RAM | Flash |
+| --- | --- | --- |
+| Atlas 0.6.5 | 88,348 B | 1,412,641 B |
+
+Signed OTA packages from the same run: Atlas 1,419,344 B, Sigil e-ink 0.9.7
+935,488 B. The Sigil RAM/flash figures were not read back from CI for this
+entry. Protocol version stays 3.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
