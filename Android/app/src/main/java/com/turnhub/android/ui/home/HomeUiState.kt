@@ -44,6 +44,10 @@ data class HomeUiState(
     val hasSavedTable: Boolean = false,
     /** Atlas is restarting (new Wi-Fi password, factory reset, update) and the app is rejoining it. */
     val rejoining: Boolean = false,
+    /** The account this phone signs in to this Atlas automatically, if any (app lock). */
+    val savedProfile: com.turnhub.android.data.SavedProfile? = null,
+    /** This phone can keep a profile behind its fingerprint, face or screen lock (Android 11+). */
+    val appLockAvailable: Boolean = false,
 ) {
     /** The endpoint can only be changed while nothing is open or opening. */
     val endpointEditable: Boolean
@@ -186,5 +190,23 @@ data class SignInPrompt(
     val profiles: List<ProfileSummary> = emptyList(),
     val submitting: Boolean = false,
     val error: String? = null,
+    /** Offer "Sign in automatically on this phone", switched on. */
+    val offerRemember: Boolean = false,
+    val preselect: String? = null,
 )
+
+/**
+ * A check the Activity runs with the phone's fingerprint, face or screen
+ * lock before the vault is used: [Save] stores a secret just accepted by
+ * Atlas, [Unlock] signs [profile] in automatically.
+ */
+sealed interface AppLockRequest {
+    val profile: com.turnhub.android.data.SavedProfile
+
+    class Save(override val profile: com.turnhub.android.data.SavedProfile, internal val secret: String) : AppLockRequest {
+        override fun toString() = "Save(${profile.profileId}, secret=***)"
+    }
+
+    data class Unlock(override val profile: com.turnhub.android.data.SavedProfile) : AppLockRequest
+}
 

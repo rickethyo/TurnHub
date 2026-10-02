@@ -6,7 +6,10 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
 import android.os.Bundle
+import android.os.CancellationSignal
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -25,6 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.turnhub.android.data.KeystoreProfileVault
+import com.turnhub.android.ui.home.AppLockRequest
 import com.turnhub.android.data.UpdateNotifier
 import kotlinx.coroutines.launch
 import com.turnhub.android.data.AtlasLinkHoldService
@@ -72,6 +78,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 AtlasUpdateWatcher.RELEASE_INTERVAL_MS
             },
+            vault = KeystoreProfileVault(applicationContext).takeIf { it.available },
         )
     }
 
@@ -140,6 +147,51 @@ class MainActivity : ComponentActivity() {
         }
         lastNotified = count
         updateNotifier.show(count)
+    }
+
+    /**
+     * App lock: the phone's own fingerprint, face or screen-lock check, run
+     * whenever the ViewModel asks to save or use the saved profile. The vault's
+     * key opens for ProfileVault.AUTH_SECONDS after it passes. Android 11+.
+     */
+    private var appLockShowing: AppLockRequest? = null
+
+    private fun runAppLock(request: AppLockRequest?) {
+        if (request == null || request === appLockShowing) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            homeViewModel.onAppLockResult(false)
+            return
+        }
+        appLockShowing = request
+        val prompt = BiometricPrompt.Builder(this)
+            .setTitle(if (request is AppLockRequest.Save) "Sign in automatically?" else "Sign in to TurnHub")
+            .setSubtitle(
+                if (request is AppLockRequest.Save) {
+                    "Confirm it's you to keep ${request.profile.name} signed in on this phone"
+                } else {
+                    "Signing in as ${request.profile.name}"
+                },
+            )
+            .setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL,
+            )
+            .build()
+        prompt.authenticate(
+            CancellationSignal(),
+            mainExecutor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    appLockShowing = null
+                    homeViewModel.onAppLockResult(true)
+                }
+
+                // Cancelled, too many tries, or no screen lock set: sign in by hand instead.
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    appLockShowing = null
+                    homeViewModel.onAppLockResult(false)
+                }
+            },
+        )
     }
 
     /** After a permanent denial Android shows no dialog; the user must allow it here. */
@@ -216,6 +268,9 @@ class MainActivity : ComponentActivity() {
         // Not again on rotation (the ViewModel also runs it once).
         if (savedInstanceState == null) findTableOnLaunch()
         lifecycleScope.launch { homeViewModel.updatesAvailable.collect(::onUpdatesAvailable) }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) { homeViewModel.appLock.collect(::runAppLock) }
+        }
         setContent {
             TurnHubTheme(choice = theme) {
                 val dark = palette.dark
@@ -258,6 +313,7 @@ class MainActivity : ComponentActivity() {
                             onSignOut = homeViewModel::onSignOutClicked,
                             onThemeChosen = ::chooseTheme,
                             onReduceMotion = ::chooseReduceMotion,
+                            onForgetSavedProfile = homeViewModel::onForgetSavedProfile,
                         ),
                         admin = homeViewModel.adminState.collectAsStateWithLifecycle().value,
                         adminActions = com.turnhub.android.ui.home.AdminActions(

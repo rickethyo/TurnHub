@@ -120,7 +120,7 @@ fun HomeScreen(
     accountActions: AccountActions = AccountActions(),
     theme: TurnHubThemeChoice = TurnHubThemeChoice.AUTO,
     reduceMotion: Boolean = false,
-    onSignInSubmit: (ProfileSummary, String) -> Unit = { _, _ -> },
+    onSignInSubmit: (ProfileSummary, String, Boolean) -> Unit = { _, _, _ -> },
     onSignInDismiss: () -> Unit = {},
     onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) -> Unit =
         { _, _, _, _ -> },

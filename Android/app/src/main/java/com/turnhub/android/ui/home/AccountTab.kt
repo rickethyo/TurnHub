@@ -55,6 +55,7 @@ import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.TurnHubPalette
 import com.turnhub.android.ui.theme.TurnHubThemeChoice
+import com.turnhub.android.ui.components.GroupedList
 import com.turnhub.android.ui.theme.palette
 
 data class AccountActions(
@@ -68,6 +69,8 @@ data class AccountActions(
     val onDisconnect: () -> Unit = {},
     val onThemeChosen: (TurnHubThemeChoice) -> Unit = {},
     val onReduceMotion: (Boolean) -> Unit = {},
+    /** Switches "Sign in automatically" off: forgets this table's profile on this phone. */
+    val onForgetSavedProfile: () -> Unit = {},
 )
 
 /** Sigil light colors to pick from (the portal offers a free color picker; these cover the wheel). */
@@ -96,6 +99,7 @@ fun AccountTab(
             }
         } else {
             ProfileCard(uiState, session, actions)
+            if (uiState.appLockAvailable) AutomaticSignIn(uiState, actions)
             PersonalizationCard(uiState, actions)
             BrassCard {
                 Eyebrow("Sigil accessibility")
@@ -243,6 +247,40 @@ private fun AvatarChoice(label: String, selected: Boolean, onClick: () -> Unit, 
     ) {
         Box(Modifier.size(44.dp).clip(CircleShape).background(p.avatarColor(1)), contentAlignment = Alignment.Center) { content() }
         Text(label, color = p.muted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+    }
+}
+
+/**
+ * App lock: whether this phone signs this account in by itself, after the
+ * phone's fingerprint, face or screen lock. Turning it on goes through the
+ * sign-in sheet, since the app never keeps a secret it wasn't just given.
+ */
+@Composable
+private fun AutomaticSignIn(uiState: HomeUiState, actions: AccountActions) {
+    val p = palette
+    val saved = uiState.savedProfile
+    GroupedList(
+        header = "This phone",
+        footer = if (saved != null) {
+            "Signs in as ${saved.name} whenever you open TurnHub at this table. The PIN or password stays " +
+                "encrypted on this phone, behind its lock."
+        } else {
+            "Skip typing your PIN or password at this table: the phone's lock unlocks it instead."
+        },
+    ) {
+        row(
+            Modifier.toggleable(
+                value = saved != null,
+                role = Role.Switch,
+                onValueChange = { on -> if (on) actions.onPlayFromPhone() else actions.onForgetSavedProfile() },
+            ),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Sign in automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                saved?.let { Text(it.name, color = p.muted, style = MaterialTheme.typography.bodySmall) }
+            }
+            Switch(checked = saved != null, onCheckedChange = null)
+        }
     }
 }
 
