@@ -68,6 +68,8 @@ class HomeViewModel(
     releases: FirmwareReleaseSource = GitHubFirmwareReleases(),
     /** Reports newer firmware to Atlas while connected; null in tests (no network). */
     private val updateWatcher: AtlasUpdateWatcher? = null,
+    /** App lock and automatic sign-in; null where the phone can't keep a profile (and in tests). */
+    private val vault: com.turnhub.android.data.ProfileVault? = null,
 ) : ViewModel() {
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
@@ -136,6 +138,8 @@ class HomeViewModel(
         val accessibilityOpen: Boolean = false,
         val discovery: Discovery = Discovery.Idle,
         val rejoining: Boolean = false,
+        /** Bumped when the vault changes, so the saved profile is re-read. */
+        val vaultVersion: Int = 0,
     )
 
     private val local = MutableStateFlow(LocalState())
@@ -201,6 +205,9 @@ class HomeViewModel(
             discovery = screen.discovery,
             hasSavedTable = credentialStore.lastSsid() != null,
             rejoining = screen.rejoining,
+            // vaultVersion is part of `screen`, so a save or forget recomputes this.
+            savedProfile = tableSummary?.atlasId?.let { id -> vault?.saved(id) },
+            appLockAvailable = vault?.available == true,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -240,6 +247,7 @@ class HomeViewModel(
                 // A new Atlas (or a new boot of it): is it still being set up?
                 if (summary != null && (last == null || summary.atlasId != last.atlasId || summary.bootId != last.bootId)) {
                     launch { setupAssistant.check() }
+                    offerAutomaticSignIn(summary.atlasId)
                 }
                 // Tell Atlas about newer firmware (it has no internet itself).
                 val endpoint = repository.endpoint.value
@@ -256,18 +264,19 @@ class HomeViewModel(
     /** Opens the sign-in picker with Atlas's profile list. */
     fun onPlayFromPhoneClicked() {
         val endpoint = repository.endpoint.value ?: return
-        local.update { it.copy(signIn = SignInPrompt(loading = true)) }
+        val offer = vault?.available == true
+        local.update { it.copy(signIn = SignInPrompt(loading = true, offerRemember = offer)) }
         viewModelScope.launch {
             val prompt = try {
-                SignInPrompt(profiles = playerSession.profiles(endpoint))
+                SignInPrompt(profiles = playerSession.profiles(endpoint), offerRemember = offer)
             } catch (e: AtlasException) {
-                SignInPrompt(error = e.failure.userMessage)
+                SignInPrompt(error = e.failure.userMessage, offerRemember = offer)
             }
             local.update { state -> state.copy(signIn = state.signIn?.let { prompt }) }
         }
     }
 
-    fun onSignInSubmitted(profile: ProfileSummary, pin: String) {
+    fun onSignInSubmitted(profile: ProfileSummary, pin: String, remember: Boolean = false) {
         val endpoint = repository.endpoint.value ?: return
         val prompt = local.value.signIn ?: return
         if (!ProfileSecret.isValid(pin)) {
@@ -279,6 +288,14 @@ class HomeViewModel(
             try {
                 playerSession.signIn(endpoint, profile, pin)
                 local.update { it.copy(signIn = null) }
+                // Atlas accepted it: now (and only now) offer to keep it behind the phone's lock.
+                val atlasId = repository.tableSummary.value?.atlasId
+                if (remember && atlasId != null && vault?.available == true) {
+                    _appLock.value = AppLockRequest.Save(
+                        com.turnhub.android.data.SavedProfile(atlasId, profile.profileId, profile.name),
+                        pin,
+                    )
+                }
             } catch (e: AtlasException) {
                 local.update { state ->
                     state.copy(signIn = state.signIn?.copy(submitting = false, error = e.failure.userMessage))
@@ -289,6 +306,102 @@ class HomeViewModel(
 
     fun onSignInDismissed() {
         local.update { it.copy(signIn = null) }
+    }
+
+    // --- live turn notification ----------------------------------------------
+
+    /**
+     * Whose turn it is for the lock-screen notification, kept up to date even
+     * while the screen is not watching (the Activity shows it only in the
+     * background). Null unless this phone's player sits in a live game.
+     */
+    val liveTurn: StateFlow<com.turnhub.android.domain.LiveTurn?> = combine(
+        repository.tableSummary,
+        playerSession.state,
+    ) { summary, session ->
+        val info = (session as? PlayerSessionState.SignedIn)?.info
+        summary?.let {
+            com.turnhub.android.domain.LiveTurn.from(
+                it,
+                info?.takeIf { me -> me.participating }?.playerNumber,
+                com.turnhub.android.domain.TableClock.nowMs(),
+                System.currentTimeMillis(),
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    // --- app lock and automatic sign-in ---------------------------------------
+
+    private val _appLock = MutableStateFlow<AppLockRequest?>(null)
+
+    /** A fingerprint, face or screen-lock check the Activity should run now. */
+    val appLock: StateFlow<AppLockRequest?> = _appLock
+
+    /** Atlas boots this phone already tried (or the player declined) automatic sign-in for. */
+    private val autoSignInTried = mutableSetOf<String>()
+
+    private fun offerAutomaticSignIn(atlasId: String) {
+        val summary = repository.tableSummary.value ?: return
+        val key = "$atlasId/${summary.bootId}"
+        if (!autoSignInTried.add(key)) return
+        if (playerSession.state.value is PlayerSessionState.SignedIn) return
+        val saved = vault?.saved(atlasId) ?: return
+        _appLock.value = AppLockRequest.Unlock(saved)
+    }
+
+    /** The Activity's check finished; [passed] false when the player cancelled or it failed. */
+    fun onAppLockResult(passed: Boolean) {
+        val request = _appLock.value ?: return
+        _appLock.value = null
+        val vault = vault ?: return
+        if (!passed) return
+        when (request) {
+            is AppLockRequest.Save -> {
+                vault.save(request.profile, request.secret)
+                local.update { it.copy(vaultVersion = it.vaultVersion + 1) }
+            }
+            is AppLockRequest.Unlock -> {
+                val endpoint = repository.endpoint.value ?: return
+                val secret = vault.unlock(request.profile.atlasId) ?: run {
+                    local.update { it.copy(vaultVersion = it.vaultVersion + 1) }
+                    return
+                }
+                viewModelScope.launch {
+                    val profile = ProfileSummary(request.profile.profileId, request.profile.name, hasPin = true)
+                    try {
+                        playerSession.signIn(endpoint, profile, secret)
+                    } catch (e: AtlasException) {
+                        // A changed PIN or password: sign in by hand (which saves the new one).
+                        local.update {
+                            it.copy(
+                                signIn = SignInPrompt(
+                                    loading = true,
+                                    offerRemember = true,
+                                    preselect = profile.profileId,
+                                ),
+                            )
+                        }
+                        val profiles = runCatching { playerSession.profiles(endpoint) }.getOrDefault(emptyList())
+                        local.update { state ->
+                            state.copy(
+                                signIn = state.signIn?.copy(
+                                    loading = false,
+                                    profiles = profiles,
+                                    error = "Couldn't sign in automatically: ${e.failure.userMessage}",
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Me → "Sign in automatically" off: forgets this table's saved profile on this phone. */
+    fun onForgetSavedProfile() {
+        val atlasId = repository.tableSummary.value?.atlasId ?: return
+        vault?.forget(atlasId)
+        local.update { it.copy(vaultVersion = it.vaultVersion + 1) }
     }
 
     fun onJoinClicked() {
@@ -697,12 +810,14 @@ class HomeViewModel(
             credentialStore: WifiCredentialStore,
             playerSession: AtlasPlayerSession,
             updateCheckIntervalMs: Long = AtlasUpdateWatcher.RELEASE_INTERVAL_MS,
+            vault: com.turnhub.android.data.ProfileVault? = null,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val releases = GitHubFirmwareReleases()
                 HomeViewModel(
                     repositoryFactory, wifiLink, credentialStore, playerSession, releases,
                     AtlasUpdateWatcher(playerSession, releases, updateCheckIntervalMs),
+                    vault,
                 )
             }
         }

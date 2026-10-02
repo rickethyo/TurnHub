@@ -11,8 +11,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
+import com.turnhub.android.ui.components.rememberHaptics
 import androidx.compose.ui.res.painterResource
 import com.turnhub.android.ui.theme.DesignTokens
 import androidx.compose.foundation.background
@@ -121,7 +120,7 @@ fun HomeScreen(
     accountActions: AccountActions = AccountActions(),
     theme: TurnHubThemeChoice = TurnHubThemeChoice.AUTO,
     reduceMotion: Boolean = false,
-    onSignInSubmit: (ProfileSummary, String) -> Unit = { _, _ -> },
+    onSignInSubmit: (ProfileSummary, String, Boolean) -> Unit = { _, _, _ -> },
     onSignInDismiss: () -> Unit = {},
     onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) -> Unit =
         { _, _, _, _ -> },
@@ -142,7 +141,7 @@ fun HomeScreen(
         AccessibilityDialog(prompt = prompt, onSave = onAccessibilitySave, onDismiss = onAccessibilityDismiss)
     }
     val p = palette
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     val summary = uiState.tableSummary
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
     val me = uiState.me()
@@ -191,7 +190,7 @@ fun HomeScreen(
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                if (!selected) haptics.tick()
                                 tab = entry
                             },
                             icon = {

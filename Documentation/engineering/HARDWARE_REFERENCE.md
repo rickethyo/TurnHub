@@ -110,7 +110,7 @@ cannot change it. Display library: LovyanGFX.
 | SPI header CS | 27 | Header pins: IO23, IO19, IO18, IO27 |
 | RGB LED red / green / blue | 22 / 16 / 17 | Common anode, active low. Held off at boot. Red blinks 250 ms on / 250 ms off while the pairing window is open (2026-09-29, same rhythm as a pairing Sigil; `front_panel.cpp`) |
 | Speaker amp enable | 4 | Active low. On only while a tone plays |
-| Speaker audio | 26 | LEDC channel 4 square wave (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
+| Speaker audio | 26 | Built-in DAC 2, streamed by I2S0 (`atlas_speaker.cpp`); see [Atlas speaker](#atlas-speaker) |
 | Battery voltage ADC | 34 | Input only. Not used yet |
 
 **No master button (owner decision, 2026-09-24).** The master button's game
@@ -160,16 +160,20 @@ Atlas screen, Sigils and portal, so sound is never the only signal
 ([Accessibility](ACCESSIBILITY.md)).
 
 `AudioController` sends a cue's notes to the Sigils in its target mask; the
-speaker is the mask's bit 15 (`ATLAS_SPEAKER_MASK`). `atlas_speaker.cpp`
-(firmware-only) plays each note as an LEDC square wave on IO26 and keeps
-the amplifier enabled (IO4 low) only while a note plays, so an idle speaker does
+speaker is the mask's bit 15 (`ATLAS_SPEAKER_MASK`). Since 2026-10-02
+`atlas_speaker.cpp` (firmware-only) is a small synthesizer: I2S0 streams
+22.05 kHz samples to the built-in DAC on IO26, and a task on core 0 mixes up to
+four voices. Each note is a soft chime (4 ms attack, a fundamental with a
+quieter octave and twelfth, an exponential ring that carries on about 70 ms
+past the note) tuned to the nearest pitch of the C major pentatonic scale, so
+every cue sounds consonant; a soft clip keeps it loud. The amplifier is enabled
+(IO4 low) only while a chime sounds and 250 ms after, so an idle speaker does
 not hiss. Volume is an Admin setting in the portal (System), saved as the
-`spkvol` NVS blob: Off, Low, Medium (default) or High. The duty cycle sets
-loudness: about 45%, 68% and 90% amplitude (the fundamental scales with
-sin(pi x duty); 50% would be loudest; each level was lowered about 10% on
-2026-09-25 at the owner's request). Until 2026-09-25 the speaker used the DAC's
-sine generator at 1/8, 1/4 and full scale, which was too quiet on the default
-Medium; a square wave is also much louder on a small speaker. Off silences only the Atlas speaker; each Sigil still
+`spkvol` NVS blob: Off, Low, Medium (default) or High, about 0.35, 0.6 and 0.85
+of full scale before the clip. *Planned verification:* loudness and tone on the
+E32R28T's speaker. History: until 2026-09-25 the speaker used the DAC's cosine
+generator (too quiet on Medium); from 2026-09-25 to 2026-10-02 an LEDC square
+wave (loud, but the owner found it harsh). Off silences only the Atlas speaker; each Sigil still
 follows its seated players' sound preference.
 
 ### Atlas touchscreen

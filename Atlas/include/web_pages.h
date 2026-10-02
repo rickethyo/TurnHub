@@ -5,7 +5,7 @@
 namespace TurnHubWeb {
 
 extern const char THEME_CSS[] PROGMEM;
-extern const char PORTAL_HTML[] PROGMEM;
-extern const char DEV_HTML[] PROGMEM;
+// The basic portal, served while no pack is installed (web_pages.cpp).
+extern const char BASIC_PORTAL_HTML[] PROGMEM;
 
 }  // namespace TurnHubWeb

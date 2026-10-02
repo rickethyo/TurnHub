@@ -49,6 +49,10 @@ removed from this file. The hardware checks still open are in
   taken over) or **Merge in** (it becomes this Atlas's data and card). Still
   to design: the same profile on both, whose PIN wins, which stats merge, and
   where game-night results are written. No statistics rollback to NVS.
+- **App and portal screenshot tests** (V1 plan phase 8, not done when phases
+  0 to 8 closed with PR #32 on 2026-10-02): golden images of the Android
+  screens in every theme (Roborazzi or Paparazzi on the JVM, so CI can run
+  them) next to the portal renders `counter_smoke.cjs` already writes.
 - **Portal theme packs** served from the card as extra token sets; built-in
   themes stay in flash ([Web Portal Design](WEB_PORTAL_DESIGN.md)).
 - **Passwords** (implemented 2026-10-02, see
@@ -56,7 +60,7 @@ removed from this file. The hardware checks still open are in
   a slow, salted hash (PBKDF2 through mbedTLS) in place of the single SHA-256
   over profile ID and secret, which suits a PIN but is weak for a password if
   Atlas's NVS were ever read out. Changing the hash needs a factory reset.
-- **App lock and automatic sign-in** (owner, 2026-10-02; V1 plan phase 7).
+- **App lock and automatic sign-in** (owner, 2026-10-02; V1 plan phase 7). *Implemented* 2026-10-02 in the Android app (Android 11+; `Android/README.md`); the owner reported the PR #32 build working on 2026-10-02.
   The Android app keeps one profile's secret in the Android Keystore, unlocked
   by the phone's fingerprint, face or screen lock (or an app PIN), and signs
   that profile in to Atlas whenever it connects. It gives the one-tap feel of a

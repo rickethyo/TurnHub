@@ -2,4 +2,5 @@
 <!-- Android 11 and lower. Saved Atlas Wi-Fi passwords never leave this phone. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="atlas_wifi.xml" />
+    <exclude domain="sharedpref" path="profile_vault.xml" />
 </full-backup-content>

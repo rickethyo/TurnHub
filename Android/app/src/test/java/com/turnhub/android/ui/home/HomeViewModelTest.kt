@@ -450,6 +450,87 @@ class HomeViewModelTest {
         onSignInSubmitted(uiState.value.signIn!!.profiles.single(), pin)
     }
 
+    // --- app lock and automatic sign-in ------------------------------------------
+
+    private class FakeVault : com.turnhub.android.data.ProfileVault {
+        val entries = mutableMapOf<String, Pair<com.turnhub.android.data.SavedProfile, String>>()
+        override val available = true
+        override fun saved(atlasId: String) = entries[atlasId]?.first
+        override fun save(profile: com.turnhub.android.data.SavedProfile, secret: String): Boolean {
+            entries[profile.atlasId] = profile to secret
+            return true
+        }
+        override fun unlock(atlasId: String) = entries[atlasId]?.second
+        override fun forget(atlasId: String) {
+            entries.remove(atlasId)
+        }
+    }
+
+    private fun TestScope.lockedViewModel(vault: FakeVault, summary: TableSummary): HomeViewModel {
+        val viewModel = HomeViewModel({ repository }, link, store, playerSession, vault = vault)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        repository.endpoint.value = AtlasEndpoint.DEFAULT
+        repository.connectionState.value = AtlasConnectionState.CONNECTED
+        repository.tableSummary.value = summary
+        return viewModel
+    }
+
+    @Test
+    fun `remembering a profile waits for Atlas and the phone's lock`() = runTest {
+        val vault = FakeVault()
+        val summary = table("lobby.response.json", 1)
+        val viewModel = lockedViewModel(vault, summary)
+        assertNull(viewModel.appLock.value)
+
+        viewModel.onPlayFromPhoneClicked()
+        assertTrue(viewModel.uiState.value.signIn!!.offerRemember)
+        viewModel.onSignInSubmitted(viewModel.uiState.value.signIn!!.profiles.single(), "1234", remember = true)
+
+        val request = viewModel.appLock.value as AppLockRequest.Save
+        assertEquals("p1", request.profile.profileId)
+        assertTrue(vault.entries.isEmpty())
+
+        viewModel.onAppLockResult(true)
+        assertEquals("1234", vault.entries[summary.atlasId]!!.second)
+        assertEquals("p1", viewModel.uiState.value.savedProfile!!.profileId)
+
+        viewModel.onForgetSavedProfile()
+        assertNull(viewModel.uiState.value.savedProfile)
+    }
+
+    @Test
+    fun `a saved profile signs in after the phone's lock, once per Atlas boot`() = runTest {
+        val vault = FakeVault()
+        val summary = table("lobby.response.json", 1)
+        vault.save(com.turnhub.android.data.SavedProfile(summary.atlasId, "p1", "Ricky"), "1234")
+        val viewModel = lockedViewModel(vault, summary)
+
+        assertTrue(viewModel.appLock.value is AppLockRequest.Unlock)
+        assertTrue(sessionTransport.calls.isEmpty())
+        viewModel.onAppLockResult(true)
+        assertEquals(listOf("login p1"), sessionTransport.calls)
+        assertTrue(viewModel.uiState.value.player!!.signedIn)
+
+        // Signing out by hand is respected for the rest of this boot.
+        viewModel.onSignOutClicked()
+        repository.tableSummary.value = table("lobby.response.json", 2)
+        assertNull(viewModel.appLock.value)
+    }
+
+    @Test
+    fun `cancelling the phone's lock leaves the player signed out`() = runTest {
+        val vault = FakeVault()
+        val summary = table("lobby.response.json", 1)
+        vault.save(com.turnhub.android.data.SavedProfile(summary.atlasId, "p1", "Ricky"), "1234")
+        val viewModel = lockedViewModel(vault, summary)
+
+        viewModel.onAppLockResult(false)
+
+        assertNull(viewModel.appLock.value)
+        assertTrue(sessionTransport.calls.isEmpty())
+        assertEquals(false, viewModel.uiState.value.player!!.signedIn)
+    }
+
     @Test
     fun `phone player signs in, joins, passes, pauses and signs out`() = runTest {
         val viewModel = connectedViewModel(table("lobby.response.json", 1))
