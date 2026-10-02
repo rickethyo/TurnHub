@@ -14,7 +14,7 @@ it in later phases; see the V1 plan and `Documentation/engineering/WEB_PORTAL_DE
 | `build_tokens.py` | Generates every file below from `tokens.json` and `icons/`, and checks contrast | Yes |
 | `bundle.py` | Inlines stylesheets, fonts and the icon sprite into one HTML file | Yes |
 | `dist/tokens.css`, `dist/icons.svg` | Generated web tokens and icon sprite | No, generated |
-| `Android/.../ui/theme/DesignTokens.kt`, `Android/.../res/drawable/ic_th_*.xml` | Generated Compose tokens and vector icons | No, generated |
+| `Android/.../ui/theme/DesignTokens.kt`, `Android/.../res/drawable/ic_th_*.xml`, `Android/.../res/font/*.ttf` | Generated Compose tokens and vector icons, and the fonts copied for Android | No, generated |
 
 ```
 python3 design/build_tokens.py            # regenerate after editing tokens.json or icons/

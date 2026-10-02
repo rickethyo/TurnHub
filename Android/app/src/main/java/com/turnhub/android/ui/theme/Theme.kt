@@ -3,6 +3,7 @@ package com.turnhub.android.ui.theme
 import android.app.UiModeManager
 import android.content.Context
 import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -14,22 +15,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * App-wide theme: the portal's look. [choice] is the player's saved theme;
- * when the device's contrast setting is raised (Android 14+), High contrast
- * replaces it, as the portal does for `prefers-contrast`.
+ * App-wide theme: the portal's look (design/tokens.json). [choice] is the
+ * player's saved theme; Automatic follows the device's dark setting. When the
+ * device's contrast setting is raised (Android 14+), High contrast replaces
+ * it, as the portal does for `prefers-contrast`.
  */
 @Composable
 fun TurnHubTheme(
-    choice: TurnHubThemeChoice = TurnHubThemeChoice.BRASS,
+    choice: TurnHubThemeChoice = TurnHubThemeChoice.AUTO,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val highContrast = rememberHighContrast(context)
-    val palette = TurnHubPalette.of(if (highContrast) TurnHubThemeChoice.CONTRAST else choice)
+    val theme = if (highContrast) TokenTheme.MORE_CONTRAST else choice.resolve(isSystemInDarkTheme())
+    val palette = remember(theme) { TurnHubPalette.of(theme) }
     CompositionLocalProvider(LocalTurnHubPalette provides palette) {
         MaterialTheme(
-            colorScheme = palette.toColorScheme(),
-            typography = turnHubTypography(palette.serifDisplay),
+            colorScheme = remember(palette) { palette.toColorScheme() },
+            typography = remember(palette.serifDisplay) { turnHubTypography(palette.serifDisplay) },
             content = content,
         )
     }

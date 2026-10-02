@@ -193,11 +193,35 @@ updates on Atlas and the Sigils.
    and clears state. A match Atlas recovered after a reboot is simply shown
    as `PAUSED`.
 
+V1 redesign, phases 5 and 6 (2026-10-02, *Implemented*, built by CI; not yet
+checked on a phone):
+
+- Themes come from the shared design tokens (`design/tokens.json`, generated
+  `ui/theme/DesignTokens.kt`): Automatic (the default: Graphite on a dark
+  phone, Daylight on a light one), Graphite, Daylight, Brass and High
+  contrast. `Palette.kt` builds every component role from them; a saved
+  `midnight` or `parchment` choice opens as Graphite or Daylight. Only Brass
+  draws ornament (sheens, rivets, the brass dial); the modern themes draw flat
+  cards, tinted pills and buttons, and a turn ring.
+- Inter (all text) and Cinzel (Brass headings) are bundled in `res/font`,
+  copied from `design/fonts` by `design/build_tokens.py`; clocks and life
+  totals use tabular figures.
+- New launcher icon (the portal's gold gear, with an Android 13 themed-icon
+  layer), an Android 12 splash on the theme's ground, edge-to-edge drawing with
+  system bar icons that follow the theme, and a bottom bar using the shared
+  icons: Game, Players, Me, Settings (Admins and Game Masters) and Developer.
+- Game screen: the turn hero is a native ring that drains or fills with the
+  clock and breathes while a game runs; the active player's avatar sits under
+  it. Life tiles count to a new total on a spring, bounce slightly and show
+  the change for a few seconds. Haptics: a firm tap when the turn reaches this
+  phone's player, ticks on the life buttons and tab changes, confirm/reject on
+  Pass. Reduce motion turns the springs, halo and transitions off.
+
 Portal parity (2026-09-26):
 
 - The app now mirrors the Atlas portal's look and its player features. The
-  four portal themes (Brass, Midnight, Parchment, High contrast; `ui/theme/
-  Palette.kt`) are chosen in My Account and saved on the phone only; the
+  portal themes (since V1: Automatic, Graphite, Daylight, Brass, High contrast;
+  `ui/theme/Palette.kt`) are chosen in My Account and saved on the phone only; the
   device's raised-contrast setting still forces High contrast. A Reduce motion
   switch stops the turning gear and dial sweeps.
 - Tabs as in the portal: **Game** (the brass turn dial, my seat with every

@@ -116,7 +116,7 @@ fun PlayerCard(
             }
             Text(
                 text = lifeText,
-                style = MaterialTheme.typography.displayLarge,
+                style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = if (player.life == null) {
                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
