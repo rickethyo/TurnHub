@@ -19,7 +19,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.turnhub.android.data.UpdateNotifier
+import kotlinx.coroutines.launch
 import com.turnhub.android.data.AtlasLinkHoldService
 import com.turnhub.android.data.AtlasPlayerSession
 import com.turnhub.android.data.AtlasUpdateWatcher
@@ -101,6 +105,39 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // The notification-bar "Update available" (Android 13+ asks first, once per
+    // run, when the first update appears; refusing leaves the in-app card).
+    private val updateNotifier by lazy { UpdateNotifier(applicationContext) }
+    private var notificationAsked = false
+    private var lastNotified = 0
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted && lastNotified > 0 && !lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                updateNotifier.show(lastNotified)
+            }
+        }
+
+    private fun onUpdatesAvailable(count: Int) {
+        if (count == 0) {
+            lastNotified = 0
+            updateNotifier.clear()
+            return
+        }
+        val foreground = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        if (!UpdateNotifier.shouldNotify(lastNotified, count)) return
+        if (foreground) {
+            // The card on the table screen is the notice; ask for the bar one now.
+            if (!updateNotifier.allowed() && !notificationAsked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                notificationAsked = true
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            lastNotified = count
+            return
+        }
+        lastNotified = count
+        updateNotifier.show(count)
+    }
+
     /** After a permanent denial Android shows no dialog; the user must allow it here. */
     private fun openAppSettings() {
         startActivity(
@@ -162,6 +199,7 @@ class MainActivity : ComponentActivity() {
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         // Not again on rotation (the ViewModel also runs it once).
         if (savedInstanceState == null) findTableOnLaunch()
+        lifecycleScope.launch { homeViewModel.updatesAvailable.collect(::onUpdatesAvailable) }
         setContent {
             TurnHubTheme(choice = theme) {
                 Surface(

@@ -364,6 +364,11 @@ to learn how many devices are behind now (the answer's `updatesAvailable`).
 While that is above zero the app shows an "Update available" card with an
 **Update now** button that opens the update step on its own (the same code as
 first-run setup's: Admin sign-in, a table code, Atlas first, then each Sigil).
+When the count rises while the app is in the background it also posts a
+notification-bar "Update available" (`UpdateNotifier`; Android 13+ asks for the
+notification permission once, when the first update appears; refusing leaves the
+card). It only runs while the app holds an Atlas connection. *Needs
+verification on a phone.*
 An Atlas restart drops the phone's session, so Sigils left after an Atlas
 update need Update now again once signed in. *Host-tested only; needs verification on
 hardware* (the blue channel is GPIO17 on the E32R28T).
