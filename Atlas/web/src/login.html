@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A0B0E">
+<meta name="color-scheme" content="dark light">
+<title>TurnHub · Sign in</title>
+<script src="./theme-boot.js"></script>
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TurnHub">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+<!-- build:css portal.css -->
+<link rel="stylesheet" href="../../../design/dist/tokens.css">
+<link rel="stylesheet" href="portal.css">
+<!-- /build:css -->
+</head>
+<body class="page focus-page">
+<div class="shell">
+<header class="appbar plain">
+ <a class="brand" href="/portal"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Accounts</span></span></a>
+ <div class="appbar-end"><a class="btn small ghost" href="/portal">Back to table</a></div>
+</header>
+<main id="main" class="focus">
+ <div class="focus-head">
+  <span class="brand-mark hero-mark" aria-hidden="true"></span>
+  <h1>Your TurnHub account</h1>
+  <p class="small">Your name and statistics stay with you. Play from a phone, a Sigil, or both.</p>
+ </div>
+ <div class="segmented" role="tablist" aria-label="Account">
+  <button id="signInTab" role="tab" aria-selected="true" aria-controls="signInPanel" onclick="showPanel('signIn')">Sign in</button>
+  <button id="createTab" role="tab" aria-selected="false" aria-controls="createPanel" onclick="showPanel('create')">Create account</button>
+ </div>
+ <p id="message" class="notice info" role="status" aria-live="polite" tabindex="-1">Loading saved accounts…</p>
+ <section id="signInPanel" class="card" role="tabpanel" aria-labelledby="signInTab">
+  <form id="loginForm">
+   <label for="savedProfile">Saved account</label>
+   <select id="savedProfile" required aria-describedby="loginHint"><option value="">Choose an account</option></select>
+   <label for="loginPin">PIN or password</label>
+   <div class="secret"><input id="loginPin" type="password" minlength="4" maxlength="64" autocomplete="current-password" required><button type="button" class="ghost small reveal" aria-controls="loginPin" aria-pressed="false" onclick="reveal(this)">Show</button></div>
+   <p id="loginHint" class="hint">Use your 4–8 digit PIN or your password. An account without one can still sign in physically at the table, then set one in My Account.</p>
+   <button type="submit" class="primary block">Sign in</button>
+  </form>
+ </section>
+ <section id="createPanel" class="card" role="tabpanel" aria-labelledby="createTab" hidden>
+  <form id="registerForm">
+   <label for="newName">Display name</label>
+   <input id="newName" maxlength="32" autocomplete="nickname" required>
+   <label for="newPin">Choose a PIN or password</label>
+   <div class="secret"><input id="newPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" required aria-describedby="newPinRule"><button type="button" class="ghost small reveal" aria-controls="newPin" aria-pressed="false" onclick="reveal(this)">Show</button></div>
+   <p id="newPinRule" class="rule" aria-live="polite">A PIN is 4–8 digits. A password is 8–64 characters.</p>
+   <label for="confirmPin">Confirm PIN or password</label>
+   <input id="confirmPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" required>
+   <p class="hint">Accounts are saved on this Atlas. Remember your PIN or password to sign in again from any phone on its network.</p>
+   <button type="submit" class="primary block">Create account</button>
+  </form>
+ </section>
+ <p class="foot-note">Signing in does not add another player. Use “Join table” in the portal. If your account is already playing, this phone controls that same player.</p>
+</main>
+</div>
+<script>
+const message=document.getElementById('message');
+function notify(text,bad=true){message.textContent=text;message.className='notice '+(bad?'bad':'info');message.focus()}
+function showPanel(name){const create=name==='create';signInPanel.hidden=create;createPanel.hidden=!create;signInTab.setAttribute('aria-selected',String(!create));createTab.setAttribute('aria-selected',String(create))}
+function reveal(b){const input=document.getElementById(b.getAttribute('aria-controls'));const show=input.type==='password';input.type=show?'text':'password';b.textContent=show?'Hide':'Show';b.setAttribute('aria-pressed',String(show))}
+// The same rule Atlas checks (web_session.cpp validPin): a PIN of 4-8 digits or a password of 8-64 characters.
+function secretRule(v){if(!v)return ['','A PIN is 4–8 digits. A password is 8–64 characters.'];if(/[\x00-\x1f\x7f]/.test(v))return ['bad','Use letters, digits, spaces and symbols only'];if(/^\d+$/.test(v))return v.length>=4&&v.length<=8?['ok','PIN: '+v.length+' digits']:v.length>8?['ok','Password: '+v.length+' digits']:['bad','A PIN needs at least 4 digits'];const n=new TextEncoder().encode(v).length;return n<8?['bad','A password needs at least 8 characters']:n>64?['bad','A password can be at most 64 bytes']:['ok','Password: '+[...v].length+' characters']}
+newPin.addEventListener('input',()=>{const [state,text]=secretRule(newPin.value);newPinRule.textContent=text;newPinRule.className='rule '+state});
+async function loadProfiles(){try{const r=await fetch('/api/profiles',{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load accounts');for(const p of d.profiles){const o=document.createElement('option');o.value=p.profileId;o.textContent=`${p.name||'Unnamed account'} · ${p.profileId}${p.hasPin?'':' · physical sign-in needed'}`;savedProfile.appendChild(o)}
+ let last='';try{last=localStorage.getItem('turnhubLastProfile')||''}catch(_){}
+ const requested=new URLSearchParams(location.search).get('profile')||last;if(requested&&d.profiles.some(p=>p.profileId===requested))savedProfile.value=requested;
+ if(!d.profiles.length)showPanel('create');
+ message.className='notice info';message.textContent=d.profiles.length?'Choose your account, or create one if you are new.':'No saved accounts yet. Create one to begin.'}catch(e){notify(e.message)}}
+async function submit(form,path,data){const button=form.querySelector('button[type=submit]');button.disabled=true;try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sign-in failed');localStorage.setItem('turnhubSessionToken',d.token);try{localStorage.setItem('turnhubLastProfile',d.profileId||data.profileId||'')}catch(_){}location.assign('/')}catch(e){notify(e.message);button.disabled=false}}
+loginForm.addEventListener('submit',e=>{e.preventDefault();submit(loginForm,'/api/session/login',{profileId:savedProfile.value,pin:loginPin.value})});
+registerForm.addEventListener('submit',e=>{e.preventDefault();if(secretRule(newPin.value)[0]==='bad'){notify(newPinRule.textContent);newPin.focus();return}if(newPin.value!==confirmPin.value){notify('The two entries do not match.');confirmPin.focus();return}submit(registerForm,'/api/profiles/register',{name:newName.value.trim(),pin:newPin.value})});
+loadProfiles();
+</script>
+</body>
+</html>

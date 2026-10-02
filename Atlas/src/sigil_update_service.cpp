@@ -237,8 +237,7 @@ void beginSigilUpdates(const char *ssid, const char *password) {
   store.begin(flash, crypto, TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID);
   store.loadStaged();
   server.on("/sigil-update", HTTP_GET, []() {
-    server.sendHeader("Cache-Control", "no-store");
-    TurnHubWebApi::serveRestrictedPage(server, SIGIL_UPDATE_HTML, TurnHubAccounts::Admin);
+    TurnHubWebApi::serveRestrictedPage(server, SIGIL_UPDATE_HTML, TurnHubAccounts::Admin, "sigil-update.html");
   });
   server.on("/api/sigil-firmware", HTTP_GET, statusRoute);
   server.on("/api/sigil-firmware", HTTP_POST, []() {

@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Launcher icon background only; in-app Material3 colors live in ui/theme/Theme.kt -->
-    <color name="ic_launcher_background">#1B2430</color>
+    <!--
+      The window and splash grounds before Compose draws: Daylight's and
+      Graphite's backgrounds (design/tokens.json). In-app colors live in
+      ui/theme (DesignTokens.kt, Palette.kt).
+    -->
+    <color name="window_light">#F2F3F6</color>
+    <color name="window_dark">#0A0B0E</color>
 </resources>

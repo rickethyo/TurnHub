@@ -1,7 +1,22 @@
 package com.turnhub.android.ui.home
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import com.turnhub.android.ui.theme.DesignTokens
+import com.turnhub.android.ui.theme.TABULAR
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +46,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +56,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -73,6 +91,7 @@ import com.turnhub.android.ui.components.StatusBadge
 import com.turnhub.android.ui.components.StatusRow
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.TurnRing
 import com.turnhub.android.ui.components.displayName
 import com.turnhub.android.ui.theme.palette
 
@@ -112,13 +131,13 @@ fun GameTab(
 ) {
     val me = uiState.me()
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        StageCard(summary, nowMs, labelFor, reduceMotion)
+        StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
         IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
         SeatCard(uiState, summary, me, actions)
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED ||
             summary.state == TableState.GAME_OVER
         ) {
-            LifeCard(summary, me, nowMs, labelFor, actions, busy = uiState.player?.busy == true)
+            LifeCard(summary, me, nowMs, labelFor, actions, busy = uiState.player?.busy == true, reduceMotion = reduceMotion)
         }
         if (me != null && summary.settings.profile == GameProfile.MTG_COMMANDER &&
             (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
@@ -135,10 +154,14 @@ fun GameTab(
 // --- Stage --------------------------------------------------------------------
 
 @Composable
-private fun StageCard(summary: TableSummary, nowMs: Long, labelFor: (Int) -> String, reduceMotion: Boolean) {
+private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelFor: (Int) -> String, reduceMotion: Boolean) {
     val p = palette
     val timer = TurnTimerStatus.of(summary, nowMs)
     val active = summary.activePlayerNumber?.let(labelFor)
+    val myTurn = myNumber != null && summary.state == TableState.RUNNING && summary.activePlayerNumber == myNumber
+    // A firm tap in the hand when the turn comes to this phone's player.
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(myTurn) { if (myTurn) haptics.performHapticFeedback(HapticFeedbackType.Confirm) }
     val (title, subtitle) = when (summary.state) {
         TableState.LOBBY -> "Lobby" to when (summary.players.size) {
             0 -> "Waiting for players to join"
@@ -146,7 +169,7 @@ private fun StageCard(summary: TableSummary, nowMs: Long, labelFor: (Int) -> Str
             else -> "${summary.players.size} players seated · ready to start"
         }
         TableState.STARTING -> "Starting" to "The game begins in a moment"
-        TableState.RUNNING -> (active?.let { "$it's turn" } ?: "Running") to
+        TableState.RUNNING -> (if (myTurn) "Your turn" else active?.let { "$it's turn" } ?: "Running") to
             "Turn ${summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.let { it.turnsCompleted + 1 } ?: "—"}"
         TableState.PAUSED -> "Paused" to when {
             summary.pending.winConfirmationPlayer != null ->
@@ -182,7 +205,8 @@ private fun StageCard(summary: TableSummary, nowMs: Long, labelFor: (Int) -> Str
         TurnTimerPhase.LONG_TURN -> p.info
         else -> null
     }
-    BrassCard {
+    val running = summary.state == TableState.RUNNING
+    BrassCard(highlight = if (myTurn && !p.ornament) p.active else null) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -190,7 +214,23 @@ private fun StageCard(summary: TableSummary, nowMs: Long, labelFor: (Int) -> Str
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Gauge(gaugeValue, gaugeCaption, fraction, arcColor = arcColor, reduceMotion = reduceMotion)
+            if (p.ornament) {
+                Gauge(gaugeValue, gaugeCaption, fraction, arcColor = arcColor, reduceMotion = reduceMotion)
+            } else {
+                // Modern: the native turn ring in the turn color, or the timer's warning colors.
+                TurnRing(
+                    gaugeValue,
+                    gaugeCaption,
+                    fraction,
+                    color = arcColor ?: if (running || summary.state == TableState.PAUSED) p.active else p.accent,
+                    live = running,
+                    reduceMotion = reduceMotion,
+                )
+                summary.activePlayerNumber?.takeIf { running || summary.state == TableState.PAUSED }?.let { number ->
+                    val player = summary.players.firstOrNull { it.playerNumber == number }
+                    if (player != null) PlayerAvatar(player.label, number, player.avatar, size = 40.dp)
+                }
+            }
             Text(
                 summary.settings.profile.displayName().uppercase(),
                 color = if (p.dark) p.accentHi else p.accent,
@@ -238,6 +278,7 @@ private fun StageBadges(summary: TableSummary, nowMs: Long, labelFor: (Int) -> S
 @Composable
 private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlayer?, actions: GameActions) {
     val p = palette
+    val haptics = LocalHapticFeedback.current
     val panel = uiState.player
     val info = uiState.sessionInfo()
     val signedIn = panel?.signedIn == true
@@ -324,7 +365,10 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                 val passing = summary.pending.passPlayer == me.playerNumber
                 AccentButton(
                     if (passing) "Cancel pending pass" else "Pass turn",
-                    { actions.onControl(ControlAction.PASS) },
+                    {
+                        haptics.performHapticFeedback(if (passing) HapticFeedbackType.Reject else HapticFeedbackType.Confirm)
+                        actions.onControl(ControlAction.PASS)
+                    },
                     Modifier.fillMaxWidth().height(64.dp),
                     enabled = !busy && myTurn,
                 )
@@ -442,6 +486,7 @@ private fun LifeCard(
     labelFor: (Int) -> String,
     actions: GameActions,
     busy: Boolean,
+    reduceMotion: Boolean,
 ) {
     val p = palette
     var requestTarget by remember { mutableStateOf<TablePlayer?>(null) }
@@ -471,6 +516,7 @@ private fun LifeCard(
                     onRequest = if (canAct && player.playerNumber != me?.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
+                    reduceMotion = reduceMotion,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -497,6 +543,11 @@ private fun LifeCard(
     }
 }
 
+/**
+ * One player's life. The number counts to its new value on a spring and the
+ * tile gives a small bounce; the change (+3, −5) shows beside it for a few
+ * seconds. Without motion the number simply changes. Words carry every state.
+ */
 @Composable
 private fun LifeTile(
     player: TablePlayer,
@@ -504,29 +555,79 @@ private fun LifeTile(
     mine: Boolean,
     winner: Boolean,
     onRequest: (() -> Unit)?,
+    reduceMotion: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val p = palette
     val life = player.life
-    val shown by animateIntAsState(life ?: 0, tween(400), label = "life")
+    val counter = remember { Animatable((life ?: 0).toFloat()) }
+    val bounce = remember { Animatable(1f) }
     var last by remember { mutableIntStateOf(life ?: 0) }
     var delta by remember { mutableIntStateOf(0) }
     if (life != null && life != last) {
-        delta = life - last
+        delta += life - last
         last = life
     }
+    LaunchedEffect(life, reduceMotion) {
+        val to = (life ?: 0).toFloat()
+        if (reduceMotion) {
+            counter.snapTo(to)
+            return@LaunchedEffect
+        }
+        launch {
+            bounce.snapTo(if (to < counter.value) .96f else 1.04f)
+            bounce.animateTo(1f, spring(DesignTokens.Motion.BOUNCY_DAMPING, DesignTokens.Motion.BOUNCY_STIFFNESS))
+        }
+        counter.animateTo(to, spring(DesignTokens.Motion.SNAPPY_DAMPING, DesignTokens.Motion.GENTLE_STIFFNESS))
+    }
+    // The running change fades after a pause, ready to sum the next burst of taps.
+    LaunchedEffect(delta) {
+        if (delta != 0) {
+            delay(2_500)
+            delta = 0
+        }
+    }
+    val shape = RoundedCornerShape(if (p.ornament) 14.dp else DesignTokens.Radius.lg)
     val border = when {
         winner -> p.accent
         active -> p.active
         mine -> p.lineStrong
         else -> p.line
     }
+    val outlined = p.ornament || active || winner || p.bg == Color.Black
+    val pressed = remember { MutableInteractionSource() }
+    val isPressed by pressed.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        if (isPressed && !reduceMotion) .97f else 1f,
+        spring(DesignTokens.Motion.SNAPPY_DAMPING, DesignTokens.Motion.SNAPPY_STIFFNESS),
+        label = "press",
+    )
     Column(
         modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (mine) p.surface3 else p.surface2)
-            .border(if (active || winner) 2.dp else 1.dp, border, RoundedCornerShape(14.dp))
-            .then(if (onRequest != null) Modifier.clickable(onClickLabel = "Request a life change", onClick = onRequest) else Modifier)
+            .graphicsLayer {
+                val s = bounce.value * pressScale
+                scaleX = s
+                scaleY = s
+            }
+            .clip(shape)
+            .background(
+                when {
+                    !p.ornament && active -> p.activeSoft
+                    mine -> p.surface3
+                    else -> p.surface2
+                },
+            )
+            .then(if (outlined) Modifier.border(if (active || winner) 2.dp else 1.dp, border, shape) else Modifier)
+            .then(
+                if (onRequest != null) {
+                    Modifier.clickable(
+                        interactionSource = pressed,
+                        indication = LocalIndication.current,
+                        onClickLabel = "Request a life change",
+                        onClick = onRequest,
+                    )
+                } else Modifier,
+            )
             .padding(12.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${player.label}, life ${life ?: "not set"}" +
@@ -541,20 +642,36 @@ private fun LifeTile(
                 color = p.text,
                 style = MaterialTheme.typography.labelLarge,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Box(contentAlignment = Alignment.TopEnd) {
             Text(
-                if (life == null) "—" else shown.toString(),
+                if (life == null) "—" else counter.value.roundToInt().toString(),
                 color = if (player.eliminated) p.faint else p.text,
                 style = MaterialTheme.typography.displaySmall,
-                modifier = Modifier.padding(horizontal = 18.dp),
+                textDecoration = if (player.eliminated) TextDecoration.LineThrough else null,
+                modifier = Modifier.padding(horizontal = 22.dp),
             )
-            if (delta != 0) {
+            // Remember the last non-zero change so it stays readable while fading out.
+            var shownDelta by remember { mutableIntStateOf(0) }
+            if (delta != 0) shownDelta = delta
+            val deltaAlpha by animateFloatAsState(
+                if (delta != 0) 1f else 0f,
+                if (reduceMotion) snap<Float>() else tween<Float>(if (delta != 0) DesignTokens.Motion.FAST_MS else DesignTokens.Motion.SLOW_MS),
+                label = "deltaAlpha",
+            )
+            if (shownDelta != 0 && deltaAlpha > 0f) {
                 Text(
-                    (if (delta > 0) "+" else "") + delta,
-                    color = if (delta > 0) p.good else p.bad,
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold),
+                    (if (shownDelta > 0) "+" else "") + shownDelta,
+                    color = if (shownDelta > 0) p.good else p.bad,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold, fontFeatureSettings = TABULAR),
+                    modifier = Modifier.graphicsLayer {
+                        alpha = deltaAlpha
+                        val s = .6f + .4f * deltaAlpha
+                        scaleX = s
+                        scaleY = s
+                    },
                 )
             }
         }
@@ -586,25 +703,30 @@ internal fun lifeSteps(profile: GameProfile): LifeSteps =
 @Composable
 private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean, steps: LifeSteps) {
     val p = palette
+    val haptics = LocalHapticFeedback.current
     var custom by rememberSaveable { mutableStateOf("") }
+    val shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(p.inset)
-            .border(1.dp, p.line, RoundedCornerShape(12.dp))
+            .clip(shape)
+            .background(if (p.ornament) p.inset else p.fill)
+            .then(if (p.ornament) Modifier.border(1.dp, p.line, shape) else Modifier)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("My life", color = p.muted, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            Text(life?.toString() ?: "—", color = p.text, style = MaterialTheme.typography.headlineLarge)
+            Text(life?.toString() ?: "—", color = p.text, style = MaterialTheme.typography.headlineLarge.copy(fontFeatureSettings = TABULAR))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(-steps.big, -steps.small, steps.small, steps.big).forEach { step ->
                 ToneButton(
                     (if (step > 0) "+" else "−") + kotlin.math.abs(step),
-                    { onChange(step) },
+                    {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                        onChange(step)
+                    },
                     Modifier.weight(1f),
                     tone = if (step > 0) Tone.GOOD else Tone.BAD,
                     enabled = !busy,

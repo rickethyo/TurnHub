@@ -1,6 +1,20 @@
 package com.turnhub.android.ui.home
 
-import androidx.compose.foundation.Canvas
+import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
+import com.turnhub.android.ui.theme.DesignTokens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,9 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -80,8 +92,12 @@ import com.turnhub.android.ui.setup.SetupActions
 import com.turnhub.android.ui.setup.SetupScreen
 import com.turnhub.android.ui.manual.ManualScreen
 
-private enum class HomeTab(val label: String) {
-    GAME("Game"), PLAYERS("Players"), ACCOUNT("Account"), SETTINGS("Settings"), DEV("Dev"),
+private enum class HomeTab(val label: String, @DrawableRes val icon: Int) {
+    GAME("Game", DesignTokens.Icons.timer),
+    PLAYERS("Players", DesignTokens.Icons.users),
+    ACCOUNT("Me", DesignTokens.Icons.user),
+    SETTINGS("Settings", DesignTokens.Icons.sliders),
+    DEV("Developer", DesignTokens.Icons.signal),
 }
 
 /**
@@ -103,7 +119,7 @@ fun HomeScreen(
     discoveryActions: DiscoveryActions = DiscoveryActions(),
     gameActions: GameActions = GameActions(),
     accountActions: AccountActions = AccountActions(),
-    theme: TurnHubThemeChoice = TurnHubThemeChoice.BRASS,
+    theme: TurnHubThemeChoice = TurnHubThemeChoice.AUTO,
     reduceMotion: Boolean = false,
     onSignInSubmit: (ProfileSummary, String) -> Unit = { _, _ -> },
     onSignInDismiss: () -> Unit = {},
@@ -126,6 +142,7 @@ fun HomeScreen(
         AccessibilityDialog(prompt = prompt, onSave = onAccessibilitySave, onDismiss = onAccessibilityDismiss)
     }
     val p = palette
+    val haptics = LocalHapticFeedback.current
     val summary = uiState.tableSummary
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
     val me = uiState.me()
@@ -160,21 +177,41 @@ fun HomeScreen(
         },
         bottomBar = {
             if (summary != null && !setup.visible) {
-                NavigationBar(containerColor = p.surface, tonalElevation = 0.dp) {
+                // A translucent bar over the content with a hairline top edge,
+                // drawn behind the gesture area (edge-to-edge).
+                NavigationBar(
+                    containerColor = if (p.ornament) p.surface else p.surface.copy(alpha = .94f),
+                    tonalElevation = 0.dp,
+                    modifier = Modifier.drawBehind {
+                        drawLine(p.line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
+                    },
+                ) {
                     tabs.forEach { entry ->
+                        val selected = tab == entry
                         NavigationBarItem(
-                            selected = tab == entry,
-                            onClick = { tab = entry },
+                            selected = selected,
+                            onClick = {
+                                if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                tab = entry
+                            },
                             icon = {
                                 BadgedBox(badge = { if (entry == HomeTab.GAME && incomingRequest) Badge { Text("!") } }) {
-                                    TabIcon(entry, if (tab == entry) p.accentHi else p.muted)
+                                    Icon(painterResource(entry.icon), contentDescription = null, modifier = Modifier.size(24.dp))
                                 }
                             },
-                            label = { Text(entry.label) },
+                            label = {
+                                Text(
+                                    entry.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                )
+                            },
                             colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = if (p.dark) p.accentHi else p.accent,
                                 selectedTextColor = if (p.dark) p.accentHi else p.accent,
+                                unselectedIconColor = p.muted,
                                 unselectedTextColor = p.muted,
-                                indicatorColor = p.surface3,
+                                indicatorColor = if (p.ornament) p.surface3 else p.accentSoft,
                             ),
                         )
                     }
@@ -214,15 +251,32 @@ fun HomeScreen(
                     ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                 } else {
                     if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
-                    when (tab) {
-                        HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
-                        HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText)
-                        HomeTab.ACCOUNT -> {
-                            if (admin.presence?.setup == true) AdminSetupCard(adminActions)
-                            AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
+                    // A short fade and rise between tabs; none when motion is reduced.
+                    AnimatedContent(
+                        targetState = tab,
+                        transitionSpec = {
+                            if (reduceMotion) {
+                                EnterTransition.None togetherWith ExitTransition.None
+                            } else {
+                                (fadeIn(tween(DesignTokens.Motion.BASE_MS)) +
+                                    slideInVertically(tween(DesignTokens.Motion.BASE_MS)) { it / 40 }) togetherWith
+                                    fadeOut(tween(DesignTokens.Motion.INSTANT_MS))
+                            }
+                        },
+                        label = "tab",
+                    ) { shown ->
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            when (shown) {
+                                HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
+                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText)
+                                HomeTab.ACCOUNT -> {
+                                    if (admin.presence?.setup == true) AdminSetupCard(adminActions)
+                                    AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
+                                }
+                                HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, uiState.avatars, adminActions) }
+                                HomeTab.DEV -> DevTab(admin, adminActions)
+                            }
                         }
-                        HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, uiState.avatars, adminActions) }
-                        HomeTab.DEV -> DevTab(admin, adminActions)
                     }
                 }
                 Text(
@@ -249,11 +303,13 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        GearMark(34.dp, spinning = running, reduceMotion = reduceMotion)
+        GearMark(if (p.ornament) 34.dp else 28.dp, spinning = running, reduceMotion = reduceMotion)
         Column(Modifier.weight(1f)) {
             Text("TurnHub", color = p.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),
                 modifier = Modifier.semantics { heading() })
-            Text("ATLAS TABLE CONSOLE", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
+            if (p.ornament) {
+                Text("ATLAS TABLE CONSOLE", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
+            }
         }
         ConnectionPill(uiState)
         ManualButton(onManualClick)
@@ -316,11 +372,14 @@ private fun ConnectionPill(uiState: HomeUiState) {
         uiState.connectionState == AtlasConnectionState.CONNECTING -> "Connecting" to p.warn
         else -> "Offline" to p.bad
     }
+    val pill = RoundedCornerShape(99.dp)
     Row(
         Modifier
-            .clip(RoundedCornerShape(99.dp))
-            .background(p.inset)
-            .border(1.dp, color.copy(alpha = .5f), RoundedCornerShape(99.dp))
+            .clip(pill)
+            .then(
+                if (p.ornament || p.bg == Color.Black) Modifier.background(p.inset).border(1.dp, color.copy(alpha = .5f), pill)
+                else Modifier.background(color.copy(alpha = .14f)),
+            )
             .padding(horizontal = 10.dp, vertical = 6.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         verticalAlignment = Alignment.CenterVertically,
@@ -328,44 +387,6 @@ private fun ConnectionPill(uiState: HomeUiState) {
     ) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Text(text, color = color, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-    }
-}
-
-@Composable
-private fun TabIcon(tab: HomeTab, color: Color) {
-    Canvas(Modifier.size(24.dp).clearAndSetSemantics { }) {
-        val s = size.minDimension
-        val stroke = Stroke(width = s * .075f)
-        when (tab) {
-            HomeTab.GAME -> {
-                drawCircle(color, s * .33f, Offset(s * .5f, s * .55f), style = stroke)
-                drawLine(color, Offset(s * .5f, s * .55f), Offset(s * .66f, s * .39f), s * .075f)
-                drawLine(color, Offset(s * .4f, s * .1f), Offset(s * .6f, s * .1f), s * .075f)
-            }
-            HomeTab.PLAYERS -> {
-                drawCircle(color, s * .14f, Offset(s * .37f, s * .33f), style = stroke)
-                drawArc(color, 180f, 180f, false, Offset(s * .12f, s * .6f), Size(s * .5f, s * .5f), style = stroke)
-                drawCircle(color, s * .11f, Offset(s * .72f, s * .37f), style = stroke)
-                drawArc(color, 200f, 140f, false, Offset(s * .56f, s * .62f), Size(s * .36f, s * .4f), style = stroke)
-            }
-            HomeTab.SETTINGS -> {
-                drawLine(color, Offset(s * .15f, s * .3f), Offset(s * .85f, s * .3f), s * .075f)
-                drawLine(color, Offset(s * .15f, s * .7f), Offset(s * .85f, s * .7f), s * .075f)
-                drawCircle(color, s * .1f, Offset(s * .62f, s * .3f))
-                drawCircle(color, s * .1f, Offset(s * .38f, s * .7f))
-            }
-            HomeTab.DEV -> {
-                drawRoundRect(color, Offset(s * .1f, s * .18f), Size(s * .8f, s * .64f),
-                    androidx.compose.ui.geometry.CornerRadius(s * .1f), style = stroke)
-                drawLine(color, Offset(s * .3f, s * .4f), Offset(s * .42f, s * .5f), s * .075f)
-                drawLine(color, Offset(s * .42f, s * .5f), Offset(s * .3f, s * .6f), s * .075f)
-                drawLine(color, Offset(s * .5f, s * .62f), Offset(s * .7f, s * .62f), s * .075f)
-            }
-            HomeTab.ACCOUNT -> {
-                drawCircle(color, s * .17f, Offset(s * .5f, s * .32f), style = stroke)
-                drawArc(color, 180f, 180f, false, Offset(s * .18f, s * .6f), Size(s * .64f, s * .6f), style = stroke)
-            }
-        }
     }
 }
 

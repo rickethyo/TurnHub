@@ -48,14 +48,19 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.turnhub.android.protocol.AvatarIcon
+import com.turnhub.android.ui.theme.DesignTokens
+import com.turnhub.android.ui.theme.TABULAR
 import com.turnhub.android.ui.theme.TurnHubPalette
 import com.turnhub.android.ui.theme.palette
+import com.turnhub.android.ui.theme.toTextStyle
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -79,7 +84,11 @@ fun Modifier.tableBackground(p: TurnHubPalette): Modifier = drawBehind {
     )
 }
 
-/** A brass panel: soft top sheen, hairline border and, where the theme has them, corner rivets. */
+/**
+ * A card. In the modern themes a flat rounded surface (a hairline edge on dark
+ * backgrounds, where a fill alone reads poorly); in Brass a panel with a soft
+ * top sheen, hairline border and corner rivets.
+ */
 @Composable
 fun BrassCard(
     modifier: Modifier = Modifier,
@@ -88,22 +97,28 @@ fun BrassCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = palette
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(if (p.ornament) 18.dp else DesignTokens.Radius.lg)
+    val edge = highlight != null || p.ornament || p.dark
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .background(p.surface)
-            .drawBehind {
-                drawRect(
-                    Brush.verticalGradient(
-                        0f to p.text.copy(alpha = if (p.dark) .045f else .5f),
-                        .38f to Color.Transparent,
-                    ),
-                )
-                if (p.rivets) drawRivets(p)
-            }
-            .border(BorderStroke(if (highlight != null) 2.dp else 1.dp, highlight ?: p.line), shape)
+            .then(
+                if (p.ornament) Modifier.drawBehind {
+                    drawRect(
+                        Brush.verticalGradient(
+                            0f to p.text.copy(alpha = if (p.dark) .045f else .5f),
+                            .38f to Color.Transparent,
+                        ),
+                    )
+                    if (p.rivets) drawRivets(p)
+                } else Modifier,
+            )
+            .then(
+                if (edge) Modifier.border(BorderStroke(if (highlight != null) 2.dp else 1.dp, highlight ?: p.line), shape)
+                else Modifier,
+            )
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
@@ -121,15 +136,31 @@ private fun DrawScope.drawRivets(p: TurnHubPalette) {
     }
 }
 
-/** The small uppercase gold label with a fading rule, as on every portal card. */
+/**
+ * A card's section label: a quiet uppercase caption in the modern themes, the
+ * gold label with a fading rule in Brass.
+ */
 @Composable
 fun Eyebrow(text: String, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
     val p = palette
+    if (!p.ornament) {
+        Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text.uppercase(),
+                color = p.muted,
+                style = DesignTokens.Type.eyebrow.toTextStyle(),
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
+            trailing()
+        }
+        return
+    }
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text.uppercase(),
             color = if (p.dark) p.accentHi else p.accent,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 2.sp),
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.width(10.dp))
         Box(
@@ -163,11 +194,18 @@ fun toneColor(tone: Tone): Color {
 fun StatusBadge(text: String, tone: Tone = Tone.NEUTRAL, modifier: Modifier = Modifier) {
     val p = palette
     val color = toneColor(tone)
+    val pill = RoundedCornerShape(99.dp)
+    // Modern: a soft tint of the tone. Brass and High contrast keep the outline.
+    val outlined = p.ornament || p.bg == Color.Black
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(99.dp))
-            .background(p.inset)
-            .border(1.dp, if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .5f), RoundedCornerShape(99.dp))
+            .clip(pill)
+            .then(
+                if (outlined) Modifier
+                    .background(p.inset)
+                    .border(1.dp, if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .5f), pill)
+                else Modifier.background(if (tone == Tone.NEUTRAL) p.fillStrong else color.copy(alpha = .14f)),
+            )
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -186,7 +224,7 @@ fun AccentButton(
     enabled: Boolean = true,
 ) {
     val p = palette
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md)
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -224,13 +262,19 @@ fun ToneButton(
 ) {
     val p = palette
     val color = if (tone == Tone.NEUTRAL) p.text else toneColor(tone)
+    // Modern: a tinted fill with no outline (High contrast keeps one).
+    val outlined = p.ornament || p.bg == Color.Black
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, if (enabled) (if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .7f)) else p.line),
+        shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md),
+        border = if (outlined) BorderStroke(1.dp, if (enabled) (if (tone == Tone.NEUTRAL) p.lineStrong else color.copy(alpha = .7f)) else p.line) else null,
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = p.surface2,
+            containerColor = when {
+                outlined -> p.surface2
+                tone == Tone.NEUTRAL -> p.fillStrong
+                else -> color.copy(alpha = .14f)
+            },
             contentColor = color,
             disabledContainerColor = p.surface2.copy(alpha = .5f),
             disabledContentColor = p.faint,
@@ -251,6 +295,10 @@ fun StatusRow(label: String, value: String) {
             .fillMaxWidth()
             .drawBehind {
                 val y = size.height
+                if (!p.ornament) {
+                    drawLine(p.line, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                    return@drawBehind
+                }
                 var x = 0f
                 val dash = 4.dp.toPx()
                 while (x < size.width) {
@@ -271,15 +319,21 @@ fun StatusRow(label: String, value: String) {
 @Composable
 fun Metric(label: String, value: String, modifier: Modifier = Modifier) {
     val p = palette
+    val shape = RoundedCornerShape(if (p.ornament) 12.dp else DesignTokens.Radius.md)
     Column(
         modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(p.inset)
-            .border(1.dp, p.line, RoundedCornerShape(12.dp))
+            .clip(shape)
+            .background(if (p.ornament) p.inset else p.fill)
+            .then(if (p.ornament) Modifier.border(1.dp, p.line, shape) else Modifier)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(label.uppercase(), color = p.faint, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp))
-        Text(value, color = p.text, style = MaterialTheme.typography.titleLarge, maxLines = 1)
+        Text(
+            value,
+            color = p.text,
+            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = TABULAR),
+            maxLines = 1,
+        )
     }
 }
 
@@ -391,6 +445,15 @@ fun Gauge(
         Canvas(Modifier.size(size).clearAndSetSemantics { }) {
             val s = this.size.minDimension
             val c = center
+            if (!p.ornament) {
+                // Modern: a clean 270° ring, no bezel, ticks or needle.
+                val r = s * .42f
+                val ring = Stroke(width = s * .07f, cap = StrokeCap.Round)
+                val tl = Offset(c.x - r, c.y - r)
+                drawArc(p.fillStrong, 135f, 270f, false, tl, Size(r * 2, r * 2), style = ring)
+                if (animated > 0f) drawArc(arc, 135f, 270f * animated, false, tl, Size(r * 2, r * 2), style = ring)
+                return@Canvas
+            }
             // Bezel and face.
             drawCircle(Brush.verticalGradient(listOf(p.accentHi, p.accent, p.accentLo)), s * .49f, c)
             drawCircle(Brush.radialGradient(listOf(p.surface3, p.inset), c, s * .45f), s * .44f, c)
@@ -428,13 +491,16 @@ fun Gauge(
             drawCircle(p.inset, s * .018f, c)
         }
         Column(
-            Modifier.padding(top = size * .42f),
+            Modifier.padding(top = if (p.ornament) size * .42f else 0.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 value,
                 color = p.text,
-                style = MaterialTheme.typography.headlineSmall.copy(fontSize = (size.value * .12f).sp),
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = (size.value * (if (p.ornament) .12f else .17f)).sp,
+                    fontFeatureSettings = TABULAR,
+                ),
                 maxLines = 1,
             )
             Text(caption.uppercase(), color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp))

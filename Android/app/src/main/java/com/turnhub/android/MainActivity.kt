@@ -9,12 +9,15 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -40,6 +43,7 @@ import com.turnhub.android.data.TargetedAtlasWifiLink
 import com.turnhub.android.ui.home.HomeScreen
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
+import com.turnhub.android.ui.theme.palette
 
 /**
  * Single-Activity host for this milestone's one screen. A later milestone may
@@ -147,7 +151,7 @@ class MainActivity : ComponentActivity() {
 
     // Appearance is a phone-only preference, like the portal's per-browser theme.
     private val uiPrefs by lazy { getSharedPreferences("turnhub_ui", MODE_PRIVATE) }
-    private var theme by mutableStateOf(TurnHubThemeChoice.BRASS)
+    private var theme by mutableStateOf(TurnHubThemeChoice.AUTO)
     private var reduceMotion by mutableStateOf(false)
 
     private fun chooseTheme(choice: TurnHubThemeChoice) {
@@ -193,7 +197,19 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /** Transparent system bars whose icons suit the theme drawn behind them. */
+    private fun matchSystemBars(dark: Boolean) {
+        val style = if (dark) {
+            SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        }
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Edge to edge from the first frame; the theme corrects the bar icons below.
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
@@ -202,6 +218,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { homeViewModel.updatesAvailable.collect(::onUpdatesAvailable) }
         setContent {
             TurnHubTheme(choice = theme) {
+                val dark = palette.dark
+                LaunchedEffect(dark) { matchSystemBars(dark) }
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,

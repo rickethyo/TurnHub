@@ -2,5 +2,7 @@
 <resources>
     <style name="Theme.TurnHub" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_dark</item>
+        <item name="android:windowSplashScreenBackground">@color/window_dark</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
     </style>
 </resources>

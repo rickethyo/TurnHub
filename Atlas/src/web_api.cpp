@@ -140,12 +140,8 @@ void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-void servePage(WebServer &server, const char *html) {
-  server.sendHeader("Cache-Control", "no-store");
-  server.send_P(200, "text/html", html);
-}
-void statsPage(WebServer &server) { servePage(server, TurnHubStatsPage::STATS_HTML); }
-void loginPage(WebServer &server) { servePage(server, TurnHubLoginPage::HTML); }
+void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubStatsPage::STATS_HTML); }
+void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
 
 struct Route {
   const char *uri;

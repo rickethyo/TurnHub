@@ -258,7 +258,10 @@ private fun AppearanceCard(theme: TurnHubThemeChoice, reduceMotion: Boolean, act
         Eyebrow("Appearance")
         Text("Themes change only how this phone looks. They never change the game.", color = p.muted, style = MaterialTheme.typography.bodySmall)
         TurnHubThemeChoice.entries.forEach { choice ->
-            val swatch = TurnHubPalette.of(choice)
+            // Automatic shows both themes it switches between.
+            val swatch = choice.token?.let { theme ->
+                TurnHubPalette.of(theme).let { listOf(it.bg, it.surface3, it.accent, it.active) }
+            } ?: listOf(TurnHubPalette.Graphite, TurnHubPalette.Daylight).flatMap { listOf(it.bg, it.accent) }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -276,7 +279,7 @@ private fun AppearanceCard(theme: TurnHubThemeChoice, reduceMotion: Boolean, act
                     Text(choice.blurb, color = p.muted, style = MaterialTheme.typography.bodySmall)
                 }
                 Row(Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, p.lineStrong, RoundedCornerShape(6.dp))) {
-                    listOf(swatch.bg, swatch.surface3, swatch.accent, swatch.active).forEach {
+                    swatch.forEach {
                         Box(Modifier.size(width = 12.dp, height = 24.dp).background(it))
                     }
                 }
