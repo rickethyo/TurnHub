@@ -33,6 +33,8 @@ does this: it tries a saved password, then this default, then prompts.
    avatars.
 3. Use `GET /api/profiles`, then `POST /api/session/login` with form fields
    `profileId` and `pin`, or `POST /api/profiles/register` with `name` and `pin`.
+   `pin` is the profile's secret: a PIN of 4 to 8 digits or a password of 8 to
+   64 UTF-8 bytes without control characters (since 2026-10-02).
    Keep the returned token private; send it in `X-TurnHub-Token` on authenticated
    requests. `POST /api/session/join` joins the authenticated profile.
 4. `GET /api/session/me` resolves the session's current `module`, `slot`, `player`

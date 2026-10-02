@@ -39,6 +39,9 @@ constexpr uint8_t MAX_WEB_SESSIONS = MAX_PLAYERS * 2;
 constexpr size_t TOKEN_LENGTH = 32;
 constexpr size_t PIN_HASH_LENGTH = 64;
 constexpr size_t MAX_NAME_LENGTH = 32;
+// A profile password (the alternative to a 4-8 digit PIN), in bytes.
+constexpr size_t MIN_PASSWORD_LENGTH = 8;
+constexpr size_t MAX_PASSWORD_LENGTH = 64;
 constexpr char TOKEN_HEADER[] = "X-TurnHub-Token";
 
 // A browser waiting for someone to choose Link phone on a physical Sigil,

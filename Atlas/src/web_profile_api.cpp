@@ -138,7 +138,7 @@ void handleRegistration(WebServer &server) {
   name.trim();
   const String pin = server.arg("pin");
   if (name.length() == 0 || name.length() > MAX_NAME_LENGTH || !validPin(pin)) {
-    sendError(server, 400, "A name (1-32 characters) and a 4-8 digit PIN are required");
+    sendError(server, 400, "A name (1-32 characters) and a 4-8 digit PIN or an 8-64 character password are required");
     return;
   }
   // Check before creating so a full session table does not orphan a profile.
@@ -208,7 +208,7 @@ void handleProfile(WebServer &server) {
   if (server.hasArg("pin")) {
     const String pin = server.arg("pin");
     if (!validPin(pin)) {
-      sendJson(server, 400, "{\"ok\":false,\"error\":\"PIN must be 4 to 8 digits\"}");
+      sendJson(server, 400, "{\"ok\":false,\"error\":\"Use a 4-8 digit PIN or a password of 8 to 64 characters\"}");
       return;
     }
     const String hash = profilePinHash(profileId, pin);

@@ -10,6 +10,11 @@
 #include "web_api.h"
 #include "web_pages.h"
 #include "portal_qr_asset.h"
+
+// This build's descriptor (main.cpp); a portal pack must carry the same magic.
+extern "C" const TurnHubFirmwarePackage::Descriptor atlasFirmwareDescriptor;
+#include "portal_pack.h"
+#include "sd_card.h"
 #if defined(TURNHUB_GZIP_PAGES)
 #include "web_pages_gzip.h"
 #endif
@@ -33,6 +38,35 @@ class AtlasFlashSink final : public TurnHubFirmwarePackage::Sink {
 AtlasFlashSink atlasSink;
 TurnHubFirmwarePackage::MbedtlsPackageCrypto atlasCrypto;
 TurnHubFirmwarePackage::Reader atlasReader;
+
+// Web portal pack uploads (portal_pack.h): checked like firmware, unpacked to
+// the SD card instead of flash. The installer is made once the card is known.
+TurnHubFirmwarePackage::Reader portalReader;
+TurnHubPortal::Installer *portalInstaller = nullptr;
+
+// Hashed portal assets (/assets/...) from the live pack on the card.
+class PortalAssetHandler final : public RequestHandler {
+ public:
+  bool canHandle(HTTPMethod method, String uri) override {
+    return method == HTTP_GET && uri.startsWith("/assets/");
+  }
+  bool handle(WebServer &server, HTTPMethod, String uri) override {
+    // Asset names carry a content hash, so a cached copy never goes stale.
+    if (!TurnHubAtlas::sdServePortalFile(server, uri.c_str() + 1, "public, max-age=31536000, immutable")) {
+      server.send(404, "text/plain", "Not found");
+    }
+    return true;
+  }
+};
+PortalAssetHandler portalAssetHandler;
+
+String portalVersionText() {
+  TurnHubFirmwarePackage::Version version{};
+  if (!TurnHubAtlas::sdPortalVersion(version)) return String();
+  char text[16];
+  TurnHubPortal::formatVersion(version, text, sizeof(text));
+  return String(text);
+}
 
 
 void printPartitionDiagnostic(
@@ -101,12 +135,12 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
   <header class="page-head"><a class="brand" href="/portal"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Firmware</span></span></a><a class="btn small ghost" href="/portal">← Back to TurnHub</a></header>
   <main class="card">
     <h1>Atlas Firmware Update</h1>
-    <p class="small">Upload a signed Atlas <code>.thfw</code> package.</p>
+    <p class="small">Upload a signed <code>.thfw</code> package: Atlas firmware, or the web portal pack (<code>portal-x.y.z.thfw</code>). A portal pack goes onto the microSD card and needs no restart.</p>
     <div class="notice" style="margin-top:14px">
       For safety, start updates only from Lobby or Game Over and <strong>verify at the table first (Device Settings in the portal: Verify at the table, then the code the Atlas screen shows), then upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
     </div>
     <div id="current" class="status">Reading current firmware...</div>
-    <div class="drop"><label for="file">Firmware image</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
+    <div class="drop"><label for="file">Firmware or portal package</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
     <button id="upload" class="primary" disabled>Upload &amp; Verify</button>
     <progress id="progress" max="100" value="0" aria-label="Upload progress"></progress>
     <p id="message" role="status" aria-live="polite"></p>
@@ -139,6 +173,46 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     } catch (_) {
       current.textContent = 'Unable to read current firmware identity.';
     }
+    try {
+      const portal = await (await fetch('/api/portal', { cache: 'no-store' })).json();
+      current.textContent += portal.installed ? ' · portal v' + portal.version
+        : (portal.card ? ' · no portal pack installed' : ' · no microSD card');
+    } catch (_) {}
+  }
+
+  // Byte 9 of a .thfw header is the product; 4 is the web portal pack.
+  async function packageProduct(f) {
+    const head = new Uint8Array(await f.slice(0, 16).arrayBuffer());
+    const magic = String.fromCharCode(...head.slice(0, 8));
+    return magic === 'THFWPKG1' ? head[9] : 0;
+  }
+
+  function uploadPortal(f) {
+    setMessage('Uploading the portal pack... Atlas checks the signature and unpacks it onto the microSD card.');
+    const form = new FormData();
+    form.append('portal', f);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/portal/install');
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) progress.value = Math.round((event.loaded / event.total) * 95);
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        progress.value = 100;
+        setMessage('Portal v' + data.version + ' installed. Reload the portal to see it.', 'ok');
+        loadBaseline();
+      } else {
+        setMessage(data.error || 'Portal install failed.', 'error');
+      }
+      button.disabled = false;
+    };
+    xhr.onerror = () => { setMessage('Connection lost during the upload; the previous portal is still installed.', 'error'); button.disabled = false; };
+    xhr.timeout = 300000;
+    xhr.ontimeout = () => { setMessage('The upload took too long and was stopped. The previous portal is still installed.', 'error'); button.disabled = false; };
+    xhr.setRequestHeader('X-TurnHub-Token', localStorage.getItem('turnhubSessionToken') || '');
+    xhr.send(form);
   }
 
   async function verifyRestart() {
@@ -183,10 +257,14 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     setMessage('');
   });
 
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
     if (!file.files.length) return;
 
     button.disabled = true;
+    if (await packageProduct(file.files[0]) === 4) {
+      uploadPortal(file.files[0]);
+      return;
+    }
     setMessage('Uploading... Atlas checks that you are still verified at the table when the upload begins.');
 
     const form = new FormData();
@@ -255,15 +333,31 @@ void OtaManager::begin() {
 #endif
   });
 
+  // The V1 portal comes from the pack on the microSD card when one is
+  // installed; the built-in portal in flash is the fallback, and stays
+  // reachable at /portal-classic (PORTAL_PACK.md).
   server_.on("/portal", HTTP_GET, [this]() {
-    server_.sendHeader("Cache-Control", "no-store");
-#if defined(TURNHUB_GZIP_PAGES)
-    server_.sendHeader("Content-Encoding", "gzip");
-    server_.send_P(200, "text/html", reinterpret_cast<const char *>(TurnHubWeb::PORTAL_HTML_GZIP), sizeof(TurnHubWeb::PORTAL_HTML_GZIP));
-#else
-    server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
-#endif
+    if (TurnHubAtlas::sdServePortalFile(server_, "index.html", "no-cache")) return;
+    serveClassicPortal();
   });
+  server_.on("/portal-classic", HTTP_GET, [this]() { serveClassicPortal(); });
+  server_.addHandler(&portalAssetHandler);
+
+  server_.on("/api/portal", HTTP_GET, [this]() {
+    server_.sendHeader("Cache-Control", "no-store");
+    const String version = portalVersionText();
+    String json = "{\"card\":";
+    json += TurnHubAtlas::sdCardReady() ? "true" : "false";
+    json += ",\"installed\":";
+    json += version.length() ? "true" : "false";
+    json += ",\"version\":\"" + version + "\"}";
+    server_.send(200, "application/json", json);
+  });
+  server_.on(
+      "/api/portal/install",
+      HTTP_POST,
+      [this]() { handlePortalComplete(); },
+      [this]() { handlePortalUpload(); });
 
   server_.on("/dev", HTTP_GET, [this]() {
     server_.sendHeader("Cache-Control", "no-store");
@@ -282,6 +376,125 @@ void OtaManager::begin() {
       [this]() { handleUpload(); });
 
   TurnHubWebApi::begin(server_);
+}
+
+void OtaManager::serveClassicPortal() {
+  server_.sendHeader("Cache-Control", "no-store");
+#if defined(TURNHUB_GZIP_PAGES)
+  server_.sendHeader("Content-Encoding", "gzip");
+  server_.send_P(200, "text/html", reinterpret_cast<const char *>(TurnHubWeb::PORTAL_HTML_GZIP), sizeof(TurnHubWeb::PORTAL_HTML_GZIP));
+#else
+  server_.send_P(200, "text/html", TurnHubWeb::PORTAL_HTML);
+#endif
+}
+
+void OtaManager::failPortal(const String &message) {
+  portalInProgress_ = false;
+  portalError_ = message;
+  if (portalInstaller != nullptr) portalInstaller->abort();
+  serialLog.print("ATLAS|PORTAL|ERROR|");
+  serialLog.println(message);
+}
+
+String OtaManager::portalErrorText() const {
+  using TurnHubFirmwarePackage::Error;
+  const Error error = portalReader.error();
+  // The installer's own error explains a sink refusal (Storage) or a failed
+  // commit after a good package (None); otherwise it may be a stale one.
+  if ((error == Error::Storage || error == Error::None) && portalInstaller != nullptr &&
+      portalInstaller->error() != TurnHubPortal::ArchiveError::None) {
+    if (portalInstaller->error() == TurnHubPortal::ArchiveError::Storage) {
+      return "Atlas could not write the portal to the microSD card";
+    }
+    return String("The portal pack is damaged (") + TurnHubPortal::archiveErrorName(portalInstaller->error()) + ")";
+  }
+  if (error == Error::WrongProduct) return "That package is firmware, not a portal pack";
+  if (error == Error::OlderVersion) {
+    return "Atlas already has portal v" + portalVersionText() + "; install the same or a newer pack";
+  }
+  if (error == Error::None) return "Atlas could not install the portal pack";
+  return TurnHubFirmwarePackage::errorMessage(error);
+}
+
+void OtaManager::handlePortalUpload() {
+  HTTPUpload &upload = server_.upload();
+  switch (upload.status) {
+    case UPLOAD_FILE_START: {
+      portalInProgress_ = false;
+      portalSuccess_ = false;
+      portalDenied_ = false;
+      portalError_ = "";
+      if (!TurnHubWebApi::hasPermission(server_, TurnHubAccounts::Admin) || !TurnHubWebApi::verifiedAtTable(server_) ||
+          allowedCallback_ == nullptr || !allowedCallback_() || inProgress()) {
+        portalDenied_ = true;
+        serialLog.println("ATLAS|PORTAL|DENIED");
+        return;
+      }
+      TurnHubPortal::Files *files = TurnHubAtlas::sdPortalFiles();
+      if (files == nullptr) {
+        portalError_ = "Atlas needs its microSD card for the portal. Insert the card that came with Atlas and try again";
+        return;
+      }
+      if (portalInstaller == nullptr) portalInstaller = new TurnHubPortal::Installer(*files, atlasFirmwareDescriptor.magic);
+      TurnHubFirmwarePackage::Version running{0, 0, 0};
+      TurnHubAtlas::sdPortalVersion(running);
+      portalReader.begin(atlasCrypto, {TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID,
+          TurnHubFirmwarePackage::productBit(TurnHubFirmwarePackage::Product::Portal), running,
+          TurnHubPortal::MAX_PACK_BYTES}, *portalInstaller);
+      portalInProgress_ = true;
+      portalBytes_ = 0;
+      serialLog.print("ATLAS|PORTAL|START|");
+      serialLog.println(upload.filename);
+      break;
+    }
+    case UPLOAD_FILE_WRITE:
+      if (!portalInProgress_) return;
+      if (!portalReader.write(upload.buf, upload.currentSize)) {
+        failPortal(portalErrorText());
+        return;
+      }
+      portalBytes_ += upload.currentSize;
+      break;
+    case UPLOAD_FILE_END:
+      if (!portalInProgress_) return;
+      portalInProgress_ = false;
+      if (!portalReader.finish() || !portalInstaller->commit()) {
+        failPortal(portalErrorText());
+        return;
+      }
+      portalSuccess_ = true;
+      TurnHubAtlas::sdPortalChanged();
+      serialLog.print("ATLAS|PORTAL|INSTALLED|");
+      serialLog.print(portalVersionText());
+      serialLog.print("|FILES|");
+      serialLog.println(portalInstaller->filesWritten());
+      break;
+    case UPLOAD_FILE_ABORTED:
+      if (portalInProgress_ && portalInstaller != nullptr) portalInstaller->abort();
+      portalInProgress_ = false;
+      serialLog.println("ATLAS|PORTAL|ABORTED");
+      break;
+    default:
+      break;
+  }
+}
+
+void OtaManager::handlePortalComplete() {
+  server_.sendHeader("Cache-Control", "no-store");
+  if (portalDenied_) {
+    server_.send(403, "application/json",
+        "{\"ok\":false,\"error\":\"Portal install not armed. Return to Lobby or Game Over and verify at the table in the portal (the code the Atlas screen shows), then start the upload within 10 minutes.\"}");
+    return;
+  }
+  if (!portalSuccess_) {
+    // The messages above are fixed text plus version digits: no quotes to escape.
+    const String error = portalError_.length() ? portalError_ : String("The upload ended before the portal pack arrived");
+    server_.send(500, "application/json", "{\"ok\":false,\"error\":\"" + error + "\"}");
+    return;
+  }
+  server_.send(200, "application/json",
+      "{\"ok\":true,\"version\":\"" + portalVersionText() + "\",\"files\":" +
+      String(portalInstaller->filesWritten()) + ",\"bytes\":" + String(portalBytes_) + "}");
 }
 
 void OtaManager::resetAttempt() {

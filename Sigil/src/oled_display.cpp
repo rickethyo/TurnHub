@@ -522,14 +522,16 @@ void OledDisplay::showReady(uint8_t sigilId) {
 void OledDisplay::showAtlasLost(uint8_t sigilId) {
   legendShown_ = false;
   if (!ready_) return;
-  // Drawn directly, not through status(): an open menu list must not cover
-  // it, since none of its actions can reach Atlas now.
+  // Only the device menu is offered (SigilMenu::setOffline): its legend
+  // (Menu on Up) on the bottom row, and the menu itself while open.
+  if (drawDeviceMenu()) return;
   char label[12];
   snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
   display_->clearDisplay();
   header("TurnHub", label);
   bigLine("ATLAS LOST");
   text("Searching for Atlas", 41, 1, Align::Center);
+  legend(true);
   display_->display();
 }
 

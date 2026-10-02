@@ -3,6 +3,15 @@
 Implemented locally on 2026-09-21; firmware build and focused native/browser checks
 pass. Hardware playtesting remains required. No profile wipe or flash performed.
 
+## PINs and passwords
+
+A profile's secret is either a PIN (4 to 8 digits) or a password (8 to 64
+UTF-8 bytes, no control characters), owner request 2026-10-02. Both travel in
+the same `pin` field, are hashed the same way (`profilePinHash`) and pass the
+same login limiter, so "PIN" in the rest of this document means either.
+Status: **Implemented** in source; host scenarios cover registration, change
+and login with a password. The user manual still says PIN only (staged).
+
 ## Initial setup
 
 On a new Atlas or an existing installation without an Admin, the portal shows a

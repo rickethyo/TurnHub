@@ -15,6 +15,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
 | `TestHarness/` | ESP32 hardware-in-the-loop harness: plays as two virtual menu Sigils against a real Atlas; premade tests start from the Atlas touchscreen (see its README) | PlatformIO, Arduino ESP32, C++ |
 | `KiCad/` | Sigil PCB/schematic, plus Python scripts in `PCB/Sigilv1/tools/` that build and verify the schematic | KiCad, Python |
+| `design/` | V1 design system shared by the portal and Android: `tokens.json` (themes, type, motion), the icon set, Inter and Cinzel fonts, web components and the style guide. `python3 design/build_tokens.py` regenerates `design/dist/` and Android's `DesignTokens.kt` and `ic_th_*` drawables (CI runs `--check`); see `design/README.md` | Python (stdlib) |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
 
 Earlier Python/Raspberry Pi generations are deliberately **not in this repo**; they survive only as history in `Documentation/engineering/GENERATION_HISTORY.md`. Don't reintroduce references to a `Controller/` directory, or its tooling (root `requirements.txt`, the Visual Studio Python project, the pySerial dependency).
@@ -54,6 +55,7 @@ python Atlas/tests/host/audit_adapters.py          # guard: adapters must not by
 python Atlas/tests/host/check_client_contract.py   # after the host suite: validate build/client-*.json + protocol/examples against schemas
 node Atlas/tests/host/portal_smoke.cjs             # optional Playwright + Edge browser smoke
 node Atlas/tests/host/counter_smoke.cjs            # optional two-context life/Commander UI smoke
+python3 Atlas/web/build.py                         # SD portal pack (PORTAL_PACK.md); PORTAL_PACK=1 runs both smokes against it
 ```
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
 - **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_display.cpp` and `atlas_art.cpp` (LovyanGFX), `atlas_speaker.cpp` (ESP32 DAC), `sd_card.cpp` (Arduino SD), `factory_reset.cpp` (NVS erase + restart) and `secure_link_backend.cpp` (mbedTLS) are left out, and `test_globals.cpp` stubs them.

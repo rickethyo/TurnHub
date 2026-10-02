@@ -10,7 +10,8 @@
 // Click (Select) is the likely action. Outside a game, the first of Up/Down
 // with nothing on it is Menu: a device menu, also a compass, with Unpair
 // (held) on the click, Sleep on Up, Factory reset (held longer) on Down and
-// Back on Left.
+// Back on Left. While Atlas is lost (setOffline) only that Menu is offered,
+// on Up, so a Sigil whose Atlas is gone can still be unpaired or reset.
 // Deliberate actions (ActionHold) are sent only once their key is held.
 
 #include <stdint.h>
@@ -74,6 +75,11 @@ class SigilMenu {
 
   void applyMenuState2(int32_t value, uint32_t nowMs);
   void clear();  // Unpaired: no menu until Atlas sends one.
+  // Atlas lost: drop Atlas's menu and offer only the device menu (Menu on Up).
+  // endOffline() takes it away again, unless Atlas has sent a menu since.
+  void setOffline();
+  void endOffline();
+  bool offline() const { return offline_; }
   void setHoldTimes(uint16_t longPressMs, uint16_t winHoldMs);
 
   bool active() const { return active_; }
@@ -123,6 +129,7 @@ class SigilMenu {
 
   const bool holdOnScreen_;
   bool active_ = false;
+  bool offline_ = false;
   uint32_t actions_ = 0;
   uint8_t revision_ = 0;
   uint16_t longPressMs_ = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;

@@ -269,7 +269,7 @@ The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 
 
 The ring of lights shows the same thing as the screen: in the lobby it shows your player number as lit lights; during the game it shows your turn, waiting, paused, warnings and prompts. The words on the screen always carry the meaning, so nothing depends on color alone.
 
-If a Sigil cannot hear Atlas for about 7 seconds (Atlas is switched off, restarting or out of range), its screen says Atlas lost, Searching… (NO ATLAS on the OLED Sigil) and one orange light sweeps back and forth around the ring. With Reduced motion, two opposite lights stay on instead. The menu is hidden and presses are ignored, because nothing can reach Atlas; the Pair button still works. When Atlas answers again, the Sigil returns to its normal screen on its own.
+If a Sigil cannot hear Atlas for about 7 seconds (Atlas is switched off, restarting or out of range), its screen says Atlas lost, Searching… (NO ATLAS on the OLED Sigil) and one orange light sweeps back and forth around the ring. With Reduced motion, two opposite lights stay on instead. Game and lobby actions are hidden and their presses ignored, because nothing can reach Atlas. Menu stays on Up, so you can still put the Sigil to sleep, unpair it or factory reset it from its device menu; the Pair button still works too. When Atlas answers again, the Sigil returns to its normal screen on its own.
 
 # 10. Life Tracking
 
