@@ -124,6 +124,23 @@ window.
   screen is physical presence. That is deliberate (owner request) and means
   anyone at the table can erase Atlas between games; the 10 s hold, the
   Menu > Device path and the countdown hint are the guard.
+- **Sleep (owner 2026-10-02).** Both device menus have **Sleep**, a tap, and
+  waking is a restart (deep sleep: saved data and pairings survive, RAM does
+  not).
+  - Sigil: device menu, **Up**. The e-ink keeps an "Asleep / Click joystick to
+    wake" card; the OLED and ring go dark. A joystick click (GPIO32) or BOOT
+    wakes it, and it reconnects. Atlas just sees it go quiet.
+  - Atlas: Menu > Device > **Sleep**, between games, touchscreen only (the
+    `Sleep` Intent; the web cannot send it). The notice "Going to sleep. Touch
+    the screen to wake" shows for 2.5 s, then the backlight, RGB LED and
+    amplifier are held off. A touch (the XPT2046 pen interrupt, GPIO36) or
+    BOOT (GPIO0) wakes it. The lobby empties and phones sign in again; Sigils
+    show Atlas lost until it is back. Refused during a firmware update or a
+    scheduled factory reset, and a factory reset is refused while Sleep is
+    pending.
+  - Current draw asleep is *Needs verification*: the DevKit regulator, USB
+    bridge, power LED and the Sigil's NeoPixels still draw a few mA, so this is
+    not yet a battery "off" (a soft-latch power switch would be).
 - The test harness stops at unpair (3 s); it has nothing else to erase.
 - Hardware verification of the tones, timing and BOOT wiring is *Needs verification*.
 

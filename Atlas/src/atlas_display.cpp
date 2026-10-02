@@ -7,6 +7,9 @@
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
+#include <driver/gpio.h>
+#include <driver/rtc_io.h>
+#include <esp_sleep.h>
 
 #include "atlas_art.h"
 #include "config.h"
@@ -420,6 +423,72 @@ void serviceAtlasDisplay(uint32_t nowMs) {
   AtlasScreen screen;
   buildAtlasScreen(nowMs, screen);
   renderAtlasScreen(screen, nowMs);
+}
+
+namespace {
+// Drives a pin to a level that lasts through deep sleep (outputs otherwise
+// float once the chip sleeps). The reset takes the backlight off its PWM.
+void holdPin(int8_t pin, int level) {
+  const gpio_num_t gpio = static_cast<gpio_num_t>(pin);
+  gpio_reset_pin(gpio);
+  gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
+  gpio_set_level(gpio, level);
+  gpio_hold_en(gpio);
+}
+
+constexpr gpio_num_t WAKE_TOUCH_PIN = static_cast<gpio_num_t>(AtlasConfig::TOUCH_IRQ_PIN);
+constexpr gpio_num_t WAKE_BOOT_PIN = static_cast<gpio_num_t>(AtlasConfig::BOOT_BUTTON_PIN);
+// The wake is level-triggered, so a finger still on the panel would wake
+// Atlas at once; wait this long at most for it to lift.
+constexpr uint32_t SLEEP_RELEASE_WAIT_MS = 3000;
+}  // namespace
+
+void sleepAtlas() {
+  using namespace AtlasConfig;
+  const uint32_t startedMs = millis();
+  while ((digitalRead(TOUCH_IRQ_PIN) == LOW || digitalRead(BOOT_BUTTON_PIN) == LOW) &&
+         millis() - startedMs < SLEEP_RELEASE_WAIT_MS) {
+    delay(10);
+  }
+  if (displayReady) {
+    tft.setBrightness(0);
+    tft.sleep();
+  }
+  // Power the touch controller down with its pen interrupt armed: that line
+  // is the wake signal.
+  digitalWrite(TOUCH_CS_PIN, LOW);
+  touchTransfer(0xD0);
+  digitalWrite(TOUCH_CS_PIN, HIGH);
+  serialLog.println("ATLAS|SLEEP|POWER_DOWN");
+  Serial.flush();
+  holdPin(TFT_BACKLIGHT_PIN, LOW);
+  holdPin(TOUCH_CS_PIN, HIGH);
+  holdPin(RGB_RED_PIN, HIGH);  // Common anode: high is off.
+  holdPin(RGB_GREEN_PIN, HIGH);
+  holdPin(RGB_BLUE_PIN, HIGH);
+  holdPin(AUDIO_ENABLE_PIN, HIGH);  // Amplifier off.
+  gpio_deep_sleep_hold_en();
+  // The pen interrupt line has its pull-up on the board (GPIO36 has no
+  // internal one); BOOT's moves to the RTC domain, which ext0 keeps on.
+  rtc_gpio_pullup_en(WAKE_BOOT_PIN);
+  rtc_gpio_pulldown_dis(WAKE_BOOT_PIN);
+  esp_sleep_enable_ext0_wakeup(WAKE_TOUCH_PIN, 0);
+  esp_sleep_enable_ext1_wakeup(1ULL << WAKE_BOOT_PIN, ESP_EXT1_WAKEUP_ALL_LOW);
+  esp_deep_sleep_start();
+}
+
+void releaseSleepWakePins() {
+  const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
+  if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1) {
+    rtc_gpio_deinit(WAKE_TOUCH_PIN);
+    rtc_gpio_deinit(WAKE_BOOT_PIN);
+  }
+  using namespace AtlasConfig;
+  gpio_deep_sleep_hold_dis();
+  const int8_t held[] = {TFT_BACKLIGHT_PIN, TOUCH_CS_PIN, static_cast<int8_t>(RGB_RED_PIN),
+      static_cast<int8_t>(RGB_GREEN_PIN), static_cast<int8_t>(RGB_BLUE_PIN),
+      static_cast<int8_t>(AUDIO_ENABLE_PIN)};
+  for (const int8_t pin : held) gpio_hold_dis(static_cast<gpio_num_t>(pin));
 }
 
 }  // namespace TurnHubAtlas

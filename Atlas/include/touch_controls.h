@@ -68,8 +68,9 @@ enum class TouchAction : uint8_t {
   // (AdvanceSetup to Complete); Pair a Sigil also opens pairing.
   SkipSetup, OpenSetup, SetupPair, SetupDone,
   // Menu's Device screen (between games): unpair every Sigil (lobby only) or
-  // factory reset Atlas, each held like the BOOT button's gestures.
-  OpenDevice, UnpairSigils, FactoryResetAtlas
+  // factory reset Atlas, each held like the BOOT button's gestures; Sleep
+  // (a tap) until the screen is touched.
+  OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -80,7 +81,7 @@ enum class TouchAction : uint8_t {
 // Player: one player's screen, from their chip: life and Concede in a game,
 // turn order in the lobby.
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
-// Device: under Menu, Unpair Sigils and Factory reset (held).
+// Device: under Menu, Unpair Sigils and Factory reset (held), and Sleep.
 enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup, Device };
 
 struct TouchButton {
