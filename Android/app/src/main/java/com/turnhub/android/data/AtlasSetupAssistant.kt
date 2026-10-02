@@ -453,7 +453,7 @@ class AtlasSetupAssistant(
                         continue
                     }
                     lines[line] = lines[line].copy(state = "Updating")
-                    show("Updating ${target.label}. It restarts when done.")
+                    show("Updating ${target.label}. It restarts when done, and the connection to Atlas may drop for a moment. That's expected.")
                     lines[line] = updateOneSigil(target, pkg).let { (ok, text) ->
                         lines[line].copy(state = text, done = ok, failed = !ok)
                     }
@@ -482,9 +482,18 @@ class AtlasSetupAssistant(
             ?: return false to "Signed out"
         if (!start.ok) return false to (errorOf(start) ?: "Atlas didn't start the update")
         // The Sigil downloads over Wi-Fi and restarts: about 20-40 s each.
+        // While Atlas serves the package it can be too busy to answer, and the
+        // phone may lose it for a moment; that is expected, so a missed poll
+        // just waits for the next one.
         repeat(SIGIL_POLLS) {
             delay(pollMs)
-            val status = session.raw("GET", "/api/sigil-firmware") ?: return false to "Signed out"
+            val status = try {
+                session.raw("GET", "/api/sigil-firmware")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: AtlasException) {
+                return@repeat
+            } ?: return false to "Signed out"
             if (!status.ok) return@repeat
             val json = try {
                 JSONObject(status.body)
@@ -496,7 +505,20 @@ class AtlasSetupAssistant(
                 "failed" -> return false to (json.optString("message").ifBlank { "The update failed" })
             }
         }
+        // No verdict came (Atlas was unreachable at the end, perhaps): the Sigil's own version says.
+        val now = FirmwareVersion.parse(runningFirmwareOf(id).orEmpty())
+        if (now != null && now >= pkg.version) return true to "Updated to $now"
         return false to "No answer from the Sigil; check it and try again later"
+    }
+
+    /** A Sigil's firmware as Atlas last heard it, or null if Atlas can't be read now. */
+    private suspend fun runningFirmwareOf(sigilId: Int): String? = try {
+        session.raw("GET", "/api/devices")?.takeIf { it.ok }?.let { parseDevices(it.body) }
+            ?.firstOrNull { it.id == sigilId }?.firmware
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: AtlasException) {
+        null
     }
 
     private suspend fun download(pkg: FirmwarePackage, failed: (String) -> Unit): ByteArray? = try {
@@ -628,7 +650,7 @@ class AtlasSetupAssistant(
         /** A code lasts 10 minutes; ask again below 2 so an update never runs out mid-way. */
         const val MIN_VERIFIED_MS = 120_000L
 
-        /** 2 s polls for up to 4 minutes per Sigil (Atlas's own reboot timeout is 2). */
-        const val SIGIL_POLLS = 120
+        /** 2 s polls for up to 6 minutes per Sigil (Atlas's own reboot timeout is 2). */
+        const val SIGIL_POLLS = 180
     }
 }

@@ -124,4 +124,19 @@ class AtlasUpdateWatcherTest {
         refreshing.onTick(endpoint, "BOOT1")
         assertEquals(0, refreshing.available.value)
     }
+
+    @Test
+    fun `a requested refresh reads Atlas's count on the next tick`() = runTest {
+        atlas.behind = 1
+        watcher.onTick(endpoint, "BOOT1")
+        assertEquals(1, watcher.available.value)
+        // An update finished: no waiting for the refresh interval.
+        atlas.behind = 0
+        watcher.requestRefresh()
+        watcher.onTick(endpoint, "BOOT1")
+        assertEquals(0, watcher.available.value)
+        assertEquals(2, atlas.reports.size)
+        watcher.onTick(endpoint, "BOOT1")
+        assertEquals(2, atlas.reports.size)
+    }
 }

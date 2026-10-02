@@ -18,6 +18,7 @@ import com.turnhub.android.data.AtlasUpdateWatcher
 import com.turnhub.android.data.AtlasWifiLink
 import com.turnhub.android.data.ControlAction
 import com.turnhub.android.data.PlayerSessionState
+import com.turnhub.android.data.UpdatesState
 import com.turnhub.android.data.WifiCredentialStore
 import com.turnhub.android.data.WifiCredentials
 import com.turnhub.android.data.WifiJoinResult
@@ -30,6 +31,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -107,6 +110,19 @@ class HomeViewModel(
         },
     )
     val setupState: StateFlow<SetupState> = setupAssistant.state
+
+    init {
+        // The update step knows better than the last report: when it found
+        // nothing to install, or an install ended, read Atlas's count again now
+        // (the banner otherwise waits for the next refresh).
+        viewModelScope.launch {
+            setupAssistant.state.map { it.updates }.distinctUntilChanged().collect { updates ->
+                if ((updates is UpdatesState.Ready && !updates.plan.anyUpdate) || updates is UpdatesState.Finished) {
+                    updateWatcher?.requestRefresh()
+                }
+            }
+        }
+    }
 
     /** Everything this screen owns that the repository doesn't. */
     private data class LocalState(
@@ -403,7 +419,10 @@ class HomeViewModel(
         viewModelScope.launch { setupAssistant.openUpdates() }
     }
 
-    fun onSetupClosed() = setupAssistant.close()
+    fun onSetupClosed() {
+        updateWatcher?.requestRefresh()
+        setupAssistant.close()
+    }
 
     /**
      * Atlas restarts (an update, a new Wi-Fi password, factory reset). Waits

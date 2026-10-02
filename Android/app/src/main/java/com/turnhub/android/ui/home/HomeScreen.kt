@@ -203,7 +203,9 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                uiState.errorMessage?.let {
+                // Atlas dropping out is expected while an update installs; the update step explains it.
+                val installing = setup.visible && setup.updates is com.turnhub.android.data.UpdatesState.Installing
+                uiState.errorMessage?.takeUnless { installing }?.let {
                     ErrorCard(it, uiState.errorDetail, uiState.isRetrying, onOpenAppSettings.takeIf { uiState.offerAppSettings })
                 }
                 if (setup.visible) {

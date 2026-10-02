@@ -38,6 +38,15 @@ class AtlasUpdateWatcher(
     private var fetchedAtMs: Long? = null
     private var reported: String? = null
     private var reportedAtMs = 0L
+    @Volatile private var refreshNow = false
+
+    /**
+     * Read Atlas's count again on the next tick, rather than after
+     * [refreshMs]: after an update ran, or when it found nothing to install.
+     */
+    fun requestRefresh() {
+        refreshNow = true
+    }
 
     /**
      * Called on every table update while connected; cheap unless a check is
@@ -62,10 +71,11 @@ class AtlasUpdateWatcher(
             val fields = reportFields(current)
             if (fields.isEmpty()) return
             val key = "${endpoint.baseUrl}|$bootId|$fields"
-            if (key == reported && now - reportedAtMs < refreshMs) return
+            if (key == reported && !refreshNow && now - reportedAtMs < refreshMs) return
             val behind = session.reportLatestFirmware(endpoint, fields) ?: return
             reported = key
             reportedAtMs = now
+            refreshNow = false
             _available.value = behind
         } finally {
             mutex.unlock()
