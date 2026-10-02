@@ -1,0 +1,90 @@
+# TurnHub design system (V1)
+
+One source of truth for how the Atlas portal and the Android app look. Status:
+**Implemented** in source (2026-10-02, V1 phase 0). The portal and the app adopt
+it in later phases; see the V1 plan and `Documentation/engineering/WEB_PORTAL_DESIGN.md`.
+
+| Path | What | Edit? |
+|---|---|---|
+| `tokens.json` | Themes (colors per role), type scale, spacing, radii, elevation, motion springs, layout constants | Yes, the source |
+| `icons/*.svg` | The original icon set: 24-point grid, 1.75 stroke, round caps, `<path>` elements only | Yes, the source |
+| `fonts/` | Inter and Cinzel variable fonts, subset to Latin (TTF for Android, WOFF2 for the web), with their OFL licenses | Replace only with a recorded source |
+| `web/components.css` | The web component library (buttons, pills, lists, sheets, turn hero, life tiles, app shell), built only from tokens | Yes |
+| `styleguide.html` | Living specimen of all of the above, with a playable Game screen preview | Yes |
+| `build_tokens.py` | Generates every file below from `tokens.json` and `icons/`, and checks contrast | Yes |
+| `bundle.py` | Inlines stylesheets, fonts and the icon sprite into one HTML file | Yes |
+| `dist/tokens.css`, `dist/icons.svg` | Generated web tokens and icon sprite | No, generated |
+| `Android/.../ui/theme/DesignTokens.kt`, `Android/.../res/drawable/ic_th_*.xml` | Generated Compose tokens and vector icons | No, generated |
+
+```
+python3 design/build_tokens.py            # regenerate after editing tokens.json or icons/
+python3 design/build_tokens.py --check    # CI: generated files current, contrast minimums met
+python3 design/bundle.py design/styleguide.html --out design/dist/styleguide.html --embed-fonts
+```
+
+The scripts use the Python standard library only, so PlatformIO's Python runs
+them on Windows too. Re-subsetting a font needs `fonttools` and `brotli`
+(`pyftsubset`, command in "Fonts" below).
+
+## Themes
+
+| Key | Name | Use |
+|---|---|---|
+| `graphite` | Graphite | Default on dark devices. Modern, near-black with one warm gold accent |
+| `daylight` | Daylight | Default on light devices. Replaces Parchment |
+| `brass` | Brass | Optional. Gold and walnut with Cinzel display type, matching the Atlas screen |
+| `contrast` | High contrast | Chosen automatically when the device asks for more contrast |
+
+With no saved choice a client follows the device (`defaults` in `tokens.json`).
+Midnight and Parchment from the pre-V1 portal are retired: Graphite and Daylight
+cover them. Owner decision 2026-10-02: modern first, Brass kept as an option.
+
+**Roles, not colors.** Components use `--c-<role>` (CSS) or `TokenColors.<role>`
+(Kotlin), never a literal. The roles: `bg`, `surface1..3`, `fill`, `fillStrong`,
+`separator`, `separatorStrong`, `text`, `textSecondary`, `textTertiary`,
+`accent`, `accentPressed`, `onAccent`, `accentSoft`, `turn` (the active turn,
+the one thing that glows), `onTurn`, `turnSoft`, `good`, `warning`, `critical`,
+`info`, `focus`, `scrim`, and `glowA`/`glowB` (Brass background glow only).
+
+**Contrast is enforced.** `contrast.checks` lists WCAG 2.2 minimums; the build
+refuses to write files when a theme misses one (translucent colors are
+composited over the theme background first). Status colors must reach 4.5:1 on
+`surface1` because they are also used as text. Color never carries meaning
+alone: every status pill and tile state also has words.
+
+## Type
+
+Inter (text and UI) for every theme; Brass swaps the display role to Cinzel.
+Sizes are in `type`: `caption` 12 through `mega` 112. Clocks and life totals
+(`clock`, `hero`, `mega`) use tabular figures so digits do not jitter.
+
+## Motion
+
+Three springs (`snappy`, `gentle`, `bouncy`) as Compose damping ratio and
+stiffness. The CSS build simulates the same physics and emits a `linear()`
+easing plus its settle duration (`--spring-<name>`, `--spring-<name>-dur`),
+falling back to `--ease-standard` in browsers without `linear()`. Reduce motion
+(system setting or the per-browser switch, `data-motion=reduce`) shortens every
+animation and transition to 1 ms.
+
+## Fonts
+
+| Font | Source | Files |
+|---|---|---|
+| Inter 4 (variable: `opsz`, `wght`) | `github.com/google/fonts` `ofl/inter/Inter[opsz,wght].ttf`, fetched 2026-10-02 | `fonts/Inter-Variable.{ttf,woff2}`, `fonts/OFL-Inter.txt` |
+| Cinzel (variable: `wght`) | `github.com/google/fonts` `ofl/cinzel/Cinzel[wght].ttf`, fetched 2026-10-02 | `fonts/Cinzel-Variable.{ttf,woff2}`, `fonts/OFL-Cinzel.txt` |
+
+Both are SIL Open Font License 1.1 and recorded in
+`Documentation/legal/DEPENDENCY_TRACKER.md`. They were subset with:
+
+```
+pyftsubset <font.ttf> --unicodes="U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2190-2199,U+2212,U+2215,U+2248,U+2260,U+2264-2265,U+2713,U+2715,U+00D7,U+2026,U+25B2,U+25BC,U+25CF" --layout-features='*' [--flavor=woff2] --output-file=<out>
+```
+
+## Icons
+
+Add an icon by dropping a 24×24 SVG with `<path d="...">` elements into
+`icons/` and running the build. Use `stroke="currentColor"`, no fills, no
+`<circle>`/`<rect>` (draw them as arcs) so the Android conversion stays a copy.
+The web references `#i-<name>` in the sprite; Android uses
+`DesignTokens.Icons.<camelName>` (`R.drawable.ic_th_<name>`).
