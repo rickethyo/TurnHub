@@ -22,7 +22,9 @@
 .PARAMETER Release  With -Signed: a tag such as v0.9.2. Default: the latest release.
 .PARAMETER Sign     Build this working copy, sign it with the local key (Private\TurnHub-keys,
                     via sign-local.ps1), verify it, and flash the signed package's payload over
-                    USB. The same package can be installed by OTA. No pull (it is your work).
+                    USB. The same package can be installed by OTA. Pulls first when the working
+                    copy is clean; with uncommitted changes it signs them as they are, unpulled.
+                    flash-all.cmd runs this mode; flash-all-unsigned.cmd runs the plain build.
 .PARAMETER Key      With -Sign: path to the PEM key. Default: the one .pem in Private\TurnHub-keys.
 
   -Signed and -Sign write only the app image (and blank the OTA-selection sector so the
@@ -91,10 +93,12 @@ Set-Location $root
 if ($Signed -and $Sign) { Fail 'Use either -Signed (the release) or -Sign (your local build), not both.' }
 if ($Signed) {
   Write-Host "Signed mode: flashing the $Release GitHub release (no pull, no build)." -ForegroundColor Cyan
-} elseif ($Sign) {
-  Write-Host 'Local signing mode: building and signing this working copy (no pull).' -ForegroundColor Cyan
 } else {
-  if (-not $NoPull) {
+  if ($Sign) { Write-Host 'Local signing mode: building and signing with your local key.' -ForegroundColor Cyan }
+  if ($Sign -and -not $NoPull -and (git status --porcelain)) {
+    # Uncommitted work is what you want signed: keep it and skip the pull.
+    Write-Host 'Uncommitted changes: signing this working copy without pulling.' -ForegroundColor Yellow
+  } elseif (-not $NoPull) {
     Write-Host '== Updating the repo' -ForegroundColor Cyan
     if (git status --porcelain) {
       Fail 'You have uncommitted changes, so the repo was not updated. Commit or stash them, or run with -NoPull to flash this working copy.'
