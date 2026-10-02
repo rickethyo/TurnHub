@@ -3,12 +3,14 @@
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const pages=fs.readFileSync(path.join(__dirname,'../../src/web_pages.cpp'),'utf8');
-const portal=pages.match(/const char PORTAL_HTML\[\].*?R"HTML\(([\s\S]*?)\)HTML";/)[1],theme=pages.match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
+const pack=require('./portal_source.cjs');
+const portal=pack.html??pages.match(/const char PORTAL_HTML\[\].*?R"HTML\(([\s\S]*?)\)HTML";/)[1],theme=pages.match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
 const names=['Alex','Blair','Casey'],life=[40,40,40],damage=Array.from({length:3},()=>Array.from({length:3},()=>[0,0]));
 let requests=[],sequence=0,profile='mtg_commander',state='RUNNING',offline=false;
 const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
  const url=new URL(req.url,'http://localhost'),args=new URLSearchParams(body),player=Number(req.headers['x-turnhub-token']),i=player-1;
+ if(pack.serve(url.pathname,res))return;
  if(url.pathname==='/'){res.setHeader('Content-Type','text/html');res.end(portal);return}
  if(url.pathname==='/theme.css'){res.setHeader('Content-Type','text/css');res.end(theme);return}
  if(url.pathname==='/portal-qr.js'){const header=fs.readFileSync(path.join(__dirname,'../../include/portal_qr_asset.h'),'utf8');const bytes=header.match(/= \{([\s\S]*?)\};/)[1].match(/\d+/g).map(Number);res.setHeader('Content-Type','application/javascript');res.setHeader('Content-Encoding','gzip');res.end(Buffer.from(bytes));return}

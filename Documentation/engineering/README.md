@@ -33,6 +33,7 @@ The documents are intentionally useful before they are perfect. Early TurnHub de
 - [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables and simultaneous phone/Sigil control.
 - [Game Profiles and Life Counters](GAME_PROFILES_AND_LIFE.md) - format selection, starting life, own-life controls, storage boundaries and bench acceptance.
 - [Life Approval and Commander Damage](LIFE_APPROVAL_AND_COMMANDER.md) - recipient approvals, Atlas deadlines and linked damage/life counters.
+- [Web Portal Pack](PORTAL_PACK.md) - the V1 portal as a signed pack on the microSD card: build, archive, install, serving and the flash fallback.
 - [Web Portal Design System](WEB_PORTAL_DESIGN.md) - shared stylesheet, selectable themes (Brass, Midnight, Parchment, High contrast), layout and the portal test contract.
 - [Turn Timer and Cues](TURN_TIMER_AND_CUES.md) - Atlas-owned turn timer, warning/expiry semantics, and the LED and audio cue layers.
 - [Manual V0.2 Review](MANUAL_V02_REVIEW.md) - intended prototype behavior compared with current implementation and remaining gaps.

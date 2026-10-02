@@ -35,6 +35,8 @@ jobs:
         run: python3 Atlas/tests/host/check_client_contract.py
       - name: Design tokens are current and pass contrast checks
         run: python3 design/build_tokens.py --check
+      - name: Web portal pack builds
+        run: python3 Atlas/web/build.py --check
       - name: Android manual asset matches the newest user manual
         run: python3 Android/tools/export_manual.py --check
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7

@@ -354,3 +354,4 @@ Claude outputs/
 
 # Self-contained style guide bundle (python3 design/bundle.py ...)
 design/dist/styleguide.html
+Atlas/web/dist/

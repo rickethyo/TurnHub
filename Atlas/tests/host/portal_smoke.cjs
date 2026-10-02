@@ -4,7 +4,8 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const root=path.resolve(__dirname,'../..');
 const page=(file,name)=>fs.readFileSync(path.join(root,'src',file),'utf8').match(new RegExp('const char '+name+'\\[\\].*?R"HTML\\(([\\s\\S]*?)\\)HTML";'))[1];
-const portal=page('web_pages.cpp','PORTAL_HTML'),login=page('profile_login_page.cpp','HTML');
+const pack=require('./portal_source.cjs');
+const portal=pack.html??page('web_pages.cpp','PORTAL_HTML'),login=page('profile_login_page.cpp','HTML');
 const theme=fs.readFileSync(path.join(root,'src','web_pages.cpp'),'utf8').match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
 let authenticated=false,joined=false,state='LOBBY',permissions=0,setupRequired=true;
 let policy={allowPhysicalWithoutPin:true,hideStatsWithoutAuthentication:true};
@@ -17,6 +18,7 @@ const turnTimer={presetsMs:[0,60000,120000,180000,300000],minMs:15000,maxMs:3600
 const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
  const url=new URL(req.url,'http://localhost');
+ if(pack.serve(url.pathname,res))return;
  if(url.pathname==='/'||url.pathname==='/login'){res.setHeader('Content-Type','text/html');res.end(url.pathname==='/'?portal:login);return}
  if(url.pathname==='/theme.css'){res.setHeader('Content-Type','text/css');res.end(theme);return}
  if(url.pathname==='/portal-qr.js'){const header=fs.readFileSync(path.join(__dirname,'../../include/portal_qr_asset.h'),'utf8');const bytes=header.match(/= \{([\s\S]*?)\};/)[1].match(/\d+/g).map(Number);res.setHeader('Content-Type','application/javascript');res.setHeader('Content-Encoding','gzip');res.end(Buffer.from(bytes));return}
@@ -28,6 +30,7 @@ const api=http.createServer(async(req,res)=>{
   case '/api/accounts/setup':if(req.method==='POST'){permissions=1;setupRequired=false}result={setupRequired};break;
   case '/api/accounts':result={accounts:[{profileId:'AB12CD34',name:'Phone Tester',permissions}]};break;
   case '/api/accounts/permissions':permissions=Number(new URLSearchParams(body).get('permissions'));result={ok:true};break;
+  case '/api/presence':result={verified:true,secondsLeft:600};break;
   case '/api/status':result=status;break;
   case '/api/devices':result={atlas:{hardwareId:'TEST-ATLAS',firmware:'0.6.0-dev'},devices:sigils};break;
   case '/api/device/forget':assert.equal(permissions&1,1);forgetRequests.push(url.search);{const id=url.searchParams.get('module');sigils=url.searchParams.get('all')==='1'?[]:sigils.filter(s=>String(s.id)!==id);}result={ok:true,message:'Sigil forgotten'};break;
@@ -115,15 +118,15 @@ case '/api/speaker':if(req.method==='POST'){speakerVolume=Number(url.searchParam
   await sound.waitFor();await tab.waitForFunction(()=>!document.getElementById('sigilAccessFields').disabled);
   assert(await sound.isChecked());
   assert(await tab.getByRole('radio',{name:/^Standard/}).isChecked());
-  assert.equal(await tab.getByLabel('Hold Action to pause',{exact:true}).inputValue(),'2000');
+  assert.equal(await tab.getByLabel('Hold to confirm Leave, Eliminate or Reset',{exact:true}).inputValue(),'2000');
   await sound.uncheck();
   await tab.getByRole('radio',{name:/^Reduced motion/}).check();
-  await tab.getByLabel('Hold Action to pause',{exact:true}).selectOption('3000');
-  await tab.getByLabel('Hold Action to claim a win',{exact:true}).selectOption('3500');
+  await tab.getByLabel('Hold to confirm Leave, Eliminate or Reset',{exact:true}).selectOption('3000');
+  await tab.getByLabel('Hold to claim a win',{exact:true}).selectOption('3500');
   await tab.getByRole('button',{name:'Save Sigil accessibility',exact:true}).click();
-  await tab.getByText('Choose a win hold at least one second longer than the pause hold.',{exact:true}).waitFor();
+  await tab.getByText('Choose a win hold at least one second longer than the other hold.',{exact:true}).waitFor();
   assert.equal(access.longPressMs,2000); // Nothing was sent.
-  await tab.getByLabel('Hold Action to claim a win',{exact:true}).selectOption('6000');
+  await tab.getByLabel('Hold to claim a win',{exact:true}).selectOption('6000');
   await tab.getByRole('button',{name:'Save Sigil accessibility',exact:true}).click();
   await tab.getByText('Saved. Your Sigil updates within a few seconds.',{exact:true}).waitFor();
   assert.deepEqual(access,{sigilSound:false,ledStyle:'reduced-motion',longPressMs:3000,winHoldMs:6000});
@@ -137,7 +140,7 @@ case '/api/speaker':if(req.method==='POST'){speakerVolume=Number(url.searchParam
   await tab.getByRole('button',{name:'My Account',exact:true}).click();
   assert(await tab.getByLabel('Reduce motion',{exact:true}).isChecked());
   await tab.waitForFunction(()=>document.querySelector('input[name=ledStyle][value=reduced-motion]').checked);
-  assert.equal(await tab.getByLabel('Hold Action to claim a win',{exact:true}).inputValue(),'6000');
+  assert.equal(await tab.getByLabel('Hold to claim a win',{exact:true}).inputValue(),'6000');
   assert(await tab.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'Mobile horizontal overflow');
   await tab.screenshot({path:path.join(__dirname,'build','portal-mobile.png'),fullPage:true});
   await tab.setViewportSize({width:1920,height:1080});
