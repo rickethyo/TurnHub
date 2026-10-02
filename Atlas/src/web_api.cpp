@@ -6,8 +6,8 @@
 
 #include "config.h"
 #include "profile_login_page.h"
+#include "web_pages.h"
 #include "serial_log.h"
-#include "stats_page.h"
 #include "web_api_internal.h"
 
 using TurnHub::serialLog;
@@ -140,7 +140,7 @@ void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubStatsPage::STATS_HTML); }
+void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubWeb::INSTALL_PORTAL_HTML); }
 void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
 
 struct Route {

@@ -1,7 +1,7 @@
-# PlatformIO pre-build script: gzips the portal page and its stylesheet from
+# PlatformIO pre-build script: gzips the shared stylesheet from
 # src/web_pages.cpp into a generated header, so Atlas sends ~1/4 of the bytes
 # per page load. Wi-Fi transmit buffers come out of the same small heap as
-# everything else, and phones loading the 114 KB portal used to tie them up.
+# everything else. (The full portal now ships only as the SD pack.)
 #
 # src/web_pages.cpp stays the one source (host smoke tests read it too). The
 # firmware serves the gzip copies when TURNHUB_GZIP_PAGES is defined; host
@@ -13,7 +13,6 @@ import pathlib
 import re
 
 PAGES = (
-    ("PORTAL_HTML", "HTML"),
     ("THEME_CSS", "CSS"),
 )
 

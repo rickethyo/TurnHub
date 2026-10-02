@@ -11,11 +11,10 @@ tests cover the layout.
 
 | Route | Source | Notes |
 |---|---|---|
-| `/portal` | `web_pages.cpp` `PORTAL_HTML` | Game, Players, My Account, Device Settings |
-| `/login` | `profile_login_page.cpp` | Sign in / create account |
-| `/stats` | `stats_page.cpp` | Personal statistics with a win-rate dial |
-| `/dev` | `web_pages.cpp` `DEV_HTML` | Developer diagnostics and serial log download |
-| `/update` | `ota_manager.cpp` `UPDATE_HTML` | Admin firmware upload |
+| `/portal` | the SD pack ([PORTAL_PACK.md](PORTAL_PACK.md)); without one, `web_pages.cpp` `INSTALL_PORTAL_HTML` | Game, Players, My Account, Device Settings |
+| `/login` | the pack, else `profile_login_page.cpp` | Sign in / create account |
+| `/stats`, `/dev`, `/sigil-update` | the pack only | Statistics, Developer diagnostics, Sigil firmware |
+| `/update` | the pack, else `ota_manager.cpp` `UPDATE_HTML` | Admin firmware and portal pack upload |
 | `/theme.css` | `web_pages.cpp` `THEME_CSS` | Shared stylesheet, `Cache-Control: no-cache` |
 
 Every page links `/theme.css` and runs a one-line head script that applies the
@@ -141,11 +140,12 @@ with its license. It predates this redesign and does not yet have a row in
 `Atlas/tests/host/portal_smoke.cjs` and `counter_smoke.cjs` drive the portal by
 element IDs, accessible names and a few page globals (`refreshAll`, `sessionInfo`,
 `gameSettingsData`, `counterData`). Keep those IDs, labels and globals stable when
-restyling. Both fixtures serve `/theme.css` from `THEME_CSS`.
+restyling. Both fixtures render the pack (building it when `Atlas/web/dist/site`
+is missing) and serve `/theme.css` from `THEME_CSS`.
 
 ## SD portal pack (V1)
 
 The V1 portal is served from the microSD card as a signed pack built from
-`Atlas/web/` and the shared `design/` system; this flash portal remains the
-fallback at `/portal-classic`. See [PORTAL_PACK.md](PORTAL_PACK.md). The smoke
-checks render the pack with `PORTAL_PACK=1`.
+`Atlas/web/` and the shared `design/` system. The flash portal described above
+was removed on 2026-10-02; flash keeps `THEME_CSS`, the sign-in and update
+pages and a small install page. See [PORTAL_PACK.md](PORTAL_PACK.md).

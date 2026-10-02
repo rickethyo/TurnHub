@@ -4,7 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const pages=fs.readFileSync(path.join(__dirname,'../../src/web_pages.cpp'),'utf8');
 const pack=require('./portal_source.cjs');
-const portal=pack.html??pages.match(/const char PORTAL_HTML\[\].*?R"HTML\(([\s\S]*?)\)HTML";/)[1],theme=pages.match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
+const portal=pack.html,theme=pages.match(/THEME_CSS\[\].*?R"CSS\(([\s\S]*?)\)CSS";/)[1];
 const names=['Alex','Blair','Casey'],life=[40,40,40],damage=Array.from({length:3},()=>Array.from({length:3},()=>[0,0]));
 let requests=[],sequence=0,profile='mtg_commander',state='RUNNING',offline=false;
 const api=http.createServer(async(req,res)=>{

@@ -26,7 +26,6 @@ class OtaManager {
   void handleComplete();
   void resetAttempt();
   void fail(uint8_t errorCode);
-  void serveClassicPortal();
   void handlePortalUpload();
   void handlePortalComplete();
   void failPortal(const String &message);

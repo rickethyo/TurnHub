@@ -1,9 +1,11 @@
 # Web Portal Pack
 
 The V1 web portal ships as a signed pack that Atlas unpacks onto its microSD
-card and serves at `/portal`. The portal in flash (`web_pages.cpp`
-`PORTAL_HTML`) stays as the fallback, so a table never loses its portal to a
-missing card or a bad pack.
+card and serves at `/portal`. It is the only portal: the built-in flash portal
+was removed on 2026-10-02 (owner decision, to save flash). Without a pack,
+`/portal` serves a small install page (`web_pages.cpp` `INSTALL_PORTAL_HTML`):
+sign in, verify at the table, upload the pack. The TurnHub app does not need
+the pack.
 
 Status: **Implemented** in source (2026-10-02, V1 phase 1). Host tests cover the
 installer and both portals in the browser smoke checks. Install, serving and
@@ -32,8 +34,8 @@ python3 Atlas/web/build.py                  # dist/site/ (unpacked) and dist/por
 python3 Atlas/web/build.py --check          # CI: build and check, write nothing
 python3 Atlas/web/build.py --serve          # preview at http://127.0.0.1:8080 against a real Atlas (192.168.4.1)
 tools\sign-local.cmd -Products portal       # signed dist package in Private\TurnHub-builds
-PORTAL_PACK=1 node Atlas/tests/host/portal_smoke.cjs   # smoke checks against the pack
-PORTAL_PACK=1 PORTAL_RENDERS=1 node Atlas/tests/host/counter_smoke.cjs   # also screenshots every theme to tests/host/build/render-*.png
+node Atlas/tests/host/portal_smoke.cjs   # smoke checks against the pack (built first when missing)
+PORTAL_RENDERS=1 node Atlas/tests/host/counter_smoke.cjs   # also screenshots every theme to tests/host/build/render-*.png
 ```
 
 Stylesheets and local files referenced from a page become content-hashed
@@ -42,14 +44,13 @@ are stored gzip with a fixed timestamp, so a build is reproducible.
 
 ## Look (V1 phase 2)
 
-The pack portal keeps the flash portal's markup, element IDs, labels and
+The pack portal kept the former flash portal's markup, element IDs, labels and
 scripts, so both smoke checks run against it unchanged; only the styling and
 the theme choice differ. Themes: Automatic (follow the device: Graphite when
 dark, Daylight when light, High contrast when it asks for more), Graphite,
 Daylight, Brass and High contrast. A saved Midnight or Parchment choice from
 the flash portal maps to Graphite or Daylight. The turn hero is a ring in the
-modern themes and the original brass gauge in Brass. The footer links to
-`/portal-classic`.
+modern themes and the original brass gauge in Brass.
 
 ## Pages (V1 phases 3 and 4)
 
@@ -119,11 +120,10 @@ roll back, build the older source with a raised `VERSION`.
 
 | Route | Served from |
 |---|---|
-| `/portal` | the pack's `index.html` (no-cache), else the flash portal |
-| `/portal-classic` | always the flash portal |
-| `/login`, `/stats` | the pack's `login.html`, `stats.html`, else the built-in page |
-| `/update`, `/sigil-update`, `/dev` | the pack's copy, else the built-in page, after the same permission check (Admin; Developer for `/dev`) |
-| any of those with `?classic=1` | always the built-in page |
+| `/portal` | the pack's `index.html` (no-cache), else the install page |
+| `/login`, `/update` | the pack's `login.html`, `update.html`, else the built-in page kept in flash so a pack can be installed (`/update` after the Admin check) |
+| `/stats`, `/sigil-update`, `/dev` | the pack's copy, else the install page (`/sigil-update` and `/dev` after the Admin or Developer check) |
+| any of those with `?classic=1` | the built-in page or install page, skipping the pack (a damaged pack can still be replaced) |
 | `/assets/...` | the pack, `Cache-Control: immutable` (names are content-hashed) |
 
 A gzip copy is sent with `Content-Encoding: gzip`. Card reads take the same

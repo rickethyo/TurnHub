@@ -55,7 +55,7 @@ python Atlas/tests/host/audit_adapters.py          # guard: adapters must not by
 python Atlas/tests/host/check_client_contract.py   # after the host suite: validate build/client-*.json + protocol/examples against schemas
 node Atlas/tests/host/portal_smoke.cjs             # optional Playwright + Edge browser smoke
 node Atlas/tests/host/counter_smoke.cjs            # optional two-context life/Commander UI smoke
-python3 Atlas/web/build.py                         # SD portal pack (PORTAL_PACK.md); PORTAL_PACK=1 runs both smokes against it
+python3 Atlas/web/build.py                         # SD portal pack (PORTAL_PACK.md), the only portal; both smokes render it
 ```
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
 - **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_display.cpp` and `atlas_art.cpp` (LovyanGFX), `atlas_speaker.cpp` (ESP32 DAC), `sd_card.cpp` (Arduino SD), `factory_reset.cpp` (NVS erase + restart) and `secure_link_backend.cpp` (mbedTLS) are left out, and `test_globals.cpp` stubs them.

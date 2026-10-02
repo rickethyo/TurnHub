@@ -625,6 +625,16 @@ Signed OTA packages from the same run: Atlas 1,419,344 B, Sigil e-ink 0.9.7
 935,488 B. The Sigil RAM/flash figures were not read back from CI for this
 entry. Protocol version stays 3.
 
+## 2026-10-02 Flash portal removed (owner decision)
+
+The SD portal pack is now the only web portal. Atlas's flash keeps the shared
+stylesheet, the sign-in and update pages and a small install page
+(`INSTALL_PORTAL_HTML`) that installs a pack. Removed from flash: the built-in
+portal (`PORTAL_HTML` and its gzip copy), `DEV_HTML`, `stats_page.cpp` and
+`sigil_update_page.h`. Source: `web_pages.cpp` 138,233 B → 24,130 B;
+`stats_page.cpp` (10,900 B) and `sigil_update_page.h` (5,418 B) deleted.
+Compiled flash was not read back for this entry.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
