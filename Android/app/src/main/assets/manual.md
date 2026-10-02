@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.9.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.10.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.9
+## Prototype Edition v0.10
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -157,6 +157,8 @@ Device Settings has **Factory reset** next to each Sigil and a **Factory reset A
 
 At Atlas itself, tap **Menu**, then **Device**, between games. Hold **Unpair Sigils** for 3 seconds (in the lobby, with nobody seated on a Sigil) to make Atlas forget every Sigil, or hold **Factory reset** for 10 seconds to erase Atlas. Like Atlas’s BOOT button, these need no administrator: anyone at the table can use them.
 
+The same screen has **Sleep**: tap it between games and Atlas says “Going to sleep. Touch the screen to wake”, then its screen goes dark. Touch the screen (or press BOOT) to wake it. Atlas restarts: profiles, pairings and settings are kept, but the lobby empties and phones sign in again. Sigils show that Atlas is lost until it wakes.
+
 - **A Sigil** erases everything it has saved, including its pairing, and restarts as new. Atlas forgets it. Nobody may be seated on it. If the Sigil is out of range, Atlas only forgets it; hold the Sigil’s Pair button for 3 seconds to clear it too.
 
 - **Atlas** asks you to type RESET to confirm. It then erases every profile, PIN, statistic it holds, Sigil pairing, the Wi-Fi password (back to TurnHub-Setup) and all settings, and restarts as new, asking for touchscreen calibration. The microSD card is not erased. This cannot be undone.
@@ -248,6 +250,8 @@ Both Sigils work the same way: each action has its own direction. Push the stick
 Outside a game, Up (or Down, if Up is in use) shows **Menu**. It opens the Sigil's own menu:
 
 - **Unpair:** hold the click for 3 seconds. The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
+
+- **Sleep:** push Up. The Sigil shows how to wake it and sleeps; its lights go off. Click the joystick (or press its Pair button) to wake it; it restarts and reconnects to Atlas by itself.
 
 - **Factory reset:** hold Down for 5 seconds. The Sigil erases everything it has saved, including its pairing, and restarts as new.
 
