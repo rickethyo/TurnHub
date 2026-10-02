@@ -16,6 +16,14 @@ import com.turnhub.android.ui.theme.TABULAR
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -132,7 +140,7 @@ fun GameTab(
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
         IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
-        SeatCard(uiState, summary, me, actions)
+        SeatCard(uiState, summary, me, actions, reduceMotion)
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED ||
             summary.state == TableState.GAME_OVER
         ) {
@@ -275,7 +283,7 @@ private fun StageBadges(summary: TableSummary, nowMs: Long, labelFor: (Int) -> S
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlayer?, actions: GameActions) {
+private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlayer?, actions: GameActions, reduceMotion: Boolean) {
     val p = palette
     val haptics = rememberHaptics()
     val panel = uiState.player
@@ -338,6 +346,27 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             )
         }
         val busy = panel?.busy == true
+        // The join flow moves through stages (sign in, join, seated, playing):
+        // each new set of controls rises in as the old one gives way.
+        val stage = when {
+            !signedIn -> 0
+            me == null -> 1
+            else -> 2 + summary.state.ordinal * 2 + (if (me.eliminated) 1 else 0)
+        }
+        AnimatedContent(
+            targetState = stage,
+            transitionSpec = {
+                if (reduceMotion) {
+                    EnterTransition.None togetherWith ExitTransition.None
+                } else {
+                    (fadeIn(tween(DesignTokens.Motion.BASE_MS)) +
+                        slideInVertically(spring(DesignTokens.Motion.SNAPPY_DAMPING, DesignTokens.Motion.GENTLE_STIFFNESS)) { it / 6 }) togetherWith
+                        fadeOut(tween(DesignTokens.Motion.INSTANT_MS)) using SizeTransform(clip = false)
+                }
+            },
+            label = "seatStage",
+        ) { _ ->
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when {
             !signedIn -> AccentButton("Sign in or pick a profile", actions.onPlayFromPhone, Modifier.fillMaxWidth(), enabled = panel != null)
             me == null -> AccentButton(
@@ -407,6 +436,8 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                 ToneButton("Reset table", { confirmReset = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !busy)
             }
             me.eliminated -> Text("You are out of this game. You can still follow the table here.", color = p.muted)
+        }
+        }
         }
     }
 }
