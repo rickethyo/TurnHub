@@ -183,9 +183,10 @@ interface AtlasSessionTransport {
     /**
      * `POST /api/updates/latest` (public): the newest release versions
      * (`atlas`, `sigilEink`, `sigilOled`), so Atlas can show that an update is
-     * available. Atlas's refusal is [AtlasFailure.Rejected].
+     * available. Returns how many devices Atlas now counts as behind
+     * (`updatesAvailable`). Atlas's refusal is [AtlasFailure.Rejected].
      */
-    suspend fun reportLatestFirmware(fields: List<Pair<String, String>>): Unit = unsupported()
+    suspend fun reportLatestFirmware(fields: List<Pair<String, String>>): Int = unsupported()
 
     /**
      * A signed `.thfw` package as `multipart/form-data` (field [field]) to

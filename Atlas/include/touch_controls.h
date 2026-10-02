@@ -13,6 +13,8 @@
 #include <Arduino.h>
 #include <string.h>
 
+#include "update_notice.h"
+
 namespace TurnHubAtlas {
 
 // Landscape screen size in pixels.
@@ -144,6 +146,7 @@ struct AtlasScreen {
   char detail[48] = {};
   char notice[48] = {};   // Action message; shown in place of detail while set.
   bool sdMissing = false; // Header warning: "NO SD CARD".
+  TurnHub::UpdateKind update = TurnHub::UpdateKind::None;  // Header pill: "Update available".
   uint8_t sigilsOnline = 0;
   // In a game: the round (the starter's turn opens each one; 0 between
   // games) and the match's running time ("42:10"), shown in the header.
@@ -192,7 +195,7 @@ inline bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
 }
 
 inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.sigilsOnline == b.sigilsOnline &&
+  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
       a.round == b.round;
 }
 

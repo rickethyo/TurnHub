@@ -15,9 +15,11 @@ import java.io.IOException
 private class ReportingAtlas : AtlasSessionTransport {
     val reports = mutableListOf<List<Pair<String, String>>>()
     var refuse = false
-    override suspend fun reportLatestFirmware(fields: List<Pair<String, String>>) {
+    var behind = 0
+    override suspend fun reportLatestFirmware(fields: List<Pair<String, String>>): Int {
         if (refuse) throw AtlasException(AtlasFailure.Rejected("no"))
         reports += fields
+        return behind
     }
     override suspend fun getProfiles(): List<ProfileSummary> = emptyList()
     override suspend fun login(profileId: String, pin: String): LoginResult = throw AtlasException(AtlasFailure.Rejected("no"))
@@ -56,7 +58,7 @@ class AtlasUpdateWatcherTest {
     private val session = AtlasPlayerSession { atlas }
     private var now = 0L
     private val releases = CountingReleases(feed)
-    private val watcher = AtlasUpdateWatcher(session, releases, intervalMs = 60_000, clock = { now })
+    private val watcher = AtlasUpdateWatcher(session, releases, intervalMs = 60_000, clock = { now }, refreshMs = Long.MAX_VALUE)
     private val endpoint = AtlasEndpoint.DEFAULT
 
     @Test
@@ -100,5 +102,26 @@ class AtlasUpdateWatcherTest {
         now = 60_000
         watcher.onTick(endpoint, "BOOT1")
         assertEquals(1, atlas.reports.size)
+    }
+
+    @Test
+    fun `Atlas's count of devices behind is kept fresh for the banner`() = runTest {
+        val refreshing = AtlasUpdateWatcher(session, releases, intervalMs = 60_000, clock = { now }, refreshMs = 30_000)
+        atlas.behind = 2
+        refreshing.onTick(endpoint, "BOOT1")
+        assertEquals(2, refreshing.available.value)
+        // A Sigil updated: the next refresh hears the new count, with no new feed or boot.
+        atlas.behind = 1
+        now = 10_000
+        refreshing.onTick(endpoint, "BOOT1")
+        assertEquals(2, refreshing.available.value)
+        now = 30_000
+        refreshing.onTick(endpoint, "BOOT1")
+        assertEquals(1, refreshing.available.value)
+        assertEquals(2, atlas.reports.size)
+        atlas.behind = 0
+        now = 60_000
+        refreshing.onTick(endpoint, "BOOT1")
+        assertEquals(0, refreshing.available.value)
     }
 }

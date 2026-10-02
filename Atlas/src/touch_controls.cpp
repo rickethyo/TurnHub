@@ -976,17 +976,16 @@ void formatTable(AtlasScreen &screen, uint32_t nowMs) {
 }
 
 // "Update available", in words, for the on-board LED's blue blink.
-void formatUpdateLine(char *out, size_t size, uint8_t behind) {
-  snprintf(out, size, "Updates for %u %s: use the app", static_cast<unsigned>(behind),
-      behind == 1 ? "device" : "devices");
+void formatUpdateLine(char *out, size_t size, TurnHub::UpdateKind kind) {
+  snprintf(out, size, "%s: use the app", TurnHub::updateKindText(kind));
 }
 
 void formatMenu(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "MENU");
   snprintf(screen.title, sizeof(screen.title), "Table menu");
-  const uint8_t behind = firmwareUpdatesAvailable();
-  if (behind > 0) {
-    formatUpdateLine(screen.detail, sizeof(screen.detail), behind);
+  const TurnHub::UpdateKind update = firmwareUpdateKind();
+  if (update != TurnHub::UpdateKind::None) {
+    formatUpdateLine(screen.detail, sizeof(screen.detail), update);
     return;
   }
   snprintf(screen.detail, sizeof(screen.detail), "%s",
@@ -1003,9 +1002,9 @@ void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "Portal: 192.168.4.1");
   snprintf(screen.lines[2], sizeof(screen.lines[2]), "Sigils online: %u", static_cast<unsigned>(screen.sigilsOnline));
   snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s", screen.sdMissing ? "NOT INSERTED" : "ready");
-  const uint8_t behind = firmwareUpdatesAvailable();
-  if (behind > 0) {
-    formatUpdateLine(screen.lines[4], sizeof(screen.lines[4]), behind);
+  const TurnHub::UpdateKind update = firmwareUpdateKind();
+  if (update != TurnHub::UpdateKind::None) {
+    formatUpdateLine(screen.lines[4], sizeof(screen.lines[4]), update);
   } else {
     snprintf(screen.lines[4], sizeof(screen.lines[4]), "Up %s", uptime);
   }
@@ -1130,6 +1129,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen = AtlasScreen();
   screen.kind = activeScreen(nowMs);
   screen.sdMissing = !sdCardReady();
+  screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {
     case ScreenKind::Status: formatStatus(screen, nowMs); break;

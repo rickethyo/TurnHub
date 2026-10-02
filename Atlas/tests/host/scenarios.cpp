@@ -97,6 +97,7 @@ static int32_t fixtureMenuState2[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureLifeRequest[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixturePassPending[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureStartingLife[MAX_PHYSICAL_SIGILS]{};
+static int32_t fixtureUpdateNotice[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureSeatColor[MAX_PHYSICAL_SIGILS][2]{};  // [id][slot & 1]: A at 1, B at 0.
 static int32_t fixtureHarnessCommand=-1;
 static unsigned fixtureHarnessCommands=0;
@@ -110,6 +111,7 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::LifeRequest&&fixtureRadio) fixtureLifeRequest[id]=value;
   if(type==TurnHubProtocol::PacketType::PassPending&&fixtureRadio) fixturePassPending[id]=value;
   if(type==TurnHubProtocol::PacketType::StartingLife&&fixtureRadio) fixtureStartingLife[id]=value;
+  if(type==TurnHubProtocol::PacketType::UpdateNotice&&fixtureRadio) fixtureUpdateNotice[id]=value;
   if(type==TurnHubProtocol::PacketType::SeatColor&&fixtureRadio) fixtureSeatColor[id][TurnHubProtocol::seatColorSlot(value)&1]=value;
   if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
@@ -2276,8 +2278,21 @@ static void updateNotice() {
   assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.4-dev"}})==200);
   assert(firmwareUpdatesAvailable()==2);  // Atlas and the OLED Sigil.
   openMenuScreen(); AtlasScreen s=currentScreen();
-  assert(String(s.detail)=="Updates for 2 devices: use the app");
-  tapButton(TouchAction::OpenInfo); assert(String(currentScreen().lines[4])=="Updates for 2 devices: use the app");
+  assert(firmwareUpdateKind()==TurnHub::UpdateKind::Sigils && s.update==TurnHub::UpdateKind::Sigils);
+  assert(String(s.detail)=="Update available: use the app");
+  tapButton(TouchAction::OpenInfo); assert(String(currentScreen().lines[4])=="Update available: use the app");
+  // Only Atlas behind: the words name it, and every Sigil is told the same.
+  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.3"}})==200);
+  assert(firmwareUpdatesAvailable()==1 && firmwareUpdateKind()==TurnHub::UpdateKind::AtlasOnly);
+  assert(String(TurnHub::updateKindText(firmwareUpdateKind()))=="Update available for Atlas");
+  assert(String(currentScreen().lines[4])=="Update available for Atlas: use the app");
+  AtlasScreen header; buildAtlasScreen(testNow,header);
+  assert(header.update==TurnHub::UpdateKind::AtlasOnly);
+  syncSigilMenus(testNow);
+  assert(TurnHub::fixtureUpdateNotice[0]==static_cast<int32_t>(TurnHub::UpdateKind::AtlasOnly));
+  assert(request("/api/updates/latest","",{{"atlas",newer},{"sigilEink","0.9.2"},{"sigilOled","0.9.4-dev"}})==200);
+  syncSigilMenus(testNow);
+  assert(TurnHub::fixtureUpdateNotice[0]==static_cast<int32_t>(TurnHub::UpdateKind::Sigils));
   // Up to date again: the notice goes, and the uptime line comes back.
   assert(request("/api/updates/latest","",{{"sigilEink","0.9.2"}})==200 && firmwareUpdatesAvailable()==0);
   assert(startsWith(currentScreen().lines[4],"Up "));

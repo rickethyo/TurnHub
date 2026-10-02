@@ -1,6 +1,9 @@
 package com.turnhub.android.data
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -14,18 +17,27 @@ import kotlinx.coroutines.sync.withLock
  * the deliberate setup/update flow; this only reports.
  *
  * A report is sent again whenever the feed, the Atlas or its boot changes
- * (Atlas keeps the report in RAM only).
+ * (Atlas keeps the report in RAM only), and every [refreshMs] besides: Atlas's
+ * answer says how many devices are behind, which changes as Sigils join or
+ * update, and the app's "Update available" banner follows it ([available]).
  */
 class AtlasUpdateWatcher(
     private val session: AtlasPlayerSession,
     private val releases: FirmwareReleaseSource,
     private val intervalMs: Long,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val refreshMs: Long = REFRESH_MS,
 ) {
+    private val _available = MutableStateFlow(0)
+
+    /** Devices Atlas counts as running older firmware than the last report. */
+    val available: StateFlow<Int> = _available.asStateFlow()
+
     private val mutex = Mutex()
     private var feed: FirmwareReleaseFeed? = null
     private var fetchedAtMs: Long? = null
     private var reported: String? = null
+    private var reportedAtMs = 0L
 
     /**
      * Called on every table update while connected; cheap unless a check is
@@ -50,8 +62,11 @@ class AtlasUpdateWatcher(
             val fields = reportFields(current)
             if (fields.isEmpty()) return
             val key = "${endpoint.baseUrl}|$bootId|$fields"
-            if (key == reported) return
-            if (session.reportLatestFirmware(endpoint, fields)) reported = key
+            if (key == reported && now - reportedAtMs < refreshMs) return
+            val behind = session.reportLatestFirmware(endpoint, fields) ?: return
+            reported = key
+            reportedAtMs = now
+            _available.value = behind
         } finally {
             mutex.unlock()
         }
@@ -61,6 +76,9 @@ class AtlasUpdateWatcher(
         /** Development builds check every minute; release builds once a day. */
         const val DEBUG_INTERVAL_MS = 60_000L
         const val RELEASE_INTERVAL_MS = 24L * 60 * 60 * 1000
+
+        /** The report is repeated this often, to learn how many devices are behind now. */
+        const val REFRESH_MS = 30_000L
 
         fun reportFields(feed: FirmwareReleaseFeed): List<Pair<String, String>> = listOfNotNull(
             feed.packageFor(FirmwareProduct.ATLAS)?.let { "atlas" to it.version.toString() },

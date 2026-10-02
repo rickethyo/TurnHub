@@ -90,10 +90,16 @@ void noteLatestFirmware(const TurnHub::LatestFirmware &reported) {
 
 const TurnHub::LatestFirmware *latestFirmware() { return latestReported ? &latest : nullptr; }
 
-uint8_t firmwareUpdatesAvailable() {
+namespace {
+// Atlas itself behind, and how many paired Sigils are (harness boards never).
+bool atlasBehind() {
+  return latestReported && TurnHub::releaseNewer(latest.atlas, TurnHubFirmware::MAJOR,
+      TurnHubFirmware::MINOR, TurnHubFirmware::PATCH);
+}
+
+uint8_t sigilsBehind() {
   if (!latestReported) return 0;
-  uint8_t count = TurnHub::releaseNewer(latest.atlas, TurnHubFirmware::MAJOR, TurnHubFirmware::MINOR,
-      TurnHubFirmware::PATCH) ? 1 : 0;
+  uint8_t count = 0;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     const TurnHub::SigilRecord *record = sigilBus.record(id);
     if (record == nullptr || !record->helloInfoValid ||
@@ -104,6 +110,11 @@ uint8_t firmwareUpdatesAvailable() {
   }
   return count;
 }
+}  // namespace
+
+uint8_t firmwareUpdatesAvailable() { return (atlasBehind() ? 1 : 0) + sigilsBehind(); }
+
+TurnHub::UpdateKind firmwareUpdateKind() { return TurnHub::updateKindFor(atlasBehind(), sigilsBehind()); }
 
 void beginFrontPanel() {
   // Park the on-board RGB LED (active low); pairing blinks its red channel.

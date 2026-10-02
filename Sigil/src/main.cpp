@@ -168,6 +168,7 @@ TurnHubProtocol::LifeRequestFields lifeRequest;
 uint8_t seatAvatars[2] = {0, 0};  // From SeatColor; drawn by the OLED.
 int32_t startingLife = 0;  // From StartingLife: sizes the life heart.
 uint8_t passingPlayer = 0;  // From PassPending: whose pass is pending.
+uint8_t updateNotice = 0;   // From UpdateNotice: 0 none, 1 Atlas, 2 a Sigil.
 bool lifeKeyRouted[TurnHubSigil::KEY_COUNT] = {};
 // Snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::LifeOverlay publishedLifeOverlay;
@@ -848,6 +849,7 @@ void forgetPairing(const char *reason) {
   seatAvatars[0] = seatAvatars[1] = 0;
   startingLife = 0;
   passingPlayer = 0;
+  updateNotice = 0;
   portENTER_CRITICAL(&displayProfileMux);
   pickerActive = false;
   pickerChanged = true;
@@ -1110,6 +1112,9 @@ void handleAtlasPacket(
     case PacketType::PassPending:
       passingPlayer = static_cast<uint8_t>(constrain(packet.value, 0, 16));
       break;
+    case PacketType::UpdateNotice:
+      updateNotice = static_cast<uint8_t>(constrain(packet.value, 0, 2));
+      break;
 
     case PacketType::LedState:
       ledModel.applyLedState(packet.value, millis());
@@ -1269,6 +1274,7 @@ void publishLifeOverlay() {
   overlay.passPending = sigilMenu.active() && (sigilMenu.actions() &
       TurnHubProtocol::sigilActionBit(TurnHubProtocol::SigilAction::CancelPass)) != 0;
   overlay.passingPlayer = passingPlayer;
+  overlay.update = updateNotice;
   ledModel.setPassPending(overlay.passPending || passingPlayer != 0, overlay.passPending, millis());
 #if TURNHUB_DISPLAY_OLED
   overlay.pending = lifeAdjuster.pending();

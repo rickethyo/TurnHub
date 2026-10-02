@@ -201,13 +201,16 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         ActionFeedback("Sigil accessibility saved. Your Sigil updates within a few seconds.", isError = false)
     }
 
-    /** Tells Atlas the newest firmware versions (public route; no sign-in needed). */
-    suspend fun reportLatestFirmware(endpoint: AtlasEndpoint, fields: List<Pair<String, String>>): Boolean =
+    /**
+     * Tells Atlas the newest firmware versions (public route; no sign-in
+     * needed). Returns how many devices Atlas counts as behind, or null if the
+     * report didn't go through.
+     */
+    suspend fun reportLatestFirmware(endpoint: AtlasEndpoint, fields: List<Pair<String, String>>): Int? =
         try {
             call { transports.create(endpoint).reportLatestFirmware(fields) }
-            true
         } catch (_: AtlasException) {
-            false
+            null
         }
 
     /**

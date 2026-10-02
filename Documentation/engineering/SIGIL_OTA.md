@@ -343,8 +343,15 @@ Atlas has no internet, so it learns about new releases from the app.
 5. **Rendering:** Atlas counts itself and every paired Sigil that has said
    its version (never the harness) running something older. While any is,
    the on-board LED blinks blue in the pairing rhythm (pairing's red blink
-   wins), and the Atlas screen's Menu and Info say "Updates for N devices:
-   use the app". `GET /api/updates` reports the same for the app and portal.
+   wins). The words follow (2026-10-02): a blue header pill on every Atlas
+   screen, and Menu and Info, say "Update available for Atlas" when only
+   Atlas is behind and "Update available" when any Sigil is (the pill drops
+   to "Update" where the header is crowded). Atlas sends the same state to
+   every Sigil (`PacketType::UpdateNotice`, 0/1/2, resent with each Hello),
+   and each Sigil says "Update for Atlas" / "Update available" on its bottom
+   legend row (e-ink: a line under the key hints; OLED: a turn in the
+   cycling legend). `GET /api/updates` reports the same for the app and
+   portal.
 6. **Contract:** the two routes above (`protocol/http-v1.md`).
 7. **Dependencies:** none.
 8. **Accessibility:** the blink is never the only cue: the screen says it in
@@ -352,8 +359,13 @@ Atlas has no internet, so it learns about new releases from the app.
 
 The app (`AtlasUpdateWatcher`) reads the feed at most once per interval while
 connected (every minute in debuggable builds, daily in release builds) and
-reports whenever the feed, the Atlas or its boot changes. Installing is still
-the deliberate update flow. *Host-tested only; needs verification on
+reports whenever the feed, the Atlas or its boot changes, and again every 30 s
+to learn how many devices are behind now (the answer's `updatesAvailable`).
+While that is above zero the app shows an "Update available" card with an
+**Update now** button that opens the update step on its own (the same code as
+first-run setup's: Admin sign-in, a table code, Atlas first, then each Sigil).
+An Atlas restart drops the phone's session, so Sigils left after an Atlas
+update need Update now again once signed in. *Host-tested only; needs verification on
 hardware* (the blue channel is GPIO17 on the E32R28T).
 
 ### Limits and risks

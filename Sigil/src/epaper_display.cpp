@@ -37,8 +37,8 @@ bool EpaperDisplay::lifeKeysShown() const {
 }
 
 uint8_t EpaperDisplay::legendLines() const {
-  if (!menu_.active) return 0;
-  uint8_t lines = 0;
+  uint8_t lines = updateNoticeText(life_.update) != nullptr ? 1 : 0;
+  if (!menu_.active) return lines;
   for (Key key : LEGEND_KEYS) {
     if (lifeRequestShown() && (key == Key::Left || key == Key::Right)) continue;
     lines += menu_.compass[static_cast<uint8_t>(key)] != MENU_NONE;
@@ -61,6 +61,7 @@ bool EpaperDisplay::alreadyDrawn(DrawnInputs &out) const {
   out.request.delta = life_.request.delta;
   out.startingLife = life_.startingLife;
   out.passPending = life_.passPending;
+  out.update = life_.update;
   return drawnValid_ && !forceFull_ && memcmp(&out, &drawn_, sizeof(out)) == 0;
 }
 
@@ -84,7 +85,9 @@ void EpaperDisplay::drawLegend() {
     printClipped(label, (display_.width() - 2 * MARGIN - CAP - 4) / CHAR_WIDTH);
     y += LEGEND_LINE;
   };
-  if (lifeRequestShown()) {
+  if (!menu_.active) {
+    // No menu: only the update notice, if any, has a line.
+  } else if (lifeRequestShown()) {
     line(Key::Right, "Approve life");
     line(Key::Left, "Deny life");
   } else if (lifeKeysShown()) {
@@ -96,6 +99,7 @@ void EpaperDisplay::drawLegend() {
     y += LEGEND_LINE;
   }
   for (Key key : LEGEND_KEYS) {
+    if (!menu_.active) break;
     if (lifeRequestShown() && (key == Key::Left || key == Key::Right)) continue;
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
@@ -108,6 +112,10 @@ void EpaperDisplay::drawLegend() {
     display_.setCursor(MARGIN + CAP + 4, y + 1);
     printClipped(line, (display_.width() - 2 * MARGIN - CAP - 4) / CHAR_WIDTH);
     y += LEGEND_LINE;
+  }
+  if (const char *update = updateNoticeText(life_.update)) {
+    display_.setCursor(MARGIN, y + 1);
+    printClipped(update, (display_.width() - 2 * MARGIN) / CHAR_WIDTH);
   }
 }
 

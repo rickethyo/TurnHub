@@ -394,6 +394,15 @@ class HomeViewModel(
 
     fun onSetupDismissed() = setupAssistant.dismiss()
 
+    /** Devices Atlas counts as behind the newest release; drives the "Update available" banner. */
+    val updatesAvailable: StateFlow<Int> =
+        updateWatcher?.available ?: MutableStateFlow(0)
+
+    /** The banner's Update button: the update step on its own. */
+    fun onUpdatesOpened() {
+        viewModelScope.launch { setupAssistant.openUpdates() }
+    }
+
     fun onSetupClosed() = setupAssistant.close()
 
     /**

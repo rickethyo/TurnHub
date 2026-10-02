@@ -147,6 +147,11 @@ enum class PacketType : uint8_t {
   // Packet whose value is encodeUpdateStatus.
   SigilUpdateOffer = 47,
   SigilUpdateStatus = 48,
+  // Atlas -> Sigil: an update is available (0 none, 1 Atlas only, 2 a Sigil;
+  // update_notice.h UpdateKind), the same for every Sigil, so each can say
+  // "Update available" on its screen. Resent with every Hello. Presentation
+  // only; installing stays in the app.
+  UpdateNotice = 49,
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,

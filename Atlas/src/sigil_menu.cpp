@@ -33,6 +33,9 @@ struct MenuCache {
   // PassPending: the passing player's number, 0 when no pass is pending.
   int32_t passing = 0;
   bool passingSent = false;
+  // UpdateNotice (UpdateKind as a number).
+  int32_t updateNotice = 0;
+  bool updateNoticeSent = false;
 };
 
 MenuCache menus[MAX_PHYSICAL_SIGILS];
@@ -191,6 +194,7 @@ void syncSigilMenus(uint32_t nowMs) {
       cache.lifeSent = false;
       cache.startingLifeSent = false;
       cache.passingSent = false;
+      cache.updateNoticeSent = false;
       continue;
     }
     for (uint8_t slot = 1; slot <= 2 && refreshColors; ++slot) {
@@ -225,6 +229,15 @@ void syncSigilMenus(uint32_t nowMs) {
     if (!cache.passingSent &&
         sigilBus.send(id, TurnHubProtocol::PacketType::PassPending, passing)) {
       cache.passingSent = true;
+    }
+    const int32_t update = static_cast<int32_t>(firmwareUpdateKind());
+    if (update != cache.updateNotice) {
+      cache.updateNotice = update;
+      cache.updateNoticeSent = false;
+    }
+    if (!cache.updateNoticeSent &&
+        sigilBus.send(id, TurnHubProtocol::PacketType::UpdateNotice, update)) {
+      cache.updateNoticeSent = true;
     }
     const int32_t request = sigilLifeRequestFor(id);
     if (request != cache.lifeRequest) {
@@ -271,6 +284,7 @@ void invalidateSigilMenu(uint8_t sigilId) {
     menus[sigilId].seatColorSent[0] = menus[sigilId].seatColorSent[1] = false;
     menus[sigilId].startingLifeSent = false;
     menus[sigilId].passingSent = false;
+    menus[sigilId].updateNoticeSent = false;
   }
 }
 

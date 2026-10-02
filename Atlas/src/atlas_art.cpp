@@ -342,6 +342,25 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     right -= w + 8;
   }
 
+  if (screen.update != TurnHub::UpdateKind::None) {
+    // Blue, and written out (the LED's blink is only the extra cue). The full
+    // wording when it fits beside the badge, else just "Update".
+    g.setFont(&fonts::DejaVu9);
+    const char *words = TurnHub::updateKindText(screen.update);
+    int16_t w = g.textWidth(words) + 12;
+    const int16_t crowd = screen.round > 0 ? 110 : 0;
+    if (right - w - crowd < leftLimit) {
+      words = "Update";
+      w = g.textWidth(words) + 12;
+    }
+    g.fillRoundRect(right - w, oy + 5, w, 15, 3, UPDATE_BLUE);
+    g.drawRoundRect(right - w, oy + 5, w, 15, 3, UPDATE_BLUE_EDGE);
+    g.setTextDatum(lgfx::middle_center);
+    g.setTextColor(CREAM, UPDATE_BLUE);
+    g.drawString(words, right - w / 2, oy + 13);
+    right -= w + 8;
+  }
+
   char sigils[16];
   snprintf(sigils, sizeof(sigils), "%u %s", static_cast<unsigned>(screen.sigilsOnline),
       screen.sigilsOnline == 1 ? "Sigil" : "Sigils");

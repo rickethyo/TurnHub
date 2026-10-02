@@ -21,16 +21,25 @@ struct LifeOverlay {
   // PassPending: the player whose pass is pending anywhere at the table (0 =
   // none), so every Sigil can show it, not only the passer's.
   uint8_t passingPlayer = 0;
+  // UpdateNotice: 0 none, 1 an update for Atlas, 2 an update for a Sigil.
+  // Drawn as a words line on every screen that has room (updateNoticeText).
+  uint8_t update = 0;
   bool operator==(const LifeOverlay &o) const {
     return avatar[0] == o.avatar[0] && avatar[1] == o.avatar[1] &&
         startingLife == o.startingLife && passPending == o.passPending &&
-        passingPlayer == o.passingPlayer &&
+        passingPlayer == o.passingPlayer && update == o.update &&
         pending == o.pending && pendingPlayer == o.pendingPlayer &&
         request.target == o.request.target && request.requester == o.request.requester &&
         request.tag == o.request.tag && request.delta == o.request.delta;
   }
   bool operator!=(const LifeOverlay &o) const { return !(*this == o); }
 };
+
+// The words for LifeOverlay::update, short enough for a 20-column row, or
+// nullptr for none.
+inline const char *updateNoticeText(uint8_t update) {
+  return update == 1 ? "Update for Atlas" : (update == 2 ? "Update available" : nullptr);
+}
 
 // Presentation only. Atlas owns these snapshots; implementations must not send
 // packets, interpret inputs, or mutate/persist game or pairing state.

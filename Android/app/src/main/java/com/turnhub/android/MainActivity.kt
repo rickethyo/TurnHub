@@ -218,6 +218,8 @@ class MainActivity : ComponentActivity() {
                         onAccessibilitySave = homeViewModel::onAccessibilitySaved,
                         onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
                         setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,
+                        updatesAvailable = homeViewModel.updatesAvailable.collectAsStateWithLifecycle().value,
+                        onOpenUpdates = homeViewModel::onUpdatesOpened,
                         setupActions = com.turnhub.android.ui.setup.SetupActions(
                             run = homeViewModel::onSetup,
                             dismiss = homeViewModel::onSetupDismissed,

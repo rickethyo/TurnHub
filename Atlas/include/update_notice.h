@@ -59,4 +59,23 @@ struct LatestFirmware {
   FirmwareRelease sigilOled;
 };
 
+// Who is behind, for the words on every screen (2026-10-02). The same value
+// goes to every Sigil (PacketType::UpdateNotice), so the whole table reads the
+// same notice: "Update available for Atlas" when only Atlas is behind,
+// "Update available" when any Sigil is.
+enum class UpdateKind : uint8_t { None = 0, AtlasOnly = 1, Sigils = 2 };
+
+inline UpdateKind updateKindFor(bool atlasBehind, uint8_t sigilsBehind) {
+  if (sigilsBehind > 0) return UpdateKind::Sigils;
+  return atlasBehind ? UpdateKind::AtlasOnly : UpdateKind::None;
+}
+
+inline const char *updateKindText(UpdateKind kind) {
+  switch (kind) {
+    case UpdateKind::AtlasOnly: return "Update available for Atlas";
+    case UpdateKind::Sigils: return "Update available";
+    default: return "";
+  }
+}
+
 }  // namespace TurnHub

@@ -115,7 +115,7 @@ Tap **Menu**, then QR codes, on the Atlas screen (in the lobby or after a game) 
 
 The chosen code is framed and marked “shown”. If an administrator has set their own Wi-Fi password, the Wi-Fi code only appears while an administrator is verified at the table (section 17), so the password is not shown to everyone. An empty lobby explains how to join; its codes are under Menu.
 
-**Info** (under Menu on the Atlas screen) shows the Wi-Fi name, the portal address, the firmware version, how many Sigils are online, the microSD card status and how long Atlas has been running. When newer firmware is available, Atlas’s small light blinks blue (red means a pairing window is open), and Info and Menu say how many devices it is for. The TurnHub app checks for new firmware and tells Atlas, since Atlas itself has no internet; install it with the app or the portal’s update pages.
+**Info** (under Menu on the Atlas screen) shows the Wi-Fi name, the portal address, the firmware version, how many Sigils are online, the microSD card status and how long Atlas has been running. When newer firmware is available, Atlas’s small light blinks blue (red means a pairing window is open), and every Atlas screen shows an Update available tag (Update available for Atlas, if only Atlas is behind). Sigils say Update available on their screens too, and the app shows an Update available card with an Update now button for an Admin. The TurnHub app checks for new firmware and tells Atlas, since Atlas itself has no internet; install it with the app or the portal’s update pages.
 
 ## Using the Android App
 

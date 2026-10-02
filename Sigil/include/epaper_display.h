@@ -118,6 +118,7 @@ class EpaperDisplay final : public SigilDisplay {
     TurnHubProtocol::LifeRequestFields request;
     int32_t startingLife;
     bool passPending;
+    uint8_t update;
   };
   // Adds the shared inputs (legend, overlay, seat names) to a zeroed out that
   // already holds the screen's own; true if the panel shows exactly these.

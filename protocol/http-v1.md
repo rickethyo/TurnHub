@@ -57,8 +57,10 @@ Atlas has no internet. A client that can read the public release feed
 the report in RAM until it restarts, blinks its on-board LED blue while Atlas or
 any paired Sigil runs an older version, and says so on its screen.
 `GET /api/updates` returns `reported`, `latest` (each version or `null`),
-`atlasFirmware` and `updatesAvailable` (devices behind). The Android app reports
-daily (every minute in debug builds).
+`atlasFirmware` and `updatesAvailable` (devices behind); `POST /api/updates/latest`
+answers with the same body. The Android app reads the feed daily (every minute
+in debug builds) and repeats the report every 30 s to follow `updatesAvailable`
+for its "Update available" card.
 
 ## Revisions and reconnect
 

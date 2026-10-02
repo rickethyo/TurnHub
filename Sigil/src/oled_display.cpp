@@ -358,7 +358,13 @@ bool OledDisplay::drawDeviceMenu() {
 
 uint8_t OledDisplay::legendEntries(char entries[][24]) const {
   uint8_t count = 0;
-  if (!menu_.active) return 0;
+  // "Update available" takes a turn on the bottom row with the key hints (or
+  // holds it alone while there is no menu).
+  const char *update = updateNoticeText(life_.update);
+  if (!menu_.active) {
+    if (update != nullptr) snprintf(entries[count++], 24, "%s", update);
+    return count;
+  }
   for (Key key : LEGEND_KEYS) {
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
     if (action == MENU_NONE) continue;
@@ -371,6 +377,7 @@ uint8_t OledDisplay::legendEntries(char entries[][24]) const {
       menu_.compass[static_cast<uint8_t>(Key::Right)] == MENU_NONE) {
     snprintf(entries[count++], 24, "\x1b\x1a Life -/+ (hold)");
   }
+  if (update != nullptr) snprintf(entries[count++], 24, "%s", update);
   return count;
 }
 

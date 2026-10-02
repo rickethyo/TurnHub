@@ -358,5 +358,7 @@ const TurnHub::LatestFirmware *latestFirmware();
 // Devices (Atlas, and paired Sigils that have said their version) running
 // older firmware than the last report. Test harness boards don't count.
 uint8_t firmwareUpdatesAvailable();
+// Who is behind, for the screen and every Sigil's notice (UpdateKind).
+TurnHub::UpdateKind firmwareUpdateKind();
 
 }  // namespace TurnHubAtlas

@@ -74,7 +74,9 @@ fun SetupScreen(state: SetupState, actions: SetupActions, modifier: Modifier = M
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BrassCard(highlight = p.accent) {
             Eyebrow(
-                if (state.step.number in 1..SetupStep.COUNTED) {
+                if (state.updatesOnly) {
+                    "Firmware updates"
+                } else if (state.step.number in 1..SetupStep.COUNTED) {
                     "Set up this table · Step ${state.step.number} of ${SetupStep.COUNTED}"
                 } else {
                     "Set up this table"
@@ -314,9 +316,14 @@ private fun Updates(state: SetupState, actions: SetupActions) {
         UpdatesState.NotChecked, UpdatesState.Checking -> Text("Checking GitHub for the latest release…", color = p.muted)
         is UpdatesState.Unavailable -> {
             Text(u.reason, color = p.muted)
-            Text("You can carry on and update later from Settings.", color = p.muted)
-            ToneButton("Try again", { actions.run { checkUpdates() } }, Modifier.fillMaxWidth())
-            AccentButton("Continue", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
+            if (state.updatesOnly) {
+                ToneButton("Try again", { actions.run { openUpdates() } }, Modifier.fillMaxWidth())
+                AccentButton("Close", actions.close, Modifier.fillMaxWidth())
+            } else {
+                Text("You can carry on and update later from Settings.", color = p.muted)
+                ToneButton("Try again", { actions.run { checkUpdates() } }, Modifier.fillMaxWidth())
+                AccentButton("Continue", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
+            }
         }
         is UpdatesState.Ready -> {
             Text("Latest release: ${u.release}", color = p.muted)
@@ -335,10 +342,18 @@ private fun Updates(state: SetupState, actions: SetupActions) {
                     color = p.muted,
                 )
                 AccentButton("Install all updates (recommended)", { actions.run { installUpdates() } }, Modifier.fillMaxWidth(), enabled = !state.busy)
-                ToneButton("Later", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
+                if (state.updatesOnly) {
+                    ToneButton("Later", actions.close, Modifier.fillMaxWidth())
+                } else {
+                    ToneButton("Later", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
+                }
             } else {
                 Text("Everything is up to date.", color = p.text)
-                AccentButton("Continue", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
+                if (state.updatesOnly) {
+                    AccentButton("Close", actions.close, Modifier.fillMaxWidth())
+                } else {
+                    AccentButton("Continue", { actions.run { skipUpdates(); next() } }, Modifier.fillMaxWidth())
+                }
             }
         }
         is UpdatesState.Installing -> {
@@ -348,9 +363,13 @@ private fun Updates(state: SetupState, actions: SetupActions) {
         is UpdatesState.Finished -> {
             ProgressLines(u.lines)
             if (u.lines.any { it.failed }) {
-                Text("Anything that didn't update can be updated later from Settings. The table plays either way.", color = p.muted)
+                Text("Anything that didn't update can be updated later from the Update available banner. The table plays either way.", color = p.muted)
             }
-            AccentButton("Continue", { actions.run { next() } }, Modifier.fillMaxWidth())
+            if (state.updatesOnly) {
+                AccentButton("Close", actions.close, Modifier.fillMaxWidth())
+            } else {
+                AccentButton("Continue", { actions.run { next() } }, Modifier.fillMaxWidth())
+            }
         }
     }
 }

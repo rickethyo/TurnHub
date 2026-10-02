@@ -114,6 +114,8 @@ fun HomeScreen(
     adminActions: AdminActions = AdminActions(),
     setup: com.turnhub.android.data.SetupState = com.turnhub.android.data.SetupState(),
     setupActions: SetupActions = SetupActions(),
+    updatesAvailable: Int = 0,
+    onOpenUpdates: () -> Unit = {},
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -209,6 +211,7 @@ fun HomeScreen(
                 } else if (summary == null) {
                     ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                 } else {
+                    if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
                     when (tab) {
                         HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
                         HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText)
@@ -252,6 +255,25 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
         }
         ConnectionPill(uiState)
         ManualButton(onManualClick)
+    }
+}
+
+/**
+ * "Update available" (the Atlas screen and Sigils say the same), with the way
+ * to install it. Words first: the card never relies on color.
+ */
+@Composable
+private fun UpdateAvailableCard(devices: Int, onOpenUpdates: () -> Unit) {
+    val p = palette
+    BrassCard(highlight = p.accent) {
+        Eyebrow("Update available")
+        Text(
+            if (devices == 1) "Newer firmware is ready for 1 device at this table."
+            else "Newer firmware is ready for $devices devices at this table.",
+            color = p.text,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+        AccentButton("Update now", onOpenUpdates, Modifier.fillMaxWidth())
     }
 }
 

@@ -32,6 +32,8 @@ constexpr uint32_t DIAL_INK = 0x3B2A14;
 constexpr uint32_t TUBE = 0x0A0705;
 constexpr uint32_t DANGER = 0xE0503F;
 constexpr uint32_t DANGER_DEEP = 0x7A1F18;
+constexpr uint32_t UPDATE_BLUE = 0x1F4F8F;      // "Update available" pill, like the LED.
+constexpr uint32_t UPDATE_BLUE_EDGE = 0x0B2549;
 constexpr uint32_t DIM = 0x5D5040;         // Eliminated players.
 constexpr uint32_t QR_LIGHT = 0xFFFFFF;
 

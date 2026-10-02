@@ -68,6 +68,11 @@ data class SetupState(
     val error: String? = null,
     /** A plain status line (not an error). */
     val note: String? = null,
+    /**
+     * Only the update step, opened from the "Update available" banner after
+     * setup ([AtlasSetupAssistant.openUpdates]); Close ends it.
+     */
+    val updatesOnly: Boolean = false,
 )
 
 /** What the assistant needs from the screen that owns the Atlas connection. */
@@ -140,6 +145,8 @@ class AtlasSetupAssistant(
                 _state.value = SetupState(visible = true, status = status)
             }
             status.stage == SetupStage.WELCOME -> _state.update { it.copy(status = status) }
+            // An update restarted Atlas: keep showing its progress.
+            current.updatesOnly -> _state.update { it.copy(status = status) }
             current.visible && current.step == SetupStep.RESTARTING ->
                 _state.update { it.copy(status = status, step = SetupStep.DONE, busy = false, error = null) }
             current.visible && current.step == SetupStep.DONE -> _state.update { it.copy(status = status) }
@@ -282,6 +289,28 @@ class AtlasSetupAssistant(
 
     fun skipUpdates() {
         updatesPassed = true
+    }
+
+    /**
+     * The update step on its own, after setup (the "Update available" banner).
+     * Installing takes an Admin who has confirmed a table code (Atlas
+     * enforces both; the code is asked for when Install starts). An update
+     * restarts Atlas, which forgets this phone's session, so Sigils left over
+     * are installed by opening this again after signing in.
+     */
+    suspend fun openUpdates() {
+        resetProgress()
+        val status = _state.value.status
+        val admin = (session.state.value as? PlayerSessionState.SignedIn)?.info?.has(AccountPermission.ADMIN) == true
+        if (!admin) {
+            _state.value = SetupState(
+                visible = true, step = SetupStep.UPDATES, status = status, updatesOnly = true,
+                updates = UpdatesState.Unavailable("Sign in as an Admin on the Account tab to install updates."),
+            )
+            return
+        }
+        _state.value = SetupState(visible = true, step = SetupStep.UPDATES, status = status, updatesOnly = true)
+        checkUpdates()
     }
 
     /** Install every pending update: Atlas first, then each Sigil in turn. */
