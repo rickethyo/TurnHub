@@ -1970,12 +1970,12 @@
 	)
 	(text "USB-powered DevKit; J1 / 5V feeds only the status ring (J5).\nJ19 supplies +3V3. All three GND sockets connected.\nOnboard USB-UART, regulator, BOOT and EN retained.\nPAIR is the onboard BOOT button (GPIO0, A6): no carrier wiring; A6 stays NC.\nDISPLAY STRAP: A7 (GPIO4) left open = E-ink board (firmware pull-up)."
 		(exclude_from_sim no)
-		(at 28 157 0)
+		(at 28 37.31 0)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
-			(justify left top)
+			(justify right top)
 		)
 		(uuid "14c88331-926e-58f7-84c0-bfae52a1f004")
 	)
@@ -2200,92 +2200,92 @@
 		(uuid "fb276dfd-4309-5162-b82c-960c44a805c1")
 	)
 	(no_connect
-		(at 45.72 66.04)
+		(at 45.72 128.27)
 		(uuid "01683a57-e9b1-50d2-bdb4-b412e4ebf2ca")
 	)
 	(no_connect
-		(at 132.08 101.6)
+		(at 132.08 92.71)
 		(uuid "18217986-be94-537f-a4fd-6813c46eb811")
 	)
 	(no_connect
-		(at 45.72 60.96)
+		(at 45.72 133.35)
 		(uuid "1c11ca93-3567-5d81-b313-6d633fbf8eed")
 	)
 	(no_connect
-		(at 45.72 86.36)
+		(at 45.72 107.95)
 		(uuid "385faf96-f9a9-5ad8-9a64-04a34fb0e467")
 	)
 	(no_connect
-		(at 45.72 106.68)
+		(at 45.72 87.63)
 		(uuid "3bc7d2ac-d7bc-5bd4-a8e7-e59104a93bb8")
 	)
 	(no_connect
-		(at 132.08 127)
+		(at 132.08 67.31)
 		(uuid "3f465205-03fe-550e-af32-567141c18865")
 	)
 	(no_connect
-		(at 132.08 71.12)
+		(at 132.08 123.19)
 		(uuid "41b4ce1a-d245-5741-b680-96af9ff365b9")
 	)
 	(no_connect
-		(at 45.72 132.08)
+		(at 45.72 62.23)
 		(uuid "59c852d3-84cd-5bc0-82cc-b86046dffec5")
 	)
 	(no_connect
-		(at 45.72 71.12)
+		(at 45.72 123.19)
 		(uuid "65cdedf5-55bb-5070-a61d-0abae8dbd68d")
 	)
 	(no_connect
-		(at 132.08 55.88)
+		(at 132.08 138.43)
 		(uuid "6720e331-98aa-568d-9426-819ff118628b")
 	)
 	(no_connect
-		(at 132.08 81.28)
+		(at 132.08 113.03)
 		(uuid "745f0dc2-1b12-57fb-b6b7-32a4ecb3eca3")
 	)
 	(no_connect
-		(at 132.08 66.04)
+		(at 132.08 128.27)
 		(uuid "765f492d-28c2-5ba4-8997-aca8c9ae63d5")
 	)
 	(no_connect
-		(at 132.08 76.2)
+		(at 132.08 118.11)
 		(uuid "967d0022-2898-5947-82e2-e3592244863a")
 	)
 	(no_connect
-		(at 45.72 91.44)
+		(at 45.72 102.87)
 		(uuid "a03a4352-79f5-5e7b-8d58-2dd11a9a1702")
 	)
 	(no_connect
-		(at 132.08 60.96)
+		(at 132.08 133.35)
 		(uuid "a2e02ec7-0455-54a3-bb11-082730b8d92c")
 	)
 	(no_connect
-		(at 45.72 96.52)
+		(at 45.72 97.79)
 		(uuid "ad2daad8-ca84-5683-a147-9d7924cd9a01")
 	)
 	(no_connect
-		(at 45.72 142.24)
+		(at 45.72 52.07)
 		(uuid "d3afa3cd-1dd4-5065-85a0-1e983cbb2081")
 	)
 	(no_connect
-		(at 45.72 137.16)
+		(at 45.72 57.15)
 		(uuid "d9994d9d-fc82-5cb9-883e-fdb4d9bfca28")
 	)
 	(no_connect
-		(at 132.08 132.08)
+		(at 132.08 62.23)
 		(uuid "da96d0c1-6f12-5a7a-8428-2c9fdf417ca1")
 	)
 	(no_connect
-		(at 132.08 86.36)
+		(at 132.08 107.95)
 		(uuid "dda921b2-cbc8-59d6-b717-3e43ad067b4d")
 	)
 	(no_connect
-		(at 132.08 111.76)
+		(at 132.08 82.55)
 		(uuid "e29661eb-04fc-55c3-ac0f-089157c7951c")
 	)
 	(wire
 		(pts
-			(xy 45.72 101.6) (xy 25.4 101.6)
+			(xy 45.72 92.71) (xy 25.4 92.71)
 		)
 		(stroke
 			(width 0)
@@ -2305,7 +2305,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 147.32) (xy 25.4 147.32)
+			(xy 45.72 46.99) (xy 25.4 46.99)
 		)
 		(stroke
 			(width 0)
@@ -2315,7 +2315,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 96.52) (xy 137.16 96.52)
+			(xy 132.08 97.79) (xy 137.16 97.79)
 		)
 		(stroke
 			(width 0)
@@ -2335,7 +2335,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 106.68) (xy 137.16 106.68)
+			(xy 132.08 87.63) (xy 137.16 87.63)
 		)
 		(stroke
 			(width 0)
@@ -2365,7 +2365,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 137.16) (xy 137.16 137.16)
+			(xy 132.08 57.15) (xy 137.16 57.15)
 		)
 		(stroke
 			(width 0)
@@ -2395,7 +2395,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 111.76) (xy 25.4 111.76)
+			(xy 45.72 82.55) (xy 25.4 82.55)
 		)
 		(stroke
 			(width 0)
@@ -2445,7 +2445,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 116.84) (xy 25.4 116.84)
+			(xy 45.72 77.47) (xy 25.4 77.47)
 		)
 		(stroke
 			(width 0)
@@ -2495,7 +2495,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 76.2) (xy 25.4 76.2)
+			(xy 45.72 118.11) (xy 25.4 118.11)
 		)
 		(stroke
 			(width 0)
@@ -2555,17 +2555,7 @@
 	)
 	(wire
 		(pts
-			(xy 327.66 144.78) (xy 332.74 144.78)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "89da1480-b6a2-5551-ad5b-ee0f3fdc937d")
-	)
-	(wire
-		(pts
-			(xy 45.72 55.88) (xy 25.4 55.88)
+			(xy 45.72 138.43) (xy 25.4 138.43)
 		)
 		(stroke
 			(width 0)
@@ -2675,7 +2665,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 127) (xy 25.4 127)
+			(xy 45.72 67.31) (xy 25.4 67.31)
 		)
 		(stroke
 			(width 0)
@@ -2705,7 +2695,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 121.92) (xy 25.4 121.92)
+			(xy 45.72 72.39) (xy 25.4 72.39)
 		)
 		(stroke
 			(width 0)
@@ -2715,7 +2705,7 @@
 	)
 	(wire
 		(pts
-			(xy 325.12 144.78) (xy 327.66 144.78)
+			(xy 325.12 144.78) (xy 332.74 144.78)
 		)
 		(stroke
 			(width 0)
@@ -2725,17 +2715,7 @@
 	)
 	(wire
 		(pts
-			(xy 327.66 203.2) (xy 332.74 203.2)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "d4e43ca5-5b8a-5fca-975a-43bebca4fed0")
-	)
-	(wire
-		(pts
-			(xy 132.08 91.44) (xy 137.16 91.44)
+			(xy 132.08 102.87) (xy 137.16 102.87)
 		)
 		(stroke
 			(width 0)
@@ -2755,7 +2735,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 116.84) (xy 137.16 116.84)
+			(xy 132.08 77.47) (xy 137.16 77.47)
 		)
 		(stroke
 			(width 0)
@@ -2775,7 +2755,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 121.92) (xy 137.16 121.92)
+			(xy 132.08 72.39) (xy 137.16 72.39)
 		)
 		(stroke
 			(width 0)
@@ -2795,7 +2775,7 @@
 	)
 	(wire
 		(pts
-			(xy 45.72 81.28) (xy 25.4 81.28)
+			(xy 45.72 113.03) (xy 25.4 113.03)
 		)
 		(stroke
 			(width 0)
@@ -2805,7 +2785,7 @@
 	)
 	(wire
 		(pts
-			(xy 325.12 203.2) (xy 327.66 203.2)
+			(xy 325.12 203.2) (xy 332.74 203.2)
 		)
 		(stroke
 			(width 0)
@@ -2825,7 +2805,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 142.24) (xy 137.16 142.24)
+			(xy 132.08 52.07) (xy 137.16 52.07)
 		)
 		(stroke
 			(width 0)
@@ -2845,7 +2825,7 @@
 	)
 	(wire
 		(pts
-			(xy 132.08 147.32) (xy 137.16 147.32)
+			(xy 132.08 46.99) (xy 137.16 46.99)
 		)
 		(stroke
 			(width 0)
@@ -2874,7 +2854,7 @@
 		(uuid "01436a81-d7b0-536a-9be0-dc2398943e10")
 	)
 	(label "EPD_MOSI"
-		(at 137.16 142.24 0)
+		(at 137.16 52.07 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2894,7 +2874,7 @@
 		(uuid "04f66ae5-2e6b-5102-baf2-1d611f1151ea")
 	)
 	(label "RING_DIN"
-		(at 25.4 101.6 0)
+		(at 25.4 92.71 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2954,7 +2934,7 @@
 		(uuid "3088fd37-ec27-5ca3-972e-5400a28572b0")
 	)
 	(label "GND"
-		(at 137.16 116.84 0)
+		(at 137.16 77.47 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -2994,7 +2974,7 @@
 		(uuid "4d6ff5a8-baef-50e7-82ca-52980add604d")
 	)
 	(label "GND"
-		(at 137.16 147.32 0)
+		(at 137.16 46.99 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3024,7 +3004,7 @@
 		(uuid "539c118c-e950-52f8-801d-98408c7a1346")
 	)
 	(label "+3V3"
-		(at 25.4 147.32 0)
+		(at 25.4 46.99 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3044,7 +3024,7 @@
 		(uuid "5976ca0d-9f90-5d12-b8f5-fc9ca8973452")
 	)
 	(label "BUZZER"
-		(at 25.4 111.76 0)
+		(at 25.4 82.55 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3094,7 +3074,7 @@
 		(uuid "6e7c885e-da1f-5bb4-951a-1d5abe1c0bd2")
 	)
 	(label "JOY_Y"
-		(at 25.4 121.92 0)
+		(at 25.4 72.39 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3124,7 +3104,7 @@
 		(uuid "7de1093b-d1ce-54ce-a9b6-5dc51de623c5")
 	)
 	(label "FRONT_DIN"
-		(at 25.4 76.2 0)
+		(at 25.4 118.11 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3144,7 +3124,7 @@
 		(uuid "8128b178-6f74-5f14-9fba-a18bd56881e2")
 	)
 	(label "EPD_CS"
-		(at 137.16 96.52 0)
+		(at 137.16 97.79 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3174,7 +3154,7 @@
 		(uuid "8c2b47c4-7fc6-5dd0-8fdc-d4abebbd8bd2")
 	)
 	(label "EPD_BUSY"
-		(at 137.16 121.92 0)
+		(at 137.16 72.39 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3194,7 +3174,7 @@
 		(uuid "8fe845ce-b434-5438-9ee8-e6797d6644ec")
 	)
 	(label "EPD_DC"
-		(at 137.16 91.44 0)
+		(at 137.16 102.87 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3244,7 +3224,7 @@
 		(uuid "a02fd246-0b49-5296-8fa7-c3b2fb8ce112")
 	)
 	(label "EPD_RST"
-		(at 137.16 137.16 0)
+		(at 137.16 57.15 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3264,7 +3244,7 @@
 		(uuid "a6937700-cca1-524f-a1b1-cbe46cfd31dd")
 	)
 	(label "JOY_X"
-		(at 25.4 127 0)
+		(at 25.4 67.31 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3324,7 +3304,7 @@
 		(uuid "d0b77c12-1e65-5279-89ca-bf0ef88cc407")
 	)
 	(label "+5V"
-		(at 25.4 55.88 0)
+		(at 25.4 138.43 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3334,7 +3314,7 @@
 		(uuid "d300a2e5-c745-5ba7-9180-401efc55914c")
 	)
 	(label "GND"
-		(at 25.4 81.28 0)
+		(at 25.4 113.03 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3394,7 +3374,7 @@
 		(uuid "e5c7b717-a910-53be-b930-38d86cb346f2")
 	)
 	(label "JOY_SW"
-		(at 25.4 116.84 0)
+		(at 25.4 77.47 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3414,7 +3394,7 @@
 		(uuid "efd08587-955b-52d0-84d5-e94e3d9da94f")
 	)
 	(label "EPD_SCLK"
-		(at 137.16 106.68 0)
+		(at 137.16 87.63 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -3582,7 +3562,8 @@
 	)
 	(symbol
 		(lib_id "Sigil:ESP32_DevKit_38_RearReference")
-		(at 88.9 101.6 0)
+		(at 88.9 92.71 0)
+		(mirror x)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -3592,7 +3573,7 @@
 		(dnp no)
 		(uuid "70ecb54d-204d-5114-9af6-cc9771beca5f")
 		(property "Reference" "U1"
-			(at 88.9 43.18 0)
+			(at 88.9 151.13 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -3602,7 +3583,7 @@
 			)
 		)
 		(property "Value" "REMOVABLE ESP32 DEVKIT / 2 x 19"
-			(at 88.9 45.72 0)
+			(at 88.9 148.59 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -3612,7 +3593,7 @@
 			)
 		)
 		(property "Footprint" "Sigil:ESP32_DevKit_38_Socket_Row22.225mm"
-			(at 88.9 101.6 0)
+			(at 88.9 92.71 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -3623,7 +3604,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 88.9 101.6 0)
+			(at 88.9 92.71 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -3633,7 +3614,7 @@
 			)
 		)
 		(property "Description" ""
-			(at 88.9 101.6 0)
+			(at 88.9 92.71 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -4583,4 +4564,10 @@
 			)
 		)
 	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
 )
