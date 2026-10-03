@@ -2,6 +2,8 @@
 #include <Arduino.h>
 #include <string.h>
 #include "json_text.h"
+#include "config.h"
+#include "serial_log.h"
 #if defined(ARDUINO_ARCH_ESP32)
 #include <esp_system.h>
 #include <esp_heap_caps.h>
@@ -93,17 +95,62 @@ inline const char *resetReason() {
   return "host_test";
 #endif
 }
+// ESP-IDF's FreeRTOS returns BYTES, unlike upstream FreeRTOS's words.
+// This is the historical minimum unused stack, never current free stack.
+inline uint32_t taskStackMinimumFreeBytes() {
+#if defined(ARDUINO_ARCH_ESP32)
+  return uxTaskGetStackHighWaterMark(nullptr);
+#else
+  return 0;  // Not measured by the host runner.
+#endif
+}
+
+inline size_t loopStackSizeBytes() {
+#if defined(ARDUINO_ARCH_ESP32)
+  return getArduinoLoopTaskStackSize();
+#else
+  return AtlasConfig::LOOP_TASK_STACK_BYTES;
+#endif
+}
+
+struct LowStackWarning {
+  bool reported = false;
+  uint32_t lastMs = 0;
+  bool due(uint32_t minimumBytes, uint32_t nowMs) {
+    if (minimumBytes >= AtlasConfig::LOOP_STACK_WARNING_BYTES ||
+        (reported && nowMs - lastMs < 30000)) return false;
+    reported = true;
+    lastMs = nowMs;
+    return true;
+  }
+};
+
+// Called only from loopTask (HTTP completion and periodic health sampling).
+inline void warnLowLoopStack(uint32_t minimumBytes, uint32_t nowMs) {
+#if defined(ARDUINO_ARCH_ESP32)
+  static LowStackWarning warning;
+  if (!warning.due(minimumBytes, nowMs)) return;
+  serialLog.print("ATLAS|STACK|LOW|minimumFreeBytes=");
+  serialLog.print(minimumBytes);
+  serialLog.print("|targetBytes=");
+  serialLog.println(AtlasConfig::LOOP_STACK_WARNING_BYTES);
+#else
+  (void)minimumBytes;
+  (void)nowMs;
+#endif
+}
+
 inline String runtimeDiagnosticsJson() {
-  uint32_t freeHeap=0, minimumHeap=0, largestBlock=0, stackFree=0;
+  uint32_t freeHeap=0, minimumHeap=0, largestBlock=0;
 #if defined(ARDUINO_ARCH_ESP32)
   freeHeap = esp_get_free_heap_size();
   minimumHeap = esp_get_minimum_free_heap_size();
   largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-  stackFree = uxTaskGetStackHighWaterMark(nullptr);
 #endif
   return String("{\"uptimeMs\":")+String(millis())+
       ",\"resetReason\":\""+resetReason()+"\",\"freeHeap\":"+String(freeHeap)+
       ",\"minimumFreeHeap\":"+String(minimumHeap)+",\"largestFreeBlock\":"+String(largestBlock)+
-      ",\"loopStackFreeBytes\":"+String(stackFree)+"}";
+      ",\"loopStackSizeBytes\":"+String(loopStackSizeBytes())+
+      ",\"loopStackMinimumFreeBytes\":"+String(taskStackMinimumFreeBytes())+"}";
 }
 } // namespace TurnHub

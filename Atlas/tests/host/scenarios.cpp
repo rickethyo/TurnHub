@@ -900,6 +900,24 @@ static void lifeApprovalsAndCommander() {
     assert(request("/api/control/life/request",first,{{"target",bad},{"delta","-7"}})==400);
   assert(request("/api/control/life/request",first,{{"target","1"},{"delta","-7"}})==409);
   assert(propose(-7)==200&&game.lifeTotal(2)==40);
+  // A reused response workspace must be rebuilt for each viewer, including
+  // virtual controllers 8/9. Unrelated requests may never leak between phones.
+  assert(request("/api/game/counters",second,{},HTTP_GET)==200);
+  assert(server.body.find("\"target\":2")!=std::string::npos);
+  assert(request("/api/game/counters",third,{},HTTP_GET)==200);
+  assert(server.body.find("\"requests\":[]")!=std::string::npos);
+  String::failReserve()=true;
+  assert(request("/api/game/counters",second,{},HTTP_GET)==503);
+  String::failReserve()=false;
+  assert(request("/api/game/counters",second,{},HTTP_GET)==200); // Lease released on failure.
+  const auto countersCallback=TurnHubWebApi::internal::readCountersHandler;
+  TurnHubWebApi::internal::readCountersHandler=[](uint8_t,uint8_t,TurnHubWebApi::CounterSnapshot &out) {
+    out.playerCount=TurnHub::MAX_PLAYERS+1; return true;
+  };
+  assert(request("/api/game/counters",second,{},HTTP_GET)==503);
+  TurnHubWebApi::internal::readCountersHandler=countersCallback;
+  assert(request("/api/game/counters",third,{},HTTP_GET)==200);
+  assert(server.body.find("\"requests\":[]")!=std::string::npos);
   auto id=game.lifeChangeFor(2)->id;
   assert(propose(-7)==409); // One pending request per target.
   assert(respond(third,id,true)==409&&respond(first,id,true)==409);
@@ -1541,10 +1559,26 @@ static void turnTimerEngine() {
   const size_t size = encodeCheckpoint(saved,bytes,sizeof(bytes));
   assert(size);
   GameCheckpoint decoded;
+  // Recovery reuses one maximum-sized workspace across records. A smaller
+  // match must clear the previous match's tail without losing nonzero defaults.
+  decoded.players[MAX_PLAYERS-1] = PlayerSeat{MAX_PLAYERS,7,2};
+  decoded.stats[MAX_PLAYERS-1].turnsCompleted = 99;
+  decoded.damage[MAX_PLAYERS-1][MAX_PLAYERS-1][1] = 123;
+  decoded.life[MAX_PLAYERS-1] = 999;
   assert(decodeCheckpoint(bytes,size,decoded) == TurnHubStorage::Status::Ok);
+  assert(decoded.players[MAX_PLAYERS-1].controllerId == INVALID_ID &&
+      decoded.players[MAX_PLAYERS-1].slot == 1);
+  assert(decoded.stats[MAX_PLAYERS-1].turnsCompleted == 0 &&
+      decoded.damage[MAX_PLAYERS-1][MAX_PLAYERS-1][1] == 0 && decoded.life[MAX_PLAYERS-1] == 0);
   GameEngine restored;
   assert(restored.restoreCheckpoint(decoded,500) && restored.paused());
   assert(restored.turnTimerMs() == 120000 && restored.turnRemainingMs(900000) == 90000);
+  GameEngine empty;
+  empty.checkpoint(decoded,31000);
+  assert(decoded.count == 0 && decoded.settings.startingLife == 40 &&
+      decoded.settings.turnTimerMs == TURN_TIMER_OFF && decoded.gameElapsed == 0 &&
+      decoded.players[0].controllerId == INVALID_ID && decoded.players[0].slot == 1 &&
+      decoded.players[0].profileId[0] == 0);
 }
 
 // Which cue each Sigil gets. How a cue looks (colors, cadences, the player's
@@ -3316,6 +3350,38 @@ static void gameRecoveryLifecycle() {
 
 #include "ota_service_scenarios.inc"
 
+static void stackDiagnostics() {
+  TurnHub::LowStackWarning warning;
+  assert(!warning.due(3072,100));
+  assert(warning.due(3071,100));
+  assert(!warning.due(1000,30099));
+  assert(warning.due(1000,30100));
+  TurnHub::LowStackWarning wrap;
+  assert(wrap.due(0,UINT32_MAX-100));
+  assert(!wrap.due(1000,50));
+  assert(wrap.due(1000,30000));
+  const uint32_t savedNow=testNow;
+  TurnHub::serialLog.clear();
+  testNow=UINT32_MAX-10;
+  {
+    TurnHub::HttpRequestTrace trace("/api/v1/state");
+    testNow=9;
+  }
+#if TURNHUB_HTTP_TRACE
+  const auto log=TurnHub::serialLog.snapshot();
+  assert(log.find("ATLAS|HTTP|BEGIN|id=")!=std::string::npos);
+  assert(log.find("ATLAS|HTTP|END|id=")!=std::string::npos);
+  assert(log.find("|route=/api/v1/state|durationMs=20|")!=std::string::npos);
+#else
+  assert(TurnHub::serialLog.snapshot().empty());
+#endif
+  const auto json=TurnHub::runtimeDiagnosticsJson();
+  assert(json.find("\"loopStackSizeBytes\":16384")!=std::string::npos);
+  assert(json.find("\"loopStackMinimumFreeBytes\":0")!=std::string::npos);
+  assert(json.find("loopStackFreeBytes")==std::string::npos);
+  testNow=savedNow;
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -3328,6 +3394,7 @@ int main() {
   eliminationAndConcession(); std::cout<<"PASS elimination versus concession\n";
   passTimingAndActors(); std::cout<<"PASS pass timing, cancellation, rollover, actors\n";
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
+  stackDiagnostics(); std::cout<<"PASS stack watermark semantics, warning rate limit, rollover and request tracing\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";

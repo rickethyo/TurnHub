@@ -38,6 +38,12 @@ failures visible until a rerun passes.
 These are the ones that need a deliberate bench setup rather than ordinary
 play. Tick them, with evidence, once done.
 
+- [ ] **C06** Multi-phone stability: validate Atlas 0.6.7's loop stack size and
+  margin with unchanged client polling, raw USB reset/panic capture, mixed
+  Sigil play, slow clients, recovery and OTA. Follow the full matrix in the
+  [stability plan](STABILITY_PLAN_2026_10_02.md); no acceptance is implied by
+  the handler host checks.
+
 - [ ] **R05** Cut power at completion before the terminal checkpoint commits.
   Saved counts don't advance while the unfinished match remains recoverable.
 - [ ] **R06** Cut power after the terminal checkpoint and during profile

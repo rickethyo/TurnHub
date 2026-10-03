@@ -56,6 +56,9 @@ separately in GitHub, not by this file.
    on failed test runs. Artifacts expire after seven days.
 
 Firmware artifacts contain `firmware.bin`, `firmware.elf`, and `build-info.txt`.
+Atlas artifacts also retain `firmware.map` and `stack-usage.tar.gz` (compiler
+`.su` reports) for decoding panics and comparing handler working sets. Keep
+the artifact from the exact build tested on hardware.
 They are development app images, not a complete factory-flash bundle. Match the
 environment to the device and retain the normal PlatformIO upload process for
 initial provisioning. PR artifact names identify the tested merge commit, which

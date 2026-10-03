@@ -88,7 +88,7 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   Reader r{bytes, size - CRC_SIZE};
   r.word();  // Magic and schema were checked above.
   r.word();
-  s = GameCheckpoint{};
+  clearCheckpoint(s);
   s.count=r.byte(); s.active=r.byte(); s.starter=r.byte(); s.winner=r.byte();
   s.paused=r.flag(); s.over=r.flag(); s.settings.profile=static_cast<GameProfile>(r.byte());
   s.settings.startingLife=static_cast<int32_t>(r.word());

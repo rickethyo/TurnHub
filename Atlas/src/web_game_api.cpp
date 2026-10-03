@@ -14,6 +14,16 @@ namespace internal {
 
 namespace {
 
+// One counters request at a time on Atlas's application task. Neither radio
+// callbacks nor SD workers access this disposable HTTP projection. Keep its
+// large working set off the loop stack, including during WebServer::send.
+CounterSnapshot counterWorkspace;
+bool counterWorkspaceBusy = false;
+struct CounterWorkspaceLease {
+  CounterWorkspaceLease() { counterWorkspaceBusy = true; }
+  ~CounterWorkspaceLease() { counterWorkspaceBusy = false; }
+};
+
 // Parses a decimal life value or delta within +/-LIFE_LIMIT.
 bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed) {
   if (!text.length() || text.length() > 8) return false;
@@ -236,15 +246,37 @@ void handleChangeLife(WebServer &server) {
 void handleCounters(WebServer &server) {
   WebSession *session = requireSession(server);
   if (!session) return;
-  CounterSnapshot snapshot;
+  if (counterWorkspaceBusy) {
+    sendError(server, 503, "Counters response is busy");
+    return;
+  }
+  CounterWorkspaceLease lease;
+  CounterSnapshot &snapshot = counterWorkspace;
   if (!resolveSessionParticipant(*session) || !readCountersHandler ||
       !readCountersHandler(session->controllerId, session->slot, snapshot)) {
     sendJson(server, 200, "{\"available\":false,\"requests\":[],\"damage\":[]}");
     return;
   }
-  String json = String("{\"available\":true,\"editable\":") + jsonBool(snapshot.editable) +
-      ",\"commanderEnabled\":" + jsonBool(snapshot.commanderEnabled) +
-      ",\"player\":" + String(snapshot.player) + ",\"requests\":[";
+  if (snapshot.playerCount > MAX_PLAYERS) {
+    sendError(server, 503, "Invalid counters snapshot");
+    return;
+  }
+  String json;
+  // Reserve for the actual bounded result, rather than the full 16-player
+  // capacity on every phone's request. Each allowance includes worst-case
+  // decimal lengths and separators.
+  size_t capacity = 128;
+  for (const auto &request : snapshot.requests) if (request.id) capacity += 160;
+  if (snapshot.commanderEnabled) capacity += snapshot.playerCount * 96;
+  if (!json.reserve(capacity)) {
+    sendError(server, 503, "Could not allocate counters response");
+    return;
+  }
+  json = "{\"available\":true,\"editable\":";
+  json += jsonBool(snapshot.editable);
+  json += ",\"commanderEnabled\":"; json += jsonBool(snapshot.commanderEnabled);
+  json += ",\"player\":"; json += String(snapshot.player);
+  json += ",\"requests\":[";
   bool first = true;
   const uint32_t now = millis();
   for (const auto &request : snapshot.requests) {
@@ -255,17 +287,22 @@ void handleCounters(WebServer &server) {
     const uint32_t remaining =
         request.state == TurnHub::LifeChangeState::Pending && age < TurnHub::LIFE_APPROVAL_MS
         ? TurnHub::LIFE_APPROVAL_MS - age : 0;
-    json += String("{\"id\":") + String(request.id) + ",\"actor\":" + String(request.actor) +
-        ",\"target\":" + String(request.target) + ",\"delta\":" + String(request.delta) +
-        ",\"state\":\"" + lifeChangeStateName(request.state) +
-        "\",\"remainingMs\":" + String(remaining) + "}";
+    json += "{\"id\":"; json += String(request.id);
+    json += ",\"actor\":"; json += String(request.actor);
+    json += ",\"target\":"; json += String(request.target);
+    json += ",\"delta\":"; json += String(request.delta);
+    json += ",\"state\":\""; json += lifeChangeStateName(request.state);
+    json += "\",\"remainingMs\":"; json += String(remaining);
+    json += '}';
   }
   json += "],\"damage\":[";
   if (snapshot.commanderEnabled) {
     for (uint8_t i = 0; i < snapshot.playerCount; ++i) {
       if (i) json += ',';
-      json += String("{\"source\":") + String(snapshot.sources[i]) + ",\"commanders\":[" +
-          String(snapshot.damage[i][0]) + "," + String(snapshot.damage[i][1]) + "]}";
+      json += "{\"source\":"; json += String(snapshot.sources[i]);
+      json += ",\"commanders\":["; json += String(snapshot.damage[i][0]);
+      json += ','; json += String(snapshot.damage[i][1]);
+      json += "]}";
     }
   }
   json += "]}";
