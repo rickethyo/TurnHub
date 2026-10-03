@@ -1,8 +1,15 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
 #include <Arduino.h>
 
 namespace AtlasConfig {
+
+// Arduino-ESP32 2.0.17's loopTask runs setup, gameplay and synchronous HTTP.
+// Provision headroom here; main.cpp overrides the core's weak size function.
+constexpr size_t LOOP_TASK_STACK_BYTES = 16 * 1024;
+constexpr uint32_t LOOP_STACK_WARNING_BYTES = 3 * 1024;
 
 // Atlas board: LCDwiki 2.8" ESP32-32E display module (E32R28T, resistive
 // touch). Pin map from the vendor's pin allocation table; see

@@ -20,6 +20,7 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "runtime_diagnostics.h"
+#include "http_diagnostics.h"
 #include "profile_store.h"
 #include "sd_card.h"
 #include "secure_link_backend.h"
@@ -110,6 +111,7 @@ void logRuntimeHealth(uint32_t nowMs) {
   serialLog.print(stations);
   serialLog.print("|");
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
+  TurnHub::warnLowLoopStack(TurnHub::taskStackMinimumFreeBytes(), nowMs);
 }
 
 // Free heap after a start-up step, so each boot shows what every part costs
@@ -296,6 +298,7 @@ bool configureIntentHandlers() {
 
 // Compact status for the diagnostics page. Clients use /api/v1/state.
 void handleStatus() {
+  TurnHub::HttpRequestTrace trace("/api/status");
   PlayerSeat selected;
   const uint8_t starter = lobby.selectedStarter(selected)
       ? selected.playerNumber

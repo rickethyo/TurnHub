@@ -3316,6 +3316,38 @@ static void gameRecoveryLifecycle() {
 
 #include "ota_service_scenarios.inc"
 
+static void stackDiagnostics() {
+  TurnHub::LowStackWarning warning;
+  assert(!warning.due(3072,100));
+  assert(warning.due(3071,100));
+  assert(!warning.due(1000,30099));
+  assert(warning.due(1000,30100));
+  TurnHub::LowStackWarning wrap;
+  assert(wrap.due(0,UINT32_MAX-100));
+  assert(!wrap.due(1000,50));
+  assert(wrap.due(1000,30000));
+  const uint32_t savedNow=testNow;
+  TurnHub::serialLog.clear();
+  testNow=UINT32_MAX-10;
+  {
+    TurnHub::HttpRequestTrace trace("/api/v1/state");
+    testNow=9;
+  }
+#if TURNHUB_HTTP_TRACE
+  const auto log=TurnHub::serialLog.snapshot();
+  assert(log.find("ATLAS|HTTP|BEGIN|id=")!=std::string::npos);
+  assert(log.find("ATLAS|HTTP|END|id=")!=std::string::npos);
+  assert(log.find("|route=/api/v1/state|durationMs=20|")!=std::string::npos);
+#else
+  assert(TurnHub::serialLog.snapshot().empty());
+#endif
+  const auto json=TurnHub::runtimeDiagnosticsJson();
+  assert(json.find("\"loopStackSizeBytes\":16384")!=std::string::npos);
+  assert(json.find("\"loopStackMinimumFreeBytes\":0")!=std::string::npos);
+  assert(json.find("loopStackFreeBytes")==std::string::npos);
+  testNow=savedNow;
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -3328,6 +3360,7 @@ int main() {
   eliminationAndConcession(); std::cout<<"PASS elimination versus concession\n";
   passTimingAndActors(); std::cout<<"PASS pass timing, cancellation, rollover, actors\n";
   optionalStorage(); std::cout<<"PASS optional storage error policy\n";
+  stackDiagnostics(); std::cout<<"PASS stack watermark semantics, warning rate limit, rollover and request tracing\n";
   virtualProfileFlow(); std::cout<<"PASS profile registration/login, phone-only game, companion sessions, authorization and throttling\n";
   nativeClientBoundary(); std::cout<<"PASS native snapshots, revisions, stale requests, PASS, Commander and reconnect\n";
   guestSigilsDoNotCreateAccounts(); std::cout<<"PASS guest Sigil joins, shared seats, polling and games create no accounts\n";

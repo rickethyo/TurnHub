@@ -91,6 +91,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/firmware"
           cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.bin" "$RUNNER_TEMP/firmware/"
           cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.elf" "$RUNNER_TEMP/firmware/"
+          if [ "$PIO_ENVIRONMENT" = atlas ]; then
+            cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.map" "$RUNNER_TEMP/firmware/"
+            # Preserve paths so same-named framework/project reports don't collide.
+            (cd "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT" && find . -name '*.su' -print0 |
+              tar --null -T - -czf "$RUNNER_TEMP/firmware/stack-usage.tar.gz")
+          fi
           {
             git rev-parse HEAD
             printf 'Project: %s\nEnvironment: %s\n' "$PIO_PROJECT" "$PIO_ENVIRONMENT"
