@@ -28,6 +28,11 @@
 #include "speaker_settings.h"
 #include "wifi_password_store.h"
 
+#if defined(ARDUINO_ARCH_ESP32)
+// Supported by the pinned core; app_main uses this value to create loopTask.
+SET_LOOP_TASK_STACK_SIZE(AtlasConfig::LOOP_TASK_STACK_BYTES);
+#endif
+
 // This build's identity, read by tools/firmware/thfw.py when it packages
 // firmware.bin for OTA (SIGIL_OTA.md).
 TURNHUB_FIRMWARE_DESCRIPTOR(atlasFirmwareDescriptor, TurnHubFirmwarePackage::Product::Atlas,
