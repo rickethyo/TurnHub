@@ -21,6 +21,16 @@ removed from this file. The hardware checks still open are in
 
 ## Open work
 
+### Multi-phone stability (in progress)
+
+- Execute the [stability plan](STABILITY_PLAN_2026_10_02.md) in small changes.
+  First implementation: Atlas 0.6.7 provisions a 16 KiB loop stack, traces
+  constant HTTP routes, labels historical stack minima correctly, and reduces
+  status/counter handler working sets. Firmware build and bench acceptance
+  remain open; the two-phone panic is not yet resolved. Keep original polling
+  for the first bench run. Metadata revisions/caching and client request
+  reductions follow separately, after this workload is measured.
+
 ### Statistics, recovery and history
 
 - **Crash-safe statistics.** Allocate a durable MatchId and completion receipt

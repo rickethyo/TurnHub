@@ -660,6 +660,19 @@ every attempt with "Those presses did not line up"). `atlas_speaker.cpp` now
 sets only the DAC mode (channel 2, IO26). Firmware sizes were not measured for
 this entry (cloud session; CI builds Atlas).
 
+## 2026-10-03 First multi-phone stability changes (Atlas 0.6.7)
+
+Atlas 0.6.6 -> 0.6.7: a 16 KiB loopTask stack, correct historical-minimum
+stack diagnostics, bounded constant-route HTTP tracing and low-stack warnings.
+Status formatting and counter snapshots move to explicitly owned HTTP working
+storage; counter JSON avoids long chains of String temporaries. The working
+storage adds about 1.5 KiB static RAM, plus 8 KiB more allocated stack versus
+an 8 KiB baseline. Host GCC frame estimates fall from 1376 to 352 B for status
+and 1280 to 160 B for counters; these are not ESP32 runtime measurements.
+Firmware RAM/flash were not measured (PlatformIO unavailable in the cloud
+session). Radio version and client polling stay unchanged. Hardware acceptance
+remains open; see `STABILITY_PLAN_2026_10_02.md` and verification C06.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
