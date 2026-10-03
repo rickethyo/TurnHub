@@ -900,6 +900,24 @@ static void lifeApprovalsAndCommander() {
     assert(request("/api/control/life/request",first,{{"target",bad},{"delta","-7"}})==400);
   assert(request("/api/control/life/request",first,{{"target","1"},{"delta","-7"}})==409);
   assert(propose(-7)==200&&game.lifeTotal(2)==40);
+  // A reused response workspace must be rebuilt for each viewer, including
+  // virtual controllers 8/9. Unrelated requests may never leak between phones.
+  assert(request("/api/game/counters",second,{},HTTP_GET)==200);
+  assert(server.body.find("\"target\":2")!=std::string::npos);
+  assert(request("/api/game/counters",third,{},HTTP_GET)==200);
+  assert(server.body.find("\"requests\":[]")!=std::string::npos);
+  String::failReserve()=true;
+  assert(request("/api/game/counters",second,{},HTTP_GET)==503);
+  String::failReserve()=false;
+  assert(request("/api/game/counters",second,{},HTTP_GET)==200); // Lease released on failure.
+  const auto countersCallback=TurnHubWebApi::internal::readCountersHandler;
+  TurnHubWebApi::internal::readCountersHandler=[](uint8_t,uint8_t,TurnHubWebApi::CounterSnapshot &out) {
+    out.playerCount=TurnHub::MAX_PLAYERS+1; return true;
+  };
+  assert(request("/api/game/counters",second,{},HTTP_GET)==503);
+  TurnHubWebApi::internal::readCountersHandler=countersCallback;
+  assert(request("/api/game/counters",third,{},HTTP_GET)==200);
+  assert(server.body.find("\"requests\":[]")!=std::string::npos);
   auto id=game.lifeChangeFor(2)->id;
   assert(propose(-7)==409); // One pending request per target.
   assert(respond(third,id,true)==409&&respond(first,id,true)==409);

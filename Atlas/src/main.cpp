@@ -319,8 +319,10 @@ void handleStatus() {
       ? PASS_GRACE_MS - passElapsed
       : 0;
 
-  char json[1024];
-  snprintf(
+  // HTTP is serialized on loopTask. No worker/callback uses this workspace,
+  // and WebServer::send consumes it before the next request can enter.
+  static char json[1024];
+  const int length = snprintf(
       json,
       sizeof(json),
       "{\"presenceActive\":%s,\"presenceCodeShown\":%s,\"sigils\":%u,\"players\":%u,"
@@ -353,6 +355,10 @@ void handleStatus() {
       otaStateAllowed ? "true" : "false");
 
   server.sendHeader("Cache-Control", "no-store");
+  if (length < 0 || static_cast<size_t>(length) >= sizeof(json)) {
+    server.send(503, "application/json", "{\"error\":\"Status response exceeded capacity\"}");
+    return;
+  }
   server.send(200, "application/json", json);
 }
 
