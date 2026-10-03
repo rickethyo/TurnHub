@@ -669,9 +669,15 @@ storage; counter JSON avoids long chains of String temporaries. The working
 storage adds about 1.5 KiB static RAM, plus 8 KiB more allocated stack versus
 an 8 KiB baseline. Host GCC frame estimates fall from 1376 to 352 B for status
 and 1280 to 160 B for counters; these are not ESP32 runtime measurements.
-Firmware RAM/flash were not measured (PlatformIO unavailable in the cloud
-session). Radio version and client polling stay unchanged. Hardware acceptance
+Local firmware compilation was unavailable; GitHub figures follow below.
+Radio version and client polling stay unchanged. Hardware acceptance
 remains open; see `STABILITY_PLAN_2026_10_02.md` and verification C06.
+
+The first GitHub build passed: static RAM 94,436 B, flash 1,418,397 B,
+PlatformIO 6.2.0 / espressif32 7.1.3 / Arduino-ESP32 2.0.17. Actual target
+reports also exposed large aggregate reset temporaries in checkpoint capture,
+decode and the counter callback; a follow-up resets those workspaces in place.
+Use the follow-up CI artifact for final sizes and hardware testing.
 
 ## Tracking rules
 

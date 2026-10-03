@@ -4,6 +4,20 @@
 #include <cstring>
 
 namespace TurnHub {
+void clearCheckpoint(GameCheckpoint &out) {
+  out.settings = GameSettings{};
+  out.count = out.active = out.starter = out.winner = 0;
+  out.paused = out.over = false;
+  out.gameElapsed = out.turnElapsed = out.nextRequestId = 0;
+  for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
+    out.players[i] = PlayerSeat{};
+    out.stats[i] = PlayerStats{};
+    out.eliminated[i] = false;
+    out.life[i] = 0;
+    for (auto &source : out.damage[i]) for (auto &value : source) value = 0;
+  }
+}
+
 bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
   if (!s.count) return !s.over && !s.winner;
@@ -40,7 +54,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
 }
 
 void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
-  out = GameCheckpoint{};
+  clearCheckpoint(out);
   if (!hasPlayers()) return;
   out.settings = settings_;
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;

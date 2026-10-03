@@ -1559,10 +1559,26 @@ static void turnTimerEngine() {
   const size_t size = encodeCheckpoint(saved,bytes,sizeof(bytes));
   assert(size);
   GameCheckpoint decoded;
+  // Recovery reuses one maximum-sized workspace across records. A smaller
+  // match must clear the previous match's tail without losing nonzero defaults.
+  decoded.players[MAX_PLAYERS-1] = PlayerSeat{MAX_PLAYERS,7,2};
+  decoded.stats[MAX_PLAYERS-1].turnsCompleted = 99;
+  decoded.damage[MAX_PLAYERS-1][MAX_PLAYERS-1][1] = 123;
+  decoded.life[MAX_PLAYERS-1] = 999;
   assert(decodeCheckpoint(bytes,size,decoded) == TurnHubStorage::Status::Ok);
+  assert(decoded.players[MAX_PLAYERS-1].controllerId == INVALID_ID &&
+      decoded.players[MAX_PLAYERS-1].slot == 1);
+  assert(decoded.stats[MAX_PLAYERS-1].turnsCompleted == 0 &&
+      decoded.damage[MAX_PLAYERS-1][MAX_PLAYERS-1][1] == 0 && decoded.life[MAX_PLAYERS-1] == 0);
   GameEngine restored;
   assert(restored.restoreCheckpoint(decoded,500) && restored.paused());
   assert(restored.turnTimerMs() == 120000 && restored.turnRemainingMs(900000) == 90000);
+  GameEngine empty;
+  empty.checkpoint(decoded,31000);
+  assert(decoded.count == 0 && decoded.settings.startingLife == 40 &&
+      decoded.settings.turnTimerMs == TURN_TIMER_OFF && decoded.gameElapsed == 0 &&
+      decoded.players[0].controllerId == INVALID_ID && decoded.players[0].slot == 1 &&
+      decoded.players[0].profileId[0] == 0);
 }
 
 // Which cue each Sigil gets. How a cue looks (colors, cadences, the player's

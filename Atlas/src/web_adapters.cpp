@@ -139,7 +139,13 @@ bool changeLife(uint8_t controller, uint8_t slot, int32_t delta, String &message
 bool readCounters(uint8_t controller, uint8_t slot, TurnHubWebApi::CounterSnapshot &snapshot) {
   PlayerSeat seat;
   if (!game.hasPlayers() || !seatForModuleSlot(controller, slot, seat)) return false;
-  snapshot = TurnHubWebApi::CounterSnapshot{};
+  // This is an already-owned workspace. Aggregate assignment creates a
+  // second ~470-byte snapshot on the pinned Xtensa compiler's stack.
+  snapshot.editable = snapshot.commanderEnabled = false;
+  snapshot.player = snapshot.playerCount = 0;
+  for (auto &source : snapshot.sources) source = 0;
+  for (auto &row : snapshot.damage) for (auto &value : row) value = 0;
+  for (auto &request : snapshot.requests) request = TurnHub::LifeChangeRequest{};
   snapshot.player = seat.playerNumber;
   snapshot.playerCount = game.playerCount();
   snapshot.editable = (hubState == HubState::Running || hubState == HubState::Paused) &&

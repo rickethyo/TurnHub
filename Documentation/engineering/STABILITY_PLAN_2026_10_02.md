@@ -181,6 +181,16 @@ a current stack-pointer measurement. No claim of current free stack is made.
 
 ### Resource evidence and remaining checks
 
+The first GitHub firmware build passed all seven CI jobs. Its ESP32 compiler
+reports 96 B for `handleCounters`, 240 B for `handleStatus`, but also revealed
+528 B in `readCounters`, 2768 B in `GameEngine::checkpoint`, and 2816 B in
+`decodeCheckpoint`. The latter three clear an existing workspace through a
+large aggregate temporary. The measured follow-up replaces those assignments
+with in-place field/array resets, preserving settings and player-seat defaults,
+the record schema and completion ordering. Recovery tests exercise reused
+scratch storage and empty-match defaults. The subsequent CI build validates
+these follow-up changes; use its artifact for the bench.
+
 GCC host `-Os -fstack-usage`, real source with host stubs, before/after:
 
 | Function | Before | After |
