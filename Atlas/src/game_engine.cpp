@@ -26,6 +26,8 @@ void GameEngine::setGameCompletedCallback(GameCompletedCallback callback) {
 }
 
 void GameEngine::reset() {
+  ++matchGeneration_;
+  for (auto &hit : lastHits_) hit = CommanderHit{};
   settings_ = GameSettings{};
   playerCount_ = 0;
   activeIndex_ = 0;
@@ -141,8 +143,30 @@ bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_
       delta < -LIFE_LIMIT || delta > LIFE_LIMIT) return false;
   const int64_t total = static_cast<int64_t>(commanderDamage_[to][from][commander - 1]) + delta;
   if (total < 0 || total > LIFE_LIMIT || !canChangeLife(recipient, -delta)) return false;
+  // A correction to the same cell invalidates the previous undo receipt.
+  if (lastHits_[to].source == source && lastHits_[to].commander == commander)
+    lastHits_[to] = CommanderHit{};
   life_[to] -= delta;
   commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
+  return true;
+}
+
+const GameEngine::CommanderHit *GameEngine::lastCommanderHit(uint8_t recipient) const {
+  const int to = indexForPlayerNumber(recipient);
+  return to >= 0 && lastHits_[to].amount > 0 ? &lastHits_[to] : nullptr;
+}
+bool GameEngine::recordCommanderHit(uint8_t recipient, uint8_t source, uint8_t commander, int32_t amount) {
+  if (amount < 1 || amount > 9999 || !changeCommanderDamage(recipient,source,commander,amount)) return false;
+  auto &hit = lastHits_[indexForPlayerNumber(recipient)];
+  hit.source = source; hit.commander = commander; hit.amount = amount;
+  return true;
+}
+bool GameEngine::undoCommanderHit(uint8_t recipient) {
+  const CommanderHit *last = lastCommanderHit(recipient);
+  if (!last) return false;
+  const CommanderHit hit = *last;
+  if (!changeCommanderDamage(recipient,hit.source,hit.commander,-hit.amount)) return false;
+  lastHits_[indexForPlayerNumber(recipient)] = CommanderHit{};
   return true;
 }
 

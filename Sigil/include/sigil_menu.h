@@ -8,7 +8,8 @@
 // Two styles (owner, 2026-10-02):
 // - Compass (e-ink): every action has a fixed key, so muscle memory works and
 //   the e-ink only redraws when the menu changes. Click (Select) is the likely
-//   action. Outside a game, the first of Up/Down with nothing on it is Menu: a
+//   action. In Commander games, Up opens a game submenu for damage, Undo,
+//   Pause/Resume and Claim win; Down switches shared seats. Outside a game, the first of Up/Down with nothing on it is Menu: a
 //   device menu, also a compass, with Unpair (held) on the click, Sleep on Up,
 //   Factory reset (held longer) on Down and Back on Left. While Atlas is lost
 //   (setOffline) only that Menu is offered, on Up.
@@ -31,7 +32,7 @@ constexpr uint8_t KEY_COUNT = static_cast<uint8_t>(Key::Count);
 
 constexpr uint8_t MENU_NONE = TurnHubProtocol::SIGIL_ACTION_NONE;
 constexpr uint8_t MENU_MAX_ITEMS = static_cast<uint8_t>(TurnHubProtocol::SigilAction::Count);
-// Device-local entries: never in Atlas's MenuState (that 24-bit mask is full)
+// Device-local entries: never in Atlas's MenuState (the mask names only Atlas actions)
 // and never sent to Atlas. Held in the device menu, Unpair makes main.cpp
 // forget the saved Atlas pairing, and Factory reset erases this Sigil. They
 // stand beside the Pair button's holds, which also work when the screen or
@@ -143,12 +144,13 @@ class SigilMenu {
         action == MENU_LOCAL_SLEEP || action == MENU_LOCAL_RECOVERY) {
       return active_ && deviceMenuOpen_;
     }
-    if (action == MENU_LOCAL_DEVICE_MENU) return active_ && !deviceMenuOpen_ && (list_ || menuKey() != MENU_NONE);
+    if (action == MENU_LOCAL_DEVICE_MENU) return active_ && !deviceMenuOpen_ && (list_ || commanderMenu() || menuKey() != MENU_NONE);
     return action < MENU_MAX_ITEMS && action != static_cast<uint8_t>(TurnHubProtocol::SigilAction::AdjustLife) &&
         (actions_ & (1u << action)) != 0;
   }
   // The key that opens the device menu: the first of Up/Down with nothing on
   // it, outside a game (AdjustLife not offered); MENU_NONE if neither.
+  bool commanderMenu() const { return (actions_ & TurnHubProtocol::sigilActionBit(TurnHubProtocol::SigilAction::CommanderDamage)) != 0; }
   uint8_t menuKey() const;
   void applyFields(const TurnHubProtocol::MenuStateFields &f);
   void choose(uint8_t action, Key key, uint32_t nowMs);

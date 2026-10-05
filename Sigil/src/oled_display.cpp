@@ -6,6 +6,7 @@
 #include "display_name.h"
 #include "life_heart.h"
 #include "commander_damage.h"
+#include "commander_flow_view.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -610,20 +611,29 @@ void OledDisplay::showUpdate(const char *status, int8_t percent) {
   display_->display();
 }
 
+void OledDisplay::showCommander(const TurnHubProtocol::CommanderFlowPacket &page) {
+  if (!ready_) return;
+  const auto v = commanderFlowView(page);
+  display_->clearDisplay();
+  header(v.title,"",false);
+  for (uint8_t i=0;i<6;++i) text(v.lines[i],12+i*8,1,Align::Center);
+  display_->display();
+}
+
 void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   if (!ready_ || drawDeviceMenu()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);
   const uint8_t secondary = TurnHubProtocol::displaySecondaryPlayer(s.state);
   const bool shared = secondary != 0;
   const bool active = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_ACTIVE);
-  const char seat = primary < secondary ? 'A' : 'B';
+  const char seat = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B) ? 'B' : 'A';
   const int16_t w = display_->width();
   char label[32];
   display_->clearDisplay();
   snprintf(label, sizeof(label), "S%u R%u", static_cast<unsigned>(s.sigilId + 1),
       static_cast<unsigned>(TurnHubProtocol::displayTurnNumber(s.state)));
   header(s.commander ? "COMMANDER" : "GAME", label,
-      TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST));
+      false);
   const bool asking = life_.request.target != 0;
   if (asking) {
     snprintf(label, sizeof(label), "P%u: %+ld LIFE?", static_cast<unsigned>(life_.request.requester),
@@ -663,7 +673,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     // Left of the life total, when the number leaves room (up to 3 digits).
     char digits[12];
     snprintf(digits, sizeof(digits), "%ld", static_cast<long>(shownLife));
-    const uint8_t mine = primary < secondary || !secondary ? life_.avatar[0] : life_.avatar[1];
+    const uint8_t mine = seat == 'A' || !secondary ? life_.avatar[0] : life_.avatar[1];
     if (mine && strlen(digits) <= 3) {
       display_->fillRect(0, lifeY, 18, 16, SH110X_BLACK);
       TurnHubAvatars::drawAvatar(*display_, mine, 0, lifeY, SH110X_WHITE);
@@ -737,16 +747,16 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
   char label[32];
   snprintf(label, sizeof(label), "S%u R%u", static_cast<unsigned>(sigilId + 1),
       static_cast<unsigned>(turnNumber));
-  header(title, label, flags & TurnHubProtocol::DISPLAY_FLAG_HOST);
+  header(title, label, false);
   if (secondaryPlayer && indicateSeat) {
     snprintf(label, sizeof(label), "%s: %c", message,
-        primaryPlayer < secondaryPlayer ? 'A' : 'B');
+        (flags & TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B) ? 'B' : 'A');
     banner(label, 13, true, kind);
   } else {
     banner(message, 13, indicateSeat, indicateSeat ? kind : Icon::None);
   }
   if (secondaryPlayer) {
-    const bool seatA = primaryPlayer < secondaryPlayer;
+    const bool seatA = !(flags & TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B);
     snprintf(label, sizeof(label), "%c: %s", seatA ? 'A' : 'B',
         seatA ? (seatNameA_[0] ? seatNameA_ : "Guest") : (seatNameB_[0] ? seatNameB_ : "Guest"));
     if (fontText(label, &BrassFonts::OledName, 28, 44, Align::Center) < 0 &&

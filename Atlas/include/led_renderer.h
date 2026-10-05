@@ -49,6 +49,7 @@ class LedRenderer {
   // one of this Sigil's seats, which is then shown. View state only: it
   // changes no game state and needs no Intent. False if there is nothing to
   // switch to.
+  uint8_t shownPlayer(uint8_t sigilId, const GameEngine &game) const;
   bool switchShownSeat(uint8_t sigilId, const GameEngine &game);
 
  private:

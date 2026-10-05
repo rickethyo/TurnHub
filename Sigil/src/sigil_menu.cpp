@@ -59,7 +59,7 @@ constexpr SigilAction LIST_ORDER[] = {
     SigilAction::Pass, SigilAction::CancelPass, SigilAction::Join, SigilAction::StartGame,
     SigilAction::CancelStart, SigilAction::Resume, SigilAction::Pause, SigilAction::ConfirmWin,
     SigilAction::DenyWin, SigilAction::Eliminate, SigilAction::NextTarget,
-    SigilAction::CancelElimination, SigilAction::SwitchSeat, SigilAction::RandomStarter,
+    SigilAction::CancelElimination, SigilAction::CommanderDamage, SigilAction::UndoCommanderHit, SigilAction::SwitchSeat, SigilAction::RandomStarter,
     SigilAction::CycleStarter, SigilAction::AddSeatB, SigilAction::RemoveSeatB,
     SigilAction::LinkPhone, SigilAction::ClaimWin, SigilAction::BeginElimination,
     SigilAction::Rematch, SigilAction::Leave, SigilAction::ResetTable};
@@ -108,6 +108,8 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::LinkPhone: return "Link phone";
     case SigilAction::Leave: return "Leave lobby";
     case SigilAction::AdjustLife: return "Change life";
+    case SigilAction::CommanderDamage: return "Cmd damage";
+    case SigilAction::UndoCommanderHit: return "Undo hit";
     case SigilAction::SwitchSeat: return "Switch seat";
     default: return "";
   }
@@ -126,10 +128,19 @@ bool MenuView::operator==(const MenuView &o) const {
 }
 
 uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
+  const bool commander = (actions & TurnHubProtocol::sigilActionBit(SigilAction::CommanderDamage)) != 0;
+  if (commander) {
+    if (key == Key::Up) return MENU_LOCAL_DEVICE_MENU;
+    // Pause and Claim win are in the game submenu, leaving Down for Switch seat.
+    actions &= ~(TurnHubProtocol::sigilActionBit(SigilAction::Pause) |
+        TurnHubProtocol::sigilActionBit(SigilAction::Resume) |
+        TurnHubProtocol::sigilActionBit(SigilAction::ClaimWin));
+  }
   // Assign in action order (Link phone before Leave: a waiting phone
   // link outranks Leave for the last free key; Leave comes back after).
   uint8_t owner[KEY_COUNT];
   memset(owner, MENU_NONE, sizeof(owner));
+  if (commander) owner[static_cast<uint8_t>(Key::Up)] = MENU_LOCAL_DEVICE_MENU;
   for (uint8_t action = 0; action < MENU_MAX_ITEMS; ++action) {
     if ((actions & (1u << action)) == 0) continue;
     const Slots slots = preferences(action);
@@ -198,6 +209,15 @@ uint8_t SigilMenu::keyAction(Key key) const {
     // Undo pass while it is pending), Up opens the list, Left/Right are life.
     if (key == Key::Select) return compassAction(actions_, Key::Select);
     if (key == Key::Up) return MENU_LOCAL_DEVICE_MENU;
+    return MENU_NONE;
+  }
+  if (deviceMenuOpen_ && commanderMenu()) {
+    if (key == Key::Left) return MENU_LOCAL_BACK;
+    const auto available = [&](SigilAction a) { return (actions_ & TurnHubProtocol::sigilActionBit(a)) ? static_cast<uint8_t>(a) : MENU_NONE; };
+    if (key == Key::Select) return available(SigilAction::CommanderDamage);
+    if (key == Key::Down) return available(SigilAction::UndoCommanderHit);
+    if (key == Key::Up) return available((actions_ & TurnHubProtocol::sigilActionBit(SigilAction::Resume)) ? SigilAction::Resume : SigilAction::Pause);
+    if (key == Key::Right) return available(SigilAction::ClaimWin);
     return MENU_NONE;
   }
   if (deviceMenuOpen_) {
@@ -298,7 +318,7 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     const ActionHold hold = TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action));
     if (hold == ActionHold::None) {
       emit(action);
-      if (list_) closeDeviceMenu();  // Chosen from the list: back to the screen.
+      if (list_ || commanderMenu()) closeDeviceMenu();  // Chosen from the list: back to the screen.
       return;
     }
     holdMs = hold == ActionHold::Win ? winHoldMs_ : longPressMs_;

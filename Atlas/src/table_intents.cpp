@@ -383,7 +383,7 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
 
 // Owner decision (2026-09-29): turn order is set in the lobby only, from the
 // Atlas touchscreen only, and any player may set it. Moving a seat moves its
-// whole controller, so a shared Sigil's seats stay next to each other.
+// whole controller outside its pair; A/B can swap within the shared Sigil.
 IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Set the turn order on the Atlas screen");
@@ -400,7 +400,7 @@ IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
   if (seat == nullptr) return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
   const int32_t direction = intent.payload.value;
   if ((direction != -1 && direction != 1) ||
-      !lobby.moveController(seat->controllerId, static_cast<int8_t>(direction))) {
+      !lobby.moveSeat(seat->controllerId, seat->slot, static_cast<int8_t>(direction))) {
     return IntentResult::reject(IntentStatus::Conflict,
         direction < 0 ? "Already first in turn order" : "Already last in turn order");
   }
@@ -409,6 +409,25 @@ IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
   serialLog.print(seat->controllerId);
   serialLog.println(direction < 0 ? "|EARLIER" : "|LATER");
   return IntentResult::accept(direction < 0 ? "Moved earlier in turn order" : "Moved later in turn order");
+}
+
+IntentResult handleSetSeatSideIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware)
+    return IntentResult::reject(IntentStatus::Unauthorized, "Set seat sides on the Atlas screen");
+  if (hubState != HubState::Lobby)
+    return IntentResult::reject(IntentStatus::InvalidState, "Set seat sides in the lobby");
+  if (intent.payload.value != 0 && intent.payload.value != 1)
+    return IntentResult::reject(IntentStatus::Conflict, "Choose left or right");
+  PlayerSeat seats[MAX_PLAYERS];
+  const uint8_t count = lobby.buildPlayers(seats, MAX_PLAYERS);
+  for (uint8_t i = 0; i < count; ++i) {
+    if (seats[i].playerNumber != intent.payload.targetPlayer) continue;
+    if (!lobby.setSecondaryFirst(seats[i].controllerId, intent.payload.value == 1))
+      return IntentResult::reject(IntentStatus::Conflict, "This Sigil has no seat B");
+    leds.invalidateAll();
+    return IntentResult::accept(intent.payload.value == 1 ? "B on left: before A" : "B on right: after A");
+  }
+  return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
 }
 
 // --- Seat membership (Join / Leave) ---------------------------------------------

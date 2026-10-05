@@ -135,8 +135,8 @@ initialization completed; write-only SPI cannot confirm physical panel presence.
 
 Booting, Unpaired plus the existing pairing instruction, and assigned/ready
 screens use text. State-only screens cover lobby, starting, running, paused
-and game over, including shared-seat focus and host/turn metadata. `H` in the
-header means host; `S` identifies the Sigil and `R` is the table round (the number the Atlas header shows).
+and game over, including shared-seat focus and round metadata. `S` identifies the Sigil and
+`R` is the table round (the number the Atlas header shows).
 
 A running snapshot shows the full primary name, LIFE value and explicit
 YOUR TURN / WAITING FOR TURN text. YOUR TURN also uses inverse contrast. Shared
@@ -286,7 +286,7 @@ Sigils, one bit deep:
 
 | Vertical area | Contents |
 | --- | --- |
-| y=4-36 | Game/Commander title, Sigil number, HOST flag, table round, divider |
+| y=4-36 | Game/Commander title, Sigil number, table round, divider |
 | y=40-59 | YOUR TURN banner, or WAITING FOR TURN, directly above the primary player |
 | y=66-99 | Primary player's full transmitted name, up to two lines |
 | y=104-163 | Large life total and LIFE label (shared view uses a shorter primary block) |
@@ -324,7 +324,7 @@ The display remains understandable without the LED colors or audio.
   flow. Radio startup failure does not turn a loaded binding into Unpaired.
 - Ready screens retain their ready text.
 - Lobby, starting, legacy running, paused and game-over states retain their
-  state title, identity, Sigil/host/turn metadata and relevant starter, active,
+  state title, identity, Sigil/round metadata and relevant starter, active,
   attention or winner indication.
 - Shared state-only screens stack Seat A above Seat B in the existing seat
   order. A black seat-label strip preserves the existing focus emphasis;
@@ -513,3 +513,17 @@ Local validation for this change:
 
 The portrait mounting, pairing boot screens, game states and Commander rows
 are verified in use (owner, 2026-10-02).
+
+### Physical seat identity (2026-10-05)
+
+Atlas sends `DISPLAY_FLAG_PRIMARY_B` (`0x10`) when the focused player is seat B.
+Both displays use it for A/B labels, focus and avatar selection; player numbers
+may be in either A/B or B/A order. The retired host flag no longer draws a crown.
+
+### Commander entry (2026-10-05)
+
+The Sigil can record received Commander damage and undo its last hit. OLED uses
+the action list; e-ink Up opens a game menu. Atlas supplies each entry page,
+including the receiving A/B seat and confirmation totals. See
+[Sigil Commander damage](../Documentation/engineering/SIGIL_COMMANDER_DAMAGE.md)
+for controls, validation, recovery and hardware acceptance.

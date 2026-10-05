@@ -8,8 +8,8 @@ namespace TurnHub {
 
 // Who is at the table before a game starts. Controllers join in order; each
 // has seat A (slot 1) and, for physical Sigils, an optional seat B (slot 2).
-// Player numbers are derived from join order, so they renumber as seats
-// change. The first joined controller is the host.
+// Player numbers follow controller order and each shared Sigil's A/B order.
+// They renumber as seats change.
 class Lobby {
  public:
   Lobby();
@@ -33,6 +33,10 @@ class Lobby {
   // earlier (-1) or later (+1). Player numbers follow the new order; the
   // chosen starter stays the same seat. False at either end.
   bool moveController(uint8_t controllerId, int8_t direction);
+  // Moving toward the other seat swaps A/B; otherwise moves the whole Sigil.
+  bool moveSeat(uint8_t controllerId, uint8_t slot, int8_t direction);
+  bool setSecondaryFirst(uint8_t controllerId, bool first);
+  bool secondaryFirst(uint8_t controllerId) const;
 
   // 0 when that seat is not at the table.
   uint8_t playerNumber(uint8_t controllerId, uint8_t slot = 1) const;
@@ -66,6 +70,7 @@ class Lobby {
   uint8_t joinedOrder_[MAX_CONTROLLERS];
   uint8_t joinedCount_ = 0;
   bool secondary_[MAX_CONTROLLERS] = {};
+  bool secondaryFirst_[MAX_CONTROLLERS] = {};
   uint32_t participants_[MAX_CONTROLLERS][2] = {};
   uint32_t nextParticipant_ = 1;
 

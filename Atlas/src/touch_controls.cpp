@@ -255,8 +255,15 @@ void layoutPlayer(AtlasScreen &screen) {
     const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
         {TouchAction::MoveLater, "Later", 0, 1}};
     addRow(screen, BUTTON_UPPER_ROW_Y, upper, 2);
-    const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
-    addRow(screen, BUTTON_ROW_Y, lower, 1);
+    PlayerSeat seat;
+    if (currentShownSeat(seat) && lobby.hasSecondary(seat.controllerId)) {
+      const ButtonSpec lower[] = {{TouchAction::SeatBLeft, "B left", 0, 1},
+          {TouchAction::SeatBRight, "B right", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, lower, 3);
+    } else {
+      const ButtonSpec lower[] = {{TouchAction::CloseScreen, "Back", 0, 1}};
+      addRow(screen, BUTTON_ROW_Y, lower, 1);
+    }
     return;
   }
   if (concedeArmed) {
@@ -467,6 +474,8 @@ const char *actionName(TouchAction action) {
     case TouchAction::CancelConcede: return "CONCEDE_CANCEL";
     case TouchAction::MoveEarlier: return "MOVE_EARLIER";
     case TouchAction::MoveLater: return "MOVE_LATER";
+    case TouchAction::SeatBLeft: return "SEAT_B_LEFT";
+    case TouchAction::SeatBRight: return "SEAT_B_RIGHT";
     case TouchAction::SkipSetup: return "SKIP_SETUP";
     case TouchAction::OpenSetup: return "OPEN_SETUP";
     case TouchAction::SetupPair: return "SETUP_PAIR";
@@ -649,17 +658,21 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     }
     // Turn order in the lobby: the table device asks, the handler decides.
     case TouchAction::MoveEarlier:
-    case TouchAction::MoveLater: {
+    case TouchAction::MoveLater:
+    case TouchAction::SeatBLeft:
+    case TouchAction::SeatBRight: {
       PlayerSeat seat;
       if (!currentShownSeat(seat)) {
         result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
         break;
       }
       Intent intent;
-      intent.type = IntentType::MoveSeat;
+      const bool sides = action == TouchAction::SeatBLeft || action == TouchAction::SeatBRight;
+      intent.type = sides ? IntentType::SetSeatSide : IntentType::MoveSeat;
       intent.actor.origin = IntentOrigin::AtlasHardware;
       intent.payload.targetPlayer = seat.playerNumber;
-      intent.payload.value = action == TouchAction::MoveEarlier ? -1 : 1;
+      intent.payload.value = sides ? (action == TouchAction::SeatBLeft ? 1 : 0) :
+          (action == TouchAction::MoveEarlier ? -1 : 1);
       result = intents.dispatch(intent);
       break;
     }
@@ -1168,10 +1181,11 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
   playerName(seat, profileIdForTableSeat(seat, !inLobby), nowMs, name);
   snprintf(screen.title, sizeof(screen.title), "%s", name);
   if (inLobby) {
-    // Seat B moves with its Sigil's seat A; say so where it applies.
+    // Show each player's position and the shared Sigil's physical seating.
     snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u%s",
         static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(lobby.playerCount()),
-        lobby.hasSecondary(seat.controllerId) ? ", with its Sigil" : "");
+        lobby.hasSecondary(seat.controllerId) ?
+            (lobby.secondaryFirst(seat.controllerId) ? "; B left, before A" : "; B right, after A") : "");
   } else if (concedeArmed) {
     snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
   } else {

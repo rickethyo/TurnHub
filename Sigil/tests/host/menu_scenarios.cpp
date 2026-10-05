@@ -62,10 +62,27 @@ int main() {
   {
     const MenuStateFields f = decodeMenuState2(menu({A::Pass, A::Pause, A::LinkPhone}, A::Pass, 5));
     assert(f.actions == (sigilActionBit(A::Pass) | sigilActionBit(A::Pause) | sigilActionBit(A::LinkPhone)));
-    assert(f.defaultAction == id(A::Pass) && f.revision == 5);
+    assert(f.defaultAction == SIGIL_ACTION_NONE && f.revision == 5);
     assert(decodeMenuState2(menu({A::Pause}, A::Pass, 1)).defaultAction == SIGIL_ACTION_NONE);
     const int32_t select = encodeSelectAction(A::ClaimWin, 63);
     assert(selectedAction(select) == id(A::ClaimWin) && selectedRevision(select) == 63);
+  }
+
+  {
+    const uint32_t actions = sigilActionBit(A::Pass) | sigilActionBit(A::AdjustLife) |
+        sigilActionBit(A::Pause) | sigilActionBit(A::ClaimWin) | sigilActionBit(A::SwitchSeat) |
+        sigilActionBit(A::CommanderDamage) | sigilActionBit(A::UndoCommanderHit);
+    MenuStateFields f; f.actions=actions; f.revision=7;
+    assert(decodeMenuState2(encodeMenuState2(f)).actions==actions);
+    const int32_t chosen=encodeSelectAction(A::CommanderDamage,7,16);
+    assert(selectedAction(chosen)==id(A::CommanderDamage) && selectedPlayer(chosen)==16);
+    SigilMenu cmd(MenuStyle::Compass); cmd.applyMenuState2(encodeMenuState2(f),0);
+    assert(cmd.keyAction(Key::Select)==id(A::Pass) && cmd.keyAction(Key::Down)==id(A::SwitchSeat) && cmd.lifeOffered());
+    cmd.keyDown(Key::Up,0); cmd.keyUp(Key::Up,1);
+    assert(cmd.deviceMenuOpen() && !cmd.lifeOffered() && cmd.keyAction(Key::Select)==id(A::CommanderDamage) &&
+        cmd.keyAction(Key::Down)==id(A::UndoCommanderHit) && cmd.keyAction(Key::Right)==id(A::ClaimWin));
+    cmd.keyDown(Key::Select,2); cmd.keyUp(Key::Select,3);
+    assert(cmd.update(3).action==A::CommanderDamage && !cmd.deviceMenuOpen());
   }
 
   // Compass: fixed keys; Link phone takes the first free key.
@@ -272,7 +289,7 @@ int main() {
     f.defaultAction = id(A::Leave);
     f.revision = 5;
     const MenuStateFields back = decodeMenuState2(encodeMenuState2(f));
-    assert(back.actions == f.actions && back.defaultAction == id(A::Leave) && back.revision == 5);
+    assert(back.actions == f.actions && back.defaultAction == SIGIL_ACTION_NONE && back.revision == 5);
     assert(SigilMenu::compassAction(f.actions, Key::Down) == id(A::Leave));
     assert(SigilMenu::compassAction(f.actions | sigilActionBit(A::LinkPhone), Key::Down) == id(A::LinkPhone));
     assert(sigilActionHold(A::Leave) == ActionHold::Long);
@@ -522,7 +539,7 @@ int main() {
     oled.keyUp(Key::Select, 60000);
     // Every action but AdjustLife appears once, then the three device rows.
     uint8_t rows[MENU_LIST_MAX];
-    assert(SigilMenu::listRows(0xFFFFFFu, rows) == MENU_LIST_MAX);
+    assert(SigilMenu::listRows((1u << MENU_MAX_ITEMS)-1, rows) == MENU_LIST_MAX);
     for (uint8_t i = 0; i < MENU_LIST_MAX; ++i) {
       assert(rows[i] != id(A::AdjustLife));
       for (uint8_t j = 0; j < i; ++j) assert(rows[i] != rows[j]);

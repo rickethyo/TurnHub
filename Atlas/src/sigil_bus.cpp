@@ -360,6 +360,7 @@ void SigilBus::handleReceive(
 
     case PacketType::SelectAction:
     case PacketType::PickerKey:
+    case PacketType::CommanderKey:
     case PacketType::LifeAdjust:
     case PacketType::LifeResponse:
     case PacketType::SigilUpdateStatus:
@@ -637,6 +638,11 @@ bool SigilBus::sendToMac(
   if (sigil == nullptr) return false;
   const Packet packet = TurnHubProtocol::makePacket(type, sigilId, value);
   return sendSealed(*sigil, &packet, sizeof(packet));
+}
+
+bool SigilBus::sendCommanderFlow(const TurnHubProtocol::CommanderFlowPacket &packet) {
+  SigilRecord *sigil = const_cast<SigilRecord *>(record(packet.sigilId));
+  return sigil != nullptr && sendSealed(*sigil, &packet, sizeof(packet));
 }
 
 bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &packet) {

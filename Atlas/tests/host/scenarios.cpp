@@ -125,6 +125,10 @@ bool SigilBus::sendGameDisplay(const TurnHubProtocol::GameDisplayPacket &p) {
   ++gameDisplaySends;
   return fixtureRadio;
 }
+static TurnHubProtocol::CommanderFlowPacket sentCommander[MAX_PHYSICAL_SIGILS]{};
+bool SigilBus::sendCommanderFlow(const TurnHubProtocol::CommanderFlowPacket &p) {
+  assert(TurnHubProtocol::validCommanderFlow(p)); sentCommander[p.sigilId] = p; return fixtureRadio;
+}
 static TurnHubProtocol::ProfilePickerPacket sentPickers[MAX_PHYSICAL_SIGILS]{};
 static unsigned pickerSends = 0;
 bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &p) {
@@ -988,6 +992,91 @@ static void lifeApprovalsAndCommander() {
   enterEmptyLobby();
 }
 
+static void commanderFlow() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  using A = SigilAction;
+  resetCommanderPickers();
+  freshLobby(3,true);
+  nextGameSettings.profile = GameProfile::Commander; nextGameSettings.startingLife = 40;
+  startFromHost();
+  leds.render(hubState,lobby,game,0,0,0,testNow);
+  assert(leds.switchShownSeat(0,game));
+  leds.render(hubState,lobby,game,0,0,0,testNow);
+  auto open = [&](bool undo=false, uint8_t target=2) {
+    syncSigilMenus(testNow);
+    handleSelectAction(0,encodeSelectAction(undo ? A::UndoCommanderHit : A::CommanderDamage,sigilMenuRevision(0),target));
+  };
+  auto key = [&](uint8_t k) { handleCommanderKey(0,encodeCommanderKey(k,commanderPage(0).revision),testNow); };
+  open(); auto p=commanderPage(0);
+  assert(validCommanderFlow(p) && p.stage==CommanderStage::Source && p.recipient==2 && p.recipientSlot==2);
+  key(3); key(3); assert(commanderPage(0).source==3);
+  key(4); key(3); assert(commanderPage(0).commander==2);
+  key(4); for (int i=0;i<4;++i) key(3);
+  assert(commanderPage(0).amount==5 && game.lifeTotal(2)==40);
+  key(4); p=commanderPage(0);
+  assert(p.stage==CommanderStage::Confirm && p.life==40 && p.damage==0);
+  // Turn progression does not change the frozen recipient.
+  assert(game.passTurn(0,testNow));
+  const int32_t confirm=encodeCommanderKey(4,p.revision);
+  handleCommanderKey(0,confirm,testNow);
+  assert(game.lifeTotal(2)==35 && game.commanderDamage(2,3,2)==5 && game.lifeTotal(1)==40);
+  handleCommanderKey(0,confirm,testNow);
+  assert(game.lifeTotal(2)==35 && game.commanderDamage(2,3,2)==5);
+  key(4); assert(commanderPage(0).stage==CommanderStage::Closed);
+  open(true); p=commanderPage(0);
+  assert(p.stage==CommanderStage::UndoConfirm && p.amount==5 && p.life==35 && p.damage==5);
+  key(4); assert(game.lifeTotal(2)==40 && game.commanderDamage(2,3,2)==0 && !game.lastCommanderHit(2));
+  key(4);
+  // Fresh totals must be seen and reconfirmed after a concurrent life change.
+  open(); key(4); key(4); key(4); p=commanderPage(0);
+  assert(game.changeLife(2,-2));
+  handleCommanderKey(0,encodeCommanderKey(4,p.revision),testNow);
+  assert(game.lifeTotal(2)==38 && game.commanderDamage(2,1,1)==0 && commanderPage(0).revision!=p.revision);
+  key(4); assert(game.lifeTotal(2)==37 && game.commanderDamage(2,1,1)==1);
+  // A correction to that cell invalidates Undo, rather than reversing the correction.
+  assert(game.changeCommanderDamage(2,1,1,1) && !game.lastCommanderHit(2));
+  key(4); open(); key(4); key(4); key(1);
+  assert(commanderPage(0).stage==CommanderStage::Closed && game.lifeTotal(2)==36);
+  // Player source selection can reach every participant, including shared seats.
+  open(); for (int i=0;i<3;++i) key(3);
+  assert(commanderPage(0).source==4); key(2); assert(commanderPage(0).source==3);
+  key(1);
+  Intent forbidden; forbidden.type=IntentType::RecordCommanderHit;
+  forbidden.actor={IntentOrigin::PhysicalSigil,1,1,3}; forbidden.payload.targetPlayer=2;
+  forbidden.payload.counterSource=3; forbidden.payload.counterSlot=1; forbidden.payload.value=5;
+  assert(intents.dispatch(forbidden).status==IntentStatus::Unauthorized);
+  // Bounds failures are atomic; nothing changes and no Undo receipt is created.
+  assert(game.changeLife(2,-999036));
+  const int32_t before=game.lifeTotal(2), damage=game.commanderDamage(2,3,1);
+  assert(!game.recordCommanderHit(2,3,1,9999) && game.lifeTotal(2)==before &&
+      game.commanderDamage(2,3,1)==damage && !game.lastCommanderHit(2));
+  // Idle, offline, elimination and table decisions close the disposable flow.
+  open(); syncCommanderPickers(testNow+COMMANDER_IDLE_MS);
+  assert(commanderPage(0).stage==CommanderStage::Closed);
+  open(); fixtureRadio=false; syncCommanderPickers(testNow); fixtureRadio=true;
+  assert(commanderPage(0).stage==CommanderStage::Closed);
+  assert(dispatchSeatIntent(IntentType::Pause,IntentOrigin::PhysicalSigil,*game.playerByNumber(2)).accepted());
+  open(); assert(commanderPage(0).stage==CommanderStage::Source); key(1);
+  assert(dispatchSeatIntent(IntentType::Resume,IntentOrigin::PhysicalSigil,*game.playerByNumber(2)).accepted());
+  // Starting another match with the same seats cannot retain the old entry.
+  PlayerSeat sameSeats[4]; for (uint8_t i=0;i<4;++i) sameSeats[i]=*game.playerAt(i);
+  const GameSettings settings=game.settings();
+  open(); assert(game.start(sameSeats,4,sameSeats[0],testNow,settings));
+  syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed && !game.lastCommanderHit(2));
+  open(); bool finished=false; assert(game.eliminatePlayer(2,testNow,finished) && !finished);
+  syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
+  // A remaining seat's flow closes for a table-wide win decision too.
+  open(false,1); dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::PhysicalSigil,*game.activePlayer());
+  syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
+  enterEmptyLobby();
+  nextGameSettings = GameSettings{};
+  freshLobby(2); startFromHost(); syncSigilMenus(testNow);
+  assert(!(sigilMenuFor(0).actions & sigilActionBit(A::CommanderDamage)));
+  openCommanderPicker(0,1,false,testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
+  enterEmptyLobby(); resetCommanderPickers();
+}
+
 static void physicalGameDisplay() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
@@ -1396,7 +1485,7 @@ static void sigilMenus() {
   syncSigilMenus(testNow);
   assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   MenuStateFields sent = decodeMenuState2(fixtureMenuState2[2]);
-  assert(sent.actions == sigilActionBit(A::Join) && sent.defaultAction == static_cast<uint8_t>(A::Join));
+  assert(sent.actions == sigilActionBit(A::Join) && sent.defaultAction == SIGIL_ACTION_NONE);
   syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   invalidateSigilMenu(2); syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS + 1);
 
@@ -2151,6 +2240,92 @@ static void touchControls() {
   assert(s.kind==ScreenKind::Menu && !screenButton(s,TouchAction::Pair) && screenButton(s,TouchAction::OpenQr) &&
       screenButton(s,TouchAction::OpenInfo));
   tapButton(TouchAction::CloseScreen);
+
+  // Four players across three Sigils: third is A on the last shared Sigil.
+  enterEmptyLobby(); freshLobby(3);
+  {
+    PlayerSeat joined[4]; lobby.buildPlayers(joined, 4);
+    const uint8_t shared = joined[2].controllerId;
+    bool added; PlayerSeat b;
+    assert(lobby.toggleSecondary(shared, added, b) && added);
+    PlayerSeat starter; assert(lobby.selectStarterSeat(shared, 1, starter));
+    lobby.buildPlayers(joined, 4);
+    const uint32_t aParticipant = joined[2].participantId;
+    const uint32_t bParticipant = joined[3].participantId;
+    int16_t cx,cy,cw,ch; screenChipCell(2,4,cx,cy,cw,ch);
+    touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    s=currentScreen();
+    assert(startsWith(s.detail,"Turn order: 3 of 4") && screenButton(s,TouchAction::SeatBLeft));
+    lobby.setStartArmedBy(shared);
+    tapButton(TouchAction::MoveLater);
+    assert(lobby.playerNumber(shared,1)==4 && lobby.playerNumber(shared,2)==3 &&
+        lobby.startArmedBy()==INVALID_ID);
+    assert(lobby.selectedStarter(starter) && starter.slot==1 && starter.playerNumber==4);
+    assert(startsWith(currentScreen().detail,"Turn order: 4 of 4"));
+    tapButton(TouchAction::MoveLater);
+    assert(startsWith(currentScreen().notice,"Already last"));
+    tapButton(TouchAction::SeatBRight);
+    assert(lobby.playerNumber(shared,1)==3 && !lobby.secondaryFirst(shared));
+    tapButton(TouchAction::SeatBLeft);
+    assert(lobby.playerNumber(shared,2)==3 && lobby.secondaryFirst(shared));
+    lobby.buildPlayers(joined,4);
+    assert(joined[2].slot==2 && joined[2].participantId==bParticipant &&
+        joined[3].slot==1 && joined[3].participantId==aParticipant);
+    Intent side; side.type=IntentType::SetSeatSide; side.payload.targetPlayer=3;
+    side.actor.origin=IntentOrigin::Browser;
+    assert(intents.dispatch(side).status==IntentStatus::Unauthorized);
+    side.actor.origin=IntentOrigin::AtlasHardware; side.payload.value=2;
+    assert(intents.dispatch(side).status==IntentStatus::Conflict);
+    side.payload.value=1; side.payload.targetPlayer=1;
+    assert(intents.dispatch(side).status==IntentStatus::Conflict);
+    tapButton(TouchAction::CloseScreen);
+    startFromHost();
+    assert(game.playerAt(2)->slot==2 && game.playerAt(3)->slot==1);
+    side.payload.targetPlayer=3;
+    assert(intents.dispatch(side).status==IntentStatus::InvalidState);
+    TurnHub::GameCheckpoint saved; game.checkpoint(saved,testNow);
+    assert(TurnHub::validCheckpoint(saved));
+    Lobby restored;
+    assert(restored.restorePlayers(saved.players,saved.count,saved.starter));
+    PlayerSeat recovered[4]; restored.buildPlayers(recovered,4);
+    for (uint8_t i=0;i<4;++i) assert(recovered[i].sameSeat(saved.players[i]) &&
+        recovered[i].participantId==saved.players[i].participantId);
+    restored.resetForRematch(); assert(restored.secondaryFirst(shared));
+    assert(restored.moveController(shared,-1));
+    restored.buildPlayers(recovered,4);
+    assert(recovered[1].slot==2 && recovered[2].slot==1);
+    assert(restored.toggleSecondary(shared,added,b) && !added);
+    assert(restored.toggleSecondary(shared,added,b) && added && !restored.secondaryFirst(shared));
+    // Also cover four players on two shared Sigils, and B/A at the start.
+    TurnHub::Lobby pairs;
+    assert(pairs.join(0) && pairs.toggleSecondary(0,added,b));
+    assert(pairs.join(1) && pairs.toggleSecondary(1,added,b));
+    assert(pairs.moveSeat(1,1,1) && pairs.playerNumber(1,1)==4);
+    assert(pairs.setSecondaryFirst(0,true));
+    assert(pairs.starterOrDefault(starter) && starter.slot==2 && starter.playerNumber==1);
+    TurnHub::GameEngine pairGame;
+    pairs.buildPlayers(recovered,4);
+    assert(pairGame.start(recovered,4,starter,testNow));
+    TurnHub::GameCheckpoint pairSaved; pairGame.checkpoint(pairSaved,testNow);
+    assert(TurnHub::validCheckpoint(pairSaved));
+    TurnHub::Lobby pairRestored;
+    assert(pairRestored.restorePlayers(pairSaved.players,4,pairSaved.starter));
+    assert(pairRestored.secondaryFirst(0) && pairRestored.secondaryFirst(1));
+    // Atlas sends physical B identity even when B has the lower number.
+    LedRenderer renderer(sigilBus);
+    renderer.render(HubState::Running,lobby,game,0,0,0,testNow);
+    assert(!TurnHubProtocol::hasDisplayFlag(TurnHub::sentGameDisplays[shared].state,
+        TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B)); // starter is A
+    assert(game.passTurn(shared,testNow+1));
+    assert(game.passTurn(game.activeController(),testNow+1));
+    assert(game.passTurn(game.activeController(),testNow+1));
+    renderer.render(HubState::Running,lobby,game,0,0,0,testNow+1);
+    assert(TurnHubProtocol::hasDisplayFlag(TurnHub::sentGameDisplays[shared].state,
+        TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B));
+    // Reject recovery with a nonadjacent B/A pair.
+    std::swap(saved.players[1].controllerId,saved.players[2].controllerId);
+    assert(!TurnHub::validCheckpoint(saved));
+  }
 
   // Playtest 2026-09-29 item 11: in the lobby a chip opens that seat's turn
   // order; any player may move it, from the Atlas screen only.
@@ -3358,6 +3533,7 @@ int main() {
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";
+  commanderFlow(); std::cout<<"PASS Sigil Commander flow: ownership, source/partner, atomic hits, undo, stale/duplicate keys, cancellation and limits\n";
   physicalGameDisplay(); std::cout<<"PASS physical game display snapshots, received damage, shared focus, bounds and deduplication\n";
   turnTimerEngine(); std::cout<<"PASS turn timer phases, no automatic pass, pause freeze, rollover, validation and recovery\n";
   ledCueSelection(); std::cout<<"PASS LED cue selection, default styles and profile-only presentation changes\n";

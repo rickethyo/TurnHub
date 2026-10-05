@@ -120,7 +120,7 @@ buzz 2000 250
 name A Ricky
 name B Micky
 profile
-state lobby 1 2 0 0x10
+state lobby 1 2 0 0
 state starting 1 2 0 0x20
 state running 1 2 4 0x08
 state paused 1 2 4 0x80
@@ -139,12 +139,12 @@ Modes are `ready`, `lobby`, `starting`, `running`, `paused`, or `gameover`.
 Useful display flags from `protocol.h` are:
 
 - `0x08` active
-- `0x10` host
+- `0x10` primary player is physical seat B (independent of player number)
 - `0x20` starter
 - `0x40` winner
 - `0x80` attention
 
-Flags can be combined, for example `0x18` means active + host.
+Flags can be combined, for example `0x18` means active + primary is seat B.
 
 `menu <mask> [default]` offers actions as a `MenuState2`: each bit is a
 `SigilAction` number from `protocol.h` (0 Join, 1 CycleStarter, 5 StartGame,

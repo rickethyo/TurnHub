@@ -11,6 +11,7 @@
 #include "sigil_update_service.h"
 #include "sigil_menu.h"
 #include "profile_picker.h"
+#include "commander_picker.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "config.h"
@@ -268,6 +269,8 @@ bool configureIntentHandlers() {
       {IntentType::RespondLifeChange, handleCounterIntent},
       {IntentType::ExpireLifeChanges, handleExpireLifeChangesIntent},
       {IntentType::ChangeCounter, handleCounterIntent},
+      {IntentType::RecordCommanderHit, handleCounterIntent},
+      {IntentType::UndoCommanderHit, handleCounterIntent},
       {IntentType::EndMatch, handleEndMatchIntent},
       {IntentType::MasterPass, handleMasterPassIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},
@@ -278,6 +281,7 @@ bool configureIntentHandlers() {
       {IntentType::FactoryReset, handleFactoryResetIntent},
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
       {IntentType::MoveSeat, handleMoveSeatIntent},
+      {IntentType::SetSeatSide, handleSetSeatSideIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
       {IntentType::Sleep, handleSleepIntent},
   };
@@ -515,6 +519,7 @@ void loop() {
       game.nextWinConfirmationPlayerNumber(), nowMs);
   syncSigilMenus(nowMs);
   syncProfilePickers(nowMs);
+  syncCommanderPickers(nowMs);
   ota.update(nowMs);
   refreshClientNames(nowMs);
   logRuntimeHealth(nowMs);

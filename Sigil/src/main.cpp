@@ -161,6 +161,11 @@ bool menuViewChanged = false;
 // Latest page from Atlas (guarded by displayProfileMux). While open, the keys
 // go to the picker (PickerKey) instead of the menu. pickerCursor is the OLED
 // list row, reset on every new page.
+TurnHubProtocol::CommanderFlowPacket pendingCommander{};
+volatile bool commanderActive = false;
+bool commanderChanged = false;
+uint16_t commanderDrawnRevision = 0;
+TurnHubProtocol::CommanderStage commanderDrawnStage = TurnHubProtocol::CommanderStage::Closed;
 TurnHubProtocol::ProfilePickerPacket pendingPicker{};
 volatile bool pickerActive = false;
 bool pickerChanged = false;
@@ -606,6 +611,7 @@ void updateDisplay() {
   static TurnHubProtocol::GameDisplayPacket renderedGame{};
   static bool renderedGameValid = false;
   static bool pickerShown = false;
+  static bool commanderShown = false;
   // Atlas lost replaces every screen. Once it answers again, redraw the last
   // state it sent (Atlas resends it too, but unchanged packets draw nothing).
   static bool lostDrawn = false;
@@ -669,6 +675,23 @@ void updateDisplay() {
   }
   bool menuChanged = false;
   // The picker replaces every other screen while Atlas keeps it open.
+  TurnHubProtocol::CommanderFlowPacket commander{};
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool showCommander = commanderActive && sigilId != UNASSIGNED_SIGIL_ID;
+  const bool newCommander = commanderChanged;
+  commander = pendingCommander; commanderChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (showCommander) {
+    displayNeedsRefresh = false;
+    if (newCommander || !commanderShown) sigilDisplay.showCommander(commander);
+    portENTER_CRITICAL(&displayProfileMux);
+    commanderDrawnRevision = commander.revision; commanderDrawnStage = commander.stage;
+    portEXIT_CRITICAL(&displayProfileMux);
+    commanderShown = true;
+    return;
+  }
+  if (commanderShown) { commanderShown = false; displayNeedsRefresh = true; renderedGameValid = false; }
+
   TurnHubProtocol::ProfilePickerPacket picker{};
   portENTER_CRITICAL(&displayProfileMux);
   const bool showPicker = pickerActive && sigilId != UNASSIGNED_SIGIL_ID;
@@ -878,6 +901,7 @@ void forgetPairing(const char *reason) {
   ledModel.clear();
   sigilMenu.clear();
   lifeAdjuster.cancel();
+  commanderActive = false; commanderChanged = true;
   lifeRequest = TurnHubProtocol::LifeRequestFields{};
   seatAvatars[0] = seatAvatars[1] = 0;
   startingLife = 0;
@@ -968,6 +992,7 @@ void applyAtlasLinkChange(TurnHubSigil::LinkChange change) {
     // Sigil whose Atlas is gone can still be unpaired or reset.
     sigilMenu.setOffline();
     lifeAdjuster.cancel();
+    commanderActive = false; commanderChanged = true;
     lifeRequest = TurnHubProtocol::LifeRequestFields{};
   } else {
     sigilMenu.endOffline();
@@ -1049,6 +1074,20 @@ void handleAtlasPacket(
     return;
   }
 #endif
+  if (length == sizeof(TurnHubProtocol::CommanderFlowPacket)) {
+    TurnHubProtocol::CommanderFlowPacket page{};
+    memcpy(&page,incomingData,sizeof(page));
+    if (!atlasKnown || memcmp(mac,atlasMac,6) || page.sigilId != sigilId || !TurnHubProtocol::validCommanderFlow(page)) return;
+    noteAtlasHeard();
+    portENTER_CRITICAL(&displayProfileMux);
+    const bool changed = memcmp(&page,&pendingCommander,sizeof(page)) != 0;
+    pendingCommander = page;
+    commanderActive = page.stage != TurnHubProtocol::CommanderStage::Closed;
+    commanderChanged = commanderChanged || changed;
+    portEXIT_CRITICAL(&displayProfileMux);
+    if (changed) { displayNeedsRefresh = true; notifyDisplayTask(); }
+    return;
+  }
   if (length == sizeof(TurnHubProtocol::ProfilePickerPacket)) {
     TurnHubProtocol::ProfilePickerPacket page{};
     memcpy(&page, incomingData, sizeof(page));
@@ -1419,7 +1458,20 @@ uint8_t updateJoystickPair(uint32_t nowMs) {
 
 // Five-key input: key edges go to the menu, and a finished choice becomes a
 // SelectAction. Hold progress drives the status light.
+void sendCommanderKey(uint8_t key, bool repeat = false) {
+  portENTER_CRITICAL(&displayProfileMux);
+  const auto page = pendingCommander;
+  const bool drawn = commanderDrawnRevision == page.revision && commanderDrawnStage == page.stage;
+  const bool amountDrawn = commanderDrawnStage == TurnHubProtocol::CommanderStage::Amount &&
+      page.stage == TurnHubProtocol::CommanderStage::Amount;
+  portEXIT_CRITICAL(&displayProfileMux);
+  // Confirm only a preview that finished drawing, even on slow e-ink.
+  if (!drawn && !(repeat && amountDrawn)) return;
+  sendPacket(PacketType::CommanderKey,TurnHubProtocol::encodeCommanderKey(key,page.revision));
+}
 void updateMenuKeys() {
+  static uint32_t commanderRepeatAt = 0;
+  static uint8_t commanderRepeatKey = 255;
   const uint32_t nowMs = millis();
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
   lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(!TURNHUB_DISPLAY_OLED, longPressMs));
@@ -1431,6 +1483,19 @@ void updateMenuKeys() {
     if (atlasLink.lost()) {
       if (keys[k].stableState == LOW) sigilMenu.keyDown(key, nowMs);
       else sigilMenu.keyUp(key, nowMs);
+      continue;
+    }
+    if (commanderActive) {
+      if (keys[k].stableState == LOW) {
+        sendCommanderKey(k);
+        portENTER_CRITICAL(&displayProfileMux);
+        const bool amount = pendingCommander.stage == TurnHubProtocol::CommanderStage::Amount;
+        portEXIT_CRITICAL(&displayProfileMux);
+        if (amount && (k == 2 || k == 3)) { commanderRepeatKey = k; commanderRepeatAt = nowMs + 600; }
+      } else {
+        if (commanderRepeatKey == k) commanderRepeatKey = 255;
+        sigilMenu.keyUp(key,nowMs);
+      }
       continue;
     }
     if (pickerActive) {
@@ -1473,6 +1538,15 @@ void updateMenuKeys() {
       sigilMenu.keyUp(key, nowMs);
     }
   }
+  if (commanderActive && !atlasLink.lost()) {
+    // Stop any normal life adjustment while the modal owns the keys.
+    if (commanderRepeatKey < TurnHubSigil::KEY_COUNT && keys[commanderRepeatKey].stableState == LOW &&
+        static_cast<int32_t>(nowMs-commanderRepeatAt) >= 0) {
+      sendCommanderKey(commanderRepeatKey,true); commanderRepeatAt = nowMs+250;
+    }
+    return;
+  }
+  commanderRepeatKey = 255;
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
   if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
@@ -1496,12 +1570,19 @@ void updateMenuKeys() {
     delay(300);
     factoryResetDevice("MENU");
   } else if (choice.ready) {
+    if ((choice.action == TurnHubProtocol::SigilAction::CommanderDamage ||
+        choice.action == TurnHubProtocol::SigilAction::UndoCommanderHit) && lifeAdjuster.pending()) {
+      sendPacket(PacketType::LifeAdjust,TurnHubProtocol::encodeLifeAdjust(lifeAdjuster.player(),lifeAdjuster.pending()));
+      lifeAdjuster.cancel();
+      for (bool &routed : lifeKeyRouted) routed = false;
+      publishLifeOverlay();
+    }
     lastSelectedAction = choice.action;
     Serial.print("SIGIL|");
     Serial.print(sigilId);
     Serial.print("|MENU|");
     Serial.println(TurnHubSigil::sigilActionLabel(choice.action));
-    sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision));
+    sendPacket(PacketType::SelectAction, TurnHubProtocol::encodeSelectAction(choice.action, choice.revision, shownPlayer()));
   }
   const uint8_t pairHold = updateJoystickPair(nowMs);
   ledModel.setHoldProgress(pairHold ? pairHold : sigilMenu.holdProgress(nowMs));

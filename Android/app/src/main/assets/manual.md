@@ -171,7 +171,7 @@ Profiles are separate from physical Sigils. A player is not permanently assigned
 
 ## Two Players on One Sigil
 
-Every Sigil can carry two players. After joining, choose **Add seat B** from its menu for the second player. The screen shows both names, and prompts say which seat (A or B) they are for.
+Every Sigil can carry two players. After joining, choose **Add seat B** from its menu for the second player. The screen shows both names, and prompts say which seat (A or B) they are for. In the lobby, tap either player on the Atlas screen to set turn order. Earlier and Later can swap A and B; moving past their pair moves the whole Sigil. Choose B left for B to take its turn before A, or B right for B to follow A. Both seats stay next to each other in turn order. Set this before starting the game. The order is kept for a rematch.
 
 # 7. Starting a Game
 
@@ -651,3 +651,11 @@ Then get out of the way.
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
 **Software:** Development build (Atlas 0.6.4-dev, Sigil 0.9.6-dev)
 **Product names and specifications subject to change.**
+
+## Commander damage from a Sigil
+
+Record damage on the Sigil of the player who received it. On a shared Sigil, first show the correct seat with Switch seat. OLED: press Up for the action list and choose Cmd damage. E-ink: press Up for Game menu, then click for Cmd damage. The receiving name and A/B seat stay fixed while you enter the hit.
+
+Use Left/Right to select who hit you, click, select Commander 1 or 2 (2 for a partner), click, then enter the amount. Hold Left/Right to repeat. Click to review the life and Commander damage totals; click again to apply both together. Up goes back; Down cancels. This works during anyone’s turn without pausing the game.
+
+Undo hit previews and reverses the last hit recorded this way for the shown seat. It restores the life lost and removes that Commander damage together. A correction to the same damage entry removes that undo option. Entry pages and Undo clear on a restart or new match; recovered life and damage totals remain. Recording 21 Commander damage does not automatically eliminate a player.

@@ -8,6 +8,7 @@
 #include "controller_profiles.h"
 #include "harness_link.h"
 #include "profile_picker.h"
+#include "commander_picker.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
 #include "sigil_menu.h"
@@ -171,6 +172,11 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
     case SigilAction::AdjustLife:
       // Not selectable: it only frees Left/Right, which send LifeAdjust packets.
       break;
+    case SigilAction::CommanderDamage:
+    case SigilAction::UndoCommanderHit:
+      openCommanderPicker(sigilId,TurnHubProtocol::selectedPlayer(value),
+          action == SigilAction::UndoCommanderHit,millis());
+      break;
     case SigilAction::SwitchSeat:
       // View state only (which seat the display and life keys follow).
       if (leds.switchShownSeat(sigilId, game)) invalidateSigilMenu(sigilId);
@@ -296,6 +302,7 @@ void processSigilEvents() {
       leds.invalidate(event.sigilId);
       invalidateSigilMenu(event.sigilId);
       invalidateProfilePicker(event.sigilId);
+      invalidateCommanderPicker(event.sigilId);
       continue;
     }
     if (event.type == PacketType::SigilUpdateStatus) {
@@ -312,6 +319,7 @@ void processSigilEvents() {
     switch (event.type) {
 
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;
+      case PacketType::CommanderKey: handleCommanderKey(event.sigilId,event.value,millis()); break;
       case PacketType::PickerKey: handlePickerKey(event.sigilId, event.value, millis()); break;
       case PacketType::LifeAdjust: handleLifeAdjust(event.sigilId, event.value); break;
       case PacketType::LifeResponse: handleLifeResponse(event.sigilId, event.value); break;

@@ -24,12 +24,13 @@ ADAPTERS = {
     "front_panel.cpp": ["updateBootButton"],
     "profile_picker.cpp": ["openProfilePicker", "handlePickerKey", "syncProfilePickers",
                            "chooseItem", "confirmChoice", "finish"],
+    "commander_picker.cpp": ["openCommanderPicker", "handleCommanderKey", "syncCommanderPickers", "apply"],
     "gameplay_intents.cpp": ["updatePendingPass"],
     "table_intents.cpp": ["updateCountdown"],
 }
 
 FORBIDDEN = [
-    r"game\.(?:start|reset|passTurn|pause|resume|endInDraw|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
+    r"game\.(?:start|reset|passTurn|pause|resume|endInDraw|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|recordCommanderHit|undoCommanderHit|eliminatePlayer|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
     r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm|replaceController)\s*\(",
     r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs|nextGameSettings)\s*=(?!=)",
     r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|finishGameState|clearDecisionState|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule)\s*\(",
