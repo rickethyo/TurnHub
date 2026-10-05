@@ -21,6 +21,8 @@ records predate that.
 
 - [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard rules every implementation preserves.
 - [Staged Changes](STAGED_CHANGES.md) - the queue of agreed, unimplemented work.
+- [Multi-phone stability plan](STABILITY_PLAN_2026_10_02.md) - staged investigation,
+  stack headroom, HTTP resource reductions and the hardware release gate.
 - [Prototype v1 Verification](PROTOTYPE_V1_VERIFICATION.md) - field-test gates still open.
 - [Verification Backlog](VERIFICATION_BACKLOG.md) - historical facts and production decisions still open.
 

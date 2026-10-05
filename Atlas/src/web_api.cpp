@@ -8,6 +8,8 @@
 #include "profile_login_page.h"
 #include "web_pages.h"
 #include "serial_log.h"
+#include "http_diagnostics.h"
+#include "firmware_version.h"
 #include "web_api_internal.h"
 
 using TurnHub::serialLog;
@@ -251,7 +253,16 @@ class RouteTableHandler final : public RequestHandler {
   bool handle(WebServer &server, HTTPMethod method, String uri) override {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
-    route->handler(server);
+    // Target the recurring phone workload. Administrative requests and log
+    // downloads stay outside tracing so diagnostics don't trace themselves
+    // or evict gameplay evidence with unrelated activity.
+    if (route->handler == handleState || route->handler == handleSeats ||
+        route->handler == handleCounters || route->handler == handleSessionMe) {
+      TurnHub::HttpRequestTrace trace(route->uri);
+      route->handler(server);
+    } else {
+      route->handler(server);
+    }
     return true;
   }
 };
@@ -262,6 +273,23 @@ void begin(WebServer &server) {
   if (webServer != nullptr) return;  // Routes are registered once per boot.
   webServer = &server;
   makeToken(bootId);  // Public boot epoch, not an authentication credential.
+  serialLog.print("ATLAS|BOOT|bootId=");
+  serialLog.print(bootId);
+  serialLog.print("|firmware=");
+  serialLog.print(TurnHubFirmware::VERSION);
+  serialLog.print("|build=");
+  serialLog.print(TurnHubFirmware::BUILD_DATE);
+  serialLog.print(" ");
+  serialLog.print(TurnHubFirmware::BUILD_TIME);
+  serialLog.print("|loopStackSizeBytes=");
+#if defined(ARDUINO_ARCH_ESP32)
+  serialLog.print(getArduinoLoopTaskStackSize());
+#else
+  serialLog.print(AtlasConfig::LOOP_TASK_STACK_BYTES);
+#endif
+  serialLog.print("|httpTrace=");
+  serialLog.println(TURNHUB_HTTP_TRACE);
+  serialLog.println(TurnHub::runtimeDiagnosticsJson());
   profileStoreReady = TurnHubProfiles::begin();
 
   static const char *headerKeys[] = {TOKEN_HEADER};

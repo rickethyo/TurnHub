@@ -20,12 +20,18 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "runtime_diagnostics.h"
+#include "http_diagnostics.h"
 #include "profile_store.h"
 #include "sd_card.h"
 #include "secure_link_backend.h"
 #include "serial_log.h"
 #include "speaker_settings.h"
 #include "wifi_password_store.h"
+
+#if defined(ARDUINO_ARCH_ESP32)
+// Supported by the pinned core; app_main uses this value to create loopTask.
+SET_LOOP_TASK_STACK_SIZE(AtlasConfig::LOOP_TASK_STACK_BYTES);
+#endif
 
 // This build's identity, read by tools/firmware/thfw.py when it packages
 // firmware.bin for OTA (SIGIL_OTA.md).
@@ -110,6 +116,7 @@ void logRuntimeHealth(uint32_t nowMs) {
   serialLog.print(stations);
   serialLog.print("|");
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
+  TurnHub::warnLowLoopStack(TurnHub::taskStackMinimumFreeBytes(), nowMs);
 }
 
 // Free heap after a start-up step, so each boot shows what every part costs
@@ -296,6 +303,7 @@ bool configureIntentHandlers() {
 
 // Compact status for the diagnostics page. Clients use /api/v1/state.
 void handleStatus() {
+  TurnHub::HttpRequestTrace trace("/api/status");
   PlayerSeat selected;
   const uint8_t starter = lobby.selectedStarter(selected)
       ? selected.playerNumber
@@ -311,8 +319,10 @@ void handleStatus() {
       ? PASS_GRACE_MS - passElapsed
       : 0;
 
-  char json[1024];
-  snprintf(
+  // HTTP is serialized on loopTask. No worker/callback uses this workspace,
+  // and WebServer::send consumes it before the next request can enter.
+  static char json[1024];
+  const int length = snprintf(
       json,
       sizeof(json),
       "{\"presenceActive\":%s,\"presenceCodeShown\":%s,\"sigils\":%u,\"players\":%u,"
@@ -345,6 +355,10 @@ void handleStatus() {
       otaStateAllowed ? "true" : "false");
 
   server.sendHeader("Cache-Control", "no-store");
+  if (length < 0 || static_cast<size_t>(length) >= sizeof(json)) {
+    server.send(503, "application/json", "{\"error\":\"Status response exceeded capacity\"}");
+    return;
+  }
   server.send(200, "application/json", json);
 }
 

@@ -14,6 +14,13 @@ class String : public std::string {
  public:
   using std::string::string;
   String() = default;
+  // Match Arduino's fallible reserve() for HTTP allocation-failure scenarios.
+  static bool &failReserve() { static bool fail = false; return fail; }
+  bool reserve(size_t capacity) {
+    if (failReserve()) return false;
+    std::string::reserve(capacity);
+    return true;
+  }
   String(const std::string &value) : std::string(value) {}
   template <typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
   String(T value) : std::string(std::to_string(value)) {}

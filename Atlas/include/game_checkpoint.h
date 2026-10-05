@@ -18,4 +18,7 @@ struct GameCheckpoint {
   int32_t damage[MAX_PLAYERS][MAX_PLAYERS][2]{};
 };
 bool validCheckpoint(const GameCheckpoint &saved);
+// Clear the existing serialization workspace without constructing a second
+// full Commander matrix on the caller's stack. Preserves all DTO defaults.
+void clearCheckpoint(GameCheckpoint &saved);
 } // namespace TurnHub
