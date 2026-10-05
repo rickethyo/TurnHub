@@ -179,6 +179,22 @@ int main(int argc, char **argv) {
   display.setLifeOverlay(overlay);
   display.setMenuView(compass(true));
   display.showGame(shared); shot("shared-seat");
+  CommanderFlowPacket flow{};
+  flow.version=VERSION; flow.type=PacketType::CommanderFlow; flow.sigilId=2;
+  flow.recipient=2; flow.recipientSlot=2; flow.source=3; flow.commander=2;
+  flow.amount=5; flow.life=40; flow.damage=12;
+  name(flow.recipientName,"Mae"); name(flow.sourceName,"Alex");
+  for (CommanderStage stage : {CommanderStage::Source,CommanderStage::Commander,CommanderStage::Amount,CommanderStage::Confirm,CommanderStage::UndoConfirm,CommanderStage::Result}) {
+    flow.stage=stage; name(flow.notice,"Hit recorded");
+    display.showCommander(flow);
+    char file[32]; snprintf(file,sizeof(file),"commander-flow-%u",static_cast<unsigned>(stage)); shot(file);
+  }
+  shared.state = encodeDisplayState(DisplayMode::Running, 4, 3, 7, DISPLAY_FLAG_ACTIVE);
+  display.showGame(shared); shot("shared-reversed-a");
+  shared.state = encodeDisplayState(DisplayMode::Running, 3, 4, 7,
+      DISPLAY_FLAG_ACTIVE | DISPLAY_FLAG_PRIMARY_B);
+  name(shared.primary.name, "Mae"); name(shared.secondary.name, "Rowan");
+  display.showGame(shared); shot("shared-reversed-b");
 
   GameDisplayPacket cmd = game(true, 29);
   cmd.commander = 1;

@@ -155,6 +155,8 @@ enum class PacketType : uint8_t {
   DisplayState = 30,
   DisplayNameChunk = 31,
   GameDisplay = 32,
+  CommanderFlow = 50,
+  CommanderKey = 51,
 };
 
 enum class DisplayMode : uint8_t {
@@ -168,9 +170,8 @@ enum class DisplayMode : uint8_t {
 
 constexpr uint8_t DISPLAY_MODE_MASK = 0x07;
 constexpr uint8_t DISPLAY_FLAG_ACTIVE = 0x08;
-// Never set since the table host was retired (2026-09-25); the Sigils' crown
-// for it goes with the rest of "Retire host" (STAGED_CHANGES.md).
-constexpr uint8_t DISPLAY_FLAG_HOST = 0x10;
+// The focused primary player is physical seat B, independent of turn order.
+constexpr uint8_t DISPLAY_FLAG_PRIMARY_B = 0x10;
 constexpr uint8_t DISPLAY_FLAG_STARTER = 0x20;
 constexpr uint8_t DISPLAY_FLAG_WINNER = 0x40;
 constexpr uint8_t DISPLAY_FLAG_ATTENTION = 0x80;
@@ -420,6 +421,36 @@ inline uint16_t toneDuration(int32_t value) {
   return static_cast<uint16_t>(static_cast<uint32_t>(value) & 0xFFFFu);
 }
 
+// Atlas-owned Commander entry: Sigils render this and report revision-tagged keys.
+enum class CommanderStage : uint8_t { Closed, Source, Commander, Amount, Confirm, UndoConfirm, Result };
+struct __attribute__((packed)) CommanderFlowPacket {
+  uint8_t version;
+  PacketType type;
+  uint8_t sigilId;
+  CommanderStage stage;
+  uint16_t revision;
+  uint8_t recipient, recipientSlot, source, commander;
+  int32_t amount, life, damage;
+  char recipientName[DISPLAY_NAME_MAX_LENGTH + 1];
+  char sourceName[DISPLAY_NAME_MAX_LENGTH + 1];
+  char notice[32];
+};
+static_assert(sizeof(CommanderFlowPacket) == 80, "Commander flow wire layout changed");
+inline bool validCommanderFlow(const CommanderFlowPacket &p) {
+  return p.version == VERSION && p.type == PacketType::CommanderFlow && p.sigilId < MAX_SIGILS &&
+      static_cast<uint8_t>(p.stage) <= static_cast<uint8_t>(CommanderStage::Result) &&
+      (p.stage == CommanderStage::Closed || (p.recipient >= 1 && p.recipient <= 16 &&
+       p.source >= 1 && p.source <= 16 && p.recipientSlot >= 1 && p.recipientSlot <= 2 &&
+       p.commander >= 1 && p.commander <= 2 && p.amount >= 1 && p.amount <= 9999 &&
+       p.life >= -1000000 && p.life <= 1000000 && p.damage >= 0 && p.damage <= 1000000)) &&
+      !p.recipientName[DISPLAY_NAME_MAX_LENGTH] && !p.sourceName[DISPLAY_NAME_MAX_LENGTH] && !p.notice[31];
+}
+inline int32_t encodeCommanderKey(uint8_t key, uint16_t revision) {
+  return static_cast<int32_t>(key | (static_cast<uint32_t>(revision) << 8));
+}
+inline uint8_t commanderKey(int32_t value) { return static_cast<uint8_t>(value); }
+inline uint16_t commanderKeyRevision(int32_t value) { return static_cast<uint16_t>(static_cast<uint32_t>(value) >> 8); }
+
 // turnNumber is the table round (GameEngine::currentRound, capped at 255),
 // the same number the Atlas screen shows; Sigils label it as a round.
 inline int32_t encodeDisplayState(
@@ -585,8 +616,8 @@ inline LedStateFields decodeLedState(int32_t value) {
 
 // Actions a menu Sigil can offer. Atlas decides which are available for each
 // Sigil (MenuState) and validates every choice through its Intent handlers;
-// the Sigil only lists them. Wire values are stable; at most 24 (the
-// MenuState2 mask).
+// the Sigil only lists them. There are up to 29 available actions in the
+// MenuState2 mask.
 enum class SigilAction : uint8_t {
   Join = 0,
   CycleStarter = 1,
@@ -617,11 +648,13 @@ enum class SigilAction : uint8_t {
   // MenuState2 only: a Sigil with two living seats shows (and adjusts the
   // life of) its other seat. View only; Atlas changes no game state.
   SwitchSeat = 23,
+  CommanderDamage = 24,
+  UndoCommanderHit = 25,
   Count
 };
-constexpr uint8_t SIGIL_ACTION_NONE = 31;
-// MenuState2 carries up to 24 actions.
-constexpr uint32_t SIGIL_ACTION_MASK2_BITS = 24;
+constexpr uint8_t SIGIL_ACTION_NONE = 255;
+// MenuState2 carries up to 29 actions.
+constexpr uint32_t SIGIL_ACTION_MASK2_BITS = 29;
 static_assert(static_cast<uint8_t>(SigilAction::Count) <= SIGIL_ACTION_MASK2_BITS,
     "SigilAction must fit the MenuState2 mask");
 // Menu revisions wrap at 8 (three bits in MenuState2).
@@ -652,25 +685,17 @@ struct MenuStateFields {
   uint8_t revision = 0;
 };
 
-// MenuState2 payload: bits 0-23 available actions, 24-28 the default action
-// (SIGIL_ACTION_NONE if none), 29-31 menu revision.
+// MenuState2 payload: bits 0-28 available actions, 29-31 revision.
+// The unused transmitted default was removed to make room for Commander actions.
+// All prototype firmware must be updated together. Key defaults are derived.
 inline int32_t encodeMenuState2(const MenuStateFields &f) {
-  return static_cast<int32_t>(
-      (f.actions & ((1u << SIGIL_ACTION_MASK2_BITS) - 1)) |
-      ((static_cast<uint32_t>(f.defaultAction) & 0x1Fu) << 24) |
+  return static_cast<int32_t>((f.actions & ((1u << SIGIL_ACTION_MASK2_BITS) - 1)) |
       ((static_cast<uint32_t>(f.revision) & MENU_REVISION_MASK) << 29));
 }
-
 inline MenuStateFields decodeMenuState2(int32_t value) {
   const uint32_t v = static_cast<uint32_t>(value);
   MenuStateFields f;
-  f.actions = v & ((1u << SIGIL_ACTION_MASK2_BITS) - 1) &
-      ((1u << static_cast<uint8_t>(SigilAction::Count)) - 1);
-  f.defaultAction = static_cast<uint8_t>((v >> 24) & 0x1Fu);
-  if (f.defaultAction >= static_cast<uint8_t>(SigilAction::Count) ||
-      (f.actions & (1u << f.defaultAction)) == 0) {
-    f.defaultAction = SIGIL_ACTION_NONE;
-  }
+  f.actions = v & ((1u << static_cast<uint8_t>(SigilAction::Count)) - 1);
   f.revision = static_cast<uint8_t>((v >> 29) & MENU_REVISION_MASK);
   return f;
 }
@@ -743,14 +768,15 @@ inline uint8_t seatColorSlot(int32_t v) { return static_cast<uint8_t>(static_cas
 inline bool seatColorSet(int32_t v) { return (static_cast<uint32_t>(v) & 0x04u) != 0; }
 inline uint32_t seatColorRgb(int32_t v) { return (static_cast<uint32_t>(v) >> 8) & 0xFFFFFFu; }
 
-// SelectAction payload: bits 0-4 action, 5-10 menu revision.
-inline int32_t encodeSelectAction(SigilAction action, uint8_t revision) {
+// SelectAction payload: bits 0-4 action, 5-10 revision, 11-15 shown player.
+inline int32_t encodeSelectAction(SigilAction action, uint8_t revision, uint8_t player = 0) {
   return static_cast<int32_t>((static_cast<uint32_t>(action) & 0x1Fu) |
-      ((static_cast<uint32_t>(revision) & 0x3Fu) << 5));
+      ((static_cast<uint32_t>(revision) & 0x3Fu) << 5) | ((static_cast<uint32_t>(player) & 0x1Fu) << 11));
 }
 inline uint8_t selectedAction(int32_t value) {
   return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x1Fu);
 }
+inline uint8_t selectedPlayer(int32_t value) { return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 11) & 0x1Fu); }
 inline uint8_t selectedRevision(int32_t value) {
   return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 5) & 0x3Fu);
 }

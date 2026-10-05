@@ -13,7 +13,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
-| `TestHarness/` | ESP32 hardware-in-the-loop harness: plays as two virtual menu Sigils against a real Atlas; premade tests start from the Atlas touchscreen (see its README) | PlatformIO, Arduino ESP32, C++ |
+| `TestHarness/` | Retired hardware test harness: historical source only; unsupported, no builds or compatibility maintenance (see its README) | PlatformIO, Arduino ESP32, C++ |
 | `KiCad/` | Sigil PCB/schematic, plus Python scripts in `PCB/Sigilv1/tools/` that build and verify the schematic | KiCad, Python |
 | `design/` | V1 design system shared by the portal and Android: `tokens.json` (themes, type, motion), the icon set, Inter and Cinzel fonts, web components and the style guide. `python3 design/build_tokens.py` regenerates `design/dist/` and Android's `DesignTokens.kt` and `ic_th_*` drawables (CI runs `--check`); see `design/README.md` | Python (stdlib) |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
@@ -124,7 +124,7 @@ partial/missing results. Do not claim crash-safe exactly-once statistics until
 durable completion receipts and replay-safe persistence exist. See
 `COMPLETION_RECOVERY.md` and `PROTOTYPE_V1_VERIFICATION.md` in the engineering docs.
 
-**No compatibility before release:** every Atlas, Sigil and harness is a prototype the owner reflashes together. Backward compatibility (older protocol versions, older firmware, OTA upgrade paths) applies only once hardware is released, and saved data (profiles, stats, pairings) needs no migrations until the owner says TurnHub is saving live stats: a changed layout means a factory reset. Remove code that only served retired devices or formats rather than keeping fallbacks.
+**No compatibility before release:** every Atlas and Sigil is a prototype the owner reflashes together. Backward compatibility (older protocol versions, older firmware, OTA upgrade paths) applies only once hardware is released, and saved data (profiles, stats, pairings) needs no migrations until the owner says TurnHub is saving live stats: a changed layout means a factory reset. Remove code that only served retired devices or formats rather than keeping fallbacks.
 
 **Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (60 s, the minimum on every device) or the Hello capability bits (only what varies between Sigils: OLED vs e-paper and the test harness; Atlas assumes the rest and reads the byte through `helloCapabilities()`). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
 

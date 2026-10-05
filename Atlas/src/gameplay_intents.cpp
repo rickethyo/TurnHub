@@ -527,6 +527,22 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
       return IntentResult::accept(payload.flags ? "Life change accepted" : "Life change rejected");
     case IntentType::ChangeCounter:
       return changeCommanderDamage(*seat, payload);
+    case IntentType::RecordCommanderHit:
+    case IntentType::UndoCommanderHit: {
+      if (payload.targetPlayer != seat->playerNumber)
+        return IntentResult::reject(IntentStatus::Unauthorized, "Record only your own received damage");
+      bool applied = false;
+      if (intent.type == IntentType::RecordCommanderHit) {
+        applied = game.recordCommanderHit(seat->playerNumber,payload.counterSource,payload.counterSlot,payload.value);
+      } else {
+        const auto *hit = game.lastCommanderHit(seat->playerNumber);
+        if (hit && hit->source == payload.counterSource && hit->commander == payload.counterSlot &&
+            hit->amount == payload.value) applied = game.undoCommanderHit(seat->playerNumber);
+      }
+      return applied ? IntentResult::accept(intent.type == IntentType::RecordCommanderHit ?
+          "Hit recorded" : "Hit undone") : IntentResult::reject(IntentStatus::Conflict,
+          "Entry changed or exceeds limits");
+    }
     default:
       return IntentResult::reject(IntentStatus::Unsupported, "Unknown counter action");
   }

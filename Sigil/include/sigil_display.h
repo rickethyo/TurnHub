@@ -76,6 +76,7 @@ class SigilDisplay {
   // The profile picker page (see ProfilePickerPacket). It replaces every
   // other screen while Atlas keeps it open. cursor is the OLED list row
   // (picker_list.h); the e-ink compass ignores it.
+  virtual void showCommander(const TurnHubProtocol::CommanderFlowPacket &page) { (void)page; }
   virtual void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) {
     (void)page; (void)cursor;
   }

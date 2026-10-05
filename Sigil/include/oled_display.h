@@ -25,6 +25,7 @@ class OledDisplay final : public SigilDisplay {
   void showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       uint8_t primaryPlayer, uint8_t secondaryPlayer, uint8_t turnNumber,
       uint8_t flags) override;
+  void showCommander(const TurnHubProtocol::CommanderFlowPacket &page) override;
   void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
   // The one-line key legend steps to its next key every LEGEND_STEP_MS.
   uint32_t idleWorkDueInMs(uint32_t nowMs) const override;

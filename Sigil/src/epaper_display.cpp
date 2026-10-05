@@ -4,6 +4,7 @@
 #include "life_heart.h"
 #include "display_name.h"
 #include "commander_damage.h"
+#include "commander_flow_view.h"
 
 #include <SPI.h>
 #include <cstring>
@@ -590,7 +591,8 @@ void EpaperDisplay::showUnpaired() {
 // Factory reset and Back. False if it is closed.
 bool EpaperDisplay::drawDeviceMenu() {
   if (!menu_.active || !menu_.deviceMenu) return false;
-  drawStatus("Device menu", "Unpair/reset: hold");
+  const bool commander = (menu_.compass[static_cast<uint8_t>(Key::Select)] == static_cast<uint8_t>(TurnHubProtocol::SigilAction::CommanderDamage));
+  drawStatus(commander ? "Game menu" : "Device menu",commander ? "Received cmd damage" : "Unpair/reset: hold");
   return true;
 }
 
@@ -636,12 +638,24 @@ void EpaperDisplay::showUpdate(const char *status, int8_t percent) {
   drawStatus("Updating", line, false);
 }
 
+void EpaperDisplay::showCommander(const TurnHubProtocol::CommanderFlowPacket &page) {
+  const auto v = commanderFlowView(page);
+  drawnValid_ = false; gameFrameValid_ = false; partialRefreshCount_ = 0;
+  display_.setFullWindow(); display_.firstPage();
+  do {
+    display_.fillScreen(GxEPD_WHITE); drawFrame();
+    drawHeader("Cmd damage",page.sigilId,false,0);
+    for (uint8_t i=0;i<6;++i) drawCentered(v.lines[i],48+i*28);
+  } while (display_.nextPage());
+}
+
 void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
+  if (drawDeviceMenu()) return;
   const uint8_t primary = TurnHubProtocol::displayPrimaryPlayer(s.state);
   const uint8_t secondary = TurnHubProtocol::displaySecondaryPlayer(s.state);
   const bool shared = secondary != 0;
   const bool active = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_ACTIVE);
-  const char primarySeat = primary < secondary ? 'A' : 'B';
+  const char primarySeat = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B) ? 'B' : 'A';
   const int16_t width = display_.width() - 2 * MARGIN;
 
   const bool cmdShown = commanderDamageShown(s);
@@ -678,7 +692,7 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     display_.fillScreen(GxEPD_WHITE);
     drawFrame();
     drawHeader(s.commander ? "Commander" : "Game", s.sigilId,
-        TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_HOST),
+        false,
         TurnHubProtocol::displayTurnNumber(s.state));
     // Atlas places the active local player first; keep the turn cue with them.
     // A pass in its grace period says so; the ring counts it down.
@@ -785,7 +799,7 @@ void EpaperDisplay::showState(
     uint8_t flags) {
   if (drawDeviceMenu()) return;
   const bool active = (flags & TurnHubProtocol::DISPLAY_FLAG_ACTIVE) != 0;
-  const bool host = (flags & TurnHubProtocol::DISPLAY_FLAG_HOST) != 0;
+  const bool host = false;
   const bool starter = (flags & TurnHubProtocol::DISPLAY_FLAG_STARTER) != 0;
   const bool winner = (flags & TurnHubProtocol::DISPLAY_FLAG_WINNER) != 0;
   const bool attention = (flags & TurnHubProtocol::DISPLAY_FLAG_ATTENTION) != 0;
@@ -831,8 +845,8 @@ void EpaperDisplay::showState(
 
   const bool shared = secondaryPlayer != 0;
   const bool focused = active || starter || winner || attention;
-  const bool focusA = focused && primaryPlayer < secondaryPlayer;
-  const bool focusB = focused && primaryPlayer > secondaryPlayer;
+  const bool focusA = focused && !(flags & TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B);
+  const bool focusB = focused && (flags & TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B);
   // Without a legend these are the original 196 / 201 / 239 positions.
   const int16_t bottom = contentBottom();
   const int16_t divider = bottom - 54;

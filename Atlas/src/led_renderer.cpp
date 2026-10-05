@@ -116,6 +116,14 @@ void LedRenderer::setStyle(uint8_t sigilId, TurnHubProtocol::LedStyle style) {
 TurnHubProtocol::LedStyle LedRenderer::style(uint8_t sigilId) const {
   return styles_[sigilId < MAX_PHYSICAL_SIGILS ? sigilId : 0];
 }
+uint8_t LedRenderer::shownPlayer(uint8_t sigilId, const GameEngine &game) const {
+  if (sigilId >= MAX_PHYSICAL_SIGILS) return 0;
+  if (cache_[sigilId].displayValid) return TurnHubProtocol::displayPrimaryPlayer(cache_[sigilId].displayPayload);
+  if (focus_[sigilId].player) return focus_[sigilId].player;
+  if (game.activeController() == sigilId) return game.activePlayerNumber();
+  PlayerSeat seats[2];
+  return game.livingPlayersForController(sigilId,seats,2) ? seats[0].playerNumber : 0;
+}
 bool LedRenderer::switchShownSeat(uint8_t sigilId, const GameEngine &game) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) return false;
   PlayerSeat seats[2];
@@ -305,6 +313,11 @@ void LedRenderer::syncDisplay(
       turnNumber = static_cast<uint8_t>(round > 255 ? 255 : round);
     }
   }
+
+  const PlayerSeat *focused = game.playerByNumber(primary);
+  const bool primaryIsB = (state == HubState::Lobby || state == HubState::Starting) ?
+      primary == lobby.playerNumber(sigilId, 2) : (focused && focused->slot == 2);
+  if (secondary && primaryIsB) flags |= TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B;
 
   const int32_t payload = TurnHubProtocol::encodeDisplayState(
       mode,

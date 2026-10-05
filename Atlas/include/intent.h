@@ -35,6 +35,10 @@ enum class IntentType : uint8_t {
   // Game-profile actions. Payload meaning is defined by the handler.
   ChangeLife,
   ChangeCounter,
+  // Receiver-owned Commander hit: source, commander and positive amount.
+  RecordCommanderHit,
+  // Reverses the recipient's last Sigil hit; payload identifies that receipt.
+  UndoCommanderHit,
 
   // Non-state-changing table interaction.
   NudgePlayer,
@@ -91,8 +95,11 @@ enum class IntentType : uint8_t {
 
   // Turn order, from the Atlas touchscreen in the lobby only (any player may):
   // payload.targetPlayer = a lobby seat, payload.value = -1 (earlier) or +1
-  // (later). The seat's whole Sigil or phone moves, seat B with seat A.
+  // (later). Swaps A/B within a Sigil, otherwise moves the whole controller.
   MoveSeat,
+  // Atlas lobby: targetPlayer identifies the Sigil; value 0 = B after A
+  // (right), 1 = B before A (left).
+  SetSeatSide,
 
   // First-run guided setup (setup_stage.h): payload.value = the next stage.
   // To Finished: a presence-verified Admin from a phone (payload.moderatorId).

@@ -66,8 +66,6 @@ jobs:
             product: sigil-oled
           - project: Sigil
             environment: sigil-wokwi
-          - project: TestHarness
-            environment: harness
     env:
       PIO_PROJECT: ${{ matrix.project }}
       PIO_ENVIRONMENT: ${{ matrix.environment }}

@@ -80,6 +80,7 @@ bool Lobby::leave(uint8_t controllerId) {
 
   --joinedCount_;
   secondary_[controllerId] = false;
+  secondaryFirst_[controllerId] = false;
 
   if (starterSelected_ && starterModule_ == controllerId) {
     starterSelected_ = false;
@@ -117,6 +118,28 @@ bool Lobby::moveController(uint8_t controllerId, int8_t direction) {
   return true;
 }
 
+bool Lobby::secondaryFirst(uint8_t controllerId) const {
+  return hasSecondary(controllerId) && secondaryFirst_[controllerId];
+}
+
+bool Lobby::setSecondaryFirst(uint8_t controllerId, bool first) {
+  if (!isJoined(controllerId) || !hasSecondary(controllerId)) return false;
+  secondaryFirst_[controllerId] = first;
+  clearStartArm();
+  return true;
+}
+
+bool Lobby::moveSeat(uint8_t controllerId, uint8_t slot, int8_t direction) {
+  const uint8_t number = playerNumber(controllerId, slot);
+  if (!number || (direction != -1 && direction != 1)) return false;
+  if (hasSecondary(controllerId)) {
+    const uint8_t other = playerNumber(controllerId, slot == 1 ? 2 : 1);
+    if (number + direction == other)
+      return setSecondaryFirst(controllerId, !secondaryFirst(controllerId));
+  }
+  return moveController(controllerId, direction);
+}
+
 uint8_t Lobby::buildPlayers(PlayerSeat *out, uint8_t capacity) const {
   if (out == nullptr || capacity == 0) {
     return 0;
@@ -127,12 +150,14 @@ uint8_t Lobby::buildPlayers(PlayerSeat *out, uint8_t capacity) const {
 
   for (uint8_t i = 0; i < joinedCount_ && count < capacity; ++i) {
     const uint8_t module = joinedOrder_[i];
-    out[count] = PlayerSeat{number++, module, 1};
-    out[count++].participantId = participants_[module][0];
+    const uint8_t first = secondaryFirst(module) ? 2 : 1;
+    out[count] = PlayerSeat{number++, module, first};
+    out[count++].participantId = participants_[module][first - 1];
 
     if (secondary_[module] && count < capacity) {
-      out[count] = PlayerSeat{number++, module, 2};
-      out[count++].participantId = participants_[module][1];
+      const uint8_t second = first == 1 ? 2 : 1;
+      out[count] = PlayerSeat{number++, module, second};
+      out[count++].participantId = participants_[module][second - 1];
     }
   }
 
@@ -173,10 +198,10 @@ uint8_t Lobby::playerNumber(uint8_t controllerId, uint8_t slot) const {
 
     if (module == controllerId) {
       if (slot == 1) {
-        return number;
+        return static_cast<uint8_t>(number + (secondaryFirst(module) ? 1 : 0));
       }
       if (slot == 2 && secondary_[module]) {
-        return static_cast<uint8_t>(number + 1);
+        return static_cast<uint8_t>(number + (secondaryFirst(module) ? 0 : 1));
       }
       return 0;
     }
@@ -202,6 +227,7 @@ bool Lobby::toggleSecondary(
     const uint8_t oldNumber = playerNumber(controllerId, 2);
     affected = PlayerSeat{oldNumber, controllerId, 2};
     secondary_[controllerId] = false;
+    secondaryFirst_[controllerId] = false;
     added = false;
 
     if (starterSelected_ && starterModule_ == controllerId && starterSlot_ == 2) {
@@ -309,6 +335,7 @@ void Lobby::resetEmpty() {
   for (uint8_t i = 0; i < MAX_CONTROLLERS; ++i) {
     joinedOrder_[i] = INVALID_ID;
     secondary_[i] = false;
+    secondaryFirst_[i] = false;
   }
 }
 
@@ -320,8 +347,11 @@ bool Lobby::restorePlayers(const PlayerSeat *players, uint8_t count, uint8_t sta
   for (uint8_t i = 0; i < count; ++i) {
     const auto &p = players[i];
     if (p.controllerId >= MAX_CONTROLLERS || p.slot < 1 || p.slot > 2) return false;
-    if (p.slot == 1) joinedOrder_[joinedCount_++] = p.controllerId;
-    else secondary_[p.controllerId] = true;
+    if (!isJoined(p.controllerId)) {
+      joinedOrder_[joinedCount_++] = p.controllerId;
+      secondaryFirst_[p.controllerId] = p.slot == 2;
+    }
+    if (p.slot == 2) secondary_[p.controllerId] = true;
     participants_[p.controllerId][p.slot-1] = p.participantId;
     if (p.participantId >= nextParticipant_) nextParticipant_ = p.participantId + 1;
   }

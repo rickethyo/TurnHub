@@ -139,6 +139,10 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   if ((hubState == HubState::Running || hubState == HubState::Paused) &&
       hasLivingSeat && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
     add(SigilAction::AdjustLife);
+    if (game.settings().profile == TurnHub::GameProfile::Commander) {
+      add(SigilAction::CommanderDamage);
+      if (game.lastCommanderHit(leds.shownPlayer(sigilId,game))) add(SigilAction::UndoCommanderHit);
+    }
   }
   // Two living seats on one Sigil: either one can be shown, and so have its
   // life changed, on any turn.

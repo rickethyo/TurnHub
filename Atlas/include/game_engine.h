@@ -153,12 +153,18 @@ class GameEngine {
 
   bool controllerInGame(uint8_t controllerId) const;
   bool isEliminated(uint8_t playerNumber) const;
-  // Copies the controller's seats (A then B) into out; returns the count.
+  // Copies the controller's seats in turn order into out; returns the count.
   uint8_t playersForController(uint8_t controllerId, PlayerSeat *out, uint8_t capacity) const;
   uint8_t livingPlayersForController(
       uint8_t controllerId,
       PlayerSeat *out,
       uint8_t capacity) const;
+
+  uint32_t matchGeneration() const { return matchGeneration_; }
+  struct CommanderHit { uint8_t source = 0, commander = 1; int32_t amount = 0; };
+  bool recordCommanderHit(uint8_t recipient, uint8_t source, uint8_t commander, int32_t amount);
+  bool undoCommanderHit(uint8_t recipient);
+  const CommanderHit *lastCommanderHit(uint8_t recipient) const;
 
   uint32_t currentTurnElapsedMs(uint32_t nowMs) const;
   uint32_t gameElapsedMs(uint32_t nowMs) const;
@@ -188,6 +194,8 @@ class GameEngine {
   GameSettings settings_{};
   int32_t life_[MAX_PLAYERS] = {};
   int32_t commanderDamage_[MAX_PLAYERS][MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
+  uint32_t matchGeneration_ = 0;
+  CommanderHit lastHits_[MAX_PLAYERS] = {};
   LifeChangeRequest lifeChanges_[MAX_PLAYERS] = {};
   uint32_t nextLifeRequestId_ = 0; // Deliberately survives reset/rematch in this boot.
   PlayerStats stats_[MAX_PLAYERS];

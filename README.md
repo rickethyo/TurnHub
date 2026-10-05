@@ -23,7 +23,7 @@ not part of this repository or the current runtime.
 | [`Android/`](Android/README.md) | Native client: table view, player controls, guided setup and firmware updates |
 | [`protocol/`](protocol/README.md) | Client contract: JSON schemas, [`http-v1.md`](protocol/http-v1.md), example responses |
 | [`shared/include/`](shared/include) | Firmware headers shared by Atlas and Sigil (radio contract, firmware package format) |
-| [`TestHarness/`](TestHarness/README.md) | Hardware-in-the-loop harness that plays as two Sigils against a real Atlas |
+| [`TestHarness/`](TestHarness/README.md) | Retired hardware test harness; historical source only, unsupported and excluded from builds |
 | [`KiCad/`](KiCad/PCB/Sigilv1/README.md) | Sigil carrier PCB and schematics |
 | [`Documentation/engineering/`](Documentation/engineering/README.md) | The engineering record: invariants, design references, staged work |
 | [`Documentation/User Manual/`](Documentation/User%20Manual) | The user manual (newest `.docx`; the app bundles the same text) |
@@ -31,7 +31,7 @@ not part of this repository or the current runtime.
 ## Core architectural rule
 
 **Atlas owns canonical game and table state.** Sigils, phones, the Atlas
-touchscreen, the harness and simulators submit Intents and render Atlas state.
+touchscreen and simulators submit Intents and render Atlas state.
 They never advance turns, resolve wins, own player identity or keep competing
 game engines. See [Architectural Invariants](Documentation/engineering/ARCHITECTURAL_INVARIANTS.md).
 
@@ -82,7 +82,7 @@ replays statistics.
 
 Commands for every target are in [`CLAUDE.md`](CLAUDE.md) and each
 directory's README. CI (`.github/workflows/ci.yml`) runs the host suites,
-contract checks, every firmware build and the Android tests; see
+contract checks, supported firmware builds and the Android tests; see
 [Continuous Integration](Documentation/engineering/CONTINUOUS_INTEGRATION.md).
 
 ## Local-first
@@ -94,6 +94,6 @@ repairability, privacy and accessibility direction is in
 
 ## Status
 
-TurnHub is a prototype. Every Atlas, Sigil and harness is reflashed together,
+TurnHub is a prototype. Every Atlas and Sigil is reflashed together,
 so there is no backward compatibility before release: a changed protocol or
 storage layout means reflashing everything and, for storage, a factory reset.

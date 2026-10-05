@@ -15,8 +15,11 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 | Firmware (sigil) | Build the e-ink/joystick Sigil; descriptor check and signed `sigil-eink.thfw` as for Atlas |
 | Firmware (sigil-oled) | Build the OLED/button Sigil; descriptor check and signed `sigil-oled.thfw` as for Atlas |
 | Firmware (sigil-wokwi) | Compile the Wokwi variant; does not execute the simulator |
-| Firmware (harness) | Build the hardware test harness; does not run it against a board |
 | Android build and unit tests | Build the debug APK and run JVM unit tests |
+
+The hardware `TestHarness/` target was retired on 2026-10-05. CI no longer
+builds it or publishes harness firmware artifacts. Its source is historical and
+unsupported; the Atlas and Sigil host suites remain supported.
 
 Host suites use GCC, C++14, AddressSanitizer and UBSan on Ubuntu 24.04, with
 assertions enabled. Sanitizer failures fail the check. The firmware jobs use
@@ -102,7 +105,7 @@ limitation with the result; CI does not disable leak detection.
 
 First establish a successful run, then configure a rule for `master` under the
 repository's **Settings > Rules > Rulesets** (or branch protection). Require a PR
-and the seven check names above, using GitHub Actions as their source. Keep check
+and the six check names above, using GitHub Actions as their source. Keep check
 names stable when editing the workflow. Do not add path filters that prevent a
 required check from reporting. A solo-maintainer setup does not need a mandatory
 second person's approval just to require checks.

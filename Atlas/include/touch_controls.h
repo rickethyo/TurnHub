@@ -61,7 +61,7 @@ enum class TouchAction : uint8_t {
   // their life (ChangeLife) and concedes for them (Concede, asked twice).
   OpenPlayer, LifeMinus5, LifeMinus1, LifePlus1, LifePlus5, Concede, ConfirmConcede, CancelConcede,
   // In the lobby, the same screen sets turn order (MoveSeat).
-  MoveEarlier, MoveLater,
+  MoveEarlier, MoveLater, SeatBLeft, SeatBRight,
   // First-run setup (FIRST_RUN_SETUP.md). Skip for now hides the Welcome
   // screen until the next start-up (presentation only); Setup under Menu
   // brings it back. Pair a Sigil and Done leave "You're all set"

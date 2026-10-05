@@ -35,11 +35,12 @@ bool validCheckpoint(const GameCheckpoint &s) {
     if (p.profileId[0] && !TurnHubIdentity::ProfileId::parse(p.profileId, profile)) return false;
     // Browser participants must be able to reauthenticate after a reboot.
     if (p.controllerId >= MAX_PHYSICAL_SIGILS && !p.profileId[0]) return false;
-    if (p.slot == 2 && (i == 0 || s.players[i-1].controllerId != p.controllerId ||
-        s.players[i-1].slot != 1)) return false;
+    // A shared Sigil stays adjacent, in either A/B or B/A order.
+    if (p.slot == 2 && !((i > 0 && s.players[i-1].controllerId == p.controllerId &&
+        s.players[i-1].slot == 1) || (i + 1 < s.count &&
+        s.players[i+1].controllerId == p.controllerId && s.players[i+1].slot == 1))) return false;
     for (uint8_t j = 0; j < i; ++j) {
       if (p.sameSeat(s.players[j]) ||
-          (p.slot == 1 && p.controllerId == s.players[j].controllerId) ||
           (p.participantId && p.participantId == s.players[j].participantId) ||
           (p.profileId[0] && !strcmp(p.profileId, s.players[j].profileId))) return false;
     }

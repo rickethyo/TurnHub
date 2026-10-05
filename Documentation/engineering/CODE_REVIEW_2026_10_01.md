@@ -94,7 +94,8 @@ that no longer exists). `/api/status` lost its dead `"host": -1`.
 ## Found, not changed
 
 - **`DISPLAY_FLAG_HOST`** is never set; the Sigils still draw a crown for it.
-  Left for the "Retire host" work in `STAGED_CHANGES.md` (now commented).
+  Resolved 2026-10-05: its bit now identifies physical seat B; Sigils no longer
+  use it to draw a host crown. See `PLAYTEST_NOTES_2026_10_05.md`.
 - **`hostModuleId` and `host`** remain in the client contract for the same
   reason.
 - **Session lookups read NVS** (`TurnHubAccounts::load`, `primaryAdmin`) on

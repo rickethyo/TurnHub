@@ -170,7 +170,11 @@ to use it. Since 2026-09-30 the only gate is
 `MenuState2 = 34` (2026-09-25) replaces `MenuState` for the same 0.8.0+ Sigils
 (since 2026-09-26 the 0.8.0 test harness too, which plays life changes and
 Leave; the profile picker stays off for a Sigil with `CAPABILITY_HARNESS`): the 21 action bits of `MenuState` were all used, so
-`MenuState2` carries 24 action bits, the 5-bit default and a 3-bit revision.
+Since 2026-10-05, `MenuState2` carries 29 action bits and a 3-bit revision.
+The unused wire default was removed to fit Commander damage (24) and Undo hit
+(25); key defaults are derived by the Sigil menu. All prototype firmware must
+be rebuilt together. `SelectAction` bits 11–15 carry the shown receiving player
+for Commander actions. See [Sigil Commander damage](SIGIL_COMMANDER_DAMAGE.md).
 Menu revisions now wrap at 8 for every Sigil so either encoding can name them.
 Its first new action is `Leave = 21`, which Atlas offers only to these Sigils.
 

@@ -29,6 +29,7 @@ class EpaperDisplay final : public SigilDisplay {
       uint8_t secondaryPlayer,
       uint8_t turnNumber,
       uint8_t flags) override;
+  void showCommander(const TurnHubProtocol::CommanderFlowPacket &page) override;
   void showPicker(const TurnHubProtocol::ProfilePickerPacket &page, uint8_t cursor) override;
   uint32_t idleWorkDueInMs(uint32_t nowMs) const override;
   void idleWork(uint32_t nowMs) override;

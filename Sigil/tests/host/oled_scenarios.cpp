@@ -95,15 +95,15 @@ int main() {
   assert(!d.setSeatName(1, "ABCDEFGHIJKL"));
   assert(!d.setSeatName(3, "ignored"));
   assert(d.setSeatName(2, "Second"));
-  d.showState(7, DisplayMode::Lobby, 1, 2, 255, DISPLAY_FLAG_HOST);
+  d.showState(7, DisplayMode::Lobby, 1, 2, 255, 0);
   assert(has("A: ABCDEFGHIJKL") && !has("B: Second") && has("SHARED SIGIL"));
   assert(highlighted("LOBBY") && highlighted("S8 R255"));
   assert(!highlighted("SHARED SIGIL"));
-  d.showState(0, DisplayMode::Starting, 2, 1, 1, DISPLAY_FLAG_STARTER);
+  d.showState(0, DisplayMode::Starting, 2, 1, 1, DISPLAY_FLAG_STARTER | DISPLAY_FLAG_PRIMARY_B);
   assert(highlighted("GO FIRST: B") && has("B: Second") && !has("A: ABCDEFGHIJKL"));
   d.showState(0, DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
   assert(highlighted("YOUR TURN: A"));
-  d.showState(0, DisplayMode::Paused, 2, 1, 1, DISPLAY_FLAG_ATTENTION);
+  d.showState(0, DisplayMode::Paused, 2, 1, 1, DISPLAY_FLAG_ATTENTION | DISPLAY_FLAG_PRIMARY_B);
   assert(highlighted("ACTION NEEDED: B"));
   d.showState(0, DisplayMode::GameOver, 1, 2, 1, DISPLAY_FLAG_WINNER);
   assert(highlighted("WINNER!: A"));
@@ -117,6 +117,19 @@ int main() {
   d.showState(0, DisplayMode::Ready, 0, 0, 0, 0);
   assert(has("Ready for game"));
 
+  CommanderFlowPacket flow{};
+  flow.version=VERSION; flow.type=PacketType::CommanderFlow; flow.sigilId=0;
+  flow.stage=CommanderStage::Confirm; flow.recipient=2; flow.recipientSlot=2;
+  flow.source=3; flow.commander=2; flow.amount=5; flow.life=40; flow.damage=12;
+  std::strcpy(flow.recipientName,"Mae"); std::strcpy(flow.sourceName,"Alex");
+  assert(validCommanderFlow(flow)); d.showCommander(flow);
+  assert(has("To: Mae (B)") && has("Alex C2: 5") && has("Life 40 -> 35") && has("Cmd 12 -> 17") && has("Click: apply hit"));
+  flow.stage=CommanderStage::UndoConfirm; flow.life=35; flow.damage=17;
+  d.showCommander(flow); assert(has("Life 35 -> 40") && has("Cmd 17 -> 12") && has("Click: undo hit"));
+  for (CommanderStage stage : {CommanderStage::Source,CommanderStage::Commander,CommanderStage::Amount,CommanderStage::Result}) {
+    flow.stage=stage; d.showCommander(flow);
+  }
+
   GameDisplayPacket s{};
   s.version = VERSION; s.type = PacketType::GameDisplay; s.sigilId = 7;
   std::strcpy(s.primary.name, "ABCDEFGHIJKL");
@@ -125,7 +138,7 @@ int main() {
     for (bool active : {false, true}) {
       for (bool shared : {false, true}) {
         s.state = encodeDisplayState(DisplayMode::Running, 2, shared ? 1 : 0, 255,
-            active ? DISPLAY_FLAG_ACTIVE : 0);
+            (active ? DISPLAY_FLAG_ACTIVE : 0) | (shared ? DISPLAY_FLAG_PRIMARY_B : 0));
         s.primary.life = value; s.secondary.life = -value;
         assert(validGameDisplay(s));
         const auto before = s;
@@ -144,6 +157,14 @@ int main() {
   }
   s.state = encodeDisplayState(DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
   s.commander = 1; d.showGame(s);
+  // A can have the higher number; B can have the lower number.
+  s.state = encodeDisplayState(DisplayMode::Running, 4, 3, 1, DISPLAY_FLAG_ACTIVE);
+  d.showGame(s); assert(has("A: ABCDEFGHIJKL"));
+  s.state = encodeDisplayState(DisplayMode::Running, 3, 4, 1,
+      DISPLAY_FLAG_ACTIVE | DISPLAY_FLAG_PRIMARY_B);
+  d.showGame(s); assert(has("B: ABCDEFGHIJKL"));
+  s.state = encodeDisplayState(DisplayMode::Running, 1, 2, 1, DISPLAY_FLAG_ACTIVE);
+  d.showGame(s);
   assert(has("A: ABCDEFGHIJKL") && !startsWith("B: MNOP") && highlighted("COMMANDER"));
   d.showState(0, DisplayMode::Paused, 1, 0, 1, 0);
   assert(!has("1000000")); // State-only packets must not retain stale life.
