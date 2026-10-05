@@ -53,7 +53,10 @@ void apply(Flow &f, bool undo) {
   const auto *seat = game.playerByNumber(f.page.recipient);
   Intent intent;
   intent.type = undo ? IntentType::UndoCommanderHit : IntentType::RecordCommanderHit;
-  intent.actor = {IntentOrigin::PhysicalSigil,seat->controllerId,seat->slot,seat->playerNumber};
+  intent.actor.origin = IntentOrigin::PhysicalSigil;
+  intent.actor.controllerId = seat->controllerId;
+  intent.actor.slot = seat->slot;
+  intent.actor.playerNumber = seat->playerNumber;
   intent.payload.targetPlayer = seat->playerNumber;
   intent.payload.counterSource = f.page.source;
   intent.payload.counterSlot = f.page.commander;

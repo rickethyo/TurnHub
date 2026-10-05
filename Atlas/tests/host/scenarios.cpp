@@ -1064,7 +1064,8 @@ static void commanderFlow() {
   const GameSettings settings=game.settings();
   open(); assert(game.start(sameSeats,4,sameSeats[0],testNow,settings));
   syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed && !game.lastCommanderHit(2));
-  open(); bool finished=false; assert(game.eliminatePlayer(2,testNow,finished) && !finished);
+  open(); assert(dispatchSeatIntent(IntentType::Concede,IntentOrigin::PhysicalSigil,*game.playerByNumber(2)).accepted());
+  assert(game.isEliminated(2));
   syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
   // A remaining seat's flow closes for a table-wide win decision too.
   open(false,1); dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::PhysicalSigil,*game.activePlayer());
