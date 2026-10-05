@@ -19,7 +19,8 @@
    hit). `MenuState2` now carries 29 action bits and a 3-bit revision; its
    unused default-action field is derived locally instead. `SelectAction`
    bits 11–15 carry the receiving player shown when the action was chosen.
-   Atlas, Sigil and harness firmware must be rebuilt together.
+   Atlas and Sigil firmware must be rebuilt together. The retired hardware
+   harness is unsupported and excluded from builds.
 
 ## Controls
 

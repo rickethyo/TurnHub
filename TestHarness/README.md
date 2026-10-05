@@ -1,9 +1,13 @@
 # TurnHub Hardware Test Harness
 
-**Status:** *Experimental* (2026-09-25). A virtual-Sigil emulator and a full
-game scenario run against a real Atlas. The firmware builds and pairs over the
-air; treat a scenario's PASS as a check of Atlas's radio and menu paths, not as
-hardware acceptance of a physical Sigil.
+**Status: Retired and unsupported (2026-10-05).** This hardware test harness
+is retained as historical source. It is excluded from CI builds and firmware
+artifacts, receives no maintenance or compatibility guarantees, and is no longer
+a supported TurnHub target. Use the Atlas/Sigil host suites, Wokwi simulation,
+and physical Sigils for current validation.
+
+The remaining description and commands document the former harness and may not
+work with current Atlas firmware or the shared radio protocol.
 
 One ESP32 (any `esp32dev` board; the owner's is the former Atlas DevKit, with
 no buttons or LEDs besides BOOT) plays **two menu Sigils** against a real Atlas
@@ -117,7 +121,7 @@ the menus at that moment, and each run ends with
 `HARNESS|SUMMARY|<scenario>|passed=N|failed=N`. Games end in a guest win, and
 Atlas records statistics only for signed-in profiles.
 
-## Build and flash
+## Historical build and flash (unsupported)
 
 From `TestHarness/` (the COM number changes between PC restarts; the harness
 is a CP210x port, like the Sigils, so check which is which first):
