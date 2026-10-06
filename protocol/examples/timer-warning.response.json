@@ -27,6 +27,7 @@
     "winConfirmationPlayer": null,
     "eliminationTargetPlayer": null
   },
+  "nudge": null,
   "players": [
     {
       "playerNumber": 1,

@@ -28,6 +28,7 @@ enum class WebControl : uint8_t {
   Reset,
   Join,
   Leave,
+  Nudge,
   AttachPhysical,
 };
 

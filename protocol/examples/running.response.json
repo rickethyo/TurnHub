@@ -27,6 +27,12 @@
     "winConfirmationPlayer": null,
     "eliminationTargetPlayer": null
   },
+  "nudge": {
+    "seq": 3,
+    "fromPlayer": 2,
+    "toPlayer": 1,
+    "ageMs": 1200
+  },
   "players": [
     {
       "playerNumber": 1,

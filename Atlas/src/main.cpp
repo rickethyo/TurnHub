@@ -64,6 +64,7 @@ uint32_t &countdownStartedAtMs = tables[0].countdownStartedAtMs;
 int8_t &lastCountdownSecond = tables[0].lastCountdownSecond;
 uint8_t &eliminationTargetPlayer = tables[0].eliminationTargetPlayer;
 TurnTimerCueState &turnTimerCue = tables[0].turnTimerCue;
+NudgeState &nudgeState = tables[0].nudge;
 
 TurnHub::GameSettings nextGameSettings;
 bool gameSettingsAvailable = true;
@@ -200,6 +201,10 @@ void observeClientState() {
   pending.passStartedMs = pendingPass.active ? pendingPass.requestedAtMs : 0;
   pending.countdownStartedMs = hubState == HubState::Starting ? countdownStartedAtMs : 0;
   pending.eliminationTarget = eliminationTargetPlayer;
+  pending.nudgeSeq = nudgeState.seq;
+  pending.nudgeFrom = nudgeState.fromPlayer;
+  pending.nudgeTo = nudgeState.toPlayer;
+  pending.nudgeAtMs = nudgeState.atMs;
   clientState.observe(hubState, lobby, game, nextGameSettings, pending);
 }
 
@@ -290,6 +295,8 @@ bool configureIntentHandlers() {
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
       {IntentType::MoveSeat, handleMoveSeatIntent},
       {IntentType::SetSeatSide, handleSetSeatSideIntent},
+      {IntentType::RemoveSeat, handleRemoveSeatIntent},
+      {IntentType::NudgePlayer, handleNudgeIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
       {IntentType::Sleep, handleSleepIntent},
   };
@@ -334,6 +341,7 @@ void handleStatus() {
       "\"state\":\"%s\",\"starter\":%u,"
       "\"active\":%u,\"winner\":%u,\"eliminationTarget\":%u,"
       "\"winConfirm\":%u,\"passPending\":%u,\"passGraceMs\":%lu,"
+      "\"nudgeSeq\":%lu,\"nudgeFrom\":%u,\"nudgeTo\":%u,\"nudgeAgeMs\":%lu,"
       "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
       "\"espNow\":%s,\"firmware\":\"%s\","
       "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
@@ -349,6 +357,10 @@ void handleStatus() {
       static_cast<unsigned>(game.nextWinConfirmationPlayerNumber()),
       static_cast<unsigned>(pendingPass.active ? pendingPass.seat.playerNumber : 0),
       static_cast<unsigned long>(passGraceRemainingMs),
+      static_cast<unsigned long>(nudgeState.seq),
+      static_cast<unsigned>(nudgeState.fromPlayer),
+      static_cast<unsigned>(nudgeState.toPlayer),
+      static_cast<unsigned long>(nudgeState.seq ? nowMs - nudgeState.atMs : 0),
       static_cast<unsigned long>(game.hasPlayers() ? game.turnTimerMs() : nextGameSettings.turnTimerMs),
       static_cast<unsigned long>(game.currentTurnElapsedMs(nowMs)),
       static_cast<unsigned long>(game.turnRemainingMs(nowMs)),

@@ -61,8 +61,7 @@ that legal, and what does it do?". The dispatcher is heap-free.
   state right, which participant, which transition, which result.
 - **New gameplay actions** need an `IntentType`, a handler bound in
   `main.cpp`'s `configureIntentHandlers()`, and host scenarios. An enum value
-  with no bound handler is not a feature (`NudgePlayer` and `NudgeTable` are
-  reserved, unbound).
+  with no bound handler is not a feature (`NudgeTable` is reserved, unbound).
 
 The host suite compiles the real handlers, `GameEngine`, `Lobby` and adapters
 against stubs, so a rule can be tested with no HTTP, radio or display.
@@ -85,9 +84,11 @@ touchscreen and BOOT button: physical presence), `Simulator`, `System`
 | `SelectStarter` | Sigil, phone | `value`: exact seat (0), cycle (1), random (2) |
 | `ArmStart`, `StartGame`, `CancelStart`, `CompleteStart` | Any seated player; touchscreen needs no seat or arming; `CompleteStart` System | Two or more players. There is no table host (2026-09-25) |
 | `Rematch`, `ResetGame` | Any seated player, touchscreen (after a game) | Rematch keeps seats; reset empties the lobby |
+| `RemoveSeat` | Touchscreen, lobby only (Player screen, hold Remove 2 s) | The player leaving, not moderation: removes that seat; seat A also takes its Sigil's seat B. Logged `ATLAS|LOBBY|REMOVE` |
 | `MoveSeat`, `SetSeatSide` | Touchscreen, lobby only, any player | Turn order. On a shared Sigil, moving toward the other seat swaps A/B; otherwise the whole Sigil moves. `SetSeatSide` puts B before (left) or after (right) A |
 | `ConfigureGame` | Any seated player, lobby | `flags` game profile, `value` starting life, `durationMs` turn timer (0 = off). See [Gameplay](GAMEPLAY.md) |
-| `ChangeLife`, `RequestLifeChange`, `RespondLifeChange`, `ExpireLifeChanges` | Sigil, phone; expiry System | Own life directly; another player's through a 15 s approval |
+| `ChangeLife`, `RequestLifeChange`, `RespondLifeChange`, `ExpireLifeChanges` | Sigil, phone; expiry System | Own life directly; another player's through an approval window the recipient chooses (15, 30 or 60 s, default 15 s) |
+| `NudgePlayer` | Phone (app and portal), running game | A living player who is not up prods the active player: their Sigil plays the Nudge cue and their phone shows who nudged them (state `nudge`). One per player per 30 s (`NUDGE_COOLDOWN_MS`); refused for a Game Master-muted account. Logged `ATLAS|GAME|NUDGE` |
 | `ChangeCounter`, `RecordCommanderHit`, `UndoCommanderHit`, `SetPartner` | Phone (`ChangeCounter`), Sigil Commander flow | The receiver records damage; see [Gameplay](GAMEPLAY.md) |
 | `Moderate` | Game Master | Force pass, reset connections, remove from game, nudge mute |
 | `PairRequest`, `PairConfirm`, `ForgetPairing`, `ConfigurePairing` | Touchscreen/BOOT; Admin (portal) | See [Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md) |

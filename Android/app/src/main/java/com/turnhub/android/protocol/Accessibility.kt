@@ -45,4 +45,10 @@ data class AccessibilitySettings(
     /** False when Atlas could not read the saved record and is showing defaults. */
     val stored: Boolean,
     val limits: HoldLimits,
+    /** How long others' life-change requests wait for this player's answer. */
+    val lifeApprovalMs: Int = DEFAULT_LIFE_APPROVAL_MS,
+    val lifeApprovalOptionsMs: List<Int> = listOf(DEFAULT_LIFE_APPROVAL_MS),
 )
+
+/** Atlas's default life-change approval window (LIFE_APPROVAL_MS). */
+const val DEFAULT_LIFE_APPROVAL_MS = 15_000

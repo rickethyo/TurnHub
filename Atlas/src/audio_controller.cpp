@@ -308,6 +308,7 @@ void AudioController::sendTone(
 }
 
 void AudioController::actionRequired(uint8_t sigilId) { play(AudioCue::ActionRequired, maskForSigil(sigilId)); }
+void AudioController::nudge(uint8_t sigilId) { play(AudioCue::Nudge, maskForSigil(sigilId)); }
 void AudioController::playerJoined(uint8_t sigilId) { play(AudioCue::PlayerJoined, maskForSigil(sigilId)); }
 void AudioController::sharedPlayerAdded(uint8_t sigilId) { play(AudioCue::SharedPlayerAdded, maskForSigil(sigilId)); }
 void AudioController::sharedPlayerRemoved(uint8_t sigilId) { play(AudioCue::SharedPlayerRemoved, maskForSigil(sigilId)); }

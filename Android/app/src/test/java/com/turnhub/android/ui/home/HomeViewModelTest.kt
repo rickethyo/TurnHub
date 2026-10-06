@@ -143,11 +143,13 @@ private class FakeSessionTransport : AtlasSessionTransport {
         ledStyle: LedStyle,
         longPressMs: Int,
         winHoldMs: Int,
+        lifeApprovalMs: Int,
     ): AccessibilitySettings {
         calls += "save accessibility $sigilSound ${ledStyle.wire} $longPressMs $winHoldMs"
         accessibilityFailure?.let { throw it }
         accessibility = accessibility.copy(
             sigilSound = sigilSound, ledStyle = ledStyle, longPressMs = longPressMs, winHoldMs = winHoldMs,
+            lifeApprovalMs = lifeApprovalMs,
         )
         return accessibility
     }
@@ -622,7 +624,7 @@ class HomeViewModelTest {
         assertEquals(LedStyle.REDUCED_MOTION, prompt.settings!!.ledStyle)
         assertEquals("read accessibility", sessionTransport.calls.last())
 
-        viewModel.onAccessibilitySaved(true, LedStyle.MONOCHROME_SAFE, 2500, 7000)
+        viewModel.onAccessibilitySaved(true, LedStyle.MONOCHROME_SAFE, 2500, 7000, 30000)
 
         assertEquals("save accessibility true monochrome-safe 2500 7000", sessionTransport.calls.last())
         assertNull(viewModel.uiState.value.accessibility) // Closed once Atlas accepted it.
@@ -636,7 +638,7 @@ class HomeViewModelTest {
         viewModel.onAccessibilityClicked()
         sessionTransport.accessibilityFailure = AtlasException(AtlasFailure.Rejected("Hold times are out of range"))
 
-        viewModel.onAccessibilitySaved(true, LedStyle.STANDARD, 2000, 5000)
+        viewModel.onAccessibilitySaved(true, LedStyle.STANDARD, 2000, 5000, 15000)
 
         val prompt = viewModel.uiState.value.accessibility!!
         assertEquals("Hold times are out of range", prompt.error)

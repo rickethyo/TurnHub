@@ -122,8 +122,8 @@ fun HomeScreen(
     reduceMotion: Boolean = false,
     onSignInSubmit: (ProfileSummary, String, Boolean) -> Unit = { _, _, _ -> },
     onSignInDismiss: () -> Unit = {},
-    onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) -> Unit =
-        { _, _, _, _ -> },
+    onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) -> Unit =
+        { _, _, _, _, _ -> },
     onAccessibilityDismiss: () -> Unit = {},
     admin: com.turnhub.android.data.AdminState = com.turnhub.android.data.AdminState(),
     adminActions: AdminActions = AdminActions(),

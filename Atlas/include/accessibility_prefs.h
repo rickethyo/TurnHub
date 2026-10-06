@@ -17,6 +17,21 @@ enum class LedStyle : uint8_t {
   Count
 };
 
+// How long others' life-change requests wait for this player's answer before
+// Atlas accepts them. 15 s is the default (LIFE_APPROVAL_MS).
+constexpr uint16_t LIFE_APPROVAL_OPTIONS_MS[] = {15000, 30000, 60000};
+constexpr uint8_t LIFE_APPROVAL_OPTION_COUNT = 3;
+
+inline bool lifeApprovalCode(uint16_t ms, uint8_t &code) {
+  for (uint8_t i = 0; i < LIFE_APPROVAL_OPTION_COUNT; ++i) {
+    if (LIFE_APPROVAL_OPTIONS_MS[i] == ms) {
+      code = i;
+      return true;
+    }
+  }
+  return false;
+}
+
 // A player's accessibility preferences. Atlas owns and persists them with the
 // profile (ACCESSIBILITY.md, "Accessibility profiles"); they follow the
 // player to whichever Sigil they sit at. Defaults reproduce existing behavior.
@@ -25,16 +40,20 @@ struct AccessibilityPrefs {
   LedStyle ledStyle = LedStyle::Standard;
   uint16_t longPressMs = TurnHubProtocol::DEFAULT_LONG_PRESS_MS;
   uint16_t winHoldMs = TurnHubProtocol::DEFAULT_WIN_HOLD_MS;
+  uint16_t lifeApprovalMs = LIFE_APPROVAL_OPTIONS_MS[0];
 };
 
 inline bool validAccessibilityPrefs(const AccessibilityPrefs &prefs) {
+  uint8_t code = 0;
   return prefs.ledStyle < LedStyle::Count &&
-      TurnHubProtocol::validInputTiming(prefs.longPressMs, prefs.winHoldMs);
+      TurnHubProtocol::validInputTiming(prefs.longPressMs, prefs.winHoldMs) &&
+      lifeApprovalCode(prefs.lifeApprovalMs, code);
 }
 
 inline bool sameAccessibilityPrefs(const AccessibilityPrefs &a, const AccessibilityPrefs &b) {
   return a.sigilSound == b.sigilSound && a.ledStyle == b.ledStyle &&
-      a.longPressMs == b.longPressMs && a.winHoldMs == b.winHoldMs;
+      a.longPressMs == b.longPressMs && a.winHoldMs == b.winHoldMs &&
+      a.lifeApprovalMs == b.lifeApprovalMs;
 }
 
 inline const char *ledStyleKey(LedStyle style) {
@@ -72,12 +91,15 @@ inline AccessibilityPrefs mergeSeatPrefs(const AccessibilityPrefs &a, const Acce
   merged.ledStyle = rank(a.ledStyle) >= rank(b.ledStyle) ? a.ledStyle : b.ledStyle;
   merged.longPressMs = a.longPressMs > b.longPressMs ? a.longPressMs : b.longPressMs;
   merged.winHoldMs = a.winHoldMs > b.winHoldMs ? a.winHoldMs : b.winHoldMs;
+  merged.lifeApprovalMs = a.lifeApprovalMs > b.lifeApprovalMs ? a.lifeApprovalMs : b.lifeApprovalMs;
   // Each input keeps winHold >= longPress + gap, so the maxima do too.
   return merged;
 }
 
-// Stored record ("x" + profile ID): {schema 1, sound, ledStyle,
-// longPressMs le16, winHoldMs le16} = 7 bytes. A missing record reads as the
+// Stored record ("x" + profile ID): {schema 1, flags, ledStyle,
+// longPressMs le16, winHoldMs le16} = 7 bytes. Flags: bit 0 Sigil sound,
+// bits 1-2 the life-approval option (0 = 15 s, so older records read as the
+// default). A missing record reads as the
 // defaults; a malformed one is Corrupt and never overwritten silently.
 constexpr uint8_t ACCESSIBILITY_SCHEMA = 1;
 constexpr size_t ACCESSIBILITY_RECORD_SIZE = 7;
@@ -95,9 +117,10 @@ inline TurnHubStorage::Status readAccessibilityPrefs(TurnHubStorage::BlobStore &
   if (status != Status::Ok) return status;
   if (size != sizeof(data)) return Status::Corrupt;
   if (data[0] != ACCESSIBILITY_SCHEMA) return Status::UnsupportedSchema;
-  if (data[1] > 1) return Status::Corrupt;
+  if (data[1] > 0x07 || (data[1] >> 1) >= LIFE_APPROVAL_OPTION_COUNT) return Status::Corrupt;
   AccessibilityPrefs value;
-  value.sigilSound = data[1] != 0;
+  value.sigilSound = (data[1] & 0x01) != 0;
+  value.lifeApprovalMs = LIFE_APPROVAL_OPTIONS_MS[data[1] >> 1];
   value.ledStyle = static_cast<LedStyle>(data[2]);
   value.longPressMs = static_cast<uint16_t>(data[3] | (data[4] << 8));
   value.winHoldMs = static_cast<uint16_t>(data[5] | (data[6] << 8));
@@ -115,8 +138,10 @@ inline TurnHubStorage::Status writeAccessibilityPrefs(TurnHubStorage::BlobStore 
   const Status status = readAccessibilityPrefs(store, key, previous);
   if (status != Status::Ok && status != Status::NotFound) return status;
   if (status == Status::Ok && sameAccessibilityPrefs(previous, prefs)) return Status::Ok;
+  uint8_t approval = 0;
+  lifeApprovalCode(prefs.lifeApprovalMs, approval);
   const uint8_t data[ACCESSIBILITY_RECORD_SIZE] = {
-      ACCESSIBILITY_SCHEMA, static_cast<uint8_t>(prefs.sigilSound),
+      ACCESSIBILITY_SCHEMA, static_cast<uint8_t>((prefs.sigilSound ? 1 : 0) | (approval << 1)),
       static_cast<uint8_t>(prefs.ledStyle),
       static_cast<uint8_t>(prefs.longPressMs & 0xFF), static_cast<uint8_t>(prefs.longPressMs >> 8),
       static_cast<uint8_t>(prefs.winHoldMs & 0xFF), static_cast<uint8_t>(prefs.winHoldMs >> 8)};

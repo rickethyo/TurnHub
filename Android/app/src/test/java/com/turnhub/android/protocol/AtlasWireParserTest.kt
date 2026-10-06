@@ -81,6 +81,8 @@ class AtlasWireParserTest {
         assertEquals((1000..4000 step 250).toList(), settings.limits.longPressChoices())
         assertTrue(settings.limits.allows(2000, 5000))
         assertEquals(false, settings.limits.allows(4000, 4500))
+        assertEquals(30000, settings.lifeApprovalMs)
+        assertEquals(listOf(15000, 30000, 60000), settings.lifeApprovalOptionsMs)
     }
 
     @Test
@@ -90,6 +92,7 @@ class AtlasWireParserTest {
             { it.put("ledStyle", "sparkly") },
             { it.put("winHoldMs", 3500) },
             { it.remove("limits") },
+            { it.put("lifeApprovalMs", 20000) },
         )) {
             val body = org.json.JSONObject(fixture.toString()).also(edit).toString()
             assertThrows(AtlasWireException.Malformed::class.java) { AtlasWireParser.parseAccessibility(body) }
@@ -131,6 +134,8 @@ class AtlasWireParserTest {
         assertEquals(100L, state.gameElapsedMs)
         assertEquals(100L, state.turnElapsedMs)
         assertEquals(PendingDecisions(null, 0, null, null, null), state.pending)
+        assertEquals(Nudge(seq = 3, fromPlayer = 2, toPlayer = 1, ageMs = 1200), state.nudge)
+        assertNull(Fixtures.state("lobby.response.json").nudge)
         assertEquals(2, state.players.size)
         assertEquals(
             Player(
@@ -157,7 +162,7 @@ class AtlasWireParserTest {
         assertEquals(GameProfile.MTG_COMMANDER, state.settings.profile)
         assertEquals(listOf(CommanderDamage(sourcePlayer = 2, damage = listOf(0, 3))), state.players[0].commanderDamage)
         assertEquals(
-            LifeRequest(id = 2, actor = 1, target = 2, delta = -2, state = LifeRequestState.PENDING, requestedAtMs = 4000),
+            LifeRequest(id = 2, actor = 1, target = 2, delta = -2, state = LifeRequestState.PENDING, requestedAtMs = 4000, windowMs = 15000),
             state.players[1].lifeRequest,
         )
     }
@@ -187,6 +192,13 @@ class AtlasWireParserTest {
         assertEquals(max, state.sampledAtMs)
         assertEquals(max, state.players[0].participantId)
         assertEquals(max, state.players[0].turnsCompleted)
+    }
+
+    @Test
+    fun `nudge is required but may be null`() {
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("running.response.json") { remove("nudge") }
+        }
     }
 
     @Test

@@ -55,6 +55,7 @@ enum class ControlAction(val path: String) {
     CANCEL_START("/api/control/cancel-start"),
     REMATCH("/api/control/rematch"),
     RESET("/api/control/reset"),
+    NUDGE("/api/control/nudge"),
     LEAVE("/api/session/leave"),
 }
 
@@ -132,6 +133,7 @@ interface AtlasSessionTransport {
         ledStyle: LedStyle,
         longPressMs: Int,
         winHoldMs: Int,
+        lifeApprovalMs: Int,
     ): AccessibilitySettings
 
     /** `POST /api/session/logout`: revokes this token on Atlas. */

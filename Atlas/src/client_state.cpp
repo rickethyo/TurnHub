@@ -52,6 +52,10 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(pending_.passStartedMs, pending.passStartedMs);
   changed |= update(pending_.countdownStartedMs, pending.countdownStartedMs);
   changed |= update(pending_.eliminationTarget, pending.eliminationTarget);
+  changed |= update(pending_.nudgeSeq, pending.nudgeSeq);
+  changed |= update(pending_.nudgeFrom, pending.nudgeFrom);
+  changed |= update(pending_.nudgeTo, pending.nudgeTo);
+  changed |= update(pending_.nudgeAtMs, pending.nudgeAtMs);
   PlayerSeat seats[MAX_PLAYERS];
   const uint8_t count = inGame_ ? game.playerCount() : lobby.buildPlayers(seats, MAX_PLAYERS);
   changed |= update(count_, count);
@@ -90,6 +94,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     changed |= update(p.request.target, value.target);
     changed |= update(p.request.delta, value.delta);
     changed |= update(p.request.state, value.state);
+    changed |= update(p.request.windowMs, value.windowMs);
   }
   initialized_ = true;
   namesStale_ = false;
@@ -99,7 +104,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
 bool ClientState::expirationDue(uint32_t nowMs) const {
   for (uint8_t i = 0; i < count_; ++i) {
     const auto &r = players_[i].request;
-    if (r.state == LifeChangeState::Pending && nowMs - r.requestedAtMs >= LIFE_APPROVAL_MS)
+    if (r.state == LifeChangeState::Pending && nowMs - r.requestedAtMs >= r.windowMs)
       return true;
   }
   return false;
@@ -142,7 +147,17 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"winClaimPlayer\":"; nullablePlayer(out, claimant_);
   out += ",\"winConfirmationPlayer\":"; nullablePlayer(out, confirmation_);
   out += ",\"eliminationTargetPlayer\":"; nullablePlayer(out, pending_.eliminationTarget);
-  out += "},\"players\":[";
+  out += "},\"nudge\":";
+  if (pending_.nudgeSeq) {
+    out += "{\"seq\":"; out += String(pending_.nudgeSeq);
+    out += ",\"fromPlayer\":"; out += String(pending_.nudgeFrom);
+    out += ",\"toPlayer\":"; out += String(pending_.nudgeTo);
+    out += ",\"ageMs\":"; out += String(nowMs - pending_.nudgeAtMs);
+    out += '}';
+  } else {
+    out += "null";
+  }
+  out += ",\"players\":[";
   for (uint8_t i = 0; i < count_; ++i) {
     const auto &p = players_[i];
     if (i) out += ',';
@@ -175,7 +190,8 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
       out += ",\"target\":"; out += String(r.target);
       out += ",\"delta\":"; out += String(r.delta);
       out += ",\"state\":\""; out += requestState(r.state);
-      out += "\",\"requestedAtMs\":"; out += String(r.requestedAtMs); out += '}';
+      out += "\",\"requestedAtMs\":"; out += String(r.requestedAtMs);
+      out += ",\"windowMs\":"; out += String(r.windowMs); out += '}';
     }
     out += '}';
   }

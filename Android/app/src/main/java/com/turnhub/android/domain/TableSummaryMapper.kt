@@ -71,6 +71,7 @@ object TableSummaryMapper {
                     )
                 }
                 .sortedBy { it.controller.id },
+            nudge = snapshot.nudge,
         )
     }
 }

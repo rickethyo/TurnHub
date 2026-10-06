@@ -124,6 +124,7 @@ class AudioController {
   void turnWarning(uint8_t sigilId);
   void timerExpired(uint8_t sigilId);
   void actionRequired(uint8_t sigilId);
+  void nudge(uint8_t sigilId);
   void gameStart(uint16_t targetMask);
   void gameOver(uint16_t targetMask);
 

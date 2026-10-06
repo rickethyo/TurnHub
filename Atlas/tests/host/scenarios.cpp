@@ -748,6 +748,23 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/session/join",dev)==200);
   const String companion=loginPhone(playerId);
   assert(request("/api/control/start",player)==200);testNow+=3000;updateCountdown(testNow);
+  // Nudge: the muted account is refused; others nudge the active player once
+  // per NUDGE_COOLDOWN_MS, never themselves, and state shows the last nudge.
+  {
+    const uint32_t seq0=nudgeState.seq;
+    assert(request("/api/control/nudge",player)==409&&nudgeState.seq==seq0);
+    int sent=0;
+    for(const String *c:{&gm,&dev}) if(request("/api/control/nudge",*c)==200) ++sent;
+    assert(sent>=1&&nudgeState.seq==seq0+sent&&nudgeState.toPlayer==game.activePlayer()->playerNumber);
+    assert(nudgeState.fromPlayer!=nudgeState.toPlayer);
+    for(const String *c:{&gm,&dev}) assert(request("/api/control/nudge",*c)==409);
+    assert(nudgeState.seq==seq0+sent);
+    assert(request("/api/v1/state",gm,{},HTTP_GET)==200&&server.body.find("\"nudge\":{\"seq\":")!=std::string::npos);
+    testNow+=NUDGE_COOLDOWN_MS;
+    int again=0;
+    for(const String *c:{&gm,&dev}) if(request("/api/control/nudge",*c)==200) ++again;
+    assert(again==sent&&nudgeState.seq==seq0+2*sent);
+  }
   const auto life=game.lifeTotal(1);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","reset"}})==200);
   assert(game.lifeTotal(1)==life&&game.livingPlayerCount()==3);
@@ -2085,6 +2102,13 @@ static void nativeClientBoundary() {
   testNow += TurnHub::LIFE_APPROVAL_MS;
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
   assert(clientState.revision() > rolloverRevision && game.lifeTotal(2) == 36);
+  // A recipient's longer window (accessibility) holds the request past 15 s.
+  assert(game.requestLifeChange(1, 2, -1, testNow, 60000));
+  assert(game.lifeChangeFor(2)->windowMs == 60000);
+  testNow += TurnHub::LIFE_APPROVAL_MS; game.expireLifeChanges(testNow);
+  assert(game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Pending && game.lifeTotal(2) == 36);
+  testNow += 60000 - TurnHub::LIFE_APPROVAL_MS; game.expireLifeChanges(testNow);
+  assert(game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Automatic && game.lifeTotal(2) == 35);
 
   // Exercise the largest snapshot with every Commander source populated.
   GameEngine fullGame; Lobby fullLobby; TurnHub::ClientState full;
@@ -2416,6 +2440,38 @@ static void touchControls() {
     // Reject recovery with a nonadjacent B/A pair.
     std::swap(saved.players[1].controllerId,saved.players[2].controllerId);
     assert(!TurnHub::validCheckpoint(saved));
+  }
+
+  // Staged Changes 2026-10-06: a held Remove on a lobby Player screen takes
+  // that one seat out (seat A takes its Sigil's seat B too); a tap does not.
+  enterEmptyLobby(); freshLobby(3);
+  {
+    PlayerSeat seats[3]; lobby.buildPlayers(seats,3);
+    const uint8_t gone=seats[1].controllerId;
+    int16_t cx,cy,cw,ch; screenChipCell(1,3,cx,cy,cw,ch);
+    touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    assert(screenButton(currentScreen(),TouchAction::RemoveSeat));
+    tapButton(TouchAction::RemoveSeat); assert(lobby.playerCount()==3);
+    pressButton(TouchAction::RemoveSeat); testNow+=LOBBY_REMOVE_HOLD_MS; pressButton(TouchAction::RemoveSeat); touchRelease();
+    assert(lobby.playerCount()==2 && !lobby.isJoined(gone) && currentScreen().kind==ScreenKind::Status);
+    assert(logHas("ATLAS|LOBBY|REMOVE|CONTROLLER|"));
+    // Only the Atlas screen, and only in the lobby.
+    Intent fromPhone; fromPhone.type=IntentType::RemoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
+    fromPhone.actor.controllerId=seats[0].controllerId; fromPhone.actor.slot=1;
+    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
+    Intent missing; missing.type=IntentType::RemoveSeat; missing.actor.origin=IntentOrigin::AtlasHardware;
+    missing.actor.controllerId=gone; missing.actor.slot=1;
+    assert(intents.dispatch(missing).status==IntentStatus::InvalidActor);
+    // Seat B alone, then seat A with a seat B.
+    const uint8_t shared=seats[0].controllerId;
+    Intent addB; addB.type=IntentType::Join; addB.actor.origin=IntentOrigin::PhysicalSigil;
+    addB.actor.controllerId=shared; addB.actor.slot=2;
+    assert(intents.dispatch(addB).accepted() && lobby.hasSecondary(shared) && lobby.playerCount()==3);
+    Intent removeB=missing; removeB.actor.controllerId=shared; removeB.actor.slot=2;
+    assert(intents.dispatch(removeB).accepted() && !lobby.hasSecondary(shared) && lobby.isJoined(shared));
+    assert(intents.dispatch(addB).accepted());
+    Intent removeA=removeB; removeA.actor.slot=1;
+    assert(intents.dispatch(removeA).accepted() && !lobby.isJoined(shared) && lobby.playerCount()==1);
   }
 
   // Playtest 2026-09-29 item 11: in the lobby a chip opens that seat's turn

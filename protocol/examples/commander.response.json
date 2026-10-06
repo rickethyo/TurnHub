@@ -27,6 +27,7 @@
     "winConfirmationPlayer": null,
     "eliminationTargetPlayer": null
   },
+  "nudge": null,
   "players": [
     {
       "playerNumber": 1,
@@ -62,7 +63,8 @@
         "target": 2,
         "delta": -2,
         "state": "PENDING",
-        "requestedAtMs": 4000
+        "requestedAtMs": 4000,
+        "windowMs": 15000
       }
     }
   ]

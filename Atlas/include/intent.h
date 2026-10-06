@@ -114,6 +114,11 @@ enum class IntentType : uint8_t {
   // (0) for their own seat (payload.targetPlayer) in this match.
   SetPartner,
 
+  // Atlas touchscreen hold, lobby only: take one seat out of the lobby
+  // (actor.controllerId + actor.slot; seat A takes its Sigil's seat B too).
+  // Like the player leaving, not moderation: a phone can join again.
+  RemoveSeat,
+
   Count,
 };
 
@@ -269,6 +274,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::AdvanceSetup: return "ADVANCE_SETUP";
     case IntentType::Sleep: return "SLEEP";
     case IntentType::SetPartner: return "SET_PARTNER";
+    case IntentType::RemoveSeat: return "REMOVE_SEAT";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

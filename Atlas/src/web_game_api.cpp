@@ -285,14 +285,15 @@ void handleCounters(WebServer &server) {
     first = false;
     const uint32_t age = now - request.requestedAtMs;
     const uint32_t remaining =
-        request.state == TurnHub::LifeChangeState::Pending && age < TurnHub::LIFE_APPROVAL_MS
-        ? TurnHub::LIFE_APPROVAL_MS - age : 0;
+        request.state == TurnHub::LifeChangeState::Pending && age < request.windowMs
+        ? request.windowMs - age : 0;
     json += "{\"id\":"; json += String(request.id);
     json += ",\"actor\":"; json += String(request.actor);
     json += ",\"target\":"; json += String(request.target);
     json += ",\"delta\":"; json += String(request.delta);
     json += ",\"state\":\""; json += lifeChangeStateName(request.state);
     json += "\",\"remainingMs\":"; json += String(remaining);
+    json += ",\"windowMs\":"; json += String(request.windowMs);
     json += '}';
   }
   json += "],\"damage\":[";

@@ -91,7 +91,7 @@
   <div class="card-head"><div style="flex:1"><h2 class="eyebrow">Life</h2><p id="gameProfileSummary" class="small"></p></div></div>
   <div id="tableLifeTotals" class="life-grid"></div>
   <p id="lifeMessage" class="msg" role="status" aria-live="polite"></p>
-  <p class="hint">Your own changes apply immediately. Other players have 15 seconds to respond before Atlas accepts a request.</p>
+  <p class="hint">Your own changes apply immediately. Other players have 15 seconds to respond (longer if they chose it in My Account) before Atlas accepts a request.</p>
   <div id="lifePanel" hidden>
    <div class="my-life"><h3>My life</h3><strong id="myLifeTotal" aria-live="polite">—</strong></div>
    <details class="drawer"><summary>Custom and preset life changes</summary><fieldset id="lifeFields"><legend class="sr-only">Adjust life</legend>
@@ -127,7 +127,7 @@
    <p class="hint">Off: no countdown; a gentle cue appears after 5 minutes. With a timer, Atlas warns 10 seconds before time runs out. Running out of time never passes the turn.</p>
    <button type="submit" class="primary" style="width:100%;margin-top:6px">Save game settings</button></fieldset></form>
   <p id="gameSettingsMessage" class="msg" role="status" aria-live="polite">Any seated player can change these in the lobby.</p>
-  <p class="hint">Life and Commander damage do not automatically eliminate a player. Changes to another player's life need their approval; Atlas accepts unanswered requests after 15 seconds.</p>
+  <p class="hint">Life and Commander damage do not automatically eliminate a player. Changes to another player's life need their approval; Atlas accepts unanswered requests after 15 seconds, or the longer time a player chose.</p>
  </section>
 </div>
 
@@ -227,6 +227,8 @@
    <label for="longPressSelect">Hold to confirm Leave, Eliminate or Reset</label><select id="longPressSelect" aria-describedby="holdHelp"></select>
    <label for="winHoldSelect">Hold to claim a win</label><select id="winHoldSelect" aria-describedby="holdHelp"></select>
    <p id="holdHelp" class="hint">How long a Sigil key is held to confirm those menu choices. The win hold must be at least one second longer than the other. On a shared Sigil the longer times apply. You can always do these from this portal instead.</p>
+   <label for="lifeApprovalSelect">Time to answer life-change requests</label><select id="lifeApprovalSelect" aria-describedby="lifeApprovalHelp"></select>
+   <p id="lifeApprovalHelp" class="hint">How long another player's request to change your life waits for your answer before Atlas accepts it.</p>
    <button type="submit" class="primary" style="margin-top:10px">Save Sigil accessibility</button></fieldset>
    <p id="sigilAccessStatus" class="msg" role="status" aria-live="polite"></p></form>
  </section>
@@ -314,7 +316,7 @@ let profilePolicyDirty=false,profilePolicyOwner=null;
 let counterData=null,counterBusy=false,counterOwner=null;
 let statusData=null,deviceData={devices:[]},seatData={seats:[]},networkData=null,sessionInfo=null,pendingClaim=null,pendingTimer=null;
 let sessionToken=localStorage.getItem('turnhubSessionToken')||'';
-let lastObservedState=null,lastObservedActive=0,lastObservedConfirm=0,toastTimer=null,lastGauge=0;
+let lastObservedState=null,lastObservedActive=0,lastObservedConfirm=0,lastObservedNudge=0,toastTimer=null,lastGauge=0;
 const lifeSeen={};
 let browserPrefs={sound:true,vibration:true,volume:'medium'};
 try{browserPrefs=Object.assign(browserPrefs,JSON.parse(localStorage.getItem('turnhubBrowserPrefs')||'{}'))}catch(_){}
@@ -384,6 +386,7 @@ let sigilAccessOwner=null,sigilAccessLimits=null;
 function holdChoices(select,min,max,step,value,defaultMs){select.innerHTML='';for(let ms=min;ms<=max;ms+=step){const o=document.createElement('option');o.value=ms;o.textContent=(ms/1000).toLocaleString(undefined,{maximumFractionDigits:2})+' seconds'+(ms===defaultMs?' (default)':'');select.appendChild(o)}select.value=String(value)}
 function renderSigilAccess(d){sigilAccessLimits=d.limits;sigilSoundToggle.checked=!!d.sigilSound;document.querySelectorAll('input[name=ledStyle]').forEach(r=>r.checked=r.value===d.ledStyle);
  holdChoices(longPressSelect,d.limits.longPressMinMs,d.limits.longPressMaxMs,d.limits.stepMs,d.longPressMs,2000);holdChoices(winHoldSelect,d.limits.winHoldMinMs,d.limits.winHoldMaxMs,d.limits.stepMs,d.winHoldMs,5000);
+ lifeApprovalSelect.innerHTML=(d.lifeApprovalOptionsMs||[15000]).map(ms=>`<option value="${Number(ms)}">${Number(ms)/1000} seconds${Number(ms)===15000?' (default)':''}</option>`).join('');lifeApprovalSelect.value=String(d.lifeApprovalMs||15000);
  sigilAccessStatus.textContent=d.stored?'':'Your saved Sigil settings could not be read, so defaults are shown. Saving replaces them.'}
 function renderAvatarGrid(current){const opts=[{id:0,label:'None'}].concat((avatarIcons||[]).map(a=>({id:a.id,label:a.label})));avatarGrid.innerHTML=opts.map(o=>`<label class="theme-opt" style="text-align:center"><input type="radio" name="avatarPick" value="${o.id}" ${Number(current)===o.id?'checked':''}><span class="avatar" style="--hue:${hue(1)};margin:4px auto">${o.id?avatarSvg(o.id):'&ndash;'}</span><small>${esc(o.label)}</small></label>`).join('')}
 async function savePersonalization(){const a=document.querySelector('input[name=avatarPick]:checked');const fields={avatar:a?a.value:'0',color:jewelStandard.checked?'none':jewelColor.value};try{const r=await fetch('/api/session/personalization',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(fields)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');myAvatar=Number(d.avatar)||0;renderAvatarGrid(d.avatar);jewelStandard.checked=!d.color;jewelStatus.textContent='Saved. Your Sigil and the table update within a few seconds.';showToast('Personalization saved.')}catch(e){jewelStatus.textContent=e.message;showToast(e.message,true)}}
@@ -391,14 +394,14 @@ async function loadJewel(){if(!avatarIcons)await loadAvatarIcons();try{const r=a
 async function loadSigilAccess(){sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sigil settings are unavailable');renderSigilAccess(d);sigilAccessFields.disabled=false}catch(e){sigilAccessStatus.textContent=e.message}}
 async function saveSigilAccess(event){event.preventDefault();const style=document.querySelector('input[name=ledStyle]:checked');const longMs=Number(longPressSelect.value),winMs=Number(winHoldSelect.value);
  if(sigilAccessLimits&&winMs<longMs+sigilAccessLimits.minGapMs){sigilAccessStatus.textContent='Choose a win hold at least one second longer than the other hold.';winHoldSelect.focus();return}
- sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({sigilSound:sigilSoundToggle.checked?'1':'0',ledStyle:style?style.value:'standard',longPressMs:String(longMs),winHoldMs:String(winMs)})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');renderSigilAccess(d);sigilAccessStatus.textContent='Saved. Your Sigil updates within a few seconds.';showToast('Sigil accessibility saved.')}catch(e){sigilAccessStatus.textContent=e.message}finally{sigilAccessFields.disabled=false}}
+ sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({sigilSound:sigilSoundToggle.checked?'1':'0',ledStyle:style?style.value:'standard',longPressMs:String(longMs),winHoldMs:String(winMs),lifeApprovalMs:lifeApprovalSelect.value})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');renderSigilAccess(d);sigilAccessStatus.textContent='Saved. Your Sigil updates within a few seconds.';showToast('Sigil accessibility saved.')}catch(e){sigilAccessStatus.textContent=e.message}finally{sigilAccessFields.disabled=false}}
 function loadBrowserPrefs(){soundToggle.checked=!!browserPrefs.sound;vibrationToggle.checked=!!browserPrefs.vibration;volumeSelect.value=browserPrefs.volume||'medium'}
 function saveBrowserPrefs(){browserPrefs={sound:soundToggle.checked,vibration:vibrationToggle.checked,volume:volumeSelect.value};try{localStorage.setItem('turnhubBrowserPrefs',JSON.stringify(browserPrefs))}catch(_){}}
 function saveAppearance(){const t=document.querySelector('input[name=theme]:checked');setTheme(t?t.value:'auto');setReduceMotion(reduceMotionToggle.checked);saveBrowserPrefs();appearanceStatus.textContent='Saved in this browser.';showToast('Appearance saved.')}
 function playFeedback(kind,force=false){if((browserPrefs.vibration||force)&&navigator.vibrate){const p=kind==='turn'?[70,35,70]:kind==='alert'?[100,50,100]:kind==='gameover'?[130,60,130]:[55];try{navigator.vibrate(p)}catch(_){}}
  if(!browserPrefs.sound&&!force)return;try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=window.turnhubAudioContext||(window.turnhubAudioContext=new Ctx());if(ctx.state==='suspended')ctx.resume();const gain=ctx.createGain();gain.gain.value=({low:.025,medium:.055,high:.1})[browserPrefs.volume]||.055;gain.connect(ctx.destination);let tones=[620];if(kind==='turn')tones=[700,900];else if(kind==='pause')tones=[440,330];else if(kind==='resume')tones=[440,660];else if(kind==='alert')tones=[760,760];else if(kind==='gameover')tones=[620,780,980];else if(kind==='test')tones=[620,820];tones.forEach((hz,i)=>{const o=ctx.createOscillator();o.type='sine';o.frequency.value=hz;o.connect(gain);const t=ctx.currentTime+i*.105;o.start(t);o.stop(t+.075)})}catch(_){}
 }
-function processBrowserFeedback(s){const me=sessionInfo&&sessionInfo.authenticated?Number(sessionInfo.player):0;if(lastObservedState!==null&&me){if(Number(s.active)===me&&Number(lastObservedActive)!==me)playFeedback('turn');if(Number(s.winConfirm)===me&&Number(lastObservedConfirm)!==me)playFeedback('alert');if(s.state!==lastObservedState){if(s.state==='PAUSED')playFeedback('pause');else if(s.state==='RUNNING'&&lastObservedState==='PAUSED')playFeedback('resume');else if(s.state==='GAME_OVER')playFeedback('gameover')}}lastObservedState=s.state;lastObservedActive=Number(s.active)||0;lastObservedConfirm=Number(s.winConfirm)||0}
+function processBrowserFeedback(s){const me=sessionInfo&&sessionInfo.authenticated?Number(sessionInfo.player):0;if(lastObservedState!==null&&me){if(Number(s.active)===me&&Number(lastObservedActive)!==me)playFeedback('turn');if(Number(s.winConfirm)===me&&Number(lastObservedConfirm)!==me)playFeedback('alert');if(Number(s.nudgeSeq)>lastObservedNudge&&Number(s.nudgeTo)===me&&Number(s.nudgeAgeMs)<10000){playFeedback('alert');showToast(`${playerLabel(s.nudgeFrom)} nudged you`)}if(s.state!==lastObservedState){if(s.state==='PAUSED')playFeedback('pause');else if(s.state==='RUNNING'&&lastObservedState==='PAUSED')playFeedback('resume');else if(s.state==='GAME_OVER')playFeedback('gameover')}}lastObservedState=s.state;lastObservedActive=Number(s.active)||0;lastObservedConfirm=Number(s.winConfirm)||0;lastObservedNudge=Number(s.nudgeSeq)||0}
 
 function buildGaugeTicks(){let out='';for(let i=0;i<=30;i++){const a=(-135+270*i/30)*Math.PI/180,major=i%5===0,r1=major?71:75,r2=81;out+=`<line class="${major?'major':''}" x1="${(100+r1*Math.sin(a)).toFixed(1)}" y1="${(100-r1*Math.cos(a)).toFixed(1)}" x2="${(100+r2*Math.sin(a)).toFixed(1)}" y2="${(100-r2*Math.cos(a)).toFixed(1)}"/>`}gaugeTicks.innerHTML=out}
 // Display only: Atlas owns the timer; the gauge redraws what /api/status reports.
@@ -506,6 +509,7 @@ function renderSession(){
  }else if(state.state==='STARTING'){buttons.push(`<button class="wide" onclick="sendControl('cancel-start')">Cancel countdown</button>`)}
  else if(state.state==='RUNNING'&&!me.eliminated){
   buttons.push(`<button class="primary wide xl" ${me.active?'':'disabled'} onclick="sendControl('pass')">${Number(state.passPending)===Number(me.player)?'Cancel pending pass':'Pass turn'}</button>`);
+  if(!me.active&&Number(state.active))buttons.push(`<button class="wide" onclick="sendControl('nudge')">Nudge ${esc(playerLabel(state.active))}</button>`);
   buttons.push(`<button onclick="sendControl('pause')">Pause</button>`);
   buttons.push(`<button ${me.active?'':'disabled'} onclick="sendControl('win')">Claim win</button>`);
   buttons.push(`<button class="bad wide" onclick="concede()">Concede</button>`);
@@ -689,19 +693,20 @@ function renderCounterControls(){
  if(counterOwner!==owner){counterOwner=owner;lifeTarget.innerHTML='';commanderSource.innerHTML='';commanderDelta.value='';lifeDelta.value='';lifeMessage.textContent='';commanderMessage.textContent=''}
  updatePlayerOptions(lifeTarget,(seatData.seats||[]).filter(s=>s.lifeAvailable&&!s.eliminated),me.player);
  const own=Number(lifeTarget.value)===Number(me.player);
- lifeTargetHelp.textContent=own?'Your own changes apply immediately.':'This sends a request. The recipient can accept or reject it; Atlas accepts it after 15 seconds without a response.';
+ lifeTargetHelp.textContent=own?'Your own changes apply immediately.':'This sends a request. The recipient can accept or reject it; Atlas accepts it after 15 seconds (or the longer time the recipient chose) without a response.';
  lifeSubmit.textContent=own?'Apply life change':'Request life change';
  if(!available||!data.editable)lifeFields.disabled=true;
  const requests=available?data.requests||[]:[],incoming=requests.find(r=>Number(r.target)===Number(me.player));
  lifeRequestsPanel.hidden=!me.authenticated||(!me.lifeAvailable&&!requests.length);
  const outcomes={accepted:'Accepted',rejected:'Rejected',automatic:'Automatically accepted',cancelled:'Canceled by a table decision or player departure',failed:'Not applied: life limits or player state changed'};
  const describe=r=>`${playerLabel(r.actor)} requests ${Number(r.delta)>0?'+':''}${r.delta} life for ${playerLabel(r.target)}.`;
- const notice=!available?'Request status unavailable. Reconnect to Atlas; its 15-second timer continues.':incoming?describe(incoming)+(incoming.state==='pending'?' Accept or reject this change.':' '+(outcomes[incoming.state]||incoming.state)+'.'):'No request awaiting your response.';
+ const notice=!available?'Request status unavailable. Reconnect to Atlas; its timer continues.':incoming?describe(incoming)+(incoming.state==='pending'?' Accept or reject this change.':' '+(outcomes[incoming.state]||incoming.state)+'.'):'No request awaiting your response.';
  if(lifeRequestNotice.textContent!==notice)lifeRequestNotice.textContent=notice;
  const pending=incoming&&incoming.state==='pending';
  lifeRequestAlert.hidden=!pending;
- lifeAlertBar.style.width=pending?Math.max(0,Math.min(100,Number(incoming.remainingMs)/150))+'%':'0';
- const alertText=pending?`${playerLabel(incoming.actor)} requests ${Number(incoming.delta)>0?'+':''}${incoming.delta} life for you. Respond within 15 seconds or Atlas accepts it.`:'';
+ const windowMs=Math.max(1000,Number(incoming&&incoming.windowMs)||15000);
+ lifeAlertBar.style.width=pending?Math.max(0,Math.min(100,Number(incoming.remainingMs)*100/windowMs))+'%':'0';
+ const alertText=pending?`${playerLabel(incoming.actor)} requests ${Number(incoming.delta)>0?'+':''}${incoming.delta} life for you. Respond within ${Math.round(windowMs/1000)} seconds or Atlas accepts it.`:'';
  if(lifeAlertText.textContent!==alertText)lifeAlertText.textContent=alertText;
  const controls=pending?`<div class="actions"><button class="good" onclick="respondLifeChange(${Number(incoming.id)},true)">Accept life change</button><button class="bad" onclick="respondLifeChange(${Number(incoming.id)},false)">Reject life change</button></div>`:'';
  if(lifeRequestActions.innerHTML!==controls)lifeRequestActions.innerHTML=controls;

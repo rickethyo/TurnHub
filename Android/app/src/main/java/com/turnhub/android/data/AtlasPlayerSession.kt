@@ -269,9 +269,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     /** Atlas validates, stores them with the profile and restyles the player's Sigil. */
-    suspend fun saveAccessibility(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) = act {
+    suspend fun saveAccessibility(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) = act {
         _accessibility.value = transports.create(it.first)
-            .saveAccessibility(it.second, sigilSound, ledStyle, longPressMs, winHoldMs)
+            .saveAccessibility(it.second, sigilSound, ledStyle, longPressMs, winHoldMs, lifeApprovalMs)
         ActionFeedback("Sigil accessibility saved. Your Sigil updates within a few seconds.", isError = false)
     }
 

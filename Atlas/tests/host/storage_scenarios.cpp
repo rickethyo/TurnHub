@@ -203,7 +203,7 @@ void profilePolicyRecords() {
     assert(reopened.begin("turnhub") == Status::Ok);
     assert(readStoredPolicy(reopened, policyKey, out) == Status::Ok);
     assert(out.allowPhysicalWithoutPin==physical && out.hideStatsWithoutAuthentication==hidden);
-    const int before=FakeNvs::writes;
+  const int before=FakeNvs::writes;
     assert(writeStoredPolicy(reopened, policyKey, chosen) == Status::Ok);
     assert(FakeNvs::writes==before);
   }
@@ -390,6 +390,14 @@ void accessibilityRecords() {
   prefs.ledStyle=LedStyle::MonochromeSafe; prefs.winHoldMs=10000;
   assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok);
   assert((FakeNvs::blobs["xABCDEF01"]==std::vector<uint8_t>{1,0,2,0xb8,0x0b,0x10,0x27}));
+  // Flags bits 1-2: the life-approval option (0 = 15 s, 1 = 30 s, 2 = 60 s).
+  prefs.lifeApprovalMs=60000;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok);
+  assert((FakeNvs::blobs["xABCDEF01"]==std::vector<uint8_t>{1,4,2,0xb8,0x0b,0x10,0x27}));
+  AccessibilityPrefs longer;
+  assert(readAccessibilityPrefs(store,"xABCDEF01",longer)==Status::Ok && longer.lifeApprovalMs==60000 && !longer.sigilSound);
+  AccessibilityPrefs odd=prefs; odd.lifeApprovalMs=20000;
+  assert(writeAccessibilityPrefs(store,"xABCDEF01",odd)==Status::InvalidArgument);
   const int before=FakeNvs::writes;
   assert(writeAccessibilityPrefs(store,"xABCDEF01",prefs)==Status::Ok && FakeNvs::writes==before);
   AccessibilityPrefs bad=prefs; bad.longPressMs=4000; bad.winHoldMs=4500;
@@ -397,7 +405,7 @@ void accessibilityRecords() {
   bad=prefs; bad.ledStyle=static_cast<LedStyle>(3);
   assert(writeAccessibilityPrefs(store,"xABCDEF01",bad)==Status::InvalidArgument);
   for(const auto &bytes : {std::vector<uint8_t>{}, {1,1,0,0xd0,0x07,0x88},
-      {1,2,0,0xd0,0x07,0x88,0x13}, {1,1,3,0xd0,0x07,0x88,0x13}, {1,1,0,0xe8,0x03,0xe8,0x03},
+      {1,8,0,0xd0,0x07,0x88,0x13}, {1,7,0,0xd0,0x07,0x88,0x13}, {1,1,3,0xd0,0x07,0x88,0x13}, {1,1,0,0xe8,0x03,0xe8,0x03},
       {1,1,0,0xd1,0x07,0x88,0x13}, {2,1,0,0xd0,0x07,0x88,0x13}, {1,1,0,0xd0,0x07,0x88,0x13,0}}) {
     FakeNvs::blobs["xABCDEF01"]=bytes;
     AccessibilityPrefs read;

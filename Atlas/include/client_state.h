@@ -11,6 +11,10 @@ struct ClientPending {
   uint32_t passStartedMs = 0;
   uint32_t countdownStartedMs = 0;
   uint8_t eliminationTarget = 0;
+  // The last nudge (seq 0: none since boot).
+  uint32_t nudgeSeq = 0;
+  uint8_t nudgeFrom = 0, nudgeTo = 0;
+  uint32_t nudgeAtMs = 0;
 };
 
 // The /api/v1/state projection (protocol/state-v0.1.schema.json). observe()
@@ -30,7 +34,7 @@ class ClientState {
   void observe(HubState state, const Lobby &lobby, const GameEngine &game,
       const GameSettings &nextSettings, const ClientPending &pending);
   uint32_t revision() const { return revision_; }
-  // True when a pending life request has passed LIFE_APPROVAL_MS.
+  // True when a pending life request has passed its approval window.
   bool expirationDue(uint32_t nowMs) const;
   String json(const String &atlasId, const char *bootId, const GameEngine &game,
       uint32_t nowMs, uint32_t passGraceMs) const;

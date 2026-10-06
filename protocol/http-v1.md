@@ -187,8 +187,11 @@ the table.
 `GET /api/session/accessibility` and `POST /api/session/accessibility`
 (authenticated with the session token) read and change the signed-in
 profile's own Sigil accessibility preferences: `sigilSound` (form `0`/`1`),
-`ledStyle` (`standard`, `reduced-motion`, `monochrome-safe`), `longPressMs` and
-`winHoldMs`. Omitted POST fields keep their saved values. Hold times are whole
+`ledStyle` (`standard`, `reduced-motion`, `monochrome-safe`), `longPressMs`,
+`winHoldMs` and `lifeApprovalMs` (how long other players' life-change requests
+wait for this player: one of `lifeApprovalOptionsMs`, 15000, 30000 or 60000).
+A state snapshot's `lifeRequest.windowMs` is the window fixed when that request
+was made. Omitted POST fields keep their saved values. Hold times are whole
 multiples of `stepMs` (250) within the returned `limits`, and the win hold must
 be at least `minGapMs` (1000) longer than the long press; anything else returns
 400 and nothing is stored. No session returns 401; an unreadable or unwritable
@@ -202,6 +205,18 @@ change no Intent's meaning and take no revision check. Atlas applies them to
 the player's physical Sigil within about two seconds (see
 [Accessibility](../Documentation/engineering/ACCESSIBILITY.md#implemented-accessibility-settings)).
 
+## Nudge
+
+`POST /api/control/nudge` (a session control, no body) lets a living player who
+is not up prod the active player while a game runs. Atlas plays the Nudge cue on
+the active player's Sigil and sets the snapshot's `nudge` to
+`{"seq","fromPlayer","toPlayer","ageMs"}` (null until the first nudge since
+boot). `seq` grows with every nudge, so a client alerts `toPlayer` once per new
+`seq`, and ignores an old one (`ageMs` large) it finds when it connects. One
+nudge per player per 30 s, and none from an account a Game Master muted; those,
+the active player nudging themselves and a game that isn't running return 409
+`REJECTED`.
+
 ## Optional concurrency check on session controls
 
 The existing `runControl` adapter accepts `expectedRevision` (canonical unsigned
@@ -210,7 +225,7 @@ revision, missing/wrong boot ID, or unavailable revision provider returns HTTP 4
 with `status: "CONFLICT"` before dispatch. Invalid revision text returns HTTP 400.
 
 Supported routes: `/api/control/pass`, `pause`, `concede`, `win`, `confirm`, `deny`,
-`starter`, `start`, `cancel-start`, `rematch`, `reset`. Omitting the check preserves
+`starter`, `start`, `cancel-start`, `rematch`, `reset`, `nudge`. Omitting the check preserves
 browser behavior. Life, counters, participation and settings retain their existing
 contracts and do not yet accept this check.
 

@@ -72,12 +72,20 @@ damage total ever eliminates anyone automatically.
 - **Another player's life** goes through an approval (`RequestLifeChange`):
   one pending request per recipient; only the recipient answers (Right
   approves, Left denies on a Sigil; buttons on a phone); an unanswered request
-  is **accepted after 15 s** (`LIFE_APPROVAL_MS`), and pause does not stop
+  is **accepted after the recipient's approval window**, 15 s by default
+  (`LIFE_APPROVAL_MS`) or 30 or 60 s by the recipient's accessibility choice
+  (the window is fixed when the request is made), and pause does not stop
   that timer. The delta applies to the current total, rechecked at
   acceptance. Request IDs stop a stale answer approving a newer request. Win
   claims, eliminations, game end, reset and rematch cancel pending requests.
 - **Atlas touchscreen Player screen:** tap a chip in a match for -5/-1/+1/+5
-  and Concede (asks again).
+  and Concede (asks again). In the lobby the Player screen has Earlier, Later
+  and Remove (hold 2 s): Remove takes that seat out (seat A also takes its
+  Sigil's seat B).
+- **Nudge** (app and portal): while a game runs, a living player who is not
+  up can nudge the active player. Their Sigil plays the Nudge cue (if its
+  sound is on) and their phone shows "<name> nudged you" and vibrates. One
+  nudge per player every 30 s; a Game Master can mute an account's nudges.
 - Life is bounded to ±1,000,000 and changes are accepted while running or
   paused, except during a table decision or after elimination. Zero or less
   never eliminates. Life changes never write flash (only the checkpoint).
