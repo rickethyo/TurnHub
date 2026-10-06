@@ -5,9 +5,9 @@
 
 .DESCRIPTION
   Boards are identified by MAC, never by COM port (ports change whenever the PC
-  restarts). The MAC -> firmware table is read from tools\boards.local.md (this
-  PC's boards, written by board setup, not committed) and then from
-  Documentation/engineering/BOARD_INVENTORY.md; a MAC in the local file wins.
+  restarts). The MAC -> firmware table is tools\boards.local.md: this PC's
+  boards, written by board setup and never committed. The table format, with
+  made-up example rows, is in Documentation/engineering/BOARD_INVENTORY.md.
   Reading a MAC resets the board.
 
   - Unknown MACs are reported, and board setup is offered for them.
@@ -51,7 +51,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$inventoryPath = Join-Path $root 'Documentation\engineering\BOARD_INVENTORY.md'
 $localInventoryPath = Join-Path $root 'tools\boards.local.md'
 $utf8 = New-Object System.Text.UTF8Encoding $false
 
@@ -97,13 +96,7 @@ function Read-InventoryFile($path, $source) {
 }
 
 function Read-Inventory {
-  # This PC's boards first, so a local row overrides the shared record for the same MAC.
-  # A local `removed` row hides a shared board on this PC.
-  $rows = @(Read-InventoryFile $localInventoryPath 'boards.local.md')
-  foreach ($row in Read-InventoryFile $inventoryPath 'BOARD_INVENTORY.md') {
-    if (-not ($rows | Where-Object Mac -eq $row.Mac)) { $rows += $row }
-  }
-  return @($rows | Where-Object Firmware -ne 'removed')
+  return @(Read-InventoryFile $localInventoryPath 'boards.local.md')
 }
 
 function Get-SerialPorts {
@@ -196,11 +189,10 @@ function Exit-WithSummary($plan) {
 $localHeader = @(
   '# Boards on this PC',
   '',
-  'Written by board setup (`tools\setup-boards.cmd`). This file is not committed.',
-  'flash-all reads it before `Documentation/engineering/BOARD_INVENTORY.md`, and a MAC',
-  'listed here wins. Firmware is `atlas`, `sigil` (E-ink), `sigil-oled`, `spare` or',
-  '`spare:<firmware it ran>` (kept, never flashed), or `removed` (a shared-record board',
-  'this PC ignores). Run board setup again to rename, retype, retire or delete a board.',
+  'Written by board setup (`tools\setup-boards.cmd`); flash-all flashes each attached board',
+  'with the firmware its MAC has here. This file is not committed. Firmware is `atlas`,',
+  '`sigil` (E-ink), `sigil-oled`, or `spare` / `spare:<firmware it ran>` (kept, never',
+  'flashed). Run board setup again to rename, retype, retire or delete a board.',
   '',
   '| Board | Firmware | USB bridge | MAC | Notes |',
   '|---|---|---|---|---|'
@@ -304,7 +296,7 @@ function Invoke-BoardSetup($newBoards) {
 }
 
 function Invoke-BoardManager($attached) {
-  # Lists every known board and lets you rename, retype, retire, return or delete one.
+  # Lists every recorded board and lets you rename, retype, retire, return or delete one.
   while ($true) {
     $inventory = @(Read-Inventory)
     if (-not $inventory.Count) { Write-Host "`nNo boards are recorded yet."; return }
@@ -358,13 +350,7 @@ function Invoke-BoardManager($attached) {
     } elseif ($act -eq 'D') {
       $sure = "$(Read-Host "  Forget $name ($($r.Mac))? y/N")".Trim()
       if ($sure -notmatch '^[Yy]') { continue }
-      $shared = @(Read-InventoryFile $inventoryPath 'BOARD_INVENTORY.md' | Where-Object Mac -eq $r.Mac)
-      if ($shared.Count) {
-        # The shared record is committed: hide the board on this PC instead of editing it.
-        Save-LocalRow $r.Mac (Format-Row $name 'removed' $r.Bridge $r.Mac "Removed on this PC by board setup $(Get-Date -Format 'yyyy-MM-dd')")
-      } else {
-        Save-LocalRow $r.Mac $null
-      }
+      Save-LocalRow $r.Mac $null
       Write-Host "  Forgot $name." -ForegroundColor Green
       continue
     } else { continue }

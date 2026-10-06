@@ -55,7 +55,7 @@ records predate that.
 ## Hardware and tooling
 
 - [Hardware Reference](HARDWARE_REFERENCE.md) - boards, pins, displays, controls and indicators.
-- [Board Inventory](BOARD_INVENTORY.md) - development boards by MAC, used by the flash scripts.
+- [Board Inventory](BOARD_INVENTORY.md) - how the flash scripts identify boards by MAC, with an example board list.
 - [Continuous Integration](CONTINUOUS_INTEGRATION.md) - GitHub Actions checks and artifacts.
 - [Serial logs](logs/README.md) - captured boot and OTA logs.
 - [Legal and IP Working Reference](../legal/README.md) - dependencies, notices, IP hygiene.
