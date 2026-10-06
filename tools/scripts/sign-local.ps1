@@ -14,9 +14,9 @@
   OTA only accepts the same or a newer version: raise PATCH in the project's
   firmware_version.h when you want devices to accept an update over a build
   they already run, or reinstall the same version freely. Going to an older
-  version needs a USB flash (SIGIL_OTA.md).
+  version needs a USB flash (FIRMWARE_UPDATES.md).
 
-  portal is the web portal pack (Atlas/web, PORTAL_PACK.md): built by
+  portal is the web portal pack (Atlas/web, WEB_PORTAL.md): built by
   Atlas/web/build.py without PlatformIO, versioned by Atlas/web/VERSION, and
   installed from the Atlas /update page.
 

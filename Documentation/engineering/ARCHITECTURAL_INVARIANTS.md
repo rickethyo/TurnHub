@@ -113,9 +113,9 @@ Do not persist or continuously synchronize values that can be safely calculated 
 
 Examples include elapsed time, remaining time, warning phase, and many display-only labels.
 
-## Invariant 9: The six-question feature gate is mandatory
+## Invariant 9: The feature gate is mandatory
 
-Before implementation begins on any significant feature, the design MUST answer all six questions:
+Before implementation begins on any significant feature, the design MUST answer:
 
 1. **Who owns its canonical state?**
 2. **What intent changes or requests it?**
@@ -123,6 +123,8 @@ Before implementation begins on any significant feature, the design MUST answer 
 4. **Does it need persistence, and who owns that persistence?**
 5. **Which clients only render or present it?**
 6. **Does it require a shared protocol/contract change?**
+7. **What third-party dependencies does it add?** (update `Documentation/legal/`)
+8. **What is its accessibility impact?** (see `ACCESSIBILITY.md`)
 
 These questions are a feature gate, not optional design guidance.
 
@@ -183,4 +185,4 @@ For every user-facing feature, also ask:
 
 The expected answer is **yes** whenever a practical alternative exists.
 
-Last established: 2026-09-20
+Last established: 2026-09-20; feature gate extended to eight questions (as in `CLAUDE.md`) 2026-10-06

@@ -135,7 +135,7 @@ Authentication/seat assignment is a separate step. Client-supplied player number
 ## Current state
 
 Every gameplay action goes through Atlas's Intents, and phones use the same
-application handlers as Sigils (see [profile endpoints and ownership](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md)).
+application handlers as Sigils (see [profile endpoints and ownership](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md)).
 The generic v0.1 JSON envelope remains a draft. State/info routes and revision-aware
 session controls are live. Internal `controllerId` naming does not silently change the
 draft JSON schema's `moduleId` field or the ESP-NOW wire packet.

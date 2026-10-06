@@ -2,7 +2,7 @@
 
 // The web portal pack: the Atlas portal's files, built by Atlas/web/build.py,
 // signed as a .thfw package with product Portal, and unpacked onto the SD
-// card. Design and rules: Documentation/engineering/PORTAL_PACK.md.
+// card. Design and rules: Documentation/engineering/WEB_PORTAL.md.
 //
 // Archive layout (the package image; little-endian):
 //   Descriptor            16 bytes, product Portal, the pack version

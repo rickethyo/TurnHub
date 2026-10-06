@@ -34,12 +34,12 @@ struct SigilRecord {
   uint8_t firmwareMinor = 0;
   uint8_t firmwarePatch = 0;
   uint8_t capabilities = 0;
-  // Paired as a spare, without the owner's code check (SPARE_SIGIL.md): it
+  // Paired as a spare, without the owner's code check (FIRMWARE_UPDATES.md): it
   // stays spare whatever its Hello says. Stored in NVS beside the record.
   bool spareOnly = false;
   bool profileRequestSeen = false;
   uint32_t lastProfileRequestMs = 0;
-  // The key agreed at pairing (SECURE_LINK.md), stored in NVS with the MAC.
+  // The key agreed at pairing (PAIRING_AND_SECURE_LINK.md), stored in NVS with the MAC.
   uint8_t pairKey[TurnHubSecureLink::KEY_BYTES] = {};
   // The current secure session (secure_session.h), started by the Sigil's
   // SecureHello. Every packet either way is sealed in it; RAM only.

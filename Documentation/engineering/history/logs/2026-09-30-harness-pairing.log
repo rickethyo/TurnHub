@@ -1,0 +1,10 @@
+﻿# Test harness 0.9.0 pairing with Atlas after the baseline-Sigil flash, 2026-09-30.
+# Started with the serial "pair" command; the owner tapped Codes match on Atlas for each code.
+HARNESS|PAIR|WAITING|tap Menu, then 'Pair a Sigil', on the Atlas touchscreen now; then Codes match for each code printed here
+HARNESS|PAIR|V2|CODE|V1|4211|slot=2|tap Codes match on Atlas if its screen shows 4211
+HARNESS|PAIR|V2|CODE|V2|7947|slot=3|tap Codes match on Atlas if its screen shows 7947
+HARNESS|PAIR|ACCEPTED|V1|sigil=2|atlas=02:00:00:00:00:01|SECURE
+HARNESS|PAIR|ACCEPTED|V2|sigil=3|atlas=02:00:00:00:00:01|SECURE
+HARNESS|PAIR|DONE
+HARNESS|STATUS|V1|mac=02:00:00:00:00:04|sigil=2|pairing=secure|online=yes|seats=none|picker=closed|menu=join
+HARNESS|STATUS|V2|mac=02:00:00:00:00:05|sigil=3|pairing=secure|online=yes|seats=none|picker=closed|menu=join

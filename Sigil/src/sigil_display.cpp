@@ -9,7 +9,7 @@
 #endif
 
 #if TURNHUB_SPARE
-// The spare build drives no panel (SPARE_SIGIL.md).
+// The spare build drives no panel (FIRMWARE_UPDATES.md).
 #elif TURNHUB_DISPLAY_OLED == 1
 #include "oled_display.h"
 #elif TURNHUB_DISPLAY_OLED == 0

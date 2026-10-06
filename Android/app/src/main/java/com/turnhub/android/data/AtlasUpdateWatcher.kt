@@ -9,7 +9,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Atlas has no internet, so the app tells it when newer firmware exists
- * (Documentation/engineering/SIGIL_OTA.md, "Update notice"). While connected,
+ * (Documentation/engineering/FIRMWARE_UPDATES.md, "Update notice"). While connected,
  * the app reads the release feed at most once per [intervalMs] on the phone's
  * own network and reports the newest version of each product to Atlas
  * (`POST /api/updates/latest`). Atlas compares them with itself and its

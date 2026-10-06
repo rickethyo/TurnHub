@@ -1,305 +1,180 @@
-# TurnHub Staged Changes
+# Staged Changes and Open Checks
 
-The queue of agreed work that is not implemented yet. Keep it short: when an
-item lands, move any lasting facts into the reference document it belongs to
-and delete it here. Git history keeps the old entries.
+The one list of what is agreed but not done: open work, hardware checks still
+to run, and product decisions still to make. When an item lands, move any
+lasting fact into its topic document and delete the line here; git keeps the
+old entries. Longer designs for planned features are in
+[Planned Designs](PLANNED_DESIGNS.md).
 
 Owner, 2026-10-02: playtesting and bench testing have verified nearly
-everything implemented so far, so the old "awaiting hardware" notes were
-removed from this file. The hardware checks still open are in
-[Prototype v1 verification](PROTOTYPE_V1_VERIFICATION.md).
+everything implemented. Only the checks listed below are still open.
 
 ## Standing decisions
 
-- **The OLED Sigil leads** (owner, 2026-09-28). New Sigil UI lands on the OLED
-  first. The e-ink Sigil stays buildable and supported, follows the OLED, and
-  may drop non-essential extras that cost it full refreshes.
-- **No compatibility before release** (owner, 2026-09-30). See `CLAUDE.md`.
-  When hardware is released, the upgrade path in [Sigil OTA](SIGIL_OTA.md)
-  ("Version rules") comes back first.
-- **Not on e-ink:** the turn timer on the Sigil screen; try it on an LCD Sigil.
+- **No compatibility before release** (owner, 2026-09-30): reflash every
+  board together, no saved-data migrations, a changed layout means a factory
+  reset (`CLAUDE.md`). For release, the version rules in
+  [Firmware Updates](FIRMWARE_UPDATES.md) come back first.
+- **The OLED Sigil leads** (owner, 2026-09-28): new Sigil UI lands on the OLED
+  first; the e-ink follows and may drop extras that cost it full refreshes.
+- **No turn timer on e-ink**; try it on a future LCD Sigil.
+- **Test harness retired** (2026-10-05): source kept, no builds, no upkeep.
 
 ## Open work
 
-### Multi-phone stability (in progress)
+### Stability and diagnostics
 
-- Execute the [stability plan](STABILITY_PLAN_2026_10_02.md) in small changes.
-  First implementation: Atlas 0.6.7 provisions a 16 KiB loop stack, traces
-  constant HTTP routes, labels historical stack minima correctly, and reduces
-  status/counter handler working sets. Firmware build and bench acceptance
-  remain open; the two-phone panic is not yet resolved. Keep original polling
-  for the first bench run. Metadata revisions/caching and client request
-  reductions follow separately, after this workload is measured.
+- **Multi-phone stability** (in progress): bench the Atlas 0.6.7+ build with
+  unchanged polling, then the wider matrix, then seat-metadata caching and
+  lighter client polling. Steps in [Diagnostics](DIAGNOSTICS.md).
+- **Framework log capture:** route `log_e`/ESP-IDF output into the Atlas log
+  (for example a vprintf hook).
+- **Open bug, not reproduced:** Atlas stuck on the pause screen during a
+  harness soak (2026-09-28).
+- Trim or move the 1.6 s Secure Link self-test off the boot path.
 
-### Statistics, recovery and history
+### Statistics and history
 
-- **Crash-safe statistics.** Allocate a durable MatchId and completion receipt
-  before replaying completion, so an interrupted profile write can't leave
-  missing or partial results. Until then statistics are not exactly-once
-  ([completion ordering](COMPLETION_RECOVERY.md)).
-- **Game-scoped statistics** (owner, 2026-09-24: the long-term goal). A stable
-  `gameProfileId` partitions statistics by game/format; existing totals stay
-  as unclassified; a draw counter; raw session facts are canonical and values
-  such as win rate are derived. Privacy: participation facts public by
-  default, derived performance private by default with opt-in sharing,
-  enforced on Atlas before serialization. Hiding stats never stops recording.
-- **Life event log.** Record each life change (profile, actor, time, old, new,
-  delta) and derive life gained/lost from it. Rapid same-actor reversals within
-  about a second count as corrections (`40 -> 48 -> 47` is +7 gained), while
-  the raw events stay in the log marked as a correction.
-- **Session history.** Bounded game records on the microSD card with enough
-  raw facts to rebuild aggregates, a retention limit, and kept separate from
-  the small active-match recovery record.
+- **Crash-safe statistics:** durable MatchId and completion receipts before
+  replaying completion, so a cut during profile writes can't leave missing or
+  partial results ([Storage and Recovery](STORAGE_AND_RECOVERY.md)).
+- **Game-scoped statistics** (owner, 2026-09-24, the long-term goal): a
+  stable `gameProfileId` partitions statistics by game; existing totals stay
+  unclassified; a draw counter; raw session facts are canonical and rates are
+  derived. Participation facts public by default, derived performance private
+  by default with opt-in sharing, enforced on Atlas. Hiding never stops
+  recording.
+- **Life event log:** record each change (profile, actor, time, old, new);
+  rapid same-actor reversals within about a second count as corrections
+  (`40 -> 48 -> 47` is +7 gained), with raw events kept.
+- **Session history:** bounded game records on the card, enough to rebuild
+  aggregates, with a retention limit, separate from the recovery record.
 
-### Storage
+### Accounts, portal and app
 
-- **SD cards across several Atlases** (owner, 2026-09-25). A card records its
-  owner Atlas. A card from another Atlas is offered as **Game night** (its
-  profiles, statistics and settings are usable here for now, the card is not
-  taken over) or **Merge in** (it becomes this Atlas's data and card). Still
-  to design: the same profile on both, whose PIN wins, which stats merge, and
-  where game-night results are written. No statistics rollback to NVS.
-- **App and portal screenshot tests** (V1 plan phase 8, not done when phases
-  0 to 8 closed with PR #32 on 2026-10-02): golden images of the Android
-  screens in every theme (Roborazzi or Paparazzi on the JVM, so CI can run
-  them) next to the portal renders `counter_smoke.cjs` already writes.
-- **Portal theme packs** served from the card as extra token sets; built-in
-  themes stay in flash ([Web Portal Design](WEB_PORTAL_DESIGN.md)).
-- **Passwords** (implemented 2026-10-02, see
-  [Accounts](ACCOUNTS_AND_MODERATION.md)): still to do are the user manual and
-  a slow, salted hash (PBKDF2 through mbedTLS) in place of the single SHA-256
-  over profile ID and secret, which suits a PIN but is weak for a password if
-  Atlas's NVS were ever read out. Changing the hash needs a factory reset.
-- **App lock and automatic sign-in** (owner, 2026-10-02; V1 plan phase 7). *Implemented* 2026-10-02 in the Android app (Android 11+; `Android/README.md`); the owner reported the PR #32 build working on 2026-10-02.
-  The Android app keeps one profile's secret in the Android Keystore, unlocked
-  by the phone's fingerprint, face or screen lock (or an app PIN), and signs
-  that profile in to Atlas whenever it connects. It gives the one-tap feel of a
-  passkey. Real passkeys (WebAuthn) do not fit an offline Atlas: the relying
-  party must be a domain name, not 192.168.4.1, with a certificate browsers
-  trust, and Android checks that domain online. HTTPS (planned) alone does not
-  change that.
-- **Custom avatars:** upload and Admin approval before one becomes public
-  (`AVATAR_CUSTOM` is reserved; presets work today).
+- **Password hashing:** parked, see "Parked: storage batch" below.
+- **Custom avatars** with Admin approval before they go public.
+- **App and portal screenshot tests:** golden images of the Android screens
+  in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
+  renders.
+- **Portal theme packs** from the card; built-in themes stay in the pack.
+- **HTTPS on Atlas** (unlocks the portal's full-screen launch and wake lock).
+- **Dependency tracker:** add a row for the vendored `qrcode-generator` 1.4.4
+  (MIT) in `Documentation/legal/DEPENDENCY_TRACKER.md`.
 
 ### Setup and updates
 
-- **First-run setup in the portal:** the same steps on the same endpoints as
-  the app; a "Setting up a new table" section in the user manual; later, an
-  Atlas name. See [First-run setup](FIRST_RUN_SETUP.md).
-- **Atlas fetches updates over home Wi-Fi** (optional, after app delivery).
-  Atlas stores a home SSID and password (Admin, presence-gated, NVS); **Check
-  for updates** joins it in station mode between games, reads the release feed
-  over HTTPS, downloads and verifies the same `.thfw` packages, disconnects and
-  returns its AP and ESP-NOW to channel 6. Needs a CA bundle and about 40 KB of
-  heap; can't pass a sign-in page. Staying connected is out of scope (the
-  router would pull Atlas off channel 6).
-- **Framework log capture:** route `log_e`/ESP-IDF output into the Atlas log
-  (for example a vprintf hook).
+- **Atlas fetches updates over home Wi-Fi** (optional): an Admin stores a
+  home SSID and password (presence-gated); **Check for updates** joins it in
+  station mode between games, reads the feed over HTTPS, downloads and
+  verifies the same packages, then returns its AP and ESP-NOW to channel 6.
+  Needs a CA bundle and about 40 KB heap; can't pass a sign-in page.
+- **Atlas name** as a later setup step.
 
 ### Table, controllers and accessibility
 
 - **Moderate on the Atlas Player screen:** remove a player and Admin sign-in
   beside Concede.
-- **Profile selection:** a per-Sigil startup choice (last profile or picker)
-  and labels for duplicate names ([Physical profile selection](PHYSICAL_PROFILE_SELECTION.md)).
-- **OLED Sigil:** say on the Sigil when Seat B is refused (today the second
-  seat just doesn't appear).
-- **Accessibility:** see "Not yet implemented" in [Accessibility](ACCESSIBILITY.md):
-  styled Sigil-local lights, e-ink text scale, a longer life-approval window,
-  a monochrome-safe portal theme. LED intensity and buzzer volume are on hold
-  until the hardware can vary them.
-- **Atlas:** a battery gauge.
-- **Open bug, not reproduced:** Atlas stuck on the pause screen during harness
-  Soak x5 (2026-09-28). Needs the harness serial log and Atlas's diagnostics log.
+- **Profile picker:** a per-Sigil startup choice (last profile or picker) and
+  labels for duplicate names.
+- **OLED Sigil:** say on the Sigil when seat B is refused.
+- **Accessibility:** Sigil-local pairing/error lights in the player's style,
+  e-ink text scale, a longer life-approval window, a monochrome-safe portal
+  theme, guest accessibility preferences. LED intensity and buzzer volume wait
+  for hardware that can vary them.
+- **Atlas battery gauge.**
+
+### User manual (`Documentation/User Manual/TurnHub Manual V0.11.docx`)
+
+Make a V0.12 (then run `python3 Android/tools/export_manual.py`) that covers:
+
+- The single Sigil menu layout (Sigil 0.9.10): Up always opens Menu on both
+  displays, e-ink Menu as compass pages with More, Device as a sub-menu. The
+  Commander section still says "E-ink: press Up for Game menu".
+- **Partner** commanders (off by default, turned on from Menu).
+- Passwords as well as PINs.
+- Factory reset of Atlas now empties the microSD card (except the portal
+  pack); the manual says the card is not erased.
+- A "Setting up a new table" section (first-run setup).
+- Shared-Sigil turn order (B left/right) on the Atlas screen.
+- The footer still says Manual 0.9, Atlas 0.6.4-dev, Sigil 0.9.6-dev.
 
 ### Hardware
 
-- **Sigil carrier PCB:** layout, design-rule checks and a test fit of the
-  DevKit and Jewel footprints before ordering; the OLED PCB is still an empty
-  placeholder ([KiCad](../../KiCad/PCB/Sigilv1/README.md)).
-- **Power:** measure idle, radio, display, buzzer and capped LED current, and
-  confirm the chosen USB supplies hold up (feeds Sigil sleep and batteries).
+- **Sigil carrier PCB:** caliper-check the DevKit rows (22.86 mm assumed) and
+  test-fit DevKit and Jewel footprints, finish layout and DRC, then inspect
+  assembled boards. The OLED PCB is still a placeholder
+  ([KiCad](../../KiCad/PCB/Sigilv1/README.md)).
+- **Power:** measure idle, radio, display, buzzer, capped LED and sleep
+  current; confirm the USB supplies and power banks hold up.
 - Freeze hardware revisions only after GPIO, power, display, transport,
-  tactile-control and accessibility decisions are settled.
+  controls and accessibility decisions settle.
 
-## Venue model: several games on one Atlas (*Planned*)
+## Parked: storage batch
 
-A venue Atlas runs more than one game at once. Profiles, statistics, pairing
-and the portal stay shared; each game has its own lobby, engine and table
-decisions. Owner decisions (2026-09-29):
+*Planned.* Proposed and parked by the owner (2026-10-06): do these together, since
+both need a USB flash and a factory reset.
 
-- **Atlas speaker:** muted while more than one game is running. Cues then play
-  only on Sigil buzzers and in browsers. With one game it behaves as today.
-- **Atlas touchscreen:** shows one game at a time, with a "Game 1", "Game 2",
-  ... selector. The selection is presentation state (Invariant 6), not a table
-  decision.
+- **Larger NVS partition.** `min_spiffs.csv` gives NVS 20 KB (about 500
+  entries) and each profile uses about 20, so the real ceiling is about 20
+  profiles, not the 64 the code allows (*Needs verification*: estimated
+  from code, not measured). Fix: a custom partition table with a bigger NVS.
+- **Slow PIN and password hash.** Today it is one SHA-256 over the profile ID
+  and secret (`web_session.cpp`), which a flash dump can brute-force. Fix:
+  PBKDF2 via mbedTLS. Full protection also needs flash encryption (eFuse), a
+  release-time decision.
 
-Steps:
+Decided at the same time: storage stays NVS plus checksummed SD blobs, with
+no SQL database. SQLite would add RAM pressure and power-loss risk on FAT,
+and would make the card required. Revisit only for full per-match history, which would use
+append-only files on the card.
 
-1. **Done 2026-09-29 (host-tested, firmware builds):** `GameTable` in
-   `atlas_app.h` groups one game's `Lobby`, `GameEngine`, `ClientState` and
-   table decisions (`hubState`, `pendingPass`, countdown, elimination target,
-   win arm, turn-timer cues). `tables[MAX_GAME_TABLES]` has one entry, and the
-   old global names are references into `tables[0]`, so behavior is unchanged.
-   Next, move call sites to take a `GameTable &` explicitly.
-2. Two tables in RAM: controller and profile → table assignment (a Sigil and
-   its Seat B stay together; a profile sits at one table), Intent routing via
-   `seatForIntentActor` and friends, per-table loop ticks, host scenarios for
-   independent tables. Lobby arrays stay indexed by the global controller ID,
-   and a controller joins at most one table.
-3. Per-table recovery records (today one NVS namespace, `th_game_v1`), each
-   restoring paused, and the checkpoint-before-statistics order per table
-   (`COMPLETION_RECOVERY.md`).
-4. Client contract: per-table state and revisions in `/api/v1/state`,
-   schemas, `protocol/examples`, Android models, portal pages.
-5. Touchscreen game selector, speaker muting rule, user manual.
+## Open checks
 
-Feature gate still to write before step 2 (state owner, Intent, validator,
-persistence, clients, contract, dependencies, accessibility).
+Hardware checks that need a deliberate bench setup. Record runs as
+`ID | PASS/FAIL | build | device(s) | evidence` here until they pass, then
+delete the line. A host or compile result never checks off a hardware line.
 
-## Sigil sleep (*Planned*)
+- [ ] **C06** Multi-phone stability matrix ([Diagnostics](DIAGNOSTICS.md)).
+- [ ] **R05** Cut power at completion before the finished-match checkpoint
+  commits: counts don't advance and the match stays recoverable.
+- [ ] **R06** Cut power after the checkpoint, during profile writes: restarts
+  as Game Over and ending it again can't increment counts (missing or partial
+  results are the known limit).
+- [ ] **R07** Failed or uncertain NVS commits and corrupt or future recovery
+  records: statistics fail closed, errors show in diagnostics, records kept.
+- [ ] **D04** Swap the card during and after a game: no double counting, a
+  different card works, the NO SD CARD warning follows.
+- [ ] **D05** Log rotation on a real card stays bounded; slow writes don't
+  disrupt input, radio or display.
+- [ ] **U06** Interrupt an update (Wi-Fi drop, Sigil power cut, package
+  upload, Atlas restart mid-job) and install a signed image that fails to
+  reconnect: everything recovers and the bootloader rolls back without USB.
+- [ ] **S09** Secure Link negatives: Reject, the 60 s timeout, portal Codes
+  match, eight Sigils at once, forged/replayed/cleartext packets refused.
+- [ ] **G11** Playtest Sigil Commander entry and partners (Sigil 0.9.10) and
+  shared-Sigil turn order (2026-10-05).
+- [ ] **G12** Spare Sigil end to end: make spare, pair without a code, return
+  to service over the air, flash-all records it.
+- [ ] **H03** Power measurements (above).
+- [ ] **F02** Someone unfamiliar with the build sets up, pairs, assigns
+  players and plays using only the kit and manual.
+- [ ] **F03** Name the accepted candidate with a tag and matching firmware
+  and APK packages.
 
-*Shipped meanwhile (2026-10-02):* a manual **Sleep** in the Sigil device menu
-and on Atlas's Menu > Device screen, using deep sleep and a pin wake (see
-`MANUAL_PAIRING.md`). The automatic, Atlas-managed light sleep below is still
-planned.
+## Production decisions
 
-Owner, 2026-09-30: after 5 to 10 minutes with no physical input, a Sigil
-sleeps and mostly drops off the radio until its buttons are pressed or Atlas
-wants it. Mainly for future battery power (the board's battery connector,
-charger and battery ADC on GPIO 34 are unused so far, see the hardware
-reference), and also for fewer active radio devices in a large game where
-people play from phones. A seated player's Sigil may sleep mid-game; Atlas
-wakes it when it's needed.
-
-**The radio constraint.** An ESP32 has no wake-on-radio: with the radio off a
-Sigil can't hear Atlas. So "Atlas sends a wake" is a duty cycle. The Sigil
-light-sleeps (RAM kept, radio and CPU off) and wakes every few seconds (3 to
-5 s, to tune) to send one check-in and listen briefly. Atlas answers a
-sleeping Sigil's check-in with Wake or Stay asleep. ESP-NOW doesn't buffer
-frames for sleeping peers, so Atlas only ever answers in that window. Worst
-wake latency is one check-in interval. Deep sleep (lower current, but a
-reboot and reconnect on every wake, and no Atlas wake at all) is a later
-option for a battery Sigil left unused for hours.
-
-**Wake sources.**
-- Buttons: light sleep can wake on any GPIO. OLED Sigil: all five keys.
-  E-ink Sigil: the stick click (GPIO 32, SW); the analog directions (GPIO 34
-  and 35) can't wake it, so the Sigil screen says "Press the stick to wake".
-- Atlas: at a check-in, when the Sigil's player becomes active (their turn, or
-  a pass, win claim, elimination or life request that involves them), when a
-  game starts or is armed, when pairing or an update targets it, and from the
-  portal/app device list ("Wake").
-- The press that wakes a Sigil only wakes it (the screen shows "Awake"); it
-  is not also sent as input, so a sleeping Sigil never passes a turn by
-  accident.
-
-**Rules (Atlas owns them).**
-- Never sleep while the Sigil's player is the active player, during a
-  countdown, with a decision pending on that player, during an update, or
-  while pairing.
-- Timeout (owner, 2026-09-30): short outside a game, about 3 minutes in the
-  lobby or with the Sigil unseated, and at least 10 minutes while a game is
-  running (someone may go a long while between their own turns). Atlas
-  picks which applies and sends it to Sigils like the input timing, so the
-  Sigil's idle timer changes when a game starts or ends. Admins can
-  lengthen either or turn sleep off; the in-game value never goes below 10
-  minutes. Atlas can refuse a sleep request (answer Wake) if a rule above
-  applies.
-- A sleeping Sigil is **Asleep**, not **Offline**: its seat, participant and
-  statistics are untouched, and it stays out of the "controller lost"
-  handling. Asleep that stops checking in for longer than the link timeout
-  plus one interval becomes Offline as today.
-
-**Feature gate.**
-1. **State owner:** Atlas (`SigilBus` keeps Awake/Asleep per Sigil, from the
-   radio; the timeout is a game setting). The Sigil owns only its own idle
-   timer.
-2. **Intent:** none for the radio handshake (transport state, like Hello).
-   Admin setting change: the existing settings Intent path. Portal/app
-   "Wake": a new `WakeSigil` Intent (validator: Admin or the seated player).
-3. **Validator:** Atlas answers each sleep request by the rules above.
-4. **Persistence:** the two timeouts (out of game, in game) in
-   `game_settings_store` (NVS); sleep state is RAM-only.
-5. **Rendering clients:** Sigil screens ("Asleep", "Press ... to wake");
-   Atlas touchscreen and portal/app device list show Asleep; `/api/devices`
-   gains `asleep`.
-6. **Protocol/contract:** `shared/include/protocol.h`: new packet types
-   (SleepRequest, CheckIn, WakeDecision) and a capability for "can sleep",
-   taking one of the bits freed by the baseline Sigil (0x02, 0x04, 0x08, 0x20,
-   0x40), read through `helloCapabilities()` from the firmware that
-   introduces it. Reflash Atlas and every Sigil; a good first update to
-   deliver over Wi-Fi OTA rather than USB. `/api/devices` and the Android
-   `DeviceInfo` model add the field.
-7. **Third-party dependencies:** none (ESP-IDF light sleep in the Arduino
-   core).
-8. **Accessibility:** the wake-up press must not also act, so a player who
-   can't see the screen never passes by accident. Sleep can't hide a cue: a
-   Sigil whose player has a pending cue (turn, request) is woken first, and
-   the cue plays on waking, not only by LED or buzzer while asleep. A
-   per-player accessibility preference "Never sleep my Sigil" (like the hold
-   timings) for players who rely on its LEDs/buzzer between turns.
-
-**Open questions.** Exact defaults (about 3 and 10 minutes above); whether the e-paper keeps its last
-image or shows an "Asleep" card (e-paper holds either with no power); LED ring
-behavior (off while asleep); measured current in light sleep versus today
-(ties into verification item H03); how long a battery lasts either way.
-## E-ink Sigil: player-facing LED strip (possible, depends on the case)
-
-*Planned, conditional* (owner, 2026-09-26). The enclosure concept is a 45° wedge
-about 48 mm wide, 78 mm deep and 78 mm tall: portrait e-paper on the upper
-slope, joystick below it, main board flat in the base, USB through the back
-wall. In that shape the Jewel 7 status ring faces the **other players** from the
-back wall, so the seated player can't see it. A short LED strip on the front lip
-would give the **player** their own light. Build this only if the final case
-keeps that split; if the case lets one light face both ways, drop it.
-
-- **Hardware:** reserved on Sigil Rev A (2026-09-28): J6, a JST-XH 3-pin
-  socket fed by its own data line, GPIO13 through U3 (74AHCT1G125) and R2, same
-  pinout as J5. J6, U3, R2 and C4 are fitted on every board, so a strip can be
-  added later without rework. A
-  separate line suits the case better than the Jewel adapter's chain-out (the
-  board is beside the front lip, the Jewel on the back wall) and gives the strip
-  its own pixel chain. The chain-out stays as a fallback. Candidate: 6–8 SK6812
-  RGBW pixels to match the Jewel's colour order.
-- **Feature gate:**
-  1. *State owner:* Atlas, unchanged. It already decides each Sigil's
-     `LedState`; the Sigil only renders it.
-  2. *Intent:* none. Lights are output only and add no gameplay action.
-  3. *Validator:* none new. Any user setting (see 5) uses the existing
-     accessibility preference path.
-  4. *Persistence:* the pixel count is a build or hardware setting on the Sigil,
-     not NVS. A per-player front-strip brightness, if added, belongs in the
-     existing per-player accessibility preferences (`optional_preferences`).
-  5. *Rendering:* the Sigil maps one `LedState` to two groups. The rear ring
-     keeps today's table-facing role (turn state, player colour). The front strip
-     shows the player's own cues (your turn, timer warnings, pending life
-     approval). The exact split is an owner decision.
-  6. *Protocol/contract:* probably none. If both groups are derived from
-     `LedState` on the Sigil, `shared/include/protocol.h` doesn't change. A
-     separate front-strip state from Atlas would be a radio contract change and
-     need both firmwares reflashed.
-  7. *Third-party dependencies:* none new (Adafruit NeoPixel already drives the
-     Jewel).
-  8. *Accessibility:* no information may live only on the strip; the e-paper
-     repeats everything it shows. Brightness should be adjustable because the
-     strip is a few centimetres from the player's eyes. Blink patterns follow
-     the existing reduced-motion style (`LedStyle::ReducedMotion`).
-- **Power:** USB can't supply full RGBW on 7 + 8 pixels. The firmware brightness
-  cap (48/255) has to hold for the whole chain, and the front strip can run
-  dimmer than the ring. *Needs verification:* measure current with both groups
-  at the cap.
-- **Before building:** settle the case (strip position, pixel count, cable
-  route), then the owner's choice of which cues go front and which go rear.
-
-
-## Working rules
-
-1. Keep agreed, unimplemented work here, not in long-lived branches or chat.
-2. Use short-lived branches only for code that needs isolation or review;
-   `master` is the accepted baseline.
-3. Before a structural change, review the engineering index,
-   `ARCHITECTURAL_INVARIANTS.md`, this file and the affected references, and
-   resolve conflicts in the docs first.
-4. Before calling a user-facing feature complete, review it against
-   `ACCESSIBILITY.md`.
+- Production Sigil transport: ESP-NOW with the Secure Link today; BLE and
+  other options not compared on latency, power, count, interference and
+  complexity.
+- Maximum Sigil count for product hardware (firmware allows 8).
+- Two players per Sigil: product feature, optional mode, or prototype only.
+- Protocol version negotiation and compatibility messages for released
+  hardware; which radio messages need acknowledgement or deduplication.
+- Atlas: separate USB-C power and data, input voltage and regulator,
+  battery/backup power, a secure element for authenticity.
+- Sigil: battery chemistry and form factor; charging approach.
+- First reproducible `ATLAS-REV-A` / `SIGIL-REV-A` with BOMs; enclosure
+  mounting and docking after power and connectors settle; a
+  design-for-assembly review with the PCBA maker.
+- A decision log for major product decisions and reversals.

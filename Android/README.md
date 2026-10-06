@@ -267,7 +267,7 @@ Portal parity (2026-09-26):
   permissions and archiving, Game Master moderation, first-Admin setup, and
   the Developer activity feed, raw status/devices/seats/diagnostics JSON and
   a shareable serial log (`AtlasAdminConsole`). Firmware updates run from
-  first-run setup and the **Update now** card ([Sigil OTA](../Documentation/engineering/SIGIL_OTA.md)).
+  first-run setup and the **Update now** card ([Sigil OTA](../Documentation/engineering/FIRMWARE_UPDATES.md)).
 - **First-run setup** (2026-09-30, FIRST_RUN_SETUP.md): after Connect the
   app reads `GET /api/setup`; while Atlas is new it shows the setup steps in
   place of the table (`AtlasSetupAssistant`, `ui/setup/SetupScreen.kt`):

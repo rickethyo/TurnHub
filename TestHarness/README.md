@@ -67,7 +67,7 @@ through its Sigils. The title and detail lines show the test, the current
 checkpoint and the result in words, and **Stop test** aborts it. The test
 screen stays up through the game until **Back**. Atlas and the harness speak
 `HarnessCommand` and `HarnessReport` (see
-`Documentation/engineering/PROTOCOL_AND_PAIRING.md`).
+`Documentation/engineering/RADIO_PROTOCOL.md`).
 
 ## Serial commands (115200 baud)
 

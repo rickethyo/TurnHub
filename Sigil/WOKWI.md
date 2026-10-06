@@ -18,7 +18,7 @@ Then run **Wokwi: Start Simulator**. `wokwi.toml` loads the `sigil-wokwi` firmwa
 
 Since 2026-09-30 (Sigil 0.9.0) every Sigil has five keys, Atlas's action menu
 and the Jewel ring, so the simulation wires the E-ink Sigil's parts (see
-`platformio.ini` and `Documentation/engineering/HARDWARE_REFERENCE.md`). The
+`platformio.ini` and `Documentation/engineering/HARDWARE.md`). The
 old Rev A three-button layout and discrete LEDs are gone with the firmware
 path that used them.
 
@@ -64,7 +64,7 @@ pairs. As with a real Atlas, both sides must be in pairing mode:
    Sigil** on the Atlas touchscreen and opens the fake Atlas's 60-second window.
 2. Press the Sigil's PAIR button (`R`) within those 60 seconds. The ring
    blinks red while the Sigil broadcasts `PairRequest2` (pairing v2, see
-   `Documentation/engineering/SECURE_LINK.md`).
+   `Documentation/engineering/PAIRING_AND_SECURE_LINK.md`).
 3. The fake Atlas answers `PairAccept2` with the Sigil ID set by `id` (default
    0) and prints the pairing code (`WOKWI|ATLAS|PAIRING|V2|CODE|0427`). The
    Sigil's screen shows the same code.

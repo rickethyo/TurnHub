@@ -131,7 +131,7 @@ void handleDevices(WebServer &server) {
     json += "\"";
     json += "}";
   }
-  // Sigils waiting for the owner's pairing-code check (SECURE_LINK.md). The
+  // Sigils waiting for the owner's pairing-code check (PAIRING_AND_SECURE_LINK.md). The
   // code only proves both ends agreed the same key; it is not a secret.
   json += "],\"pendingPairings\":[";
   first = true;

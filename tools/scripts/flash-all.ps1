@@ -7,7 +7,7 @@
   Boards are identified by MAC, never by COM port (ports change whenever the PC
   restarts). The MAC -> firmware table is tools\boards.local.md: this PC's
   boards, written by board setup and never committed. The table format, with
-  made-up example rows, is in Documentation/engineering/BOARD_INVENTORY.md.
+  made-up example rows, is in Documentation/engineering/HARDWARE.md.
   Reading a MAC resets the board.
 
   - Unknown MACs are reported, and board setup is offered for them.
@@ -259,7 +259,7 @@ $localHeader = @(
   'Written by board setup (`tools\setup-boards.cmd`); flash-all flashes each attached board',
   'with the firmware its MAC has here. This file is not committed. Firmware is `atlas`,',
   '`sigil` (E-ink), `sigil-oled`, or `spare` / `spare:<firmware it ran>` (a Sigil gets the',
-  'inert spare firmware; see SPARE_SIGIL.md). Run board setup again to rename, retype,',
+  'inert spare firmware; see FIRMWARE_UPDATES.md). Run board setup again to rename, retype,',
   'retire or delete a board.',
   '',
   '| Board | Firmware | USB bridge | MAC | Notes |',
@@ -555,7 +555,7 @@ if ($new.Count -and -not $NoSetup -and -not $DryRun) {
   }
 }
 
-# A spare returned to service over the air (SPARE_SIGIL.md) runs normal Sigil
+# A spare returned to service over the air (FIRMWARE_UPDATES.md) runs normal Sigil
 # firmware again: record that and flash it as that Sigil, never back to spare.
 foreach ($row in $plan | Where-Object Env -eq 'sigil-spare') {
   Write-Host "  Checking spare $($row.Board) on $($row.Port) (this resets it)..."

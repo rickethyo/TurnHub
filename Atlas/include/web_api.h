@@ -93,7 +93,7 @@ bool requirePermission(WebServer &server,uint8_t permission);
 bool hasPermission(WebServer &server,uint8_t permission);
 // The request's signed-in profile is verified at the table (presence code).
 bool verifiedAtTable(WebServer &server);
-// Pages the SD portal pack may replace (PORTAL_PACK.md, "Serving"): the
+// Pages the SD portal pack may replace (WEB_PORTAL.md, "Serving"): the
 // pack's `packFile` when one is installed, else the built-in `html`. A
 // `?classic=1` request always gets the built-in page.
 void servePortalPage(WebServer &server,const char *packFile,const char *html);

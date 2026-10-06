@@ -22,7 +22,7 @@ namespace {
 TurnHubSecureLink::MbedtlsCrypto linkCrypto;
 
 // Pairings in NVS: one record per slot, "s<slot>" = the Sigil's MAC and the
-// pair key agreed at pairing (SECURE_LINK.md). A record of any other size
+// pair key agreed at pairing (PAIRING_AND_SECURE_LINK.md). A record of any other size
 // isn't a pairing and is dropped.
 constexpr char PAIRING_NAMESPACE[] = "th_pair";
 constexpr size_t PAIRING_RECORD_BYTES = 6 + TurnHubSecureLink::KEY_BYTES;
@@ -429,7 +429,7 @@ void SigilBus::handlePairRequest2(const uint8_t *mac,
   }
   sendRaw(mac, &accept, sizeof(accept));
   if (packet.type == PacketType::PairRequestSpare) {
-    // A spare (SPARE_SIGIL.md): no code check, so it stays spare-only.
+    // A spare (FIRMWARE_UPDATES.md): no code check, so it stays spare-only.
     if (!repeat) serialLog.printf("ATLAS|PAIRING|V2|SPARE|%u\n", static_cast<unsigned>(slot));
     decidePairing(slot, true, true);
     return;

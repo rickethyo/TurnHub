@@ -569,5 +569,5 @@ may be in either A/B or B/A order. The retired host flag no longer draws a crown
 The Sigil can record received Commander damage and undo its last hit, both
 from Menu (Up) on either display. Atlas supplies each entry page,
 including the receiving A/B seat and confirmation totals. See
-[Sigil Commander damage](../Documentation/engineering/SIGIL_COMMANDER_DAMAGE.md)
+[Sigil Commander damage](../Documentation/engineering/GAMEPLAY.md)
 for controls, validation, recovery and hardware acceptance.

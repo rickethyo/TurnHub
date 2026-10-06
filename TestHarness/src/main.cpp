@@ -82,7 +82,7 @@ struct VirtualSigil {
   bool pairing = false;
   int32_t pairingToken = 0;
   uint32_t lastPairRequestMs = 0;
-  // Pairing (SECURE_LINK.md), like a real Sigil: a key agreement, the code
+  // Pairing (PAIRING_AND_SECURE_LINK.md), like a real Sigil: a key agreement, the code
   // printed here and on Atlas, and the pair key once the owner confirms.
   // Paired exactly when sigilId is set; the key comes with it.
   TurnHubSecureLink::SigilPairing v2;

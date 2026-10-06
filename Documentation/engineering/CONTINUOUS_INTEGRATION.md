@@ -1,4 +1,4 @@
-# GitHub Actions checks
+# Continuous Integration
 
 The workflow is [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
 GitHub runs it for pull requests targeting `master` and pushes to `master`.
@@ -10,11 +10,13 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 
 | Check name | Work performed |
 | --- | --- |
-| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; the `tools/firmware/thfw.py` packaging tests |
-| Firmware (atlas) | Build Atlas with PlatformIO; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` OTA package |
-| Firmware (sigil) | Build the e-ink/joystick Sigil; descriptor check and signed `sigil-eink.thfw` as for Atlas |
-| Firmware (sigil-oled) | Build the OLED/button Sigil; descriptor check and signed `sigil-oled.thfw` as for Atlas |
-| Firmware (sigil-wokwi) | Compile the Wokwi variant; does not execute the simulator |
+| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); portal pack builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
+| Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw`; render Atlas screen previews |
+| Firmware (sigil) | E-ink Sigil; descriptor check, signed `sigil-eink.thfw`, e-ink and OLED screen previews |
+| Firmware (sigil-oled) | OLED Sigil; descriptor check and signed `sigil-oled.thfw` |
+| Firmware (sigil-epd-bn) | E-ink bench build with a driver-loaded partial-refresh waveform (`Sigil/DISPLAY.md`) |
+| Firmware (sigil-spare) | The inert spare image; never packaged |
+| Firmware (sigil-wokwi) | Compile the Wokwi variant; does not run the simulator |
 | Android build and unit tests | Build the debug APK and run JVM unit tests |
 
 The hardware `TestHarness/` target was retired on 2026-10-05. CI no longer
@@ -35,7 +37,7 @@ the project. Keep the workflow's Java version aligned with the daemon criteria.
 
 The workflow uses read-only repository permission and pinned revisions of
 official GitHub actions. Its one secret is `TURNHUB_FIRMWARE_SIGNING_KEY`, the
-firmware signing key ([Sigil OTA](SIGIL_OTA.md#keys-and-signing)); without it
+firmware signing key ([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)); without it
 (for example on a fork's pull request) builds are left unsigned and still
 pass. It does not flash devices, publish a release, or modify repository
 content/settings.
@@ -105,10 +107,8 @@ limitation with the result; CI does not disable leak detection.
 
 First establish a successful run, then configure a rule for `master` under the
 repository's **Settings > Rules > Rulesets** (or branch protection). Require a PR
-and the six check names above, using GitHub Actions as their source. Keep check
+and the check names above, using GitHub Actions as their source. Keep check
 names stable when editing the workflow. Do not add path filters that prevent a
 required check from reporting. A solo-maintainer setup does not need a mandatory
 second person's approval just to require checks.
 
-This workflow does not create that rule or merge any existing PR. It can be
-reviewed and merged independently of the prototype stabilization work in PR #17.

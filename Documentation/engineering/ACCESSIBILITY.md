@@ -4,7 +4,7 @@ Accessibility is a first-class TurnHub engineering requirement. It is not a post
 
 This document defines the current accessibility baseline for Atlas, physical Sigils, Virtual Sigils, the web portal, Android clients, and future TurnHub controllers.
 
-Status: **Planned product requirement** unless a requirement is explicitly marked verified in implementation.
+Status: the requirements below are the product baseline; "Implemented accessibility settings" lists what is built.
 
 ## Core rule
 
@@ -76,7 +76,7 @@ The turn-timer cues follow this table: a slow pulse for the ten-second warning,
 a steady light when time has run out, and the same states as text in the portal
 and app. LED and audio styles live in replaceable cue profiles, so palettes,
 reduced-motion patterns and muting can change presentation without touching game
-logic. See [Turn timer and cues](TURN_TIMER_AND_CUES.md).
+logic. See [Turn timer and cues](GAMEPLAY.md).
 
 ## Color-vision requirements
 
@@ -234,7 +234,7 @@ Inventory as of 2026-09-24, in use since (owner, 2026-10-02).
 | Sigil light style: Standard, Reduced motion, Monochrome-safe | Same | Same | Standard |
 | Action long-press (pause) hold, 1-4 s | Same | Same | 2 s |
 | Action win hold, 3-10 s, at least 1 s longer than the long press | Same | Same | 5 s |
-| Portal theme, including High contrast | Portal My Account > Appearance | This browser (`localStorage`) | High contrast when the device asks for more contrast (`prefers-contrast: more`), otherwise Brass |
+| Portal theme: Automatic, Graphite, Daylight, Brass, High contrast | Portal My Account > Appearance | This browser (`localStorage`) | Automatic: Graphite or Daylight following the device, High contrast when it asks for more (`prefers-contrast: more`) |
 | Portal reduce motion | Portal My Account > Appearance | This browser | Off, but the device's reduced-motion setting always applies |
 | Windows high contrast (`forced-colors`) | Operating system | - | Follows the OS |
 | Browser feedback sound, vibration and volume | Portal My Account > Browser feedback | This browser | Sound and vibration on, medium volume |
@@ -265,7 +265,7 @@ per-browser because they describe the device in hand, not the player.
    Android only edit them.
 6. **Contract change:** new HTTP endpoint and `accessibility-v1.schema.json`;
    radio `InputTiming = 24`, sent to every Sigil (the `CAPABILITY_INPUT_TIMING`
-   bit was retired 2026-09-30 with the baseline Sigil, PROTOCOL_AND_PAIRING.md).
+   bit was retired 2026-09-30 with the baseline Sigil, RADIO_PROTOCOL.md).
 7. **Dependencies:** none added.
 8. **Accessibility:** this is the accessibility path. Every option also has a
    non-Sigil route (the portal/app show all state as text and offer pause and
@@ -282,7 +282,7 @@ about every two seconds and immediately after a save.
 
 ### Light styles
 
-- **Standard:** the prototype's cadences (TURN_TIMER_AND_CUES.md).
+- **Standard:** the prototype's cadences (GAMEPLAY.md).
 - **Reduced motion:** no breathing, pulsing or counting flashes. Lights are
   steady, dim, or blink no faster than one 2-second change per 4 seconds. Your
   turn is bright blue and waiting is dim blue. Cues that can appear together also
@@ -295,7 +295,7 @@ about every two seconds and immediately after a save.
 
 ### Sigil-rendered light (2026-09-25)
 
-Sigils that render their own light (`LedState`, see PROTOCOL_AND_PAIRING.md)
+Sigils that render their own light (`LedState`, see RADIO_PROTOCOL.md)
 receive the same style choice and apply it locally with the same rules: Reduced
 motion turns breathing into steady light and faster blinks into the 4-second
 slow blink; Monochrome-safe lengthens elimination pulses and makes a long
@@ -352,16 +352,13 @@ in the portal/app, and win confirmations on the Sigil display.
 - On hold (owner, 2026-09-24): LED intensity and buzzer volume. The current
   Sigil hardware cannot vary them.
 
-Atlas's pairing window is adjustable (admin Device Settings, 2026-09-24).
-Since 2026-09-29 every pairing window lasts at least 60 s (owner decision), so
-nobody has to rush between the two devices: Atlas offers 60, 90 or 120 s and
-can be lengthened for players who need more time, never shortened below 60 s.
-The Sigil's own window is 60 s, so with a longer setting press Atlas's Pair
-first. Forgetting a pairing has a remote path (admin portal) as
-well as the Sigil Pair button's 3-second unpair hold, and ending a match as a draw (5-second
-End match hold on the Atlas touchscreen) shows an on-screen countdown during the hold and
-by "Draw" text in the portal and Android app.
 - Accessibility preferences for players without a profile (guests).
+
+**Timing already adjustable.** Every pairing window lasts at least 60 s
+(Atlas offers 60, 90 or 120 s), so nobody has to rush between devices.
+Forgetting a pairing has a remote path in the portal as well as the Sigil's
+3 s hold. Every hold on the Atlas screen counts down in words, and a draw shows
+as "Draw" text in the portal and app.
 
 ## Physical, digital, and hybrid participation policies
 

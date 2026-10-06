@@ -1,0 +1,16 @@
+# Atlas serial log downloaded by the owner during the first test of the app's launch
+# auto-connect (2026-09-30). App showed "No table nearby"; "Connect anyway" worked.
+# atlasId=THA-020000000001 bootId=15102B048519912DA7F198F2226406B5 firmware=0.6.0-dev uptimeMs=12503191
+# Earlier output dropped (8 KB RAM ring). Condensed: identical HEALTH lines every 60 s
+# from 9891 s to 12171 s with stations=0, freeHeap ~97.7-98.0 KB, minimumFreeHeap 67492,
+# largestFreeBlock 94196, loopStackFreeBytes 3916, resetReason power_on.
+[  12171.879] ATLAS|HEALTH|stations=0|{"uptimeMs":12171880,"resetReason":"power_on","freeHeap":97772,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12219.349] ATLAS|HEALTH|stations=1|{"uptimeMs":12219350,"resetReason":"power_on","freeHeap":95888,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12279.350] ATLAS|HEALTH|stations=1|{"uptimeMs":12279350,"resetReason":"power_on","freeHeap":95792,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12324.050] ATLAS|HEALTH|stations=0|{"uptimeMs":12324052,"resetReason":"power_on","freeHeap":97740,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12324.712] ATLAS|HEALTH|stations=1|{"uptimeMs":12324713,"resetReason":"power_on","freeHeap":95828,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12384.712] ATLAS|HEALTH|stations=1|{"uptimeMs":12384712,"resetReason":"power_on","freeHeap":95896,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12423.678] ATLAS|HEALTH|stations=0|{"uptimeMs":12423678,"resetReason":"power_on","freeHeap":97924,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+[  12460.290] ATLAS|HEALTH|stations=1|{"uptimeMs":12460291,"resetReason":"power_on","freeHeap":95828,"minimumFreeHeap":67492,"largestFreeBlock":94196,"loopStackFreeBytes":3916}
+# Reading: the phone only associates when the owner taps Connect (stations 0 -> 1); the
+# launch search never joined. Atlas itself was healthy and advertising throughout.

@@ -13,7 +13,7 @@ constexpr uint32_t LOOP_STACK_WARNING_BYTES = 3 * 1024;
 
 // Atlas board: LCDwiki 2.8" ESP32-32E display module (E32R28T, resistive
 // touch). Pin map from the vendor's pin allocation table; see
-// Documentation/engineering/HARDWARE_REFERENCE.md. The previous prototype's
+// Documentation/engineering/HARDWARE.md. The previous prototype's
 // Pair button, status/Pair LEDs and master button are not carried over: the
 // touchscreen is Atlas's only physical input (GPIO0 stays the flashing-only
 // BOOT strap).

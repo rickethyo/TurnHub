@@ -200,7 +200,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font:.78rem/1.55 ui-mon
 // the microSD card has no portal pack: a dead or missing card must not take
 // away the essentials (owner, 2026-10-02). Game status and the player's own
 // controls, accessibility preferences, device settings, updates and the
-// portal pack install. The full portal is the SD pack (PORTAL_PACK.md).
+// portal pack install. The full portal is the SD pack (WEB_PORTAL.md).
 const char BASIC_PORTAL_HTML[] PROGMEM = R"HTML(
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>TurnHub basic portal</title>
 <script>try{const h=document.documentElement;h.dataset.theme=localStorage.getItem('turnhubTheme')||(matchMedia('(prefers-contrast: more)').matches?'contrast':'brass');if(localStorage.getItem('turnhubReduceMotion')==='1')h.dataset.motion='reduce'}catch(_){}</script>

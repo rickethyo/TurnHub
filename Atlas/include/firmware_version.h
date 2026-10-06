@@ -5,7 +5,7 @@
 namespace TurnHubFirmware {
 
 // Keep MAJOR/MINOR/PATCH and VERSION in step. The numbers go into the
-// firmware descriptor that OTA packages are checked against (SIGIL_OTA.md).
+// firmware descriptor that OTA packages are checked against (FIRMWARE_UPDATES.md).
 constexpr uint8_t MAJOR = 0;
 constexpr uint8_t MINOR = 6;
 constexpr uint8_t PATCH = 8;

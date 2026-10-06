@@ -29,7 +29,7 @@ namespace {
 
 // --- Brass theme ---------------------------------------------------------------
 //
-// The portal's Brass look (WEB_PORTAL_DESIGN.md) carried onto the TFT
+// The portal's Brass look (WEB_PORTAL.md) carried onto the TFT
 // (2026-09-29): a walnut ground, riveted plates, polished brass for the
 // header and the main actions, an engraved serif (Cinzel) for words and
 // lining figures (Oswald) for numbers. Gears, rivets and the gauge are

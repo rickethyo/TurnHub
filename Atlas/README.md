@@ -6,7 +6,7 @@ radio to Sigils and NVS/microSD persistence. Firmware version: see
 `include/firmware_version.h` (0.6.6 at the time of writing).
 
 Module layout and the Intent pipeline are described in the repository's
-`CLAUDE.md` and in [Software Architecture](../Documentation/engineering/SOFTWARE_ARCHITECTURE.md).
+`CLAUDE.md` and in [Software Architecture](../Documentation/engineering/ARCHITECTURE.md).
 First-run setup is in [First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md);
 the longer-term provisioning direction (home Wi-Fi, recovery mode) is in [`OOBE.md`](OOBE.md).
 
@@ -18,7 +18,7 @@ the longer-term provisioning direction (home Wi-Fi, recovery mode) is in [`OOBE.
 - ESP-NOW Sigil transport and the WPA2 access point, both on Wi-Fi channel 6.
 
 Pins and the touchscreen layout are in the
-[Hardware Reference](../Documentation/engineering/HARDWARE_REFERENCE.md).
+[Hardware Reference](../Documentation/engineering/HARDWARE.md).
 
 ## Profiles and phone play
 
@@ -41,9 +41,7 @@ failed PIN attempts within 15 seconds throttle that profile.
 Limits: 16 table participants (8 physical Sigils, two seats each), 32 browser
 sessions, 64 profiles, 8 Wi-Fi stations at once.
 
-Details: [Profile login and virtual play](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md),
-[Physical profile selection](../Documentation/engineering/PHYSICAL_PROFILE_SELECTION.md),
-[Accounts and moderation](../Documentation/engineering/ACCOUNTS_AND_MODERATION.md).
+Details: [Players and Accounts](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md).
 
 ## Turn-pass grace
 
@@ -58,7 +56,7 @@ which passes at once and logs `ATLAS|GAME|MASTER_PASS`.
 
 Every ending (win, concession, elimination, End match draw) reaches statistics
 through the engine's single game-completed event, after the finished-match
-checkpoint commits ([completion ordering](../Documentation/engineering/COMPLETION_RECOVERY.md)).
+checkpoint commits ([completion ordering](../Documentation/engineering/STORAGE_AND_RECOVERY.md)).
 NVS keeps a core record per profile (games played and won, last result and
 game type); the detailed record (turn counts and times, game times, first
 starts, eliminations) lives on the microSD card. After a completed game the
@@ -88,7 +86,7 @@ logs `ATLAS|WIFI_AP|PASSWORD_STORE|DEFAULT` or `|LOADED`, and the portal shows
 Atlas writes pipe-separated `ATLAS|...` lines to USB serial (115200 baud)
 through `TurnHub::serialLog`. The same output goes to an 8 KB RAM ring, each
 line stamped with uptime (`[     12.345]`), and is drained to the microSD card
-when one is present ([SD diagnostics](../Documentation/engineering/SD_DIAGNOSTICS.md)).
+when one is present ([SD diagnostics](../Documentation/engineering/DIAGNOSTICS.md)).
 A Developer can download the RAM log from the Developer page (`/dev`) or:
 
 ```text
@@ -126,7 +124,7 @@ Find the port each time (Atlas is the CH340 port); never hard-code it. Signed
 local builds, the one-button `tools\flash-all.cmd` (run `tools\setup-boards.cmd`
 first on a new PC or with new boards) and OTA updates are
 described in the repository's `CLAUDE.md` and in
-[Sigil OTA](../Documentation/engineering/SIGIL_OTA.md). The portal is at
+[Sigil OTA](../Documentation/engineering/FIRMWARE_UPDATES.md). The portal is at
 `192.168.4.1`.
 
 Host regression tests (no hardware) are in [`tests/host/`](tests/host/README.md).

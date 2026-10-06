@@ -1,6 +1,6 @@
 #pragma once
 
-// Sigil OTA (SIGIL_OTA.md, "Update sequence"): takes an update offer from
+// Sigil OTA (FIRMWARE_UPDATES.md, "Update sequence"): takes an update offer from
 // Atlas, joins Atlas's Wi-Fi, downloads the staged .thfw package, checks its
 // signature and hash while writing the image into the idle slot, and
 // restarts into it. The new image stays pending until it has a secure

@@ -3,7 +3,7 @@
 // Signed firmware packages (.thfw) for Atlas and Sigil updates: the embedded
 // build descriptor, the 128-byte signed header, the version rule, and a
 // streaming reader that checks a package while it is written to flash.
-// Design: Documentation/engineering/SIGIL_OTA.md ("Firmware package").
+// Design: Documentation/engineering/FIRMWARE_UPDATES.md ("Firmware package").
 //
 // The algorithms come from a PackageCrypto backend: mbedTLS SHA-256 and
 // ECDSA P-256 on the ESP32s, a stand-in in the host tests. The packaging tool
@@ -24,7 +24,7 @@ constexpr uint8_t HEADER_FORMAT = 1;
 constexpr size_t SIGNED_BYTES = 64;      // The header bytes the signature covers.
 
 // Portal is the Atlas web portal pack (Atlas/web): not a firmware image but a
-// signed file archive that Atlas unpacks onto its SD card (PORTAL_PACK.md).
+// signed file archive that Atlas unpacks onto its SD card (WEB_PORTAL.md).
 enum class Product : uint8_t { Atlas = 1, SigilEink = 2, SigilOled = 3, Portal = 4 };
 
 inline bool knownProduct(uint8_t product) {

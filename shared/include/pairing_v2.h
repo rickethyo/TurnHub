@@ -1,6 +1,6 @@
 #pragma once
 
-// Pairing v2 (Documentation/engineering/SECURE_LINK.md): X25519 key agreement
+// Pairing v2 (Documentation/engineering/PAIRING_AND_SECURE_LINK.md): X25519 key agreement
 // at pairing, a 4-digit code shown on both the Sigil and Atlas, and nothing
 // stored until the owner confirms the codes match. Pure logic over the Crypto
 // interface (secure_link.h), so both firmwares share it and host tests drive
@@ -35,7 +35,7 @@ class SigilPairing {
 
   // Pair pressed: a fresh key pair; `out` is the broadcast request.
   // A spare Sigil sends PairRequestSpare, which Atlas confirms without the
-  // code check (SPARE_SIGIL.md).
+  // code check (FIRMWARE_UPDATES.md).
   bool begin(Crypto &crypto, int32_t token, PairRequest2Packet &out, bool spare = false) {
     cancel();
     if (!crypto.generateKeyPair(private_, public_)) return false;

@@ -1,242 +1,108 @@
-# First-run guided setup (out-of-box experience)
+# First-run Setup
 
-Started 2026-09-30. Status: implemented in Atlas and the Android app and in
-use (owner, 2026-10-02). The portal steps followed on 2026-10-02 in the SD
-portal pack (PORTAL_PACK.md, "Pages"); the manual section is still open.
+The guided setup for a new or factory-reset Atlas (2026-09-30), in Atlas, the
+Android app and the portal pack, and in use (owner, 2026-10-02). It is the
+implemented part of the broader provisioning ideas in `Atlas/OOBE.md`.
 
-This is the first implementation slice of [Atlas OOBE](../../Atlas/OOBE.md)
-("3. Setup wizard"). It builds on pieces that already exist: first-Admin
-setup (`/api/accounts/setup`), table presence codes (`front_panel.cpp`), the
-Wi-Fi password endpoint, and factory reset.
+## Principles
 
-## What it should feel like
-
-The model is a small consumer device such as a smart speaker, streaming stick
-or Wi-Fi router. You power it on, the device itself tells you the one thing
-to do next, your phone walks you through a few short screens, and the device
-then says "You're all set" and offers the obvious next step. The rules this
-product adds:
-
-- **Local-first.** No cloud account and no internet. Everything runs on
-  Atlas's own Wi-Fi.
-- **Physical presence.** Only someone at the table can claim a new Atlas. The
-  existing six-digit presence code proves it.
-- **The public default Wi-Fi password must be replaced** (OOBE.md): setup
-  can't finish without an owner-chosen password.
-- **Never block play.** A table that wants to play first can tap **Skip for
-  now**. Sigils and phones join as usual, and setup comes back at the next
-  start-up and under Menu.
-- **One flow, app first** (owner, 2026-09-30). Atlas defines the steps and
-  client-neutral endpoints; the Android app and the portal both run through
-  the same flow. The app is built first because it is much easier to connect:
-  it joins Atlas's Wi-Fi by itself (`TargetedAtlasWifiLink`, default
-  passphrase first). The portal follows with the same steps on the same
-  endpoints; until then its existing first-Admin banner still works.
-- **No QR codes needed.** Owner, 2026-09-30: the QR codes have seen little
-  use. The Atlas screen gives setup as typed text (network name, password,
-  address). QR codes stay where they already are, but setup doesn't depend on
-  them.
-- **Accessibility.** Every step is text on the Atlas screen and an accessible
-  web form on the phone (labels, live status region, keyboard, WCAG 2.2 AA
-  target). Nothing relies on color, sound or LEDs.
+- **Local-first:** no cloud account or internet; everything runs on Atlas's
+  own Wi-Fi.
+- **Physical presence:** only someone at the table can claim a new Atlas, via
+  the six-digit presence code ([Players and Accounts](PLAYERS_AND_ACCOUNTS.md)).
+- **The public default Wi-Fi password must be replaced** before setup can
+  finish. The default `TurnHub-Setup` lives in `Atlas/include/config.h`
+  (`WIFI_DEFAULT_PASSWORD`) and `WifiCredentials.DEFAULT_ATLAS_PASSPHRASE`;
+  keep them in sync.
+- **Never block play:** **Skip for now** on the Atlas screen lets a table
+  play first; setup comes back at the next start-up and under Menu.
+- **One flow, app first:** Atlas defines the steps and endpoints; the app and
+  the portal both follow them. The app is easiest because it joins Atlas's
+  Wi-Fi by itself. Setup gives the network as typed text and doesn't depend
+  on QR codes.
 
 ## The flow
 
 ```text
-Atlas powers on, setup stage = Welcome
-  Atlas screen: "Welcome to TurnHub"
-    1. Open the TurnHub app and tap Connect
-       (it joins the table's Wi-Fi itself)
-    2. No app? Wi-Fi TurnHub-Atlas,
-       password TurnHub-Setup, then 192.168.4.1
-    [Skip for now] [Menu]
+Atlas, stage Welcome: "Welcome to TurnHub"
+  1. Open the TurnHub app and tap Connect (it joins the table's Wi-Fi)
+  2. No app? Wi-Fi TurnHub-Atlas, password TurnHub-Setup, then 192.168.4.1
+  [Pair a Sigil] [Skip for now] [Menu]
 
-Android app, "Set up this table" (one step per screen, "Step n of 5"):
-  1. Your account   create one (name + PIN) or sign in to an existing one
-  2. At the table   Atlas shows a six-digit code; type it on the phone.
-                    That makes this account the Admin.
-  3. Sigils         pair each Sigil (the usual code check on the Atlas
-                    screen); "I have no Sigils yet" skips it
-  4. Updates        one prompt for every device: Atlas and each paired Sigil,
-                    running and available versions. Install all (recommended)
-                    or Later. Atlas first, then the Sigils one at a time.
-  5. Secure Wi-Fi   choose the table's own Wi-Fi password (8-63 characters);
-                    Finish saves it, marks setup finished and restarts Atlas
+Phone, "Set up this table" (Step n of 5):
+  1. Your account   create one or sign in
+  2. At the table   type the code Atlas shows; this account becomes the Admin
+  3. Sigils         pair each one (code check on the Atlas screen), or skip
+  4. Updates        Atlas and every Sigil: running vs available; Install all
+                    or Later. Atlas first, then each Sigil
+  5. Secure Wi-Fi   choose the table's password (8-63 characters);
+                    Finish saves it and restarts Atlas
 
-Atlas restarts, setup stage = Finished
-  Atlas screen: "You're all set"
-    Rejoin TurnHub-Atlas with the new password.
-    Next: pair your Sigils.
-    [Pair a Sigil] [Done]   (either one leaves setup: stage = Complete)
-  If a Sigil (not the test harness) was already paired when the phone
-  finished, Atlas skips this screen and goes straight to Complete
-  (owner, 2026-09-30): it only exists to say "pair your Sigils".
+Atlas restarts, stage Finished: "You're all set. Next: pair your Sigils."
+  [Pair a Sigil] [Done]  -> stage Complete
+  (skipped straight to Complete if a real Sigil was already paired)
 ```
 
-After Connect, the app reads `GET /api/setup`. While the stage is Welcome it
-opens the setup steps instead of the table view. On launch the app rejoins
-its saved table by itself; a phone with no saved table, or whose table no
-longer answers (factory reset), offers "Set up a new table" (Android/README.md;
-no Wi-Fi scan, which would need location permission). After the
-restart, the app rejoins with the password it just set (it saves it, like
-any password it used), so the owner doesn't retype it, and shows its own
-"You're all set" step.
+The app reads `GET /api/setup` after Connect and opens setup while the stage
+is Welcome. After Atlas restarts on the new password, the app rejoins with the
+password it just set. On launch it rejoins its saved table; a phone with none,
+or whose table no longer answers, offers "Set up a new table". The portal
+pack runs steps 1, 2 and 5; pairing and updates stay on the Atlas screen and
+in the app.
 
-The first owner run on hardware (2026-09-30) went through every step, but the
-app crashed when Atlas restarted onto the new password: the `SetupHost`
-object's `reconnectAfterRestart()` called itself (a `StackOverflowError`, log
-in `logs/2026-09-30-app-crash-setup-finish.log`). Fixed the same day; the
-update step used the same path.
+**Updates during setup** use the GitHub release feed
+([Firmware Updates](FIRMWARE_UPDATES.md)). They come after the table code
+(installing needs a verified Admin) and pairing (one prompt for every
+device), and before the password change (so every restart still uses the
+printed password). The app's network specifier leaves the phone's own
+internet as the default network, so downloads go over the phone's connection.
+With no internet the step says so and Continue works. Atlas sessions and
+presence are RAM only, so after Atlas restarts the app signs in again and asks
+for one new code before updating the Sigils.
 
-## Checking for updates during setup
+## Stages and storage
 
-Owner, 2026-09-30: check for updates during setup, with GitHub hosting the
-firmware "at least for now". This reuses the Sigil OTA delivery design
-([Sigil OTA](SIGIL_OTA.md), "Release feed" and "App delivery"):
+`SetupStage` in NVS `turnhub/setup` (`setup_stage.h`):
 
-- **Host:** GitHub Releases on the public `rickethyo/TurnHub` repository. A
-  `v*` tag runs `release.yml`, which builds, signs and publishes the `.thfw`
-  packages and `turnhub-firmware.json`. The app reads
-  `https://github.com/rickethyo/TurnHub/releases/latest/download/turnhub-firmware.json`
-  with no token (public repository). Moving to another host later only
-  changes that URL. *Planned:* no release has been published yet, so until
-  the first one the step reports "no release published yet" and moves on.
-- **Where in setup:** after the table code (installing needs a verified
-  Admin) and after pairing, so one prompt updates every device and gets it
-  out of the way (owner, 2026-09-30: "update all devices at the same time
-  initially ... if the user accepts the update prompt"). Atlas updates first
-  and the app waits for it to come back, then each Sigil in turn (the Sigil
-  OTA order). All of it comes before the Wi-Fi password, so every restart
-  still uses the printed password and the app reconnects by itself. Atlas
-  sessions and table verification are RAM-only, so after Atlas restarts the
-  app signs in again with the PIN from step 1 and asks for one new table code
-  before updating the Sigils.
-- **Internet:** the app joins Atlas with a network specifier, which leaves
-  the phone's own internet as the default network, so the feed and package
-  download go over the phone's connection while the install goes to Atlas.
-  With no internet, the step says so and offers Skip; setup never depends on
-  it.
-- **Trust:** the app checks each download's size and SHA-256 against the
-  feed; Atlas checks the package signature itself on `/api/firmware` and
-  refuses anything unsigned or for another board. A tampered feed can only
-  point at a package that fails those checks.
-- **Never forced:** Later always works; an out-of-date Atlas still plays.
-
-## Setup stages
-
-`SetupStage` is stored in NVS (`turnhub` namespace, key `setup`, schema 1,
-two bytes `{1, stage}`):
-
-| Stage | Meaning | Atlas screen (lobby, nothing else open) |
+| Stage | Meaning | Atlas screen |
 |---|---|---|
-| `Welcome` (0) | New or factory-reset Atlas | Welcome instructions |
-| `Finished` (1) | The phone finished the wizard | "You're all set" once |
-| `Complete` (2) | Normal operation | The ordinary lobby |
+| `Welcome` (0) | New or factory-reset | Welcome |
+| `Finished` (1) | The phone finished | "You're all set" once |
+| `Complete` (2) | Normal operation | Ordinary lobby |
 
-- **No record at boot:** Complete if an Admin already exists (an Atlas set up
-  before this feature: no surprise wizard after a firmware update), otherwise
-  Welcome. The result is saved.
-- **Factory reset** erases NVS, so the Atlas starts again at Welcome.
-- **Storage failure** reads as Complete, so a broken NVS can never lock the
-  table in setup. It is logged `ATLAS|SETUP|STAGE|LOAD_FAILED`.
+No record at boot reads as Complete if an Admin exists, otherwise Welcome. A
+storage failure reads as Complete (logged `ATLAS|SETUP|STAGE|LOAD_FAILED`),
+so a broken NVS never locks the table in setup. Factory reset returns to
+Welcome. Stages never go backwards otherwise.
 
 ## Feature gate
 
-1. **State owner:** Atlas. The new `first_run_setup.cpp` holds the stage.
-   **Skip for now** is RAM-only presentation state on the touchscreen
-   (Invariant 6), not a table decision.
-2. **Intent:** `IntentType::AdvanceSetup`, `payload.value` = target stage.
-   Welcome to Finished comes from the portal (a presence-verified Admin,
-   `payload.moderatorId`). Finished to Complete comes from the touchscreen
-   (`IntentOrigin::AtlasHardware`) or a portal Admin. Stages never go
-   backwards; only factory reset returns to Welcome.
-3. **Validator:** `handleAdvanceSetupIntent`. To Finished: an Admin, verified
-   at the table, between games (Lobby or GameOver), with an owner-set Wi-Fi
-   password already stored. With a real Sigil already paired, the same
-   request stores Complete instead. To Complete: the current stage is Finished.
-4. **Persistence owner:** `first_run_setup.cpp` through the `turnhub`
-   `NvsBlobStore`, like the pairing window and speaker volume. The Wi-Fi
-   password keeps its own store (`wifi_password_store.h`).
-5. **Rendering clients:** the Atlas touchscreen (`ScreenKind::Setup`) and the
-   Android app's setup steps, both reading `GET /api/setup`. The portal is
-   unchanged apart from what the new stage needs; its first-Admin banner
-   still works.
-6. **Protocol/contract:** no radio change. New portal-private HTTP routes
-   `GET /api/setup` and `POST /api/setup/finish`. They are not part of the
-   `/api/v1` client contract, so no schema change.
-7. **Third-party dependencies:** none.
-8. **Accessibility:** covered above. The touchscreen uses the existing 60 px
-   button rows and text lines.
+1. **State owner:** Atlas (`setup_stage.h`; `beginFirstRunSetup` in `table_intents.cpp` loads it at boot). Skip
+   for now is RAM-only touchscreen state.
+2. **Intent:** `AdvanceSetup`, `value` = target stage. To Finished: a
+   presence-verified Admin from a phone. To Complete: the touchscreen or an
+   Admin.
+3. **Validator:** `handleAdvanceSetupIntent`: to Finished needs a verified
+   Admin, Lobby or Game Over, and an owner-set Wi-Fi password already saved
+   (with a real Sigil paired it stores Complete instead); to Complete needs
+   stage Finished.
+4. **Persistence:** `turnhub/setup`; the Wi-Fi password keeps its own store.
+5. **Rendering:** the touchscreen (`ScreenKind::Setup`), the app's setup
+   steps and the portal pack.
+6. **Contract:** portal-private routes, not part of `/api/v1`:
+   `GET /api/setup` (no sign-in; stage, `adminExists`, `passwordIsDefault`,
+   SSID, never the password) and `POST /api/setup/finish` (`password=`;
+   saves the password, then the stage, then restarts; a refused
+   `AdvanceSetup` means no restart). If power is cut between the two writes,
+   setup simply runs again.
+7. **Dependencies:** none.
+8. **Accessibility:** every step is text on the Atlas screen and an
+   accessible form on the phone; nothing relies on color, sound or LEDs.
 
-## HTTP
+## Status
 
-- `GET /api/setup`, no sign-in: `{"stage":"welcome|finished|complete",
-  "adminExists":bool,"passwordIsDefault":bool,"ssid":"TurnHub-Atlas"}`. It
-  reveals nothing `/api/accounts/setup` and `/api/network` don't already
-  reveal to their callers, and never the password.
-- `POST /api/setup/finish` (`password=`), a presence-verified Admin, stage
-  Welcome: saves the Wi-Fi password, dispatches `AdvanceSetup` to Finished,
-  answers, then restarts Atlas so the new password takes effect. If
-  `AdvanceSetup` is refused, the answer is the refusal and Atlas does not
-  restart.
-
-The password is written before the stage. If power is cut in between, Atlas
-comes back at Welcome with an Admin and a private password, and the wizard
-simply runs again: sign in, verify, re-enter a password.
-
-## Resume checklist
-
-- [x] Design and feature gate (this file); branch created.
-- [x] `setup_stage.h`: stage codec, load/save (`game_settings_store.cpp`),
-      boot migration (`beginFirstRunSetup` in `table_intents.cpp`).
-- [x] `IntentType::AdvanceSetup`, handler, binding, host scenario
-      `firstRunSetup`.
-- [x] Touchscreen `ScreenKind::Setup` (Welcome with Pair a Sigil, Skip and
-      Menu; "You're all set" with Pair a Sigil and Done), Setup under Menu.
-      Drawn by the generic text-lines layout; no `atlas_art.cpp` layout change.
-- [x] `GET /api/setup`, `POST /api/setup/finish` (host scenario).
-- [x] Android: `AtlasSetupAssistant`, `SetupScreen`, `HomeViewModel` wiring,
-      account registration, `GitHubFirmwareReleases`, `UpdatePlan`,
-      multipart package upload; JVM tests (`AtlasSetupAssistantTest`,
-      `FirmwareReleasesTest`).
-- [x] Source lists: no new Atlas `.cpp` files, so the runners are unchanged.
-- [x] Firmware build through CI on this branch: run 36679680047, all jobs
-      green (every firmware environment, Linux host tests, Android).
-- [x] Portal: account, presence code and Wi-Fi steps on the same endpoints, in
-      the SD portal pack (2026-10-02). Pairing and updates stay on the Atlas
-      screen and in the app.
-- [x] First signed GitHub release: `v0.9.1` (2026-09-30, run 36784495173):
-      Atlas 0.6.1, Sigils 0.9.1, protocol 3. The feed is live at the
-      `releases/latest` URL above.
-- [ ] User manual: a "Setting up a new table" section (not written yet).
-- [x] Size history snapshot (SIZE_AND_CHANGE_HISTORY.md).
-- Later: Atlas name.
-
-## Verification
-
-- *Verified on the host (2026-09-30):* all Atlas host scenarios including
-  `firstRunSetup`, the adapter audit and the client-contract check (MinGW
-  runner); all 129 Android JVM tests; `assembleDebug` builds.
-- *Needs verification* on hardware, from a factory-reset Atlas:
-  1. Welcome shows on the Atlas screen; Skip hides it until restart; Setup
-     under Menu brings it back; Pair a Sigil opens pairing and the countdown.
-  2. The app: Connect shows setup; create an account; the code screen on
-     Atlas makes it the Admin.
-  3. Pair two Sigils (one of each display); the app lists them.
-  4. With a published release: install all. Atlas restarts, the app
-     reconnects and signs in by itself, one new code, then each Sigil
-     updates; interrupt one (power) and confirm the app reports it and setup
-     continues. Without internet: the step says so and Continue works.
-  5. Finish with a new password: Atlas restarts and the app rejoins by itself
-     (no crash). With no Sigils paired, Atlas shows "You're all set" and Done
-     returns to the lobby; with Sigils paired, Atlas goes straight to the
-     lobby. A restart afterwards shows the ordinary lobby.
-  7. App launch: near the set-up table the app connects with no taps
-     (*Verified* on the Pixel Fold, 2026-09-30); with the table off or
-     factory-reset it says "Couldn't reach your table" and Set up a new
-     table opens setup. Still to check: whether Android shows its own
-     dialog while rejoining a table that is switched off.
-  8. Settings > Wi-Fi password and Atlas factory reset: the app rejoins by
-     itself (factory reset then opens setup).
-  6. An Atlas already set up before this firmware boots straight to the
-     lobby (it has an Admin).
+Host scenario `firstRunSetup`, Android JVM tests (`AtlasSetupAssistantTest`,
+`FirmwareReleasesTest`) and a full owner run on hardware (2026-09-30; an app
+crash on the final reconnect was fixed the same day, log in
+[history/logs](history/logs/README.md)). Still open: a "Setting up a new
+table" section in the user manual, and an Atlas name step later.

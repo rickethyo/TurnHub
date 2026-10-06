@@ -39,7 +39,7 @@ does this: it tries a saved password, then this default, then prompts.
    requests. `POST /api/session/join` joins the authenticated profile.
 4. `GET /api/session/me` resolves the session's current `module`, `slot`, `player`
    and `participating` status. Physical companion attachment retains its existing
-   [physical claim flow](../Documentation/engineering/PROFILE_LOGIN_AND_VIRTUAL_PLAY.md).
+   [physical claim flow](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md).
 5. Fetch state. Map semantic `PASS` to `POST /api/control/pass` with
    `application/x-www-form-urlencoded` fields, not the draft JSON envelope.
    Atlas resolves the actor from the session, never client-supplied seat IDs.
@@ -121,7 +121,7 @@ verified (for 10 minutes), 400 for a wrong code, 409 when no code is showing
 for that account, and 429 after five wrong codes. `POST /api/presence/lock`
 ends verification. Protected requests without verification return
 `403 {"presenceRequired": true}`. See
-[Turn timer and cues](../Documentation/engineering/TURN_TIMER_AND_CUES.md).
+[Turn timer and cues](../Documentation/engineering/GAMEPLAY.md).
 
 ## First-run setup (2026-09-30)
 
