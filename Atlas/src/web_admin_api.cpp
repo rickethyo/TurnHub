@@ -645,7 +645,10 @@ void handlePresenceRequest(WebServer &server) {
   const String profile = presenceProfile(server);
   if (!profile.length()) return;
   const bool setup = setupPending();
-  if (!setup && !TurnHubAccounts::has(profile, TurnHubAccounts::Admin)) {
+  // Turning on tablet mode is open to any account; every other use of the
+  // grant also checks Admin, so a player's code unlocks only the tablet.
+  const bool tablet = server.arg("purpose") == "tablet";
+  if (!setup && !tablet && !TurnHubAccounts::has(profile, TurnHubAccounts::Admin)) {
     sendError(server, 403, "Only an Admin can verify at the table");
     return;
   }

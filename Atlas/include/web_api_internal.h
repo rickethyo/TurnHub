@@ -11,6 +11,7 @@
 //   web_game_api.cpp     v1 info/state, seats, game settings, life and
 //                        Commander counters, session controls
 //   web_admin_api.cpp    devices, network, serial log, account administration
+//   web_tablet_api.cpp   tablet mode: one shared table screen for every player
 
 #include <Arduino.h>
 #include <WebServer.h>
@@ -72,6 +73,9 @@ struct WebSession {
   // registration or setting a PIN). Sigil-press claims are not PIN-verified.
   // Gates the private moderation history.
   bool pinVerified = false;
+  // Tablet mode: a table presence code turned this browser into the shared
+  // table screen, which seats players and acts for any of them.
+  bool tableDevice = false;
 };
 
 // --- Shared state (defined in web_api.cpp / web_session.cpp) -----------------
@@ -131,6 +135,9 @@ WebSession *createProfileSession(const String &profileId, uint32_t nowMs, bool p
 // {"ok":true,"token":...,"profileId":...}, or 503 when no session slot is free.
 void sendLogin(WebServer &server, WebSession *session);
 bool resolveSessionParticipant(WebSession &session);
+// Checks another profile's PIN or password, rate limited like a sign-in, and
+// admits the account (archived ones are refused). Sends the error.
+bool verifyProfileSecret(WebServer &server, const String &profileId, const String &pin);
 // The session's profile ID if the profile still exists, else empty.
 String sessionProfileId(const WebSession &session);
 // Expires stale sessions and re-resolves every session's seat once, so a
@@ -175,10 +182,21 @@ void handleState(WebServer &server);
 void handleSeats(WebServer &server);
 void handleGameSettings(WebServer &server);
 void handleSaveGameSettings(WebServer &server);
+// Next-game settings from the request over the current ones; sends 400 when invalid.
+bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings);
 void handleChangeLife(WebServer &server);
 void handleCounters(WebServer &server);
 void handleCounterControl(WebServer &server, TurnHub::IntentType type);
+// Life or Commander request fields of a counter control; false when invalid.
+bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload);
+bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &value);
+bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed);
+// {"ok":true} or 409 with the seat callback's message.
+void sendSeatResult(WebServer &server, bool accepted, const String &message);
 void runControl(WebServer &server, WebControl control);
+// A session control for a seat already authorized: optional expectedRevision,
+// then the control callback; answers like /api/control/*.
+void runSeatControl(WebServer &server, uint8_t controllerId, uint8_t slot, WebControl control);
 
 // --- Administration (web_admin_api.cpp) ---------------------------------------------
 
@@ -210,6 +228,17 @@ void handleAccounts(WebServer &server);
 void handleAccountPermissions(WebServer &server);
 void handleAccountArchive(WebServer &server);
 void handleModerate(WebServer &server);
+
+// --- Tablet mode (web_tablet_api.cpp) ------------------------------------------------
+
+void handleTabletEnable(WebServer &server);
+void handleTabletDisable(WebServer &server);
+void handleTabletSeat(WebServer &server);
+void handleTabletUnseat(WebServer &server);
+void handleTabletControl(WebServer &server);
+void handleTabletLife(WebServer &server);
+void handleTabletSettings(WebServer &server);
+void handleTabletCounter(WebServer &server, TurnHub::IntentType type);
 
 }  // namespace internal
 }  // namespace TurnHubWebApi

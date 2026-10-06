@@ -24,6 +24,8 @@ struct CounterWorkspaceLease {
   ~CounterWorkspaceLease() { counterWorkspaceBusy = false; }
 };
 
+}  // namespace
+
 // Parses a decimal life value or delta within +/-LIFE_LIMIT.
 bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed) {
   if (!text.length() || text.length() > 8) return false;
@@ -40,6 +42,8 @@ bool parseLifeInteger(const String &text, int32_t &value, bool negativeAllowed) 
   return true;
 }
 
+namespace {
+
 // Whole milliseconds, 0 (OFF) or within the Atlas range; Atlas validates again.
 bool parseTurnTimer(const String &text, uint32_t &value) {
   if (!text.length() || text.length() > 7) return false;
@@ -52,10 +56,14 @@ bool parseTurnTimer(const String &text, uint32_t &value) {
   return TurnHub::validTurnTimerMs(number);
 }
 
+}  // namespace
+
 // A positive decimal within [min, max].
 bool parseBoundedNumber(const String &text, int32_t min, int32_t max, int32_t &value) {
   return parseLifeInteger(text, value, false) && value >= min && value <= max;
 }
+
+namespace {
 
 const char *lifeChangeStateName(TurnHub::LifeChangeState state) {
   using TurnHub::LifeChangeState;
@@ -77,6 +85,8 @@ WebSession *requireSession(WebServer &server) {
   return session;
 }
 
+}  // namespace
+
 // Reports a seat callback's outcome: {"ok":true} or 409 with its message.
 void sendSeatResult(WebServer &server, bool accepted, const String &message) {
   if (!accepted) {
@@ -85,6 +95,8 @@ void sendSeatResult(WebServer &server, bool accepted, const String &message) {
   }
   sendJson(server, 200, "{\"ok\":true}");
 }
+
+namespace {
 
 // Control responses carry the state revision so clients can tell whether
 // their snapshot is still current.
@@ -210,11 +222,8 @@ void handleGameSettings(WebServer &server) {
   sendJson(server, 200, json);
 }
 
-void handleSaveGameSettings(WebServer &server) {
-  WebSession *session = requireSession(server);
-  if (!session) return;
+bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings) {
   // Omitted fields keep their current value, so a client can change one setting.
-  TurnHub::GameSettings settings;
   bool editable = false;
   if (readGameConfiguration) readGameConfiguration(settings, editable);
   if ((server.hasArg("gameProfile") &&
@@ -222,23 +231,31 @@ void handleSaveGameSettings(WebServer &server) {
       (server.hasArg("startingLife") &&
           !parseLifeInteger(server.arg("startingLife"), settings.startingLife, false))) {
     sendError(server, 400, "Choose a valid game profile and starting life from 0 to 1000000");
-    return;
+    return false;
   }
   if (server.hasArg("turnTimerMs") && !parseTurnTimer(server.arg("turnTimerMs"), settings.turnTimerMs)) {
     sendError(server, 400, "Turn timer must be off or 15 seconds to 60 minutes in whole seconds");
-    return;
+    return false;
   }
   if (server.hasArg("twoHeadedGiant")) {
     const String teams = server.arg("twoHeadedGiant");
     if (teams != "0" && teams != "1") {
       sendError(server, 400, "twoHeadedGiant must be 0 or 1");
-      return;
+      return false;
     }
     settings.twoHeadedGiant = teams == "1";
   } else if (!TurnHub::teamsAllowed(settings.profile)) {
     // Switching to a profile without teams turns Two-Headed Giant off.
     settings.twoHeadedGiant = false;
   }
+  return true;
+}
+
+void handleSaveGameSettings(WebServer &server) {
+  WebSession *session = requireSession(server);
+  if (!session) return;
+  TurnHub::GameSettings settings;
+  if (!parseGameSettings(server, settings)) return;
   String message = "Join the table first";
   const bool accepted = resolveSessionParticipant(*session) && configureGameHandler &&
       configureGameHandler(session->controllerId, session->slot, settings, message);
@@ -328,28 +345,28 @@ void handleCounters(WebServer &server) {
 
 // RequestLifeChange: delta + target. RespondLifeChange: requestId + accept.
 // ChangeCounter: delta + source + commander.
+bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload) {
+  if (type == TurnHub::IntentType::RespondLifeChange) return parseLifeResponse(server, payload);
+  int32_t number = 0;
+  bool valid = parseLifeInteger(server.arg("delta"), payload.value, true) && payload.value != 0;
+  if (type == TurnHub::IntentType::RequestLifeChange) {
+    valid = valid && parseBoundedNumber(server.arg("target"), 1, MAX_PLAYERS, number);
+    payload.targetPlayer = static_cast<uint8_t>(number);
+  } else {
+    valid = valid && parseBoundedNumber(server.arg("source"), 1, MAX_PLAYERS, number);
+    payload.counterSource = static_cast<uint8_t>(number);
+    valid = valid &&
+        parseBoundedNumber(server.arg("commander"), 1, TurnHub::COMMANDERS_PER_PLAYER, number);
+    payload.counterSlot = static_cast<uint8_t>(number);
+  }
+  return valid;
+}
+
 void handleCounterControl(WebServer &server, TurnHub::IntentType type) {
   WebSession *session = requireSession(server);
   if (!session) return;
   TurnHub::IntentPayload payload;
-  int32_t number = 0;
-  bool valid = true;
-  if (type == TurnHub::IntentType::RespondLifeChange) {
-    valid = parseLifeResponse(server, payload);
-  } else {
-    valid = parseLifeInteger(server.arg("delta"), payload.value, true) && payload.value != 0;
-    if (type == TurnHub::IntentType::RequestLifeChange) {
-      valid = valid && parseBoundedNumber(server.arg("target"), 1, MAX_PLAYERS, number);
-      payload.targetPlayer = static_cast<uint8_t>(number);
-    } else {
-      valid = valid && parseBoundedNumber(server.arg("source"), 1, MAX_PLAYERS, number);
-      payload.counterSource = static_cast<uint8_t>(number);
-      valid = valid &&
-          parseBoundedNumber(server.arg("commander"), 1, TurnHub::COMMANDERS_PER_PLAYER, number);
-      payload.counterSlot = static_cast<uint8_t>(number);
-    }
-  }
-  if (!valid) {
+  if (!parseCounterPayload(server, type, payload)) {
     sendError(server, 400, "Invalid life or Commander request");
     return;
   }
@@ -376,6 +393,10 @@ void runControl(WebServer &server, WebControl control) {
     sendJson(server, 409, "{\"ok\":false,\"error\":\"Seat is no longer at the table\"}");
     return;
   }
+  runSeatControl(server, session->controllerId, session->slot, control);
+}
+
+void runSeatControl(WebServer &server, uint8_t controllerId, uint8_t slot, WebControl control) {
   if (controlHandler == nullptr) {
     sendJson(server, 503, "{\"ok\":false,\"error\":\"Web controls are not configured\"}");
     return;
@@ -396,7 +417,7 @@ void runControl(WebServer &server, WebControl control) {
   }
 
   String message;
-  if (!controlHandler(session->controllerId, session->slot, control, message)) {
+  if (!controlHandler(controllerId, slot, control, message)) {
     sendControlResult(server, 409, "REJECTED",
         message.length() ? message : String("Control is not available right now"));
     return;

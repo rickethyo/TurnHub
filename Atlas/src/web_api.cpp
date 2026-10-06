@@ -138,6 +138,7 @@ namespace {
 // table can stay constant data in flash.
 template <WebControl C> void controlRoute(WebServer &server) { runControl(server, C); }
 template <TurnHub::IntentType T> void counterRoute(WebServer &server) { handleCounterControl(server, T); }
+template <TurnHub::IntentType T> void tabletCounterRoute(WebServer &server) { handleTabletCounter(server, T); }
 void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
@@ -237,6 +238,16 @@ const Route ROUTES[] = {
   {"/api/control/rematch", HTTP_POST, controlRoute<WebControl::Rematch>},
   {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
   {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
+  // Tablet mode: one shared table screen acting for any seated player.
+  {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
+  {"/api/tablet/disable", HTTP_POST, handleTabletDisable},
+  {"/api/tablet/seat", HTTP_POST, handleTabletSeat},
+  {"/api/tablet/unseat", HTTP_POST, handleTabletUnseat},
+  {"/api/tablet/control", HTTP_POST, handleTabletControl},
+  {"/api/tablet/life", HTTP_POST, handleTabletLife},
+  {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
+  {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
+  {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},
 };
 
 const Route *findRoute(HTTPMethod method, const String &uri) {
