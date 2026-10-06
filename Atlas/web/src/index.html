@@ -309,7 +309,7 @@ let profilePolicyDirty=false,profilePolicyOwner=null;
 let counterData=null,counterBusy=false,counterOwner=null;
 let statusData=null,deviceData={devices:[]},seatData={seats:[]},networkData=null,sessionInfo=null,pendingClaim=null,pendingTimer=null;
 let sessionToken=localStorage.getItem('turnhubSessionToken')||'';
-let lastObservedState=null,lastObservedActive=0,lastObservedConfirm=0,toastTimer=null,lastGauge=0;
+let lastObservedState=null,lastObservedActive=0,lastObservedConfirm=0,lastObservedNudge=0,toastTimer=null,lastGauge=0;
 const lifeSeen={};
 let browserPrefs={sound:true,vibration:true,volume:'medium'};
 try{browserPrefs=Object.assign(browserPrefs,JSON.parse(localStorage.getItem('turnhubBrowserPrefs')||'{}'))}catch(_){}
@@ -394,7 +394,7 @@ function saveAppearance(){const t=document.querySelector('input[name=theme]:chec
 function playFeedback(kind,force=false){if((browserPrefs.vibration||force)&&navigator.vibrate){const p=kind==='turn'?[70,35,70]:kind==='alert'?[100,50,100]:kind==='gameover'?[130,60,130]:[55];try{navigator.vibrate(p)}catch(_){}}
  if(!browserPrefs.sound&&!force)return;try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=window.turnhubAudioContext||(window.turnhubAudioContext=new Ctx());if(ctx.state==='suspended')ctx.resume();const gain=ctx.createGain();gain.gain.value=({low:.025,medium:.055,high:.1})[browserPrefs.volume]||.055;gain.connect(ctx.destination);let tones=[620];if(kind==='turn')tones=[700,900];else if(kind==='pause')tones=[440,330];else if(kind==='resume')tones=[440,660];else if(kind==='alert')tones=[760,760];else if(kind==='gameover')tones=[620,780,980];else if(kind==='test')tones=[620,820];tones.forEach((hz,i)=>{const o=ctx.createOscillator();o.type='sine';o.frequency.value=hz;o.connect(gain);const t=ctx.currentTime+i*.105;o.start(t);o.stop(t+.075)})}catch(_){}
 }
-function processBrowserFeedback(s){const me=sessionInfo&&sessionInfo.authenticated?Number(sessionInfo.player):0;if(lastObservedState!==null&&me){if(Number(s.active)===me&&Number(lastObservedActive)!==me)playFeedback('turn');if(Number(s.winConfirm)===me&&Number(lastObservedConfirm)!==me)playFeedback('alert');if(s.state!==lastObservedState){if(s.state==='PAUSED')playFeedback('pause');else if(s.state==='RUNNING'&&lastObservedState==='PAUSED')playFeedback('resume');else if(s.state==='GAME_OVER')playFeedback('gameover')}}lastObservedState=s.state;lastObservedActive=Number(s.active)||0;lastObservedConfirm=Number(s.winConfirm)||0}
+function processBrowserFeedback(s){const me=sessionInfo&&sessionInfo.authenticated?Number(sessionInfo.player):0;if(lastObservedState!==null&&me){if(Number(s.active)===me&&Number(lastObservedActive)!==me)playFeedback('turn');if(Number(s.winConfirm)===me&&Number(lastObservedConfirm)!==me)playFeedback('alert');if(Number(s.nudgeSeq)>lastObservedNudge&&Number(s.nudgeTo)===me&&Number(s.nudgeAgeMs)<10000){playFeedback('alert');showToast(`${playerLabel(s.nudgeFrom)} nudged you`)}if(s.state!==lastObservedState){if(s.state==='PAUSED')playFeedback('pause');else if(s.state==='RUNNING'&&lastObservedState==='PAUSED')playFeedback('resume');else if(s.state==='GAME_OVER')playFeedback('gameover')}}lastObservedState=s.state;lastObservedActive=Number(s.active)||0;lastObservedConfirm=Number(s.winConfirm)||0;lastObservedNudge=Number(s.nudgeSeq)||0}
 
 function buildGaugeTicks(){let out='';for(let i=0;i<=30;i++){const a=(-135+270*i/30)*Math.PI/180,major=i%5===0,r1=major?71:75,r2=81;out+=`<line class="${major?'major':''}" x1="${(100+r1*Math.sin(a)).toFixed(1)}" y1="${(100-r1*Math.cos(a)).toFixed(1)}" x2="${(100+r2*Math.sin(a)).toFixed(1)}" y2="${(100-r2*Math.cos(a)).toFixed(1)}"/>`}gaugeTicks.innerHTML=out}
 // Display only: Atlas owns the timer; the gauge redraws what /api/status reports.
@@ -501,6 +501,7 @@ function renderSession(){
  }else if(state.state==='STARTING'){buttons.push(`<button class="wide" onclick="sendControl('cancel-start')">Cancel countdown</button>`)}
  else if(state.state==='RUNNING'&&!me.eliminated){
   buttons.push(`<button class="primary wide xl" ${me.active?'':'disabled'} onclick="sendControl('pass')">${Number(state.passPending)===Number(me.player)?'Cancel pending pass':'Pass turn'}</button>`);
+  if(!me.active&&Number(state.active))buttons.push(`<button class="wide" onclick="sendControl('nudge')">Nudge ${esc(playerLabel(state.active))}</button>`);
   buttons.push(`<button onclick="sendControl('pause')">Pause</button>`);
   buttons.push(`<button ${me.active?'':'disabled'} onclick="sendControl('win')">Claim win</button>`);
   buttons.push(`<button class="bad wide" onclick="concede()">Concede</button>`);

@@ -51,7 +51,7 @@ Landscape, rotation 3. A 2 s splash, then the status screen in the Brass look
 
 | State | Buttons |
 |---|---|
-| Lobby | Start (two or more players), Clear (hold), Menu. Tap a chip for Earlier/Later and the B side |
+| Lobby | Start (two or more players), Clear (hold), Menu. Tap a chip for the Player screen: Earlier/Later, Remove (hold 2 s) and the B side |
 | Menu (between games) | Pair a Sigil (lobby), QR codes, Info, Device, Back |
 | Device (between games) | Unpair Sigils (hold 3 s), Factory reset (hold 10 s), Sleep |
 | Starting | Cancel start |

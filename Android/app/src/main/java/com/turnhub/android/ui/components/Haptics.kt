@@ -29,6 +29,16 @@ class TurnHubHaptics internal constructor(private val vibrator: Vibrator?) {
         fallbackMs = 35,
     )
 
+    /** Another player nudged this phone's player: a quick triple tap. */
+    fun nudged() = play(
+        listOf(
+            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
+            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
+            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
+        ),
+        fallbackMs = 90,
+    )
+
     /** An action was undone (cancel a pass): a low thud. */
     fun reject() = play(listOf(VibrationEffect.Composition.PRIMITIVE_THUD to 1f), fallbackMs = 45)
 

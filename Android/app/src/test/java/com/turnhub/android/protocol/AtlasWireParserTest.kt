@@ -134,6 +134,8 @@ class AtlasWireParserTest {
         assertEquals(100L, state.gameElapsedMs)
         assertEquals(100L, state.turnElapsedMs)
         assertEquals(PendingDecisions(null, 0, null, null, null), state.pending)
+        assertEquals(Nudge(seq = 3, fromPlayer = 2, toPlayer = 1, ageMs = 1200), state.nudge)
+        assertNull(Fixtures.state("lobby.response.json").nudge)
         assertEquals(2, state.players.size)
         assertEquals(
             Player(
@@ -190,6 +192,13 @@ class AtlasWireParserTest {
         assertEquals(max, state.sampledAtMs)
         assertEquals(max, state.players[0].participantId)
         assertEquals(max, state.players[0].turnsCompleted)
+    }
+
+    @Test
+    fun `nudge is required but may be null`() {
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("running.response.json") { remove("nudge") }
+        }
     }
 
     @Test

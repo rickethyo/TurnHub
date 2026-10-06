@@ -16,7 +16,8 @@
     "gameElapsedMs",
     "turnElapsedMs",
     "pending",
-    "turnTimer"
+    "turnTimer",
+    "nudge"
   ],
   "properties": {
     "protocolVersion": {
@@ -350,6 +351,42 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 4294967295
+    },
+    "nudge": {
+      "description": "The last nudge since Atlas booted (POST /api/control/nudge), or null. A client alerts the toPlayer when seq grows.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "seq",
+        "fromPlayer",
+        "toPlayer",
+        "ageMs"
+      ],
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "fromPlayer": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "toPlayer": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "ageMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
     }
   }
 }

@@ -81,6 +81,18 @@ object AtlasWireParser {
                 turnTimer = parseTurnTimer(root.obj("turnTimer")),
                 pending = parsePending(root.obj("pending")),
                 players = root.array("players").objects().map(::parsePlayer),
+                nudge = if (root.isNull("nudge")) {
+                    root.require("nudge") // Required, but may be null.
+                    null
+                } else {
+                    val nudge = root.obj("nudge")
+                    Nudge(
+                        seq = nudge.uint32("seq"),
+                        fromPlayer = nudge.int("fromPlayer"),
+                        toPlayer = nudge.int("toPlayer"),
+                        ageMs = nudge.uint32("ageMs"),
+                    )
+                },
             )
         }
     }

@@ -748,6 +748,23 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/session/join",dev)==200);
   const String companion=loginPhone(playerId);
   assert(request("/api/control/start",player)==200);testNow+=3000;updateCountdown(testNow);
+  // Nudge: the muted account is refused; others nudge the active player once
+  // per NUDGE_COOLDOWN_MS, never themselves, and state shows the last nudge.
+  {
+    const uint32_t seq0=nudgeState.seq;
+    assert(request("/api/control/nudge",player)==409&&nudgeState.seq==seq0);
+    int sent=0;
+    for(const String *c:{&gm,&dev}) if(request("/api/control/nudge",*c)==200) ++sent;
+    assert(sent>=1&&nudgeState.seq==seq0+sent&&nudgeState.toPlayer==game.activePlayer()->playerNumber);
+    assert(nudgeState.fromPlayer!=nudgeState.toPlayer);
+    for(const String *c:{&gm,&dev}) assert(request("/api/control/nudge",*c)==409);
+    assert(nudgeState.seq==seq0+sent);
+    assert(request("/api/v1/state",gm,{},HTTP_GET)==200&&server.body.find("\"nudge\":{\"seq\":")!=std::string::npos);
+    testNow+=NUDGE_COOLDOWN_MS;
+    int again=0;
+    for(const String *c:{&gm,&dev}) if(request("/api/control/nudge",*c)==200) ++again;
+    assert(again==sent&&nudgeState.seq==seq0+2*sent);
+  }
   const auto life=game.lifeTotal(1);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","reset"}})==200);
   assert(game.lifeTotal(1)==life&&game.livingPlayerCount()==3);

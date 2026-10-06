@@ -115,7 +115,7 @@ permission and target state:
 - **Remove from game** also leaves the lobby or eliminates the participant
   through the concession flow (open decisions finish first; a primary seat
   with a seat B removes B first). The account and statistics stay.
-- **Nudge mute** is stored for the future nudge feature (not implemented).
+- **Nudge mute** stops that account sending nudges (`NudgePlayer` is refused).
 
 Both disconnecting actions need the target to have a secret. Connection
 resets and removals are counted (`o<profileId>`), saved before acting

@@ -3,6 +3,7 @@ package com.turnhub.android.domain
 import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.LifeRequest
+import com.turnhub.android.protocol.Nudge
 import com.turnhub.android.protocol.PendingDecisions
 import com.turnhub.android.protocol.TableSettings
 import com.turnhub.android.protocol.TableState
@@ -48,6 +49,8 @@ data class TableSummary(
     val players: List<TablePlayer>,
     /** Physical Sigils currently represented at the table, derived from [players]. */
     val physicalSigils: List<PhysicalSigilAtTable>,
+    /** The last nudge since Atlas booted; its age is as of [sampledAtMs]. */
+    val nudge: Nudge? = null,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

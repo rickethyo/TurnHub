@@ -700,6 +700,14 @@ SD logs; the Sigil profile picker numbers duplicate names. Radio version
 unchanged. Local firmware compilation was unavailable; use the CI artifact
 for sizes.
 
+Atlas 0.6.9 -> 0.6.10 (2026-10-06): Remove (hold 2 s) on the Atlas lobby
+Player screen (`RemoveSeat`); a per-player life-approval window of 15, 30 or
+60 s, packed into the accessibility record's flags byte (existing records read
+as 15 s); Nudge from the app and the portal (`NudgePlayer`, state `nudge`,
+`/api/control/nudge`). Portal pack 1.1.1. Radio version unchanged; Sigil
+firmware unchanged. Local firmware compilation was unavailable; use the CI
+artifact for sizes.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

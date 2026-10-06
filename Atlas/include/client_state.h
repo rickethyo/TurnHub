@@ -11,6 +11,10 @@ struct ClientPending {
   uint32_t passStartedMs = 0;
   uint32_t countdownStartedMs = 0;
   uint8_t eliminationTarget = 0;
+  // The last nudge (seq 0: none since boot).
+  uint32_t nudgeSeq = 0;
+  uint8_t nudgeFrom = 0, nudgeTo = 0;
+  uint32_t nudgeAtMs = 0;
 };
 
 // The /api/v1/state projection (protocol/state-v0.1.schema.json). observe()

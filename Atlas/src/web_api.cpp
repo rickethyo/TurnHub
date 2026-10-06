@@ -236,6 +236,7 @@ const Route ROUTES[] = {
   {"/api/control/cancel-start", HTTP_POST, controlRoute<WebControl::CancelStart>},
   {"/api/control/rematch", HTTP_POST, controlRoute<WebControl::Rematch>},
   {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
+  {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
 };
 
 const Route *findRoute(HTTPMethod method, const String &uri) {

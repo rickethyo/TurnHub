@@ -68,11 +68,9 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
-- **Moderate on the Atlas Player screen:** remove a player and Admin sign-in
-  beside Concede.
 - **Profile picker:** a per-Sigil startup choice (last profile or picker).
 - **Accessibility:** Sigil-local pairing/error lights in the player's style,
-  e-ink text scale, a longer life-approval window, a monochrome-safe portal
+  e-ink text scale, a monochrome-safe portal
   theme, guest accessibility preferences. LED intensity and buzzer volume wait
   for hardware that can vary them.
 - **Atlas battery gauge.**
@@ -90,6 +88,10 @@ Make a V0.12 (then run `python3 Android/tools/export_manual.py`) that covers:
   pack); the manual says the card is not erased.
 - A "Setting up a new table" section (first-run setup).
 - Shared-Sigil turn order (B left/right) on the Atlas screen.
+- Remove (hold 2 s) on the Atlas lobby Player screen.
+- The life-approval window choice (15, 30 or 60 s) under Sigil accessibility;
+  the manual says requests are accepted after 15 s.
+- Nudge from the app and the portal, and what Mute nudges now does.
 - The footer still says Manual 0.9, Atlas 0.6.4-dev, Sigil 0.9.6-dev.
 
 ### Hardware

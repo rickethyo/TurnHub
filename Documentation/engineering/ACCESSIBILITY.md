@@ -234,6 +234,7 @@ Inventory as of 2026-09-24, in use since (owner, 2026-10-02).
 | Sigil light style: Standard, Reduced motion, Monochrome-safe | Same | Same | Standard |
 | Action long-press (pause) hold, 1-4 s | Same | Same | 2 s |
 | Action win hold, 3-10 s, at least 1 s longer than the long press | Same | Same | 5 s |
+| Time to answer life-change requests: 15, 30 or 60 s | Same | Same (bits 1-2 of the flags byte) | 15 s |
 | Portal theme: Automatic, Graphite, Daylight, Brass, High contrast | Portal My Account > Appearance | This browser (`localStorage`) | Automatic: Graphite or Daylight following the device, High contrast when it asks for more (`prefers-contrast: more`) |
 | Portal reduce motion | Portal My Account > Appearance | This browser | Off, but the device's reduced-motion setting always applies |
 | Windows high contrast (`forced-colors`) | Operating system | - | Follows the OS |
@@ -241,7 +242,7 @@ Inventory as of 2026-09-24, in use since (owner, 2026-10-02).
 | Android high contrast | Android 14+ Settings > Accessibility > Contrast | Operating system | Follows the OS; a raised level switches the app to fixed high-contrast colors |
 | Android text size, TalkBack, live announcements | Operating system | - | Follows the OS |
 
-The four Sigil settings are *per-player* (owner decision, 2026-09-24): they follow
+The five Sigil settings are *per-player* (owner decision, 2026-09-24): they follow
 the player to whichever Sigil they sit at. Browser presentation choices stay
 per-browser because they describe the device in hand, not the player.
 
@@ -347,8 +348,8 @@ in the portal/app, and win confirmations on the Sigil display.
   patterns, not the player's light style (Atlas cannot style an unpaired Sigil).
   The Atlas lost light (2026-09-28) follows Reduced motion if Atlas last sent
   it, and always comes with the "Atlas lost" text on the Sigil screen.
-- Text/display scale on the e-ink screen, an extended life-approval window
-  (15 s), and a monochrome-safe portal theme separate from High contrast.
+- Text/display scale on the e-ink screen, and a monochrome-safe portal theme
+  separate from High contrast.
 - On hold (owner, 2026-09-24): LED intensity and buzzer volume. The current
   Sigil hardware cannot vary them.
 

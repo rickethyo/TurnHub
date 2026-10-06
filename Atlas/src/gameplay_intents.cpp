@@ -4,6 +4,7 @@
 // before it mutates GameEngine or the table-decision state in atlas_app.h.
 
 #include "atlas_app.h"
+#include "account_access.h"
 #include "profile_store.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
@@ -602,6 +603,44 @@ void updateTurnTimerCues(uint32_t nowMs) {
   serialLog.print(TurnHub::turnTimerPhaseName(phase));
   serialLog.print("|PLAYER|");
   serialLog.println(active->playerNumber);
+}
+
+// Nudge (owner request 2026-10-06; app and portal only): a living player
+// prods whoever's turn it is. The active player's Sigil plays the Nudge cue
+// and their phone shows who nudged them (state "nudge"). One per sender per
+// NUDGE_COOLDOWN_MS; a Game Master can mute an account's nudges.
+IntentResult handleNudgeIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::Browser)
+    return IntentResult::reject(IntentStatus::Unauthorized, "Nudge from the app or the portal");
+  const PlayerSeat *seat = seatForIntentActor(intent);
+  if (!seat || game.isEliminated(seat->playerNumber))
+    return IntentResult::reject(IntentStatus::InvalidActor, "A living participant is required");
+  if (hubState != HubState::Running)
+    return IntentResult::reject(IntentStatus::InvalidState, "Nudge while a game is running");
+  const PlayerSeat *active = game.activePlayer();
+  if (!active || active->sameSeat(*seat))
+    return IntentResult::reject(IntentStatus::Conflict, "It is your turn");
+  TurnHubAccounts::Account account;
+  if (seat->profileId[0] && TurnHubAccounts::load(String(seat->profileId), account) && account.nudgeMuted)
+    return IntentResult::reject(IntentStatus::Unauthorized, "A Game Master turned off nudges for this account");
+  const uint32_t now = millis();
+  if (seat->playerNumber > TurnHub::MAX_PLAYERS)
+    return IntentResult::reject(IntentStatus::InvalidActor, "A living participant is required");
+  uint32_t &last = nudgeState.lastSentMs[seat->playerNumber];
+  if (last && now - last < NUDGE_COOLDOWN_MS)
+    return IntentResult::reject(IntentStatus::Conflict, "You can nudge again in a few seconds");
+  last = now ? now : 1;
+  ++nudgeState.seq;
+  nudgeState.fromPlayer = seat->playerNumber;
+  nudgeState.toPlayer = active->playerNumber;
+  nudgeState.atMs = now;
+  // Browser-only seats have no Sigil; their phone shows the nudge from state.
+  if (active->controllerId < MAX_PHYSICAL_SIGILS) audio.nudge(active->controllerId);
+  serialLog.print("ATLAS|GAME|NUDGE|FROM|");
+  serialLog.print(seat->playerNumber);
+  serialLog.print("|TO|");
+  serialLog.println(active->playerNumber);
+  return IntentResult::accept("Nudged");
 }
 
 }  // namespace TurnHubAtlas

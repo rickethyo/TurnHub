@@ -29,6 +29,22 @@ data class StateSnapshot(
     val turnTimer: TurnTimer,
     val pending: PendingDecisions,
     val players: List<Player>,
+    /** The last nudge since Atlas booted, or null. */
+    val nudge: Nudge? = null,
+)
+
+/**
+ * Mirrors `nudge` in protocol/state-v0.1.schema.json: a player prodding the
+ * active player (POST /api/control/nudge). [seq] grows with every nudge since
+ * boot, so a client alerts [toPlayer] once per new [seq].
+ */
+data class Nudge(
+    /** Unsigned 32-bit. */
+    val seq: Long,
+    val fromPlayer: Int,
+    val toPlayer: Int,
+    /** Age when [StateSnapshot.sampledAtMs] was taken. */
+    val ageMs: Long,
 )
 
 /**

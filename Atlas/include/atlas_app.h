@@ -120,6 +120,17 @@ struct TurnTimerCueState {
   TurnHub::TurnTimerPhase phase = TurnHub::TurnTimerPhase::Normal;
 };
 
+// The last nudge (NudgePlayer), for clients to show; seq counts every nudge
+// since boot. lastSentMs throttles each sending player, by player number.
+struct NudgeState {
+  uint32_t seq = 0;
+  uint8_t fromPlayer = 0, toPlayer = 0;
+  uint32_t atMs = 0;
+  uint32_t lastSentMs[TurnHub::MAX_PLAYERS + 1] = {};
+};
+// One nudge per sender per this many milliseconds.
+constexpr uint32_t NUDGE_COOLDOWN_MS = 30000;
+
 // Everything that belongs to one game at the table: its lobby, engine,
 // table decisions and client projection. Groundwork for the venue model
 // (several games on one Atlas, STAGED_CHANGES.md); Atlas runs one for now.
@@ -134,6 +145,7 @@ struct GameTable {
   // Player selected for elimination while paused; 0 when none.
   uint8_t eliminationTargetPlayer = 0;
   TurnTimerCueState turnTimerCue;
+  NudgeState nudge;
 };
 
 constexpr uint8_t MAX_GAME_TABLES = 1;
@@ -150,6 +162,7 @@ extern uint32_t &countdownStartedAtMs;
 extern int8_t &lastCountdownSecond;
 extern uint8_t &eliminationTargetPlayer;
 extern TurnTimerCueState &turnTimerCue;
+extern NudgeState &nudgeState;
 
 // --- main.cpp ----------------------------------------------------------------
 
@@ -220,6 +233,7 @@ void updateTurnTimerCues(uint32_t nowMs);
 IntentResult handleProfileParticipationIntent(const Intent &intent, void *);
 // Turn order in the lobby, from the Atlas touchscreen only (MoveSeat).
 IntentResult handleMoveSeatIntent(const Intent &intent, void *);
+IntentResult handleNudgeIntent(const Intent &intent, void *);
 IntentResult handleRemoveSeatIntent(const Intent &intent, void *);
 IntentResult handleSetSeatSideIntent(const Intent &intent, void *);
 IntentResult handleSeatMembershipIntent(const Intent &intent, void *);

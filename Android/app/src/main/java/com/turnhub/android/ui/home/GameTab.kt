@@ -158,6 +158,9 @@ fun GameTab(
 
 // --- Stage --------------------------------------------------------------------
 
+/** How long a nudge stays on the nudged player's screen. */
+private const val NUDGE_SHOW_MS = 10_000L
+
 @Composable
 private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelFor: (Int) -> String, reduceMotion: Boolean) {
     val p = palette
@@ -167,6 +170,12 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
     // A firm tap in the hand when the turn comes to this phone's player.
     val haptics = rememberHaptics()
     LaunchedEffect(myTurn) { if (myTurn) haptics.yourTurn() }
+    // A nudge shows for NUDGE_SHOW_MS; one older than that (say, from before
+    // this phone connected) never buzzes.
+    val nudge = summary.nudge?.takeIf { myTurn && it.toPlayer == myNumber }
+    val nudgeAge = nudge?.let { it.ageMs + (nowMs - summary.receivedAtMs) }
+    val nudgedBy = nudge?.takeIf { nudgeAge!! < NUDGE_SHOW_MS }?.let { labelFor(it.fromPlayer) }
+    LaunchedEffect(nudge?.seq) { if (nudge != null && nudge.ageMs < NUDGE_SHOW_MS) haptics.nudged() }
     val (title, subtitle) = when (summary.state) {
         TableState.LOBBY -> "Lobby" to when (summary.players.size) {
             0 -> "Waiting for players to join"
@@ -249,6 +258,14 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
                 modifier = Modifier.semantics { heading() },
             )
             Text(subtitle, color = p.muted, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            if (nudgedBy != null) {
+                Text(
+                    "$nudgedBy nudged you",
+                    color = p.warn,
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
             StageBadges(summary, nowMs, labelFor, timer)
         }
     }
@@ -398,6 +415,18 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                     Modifier.fillMaxWidth().height(64.dp),
                     enabled = !busy && myTurn,
                 )
+                if (!myTurn) {
+                    val activeName = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.label
+                    // Prods the active player: their Sigil sounds and their phone buzzes.
+                    // Atlas allows one nudge per player every 30 seconds.
+                    ToneButton(
+                        activeName?.let { "Nudge $it" } ?: "Nudge",
+                        { haptics.tick(); actions.onControl(ControlAction.NUDGE) },
+                        Modifier.fillMaxWidth(),
+                        tone = Tone.WARN,
+                        enabled = !busy && summary.activePlayerNumber != null,
+                    )
+                }
                 ControlGrid {
                     ToneButton("Pause", { actions.onControl(ControlAction.PAUSE_RESUME) }, Modifier.weight(1f), enabled = !busy)
                     ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !busy && myTurn)
