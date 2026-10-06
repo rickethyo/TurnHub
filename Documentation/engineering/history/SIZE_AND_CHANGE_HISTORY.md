@@ -718,6 +718,13 @@ PIN choice) and acts for any seat through the phone's seat callbacks
 `tablet.css` (150 lines). Radio version unchanged; Sigil firmware unchanged.
 Local firmware compilation was unavailable; use the CI artifact for sizes.
 
+## 2026-10-06 Sigil welcome text (Sigil 0.9.12)
+
+Sigil 0.9.11 -> 0.9.12: the paired idle screen on both displays reads
+"Welcome to TurnHub!" instead of "Ready for game". Radio version unchanged;
+Atlas firmware unchanged. Local firmware compilation was unavailable; use the
+CI artifact for sizes.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
