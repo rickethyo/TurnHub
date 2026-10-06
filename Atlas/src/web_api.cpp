@@ -145,6 +145,7 @@ void joinSession(WebServer &server) { handleParticipation(server, WebControl::Jo
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
 void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubWeb::BASIC_PORTAL_HTML); }
 void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
+void tabletPage(WebServer &server) { servePortalPage(server, "tablet.html", TurnHubWeb::BASIC_PORTAL_HTML); }
 
 struct Route {
   const char *uri;
@@ -163,6 +164,7 @@ const Route ROUTES[] = {
   // Pages served outside the portal.
   {"/stats", HTTP_GET, statsPage},
   {"/login", HTTP_GET, loginPage},
+  {"/tablet", HTTP_GET, tabletPage},
 
   // Accounts and administration.
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},

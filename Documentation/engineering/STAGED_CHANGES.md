@@ -57,6 +57,14 @@ everything implemented. Only the checks listed below are still open.
 - **Portal theme packs** from the card; built-in themes stay in the pack.
 - **HTTPS on Atlas** (unlocks the portal's full-screen launch and wake lock).
 
+- **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
+  seating, the portal's `/tablet` with life, Commander damage, pass, win and
+  concede; see PLAYERS_AND_ACCOUNTS.md). Next, as Ricky asked: more counters
+  per player (poison, commander tax, energy, experience and similar) in
+  `GameEngine` and the state, each also kept in profile statistics as
+  "counters received"; player tile backgrounds as a profile personalization;
+  the Android tablet screen; tablet seating of Sigil seat B.
+
 ### Setup and updates
 
 - **Atlas fetches updates over home Wi-Fi** (optional): an Admin stores a
@@ -93,6 +101,9 @@ Make a V0.12 (then run `python3 Android/tools/export_manual.py`) that covers:
   the manual says requests are accepted after 15 s.
 - Nudge from the app and the portal, and what Mute nudges now does.
 - The footer still says Manual 0.9, Atlas 0.6.4-dev, Sigil 0.9.6-dev.
+- Tablet mode (`/tablet`): turning it on with a table code, adding players
+  (PIN-less accounts), panels, and the renamed "Allow Sigil and tablet use
+  without a PIN" choice.
 
 ### Hardware
 

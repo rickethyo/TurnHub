@@ -262,3 +262,30 @@ separate future work. No Android application ID is selected here.
   saving answers 503.
 - Planned: custom avatars (`AVATAR_CUSTOM`), visible to signed-in viewers only, with a possible Admin
   approval to make one public. Not implemented.
+
+## Tablet mode (2026-10-06)
+
+One shared screen at the table acting for every seat. Engineering record:
+`Documentation/engineering/PLAYERS_AND_ACCOUNTS.md` (Tablet mode).
+
+1. Signed in, `POST /api/presence/request` with `purpose=tablet` (open to any
+   account), then `POST /api/presence/confirm` with the `code` the Atlas
+   screen shows, then `POST /api/tablet/enable`. `GET /api/session/me`
+   reports `"tablet":true|false`. `POST /api/tablet/disable` turns it off.
+   Without the grant every route below answers
+   `403 {"ok":false,"tabletRequired":true,"error":...}`.
+2. Lobby: `POST /api/tablet/seat` with `name` (creates a profile with no PIN;
+   409 when the name exists) or `profileId` (plus `pin` when the answer was
+   `403 {"pinRequired":true}`); answers `{"ok":true,"profileId":...}`.
+   `POST /api/tablet/unseat` with `profileId`.
+3. Every seat action carries `module` and `slot` from the state's players:
+   - `POST /api/tablet/life`: `delta` (the seat's own life).
+   - `POST /api/tablet/commander`: `delta`, `source`, `commander` (damage
+     the seat received), as `/api/control/commander`.
+   - `POST /api/tablet/life/respond`: `requestId`, `accept`.
+   - `POST /api/tablet/settings`: the `/api/game/settings` fields.
+   - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `win`,
+     `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or
+     `reset`; answers like `/api/control/*` (status, revision, optional
+     `expectedRevision`).
+

@@ -35,7 +35,7 @@ session header. Card reads take the SD card lock.
 
 | Path | What |
 |---|---|
-| `Atlas/web/src/` | Pages (`index.html`, `login.html`, `stats.html`, `update.html`, `sigil-update.html`, `dev.html`), `portal.css`, `theme-boot.js`, the web manifest and icons |
+| `Atlas/web/src/` | Pages (`index.html`, `login.html`, `stats.html`, `tablet.html`, `update.html`, `sigil-update.html`, `dev.html`), `portal.css`, `tablet.css`, `theme-boot.js`, the web manifest and icons |
 | `Atlas/web/VERSION` | Pack version; raise it for every pack installed over another |
 | `Atlas/web/build.py` | Builds, checks, signs and previews (standard library only) |
 

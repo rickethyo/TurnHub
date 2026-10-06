@@ -708,6 +708,16 @@ as 15 s); Nudge from the app and the portal (`NudgePlayer`, state `nudge`,
 firmware unchanged. Local firmware compilation was unavailable; use the CI
 artifact for sizes.
 
+## 2026-10-06 Tablet mode, round one (Atlas 0.6.12, portal pack 1.2.0)
+
+Atlas 0.6.11 -> 0.6.12: `web_tablet_api.cpp` (238 lines): a table presence
+code with `purpose=tablet` turns a signed-in browser into the shared table
+screen, which seats players (new PIN-less profiles or existing ones by their
+PIN choice) and acts for any seat through the phone's seat callbacks
+(`/api/tablet/*`). Portal pack 1.2.0 adds `tablet.html` (571 lines) and
+`tablet.css` (150 lines). Radio version unchanged; Sigil firmware unchanged.
+Local firmware compilation was unavailable; use the CI artifact for sizes.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
