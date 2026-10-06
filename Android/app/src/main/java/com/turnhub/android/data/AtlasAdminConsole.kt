@@ -42,7 +42,12 @@ data class DeviceInfo(
     }
 }
 
-/** One account from `/api/accounts`. */
+/**
+ * One account from `/api/accounts`. The last four fields let the People sheet
+ * explain a blocked action before Atlas refuses it: roles and moderation need
+ * a PIN, the initial Admin keeps Admin, and archiving waits until the account
+ * has left the table.
+ */
 data class AccountInfo(
     val profileId: String,
     val name: String,
@@ -50,7 +55,16 @@ data class AccountInfo(
     val archived: Boolean,
     val avatar: Int,
     val nudgeMuted: Boolean,
-)
+    val hasPin: Boolean = true,
+    val primary: Boolean = false,
+    val atTable: Boolean = false,
+    val reconnectRequired: Boolean = false,
+) {
+    fun has(permission: com.turnhub.android.protocol.AccountPermission): Boolean = permissions and permission.bit != 0
+}
+
+/** A Sigil waiting for an Admin to compare its pairing code (`pendingPairings` in `/api/devices`). */
+data class PendingPairing(val id: Int, val code: String, val secondsLeft: Int)
 
 data class ActivityEvent(val ageMs: Long, val kind: String, val message: String)
 
@@ -63,6 +77,7 @@ data class AdminState(
     val network: NetworkInfo? = null,
     val atlasHardwareId: String? = null,
     val devices: List<DeviceInfo> = emptyList(),
+    val pendingPairings: List<PendingPairing> = emptyList(),
     val pairingWindowMs: Long? = null,
     val pairingChoicesMs: List<Long> = emptyList(),
     val speakerVolume: Int? = null,
@@ -148,25 +163,7 @@ class AtlasAdminConsole(
                     )
                 }
             }
-            get("/api/devices")?.let { d ->
-                val list = d.optJSONArray("devices").objects().map { x ->
-                    DeviceInfo(
-                        id = x.optInt("id"),
-                        label = x.optString("label"),
-                        defaultLabel = x.optString("defaultLabel"),
-                        customName = x.optString("customName"),
-                        hardwareId = x.optString("hardwareId"),
-                        online = x.optBoolean("online"),
-                        firmware = x.optString("firmware"),
-                        display = x.optString("display"),
-                        sessionCount = x.optInt("sessionCount"),
-                        capabilities = x.optInt("capabilities"),
-                    )
-                }
-                _state.update {
-                    it.copy(devices = list, atlasHardwareId = d.optJSONObject("atlas")?.optString("hardwareId"))
-                }
-            }
+            refreshDevices()
             get("/api/pairing")?.let { d ->
                 _state.update {
                     it.copy(
@@ -187,9 +184,39 @@ class AtlasAdminConsole(
                         archived = x.optBoolean("archived"),
                         avatar = x.optInt("avatar"),
                         nudgeMuted = x.optBoolean("nudgeMuted"),
+                        hasPin = x.optBoolean("hasPin", true),
+                        primary = x.optBoolean("primary"),
+                        atTable = x.optBoolean("atTable"),
+                        reconnectRequired = x.optBoolean("reconnectRequired"),
                     )
-                }.sortedBy { it.archived }
+                }.sortedWith(compareBy<AccountInfo>({ it.archived }, { !it.atTable }, { it.name.lowercase() }))
                 _state.update { it.copy(accounts = list) }
+            }
+        }
+    }
+
+    /** Paired Sigils and pairing requests; the Sigils card polls this while it is shown. */
+    suspend fun refreshDevices() {
+        get("/api/devices")?.let { d ->
+            val list = d.optJSONArray("devices").objects().map { x ->
+                DeviceInfo(
+                    id = x.optInt("id"),
+                    label = x.optString("label"),
+                    defaultLabel = x.optString("defaultLabel"),
+                    customName = x.optString("customName"),
+                    hardwareId = x.optString("hardwareId"),
+                    online = x.optBoolean("online"),
+                    firmware = x.optString("firmware"),
+                    display = x.optString("display"),
+                    sessionCount = x.optInt("sessionCount"),
+                    capabilities = x.optInt("capabilities"),
+                )
+            }
+            val pending = d.optJSONArray("pendingPairings").objects().map {
+                PendingPairing(it.optInt("id"), it.optString("code"), it.optInt("secondsLeft"))
+            }
+            _state.update {
+                it.copy(devices = list, pendingPairings = pending, atlasHardwareId = d.optJSONObject("atlas")?.optString("hardwareId"))
             }
         }
     }
@@ -314,15 +341,22 @@ class AtlasAdminConsole(
 
     suspend fun savePermissions(profileId: String, permissions: Int) =
         post("/api/accounts/permissions", listOf("profileId" to profileId, "permissions" to permissions.toString()),
-            success = "Permissions saved.")
+            success = "Roles saved.")
+
+    /** Answers a Sigil's pairing request after comparing codes; Atlas may ask for table presence first. */
+    suspend fun answerPairing(id: Int, accept: Boolean) = protectedPost(
+        "/api/device/pair-confirm",
+        listOf("module" to id.toString(), "accept" to if (accept) "1" else "0"),
+        success = if (accept) "Sigil paired securely." else "Pairing rejected.",
+    ) { refreshDevices() }
 
     suspend fun archive(profileId: String, archived: Boolean) =
         post("/api/accounts/archive", listOf("profileId" to profileId, "archived" to if (archived) "1" else "0"),
             success = if (archived) "Account archived." else "Account restored.")
 
-    /** Game Master: `pass`, `mute`, `unmute`, `reset` or `remove`. */
-    suspend fun moderate(profileId: String, action: String) =
-        post("/api/accounts/moderate", listOf("profileId" to profileId, "action" to action), success = "Moderation applied.")
+    /** Game Master: `pass`, `mute`, `unmute`, `reset` or `remove`. [success] names what happened. */
+    suspend fun moderate(profileId: String, action: String, success: String = "Moderation applied.") =
+        post("/api/accounts/moderate", listOf("profileId" to profileId, "action" to action), success = success)
 
     // --- plumbing ---------------------------------------------------------------
 

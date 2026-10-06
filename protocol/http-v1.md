@@ -165,6 +165,23 @@ Session-token authenticated; other accounts get 403.
   window and the allowed choices. `POST /api/pairing` with `windowMs` saves one
   of the choices (anything else: 409, nothing stored).
 
+## People: accounts, roles and moderation
+
+`GET /api/accounts` (session token) lists accounts: everyone for an Admin,
+non-archived accounts for a Game Master, only the caller otherwise. Each entry
+has `profileId`, `name`, `permissions` (bits: 1 Admin, 2 Game Master,
+4 Developer, 8 GM reset connections, 16 GM remove from game), `archived` and
+`avatar`; Game Masters and the account itself also get `nudgeMuted`. Admins
+and Game Masters also get `hasPin`, `primary` (the initial Admin), `atTable`
+and `reconnectRequired`, so clients can explain a blocked action up front.
+`POST /api/accounts/permissions` (`profileId`, `permissions`) and
+`POST /api/accounts/archive` (`profileId`, `archived=0|1`) need Admin;
+`POST /api/accounts/moderate` (`profileId`, `action` = `pass`, `reset`,
+`remove`, `mute`, `unmute`) needs Game Master. Atlas validates every rule:
+moderation powers need Game Master, roles need a PIN, the initial Admin keeps
+Admin and cannot be archived, and archiving waits until the account has left
+the table.
+
 ## Sigil accessibility preferences
 
 `GET /api/session/accessibility` and `POST /api/session/accessibility`

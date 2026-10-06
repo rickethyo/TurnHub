@@ -63,6 +63,9 @@ data class AccountActions(
     val onPlayFromPhone: () -> Unit = {},
     val onSaveName: (String) -> Unit = {},
     val onSavePin: (String) -> Unit = {},
+    val onLoadChoices: () -> Unit = {},
+    val onSavePolicy: (allowPhysicalWithoutPin: Boolean, hideStatsWithoutAuthentication: Boolean) -> Unit = { _, _ -> },
+    val onClearPin: () -> Unit = {},
     val onLoadPersonalization: () -> Unit = {},
     val onSavePersonalization: (color: String?, avatar: Int?) -> Unit = { _, _ -> },
     val onAccessibility: () -> Unit = {},
@@ -101,6 +104,7 @@ fun AccountTab(
         } else {
             ProfileCard(uiState, session, actions)
             if (uiState.appLockAvailable) AutomaticSignIn(uiState, actions)
+            PrivacyCard(uiState, actions)
             PersonalizationCard(uiState, actions)
             BrassCard {
                 Eyebrow("Sigil accessibility")
@@ -168,7 +172,79 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
             )
             ToneButton("Set PIN", { actions.onSavePin(pin); pin = "" }, enabled = ProfileSecret.isValid(pin))
         }
+        if (uiState.profileChoices?.hasPin == true) {
+            var confirmClear by remember { mutableStateOf(false) }
+            if (confirmClear) {
+                ConfirmDialog(
+                    "Remove PIN?",
+                    "Remove the saved PIN or password for this profile? Accounts with a role keep theirs.",
+                    "Remove PIN",
+                    onConfirm = { confirmClear = false; actions.onClearPin() },
+                    onDismiss = { confirmClear = false },
+                )
+            }
+            ToneButton("Remove PIN", { confirmClear = true }, tone = Tone.BAD)
+        }
         ToneButton("Log out", actions.onSignOut, Modifier.fillMaxWidth(), tone = Tone.BAD)
+    }
+}
+
+/**
+ * The profile's physical access and privacy choices (`/api/session/policy`),
+ * as the portal's "Physical access and privacy". Each switch saves at once.
+ */
+@Composable
+private fun PrivacyCard(uiState: HomeUiState, actions: AccountActions) {
+    val p = palette
+    LaunchedEffect(Unit) { actions.onLoadChoices() }
+    val choices = uiState.profileChoices
+    val allow = choices?.allowPhysicalWithoutPin
+    val hide = choices?.hideStatsWithoutAuthentication
+    val busy = uiState.player?.busy == true
+    GroupedList(
+        header = "Physical access and privacy",
+        footer = when {
+            choices == null -> "Reading your choices from Atlas…"
+            allow == null || hide == null -> "Atlas could not read these choices. Try again later."
+            else -> "Statistics always accumulate. Signing into this profile shows its full statistics on its Sigil."
+        },
+    ) {
+        row(
+            Modifier.toggleable(
+                value = allow == true,
+                enabled = allow != null && hide != null && !busy,
+                role = Role.Switch,
+                onValueChange = { actions.onSavePolicy(it, hide == true) },
+            ),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Allow physical use without a PIN", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "When off, sign into this profile on a phone before joining with a Sigil. A game in progress continues.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = allow == true, onCheckedChange = null, enabled = allow != null)
+        }
+        row(
+            Modifier.toggleable(
+                value = hide == true,
+                enabled = allow != null && hide != null && !busy,
+                role = Role.Switch,
+                onValueChange = { actions.onSavePolicy(allow == true, it) },
+            ),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Hide statistics until signed in", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Your statistics stay hidden on Sigils and screens until you sign in to this profile.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = hide == true, onCheckedChange = null, enabled = hide != null)
+        }
     }
 }
 

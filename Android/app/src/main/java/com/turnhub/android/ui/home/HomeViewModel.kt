@@ -164,11 +164,20 @@ class HomeViewModel(
         ::SessionView,
     )
 
+    private data class SessionExtras(
+        val view: SessionView,
+        val personalization: com.turnhub.android.data.Personalization?,
+        val avatars: List<com.turnhub.android.protocol.AvatarIcon>,
+        val choices: com.turnhub.android.data.ProfileChoices?,
+    )
+
     private val sessionFlows = combine(
         baseSessionFlows,
         playerSession.personalization,
         playerSession.avatars,
-    ) { view, personalization, avatars -> Triple(view, personalization, avatars) }
+        playerSession.choices,
+        ::SessionExtras,
+    )
 
     val uiState: StateFlow<HomeUiState> = combine(
         repository.connectionState,
@@ -176,7 +185,7 @@ class HomeViewModel(
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (view, personalization, avatars) ->
+    ) { connectionState, tableSummary, repositoryFailure, screen, (view, personalization, avatars, choices) ->
         val (session, busy, feedback, gameSettings, accessibility) = view
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
@@ -193,6 +202,7 @@ class HomeViewModel(
             gameSettings = gameSettings,
             personalization = personalization,
             avatars = avatars,
+            profileChoices = choices,
             accessibility = if (screen.accessibilityOpen && session is PlayerSessionState.SignedIn) {
                 AccessibilityPrompt(
                     settings = accessibility,
@@ -496,7 +506,22 @@ class HomeViewModel(
             playerSession.clearFeedback()
             return
         }
-        viewModelScope.launch { playerSession.saveProfile(null, pin) }
+        viewModelScope.launch {
+            playerSession.saveProfile(null, pin)
+            playerSession.loadChoices()
+        }
+    }
+
+    fun onLoadChoices() {
+        viewModelScope.launch { playerSession.loadChoices() }
+    }
+
+    fun onSavePolicy(allowPhysicalWithoutPin: Boolean, hideStatsWithoutAuthentication: Boolean) {
+        viewModelScope.launch { playerSession.savePolicy(allowPhysicalWithoutPin, hideStatsWithoutAuthentication) }
+    }
+
+    fun onClearPin() {
+        viewModelScope.launch { playerSession.clearPin() }
     }
 
     fun onLoadPersonalization() {
