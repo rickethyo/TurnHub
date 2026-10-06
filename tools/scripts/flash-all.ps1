@@ -35,8 +35,10 @@
                     flash-all.cmd runs this mode; flash-all-unsigned.cmd runs the plain build.
 .PARAMETER Key      With -Sign: path to the PEM key. Default: the one .pem in Private\TurnHub-keys.
 
-  -Signed and -Sign write only the app image (and blank the OTA-selection sector so the
-  board boots it); settings, profiles and pairings in NVS are kept. Downgrades work over USB.
+  -Signed and -Sign flash fully, like the unsigned build: the bootloader and partition
+  table (from this working copy's PlatformIO build), a blank OTA-selection sector and the
+  signed app image, so a blank or erased board starts too. Settings, profiles and pairings
+  in NVS are kept. Downgrades work over USB.
 #>
 param(
   [switch]$Setup,
@@ -600,6 +602,25 @@ if ($Signed -or $Sign) {
   $blank = Join-Path $work 'otadata-blank.bin'
   [IO.File]::WriteAllBytes($blank, $blankBytes)
 
+  # Flash fully, like the unsigned build, so a blank or erased board starts too:
+  # the bootloader and partition table come from this working copy's PlatformIO
+  # build (sign-local.ps1 just made it with -Sign; built now if missing).
+  $boot = @{}
+  foreach ($fw in ($toFlash.Env | Select-Object -Unique)) {
+    $t = $targets[$fw]
+    $buildDir = Join-Path $root "$($t.Dir)\.pio\build\$($t.Env)"
+    $bootloader = Join-Path $buildDir 'bootloader.bin'
+    $partitions = Join-Path $buildDir 'partitions.bin'
+    if (-not (Test-Path $bootloader) -or -not (Test-Path $partitions)) {
+      Write-Host "`n== Building $fw for its bootloader and partition table" -ForegroundColor Cyan
+      & $pio run --project-dir (Join-Path $root $t.Dir) --environment $t.Env
+      if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bootloader) -or -not (Test-Path $partitions)) {
+        Fail "Could not build $fw's bootloader and partition table. Nothing was flashed."
+      }
+    }
+    $boot[$fw] = @{ Bootloader = $bootloader; Partitions = $partitions }
+  }
+
   if ($DryRun) {
     Write-Host "`nDry run: $label verified and extracted; nothing was written to a board." -ForegroundColor Yellow
     exit 0
@@ -609,7 +630,9 @@ if ($Signed -or $Sign) {
   foreach ($row in $toFlash) {
     Write-Host "`n== Flashing $($row.Env) $($versions[$row.Env]) ($label) to $($row.Board) on $($row.Port)" -ForegroundColor Cyan
     # 921600 baud, as platformio.ini's upload_speed; esptool's default is 115200.
-    & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $row.Port --chip esp32 --baud 921600 write_flash 0xe000 $blank 0x10000 $images[$row.Env]
+    $b = $boot[$row.Env]
+    & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $row.Port --chip esp32 --baud 921600 write_flash `
+      0x1000 $b.Bootloader 0x8000 $b.Partitions 0xe000 $blank 0x10000 $images[$row.Env]
     $row.Result = if ($LASTEXITCODE -eq 0) { "flashed $($versions[$row.Env]) ($label)" } else { 'UPLOAD FAILED' }
   }
 
