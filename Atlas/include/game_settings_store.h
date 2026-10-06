@@ -8,7 +8,8 @@ TurnHubStorage::Status loadGameSettings(GameSettings &settings);
 TurnHubStorage::Status saveGameSettings(const GameSettings &settings);
 
 // "gamecfg" little-endian image. Schema 1: {1, profile, life[4]} (timer OFF).
-// Schema 2 appends turnTimerMs[4]. Writes always use schema 2.
+// Schema 2 appends turnTimerMs[4]. Writes always use schema 2. The profile
+// byte's top bit is Two-Headed Giant (PROFILE_BYTE_TEAMS).
 constexpr char GAME_SETTINGS_KEY[] = "gamecfg";
 constexpr size_t GAME_SETTINGS_V1_SIZE = 6;
 constexpr size_t GAME_SETTINGS_V2_SIZE = 10;
@@ -39,7 +40,7 @@ inline TurnHubStorage::Status readGameSettings(TurnHubStorage::BlobStore &store,
   if (size != (data[0] == 1 ? GAME_SETTINGS_V1_SIZE : GAME_SETTINGS_V2_SIZE)) return Status::Corrupt;
 
   GameSettings value;
-  value.profile = static_cast<GameProfile>(data[1]);
+  readProfileByte(data[1], value);
   const uint32_t life = readLe32(data + 2);
   if (life > static_cast<uint32_t>(LIFE_LIMIT)) return Status::Corrupt;
   value.startingLife = static_cast<int32_t>(life);
@@ -58,7 +59,7 @@ inline TurnHubStorage::Status writeGameSettings(TurnHubStorage::BlobStore &store
   if (status != Status::Ok && status != Status::NotFound) return status;
   if (status == Status::Ok && sameGameSettings(old, settings)) return Status::Ok;
 
-  uint8_t data[GAME_SETTINGS_V2_SIZE] = {2, static_cast<uint8_t>(settings.profile)};
+  uint8_t data[GAME_SETTINGS_V2_SIZE] = {2, profileByte(settings)};
   writeLe32(data + 2, static_cast<uint32_t>(settings.startingLife));
   writeLe32(data + 6, settings.turnTimerMs);
   return store.write(GAME_SETTINGS_KEY, data, sizeof(data));

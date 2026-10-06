@@ -29,6 +29,15 @@ void cueActionRequired(uint8_t playerNumber) {
   }
 }
 
+// Two-Headed Giant: a turn cue for the active player also reaches their
+// teammate's Sigil when the teammate holds a different one.
+void cueTeammate(TurnHub::AudioCue cue, uint8_t playerNumber, uint8_t cuedController) {
+  const PlayerSeat *mate = game.playerByNumber(game.teammateOf(playerNumber));
+  if (mate != nullptr && mate->controllerId != cuedController && !game.isEliminated(mate->playerNumber)) {
+    audio.play(cue, TurnHub::AudioController::maskForSigil(mate->controllerId));
+  }
+}
+
 // ATLAS|INTENT|<name>|ORIGIN|<origin>|PLAYER|<n>
 void logIntent(const char *name, IntentOrigin origin, uint8_t playerNumber) {
   serialLog.print("ATLAS|INTENT|");
@@ -74,7 +83,9 @@ void clearPendingPass(const char *reason) {
 }
 
 bool cancelPendingPassForModule(uint8_t sigilId, const char *reason) {
-  if (!pendingPass.active || pendingPass.seat.controllerId != sigilId) return false;
+  // Two-Headed Giant: either teammate's controller may cancel the team's pass.
+  if (!pendingPass.active || (pendingPass.seat.controllerId != sigilId &&
+      game.turnSeatForController(sigilId) == nullptr)) return false;
   clearPendingPass(reason);
   return true;
 }
@@ -86,11 +97,13 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Pass is only available during a running game");
   }
-  const PlayerSeat *active = game.activePlayer();
-  if (active == nullptr) {
+  if (game.activePlayer() == nullptr) {
     return IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
   }
-  if (intent.actor.playerNumber != active->playerNumber ||
+  // The active seat, or in Two-Headed Giant either teammate: the turn is the team's.
+  const PlayerSeat *active = game.playerByNumber(intent.actor.playerNumber);
+  if (active == nullptr || !game.hasTurn(active->playerNumber) ||
+      game.isEliminated(active->playerNumber) ||
       intent.actor.controllerId != active->controllerId ||
       intent.actor.slot != active->slot) {
     return IntentResult::reject(IntentStatus::Unauthorized, "It is not this seat's turn");
@@ -99,7 +112,7 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
   logIntent("PASS", intent.actor.origin, active->playerNumber);
 
   if (pendingPass.active) {
-    if (pendingPass.seat.sameSeat(*active)) {
+    if (game.sameTeam(pendingPass.seat.playerNumber, active->playerNumber)) {
       clearPendingPass("PASS");
       audio.passUndone(gameAudioMask());
       return IntentResult::accept("Pending pass canceled");
@@ -134,8 +147,9 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
   if (!pendingPass.active) return notReady;
 
   const PlayerSeat *active = game.activePlayer();
-  if (hubState != HubState::Running || active == nullptr ||
-      !active->sameSeat(pendingPass.seat)) {
+  const PlayerSeat *passer = game.playerByNumber(pendingPass.seat.playerNumber);
+  if (hubState != HubState::Running || active == nullptr || passer == nullptr ||
+      !passer->sameSeat(pendingPass.seat) || !game.hasTurn(passer->playerNumber)) {
     clearPendingPass("STATE_CHANGE");
     return notReady;
   }
@@ -161,7 +175,10 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
   serialLog.print("|ORIGIN|");
   serialLog.println(intentOriginName(committing.origin));
 
-  if (current != nullptr) audio.turnPassed(committing.seat.controllerId, current->controllerId);
+  if (current != nullptr) {
+    audio.turnPassed(committing.seat.controllerId, current->controllerId);
+    cueTeammate(TurnHub::AudioCue::TurnStarted, current->playerNumber, current->controllerId);
+  }
   leds.invalidateAll();
   return IntentResult::accept("Pass committed");
 }
@@ -293,7 +310,10 @@ IntentResult handleMasterPassIntent(const Intent &intent, void *) {
   }
   const PlayerSeat *next = game.activePlayer();
   logMasterPass(passing.playerNumber, next != nullptr ? next->playerNumber : 0, intent.actor.origin);
-  if (next != nullptr) audio.turnPassed(passing.controllerId, next->controllerId);
+  if (next != nullptr) {
+    audio.turnPassed(passing.controllerId, next->controllerId);
+    cueTeammate(TurnHub::AudioCue::TurnStarted, next->playerNumber, next->controllerId);
+  }
   leds.invalidateAll();
   return IntentResult::accept("Master pass: turn passed");
 }
@@ -332,6 +352,9 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   }
 
   audio.playerEliminated(seat->controllerId);
+  // Two-Headed Giant: the teammate left with them.
+  if (const PlayerSeat *mate = game.playerByNumber(game.teammateOf(seat->playerNumber)))
+    if (mate->controllerId != seat->controllerId) audio.playerEliminated(mate->controllerId);
   leds.invalidateAll();
   logIntent("CONCEDE", intent.actor.origin, seat->playerNumber);
 
@@ -356,7 +379,7 @@ IntentResult handleClaimWinIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState, "Another table decision is already pending");
   }
   const PlayerSeat *active = game.activePlayer();
-  if (active == nullptr || !active->sameSeat(seat) || game.isEliminated(seat.playerNumber)) {
+  if (active == nullptr || !game.hasTurn(seat.playerNumber) || game.isEliminated(seat.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Only the active player can claim a win");
   }
 
@@ -446,7 +469,8 @@ IntentResult handleDenyWinIntent(const Intent &intent, void *) {
 
 IntentResult handleChangeLifeIntent(const Intent &intent, void *) {
   const PlayerSeat *seat = seatForIntentActor(intent);
-  if (!seat || intent.payload.targetPlayer != seat->playerNumber) {
+  // Two-Headed Giant: a teammate's life is the team's shared total.
+  if (!seat || !game.sameTeam(seat->playerNumber, intent.payload.targetPlayer)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "You can change only your own life");
   }
   if (!gameInProgress() || eliminationTargetPlayer ||
@@ -594,8 +618,10 @@ void updateTurnTimerCues(uint32_t nowMs) {
   turnTimerCue.phase = phase;
   if (phase == TurnTimerPhase::Warning) {
     audio.turnWarning(active->controllerId);
+    cueTeammate(TurnHub::AudioCue::TurnWarning, active->playerNumber, active->controllerId);
   } else if (phase == TurnTimerPhase::Expired) {
     audio.timerExpired(active->controllerId);
+    cueTeammate(TurnHub::AudioCue::TimerExpired, active->playerNumber, active->controllerId);
   } else {
     return;  // LongTurn stays a quiet visual cue; Normal needs nothing.
   }
@@ -618,7 +644,7 @@ IntentResult handleNudgeIntent(const Intent &intent, void *) {
   if (hubState != HubState::Running)
     return IntentResult::reject(IntentStatus::InvalidState, "Nudge while a game is running");
   const PlayerSeat *active = game.activePlayer();
-  if (!active || active->sameSeat(*seat))
+  if (!active || game.hasTurn(seat->playerNumber))
     return IntentResult::reject(IntentStatus::Conflict, "It is your turn");
   TurnHubAccounts::Account account;
   if (seat->profileId[0] && TurnHubAccounts::load(String(seat->profileId), account) && account.nudgeMuted)

@@ -40,6 +40,8 @@ struct SeatSnapshot {
   bool host = false;
   bool lifeAvailable = false;
   int32_t life = 0;
+  uint8_t team = 0;     // Two-Headed Giant team (lobby: the next game's), else 0.
+  bool winner = false;  // The winner, or the winner's teammate.
 };
 
 using ResolveSeatCallback = bool (*)(

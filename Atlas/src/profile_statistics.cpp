@@ -44,7 +44,6 @@ uint8_t recordCompletedGame(
   }
 
   const uint32_t gameDurationMs = game.gameElapsedMs(millis());
-  const uint8_t winner = game.winnerPlayerNumber();
   const uint8_t starter = game.starterPlayerNumber();
   uint8_t updated = 0;
 
@@ -73,7 +72,7 @@ uint8_t recordCompletedGame(
     ++persistent.gamesPlayed;
     persistent.lastGameProfile = static_cast<uint8_t>(game.settings().profile);
     persistent.totalGameMs += gameDurationMs;
-    if (seat->playerNumber == winner) {
+    if (game.isWinner(seat->playerNumber)) {
       ++persistent.gamesWon;
       persistent.lastGameResult = LastGameResult::Win;
     } else if (game.isEliminated(seat->playerNumber)) {

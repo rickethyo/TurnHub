@@ -26,18 +26,49 @@ inline bool validTurnTimerMs(uint32_t ms) {
       (ms >= TURN_TIMER_MIN_MS && ms <= TURN_TIMER_MAX_MS && ms % 1000 == 0);
 }
 
+// Two-Headed Giant (Magic and Commander only): teams of two neighbours in
+// turn order (seats 1+2, 3+4, ...) share one life total and one turn. Needs an
+// even table of at least TEAM_MIN_PLAYERS. Default team life is 30 (60 for
+// Commander); the starting life setting is the team's total.
+constexpr uint8_t TEAM_SIZE = 2;
+constexpr uint8_t TEAM_MIN_PLAYERS = 4;
+constexpr int32_t TEAM_LIFE_MAGIC = 30;
+constexpr int32_t TEAM_LIFE_COMMANDER = 60;
+// Saved and recovered settings carry the team flag in the profile byte's top
+// bit, so the stored layouts did not change.
+constexpr uint8_t PROFILE_BYTE_TEAMS = 0x80;
+// The ConfigureGame Intent's payload.flags bit for the same setting.
+constexpr uint32_t GAME_FLAG_TWO_HEADED_GIANT = 0x100;
+
 struct GameSettings {
   GameProfile profile = GameProfile::Generic;
   int32_t startingLife = 40;
   uint32_t turnTimerMs = TURN_TIMER_OFF;
+  bool twoHeadedGiant = false;
 };
+inline bool teamsAllowed(GameProfile profile) {
+  return profile == GameProfile::Magic || profile == GameProfile::Commander;
+}
 inline bool validGameSettings(const GameSettings &settings) {
   return settings.profile < GameProfile::Count &&
       settings.startingLife >= 0 && settings.startingLife <= LIFE_LIMIT &&
-      validTurnTimerMs(settings.turnTimerMs);
+      validTurnTimerMs(settings.turnTimerMs) &&
+      (!settings.twoHeadedGiant || teamsAllowed(settings.profile));
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
-  return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs;
+  return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
+      a.twoHeadedGiant == b.twoHeadedGiant;
+}
+inline bool validTeamTable(const GameSettings &settings, uint8_t playerCount) {
+  return !settings.twoHeadedGiant ||
+      (playerCount >= TEAM_MIN_PLAYERS && playerCount % TEAM_SIZE == 0);
+}
+inline uint8_t profileByte(const GameSettings &settings) {
+  return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0);
+}
+inline void readProfileByte(uint8_t value, GameSettings &settings) {
+  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~PROFILE_BYTE_TEAMS));
+  settings.twoHeadedGiant = (value & PROFILE_BYTE_TEAMS) != 0;
 }
 inline const char *gameProfileKey(GameProfile profile) {
   switch (profile) {

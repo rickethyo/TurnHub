@@ -53,8 +53,8 @@ fun PlayerCard(
     labelFor: (Int) -> String,
     modifier: Modifier = Modifier,
 ) {
-    val isActive = player.playerNumber == summary.activePlayerNumber
-    val isWinner = player.playerNumber == summary.winnerPlayerNumber
+    val isActive = summary.hasTurn(player.playerNumber)
+    val isWinner = summary.isWinner(player.playerNumber)
     val status = when {
         isWinner -> "🏆 Winner"
         player.eliminated -> "Eliminated"

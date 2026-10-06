@@ -23,6 +23,11 @@ bool validCheckpoint(const GameCheckpoint &s) {
   if (!s.count) return !s.over && !s.winner;
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
       s.winner > s.count || (!s.over && s.winner)) return false;
+  if (!validTeamTable(s.settings, s.count)) return false;
+  // Two-Headed Giant teammates share one life total and leave together.
+  if (s.settings.twoHeadedGiant)
+    for (uint8_t i = 0; i + 1 < s.count; i += TEAM_SIZE)
+      if (s.life[i] != s.life[i+1] || s.eliminated[i] != s.eliminated[i+1]) return false;
   uint8_t living = 0;
   for (uint8_t i = 0; i < s.count; ++i) {
     const auto &p = s.players[i];

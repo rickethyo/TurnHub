@@ -3670,6 +3670,166 @@ static void stackDiagnostics() {
   testNow=savedNow;
 }
 
+// Two-Headed Giant (owner request 2026-10-06): teams of neighbours share one
+// life total, one turn and one elimination.
+static void twoHeadedGiantEngine() {
+  using namespace TurnHub;
+  GameEngine engine;
+  PlayerSeat seats[6] = {{1,0,1},{2,1,1},{3,2,1},{4,3,1},{5,4,1},{6,5,1}};
+  GameSettings settings;
+  settings.profile = GameProfile::Magic;
+  settings.startingLife = TEAM_LIFE_MAGIC;
+  settings.twoHeadedGiant = true;
+  assert(!engine.start(seats,3,seats[0],1000,settings));  // Odd table.
+  assert(!engine.start(seats,2,seats[0],1000,settings));  // One team.
+  GameSettings generic = settings; generic.profile = GameProfile::Generic;
+  assert(!validGameSettings(generic) && !engine.start(seats,4,seats[0],1000,generic));
+  assert(engine.start(seats,4,seats[0],1000,settings));
+  assert(engine.twoHeadedGiant());
+  assert(engine.teamOf(1)==1 && engine.teamOf(2)==1 && engine.teamOf(3)==2 && engine.teamOf(4)==2);
+  assert(engine.teammateOf(1)==2 && engine.teammateOf(4)==3 && engine.sameTeam(3,4) && !engine.sameTeam(2,3));
+  assert(engine.hasTurn(1) && engine.hasTurn(2) && !engine.hasTurn(3));
+  assert(engine.turnSeatForController(1)->playerNumber==2 && !engine.turnSeatForController(2));
+  // Either teammate passes the team's turn; it goes to the next team.
+  assert(!engine.passTurn(2,2000));
+  assert(engine.passTurn(1,2000) && engine.activePlayerNumber()==3);
+  assert(engine.statsForPlayer(1)->turnsCompleted==1 && engine.statsForPlayer(2)->turnsCompleted==1);
+  assert(engine.statsForPlayer(2)->totalTurnMs==1000 && engine.currentRound()==1);
+  assert(!engine.passTurn(0,2500));
+  assert(engine.passTurn(3,3000) && engine.activePlayerNumber()==1 && engine.currentRound()==2);
+  // One shared life total.
+  assert(engine.changeLife(2,-5) && engine.lifeTotal(1)==25 && engine.lifeTotal(2)==25 && engine.lifeTotal(3)==30);
+  // A teammate's life is not a request; an opponent's is, and either opponent answers it.
+  assert(!engine.requestLifeChange(1,2,-1,3000));
+  assert(engine.requestLifeChange(1,3,-3,3000));
+  assert(!engine.requestLifeChange(2,4,-1,3000));  // The team already has one pending.
+  const uint32_t id = engine.lifeChangeFor(3)->id;
+  assert(engine.respondLifeChange(4,id,true,3100));
+  assert(engine.lifeTotal(3)==27 && engine.lifeTotal(4)==27);
+  // A win claim waits only for the other team.
+  assert(engine.beginWinClaim(1,true,4000) && engine.nextWinConfirmationPlayerNumber()==3);
+  bool finished = false;
+  assert(!engine.confirmWinClaim(2,4000,finished));
+  assert(engine.denyWinClaim(4,4100) && engine.running() && !engine.paused());
+  // The checkpoint keeps the mode; teammates must agree.
+  GameCheckpoint saved; engine.checkpoint(saved,5000);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY];
+  const size_t size = encodeCheckpoint(saved,bytes,sizeof(bytes));
+  GameCheckpoint decoded;
+  assert(size && decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  assert(decoded.settings.twoHeadedGiant && decoded.settings.profile==GameProfile::Magic);
+  GameEngine restored; assert(restored.restoreCheckpoint(decoded,9000) && restored.teamOf(4)==2);
+  decoded.life[1] = 1; assert(!validCheckpoint(decoded));
+  decoded.life[1] = decoded.life[0]; decoded.eliminated[3] = true; assert(!validCheckpoint(decoded));
+  // Eliminating one teammate eliminates the team; the last team wins together.
+  assert(engine.pause(6000) && engine.eliminatePlayer(4,6000,finished) && finished);
+  assert(engine.isEliminated(3) && engine.isEliminated(4) && engine.winnerPlayerNumber()==1);
+  assert(engine.isWinner(1) && engine.isWinner(2) && !engine.isWinner(3));
+
+  // Three teams: the turn skips the starter's teammate, and an eliminated team
+  // leaves play going.
+  assert(engine.start(seats,6,seats[1],1000,settings) && engine.activePlayerNumber()==2);
+  assert(engine.passTurn(0,2000) && engine.activePlayerNumber()==3);
+  assert(engine.pause(2500) && engine.eliminatePlayer(3,2500,finished) && !finished);
+  assert(engine.isEliminated(4) && engine.activePlayerNumber()==5 && engine.resume(2600));
+  assert(engine.passTurn(5,3000) && engine.activePlayerNumber()==1);
+
+  // Commander: per-player damage comes off the team's life.
+  settings.profile = GameProfile::Commander;
+  settings.startingLife = TEAM_LIFE_COMMANDER;
+  assert(engine.start(seats,4,seats[0],1000,settings));
+  assert(engine.changeCommanderDamage(3,1,1,21));
+  assert(engine.lifeTotal(3)==39 && engine.lifeTotal(4)==39);
+  assert(engine.commanderDamage(3,1,1)==21 && engine.commanderDamage(4,1,1)==0);
+  assert(engine.recordCommanderHit(4,2,1,5) && engine.lifeTotal(3)==34 && engine.undoCommanderHit(4));
+  assert(engine.lifeTotal(3)==39);
+
+  // The profile byte carries the mode in saved settings and records.
+  GameSettings read;
+  readProfileByte(profileByte(settings),read);
+  assert(read.profile==GameProfile::Commander && read.twoHeadedGiant);
+  readProfileByte(static_cast<uint8_t>(GameProfile::Magic),read);
+  assert(read.profile==GameProfile::Magic && !read.twoHeadedGiant);
+}
+
+static void twoHeadedGiantTable() {
+  using namespace TurnHub;
+  enterEmptyLobby(); TurnHub::fixtureRadio=false;
+  String ids[4]; String tokens[4];
+  const char *names[4] = {"Giant A1","Giant A2","Giant B1","Giant B2"};
+  for (int i=0;i<4;++i) tokens[i]=registerPhone(names[i],ids[i]);
+  for (int i=0;i<3;++i) assert(request("/api/session/join",tokens[i])==200);
+  // Teams need Magic or Commander, and an even table of four or more.
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","generic"},{"twoHeadedGiant","1"}})==409);
+  assert(request("/api/game/settings",tokens[0],{{"twoHeadedGiant","yes"}})==400);
+  assert(request("/api/game/settings",tokens[0],
+      {{"gameProfile","mtg"},{"startingLife","30"},{"twoHeadedGiant","1"}})==200);
+  assert(nextGameSettings.twoHeadedGiant);
+  GameSettings saved; assert(loadGameSettings(saved)==TurnHubStorage::Status::Ok && saved.twoHeadedGiant);
+  assert(request("/api/game/settings",tokens[0],{},HTTP_GET)==200);
+  assert(server.body.find("\"twoHeadedGiant\":true")!=std::string::npos);
+  assert(request("/api/v1/state","",{},HTTP_GET)==200);
+  assert(server.body.find("\"twoHeadedGiant\":true")!=std::string::npos);
+  assert(server.body.find("\"team\":2")!=std::string::npos);
+  assert(request("/api/control/start",tokens[0])==409);  // Three players.
+  assert(request("/api/session/join",tokens[3])==200);
+  assert(request("/api/control/start",tokens[0])==200);
+  testNow+=3000; updateCountdown(testNow);
+  assert(hubState==HubState::Running && game.twoHeadedGiant() && game.lifeTotal(4)==30);
+  const uint8_t starter = game.activePlayerNumber();
+  const uint8_t mate = game.teammateOf(starter);
+  auto token = [&](uint8_t player) {
+    for (int i=0;i<4;++i) if (String(game.playerByNumber(player)->profileId)==ids[i]) return tokens[i];
+    assert(false); return String();
+  };
+  // The teammate passes the team's turn and changes the shared life.
+  assert(request("/api/control/life",token(mate),{{"delta","-4"}})==200);
+  assert(game.lifeTotal(starter)==26 && game.lifeTotal(mate)==26);
+  assert(request("/api/control/pass",token(mate))==200 && pendingPass.active);
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
+  assert(!game.sameTeam(game.activePlayerNumber(),starter));
+  // A conceding player takes the teammate along, and the other team wins together.
+  assert(request("/api/control/concede",token(starter))==200 && hubState==HubState::GameOver);
+  assert(game.isEliminated(mate) && game.isWinner(game.activePlayerNumber()));
+  assert(game.isWinner(game.teammateOf(game.activePlayerNumber())));
+  // Leaving Magic for a profile without teams turns the mode off.
+  assert(request("/api/control/reset",tokens[0])==200);
+  assert(request("/api/session/join",tokens[0])==200);
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","generic"}})==200);
+  assert(!nextGameSettings.twoHeadedGiant);
+  // Later scenarios register their own accounts against the profile limit.
+  assert(request("/api/control/reset",tokens[0])==200);
+  for (const String &id : ids) ProfileFixture::profiles.erase(id.c_str());
+}
+
+static void twoHeadedGiantSigils() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  freshLobby(4);
+  nextGameSettings.profile=GameProfile::Magic; nextGameSettings.startingLife=30;
+  nextGameSettings.twoHeadedGiant=true;
+  startFromHost();
+  assert(game.activePlayerNumber()==1);
+  // Both teammates' Sigils show the turn and offer Pass; the other team's don't.
+  syncSigilMenus(testNow);
+  assert(sigilMenuFor(1).actions & sigilActionBit(SigilAction::Pass));
+  assert(!(sigilMenuFor(2).actions & sigilActionBit(SigilAction::Pass)));
+  leds.render(hubState,lobby,game,0,0,0,testNow);
+  assert(hasDisplayFlag(sentGameDisplays[1].state,DISPLAY_FLAG_ACTIVE));
+  assert(!hasDisplayFlag(sentGameDisplays[2].state,DISPLAY_FLAG_ACTIVE));
+  assert(game.changeLife(1,-2) && game.lifeTotal(2)==28);
+  leds.render(hubState,lobby,game,0,0,0,testNow);
+  assert(sentGameDisplays[1].primary.life==28);
+  choose(1,SigilAction::Pass); assert(pendingPass.active);
+  syncSigilMenus(testNow);
+  assert(sigilMenuFor(0).actions & sigilActionBit(SigilAction::CancelPass));
+  choose(0,SigilAction::CancelPass); assert(!pendingPass.active);
+  choose(1,SigilAction::Pass);
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
+  assert(game.activePlayerNumber()==3 && game.hasTurn(4));
+  nextGameSettings=GameSettings{};
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -3690,6 +3850,9 @@ int main() {
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
+  twoHeadedGiantEngine(); std::cout<<"PASS Two-Headed Giant engine: team turns, shared life, requests, claims, elimination, Commander, recovery\n";
+  twoHeadedGiantTable(); std::cout<<"PASS Two-Headed Giant table: settings, state, teammate pass and life, team concession\n";
+  twoHeadedGiantSigils(); std::cout<<"PASS Two-Headed Giant Sigils: both teammates active, shared life, either cancels the pass\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";

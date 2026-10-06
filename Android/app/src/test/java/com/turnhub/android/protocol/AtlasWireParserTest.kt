@@ -156,6 +156,15 @@ class AtlasWireParserTest {
     }
 
     @Test
+    fun `parses Two-Headed Giant teams`() {
+        val state = Fixtures.state("two-headed-giant.response.json")
+        assertEquals(true, state.settings.twoHeadedGiant)
+        assertEquals(listOf(1, 1, 2, 2), state.players.map { it.team })
+        assertEquals(false, Fixtures.state("running.response.json").settings.twoHeadedGiant)
+        assertNull(Fixtures.state("running.response.json").players[0].team)
+    }
+
+    @Test
     fun `parses commander damage and life requests`() {
         val state = Fixtures.state("commander.response.json")
 

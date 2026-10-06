@@ -150,6 +150,15 @@
             "minimum": 0,
             "maximum": 255
           },
+          "team": {
+            "description": "Two-Headed Giant team (1-based; players 1+2 are team 1), previewed in the lobby; null outside Two-Headed Giant. Teammates show the same life, and both have the turn when either is activePlayer.",
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 8
+          },
           "profileId": {
             "type": [
               "string",
@@ -306,6 +315,10 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3600000
+        },
+        "twoHeadedGiant": {
+          "description": "Two-Headed Giant (mtg and mtg_commander only): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
+          "type": "boolean"
         }
       }
     },

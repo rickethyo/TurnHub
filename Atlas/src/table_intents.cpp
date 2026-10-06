@@ -179,6 +179,7 @@ void startGame() {
   serialLog.print(settings.startingLife);
   serialLog.print("|TIMER_MS|");
   serialLog.print(settings.turnTimerMs);
+  if (settings.twoHeadedGiant) serialLog.print("|TEAMS|2HG");
   serialLog.print("|PLAYERS|");
   serialLog.println(count);
 }
@@ -610,6 +611,10 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
   if (hubState != HubState::Lobby || (!touchscreen && !lobby.isJoined(module)) ||
       lobby.playerCount() < 2) {
     return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
+  }
+  if (!TurnHub::validTeamTable(nextGameSettings, lobby.playerCount())) {
+    return IntentResult::reject(IntentStatus::InvalidState,
+        "Two-Headed Giant needs an even number of players, at least 4");
   }
   if (intent.type == IntentType::ArmStart) {
     lobby.setStartArmedBy(module);
@@ -1211,7 +1216,8 @@ void serviceFactoryReset(uint32_t nowMs) {
   eraseSettingsAndRestart();
 }
 
-// Payload: flags = GameProfile, value = starting life, durationMs = turn timer.
+// Payload: flags = GameProfile (| GAME_FLAG_TWO_HEADED_GIANT), value = starting
+// life, durationMs = turn timer.
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;
   // Any seated player, in the lobby (no table host).
@@ -1221,11 +1227,16 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Unauthorized,
         "Only a seated player can change game settings, in the lobby");
   }
-  if (intent.payload.flags >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
+  const uint32_t profile = intent.payload.flags & ~TurnHub::GAME_FLAG_TWO_HEADED_GIANT;
+  if (profile >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
   }
   TurnHub::GameSettings settings;
-  settings.profile = static_cast<TurnHub::GameProfile>(intent.payload.flags);
+  settings.profile = static_cast<TurnHub::GameProfile>(profile);
+  settings.twoHeadedGiant = (intent.payload.flags & TurnHub::GAME_FLAG_TWO_HEADED_GIANT) != 0;
+  if (settings.twoHeadedGiant && !TurnHub::teamsAllowed(settings.profile)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Two-Headed Giant needs the Magic or Commander profile");
+  }
   settings.startingLife = intent.payload.value;
   settings.turnTimerMs = intent.payload.durationMs;
   if (!TurnHub::validTurnTimerMs(settings.turnTimerMs)) {

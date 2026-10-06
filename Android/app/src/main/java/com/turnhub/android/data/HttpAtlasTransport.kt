@@ -223,11 +223,13 @@ class HttpAtlasTransport(
         gameProfile: String?,
         startingLife: Int?,
         turnTimerMs: Long?,
+        twoHeadedGiant: Boolean?,
     ): String? {
         val fields = buildList {
             gameProfile?.let { add("gameProfile" to it) }
             startingLife?.let { add("startingLife" to it.toString()) }
             turnTimerMs?.let { add("turnTimerMs" to it.toString()) }
+            twoHeadedGiant?.let { add("twoHeadedGiant" to if (it) "1" else "0") }
         }
         val response = request("POST", "/api/game/settings", headers = auth(token), formBody = form(*fields.toTypedArray()))
         requireOk(response, "Atlas did not save the game settings")

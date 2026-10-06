@@ -139,4 +139,16 @@ class TableSummaryMapperTest {
         val otherBoot = Fixtures.state("running.response.json") { put("bootId", Fixtures.OTHER_BOOT_ID) }
         assertThrows(IllegalArgumentException::class.java) { TableSummaryMapper.map(Fixtures.info(), otherBoot) }
     }
+
+    @Test
+    fun `Two-Headed Giant teammates share the turn and the win`() {
+        val summary = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("two-headed-giant.response.json"))
+        assertTrue(summary.hasTurn(1) && summary.hasTurn(2))
+        assertTrue(!summary.hasTurn(3) && !summary.hasTurn(4))
+        assertTrue(summary.sameTeam(3, 4) && !summary.sameTeam(2, 3))
+        assertEquals("Team 2", summary.teamLabel(4))
+        val plain = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"))
+        assertTrue(plain.hasTurn(1) && !plain.hasTurn(2))
+        assertNull(plain.teamLabel(1))
+    }
 }

@@ -542,8 +542,8 @@ class HomeViewModel(
         }
     }
 
-    fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?) {
-        viewModelScope.launch { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs) }
+    fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean? = null) {
+        viewModelScope.launch { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs, twoHeadedGiant) }
     }
 
     fun onSaveName(name: String) {

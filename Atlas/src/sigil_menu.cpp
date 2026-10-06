@@ -65,9 +65,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   const bool seated = lobby.isJoined(sigilId) || game.controllerInGame(sigilId);
   PlayerSeat living;
   const bool hasLivingSeat = firstLivingSeatForModule(sigilId, living);
-  const PlayerSeat *active = game.activePlayer();
-  const bool isActive = active != nullptr && active->controllerId == sigilId &&
-      !game.isEliminated(active->playerNumber);
+  const bool isActive = game.turnSeatForController(sigilId) != nullptr;
 
   switch (hubState) {
     case HubState::Lobby:
@@ -95,7 +93,8 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
 
     case HubState::Running:
       if (isActive) {
-        const bool passQueued = pendingPass.active && pendingPass.seat.controllerId == sigilId;
+        // Any pass the team queued (Two-Headed Giant: either teammate's).
+        const bool passQueued = pendingPass.active;
         add(passQueued ? SigilAction::CancelPass : SigilAction::Pass);
         add(SigilAction::ClaimWin);
       }

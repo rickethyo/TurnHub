@@ -64,7 +64,18 @@ fun PlayersTab(
             if (summary.players.isEmpty()) {
                 EmptyNote("No players have joined. Choose Join on a Sigil, or join from the Game tab.")
             }
-            summary.players.forEach { player ->
+            if (summary.settings.twoHeadedGiant) {
+                Text(
+                    "Two-Headed Giant: players 1 and 2 are a team, then 3 and 4. Teammates share one life total and one turn.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            summary.players.forEachIndexed { index, player ->
+                // Two-Headed Giant: a heading over each team (teammates are neighbours).
+                if (player.team != null && player.team != summary.players.getOrNull(index - 1)?.team) {
+                    Eyebrow("Team ${player.team}")
+                }
                 val mine = player.playerNumber == myPlayer
                 // Only a physical seat can be confirmed with Link phone.
                 val onUse = if (!mine && player.controller.kind == ControllerHandle.Kind.PHYSICAL && claim?.waiting != true) {
@@ -179,9 +190,9 @@ private fun RosterCard(
     onUseSeat: (() -> Unit)? = null,
 ) {
     val p = palette
-    val active = player.playerNumber == summary.activePlayerNumber &&
+    val active = summary.hasTurn(player.playerNumber) &&
         (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
-    val winner = player.playerNumber == summary.winnerPlayerNumber
+    val winner = summary.isWinner(player.playerNumber)
     val border = when {
         winner -> p.accent
         active -> p.active
@@ -211,7 +222,7 @@ private fun RosterCard(
                     ControllerHandle.Kind.VIRTUAL -> "Phone controller"
                     ControllerHandle.Kind.UNKNOWN -> "Controller ${player.controller.id}"
                 }
-                Text("Player ${player.playerNumber} · $controller", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                Text("${player.team?.let { "Team $it · " } ?: ""}Player ${player.playerNumber} · $controller", color = p.muted, style = MaterialTheme.typography.bodySmall)
             }
             player.life?.let {
                 Column(horizontalAlignment = Alignment.End) {
