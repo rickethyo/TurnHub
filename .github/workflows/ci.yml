@@ -164,14 +164,13 @@ jobs:
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
-          # Keep in sync with Android/gradle/gradle-daemon-jvm.properties.
-          java-version: '26'
+          # Any JDK 17+ runs the build (Android Studio uses its bundled JBR); 25 is the current LTS.
+          java-version: '25'
           cache: gradle
           cache-dependency-path: |
             Android/**/*.gradle.kts
             Android/gradle/libs.versions.toml
             Android/gradle/wrapper/gradle-wrapper.properties
-            Android/gradle/gradle-daemon-jvm.properties
       - name: Accept Android SDK licenses
         # The hosted runner includes the SDK. Gradle installs the platform and
         # build tools required by this project's compileSdk/AGP configuration.

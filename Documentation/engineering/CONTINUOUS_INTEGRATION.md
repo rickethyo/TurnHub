@@ -30,10 +30,13 @@ library versions are still floating in those configurations; this workflow does
 not claim reproducible release builds. Each firmware artifact records its commit,
 environment and resolved package versions.
 
-Android uses the committed Gradle wrapper and Temurin 26, matching
-`Android/gradle/gradle-daemon-jvm.properties`. The hosted runner supplies the Android
-SDK; after license acceptance, Gradle installs the SDK components requested by
-the project. Keep the workflow's Java version aligned with the daemon criteria.
+Android uses the committed Gradle wrapper and Temurin 25 (LTS). There are no
+Gradle daemon JVM criteria: the daemon runs on whatever JDK starts it (Android
+Studio's bundled JBR locally), so a sync never downloads a JDK. The pinned
+foojay download that the criteria used to carry broke once Java 26 left
+support (2026-10-06). Any JDK 17 or newer builds the app. The hosted runner
+supplies the Android SDK; after license acceptance, Gradle installs the SDK
+components requested by the project.
 
 The workflow uses read-only repository permission and pinned revisions of
 official GitHub actions. Its one secret is `TURNHUB_FIRMWARE_SIGNING_KEY`, the
