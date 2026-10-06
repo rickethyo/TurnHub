@@ -48,9 +48,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $inventoryPath = Join-Path $root 'Documentation\engineering\BOARD_INVENTORY.md'
-$localInventoryPath = Join-Path $PSScriptRoot 'boards.local.md'
+$localInventoryPath = Join-Path $root 'tools\boards.local.md'
 $utf8 = New-Object System.Text.UTF8Encoding $false
 
 # Firmware column in the inventory -> PlatformIO project folder and environment.
@@ -173,6 +173,18 @@ function Show-Plan($plan) {
   }
 }
 
+function Exit-WithSummary($plan) {
+  Write-Host "`n== Summary" -ForegroundColor Cyan
+  $bad = 0
+  foreach ($row in $plan) {
+    $text = if ($row.Result) { $row.Result } else { "skipped ($($row.Why))" }
+    $color = if ($row.Result -like 'flashed*') { 'Green' } elseif ($row.Result) { 'Red' } else { 'Yellow' }
+    if ($row.Result -and $row.Result -notlike 'flashed*') { $bad++ }
+    Write-Host ("  {0,-12} {1,-18} {2}" -f $row.Board, $row.Mac, $text) -ForegroundColor $color
+  }
+  exit $(if ($bad) { 1 } else { 0 })
+}
+
 function Invoke-BoardSetup($newBoards, $inventory) {
   # Asks what each new board is and appends a row per answer to tools\boards.local.md.
   $taken = @($inventory | ForEach-Object Board)
@@ -227,7 +239,7 @@ function Invoke-BoardSetup($newBoards, $inventory) {
     $header = @(
       '# Boards on this PC',
       '',
-      'Written by board setup (`tools\setup-boards.cmd`, or `flash-all.ps1 -Setup`). This file',
+      'Written by board setup (`tools\setup-boards.cmd`). This file',
       'is not committed. flash-all reads it before `Documentation/engineering/BOARD_INVENTORY.md`,',
       'and a MAC listed here wins. Firmware is `atlas`, `sigil` (E-ink), `sigil-oled`, or `spare`',
       '(recorded but never flashed). Edit or delete a row to change or forget a board.',
@@ -387,15 +399,7 @@ if ($Signed -or $Sign) {
     $row.Result = if ($LASTEXITCODE -eq 0) { "flashed $($versions[$row.Env]) ($label)" } else { 'UPLOAD FAILED' }
   }
 
-  Write-Host "`n== Summary" -ForegroundColor Cyan
-  $bad = 0
-  foreach ($row in $plan) {
-    $text = if ($row.Result) { $row.Result } else { "skipped ($($row.Why))" }
-    $color = if ($row.Result -like 'flashed*') { 'Green' } elseif ($row.Result) { 'Red' } else { 'Yellow' }
-    if ($row.Result -and $row.Result -notlike 'flashed*') { $bad++ }
-    Write-Host ("  {0,-12} {1,-18} {2}" -f $row.Board, $row.Mac, $text) -ForegroundColor $color
-  }
-  exit $(if ($bad) { 1 } else { 0 })
+  Exit-WithSummary $plan
 }
 
 # --- 3. build once per firmware, then flash each board --------------------------
@@ -422,12 +426,4 @@ foreach ($row in $toFlash) {
 }
 
 # --- 4. summary -----------------------------------------------------------------
-Write-Host "`n== Summary" -ForegroundColor Cyan
-$bad = 0
-foreach ($row in $plan) {
-  $text = if ($row.Result) { $row.Result } else { "skipped ($($row.Why))" }
-  $color = if ($row.Result -eq 'flashed') { 'Green' } elseif ($row.Result) { 'Red' } else { 'Yellow' }
-  if ($row.Result -and $row.Result -ne 'flashed') { $bad++ }
-  Write-Host ("  {0,-12} {1,-18} {2}" -f $row.Board, $row.Mac, $text) -ForegroundColor $color
-}
-exit $(if ($bad) { 1 } else { 0 })
+Exit-WithSummary $plan

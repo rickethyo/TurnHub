@@ -356,5 +356,5 @@ Claude outputs/
 design/dist/styleguide.html
 Atlas/web/dist/
 
-# Board setup output: this PC's boards (tools/flash-all.ps1 -Setup)
+# Board setup output: this PC's boards (tools/setup-boards.cmd)
 tools/boards.local.md

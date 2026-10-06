@@ -6,7 +6,7 @@
   (Sigils), or from the app. The boards accept them like release packages.
 
 .DESCRIPTION
-  The key is read from ..\Private\TurnHub-keys\ (outside the git repo) and is
+  The key is read from Private\TurnHub-keys\ beside the repo (outside git) and is
   never copied, printed or put in an environment variable. Packages are
   verified against the public key in shared/include/firmware_signing_key.h
   before they are reported as ready.
@@ -31,7 +31,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $private = Join-Path (Split-Path -Parent $root) 'Private'
 $thfw = Join-Path $root 'tools\firmware\thfw.py'
 
