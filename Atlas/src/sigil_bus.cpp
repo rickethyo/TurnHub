@@ -350,6 +350,13 @@ void SigilBus::handleReceive(
   }
   sigil->lastSeenMs = millis();
 
+  // A spare Sigil (CAPABILITY_SPARE) only keeps its link and reports OTA
+  // progress; any other input from it is dropped, so it cannot play.
+  if ((sigil->capabilities & TurnHubProtocol::CAPABILITY_SPARE) != 0 &&
+      packet.type != PacketType::Hello && packet.type != PacketType::SigilUpdateStatus) {
+    return;
+  }
+
   switch (packet.type) {
     case PacketType::Hello:
       sigil->confirmedSessionGeneration = sigil->sessionGeneration;

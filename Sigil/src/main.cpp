@@ -28,9 +28,13 @@
 #include "pairing_v2.h"
 #include "secure_session.h"
 #include "secure_link_mbedtls.h"
+#ifndef TURNHUB_SPARE
+#define TURNHUB_SPARE 0
+#endif
 #ifndef TURNHUB_WOKWI
 #include "firmware_package.h"
 
+#if !TURNHUB_SPARE
 // This build's identity, read by tools/firmware/thfw.py when it packages
 // firmware.bin for OTA (SIGIL_OTA.md). The Wokwi build has none, so it can't
 // be packaged.
@@ -41,6 +45,7 @@ constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage
 #endif
 TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigilFirmware::MAJOR,
     TurnHubSigilFirmware::MINOR, TurnHubSigilFirmware::PATCH, TurnHubProtocol::VERSION);
+#endif
 #include "sigil_updater.h"
 #define TURNHUB_OTA 1
 #else
@@ -99,13 +104,23 @@ constexpr uint8_t PAIR_BUTTON = 19;  // diagram.json's Pair pushbutton.
 constexpr uint8_t PAIR_BUTTON = 0;
 #endif
 
+// Spare build (env:sigil-spare, SPARE_SIGIL.md): one image for any Sigil
+// board, with no display, input or buzzer. It keeps its pairing, announces
+// CAPABILITY_SPARE and its strap's display type, and takes the matching OTA
+// package, which brings it back as a normal Sigil.
+bool spareStrapOled = false;
+
 // Hello announces only what varies between Sigils (protocol.h); Atlas assumes
-// the rest. The display bit also picks the OTA package.
-constexpr uint8_t DEVICE_CAPABILITIES = 0
-#if TURNHUB_DISPLAY_OLED
-    | TurnHubProtocol::CAPABILITY_DISPLAY_OLED
+// the rest. The display bit also picks the OTA package (a spare reports its
+// GPIO4 strap).
+uint8_t deviceCapabilities() {
+#if TURNHUB_SPARE
+  return TurnHubProtocol::CAPABILITY_SPARE |
+      (spareStrapOled ? TurnHubProtocol::CAPABILITY_DISPLAY_OLED : 0);
+#else
+  return TURNHUB_DISPLAY_OLED ? TurnHubProtocol::CAPABILITY_DISPLAY_OLED : 0;
 #endif
-    ;
+}
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
@@ -334,7 +349,7 @@ void sendHello() {
       TurnHubSigilFirmware::MAJOR,
       TurnHubSigilFirmware::MINOR,
       TurnHubSigilFirmware::PATCH,
-      DEVICE_CAPABILITIES);
+      deviceCapabilities());
   if (linkSession.ready() && millis() - lastAtlasFrameMs <= 2 * HELLO_INTERVAL_MS) {
     sendPacket(PacketType::Hello, helloInfo);
     return;
@@ -1074,6 +1089,10 @@ void handleAtlasPacket(
     return;
   }
 #endif
+#if TURNHUB_SPARE
+  // A spare keeps its link and takes OTA; it draws and plays nothing.
+  if (length != sizeof(Packet)) return;
+#endif
   if (length == sizeof(TurnHubProtocol::CommanderFlowPacket)) {
     TurnHubProtocol::CommanderFlowPacket page{};
     memcpy(&page,incomingData,sizeof(page));
@@ -1158,6 +1177,11 @@ void handleAtlasPacket(
   rememberAtlas(mac);
   noteAtlasHeard();
 
+#if TURNHUB_SPARE
+  // Only Unpair and Factory reset reach a spare; game, menu, light and
+  // buzzer packets are ignored.
+  if (packet.type != PacketType::Unpair && packet.type != PacketType::FactoryReset) return;
+#endif
   switch (packet.type) {
     case PacketType::Ack:
       Serial.print("SIGIL|ACK|");
@@ -1592,6 +1616,16 @@ void updateMenuKeys() {
   publishMenuView();
 }
 
+#if TURNHUB_SPARE
+// A spare sends no input: the keys only debounce for the joystick pairing
+// hold, which still pairs an unpaired spare.
+void updateSpareKeys() {
+  const uint32_t nowMs = millis();
+  for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) debouncedEdge(keys[k], nowMs);
+  ledModel.setHoldProgress(updateJoystickPair(nowMs));
+}
+#endif
+
 // Powers down until a joystick click or the Pair button. The ring is dark and
 // its data line held low, so it cannot light while the ESP32 sleeps; the
 // click's pull-up moves to the RTC domain, which stays on. Never returns:
@@ -1773,7 +1807,7 @@ bool startEspNow() {
   Serial.println(WiFi.macAddress());
   Serial.print("SIGIL|FW|");
   Serial.println(TurnHubSigilFirmware::VERSION);
-#ifndef TURNHUB_WOKWI
+#if !defined(TURNHUB_WOKWI) && !TURNHUB_SPARE
   // A real read of the descriptor, so the linker keeps it in the image.
   Serial.print("SIGIL|FW_PRODUCT|");
   Serial.println(*reinterpret_cast<const volatile uint8_t *>(&sigilFirmwareDescriptor.product));
@@ -1790,6 +1824,13 @@ void checkHardwareType() {
   pinMode(HW_TYPE_STRAP_PIN, INPUT_PULLUP);
   delay(2);
   const bool boardIsOled = digitalRead(HW_TYPE_STRAP_PIN) == LOW;
+#if TURNHUB_SPARE
+  // Any board: remember the strap so Atlas sends the right package.
+  spareStrapOled = boardIsOled;
+  Serial.print("SIGIL|SPARE|");
+  Serial.println(boardIsOled ? "OLED" : "EINK");
+  return;
+#endif
   const char *board = boardIsOled ? "OLED" : "EINK";
   const char *build = TURNHUB_DISPLAY_OLED ? "OLED" : "EINK";
   if (boardIsOled == static_cast<bool>(TURNHUB_DISPLAY_OLED)) {
@@ -1883,6 +1924,10 @@ void setup() {
 
   espNowReady = startEspNow();
 #if TURNHUB_OTA
+#if TURNHUB_SPARE
+  const auto SIGIL_PRODUCT = spareStrapOled ? TurnHubFirmwarePackage::Product::SigilOled :
+      TurnHubFirmwarePackage::Product::SigilEink;
+#endif
   updater.begin(SIGIL_PRODUCT,
       TurnHubFirmwarePackage::Version{TurnHubSigilFirmware::MAJOR, TurnHubSigilFirmware::MINOR,
           TurnHubSigilFirmware::PATCH},
@@ -1941,7 +1986,11 @@ void loop() {
   if (updater.pending()) updater.run();  // Blocks; restarts on success.
 #endif
   updateJoystick(millis());
+#if TURNHUB_SPARE
+  updateSpareKeys();
+#else
   updateMenuKeys();
+#endif
   updatePairButton();
   updatePairing();
   applyAtlasLinkChange(atlasLink.update(millis()));

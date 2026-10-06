@@ -11,7 +11,7 @@
   Reading a MAC resets the board.
 
   - Unknown MACs are reported, and board setup is offered for them.
-  - The test harness and spare boards are never flashed.
+  - The test harness is never flashed; a spare Sigil gets the inert spare firmware.
   - A dirty working tree stops the pull so local work is never overwritten.
 
 .PARAMETER Setup    Board setup only: identify every attached board, ask what each new one is
@@ -59,6 +59,8 @@ $targets = @{
   'atlas'      = @{ Dir = 'Atlas'; Env = 'atlas' }
   'sigil'      = @{ Dir = 'Sigil'; Env = 'sigil' }
   'sigil-oled' = @{ Dir = 'Sigil'; Env = 'sigil-oled' }
+  # A spare Sigil (any `spare` row on a Sigil): inert, brought back over the air.
+  'sigil-spare' = @{ Dir = 'Sigil'; Env = 'sigil-spare' }
 }
 
 # What board setup can record: menu key -> firmware column and default name.
@@ -66,7 +68,7 @@ $boardKinds = [ordered]@{
   '1' = @{ Firmware = 'atlas';      Name = 'Atlas';       Label = 'Atlas (table controller)' }
   '2' = @{ Firmware = 'sigil';      Name = 'E-ink Sigil'; Label = 'E-ink Sigil (GPIO4 open)' }
   '3' = @{ Firmware = 'sigil-oled'; Name = 'OLED Sigil';  Label = 'OLED Sigil (GPIO4 to GND)' }
-  '4' = @{ Firmware = 'spare';      Name = 'Spare board'; Label = 'Spare (recorded, never flashed)' }
+  '4' = @{ Firmware = 'spare';      Name = 'Spare board'; Label = 'Spare (a Sigil gets the inert spare firmware)' }
 }
 
 function Fail($message) { Write-Host "`nERROR: $message" -ForegroundColor Red; exit 1 }
@@ -123,7 +125,8 @@ function Read-Mac($pio, $port) {
 function Read-BootKind($port, [int]$seconds = 5) {
   # Resets the board the way esptool does (EN pulled low through RTS, IO0 left high) and
   # listens to its boot log. A Sigil reports its GPIO4 strap even when it is running the
-  # wrong display build. Returns 'eink', 'oled', 'atlas', 'harness', or $null.
+  # wrong display build, and so does the spare firmware. Returns 'eink', 'oled',
+  # 'spare-eink', 'spare-oled', 'atlas', 'harness', or $null.
   $sp = New-Object System.IO.Ports.SerialPort $port, 115200
   $sp.DtrEnable = $false
   $sp.RtsEnable = $true
@@ -136,6 +139,7 @@ function Read-BootKind($port, [int]$seconds = 5) {
     while ((Get-Date) -lt $deadline) {
       Start-Sleep -Milliseconds 100
       $log += $sp.ReadExisting()
+      if ($log -match 'SIGIL\|SPARE\|(OLED|EINK)') { return 'spare-' + $Matches[1].ToLower() }
       if ($log -match 'SIGIL\|HW\|(MISMATCH\|BOARD\|)?(OLED|EINK)') { return $Matches[2].ToLower() }
       if ($log -match 'ATLAS\|BOOT\|') { return 'atlas' }
       if ($log -match 'HARNESS\|BOOT') { return 'harness' }
@@ -158,7 +162,12 @@ function Get-Plan($boards, $inventory) {
     $action = 'skip'; $fw = ''; $why = ''
     if (-not $b.Mac) { $why = 'could not read MAC (busy? close any serial monitor)' }
     elseif (-not $match) { $why = 'new board: not set up yet (run setup-boards.cmd)' }
-    elseif (-not $targets.ContainsKey($match.Firmware)) { $why = "$($match.Board): never flashed by this script" }
+    elseif ($match.Firmware -like 'spare*' -and $match.Firmware -ne 'spare:atlas' -and $b.Bridge -ne 'CH340') {
+      $action = 'flash'; $fw = 'sigil-spare'
+    }
+    elseif (-not $targets.ContainsKey($match.Firmware) -or $match.Firmware -eq 'sigil-spare') {
+      $why = "$($match.Board): never flashed by this script"
+    }
     else { $action = 'flash'; $fw = $match.Firmware }
     [pscustomobject]@{
       Port = $b.Port; Bridge = $b.Bridge; Mac = $b.Mac; Board = if ($match) { $match.Board } else { '?' }
@@ -191,8 +200,9 @@ $localHeader = @(
   '',
   'Written by board setup (`tools\setup-boards.cmd`); flash-all flashes each attached board',
   'with the firmware its MAC has here. This file is not committed. Firmware is `atlas`,',
-  '`sigil` (E-ink), `sigil-oled`, or `spare` / `spare:<firmware it ran>` (kept, never',
-  'flashed). Run board setup again to rename, retype, retire or delete a board.',
+  '`sigil` (E-ink), `sigil-oled`, or `spare` / `spare:<firmware it ran>` (a Sigil gets the',
+  'inert spare firmware; see SPARE_SIGIL.md). Run board setup again to rename, retype,',
+  'retire or delete a board.',
   '',
   '| Board | Firmware | USB bridge | MAC | Notes |',
   '|---|---|---|---|---|'
@@ -241,6 +251,8 @@ function Get-Suggestion($bridge, $port) {
   switch (Read-BootKind $port) {
     'eink'    { return @{ Key = '2'; Hint = 'its firmware reports an E-ink Sigil (GPIO4 open)' } }
     'oled'    { return @{ Key = '3'; Hint = 'its firmware reports an OLED Sigil (GPIO4 to GND)' } }
+    'spare-eink' { return @{ Key = '2'; Hint = 'it runs the spare firmware; its strap says E-ink Sigil (GPIO4 open)' } }
+    'spare-oled' { return @{ Key = '3'; Hint = 'it runs the spare firmware; its strap says OLED Sigil (GPIO4 to GND)' } }
     'atlas'   { return @{ Key = '1'; Hint = 'its firmware reports an Atlas' } }
     'harness' { return @{ Key = $null; Hint = 'this is the retired test harness: record it as Spare or skip it' } }
   }
@@ -319,9 +331,9 @@ function Invoke-BoardManager($attached) {
     if ($spare) { Write-Host '    S  Return to service' }
     else {
       Write-Host '    T  Change type'
-      if ($inService) { Write-Host '    P  Make spare (kept, never flashed)' }
+      if ($inService) { Write-Host '    P  Make spare (a Sigil gets the inert spare firmware at the next flash)' }
     }
-    Write-Host '    D  Delete (forget this board)'
+    Write-Host '    D  Delete: erase it if attached, and forget it'
     $act = "$(Read-Host '  Choose, or Enter to go back')".Trim().ToUpper()
 
     $name = $r.Board; $firmware = $r.Firmware
@@ -348,15 +360,53 @@ function Invoke-BoardManager($attached) {
       if (-not $key) { continue }
       $firmware = $boardKinds[$key].Firmware
     } elseif ($act -eq 'D') {
-      $sure = "$(Read-Host "  Forget $name ($($r.Mac))? y/N")".Trim()
-      if ($sure -notmatch '^[Yy]') { continue }
+      # Delete wipes an attached board clean (firmware, pairing, settings) and
+      # forgets it; a board that is not attached is only forgotten.
+      $on = @($attached | Where-Object Mac -eq $r.Mac)
+      $what = if ($on.Count) { "erase ALL flash on $name ($($on[0].Port)) and forget it" } else { "forget $name (not attached, so it is not erased)" }
+      $sure = "$(Read-Host "  This will $what. Type y to confirm")".Trim()
+      if ($sure -notmatch '^[Yy]$') { continue }
+      if ($on.Count) {
+        if ($DryRun) {
+          Write-Host "  Dry run, not erased: $name on $($on[0].Port)" -ForegroundColor Yellow
+        } else {
+          Write-Host "  Erasing $name on $($on[0].Port)..."
+          & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $on[0].Port erase_flash
+          if ($LASTEXITCODE -ne 0) { Write-Host "  Erase failed; $name is still on the list." -ForegroundColor Red; continue }
+        }
+      }
       Save-LocalRow $r.Mac $null
-      Write-Host "  Forgot $name." -ForegroundColor Green
+      Write-Host "  Deleted $name." -ForegroundColor Green
       continue
     } else { continue }
 
     Save-LocalRow $r.Mac (Format-Row $name $firmware $r.Bridge $r.Mac $r.Notes)
     Write-Host "  $name -> $(Get-KindLabel $firmware)" -ForegroundColor Green
+  }
+}
+
+function Invoke-PioFlash($rows) {
+  # Builds each firmware once with PlatformIO, then uploads it to each board.
+  foreach ($fw in ($rows.Env | Select-Object -Unique)) {
+    $t = $targets[$fw]
+    Write-Host "`n== Building $fw" -ForegroundColor Cyan
+    Push-Location (Join-Path $root $t.Dir)
+    & $pio run -e $t.Env
+    $ok = $LASTEXITCODE -eq 0
+    Pop-Location
+    if (-not $ok) {
+      foreach ($row in $rows | Where-Object Env -eq $fw) { $row.Result = 'BUILD FAILED' }
+    }
+  }
+
+  foreach ($row in $rows) {
+    if ($row.Result) { continue }
+    $t = $targets[$row.Env]
+    Write-Host "`n== Flashing $($row.Board) ($($row.Env)) on $($row.Port)" -ForegroundColor Cyan
+    Push-Location (Join-Path $root $t.Dir)
+    & $pio run -e $t.Env --target upload --upload-port $row.Port
+    $row.Result = if ($LASTEXITCODE -eq 0) { 'flashed' } else { 'UPLOAD FAILED' }
+    Pop-Location
   }
 }
 
@@ -428,12 +478,33 @@ if ($new.Count -and -not $NoSetup -and -not $DryRun) {
   }
 }
 
+# A spare returned to service over the air (SPARE_SIGIL.md) runs normal Sigil
+# firmware again: record that and flash it as that Sigil, never back to spare.
+foreach ($row in $plan | Where-Object Env -eq 'sigil-spare') {
+  Write-Host "  Checking spare $($row.Board) on $($row.Port) (this resets it)..."
+  $kind = Read-BootKind $row.Port
+  if ($kind -ne 'eink' -and $kind -ne 'oled') { continue }
+  $fw = if ($kind -eq 'oled') { 'sigil-oled' } else { 'sigil' }
+  $entry = $inventory | Where-Object Mac -eq $row.Mac | Select-Object -First 1
+  Save-LocalRow $row.Mac (Format-Row $row.Board $fw $entry.Bridge $row.Mac $entry.Notes)
+  Write-Host "  $($row.Board) is running $(Get-KindLabel $fw) firmware (returned to service over the air): recorded." -ForegroundColor Green
+  $row.Firmware = $fw; $row.Env = $fw
+}
+
 $toFlash = @($plan | Where-Object Action -eq 'flash')
 if (-not $toFlash.Count) { Fail 'No connected board is set up for a flashable firmware. Run setup-boards.cmd to add new boards.' }
 if ($DryRun -and -not ($Signed -or $Sign)) { Write-Host "`nDry run: nothing was built or flashed." -ForegroundColor Yellow; exit 0 }
 
 # --- 2b. signed images over USB (-Signed release, -Sign local key) ------------------
 if ($Signed -or $Sign) {
+  # The spare firmware is never packaged: spares get a plain PlatformIO upload.
+  $spareRows = @($toFlash | Where-Object Env -eq 'sigil-spare')
+  $toFlash = @($toFlash | Where-Object Env -ne 'sigil-spare')
+  if (-not $toFlash.Count) {
+    if ($DryRun) { Write-Host "`nDry run: nothing was built or flashed." -ForegroundColor Yellow; exit 0 }
+    Invoke-PioFlash $spareRows
+    Exit-WithSummary $plan
+  }
   $products = @{ 'atlas' = 'atlas'; 'sigil' = 'sigil-eink'; 'sigil-oled' = 'sigil-oled' }
   $python = Join-Path $env:USERPROFILE '.platformio\penv\Scripts\python.exe'
   if (-not (Test-Path $python)) { $python = 'python' }
@@ -501,6 +572,7 @@ if ($Signed -or $Sign) {
     exit 0
   }
 
+  if ($spareRows.Count) { Invoke-PioFlash $spareRows }
   foreach ($row in $toFlash) {
     Write-Host "`n== Flashing $($row.Env) $($versions[$row.Env]) ($label) to $($row.Board) on $($row.Port)" -ForegroundColor Cyan
     # 921600 baud, as platformio.ini's upload_speed; esptool's default is 115200.
@@ -512,27 +584,7 @@ if ($Signed -or $Sign) {
 }
 
 # --- 3. build once per firmware, then flash each board --------------------------
-foreach ($fw in ($toFlash.Env | Select-Object -Unique)) {
-  $t = $targets[$fw]
-  Write-Host "`n== Building $fw" -ForegroundColor Cyan
-  Push-Location (Join-Path $root $t.Dir)
-  & $pio run -e $t.Env
-  $ok = $LASTEXITCODE -eq 0
-  Pop-Location
-  if (-not $ok) {
-    foreach ($row in $toFlash | Where-Object Env -eq $fw) { $row.Result = 'BUILD FAILED' }
-  }
-}
-
-foreach ($row in $toFlash) {
-  if ($row.Result) { continue }
-  $t = $targets[$row.Env]
-  Write-Host "`n== Flashing $($row.Board) ($($row.Env)) on $($row.Port)" -ForegroundColor Cyan
-  Push-Location (Join-Path $root $t.Dir)
-  & $pio run -e $t.Env --target upload --upload-port $row.Port
-  $row.Result = if ($LASTEXITCODE -eq 0) { 'flashed' } else { 'UPLOAD FAILED' }
-  Pop-Location
-}
+Invoke-PioFlash $toFlash
 
 # --- 4. summary -----------------------------------------------------------------
 Exit-WithSummary $plan

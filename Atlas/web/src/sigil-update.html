@@ -60,7 +60,7 @@ function render(){
  el('packageInfo').textContent=state.staged?'Ready: '+(state.product===3?'OLED':'E-paper')+' '+state.version:'No package staged. Upload a signed package first.';
  const selected=el('sigil').value; el('sigil').replaceChildren();
  for(const d of devices){if(!d.online||!d.metadata||(d.capabilities&128))continue;
- const option=document.createElement('option');option.value=d.id;option.textContent=d.label+' · '+d.display+' · '+d.firmware;
+ const option=document.createElement('option');option.value=d.id;option.textContent=d.label+' · '+d.display+((d.capabilities&64)?' · spare':'')+' · '+d.firmware;
  option.disabled=!state.staged||(d.display==='oled'?3:2)!==state.product;el('sigil').append(option);}
  if([...el('sigil').options].some(o=>o.value===selected&&!o.disabled))el('sigil').value=selected;
  else {const first=[...el('sigil').options].find(o=>!o.disabled);if(first)el('sigil').value=first.value;}

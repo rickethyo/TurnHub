@@ -214,8 +214,10 @@ void confirmChoice(uint8_t sigilId) {
 bool pickerSigil(uint8_t sigilId) {
   const TurnHub::SigilRecord *record = sigilBus.record(sigilId);
   if (record == nullptr || !record->helloInfoValid) return false;
-  // Every Sigil but the test harness, which joins as a guest instead.
-  return (record->capabilities & TurnHubProtocol::CAPABILITY_HARNESS) == 0;
+  // Every Sigil but the test harness, which joins as a guest instead, and a
+  // spare, which never plays.
+  return (record->capabilities &
+      (TurnHubProtocol::CAPABILITY_HARNESS | TurnHubProtocol::CAPABILITY_SPARE)) == 0;
 }
 
 bool pickerOpen(uint8_t sigilId) {

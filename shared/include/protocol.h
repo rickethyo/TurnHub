@@ -47,7 +47,7 @@ constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 // (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
 // The byte carries only what varies (owner, 2026-09-30).
 //
-// 0x01, 0x02, 0x04, 0x08, 0x20 and 0x40 are free (0x01 was the OLED Sigil's
+// 0x01, 0x02, 0x04, 0x08 and 0x20 are free (0x01 was the OLED Sigil's
 // five-button d-pad, retired 2026-10-01 when every Sigil got the thumbstick;
 // the others were the feature bits protocol 2 used to announce the baseline).
 //
@@ -59,6 +59,11 @@ constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
 // harness answers with HarnessReport. It still plays only through the normal
 // Sigil packets, so it gains no authority.
 constexpr uint8_t CAPABILITY_HARNESS = 0x80;
+// A spare Sigil (Sigil env:sigil-spare, SPARE_SIGIL.md): paired but inert,
+// with no display or input. Atlas never seats it or takes its input, and
+// sends it the OTA package its display bit (its GPIO4 strap) names, which
+// brings it back as a normal Sigil.
+constexpr uint8_t CAPABILITY_SPARE = 0x40;
 
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'

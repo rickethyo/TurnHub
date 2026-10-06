@@ -47,6 +47,7 @@ records predate that.
 - [Turn Timer and Cues](TURN_TIMER_AND_CUES.md) - the turn timer and the LED and audio cue layers.
 - [First-run Setup](FIRST_RUN_SETUP.md) - guided setup from the app.
 - [Sigil OTA](SIGIL_OTA.md) - signed firmware packages and updates for Atlas and Sigils.
+- [Spare Sigil](SPARE_SIGIL.md) - the inert spare firmware, and bringing a spare back over the air.
 - [SD Diagnostics](SD_DIAGNOSTICS.md) - optional card logs, hot-plug and failure behavior.
 - [Web Portal Design System](WEB_PORTAL_DESIGN.md) - stylesheet, themes and the portal test contract.
 - [Web Portal Pack](PORTAL_PACK.md) - the V1 portal as a signed pack on the microSD card, with the flash portal as fallback.

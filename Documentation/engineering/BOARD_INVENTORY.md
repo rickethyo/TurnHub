@@ -33,8 +33,13 @@ device type.
 Firmware values:
 
 - `atlas`, `sigil` (E-ink) and `sigil-oled` are flashed by `flash-all`.
-- `spare`, or `spare:<firmware it ran>` after **Make spare**, keeps a board on the
-  list without flashing it. **Return to service** suggests the firmware it ran.
+- `spare`, or `spare:<firmware it ran>` after **Make spare**: a Sigil gets the
+  inert spare firmware ([Spare Sigil](SPARE_SIGIL.md)) at the next flash; a spare
+  Atlas is left alone. **Return to service** suggests the firmware it ran. A spare
+  brought back over the air is noticed at the next flash and recorded.
+- **Delete** erases an attached board's whole flash (firmware, pairing, settings)
+  after you type `y`, then forgets it; a board that isn't attached is only
+  forgotten.
 - Anything else (the retired test harness's `harness`, for example) is listed
   and never flashed.
 
