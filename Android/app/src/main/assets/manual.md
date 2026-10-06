@@ -199,6 +199,18 @@ Game profiles and their starting life:
 
 Changes to the game settings apply from the next game that starts.
 
+Two-Headed Giant (Magic and Commander): turn it on in Game setup for teams of two. Players 1 and 2 are a team, then 3 and 4, and so on; change the turn order in the lobby to change teams. It needs an even number of players, at least 4.
+
+- Teammates share one life total: 30 for Magic, 60 for Commander (you can change it). Either teammate can change it.
+
+- Teammates take their turn together. Both see “Your turn”, and either can pass, cancel the pass or claim the win.
+
+- Commander damage still counts per player, and each hit comes off the team’s life.
+
+- When one teammate is eliminated or concedes, the whole team is out. The last team left wins, and both teammates get the win.
+
+- The starting team skips its first draw; the Atlas screen reminds you during that first turn.
+
 # 8. Taking Turns
 
 TurnHub always maintains a current active player. The active player’s Sigil shows YOUR TURN, and the Atlas screen shows their name and turn clock.
