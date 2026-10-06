@@ -378,10 +378,7 @@ dialog .actions button{flex:1}
 .setting-box{background:var(--c-surface2);border-radius:var(--r-md);padding:16px;min-width:0}
 [data-theme=daylight] .setting-box{box-shadow:0 0 0 1px var(--c-separator)}
 [data-theme=contrast] .setting-box{border:1px solid var(--c-separator)}
-.acct{display:grid;gap:4px}
-.acct .switch-row{padding:9px 0;font-size:var(--t-subhead-size)}
-.acct+.acct,.setting-box+.setting-box{margin-top:10px}
-.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:0 20px;margin:6px 0 10px}
+.setting-box+.setting-box{margin-top:10px}
 
 /* Appearance and other choice cards */
 .themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:8px}
@@ -420,6 +417,41 @@ dialog .actions button{flex:1}
 @media (max-width:819px){.row{grid-template-columns:auto minmax(0,1fr) auto}.row .player-state{grid-column:2;grid-row:2;text-align:left}.row-actions{grid-column:2/-1;grid-row:3}}
 @media (min-width:820px){.row{grid-template-columns:auto minmax(0,1fr) auto auto auto}.row .avatar{grid-row:auto;align-self:center}.row-actions{grid-column:auto;justify-content:flex-end}}
 .roster>.setting-box+.setting-box{margin-top:0}
+
+/* People: whole-row buttons that open the person sheet */
+.row.person{display:block;padding:0}
+.person-btn{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:4px 14px;width:100%;min-height:64px;padding:10px 16px;border-radius:0;background:transparent;color:var(--c-text);text-align:left;justify-content:stretch;font-weight:400}
+.person-btn:active:not(:disabled){transform:none;background:var(--c-fill-strong)}
+.person-btn .row-main{display:grid;gap:2px}
+.person-btn .player-name{font-weight:600}
+.person-btn .badges{justify-content:flex-end}
+.person-btn .badges:empty{display:none}
+.person-btn .chev{color:var(--c-text-tertiary);width:18px;height:18px}
+@media (max-width:819px){.person-btn{grid-template-columns:auto minmax(0,1fr) auto}.person-btn .badges{grid-column:2;grid-row:2;justify-content:flex-start}.person-btn .chev{grid-column:3;grid-row:1/span 2}}
+.archived-people{margin-top:14px}
+.archived-people>summary{cursor:pointer;color:var(--c-text-secondary);font-weight:600;font-size:var(--t-subhead-size);padding:6px 0 10px}
+.person-sheet{width:min(520px,calc(100% - 24px));max-height:calc(100dvh - 32px)}
+.person-head{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:14px;margin-bottom:6px}
+.person-head .avatar{width:52px;height:52px;font-size:1.1rem}
+.person-head h2{margin:0}
+.sheet-label{margin:20px 0 8px;color:var(--c-text-secondary);font:var(--t-eyebrow-weight) var(--t-eyebrow-size)/var(--t-eyebrow-line) var(--font-text);letter-spacing:var(--t-eyebrow-tracking);text-transform:uppercase}
+.person-sheet .group{border-radius:var(--r-md);background:var(--c-fill);padding:0 14px}
+[data-theme=contrast] .person-sheet .group{border:1px solid var(--c-separator)}
+.switch-row.nested{padding-left:18px;position:relative}
+.switch-row.nested::before{content:"";position:absolute;left:4px;top:10px;bottom:10px;width:2px;border-radius:1px;background:var(--c-separator-strong)}
+.switch-row:has(input:disabled){cursor:default}
+.switch-row:has(input:disabled)>div{opacity:.6}
+input[type=checkbox]:disabled{opacity:.45;cursor:default}
+.person-sheet .notice{margin:0 0 10px}
+.person-sheet .link-list{margin-top:0}
+.person-sheet .link-list.danger{margin-top:20px}
+.actions-list>button{align-items:flex-start}
+.actions-list>button>span{display:grid;gap:2px}
+.actions-list>button small,.link-list.danger>button.restore small{color:var(--c-text-secondary);font-weight:400;font-size:var(--t-footnote-size);line-height:1.4}
+.actions-list>button.danger strong,.actions-list>button.danger .i{color:var(--c-critical)}
+.actions-list>button:disabled{opacity:.55;cursor:default}
+.link-list.danger>button.restore span{color:var(--c-accent)}
+.link-list.danger>button:disabled{opacity:.55;cursor:default}
 
 /* Numbered steps (Sigil pairing, first-run setup) */
 .steps{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:none}
