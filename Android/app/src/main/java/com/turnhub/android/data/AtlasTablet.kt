@@ -31,7 +31,7 @@ data class TabletState(
 /**
  * Tablet mode (protocol/http-v1.md "Tablet mode"): this device is one shared
  * screen in the middle of the table and acts for every seat through
- * `/api/tablet/*`. Atlas grants it once a signed-in account proves it is at
+ * the `/api/tablet/` routes. Atlas grants it once a signed-in account proves it is at
  * the table with a presence code, and still applies its own rules to every
  * action; the screen only learns outcomes from the next state snapshot.
  *

@@ -90,7 +90,7 @@ data class TabletActions(
  * Tablet mode, as the portal's `/tablet`: this device lies in the middle of
  * the table and every player has a panel facing their seat. Atlas grants it
  * with a presence code and decides every outcome; the screen draws the state
- * snapshot and sends `/api/tablet/*`.
+ * snapshot and sends the `/api/tablet/` routes.
  */
 @Composable
 fun TabletScreen(
