@@ -187,8 +187,8 @@ jobs:
           keystore="$RUNNER_TEMP/upload.jks"
           printf '%s' "$UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$keystore"
           echo "TURNHUB_UPLOAD_KEYSTORE=$keystore" >> "$GITHUB_ENV"
-      # One compile: the release variant is both tested and bundled. The run
-      # number is the versionCode, so every bundle is a new upload for Play.
+      # AGP 9 only creates unit-test tasks for the tested build type (debug).
+      # The run number is the versionCode, so every bundle is a new upload.
       - name: Run JVM unit tests and build the release bundle
         working-directory: Android
         env:
@@ -198,15 +198,15 @@ jobs:
         run: >-
           bash gradlew --no-daemon --stacktrace
           -Pturnhub.versionCode=${{ github.run_number }}
-          testReleaseUnitTest bundleRelease
+          testDebugUnitTest bundleRelease
       - name: Upload Android test reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: android-test-reports-${{ github.sha }}
           path: |
-            Android/app/build/reports/tests/testReleaseUnitTest/
-            Android/app/build/test-results/testReleaseUnitTest/
+            Android/app/build/reports/tests/testDebugUnitTest/
+            Android/app/build/test-results/testDebugUnitTest/
           if-no-files-found: warn
           retention-days: 7
       - name: Upload release bundle

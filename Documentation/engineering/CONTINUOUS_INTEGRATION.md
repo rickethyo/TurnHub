@@ -15,7 +15,7 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 | Firmware (sigil) | E-ink Sigil; descriptor check, signed `sigil-eink.thfw`, e-ink and OLED screen previews |
 | Firmware (sigil-oled) | OLED Sigil; descriptor check and signed `sigil-oled.thfw` |
 | Firmware (sigil-spare) | The inert spare image `flash-all` puts on spare boards; never packaged |
-| Android build and unit tests | Run JVM unit tests on the release variant and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
+| Android build and unit tests | Run JVM unit tests and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
 
 The bench and simulation builds (`sigil-epd-bn`, `sigil-wokwi`) left CI on
 2026-10-06: nothing ships them, and they compile the same sources as `sigil`.
