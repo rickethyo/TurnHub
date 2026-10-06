@@ -112,7 +112,7 @@ Make a V0.12 (then run `python3 Android/tools/export_manual.py`) that covers:
 
 ## Parked: storage batch
 
-Proposed and parked by the owner (2026-10-06): do these together, since
+*Planned.* Proposed and parked by the owner (2026-10-06): do these together, since
 both need a USB flash and a factory reset.
 
 - **Larger NVS partition.** `min_spiffs.csv` gives NVS 20 KB (about 500
@@ -125,7 +125,8 @@ both need a USB flash and a factory reset.
   release-time decision.
 
 Decided at the same time: storage stays NVS plus checksummed SD blobs, with
-no SQL database. Revisit only for full per-match history, which would use
+no SQL database. SQLite would add RAM pressure and power-loss risk on FAT,
+and would make the card required. Revisit only for full per-match history, which would use
 append-only files on the card.
 
 ## Open checks
