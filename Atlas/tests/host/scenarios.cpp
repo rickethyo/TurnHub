@@ -853,6 +853,19 @@ static void serialLogCapture() {
   assert(wrapped.find("ATLAS|A|7")==std::string::npos && wrapped.find("ATLAS|FILL|1999\n")!=std::string::npos);
   serialLog.clear(); assert(serialLog.snapshot().empty() && serialLog.droppedBytes()==0);
 
+  // Framework output waits in its own buffer and is stamped in order on the next write.
+  for (const char *c="[E][WiFiGeneric.cpp:1] boom\n"; *c; ++c) TurnHub::captureFrameworkChar(*c);
+  assert(serialLog.snapshot().empty());
+  serialLog.println("ATLAS|AFTER");
+  assert(serialLog.snapshot()=="[     12.345] [E][WiFiGeneric.cpp:1] boom\n[     12.345] ATLAS|AFTER\n");
+  // An overrun keeps the newest bytes.
+  serialLog.clear();
+  for (int i=0;i<3000;++i) TurnHub::captureFrameworkChar(i<2990 ? 'x' : 'y');
+  serialLog.drainFramework();
+  const String overrun=serialLog.snapshot();
+  assert(overrun.size()==14+1024 && overrun.substr(overrun.size()-10)==std::string(10,'y'));
+  serialLog.clear();
+
   // Log lines that make a downloaded log self-explanatory.
   freshLobby(2);
   assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|SYSTEM|FROM|"));

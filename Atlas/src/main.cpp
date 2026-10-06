@@ -433,6 +433,8 @@ void setup() {
   // backlight's hold is released before anything configures them.
   releaseSleepWakePins();
   Serial.begin(115200);
+  // Framework errors (log_e, ESP-IDF) also reach the RAM and SD logs.
+  TurnHub::installFrameworkLogCapture();
   delay(250);
   beginFrontPanel();
   beginAtlasDisplay();

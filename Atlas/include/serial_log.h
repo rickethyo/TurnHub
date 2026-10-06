@@ -12,8 +12,9 @@ namespace TurnHub {
 //
 // The ring clears on reboot. The optional SD worker drains the same redacted
 // bytes independently; no filesystem operations happen inside this class.
-// When it fills, the oldest lines are dropped. Framework log_e()/ESP-IDF
-// messages bypass Print and are not captured.
+// When it fills, the oldest lines are dropped. Framework output (Arduino
+// log_e() and ESP-IDF ESP_LOGx) is captured too once
+// installFrameworkLogCapture() runs; see captureFrameworkChar().
 class SerialLog : public Print {
  public:
   // 8 KiB since 2026-09-30 (was 16): RAM is short once phones connect, and
@@ -42,6 +43,9 @@ class SerialLog : public Print {
   // Bytes that no longer fit and were dropped since boot.
   uint32_t droppedBytes() const;
   void clear();
+  // Moves framework output held by captureFrameworkChar() into the ring. Every
+  // write and the SD worker call it; it must run in task context.
+  void drainFramework();
 
  private:
   // "[" + up to 10 digits + ".mmm] "
@@ -59,5 +63,15 @@ class SerialLog : public Print {
 };
 
 extern SerialLog serialLog;
+
+// Framework output reaches Atlas through the ROM putc hook, which can run with
+// the flash cache disabled (during OTA and NVS writes), so it only appends to
+// a small RAM buffer; SerialLog::drainFramework() stamps it into the ring
+// later. When the buffer overflows, the oldest bytes are dropped.
+void captureFrameworkChar(char byte);
+// Firmware only: routes Arduino log_*() and ESP-IDF ESP_LOGx output to UART0
+// as before and into the log. Call after Serial.begin(), which installs the
+// core's own hook.
+void installFrameworkLogCapture();
 
 }  // namespace TurnHub

@@ -560,6 +560,7 @@ void handleSerialLogDownload(WebServer &server) {
   server.send(200, "text/plain; charset=utf-8", "");
   server.sendContent(header);
   char chunk[512];
+  serialLog.drainFramework();
   uint64_t cursor = serialLog.firstLineCursor(), lost = 0;
   size_t sent = 0, count;
   // Lines logged while this runs may follow; the bound keeps it finite.

@@ -27,8 +27,6 @@ everything implemented. Only the checks listed below are still open.
 - **Multi-phone stability** (in progress): bench the Atlas 0.6.7+ build with
   unchanged polling, then the wider matrix, then seat-metadata caching and
   lighter client polling. Steps in [Diagnostics](DIAGNOSTICS.md).
-- **Framework log capture:** route `log_e`/ESP-IDF output into the Atlas log
-  (for example a vprintf hook).
 - **Open bug, not reproduced:** Atlas stuck on the pause screen during a
   harness soak (2026-09-28).
 
