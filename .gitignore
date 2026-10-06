@@ -355,3 +355,6 @@ Claude outputs/
 # Self-contained style guide bundle (python3 design/bundle.py ...)
 design/dist/styleguide.html
 Atlas/web/dist/
+
+# Board setup output: this PC's boards (tools/flash-all.ps1 -Setup)
+tools/boards.local.md

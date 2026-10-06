@@ -5,17 +5,23 @@
 
 .DESCRIPTION
   Boards are identified by MAC, never by COM port (ports change whenever the PC
-  restarts). The MAC -> firmware table is read from
-  Documentation/engineering/BOARD_INVENTORY.md, so that file stays the single
-  source. Reading a MAC resets the board.
+  restarts). The MAC -> firmware table is read from tools\boards.local.md (this
+  PC's boards, written by board setup, not committed) and then from
+  Documentation/engineering/BOARD_INVENTORY.md; a MAC in the local file wins.
+  Reading a MAC resets the board.
 
-  - Unknown MACs are left alone and reported.
-  - The test harness is never flashed (it must not receive Atlas or Sigil
-    firmware); it is listed and skipped.
+  - Unknown MACs are reported, and board setup is offered for them.
+  - The test harness and spare boards are never flashed.
   - A dirty working tree stops the pull so local work is never overwritten.
 
+.PARAMETER Setup    Board setup only: identify every attached board, ask what each new one is
+                    (suggesting Atlas for a CH340 bridge, and the E-ink or OLED Sigil its
+                    firmware reports for a CP210x), and record it in tools\boards.local.md.
+                    No pull, no build, no flash. setup-boards.cmd runs this mode.
+.PARAMETER NoSetup  Never offer board setup; unknown boards are just skipped.
 .PARAMETER NoPull   Flash the working copy as it is, without fetching.
-.PARAMETER DryRun   Identify boards and show the plan; build and flash nothing.
+.PARAMETER DryRun   Identify boards and show the plan; build and flash nothing. With -Setup,
+                    show the rows setup would record without writing them.
 .PARAMETER Signed   Flash the signed GitHub release over USB instead of building: downloads
                     the release's .thfw packages, checks size, SHA-256 and signature, strips
                     the 128-byte signed header and writes that exact image. No pull, no build.
@@ -31,6 +37,8 @@
   board boots it); settings, profiles and pairings in NVS are kept. Downgrades work over USB.
 #>
 param(
+  [switch]$Setup,
+  [switch]$NoSetup,
   [switch]$NoPull,
   [switch]$DryRun,
   [switch]$Signed,
@@ -42,12 +50,22 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $inventoryPath = Join-Path $root 'Documentation\engineering\BOARD_INVENTORY.md'
+$localInventoryPath = Join-Path $PSScriptRoot 'boards.local.md'
+$utf8 = New-Object System.Text.UTF8Encoding $false
 
-# Firmware column in BOARD_INVENTORY.md -> PlatformIO project folder and environment.
+# Firmware column in the inventory -> PlatformIO project folder and environment.
 $targets = @{
   'atlas'      = @{ Dir = 'Atlas'; Env = 'atlas' }
   'sigil'      = @{ Dir = 'Sigil'; Env = 'sigil' }
   'sigil-oled' = @{ Dir = 'Sigil'; Env = 'sigil-oled' }
+}
+
+# What board setup can record: menu key -> firmware column and default name.
+$boardKinds = [ordered]@{
+  '1' = @{ Firmware = 'atlas';      Name = 'Atlas';       Label = 'Atlas (table controller)' }
+  '2' = @{ Firmware = 'sigil';      Name = 'E-ink Sigil'; Label = 'E-ink Sigil (GPIO4 open)' }
+  '3' = @{ Firmware = 'sigil-oled'; Name = 'OLED Sigil';  Label = 'OLED Sigil (GPIO4 to GND)' }
+  '4' = @{ Firmware = 'spare';      Name = 'Spare board'; Label = 'Spare (recorded, never flashed)' }
 }
 
 function Fail($message) { Write-Host "`nERROR: $message" -ForegroundColor Red; exit 1 }
@@ -60,25 +78,38 @@ function Find-Pio {
   Fail 'PlatformIO (pio) was not found. Install it or add %USERPROFILE%\.platformio\penv\Scripts to PATH.'
 }
 
-function Read-Inventory {
-  if (-not (Test-Path $inventoryPath)) { Fail "Missing $inventoryPath" }
+function Read-InventoryFile($path, $source) {
   $rows = @()
-  foreach ($line in Get-Content $inventoryPath) {
+  if (-not (Test-Path $path)) { return $rows }
+  foreach ($line in [IO.File]::ReadAllLines($path, $utf8)) {
     if ($line -notmatch '^\|') { continue }
-    $cells = $line.Trim('|').Split('|') | ForEach-Object { $_.Trim().Trim('`') }
+    $cells = $line.Trim().Trim('|').Split('|') | ForEach-Object { $_.Trim().Trim('`') }
     if ($cells.Count -lt 4) { continue }
     if ($cells[3] -notmatch '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$') { continue }
-    $rows += [pscustomobject]@{ Board = $cells[0]; Firmware = $cells[1].ToLower(); Mac = $cells[3].ToUpper() }
+    $rows += [pscustomobject]@{ Board = $cells[0]; Firmware = $cells[1].ToLower(); Mac = $cells[3].ToUpper(); Source = $source }
   }
-  if (-not $rows.Count) { Fail 'No boards with MAC addresses were found in BOARD_INVENTORY.md.' }
+  return $rows
+}
+
+function Read-Inventory {
+  # This PC's boards first, so a local row overrides the shared record for the same MAC.
+  $rows = @(Read-InventoryFile $localInventoryPath 'boards.local.md')
+  foreach ($row in Read-InventoryFile $inventoryPath 'BOARD_INVENTORY.md') {
+    if (-not ($rows | Where-Object Mac -eq $row.Mac)) { $rows += $row }
+  }
   return $rows
 }
 
 function Get-SerialPorts {
-  # USB serial adapters only (CH340 for Atlas, CP210x for Sigils and the harness).
+  # USB serial adapters only: a CH340 bridge is an Atlas, a CP210x a Sigil (or the old harness).
   Get-CimInstance Win32_PnPEntity |
     Where-Object { $_.Name -match '\((COM\d+)\)' -and $_.PNPDeviceID -like 'USB\*' } |
-    ForEach-Object { [pscustomobject]@{ Port = $Matches[1]; Name = $_.Name } } |
+    ForEach-Object {
+      $bridge = if ($_.PNPDeviceID -match 'VID_1A86') { 'CH340' }
+                elseif ($_.PNPDeviceID -match 'VID_10C4') { 'CP210x' }
+                else { 'other' }
+      [pscustomobject]@{ Port = $Matches[1]; Name = $_.Name; Bridge = $bridge }
+    } |
     Sort-Object { [int]($_.Port -replace '\D') }
 }
 
@@ -86,6 +117,148 @@ function Read-Mac($pio, $port) {
   $out = & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $port read_mac 2>&1 | Out-String
   if ($out -match 'MAC:\s*([0-9A-Fa-f:]{17})') { return $Matches[1].ToUpper() }
   return $null
+}
+
+function Read-BootKind($port, [int]$seconds = 5) {
+  # Resets the board the way esptool does (EN pulled low through RTS, IO0 left high) and
+  # listens to its boot log. A Sigil reports its GPIO4 strap even when it is running the
+  # wrong display build. Returns 'eink', 'oled', 'atlas', 'harness', or $null.
+  $sp = New-Object System.IO.Ports.SerialPort $port, 115200
+  $sp.DtrEnable = $false
+  $sp.RtsEnable = $true
+  try { $sp.Open() } catch { return $null }
+  try {
+    Start-Sleep -Milliseconds 100
+    $sp.RtsEnable = $false
+    $log = ''
+    $deadline = (Get-Date).AddSeconds($seconds)
+    while ((Get-Date) -lt $deadline) {
+      Start-Sleep -Milliseconds 100
+      $log += $sp.ReadExisting()
+      if ($log -match 'SIGIL\|HW\|(MISMATCH\|BOARD\|)?(OLED|EINK)') { return $Matches[2].ToLower() }
+      if ($log -match 'ATLAS\|BOOT\|') { return 'atlas' }
+      if ($log -match 'HARNESS\|BOOT') { return 'harness' }
+    }
+  } catch {
+  } finally { $sp.Close() }
+  return $null
+}
+
+function Get-Boards($pio, $ports) {
+  Write-Host "`n== Identifying $($ports.Count) connected board(s) by MAC" -ForegroundColor Cyan
+  foreach ($p in $ports) {
+    [pscustomobject]@{ Port = $p.Port; Bridge = $p.Bridge; Mac = (Read-Mac $pio $p.Port) }
+  }
+}
+
+function Get-Plan($boards, $inventory) {
+  foreach ($b in $boards) {
+    $match = if ($b.Mac) { $inventory | Where-Object { $_.Mac -eq $b.Mac } | Select-Object -First 1 }
+    $action = 'skip'; $fw = ''; $why = ''
+    if (-not $b.Mac) { $why = 'could not read MAC (busy? close any serial monitor)' }
+    elseif (-not $match) { $why = 'new board: not set up yet (run setup-boards.cmd)' }
+    elseif (-not $targets.ContainsKey($match.Firmware)) { $why = "$($match.Board): never flashed by this script" }
+    else { $action = 'flash'; $fw = $match.Firmware }
+    [pscustomobject]@{
+      Port = $b.Port; Bridge = $b.Bridge; Mac = $b.Mac; Board = if ($match) { $match.Board } else { '?' }
+      Known = [bool]$match; Firmware = if ($match) { $match.Firmware } else { '' }; Action = $action; Env = $fw; Why = $why; Result = ''
+    }
+  }
+}
+
+function Show-Plan($plan) {
+  foreach ($row in $plan) {
+    $label = if ($row.Action -eq 'flash') { "-> $($row.Env)" } else { "-> skipped ($($row.Why))" }
+    Write-Host ("  {0,-6} {1,-18} {2,-12} {3}" -f $row.Port, $row.Mac, $row.Board, $label)
+  }
+}
+
+function Invoke-BoardSetup($newBoards, $inventory) {
+  # Asks what each new board is and appends a row per answer to tools\boards.local.md.
+  $taken = @($inventory | ForEach-Object Board)
+  $lines = @()
+  foreach ($b in $newBoards) {
+    Write-Host ("`n  {0}  {1}  ({2} bridge)" -f $b.Port, $b.Mac, $b.Bridge) -ForegroundColor Cyan
+    $suggest = $null; $hint = ''
+    if ($b.Bridge -eq 'CH340') { $suggest = '1'; $hint = 'CH340 bridge: an Atlas' }
+    else {
+      Write-Host '  Listening to its boot log (this resets it)...'
+      switch (Read-BootKind $b.Port) {
+        'eink'    { $suggest = '2'; $hint = 'its firmware reports an E-ink Sigil (GPIO4 open)' }
+        'oled'    { $suggest = '3'; $hint = 'its firmware reports an OLED Sigil (GPIO4 to GND)' }
+        'atlas'   { $suggest = '1'; $hint = 'its firmware reports an Atlas' }
+        'harness' { $hint = 'this is the retired test harness: record it as Spare or skip it' }
+        default   {
+          $hint = if ($b.Bridge -eq 'CP210x') { 'CP210x bridge: a Sigil; no TurnHub firmware answered, so check its GPIO4 strap (open = E-ink, GND = OLED)' }
+                  else { 'unrecognised USB bridge and no TurnHub firmware answered' }
+        }
+      }
+    }
+    Write-Host "  $hint"
+    foreach ($k in $boardKinds.Keys) {
+      $mark = if ($k -eq $suggest) { '  (suggested)' } else { '' }
+      Write-Host ("    {0}  {1}{2}" -f $k, $boardKinds[$k].Label, $mark)
+    }
+    Write-Host '    S  Skip: do not record this board'
+    $prompt = if ($suggest) { "  What is this board? Enter for $suggest" } else { '  What is this board? 1-4 or S' }
+    do {
+      $answer = "$(Read-Host $prompt)".Trim().ToUpper()
+      if (-not $answer -and $suggest) { $answer = $suggest }
+    } until ($answer -eq 'S' -or $boardKinds.Contains($answer))
+    if ($answer -eq 'S') { Write-Host '  Skipped.'; continue }
+
+    $kind = $boardKinds[$answer]
+    $default = $kind.Name; $n = 2
+    while ($taken -contains $default) { $default = "$($kind.Name) $n"; $n++ }
+    $name = "$(Read-Host "  Name for this board, Enter for '$default'")".Trim()
+    if (-not $name) { $name = $default }
+    $name = $name.Replace('|', '/')
+    $taken += $name
+    $lines += ('| {0} | `{1}` | {2} | `{3}` | Added by board setup {4} |' -f $name, $kind.Firmware, $b.Bridge, $b.Mac, (Get-Date -Format 'yyyy-MM-dd'))
+    Write-Host "  $name -> $($kind.Firmware)" -ForegroundColor Green
+  }
+  if (-not $lines.Count) { return $false }
+  if ($DryRun) {
+    Write-Host "`nDry run: these rows were not written:" -ForegroundColor Yellow
+    $lines | ForEach-Object { Write-Host "  $_" }
+    return $false
+  }
+  if (-not (Test-Path $localInventoryPath)) {
+    $header = @(
+      '# Boards on this PC',
+      '',
+      'Written by board setup (`tools\setup-boards.cmd`, or `flash-all.ps1 -Setup`). This file',
+      'is not committed. flash-all reads it before `Documentation/engineering/BOARD_INVENTORY.md`,',
+      'and a MAC listed here wins. Firmware is `atlas`, `sigil` (E-ink), `sigil-oled`, or `spare`',
+      '(recorded but never flashed). Edit or delete a row to change or forget a board.',
+      '',
+      '| Board | Firmware | USB bridge | MAC | Notes |',
+      '|---|---|---|---|---|'
+    )
+    [IO.File]::WriteAllLines($localInventoryPath, [string[]]$header, $utf8)
+  }
+  [IO.File]::AppendAllLines($localInventoryPath, [string[]]$lines, $utf8)
+  Write-Host "`nRecorded $($lines.Count) board(s) in tools\boards.local.md." -ForegroundColor Green
+  return $true
+}
+
+# --- 0. board setup only (-Setup) -------------------------------------------------
+if ($Setup) {
+  $pio = Find-Pio
+  $ports = @(Get-SerialPorts)
+  if (-not $ports.Count) { Fail 'No USB serial boards are connected.' }
+  $inventory = @(Read-Inventory)
+  $plan = @(Get-Plan @(Get-Boards $pio $ports) $inventory)
+  foreach ($row in $plan | Where-Object Known) {
+    Write-Host ("  {0,-6} {1,-18} already set up: {2} ({3})" -f $row.Port, $row.Mac, $row.Board, $row.Firmware)
+  }
+  foreach ($row in $plan | Where-Object { -not $_.Mac }) {
+    Write-Host ("  {0,-6} could not read its MAC (busy? close any serial monitor)" -f $row.Port) -ForegroundColor Yellow
+  }
+  $new = @($plan | Where-Object { $_.Mac -and -not $_.Known })
+  if (-not $new.Count) { Write-Host "`nEvery connected board is already set up." -ForegroundColor Green; exit 0 }
+  Invoke-BoardSetup $new $inventory | Out-Null
+  exit 0
 }
 
 # --- 1. latest repo -------------------------------------------------------------
@@ -113,30 +286,29 @@ if ($Signed) {
 
 # --- 2. identify boards ---------------------------------------------------------
 $pio = Find-Pio
-$inventory = Read-Inventory
+$inventory = @(Read-Inventory)
 $ports = @(Get-SerialPorts)
 if (-not $ports.Count) { Fail 'No USB serial boards are connected.' }
 
-Write-Host "`n== Identifying $($ports.Count) connected board(s) by MAC" -ForegroundColor Cyan
-$plan = @()
-foreach ($p in $ports) {
-  $mac = Read-Mac $pio $p.Port
-  $match = if ($mac) { $inventory | Where-Object { $_.Mac -eq $mac } | Select-Object -First 1 }
-  $action = 'skip'; $fw = ''; $why = ''
-  if (-not $mac) { $why = 'could not read MAC (busy? close any serial monitor)' }
-  elseif (-not $match) { $why = 'MAC is not in BOARD_INVENTORY.md' }
-  elseif (-not $targets.ContainsKey($match.Firmware)) { $why = "$($match.Board): never flashed by this script" }
-  else { $action = 'flash'; $fw = $match.Firmware }
-  $plan += [pscustomobject]@{
-    Port = $p.Port; Mac = $mac; Board = if ($match) { $match.Board } else { '?' }
-    Action = $action; Env = $fw; Why = $why; Result = ''
+$boards = @(Get-Boards $pio $ports)
+$plan = @(Get-Plan $boards $inventory)
+Show-Plan $plan
+
+$new = @($plan | Where-Object { $_.Mac -and -not $_.Known })
+if ($new.Count -and -not $NoSetup -and -not $DryRun) {
+  $answer = "$(Read-Host "`n$($new.Count) board(s) are not set up yet. Set them up now? [Y/n]")"
+  if ($answer.Trim() -notmatch '^[Nn]') {
+    if (Invoke-BoardSetup $new $inventory) {
+      $inventory = @(Read-Inventory)
+      $plan = @(Get-Plan $boards $inventory)
+      Write-Host "`n== Plan" -ForegroundColor Cyan
+      Show-Plan $plan
+    }
   }
-  $label = if ($action -eq 'flash') { "-> $fw" } else { "-> skipped ($why)" }
-  Write-Host ("  {0,-6} {1,-18} {2,-12} {3}" -f $p.Port, $mac, $plan[-1].Board, $label)
 }
 
 $toFlash = @($plan | Where-Object Action -eq 'flash')
-if (-not $toFlash.Count) { Fail 'No connected board matched a flashable firmware in BOARD_INVENTORY.md.' }
+if (-not $toFlash.Count) { Fail 'No connected board is set up for a flashable firmware. Run setup-boards.cmd to add new boards.' }
 if ($DryRun -and -not ($Signed -or $Sign)) { Write-Host "`nDry run: nothing was built or flashed." -ForegroundColor Yellow; exit 0 }
 
 # --- 2b. signed images over USB (-Signed release, -Sign local key) ------------------

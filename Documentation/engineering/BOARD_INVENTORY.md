@@ -8,6 +8,16 @@ port. Read a board's MAC (this resets the board) with:
 pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac
 ```
 
+`tools\flash-all.cmd` reads this table after `tools\boards.local.md`, the
+git-ignored list of boards on one PC that board setup writes. Run
+`tools\setup-boards.cmd` (or answer yes when a flash run finds a new board): it
+reads each attached board's MAC, suggests Atlas for a CH340 bridge and, for a
+CP210x Sigil already running TurnHub firmware, the display type its GPIO4 strap
+reports at boot (`SIGIL|HW|EINK` or `SIGIL|HW|OLED`), then asks you to confirm
+and name it. A Sigil with no TurnHub firmware yet has no suggestion: check its
+strap. Copy a row here when the board belongs in the shared development record.
+*Planned*: written 2026-10-06 without a Windows run; not yet tried on hardware.
+
 | Board | Firmware | USB bridge | MAC | Notes |
 |---|---|---|---|---|
 | Atlas | Atlas | CH340 | `B4:BF:E9:12:85:74` | LCDwiki E32R28T 2.8" display board; this MAC is its `THA-` ID |
