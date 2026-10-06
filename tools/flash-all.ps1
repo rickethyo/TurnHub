@@ -210,7 +210,8 @@ if ($Signed -or $Sign) {
 
   foreach ($row in $toFlash) {
     Write-Host "`n== Flashing $($row.Env) $($versions[$row.Env]) ($label) to $($row.Board) on $($row.Port)" -ForegroundColor Cyan
-    & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $row.Port --chip esp32 write_flash 0xe000 $blank 0x10000 $images[$row.Env]
+    # 921600 baud, as platformio.ini's upload_speed; esptool's default is 115200.
+    & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $row.Port --chip esp32 --baud 921600 write_flash 0xe000 $blank 0x10000 $images[$row.Env]
     $row.Result = if ($LASTEXITCODE -eq 0) { "flashed $($versions[$row.Env]) ($label)" } else { 'UPLOAD FAILED' }
   }
 
