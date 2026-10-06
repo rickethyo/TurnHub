@@ -284,7 +284,7 @@ class AtlasSetupAssistant(
             return setUpdates(UpdatesState.Unavailable("The release list couldn't be read: ${e.message}"))
         }
         val firmware = host.atlasFirmware().orEmpty()
-        setUpdates(UpdatesState.Ready(feed.release, UpdatePlan.build(feed, firmware, _state.value.sigils)))
+        setUpdates(UpdatesState.Ready(feed.release, UpdatePlan.build(feed, firmware, _state.value.sigils, portalStatus())))
     }
 
     fun skipUpdates() {
@@ -313,7 +313,7 @@ class AtlasSetupAssistant(
         checkUpdates()
     }
 
-    /** Install every pending update: Atlas first, then each Sigil in turn. */
+    /** Install every pending update: the web portal, then Atlas, then each Sigil in turn. */
     suspend fun installUpdates() {
         val ready = _state.value.updates as? UpdatesState.Ready ?: return
         val pending = ready.plan.pending
@@ -329,12 +329,17 @@ class AtlasSetupAssistant(
                 afterCode = { installUpdates() }
                 return
             }
-            val atlasIndex = pending.indexOfFirst { it.sigilId == null }
+            // The portal pack needs no restart, so it goes before Atlas's update ends the session.
+            val portalIndex = pending.indexOfFirst { it.product == FirmwareProduct.PORTAL }
+            if (portalIndex >= 0 && lines[portalIndex].state == "Waiting") {
+                installPortal(pending[portalIndex], portalIndex, ::mark, ::show)
+            }
+            val atlasIndex = pending.indexOfFirst { it.product == FirmwareProduct.ATLAS }
             if (atlasIndex >= 0 && lines[atlasIndex].state == "Waiting") {
                 if (!updateAtlas(pending[atlasIndex], atlasIndex, ::mark, ::show)) return finishUpdates(lines)
                 // Atlas restarted: sessions and verification are gone. Sign in
                 // again, then one new code before the Sigils.
-                if (pending.size > 1) {
+                if (pending.size > atlasIndex + 1) {
                     show("Atlas is back. Enter the new Atlas code to update the Sigils.")
                     if (!reSignIn()) return finishUpdates(lines)
                     val rest = pending.drop(atlasIndex + 1)
@@ -344,7 +349,7 @@ class AtlasSetupAssistant(
                 }
                 return finishUpdates(lines)
             }
-            installSigils(pending.filter { it.sigilId != null }, lines, 0)
+            installSigils(pending.filter { it.sigilId != null }, lines, pending.indexOfFirst { it.sigilId != null })
         } catch (e: AtlasException) {
             // Atlas restarting or dropping the upload is expected here; never let it crash the app.
             abortUpdates(lines, e)
@@ -423,6 +428,36 @@ class AtlasSetupAssistant(
             mark(index, "Still on ${running ?: "the old version"}", false, true)
             false
         }
+    }
+
+    /** Uploads the portal pack; Atlas unpacks it onto the card and keeps running. A failure doesn't stop the rest. */
+    private suspend fun installPortal(
+        target: UpdateTarget,
+        index: Int,
+        mark: (Int, String, Boolean, Boolean) -> Unit,
+        show: (String) -> Unit,
+    ) {
+        val pkg = target.available ?: return
+        mark(index, "Downloading", false, false)
+        show("Downloading the web portal ${pkg.version} from GitHub")
+        val bytes = download(pkg) { mark(index, it, false, true); show(it) } ?: return
+        mark(index, "Installing", false, false)
+        show("Sending the web portal to Atlas. It goes onto the microSD card; Atlas keeps running.")
+        val response = session.upload("/api/portal/install", "portal", pkg.file, bytes)
+        if (response == null || !response.ok) {
+            val reason = response?.let(::errorOf) ?: "Atlas refused the portal pack"
+            mark(index, reason, false, true)
+            show(reason)
+            return
+        }
+        mark(index, "Updated to ${pkg.version}", true, false)
+    }
+
+    /** `GET /api/portal`; null when Atlas didn't answer, so the portal isn't offered. */
+    private suspend fun portalStatus(): PortalStatus? = try {
+        session.raw("GET", "/api/portal")?.takeIf { it.ok }?.let { PortalStatus.parse(it.body) }
+    } catch (_: AtlasException) {
+        null
     }
 
     private suspend fun installSigils(targets: List<UpdateTarget>, lines: MutableList<UpdateProgress>, firstLine: Int) {

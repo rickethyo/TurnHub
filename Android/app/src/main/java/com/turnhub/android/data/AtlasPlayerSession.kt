@@ -218,6 +218,54 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         loadChoices()
     }
 
+    /** The signed-in profile's statistics, once read with [loadStats]. */
+    private val _stats = MutableStateFlow<StatisticsLoad?>(null)
+    val stats: StateFlow<StatisticsLoad?> = _stats.asStateFlow()
+
+    /** Reads `/api/session/stats` into [stats]; a failure keeps the last numbers and says why. */
+    suspend fun loadStats() {
+        val response = try {
+            raw("GET", "/api/session/stats")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: AtlasException) {
+            _stats.value = StatisticsLoad(_stats.value?.stats, e.failure.userMessage)
+            return
+        } ?: return
+        val parsed = if (response.ok) ProfileStatistics.parse(response.body) else null
+        _stats.value = if (parsed != null) {
+            StatisticsLoad(parsed, null)
+        } else {
+            StatisticsLoad(_stats.value?.stats, errorText(response) ?: "Could not load statistics.")
+        }
+    }
+
+    /**
+     * The shareable text report (`/api/session/stats/export`, never including
+     * moderation history), or null with the reason in [stats]' error.
+     */
+    suspend fun exportStats(): String? {
+        val response = try {
+            raw("GET", "/api/session/stats/export")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: AtlasException) {
+            _stats.value = StatisticsLoad(_stats.value?.stats, e.failure.userMessage)
+            return null
+        } ?: return null
+        if (!response.ok) {
+            _stats.value = StatisticsLoad(_stats.value?.stats, errorText(response) ?: "Could not export statistics.")
+            return null
+        }
+        return response.body
+    }
+
+    private fun errorText(response: RawResponse): String? = try {
+        org.json.JSONObject(response.body).optString("error").ifBlank { null }
+    } catch (_: org.json.JSONException) {
+        null
+    }
+
     private suspend fun formPost(
         session: Pair<AtlasEndpoint, String>,
         path: String,
@@ -337,6 +385,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         _accessibility.value = null
         _personalization.value = null
         _choices.value = null
+        _stats.value = null
         _state.value = PlayerSessionState.SignedOut
     }
 

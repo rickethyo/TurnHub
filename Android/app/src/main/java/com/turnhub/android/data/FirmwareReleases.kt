@@ -32,6 +32,9 @@ enum class FirmwareProduct(val wire: String, val label: String) {
     ATLAS("atlas", "Atlas"),
     SIGIL_EINK("sigil-eink", "E-ink Sigil"),
     SIGIL_OLED("sigil-oled", "OLED Sigil"),
+
+    /** The web portal pack: a file archive Atlas unpacks onto its microSD card, not firmware. */
+    PORTAL("portal", "Web portal"),
     ;
 
     companion object {
@@ -76,7 +79,8 @@ data class FirmwareReleaseFeed(val release: String, val packages: List<FirmwareP
                 val product = FirmwareProduct.fromWire(entry.optString("product")) ?: return@mapNotNull null
                 val version = FirmwareVersion.parse(entry.optString("version")) ?: return@mapNotNull null
                 val file = entry.optString("file").takeIf { FILE.matches(it) } ?: return@mapNotNull null
-                val size = entry.optLong("size", -1).takeIf { it in 1..MAX_PACKAGE_BYTES } ?: return@mapNotNull null
+                val limit = if (product == FirmwareProduct.PORTAL) MAX_PORTAL_BYTES else MAX_PACKAGE_BYTES
+                val size = entry.optLong("size", -1).takeIf { it in 1..limit } ?: return@mapNotNull null
                 val sha = entry.optString("sha256").lowercase().takeIf { SHA256.matches(it) } ?: return@mapNotNull null
                 FirmwarePackage(product, version, file, size, sha)
             }
@@ -85,12 +89,31 @@ data class FirmwareReleaseFeed(val release: String, val packages: List<FirmwareP
 
         /** Larger than any app slot on Atlas or a Sigil (about 1.9 MB). */
         const val MAX_PACKAGE_BYTES = 4L * 1024 * 1024
+
+        /** The portal pack's own limit (`TurnHubPortal::MAX_PACK_BYTES`). */
+        const val MAX_PORTAL_BYTES = 16L * 1024 * 1024
     }
 }
 
-/** A device the setup update step lists: Atlas, or one paired Sigil. */
+/** What `GET /api/portal` reports: a card, and the installed pack's version if any. */
+data class PortalStatus(val card: Boolean, val version: FirmwareVersion?) {
+    companion object {
+        /** Null when the body isn't the expected JSON. */
+        fun parse(body: String): PortalStatus? = try {
+            val root = JSONObject(body)
+            PortalStatus(
+                card = root.optBoolean("card"),
+                version = if (root.optBoolean("installed")) FirmwareVersion.parse(root.optString("version")) else null,
+            )
+        } catch (_: JSONException) {
+            null
+        }
+    }
+}
+
+/** A device the setup update step lists: the web portal, Atlas, or one paired Sigil. */
 data class UpdateTarget(
-    /** Null for Atlas, otherwise the Sigil's ID on Atlas. */
+    /** Null for Atlas and the web portal, otherwise the Sigil's ID on Atlas. */
     val sigilId: Int?,
     val label: String,
     val product: FirmwareProduct,
@@ -104,7 +127,8 @@ data class UpdateTarget(
 }
 
 /**
- * What one update prompt would do. Atlas goes first, then each Sigil; only
+ * What one update prompt would do. The web portal pack goes first (it needs no
+ * restart), then Atlas, then each Sigil; only
  * devices with a newer package are updated, and devices the release has no
  * package for are listed as up to date.
  */
@@ -117,7 +141,19 @@ data class UpdatePlan(val targets: List<UpdateTarget>) {
             feed: FirmwareReleaseFeed,
             atlasFirmware: String,
             sigils: List<DeviceInfo>,
+            /** Null when Atlas didn't say; then the portal isn't listed. */
+            portal: PortalStatus? = null,
         ): UpdatePlan {
+            // Without a card there is nowhere to put the pack, so it isn't offered.
+            val portalTarget = portal?.takeIf { it.card }?.let {
+                UpdateTarget(
+                    sigilId = null,
+                    label = "Web portal",
+                    product = FirmwareProduct.PORTAL,
+                    running = it.version,
+                    available = feed.packageFor(FirmwareProduct.PORTAL),
+                )
+            }
             val atlas = UpdateTarget(
                 sigilId = null,
                 label = "Atlas",
@@ -142,7 +178,7 @@ data class UpdatePlan(val targets: List<UpdateTarget>) {
                     online = device.online,
                 )
             }
-            return UpdatePlan(listOf(atlas) + sigilTargets)
+            return UpdatePlan(listOfNotNull(portalTarget, atlas) + sigilTargets)
         }
     }
 }

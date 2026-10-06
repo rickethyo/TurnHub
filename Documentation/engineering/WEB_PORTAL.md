@@ -53,7 +53,8 @@ signed with the firmware key. Its image is an archive
 a gzip flag, a size and the data. `index.html` is required; at most 16 MB.
 Text files are gzipped with a fixed timestamp, so builds are reproducible.
 
-Upload it on `/update`; Atlas routes it to `POST /api/portal/install`
+Upload it on `/update`, or let the app's update step install it from the
+release feed ([Firmware Updates](FIRMWARE_UPDATES.md)); either way it reaches `POST /api/portal/install`
 (Admin verified at the table, Lobby or Game Over). Atlas checks signature and
 hash while streaming into `/turnhub/portal/stage`, then swaps `live` → `old`,
 `stage` → `live`, and removes `old`; a failed step puts the previous `live`

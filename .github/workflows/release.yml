@@ -58,20 +58,20 @@ jobs:
           build Atlas atlas atlas
           build Sigil sigil sigil-eink
           build Sigil sigil-oled sigil-oled
-          python tools/firmware/thfw.py feed "$out"/*.thfw \
-            --release "${GITHUB_REF_NAME#v}" --out "$out/turnhub-firmware.json"
-          cat "$out/turnhub-firmware.json"
-          # The web portal pack (WEB_PORTAL.md): installed from the Atlas
-          # /update page, so it stays out of the firmware feed.
+          # The web portal pack (WEB_PORTAL.md): in the feed as product
+          # "portal", so the app can install it; older apps skip the product.
           python Atlas/web/build.py --out "$RUNNER_TEMP/portal.bin"
           python tools/firmware/thfw.py package "$RUNNER_TEMP/portal.bin" \
             --out "$out/portal.thfw" --expect-product portal --build-id "$GITHUB_SHA"
           python tools/firmware/thfw.py verify "$out/portal.thfw"
           mv "$out/portal.thfw" "$out/portal-$(cat Atlas/web/VERSION | tr -d '[:space:]').thfw"
+          python tools/firmware/thfw.py feed "$out"/*.thfw \
+            --release "${GITHUB_REF_NAME#v}" --out "$out/turnhub-firmware.json"
+          cat "$out/turnhub-firmware.json"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/release/* \
             --repo "$GITHUB_REPOSITORY" --title "TurnHub $GITHUB_REF_NAME" \
-            --notes "Signed firmware packages for Atlas and both Sigils, and the web portal pack. Install firmware from the TurnHub app or the Atlas portal, and the portal pack from the Atlas /update page."
+            --notes "Signed firmware packages for Atlas and both Sigils, and the web portal pack. Install firmware from the TurnHub app or the Atlas portal, and the portal pack from the TurnHub app or the Atlas /update page."

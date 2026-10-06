@@ -228,6 +228,16 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent.createChooser(send, "Share serial log"))
     }
 
+    /** Hands the signed-in profile's statistics report to another app as text, like the portal's download. */
+    private fun shareStats(text: String) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "My TurnHub statistics")
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        startActivity(Intent.createChooser(send, "Share my stats"))
+    }
+
     private val turnNotifier by lazy { TurnNotifier(applicationContext) }
 
     override fun onStart() {
@@ -333,6 +343,8 @@ class MainActivity : ComponentActivity() {
                             onLoadChoices = homeViewModel::onLoadChoices,
                             onSavePolicy = homeViewModel::onSavePolicy,
                             onClearPin = homeViewModel::onClearPin,
+                            onLoadStats = homeViewModel::onLoadStats,
+                            onShareStats = { homeViewModel.onExportStats(::shareStats) },
                             onLoadPersonalization = homeViewModel::onLoadPersonalization,
                             onSavePersonalization = homeViewModel::onSavePersonalization,
                             onAccessibility = homeViewModel::onAccessibilityClicked,
