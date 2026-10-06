@@ -34,6 +34,11 @@
                     copy is clean; with uncommitted changes it signs them as they are, unpulled.
                     flash-all.cmd runs this mode; flash-all-unsigned.cmd runs the plain build.
 .PARAMETER Key      With -Sign: path to the PEM key. Default: the one .pem in Private\TurnHub-keys.
+.PARAMETER Force    Write every board, even one whose flash already matches (see below).
+
+  Before writing, each board compares its flash with what would be written (esptool
+  verify_flash: bootloader, partition table, OTA selector, app). A board that already
+  matches exactly is skipped as "unchanged".
 
   -Signed and -Sign flash fully, like the unsigned build: the bootloader and partition
   table (from this working copy's PlatformIO build), a blank OTA-selection sector and the
@@ -48,7 +53,8 @@ param(
   [switch]$Signed,
   [string]$Release = 'latest',
   [switch]$Sign,
-  [string]$Key
+  [string]$Key,
+  [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
@@ -119,7 +125,7 @@ function Get-SerialPorts {
 }
 
 function Read-Mac($pio, $port) {
-  $out = & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $port read_mac 2>&1 | Out-String
+  try { $out = & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $port read_mac 2>&1 | Out-String } catch { return $null }
   if ($out -match 'MAC:\s*([0-9A-Fa-f:]{17})') { return $Matches[1].ToUpper() }
   return $null
 }
@@ -210,13 +216,38 @@ function Show-Plan($plan) {
   }
 }
 
+function Get-BlankOtadata {
+  # An all-0xFF OTA-selection sector makes the bootloader start the app at 0x10000.
+  $path = Join-Path $env:TEMP 'turnhub-otadata-blank.bin'
+  if (-not (Test-Path $path)) {
+    $bytes = New-Object byte[] 8192
+    for ($i = 0; $i -lt $bytes.Length; $i++) { $bytes[$i] = 255 }
+    [IO.File]::WriteAllBytes($path, $bytes)
+  }
+  return $path
+}
+
+function Test-FlashMatches($port, $regions) {
+  # True when the board's flash already holds exactly these images ($regions:
+  # address, file, address, file...). The chip hashes its own flash, so nothing
+  # is written; it resets the board. -Force skips the check.
+  if ($Force) { return $false }
+  Write-Host "  Comparing $port's flash with the new images..."
+  # A mismatch is reported on stderr, which Stop would turn into an exception.
+  try {
+    $out = & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $port --chip esp32 --baud 921600 verify_flash @regions 2>&1 | Out-String
+  } catch { return $false }
+  return $LASTEXITCODE -eq 0 -and $out -match 'verify OK' -and $out -notmatch 'verify FAILED'
+}
+
 function Exit-WithSummary($plan) {
   Write-Host "`n== Summary" -ForegroundColor Cyan
   $bad = 0
   foreach ($row in $plan) {
     $text = if ($row.Result) { $row.Result } else { "skipped ($($row.Why))" }
-    $color = if ($row.Result -like 'flashed*') { 'Green' } elseif ($row.Result) { 'Red' } else { 'Yellow' }
-    if ($row.Result -and $row.Result -notlike 'flashed*') { $bad++ }
+    $ok = $row.Result -like 'flashed*' -or $row.Result -like 'unchanged*'
+    $color = if ($ok) { 'Green' } elseif ($row.Result) { 'Red' } else { 'Yellow' }
+    if ($row.Result -and -not $ok) { $bad++ }
     Write-Host ("  {0,-12} {1,-18} {2}" -f $row.Board, $row.Mac, $text) -ForegroundColor $color
   }
   exit $(if ($bad) { 1 } else { 0 })
@@ -434,9 +465,20 @@ function Invoke-PioFlash($rows) {
     }
   }
 
+  # PlatformIO writes the bootloader, partition table, its boot_app0 OTA selector
+  # and the app; a board already holding all four is skipped.
+  $bootApp0 = Join-Path $env:USERPROFILE '.platformio\packages\framework-arduinoespressif32\tools\partitions\boot_app0.bin'
   foreach ($row in $rows) {
     if ($row.Result) { continue }
     $t = $targets[$row.Env]
+    $buildDir = Join-Path $root "$($t.Dir)\.pio\build\$($t.Env)"
+    $regions = @('0x1000', (Join-Path $buildDir 'bootloader.bin'), '0x8000', (Join-Path $buildDir 'partitions.bin'),
+      '0xe000', $bootApp0, '0x10000', (Join-Path $buildDir 'firmware.bin'))
+    $files = @($regions[1], $regions[3], $regions[5], $regions[7])
+    if (-not ($files | Where-Object { -not (Test-Path $_) }) -and (Test-FlashMatches $row.Port $regions)) {
+      $row.Result = 'unchanged (already on the board)'
+      continue
+    }
     Write-Host "`n== Flashing $($row.Board) ($($row.Env)) on $($row.Port)" -ForegroundColor Cyan
     Push-Location (Join-Path $root $t.Dir)
     & $pio run -e $t.Env --target upload --upload-port $row.Port
@@ -596,11 +638,7 @@ if ($Signed -or $Sign) {
     [IO.File]::WriteAllBytes($images[$fw], $payload)
   }
 
-  # An all-0xFF OTA-selection sector makes the bootloader start the app slot we write.
-  $blankBytes = New-Object byte[] 8192
-  for ($i = 0; $i -lt $blankBytes.Length; $i++) { $blankBytes[$i] = 255 }
-  $blank = Join-Path $work 'otadata-blank.bin'
-  [IO.File]::WriteAllBytes($blank, $blankBytes)
+  $blank = Get-BlankOtadata
 
   # Flash fully, like the unsigned build, so a blank or erased board starts too:
   # the bootloader and partition table come from this working copy's PlatformIO
@@ -631,6 +669,10 @@ if ($Signed -or $Sign) {
     Write-Host "`n== Flashing $($row.Env) $($versions[$row.Env]) ($label) to $($row.Board) on $($row.Port)" -ForegroundColor Cyan
     # 921600 baud, as platformio.ini's upload_speed; esptool's default is 115200.
     $b = $boot[$row.Env]
+    if (Test-FlashMatches $row.Port @('0x1000', $b.Bootloader, '0x8000', $b.Partitions, '0xe000', $blank, '0x10000', $images[$row.Env])) {
+      $row.Result = "unchanged ($($versions[$row.Env]) already on the board)"
+      continue
+    }
     & $pio pkg exec -p tool-esptoolpy -- esptool.py --port $row.Port --chip esp32 --baud 921600 write_flash `
       0x1000 $b.Bootloader 0x8000 $b.Partitions 0xe000 $blank 0x10000 $images[$row.Env]
     $row.Result = if ($LASTEXITCODE -eq 0) { "flashed $($versions[$row.Env]) ($label)" } else { 'UPLOAD FAILED' }
