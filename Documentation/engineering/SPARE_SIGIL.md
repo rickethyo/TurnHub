@@ -21,9 +21,14 @@ brought back as an E-ink or OLED Sigil entirely over the air.
    normal Sigil boot line, records the board as `sigil` or `sigil-oled`, and
    flashes it as that Sigil instead of turning it back into a spare.
 
-A spare that has never been paired can still pair with the joystick hold or
-the BOOT button. It has no screen, so the pairing code appears only on Atlas
-and on the serial console.
+A spare that is not paired pairs with the joystick hold or the BOOT button
+while Atlas's pairing window is open. It has no screen to show a code, so it
+sends `PairRequestSpare` and Atlas confirms it without the owner's code check
+(owner's choice, 2026-10-06). Such a pairing is marked spare-only (NVS key
+`p<slot>` beside the record): Atlas treats that Sigil as a spare whatever its
+Hello says, and if it later announces itself as a normal Sigil (after its
+update), Atlas forgets it, so it pairs again with the code check on its own
+screen. A spare that kept a normal pairing from before needs no re-pair.
 
 ## Feature gate
 
@@ -42,6 +47,7 @@ and on the serial console.
    only the pairing and update animations.
 6. **Protocol/contract change:** `CAPABILITY_SPARE` (0x40) in the Hello
    capability byte. With it, `CAPABILITY_DISPLAY_OLED` reports the GPIO4 strap.
+   `PairRequestSpare` (52), the PairRequest2 layout under its own type.
    No HTTP schema change: `/api/devices` already carries `capabilities`.
 7. **Third-party dependencies:** none new. The spare build leaves out both
    display libraries.

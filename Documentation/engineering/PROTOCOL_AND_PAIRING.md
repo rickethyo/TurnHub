@@ -73,7 +73,7 @@ ring drawn from `LedState`.
 | Bit | Name | Meaning |
 | --- | --- | --- |
 | 0x10 | `CAPABILITY_DISPLAY_OLED` | OLED display; clear: e-paper. Also picks the OTA package |
-| 0x40 | `CAPABILITY_SPARE` | A spare Sigil running the inert spare firmware; 0x10 then reports its GPIO4 strap ([Spare Sigil](SPARE_SIGIL.md), 2026-10-06) |
+| 0x40 | `CAPABILITY_SPARE` | A spare Sigil running the inert spare firmware; 0x10 then reports its GPIO4 strap. A spare pairs with `PairRequestSpare` (no code check, spare-only) ([Spare Sigil](SPARE_SIGIL.md), 2026-10-06) |
 | 0x80 | `CAPABILITY_HARNESS` | The hardware test harness (unchanged) |
 | 0x01, 0x02, 0x04, 0x08, 0x20 | free | Retired below (0x01 was `CAPABILITY_INPUT_DPAD`, the OLED Sigil's five buttons, until every Sigil got the thumbstick on 2026-10-01); available for new meanings |
 

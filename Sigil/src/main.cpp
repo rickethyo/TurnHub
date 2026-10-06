@@ -1684,7 +1684,7 @@ void startPairing() {
 
   pairingToken = static_cast<int32_t>(esp_random());
   // A fresh key pair per press (about 0.2 s of X25519 on the ESP32).
-  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2)) {
+  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2, TURNHUB_SPARE)) {
     Serial.println("SIGIL|PAIR|V2|KEY_ERROR");
     return;
   }

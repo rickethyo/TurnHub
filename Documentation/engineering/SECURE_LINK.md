@@ -101,6 +101,12 @@ the same code runs on Atlas, Sigils, the harness and the Wokwi fake Atlas.
 
    The portal shows the code as text too, so a screen reader user can compare
    it with the Sigil (or have someone read the Sigil).
+   **Exception: spares (owner decision, 2026-10-06).** A spare Sigil has no
+   screen, so it sends `PairRequestSpare` (same layout) and Atlas confirms it
+   without the code check, during the pairing window only. That pairing is
+   spare-only: Atlas drops all its input but Hello and update status, and
+   forgets it if it ever announces a normal Sigil, which then pairs again with
+   the code check ([Spare Sigil](SPARE_SIGIL.md)).
    On Confirm, Atlas stores the pair key and sends the Sigil a `PairConfirmed`
    sealed with the new key; the Sigil stores the key only when that checks
    out. **Reject** (both places), a mismatch, or no confirmation within 60 s
@@ -132,7 +138,7 @@ nonce repeats under one key. The receiver requires the counter to rise,
 so duplicates and replays inside a session are dropped. Overhead is 15 bytes:
 the 110-byte display packet becomes 125, well under ESP-NOW's 250.
 
-Only `PairRequest2`/`PairAccept2` stay cleartext. Atlas drops any other
+Only `PairRequest2` (and `PairRequestSpare`)/`PairAccept2` stay cleartext. Atlas drops any other
 cleartext or failed-tag packet from a paired MAC and logs it (counts only,
 never key material; `printlnRedacted` where needed).
 

@@ -162,6 +162,11 @@ enum class PacketType : uint8_t {
   GameDisplay = 32,
   CommanderFlow = 50,
   CommanderKey = 51,
+  // A spare Sigil's PairRequest2 (same layout, SPARE_SIGIL.md). Atlas pairs
+  // it during its pairing window without the owner's code check, and keeps
+  // that Sigil spare-only: if it later says it is a normal Sigil, Atlas
+  // forgets it so it pairs again with the code check.
+  PairRequestSpare = 52,
 };
 
 enum class DisplayMode : uint8_t {

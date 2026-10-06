@@ -142,6 +142,22 @@ void acceptsMustMatchTheRequest() {
   assert(!atlas.request(crypto, ATLAS_MAC, OTHER_MAC, request, TurnHubProtocol::MAX_SIGILS, 0, accept));
 }
 
+// A spare's request (SPARE_SIGIL.md) is the same handshake under its own type,
+// so Atlas can tell it apart and skip the code check.
+void aSpareRequestIsMarkedAndAccepted() {
+  TestCrypto crypto;
+  SigilPairing sigil;
+  AtlasPairings atlas;
+  PairRequest2Packet request;
+  PairAccept2Packet accept;
+  assert(sigil.begin(crypto, 55, request, true));
+  assert(request.type == PacketType::PairRequestSpare);
+  assert(atlas.request(crypto, ATLAS_MAC, SIGIL_MAC, request, 2, 0, accept));
+  assert(sigil.accept(crypto, accept, ATLAS_MAC, SIGIL_MAC, 0));
+  assert(sigil.begin(crypto, 56, request));
+  assert(request.type == PacketType::PairRequest2);
+}
+
 void repeatedRequestsGetTheSameAnswer() {
   TestCrypto crypto;
   SigilPairing sigil;
@@ -219,9 +235,10 @@ int main() {
   rejectAndTimeoutStoreNothing();
   forgedVerdictsAreIgnored();
   acceptsMustMatchTheRequest();
+  aSpareRequestIsMarkedAndAccepted();
   repeatedRequestsGetTheSameAnswer();
   anImpostorInTheMiddleShowsDifferentCodes();
   severalSigilsWaitAtOnce();
-  std::cout << "PASS pairing v2: agreement, codes, confirm, reject, timeout, forged verdicts, repeats, impostor, several pending\n";
+  std::cout << "PASS pairing v2: agreement, codes, confirm, reject, timeout, forged verdicts, spare requests, repeats, impostor, several pending\n";
   return 0;
 }

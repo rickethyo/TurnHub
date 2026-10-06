@@ -65,7 +65,7 @@ const TurnHubSecureLink::PendingPairing *SigilBus::pendingPairing(uint8_t slot) 
 uint8_t SigilBus::pendingPairingCount() const {
   uint8_t n=0; for (const auto &p:fixturePending) n+=p.used?1:0; return n;
 }
-bool SigilBus::decidePairing(uint8_t slot, bool confirm) {
+bool SigilBus::decidePairing(uint8_t slot, bool confirm, bool) {
   if(slot>=MAX_PHYSICAL_SIGILS||!fixturePending[slot].used) return false;
   fixturePending[slot]=TurnHubSecureLink::PendingPairing{};
   if(confirm&&fixturePairStoreFails){ fixturePairDecisions[slot]=-1; return false; }

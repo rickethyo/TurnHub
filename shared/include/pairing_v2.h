@@ -34,12 +34,14 @@ class SigilPairing {
   enum class State : uint8_t { Idle, Requesting, AwaitingConfirm };
 
   // Pair pressed: a fresh key pair; `out` is the broadcast request.
-  bool begin(Crypto &crypto, int32_t token, PairRequest2Packet &out) {
+  // A spare Sigil sends PairRequestSpare, which Atlas confirms without the
+  // code check (SPARE_SIGIL.md).
+  bool begin(Crypto &crypto, int32_t token, PairRequest2Packet &out, bool spare = false) {
     cancel();
     if (!crypto.generateKeyPair(private_, public_)) return false;
     token_ = token;
     out.version = TurnHubProtocol::VERSION;
-    out.type = PacketType::PairRequest2;
+    out.type = spare ? PacketType::PairRequestSpare : PacketType::PairRequest2;
     out.token = token;
     memcpy(out.publicKey, public_, PUBLIC_KEY_BYTES);
     state_ = State::Requesting;
@@ -151,7 +153,8 @@ class AtlasPairings {
   const PendingPairing *request(Crypto &crypto, const uint8_t atlasMac[6],
       const uint8_t sigilMac[6], const PairRequest2Packet &packet, uint8_t slot,
       uint32_t nowMs, PairAccept2Packet &accept) {
-    if (packet.version != TurnHubProtocol::VERSION || packet.type != PacketType::PairRequest2 ||
+    if (packet.version != TurnHubProtocol::VERSION ||
+        (packet.type != PacketType::PairRequest2 && packet.type != PacketType::PairRequestSpare) ||
         slot >= TurnHubProtocol::MAX_SIGILS) {
       return nullptr;
     }

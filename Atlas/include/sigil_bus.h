@@ -34,6 +34,9 @@ struct SigilRecord {
   uint8_t firmwareMinor = 0;
   uint8_t firmwarePatch = 0;
   uint8_t capabilities = 0;
+  // Paired as a spare, without the owner's code check (SPARE_SIGIL.md): it
+  // stays spare whatever its Hello says. Stored in NVS beside the record.
+  bool spareOnly = false;
   bool profileRequestSeen = false;
   uint32_t lastProfileRequestMs = 0;
   // The key agreed at pairing (SECURE_LINK.md), stored in NVS with the MAC.
@@ -67,7 +70,7 @@ class SigilBus {
   // The owner's verdict (PairConfirm Intent). Confirm stores the Sigil and its
   // pair key; either way the Sigil is told. False if nothing is pending there
   // or the store failed (nothing is then stored).
-  bool decidePairing(uint8_t slot, bool confirm);
+  bool decidePairing(uint8_t slot, bool confirm, bool spareOnly = false);
   // Leaving the lobby: every waiting Sigil is told no.
   void cancelPendingPairings();
   // Next received event, if any. Call from the application loop.
@@ -137,7 +140,9 @@ class SigilBus {
   void handlePairRequest2(const uint8_t *mac, const TurnHubSecureLink::PairRequest2Packet &packet,
       uint32_t receivedAt);
   bool slotFree(uint8_t slot) const;
-  bool storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey);
+  bool storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey, bool spareOnly);
+  // Spare-only Sigils that said they are normal Sigils: forgotten by poll().
+  uint32_t unverifiedReturns_ = 0;
   bool sendRaw(const uint8_t *mac, const void *data, uint8_t length);
   // Seals one packet in the Sigil's session and queues it; false (nothing
   // sent) until the Sigil has said SecureHello. App task only.
