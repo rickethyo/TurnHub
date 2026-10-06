@@ -365,6 +365,7 @@ class MainActivity : ComponentActivity() {
                         reduceMotion = reduceMotion,
                         onSignInSubmit = homeViewModel::onSignInSubmitted,
                         onSignInDismiss = homeViewModel::onSignInDismissed,
+                        onCreateAccount = homeViewModel::onCreateAccountSubmitted,
                         onAccessibilitySave = homeViewModel::onAccessibilitySaved,
                         onAccessibilityDismiss = homeViewModel::onAccessibilityDismissed,
                         setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,

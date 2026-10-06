@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -109,6 +110,12 @@ private class FakeSessionTransport : AtlasSessionTransport {
     override suspend fun getProfiles(): List<ProfileSummary> = listOf(ProfileSummary("p1", "Ricky", hasPin = true))
     override suspend fun login(profileId: String, pin: String): LoginResult =
         LoginResult("token", profileId).also { calls += "login $profileId" }
+    var registerFailure: AtlasException? = null
+    override suspend fun register(name: String, pin: String): LoginResult {
+        calls += "register $name"
+        registerFailure?.let { throw it }
+        return LoginResult("token", "p2")
+    }
     override suspend fun me(token: String): SessionInfo =
         SessionInfo("p1", "Ricky", 8, 1, if (participating) 1 else 0, participating, host, false, false)
     override suspend fun join(token: String): String? {
@@ -498,6 +505,44 @@ class HomeViewModelTest {
 
         viewModel.onForgetSavedProfile()
         assertNull(viewModel.uiState.value.savedProfile)
+    }
+
+    @Test
+    fun `a new player creates an account from the sign-in sheet`() = runTest {
+        val vault = FakeVault()
+        val summary = table("lobby.response.json", 1)
+        val viewModel = lockedViewModel(vault, summary)
+
+        viewModel.onPlayFromPhoneClicked()
+        viewModel.onCreateAccountSubmitted("  ", "1234")
+        assertEquals("Choose a name of 1 to 32 characters.", viewModel.uiState.value.signIn!!.error)
+        viewModel.onCreateAccountSubmitted("Sam", "12")
+        assertEquals(ProfileSecret.RULE, viewModel.uiState.value.signIn!!.error)
+        assertTrue(sessionTransport.calls.isEmpty())
+
+        viewModel.onCreateAccountSubmitted(" Sam ", "4321", remember = true)
+        assertEquals(listOf("register Sam"), sessionTransport.calls)
+        assertNull(viewModel.uiState.value.signIn)
+        assertTrue(viewModel.uiState.value.player!!.signedIn)
+
+        // Remembered under the new profile's ID once the phone's lock passes.
+        val request = viewModel.appLock.value as AppLockRequest.Save
+        assertEquals("p2", request.profile.profileId)
+        assertEquals("Sam", request.profile.name)
+    }
+
+    @Test
+    fun `Atlas refusing a new account keeps the sheet open with its reason`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1))
+        sessionTransport.registerFailure = AtlasException(AtlasFailure.Rejected("Could not create profile; storage may be full"))
+
+        viewModel.onPlayFromPhoneClicked()
+        viewModel.onCreateAccountSubmitted("Sam", "4321")
+
+        val prompt = viewModel.uiState.value.signIn!!
+        assertEquals(false, prompt.submitting)
+        assertNotNull(prompt.error)
+        assertEquals(false, viewModel.uiState.value.player!!.signedIn)
     }
 
     @Test
