@@ -17,11 +17,13 @@
 .PARAMETER Setup    Board setup only: identify every attached board, ask what each new one is
                     (suggesting Atlas for a CH340 bridge, and the E-ink or OLED Sigil its
                     firmware reports for a CP210x), and record it in tools\boards.local.md.
-                    No pull, no build, no flash. setup-boards.cmd runs this mode.
+                    Then list every recorded board to rename, change type, make spare,
+                    return to service or delete. No pull, no build, no flash.
+                    setup-boards.cmd runs this mode.
 .PARAMETER NoSetup  Never offer board setup; unknown boards are just skipped.
 .PARAMETER NoPull   Flash the working copy as it is, without fetching.
 .PARAMETER DryRun   Identify boards and show the plan; build and flash nothing. With -Setup,
-                    show the rows setup would record without writing them.
+                    show each change setup would record without writing it.
 .PARAMETER Signed   Flash the signed GitHub release over USB instead of building: downloads
                     the release's .thfw packages, checks size, SHA-256 and signature, strips
                     the 128-byte signed header and writes that exact image. No pull, no build.
@@ -83,21 +85,25 @@ function Read-InventoryFile($path, $source) {
   if (-not (Test-Path $path)) { return $rows }
   foreach ($line in [IO.File]::ReadAllLines($path, $utf8)) {
     if ($line -notmatch '^\|') { continue }
-    $cells = $line.Trim().Trim('|').Split('|') | ForEach-Object { $_.Trim().Trim('`') }
+    $cells = @($line.Trim().Trim('|').Split('|') | ForEach-Object { $_.Trim().Trim('`') })
     if ($cells.Count -lt 4) { continue }
     if ($cells[3] -notmatch '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$') { continue }
-    $rows += [pscustomobject]@{ Board = $cells[0]; Firmware = $cells[1].ToLower(); Mac = $cells[3].ToUpper(); Source = $source }
+    $rows += [pscustomobject]@{
+      Board = $cells[0]; Firmware = $cells[1].ToLower(); Bridge = $cells[2]; Mac = $cells[3].ToUpper()
+      Notes = if ($cells.Count -gt 4) { $cells[4] } else { '' }; Source = $source
+    }
   }
   return $rows
 }
 
 function Read-Inventory {
   # This PC's boards first, so a local row overrides the shared record for the same MAC.
+  # A local `removed` row hides a shared board on this PC.
   $rows = @(Read-InventoryFile $localInventoryPath 'boards.local.md')
   foreach ($row in Read-InventoryFile $inventoryPath 'BOARD_INVENTORY.md') {
     if (-not ($rows | Where-Object Mac -eq $row.Mac)) { $rows += $row }
   }
-  return $rows
+  return @($rows | Where-Object Firmware -ne 'removed')
 }
 
 function Get-SerialPorts {
@@ -187,91 +193,206 @@ function Exit-WithSummary($plan) {
   exit $(if ($bad) { 1 } else { 0 })
 }
 
-function Invoke-BoardSetup($newBoards, $inventory) {
-  # Asks what each new board is and appends a row per answer to tools\boards.local.md.
-  $taken = @($inventory | ForEach-Object Board)
-  $lines = @()
-  foreach ($b in $newBoards) {
-    Write-Host ("`n  {0}  {1}  ({2} bridge)" -f $b.Port, $b.Mac, $b.Bridge) -ForegroundColor Cyan
-    $suggest = $null; $hint = ''
-    if ($b.Bridge -eq 'CH340') { $suggest = '1'; $hint = 'CH340 bridge: an Atlas' }
-    else {
-      Write-Host '  Listening to its boot log (this resets it)...'
-      switch (Read-BootKind $b.Port) {
-        'eink'    { $suggest = '2'; $hint = 'its firmware reports an E-ink Sigil (GPIO4 open)' }
-        'oled'    { $suggest = '3'; $hint = 'its firmware reports an OLED Sigil (GPIO4 to GND)' }
-        'atlas'   { $suggest = '1'; $hint = 'its firmware reports an Atlas' }
-        'harness' { $hint = 'this is the retired test harness: record it as Spare or skip it' }
-        default   {
-          $hint = if ($b.Bridge -eq 'CP210x') { 'CP210x bridge: a Sigil; no TurnHub firmware answered, so check its GPIO4 strap (open = E-ink, GND = OLED)' }
-                  else { 'unrecognised USB bridge and no TurnHub firmware answered' }
-        }
-      }
-    }
-    Write-Host "  $hint"
-    foreach ($k in $boardKinds.Keys) {
-      $mark = if ($k -eq $suggest) { '  (suggested)' } else { '' }
-      Write-Host ("    {0}  {1}{2}" -f $k, $boardKinds[$k].Label, $mark)
-    }
-    Write-Host '    S  Skip: do not record this board'
-    $prompt = if ($suggest) { "  What is this board? Enter for $suggest" } else { '  What is this board? 1-4 or S' }
-    do {
-      $answer = "$(Read-Host $prompt)".Trim().ToUpper()
-      if (-not $answer -and $suggest) { $answer = $suggest }
-    } until ($answer -eq 'S' -or $boardKinds.Contains($answer))
-    if ($answer -eq 'S') { Write-Host '  Skipped.'; continue }
+$localHeader = @(
+  '# Boards on this PC',
+  '',
+  'Written by board setup (`tools\setup-boards.cmd`). This file is not committed.',
+  'flash-all reads it before `Documentation/engineering/BOARD_INVENTORY.md`, and a MAC',
+  'listed here wins. Firmware is `atlas`, `sigil` (E-ink), `sigil-oled`, `spare` or',
+  '`spare:<firmware it ran>` (kept, never flashed), or `removed` (a shared-record board',
+  'this PC ignores). Run board setup again to rename, retype, retire or delete a board.',
+  '',
+  '| Board | Firmware | USB bridge | MAC | Notes |',
+  '|---|---|---|---|---|'
+)
+$kindKeys = @{ 'atlas' = '1'; 'sigil' = '2'; 'sigil-oled' = '3' }
 
-    $kind = $boardKinds[$answer]
-    $default = $kind.Name; $n = 2
-    while ($taken -contains $default) { $default = "$($kind.Name) $n"; $n++ }
+function Get-KindLabel($firmware) {
+  if ($firmware -match '^spare:(.+)$') { return "Spare (was $(Get-KindLabel $Matches[1]))" }
+  switch ($firmware) {
+    'atlas'      { return 'Atlas' }
+    'sigil'      { return 'E-ink Sigil' }
+    'sigil-oled' { return 'OLED Sigil' }
+    'spare'      { return 'Spare' }
+  }
+  return "$firmware (never flashed)"
+}
+
+function Format-Row($name, $firmware, $bridge, $mac, $notes) {
+  '| {0} | `{1}` | {2} | `{3}` | {4} |' -f $name, $firmware, $bridge, $mac, $notes
+}
+
+function Save-LocalRow($mac, $row) {
+  # Replaces or adds this MAC's row in tools\boards.local.md, or removes it when $row is $null.
+  if ($DryRun) {
+    $what = if ($row) { $row } else { "remove $mac" }
+    Write-Host "  Dry run, not written: $what" -ForegroundColor Yellow
+    return
+  }
+  $lines = if (Test-Path $localInventoryPath) { @([IO.File]::ReadAllLines($localInventoryPath, $utf8)) } else { $localHeader }
+  $out = @(); $done = $false
+  foreach ($l in $lines) {
+    if ($l -match ('^\|([^|]*\|){3}\s*`?' + [regex]::Escape($mac) + '`?\s*\|')) {
+      if ($row -and -not $done) { $out += $row; $done = $true }
+      continue
+    }
+    $out += $l
+  }
+  if ($row -and -not $done) { $out += $row }
+  [IO.File]::WriteAllLines($localInventoryPath, [string[]]$out, $utf8)
+}
+
+function Get-Suggestion($bridge, $port) {
+  # What an attached board probably is: its USB bridge, then its firmware's boot log.
+  if ($bridge -eq 'CH340') { return @{ Key = '1'; Hint = 'CH340 bridge: an Atlas' } }
+  Write-Host '  Listening to its boot log (this resets it)...'
+  switch (Read-BootKind $port) {
+    'eink'    { return @{ Key = '2'; Hint = 'its firmware reports an E-ink Sigil (GPIO4 open)' } }
+    'oled'    { return @{ Key = '3'; Hint = 'its firmware reports an OLED Sigil (GPIO4 to GND)' } }
+    'atlas'   { return @{ Key = '1'; Hint = 'its firmware reports an Atlas' } }
+    'harness' { return @{ Key = $null; Hint = 'this is the retired test harness: record it as Spare or skip it' } }
+  }
+  if ($bridge -eq 'CP210x') {
+    return @{ Key = $null; Hint = 'CP210x bridge: a Sigil; no TurnHub firmware answered, so check its GPIO4 strap (open = E-ink, GND = OLED)' }
+  }
+  return @{ Key = $null; Hint = 'unrecognised USB bridge and no TurnHub firmware answered' }
+}
+
+function Read-Kind($suggest, [switch]$AllowSpare) {
+  # Asks for a board type; returns its menu key, or $null to skip or go back.
+  foreach ($k in $boardKinds.Keys) {
+    if ($k -eq '4' -and -not $AllowSpare) { continue }
+    $mark = if ($k -eq $suggest) { '  (suggested)' } else { '' }
+    Write-Host ("    {0}  {1}{2}" -f $k, $boardKinds[$k].Label, $mark)
+  }
+  $last = if ($AllowSpare) { '4' } else { '3' }
+  $prompt = if ($suggest) { "  Type? Enter for $suggest, S to skip" } else { "  Type? 1-$last, S to skip" }
+  while ($true) {
+    $answer = "$(Read-Host $prompt)".Trim().ToUpper()
+    if (-not $answer -and $suggest) { return $suggest }
+    if ($answer -eq 'S') { return $null }
+    if ($boardKinds.Contains($answer) -and ($AllowSpare -or $answer -ne '4')) { return $answer }
+  }
+}
+
+function Get-FreeName($base, $inventory) {
+  $taken = @($inventory | ForEach-Object Board)
+  $name = $base; $n = 2
+  while ($taken -contains $name) { $name = "$base $n"; $n++ }
+  return $name
+}
+
+function Invoke-BoardSetup($newBoards) {
+  # Asks what each new board is and records it in tools\boards.local.md. Returns $true when any was.
+  $any = $false
+  foreach ($b in $newBoards) {
+    Write-Host ("`n  New board: {0}  {1}  ({2} bridge)" -f $b.Port, $b.Mac, $b.Bridge) -ForegroundColor Cyan
+    $s = Get-Suggestion $b.Bridge $b.Port
+    Write-Host "  $($s.Hint)"
+    $key = Read-Kind $s.Key -AllowSpare
+    if (-not $key) { Write-Host '  Skipped.'; continue }
+    $kind = $boardKinds[$key]
+    $default = Get-FreeName $kind.Name @(Read-Inventory)
     $name = "$(Read-Host "  Name for this board, Enter for '$default'")".Trim()
     if (-not $name) { $name = $default }
     $name = $name.Replace('|', '/')
-    $taken += $name
-    $lines += ('| {0} | `{1}` | {2} | `{3}` | Added by board setup {4} |' -f $name, $kind.Firmware, $b.Bridge, $b.Mac, (Get-Date -Format 'yyyy-MM-dd'))
-    Write-Host "  $name -> $($kind.Firmware)" -ForegroundColor Green
+    Save-LocalRow $b.Mac (Format-Row $name $kind.Firmware $b.Bridge $b.Mac "Added by board setup $(Get-Date -Format 'yyyy-MM-dd')")
+    Write-Host "  $name -> $(Get-KindLabel $kind.Firmware)" -ForegroundColor Green
+    $any = $true
   }
-  if (-not $lines.Count) { return $false }
-  if ($DryRun) {
-    Write-Host "`nDry run: these rows were not written:" -ForegroundColor Yellow
-    $lines | ForEach-Object { Write-Host "  $_" }
-    return $false
+  return $any
+}
+
+function Invoke-BoardManager($attached) {
+  # Lists every known board and lets you rename, retype, retire, return or delete one.
+  while ($true) {
+    $inventory = @(Read-Inventory)
+    if (-not $inventory.Count) { Write-Host "`nNo boards are recorded yet."; return }
+    Write-Host "`n== Boards" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $inventory.Count; $i++) {
+      $r = $inventory[$i]
+      $on = @($attached | Where-Object Mac -eq $r.Mac)
+      $where = if ($on.Count) { "on $($on[0].Port)" } else { '' }
+      Write-Host ("  {0,2}  {1,-24} {2,-30} {3}  {4}" -f ($i + 1), $r.Board, (Get-KindLabel $r.Firmware), $r.Mac, $where)
+    }
+    $pick = "$(Read-Host "`nPick a board to change (1-$($inventory.Count)), or Enter to finish")".Trim()
+    if (-not $pick) { return }
+    $n = 0
+    if (-not [int]::TryParse($pick, [ref]$n) -or $n -lt 1 -or $n -gt $inventory.Count) { continue }
+    $r = $inventory[$n - 1]
+    $spare = $r.Firmware -like 'spare*'
+    $inService = $kindKeys.ContainsKey($r.Firmware)
+    Write-Host "`n  $($r.Board): $(Get-KindLabel $r.Firmware)" -ForegroundColor Cyan
+    Write-Host '    N  Rename'
+    if ($spare) { Write-Host '    S  Return to service' }
+    else {
+      Write-Host '    T  Change type'
+      if ($inService) { Write-Host '    P  Make spare (kept, never flashed)' }
+    }
+    Write-Host '    D  Delete (forget this board)'
+    $act = "$(Read-Host '  Choose, or Enter to go back')".Trim().ToUpper()
+
+    $name = $r.Board; $firmware = $r.Firmware
+    if ($act -eq 'N') {
+      $new = "$(Read-Host "  New name for '$name'")".Trim()
+      if (-not $new) { continue }
+      $name = $new.Replace('|', '/')
+    } elseif ($act -eq 'T' -and -not $spare) {
+      $key = Read-Kind $kindKeys[$r.Firmware]
+      if (-not $key) { continue }
+      $firmware = $boardKinds[$key].Firmware
+    } elseif ($act -eq 'P' -and $inService) {
+      $firmware = "spare:$($r.Firmware)"
+    } elseif ($act -eq 'S' -and $spare) {
+      $suggest = $null
+      if ($r.Firmware -match '^spare:(.+)$') { $suggest = $kindKeys[$Matches[1]] }
+      $on = @($attached | Where-Object Mac -eq $r.Mac)
+      if (-not $suggest -and $on.Count) {
+        $s = Get-Suggestion $on[0].Bridge $on[0].Port
+        Write-Host "  $($s.Hint)"
+        $suggest = $s.Key
+      }
+      $key = Read-Kind $suggest
+      if (-not $key) { continue }
+      $firmware = $boardKinds[$key].Firmware
+    } elseif ($act -eq 'D') {
+      $sure = "$(Read-Host "  Forget $name ($($r.Mac))? y/N")".Trim()
+      if ($sure -notmatch '^[Yy]') { continue }
+      $shared = @(Read-InventoryFile $inventoryPath 'BOARD_INVENTORY.md' | Where-Object Mac -eq $r.Mac)
+      if ($shared.Count) {
+        # The shared record is committed: hide the board on this PC instead of editing it.
+        Save-LocalRow $r.Mac (Format-Row $name 'removed' $r.Bridge $r.Mac "Removed on this PC by board setup $(Get-Date -Format 'yyyy-MM-dd')")
+      } else {
+        Save-LocalRow $r.Mac $null
+      }
+      Write-Host "  Forgot $name." -ForegroundColor Green
+      continue
+    } else { continue }
+
+    Save-LocalRow $r.Mac (Format-Row $name $firmware $r.Bridge $r.Mac $r.Notes)
+    Write-Host "  $name -> $(Get-KindLabel $firmware)" -ForegroundColor Green
   }
-  if (-not (Test-Path $localInventoryPath)) {
-    $header = @(
-      '# Boards on this PC',
-      '',
-      'Written by board setup (`tools\setup-boards.cmd`). This file',
-      'is not committed. flash-all reads it before `Documentation/engineering/BOARD_INVENTORY.md`,',
-      'and a MAC listed here wins. Firmware is `atlas`, `sigil` (E-ink), `sigil-oled`, or `spare`',
-      '(recorded but never flashed). Edit or delete a row to change or forget a board.',
-      '',
-      '| Board | Firmware | USB bridge | MAC | Notes |',
-      '|---|---|---|---|---|'
-    )
-    [IO.File]::WriteAllLines($localInventoryPath, [string[]]$header, $utf8)
-  }
-  [IO.File]::AppendAllLines($localInventoryPath, [string[]]$lines, $utf8)
-  Write-Host "`nRecorded $($lines.Count) board(s) in tools\boards.local.md." -ForegroundColor Green
-  return $true
 }
 
 # --- 0. board setup only (-Setup) -------------------------------------------------
 if ($Setup) {
-  $pio = Find-Pio
   $ports = @(Get-SerialPorts)
-  if (-not $ports.Count) { Fail 'No USB serial boards are connected.' }
-  $inventory = @(Read-Inventory)
-  $plan = @(Get-Plan @(Get-Boards $pio $ports) $inventory)
-  foreach ($row in $plan | Where-Object Known) {
-    Write-Host ("  {0,-6} {1,-18} already set up: {2} ({3})" -f $row.Port, $row.Mac, $row.Board, $row.Firmware)
+  $plan = @()
+  if ($ports.Count) {
+    $pio = Find-Pio
+    $plan = @(Get-Plan @(Get-Boards $pio $ports) @(Read-Inventory))
+    foreach ($row in $plan | Where-Object Known) {
+      Write-Host ("  {0,-6} {1,-18} {2} ({3})" -f $row.Port, $row.Mac, $row.Board, (Get-KindLabel $row.Firmware))
+    }
+    foreach ($row in $plan | Where-Object { -not $_.Mac }) {
+      Write-Host ("  {0,-6} could not read its MAC (busy? close any serial monitor)" -f $row.Port) -ForegroundColor Yellow
+    }
+    $new = @($plan | Where-Object { $_.Mac -and -not $_.Known })
+    if ($new.Count) { Invoke-BoardSetup $new | Out-Null }
+  } else {
+    Write-Host 'No USB serial boards are connected; you can still change the recorded ones.' -ForegroundColor Yellow
   }
-  foreach ($row in $plan | Where-Object { -not $_.Mac }) {
-    Write-Host ("  {0,-6} could not read its MAC (busy? close any serial monitor)" -f $row.Port) -ForegroundColor Yellow
-  }
-  $new = @($plan | Where-Object { $_.Mac -and -not $_.Known })
-  if (-not $new.Count) { Write-Host "`nEvery connected board is already set up." -ForegroundColor Green; exit 0 }
-  Invoke-BoardSetup $new $inventory | Out-Null
+  Invoke-BoardManager $plan
   exit 0
 }
 
@@ -312,7 +433,7 @@ $new = @($plan | Where-Object { $_.Mac -and -not $_.Known })
 if ($new.Count -and -not $NoSetup -and -not $DryRun) {
   $answer = "$(Read-Host "`n$($new.Count) board(s) are not set up yet. Set them up now? [Y/n]")"
   if ($answer.Trim() -notmatch '^[Nn]') {
-    if (Invoke-BoardSetup $new $inventory) {
+    if (Invoke-BoardSetup $new) {
       $inventory = @(Read-Inventory)
       $plan = @(Get-Plan $boards $inventory)
       Write-Host "`n== Plan" -ForegroundColor Cyan

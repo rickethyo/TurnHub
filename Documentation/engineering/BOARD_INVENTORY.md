@@ -15,7 +15,10 @@ reads each attached board's MAC, suggests Atlas for a CH340 bridge and, for a
 CP210x Sigil already running TurnHub firmware, the display type its GPIO4 strap
 reports at boot (`SIGIL|HW|EINK` or `SIGIL|HW|OLED`), then asks you to confirm
 and name it. A Sigil with no TurnHub firmware yet has no suggestion: check its
-strap. Copy a row here when the board belongs in the shared development record.
+strap. It then lists every recorded board, shared or local, to rename, change
+type, make spare, return to service or delete. Those changes go only to
+`tools\boards.local.md` (a local row overrides this table on that PC), so copy a
+row here when the change belongs in the shared development record.
 *Planned*: written 2026-10-06 without a Windows run; not yet tried on hardware.
 
 | Board | Firmware | USB bridge | MAC | Notes |
