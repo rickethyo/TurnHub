@@ -126,8 +126,10 @@ can be restored, and are hidden from Game Master tools.
 
 ## Not done yet
 
-- A slower salted hash (PBKDF2 via mbedTLS) for passwords; changing it needs
-  a factory reset.
+- A slower salted hash (PBKDF2 via mbedTLS) for PINs and passwords, and a
+  larger NVS partition, since today's 20 KB likely fits only about 20 profiles
+  rather than 64. Both are parked together in
+  [Staged Changes](STAGED_CHANGES.md), "Parked: storage batch".
 - Custom avatars with Admin approval (`AVATAR_CUSTOM` is reserved; presets
   work).
 - Per-Sigil startup choice (last profile or picker) and labels for

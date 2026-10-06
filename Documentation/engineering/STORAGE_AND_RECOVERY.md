@@ -76,6 +76,12 @@ erases namespaces or repairs unknown records. Calls run on Atlas's
 application task. There is no cross-record transaction: a commit error has an
 uncertain outcome, so never blindly replay an increment.
 
+**Capacity.** The NVS partition is 20 KB (about 500 entries), and each profile
+uses about 20, so about 20 profiles fit rather than the 64 the code allows
+(estimated from code, *Needs verification*). Making NVS bigger is parked in
+[Staged Changes](STAGED_CHANGES.md), "Parked: storage batch". Storage stays
+NVS plus checksummed SD blobs with no SQL database (owner, 2026-10-06).
+
 ## microSD card
 
 Every Atlas ships with a card, but play never depends on it. The card holds

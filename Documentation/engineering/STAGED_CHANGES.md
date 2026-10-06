@@ -52,8 +52,7 @@ everything implemented. Only the checks listed below are still open.
 
 ### Accounts, portal and app
 
-- **Password hashing:** a slow salted hash (PBKDF2 via mbedTLS) instead of
-  one SHA-256; needs a factory reset.
+- **Password hashing:** parked, see "Parked: storage batch" below.
 - **Custom avatars** with Admin approval before they go public.
 - **App and portal screenshot tests:** golden images of the Android screens
   in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
@@ -110,6 +109,24 @@ Make a V0.12 (then run `python3 Android/tools/export_manual.py`) that covers:
   current; confirm the USB supplies and power banks hold up.
 - Freeze hardware revisions only after GPIO, power, display, transport,
   controls and accessibility decisions settle.
+
+## Parked: storage batch
+
+Proposed and parked by the owner (2026-10-06): do these together, since
+both need a USB flash and a factory reset.
+
+- **Larger NVS partition.** `min_spiffs.csv` gives NVS 20 KB (about 500
+  entries) and each profile uses about 20, so the real ceiling is about 20
+  profiles, not the 64 the code allows (*Needs verification*: estimated
+  from code, not measured). Fix: a custom partition table with a bigger NVS.
+- **Slow PIN and password hash.** Today it is one SHA-256 over the profile ID
+  and secret (`web_session.cpp`), which a flash dump can brute-force. Fix:
+  PBKDF2 via mbedTLS. Full protection also needs flash encryption (eFuse), a
+  release-time decision.
+
+Decided at the same time: storage stays NVS plus checksummed SD blobs, with
+no SQL database. Revisit only for full per-match history, which would use
+append-only files on the card.
 
 ## Open checks
 
