@@ -49,7 +49,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -193,7 +193,7 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
             summary.pending.winConfirmationPlayer != null ->
                 "${labelFor(summary.pending.winClaimPlayer ?: 0)} claims the win"
             summary.pending.eliminationTargetPlayer != null ->
-                "Eliminating ${labelFor(summary.pending.eliminationTargetPlayer!!)}"
+                "Eliminating ${labelFor(summary.pending.eliminationTargetPlayer)}"
             else -> active?.let { "$it was up" } ?: "The table is paused"
         }
         TableState.GAME_OVER -> if (summary.endedInDraw) "Draw" to "The match ended as a draw"
@@ -577,7 +577,7 @@ private fun LifeCard(
                     active = summary.hasTurn(player.playerNumber),
                     mine = player.playerNumber == me?.playerNumber,
                     winner = summary.isWinner(player.playerNumber),
-                    onRequest = if (canAct && player.playerNumber != me?.playerNumber && !player.eliminated) {
+                    onRequest = if (canAct && player.playerNumber != me.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
                     reduceMotion = reduceMotion,
@@ -927,7 +927,7 @@ internal fun <T> ChoiceDropdown(
             enabled = enabled,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { (value, text) ->

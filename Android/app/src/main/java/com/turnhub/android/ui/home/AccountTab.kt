@@ -308,7 +308,7 @@ private fun PersonalizationCard(uiState: HomeUiState, actions: AccountActions) {
             if (dirty) "Save personalization" else "Personalization saved",
             { actions.onSavePersonalization(colorDraft ?: "none", avatarDraft) },
             Modifier.fillMaxWidth(),
-            enabled = dirty && current?.cardPresent == true,
+            enabled = dirty && current.cardPresent,
         )
     }
 }

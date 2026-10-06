@@ -166,7 +166,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
                     return done(d?.optString("error")?.ifBlank { null } ?: "The request expired. Try again.", isError = true)
                 }
                 if (d?.optString("status") != "approved") return@repeat
-                val newToken = d?.optString("token").orEmpty()
+                val newToken = d.optString("token").orEmpty()
                 if (newToken.isEmpty()) return done("Atlas approved the seat but sent no sign-in.", isError = true)
                 mutex.withLock {
                     val info = call { transport.me(newToken) }
