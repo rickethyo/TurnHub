@@ -88,7 +88,7 @@ int main() {
   assert(panel.reset == 22 && panel.resetRequested);
   d.showBooting(); assert(has("Booting") && has("TurnHub") && panel.shapes > 0);
   d.showUnpaired(); assert(has("UNPAIRED") && has("Hold joystick to") && has("enter pairing mode"));
-  d.showReady(7); assert(has("SIGIL 8") && has("Ready for game"));
+  d.showReady(7); assert(has("SIGIL 8") && has("Welcome to TurnHub!"));
   d.showUpdate("Downloading", 40); assert(has("UPDATE") && has("40%") && has("Downloading") && has("Keep it powered"));
   d.showUpdate("Joining Atlas Wi-Fi", -1); assert(has("...") && has("Joining Atlas Wi-Fi"));
   assert(d.setSeatName(1, "ABCDEFGHIJKLmore"));
@@ -115,7 +115,7 @@ int main() {
   d.showState(0, DisplayMode::Lobby, 4, 0, 1, 0);
   assert(has("Player 4"));
   d.showState(0, DisplayMode::Ready, 0, 0, 0, 0);
-  assert(has("Ready for game"));
+  assert(has("Welcome to TurnHub!"));
 
   CommanderFlowPacket flow{};
   flow.version=VERSION; flow.type=PacketType::CommanderFlow; flow.sigilId=0;
@@ -239,14 +239,14 @@ int main() {
     m.applyMenuState2(encodeMenuState2(ready), 0);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
-    assert(has("Ready for game") && has("\x09 Join game"));
+    assert(has("Welcome to TurnHub!") && has("\x09 Join game"));
     d.idleWork(20000);
     assert(has("\x18 Menu"));
     m.keyDown(Key::Up, 21000); m.keyUp(Key::Up, 21050);
     d.setMenuView(m.view());
     resetTrace(); d.showReady(0);
     assert(highlighted("DEVICE") && highlighted("Sleep") && has("Unpair (hold)") && !has("Join game") &&
-        !has("Ready for game"));
+        !has("Welcome to TurnHub!"));
     // Screens without a legend (the picker) do not step it.
     m.keyDown(Key::Left, 23000);
     d.setMenuView(m.view());
