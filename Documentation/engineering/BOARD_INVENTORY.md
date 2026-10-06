@@ -10,7 +10,11 @@ Board setup reads each attached board's MAC (this resets the board) and
 suggests what it is: Atlas for a CH340 USB bridge, and for a CP210x Sigil
 already running TurnHub firmware, the display type its GPIO4 strap reports at
 boot (`SIGIL|HW|EINK` or `SIGIL|HW|OLED`). A Sigil with no TurnHub firmware
-yet has no suggestion, so check its strap. You confirm and name each board.
+yet has no suggestion, so check its strap. A board running TurnHub firmware is
+also told to blink white for 10 s (the Sigil's ring, Atlas's on-board RGB LED),
+and so is an attached board you pick from the list, so you can see which one
+the script means; send `identify` on a serial console for the same. You
+confirm and name each board.
 Setup then lists every recorded board to rename, change type, make spare,
 return to service or delete. To read a MAC by hand:
 

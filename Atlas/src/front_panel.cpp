@@ -28,6 +28,12 @@ uint32_t pairingIndicatorMs = TurnHubProtocol::PAIRING_WINDOW_MS;
 // The on-board RGB LED's red and blue channels as last written (active low).
 bool redLedLit = false;
 bool blueLedLit = false;
+bool greenLedLit = false;
+// "identify" on the serial console (tools\setup-boards.cmd sends it) blinks
+// the on-board LED white until then, so the owner can tell which board the
+// script is asking about.
+uint32_t identifyUntilMs = 0;
+bool identifying = false;
 
 bool latestReported = false;
 TurnHub::LatestFirmware latest;
@@ -67,7 +73,11 @@ PresenceGrant *grantFor(const String &profileId) {
 // only one.
 static bool pairingLedOn(uint32_t elapsedMs) { return elapsedMs % 500 < 250; }
 
-static void setStatusLed(bool red, bool blue) {
+static void setStatusLed(bool red, bool blue, bool green = false) {
+  if (green != greenLedLit) {
+    greenLedLit = green;
+    digitalWrite(AtlasConfig::RGB_GREEN_PIN, green ? LOW : HIGH);
+  }
   if (red != redLedLit) {
     redLedLit = red;
     digitalWrite(AtlasConfig::RGB_RED_PIN, red ? LOW : HIGH);
@@ -272,6 +282,27 @@ void updateBootButton(bool pressed, uint32_t nowMs) {
   }
 }
 
+// Bench commands typed on the serial console. Only "identify" (blink the
+// on-board LED white for IDENTIFY_MS) today; it changes no game state.
+void readSerialCommands(uint32_t nowMs) {
+  static char line[24];
+  static uint8_t length = 0;
+  while (Serial.available() > 0) {
+    const char c = static_cast<char>(Serial.read());
+    if (c != '\r' && c != '\n') {
+      if (length + 1 < sizeof(line)) line[length++] = c;
+      continue;
+    }
+    line[length] = '\0';
+    if (length && strcmp(line, "identify") == 0) {
+      identifying = true;
+      identifyUntilMs = nowMs + IDENTIFY_MS;
+      serialLog.println("ATLAS|IDENTIFY");
+    }
+    length = 0;
+  }
+}
+
 // The pairing window closes after its configured length or when the lobby
 // ends; a shown presence code closes after PRESENCE_CODE_MS.
 void updatePairingWindow(uint32_t nowMs) {
@@ -280,9 +311,15 @@ void updatePairingWindow(uint32_t nowMs) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }
-  const bool red = pairingActive && pairingLedOn(nowMs - pairingStartedAtMs);
-  const bool blue = !pairingActive && pairingLedOn(nowMs) && firmwareUpdatesAvailable() > 0;
-  setStatusLed(red, blue);
+  if (identifying && static_cast<int32_t>(nowMs - identifyUntilMs) >= 0) identifying = false;
+  if (identifying) {
+    const bool on = pairingLedOn(nowMs);
+    setStatusLed(on, on, on);
+  } else {
+    const bool red = pairingActive && pairingLedOn(nowMs - pairingStartedAtMs);
+    const bool blue = !pairingActive && pairingLedOn(nowMs) && firmwareUpdatesAvailable() > 0;
+    setStatusLed(red, blue);
+  }
   if (codeShown && !codeLive(nowMs)) {
     codeShown = false;
     serialLog.println("ATLAS|PRESENCE|CODE_EXPIRED");

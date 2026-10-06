@@ -57,6 +57,8 @@ struct SerialStub {
   template<class T> void println(const T&) {}
   void println() {}
   size_t write(const uint8_t *, size_t size) { return size; }
+  int available() { return 0; }
+  int read() { return -1; }
 };
 constexpr int DEC=10, HEX=16;
 // Minimal Arduino Print: subclasses implement write(); formatting matches the

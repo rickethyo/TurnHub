@@ -355,6 +355,9 @@ void resetPresence();
 // OTA is allowed only between games (the upload also needs a verified Admin).
 bool otaAllowed();
 void updatePairingWindow(uint32_t nowMs);
+// How long "identify" on the serial console blinks the on-board LED white.
+constexpr uint32_t IDENTIFY_MS = 10000;
+void readSerialCommands(uint32_t nowMs);
 // Adapter for the board's BOOT button (raw level, debounced here): quick press
 // = Pair a Sigil, hold UNPAIR_HOLD_MS = forget all Sigils, hold
 // FACTORY_RESET_HOLD_MS = factory reset Atlas. Each becomes an Intent from

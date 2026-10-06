@@ -365,11 +365,23 @@ void sendHello() {
 // Renders the current light state to the Jewel ring (hardware Sigils) or the
 // RGB LED pins (Wokwi; PWM on all three for full color). Hardware changes
 // only when the frame differs.
+// "identify" on the serial console (tools\setup-boards.cmd sends it) blinks
+// the whole ring white until then, so the owner can tell which board the
+// script is asking about.
+constexpr uint32_t IDENTIFY_MS = 10000;
+uint32_t identifyUntilMs = 0;
+bool identifying = false;
+
 void updateLeds() {
   const uint32_t nowMs = millis();
   if (ledOutputValid && nowMs - lastLedFrameMs < LED_FRAME_MS) return;
   lastLedFrameMs = nowMs;
-  const TurnHubSigil::LedFrame frame = ledModel.render(nowMs);
+  if (identifying && static_cast<int32_t>(nowMs - identifyUntilMs) >= 0) identifying = false;
+  TurnHubSigil::LedFrame frame = ledModel.render(nowMs);
+  if (identifying) {
+    const bool on = nowMs % 500 < 250;
+    for (auto &pixel : frame.pixels) pixel = on ? TurnHubSigil::Rgb(80, 80, 80) : TurnHubSigil::Rgb();
+  }
   TurnHubSigil::statusRingShow(frame);
   ledOutputValid = true;
 }
@@ -1942,7 +1954,7 @@ void setup() {
 
 #if !defined(TURNHUB_WOKWI)
 // Bench commands typed on the serial console (the Wokwi build reads serial
-// for its simulated Atlas instead). Only the display handles any today.
+// for its simulated Atlas instead): "identify", then the display's own.
 void readSerialCommands() {
   static char line[40];
   static uint8_t length = 0;
@@ -1950,7 +1962,11 @@ void readSerialCommands() {
     const char c = static_cast<char>(Serial.read());
     if (c == '\r' || c == '\n') {
       line[length] = '\0';
-      if (length && !sigilDisplay.handleCommand(line)) {
+      if (length && strcmp(line, "identify") == 0) {
+        identifying = true;
+        identifyUntilMs = millis() + IDENTIFY_MS;
+        Serial.println("SIGIL|IDENTIFY");
+      } else if (length && !sigilDisplay.handleCommand(line)) {
         Serial.print("SIGIL|SERIAL|UNKNOWN|");
         Serial.println(line);
       }

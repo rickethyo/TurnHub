@@ -122,11 +122,12 @@ function Read-Mac($pio, $port) {
   return $null
 }
 
-function Read-BootKind($port, [int]$seconds = 5) {
+function Read-BootKind($port, [int]$seconds = 5, [switch]$Identify) {
   # Resets the board the way esptool does (EN pulled low through RTS, IO0 left high) and
   # listens to its boot log. A Sigil reports its GPIO4 strap even when it is running the
   # wrong display build, and so does the spare firmware. Returns 'eink', 'oled',
-  # 'spare-eink', 'spare-oled', 'atlas', 'harness', or $null.
+  # 'spare-eink', 'spare-oled', 'atlas', 'harness', or $null. With -Identify, a
+  # board that answered is told to blink its ring or LED white for 10 s.
   $sp = New-Object System.IO.Ports.SerialPort $port, 115200
   $sp.DtrEnable = $false
   $sp.RtsEnable = $true
@@ -139,14 +140,38 @@ function Read-BootKind($port, [int]$seconds = 5) {
     while ((Get-Date) -lt $deadline) {
       Start-Sleep -Milliseconds 100
       $log += $sp.ReadExisting()
-      if ($log -match 'SIGIL\|SPARE\|(OLED|EINK)') { return 'spare-' + $Matches[1].ToLower() }
-      if ($log -match 'SIGIL\|HW\|(MISMATCH\|BOARD\|)?(OLED|EINK)') { return $Matches[2].ToLower() }
-      if ($log -match 'ATLAS\|BOOT\|') { return 'atlas' }
-      if ($log -match 'HARNESS\|BOOT') { return 'harness' }
+      $kind = $null
+      if ($log -match 'SIGIL\|SPARE\|(OLED|EINK)') { $kind = 'spare-' + $Matches[1].ToLower() }
+      elseif ($log -match 'SIGIL\|HW\|MISMATCH\|BOARD\|(OLED|EINK)') { return $Matches[1].ToLower() }
+      elseif ($log -match 'SIGIL\|HW\|(OLED|EINK)') { $kind = $Matches[1].ToLower() }
+      elseif ($log -match 'ATLAS\|BOOT\|') { $kind = 'atlas' }
+      elseif ($log -match 'HARNESS\|BOOT') { return 'harness' }
+      if ($kind) {
+        if ($Identify) {
+          # Wait for the firmware's loop to start reading serial, then ask it to blink.
+          $ready = if ($kind -eq 'atlas') { 'ATLAS\|DIAGNOSTICS\|' } else { 'SIGIL\|READY' }
+          while ($log -notmatch $ready -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 100
+            $log += $sp.ReadExisting()
+          }
+          Start-Sleep -Milliseconds 300
+          $sp.WriteLine('identify')
+          Start-Sleep -Milliseconds 100
+        }
+        return $kind
+      }
     }
   } catch {
   } finally { $sp.Close() }
   return $null
+}
+
+function Send-Identify($port) {
+  # Asks a running TurnHub board to blink white for 10 s, without resetting it.
+  $sp = New-Object System.IO.Ports.SerialPort $port, 115200
+  $sp.DtrEnable = $false
+  $sp.RtsEnable = $false
+  try { $sp.Open(); $sp.WriteLine('identify'); Start-Sleep -Milliseconds 100 } catch { } finally { $sp.Close() }
 }
 
 function Get-Boards($pio, $ports) {
@@ -245,10 +270,13 @@ function Save-LocalRow($mac, $row) {
 }
 
 function Get-Suggestion($bridge, $port) {
-  # What an attached board probably is: its USB bridge, then its firmware's boot log.
-  if ($bridge -eq 'CH340') { return @{ Key = '1'; Hint = 'CH340 bridge: an Atlas' } }
+  # What an attached board probably is: its USB bridge, then its firmware's boot
+  # log. A board running TurnHub firmware also blinks white for 10 s.
   Write-Host '  Listening to its boot log (this resets it)...'
-  switch (Read-BootKind $port) {
+  $kind = Read-BootKind $port -Identify
+  if ($kind -and $kind -ne 'harness') { Write-Host '  Its ring or LED is blinking white.' -ForegroundColor Cyan }
+  if ($bridge -eq 'CH340') { return @{ Key = '1'; Hint = 'CH340 bridge: an Atlas' } }
+  switch ($kind) {
     'eink'    { return @{ Key = '2'; Hint = 'its firmware reports an E-ink Sigil (GPIO4 open)' } }
     'oled'    { return @{ Key = '3'; Hint = 'its firmware reports an OLED Sigil (GPIO4 to GND)' } }
     'spare-eink' { return @{ Key = '2'; Hint = 'it runs the spare firmware; its strap says E-ink Sigil (GPIO4 open)' } }
@@ -324,6 +352,11 @@ function Invoke-BoardManager($attached) {
     $n = 0
     if (-not [int]::TryParse($pick, [ref]$n) -or $n -lt 1 -or $n -gt $inventory.Count) { continue }
     $r = $inventory[$n - 1]
+    $picked = @($attached | Where-Object Mac -eq $r.Mac)
+    if ($picked.Count) {
+      Send-Identify $picked[0].Port
+      Write-Host "  If $($r.Board) runs TurnHub firmware, its ring or LED is blinking white." -ForegroundColor Cyan
+    }
     $spare = $r.Firmware -like 'spare*'
     $inService = $kindKeys.ContainsKey($r.Firmware)
     Write-Host "`n  $($r.Board): $(Get-KindLabel $r.Firmware)" -ForegroundColor Cyan

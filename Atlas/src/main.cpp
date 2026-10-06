@@ -517,6 +517,7 @@ void loop() {
   refreshSdLuxuryStore();
 
   const uint32_t nowMs = millis();
+  readSerialCommands(nowMs);
   updatePairingWindow(nowMs);
   updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs);
   serviceAtlasDisplay(nowMs);
