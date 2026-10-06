@@ -61,12 +61,15 @@ import com.turnhub.android.ui.theme.palette
  * but not selectable. Atlas checks the secret (and throttles guesses); the app
  * only checks ProfileSecret's rule. Where the phone supports it, "Sign in
  * automatically" keeps the secret behind the phone's own lock (ProfileVault).
+ * "Create an account" switches the sheet to a name, secret and confirmation,
+ * like the portal's Create account tab (`POST /api/profiles/register`).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignInDialog(
     prompt: SignInPrompt,
     onSubmit: (profile: ProfileSummary, pin: String, remember: Boolean) -> Unit,
+    onCreate: (name: String, pin: String, remember: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val p = palette
@@ -74,9 +77,21 @@ fun SignInDialog(
     var pin by rememberSaveable { mutableStateOf("") }
     var shown by rememberSaveable { mutableStateOf(false) }
     var keep by rememberSaveable { mutableStateOf(true) }
+    var creating by rememberSaveable { mutableStateOf(false) }
+    var newName by rememberSaveable { mutableStateOf("") }
+    var confirm by rememberSaveable { mutableStateOf("") }
+    // With no accounts on this Atlas yet, the sheet opens straight on Create.
+    val create = creating || (!prompt.loading && prompt.profiles.isEmpty() && prompt.error == null)
     val selected = prompt.profiles.firstOrNull { it.profileId == selectedId && it.hasPin }
-    val canSubmit = selected != null && ProfileSecret.isValid(pin) && !prompt.submitting
-    val submit = { if (canSubmit) selected?.let { onSubmit(it, pin, prompt.offerRemember && keep) } }
+    val mismatch = confirm.isNotEmpty() && confirm != pin
+    val canSubmit = !prompt.submitting && ProfileSecret.isValid(pin) &&
+        if (create) newName.isNotBlank() && confirm == pin else selected != null
+    val submit = {
+        if (canSubmit) {
+            val remember = prompt.offerRemember && keep
+            if (create) onCreate(newName.trim(), pin, remember) else selected?.let { onSubmit(it, pin, remember) }
+        }
+    }
     val focus = remember { FocusRequester() }
     LaunchedEffect(selected?.profileId) { if (selected != null) runCatching { focus.requestFocus() } }
 
@@ -94,23 +109,61 @@ fun SignInDialog(
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Space.s4),
         ) {
             Text(
-                "Play from this phone",
+                if (create) "Create an account" else "Play from this phone",
                 style = MaterialTheme.typography.headlineSmall,
                 color = p.text,
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                "Choose your account. Your name and statistics follow you to any table.",
+                if (create) {
+                    "Your name and statistics stay with this account. Use a PIN for quick sign-in on a Sigil, or a password."
+                } else {
+                    "Choose your account. Your name and statistics follow you to any table."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = p.muted,
             )
-            when {
+            if (create) {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { value -> newName = value.take(ProfileSecret.MAX_NAME_CHARS) },
+                    enabled = !prompt.submitting,
+                    singleLine = true,
+                    label = { Text("Display name") },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
+                    enabled = !prompt.submitting,
+                    singleLine = true,
+                    label = { Text("PIN (4–8 digits) or password") },
+                    visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = confirm,
+                    onValueChange = { value -> confirm = value.take(ProfileSecret.MAX_CHARS) },
+                    enabled = !prompt.submitting,
+                    singleLine = true,
+                    isError = mismatch,
+                    label = { Text("Type it again") },
+                    visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { submit() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (mismatch) Text("The two entries don't match.", color = p.bad, style = MaterialTheme.typography.bodySmall)
+            } else when {
                 prompt.loading -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                     Text("Loading accounts…", color = p.muted)
                 }
-                prompt.profiles.isEmpty() && prompt.error == null ->
-                    Text("No accounts yet. Create one in the Atlas portal first.", color = p.muted)
                 else -> GroupedList(Modifier.selectableGroup()) {
                     prompt.profiles.forEachIndexed { index, profile ->
                         val enabled = profile.hasPin && !prompt.submitting
@@ -146,36 +199,34 @@ fun SignInDialog(
                     }
                 }
             }
-            AnimatedVisibility(visible = selected != null) {
-                Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Space.s4)) {
-                    OutlinedTextField(
-                        value = pin,
-                        onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
-                        enabled = !prompt.submitting,
-                        singleLine = true,
-                        label = { Text("PIN or password") },
-                        visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = { submit() }),
-                        modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                    )
-                    if (prompt.offerRemember) {
-                        GroupedList {
-                            row(Modifier.toggleable(value = keep, role = Role.Switch, onValueChange = { keep = it })) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("Sign in automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "On this phone, after your fingerprint, face or screen lock.",
-                                        color = p.muted,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                                Switch(checked = keep, onCheckedChange = null)
-                            }
+            AnimatedVisibility(visible = !create && selected != null) {
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
+                    enabled = !prompt.submitting,
+                    singleLine = true,
+                    label = { Text("PIN or password") },
+                    visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { submit() }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                )
+            }
+            if (prompt.offerRemember && (create || selected != null)) {
+                GroupedList {
+                    row(Modifier.toggleable(value = keep, role = Role.Switch, onValueChange = { keep = it })) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Sign in automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "On this phone, after your fingerprint, face or screen lock.",
+                                color = p.muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
+                        Switch(checked = keep, onCheckedChange = null)
                     }
                 }
             }
@@ -192,11 +243,23 @@ fun SignInDialog(
                 )
             }
             AccentButton(
-                if (prompt.submitting) "Signing in…" else "Sign in",
+                when {
+                    create && prompt.submitting -> "Creating account…"
+                    create -> "Create account"
+                    prompt.submitting -> "Signing in…"
+                    else -> "Sign in"
+                },
                 { submit() },
                 Modifier.fillMaxWidth(),
                 enabled = canSubmit,
             )
+            if (!prompt.loading && (creating || prompt.profiles.isNotEmpty())) {
+                TextButton(
+                    onClick = { creating = !creating; pin = ""; confirm = "" },
+                    enabled = !prompt.submitting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(if (creating) "I already have an account" else "New here? Create an account", color = p.accent) }
+            }
             TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = p.muted) }
         }
     }

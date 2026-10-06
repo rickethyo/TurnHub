@@ -122,6 +122,7 @@ fun HomeScreen(
     reduceMotion: Boolean = false,
     onSignInSubmit: (ProfileSummary, String, Boolean) -> Unit = { _, _, _ -> },
     onSignInDismiss: () -> Unit = {},
+    onCreateAccount: (name: String, pin: String, remember: Boolean) -> Unit = { _, _, _ -> },
     onAccessibilitySave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) -> Unit =
         { _, _, _, _, _ -> },
     onAccessibilityDismiss: () -> Unit = {},
@@ -138,7 +139,7 @@ fun HomeScreen(
     uiState.wifiPrompt?.let { prompt ->
         WifiPasswordDialog(prompt = prompt, onSubmit = onWifiPasswordSubmit, onUseCurrentWifi = onUseCurrentWifi, onDismiss = onWifiPromptDismiss)
     }
-    uiState.signIn?.let { prompt -> SignInDialog(prompt = prompt, onSubmit = onSignInSubmit, onDismiss = onSignInDismiss) }
+    uiState.signIn?.let { prompt -> SignInDialog(prompt = prompt, onSubmit = onSignInSubmit, onCreate = onCreateAccount, onDismiss = onSignInDismiss) }
     uiState.accessibility?.let { prompt ->
         AccessibilityDialog(prompt = prompt, onSave = onAccessibilitySave, onDismiss = onAccessibilityDismiss)
     }

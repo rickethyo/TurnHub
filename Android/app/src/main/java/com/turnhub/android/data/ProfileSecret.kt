@@ -8,6 +8,9 @@ package com.turnhub.android.data
  */
 object ProfileSecret {
     const val MAX_CHARS = 64
+
+    /** Atlas's display-name limit (`MAX_NAME_LENGTH`). */
+    const val MAX_NAME_CHARS = 32
     const val RULE = "Use a 4–8 digit PIN or a password of 8 to 64 characters."
 
     fun isValid(secret: String): Boolean {

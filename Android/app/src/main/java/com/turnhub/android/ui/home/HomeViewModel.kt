@@ -330,6 +330,41 @@ class HomeViewModel(
         }
     }
 
+    /** "Create account" in the sign-in sheet: open to anyone at the table, as in the portal. */
+    fun onCreateAccountSubmitted(name: String, pin: String, remember: Boolean = false) {
+        val endpoint = repository.endpoint.value ?: return
+        val prompt = local.value.signIn ?: return
+        val clean = name.trim()
+        val problem = when {
+            clean.isEmpty() || clean.length > ProfileSecret.MAX_NAME_CHARS -> "Choose a name of 1 to 32 characters."
+            !ProfileSecret.isValid(pin) -> ProfileSecret.RULE
+            else -> null
+        }
+        if (problem != null) {
+            local.update { it.copy(signIn = prompt.copy(error = problem)) }
+            return
+        }
+        local.update { it.copy(signIn = prompt.copy(submitting = true, error = null)) }
+        viewModelScope.launch {
+            try {
+                playerSession.register(endpoint, clean, pin)
+                local.update { it.copy(signIn = null) }
+                val atlasId = repository.tableSummary.value?.atlasId
+                val profileId = (playerSession.state.value as? PlayerSessionState.SignedIn)?.profileId
+                if (remember && atlasId != null && profileId != null && vault?.available == true) {
+                    _appLock.value = AppLockRequest.Save(
+                        com.turnhub.android.data.SavedProfile(atlasId, profileId, clean),
+                        pin,
+                    )
+                }
+            } catch (e: AtlasException) {
+                local.update { state ->
+                    state.copy(signIn = state.signIn?.copy(submitting = false, error = e.failure.userMessage))
+                }
+            }
+        }
+    }
+
     fun onSignInDismissed() {
         local.update { it.copy(signIn = null) }
     }
