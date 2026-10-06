@@ -14,10 +14,12 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 | Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw`; render Atlas screen previews |
 | Firmware (sigil) | E-ink Sigil; descriptor check, signed `sigil-eink.thfw`, e-ink and OLED screen previews |
 | Firmware (sigil-oled) | OLED Sigil; descriptor check and signed `sigil-oled.thfw` |
-| Firmware (sigil-epd-bn) | E-ink bench build with a driver-loaded partial-refresh waveform (`Sigil/DISPLAY.md`) |
-| Firmware (sigil-spare) | The inert spare image; never packaged |
-| Firmware (sigil-wokwi) | Compile the Wokwi variant; does not run the simulator |
-| Android build and unit tests | Build the debug APK and run JVM unit tests |
+| Firmware (sigil-spare) | The inert spare image `flash-all` puts on spare boards; never packaged |
+| Android build and unit tests | Run JVM unit tests and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
+
+The bench and simulation builds (`sigil-epd-bn`, `sigil-wokwi`) left CI on
+2026-10-06: nothing ships them, and they compile the same sources as `sigil`.
+Build them locally with `pio run -e <env>` when working on them.
 
 The hardware `TestHarness/` target was retired on 2026-10-05. CI no longer
 builds it or publishes harness firmware artifacts. Its source is historical and
@@ -39,10 +41,10 @@ supplies the Android SDK; after license acceptance, Gradle installs the SDK
 components requested by the project.
 
 The workflow uses read-only repository permission and pinned revisions of
-official GitHub actions. Its one secret is `TURNHUB_FIRMWARE_SIGNING_KEY`, the
-firmware signing key ([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)); without it
-(for example on a fork's pull request) builds are left unsigned and still
-pass. It does not flash devices, publish a release, or modify repository
+official GitHub actions. Its secrets are `TURNHUB_FIRMWARE_SIGNING_KEY`, the
+firmware signing key ([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)),
+and the Play upload key below; without them (for example on a fork's pull
+request) builds are left unsigned and still pass. It does not flash devices, publish a release, or modify repository
 content/settings.
 
 Releases are a separate workflow,
@@ -53,6 +55,33 @@ feed the Android app reads. It needs `contents: write` and fails without the
 signing secret. Branch protection is configured
 separately in GitHub, not by this file.
 
+## Android release bundle
+
+Every run builds `android-release-<run number>-<sha>`, an `app-release.aab`
+whose `versionCode` is the workflow run number, so each bundle is newer than
+the last and Play accepts it as a fresh upload. Download it from the run's
+Artifacts and upload it under **Play Console > Testing > Internal testing >
+Create new release**. The package is `com.turnhub.android` with Play App
+Signing: Google holds the app signing key, and CI signs with the upload key.
+
+The upload key lives outside the repository (the owner keeps the `.jks` and its
+backup with the other private keys). CI reads it from four repository secrets
+(**Settings > Secrets and variables > Actions**):
+
+| Secret | Value |
+| --- | --- |
+| `TURNHUB_UPLOAD_KEYSTORE_BASE64` | The `.jks` file as one base64 line (PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("upload.jks"))`) |
+| `TURNHUB_UPLOAD_STORE_PASSWORD` | Keystore password |
+| `TURNHUB_UPLOAD_KEY_ALIAS` | Key alias, e.g. `upload` |
+| `TURNHUB_UPLOAD_KEY_PASSWORD` | Key password |
+
+`Android/app/build.gradle.kts` signs the release variant only when
+`TURNHUB_UPLOAD_KEYSTORE` (the decoded file's path) is set; the job deletes
+the decoded file when it ends. Without the secrets the bundle is unsigned and
+Play refuses it. Android Studio's **Build > Generate Signed App Bundle** with
+the same keystore produces an equivalent bundle locally (its `versionCode` is
+1 unless `-Pturnhub.versionCode` is given).
+
 ## Reading results
 
 1. Open the PR and expand its checks, or open the repository's **Actions** tab.
@@ -60,8 +89,9 @@ separately in GitHub, not by this file.
    check links to the job and failing step. Open the log before retrying; a source
    defect needs a fix, while a download/service failure may only need a rerun.
 3. Open a successful run's **Artifacts** to download per-target firmware or the
-   Android debug APK. Android test reports are retained when available, including
-   on failed test runs. Artifacts expire after seven days.
+   Android release bundle. Android test reports are retained when available, including
+   on failed test runs. Artifacts expire after seven days (the Android bundle
+   and screen previews after 14).
 
 Firmware artifacts contain `firmware.bin`, `firmware.elf`, and `build-info.txt`.
 Atlas artifacts also retain `firmware.map` and `stack-usage.tar.gz` (compiler

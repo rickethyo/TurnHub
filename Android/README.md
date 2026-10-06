@@ -106,11 +106,9 @@ After changing or adding a manual version, run
 `python Android/tools/export_manual.py` (standard library only) and commit the
 result. CI runs it with `--check` and fails when the asset is stale.
 
-The exact Java/Kotlin package/application ID (`com.turnhub.android`) is a
-development placeholder, not a frozen choice -- see `app/build.gradle.kts`.
-That identifier becomes externally important once the application is
-published, so it should be chosen deliberately rather than inherited
-accidentally from this bootstrap.
+The application ID `com.turnhub.android` is frozen: the Google Play listing
+was created with it on 2026-10-06 (Play App Signing), and Play never lets an
+app change it.
 
 ## Development dependency order
 
@@ -153,6 +151,10 @@ Build and test from `Android/` (Android Studio's bundled JDK works):
 ./gradlew testDebugUnitTest
 ./gradlew testDebugUnitTest --tests "com.turnhub.android.data.HttpAtlasRepositoryTest"
 ```
+
+Play builds: CI uploads a signed release bundle (`.aab`) from every run, ready
+for the Internal testing track; see "Android release bundle" in
+`Documentation/engineering/CONTINUOUS_INTEGRATION.md`.
 
 ## What the app does
 

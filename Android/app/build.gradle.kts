@@ -9,9 +9,7 @@ plugins {
 
 android {
     namespace = "com.turnhub.android"
-    // NOTE: applicationId/namespace are a development placeholder. Android/README.md
-    // flags the package/application ID as intentionally not frozen yet; choose the
-    // real one deliberately before this app is ever distributed outside the team.
+    // applicationId is frozen: the Google Play listing uses it (Android/README.md).
     // compileSdk 37, not 36: the pinned AndroidX/Compose versions in
     // libs.versions.toml (core-ktx 1.19.0, lifecycle 2.11.0, etc.) declare an
     // AAR metadata minimum of compileSdk 37, and Gradle's own AAR
@@ -23,12 +21,33 @@ android {
         applicationId = "com.turnhub.android"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
+        // Play rejects a versionCode it has already seen. CI passes its run
+        // number (-Pturnhub.versionCode); local builds keep 1 unless given one.
+        versionCode = (findProperty("turnhub.versionCode") as String?)?.toInt() ?: 1
         versionName = "0.1.0"
+    }
+
+    // Play upload key for release bundles, read from the environment so the
+    // keystore never enters the repository. CI decodes it from GitHub secrets
+    // (CONTINUOUS_INTEGRATION.md, "Android release bundle"); without these
+    // variables the release bundle is built unsigned.
+    val uploadKeystore = System.getenv("TURNHUB_UPLOAD_KEYSTORE")
+    if (!uploadKeystore.isNullOrEmpty()) {
+        signingConfigs {
+            create("upload") {
+                storeFile = file(uploadKeystore)
+                storePassword = System.getenv("TURNHUB_UPLOAD_STORE_PASSWORD")
+                keyAlias = System.getenv("TURNHUB_UPLOAD_KEY_ALIAS")
+                keyPassword = System.getenv("TURNHUB_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (!uploadKeystore.isNullOrEmpty()) {
+                signingConfig = signingConfigs.getByName("upload")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
