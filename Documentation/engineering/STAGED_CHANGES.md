@@ -31,7 +31,6 @@ everything implemented. Only the checks listed below are still open.
   (for example a vprintf hook).
 - **Open bug, not reproduced:** Atlas stuck on the pause screen during a
   harness soak (2026-09-28).
-- Trim or move the 1.6 s Secure Link self-test off the boot path.
 
 ### Statistics and history
 
