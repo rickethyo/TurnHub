@@ -94,6 +94,11 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
 
 `size` and `sha256` cover the whole `.thfw` file. The feed isn't signed; a
 tampered feed can only point at a package that fails its signature check.
+The web portal pack is listed too, as product `portal` with the
+`Atlas/web/VERSION` version. The app's update step installs it first
+(`POST /api/portal/install`, no restart) when Atlas has a microSD card and an
+older or no pack, then Atlas, then the Sigils. Readers skip products they
+don't know.
 
 ## Updating a Sigil
 
