@@ -163,7 +163,7 @@
  <section class="card two-third"><div class="card-head"><div><h2 class="eyebrow">At the table</h2><p class="small">Who is playing, whose turn it is, and how each player is connected.</p></div><div class="actions"><button class="small" onclick="refreshAll()">Refresh</button><button class="small primary" onclick="openInvite()"><svg class="i" aria-hidden="true"><use href="#i-qr"/></svg>Invite players</button></div></div><ul id="players" class="roster rows" aria-live="polite"></ul></section>
  <section class="card third"><div class="card-head"><div><h2 class="eyebrow">Connect a Sigil</h2><p class="small">A physical Sigil is optional. Sign in, pair it once, then attach a seat to your profile.</p></div></div><ol id="sigilSteps" class="steps"></ol></section>
  <section class="card"><div class="card-head"><div><h2 class="eyebrow">Sigils</h2><p class="small">Paired controllers and their two seats. Account sign-in and table participation are separate.</p></div></div><div id="devices" class="devices"></div></section>
- <section class="card" id="gmPanel" hidden><div class="card-head"><h2 class="eyebrow">Game Master</h2></div><div id="gmAccounts"></div></section>
+ <section class="card" id="peopleCard" hidden aria-labelledby="peopleTitle"><div class="card-head"><div><h2 id="peopleTitle" class="eyebrow">People</h2><p id="peopleHint" class="small">Everyone with an account on this Atlas. Select a person to manage them.</p></div><button class="small" onclick="refreshAccountList()">Refresh</button></div><ul id="peopleList" class="roster rows people" aria-live="polite"></ul><details id="archivedPeople" class="archived-people" hidden><summary>Archived accounts (<span id="archivedCount">0</span>)</summary><ul id="archivedList" class="roster rows people"></ul></details></section>
 </div>
 <dialog id="inviteSheet" class="sheet" aria-labelledby="inviteTitle"><form method="dialog"><h2 id="inviteTitle">Invite players</h2><p>Join the table’s Wi-Fi<span id="inviteSsid"></span>, then scan a code with the phone’s camera.</p>
  <div class="qr-grid"><div class="qr-box"><h3>Table portal</h3><div id="portalQr"></div><a id="portalQrLink">Open portal</a></div><div class="qr-box"><h3>Sign in / join</h3><div id="joinQr"></div><a id="joinQrLink">Open sign in</a></div></div>
@@ -291,12 +291,19 @@
   </div>
   <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
  </section>
- <section class="card"><div class="card-head"><div><h2 class="eyebrow">Account permissions</h2><p class="small">Permissions can be combined. The initial Admin must remain an Admin. Privileged accounts require a PIN or password.</p></div><button class="small" onclick="refreshAccountList()">Refresh accounts</button></div><div id="adminAccounts"></div></section>
+ <section class="card half"><div class="card-head"><div><h2 class="eyebrow">People and roles</h2><p class="small">Give accounts the Admin, Game Master or Developer role, and archive accounts that no longer play here.</p></div></div>
+  <div class="link-list"><button onclick="showPeople()"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Manage people</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></button></div>
+ </section>
 </div>
 </section>
 </main>
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="personSheet" class="sheet person-sheet" aria-labelledby="personSheetName"><form method="dialog">
+ <div class="person-head"><span id="personSheetAvatar"></span><div><h2 id="personSheetName"></h2><div id="personSheetMeta" class="small"></div></div></div>
+ <div id="personBody"></div>
+ <p id="personStatus" class="msg" role="status" aria-live="polite"></p>
+ <div class="actions"><button value="close" class="primary">Done</button></div></form></dialog>
 <dialog id="uiDialog" aria-labelledby="uiDialogTitle"><form method="dialog"><h2 id="uiDialogTitle"></h2><p id="uiDialogText"></p><div id="uiDialogInputRow" hidden><label for="uiDialogInput" id="uiDialogLabel"></label><input id="uiDialogInput"></div><div class="actions"><button id="uiDialogOk" value="ok" class="primary">OK</button><button value="cancel" formnovalidate>Cancel</button></div></form></dialog>
 <p class="foot-note">TurnHub runs locally on Atlas. No cloud connection is required for table control.</p>
 </div>
@@ -429,6 +436,7 @@ function renderStatus(s){statusData=s;dot.className='dot online';connPill.classN
 function playerStateText(s){if(s.eliminated)return 'Eliminated';if(statusData&&Number(statusData.winner)===Number(s.player))return 'Winner';if(s.active)return 'Active turn';if(statusData&&Number(statusData.winConfirm)===Number(s.player))return 'Response needed';return 'At table'}
 function renderPlayers(){const rows=seatData.seats.map(s=>{let cls='player row';if(s.active)cls+=' active';const won=statusData&&Number(statusData.winner)===Number(s.player);if(won)cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;
  let controls='';if(s.virtual&&!current)controls=`<a class="btn small" href="/login?profile=${encodeURIComponent(s.profileId)}">Sign into this profile</a>`;else if(current)controls='<span class="badge good">You</span>';else{controls+=`<button class="small" onclick="claimSeat(${s.module},${s.slot})">Use this seat</button>`;if(s.hasPin&&!s.virtual)controls+=`<button class="small blue" onclick="pinLogin(${s.module},${s.slot})">PIN login</button>`}
+ if(myFlags()&2&&s.profileId&&accounts.some(a=>a.profileId===s.profileId&&!a.archived))controls+=`<button class="small" onclick="openPerson('${esc(s.profileId)}')" aria-label="Moderate ${esc(name)}"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>Moderate</button>`;
  const via=s.virtual?'Phone':`${esc(sigilLabel(s.module))} · seat ${esc(s.slotName)}`+(s.sessionClaimed?' + phone':'');
  const life=s.lifeAvailable&&s.life!==undefined?`<span class="row-life" aria-label="Life ${Number(s.life)}">${Number(s.life)}</span>`:'';
  return `<li class="${cls}">${avatar(name,s.player,'',s.avatar)}<div class="row-main"><div class="player-name">${esc(name)}${s.hasPin?' <svg class="i lock" aria-label="Has a PIN or password" role="img"><use href="#i-lock"/></svg>':''}</div><div class="small">Player ${s.player} · ${via}</div></div>${life}<span class="player-state ${s.active?'on':''}${won?' win':''}${s.eliminated?' out':''}">${esc(playerStateText(s))}</span><div class="row-actions actions">${controls}</div></li>`});
@@ -735,9 +743,9 @@ function renderInviteCodes(){
 let lastAccessKey='';
 function renderAccess(){
  const flags=sessionInfo&&sessionInfo.permissions||0;
- deviceSettingsTab.hidden=!(flags&1);devLink.hidden=!(flags&4);gmPanel.hidden=!(flags&2);
+ deviceSettingsTab.hidden=!(flags&1);devLink.hidden=!(flags&4);peopleCard.hidden=!(flags&3);
  if(!(flags&1)&&!document.getElementById('view-settings').hidden)showTab('game');
- if(!(flags&1))adminAccounts.innerHTML='';if(!(flags&2))gmAccounts.innerHTML='';
+ if(!(flags&3)){accounts=[];renderPeople();if(personSheet.open)personSheet.close()}
  const key=(sessionInfo&&sessionInfo.profileId||'')+':'+flags;
  if(key!==lastAccessKey){lastAccessKey=key;if(sessionInfo&&sessionInfo.authenticated)refreshAccountList()}
 }
@@ -747,20 +755,67 @@ function renderDeviceSettings(d){renderPairingChecks(d);const html=(d.devices||[
 async function accountPost(path,data){const r=await fetch('/api/accounts/'+path,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
 async function setupAdmin(){try{if(!await ensureVerified())return;await accountPost('setup',{});adminSetup.hidden=true;await refreshAll();if(setupWizard.hidden)showTab('settings');else loadSetupStage();showToast('Admin account established.')}catch(e){showToast(e.message,true)}}
 async function loadSetup(){try{const d=await pollJson('/api/accounts/setup');adminSetup.hidden=!d.setupRequired}catch(e){showToast('Account setup unavailable',true)}}
-const PERMISSIONS=[[1,'Admin'],[2,'Game Master'],[4,'Developer'],[8,'GM: reset connections'],[16,'GM: remove from game']];
+// People: one list of accounts for Admins and Game Masters. Selecting a person
+// opens a sheet with only what applies to them right now: moderation while they
+// are at the table (Game Master), nudges, roles that save as they change
+// (Admin) and archiving. Atlas still validates every action.
+const ROLE_INFO=[[1,'Admin','Device settings, Wi-Fi, updates and people.'],[2,'Game Master','Moderates players at the table.'],[4,'Developer','The diagnostics page and the Atlas log.']];
+const GM_POWERS=[[8,'Reset connections','Can sign a player out everywhere until they sign in again.'],[16,'Remove from game','Can take a player out of the game.']];
+let accounts=[],openPersonId='';
+function myFlags(){return Number(sessionInfo&&sessionInfo.permissions)||0}
+function personName(a){return a.name||'Unnamed account'}
+function roleSummary(a){const r=ROLE_INFO.filter(([bit])=>a.permissions&bit).map(([,l])=>l);return r.length?r.join(' · '):'Player'}
+function personBadges(a){let b='';if(a.atTable)b+=badge('At the table','active');if(a.reconnectRequired)b+=badge('Must sign in again','warn');if(a.nudgeMuted)b+=badge('Nudges muted','warn');return b}
+function personRow(a){const me=sessionInfo&&a.profileId===sessionInfo.profileId;
+ return `<li class="row person"><button class="person-btn" onclick="openPerson('${esc(a.profileId)}')" aria-label="${esc(personName(a))}${me?' (you)':''}, ${esc(roleSummary(a))}">${avatar(personName(a),0,'',a.avatar)}<span class="row-main"><span class="player-name">${esc(personName(a))}${me?' <span class="badge good">You</span>':''}</span><span class="small">${esc(roleSummary(a))}</span></span><span class="badges">${personBadges(a)}</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></button></li>`}
+function renderPeople(){const live=accounts.filter(a=>!a.archived).sort((a,b)=>Number(!!b.atTable)-Number(!!a.atTable)||personName(a).localeCompare(personName(b))),archived=accounts.filter(a=>a.archived);
+ const html=live.map(personRow).join('')||'<li class="empty">No accounts yet.</li>';if(peopleList.innerHTML!==html)peopleList.innerHTML=html;
+ archivedPeople.hidden=!archived.length;archivedCount.textContent=archived.length;const ah=archived.map(personRow).join('');if(archivedList.innerHTML!==ah)archivedList.innerHTML=ah;
+ peopleHint.textContent=myFlags()&1?'Everyone with an account on this Atlas. Select a person to change their roles'+(myFlags()&2?' or moderate them.':'.'):'Everyone with an account on this Atlas. Select a person to moderate them.';
+ if(personSheet.open)renderPerson()}
 async function refreshAccountList(){
- if(!sessionToken||!sessionInfo||!sessionInfo.authenticated)return;
+ if(!sessionToken||!sessionInfo||!sessionInfo.authenticated||!(myFlags()&3))return;
  const requestedToken=sessionToken;
- try{const d=await pollJson('/api/accounts',authHeaders()),flags=sessionInfo&&sessionInfo.permissions||0;
- if(requestedToken!==sessionToken||!sessionInfo)return;
- d.accounts.sort((a,b)=>Number(!!a.archived)-Number(!!b.archived));
- adminAccounts.innerHTML=flags&1?d.accounts.map(a=>`<form class="setting-box acct" onsubmit="savePermissions(event,'${esc(a.profileId)}')"><div class="player-head">${avatar(a.name||a.profileId,0,'',a.avatar)}<div><div class="player-name">${esc(a.name||a.profileId)}${a.archived?' · Archived':''}</div><div class="mono">${esc(a.profileId)}</div></div></div><div class="perm-grid">${PERMISSIONS.map(([bit,label])=>`<label class="switch-row"><span>${label}</span><input type="checkbox" value="${bit}" ${a.permissions&bit?'checked':''}></label>`).join('')}</div><div class="actions"><button class="primary small">Save permissions</button><button type="button" class="small ${a.archived?'':'bad'}" onclick="archiveAccount('${esc(a.profileId)}',${!a.archived})">${a.archived?'Restore account':'Archive account'}</button></div></form>`).join(''):'';
- gmAccounts.innerHTML=flags&2?'<div class="roster">'+d.accounts.filter(a=>!a.archived).map(a=>`<div class="setting-box"><div class="player-head">${avatar(a.name||a.profileId,0,'',a.avatar)}<div><div class="player-name">${esc(a.name||a.profileId)}</div></div></div><div class="actions" style="margin-top:12px"><button class="small" onclick="moderate('${esc(a.profileId)}','pass')">Force pass</button><button class="small" onclick="moderate('${esc(a.profileId)}','${a.nudgeMuted?'unmute':'mute'}')">${a.nudgeMuted?'Unmute':'Mute'} nudges</button>${flags&8?`<button class="small" onclick="moderate('${esc(a.profileId)}','reset')">Reset connections</button>`:''}${flags&16?`<button class="small bad" onclick="moderate('${esc(a.profileId)}','remove')">Remove from game</button>`:''}</div></div>`).join('')+'</div><p class="hint" style="margin-top:12px">Archived accounts are hidden from Game Master actions. Nudge mute is saved for the future nudge feature. Connection resets keep the seat and life totals. Removal ends active participation.</p>':'';
- }catch(e){showToast(e.message,true)}
+ try{const d=await pollJson('/api/accounts',authHeaders());if(requestedToken!==sessionToken||!sessionInfo)return;accounts=d.accounts||[];renderPeople();renderPlayers()}catch(e){showToast(e.message,true)}
 }
-async function savePermissions(event,id){event.preventDefault();const form=event.currentTarget;const permissions=[...form.querySelectorAll('input:checked')].reduce((n,x)=>n|Number(x.value),0);try{await accountPost('permissions',{profileId:id,permissions});await refreshAll();await refreshAccountList();showToast('Permissions saved')}catch(e){showToast(e.message,true)}}
-async function archiveAccount(id,archived){if(!await uiAsk({title:archived?'Archive account?':'Restore account?',text:id+': '+(archived?'Sign-in and Sigil use will be blocked; statistics stay saved. The account must first leave the table.':'Restore this account and its existing permissions?'),ok:archived?'Archive':'Restore',danger:archived}))return;try{await accountPost('archive',{profileId:id,archived:archived?'1':'0'});await refreshAll();await refreshAccountList();showToast(archived?'Account archived':'Account restored')}catch(e){showToast(e.message,true)}}
-async function moderate(id,action){const meaning={reset:'Invalidate all browser sessions and suspend Sigil controls until this account signs in again? The seat and life totals stay.',remove:'Remove this player from the game and invalidate their connections?',pass:'Immediately pass this player’s turn?',mute:'Block this account from sending future nudges?',unmute:'Allow this account to send future nudges?'};if(!await uiAsk({title:'Game Master action',text:id+': '+meaning[action],ok:'Apply',danger:action==='remove'||action==='reset'}))return;try{await accountPost('moderate',{profileId:id,action});await refreshAll();await refreshAccountList();showToast('Moderation applied')}catch(e){showToast(e.message,true)}}
+function showPeople(){showTab('players');refreshAccountList();requestAnimationFrame(()=>peopleCard.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}))}
+function openPerson(id){openPersonId=id;personStatus.textContent='';renderPerson();if(!personSheet.open){if(typeof personSheet.showModal==='function')personSheet.showModal();else personSheet.setAttribute('open','')}}
+function personAction(action,title,detail,{disabled='',danger=false,icon='chevron-right'}={}){return `<button type="button" class="${danger?'danger':''}" onclick="moderate('${action}')" ${disabled?'disabled':''}><svg class="i" aria-hidden="true"><use href="#i-${icon}"/></svg><span><strong>${title}</strong><small>${esc(disabled||detail)}</small></span></button>`}
+function renderPerson(){const a=accounts.find(x=>x.profileId===openPersonId);if(!a){if(personSheet.open)personSheet.close();return}
+ const flags=myFlags(),me=sessionInfo&&a.profileId===sessionInfo.profileId,live=!a.archived;
+ personSheetAvatar.innerHTML=avatar(personName(a),0,'',a.avatar);personSheetName.textContent=personName(a)+(me?' (you)':'');
+ personSheetMeta.innerHTML=`<span class="mono">${esc(a.profileId)}</span>${a.archived?' · Archived':''}${a.hasPin===false?' · No PIN or password':''}`;
+ let html='';
+ if(flags&2&&live&&a.atTable){const seat=seatData.seats.find(s=>s.profileId===a.profileId),turn=!!(seat&&seat.active&&statusData&&statusData.state==='RUNNING'),noPin=a.hasPin===false?'Needs a PIN or password on their account first.':'';
+  html+=`<h3 class="sheet-label">At the table</h3><div class="link-list actions-list">${personAction('pass','Pass their turn','Ends their turn now, without the pass grace period.',{disabled:turn?'':'Available while it is their turn.',icon:'pass'})}`;
+  if(flags&8)html+=personAction('reset','Reset connections','Signs them out everywhere and pauses their Sigil until they sign in again. Their seat and life stay.',{disabled:a.reconnectRequired?'Waiting for them to sign in again.':noPin,icon:'refresh'});
+  if(flags&16)html+=personAction('remove','Remove from game','Takes them out of this game. In a match it counts as a concession.',{disabled:noPin,danger:true,icon:'close'});
+  html+='</div>'}
+ if(flags&2&&live)html+=`<h3 class="sheet-label">Nudges</h3><div class="group"><label class="switch-row"><div>Can send nudges<small id="nudge-hint">Turn off to stop this account from nudging other players.</small></div><input type="checkbox" id="personNudges" aria-label="Can send nudges" aria-describedby="nudge-hint" ${a.nudgeMuted?'':'checked'} onchange="moderate(this.checked?'unmute':'mute')"></label></div>`;
+ if(flags&1&&live){const locked=a.hasPin===false&&!a.permissions;
+  html+=`<h3 class="sheet-label">Roles</h3>${locked?'<p class="small notice">Roles need a PIN or password on this account. They can set one in My Account.</p>':''}<div class="group roles">`+ROLE_INFO.map(([bit,label,text])=>{const fixed=bit===1&&a.primary;
+   let row=`<label class="switch-row"><div>${label}<small id="role-hint-${bit}">${fixed?'The initial Admin always keeps this role.':text}</small></div><input type="checkbox" aria-label="${label}" aria-describedby="role-hint-${bit}" data-bit="${bit}" ${a.permissions&bit?'checked':''} ${fixed||locked?'disabled':''} onchange="saveRoles()"></label>`;
+   if(bit===2)row+=GM_POWERS.map(([b,l,t])=>`<label class="switch-row nested"><div>${l}<small id="role-hint-${b}">${t}</small></div><input type="checkbox" aria-label="${l}" aria-describedby="role-hint-${b}" data-bit="${b}" ${a.permissions&b?'checked':''} ${locked||!(a.permissions&2)?'disabled':''} onchange="saveRoles()"></label>`).join('');
+   return row}).join('')+'</div>'}
+ if(flags&1){const blocked=a.primary?'The initial Admin cannot be archived.':a.atTable&&live?'They must leave the table first.':'';
+  html+=`<div class="link-list danger">${live?`<button type="button" onclick="archiveAccount(true)" ${blocked?'disabled':''}><span>Archive account</span><small>${esc(blocked||'Blocks sign-in and Sigil use. Statistics stay saved, and you can restore it later.')}</small></button>`:`<button type="button" class="restore" onclick="archiveAccount(false)"><span>Restore account</span><small>Lets them sign in again, with the roles they had.</small></button>`}</div>`}
+ if(!html)html='<p class="small">Nothing to manage for this account.</p>';
+ const focused=document.activeElement&&personBody.contains(document.activeElement)?document.activeElement.dataset.bit||document.activeElement.id:'';
+ if(personBody.innerHTML!==html){personBody.innerHTML=html;if(focused)(personBody.querySelector(`[data-bit="${focused}"]`)||document.getElementById(focused))?.focus()}}
+async function saveRoles(){const a=accounts.find(x=>x.profileId===openPersonId);if(!a)return;let flags=0;personBody.querySelectorAll('.roles input:checked').forEach(x=>flags|=Number(x.dataset.bit));if(!(flags&2))flags&=~24;
+ const me=sessionInfo&&a.profileId===sessionInfo.profileId;
+ if(me&&(a.permissions&1)&&!(flags&1)&&!await uiAsk({title:'Remove your own Admin role?',text:'You lose Device Settings and people management straight away. Another Admin would have to give it back.',ok:'Remove Admin',danger:true})){renderPerson();return}
+ const previous=a.permissions;a.permissions=flags;renderPerson();personStatus.textContent='Saving…';
+ try{await accountPost('permissions',{profileId:a.profileId,permissions:flags});personStatus.textContent=`Roles saved: ${roleSummary(a)}.`;if(me)await refreshAll();renderPeople()}
+ catch(e){a.permissions=previous;renderPerson();personStatus.textContent=e.message;showToast(e.message,true)}}
+async function archiveAccount(archived){const a=accounts.find(x=>x.profileId===openPersonId);if(!a)return;
+ if(archived&&!await uiAsk({title:`Archive ${personName(a)}?`,text:'They can no longer sign in or use a Sigil. Their statistics stay saved, and you can restore the account later.',ok:'Archive',danger:true}))return;
+ try{await accountPost('archive',{profileId:a.profileId,archived:archived?'1':'0'});await refreshAccountList();personStatus.textContent=archived?'Account archived.':'Account restored.';showToast(personStatus.textContent)}catch(e){personStatus.textContent=e.message;showToast(e.message,true)}}
+async function moderate(action){const a=accounts.find(x=>x.profileId===openPersonId);if(!a)return;const name=personName(a);
+ const ask={pass:[`Pass ${name}’s turn?`,'Their turn ends now and the next player starts.','Pass turn',false],reset:[`Reset ${name}’s connections?`,'Every phone they use is signed out and their Sigil pauses until they sign in again with their PIN. Their seat and life total stay.','Reset connections',true],remove:[`Remove ${name} from the game?`,'They leave the table and are signed out everywhere. In a match this counts as a concession.','Remove',true]}[action];
+ if(ask&&!await uiAsk({title:ask[0],text:ask[1],ok:ask[2],danger:ask[3]})){renderPerson();return}
+ const done={pass:`Passed ${name}’s turn.`,reset:`${name} must sign in again.`,remove:`${name} was removed from the game.`,mute:`${name} can no longer send nudges.`,unmute:`${name} can send nudges again.`}[action];
+ try{await accountPost('moderate',{profileId:a.profileId,action});personStatus.textContent=done;showToast(done);await refreshAll();await refreshAccountList()}catch(e){personStatus.textContent=e.message;showToast(e.message,true);renderPerson()}}
 
 // First-run setup in the portal (FIRST_RUN_SETUP.md): the same steps and endpoints as the app.
 let setupInfo=null;

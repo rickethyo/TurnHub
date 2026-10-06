@@ -709,6 +709,8 @@ void handleAccounts(WebServer &server) {
   const bool gameMaster = actor.permissions & TurnHubAccounts::GameMaster;
   char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
   const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
+  String primary;
+  if (admin || gameMaster) TurnHubAccounts::primaryAdmin(primary);
   String json = "{\"accounts\":[";
   bool comma = false;
   for (size_t i = 0; i < count; ++i) {
@@ -730,6 +732,20 @@ void handleAccounts(WebServer &server) {
     if (gameMaster || self) {
       json += ",\"nudgeMuted\":";
       json += jsonBool(account.nudgeMuted);
+    }
+    // What the people screens need to explain an action before it fails:
+    // roles and moderation need a PIN, the initial Admin keeps Admin, and
+    // archiving waits until the account has left the table.
+    if (admin || gameMaster) {
+      uint8_t controller = INVALID_ID, slot = 1;
+      json += ",\"hasPin\":";
+      json += jsonBool(TurnHubProfiles::hasPinForProfile(id));
+      json += ",\"primary\":";
+      json += jsonBool(primary.length() && id == primary);
+      json += ",\"atTable\":";
+      json += jsonBool(resolveProfile && resolveProfile(id, controller, slot));
+      json += ",\"reconnectRequired\":";
+      json += jsonBool(account.reconnectRequired);
     }
     json += '}';
   }

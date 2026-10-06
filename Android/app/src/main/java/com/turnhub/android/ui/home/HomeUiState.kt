@@ -35,6 +35,8 @@ data class HomeUiState(
     /** The next match's setup, while this session may read it. */
     val gameSettings: GameSettingsInfo? = null,
     val personalization: com.turnhub.android.data.Personalization? = null,
+    /** The signed-in profile's PIN state and privacy choices. */
+    val profileChoices: com.turnhub.android.data.ProfileChoices? = null,
     val avatars: List<com.turnhub.android.protocol.AvatarIcon> = emptyList(),
     /** The Sigil accessibility editor, while open. */
     val accessibility: AccessibilityPrompt? = null,

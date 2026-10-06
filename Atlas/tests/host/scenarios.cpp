@@ -761,6 +761,13 @@ static void accountPermissionsAndModeration(){
   // not even to Game Masters or the account itself.
   for (const String &reader : {admin,gm}) {
     assert(request("/api/accounts",reader,{},HTTP_GET)==200&&server.body.find("connectionResets")==std::string::npos);
+    // The people screens explain actions up front: who is seated, who is
+    // the initial Admin, who has a PIN and who must sign in again.
+    const std::string body=server.body.c_str();
+    const auto entry=[&](const String &id){const size_t at=body.find(std::string("\"profileId\":\"")+id.c_str());assert(at!=std::string::npos);return body.substr(at,body.find('}',at)-at);};
+    assert(entry(playerId).find("\"atTable\":true")!=std::string::npos&&entry(playerId).find("\"reconnectRequired\":true")!=std::string::npos);
+    assert(entry(playerId).find("\"hasPin\":true")!=std::string::npos&&entry(playerId).find("\"primary\":false")!=std::string::npos);
+    assert(entry(adminId).find("\"primary\":true")!=std::string::npos&&entry(adminId).find("\"atTable\":false")!=std::string::npos);
   }
   const String reconnected=loginPhone(playerId);assert(!TurnHubWebApi::connectionBlocked(playerId));
   assert(request("/api/accounts",reconnected,{},HTTP_GET)==200&&server.body.find("connectionResets")==std::string::npos&&server.body.find(gmId)==std::string::npos);

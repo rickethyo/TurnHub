@@ -20,6 +20,17 @@ sealed interface PlayerSessionState {
     data class SignedIn(val profileId: String, val name: String?, val info: SessionInfo?) : PlayerSessionState
 }
 
+/**
+ * The signed-in profile's own choices from `/api/session/me`: whether it has a
+ * PIN or password, and its privacy policy (null fields when Atlas could not
+ * read the policy).
+ */
+data class ProfileChoices(
+    val hasPin: Boolean,
+    val allowPhysicalWithoutPin: Boolean?,
+    val hideStatsWithoutAuthentication: Boolean?,
+)
+
 /** The outcome of the last action, phrased for the player. */
 data class ActionFeedback(val message: String, val isError: Boolean)
 
@@ -55,6 +66,10 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     /** The signed-in player's Sigil accessibility preferences, once read with [loadAccessibility]. */
     private val _accessibility = MutableStateFlow<AccessibilitySettings?>(null)
     val accessibility: StateFlow<AccessibilitySettings?> = _accessibility.asStateFlow()
+
+    /** PIN state and privacy choices, once read with [loadChoices]. */
+    private val _choices = MutableStateFlow<ProfileChoices?>(null)
+    val choices: StateFlow<ProfileChoices?> = _choices.asStateFlow()
 
     private val mutex = Mutex()
     private var endpoint: AtlasEndpoint? = null
@@ -163,6 +178,65 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         ActionFeedback(message ?: if (pin != null) "PIN saved." else "Name saved.", isError = false)
     }
 
+    /** Reads [choices]; a failure leaves the previous value. */
+    suspend fun loadChoices() {
+        val response = try {
+            raw("GET", "/api/session/me")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: AtlasException) {
+            null
+        } ?: return
+        if (!response.ok) return
+        try {
+            val d = org.json.JSONObject(response.body)
+            val policy = d.optBoolean("policyAvailable")
+            _choices.value = ProfileChoices(
+                hasPin = d.optBoolean("hasPin"),
+                allowPhysicalWithoutPin = if (policy) d.optBoolean("allowPhysicalWithoutPin") else null,
+                hideStatsWithoutAuthentication = if (policy) d.optBoolean("hideStatsWithoutAuthentication") else null,
+            )
+        } catch (_: org.json.JSONException) {
+            // Keep what we had.
+        }
+    }
+
+    /** Saves the profile's privacy choices (`/api/session/policy`). */
+    suspend fun savePolicy(allowPhysicalWithoutPin: Boolean, hideStatsWithoutAuthentication: Boolean) {
+        act {
+            formPost(it, "/api/session/policy", listOf(
+                "allowPhysicalWithoutPin" to if (allowPhysicalWithoutPin) "1" else "0",
+                "hideStatsWithoutAuthentication" to if (hideStatsWithoutAuthentication) "1" else "0",
+            ), "Privacy choices saved on Atlas.")
+        }
+        loadChoices()
+    }
+
+    /** Removes the profile's PIN or password; Atlas refuses it for accounts with a role. */
+    suspend fun clearPin() {
+        act { formPost(it, "/api/session/profile", listOf("clearPin" to "1"), "PIN removed.") }
+        loadChoices()
+    }
+
+    private suspend fun formPost(
+        session: Pair<AtlasEndpoint, String>,
+        path: String,
+        fields: List<Pair<String, String>>,
+        success: String,
+    ): ActionFeedback {
+        val response = transports.create(session.first).raw("POST", path, session.second, fields)
+        val message = try {
+            org.json.JSONObject(response.body).let { if (response.ok) it.optString("message") else it.optString("error") }
+        } catch (_: org.json.JSONException) {
+            ""
+        }
+        return when {
+            response.code == 401 -> throw AtlasException(AtlasFailure.SessionExpired)
+            response.ok -> ActionFeedback(message.ifBlank { success }, isError = false)
+            else -> ActionFeedback(message.ifBlank { "Atlas refused that (HTTP ${response.code})." }, isError = true)
+        }
+    }
+
     /** The profile's avatar and Sigil light color, once read with [loadPersonalization]. */
     private val _personalization = MutableStateFlow<Personalization?>(null)
     val personalization: StateFlow<Personalization?> = _personalization.asStateFlow()
@@ -262,6 +336,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         _gameSettings.value = null
         _accessibility.value = null
         _personalization.value = null
+        _choices.value = null
         _state.value = PlayerSessionState.SignedOut
     }
 

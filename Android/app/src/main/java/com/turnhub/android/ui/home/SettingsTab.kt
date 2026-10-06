@@ -19,11 +19,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -31,7 +29,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,17 +45,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.turnhub.android.data.AccountInfo
 import com.turnhub.android.data.AdminState
 import com.turnhub.android.data.AtlasAdminConsole
 import com.turnhub.android.data.DeviceInfo
-import com.turnhub.android.protocol.AccountPermission
-import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Eyebrow
-import com.turnhub.android.ui.components.PlayerAvatar
 import com.turnhub.android.ui.components.StatusBadge
 import com.turnhub.android.ui.components.StatusRow
 import com.turnhub.android.ui.components.Tone
@@ -78,21 +71,32 @@ data class AdminActions(
 /** Speaker levels as the portal names them (`/api/speaker`, 0-3). */
 private val SPEAKER_LEVELS = listOf(0 to "Off", 1 to "Low", 2 to "Medium (default)", 3 to "High")
 
-/** The portal's Device Settings tab plus its Game Master panel, for Admin and Game Master accounts. */
+/** The portal's Device Settings tab, for Admin accounts. People and roles live on the Players tab. */
 @Composable
-fun SettingsTab(info: SessionInfo, admin: AdminState, avatars: List<AvatarIcon>, actions: AdminActions) {
+fun SettingsTab(info: SessionInfo, admin: AdminState, actions: AdminActions, onShowPeople: () -> Unit) {
     LaunchedEffect(info.profileId, info.permissions) { actions.onRefresh() }
-    val isAdmin = info.has(AccountPermission.ADMIN)
+    // A Sigil's pairing request lasts the pairing window, so watch for one while this tab is open.
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(3_000)
+            actions.run { refreshDevices() }
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         AdminMessage(admin, actions)
-        if (isAdmin) {
-            PresenceCard(admin, actions)
-            WifiCard(admin, actions)
-            SigilsCard(admin, actions)
-            TableAndAtlasCard(admin, actions)
-            AccountsCard(admin, avatars, actions)
+        PresenceCard(admin, actions)
+        WifiCard(admin, actions)
+        SigilsCard(admin, actions)
+        TableAndAtlasCard(admin, actions)
+        BrassCard {
+            Eyebrow("People and roles")
+            Text(
+                "Give accounts the Admin, Game Master or Developer role, and archive accounts that no longer play here.",
+                color = palette.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            ToneButton("Manage people", onShowPeople, Modifier.fillMaxWidth(), tone = Tone.INFO)
         }
-        if (info.has(AccountPermission.GAME_MASTER)) GameMasterCard(info, admin, avatars, actions)
     }
 }
 
@@ -332,10 +336,40 @@ private fun SigilsCard(admin: AdminState, actions: AdminActions) {
             style = MaterialTheme.typography.bodySmall,
         )
         admin.atlasHardwareId?.let { StatusRow("Atlas", it) }
+        admin.pendingPairings.forEach { pairing -> PairingRequest(pairing, actions) }
         if (admin.devices.isEmpty()) EmptyNote("No Sigils discovered yet.")
         admin.devices.forEach { device -> DeviceRow(device, { rename = device }, { forget = device }, { reset = device }) }
         ToneButton("Forget all Sigils", { forgetAll = true }, Modifier.fillMaxWidth(), tone = Tone.WARN,
             enabled = admin.devices.isNotEmpty())
+    }
+}
+
+/** A Sigil asking to pair: the Admin compares its code with the Sigil's screen. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PairingRequest(pairing: com.turnhub.android.data.PendingPairing, actions: AdminActions) {
+    val p = palette
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(p.surface2)
+            .border(2.dp, p.info, RoundedCornerShape(14.dp))
+            .padding(12.dp)
+            .semantics(mergeDescendants = false) { liveRegion = LiveRegionMode.Polite },
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Sigil ${pairing.id + 1} is waiting to pair", color = p.text, style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Code ${pairing.code} (${pairing.secondsLeft} s left). Does the Sigil show the same code? You may be asked " +
+                "for the code on the Atlas screen first.",
+            color = p.muted,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AccentButton("Codes match", { actions.run { answerPairing(pairing.id, true) } })
+            ToneButton("Reject", { actions.run { answerPairing(pairing.id, false) } }, tone = Tone.WARN)
+        }
     }
 }
 
@@ -462,143 +496,6 @@ private fun TableAndAtlasCard(admin: AdminState, actions: AdminActions) {
         Text(
             "Return to lobby ends a match in progress as a draw for everyone. Firmware updates stay on the portal's " +
                 "Atlas firmware page.",
-            color = p.faint,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
-private fun AccountsCard(admin: AdminState, avatars: List<AvatarIcon>, actions: AdminActions) {
-    val p = palette
-    BrassCard {
-        Eyebrow("Account permissions") {
-            TextButton(onClick = actions.onRefresh) { Text("Refresh", color = p.muted) }
-        }
-        Text(
-            "Permissions can be combined. The initial Admin must remain an Admin. Privileged accounts require a PIN.",
-            color = p.muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        admin.accounts.forEach { account -> AccountPermissionsRow(account, avatars, actions) }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AccountPermissionsRow(account: AccountInfo, avatars: List<AvatarIcon>, actions: AdminActions) {
-    val p = palette
-    var bits by remember(account.profileId, account.permissions) { mutableIntStateOf(account.permissions) }
-    var confirmArchive by remember { mutableStateOf(false) }
-    if (confirmArchive) {
-        ConfirmDialog(
-            if (account.archived) "Restore account?" else "Archive account?",
-            if (account.archived) "Restore ${account.name} and their existing permissions?"
-            else "${account.name}: sign-in and Sigil use will be blocked; statistics stay saved. The account must first leave the table.",
-            if (account.archived) "Restore" else "Archive",
-            onConfirm = {
-                confirmArchive = false
-                actions.run { archive(account.profileId, !account.archived); refresh(admin = true, gameMaster = false) }
-            },
-            onDismiss = { confirmArchive = false },
-        )
-    }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(p.surface2)
-            .border(1.dp, p.line, RoundedCornerShape(14.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PlayerAvatar(account.name.ifBlank { account.profileId }, 0, avatars.firstOrNull { it.id == account.avatar }, size = 36.dp)
-            Column(Modifier.weight(1f)) {
-                Text(account.name.ifBlank { account.profileId } + if (account.archived) " · Archived" else "",
-                    color = p.text, style = MaterialTheme.typography.titleSmall)
-                Text(account.profileId, color = p.faint, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
-            }
-        }
-        AccountPermission.entries.forEach { permission ->
-            val on = bits and permission.bit != 0
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .toggleable(value = on, role = Role.Checkbox) { bits = if (it) bits or permission.bit else bits and permission.bit.inv() },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(checked = on, onCheckedChange = null)
-                Text(permission.label, color = p.text, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            AccentButton("Save permissions", {
-                val b = bits
-                actions.run { savePermissions(account.profileId, b); refresh(admin = true, gameMaster = false) }
-            }, enabled = bits != account.permissions)
-            ToneButton(if (account.archived) "Restore account" else "Archive account", { confirmArchive = true },
-                tone = if (account.archived) Tone.NEUTRAL else Tone.BAD)
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun GameMasterCard(info: SessionInfo, admin: AdminState, avatars: List<AvatarIcon>, actions: AdminActions) {
-    val p = palette
-    var pending by remember { mutableStateOf<Pair<AccountInfo, String>?>(null) }
-    pending?.let { (account, action) ->
-        val meaning = mapOf(
-            "reset" to "Invalidate all browser sessions and suspend Sigil controls until this account signs in again? The seat and life totals stay.",
-            "remove" to "Remove this player from the game and invalidate their connections?",
-            "pass" to "Immediately pass this player's turn?",
-            "mute" to "Block this account from sending future nudges?",
-            "unmute" to "Allow this account to send future nudges?",
-        )
-        ConfirmDialog(
-            "Game Master action",
-            "${account.name}: ${meaning[action]}",
-            "Apply",
-            onConfirm = {
-                pending = null
-                actions.run { moderate(account.profileId, action); refresh(admin = false, gameMaster = true) }
-            },
-            onDismiss = { pending = null },
-        )
-    }
-    BrassCard {
-        Eyebrow("Game Master")
-        admin.accounts.filter { !it.archived }.forEach { account ->
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(p.surface2)
-                    .border(1.dp, p.line, RoundedCornerShape(14.dp))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PlayerAvatar(account.name.ifBlank { account.profileId }, 0, avatars.firstOrNull { it.id == account.avatar }, size = 36.dp)
-                    Text(account.name.ifBlank { account.profileId }, color = p.text, style = MaterialTheme.typography.titleSmall)
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ToneButton("Force pass", { pending = account to "pass" })
-                    ToneButton(if (account.nudgeMuted) "Unmute nudges" else "Mute nudges",
-                        { pending = account to if (account.nudgeMuted) "unmute" else "mute" })
-                    if (info.has(AccountPermission.GM_RESET_CONNECTIONS)) {
-                        ToneButton("Reset connections", { pending = account to "reset" }, tone = Tone.WARN)
-                    }
-                    if (info.has(AccountPermission.GM_REMOVE_FROM_GAME)) {
-                        ToneButton("Remove from game", { pending = account to "remove" }, tone = Tone.BAD)
-                    }
-                }
-            }
-        }
-        Text(
-            "Connection resets keep the seat and life totals. Removal ends active participation. Nudge mute is saved for " +
-                "the future nudge feature.",
             color = p.faint,
             style = MaterialTheme.typography.bodySmall,
         )

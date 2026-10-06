@@ -13,7 +13,7 @@ let access={sigilSound:true,ledStyle:'standard',longPressMs:2000,winHoldMs:5000}
 const accessLimits={longPressMinMs:1000,longPressMaxMs:4000,winHoldMinMs:3000,winHoldMaxMs:10000,minGapMs:1000,stepMs:250};
 let gameSettings={gameProfile:'generic',startingLife:40,turnTimerMs:0},life=40;
 let sigils=[{id:2,label:'Sigil 3',defaultLabel:'Sigil 3',customName:'',hardwareId:'THS-000000000002',mac:'00:00:00:00:00:02',online:true,ageMs:100,firmware:'0.5.5',metadata:true,capabilities:15,sessionCount:0,profileA:''}];
-let pairingWindowMs=15000,speakerVolume=2;const forgetRequests=[];
+let pairingWindowMs=15000,speakerVolume=2,nudgeMuted=false;const forgetRequests=[],moderation=[];
 const turnTimer={presetsMs:[0,60000,120000,180000,300000],minMs:15000,maxMs:3600000,warningMs:10000,longTurnMs:300000};
 const api=http.createServer(async(req,res)=>{
  let body='';for await(const chunk of req)body+=chunk;
@@ -28,8 +28,10 @@ const api=http.createServer(async(req,res)=>{
  switch(url.pathname){
 
   case '/api/accounts/setup':if(req.method==='POST'){permissions=1;setupRequired=false}result={setupRequired};break;
-  case '/api/accounts':result={accounts:[{profileId:'AB12CD34',name:'Phone Tester',permissions}]};break;
-  case '/api/accounts/permissions':permissions=Number(new URLSearchParams(body).get('permissions'));result={ok:true};break;
+  case '/api/accounts':result={accounts:[{profileId:'AB12CD34',name:'Phone Tester',permissions,archived:false,avatar:0,nudgeMuted,hasPin:true,primary:true,atTable:joined,reconnectRequired:false},
+   {profileId:'EF56AB78',name:'Old Friend',permissions:0,archived:true,avatar:0,hasPin:true,primary:false,atTable:false,reconnectRequired:false}]};break;
+  case '/api/accounts/permissions':{const args=new URLSearchParams(body);assert.equal(args.get('profileId'),'AB12CD34');permissions=Number(args.get('permissions'));assert(permissions&1,'The initial Admin keeps Admin');}result={ok:true};break;
+  case '/api/accounts/moderate':{const args=new URLSearchParams(body);assert(permissions&2);moderation.push(args.get('action'));if(args.get('action')==='mute')nudgeMuted=true;}result={ok:true};break;
   case '/api/presence':result={verified:true,secondsLeft:600};break;
   case '/api/status':result=status;break;
   case '/api/devices':result={atlas:{hardwareId:'TEST-ATLAS',firmware:'0.6.0-dev'},devices:sigils};break;
@@ -149,15 +151,35 @@ case '/api/speaker':if(req.method==='POST'){speakerVolume=Number(url.searchParam
 
   await tab.getByRole('button',{name:'Make my account the initial Admin',exact:true}).click();
   await tab.getByRole('button',{name:'Device Settings',exact:true}).waitFor();
-  await tab.getByLabel('Game Master',{exact:true}).check();
-  await tab.getByLabel('Developer',{exact:true}).check();
-  await tab.getByRole('button',{name:'Save permissions',exact:true}).click();
+  // People and roles: roles save as they change; the initial Admin's Admin
+  // switch is locked and Game Master powers wait for the Game Master role.
+  await tab.getByRole('button',{name:'Manage people',exact:true}).click();
+  await tab.getByRole('button',{name:'Phone Tester (you), Admin',exact:true}).click();
+  const sheet=tab.locator('#personSheet');
+  assert(await sheet.getByLabel('Admin',{exact:true}).isDisabled());
+  assert(await sheet.getByLabel('Reset connections',{exact:true}).isDisabled());
+  await sheet.getByLabel('Game Master',{exact:true}).check();
+  await tab.waitForFunction(()=>!document.querySelector('#personSheet input[data-bit="8"]').disabled);
+  await sheet.getByLabel('Developer',{exact:true}).check();
+  await sheet.getByText('Roles saved: Admin · Game Master · Developer.',{exact:true}).waitFor();
+  assert.equal(permissions,7);
+  assert.equal(await sheet.getByRole('button',{name:/Archive account/}).isDisabled(),true);
+  await tab.screenshot({path:path.join(__dirname,'build','portal-person-sheet.png')});
+  await sheet.getByRole('button',{name:'Done',exact:true}).click();
+  assert(await tab.getByText('Archived accounts (1)').isVisible());
   await tab.getByRole('button',{name:'Account menu, Phone Tester',exact:true}).click();
   await tab.getByRole('link',{name:'Developer',exact:true}).waitFor();
   await tab.keyboard.press('Escape');
   assert(await tab.locator('#accountMenu').isHidden());
   await tab.getByRole('button',{name:'Players',exact:true}).click();
-  await tab.getByRole('button',{name:'Force pass',exact:true}).waitFor();
+  // Game Master moderation sits on the player's own row at the table.
+  await tab.getByRole('button',{name:'Moderate Phone Tester',exact:true}).click();
+  await sheet.getByRole('button',{name:/^Pass their turn/}).waitFor();
+  await tab.screenshot({path:path.join(__dirname,'build','portal-moderate-sheet.png')});
+  await sheet.getByLabel('Can send nudges',{exact:true}).uncheck();
+  await sheet.getByText('Phone Tester can no longer send nudges.',{exact:true}).waitFor();
+  assert.deepEqual(moderation,['mute']);
+  await sheet.getByRole('button',{name:'Done',exact:true}).click();
   assert.equal(await tab.getByRole('link',{name:'Atlas firmware',exact:true}).count(),0);
   // Paired Sigils: admins set Atlas's pairing window and forget a Sigil.
   await tab.getByRole('button',{name:'Device Settings',exact:true}).click();

@@ -146,8 +146,8 @@ fun HomeScreen(
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
     val me = uiState.me()
     val info = uiState.sessionInfo()
-    val canSettings = info != null && (info.has(com.turnhub.android.protocol.AccountPermission.ADMIN) ||
-        info.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER))
+    val canSettings = info?.has(com.turnhub.android.protocol.AccountPermission.ADMIN) == true
+    val canPeople = canSettings || info?.has(com.turnhub.android.protocol.AccountPermission.GAME_MASTER) == true
     val canDev = info?.has(com.turnhub.android.protocol.AccountPermission.DEVELOPER) == true
     val tabs = HomeTab.entries.filter {
         when (it) {
@@ -267,12 +267,14 @@ fun HomeScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             when (shown) {
                                 HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
-                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText)
+                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText) {
+                                    if (canPeople && info != null) PeopleCard(info, admin, uiState.avatars, adminActions)
+                                }
                                 HomeTab.ACCOUNT -> {
                                     if (admin.presence?.setup == true) AdminSetupCard(adminActions)
                                     AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
                                 }
-                                HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, uiState.avatars, adminActions) }
+                                HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, adminActions, onShowPeople = { tab = HomeTab.PLAYERS }) }
                                 HomeTab.DEV -> DevTab(admin, adminActions)
                             }
                         }

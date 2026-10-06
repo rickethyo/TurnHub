@@ -35,7 +35,14 @@ import com.turnhub.android.ui.theme.palette
 
 /** The table's seats and Sigils, as the portal's Players tab shows them. */
 @Composable
-fun PlayersTab(summary: TableSummary, myPlayer: Int?, nowMs: Long, labelFor: (Int) -> String, endpoint: String) {
+fun PlayersTab(
+    summary: TableSummary,
+    myPlayer: Int?,
+    nowMs: Long,
+    labelFor: (Int) -> String,
+    endpoint: String,
+    people: @Composable () -> Unit = {},
+) {
     val p = palette
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BrassCard {
@@ -48,6 +55,7 @@ fun PlayersTab(summary: TableSummary, myPlayer: Int?, nowMs: Long, labelFor: (In
                 RosterCard(player, summary, player.playerNumber == myPlayer, nowMs, labelFor)
             }
         }
+        people()
         BrassCard {
             Eyebrow("Sigils at this table")
             if (summary.physicalSigils.isEmpty()) {
