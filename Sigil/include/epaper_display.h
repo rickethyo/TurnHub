@@ -3,6 +3,18 @@
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
 
+// Panel driver class. Default GDEM0213B74 (SSD1680, the panel's OTP partial
+// waveform); TURNHUB_EPD_PANEL_BN=1 selects DEPG0213BN (SSD1680, a partial
+// LUT loaded by the driver) for the partial-refresh trial.
+#ifndef TURNHUB_EPD_PANEL_BN
+#define TURNHUB_EPD_PANEL_BN 0
+#endif
+#if TURNHUB_EPD_PANEL_BN
+using EpdPanel = GxEPD2_213_BN;
+#else
+using EpdPanel = GxEPD2_213_B74;
+#endif
+
 #include "sigil_display.h"
 #include "sigil_icons.h"
 
@@ -87,7 +99,10 @@ class EpaperDisplay final : public SigilDisplay {
   // update (owner bench, 2026-09-25), so games use full refreshes by default.
   // "epd on" re-enables partials for bench work; a clean fix needs a custom
   // waveform (LUT). Partial defaults, when enabled:
-  static constexpr bool DEFAULT_PARTIAL_REFRESH = false;
+  // The sigil-epd-bn bench build drives the same SSD1680 with GxEPD2's
+  // DEPG0213BN class, which loads its own partial waveform instead of the
+  // panel's OTP one, and starts with partials on to try it.
+  static constexpr bool DEFAULT_PARTIAL_REFRESH = TURNHUB_EPD_PANEL_BN != 0;
   static constexpr uint8_t DEFAULT_MAX_PARTIALS = 4;
   static constexpr uint32_t DEFAULT_IDLE_CLEANUP_MS = 20000;
   volatile bool partialEnabled_ = DEFAULT_PARTIAL_REFRESH;
@@ -136,7 +151,7 @@ class EpaperDisplay final : public SigilDisplay {
   uint8_t gameFrameSigilId_ = 0xFF;
   uint8_t partialRefreshCount_ = 0;
 
-  GxEPD2_BW<GxEPD2_213_B74, GxEPD2_213_B74::HEIGHT> display_;
+  GxEPD2_BW<EpdPanel, EpdPanel::HEIGHT> display_;
 };
 
 }  // namespace TurnHubSigil

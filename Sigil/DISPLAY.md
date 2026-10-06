@@ -375,6 +375,18 @@ Bench tuning without reflashing (serial, 115200, e-ink build only; RAM only):
 Each prints `SIGIL|DISPLAY|PARTIAL|ON|MAX|n|IDLE_MS|ms`; every refresh still
 logs `SIGIL|DISPLAY|REFRESH|PARTIAL|FULL|MS|...|PARTIALS|n`.
 
+### Partial-refresh trial with a driver-loaded waveform (2026-10-06, Planned)
+
+Every earlier trial used the panel's OTP partial waveform (`0xFC`), and the
+owner reports it degrades the image badly from the first partial. GxEPD2's
+unmodified `GxEPD2_213_BN` class (DEPG0213BN, also SSD1680 at 122 x 250) writes
+its own partial LUT (register `0x32`) and updates with `0xCC`, so it tests the
+"custom waveform" lead without changing library code. The `sigil-epd-bn`
+environment builds it (`TURNHUB_EPD_PANEL_BN=1`) with partials on by default,
+the same four-partial and 20 s clean-ups, and logs `SIGIL|DISPLAY|PANEL|...` at
+boot. It is a USB-only bench build, not packaged for OTA. If full refreshes
+look wrong with it, the panel is not BN-compatible: flash `sigil` again.
+
 ### Partial-refresh bench result (first trial, historical)
 
 The supplied bench video shows progressive contrast loss during partial

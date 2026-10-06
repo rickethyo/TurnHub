@@ -65,6 +65,8 @@ jobs:
             environment: sigil-oled
             product: sigil-oled
           - project: Sigil
+            environment: sigil-epd-bn
+          - project: Sigil
             environment: sigil-wokwi
     env:
       PIO_PROJECT: ${{ matrix.project }}

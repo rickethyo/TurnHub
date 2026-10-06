@@ -255,7 +255,7 @@ void EpaperDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page,
 }
 
 EpaperDisplay::EpaperDisplay()
-    : display_(GxEPD2_213_B74(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {}
+    : display_(EpdPanel(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY)) {}
 
 void EpaperDisplay::begin() {
   SPI.begin(18, 19, 23, EPD_CS);
@@ -274,8 +274,9 @@ void EpaperDisplay::begin() {
 
   Serial.printf("SIGIL|DISPLAY|READY|%dx%d|ROTATION|%u\n",
       display_.width(), display_.height(), DISPLAY_ROTATION);
+  Serial.printf("SIGIL|DISPLAY|PANEL|%s\n", TURNHUB_EPD_PANEL_BN ? "DEPG0213BN" : "GDEM0213B74");
   Serial.printf("SIGIL|DISPLAY|POLICY|%s\n",
-      partialEnabled_ && GxEPD2_213_B74::hasFastPartialUpdate
+      partialEnabled_ && EpdPanel::hasFastPartialUpdate
           ? "PARTIAL_TRIAL" : "FULL_ONLY");
 }
 
@@ -666,7 +667,7 @@ void EpaperDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const int16_t secondaryY = cmdShown ? bottom - 36 : min<int16_t>(149, bottom - 36);
   const int16_t commanderLimit = (shared ? secondaryY : bottom) - 2;
   const bool partial = partialEnabled_ && !forceFull_ &&
-      GxEPD2_213_B74::hasFastPartialUpdate && gameFrameValid_ &&
+      EpdPanel::hasFastPartialUpdate && gameFrameValid_ &&
       gameFrameSigilId_ == s.sigilId && gameFrameShared_ == shared &&
       gameFrameCommander_ == cmdShown &&
       partialRefreshCount_ < maxPartials_;
