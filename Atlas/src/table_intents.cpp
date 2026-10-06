@@ -430,6 +430,42 @@ IntentResult handleSetSeatSideIntent(const Intent &intent, void *) {
   return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
 }
 
+// Owner request (Staged Changes, 2026-10-06): the Atlas screen can take one
+// player out of the lobby, as Clear does for everyone. It is the player
+// leaving, not a Game Master removal: no moderation record, and a phone may
+// join again.
+IntentResult handleRemoveSeatIntent(const Intent &intent, void *) {
+  if (intent.actor.origin != IntentOrigin::AtlasHardware)
+    return IntentResult::reject(IntentStatus::Unauthorized, "Remove players on the Atlas screen");
+  if (hubState != HubState::Lobby)
+    return IntentResult::reject(IntentStatus::InvalidState, "Remove players in the lobby");
+  const uint8_t module = intent.actor.controllerId;
+  const uint8_t slot = intent.actor.slot;
+  if (module >= MAX_CONTROLLERS || !validSlot(slot) || lobby.playerNumber(module, slot) == 0)
+    return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
+  if (slot == 2) {
+    bool added = false;
+    PlayerSeat affected;
+    if (!lobby.toggleSecondary(module, added, affected) || added)
+      return IntentResult::reject(IntentStatus::InvalidState, "Could not remove seat B");
+  } else if (!lobby.leave(module)) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
+  }
+  if (module < MAX_PHYSICAL_SIGILS) {
+    TurnHubControllers::releasePhysical(module, slot);
+    if (slot == 1) TurnHubControllers::releasePhysical(module, 2);
+  } else {
+    TurnHubControllers::releaseBrowser(module);
+  }
+  serialLog.print("ATLAS|LOBBY|REMOVE|CONTROLLER|");
+  serialLog.print(module);
+  serialLog.print("|SLOT|");
+  serialLog.println(slot);
+  lobby.clearStartArm();
+  leds.invalidateAll();
+  return IntentResult::accept("Removed from the table");
+}
+
 // --- Seat membership (Join / Leave) ---------------------------------------------
 
 namespace {

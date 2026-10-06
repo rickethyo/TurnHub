@@ -290,6 +290,7 @@ bool configureIntentHandlers() {
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
       {IntentType::MoveSeat, handleMoveSeatIntent},
       {IntentType::SetSeatSide, handleSetSeatSideIntent},
+      {IntentType::RemoveSeat, handleRemoveSeatIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
       {IntentType::Sleep, handleSleepIntent},
   };

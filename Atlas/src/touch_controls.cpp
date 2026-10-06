@@ -253,8 +253,9 @@ void layoutPlayer(AtlasScreen &screen) {
   // Lobby: turn order (item 11). Earlier and Later, then Back.
   if (hubState == HubState::Lobby) {
     const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
-        {TouchAction::MoveLater, "Later", 0, 1}};
-    addRow(screen, BUTTON_UPPER_ROW_Y, upper, 2);
+        {TouchAction::MoveLater, "Later", 0, 1},
+        {TouchAction::RemoveSeat, "Remove", LOBBY_REMOVE_HOLD_MS, 1}};
+    addRow(screen, BUTTON_UPPER_ROW_Y, upper, 3);
     PlayerSeat seat;
     if (currentShownSeat(seat) && lobby.hasSecondary(seat.controllerId)) {
       const ButtonSpec lower[] = {{TouchAction::SeatBLeft, "B left", 0, 1},
@@ -476,6 +477,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::MoveLater: return "MOVE_LATER";
     case TouchAction::SeatBLeft: return "SEAT_B_LEFT";
     case TouchAction::SeatBRight: return "SEAT_B_RIGHT";
+    case TouchAction::RemoveSeat: return "REMOVE_SEAT";
     case TouchAction::SkipSetup: return "SKIP_SETUP";
     case TouchAction::OpenSetup: return "OPEN_SETUP";
     case TouchAction::SetupPair: return "SETUP_PAIR";
@@ -674,6 +676,22 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.payload.value = sides ? (action == TouchAction::SeatBLeft ? 1 : 0) :
           (action == TouchAction::MoveEarlier ? -1 : 1);
       result = intents.dispatch(intent);
+      break;
+    }
+    // Held Remove on a lobby Player screen: that seat leaves the lobby.
+    case TouchAction::RemoveSeat: {
+      PlayerSeat seat;
+      if (!currentShownSeat(seat)) {
+        result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
+        break;
+      }
+      Intent intent;
+      intent.type = IntentType::RemoveSeat;
+      intent.actor.origin = IntentOrigin::AtlasHardware;
+      intent.actor.controllerId = seat.controllerId;
+      intent.actor.slot = seat.slot;
+      result = intents.dispatch(intent);
+      if (result.accepted()) openScreen = ScreenKind::Status;
       break;
     }
     // "You're all set": leave setup, and for Pair a Sigil open pairing too.

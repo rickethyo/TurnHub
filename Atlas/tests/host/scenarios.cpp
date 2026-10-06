@@ -2411,6 +2411,38 @@ static void touchControls() {
     assert(!TurnHub::validCheckpoint(saved));
   }
 
+  // Staged Changes 2026-10-06: a held Remove on a lobby Player screen takes
+  // that one seat out (seat A takes its Sigil's seat B too); a tap does not.
+  enterEmptyLobby(); freshLobby(3);
+  {
+    PlayerSeat seats[3]; lobby.buildPlayers(seats,3);
+    const uint8_t gone=seats[1].controllerId;
+    int16_t cx,cy,cw,ch; screenChipCell(1,3,cx,cy,cw,ch);
+    touchAt(cx+cw/2,cy+ch/2); touchRelease();
+    assert(screenButton(currentScreen(),TouchAction::RemoveSeat));
+    tapButton(TouchAction::RemoveSeat); assert(lobby.playerCount()==3);
+    pressButton(TouchAction::RemoveSeat); testNow+=LOBBY_REMOVE_HOLD_MS; pressButton(TouchAction::RemoveSeat); touchRelease();
+    assert(lobby.playerCount()==2 && !lobby.isJoined(gone) && currentScreen().kind==ScreenKind::Status);
+    assert(logHas("ATLAS|LOBBY|REMOVE|CONTROLLER|"));
+    // Only the Atlas screen, and only in the lobby.
+    Intent fromPhone; fromPhone.type=IntentType::RemoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
+    fromPhone.actor.controllerId=seats[0].controllerId; fromPhone.actor.slot=1;
+    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
+    Intent missing; missing.type=IntentType::RemoveSeat; missing.actor.origin=IntentOrigin::AtlasHardware;
+    missing.actor.controllerId=gone; missing.actor.slot=1;
+    assert(intents.dispatch(missing).status==IntentStatus::InvalidActor);
+    // Seat B alone, then seat A with a seat B.
+    const uint8_t shared=seats[0].controllerId;
+    Intent addB; addB.type=IntentType::Join; addB.actor.origin=IntentOrigin::PhysicalSigil;
+    addB.actor.controllerId=shared; addB.actor.slot=2;
+    assert(intents.dispatch(addB).accepted() && lobby.hasSecondary(shared) && lobby.playerCount()==3);
+    Intent removeB=missing; removeB.actor.controllerId=shared; removeB.actor.slot=2;
+    assert(intents.dispatch(removeB).accepted() && !lobby.hasSecondary(shared) && lobby.isJoined(shared));
+    assert(intents.dispatch(addB).accepted());
+    Intent removeA=removeB; removeA.actor.slot=1;
+    assert(intents.dispatch(removeA).accepted() && !lobby.isJoined(shared) && lobby.playerCount()==1);
+  }
+
   // Playtest 2026-09-29 item 11: in the lobby a chip opens that seat's turn
   // order; any player may move it, from the Atlas screen only.
   enterEmptyLobby(); freshLobby(3);

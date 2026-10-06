@@ -220,6 +220,7 @@ void updateTurnTimerCues(uint32_t nowMs);
 IntentResult handleProfileParticipationIntent(const Intent &intent, void *);
 // Turn order in the lobby, from the Atlas touchscreen only (MoveSeat).
 IntentResult handleMoveSeatIntent(const Intent &intent, void *);
+IntentResult handleRemoveSeatIntent(const Intent &intent, void *);
 IntentResult handleSetSeatSideIntent(const Intent &intent, void *);
 IntentResult handleSeatMembershipIntent(const Intent &intent, void *);
 IntentResult handleSelectStarterIntent(const Intent &intent, void *);
@@ -315,6 +316,8 @@ constexpr uint32_t END_MATCH_HOLD_MS = 5000;
 constexpr uint32_t MASTER_PASS_HOLD_MS = 2000;
 // Atlas touchscreen lobby hold: clear every player from an unstarted lobby.
 constexpr uint32_t LOBBY_CLEAR_HOLD_MS = 2000;
+// Atlas lobby Player screen: Remove takes one seat out, held like Clear.
+constexpr uint32_t LOBBY_REMOVE_HOLD_MS = 2000;
 // Touchscreen Device screen (Menu, between games; owner 2026-10-02): the
 // same holds as the BOOT button's gestures, which these buttons stand in for
 // when BOOT is out of reach inside a case.
