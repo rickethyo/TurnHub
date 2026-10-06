@@ -718,6 +718,13 @@ PIN choice) and acts for any seat through the phone's seat callbacks
 `tablet.css` (150 lines). Radio version unchanged; Sigil firmware unchanged.
 Local firmware compilation was unavailable; use the CI artifact for sizes.
 
+## 2026-10-06 Tablet mode, round two (Android app)
+
+The Android app gains the tablet screen (`ui/tablet/TabletScreen.kt` 429
+lines, `TabletTable.kt` 782 lines) and its requests (`data/AtlasTablet.kt`
+209 lines), opened from My account. Same `/api/tablet/*` routes as the portal;
+Atlas and Sigil firmware unchanged.
+
 ## 2026-10-06 Sigil welcome text (Sigil 0.9.12)
 
 Sigil 0.9.11 -> 0.9.12: the paired idle screen on both displays reads

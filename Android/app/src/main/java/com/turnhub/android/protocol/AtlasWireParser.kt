@@ -158,6 +158,7 @@ object AtlasWireParser {
                 active = root.boolean("active"),
                 eliminated = root.boolean("eliminated"),
                 permissions = root.int("permissions"),
+                tablet = root.optionalBoolean("tablet"),
             )
         }
     }

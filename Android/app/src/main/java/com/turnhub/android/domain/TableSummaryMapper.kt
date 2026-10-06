@@ -34,6 +34,7 @@ object TableSummaryMapper {
                 slot = player.slot,
                 team = player.team,
                 participantId = player.participantId,
+                profileId = player.profileId?.takeIf { it.isNotEmpty() },
                 eliminated = player.eliminated,
                 life = player.life,
                 turnsCompleted = player.turnsCompleted,

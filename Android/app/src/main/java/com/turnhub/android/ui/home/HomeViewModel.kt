@@ -94,6 +94,10 @@ class HomeViewModel(
     )
     val adminState: StateFlow<com.turnhub.android.data.AdminState> = adminConsole.state
 
+    /** This device as the table's shared screen (protocol/http-v1.md "Tablet mode"). */
+    private val tablet = com.turnhub.android.data.AtlasTablet(playerSession) { repository.endpoint.value }
+    val tabletState: StateFlow<com.turnhub.android.data.TabletState> = tablet.state
+
     /**
      * First-run setup (Documentation/engineering/FIRST_RUN_SETUP.md): shown
      * instead of the table while Atlas reports its Welcome stage. Checked on
@@ -230,7 +234,12 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
-            playerSession.state.collect { if (it is PlayerSessionState.SignedOut) adminConsole.forget() }
+            playerSession.state.collect {
+                if (it is PlayerSessionState.SignedOut) {
+                    adminConsole.forget()
+                    tablet.forget()
+                }
+            }
         }
         // Give the Atlas Wi-Fi back whenever the Atlas connection ends
         // (Disconnect, lost connection, failed handshake).
@@ -599,6 +608,19 @@ class HomeViewModel(
     }
 
     fun onAdminMessageDismissed() = adminConsole.clearMessage()
+
+    // --- tablet mode --------------------------------------------------------------
+
+    /** Runs one tablet request; the outcome shows in [tabletState] and the next state snapshot. */
+    fun onTablet(block: suspend com.turnhub.android.data.AtlasTablet.() -> Unit) {
+        viewModelScope.launch { tablet.block() }
+    }
+
+    fun onTabletMessageDismissed() = tablet.clearMessage()
+
+    fun onTabletPinDismissed() = tablet.dismissPin()
+
+    fun onTabletCodeDismissed() = tablet.dismissCode()
 
     // --- first-run setup --------------------------------------------------------
 

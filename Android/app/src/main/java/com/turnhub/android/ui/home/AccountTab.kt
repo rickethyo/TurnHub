@@ -78,6 +78,8 @@ data class AccountActions(
     val onReduceMotion: (Boolean) -> Unit = {},
     /** Switches "Sign in automatically" off: forgets this table's profile on this phone. */
     val onForgetSavedProfile: () -> Unit = {},
+    /** Opens tablet mode: this device as one shared screen for the whole table. */
+    val onOpenTablet: () -> Unit = {},
 )
 
 /** Sigil light colors to pick from (the portal offers a free color picker; these cover the wheel). */
@@ -119,6 +121,18 @@ fun AccountTab(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 ToneButton("Sigil accessibility…", actions.onAccessibility, Modifier.fillMaxWidth(), tone = Tone.INFO)
+            }
+        }
+        if (uiState.tableSummary != null) {
+            BrassCard {
+                Eyebrow("Tablet mode")
+                Text(
+                    "Lay this device in the middle of the table: every player gets a panel facing their seat for life, " +
+                        "Commander damage and passing the turn. New players can be added by name.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ToneButton("Open tablet mode", actions.onOpenTablet, Modifier.fillMaxWidth(), tone = Tone.INFO)
             }
         }
         AppearanceCard(theme, reduceMotion, actions)
