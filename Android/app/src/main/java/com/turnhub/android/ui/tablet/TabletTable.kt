@@ -422,6 +422,7 @@ private fun PlayerPanel(
             .background(hue.copy(alpha = if (p.dark) .22f else .16f))
             .border(if (active) 3.dp else 1.dp, if (active) p.active else p.line, shape),
     ) {
+        val nameMax = maxWidth * .6f
         val lifeSize = (minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f).coerceIn(28f, 160f)
         Column(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
             HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.TopEnd, Modifier.weight(1f).fillMaxWidth())
@@ -434,7 +435,7 @@ private fun PlayerPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = maxWidth * .6f))
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)
             if (out) Tag("Out", p.bad, p.surface)
         }
