@@ -875,7 +875,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   return IntentResult::accept(all ? "All Sigils forgotten" : "Sigil forgotten");
 }
 
-// Pairing v2 code check (SECURE_LINK.md). The owner compares the code on the
+// Pairing v2 code check (PAIRING_AND_SECURE_LINK.md). The owner compares the code on the
 // Sigil with the one on Atlas and confirms or rejects: at the Atlas screen
 // (physically at the table), or as a portal Admin through the same
 // presence-checked device path as Forget. Nothing is stored before Confirm.

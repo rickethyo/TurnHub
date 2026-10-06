@@ -1,109 +1,77 @@
 # TurnHub Engineering Reference
 
-The engineering record for TurnHub hardware, firmware, architecture,
-protocols and accessibility. Reference documents describe how things work
-now; dated records keep what was found or decided on a given day.
+How TurnHub works today, one document per topic. Each describes current
+behavior; dated findings and superseded plans live in [history/](history/README.md)
+and are not kept up to date.
+
+**Start with:** [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) (the
+hard rules) and [Staged Changes](STAGED_CHANGES.md) (everything open). Then
+read only the topic you're working on.
+
+## Topics
+
+| Document | Covers |
+|---|---|
+| [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) | Rules every change preserves: Atlas authority, one handler per action, the feature gate, accessibility |
+| [Architecture](ARCHITECTURE.md) | Ownership, the Intent pipeline and the full Intent catalog |
+| [Storage and Recovery](STORAGE_AND_RECOVERY.md) | Identities, every NVS and SD record, the microSD card, match recovery, completion ordering |
+| [Radio Protocol](RADIO_PROTOCOL.md) | ESP-NOW packets, capability bits, menus, lights, Atlas lost |
+| [Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md) | Pairing with a code check, the BOOT button, forget, factory reset, sleep, link encryption |
+| [Players and Accounts](PLAYERS_AND_ACCOUNTS.md) | Profiles, sign-in, joining from phones and Sigils, the picker, permissions, presence codes, moderation |
+| [Gameplay](GAMEPLAY.md) | Game profiles, turns, turn timer, life and approvals, Commander damage, light and sound cues |
+| [First-run Setup](FIRST_RUN_SETUP.md) | Guided setup of a new Atlas from the app or portal |
+| [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices, spare Sigils |
+| [Web Portal](WEB_PORTAL.md) | The SD portal pack, the flash fallback portal, themes, layout and test contract |
+| [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
+| [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
+| [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |
+| [Continuous Integration](CONTINUOUS_INTEGRATION.md) | GitHub Actions checks, artifacts and local equivalents |
+| [Planned Designs](PLANNED_DESIGNS.md) | Designs for features not built yet: venue model, Sigil sleep, front LED strip, shared SD cards |
+
+Elsewhere: the HTTP client contract is [`protocol/http-v1.md`](../../protocol/http-v1.md);
+Sigil screens and menus are [`Sigil/DISPLAY.md`](../../Sigil/DISPLAY.md); the
+host test suites are [`Atlas/tests/host/README.md`](../../Atlas/tests/host/README.md);
+the design system is [`design/README.md`](../../design/README.md); the Android
+app is [`Android/README.md`](../../Android/README.md); dependencies and IP are
+in [`Documentation/legal/`](../legal/README.md); build commands and
+cross-file rules are in `CLAUDE.md`.
 
 ## Confidence labels
 
-- **Verified** - confirmed by repository source, hardware, or a contemporaneous artifact.
-- **Reconstructed** - strongly supported by history and notes, not checked against the original hardware or commit.
-- **Planned** - agreed direction, not yet the implemented specification.
-- **Experimental** - existed during development, not necessarily part of the intended product.
-- **Needs verification** - a useful placeholder, not authoritative yet.
+- **Verified:** confirmed by source, hardware, or a captured log.
+- **Reconstructed:** strongly supported by history, not checked on the original hardware.
+- **Planned:** agreed, not built.
+- **Experimental:** existed during development, not necessarily the product.
+- **Needs verification:** a placeholder, not authoritative.
 
 Host tests passing is not hardware acceptance. As of 2026-10-02 the owner
-reports that playtesting and bench testing have verified nearly everything
-implemented; older "needs verification on hardware" notes in the dated
-records predate that.
+reports that playtesting and bench testing verified nearly everything
+built; the hardware checks still open are listed in
+[Staged Changes](STAGED_CHANGES.md), "Open checks". Unlabelled statements in
+these documents describe the code as it is.
 
-## Start here
+## Keeping the record
 
-- [Architectural Invariants](ARCHITECTURAL_INVARIANTS.md) - hard rules every implementation preserves.
-- [Staged Changes](STAGED_CHANGES.md) - the queue of agreed, unimplemented work.
-- [Multi-phone stability plan](STABILITY_PLAN_2026_10_02.md) - staged investigation,
-  stack headroom, HTTP resource reductions and the hardware release gate.
-- [Prototype v1 Verification](PROTOTYPE_V1_VERIFICATION.md) - field-test gates still open.
-- [Verification Backlog](VERIFICATION_BACKLOG.md) - historical facts and production decisions still open.
-
-## Architecture and contracts
-
-- [Software Architecture](SOFTWARE_ARCHITECTURE.md) - game-state ownership and controller responsibilities, and how they evolved.
-- [Intent Model](INTENT_MODEL.md) - the common request boundary for every controller.
-- [Identity and Storage Contracts](IDENTITY_AND_STORAGE.md) - typed identities, persistence ownership, NVS and microSD.
-- [Protocol and Pairing](PROTOCOL_AND_PAIRING.md) - the radio contract, capability bits and protocol rules.
-- [Manual Pairing](MANUAL_PAIRING.md) - pairing window, forgetting and factory reset.
-- [Secure Link](SECURE_LINK.md) - the encrypted Atlas-Sigil radio link.
-- [Completed-match Recovery Ordering](COMPLETION_RECOVERY.md) - checkpoint before statistics, and the remaining limit.
-- HTTP client contract: [`protocol/http-v1.md`](../../protocol/http-v1.md).
-
-## Features
-
-- [Profile Login and Virtual Play](PROFILE_LOGIN_AND_VIRTUAL_PLAY.md) - independent login, phone-only tables, phone and Sigil together.
-- [Physical Profile Selection](PHYSICAL_PROFILE_SELECTION.md) - the Sigil profile picker and reusable Sigils.
-- [Accounts and Moderation](ACCOUNTS_AND_MODERATION.md) - first Admin, permissions, presence codes, moderation counts.
-- [Game Profiles and Life Counters](GAME_PROFILES_AND_LIFE.md) - formats, starting life, life controls.
-- [Life Approval and Commander Damage](LIFE_APPROVAL_AND_COMMANDER.md) - recipient approvals and linked counters.
-- [Turn Timer and Cues](TURN_TIMER_AND_CUES.md) - the turn timer and the LED and audio cue layers.
-- [First-run Setup](FIRST_RUN_SETUP.md) - guided setup from the app.
-- [Sigil OTA](SIGIL_OTA.md) - signed firmware packages and updates for Atlas and Sigils.
-- [Spare Sigil](SPARE_SIGIL.md) - the inert spare firmware, and bringing a spare back over the air.
-- [SD Diagnostics](SD_DIAGNOSTICS.md) - optional card logs, hot-plug and failure behavior.
-- [Web Portal Design System](WEB_PORTAL_DESIGN.md) - stylesheet, themes and the portal test contract.
-- [Web Portal Pack](PORTAL_PACK.md) - the V1 portal as a signed pack on the microSD card, with the flash portal as fallback.
-- [Accessibility Specification](ACCESSIBILITY.md) - requirements and the implemented settings.
-
-## Hardware and tooling
-
-- [Hardware Reference](HARDWARE_REFERENCE.md) - boards, pins, displays, controls and indicators.
-- [Board Inventory](BOARD_INVENTORY.md) - how the flash scripts identify boards by MAC, with an example board list.
-- [Continuous Integration](CONTINUOUS_INTEGRATION.md) - GitHub Actions checks and artifacts.
-- [Serial logs](logs/README.md) - captured boot and OTA logs.
-- [Legal and IP Working Reference](../legal/README.md) - dependencies, notices, IP hygiene.
-
-## History and dated records
-
-- [Generation History](GENERATION_HISTORY.md) - from the first standalone timer to the ESP32 Atlas/Sigil system.
-- [Size and Change History](SIZE_AND_CHANGE_HISTORY.md) - source size and firmware RAM/flash snapshots.
-- [Code review 2026-10-01](CODE_REVIEW_2026_10_01.md) and [2026-09-26](CODE_REVIEW_2026_09_26.md).
-- [Playtest notes 2026-09-29](PLAYTEST_NOTES_2026_09_29.md).
-- [Prototype 1.0 gap review 2026-09-26](PROTOTYPE_1_0_GAP_REVIEW.md).
-- [Stabilization 2026-09-22](STABILIZATION_2026_09_22.md).
-- [Manual V0.2 review 2026-09-22](MANUAL_V02_REVIEW.md).
-- [Atlas Intent migration verification 2026-09-19](ATLAS_INTENT_VERIFICATION.md).
-- [PASS audio observation 2026-09-19](PASS_AUDIO_OBSERVATION.md).
-
-Dated records are not updated as the code moves on; check the reference
-documents for current behavior.
-
-## Rules
-
-**Atlas is authoritative.** It owns table and game state. Sigils, phones, the
-touchscreen and simulators are controllers and views; every action converges
-on a semantic Intent before game behavior runs.
-
-**Accessibility is a hard requirement.** Essential information and actions
-never depend on one sensory cue or one input method when a practical
-alternative exists, and alternatives use the same Intent and authorization
-path.
-
-**Feature gate.** Before a significant feature, define: (1) state owner,
-(2) Intent, (3) validator, (4) persistence owner, (5) rendering clients,
-(6) protocol/contract change, (7) third-party dependency impact (update
-`Documentation/legal/`), (8) accessibility impact.
-
-**Structural-change preflight.** Before changing architecture boundaries,
-state ownership, persistence, shared contracts, controller abstractions,
-module layout or hardware/software interfaces, review this index,
-`ARCHITECTURAL_INVARIANTS.md`, `STAGED_CHANGES.md` and the affected
-references. If the change conflicts with them, resolve the documentation
-first rather than letting the code drift.
-
-**Keeping the record.**
-
-- Agreed, unimplemented work goes in `STAGED_CHANGES.md`, not long-lived branches.
-- When a decision changes, update the reference document. Abandoned
-  experiments are marked historical, not erased.
-- A new dependency, asset or third-party reference updates `Documentation/legal/` in the same cycle.
-- A changed user-facing interaction, cue, display or timeout gets an `ACCESSIBILITY.md` review, and the user manual, UI text and docs stay in agreement.
-- Firmware-version bumps and large feature commits append a snapshot to `SIZE_AND_CHANGE_HISTORY.md`.
+- **One home per fact.** Put a fact in the topic document that owns it and
+  link to it from elsewhere rather than repeating it. Keep documents about
+  current behavior; don't narrate how a feature was built step by step
+  (commit messages do that).
+- **When something lands,** update its topic document in the same change and
+  delete its line from Staged Changes. When a decision changes, rewrite the
+  topic text; record the reason briefly if it matters ("owner, date").
+- **Dated findings** (reviews, playtests, investigations) go in `history/` as
+  `YYYY-MM-DD-<topic>.md`; lasting conclusions move into a topic document.
+- **Feature gate.** Before a significant feature, define: (1) state owner,
+  (2) Intent, (3) validator, (4) persistence owner, (5) rendering clients,
+  (6) protocol/contract change, (7) third-party dependency impact (update
+  `Documentation/legal/`), (8) accessibility impact. Put the answers in the
+  topic document.
+- **Structural changes:** review the invariants, Staged Changes and the
+  affected topic first; if code would contradict the docs, resolve the docs
+  explicitly.
+- A changed user-facing interaction, cue, display or timeout gets an
+  accessibility review, and the user manual, UI text and docs stay in
+  agreement.
+- Firmware-version bumps and large feature commits append a snapshot to
+  [history/SIZE_AND_CHANGE_HISTORY.md](history/SIZE_AND_CHANGE_HISTORY.md).
+- Never commit real board MAC addresses, keys, passwords or tokens.

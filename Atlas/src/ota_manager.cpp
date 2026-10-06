@@ -333,7 +333,7 @@ void OtaManager::begin() {
 #endif
   });
 
-  // The full portal is the pack on the microSD card (PORTAL_PACK.md); without
+  // The full portal is the pack on the microSD card (WEB_PORTAL.md); without
   // one, /portal is the basic portal in flash. ?classic=1 skips the pack.
   server_.on("/portal", HTTP_GET, [this]() {
     if (!server_.hasArg("classic") && TurnHubAtlas::sdServePortalFile(server_, "index.html", "no-cache")) return;

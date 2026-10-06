@@ -48,7 +48,7 @@ class SigilLedModel {
   // (reduced motion: two opposite pixels steady). Only pairing outranks it. The screen says so in words too.
   void setAtlasLost(bool lost, uint32_t nowMs);
   bool atlasLost() const { return atlasLost_; }
-  // A firmware update is downloading (SIGIL_OTA.md): the ring fills
+  // A firmware update is downloading (FIRMWARE_UPDATES.md): the ring fills
   // clockwise in cyan with the percent received, over dim blue, and the center
   // blinks cyan once a second (reduced motion: steady).
   // Outranks everything: the Sigil does nothing else meanwhile. The screen

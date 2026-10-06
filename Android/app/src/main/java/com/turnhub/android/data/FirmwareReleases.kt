@@ -49,7 +49,7 @@ data class FirmwarePackage(
 )
 
 /**
- * `turnhub-firmware.json` (Documentation/engineering/SIGIL_OTA.md, "Release
+ * `turnhub-firmware.json` (Documentation/engineering/FIRMWARE_UPDATES.md, "Release
  * feed"). Unknown products and fields are ignored so later releases can add
  * them; a package with a bad version, size or hash is dropped, never guessed.
  */

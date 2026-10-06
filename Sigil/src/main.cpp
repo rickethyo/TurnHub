@@ -36,7 +36,7 @@
 
 #if !TURNHUB_SPARE
 // This build's identity, read by tools/firmware/thfw.py when it packages
-// firmware.bin for OTA (SIGIL_OTA.md). The Wokwi build has none, so it can't
+// firmware.bin for OTA (FIRMWARE_UPDATES.md). The Wokwi build has none, so it can't
 // be packaged.
 #ifdef TURNHUB_DISPLAY_OLED
 constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilOled;
@@ -104,7 +104,7 @@ constexpr uint8_t PAIR_BUTTON = 19;  // diagram.json's Pair pushbutton.
 constexpr uint8_t PAIR_BUTTON = 0;
 #endif
 
-// Spare build (env:sigil-spare, SPARE_SIGIL.md): one image for any Sigil
+// Spare build (env:sigil-spare, FIRMWARE_UPDATES.md): one image for any Sigil
 // board, with no display, input or buzzer. It keeps its pairing, announces
 // CAPABILITY_SPARE and its strap's display type, and takes the matching OTA
 // package, which brings it back as a normal Sigil.
@@ -134,7 +134,7 @@ constexpr uint8_t PROFILE_SLOT_MASK = 0x03;
 constexpr uint8_t RECEIVE_QUEUE_LENGTH = 32;
 
 // The saved pairing in NVS, one record: Atlas's MAC (6 bytes), this Sigil's
-// ID (1) and the pair key agreed at pairing (SECURE_LINK.md). A record of any
+// ID (1) and the pair key agreed at pairing (PAIRING_AND_SECURE_LINK.md). A record of any
 // other size isn't a pairing and is dropped.
 constexpr char PAIRING_NAMESPACE[] = "th_pair";
 constexpr char PAIRING_KEY[] = "atlas";
@@ -220,7 +220,7 @@ volatile bool pairingActive = false;
 uint32_t pairingStartMs = 0;
 int32_t pairingToken = 0;
 uint32_t lastPairRequestMs = 0;
-// Pairing (pairing_v2.h, SECURE_LINK.md): the key agreement and code check,
+// Pairing (pairing_v2.h, PAIRING_AND_SECURE_LINK.md): the key agreement and code check,
 // and the pair key for the saved Atlas.
 TurnHubSecureLink::MbedtlsCrypto linkCrypto;
 TurnHubSecureLink::SigilPairing pairingV2;
@@ -949,7 +949,7 @@ void forgetPairing(const char *reason) {
   Serial.println(reason);
 }
 
-// Secure-link crypto check against published vectors (SECURE_LINK.md), which
+// Secure-link crypto check against published vectors (PAIRING_AND_SECURE_LINK.md), which
 // the radio depends on; logged so each board's result is on record.
 bool runSecureLinkSelfTest() {
   TurnHubSecureLink::MbedtlsCrypto crypto;

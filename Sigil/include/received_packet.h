@@ -5,13 +5,13 @@
 
 namespace TurnHubSigil {
 // Copy any radio message intact; validation and rendering stay on loop().
-// Since the secure link (SECURE_LINK.md): Atlas's packets arrive sealed (a
+// Since the secure link (PAIRING_AND_SECURE_LINK.md): Atlas's packets arrive sealed (a
 // 7-byte Packet, picker page, Commander page, game display or update offer
 // plus SECURE_OVERHEAD), apart from the session handshake and pairing. The
 // unsealed sizes stay accepted here only so the loop can recognise and drop
 // them.
 struct ReceivedPacket {
-  // The largest: a sealed update offer (SIGIL_OTA.md).
+  // The largest: a sealed update offer (FIRMWARE_UPDATES.md).
   static constexpr size_t MAX_BYTES =
       sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + TurnHubSecureLink::SECURE_OVERHEAD;
   uint8_t mac[6];

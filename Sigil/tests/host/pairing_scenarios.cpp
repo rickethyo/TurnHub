@@ -142,7 +142,7 @@ void acceptsMustMatchTheRequest() {
   assert(!atlas.request(crypto, ATLAS_MAC, OTHER_MAC, request, TurnHubProtocol::MAX_SIGILS, 0, accept));
 }
 
-// A spare's request (SPARE_SIGIL.md) is the same handshake under its own type,
+// A spare's request (FIRMWARE_UPDATES.md) is the same handshake under its own type,
 // so Atlas can tell it apart and skip the code check.
 void aSpareRequestIsMarkedAndAccepted() {
   TestCrypto crypto;

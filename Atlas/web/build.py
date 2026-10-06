@@ -2,7 +2,7 @@
 """Builds the Atlas web portal pack (standard library only).
 
 The pack is the portal Atlas serves from its microSD card at /portal. Design
-and rules: Documentation/engineering/PORTAL_PACK.md; the archive layout is
+and rules: Documentation/engineering/WEB_PORTAL.md; the archive layout is
 Atlas/include/portal_pack.h, which this script must match.
 
   python3 Atlas/web/build.py                      build dist/site/ and dist/portal-<ver>.bin

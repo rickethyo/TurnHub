@@ -38,7 +38,7 @@ bool sdCardReady();
 // compares it to re-point the luxury store (refreshSdLuxuryStore, main.cpp).
 uint32_t sdCardGeneration();
 
-// --- Web portal pack (portal_pack.h, PORTAL_PACK.md) --------------------------
+// --- Web portal pack (portal_pack.h, WEB_PORTAL.md) --------------------------
 // The card as the portal installer's Files, or nullptr without a working card.
 // Each call takes the card lock. Call from the application task.
 TurnHubPortal::Files *sdPortalFiles();

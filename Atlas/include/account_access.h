@@ -1,7 +1,7 @@
 #pragma once
 
 // Account permissions and private moderation counters, stored per profile.
-// See Documentation/engineering/ACCOUNTS_AND_MODERATION.md.
+// See Documentation/engineering/PLAYERS_AND_ACCOUNTS.md.
 
 #include <Arduino.h>
 #include "storage.h"

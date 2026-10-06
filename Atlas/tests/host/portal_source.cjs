@@ -1,4 +1,4 @@
-// The portal the smoke checks render: the SD portal pack (PORTAL_PACK.md),
+// The portal the smoke checks render: the SD portal pack (WEB_PORTAL.md),
 // built here with `python3 Atlas/web/build.py` into dist/site/ when missing,
 // whose /assets/ files are served the way Atlas serves them from the card.
 // (Atlas's flash keeps only a small install page since 2026-10-02.)

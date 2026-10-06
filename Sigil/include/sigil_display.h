@@ -57,10 +57,10 @@ class SigilDisplay {
   // while open.
   virtual void showAtlasLost(uint8_t sigilId) = 0;
   // Pairing v2: the 4-digit code the owner compares with Atlas's screen
-  // before confirming there (SECURE_LINK.md). Replaces every other screen,
+  // before confirming there (PAIRING_AND_SECURE_LINK.md). Replaces every other screen,
   // with no action menu, until Atlas confirms, rejects or the check lapses.
   virtual void showPairingCode(uint16_t code) = 0;
-  // A firmware update (SIGIL_OTA.md): what is happening in words, and the
+  // A firmware update (FIRMWARE_UPDATES.md): what is happening in words, and the
   // percent downloaded (or -1). Replaces every other screen, with no menu.
   virtual void showUpdate(const char *status, int8_t percent) = 0;
   // Device menu Sleep: the last screen before deep sleep, saying how to wake

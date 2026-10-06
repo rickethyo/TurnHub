@@ -2,7 +2,7 @@ name: TurnHub firmware release
 
 # Pushing a tag like v0.9.0 builds Atlas and both Sigils, signs each as a
 # .thfw OTA package, and publishes a GitHub Release with the packages and the
-# release feed the Android app reads (Documentation/engineering/SIGIL_OTA.md,
+# release feed the Android app reads (Documentation/engineering/FIRMWARE_UPDATES.md,
 # "Release feed"). Needs the TURNHUB_FIRMWARE_SIGNING_KEY secret.
 
 on:
@@ -61,7 +61,7 @@ jobs:
           python tools/firmware/thfw.py feed "$out"/*.thfw \
             --release "${GITHUB_REF_NAME#v}" --out "$out/turnhub-firmware.json"
           cat "$out/turnhub-firmware.json"
-          # The web portal pack (PORTAL_PACK.md): installed from the Atlas
+          # The web portal pack (WEB_PORTAL.md): installed from the Atlas
           # /update page, so it stays out of the firmware feed.
           python Atlas/web/build.py --out "$RUNNER_TEMP/portal.bin"
           python tools/firmware/thfw.py package "$RUNNER_TEMP/portal.bin" \

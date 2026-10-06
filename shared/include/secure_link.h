@@ -4,7 +4,7 @@
 // envelope with replay protection. Planned; no firmware sends these yet.
 // Design and the reasons for application-layer encryption (not ESP-NOW's
 // built-in kind, which is capped at 7 encrypted peers) are in
-// Documentation/engineering/SECURE_LINK.md.
+// Documentation/engineering/PAIRING_AND_SECURE_LINK.md.
 //
 // The algorithms themselves come from a Crypto backend: mbedTLS on the
 // ESP32s (X25519, AES-128-CCM, HMAC-SHA256), a deterministic stand-in in the

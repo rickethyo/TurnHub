@@ -1,6 +1,6 @@
 #pragma once
 
-// Sigil OTA on Atlas (SIGIL_OTA.md): the one staged Sigil package and the
+// Sigil OTA on Atlas (FIRMWARE_UPDATES.md): the one staged Sigil package and the
 // one update job at a time. Pure logic over a flash interface and the
 // package crypto, host-tested; the idle-slot flash, HTTP routes and radio
 // live in sigil_update_service.cpp and web_admin_api.cpp.

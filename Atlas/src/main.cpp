@@ -35,7 +35,7 @@ SET_LOOP_TASK_STACK_SIZE(AtlasConfig::LOOP_TASK_STACK_BYTES);
 #endif
 
 // This build's identity, read by tools/firmware/thfw.py when it packages
-// firmware.bin for OTA (SIGIL_OTA.md).
+// firmware.bin for OTA (FIRMWARE_UPDATES.md).
 TURNHUB_FIRMWARE_DESCRIPTOR(atlasFirmwareDescriptor, TurnHubFirmwarePackage::Product::Atlas,
     TurnHubFirmware::MAJOR, TurnHubFirmware::MINOR, TurnHubFirmware::PATCH,
     TurnHubProtocol::VERSION);
@@ -449,7 +449,7 @@ void setup() {
   serialLog.println(TurnHub::runtimeDiagnosticsJson());
   TurnHub::recordActivity("boot", TurnHub::resetReason());
   logHeapStep("DISPLAY");
-  // Secure-link crypto check against published vectors (SECURE_LINK.md), which
+  // Secure-link crypto check against published vectors (PAIRING_AND_SECURE_LINK.md), which
   // the radio depends on; logged so each board's result is on record.
   runSecureLinkSelfTest();
   logHeapStep("SECURE_LINK");

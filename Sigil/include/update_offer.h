@@ -1,6 +1,6 @@
 #pragma once
 
-// Whether a Sigil takes a SigilUpdateOffer (SIGIL_OTA.md, "Update
+// Whether a Sigil takes a SigilUpdateOffer (FIRMWARE_UPDATES.md, "Update
 // sequence"). Pure logic, host-tested; the download itself is
 // sigil_updater.cpp. Atlas resends an offer until it hears a status, so the
 // same token again means "tell me how it went", never "start over".

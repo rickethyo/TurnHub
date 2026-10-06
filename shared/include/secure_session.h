@@ -1,6 +1,6 @@
 #pragma once
 
-// Secure sessions (SECURE_LINK.md): each time a Sigil connects, a signed
+// Secure sessions (PAIRING_AND_SECURE_LINK.md): each time a Sigil connects, a signed
 // SecureHello / SecureHelloAck exchange agrees a fresh session key from the
 // pair key and both sides' random nonces, then every packet travels sealed in
 // a Channel (secure_link.h). A packet recorded in an earlier session never

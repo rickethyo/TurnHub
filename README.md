@@ -11,7 +11,7 @@ Signed releases are published on GitHub Releases and installed from the
 Android app or the Atlas portal.
 
 Earlier Python/Raspberry Pi generations are recorded in
-[Generation History](Documentation/engineering/GENERATION_HISTORY.md). They are
+[Generation History](Documentation/engineering/history/GENERATION_HISTORY.md). They are
 not part of this repository or the current runtime.
 
 ## Where to look
@@ -65,7 +65,7 @@ Changing controllers never replaces the participant or moves its statistics.
 
 Known limits are tracked in [Staged Changes](Documentation/engineering/STAGED_CHANGES.md).
 The most important: statistics are not yet crash-safe exactly-once
-([completion ordering](Documentation/engineering/COMPLETION_RECOVERY.md)).
+([completion ordering](Documentation/engineering/STORAGE_AND_RECOVERY.md)).
 
 ## Persistence
 

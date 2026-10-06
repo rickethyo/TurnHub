@@ -5,7 +5,7 @@
 namespace TurnHubProtocol {
 
 // 3 since the baseline Sigil (2026-09-30): the Hello capability byte carries
-// only what varies between Sigils. 2 was the secure link (SECURE_LINK.md):
+// only what varies between Sigils. 2 was the secure link (PAIRING_AND_SECURE_LINK.md):
 // apart from pairing and the session handshake, every packet travels sealed.
 // Devices of different versions don't talk at all; until hardware is released
 // every board is reflashed together (owner, 2026-09-30), so nothing tolerates
@@ -59,7 +59,7 @@ constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
 // harness answers with HarnessReport. It still plays only through the normal
 // Sigil packets, so it gains no authority.
 constexpr uint8_t CAPABILITY_HARNESS = 0x80;
-// A spare Sigil (Sigil env:sigil-spare, SPARE_SIGIL.md): paired but inert,
+// A spare Sigil (Sigil env:sigil-spare, FIRMWARE_UPDATES.md): paired but inert,
 // with no display or input. Atlas never seats it or takes its input, and
 // sends it the OTA package its display bit (its GPIO4 strap) names, which
 // brings it back as a normal Sigil.
@@ -137,7 +137,7 @@ enum class PacketType : uint8_t {
   // Presentation only.
   TableClock = 39,
   // Secure link (secure_link.h, pairing_v2.h, secure_session.h; see
-  // SECURE_LINK.md): pairing key agreement, the pairing-code result, the
+  // PAIRING_AND_SECURE_LINK.md): pairing key agreement, the pairing-code result, the
   // authenticated Hello/Ack that starts a session, and the sealed envelope
   // that carries every other packet once a session exists.
   PairRequest2 = 40,
@@ -147,7 +147,7 @@ enum class PacketType : uint8_t {
   SecureHello = 44,
   SecureHelloAck = 45,
   Secure = 46,
-  // Sigil OTA (SIGIL_OTA.md), both sealed. Atlas -> Sigil: install the staged
+  // Sigil OTA (FIRMWARE_UPDATES.md), both sealed. Atlas -> Sigil: install the staged
   // package (SigilUpdateOfferPacket). Sigil -> Atlas: how it is going, a
   // Packet whose value is encodeUpdateStatus.
   SigilUpdateOffer = 47,
@@ -162,7 +162,7 @@ enum class PacketType : uint8_t {
   GameDisplay = 32,
   CommanderFlow = 50,
   CommanderKey = 51,
-  // A spare Sigil's PairRequest2 (same layout, SPARE_SIGIL.md). Atlas pairs
+  // A spare Sigil's PairRequest2 (same layout, FIRMWARE_UPDATES.md). Atlas pairs
   // it during its pairing window without the owner's code check, and keeps
   // that Sigil spare-only: if it later says it is a normal Sigil, Atlas
   // forgets it so it pairs again with the code check.

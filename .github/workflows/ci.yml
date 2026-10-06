@@ -105,7 +105,7 @@ jobs:
             pio --version
             pio pkg list --project-dir "$PIO_PROJECT" --environment "$PIO_ENVIRONMENT"
           } > "$RUNNER_TEMP/firmware/build-info.txt"
-      # Signed OTA package (SIGIL_OTA.md): every build must carry its
+      # Signed OTA package (FIRMWARE_UPDATES.md): every build must carry its
       # descriptor, and is signed when the repository's signing key secret is
       # available (not for pull requests from forks).
       - name: Check descriptor and sign OTA package
