@@ -24,7 +24,7 @@ IntentResult saveNudgePreference(const String &target, Account &account, bool mu
 
 // Passes immediately for the active player, skipping the PASS grace period.
 IntentResult passForPlayer(bool joined, uint8_t controller, const PlayerSeat &seat) {
-  if (!joined || hubState != HubState::Running || game.activePlayerNumber() != seat.playerNumber) {
+  if (!joined || hubState != HubState::Running || !game.hasTurn(seat.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Target is not the active player");
   }
   if (game.hasWinClaim() || eliminationTargetPlayer) {

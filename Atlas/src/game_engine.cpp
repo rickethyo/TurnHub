@@ -1,5 +1,7 @@
 #include "game_engine.h"
 
+#include <initializer_list>
+
 namespace TurnHub {
 
 namespace {
@@ -71,8 +73,49 @@ bool GameEngine::canChangeLife(uint8_t playerNumber, int32_t delta) const {
 
 bool GameEngine::changeLife(uint8_t playerNumber, int32_t delta) {
   if (!canChangeLife(playerNumber, delta)) return false;
-  life_[indexForPlayerNumber(playerNumber)] += delta;
+  const int index = indexForPlayerNumber(playerNumber);
+  life_[index] += delta;
+  const int mate = teammateIndex(index);
+  if (mate >= 0) life_[mate] = life_[index];  // One shared team total.
   return true;
+}
+
+int GameEngine::teammateIndex(int index) const {
+  if (!settings_.twoHeadedGiant || index < 0 || index >= playerCount_) return -1;
+  const int mate = index ^ 1;
+  return mate < playerCount_ ? mate : -1;
+}
+
+uint8_t GameEngine::teamOf(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return settings_.twoHeadedGiant && index >= 0 ? static_cast<uint8_t>(index / TEAM_SIZE + 1) : 0;
+}
+
+uint8_t GameEngine::teammateOf(uint8_t playerNumber) const {
+  const int mate = teammateIndex(indexForPlayerNumber(playerNumber));
+  return mate >= 0 ? players_[mate].playerNumber : 0;
+}
+
+bool GameEngine::sameTeam(uint8_t a, uint8_t b) const {
+  return a != 0 && (a == b || teammateOf(a) == b);
+}
+
+bool GameEngine::hasTurn(uint8_t playerNumber) const {
+  return playerCount_ > 0 && sameTeam(activePlayerNumber(), playerNumber);
+}
+
+bool GameEngine::isWinner(uint8_t playerNumber) const {
+  return gameOver_ && winnerPlayer_ != 0 && sameTeam(winnerPlayer_, playerNumber);
+}
+
+uint8_t GameEngine::livingSideCount() const {
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    const int mate = teammateIndex(i);
+    // A team counts once: at its first living member.
+    if (!eliminated_[i] && !(mate >= 0 && mate < i && !eliminated_[mate])) ++count;
+  }
+  return count;
 }
 
 const LifeChangeRequest *GameEngine::lifeChangeFor(uint8_t target) const {
@@ -83,8 +126,11 @@ const LifeChangeRequest *GameEngine::lifeChangeFor(uint8_t target) const {
 bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs,
     uint32_t windowMs) {
   const int from = indexForPlayerNumber(actor), to = indexForPlayerNumber(target);
-  if (from < 0 || to < 0 || actor == target || eliminated_[from] ||
+  const int mate = teammateIndex(to);
+  // A teammate's life is the player's own: they change it directly.
+  if (from < 0 || to < 0 || sameTeam(actor, target) || eliminated_[from] ||
       !canChangeLife(target, delta) || lifeChanges_[to].state == LifeChangeState::Pending ||
+      (mate >= 0 && lifeChanges_[mate].state == LifeChangeState::Pending) ||
       nextLifeRequestId_ == UINT32_MAX) return false;
   auto &request = lifeChanges_[to];
   request = LifeChangeRequest{};
@@ -108,7 +154,10 @@ void GameEngine::settleLifeChange(LifeChangeRequest &request, LifeChangeState ou
 bool GameEngine::respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs) {
   const int index = indexForPlayerNumber(recipient);
   if (index < 0) return false;
-  auto &request = lifeChanges_[index];
+  // Either teammate may answer a request aimed at their shared life.
+  const int mate = teammateIndex(index);
+  auto &request = mate >= 0 && lifeChanges_[mate].id == requestId && lifeChanges_[index].id != requestId
+      ? lifeChanges_[mate] : lifeChanges_[index];
   if (!requestId || request.id != requestId || request.state != LifeChangeState::Pending) return false;
   if (nowMs - request.requestedAtMs >= request.windowMs) {
     settleLifeChange(request, LifeChangeState::Automatic);
@@ -150,6 +199,8 @@ bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_
   if (lastHits_[to].source == source && lastHits_[to].commander == commander)
     lastHits_[to] = CommanderHit{};
   life_[to] -= delta;
+  const int mate = teammateIndex(to);
+  if (mate >= 0) life_[mate] = life_[to];  // Per-player damage, team life.
   commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
   // Damage entered for a second commander (phone or app) means partners.
   if (commander == 2 && total > 0) partner_[from] = true;
@@ -215,10 +266,12 @@ int GameEngine::nextLivingIndex(uint8_t startIndex) const {
     return -1;
   }
 
+  const int mate = teammateIndex(startIndex);
   for (uint8_t offset = 1; offset <= playerCount_; ++offset) {
     const uint8_t index = static_cast<uint8_t>(
         (startIndex + offset) % playerCount_);
-    if (!eliminated_[index]) {
+    // Two-Headed Giant: the turn passes to the next team, not the teammate.
+    if (!eliminated_[index] && static_cast<int>(index) != mate) {
       return static_cast<int>(index);
     }
   }
@@ -231,7 +284,8 @@ bool GameEngine::start(
     uint8_t playerCount,
     const PlayerSeat &starter,
     uint32_t nowMs, const GameSettings &settings) {
-  if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings)) {
+  if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings) ||
+      !validTeamTable(settings, playerCount)) {
     return false;
   }
 
@@ -269,7 +323,7 @@ bool GameEngine::passTurn(
   }
 
   const PlayerSeat *active = activePlayer();
-  if (active == nullptr || active->controllerId != controllerId || eliminated_[activeIndex_]) {
+  if (active == nullptr || !controllerHasTurn(controllerId) || eliminated_[activeIndex_]) {
     return false;
   }
 
@@ -279,14 +333,19 @@ bool GameEngine::passTurn(
   }
 
   const uint32_t elapsed = elapsedBetween(turnStartedAtMs_, nowMs);
-  PlayerStats &stats = stats_[activeIndex_];
-  ++stats.turnsCompleted;
-  stats.totalTurnMs += elapsed;
-  if (stats.fastestTurnMs == 0 || elapsed < stats.fastestTurnMs) {
-    stats.fastestTurnMs = elapsed;
-  }
-  if (elapsed > stats.longestTurnMs) {
-    stats.longestTurnMs = elapsed;
+  // A team turn counts for both teammates.
+  const int mate = teammateIndex(activeIndex_);
+  for (const int index : {static_cast<int>(activeIndex_), mate}) {
+    if (index < 0) continue;
+    PlayerStats &stats = stats_[index];
+    ++stats.turnsCompleted;
+    stats.totalTurnMs += elapsed;
+    if (stats.fastestTurnMs == 0 || elapsed < stats.fastestTurnMs) {
+      stats.fastestTurnMs = elapsed;
+    }
+    if (elapsed > stats.longestTurnMs) {
+      stats.longestTurnMs = elapsed;
+    }
   }
 
   activeIndex_ = static_cast<uint8_t>(next);
@@ -332,13 +391,20 @@ bool GameEngine::eliminatePlayer(
     return false;
   }
 
-  if (livingPlayerCount() <= 1) {
+  if (livingSideCount() <= 1) {
     return false;
   }
 
-  const bool wasActive = static_cast<uint8_t>(index) == activeIndex_;
+  const int mate = teammateIndex(index);
+  const bool wasActive = static_cast<uint8_t>(index) == activeIndex_ ||
+      (mate >= 0 && static_cast<uint8_t>(mate) == activeIndex_);
   eliminated_[index] = true;
   cancelLifeChanges(playerNumber);
+  // Two-Headed Giant: the team leaves together.
+  if (mate >= 0 && !eliminated_[mate]) {
+    eliminated_[mate] = true;
+    cancelLifeChanges(players_[mate].playerNumber);
+  }
 
   if (wasActive) {
     const int next = nextLivingIndex(activeIndex_);
@@ -349,7 +415,7 @@ bool GameEngine::eliminatePlayer(
     turnStartedAtMs_ = pauseStartedAtMs_ != 0 ? pauseStartedAtMs_ : nowMs;
   }
 
-  if (livingPlayerCount() == 1) {
+  if (livingSideCount() == 1) {
     for (uint8_t i = 0; i < playerCount_; ++i) {
       if (!eliminated_[i]) {
         finishGame(players_[i].playerNumber, nowMs);
@@ -469,7 +535,7 @@ bool GameEngine::beginWinClaim(
       if (players_[i].controllerId != controllerId || eliminated_[i]) {
         continue;
       }
-      if (players_[i].playerNumber == playerNumber) {
+      if (sameTeam(playerNumber, players_[i].playerNumber)) {
         continue;
       }
       if (winRequiredCount_ < MAX_PLAYERS) {
@@ -651,6 +717,18 @@ bool GameEngine::controllerInGame(uint8_t controllerId) const {
     }
   }
   return false;
+}
+
+bool GameEngine::controllerHasTurn(uint8_t controllerId) const {
+  return turnSeatForController(controllerId) != nullptr;
+}
+
+const PlayerSeat *GameEngine::turnSeatForController(uint8_t controllerId) const {
+  if (playerCount_ == 0 || eliminated_[activeIndex_]) return nullptr;
+  if (players_[activeIndex_].controllerId == controllerId) return &players_[activeIndex_];
+  const int mate = teammateIndex(activeIndex_);
+  return mate >= 0 && !eliminated_[mate] && players_[mate].controllerId == controllerId
+      ? &players_[mate] : nullptr;
 }
 
 uint16_t GameEngine::currentRound() const {

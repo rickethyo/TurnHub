@@ -196,6 +196,9 @@ void handleGameSettings(WebServer &server) {
   const String json = String("{\"gameProfile\":\"") + TurnHub::gameProfileKey(settings.profile) +
       "\",\"startingLife\":" + String(settings.startingLife) +
       ",\"turnTimerMs\":" + String(settings.turnTimerMs) +
+      ",\"twoHeadedGiant\":" + jsonBool(settings.twoHeadedGiant) +
+      ",\"teamLife\":{\"mtg\":" + String(TurnHub::TEAM_LIFE_MAGIC) +
+      ",\"mtg_commander\":" + String(TurnHub::TEAM_LIFE_COMMANDER) + "}" +
       ",\"turnTimer\":{\"presetsMs\":[" + presets + "],\"minMs\":" + String(TurnHub::TURN_TIMER_MIN_MS) +
       ",\"maxMs\":" + String(TurnHub::TURN_TIMER_MAX_MS) +
       ",\"warningMs\":" + String(TurnHub::TURN_TIMER_WARNING_MS) +
@@ -222,6 +225,17 @@ void handleSaveGameSettings(WebServer &server) {
   if (server.hasArg("turnTimerMs") && !parseTurnTimer(server.arg("turnTimerMs"), settings.turnTimerMs)) {
     sendError(server, 400, "Turn timer must be off or 15 seconds to 60 minutes in whole seconds");
     return;
+  }
+  if (server.hasArg("twoHeadedGiant")) {
+    const String teams = server.arg("twoHeadedGiant");
+    if (teams != "0" && teams != "1") {
+      sendError(server, 400, "twoHeadedGiant must be 0 or 1");
+      return;
+    }
+    settings.twoHeadedGiant = teams == "1";
+  } else if (!TurnHub::teamsAllowed(settings.profile)) {
+    // Switching to a profile without teams turns Two-Headed Giant off.
+    settings.twoHeadedGiant = false;
   }
   String message = "Join the table first";
   const bool accepted = resolveSessionParticipant(*session) && configureGameHandler &&

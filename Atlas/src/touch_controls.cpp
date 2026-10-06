@@ -827,13 +827,16 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
       p.life = game.lifeTotal(seat.playerNumber);
       uint32_t turnMs = 0;
       if (const TurnHub::PlayerStats *stats = game.statsForPlayer(seat.playerNumber)) turnMs = stats->totalTurnMs;
-      if (hubState != HubState::GameOver && seat.playerNumber == game.activePlayerNumber()) {
+      // Two-Headed Giant: both teammates hold the turn.
+      const bool hasTurn = hubState != HubState::GameOver && game.hasTurn(seat.playerNumber) &&
+          !game.isEliminated(seat.playerNumber);
+      if (hasTurn) {
         turnMs += game.currentTurnElapsedMs(nowMs);
       }
       formatClock(p.turnTime, sizeof(p.turnTime), turnMs);
-      if (hubState != HubState::GameOver && seat.playerNumber == game.activePlayerNumber()) p.flags |= CHIP_ACTIVE;
+      if (hasTurn) p.flags |= CHIP_ACTIVE;
       if (game.isEliminated(seat.playerNumber)) p.flags |= CHIP_OUT;
-      if (hubState == HubState::GameOver && seat.playerNumber == game.winnerPlayerNumber()) p.flags |= CHIP_WINNER;
+      if (hubState == HubState::GameOver && game.isWinner(seat.playerNumber)) p.flags |= CHIP_WINNER;
       if (seat.playerNumber == waitingOn) p.flags |= CHIP_WAITING;
     } else {
       if (hasStarter && seat.sameSeat(starter)) p.flags |= CHIP_STARTER;
@@ -846,6 +849,20 @@ const char *nameOfPlayer(const AtlasScreen &screen, uint8_t number) {
     if (screen.players[i].number == number) return screen.players[i].name;
   }
   return "";
+}
+
+// "Ana's" or, in Two-Headed Giant, "Team 1's": whose turn or win it is.
+void formatSide(char *out, size_t size, const AtlasScreen &screen, uint8_t number, const char *suffix) {
+  const uint8_t team = game.teamOf(number);
+  if (team) snprintf(out, size, "Team %u%s", static_cast<unsigned>(team), suffix);
+  else snprintf(out, size, "%s%s", nameOfPlayer(screen, number), suffix);
+}
+
+// Two-Headed Giant: the starting team skips the draw of its first turn.
+bool startingTeamFirstTurn() {
+  if (!game.twoHeadedGiant() || !game.hasTurn(game.starterPlayerNumber())) return false;
+  const TurnHub::PlayerStats *stats = game.statsForPlayer(game.starterPlayerNumber());
+  return stats != nullptr && stats->turnsCompleted == 0;
 }
 
 // The round: each living player's completed turns, where the starter's turn
@@ -883,6 +900,9 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       if (pairingMs > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
             static_cast<unsigned long>((pairingMs + 999) / 1000));
+      } else if (nextGameSettings.twoHeadedGiant) {
+        snprintf(screen.detail, sizeof(screen.detail), "%u %s, Two-Headed Giant",
+            static_cast<unsigned>(players), players == 1 ? "player" : "players");
       } else {
         snprintf(screen.detail, sizeof(screen.detail), "%u %s, %u %s",
             static_cast<unsigned>(players), players == 1 ? "player" : "players",
@@ -904,8 +924,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       break;
     case HubState::Running: {
       snprintf(screen.badge, sizeof(screen.badge), "PLAYING");
-      const char *name = nameOfPlayer(screen, game.activePlayerNumber());
-      snprintf(screen.title, sizeof(screen.title), "%s's turn", name);
+      formatSide(screen.title, sizeof(screen.title), screen, game.activePlayerNumber(), "'s turn");
       if (pendingPass.active) {
         // Count down the grace period so the table sees the pass is still
         // cancelable, and for how long (turntest, 2026-09-26).
@@ -913,6 +932,8 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
         const uint32_t leftMs = elapsed < PASS_GRACE_MS ? PASS_GRACE_MS - elapsed : 0;
         snprintf(screen.detail, sizeof(screen.detail), "Passing in %lus: that seat can cancel",
             static_cast<unsigned long>((leftMs + 999) / 1000));
+      } else if (startingTeamFirstTurn()) {
+        snprintf(screen.detail, sizeof(screen.detail), "Starting team: skip your first draw");
       } else if (game.turnTimerMs() > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Turn time left %s", screen.clock);
       } else {
@@ -930,8 +951,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
         snprintf(screen.detail, sizeof(screen.detail), "Eliminate %s? Their Sigil decides",
             nameOfPlayer(screen, eliminationTargetPlayer));
       } else {
-        snprintf(screen.detail, sizeof(screen.detail), "%s's turn",
-            nameOfPlayer(screen, game.activePlayerNumber()));
+        formatSide(screen.detail, sizeof(screen.detail), screen, game.activePlayerNumber(), "'s turn");
       }
       break;
     case HubState::GameOver:
@@ -940,8 +960,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       if (game.endedInDraw()) {
         snprintf(screen.detail, sizeof(screen.detail), "The match ended in a draw");
       } else {
-        snprintf(screen.detail, sizeof(screen.detail), "%s wins",
-            nameOfPlayer(screen, game.winnerPlayerNumber()));
+        formatSide(screen.detail, sizeof(screen.detail), screen, game.winnerPlayerNumber(), " wins");
       }
       break;
   }
@@ -1198,7 +1217,12 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
   char name[SCREEN_NAME_LENGTH + 1];
   playerName(seat, profileIdForTableSeat(seat, !inLobby), nowMs, name);
   snprintf(screen.title, sizeof(screen.title), "%s", name);
-  if (inLobby) {
+  if (inLobby && nextGameSettings.twoHeadedGiant) {
+    // Two-Headed Giant teams are neighbours in turn order (1+2, 3+4, ...).
+    snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u, Team %u",
+        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(lobby.playerCount()),
+        static_cast<unsigned>((seat.playerNumber + 1) / 2));
+  } else if (inLobby) {
     // Show each player's position and the shared Sigil's physical seating.
     snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u%s",
         static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(lobby.playerCount()),
@@ -1207,9 +1231,10 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
   } else if (concedeArmed) {
     snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
   } else {
-    snprintf(screen.detail, sizeof(screen.detail), "Life %ld%s",
+    snprintf(screen.detail, sizeof(screen.detail), "%s %ld%s",
+        game.twoHeadedGiant() ? "Team life" : "Life",
         static_cast<long>(game.lifeTotal(seat.playerNumber)),
-        game.activePlayerNumber() == seat.playerNumber ? ", their turn" : "");
+        game.hasTurn(seat.playerNumber) ? ", their turn" : "");
   }
 }
 

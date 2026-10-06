@@ -18,6 +18,14 @@ void setSeat(SigilLedState &cue, const GameEngine &game, uint8_t sigilId, const 
   cue.sharedSeat = count > 1;
 }
 
+// The winning seat on this Sigil (Two-Headed Giant: either teammate), or nullptr.
+const PlayerSeat *winningSeatForController(const GameEngine &game, uint8_t sigilId) {
+  const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
+  if (winner != nullptr && winner->controllerId == sigilId) return winner;
+  const PlayerSeat *mate = game.playerByNumber(game.teammateOf(game.winnerPlayerNumber()));
+  return mate != nullptr && mate->controllerId == sigilId ? mate : nullptr;
+}
+
 void addTimerOverlay(SigilLedState &cue, const GameEngine &game, uint32_t nowMs) {
   switch (game.turnTimerPhase(nowMs)) {
     case TurnTimerPhase::Warning: cue.overlays |= ledOverlayBit(LedOverlay::TurnWarning); break;
@@ -65,7 +73,9 @@ SigilLedState selectSigilLedState(
   }
 
   if (state == HubState::Running) {
-    if (sigilId != game.activeController()) {
+    // Two-Headed Giant: both teammates' Sigils show the team's turn.
+    const PlayerSeat *turnSeat = game.turnSeatForController(sigilId);
+    if (turnSeat == nullptr) {
       cue.cue = LedCue::Waiting;
       return cue;
     }
@@ -73,7 +83,7 @@ SigilLedState selectSigilLedState(
     cue.cue = turnElapsed < TURN_STARTED_CUE_MS ? LedCue::TurnStarted : LedCue::YourTurn;
     cue.anchorMs = nowMs - turnElapsed;
     // Which seat's turn, so a shared Sigil can show A and B differently.
-    if (const PlayerSeat *active = game.activePlayer()) setSeat(cue, game, sigilId, *active, true);
+    setSeat(cue, game, sigilId, *turnSeat, true);
     addTimerOverlay(cue, game, nowMs);
     return cue;
   }
@@ -95,8 +105,8 @@ SigilLedState selectSigilLedState(
 
   // Game over.
   cue.cue = LedCue::GameOver;
-  const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
-  if (winner != nullptr && winner->controllerId == sigilId) {
+  const PlayerSeat *winner = winningSeatForController(game, sigilId);
+  if (winner != nullptr) {
     cue.overlays |= ledOverlayBit(LedOverlay::Winner);
     setSeat(cue, game, sigilId, *winner, false);
   }
@@ -120,7 +130,7 @@ uint8_t LedRenderer::shownPlayer(uint8_t sigilId, const GameEngine &game) const 
   if (sigilId >= MAX_PHYSICAL_SIGILS) return 0;
   if (cache_[sigilId].displayValid) return TurnHubProtocol::displayPrimaryPlayer(cache_[sigilId].displayPayload);
   if (focus_[sigilId].player) return focus_[sigilId].player;
-  if (game.activeController() == sigilId) return game.activePlayerNumber();
+  if (const PlayerSeat *turn = game.turnSeatForController(sigilId)) return turn->playerNumber;
   PlayerSeat seats[2];
   return game.livingPlayersForController(sigilId,seats,2) ? seats[0].playerNumber : 0;
 }
@@ -245,9 +255,9 @@ void LedRenderer::syncDisplay(
       secondary = local[1].playerNumber;
     }
 
-    const PlayerSeat *active = game.activePlayer();
+    const PlayerSeat *active = game.turnSeatForController(sigilId);
     const bool activeHere = (state == HubState::Running || state == HubState::Paused) &&
-        active != nullptr && active->controllerId == sigilId;
+        active != nullptr;
     if (activeHere) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_ACTIVE;
       if (active->playerNumber == secondary && secondary != 0) {
@@ -260,7 +270,7 @@ void LedRenderer::syncDisplay(
     // Shared seats: the seat chosen with Switch seat stays shown until the
     // turn comes round to this Sigil again (playtest 2026-09-29, item 3).
     SeatFocus &focus = focus_[sigilId];
-    const uint8_t activeNumber = active != nullptr ? active->playerNumber : 0;
+    const uint8_t activeNumber = game.activePlayerNumber();
     if (focus.player != 0 &&
         ((activeHere && activeNumber != focus.activeWhenChosen) || secondary == 0 ||
          (focus.player != primary && focus.player != secondary) || game.isEliminated(focus.player))) {
@@ -282,8 +292,8 @@ void LedRenderer::syncDisplay(
       flags |= TurnHubProtocol::DISPLAY_FLAG_STARTER;
     }
 
-    const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
-    if (winner != nullptr && winner->controllerId == sigilId) {
+    const PlayerSeat *winner = winningSeatForController(game, sigilId);
+    if (winner != nullptr) {
       flags |= TurnHubProtocol::DISPLAY_FLAG_WINNER;
       if (state == HubState::GameOver &&
           winner->playerNumber == secondary && secondary != 0) {

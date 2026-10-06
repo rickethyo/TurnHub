@@ -36,6 +36,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.profile, settings.profile);
   changed |= update(settings_.startingLife, settings.startingLife);
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
+  changed |= update(settings_.twoHeadedGiant, settings.twoHeadedGiant);
   // hostModuleId stays null: there is no table host (2026-09-25); the field
   // remains for client-contract compatibility.
   PlayerSeat selected;
@@ -67,6 +68,8 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     occupant |= update(p.slot, seat.slot);
     occupant |= update(p.participant, seat.participantId);
     changed |= occupant;
+    // Two-Headed Giant teams are neighbours in turn order (also previewed in the lobby).
+    changed |= update(p.team, settings.twoHeadedGiant ? static_cast<uint8_t>(i / TEAM_SIZE + 1) : uint8_t(0));
     if (nameLookup_ != nullptr && (occupant || namesStale_ || !initialized_)) {
       char name[NAME_LENGTH + 1] = {};
       const String value = nameLookup_(seat, inGame_);
@@ -131,6 +134,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
   out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);
+  out += ",\"twoHeadedGiant\":"; out += settings_.twoHeadedGiant ? "true" : "false";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
   out += ",\"turnElapsedMs\":"; out += String(game.currentTurnElapsedMs(nowMs));
@@ -164,6 +168,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     out += "{\"playerNumber\":"; out += String(p.number);
     out += ",\"moduleId\":"; out += String(p.controller);
     out += ",\"slot\":"; out += String(p.slot);
+    out += ",\"team\":"; nullablePlayer(out, p.team);
     out += ",\"displayName\":";
     if (p.name[0]) { out += '"'; out += jsonEscape(p.name); out += '"'; } else out += "null";
     out += ",\"participantId\":"; out += String(p.participant);

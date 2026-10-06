@@ -101,8 +101,8 @@ bool connectionBlocked(uint8_t sigilId) {
 // The menu's Pass: queues or cancels the pass for this Sigil's active seat.
 void passFromMenu(uint8_t sigilId) {
   if (hubState != HubState::Running) return;
-  const PlayerSeat *active = game.activePlayer();
-  if (active == nullptr || active->controllerId != sigilId) return;
+  const PlayerSeat *active = game.turnSeatForController(sigilId);
+  if (active == nullptr) return;
   logRejected("GAME|PASS", sigilId,
       dispatchSeatIntent(IntentType::Pass, IntentOrigin::PhysicalSigil, *active));
 }
@@ -208,8 +208,8 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       dispatchPauseOrResume(sigilId, IntentType::Resume);
       break;
     case SigilAction::ClaimWin: {
-      const PlayerSeat *active = game.activePlayer();
-      if (active != nullptr && active->controllerId == sigilId) {
+      const PlayerSeat *active = game.turnSeatForController(sigilId);
+      if (active != nullptr) {
         logRejected("MENU|WIN", sigilId,
             dispatchSeatIntent(IntentType::ClaimWin, IntentOrigin::PhysicalSigil, *active));
       }

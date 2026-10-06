@@ -77,8 +77,7 @@ bool resolveWebSeat(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot) 
   snapshot.life = game.lifeTotal(seat.playerNumber);
   if (game.hasPlayers()) {
     snapshot.eliminated = game.isEliminated(seat.playerNumber);
-    const PlayerSeat *active = game.activePlayer();
-    snapshot.active = active != nullptr && active->sameSeat(seat);
+    snapshot.active = game.hasTurn(seat.playerNumber) && !snapshot.eliminated;
   }
   return true;
 }
@@ -125,7 +124,8 @@ bool readGameSettings(TurnHub::GameSettings &settings, bool &editable) {
 bool configureGame(uint8_t controller, uint8_t slot,
     const TurnHub::GameSettings &settings, String &message) {
   TurnHub::IntentPayload payload;
-  payload.flags = static_cast<uint32_t>(settings.profile);
+  payload.flags = static_cast<uint32_t>(settings.profile) |
+      (settings.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0);
   payload.value = settings.startingLife;
   payload.durationMs = settings.turnTimerMs;
   return dispatchBrowserSeatIntent(controller, slot, IntentType::ConfigureGame, payload, message);

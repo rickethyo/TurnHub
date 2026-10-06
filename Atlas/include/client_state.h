@@ -41,7 +41,7 @@ class ClientState {
 
  private:
   struct Player {
-    uint8_t number = 0, controller = INVALID_ID, slot = 0;
+    uint8_t number = 0, controller = INVALID_ID, slot = 0, team = 0;
     uint32_t participant = 0, turnsCompleted = 0;
     bool eliminated = false;
     int32_t life = 0;

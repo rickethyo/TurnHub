@@ -77,6 +77,22 @@ class GameEngine {
 
   const GameSettings &settings() const { return settings_; }
 
+  // --- Two-Headed Giant teams (game_profile.h) ---
+  // Teams are neighbours in turn order: players 1+2 are team 1, 3+4 team 2.
+  // Teammates share one life total, one turn and one elimination; the turn
+  // belongs to the team and either teammate may pass it.
+  bool twoHeadedGiant() const { return settings_.twoHeadedGiant && playerCount_ > 0; }
+  // 1-based team, or 0 outside Two-Headed Giant or for an unknown player.
+  uint8_t teamOf(uint8_t playerNumber) const;
+  // The other player on the team, or 0.
+  uint8_t teammateOf(uint8_t playerNumber) const;
+  // The same player, or teammates.
+  bool sameTeam(uint8_t a, uint8_t b) const;
+  // The active player, or (Two-Headed Giant) their teammate.
+  bool hasTurn(uint8_t playerNumber) const;
+  // The winner, or (Two-Headed Giant) the winner's teammate.
+  bool isWinner(uint8_t playerNumber) const;
+
   // --- Life and Commander damage (running or paused, no win claim) ---
   int32_t lifeTotal(uint8_t playerNumber) const;
   // Applies delta to a living player; totals stay within +/-LIFE_LIMIT.
@@ -104,14 +120,15 @@ class GameEngine {
   bool resume(uint32_t nowMs);
 
   // --- Leaving and winning ---
-  // Paused games only. Sets gameFinished when one living player remains.
+  // Paused games only. Sets gameFinished when one living player (or team)
+  // remains. In Two-Headed Giant the teammate is eliminated too.
   bool eliminatePlayer(
       uint8_t playerNumber,
       uint32_t nowMs,
       bool &gameFinished);
 
-  // Pauses and asks every other living player, in controller order after the
-  // claimant's, to confirm. A denial resumes play when restoreRunning is set.
+  // Pauses and asks every other living player (not the claimant's teammate),
+  // in controller order after the claimant's, to confirm. A denial resumes play when restoreRunning is set.
   bool beginWinClaim(
       uint8_t playerNumber,
       bool restoreRunning,
@@ -156,6 +173,11 @@ class GameEngine {
   uint8_t nextWinConfirmationPlayerNumber() const;
 
   bool controllerInGame(uint8_t controllerId) const;
+  // The controller of the active seat or (Two-Headed Giant) of a living teammate.
+  bool controllerHasTurn(uint8_t controllerId) const;
+  // That controller's living seat holding the turn: the active seat, else
+  // (Two-Headed Giant) the teammate's; nullptr when it has no turn.
+  const PlayerSeat *turnSeatForController(uint8_t controllerId) const;
   bool isEliminated(uint8_t playerNumber) const;
   // Copies the controller's seats in turn order into out; returns the count.
   uint8_t playersForController(uint8_t controllerId, PlayerSeat *out, uint8_t capacity) const;
@@ -193,6 +215,10 @@ class GameEngine {
   int indexForSeat(const PlayerSeat &seat) const;
   int indexForPlayerNumber(uint8_t playerNumber) const;
   int nextLivingIndex(uint8_t startIndex) const;
+  // The teammate's index, or -1 outside Two-Headed Giant.
+  int teammateIndex(int index) const;
+  // Living players, counting a team once.
+  uint8_t livingSideCount() const;
   bool canChangeLife(uint8_t player, int32_t delta) const;
   void settleLifeChange(LifeChangeRequest &request, LifeChangeState outcome);
 
