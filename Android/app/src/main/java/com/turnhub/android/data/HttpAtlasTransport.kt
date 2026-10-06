@@ -172,6 +172,7 @@ class HttpAtlasTransport(
         ledStyle: LedStyle,
         longPressMs: Int,
         winHoldMs: Int,
+        lifeApprovalMs: Int,
     ): AccessibilitySettings {
         val response = request(
             "POST",
@@ -182,6 +183,7 @@ class HttpAtlasTransport(
                 "ledStyle" to ledStyle.wire,
                 "longPressMs" to longPressMs.toString(),
                 "winHoldMs" to winHoldMs.toString(),
+                "lifeApprovalMs" to lifeApprovalMs.toString(),
             ),
         )
         requireOk(response, "Atlas did not save your Sigil accessibility settings")

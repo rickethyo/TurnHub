@@ -90,6 +90,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
     changed |= update(p.request.target, value.target);
     changed |= update(p.request.delta, value.delta);
     changed |= update(p.request.state, value.state);
+    changed |= update(p.request.windowMs, value.windowMs);
   }
   initialized_ = true;
   namesStale_ = false;
@@ -99,7 +100,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
 bool ClientState::expirationDue(uint32_t nowMs) const {
   for (uint8_t i = 0; i < count_; ++i) {
     const auto &r = players_[i].request;
-    if (r.state == LifeChangeState::Pending && nowMs - r.requestedAtMs >= LIFE_APPROVAL_MS)
+    if (r.state == LifeChangeState::Pending && nowMs - r.requestedAtMs >= r.windowMs)
       return true;
   }
   return false;
@@ -175,7 +176,8 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
       out += ",\"target\":"; out += String(r.target);
       out += ",\"delta\":"; out += String(r.delta);
       out += ",\"state\":\""; out += requestState(r.state);
-      out += "\",\"requestedAtMs\":"; out += String(r.requestedAtMs); out += '}';
+      out += "\",\"requestedAtMs\":"; out += String(r.requestedAtMs);
+      out += ",\"windowMs\":"; out += String(r.windowMs); out += '}';
     }
     out += '}';
   }

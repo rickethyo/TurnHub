@@ -290,7 +290,14 @@ void sendAccessibility(WebServer &server, const TurnHubProfiles::AccessibilityPr
   body += String(prefs.longPressMs);
   body += ",\"winHoldMs\":";
   body += String(prefs.winHoldMs);
-  body += ",\"limits\":{\"longPressMinMs\":";
+  body += ",\"lifeApprovalMs\":";
+  body += String(prefs.lifeApprovalMs);
+  body += ",\"lifeApprovalOptionsMs\":[";
+  for (uint8_t i = 0; i < TurnHubProfiles::LIFE_APPROVAL_OPTION_COUNT; ++i) {
+    if (i) body += ',';
+    body += String(TurnHubProfiles::LIFE_APPROVAL_OPTIONS_MS[i]);
+  }
+  body += "],\"limits\":{\"longPressMinMs\":";
   body += String(TurnHubProtocol::MIN_LONG_PRESS_MS);
   body += ",\"longPressMaxMs\":";
   body += String(TurnHubProtocol::MAX_LONG_PRESS_MS);
@@ -456,6 +463,13 @@ void handleSaveAccessibility(WebServer &server) {
   if (server.hasArg("ledStyle") &&
       !TurnHubProfiles::parseLedStyle(server.arg("ledStyle").c_str(), prefs.ledStyle)) {
     sendError(server, 400, "Unknown light style");
+    return;
+  }
+  uint8_t approvalCode = 0;
+  if (server.hasArg("lifeApprovalMs") &&
+      (!wholeMs(server.arg("lifeApprovalMs"), prefs.lifeApprovalMs) ||
+       !TurnHubProfiles::lifeApprovalCode(prefs.lifeApprovalMs, approvalCode))) {
+    sendError(server, 400, "Life approval must be 15, 30 or 60 seconds");
     return;
   }
   if ((server.hasArg("longPressMs") && !wholeMs(server.arg("longPressMs"), prefs.longPressMs)) ||

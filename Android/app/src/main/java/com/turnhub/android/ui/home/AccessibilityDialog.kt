@@ -45,7 +45,7 @@ import com.turnhub.android.protocol.LedStyle
 @Composable
 fun AccessibilityDialog(
     prompt: AccessibilityPrompt,
-    onSave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) -> Unit,
+    onSave: (sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val settings = prompt.settings
@@ -76,13 +76,14 @@ fun AccessibilityDialog(
 private fun Editor(
     settings: AccessibilitySettings,
     prompt: AccessibilityPrompt,
-    onSave: (Boolean, LedStyle, Int, Int) -> Unit,
+    onSave: (Boolean, LedStyle, Int, Int, Int) -> Unit,
 ) {
     // Drafts restart whenever Atlas reports different saved values.
     var sound by rememberSaveable(settings) { mutableStateOf(settings.sigilSound) }
     var style by rememberSaveable(settings) { mutableStateOf(settings.ledStyle) }
     var longMs by rememberSaveable(settings) { mutableIntStateOf(settings.longPressMs) }
     var winMs by rememberSaveable(settings) { mutableIntStateOf(settings.winHoldMs) }
+    var approvalMs by rememberSaveable(settings) { mutableIntStateOf(settings.lifeApprovalMs) }
     val limits = settings.limits
     val valid = limits.allows(longMs, winMs)
 
@@ -172,9 +173,21 @@ private fun Editor(
             color = if (valid) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
+        HoldStepper(
+            title = "Time to answer life-change requests",
+            valueMs = approvalMs,
+            choices = settings.lifeApprovalOptionsMs,
+            enabled = !prompt.busy,
+            onChange = { approvalMs = it },
+        )
+        Text(
+            "How long another player's request to change your life waits for your answer before Atlas accepts it.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         ErrorText(prompt.error)
         OutlinedButton(
-            onClick = { onSave(sound, style, longMs, winMs) },
+            onClick = { onSave(sound, style, longMs, winMs, approvalMs) },
             enabled = valid && !prompt.busy,
             modifier = Modifier.fillMaxWidth(),
         ) {

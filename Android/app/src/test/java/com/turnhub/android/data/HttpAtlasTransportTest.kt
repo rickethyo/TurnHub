@@ -138,12 +138,12 @@ class HttpAtlasTransportTest {
         routes["/api/session/accessibility"] = Triple(200, Fixtures.text("accessibility.response.json"), 0)
         assertEquals(3000, transport().getAccessibility("secret").longPressMs)
 
-        transport().saveAccessibility("secret", true, com.turnhub.android.protocol.LedStyle.MONOCHROME_SAFE, 2500, 7000)
+        transport().saveAccessibility("secret", true, com.turnhub.android.protocol.LedStyle.MONOCHROME_SAFE, 2500, 7000, 30000)
 
         assertEquals(
             listOf(
                 "GET /api/session/accessibility secret",
-                "POST /api/session/accessibility secret sigilSound=1&ledStyle=monochrome-safe&longPressMs=2500&winHoldMs=7000",
+                "POST /api/session/accessibility secret sigilSound=1&ledStyle=monochrome-safe&longPressMs=2500&winHoldMs=7000&lifeApprovalMs=30000",
             ),
             received,
         )

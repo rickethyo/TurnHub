@@ -80,7 +80,8 @@ const LifeChangeRequest *GameEngine::lifeChangeFor(uint8_t target) const {
   return index < 0 ? nullptr : &lifeChanges_[index];
 }
 
-bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs) {
+bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs,
+    uint32_t windowMs) {
   const int from = indexForPlayerNumber(actor), to = indexForPlayerNumber(target);
   if (from < 0 || to < 0 || actor == target || eliminated_[from] ||
       !canChangeLife(target, delta) || lifeChanges_[to].state == LifeChangeState::Pending ||
@@ -93,6 +94,7 @@ bool GameEngine::requestLifeChange(uint8_t actor, uint8_t target, int32_t delta,
   request.target = target;
   request.delta = delta;
   request.state = LifeChangeState::Pending;
+  request.windowMs = windowMs;
   return true;
 }
 
@@ -108,7 +110,7 @@ bool GameEngine::respondLifeChange(uint8_t recipient, uint32_t requestId, bool a
   if (index < 0) return false;
   auto &request = lifeChanges_[index];
   if (!requestId || request.id != requestId || request.state != LifeChangeState::Pending) return false;
-  if (nowMs - request.requestedAtMs >= LIFE_APPROVAL_MS) {
+  if (nowMs - request.requestedAtMs >= request.windowMs) {
     settleLifeChange(request, LifeChangeState::Automatic);
     return false;
   }
@@ -119,7 +121,7 @@ bool GameEngine::respondLifeChange(uint8_t recipient, uint32_t requestId, bool a
 void GameEngine::expireLifeChanges(uint32_t nowMs) {
   for (uint8_t i = 0; i < playerCount_; ++i) {
     auto &request = lifeChanges_[i];
-    if (request.state == LifeChangeState::Pending && nowMs - request.requestedAtMs >= LIFE_APPROVAL_MS)
+    if (request.state == LifeChangeState::Pending && nowMs - request.requestedAtMs >= request.windowMs)
       settleLifeChange(request, LifeChangeState::Automatic);
   }
 }

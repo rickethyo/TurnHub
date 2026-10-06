@@ -223,7 +223,8 @@
               "target",
               "delta",
               "state",
-              "requestedAtMs"
+              "requestedAtMs",
+              "windowMs"
             ],
             "properties": {
               "id": {
@@ -261,6 +262,12 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 4294967295
+              },
+              "windowMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 65535,
+                "description": "The recipient's approval window; Atlas accepts the request this long after requestedAtMs."
               }
             }
           }

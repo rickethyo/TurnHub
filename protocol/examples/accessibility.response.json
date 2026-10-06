@@ -5,6 +5,12 @@
   "ledStyle": "reduced-motion",
   "longPressMs": 3000,
   "winHoldMs": 6000,
+  "lifeApprovalMs": 30000,
+  "lifeApprovalOptionsMs": [
+    15000,
+    30000,
+    60000
+  ],
   "limits": {
     "longPressMinMs": 1000,
     "longPressMaxMs": 4000,

@@ -114,8 +114,6 @@ data class GameActions(
     val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?) -> Unit = { _, _, _ -> },
 )
 
-/** Atlas's life-request approval window (LIFE_APPROVAL_MS); display only, Atlas enforces it. */
-private const val LIFE_APPROVAL_MS = 15_000L
 
 /** The signed-in session, if any. */
 internal fun HomeUiState.sessionInfo(): SessionInfo? =
@@ -480,8 +478,10 @@ private fun IncomingLifeRequest(
     val p = palette
     if (me == null) return
     val request = me.lifeRequest?.takeIf { it.state == LifeRequestState.PENDING && it.target == me.playerNumber } ?: return
-    val age = ageOf(summary, request.requestedAtMs, nowMs)
-    val left = (LIFE_APPROVAL_MS - age).coerceAtLeast(0)
+    // The recipient's approval window; display only, Atlas enforces it.
+    val window = request.windowMs.coerceAtLeast(1L)
+    val age = ageOf(summary, request.requestedAtMs, nowMs, window)
+    val left = (window - age).coerceAtLeast(0)
     BrassCard(highlight = p.warn) {
         Eyebrow("Life change request")
         Text(
@@ -491,7 +491,7 @@ private fun IncomingLifeRequest(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
         )
-        CountdownBar(left / LIFE_APPROVAL_MS.toFloat(), p.warn)
+        CountdownBar(left / window.toFloat(), p.warn)
         Text("Atlas accepts it in ${(left + 999) / 1000} s unless you answer.", color = p.muted, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ToneButton("Accept", { actions.onRespondLife(request.id, true) }, Modifier.weight(1f), tone = Tone.GOOD)
@@ -501,10 +501,10 @@ private fun IncomingLifeRequest(
 }
 
 /** How long ago Atlas stamped [atMs], on Atlas's clock, rendered forward locally. */
-private fun ageOf(summary: TableSummary, atMs: Long, nowMs: Long): Long {
+private fun ageOf(summary: TableSummary, atMs: Long, nowMs: Long, capMs: Long): Long {
     val sinceReceipt = (nowMs - summary.receivedAtMs).coerceAtLeast(0)
     val atlasNow = summary.sampledAtMs + sinceReceipt
-    return ((atlasNow - atMs) and 0xFFFF_FFFFL).coerceAtMost(LIFE_APPROVAL_MS)
+    return ((atlasNow - atMs) and 0xFFFF_FFFFL).coerceAtMost(capMs)
 }
 
 @OptIn(ExperimentalLayoutApi::class)

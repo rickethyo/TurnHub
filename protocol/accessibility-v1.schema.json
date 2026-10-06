@@ -10,6 +10,8 @@
     "ledStyle",
     "longPressMs",
     "winHoldMs",
+    "lifeApprovalMs",
+    "lifeApprovalOptionsMs",
     "limits"
   ],
   "properties": {
@@ -39,6 +41,24 @@
       "type": "integer",
       "minimum": 3000,
       "maximum": 10000
+    },
+    "lifeApprovalMs": {
+      "enum": [
+        15000,
+        30000,
+        60000
+      ],
+      "description": "How long other players' life-change requests wait for this player's answer before Atlas accepts them."
+    },
+    "lifeApprovalOptionsMs": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 65535
+      },
+      "minItems": 1,
+      "maxItems": 8
     },
     "limits": {
       "type": "object",

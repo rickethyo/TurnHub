@@ -2078,6 +2078,13 @@ static void nativeClientBoundary() {
   testNow += TurnHub::LIFE_APPROVAL_MS;
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
   assert(clientState.revision() > rolloverRevision && game.lifeTotal(2) == 36);
+  // A recipient's longer window (accessibility) holds the request past 15 s.
+  assert(game.requestLifeChange(1, 2, -1, testNow, 60000));
+  assert(game.lifeChangeFor(2)->windowMs == 60000);
+  testNow += TurnHub::LIFE_APPROVAL_MS; game.expireLifeChanges(testNow);
+  assert(game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Pending && game.lifeTotal(2) == 36);
+  testNow += 60000 - TurnHub::LIFE_APPROVAL_MS; game.expireLifeChanges(testNow);
+  assert(game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Automatic && game.lifeTotal(2) == 35);
 
   // Exercise the largest snapshot with every Commander source populated.
   GameEngine fullGame; Lobby fullLobby; TurnHub::ClientState full;

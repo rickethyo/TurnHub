@@ -132,6 +132,7 @@ interface AtlasSessionTransport {
         ledStyle: LedStyle,
         longPressMs: Int,
         winHoldMs: Int,
+        lifeApprovalMs: Int,
     ): AccessibilitySettings
 
     /** `POST /api/session/logout`: revokes this token on Atlas. */

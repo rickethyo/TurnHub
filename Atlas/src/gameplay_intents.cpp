@@ -4,6 +4,7 @@
 // before it mutates GameEngine or the table-decision state in atlas_app.h.
 
 #include "atlas_app.h"
+#include "profile_store.h"
 #include "runtime_diagnostics.h"
 #include "serial_log.h"
 
@@ -14,7 +15,6 @@ namespace TurnHubAtlas {
 // Player-facing messages below (and the portal's hints in web_pages.cpp)
 // spell these durations out; change the wording with the value.
 static_assert(PASS_GRACE_MS == 3000, "Update the \"within 3 seconds\" pass wording");
-static_assert(TurnHub::LIFE_APPROVAL_MS == 15000, "Update the \"15 seconds\" life-request wording");
 
 namespace {
 
@@ -509,14 +509,25 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
   }
   const auto &payload = intent.payload;
   switch (intent.type) {
-    case IntentType::RequestLifeChange:
-      if (!game.requestLifeChange(seat->playerNumber, payload.targetPlayer, payload.value, millis())) {
+    case IntentType::RequestLifeChange: {
+      // The recipient's own approval window (accessibility); 15 s for guests.
+      TurnHubProfiles::AccessibilityPrefs prefs;
+      const PlayerSeat *target = game.playerByNumber(payload.targetPlayer);
+      if (target && target->profileId[0]) {
+        TurnHubProfiles::loadAccessibilityForProfile(String(target->profileId), prefs);
+      }
+      if (!game.requestLifeChange(seat->playerNumber, payload.targetPlayer, payload.value, millis(),
+              prefs.lifeApprovalMs)) {
         return IntentResult::reject(IntentStatus::Conflict,
             "Request unavailable: check the target, pending request and life limits");
       }
       cueActionRequired(payload.targetPlayer);
-      return IntentResult::accept(
-          "Life change requested; Atlas accepts it after 15 seconds unless rejected");
+      return IntentResult::accept(prefs.lifeApprovalMs == 30000
+          ? "Life change requested; Atlas accepts it after 30 seconds unless rejected"
+          : prefs.lifeApprovalMs == 60000
+          ? "Life change requested; Atlas accepts it after 60 seconds unless rejected"
+          : "Life change requested; Atlas accepts it after 15 seconds unless rejected");
+    }
     case IntentType::RespondLifeChange:
       // flags: 1 accepts, 0 rejects.
       if (payload.flags > 1 ||

@@ -14,6 +14,8 @@ namespace TurnHub {
 
 // A requested change to another player's life is applied automatically if
 // the target neither accepts nor rejects it within this window.
+// The default life-change approval window. A recipient may choose a longer
+// one (accessibility, LIFE_APPROVAL_OPTIONS_MS); each request keeps its own.
 constexpr uint32_t LIFE_APPROVAL_MS = 15000;
 constexpr uint8_t COMMANDERS_PER_PLAYER = 2;
 
@@ -30,6 +32,7 @@ struct LifeChangeRequest {
   uint8_t target = 0;
   int32_t delta = 0;
   LifeChangeState state = LifeChangeState::None;
+  uint32_t windowMs = LIFE_APPROVAL_MS;  // The recipient's approval window.
 };
 
 // Derived from the turn anchor and the captured turnTimerMs; never stored.
@@ -79,7 +82,8 @@ class GameEngine {
   // Applies delta to a living player; totals stay within +/-LIFE_LIMIT.
   bool changeLife(uint8_t playerNumber, int32_t delta);
   // Asks target to approve a change to their life (see LIFE_APPROVAL_MS).
-  bool requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs);
+  bool requestLifeChange(uint8_t actor, uint8_t target, int32_t delta, uint32_t nowMs,
+      uint32_t windowMs = LIFE_APPROVAL_MS);
   // The target answers its pending request. A late answer settles it as
   // Automatic and returns false.
   bool respondLifeChange(uint8_t recipient, uint32_t requestId, bool accept, uint32_t nowMs);

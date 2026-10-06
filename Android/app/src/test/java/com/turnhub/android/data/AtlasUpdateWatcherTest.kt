@@ -30,7 +30,7 @@ private class ReportingAtlas : AtlasSessionTransport {
     override suspend fun getGameSettings(token: String): GameSettingsInfo = throw AtlasException(AtlasFailure.Rejected("no"))
     override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? = null
     override suspend fun getAccessibility(token: String): AccessibilitySettings = throw AtlasException(AtlasFailure.Rejected("no"))
-    override suspend fun saveAccessibility(token: String, sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) =
+    override suspend fun saveAccessibility(token: String, sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) =
         throw AtlasException(AtlasFailure.Rejected("no"))
     override suspend fun logout(token: String) {}
 }

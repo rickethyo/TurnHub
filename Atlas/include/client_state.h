@@ -30,7 +30,7 @@ class ClientState {
   void observe(HubState state, const Lobby &lobby, const GameEngine &game,
       const GameSettings &nextSettings, const ClientPending &pending);
   uint32_t revision() const { return revision_; }
-  // True when a pending life request has passed LIFE_APPROVAL_MS.
+  // True when a pending life request has passed its approval window.
   bool expirationDue(uint32_t nowMs) const;
   String json(const String &atlasId, const char *bootId, const GameEngine &game,
       uint32_t nowMs, uint32_t passGraceMs) const;

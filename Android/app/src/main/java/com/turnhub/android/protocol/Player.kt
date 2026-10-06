@@ -56,8 +56,8 @@ enum class LifeRequestState {
 
 /**
  * A request by [actor] to change [target]'s life by [delta]. Atlas owns the
- * approval deadline (15,000 ms after [requestedAtMs] under its current rules);
- * this app only renders the state Atlas reports.
+ * approval deadline ([windowMs] after [requestedAtMs], the recipient's own
+ * choice); this app only renders the state Atlas reports.
  */
 data class LifeRequest(
     /** Unsigned 32-bit. */
@@ -68,4 +68,6 @@ data class LifeRequest(
     val state: LifeRequestState,
     /** Atlas uptime clock, unsigned 32-bit, wraps; only comparable within one boot. */
     val requestedAtMs: Long,
+    /** The recipient's approval window in milliseconds (15,000 by default). */
+    val windowMs: Long = 15_000L,
 )

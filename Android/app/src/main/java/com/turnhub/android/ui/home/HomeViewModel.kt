@@ -425,9 +425,9 @@ class HomeViewModel(
     }
 
     /** Atlas validates and stores the choices; the editor closes once Atlas accepts them. */
-    fun onAccessibilitySaved(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int) {
+    fun onAccessibilitySaved(sigilSound: Boolean, ledStyle: LedStyle, longPressMs: Int, winHoldMs: Int, lifeApprovalMs: Int) {
         viewModelScope.launch {
-            playerSession.saveAccessibility(sigilSound, ledStyle, longPressMs, winHoldMs)
+            playerSession.saveAccessibility(sigilSound, ledStyle, longPressMs, winHoldMs, lifeApprovalMs)
             if (playerSession.feedback.value?.isError != true) local.update { it.copy(accessibilityOpen = false) }
         }
     }
