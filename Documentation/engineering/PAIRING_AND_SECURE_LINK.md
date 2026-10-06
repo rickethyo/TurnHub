@@ -138,7 +138,10 @@ with key material.
 Arduino core, Apache-2.0). Host tests run the logic through a test crypto
 backend (`Sigil/tests/host/secure_link_scenarios.cpp`,
 `pairing_scenarios.cpp`); firmware runs a known-answer self-test at boot
-(`SECURE_LINK|SELF_TEST|PASS`, about 1.6 s, almost all of it X25519).
+(`SECURE_LINK|SELF_TEST|PASS|<ms>`): RFC 7748, HMAC and CCM vectors, then one
+packet sealed with a pair key derived from the known secret. It runs two X25519
+multiplications (it ran eight and took about 1.6 s before 2026-10-06; the
+new time is *Needs verification* from the boot log).
 
 **Limits.** NVS isn't flash-encrypted, so someone holding a board can read
 its keys; physical extraction is out of scope for now. Keys are erased by
@@ -149,5 +152,4 @@ forget, unpair and factory reset.
 Pairing, re-pairing, forget, factory reset and the sealed link are verified
 on hardware (bench 2026-09-29; owner 2026-10-02). Still worth a deliberate
 bench run: Reject and the 60 s timeout, portal Codes match, eight Sigils at
-once, and forged, replayed or cleartext packets being refused. Trimming the
-1.6 s boot self-test is an open idea.
+once, and forged, replayed or cleartext packets being refused.

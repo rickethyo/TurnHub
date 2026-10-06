@@ -15,8 +15,13 @@ multi-phone stability work.
 
 Atlas code logs through `TurnHub::serialLog` (`serial_log.h`), never
 `Serial.print*`, so every line reaches the RAM ring and the card. Keep secrets
-out with `printlnRedacted`. Framework `log_e` output does not reach the ring
-yet (staged).
+out with `printlnRedacted`. Framework output (Arduino `log_e` and ESP-IDF
+`ESP_LOGx`, at the build's `CORE_DEBUG_LEVEL`) is captured too
+(2026-10-06): a RAM-only putc hook keeps it in a 1 KB buffer, safe while the
+flash cache is off during OTA, and the next log write, the SD worker or a log
+download stamps it into the ring. Lines appear as `[E][file:line] ...` or
+`E (ms) tag: ...`; ESP-IDF lines over 159 characters are cut short.
+*Needs verification* on hardware.
 
 ## SD diagnostics log
 

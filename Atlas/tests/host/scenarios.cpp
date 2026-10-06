@@ -853,6 +853,19 @@ static void serialLogCapture() {
   assert(wrapped.find("ATLAS|A|7")==std::string::npos && wrapped.find("ATLAS|FILL|1999\n")!=std::string::npos);
   serialLog.clear(); assert(serialLog.snapshot().empty() && serialLog.droppedBytes()==0);
 
+  // Framework output waits in its own buffer and is stamped in order on the next write.
+  for (const char *c="[E][WiFiGeneric.cpp:1] boom\n"; *c; ++c) TurnHub::captureFrameworkChar(*c);
+  assert(serialLog.snapshot().empty());
+  serialLog.println("ATLAS|AFTER");
+  assert(serialLog.snapshot()=="[     12.345] [E][WiFiGeneric.cpp:1] boom\n[     12.345] ATLAS|AFTER\n");
+  // An overrun keeps the newest bytes.
+  serialLog.clear();
+  for (int i=0;i<3000;++i) TurnHub::captureFrameworkChar(i<2990 ? 'x' : 'y');
+  serialLog.drainFramework();
+  const String overrun=serialLog.snapshot();
+  assert(overrun.size()==14+1024 && overrun.substr(overrun.size()-10)==std::string(10,'y'));
+  serialLog.clear();
+
   // Log lines that make a downloaded log self-explanatory.
   freshLobby(2);
   assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|SYSTEM|FROM|"));
@@ -1356,6 +1369,21 @@ static void profilePicker() {
   pick(5, A::Join); assert(pickerOpen(5));
   pick(0, A::StartGame); assert(hubState == HubState::Starting);
   syncProfilePickers(testNow); assert(!pickerOpen(5));
+
+  // Names a Sigil would show alike are numbered by profile ID, cut to fit.
+  enterEmptyLobby(); resetProfilePickers();
+  ProfileFixture::bindings.clear(); ProfileFixture::profiles.clear();
+  add("00000002", "Sam"); add("00000001", "sam"); add("00000003", "Samantha Jones");
+  add("00000004", "Samantha Jonesy"); add("00000005", "Ty");
+  pick(5, A::Join);
+  page = profilePickerPage(5);
+  assert(page.pageCount == 2 && !strcmp(page.items[1].name, "sam 1") &&
+         !strcmp(page.items[2].name, "Sam 2"));
+  key(5, PickerKeyCode::Select);
+  page = profilePickerPage(5);
+  assert(!strcmp(page.items[0].name, "Samantha J 1") && !strcmp(page.items[1].name, "Samantha J 2") &&
+         !strcmp(page.items[2].name, "Ty"));
+  key(5, PickerKeyCode::Left); key(5, PickerKeyCode::Left); assert(!pickerOpen(5));
 
   for (auto &record : fixtureRecords) {
     record.helloInfoValid = false; record.capabilities = 0;

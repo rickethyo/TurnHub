@@ -333,6 +333,7 @@ void sdTask(void *) {
 
     if (plug.mounted() && !logBlocked) {
       uint64_t lost = 0;
+      serialLog.drainFramework();
       const size_t count = serialLog.readSince(cursor, buffer, sizeof(buffer), lost);
       if (!logOpen || lost || count) {
         CardLock lock;

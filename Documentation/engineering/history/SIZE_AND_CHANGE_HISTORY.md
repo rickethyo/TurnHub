@@ -693,6 +693,13 @@ Sigil displays (Up always opens Menu; `Sigil/DISPLAY.md`, Menus). Radio
 version unchanged; all Atlas and Sigil firmware must be flashed together.
 Local firmware compilation was unavailable; use the CI artifact for sizes.
 
+Atlas 0.6.8 -> 0.6.9 and Sigil 0.9.10 -> 0.9.11 (2026-10-06): the Secure
+Link boot self-test runs two X25519 multiplications instead of eight (both
+firmwares); Atlas captures framework `log_e`/ESP-IDF output into its RAM and
+SD logs; the Sigil profile picker numbers duplicate names. Radio version
+unchanged. Local firmware compilation was unavailable; use the CI artifact
+for sizes.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.
@@ -705,4 +712,4 @@ Local firmware compilation was unavailable; use the CI artifact for sizes.
 7. At Prototype 1.0 release-candidate time, record a fresh Atlas/Sigil source snapshot,
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
-Last updated: 2026-10-02
+Last updated: 2026-10-06

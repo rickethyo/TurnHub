@@ -329,7 +329,7 @@ class Channel {
 // Returns 0 on success, otherwise the number of the first failed check.
 
 enum class SelfTestStep : uint8_t {
-  Pass = 0, X25519Public, X25519Shared, Hmac, CcmSeal, CcmOpen, CcmTamper, FreshAgreement, Envelope,
+  Pass = 0, X25519Public, X25519Shared, Hmac, CcmSeal, CcmOpen, CcmTamper, Envelope,
 };
 
 inline SelfTestStep knownAnswerTest(Crypto &crypto) {
@@ -339,9 +339,6 @@ inline SelfTestStep knownAnswerTest(Crypto &crypto) {
   static const uint8_t alicePublic[32] = {
       0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54, 0x74, 0x8b, 0x7d, 0xdc, 0xb4, 0x3e, 0xf7, 0x5a,
       0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38, 0x1a, 0xf4, 0xeb, 0xa4, 0xa9, 0x8e, 0xaa, 0x9b, 0x4e, 0x6a};
-  static const uint8_t bobPrivate[32] = {
-      0x5d, 0xab, 0x08, 0x7e, 0x62, 0x4a, 0x8a, 0x4b, 0x79, 0xe1, 0x7f, 0x8b, 0x83, 0x80, 0x0e, 0xe6,
-      0x6f, 0x3b, 0xb1, 0x29, 0x26, 0x18, 0xb6, 0xfd, 0x1c, 0x2f, 0x8b, 0x27, 0xff, 0x88, 0xe0, 0xeb};
   static const uint8_t bobPublic[32] = {
       0xde, 0x9e, 0xdb, 0x7d, 0x7b, 0x7d, 0xc1, 0xb4, 0xd3, 0x5b, 0x61, 0xc2, 0xec, 0xe4, 0x35, 0x37,
       0x3f, 0x83, 0x43, 0xc8, 0x5b, 0x78, 0x67, 0x4d, 0xad, 0xfc, 0x7e, 0x14, 0x6f, 0x88, 0x2b, 0x4f};
@@ -358,14 +355,15 @@ inline SelfTestStep knownAnswerTest(Crypto &crypto) {
   static const uint8_t ccmNonce[13] = {
       0x00, 0x00, 0x00, 0x03, 0x02, 0x01, 0x00, 0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5};
 
+  // X25519 is the slow part on the ESP32, so the check runs only two scalar
+  // multiplications from RFC 7748 section 6.1: a public key and a shared
+  // secret.
   uint8_t out[32];
   const uint8_t basePoint[32] = {9};
-  if (!crypto.sharedSecret(alicePrivate, basePoint, out) || !equalBytes(out, alicePublic, 32) ||
-      !crypto.sharedSecret(bobPrivate, basePoint, out) || !equalBytes(out, bobPublic, 32)) {
+  if (!crypto.sharedSecret(alicePrivate, basePoint, out) || !equalBytes(out, alicePublic, 32)) {
     return SelfTestStep::X25519Public;
   }
-  if (!crypto.sharedSecret(alicePrivate, bobPublic, out) || !equalBytes(out, shared, 32) ||
-      !crypto.sharedSecret(bobPrivate, alicePublic, out) || !equalBytes(out, shared, 32)) {
+  if (!crypto.sharedSecret(alicePrivate, bobPublic, out) || !equalBytes(out, shared, 32)) {
     return SelfTestStep::X25519Shared;
   }
 
@@ -390,20 +388,14 @@ inline SelfTestStep knownAnswerTest(Crypto &crypto) {
   tag[0] ^= 0x01;
   if (crypto.open(key, ccmNonce, aad, 8, cipher, 23, tag, back)) return SelfTestStep::CcmTamper;
 
-  // Fresh random keys agree, and a pair key derived from them seals one packet.
-  uint8_t privA[32], pubA[32], privB[32], pubB[32], secretA[32], secretB[32];
-  if (!crypto.generateKeyPair(privA, pubA) || !crypto.generateKeyPair(privB, pubB) ||
-      !crypto.sharedSecret(privA, pubB, secretA) || !crypto.sharedSecret(privB, pubA, secretB) ||
-      !equalBytes(secretA, secretB, 32) || equalBytes(pubA, pubB, 32)) {
-    return SelfTestStep::FreshAgreement;
-  }
+  // A pair key derived from the known shared secret seals and opens one packet.
   const uint8_t macA[6] = {1, 2, 3, 4, 5, 6}, macB[6] = {6, 5, 4, 3, 2, 1};
   PairingResult pairing;
   uint8_t session[KEY_BYTES], nonceA[NONCE_BYTES] = {1}, nonceB[NONCE_BYTES] = {2};
   uint8_t frame[ESPNOW_MAX_BYTES], inner[ESPNOW_MAX_BYTES];
   const TurnHubProtocol::Packet packet = TurnHubProtocol::makePacket(PacketType::SelectAction, 1, 42);
   Channel sender, receiver;
-  bool ok = derivePairing(crypto, secretA, macA, macB, pubA, pubB, pairing) &&
+  bool ok = derivePairing(crypto, shared, macA, macB, alicePublic, bobPublic, pairing) &&
       deriveSessionKey(crypto, pairing.pairKey, 1, nonceA, nonceB, session);
   if (ok) {
     sender.start(session, Direction::SigilToAtlas);
@@ -414,10 +406,6 @@ inline SelfTestStep knownAnswerTest(Crypto &crypto) {
         receiver.open(crypto, 1, frame, length, inner, sizeof(inner)) == sizeof(packet) &&
         memcmp(inner, &packet, sizeof(packet)) == 0;
   }
-  wipe(privA, sizeof(privA));
-  wipe(privB, sizeof(privB));
-  wipe(secretA, sizeof(secretA));
-  wipe(secretB, sizeof(secretB));
   wipe(&pairing, sizeof(pairing));
   wipe(session, sizeof(session));
   sender.reset();

@@ -38,7 +38,9 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   off physical use without a PIN and has no signed-in phone), "at table:
   attach" (already playing from a phone; choosing it attaches this Sigil to
   that participant). Archived or moderated profiles and profiles on another
-  Sigil are not listed. The picker closes after a minute idle, at game start,
+  Sigil are not listed. Names that would look the same on a Sigil (the
+  same name, or the same first 12 characters) are numbered in profile ID
+  order, "Sam 1" and "Sam 2", cut to fit (2026-10-06). The picker closes after a minute idle, at game start,
   or when the Sigil joins another way.
 - **Seat B** on a shared Sigil uses the same picker (**Add seat B**); Guest
   adds seat B directly. `PickProfile` with slot 2 adds the seat and binds the
@@ -132,8 +134,7 @@ can be restored, and are hidden from Game Master tools.
   [Staged Changes](STAGED_CHANGES.md), "Parked: storage batch".
 - Custom avatars with Admin approval (`AVATAR_CUSTOM` is reserved; presets
   work).
-- Per-Sigil startup choice (last profile or picker) and labels for
-  duplicate names.
+- Per-Sigil startup choice (last profile or picker).
 - Moderation from the Atlas Player screen.
 
 ## Verification

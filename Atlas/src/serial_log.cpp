@@ -3,7 +3,17 @@
 #include <stdlib.h>
 #include <string.h>
 #if defined(ARDUINO_ARCH_ESP32)
+#include <esp_attr.h>
+#include <esp_log.h>
 #include <freertos/FreeRTOS.h>
+#include <hal/uart_ll.h>
+#include <esp32/rom/ets_sys.h>
+#include <soc/uart_struct.h>
+#define FRAMEWORK_LOG_IRAM IRAM_ATTR
+#define FRAMEWORK_LOG_DRAM DRAM_ATTR
+#else
+#define FRAMEWORK_LOG_IRAM
+#define FRAMEWORK_LOG_DRAM
 #endif
 
 namespace TurnHub {
@@ -22,7 +32,83 @@ portMUX_TYPE ringLock = portMUX_INITIALIZER_UNLOCKED;
 #define SERIAL_LOG_LOCK()
 #define SERIAL_LOG_UNLOCK()
 #endif
+
+// Framework output waiting for drainFramework(). Head and tail count bytes
+// since boot; a writer that overruns the reader pushes the tail forward.
+constexpr uint32_t FRAMEWORK_CAPACITY = 1024;
+FRAMEWORK_LOG_DRAM char frameworkRing[FRAMEWORK_CAPACITY];
+FRAMEWORK_LOG_DRAM uint32_t frameworkHead = 0;
+FRAMEWORK_LOG_DRAM uint32_t frameworkTail = 0;
+#if defined(ARDUINO_ARCH_ESP32)
+FRAMEWORK_LOG_DRAM portMUX_TYPE frameworkLock = portMUX_INITIALIZER_UNLOCKED;
+#define FRAMEWORK_LOCK() portENTER_CRITICAL_SAFE(&frameworkLock)
+#define FRAMEWORK_UNLOCK() portEXIT_CRITICAL_SAFE(&frameworkLock)
+#else
+#define FRAMEWORK_LOCK()
+#define FRAMEWORK_UNLOCK()
+#endif
 }  // namespace
+
+void FRAMEWORK_LOG_IRAM captureFrameworkChar(char byte) {
+  FRAMEWORK_LOCK();
+  frameworkRing[frameworkHead % FRAMEWORK_CAPACITY] = byte;
+  ++frameworkHead;
+  if (frameworkHead - frameworkTail > FRAMEWORK_CAPACITY) {
+    frameworkTail = frameworkHead - FRAMEWORK_CAPACITY;
+  }
+  FRAMEWORK_UNLOCK();
+}
+
+#if defined(ARDUINO_ARCH_ESP32)
+namespace {
+// Replaces the core's UART0 putc (the same FIFO write) and keeps a copy.
+// Arduino log_*() and ets_printf() reach Atlas through here.
+void IRAM_ATTR frameworkPutc(char byte) {
+  while (uart_ll_get_txfifo_len(&UART0) == 0) {
+  }
+  uart_ll_write_txfifo(&UART0, reinterpret_cast<const uint8_t *>(&byte), 1);
+  captureFrameworkChar(byte);
+}
+
+// ESP-IDF ESP_LOGx output, formatted once and sent through the same putc.
+// Lines longer than the buffer are cut short.
+int frameworkVprintf(const char *format, va_list args) {
+  char line[160];
+  const int length = vsnprintf(line, sizeof(line), format, args);
+  if (length <= 0) return length;
+  const size_t shown = static_cast<size_t>(length) < sizeof(line) ? length : sizeof(line) - 1;
+  for (size_t i = 0; i < shown; ++i) frameworkPutc(line[i]);
+  if (shown < static_cast<size_t>(length)) frameworkPutc('\n');
+  return length;
+}
+}  // namespace
+
+void installFrameworkLogCapture() {
+  ets_install_putc1(frameworkPutc);
+  esp_log_set_vprintf(frameworkVprintf);
+}
+#else
+void installFrameworkLogCapture() {}
+#endif
+
+void SerialLog::drainFramework() {
+  char chunk[64];
+  for (;;) {
+    FRAMEWORK_LOCK();
+    const uint32_t count = frameworkHead - frameworkTail < sizeof(chunk)
+        ? frameworkHead - frameworkTail : sizeof(chunk);
+    for (uint32_t i = 0; i < count; ++i) {
+      chunk[i] = frameworkRing[(frameworkTail + i) % FRAMEWORK_CAPACITY];
+    }
+    frameworkTail += count;
+    FRAMEWORK_UNLOCK();
+    if (count == 0) return;
+    const uint32_t now = millis();
+    SERIAL_LOG_LOCK();
+    capture(reinterpret_cast<const uint8_t *>(chunk), count, now);
+    SERIAL_LOG_UNLOCK();
+  }
+}
 
 size_t SerialLog::write(uint8_t byte) {
   return write(&byte, 1);
@@ -30,6 +116,7 @@ size_t SerialLog::write(uint8_t byte) {
 
 size_t SerialLog::write(const uint8_t *data, size_t size) {
   if (data == nullptr || size == 0) return 0;
+  drainFramework();
   Serial.write(data, size);
   const uint32_t now = millis();
   SERIAL_LOG_LOCK();
@@ -39,6 +126,7 @@ size_t SerialLog::write(const uint8_t *data, size_t size) {
 }
 
 void SerialLog::printlnRedacted(const char *serialText, const char *capturedText) {
+  drainFramework();
   Serial.println(serialText ? serialText : "");
   const char *captured = capturedText ? capturedText : "";
   const uint32_t now = millis();
