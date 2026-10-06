@@ -1028,7 +1028,10 @@ static void commanderFlow() {
   auto key = [&](uint8_t k) { handleCommanderKey(0,encodeCommanderKey(k,commanderPage(0).revision),testNow); };
   open(); auto p=commanderPage(0);
   assert(validCommanderFlow(p) && p.stage==CommanderStage::Source && p.recipient==2 && p.recipientSlot==2);
-  key(3); key(3); assert(commanderPage(0).source==3);
+  // Sources skip the recipient (2): 1 -> 3, then back past 2 to 1.
+  key(3); assert(commanderPage(0).source==3);
+  key(2); assert(commanderPage(0).source==1);
+  key(3); assert(commanderPage(0).source==3);
   key(4); key(3); assert(commanderPage(0).commander==2);
   key(4); for (int i=0;i<4;++i) key(3);
   assert(commanderPage(0).amount==5 && game.lifeTotal(2)==40);
@@ -1056,9 +1059,11 @@ static void commanderFlow() {
   assert(game.changeCommanderDamage(2,1,1,1) && !game.lastCommanderHit(2));
   key(4); open(); key(4); key(4); key(1);
   assert(commanderPage(0).stage==CommanderStage::Closed && game.lifeTotal(2)==36);
-  // Player source selection can reach every participant, including shared seats.
-  open(); for (int i=0;i<3;++i) key(3);
-  assert(commanderPage(0).source==4); key(2); assert(commanderPage(0).source==3);
+  // Player source selection reaches every other participant, including the
+  // shared seat's partner, and wraps past the recipient.
+  open(); for (int i=0;i<2;++i) key(3);
+  assert(commanderPage(0).source==4); key(3); assert(commanderPage(0).source==1);
+  key(2); key(2); assert(commanderPage(0).source==3);
   key(1);
   Intent forbidden; forbidden.type=IntentType::RecordCommanderHit;
   forbidden.actor={IntentOrigin::PhysicalSigil,1,1,3}; forbidden.payload.targetPlayer=2;

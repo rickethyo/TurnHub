@@ -24,7 +24,17 @@ bool eligible(const Flow &f) {
       seat->controllerId == f.page.sigilId && seat->slot == f.page.recipientSlot &&
       seat->participantId == f.participant && !game.isEliminated(seat->playerNumber);
 }
+// Names read from the profile store (NVS) once per opened flow, not on every
+// source change: cycling sources runs on the loop task.
+char nameCache[MAX_PLAYERS][DISPLAY_NAME_MAX_LENGTH + 1];
+uint32_t namesCached = 0;
 void name(uint8_t player, char *out) {
+  const bool cacheable = player >= 1 && player <= MAX_PLAYERS;
+  const uint32_t bit = cacheable ? 1u << (player - 1) : 0;
+  if (cacheable && (namesCached & bit)) {
+    memcpy(out, nameCache[player - 1], DISPLAY_NAME_MAX_LENGTH + 1);
+    return;
+  }
   const auto *seat = game.playerByNumber(player);
   String text = seat ? TurnHubProfiles::nameForProfile(String(seat->profileId)) : String();
   if (!text.length()) text = String("Player ") + String(player);
@@ -32,6 +42,24 @@ void name(uint8_t player, char *out) {
   for (; i < text.length() && i < DISPLAY_NAME_MAX_LENGTH; ++i)
     out[i] = text[i] >= 32 && text[i] <= 126 ? text[i] : '?';
   out[i] = 0;
+  if (cacheable) {
+    memcpy(nameCache[player - 1], out, DISPLAY_NAME_MAX_LENGTH + 1);
+    namesCached |= bit;
+  }
+}
+// The next source from `from` in seat order, skipping the recipient and
+// eliminated players (self-damage is rare; record it from a phone). Falls
+// back to `from` when nobody else qualifies.
+uint8_t nextSource(uint8_t recipient, uint8_t from, int step) {
+  const int count = game.playerCount();
+  if (count <= 0) return from;
+  int player = from;
+  for (int i = 0; i < count; ++i) {
+    player = (player - 1 + count + step) % count + 1;
+    if (player != recipient && !game.isEliminated(static_cast<uint8_t>(player)))
+      return static_cast<uint8_t>(player);
+  }
+  return from;
 }
 // Refresh confirmation totals before accepting a key. A changed preview gets
 // a new revision, requiring the player to confirm the fresh values.
@@ -72,6 +100,7 @@ void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t
   if (!seat || seat->controllerId != sigilId || game.isEliminated(recipient) ||
       !tableReady() ||
       game.settings().profile != TurnHub::GameProfile::Commander) return;
+  namesCached = 0;
   Flow &f = flows[sigilId];
   const uint16_t revision = f.page.revision;
   f = Flow{};
@@ -79,7 +108,7 @@ void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t
   p.version = VERSION; p.type = PacketType::CommanderFlow; p.sigilId = sigilId;
   p.revision = revision; p.stage = CommanderStage::Source;
   p.recipient = recipient; p.recipientSlot = seat->slot; f.participant = seat->participantId;
-  p.source = recipient == 1 ? 2 : 1; p.commander = 1; p.amount = 1;
+  p.source = nextSource(recipient, game.playerCount(), 1); p.commander = 1; p.amount = 1;
   name(recipient,p.recipientName); name(p.source,p.sourceName);
   f.lastKey = nowMs; f.generation = game.matchGeneration();
   if (undo) {
@@ -111,7 +140,7 @@ void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
   switch (p.stage) {
     case CommanderStage::Source:
       if (key == 2 || key == 3) {
-        p.source = static_cast<uint8_t>((p.source - 1 + game.playerCount() + (key == 2 ? -1 : 1)) % game.playerCount() + 1);
+        p.source = nextSource(p.recipient, p.source, key == 2 ? -1 : 1);
         name(p.source,p.sourceName); changed(f); refresh(f);
       } else if (key == 4) { p.stage = CommanderStage::Commander; changed(f); }
       break;

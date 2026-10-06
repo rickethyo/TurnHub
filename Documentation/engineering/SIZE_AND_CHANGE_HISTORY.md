@@ -679,6 +679,16 @@ reports also exposed large aggregate reset temporaries in checkpoint capture,
 decode and the counter callback; a follow-up resets those workspaces in place.
 Use the follow-up CI artifact for final sizes and hardware testing.
 
+## 2026-10-06 Commander damage reaches Sigils (Atlas 0.6.8, Sigil 0.9.10)
+
+Sigil 0.9.9 -> 0.9.10: the radio receive filter now accepts the sealed
+80-byte Commander page (95 bytes on air). 0.9.9 dropped every page, so
+choosing Cmd damage did nothing visible. Amount-stage taps no longer wait for
+each e-ink refresh. Atlas 0.6.7 -> 0.6.8: the source picker skips the
+recipient and eliminated players, profile names are read once per opened
+flow, and `TURNHUB_HTTP_TRACE` is off by default. Radio version unchanged.
+Local firmware compilation was unavailable; use the CI artifact for sizes.
+
 ## Tracking rules
 
 1. Git history is authoritative; this document is a milestone ledger, not a substitute.

@@ -2,6 +2,7 @@
 // MACs, sessions, sealing, tamper and replay rejection. Uses a deterministic
 // stand-in for the crypto so the link logic is testable on the host; it is
 // NOT cryptography. The real mbedTLS backend is checked on the device.
+#include "received_packet.h"
 #include "secure_link.h"
 #include "test_crypto.h"
 #include <cassert>
@@ -40,6 +41,13 @@ void layoutsAreStable() {
   assert(sizeof(TurnHubProtocol::Packet) + SECURE_OVERHEAD == 22);
   assert(sizeof(TurnHubProtocol::GameDisplayPacket) + SECURE_OVERHEAD == 125);
   assert(SECURE_OVERHEAD == 15 && MAX_INNER_BYTES == 235);
+  // Every sealed page Atlas sends must get past the radio callback's size filter.
+  using TurnHubSigil::ReceivedPacket;
+  assert(ReceivedPacket::acceptedSize(sizeof(TurnHubProtocol::Packet) + SECURE_OVERHEAD));
+  assert(ReceivedPacket::acceptedSize(sizeof(TurnHubProtocol::ProfilePickerPacket) + SECURE_OVERHEAD));
+  assert(ReceivedPacket::acceptedSize(sizeof(TurnHubProtocol::CommanderFlowPacket) + SECURE_OVERHEAD));
+  assert(ReceivedPacket::acceptedSize(sizeof(TurnHubProtocol::GameDisplayPacket) + SECURE_OVERHEAD));
+  assert(ReceivedPacket::acceptedSize(sizeof(TurnHubProtocol::SigilUpdateOfferPacket) + SECURE_OVERHEAD));
 }
 
 void pairingAgreesAndCodesCatchAnImpostor() {

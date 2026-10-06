@@ -1465,8 +1465,11 @@ void sendCommanderKey(uint8_t key, bool repeat = false) {
   const bool amountDrawn = commanderDrawnStage == TurnHubProtocol::CommanderStage::Amount &&
       page.stage == TurnHubProtocol::CommanderStage::Amount;
   portEXIT_CRITICAL(&displayProfileMux);
-  // Confirm only a preview that finished drawing, even on slow e-ink.
-  if (!drawn && !(repeat && amountDrawn)) return;
+  // Confirm only a preview that finished drawing, even on slow e-ink. Once the
+  // Amount stage is on screen, Left/Right taps and holds go straight through
+  // instead of waiting out each full e-ink refresh; Select still waits, and
+  // the Confirm page must be drawn before the hit is applied.
+  if (!drawn && !(amountDrawn && (repeat || key == 2 || key == 3))) return;
   sendPacket(PacketType::CommanderKey,TurnHubProtocol::encodeCommanderKey(key,page.revision));
 }
 void updateMenuKeys() {

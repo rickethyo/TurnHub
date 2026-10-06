@@ -159,9 +159,12 @@ a current stack-pointer measurement. No claim of current free stack is made.
 - HTTP completion and periodic health sampling retain a low-stack warning
   below 3072 bytes, at most once per 30 seconds. This is a provisional target.
   The hooks use the existing RAM/serial logger and perform no SD writes.
-- Detailed tracing is enabled by `TURNHUB_HTTP_TRACE=1` in the first firmware
-  configuration. Change it to `0` after acceptance; warnings remain. Compare
-  tracing on/off on the bench because serial output itself has a cost.
+- Detailed tracing is enabled by `TURNHUB_HTTP_TRACE=1`. It was on in the
+  first stability builds and was turned off (`0`) on 2026-10-06 after Atlas
+  0.6.7 was flashed, because with several phones polling it crowds older
+  evidence out of the RAM and SD logs. Set it back to `1` in
+  `Atlas/platformio.ini` for a bench capture; warnings remain either way.
+  Compare tracing on/off on the bench because serial output itself has a cost.
 - PlatformIO emits compiler `.su` stack-usage reports beside object files.
   Preserve these, `firmware.elf`, the map and resolved package versions.
 - The 1024-byte status formatting buffer now has a documented loopTask-only

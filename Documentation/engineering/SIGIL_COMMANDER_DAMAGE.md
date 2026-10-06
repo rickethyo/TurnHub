@@ -33,7 +33,8 @@ click still passes and Left/Right still adjust life; Down switches shared seats.
 The receiver is the seat shown when opening the flow. Its name and physical
 A/B slot remain on every page, even if turns advance while the page is open.
 
-- Choose the attacking player with Left/Right, then click.
+- Choose the attacking player with Left/Right, then click. The list skips the
+  receiver and eliminated players; record self-damage from a phone.
 - Choose Commander 1 or 2 with Left/Right, then click. Use 2 for a partner.
   Commander count is not a configured per-player fact yet, so both are offered.
 - Set damage with Left/Right; hold to repeat. Click opens a preview.
@@ -51,7 +52,9 @@ Nothing applies while browsing. Entry amounts range from 1 to 9999; the engine's
 existing total/life bounds still apply. A fresh confirmation is required if life
 or damage changed since the preview. Stale or duplicate keys cannot reapply a hit.
 Sigil confirmation keys require the latest preview to have finished drawing,
-including on slow e-ink. Pending ordinary life edits are sent before opening the
+including on slow e-ink. Once the Amount stage is drawn, Left/Right taps go
+through without waiting for each e-ink refresh; partial refresh stays off
+because the panel's built-in partial waveform fades the image. Pending ordinary life edits are sent before opening the
 flow. No table pause is required. Idle (60 seconds), disconnect, elimination,
 a pending table decision, match end or a new match closes the entry.
 
@@ -73,3 +76,8 @@ The local firmware build was blocked by the network proxy denying PlatformIO’s
 package registry. The existing GitHub CI workflow builds all firmware targets
 and uploads binaries and screen previews for review. Versions for this change:
 Atlas 0.6.7-dev and Sigil 0.9.9-dev.
+
+Sigil 0.9.9 never showed the flow: its radio receive filter
+(`received_packet.h`) had no entry for the sealed Commander page, so every
+page was dropped before it was opened. Fixed in Sigil 0.9.10; a host check in
+`secure_link_scenarios.cpp` now covers every sealed page size.
