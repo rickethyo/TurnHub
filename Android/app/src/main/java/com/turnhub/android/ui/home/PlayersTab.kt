@@ -17,9 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.turnhub.android.data.SeatClaim
 import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TablePlayer
@@ -31,7 +34,14 @@ import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.PlayerAvatar
 import com.turnhub.android.ui.components.StatusBadge
 import com.turnhub.android.ui.components.Tone
+import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.theme.palette
+
+/** "Use this seat" on a Sigil seat, as in the portal; Atlas asks that Sigil to confirm with Link phone. */
+data class SeatActions(
+    val onClaim: (moduleId: Int, slot: Int, seatName: String) -> Unit = { _, _, _ -> },
+    val onDismiss: () -> Unit = {},
+)
 
 /** The table's seats and Sigils, as the portal's Players tab shows them. */
 @Composable
@@ -41,6 +51,8 @@ fun PlayersTab(
     nowMs: Long,
     labelFor: (Int) -> String,
     endpoint: String,
+    claim: SeatClaim? = null,
+    seatActions: SeatActions = SeatActions(),
     people: @Composable () -> Unit = {},
 ) {
     val p = palette
@@ -48,11 +60,27 @@ fun PlayersTab(
         BrassCard {
             Eyebrow("Players")
             Text("Live table seats, turn state and physical Sigil identity.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+            claim?.let { ClaimNotice(it, seatActions.onDismiss) }
             if (summary.players.isEmpty()) {
                 EmptyNote("No players have joined. Choose Join on a Sigil, or join from the Game tab.")
             }
             summary.players.forEach { player ->
-                RosterCard(player, summary, player.playerNumber == myPlayer, nowMs, labelFor)
+                val mine = player.playerNumber == myPlayer
+                // Only a physical seat can be confirmed with Link phone.
+                val onUse = if (!mine && player.controller.kind == ControllerHandle.Kind.PHYSICAL && claim?.waiting != true) {
+                    { seatActions.onClaim(player.controller.id, player.slot, sigilSeatName(player)) }
+                } else {
+                    null
+                }
+                RosterCard(player, summary, mine, nowMs, labelFor, onUse)
+            }
+            if (summary.players.any { it.controller.kind == ControllerHandle.Kind.PHYSICAL && it.playerNumber != myPlayer }) {
+                Text(
+                    "Use this seat links a Sigil seat to this phone: press Link phone on that Sigil to confirm. " +
+                        "Without signing in first, it works only for a profile that has no PIN.",
+                    color = p.faint,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
         people()
@@ -98,6 +126,33 @@ fun PlayersTab(
     }
 }
 
+private fun sigilSeatName(player: TablePlayer) = "Sigil ${player.controller.id + 1} seat ${seatLabel(player.slot)}"
+
+/** Where a Link phone claim stands; announced to screen readers as it changes. */
+@Composable
+private fun ClaimNotice(claim: SeatClaim, onDismiss: () -> Unit) {
+    val p = palette
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(p.inset)
+            .border(1.dp, if (claim.isError) p.bad else if (claim.waiting) p.active else p.good, RoundedCornerShape(12.dp))
+            .padding(12.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            claim.message,
+            color = if (claim.isError) p.bad else p.text,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        if (!claim.waiting) ToneButton("OK", onDismiss)
+    }
+}
+
 @Composable
 internal fun EmptyNote(text: String) {
     val p = palette
@@ -115,7 +170,14 @@ internal fun EmptyNote(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RosterCard(player: TablePlayer, summary: TableSummary, mine: Boolean, nowMs: Long, labelFor: (Int) -> String) {
+private fun RosterCard(
+    player: TablePlayer,
+    summary: TableSummary,
+    mine: Boolean,
+    nowMs: Long,
+    labelFor: (Int) -> String,
+    onUseSeat: (() -> Unit)? = null,
+) {
     val p = palette
     val active = player.playerNumber == summary.activePlayerNumber &&
         (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
@@ -132,11 +194,15 @@ private fun RosterCard(player: TablePlayer, summary: TableSummary, mine: Boolean
             .clip(RoundedCornerShape(16.dp))
             .background(p.surface2)
             .border(if (active || winner) 2.dp else 1.dp, border, RoundedCornerShape(16.dp))
-            .padding(14.dp)
-            .semantics(mergeDescendants = true) { },
+            .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // The seat's facts read as one item; the button stays its own target.
+        Row(
+            Modifier.semantics(mergeDescendants = true) { },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             PlayerAvatar(player.label, player.playerNumber, player.avatar)
             Column(Modifier.weight(1f)) {
                 Text(player.label + if (mine) " (you)" else "", color = p.text, style = MaterialTheme.typography.titleMedium)
@@ -176,5 +242,6 @@ private fun RosterCard(player: TablePlayer, summary: TableSummary, mine: Boolean
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
             )
         }
+        onUseSeat?.let { ToneButton("Use this seat", it, tone = Tone.INFO) }
     }
 }

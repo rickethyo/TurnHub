@@ -131,6 +131,8 @@ fun HomeScreen(
     setupActions: SetupActions = SetupActions(),
     updatesAvailable: Int = 0,
     onOpenUpdates: () -> Unit = {},
+    seatClaim: com.turnhub.android.data.SeatClaim? = null,
+    seatActions: SeatActions = SeatActions(),
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -267,7 +269,7 @@ fun HomeScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             when (shown) {
                                 HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
-                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText) {
+                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions) {
                                     if (canPeople && info != null) PeopleCard(info, admin, uiState.avatars, adminActions)
                                 }
                                 HomeTab.ACCOUNT -> {

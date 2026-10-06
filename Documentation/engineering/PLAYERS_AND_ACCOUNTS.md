@@ -42,6 +42,14 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   same name, or the same first 12 characters) are numbered in profile ID
   order, "Sam 1" and "Sam 2", cut to fit (2026-10-06). The picker closes after a minute idle, at game start,
   or when the Sigil joins another way.
+- **Use this seat** (portal Players tab and the app's Players tab):
+  `POST /api/session/request` with `module` and `slot`, then poll
+  `GET /api/session/poll?id=` while the player chooses **Link phone** on that
+  Sigil within 30 s. Signed out, approval signs the phone in to the seat's
+  profile, and only for a profile without a PIN (a Sigil press proves
+  possession, not the secret). Signed in, it attaches that Sigil seat to the
+  signed-in profile. The portal also offers PIN sign-in by seat; the app
+  signs in from its profile list instead.
 - **Seat B** on a shared Sigil uses the same picker (**Add seat B**); Guest
   adds seat B directly. `PickProfile` with slot 2 adds the seat and binds the
   profile in one step.

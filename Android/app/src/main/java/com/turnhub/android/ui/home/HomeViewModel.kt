@@ -274,6 +274,19 @@ class HomeViewModel(
 
     // --- playing from this phone ------------------------------------------------
 
+    /** The Link phone seat claim in progress or just finished. */
+    val seatClaim: StateFlow<com.turnhub.android.data.SeatClaim?> = playerSession.claim
+
+    /** "Use this seat": the player confirms with Link phone on that Sigil. */
+    fun onClaimSeat(moduleId: Int, slot: Int, seatName: String) {
+        val endpoint = repository.endpoint.value ?: return
+        viewModelScope.launch { playerSession.claimSeat(endpoint, moduleId, slot, seatName) }
+    }
+
+    fun onSeatClaimDismissed() {
+        playerSession.clearClaim()
+    }
+
     /** Opens the sign-in picker with Atlas's profile list. */
     fun onPlayFromPhoneClicked() {
         val endpoint = repository.endpoint.value ?: return

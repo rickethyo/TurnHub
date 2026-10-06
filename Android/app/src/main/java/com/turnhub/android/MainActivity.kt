@@ -370,6 +370,11 @@ class MainActivity : ComponentActivity() {
                         setup = homeViewModel.setupState.collectAsStateWithLifecycle().value,
                         updatesAvailable = homeViewModel.updatesAvailable.collectAsStateWithLifecycle().value,
                         onOpenUpdates = homeViewModel::onUpdatesOpened,
+                        seatClaim = homeViewModel.seatClaim.collectAsStateWithLifecycle().value,
+                        seatActions = com.turnhub.android.ui.home.SeatActions(
+                            onClaim = homeViewModel::onClaimSeat,
+                            onDismiss = homeViewModel::onSeatClaimDismissed,
+                        ),
                         setupActions = com.turnhub.android.ui.setup.SetupActions(
                             run = homeViewModel::onSetup,
                             dismiss = homeViewModel::onSetupDismissed,
