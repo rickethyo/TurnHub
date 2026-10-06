@@ -271,7 +271,7 @@ fun HomeScreen(
                             when (shown) {
                                 HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
                                 HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions) {
-                                    if (canPeople && info != null) PeopleCard(info, admin, uiState.avatars, adminActions)
+                                    if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                 }
                                 HomeTab.ACCOUNT -> {
                                     if (admin.presence?.setup == true) AdminSetupCard(adminActions)
