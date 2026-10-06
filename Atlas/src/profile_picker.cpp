@@ -63,6 +63,30 @@ bool lessByName(const Entry &a, const Entry &b) {
   return byName != 0 ? byName < 0 : strcmp(a.id, b.id) < 0;
 }
 
+// Profiles that would show the same name on a Sigil (the same name, or the
+// same first 12 characters) are numbered in list order: "Alex 1", "Alex 2".
+// Equal names sort by profile ID, so the numbers stay put.
+void labelDuplicateNames(Entry *entries, size_t count) {
+  char first[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
+  char next[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
+  size_t start = 1;  // Guest is never numbered.
+  while (start < count) {
+    safeName(entries[start].name, first);
+    size_t end = start + 1;
+    for (; end < count; ++end) {
+      safeName(entries[end].name, next);
+      if (strcasecmp(first, next) != 0) break;
+    }
+    for (size_t i = start; end - start > 1 && i < end; ++i) {
+      const String suffix = String(" ") + String(static_cast<unsigned>(i - start + 1));
+      String label = entries[i].name.substring(0, TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH - suffix.length());
+      label.trim();
+      entries[i].name = label + suffix;
+    }
+    start = end;
+  }
+}
+
 // Guest, then every profile a player could pick here, by name. Blocked
 // (archived or moderated) profiles and ones already on a physical Sigil are
 // left out; ones needing a phone sign-in are shown locked, so the owner
@@ -97,6 +121,7 @@ size_t buildEntries(Entry *entries) {
       entries[j - 1] = swap;
     }
   }
+  labelDuplicateNames(entries, count);
   return count;
 }
 

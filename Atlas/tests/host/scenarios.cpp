@@ -1370,6 +1370,21 @@ static void profilePicker() {
   pick(0, A::StartGame); assert(hubState == HubState::Starting);
   syncProfilePickers(testNow); assert(!pickerOpen(5));
 
+  // Names a Sigil would show alike are numbered by profile ID, cut to fit.
+  enterEmptyLobby(); resetProfilePickers();
+  ProfileFixture::bindings.clear(); ProfileFixture::profiles.clear();
+  add("00000002", "Sam"); add("00000001", "sam"); add("00000003", "Samantha Jones");
+  add("00000004", "Samantha Jonesy"); add("00000005", "Ty");
+  pick(5, A::Join);
+  page = profilePickerPage(5);
+  assert(page.pageCount == 2 && !strcmp(page.items[1].name, "sam 1") &&
+         !strcmp(page.items[2].name, "Sam 2"));
+  key(5, PickerKeyCode::Select);
+  page = profilePickerPage(5);
+  assert(!strcmp(page.items[0].name, "Samantha J 1") && !strcmp(page.items[1].name, "Samantha J 2") &&
+         !strcmp(page.items[2].name, "Ty"));
+  key(5, PickerKeyCode::Left); key(5, PickerKeyCode::Left); assert(!pickerOpen(5));
+
   for (auto &record : fixtureRecords) {
     record.helloInfoValid = false; record.capabilities = 0;
   }

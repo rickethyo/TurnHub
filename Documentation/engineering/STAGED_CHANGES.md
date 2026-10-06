@@ -56,8 +56,6 @@ everything implemented. Only the checks listed below are still open.
   renders.
 - **Portal theme packs** from the card; built-in themes stay in the pack.
 - **HTTPS on Atlas** (unlocks the portal's full-screen launch and wake lock).
-- **Dependency tracker:** add a row for the vendored `qrcode-generator` 1.4.4
-  (MIT) in `Documentation/legal/DEPENDENCY_TRACKER.md`.
 
 ### Setup and updates
 
@@ -72,9 +70,7 @@ everything implemented. Only the checks listed below are still open.
 
 - **Moderate on the Atlas Player screen:** remove a player and Admin sign-in
   beside Concede.
-- **Profile picker:** a per-Sigil startup choice (last profile or picker) and
-  labels for duplicate names.
-- **OLED Sigil:** say on the Sigil when seat B is refused.
+- **Profile picker:** a per-Sigil startup choice (last profile or picker).
 - **Accessibility:** Sigil-local pairing/error lights in the player's style,
   e-ink text scale, a longer life-approval window, a monochrome-safe portal
   theme, guest accessibility preferences. LED intensity and buzzer volume wait
