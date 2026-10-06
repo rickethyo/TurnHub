@@ -28,6 +28,12 @@ data class TableSettings(
     val startingLife: Int,
     /** Per-turn countdown; 0 = OFF. Firmware before the turn timer omits it (OFF). */
     val turnTimerMs: Long = 0,
+    /**
+     * Two-Headed Giant (Magic and Commander only): neighbours in turn order are
+     * teams of two that share one life total and one turn. [startingLife] is
+     * the team's total. Older firmware omits it (false).
+     */
+    val twoHeadedGiant: Boolean = false,
 ) {
     val turnTimerEnabled: Boolean get() = turnTimerMs > 0
 }

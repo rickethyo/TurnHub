@@ -155,6 +155,7 @@ interface AtlasSessionTransport {
         gameProfile: String?,
         startingLife: Int?,
         turnTimerMs: Long?,
+        twoHeadedGiant: Boolean? = null,
     ): String? = unsupported()
 
     /** `POST /api/session/profile` with a new `name` and/or `pin`. */

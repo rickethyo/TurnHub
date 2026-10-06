@@ -58,6 +58,21 @@ data class TableSummary(
      */
     val endedInDraw: Boolean
         get() = state == TableState.GAME_OVER && winnerPlayerNumber == null
+
+    private fun teamOf(playerNumber: Int?): Int? = players.firstOrNull { it.playerNumber == playerNumber }?.team
+
+    /** The same player, or Two-Headed Giant teammates (Atlas reports each player's team). */
+    fun sameTeam(a: Int?, b: Int?): Boolean =
+        a != null && b != null && (a == b || (teamOf(a) != null && teamOf(a) == teamOf(b)))
+
+    /** The active player, or (Two-Headed Giant) their teammate: the turn is the team's. */
+    fun hasTurn(playerNumber: Int): Boolean = sameTeam(activePlayerNumber, playerNumber)
+
+    /** "Team N" for a Two-Headed Giant player, else null (name the player). */
+    fun teamLabel(playerNumber: Int?): String? = teamOf(playerNumber)?.let { "Team $it" }
+
+    /** The winner, or (Two-Headed Giant) the winner's teammate. */
+    fun isWinner(playerNumber: Int): Boolean = sameTeam(winnerPlayerNumber, playerNumber)
 }
 
 /** A controller seat: handle + slot. How `/api/seats` names are matched to players. */
@@ -72,6 +87,8 @@ data class TablePlayer(
     val hasName: Boolean,
     val controller: ControllerHandle,
     val slot: Int,
+    /** Two-Headed Giant team (players 1+2 are team 1); null outside Two-Headed Giant. */
+    val team: Int? = null,
     val participantId: Long,
     val eliminated: Boolean,
     /** Null in the lobby. */

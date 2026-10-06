@@ -107,7 +107,11 @@ snapshots. Firmware before the timer omits both fields; treat that as off.
 `GET /api/game/settings` (authenticated) returns `turnTimerMs` and
 `turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
 existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
-keep their current values. Any seated player may change settings (there is no
+keep their current values. `twoHeadedGiant` (`0` or `1`, `mtg` and `mtg_commander`
+only; GET returns it with the suggested `teamLife` per profile) turns on
+Two-Headed Giant: neighbours in turn order are teams of two with one shared life
+total and one turn (see the state schema's `team`). Changing to another profile
+without sending it turns it off. Any seated player may change settings (there is no
 table host since 2026-09-25), only in the lobby (409 otherwise); invalid values
 return 400. In `GET /api/session/me`, `host` now means "this seat may use table
 actions", which is true for every seated player; `hostModuleId` in the state is

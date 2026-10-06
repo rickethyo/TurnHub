@@ -59,10 +59,10 @@ fun TableHeader(
             }
 
             summary.activePlayerNumber?.let {
-                Text("Now playing: ${labelFor(it)}", style = MaterialTheme.typography.titleMedium)
+                Text("Now playing: ${summary.teamLabel(it) ?: labelFor(it)}", style = MaterialTheme.typography.titleMedium)
             }
             summary.winnerPlayerNumber?.let {
-                Text("Winner: ${labelFor(it)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Winner: ${summary.teamLabel(it) ?: labelFor(it)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             if (summary.endedInDraw) {
                 Text("Draw: the match was ended at Atlas with no winner",

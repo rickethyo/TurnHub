@@ -15,6 +15,8 @@ data class Player(
     val moduleId: Int,
     /** 1 = the module's primary seat (A), 2 = its secondary seat (B). */
     val slot: Int,
+    /** Two-Headed Giant team (players 1+2 are team 1); null outside Two-Headed Giant. */
+    val team: Int? = null,
     /** Unsigned 32-bit; stable only while this participant stays at the table. */
     val participantId: Long,
     val profileId: String?,

@@ -32,6 +32,7 @@ object TableSummaryMapper {
                 hasName = name != null,
                 controller = ControllerHandle(player.moduleId),
                 slot = player.slot,
+                team = player.team,
                 participantId = player.participantId,
                 eliminated = player.eliminated,
                 life = player.life,

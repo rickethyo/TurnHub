@@ -78,6 +78,10 @@ bool resolveWebSeat(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot) 
   if (game.hasPlayers()) {
     snapshot.eliminated = game.isEliminated(seat.playerNumber);
     snapshot.active = game.hasTurn(seat.playerNumber) && !snapshot.eliminated;
+    snapshot.winner = game.isWinner(seat.playerNumber);
+    snapshot.team = game.teamOf(seat.playerNumber);
+  } else if (nextGameSettings.twoHeadedGiant) {
+    snapshot.team = static_cast<uint8_t>((seat.playerNumber + 1) / TurnHub::TEAM_SIZE);
   }
   return true;
 }

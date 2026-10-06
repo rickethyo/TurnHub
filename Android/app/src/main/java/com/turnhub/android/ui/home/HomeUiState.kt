@@ -127,8 +127,8 @@ data class PlayerPanel(
 
             val running = summary.state == TableState.RUNNING
             val paused = summary.state == TableState.PAUSED
-            val myTurn = summary.activePlayerNumber == me.playerNumber && !me.eliminated
-            val passPending = summary.pending.passPlayer == me.playerNumber
+            val myTurn = summary.hasTurn(me.playerNumber) && !me.eliminated
+            val passPending = summary.sameTeam(summary.pending.passPlayer, me.playerNumber)
             val decisionPending = summary.pending.winClaimPlayer != null || summary.pending.eliminationTargetPlayer != null
             return PlayerPanel(
                 session = session,

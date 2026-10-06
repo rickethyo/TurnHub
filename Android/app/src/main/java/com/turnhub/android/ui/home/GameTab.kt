@@ -66,6 +66,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import com.turnhub.android.ui.components.rememberHaptics
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.material3.Switch
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -111,7 +114,8 @@ data class GameActions(
     val onRequestLife: (target: Int, delta: Int) -> Unit = { _, _ -> },
     val onRespondLife: (requestId: Long, accept: Boolean) -> Unit = { _, _ -> },
     val onCommanderDamage: (source: Int, commander: Int, delta: Int) -> Unit = { _, _, _ -> },
-    val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?) -> Unit = { _, _, _ -> },
+    val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?) -> Unit =
+        { _, _, _, _ -> },
 )
 
 
@@ -165,8 +169,8 @@ private const val NUDGE_SHOW_MS = 10_000L
 private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelFor: (Int) -> String, reduceMotion: Boolean) {
     val p = palette
     val timer = TurnTimerStatus.of(summary, nowMs)
-    val active = summary.activePlayerNumber?.let(labelFor)
-    val myTurn = myNumber != null && summary.state == TableState.RUNNING && summary.activePlayerNumber == myNumber
+    val active = summary.activePlayerNumber?.let { summary.teamLabel(it) ?: labelFor(it) }
+    val myTurn = myNumber != null && summary.state == TableState.RUNNING && summary.hasTurn(myNumber)
     // A firm tap in the hand when the turn comes to this phone's player.
     val haptics = rememberHaptics()
     LaunchedEffect(myTurn) { if (myTurn) haptics.yourTurn() }
@@ -193,7 +197,7 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
             else -> active?.let { "$it was up" } ?: "The table is paused"
         }
         TableState.GAME_OVER -> if (summary.endedInDraw) "Draw" to "The match ended as a draw"
-        else "Game over" to "${labelFor(summary.winnerPlayerNumber ?: 0)} wins"
+        else "Game over" to "${summary.teamLabel(summary.winnerPlayerNumber) ?: labelFor(summary.winnerPlayerNumber ?: 0)} wins"
     }
     // The dial: turn countdown when a timer runs, else the turn clock against the 5-minute long-turn mark.
     val (gaugeValue, gaugeCaption, fraction) = when {
@@ -275,7 +279,8 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
 @Composable
 private fun StageBadges(summary: TableSummary, nowMs: Long, labelFor: (Int) -> String, timer: TurnTimerStatus?) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        StatusBadge("Life ${summary.settings.startingLife}")
+        if (summary.settings.twoHeadedGiant) StatusBadge("Two-Headed Giant")
+        StatusBadge(if (summary.settings.twoHeadedGiant) "Team life ${summary.settings.startingLife}" else "Life ${summary.settings.startingLife}")
         StatusBadge("Timer ${TurnTimerStatus.settingLabel(summary.settings.turnTimerMs).lowercase()}")
         if (summary.state != TableState.LOBBY) {
             StatusBadge("Game ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", Tone.INFO)
@@ -325,7 +330,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             onDismiss = { confirmReset = false },
         )
     }
-    BrassCard(highlight = if (me != null && summary.activePlayerNumber == me.playerNumber &&
+    BrassCard(highlight = if (me != null && summary.hasTurn(me.playerNumber) &&
         summary.state == TableState.RUNNING) p.active else null) {
         Eyebrow("My seat")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -336,8 +341,8 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                     when {
                         !signedIn -> "Sign in to play from this phone. A physical Sigil is optional."
                         me == null -> "Signed in · not at the table"
-                        info != null && info.moduleId >= 8 -> "Player ${me.playerNumber} · phone play"
-                        else -> "Player ${me.playerNumber} · Sigil ${me.controller.id + 1} + phone"
+                        info != null && info.moduleId >= 8 -> "${me.team?.let { "Team $it · " } ?: ""}Player ${me.playerNumber} · phone play"
+                        else -> "${me.team?.let { "Team $it · " } ?: ""}Player ${me.playerNumber} · Sigil ${me.controller.id + 1} + phone"
                     },
                     color = p.muted,
                     style = MaterialTheme.typography.bodyMedium,
@@ -346,10 +351,10 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
         }
         if (me != null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (summary.activePlayerNumber == me.playerNumber && summary.state == TableState.RUNNING) StatusBadge("Your turn", Tone.ACTIVE)
+                if (summary.hasTurn(me.playerNumber) && summary.state == TableState.RUNNING) StatusBadge("Your turn", Tone.ACTIVE)
                 if (me.eliminated) StatusBadge("Eliminated", Tone.BAD)
-                if (summary.winnerPlayerNumber == me.playerNumber) StatusBadge("Winner", Tone.ACCENT)
-                me.life?.let { StatusBadge("Life $it", Tone.GOOD) }
+                if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
+                me.life?.let { StatusBadge(if (me.team != null) "Team life $it" else "Life $it", Tone.GOOD) }
             }
         }
         panel?.feedback?.let { feedback ->
@@ -404,8 +409,8 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             summary.state == TableState.STARTING ->
                 ToneButton("Cancel countdown", { actions.onControl(ControlAction.CANCEL_START) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !busy)
             summary.state == TableState.RUNNING && !me.eliminated -> {
-                val myTurn = summary.activePlayerNumber == me.playerNumber
-                val passing = summary.pending.passPlayer == me.playerNumber
+                val myTurn = summary.hasTurn(me.playerNumber)
+                val passing = summary.sameTeam(summary.pending.passPlayer, me.playerNumber)
                 AccentButton(
                     if (passing) "Cancel pending pass" else "Pass turn",
                     {
@@ -449,7 +454,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                     pending.winConfirmationPlayer == null && pending.eliminationTargetPlayer == null -> {
                         AccentButton("Resume game", { actions.onControl(ControlAction.PAUSE_RESUME) }, Modifier.fillMaxWidth().height(64.dp), enabled = !busy)
                         ControlGrid {
-                            if (summary.activePlayerNumber == me.playerNumber) {
+                            if (summary.hasTurn(me.playerNumber)) {
                                 ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !busy)
                             }
                             ToneButton("Concede", { confirmConcede = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !busy)
@@ -569,9 +574,9 @@ private fun LifeCard(
             summary.players.forEach { player ->
                 LifeTile(
                     player = player,
-                    active = player.playerNumber == summary.activePlayerNumber,
+                    active = summary.hasTurn(player.playerNumber),
                     mine = player.playerNumber == me?.playerNumber,
-                    winner = player.playerNumber == summary.winnerPlayerNumber,
+                    winner = summary.isWinner(player.playerNumber),
                     onRequest = if (canAct && player.playerNumber != me?.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
@@ -944,6 +949,15 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     val presets = info?.turnTimerPresetsMs?.takeIf { it.isNotEmpty() } ?: listOf(0L, 60_000L, 90_000L, 120_000L, 180_000L)
     val timerOptions = (listOf(0L) + presets).distinct().let { if (current.turnTimerMs in it) it else it + current.turnTimerMs }
     var timer by remember(current.turnTimerMs) { mutableStateOf(current.turnTimerMs) }
+    var teams by remember(current.twoHeadedGiant) { mutableStateOf(current.twoHeadedGiant) }
+    val teamsAllowed = profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER
+    // Two-Headed Giant team life: 30, or 60 for Commander.
+    fun defaultLife(choice: GameProfile, withTeams: Boolean) = when (choice) {
+        GameProfile.MTG -> if (withTeams) "30" else "20"
+        GameProfile.MTG_COMMANDER -> if (withTeams) "60" else "40"
+        GameProfile.YUGIOH -> "8000"
+        GameProfile.GENERIC -> life
+    }
     BrassCard {
         Eyebrow("Game setup")
         ChoiceDropdown(
@@ -952,19 +966,39 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
             selected = profile,
             onSelect = {
                 profile = it
-                life = when (it) {
-                    GameProfile.MTG -> "20"
-                    GameProfile.MTG_COMMANDER -> "40"
-                    GameProfile.YUGIOH -> "8000"
-                    GameProfile.GENERIC -> life
-                }
+                if (it != GameProfile.MTG && it != GameProfile.MTG_COMMANDER) teams = false
+                life = defaultLife(it, teams)
             },
             enabled = editable,
         )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = teams && teamsAllowed,
+                    enabled = editable && teamsAllowed,
+                    role = Role.Switch,
+                    onValueChange = { teams = it; life = defaultLife(profile, it) },
+                )
+                .padding(vertical = 4.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Two-Headed Giant", color = p.text)
+                Text(
+                    "Magic and Commander only. Players 1 and 2 are a team, then 3 and 4; change turn order to change " +
+                        "teams. Teammates share one life total and one turn, and either can pass. Needs an even number " +
+                        "of players, at least 4. The starting team skips its first draw.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = teams && teamsAllowed, onCheckedChange = null, enabled = editable && teamsAllowed)
+        }
         OutlinedTextField(
             value = life,
             onValueChange = { life = it.filter(Char::isDigit).take(7) },
-            label = { Text("Starting life") },
+            label = { Text(if (teams && teamsAllowed) "Team starting life" else "Starting life") },
             singleLine = true,
             enabled = editable,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -985,7 +1019,7 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
         )
         AccentButton(
             "Save game settings",
-            { actions.onSaveGameSettings(profile.wireValue, life.toIntOrNull(), timer) },
+            { actions.onSaveGameSettings(profile.wireValue, life.toIntOrNull(), timer, teams && teamsAllowed) },
             Modifier.fillMaxWidth(),
             enabled = editable && life.toIntOrNull() != null,
         )

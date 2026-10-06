@@ -121,6 +121,7 @@
   <form onsubmit="saveGameSettings(event)"><fieldset id="gameSettingsFields"><legend class="sr-only">Game setup</legend>
    <div class="field"><label for="gameProfileSelect">Game profile</label>
    <select id="gameProfileSelect" onchange="chooseGameProfile()"><option value="generic">Generic</option><option value="mtg">Magic: The Gathering</option><option value="mtg_commander">MTG Commander</option><option value="yugioh">Yu-Gi-Oh!</option></select></div>
+   <div class="switch-row"><div><label for="twoHeadedGiantInput">Two-Headed Giant</label><small id="twoHeadedGiantHint">Magic and Commander only. Players 1 and 2 are a team, then 3 and 4, and so on; change turn order to change teams. Teammates share one life total and one turn, and either can pass. Needs an even number of players, at least 4. The starting team skips its first draw.</small></div><input id="twoHeadedGiantInput" type="checkbox" aria-describedby="twoHeadedGiantHint" onchange="chooseTwoHeadedGiant()"></div>
    <label for="startingLifeInput">Starting life</label><input id="startingLifeInput" type="number" min="0" max="1000000" step="1" required value="40" oninput="gameSettingsDirty=true">
    <label for="turnTimerSelect">Turn timer</label><select id="turnTimerSelect" onchange="gameSettingsDirty=true;turnTimerCustomRow.hidden=this.value!=='custom'"></select>
    <div id="turnTimerCustomRow" hidden><label for="turnTimerCustom">Custom turn length in seconds (15 to 3600)</label><input id="turnTimerCustom" type="number" min="15" max="3600" step="1" value="90" oninput="gameSettingsDirty=true"></div>
@@ -436,13 +437,13 @@ function renderStatus(s){statusData=s;dot.className='dot online';connPill.classN
  if(s.state==='RUNNING')document.documentElement.dataset.running='';else delete document.documentElement.dataset.running;
  renderGauge(s);renderPlayers();renderSession();processBrowserFeedback(s);renderSetupWizard();syncWakeLock()}
 
-function playerStateText(s){if(s.eliminated)return 'Eliminated';if(statusData&&Number(statusData.winner)===Number(s.player))return 'Winner';if(s.active)return 'Active turn';if(statusData&&Number(statusData.winConfirm)===Number(s.player))return 'Response needed';return 'At table'}
-function renderPlayers(){const rows=seatData.seats.map(s=>{let cls='player row';if(s.active)cls+=' active';const won=statusData&&Number(statusData.winner)===Number(s.player);if(won)cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;
+function playerStateText(s){if(s.eliminated)return 'Eliminated';if(s.winner||(s.winner===undefined&&statusData&&Number(statusData.winner)===Number(s.player)))return 'Winner';if(s.active)return 'Active turn';if(statusData&&Number(statusData.winConfirm)===Number(s.player))return 'Response needed';return 'At table'}
+function renderPlayers(){const rows=seatData.seats.slice().sort((a,b)=>a.player-b.player).map(s=>{let cls='player row';if(s.active)cls+=' active';const won=s.winner!==undefined?!!s.winner:statusData&&Number(statusData.winner)===Number(s.player);if(won)cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;
  let controls='';if(s.virtual&&!current)controls=`<a class="btn small" href="/login?profile=${encodeURIComponent(s.profileId)}">Sign into this profile</a>`;else if(current)controls='<span class="badge good">You</span>';else{controls+=`<button class="small" onclick="claimSeat(${s.module},${s.slot})">Use this seat</button>`;if(s.hasPin&&!s.virtual)controls+=`<button class="small blue" onclick="pinLogin(${s.module},${s.slot})">PIN login</button>`}
  if(myFlags()&2&&s.profileId&&accounts.some(a=>a.profileId===s.profileId&&!a.archived))controls+=`<button class="small" onclick="openPerson('${esc(s.profileId)}')" aria-label="Moderate ${esc(name)}"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>Moderate</button>`;
  const via=s.virtual?'Phone':`${esc(sigilLabel(s.module))} · seat ${esc(s.slotName)}`+(s.sessionClaimed?' + phone':'');
  const life=s.lifeAvailable&&s.life!==undefined?`<span class="row-life" aria-label="Life ${Number(s.life)}">${Number(s.life)}</span>`:'';
- return `<li class="${cls}">${avatar(name,s.player,'',s.avatar)}<div class="row-main"><div class="player-name">${esc(name)}${s.hasPin?' <svg class="i lock" aria-label="Has a PIN or password" role="img"><use href="#i-lock"/></svg>':''}</div><div class="small">Player ${s.player} · ${via}</div></div>${life}<span class="player-state ${s.active?'on':''}${won?' win':''}${s.eliminated?' out':''}">${esc(playerStateText(s))}</span><div class="row-actions actions">${controls}</div></li>`});
+ return `<li class="${cls}">${avatar(name,s.player,'',s.avatar)}<div class="row-main"><div class="player-name">${esc(name)}${s.hasPin?' <svg class="i lock" aria-label="Has a PIN or password" role="img"><use href="#i-lock"/></svg>':''}</div><div class="small">${s.team?`Team ${Number(s.team)} · `:''}Player ${s.player} · ${via}</div></div>${life}<span class="player-state ${s.active?'on':''}${won?' win':''}${s.eliminated?' out':''}">${esc(playerStateText(s))}</span><div class="row-actions actions">${controls}</div></li>`});
  const html=rows.length?rows.join(''):'<li class="empty">No players have joined yet. Tap Invite players to show the QR codes.</li>';if(players.innerHTML!==html)players.innerHTML=html;renderSigilSteps()}
 // "Connect a Sigil" as numbered steps; each step's state comes from what Atlas reports.
 function renderSigilSteps(){const authed=!!(sessionInfo&&sessionInfo.authenticated),devs=(deviceData&&deviceData.devices)||[],paired=devs.length>0,mine=authed&&seatData.seats.some(s=>sameSessionSeat(s)&&!s.virtual),lobby=statusData&&statusData.state==='LOBBY';
@@ -611,12 +612,13 @@ function refreshAll(full=true){
 const PROFILE_LABELS={generic:'Generic',mtg:'Magic: The Gathering',mtg_commander:'MTG Commander',yugioh:'Yu-Gi-Oh!'};
 function renderGameLife(){
  const settings=gameSettingsData,me=sessionInfo||{},state=statusData||{};
- gameProfileSummary.textContent=settings?`${PROFILE_LABELS[settings.gameProfile]||settings.gameProfile} · Starting life ${settings.startingLife} · Turn timer ${timerLabel(settings.turnTimerMs||0)}`:'';
+ gameProfileSummary.textContent=settings?`${PROFILE_LABELS[settings.gameProfile]||settings.gameProfile}${settings.twoHeadedGiant?' · Two-Headed Giant · Team life':' · Starting life'} ${settings.startingLife} · Turn timer ${timerLabel(settings.turnTimerMs||0)}`:'';
  renderLifeCards();
  if(settings&&settings.turnTimer&&!turnTimerSelect.options.length){turnTimerSelect.innerHTML=settings.turnTimer.presetsMs.map(ms=>`<option value="${ms}">${timerLabel(ms)}</option>`).join('')+'<option value="custom">Custom…</option>'}
- if(settings&&!gameSettingsDirty){gameProfileSelect.value=settings.gameProfile;startingLifeInput.value=settings.startingLife;
+ if(settings&&!gameSettingsDirty){gameProfileSelect.value=settings.gameProfile;startingLifeInput.value=settings.startingLife;twoHeadedGiantInput.checked=!!settings.twoHeadedGiant;
   const ms=settings.turnTimerMs||0,preset=!settings.turnTimer||settings.turnTimer.presetsMs.includes(ms);
   turnTimerSelect.value=preset?String(ms):'custom';turnTimerCustomRow.hidden=preset;if(!preset)turnTimerCustom.value=ms/1000}
+ if(!gameSettingsDirty)syncTwoHeadedGiant();
  gameSettingsFields.disabled=gameSettingsSaving||!settings||!settings.canEdit;
  const show=!!(me.authenticated&&me.lifeAvailable);
  lifePanel.hidden=!show;
@@ -637,11 +639,15 @@ function turnTimerText(s){const elapsed=Number(s.turnElapsedMs)||0,limit=Number(
  if(s.timerPhase==='EXPIRED')return `Time's up · ${clockText(elapsed-limit)} over`;
  if(limit)return `${clockText(s.turnRemainingMs)} left${s.timerPhase==='WARNING'?' · 10-second warning':''}`;
  return s.timerPhase==='LONG_TURN'?`Long turn · ${clockText(elapsed)}`:`Turn time ${clockText(elapsed)}`}
-function chooseGameProfile(){gameSettingsDirty=true;startingLifeInput.value=({generic:40,mtg:20,mtg_commander:40,yugioh:8000})[gameProfileSelect.value]}
+const TEAM_PROFILES=['mtg','mtg_commander'];
+function teamLife(profile){const t=gameSettingsData&&gameSettingsData.teamLife;return (t&&t[profile])||({mtg:30,mtg_commander:60})[profile]}
+function syncTwoHeadedGiant(){const ok=TEAM_PROFILES.includes(gameProfileSelect.value);if(!ok)twoHeadedGiantInput.checked=false;twoHeadedGiantInput.disabled=!ok}
+function chooseGameProfile(){gameSettingsDirty=true;syncTwoHeadedGiant();startingLifeInput.value=twoHeadedGiantInput.checked?teamLife(gameProfileSelect.value):({generic:40,mtg:20,mtg_commander:40,yugioh:8000})[gameProfileSelect.value]}
+function chooseTwoHeadedGiant(){gameSettingsDirty=true;startingLifeInput.value=twoHeadedGiantInput.checked?teamLife(gameProfileSelect.value):({mtg:20,mtg_commander:40})[gameProfileSelect.value]||startingLifeInput.value}
 async function saveGameSettings(event){
  event.preventDefault();if(gameSettingsSaving)return;
  const turnTimerMs=turnTimerSelect.value==='custom'?String(Number(turnTimerCustom.value)*1000):turnTimerSelect.value;
- const settings={gameProfile:gameProfileSelect.value,startingLife:startingLifeInput.value};
+ const settings={gameProfile:gameProfileSelect.value,startingLife:startingLifeInput.value,twoHeadedGiant:twoHeadedGiantInput.checked&&TEAM_PROFILES.includes(gameProfileSelect.value)?'1':'0'};
  if(turnTimerMs)settings.turnTimerMs=turnTimerMs;
  gameSettingsSaving=true;renderGameLife();
  try{

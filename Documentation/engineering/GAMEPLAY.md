@@ -22,6 +22,38 @@ damage total ever eliminates anyone automatically.
   `/api/session/me` and `/api/seats` report `lifeAvailable` and `life`.
 - Lifetime statistics are not yet split by game (staged).
 
+## Two-Headed Giant
+
+*Planned → implemented 2026-10-06 (owner request); needs a playtest.* A team
+option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
+`twoHeadedGiant` on `/api/game/settings`, `settings.twoHeadedGiant` and
+`players[].team` in the state).
+
+- **Teams** are neighbours in turn order: players 1+2 are team 1, 3+4 team 2,
+  and so on. Change teams by changing the lobby's turn order. Start needs an
+  even table of at least 4 (`validTeamTable`). Teammates may share one Sigil
+  (seats A and B) or use separate Sigils or phones.
+- **One turn per team.** `activePlayer` is one teammate; both have the turn
+  (`GameEngine::hasTurn`), either may pass, claim the win or cancel the
+  team's pending pass, and the pass goes to the next team. A team turn counts
+  for both teammates' turn statistics. Both teammates' Sigils show the turn
+  and hear its cues.
+- **One life total.** Starting life is the team's total: 30 for Magic and 60
+  for Commander when the toggle is turned on in a client (editable). Either
+  teammate changes it directly; a change to the other team's life is a
+  request either opponent can answer, one pending per team.
+- **Commander damage** stays per player (21 from one commander is the usual
+  loss), and every hit comes off the team's life.
+- **Leaving together.** Eliminating or conceding one teammate eliminates the
+  team. A win claim waits only on the other teams; the last team standing
+  wins, and both teammates get the win in their statistics.
+- **First draw.** The starting team skips its first draw; the Atlas screen
+  reminds the table during that first turn. TurnHub does not track draws.
+- Storage keeps the flag in the profile byte's top bit (`PROFILE_BYTE_TEAMS`)
+  of `gamecfg` and the recovery record, so neither layout changed. Sigils need
+  no new firmware: Atlas sends the team's life and turn in the existing
+  display packets.
+
 ## Turns
 
 - **Pass** waits `PASS_GRACE_MS` (3 s) so it can be undone: the passer's
@@ -145,6 +177,11 @@ pentatonic chimes on the DAC), volume Off/Low/Medium/High (Admin,
 left, warning, time over, long turn, PASSING, pending requests).
 
 ## Verification
+
+Two-Headed Giant: host scenarios cover team turns, shared life, requests,
+win claims, elimination, Commander, recovery, the settings API, the state JSON
+and both teammates' Sigils (`twoHeadedGiant*` in `scenarios.cpp`). Not yet
+played at the table.
 
 Host scenarios cover settings and storage, life bounds and approvals
 (authorization, deadline races, rollover, cancellation), Commander entry from

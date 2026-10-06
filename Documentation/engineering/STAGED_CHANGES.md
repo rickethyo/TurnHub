@@ -149,6 +149,9 @@ delete the line. A host or compile result never checks off a hardware line.
   match, eight Sigils at once, forged/replayed/cleartext packets refused.
 - [ ] **G11** Playtest Sigil Commander entry and partners (Sigil 0.9.10) and
   shared-Sigil turn order (2026-10-05).
+- [ ] **G13** Playtest Two-Headed Giant (2026-10-06): four players on separate
+  Sigils and on two shared Sigils, Magic and Commander, either teammate
+  passing, team life on every client, team concession and the win.
 - [ ] **G12** Spare Sigil end to end: make spare, pair without a code, return
   to service over the air, flash-all records it.
 - [ ] **H03** Power measurements (above).

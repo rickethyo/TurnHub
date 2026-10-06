@@ -163,6 +163,8 @@ void handleSeats(WebServer &server) {
       json += "\",\"player\":"; json += String(snapshot.playerNumber);
       json += ",\"active\":"; json += jsonBool(snapshot.active);
       json += ",\"eliminated\":"; json += jsonBool(snapshot.eliminated);
+      json += ",\"winner\":"; json += jsonBool(snapshot.winner);
+      json += ",\"team\":"; json += snapshot.team ? String(snapshot.team) : String("null");
       json += ",\"lifeAvailable\":"; json += jsonBool(snapshot.lifeAvailable);
       json += ",\"life\":"; json += String(snapshot.life);
       json += ",\"profileId\":\""; json += jsonEscape(profileId);

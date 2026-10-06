@@ -1,0 +1,82 @@
+{
+  "protocolVersion": "0.1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 4,
+  "state": "RUNNING",
+  "hostModuleId": 8,
+  "starterPlayer": 1,
+  "activePlayer": 1,
+  "winnerPlayer": null,
+  "settings": {
+    "profile": "mtg",
+    "startingLife": 30,
+    "turnTimerMs": 0,
+    "twoHeadedGiant": true
+  },
+  "sampledAtMs": 4101,
+  "gameElapsedMs": 100,
+  "turnElapsedMs": 100,
+  "turnTimer": {
+    "phase": "NORMAL",
+    "remainingMs": null
+  },
+  "pending": {
+    "passPlayer": null,
+    "passGraceRemainingMs": 0,
+    "winClaimPlayer": null,
+    "winConfirmationPlayer": null,
+    "eliminationTargetPlayer": null
+  },
+  "nudge": null,
+  "players": [
+    {
+      "playerNumber": 1,
+      "moduleId": 8,
+      "slot": 1,
+      "team": 1,
+      "participantId": 28,
+      "turnsCompleted": 0,
+      "eliminated": false,
+      "life": 26,
+      "commanderDamage": [],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 2,
+      "moduleId": 9,
+      "slot": 1,
+      "team": 1,
+      "participantId": 29,
+      "turnsCompleted": 0,
+      "eliminated": false,
+      "life": 26,
+      "commanderDamage": [],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 3,
+      "moduleId": 10,
+      "slot": 1,
+      "team": 2,
+      "participantId": 30,
+      "turnsCompleted": 0,
+      "eliminated": false,
+      "life": 30,
+      "commanderDamage": [],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 4,
+      "moduleId": 11,
+      "slot": 1,
+      "team": 2,
+      "participantId": 31,
+      "turnsCompleted": 0,
+      "eliminated": false,
+      "life": 30,
+      "commanderDamage": [],
+      "lifeRequest": null
+    }
+  ]
+}

@@ -3757,7 +3757,7 @@ static void twoHeadedGiantTable() {
   enterEmptyLobby(); TurnHub::fixtureRadio=false;
   String ids[4]; String tokens[4];
   const char *names[4] = {"Giant A1","Giant A2","Giant B1","Giant B2"};
-  for (int i=0;i<4;++i) { if (request("/api/profiles/register","",{{"name",names[i]},{"pin","1234"}})!=200) { std::cout<<server.body<<"\n"; } tokens[i]=registerPhone(names[i],ids[i]); }
+  for (int i=0;i<4;++i) tokens[i]=registerPhone(names[i],ids[i]);
   for (int i=0;i<3;++i) assert(request("/api/session/join",tokens[i])==200);
   // Teams need Magic or Commander, and an even table of four or more.
   assert(request("/api/game/settings",tokens[0],{{"gameProfile","generic"},{"twoHeadedGiant","1"}})==409);
@@ -3797,6 +3797,9 @@ static void twoHeadedGiantTable() {
   assert(request("/api/session/join",tokens[0])==200);
   assert(request("/api/game/settings",tokens[0],{{"gameProfile","generic"}})==200);
   assert(!nextGameSettings.twoHeadedGiant);
+  // Later scenarios register their own accounts against the profile limit.
+  assert(request("/api/control/reset",tokens[0])==200);
+  for (const String &id : ids) ProfileFixture::profiles.erase(id.c_str());
 }
 
 static void twoHeadedGiantSigils() {

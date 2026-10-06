@@ -251,8 +251,14 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     /** Any seated player, in the lobby; null fields keep Atlas's values. */
-    suspend fun saveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?) = act {
-        val message = transports.create(it.first).saveGameSettings(it.second, gameProfile, startingLife, turnTimerMs)
+    suspend fun saveGameSettings(
+        gameProfile: String?,
+        startingLife: Int?,
+        turnTimerMs: Long?,
+        twoHeadedGiant: Boolean? = null,
+    ) = act {
+        val message = transports.create(it.first)
+            .saveGameSettings(it.second, gameProfile, startingLife, turnTimerMs, twoHeadedGiant)
         ActionFeedback(message ?: "Game settings saved on Atlas.", isError = false)
     }
 

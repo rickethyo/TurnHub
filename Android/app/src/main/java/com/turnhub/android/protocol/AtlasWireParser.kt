@@ -174,6 +174,7 @@ object AtlasWireParser {
                     },
                     startingLife = root.int("startingLife"),
                     turnTimerMs = root.uint32("turnTimerMs"),
+                    twoHeadedGiant = root.optionalBoolean("twoHeadedGiant"),
                 ),
                 available = root.boolean("available"),
                 canEdit = root.boolean("canEdit"),
@@ -241,6 +242,7 @@ object AtlasWireParser {
         profile = GameProfile.fromWire(profileKey) ?: malformed("Unknown game profile '$profileKey'"),
         startingLife = settings.int("startingLife"),
         turnTimerMs = settings.uint32("turnTimerMs"),
+        twoHeadedGiant = settings.optionalBoolean("twoHeadedGiant"),
     )
 
     private fun parseTurnTimer(timer: JSONObject): TurnTimer {
@@ -265,6 +267,7 @@ object AtlasWireParser {
         playerNumber = player.int("playerNumber"),
         moduleId = player.int("moduleId"),
         slot = player.int("slot"),
+        team = player.optionalInt("team"),
         participantId = player.uint32("participantId"),
         profileId = player.optionalString("profileId"),
         displayName = player.optionalString("displayName"),
@@ -335,6 +338,9 @@ object AtlasWireParser {
 
     private fun JSONObject.boolean(key: String): Boolean =
         require(key) as? Boolean ?: malformed("Field '$key' must be a boolean")
+
+    private fun JSONObject.optionalBoolean(key: String): Boolean =
+        if (isAbsentOrNull(key)) false else boolean(key)
 
     private fun JSONObject.obj(key: String): JSONObject =
         require(key) as? JSONObject ?: malformed("Field '$key' must be an object")
