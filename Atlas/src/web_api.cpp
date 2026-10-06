@@ -138,12 +138,14 @@ namespace {
 // table can stay constant data in flash.
 template <WebControl C> void controlRoute(WebServer &server) { runControl(server, C); }
 template <TurnHub::IntentType T> void counterRoute(WebServer &server) { handleCounterControl(server, T); }
+template <TurnHub::IntentType T> void tabletCounterRoute(WebServer &server) { handleTabletCounter(server, T); }
 void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
 void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubWeb::BASIC_PORTAL_HTML); }
 void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
+void tabletPage(WebServer &server) { servePortalPage(server, "tablet.html", TurnHubWeb::BASIC_PORTAL_HTML); }
 
 struct Route {
   const char *uri;
@@ -162,6 +164,7 @@ const Route ROUTES[] = {
   // Pages served outside the portal.
   {"/stats", HTTP_GET, statsPage},
   {"/login", HTTP_GET, loginPage},
+  {"/tablet", HTTP_GET, tabletPage},
 
   // Accounts and administration.
   {"/api/accounts/setup", HTTP_GET, accountSetupStatus},
@@ -237,6 +240,16 @@ const Route ROUTES[] = {
   {"/api/control/rematch", HTTP_POST, controlRoute<WebControl::Rematch>},
   {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
   {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
+  // Tablet mode: one shared table screen acting for any seated player.
+  {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
+  {"/api/tablet/disable", HTTP_POST, handleTabletDisable},
+  {"/api/tablet/seat", HTTP_POST, handleTabletSeat},
+  {"/api/tablet/unseat", HTTP_POST, handleTabletUnseat},
+  {"/api/tablet/control", HTTP_POST, handleTabletControl},
+  {"/api/tablet/life", HTTP_POST, handleTabletLife},
+  {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
+  {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
+  {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},
 };
 
 const Route *findRoute(HTTPMethod method, const String &uri) {

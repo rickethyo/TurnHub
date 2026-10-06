@@ -163,6 +163,23 @@ String createProfileWithCredentials(const String &name, const String &pin, PinHa
   return String();
 }
 
+// A named profile with no PIN, as a table tablet seats a new player.
+String createProfileWithName(const String &name) {
+  if ((!preferencesReady && !begin()) || name.length() == 0 || name.length() > 32) return String();
+  char ids[MAX_LOGIN_PROFILES][PROFILE_ID_LENGTH + 1];
+  if (listProfileIds(ids, MAX_LOGIN_PROFILES) >= MAX_LOGIN_PROFILES) return String();
+  for (uint8_t attempt = 0; attempt < 16; ++attempt) {
+    const String id = makeProfileId();
+    if (profileExists(id)) continue;
+    const String nameKey = profileKey('n', id);
+    // Publish the profile marker last, as createProfileWithCredentials does.
+    if (preferences.putString(nameKey.c_str(), name) > 0 && ensureMarker(id)) return id;
+    preferences.remove(nameKey.c_str());
+    return String();
+  }
+  return String();
+}
+
 String nameForProfile(const String &profileId) {
   if (!preferencesReady || !profileExists(profileId)) {
     return String();

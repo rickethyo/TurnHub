@@ -222,9 +222,9 @@ private fun PrivacyCard(uiState: HomeUiState, actions: AccountActions) {
             ),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Allow physical use without a PIN", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                Text("Allow Sigil and tablet use without a PIN", color = p.text, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "When off, sign into this profile on a phone before joining with a Sigil. A game in progress continues.",
+                    "When off, a Sigil or a table tablet asks for this PIN first (or sign in on a phone). A game in progress continues.",
                     color = p.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )

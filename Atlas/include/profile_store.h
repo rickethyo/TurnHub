@@ -67,6 +67,8 @@ constexpr size_t MAX_LOGIN_PROFILES = 64;
 size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity);
 using PinHasher = String (*)(const String &profileId, const String &pin);
 String createProfileWithCredentials(const String &name, const String &pin, PinHasher hasher);
+// A named profile with no PIN (tablet mode's Add player).
+String createProfileWithName(const String &name);
 bool profileExists(const String &profileId);
 
 String nameForProfile(const String &profileId);

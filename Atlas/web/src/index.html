@@ -41,6 +41,7 @@
     <div class="menu-head"><strong id="menuName"></strong><span id="menuMeta"></span></div>
     <button class="menu-item" onclick="closeAccountMenu();showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>Account settings</button>
     <a class="menu-item" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>My statistics</a>
+    <a class="menu-item" href="/tablet"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Tablet mode</a>
     <a id="devLink" class="menu-item" href="/dev" hidden><svg class="i" aria-hidden="true"><use href="#i-sparkle"/></svg>Developer</a>
     <button class="menu-item danger" onclick="closeAccountMenu();logoutSession()"><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>Log out</button>
    </div>
@@ -192,7 +193,7 @@
    <label for="profilePin">New PIN or password</label><div class="inline"><input id="profilePin" type="password" maxlength="64" placeholder="4–8 digits, or 8–64 characters" autocomplete="new-password"><button onclick="savePin()">Set PIN</button></div>
    <button id="clearPinButton" class="bad small" style="margin-top:10px" hidden onclick="clearPin()">Remove PIN</button>
    <form id="profilePolicyForm" style="margin-top:20px" onsubmit="saveProfilePolicy(event)"><fieldset id="profilePolicyFields"><legend>Physical access and privacy</legend>
-    <div class="switch-row"><div><label for="allowPhysicalWithoutPin">Allow physical use without a PIN</label><small id="allowPhysicalWithoutPinHelp">When disabled, sign into this profile in the portal before joining with a Sigil. An existing game continues.</small></div><input id="allowPhysicalWithoutPin" type="checkbox" aria-describedby="allowPhysicalWithoutPinHelp" onchange="profilePolicyDirty=true"></div>
+    <div class="switch-row"><div><label for="allowPhysicalWithoutPin">Allow Sigil and tablet use without a PIN</label><small id="allowPhysicalWithoutPinHelp">When off, a Sigil or a table tablet asks for this PIN first (or sign in on a phone). An existing game continues.</small></div><input id="allowPhysicalWithoutPin" type="checkbox" aria-describedby="allowPhysicalWithoutPinHelp" onchange="profilePolicyDirty=true"></div>
     <div class="switch-row"><div><label for="hideStatsWithoutAuthentication">Hide stats without authentication</label><small id="hideStatsWithoutAuthenticationHelp">Statistics always accumulate. This choice also applies to future Sigil statistics screens. Signing into this profile enables its connected Sigil's full display.</small></div><input id="hideStatsWithoutAuthentication" type="checkbox" aria-describedby="hideStatsWithoutAuthenticationHelp" onchange="profilePolicyDirty=true"></div>
     <button type="submit" class="primary" style="margin-top:10px">Save profile choices</button></fieldset>
     <p id="profilePolicyStatus" class="msg" role="status" aria-live="polite"></p></form>

@@ -174,6 +174,18 @@ void handleSeatLogin(WebServer &server) {
 
 }  // namespace
 
+bool verifyProfileSecret(WebServer &server, const String &profileId, const String &pin) {
+  if (!admitRateLimited(server, profileId)) return false;
+  const String stored = TurnHubProfiles::storedPinHashForProfile(profileId);
+  if (!validPin(pin) || stored.length() != PIN_HASH_LENGTH ||
+      !stored.equalsIgnoreCase(profilePinHash(profileId, pin))) {
+    sendError(server, 401, "That PIN was not accepted");
+    return false;
+  }
+  loginLimiter.success(profileId.c_str());
+  return admitAccount(server, profileId);
+}
+
 // --- Tokens, sessions and seats ------------------------------------------------
 
 void makeToken(char out[TOKEN_LENGTH + 1]) {
@@ -503,6 +515,7 @@ void handleSessionMe(WebServer &server) {
   TurnHubProfiles::ProfilePolicy policy;
   const bool policyAvailable = TurnHubProfiles::loadPolicyForProfile(profileId, policy);
   response += ",\"policyAvailable\":"; response += jsonBool(policyAvailable);
+  response += ",\"tablet\":"; response += jsonBool(session->tableDevice);
   if (policyAvailable) {
     response += ",\"allowPhysicalWithoutPin\":"; response += jsonBool(policy.allowPhysicalWithoutPin);
     response += ",\"hideStatsWithoutAuthentication\":";

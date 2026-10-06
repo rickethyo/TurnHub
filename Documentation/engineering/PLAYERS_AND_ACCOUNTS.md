@@ -67,13 +67,38 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   Starter, participants and bindings stay with their physical seats, and
   recovery restores A/B and B/A pairs.
 
+## Tablet mode (2026-10-06)
+
+*Experimental: host-tested, not yet played on hardware.* One shared tablet or
+phone lies in the middle of the table, split into a panel per player that
+faces their seat (`Atlas/web/src/tablet.html`, served at `/tablet`).
+
+- **Turning it on.** Any signed-in account asks for a table presence code
+  with `purpose=tablet` (a player's code unlocks only this; every Admin action
+  still checks Admin), enters the code the Atlas screen shows, then
+  `POST /api/tablet/enable`. The grant lives on that browser session (RAM)
+  until `POST /api/tablet/disable`, sign-out or the eight-hour idle expiry.
+- **Seating.** In the lobby the tablet adds players: a new name creates a
+  profile with no PIN (names are unique, ignoring case); an existing profile
+  follows its owner's PIN choice below, else the tablet asks for its PIN
+  (rate limited like a sign-in). Seated players join as browser controllers,
+  so a Sigil can then attach to any of them through its picker ("at table:
+  attach") and a phone can sign in to the same participant.
+- **Acting for a seat.** Every panel action names the seat (`module`, `slot`
+  from `/api/v1/state`) and goes through the same seat callbacks and Intents
+  a phone uses (`web_tablet_api.cpp`). Atlas still decides: a seat changes
+  only its own life, records only Commander damage it received, only the
+  active player passes or claims a win, and win confirmations go to the
+  confirming seat. Statistics are recorded per profile as for any game.
+
 ## Owner policy
 
 Each profile owner chooses, in the portal or app (`POST /api/session/policy`):
 
-- **Allow physical use without a PIN.** Off means a Sigil can join as that
-  profile only while the same profile has a live phone session. Turning it
-  off needs a saved secret. Existing participation continues if the policy
+- **Allow Sigil and tablet use without a PIN** (`allowPhysicalWithoutPin`).
+  Off means a Sigil or a table tablet can seat that profile only while the
+  same profile has a live phone session, or (tablet only) after its PIN is
+  typed on the tablet. Turning it off needs a saved secret. Existing participation continues if the policy
   changes or the session expires.
 - **Hide stats without authentication.** Controls visibility only; statistics
   always accumulate. Atlas enforces it before serializing anything.

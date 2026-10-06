@@ -103,7 +103,7 @@ case '/api/speaker':if(req.method==='POST'){speakerVolume=Number(url.searchParam
   await tab.screenshot({path:path.join(__dirname,'build','portal-life-mobile.png'),fullPage:true});
   assert(await tab.getByRole('button',{name:'Save game settings',exact:true}).isDisabled());
   await tab.getByRole('button',{name:'My Account',exact:true}).click();
-  const physical=tab.getByLabel('Allow physical use without a PIN',{exact:true});
+  const physical=tab.getByLabel('Allow Sigil and tablet use without a PIN',{exact:true});
   const hidden=tab.getByLabel('Hide stats without authentication',{exact:true});
   assert(await physical.isChecked());assert(await hidden.isChecked());
   await physical.uncheck();

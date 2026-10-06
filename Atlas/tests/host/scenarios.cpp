@@ -3135,6 +3135,97 @@ static void atlasSpeaker() {
   audio.setSpeaker(nullptr); audio.setSpeakerVolume(0); audio.clear(); enterEmptyLobby();
 }
 
+// Tablet mode: one shared screen seats every player (new PIN-less profiles or
+// existing ones, by their PIN-use choice) and acts for each seat as its own
+// controller would. A player's table presence code turns it on, and grants
+// nothing an Admin needs.
+static void tabletMode() {
+  TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
+  TurnHubWebApi::configureGameControls(readGameSettings,configureGame,changeLife);
+  TurnHubWebApi::configureCounterControls(readCounters,changeCounter);
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configurePresence(presenceHooks());
+  resetPresence(); enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
+  String ownerId,lockedId;
+  const String tablet=registerPhone("Tablet owner",ownerId);
+  const String locked=registerPhone("Locked Lee",lockedId);
+  ProfileFixture::profiles[lockedId].policy.allowPhysicalWithoutPin=false;
+  assert(request("/api/session/logout",locked)==200);
+
+  // Off until a presence code from the Atlas screen; a player may ask for one
+  // only for tablet mode, and it grants no Admin action.
+  assert(request("/api/tablet/seat",tablet,{{"name","Ava"}})==403);
+  assert(server.body.find("tabletRequired")!=std::string::npos);
+  assert(request("/api/tablet/enable","")==401);
+  assert(request("/api/tablet/enable",tablet)==403 && server.body.find("presenceRequired")!=std::string::npos);
+  assert(request("/api/presence/request",tablet)==403);
+  assert(request("/api/presence/request",tablet,{{"purpose","tablet"}})==200);
+  const PresenceRequest *shown=pendingPresenceCode(testNow); assert(shown!=nullptr);
+  char digits[8]; snprintf(digits,sizeof(digits),"%06lu",static_cast<unsigned long>(shown->code));
+  assert(request("/api/presence/confirm",tablet,{{"code",digits}})==200);
+  assert(request("/api/table/reset",tablet)==403);
+  assert(request("/api/tablet/enable",tablet)==200);
+  assert(request("/api/session/me",tablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
+  assert(server.body.find("\"participating\":false")!=std::string::npos);
+
+  // New names become PIN-less profiles at the table; names stay unique.
+  assert(request("/api/tablet/seat",tablet,{{"name","  "}})==400);
+  assert(request("/api/tablet/seat",tablet,{{"name","Ava"}})==200);
+  const String avaId=responseField("profileId");
+  assert(ProfileFixture::profiles[avaId].name=="Ava" && !TurnHubProfiles::hasPinForProfile(avaId));
+  assert(request("/api/tablet/seat",tablet,{{"name","ava"}})==409 && lobby.playerCount()==1);
+  assert(request("/api/tablet/seat",tablet,{{"name","Ben"}})==200 && lobby.playerCount()==2);
+  const String benId=responseField("profileId");
+  // An existing profile: its own PIN unless it allows use without one.
+  assert(request("/api/tablet/seat",tablet,{{"profileId","FFFFFFFF"}})==404);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId}})==403);
+  assert(server.body.find("pinRequired")!=std::string::npos && lobby.playerCount()==2);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","9999"}})==401);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","1234"}})==200 && lobby.playerCount()==3);
+  assert(request("/api/tablet/unseat",tablet,{{"profileId",lockedId}})==200 && lobby.playerCount()==2);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",ownerId}})==200 && lobby.playerCount()==3);
+  assert(request("/api/tablet/unseat",tablet,{{"profileId",ownerId}})==200 && lobby.playerCount()==2);
+
+  // Settings and Start for the table, through any seat.
+  PlayerSeat seats[MAX_PLAYERS]; assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2);
+  const String m1=String(seats[0].controllerId), m2=String(seats[1].controllerId);
+  assert(request("/api/tablet/settings",tablet,{{"module",m1},{"slot","1"},{"gameProfile","mtg_commander"},{"startingLife","40"}})==200);
+  assert(request("/api/tablet/control",tablet,{{"module","99"},{"slot","1"},{"action","start"}})==400);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","fly"}})==400);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","start"}})==200);
+  testNow+=3000; updateCountdown(testNow); assert(hubState==HubState::Running);
+  assert(String(game.playerAt(0)->profileId)==avaId && String(game.playerAt(1)->profileId)==benId);
+
+  // Each panel changes its own seat's life and records damage it received.
+  assert(request("/api/tablet/life",tablet,{{"module",m2},{"slot","1"},{"delta","-3"}})==200);
+  assert(game.lifeTotal(2)==37 && game.lifeTotal(1)==40);
+  assert(request("/api/tablet/life",tablet,{{"module",m2},{"slot","1"},{"delta","0"}})==400);
+  assert(request("/api/tablet/commander",tablet,{{"module",m2},{"slot","1"},{"source","1"},{"commander","1"},{"delta","5"}})==200);
+  assert(game.commanderDamage(2,1,1)==5 && game.lifeTotal(2)==32);
+  // The active panel passes; a pass from the other seat is refused.
+  const String active=String(game.activePlayer()->controllerId);
+  const String waiting=active==m1?m2:m1;
+  assert(request("/api/tablet/control",tablet,{{"module",waiting},{"slot","1"},{"action","pass"}})==409);
+  assert(request("/api/tablet/control",tablet,{{"module",active},{"slot","1"},{"action","pass"}})==200 && pendingPass.active);
+  testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+  assert(String(game.activePlayer()->controllerId)==waiting);
+  // A win claim (only the active player's) is confirmed on the other panel.
+  assert(request("/api/tablet/control",tablet,{{"module",waiting},{"slot","1"},{"action","win"}})==200);
+  assert(request("/api/tablet/control",tablet,{{"module",active},{"slot","1"},{"action","confirm"}})==200);
+  assert(hubState==HubState::GameOver);
+  const String winnerId=waiting==m1?avaId:benId;
+  assert(ProfileFixture::profiles[winnerId].stats.gamesPlayed==1 && ProfileFixture::profiles[winnerId].stats.gamesWon==1);
+
+  // Leaving tablet mode removes the grant; the account stays signed in.
+  assert(request("/api/tablet/disable",tablet)==200);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","rematch"}})==403);
+  assert(request("/api/session/me",tablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":false")!=std::string::npos);
+  assert(request("/api/session/logout",tablet)==200);
+  // Free the fixture's profile capacity for later scenarios.
+  for (const String &id:{ownerId,lockedId,avaId,benId}) ProfileFixture::profiles.erase(id.c_str());
+  resetPresence(); enterEmptyLobby();
+}
+
 // An Admin verified at the table (presence code) returns the
 // table to an empty lobby from the portal; a match in progress ends as a draw.
 static void resetTableFromPortal() {
@@ -3865,6 +3956,7 @@ int main() {
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
+  tabletMode(); std::cout<<"PASS tablet mode: presence code, PIN-less new players, PIN choice, unique names, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
   pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;
