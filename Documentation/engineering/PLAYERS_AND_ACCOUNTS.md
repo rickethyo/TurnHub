@@ -71,7 +71,10 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
 
 *Experimental: host-tested, not yet played on hardware.* One shared tablet or
 phone lies in the middle of the table, split into a panel per player that
-faces their seat (`Atlas/web/src/tablet.html`, served at `/tablet`).
+faces their seat (`Atlas/web/src/tablet.html`, served at `/tablet`; in the
+Android app, My account → Open tablet mode, `ui/tablet/`). Both draw
+`/api/v1/state` and send the same `/api/tablet/*` requests; the app also keeps
+the screen on and hides the system bars during play.
 
 - **Turning it on.** Any signed-in account asks for a table presence code
   with `purpose=tablet` (a player's code unlocks only this; every Admin action

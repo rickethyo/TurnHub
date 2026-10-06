@@ -90,6 +90,8 @@ data class TablePlayer(
     /** Two-Headed Giant team (players 1+2 are team 1); null outside Two-Headed Giant. */
     val team: Int? = null,
     val participantId: Long,
+    /** The seated profile; tablet mode removes a player by it. */
+    val profileId: String? = null,
     val eliminated: Boolean,
     /** Null in the lobby. */
     val life: Int?,

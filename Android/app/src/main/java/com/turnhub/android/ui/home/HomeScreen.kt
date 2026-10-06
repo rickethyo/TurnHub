@@ -134,6 +134,8 @@ fun HomeScreen(
     onOpenUpdates: () -> Unit = {},
     seatClaim: com.turnhub.android.data.SeatClaim? = null,
     seatActions: SeatActions = SeatActions(),
+    tablet: com.turnhub.android.data.TabletState = com.turnhub.android.data.TabletState(),
+    tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -167,6 +169,21 @@ fun HomeScreen(
     var showManual by rememberSaveable { mutableStateOf(false) }
     if (showManual) {
         ManualScreen(onClose = { showManual = false }, modifier = modifier)
+        return
+    }
+    // Tablet mode: this device becomes the table's shared screen until closed.
+    var showTablet by rememberSaveable { mutableStateOf(false) }
+    if (showTablet) {
+        com.turnhub.android.ui.tablet.TabletScreen(
+            summary = summary,
+            session = info,
+            signedIn = uiState.player?.signedIn == true,
+            tablet = tablet,
+            actions = tabletActions,
+            reduceMotion = reduceMotion,
+            onClose = { showTablet = false },
+            modifier = modifier,
+        )
         return
     }
 
@@ -275,7 +292,7 @@ fun HomeScreen(
                                 }
                                 HomeTab.ACCOUNT -> {
                                     if (admin.presence?.setup == true) AdminSetupCard(adminActions)
-                                    AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
+                                    AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick, onOpenTablet = { showTablet = true }))
                                 }
                                 HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, adminActions, onShowPeople = { tab = HomeTab.PLAYERS }) }
                                 HomeTab.DEV -> DevTab(admin, adminActions)

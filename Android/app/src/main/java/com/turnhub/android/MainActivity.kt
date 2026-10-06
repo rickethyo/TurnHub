@@ -381,6 +381,14 @@ class MainActivity : ComponentActivity() {
                             dismiss = homeViewModel::onSetupDismissed,
                             close = homeViewModel::onSetupClosed,
                         ),
+                        tablet = homeViewModel.tabletState.collectAsStateWithLifecycle().value,
+                        tabletActions = com.turnhub.android.ui.tablet.TabletActions(
+                            run = homeViewModel::onTablet,
+                            onDismissMessage = homeViewModel::onTabletMessageDismissed,
+                            onDismissPin = homeViewModel::onTabletPinDismissed,
+                            onDismissCode = homeViewModel::onTabletCodeDismissed,
+                            onSignIn = homeViewModel::onPlayFromPhoneClicked,
+                        ),
                     )
                 }
             }
