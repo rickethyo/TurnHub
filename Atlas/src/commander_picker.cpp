@@ -134,7 +134,11 @@ void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
   if (key == 1) { close(f); return; } // Down cancels at every stage.
   if (key == 0) {
     if (p.stage == CommanderStage::Source || p.stage == CommanderStage::UndoConfirm) close(f);
-    else { p.stage = static_cast<CommanderStage>(static_cast<uint8_t>(p.stage)-1); changed(f); }
+    else {
+      p.stage = static_cast<CommanderStage>(static_cast<uint8_t>(p.stage)-1);
+      if (p.stage == CommanderStage::Commander && !game.hasPartner(p.source)) p.stage = CommanderStage::Source;
+      changed(f);
+    }
     return;
   }
   switch (p.stage) {
@@ -142,7 +146,12 @@ void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
       if (key == 2 || key == 3) {
         p.source = nextSource(p.recipient, p.source, key == 2 ? -1 : 1);
         name(p.source,p.sourceName); changed(f); refresh(f);
-      } else if (key == 4) { p.stage = CommanderStage::Commander; changed(f); }
+      } else if (key == 4) {
+        // Without partners there is one commander: straight to the amount.
+        if (game.hasPartner(p.source)) p.stage = CommanderStage::Commander;
+        else { p.commander = 1; p.stage = CommanderStage::Amount; refresh(f); }
+        changed(f);
+      }
       break;
     case CommanderStage::Commander:
       if (key == 2 || key == 3) { p.commander = p.commander == 1 ? 2 : 1; changed(f); refresh(f); }

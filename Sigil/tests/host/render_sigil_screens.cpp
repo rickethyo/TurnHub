@@ -117,11 +117,8 @@ MenuView compass(bool active) {
   if (active) m.compass[static_cast<uint8_t>(Key::Select)] = static_cast<uint8_t>(SigilAction::Pass);
 #ifdef TURNHUB_DISPLAY_OLED
   m.list = true;
-  m.compass[static_cast<uint8_t>(Key::Up)] = MENU_LOCAL_DEVICE_MENU;  // The rest are in the list.
-#else
-  m.compass[static_cast<uint8_t>(Key::Up)] = static_cast<uint8_t>(SigilAction::Pause);
-  m.compass[static_cast<uint8_t>(Key::Down)] = static_cast<uint8_t>(SigilAction::BeginElimination);
 #endif
+  m.compass[static_cast<uint8_t>(Key::Up)] = MENU_LOCAL_DEVICE_MENU;  // The rest are in Menu.
   m.life = true;
   return m;
 }
@@ -179,6 +176,19 @@ int main(int argc, char **argv) {
   display.setLifeOverlay(overlay);
   display.setMenuView(compass(true));
   display.showGame(shared); shot("shared-seat");
+  {
+    // Menu open in a Commander game: the first page (e-ink) or the list (OLED).
+    SigilMenu open(STYLE);
+    MenuStateFields f;
+    for (SigilAction a : {SigilAction::Pass, SigilAction::ClaimWin, SigilAction::Pause, SigilAction::AdjustLife,
+             SigilAction::CommanderDamage, SigilAction::UndoCommanderHit, SigilAction::AddPartner})
+      f.actions |= sigilActionBit(a);
+    open.applyMenuState2(encodeMenuState2(f), 0);
+    open.keyDown(Key::Up, 0);
+    display.setMenuView(open.view());
+    display.showGame(game(true, 32)); shot("menu");
+  }
+  display.setMenuView(compass(true));
   CommanderFlowPacket flow{};
   flow.version=VERSION; flow.type=PacketType::CommanderFlow; flow.sigilId=2;
   flow.recipient=2; flow.recipientSlot=2; flow.source=3; flow.commander=2;
@@ -225,8 +235,9 @@ int main(int argc, char **argv) {
   MenuView lobbyMenu;
   lobbyMenu.active = true;
   lobbyMenu.compass[static_cast<uint8_t>(Key::Select)] = static_cast<uint8_t>(SigilAction::StartGame);
-  lobbyMenu.compass[static_cast<uint8_t>(Key::Up)] = static_cast<uint8_t>(SigilAction::CycleStarter);
-  lobbyMenu.compass[static_cast<uint8_t>(Key::Left)] = static_cast<uint8_t>(SigilAction::Leave);
+  lobbyMenu.compass[static_cast<uint8_t>(Key::Up)] = MENU_LOCAL_DEVICE_MENU;
+  lobbyMenu.compass[static_cast<uint8_t>(Key::Left)] = static_cast<uint8_t>(SigilAction::AddSeatB);
+  lobbyMenu.compass[static_cast<uint8_t>(Key::Right)] = static_cast<uint8_t>(SigilAction::CycleStarter);
   display.setMenuView(lobbyMenu);
   display.showState(2, DisplayMode::Lobby, 3, 0, 0, DISPLAY_FLAG_STARTER); shot("lobby");
   display.showState(2, DisplayMode::Lobby, 3, 4, 0, 0); shot("lobby-shared");

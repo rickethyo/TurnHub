@@ -278,6 +278,7 @@ bool configureIntentHandlers() {
       {IntentType::ChangeCounter, handleCounterIntent},
       {IntentType::RecordCommanderHit, handleCounterIntent},
       {IntentType::UndoCommanderHit, handleCounterIntent},
+      {IntentType::SetPartner, handleCounterIntent},
       {IntentType::EndMatch, handleEndMatchIntent},
       {IntentType::MasterPass, handleMasterPassIntent},
       {IntentType::ForgetPairing, handleForgetPairingIntent},

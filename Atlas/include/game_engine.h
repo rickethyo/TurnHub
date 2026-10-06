@@ -165,6 +165,13 @@ class GameEngine {
   bool recordCommanderHit(uint8_t recipient, uint8_t source, uint8_t commander, int32_t amount);
   bool undoCommanderHit(uint8_t recipient);
   const CommanderHit *lastCommanderHit(uint8_t recipient) const;
+  // Partner commanders, per player for this match (off by default). A player
+  // with partners deals damage from commander 1 or 2; without, from 1 only.
+  // Any recorded commander-2 damage implies partners (also after recovery).
+  bool hasPartner(uint8_t player) const;
+  // Fails outside Commander, for an unknown player, or turning partners off
+  // while commander-2 damage from that player is recorded.
+  bool setPartner(uint8_t player, bool on);
 
   uint32_t currentTurnElapsedMs(uint32_t nowMs) const;
   uint32_t gameElapsedMs(uint32_t nowMs) const;
@@ -196,6 +203,7 @@ class GameEngine {
   int32_t commanderDamage_[MAX_PLAYERS][MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
   uint32_t matchGeneration_ = 0;
   CommanderHit lastHits_[MAX_PLAYERS] = {};
+  bool partner_[MAX_PLAYERS] = {};
   LifeChangeRequest lifeChanges_[MAX_PLAYERS] = {};
   uint32_t nextLifeRequestId_ = 0; // Deliberately survives reset/rematch in this boot.
   PlayerStats stats_[MAX_PLAYERS];

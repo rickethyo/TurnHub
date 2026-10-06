@@ -177,6 +177,23 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       openCommanderPicker(sigilId,TurnHubProtocol::selectedPlayer(value),
           action == SigilAction::UndoCommanderHit,millis());
       break;
+    case SigilAction::AddPartner:
+    case SigilAction::DropPartner: {
+      // The seat shown when chosen, like Commander damage; only this Sigil's own.
+      const PlayerSeat *seat = game.playerByNumber(TurnHubProtocol::selectedPlayer(value));
+      if (seat == nullptr || seat->controllerId != sigilId) break;
+      Intent intent;
+      intent.type = IntentType::SetPartner;
+      intent.actor.origin = IntentOrigin::PhysicalSigil;
+      intent.actor.controllerId = seat->controllerId;
+      intent.actor.slot = seat->slot;
+      intent.actor.playerNumber = seat->playerNumber;
+      intent.payload.targetPlayer = seat->playerNumber;
+      intent.payload.flags = action == SigilAction::AddPartner ? 1 : 0;
+      logRejected("MENU|PARTNER", sigilId, intents.dispatch(intent));
+      invalidateSigilMenu(sigilId);
+      break;
+    }
     case SigilAction::SwitchSeat:
       // View state only (which seat the display and life keys follow).
       if (leds.switchShownSeat(sigilId, game)) invalidateSigilMenu(sigilId);

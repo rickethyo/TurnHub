@@ -1026,8 +1026,24 @@ static void commanderFlow() {
     handleSelectAction(0,encodeSelectAction(undo ? A::UndoCommanderHit : A::CommanderDamage,sigilMenuRevision(0),target));
   };
   auto key = [&](uint8_t k) { handleCommanderKey(0,encodeCommanderKey(k,commanderPage(0).revision),testNow); };
+  // Partners are off by default: a hit from commander 2 needs them turned on.
+  assert(!game.hasPartner(3) && !game.recordCommanderHit(2,3,2,1));
   open(); auto p=commanderPage(0);
   assert(validCommanderFlow(p) && p.stage==CommanderStage::Source && p.recipient==2 && p.recipientSlot==2);
+  // Without partners, Select skips the Commander step; Up goes back past it.
+  key(4); assert(commanderPage(0).stage==CommanderStage::Amount && commanderPage(0).commander==1);
+  key(0); assert(commanderPage(0).stage==CommanderStage::Source);
+  key(1); assert(commanderPage(0).stage==CommanderStage::Closed);
+  // Player 3 turns partners on from their own Sigil's menu (seat on Sigil 1).
+  {
+    syncSigilMenus(testNow);
+    leds.render(hubState,lobby,game,0,0,0,testNow);
+    const PlayerSeat *three = game.playerByNumber(3);
+    assert(three && (sigilMenuFor(three->controllerId).actions & sigilActionBit(A::AddPartner)));
+    handleSelectAction(three->controllerId,encodeSelectAction(A::AddPartner,sigilMenuRevision(three->controllerId),3));
+    assert(game.hasPartner(3));
+  }
+  open(); p=commanderPage(0);
   // Sources skip the recipient (2): 1 -> 3, then back past 2 to 1.
   key(3); assert(commanderPage(0).source==3);
   key(2); assert(commanderPage(0).source==1);
@@ -1050,7 +1066,7 @@ static void commanderFlow() {
   key(4); assert(game.lifeTotal(2)==40 && game.commanderDamage(2,3,2)==0 && !game.lastCommanderHit(2));
   key(4);
   // Fresh totals must be seen and reconfirmed after a concurrent life change.
-  open(); key(4); key(4); key(4); p=commanderPage(0);
+  open(); key(4); key(4); p=commanderPage(0);  // Player 1 has no partner: Source, Amount, Confirm.
   assert(game.changeLife(2,-2));
   handleCommanderKey(0,encodeCommanderKey(4,p.revision),testNow);
   assert(game.lifeTotal(2)==38 && game.commanderDamage(2,1,1)==0 && commanderPage(0).revision!=p.revision);

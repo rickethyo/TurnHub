@@ -18,6 +18,8 @@ constexpr int16_t HEADER_BAR = 36;     // Solid title bar.
 constexpr int16_t BANNER_HEIGHT = 22;
 // Legend order and glyphs (built-in font: 0x09 ring, 0x18-0x1B arrows).
 constexpr Key LEGEND_KEYS[] = {Key::Select, Key::Up, Key::Down, Key::Left, Key::Right};
+// Open Menu lists its entries in page order (SigilMenu), then Back.
+constexpr Key MENU_LEGEND_KEYS[] = {Key::Select, Key::Up, Key::Right, Key::Down, Key::Left};
 char legendGlyph(Key key) {
   switch (key) {
     case Key::Up: return 0x18;
@@ -99,7 +101,7 @@ void EpaperDisplay::drawLegend() {
     printClipped("Life -/+ (hold)", (display_.width() - 2 * MARGIN - 2 * CAP - 6) / CHAR_WIDTH);
     y += LEGEND_LINE;
   }
-  for (Key key : LEGEND_KEYS) {
+  for (Key key : menu_.deviceMenu ? MENU_LEGEND_KEYS : LEGEND_KEYS) {
     if (!menu_.active) break;
     if (lifeRequestShown() && (key == Key::Left || key == Key::Right)) continue;
     const uint8_t action = menu_.compass[static_cast<uint8_t>(key)];
@@ -588,12 +590,16 @@ void EpaperDisplay::showUnpaired() {
   drawStatus("Unpaired", "Hold joystick to", false, "enter pairing mode");
 }
 
-// The open device menu replaces the ready and lobby screens; its legend holds
-// Factory reset and Back. False if it is closed.
+// Open Menu replaces the screen; its legend holds the entries. One full
+// refresh per page. False if it is closed.
 bool EpaperDisplay::drawDeviceMenu() {
   if (!menu_.active || !menu_.deviceMenu) return false;
-  const bool commander = (menu_.compass[static_cast<uint8_t>(Key::Select)] == static_cast<uint8_t>(TurnHubProtocol::SigilAction::CommanderDamage));
-  drawStatus(commander ? "Game menu" : "Device menu",commander ? "Received cmd damage" : "Unpair/reset: hold");
+  char page[20] = "";
+  if (menu_.recovery) snprintf(page, sizeof(page), "Unpair/reset: hold");
+  else if (menu_.pageCount > 1)
+    snprintf(page, sizeof(page), "Page %u of %u", static_cast<unsigned>(menu_.page + 1),
+        static_cast<unsigned>(menu_.pageCount));
+  drawStatus(menu_.recovery ? "Device" : "Menu", page[0] ? page : nullptr);
   return true;
 }
 

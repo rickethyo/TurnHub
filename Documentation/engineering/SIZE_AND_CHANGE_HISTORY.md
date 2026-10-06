@@ -686,7 +686,11 @@ Sigil 0.9.9 -> 0.9.10: the radio receive filter now accepts the sealed
 choosing Cmd damage did nothing visible. Amount-stage taps no longer wait for
 each e-ink refresh. Atlas 0.6.7 -> 0.6.8: the source picker skips the
 recipient and eliminated players, profile names are read once per opened
-flow, and `TURNHUB_HTTP_TRACE` is off by default. Radio version unchanged.
+flow, and `TURNHUB_HTTP_TRACE` is off by default. Same versions, later the
+same day: per-player partner commanders (`SetPartner`, menu actions 26/27;
+without partners the Commander step is skipped) and one menu layout for both
+Sigil displays (Up always opens Menu; `Sigil/DISPLAY.md`, Menus). Radio
+version unchanged; all Atlas and Sigil firmware must be flashed together.
 Local firmware compilation was unavailable; use the CI artifact for sizes.
 
 ## Tracking rules

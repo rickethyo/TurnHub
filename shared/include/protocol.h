@@ -650,6 +650,9 @@ enum class SigilAction : uint8_t {
   SwitchSeat = 23,
   CommanderDamage = 24,
   UndoCommanderHit = 25,
+  // Commander: turn partner commanders on or off for the shown seat.
+  AddPartner = 26,
+  DropPartner = 27,
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 255;

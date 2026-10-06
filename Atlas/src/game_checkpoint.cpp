@@ -89,6 +89,10 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
     for (uint8_t j = 0; j < s.count; ++j)
       for (uint8_t c = 0; c < 2; ++c) commanderDamage_[i][j][c] = s.damage[i][j][c];
   }
+  // Partners are not saved: recorded commander-2 damage brings them back.
+  for (uint8_t i = 0; i < s.count; ++i)
+    for (uint8_t j = 0; j < s.count; ++j)
+      if (s.damage[j][i][1]) partner_[i] = true;
   // Pending requests, claims and confirmations are deliberately canceled.
   // Restoration never invokes the game-completed statistics callback.
   return true;

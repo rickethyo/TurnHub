@@ -49,6 +49,7 @@ void GameEngine::reset() {
     eliminated_[i] = false;
     life_[i] = 0;
     lifeChanges_[i] = LifeChangeRequest{};
+    partner_[i] = false;
     for (uint8_t source = 0; source < MAX_PLAYERS; ++source)
       for (uint8_t commander = 0; commander < COMMANDERS_PER_PLAYER; ++commander)
         commanderDamage_[i][source][commander] = 0;
@@ -148,6 +149,24 @@ bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_
     lastHits_[to] = CommanderHit{};
   life_[to] -= delta;
   commanderDamage_[to][from][commander - 1] = static_cast<int32_t>(total);
+  // Damage entered for a second commander (phone or app) means partners.
+  if (commander == 2 && total > 0) partner_[from] = true;
+  return true;
+}
+
+bool GameEngine::hasPartner(uint8_t player) const {
+  const int index = indexForPlayerNumber(player);
+  return index >= 0 && partner_[index];
+}
+
+bool GameEngine::setPartner(uint8_t player, bool on) {
+  const int from = indexForPlayerNumber(player);
+  if (settings_.profile != GameProfile::Commander || from < 0) return false;
+  if (!on) {
+    for (uint8_t to = 0; to < playerCount_; ++to)
+      if (commanderDamage_[to][from][1]) return false;
+  }
+  partner_[from] = on;
   return true;
 }
 
@@ -156,7 +175,8 @@ const GameEngine::CommanderHit *GameEngine::lastCommanderHit(uint8_t recipient) 
   return to >= 0 && lastHits_[to].amount > 0 ? &lastHits_[to] : nullptr;
 }
 bool GameEngine::recordCommanderHit(uint8_t recipient, uint8_t source, uint8_t commander, int32_t amount) {
-  if (amount < 1 || amount > 9999 || !changeCommanderDamage(recipient,source,commander,amount)) return false;
+  if (amount < 1 || amount > 9999 || (commander == 2 && !hasPartner(source)) ||
+      !changeCommanderDamage(recipient,source,commander,amount)) return false;
   auto &hit = lastHits_[indexForPlayerNumber(recipient)];
   hit.source = source; hit.commander = commander; hit.amount = amount;
   return true;

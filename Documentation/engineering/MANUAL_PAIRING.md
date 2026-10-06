@@ -69,6 +69,9 @@ window.
   then factory resets. Release at the tone to stop at that step.
 - A button already down when the board starts (BOOT held through a reset, which
   enters the ROM downloader) is ignored until it is seen released.
+- Since Sigil 0.9.10 (2026-10-06) Unpair, Factory reset and Sleep are under
+  **Menu (Up) > Device** on both displays, in any stage, including games; see
+  `Sigil/DISPLAY.md`, Menus. The history below describes earlier layouts.
 - Since firmware 0.9.4 (2026-10-02) both Sigils also offer **Factory reset**
   (hold Down 5 s) in the device menu, and since 0.9.6 **Unpair** (hold the
   click 3 s): outside a game, **Menu** on the first free of Up/Down opens it

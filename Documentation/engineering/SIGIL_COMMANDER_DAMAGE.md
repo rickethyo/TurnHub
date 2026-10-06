@@ -15,8 +15,8 @@
 5. Sigil OLED and e-ink render the Atlas page. They neither apply hits nor
    infer seat A/B from player number. Browser/app state sees the same totals.
 6. The shared radio contract adds `CommanderFlow = 50` (80-byte page) and
-   `CommanderKey = 51`, plus menu actions 24 (Commander damage) and 25 (Undo
-   hit). `MenuState2` now carries 29 action bits and a 3-bit revision; its
+   `CommanderKey = 51`, plus menu actions 24 (Commander damage), 25 (Undo
+   hit), 26 (Add partner) and 27 (Drop partner). `MenuState2` now carries 29 action bits and a 3-bit revision; its
    unused default-action field is derived locally instead. `SelectAction`
    bits 11–15 carry the receiving player shown when the action was chosen.
    Atlas and Sigil firmware must be rebuilt together. The retired hardware
@@ -24,19 +24,27 @@
 
 ## Controls
 
-OLED: Up opens the existing action list. Choose **Cmd damage** or **Undo hit**.
-E-ink, in a Commander game: Up opens **Game menu**. Click chooses **Cmd damage**;
-Down chooses **Undo hit** when available. Pause/Resume is on Up, Claim win on
-Right (held) when available, and Left returns to the game. Outside that menu,
-click still passes and Left/Right still adjust life; Down switches shared seats.
+Both displays (Sigil 0.9.10): Up opens **Menu**, which holds **Cmd damage**,
+**Undo hit** (when available) and **Partner: off/on** in a Commander game. See
+`Sigil/DISPLAY.md`, Menus. The click still passes, Left/Right still adjust life
+and Down switches shared seats.
+
+**Partner commanders (2026-10-06).** Off for every player by default. A player
+turns them on for their own shown seat from Menu (Partner: off chooses on).
+Atlas owns the flag per player per match (`GameEngine::setPartner`, Intent
+`SetPartner`); a rematch or reset clears it. Once a second commander has dealt
+damage it stays on. It is not saved separately: recorded commander-2 damage
+turns it back on after recovery. A Sigil hit from commander 2 is refused
+without partners; damage entered for a second commander from a phone turns
+partners on for that player.
 
 The receiver is the seat shown when opening the flow. Its name and physical
 A/B slot remain on every page, even if turns advance while the page is open.
 
 - Choose the attacking player with Left/Right, then click. The list skips the
   receiver and eliminated players; record self-damage from a phone.
-- Choose Commander 1 or 2 with Left/Right, then click. Use 2 for a partner.
-  Commander count is not a configured per-player fact yet, so both are offered.
+- Only when the attacker has partners: choose Commander 1 or 2 with
+  Left/Right, then click. Otherwise this step is skipped (commander 1).
 - Set damage with Left/Right; hold to repeat. Click opens a preview.
 - Review the source, commander, amount, life change and commander-damage total.
   Click applies both changes together. Up goes back; Down cancels at any step.

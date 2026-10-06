@@ -110,6 +110,10 @@ enum class IntentType : uint8_t {
   // screen is touched or BOOT is pressed. Waking restarts Atlas.
   Sleep,
 
+  // Commander: a player turns partner commanders on (payload.flags 1) or off
+  // (0) for their own seat (payload.targetPlayer) in this match.
+  SetPartner,
+
   Count,
 };
 
@@ -264,6 +268,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::MoveSeat: return "MOVE_SEAT";
     case IntentType::AdvanceSetup: return "ADVANCE_SETUP";
     case IntentType::Sleep: return "SLEEP";
+    case IntentType::SetPartner: return "SET_PARTNER";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

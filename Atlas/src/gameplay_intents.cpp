@@ -527,6 +527,13 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
       return IntentResult::accept(payload.flags ? "Life change accepted" : "Life change rejected");
     case IntentType::ChangeCounter:
       return changeCommanderDamage(*seat, payload);
+    case IntentType::SetPartner:
+      if (payload.targetPlayer != seat->playerNumber)
+        return IntentResult::reject(IntentStatus::Unauthorized, "Set partners only for your own seat");
+      if (payload.flags > 1 || !game.setPartner(seat->playerNumber, payload.flags == 1))
+        return IntentResult::reject(IntentStatus::Conflict,
+            "Partners need a Commander game, and stay on once a second commander has dealt damage");
+      return IntentResult::accept(payload.flags ? "Partner commanders on" : "Partner commanders off");
     case IntentType::RecordCommanderHit:
     case IntentType::UndoCommanderHit: {
       if (payload.targetPlayer != seat->playerNumber)

@@ -151,13 +151,45 @@ taken some: two rows under a smaller life total, then "+N more cmd sources".
 The design uses explicit text and monochrome contrast; existing light/sound and companion
 paths remain available, consistent with the accessibility reference.
 
+### Menus (Sigil 0.9.10, owner 2026-10-06)
+
+One rule set for every stage and both displays (`SigilMenu`, host-tested in
+`tests/host/menu_scenarios.cpp`):
+
+- **Click:** the one obvious next step: Join, Start game, Cancel start, Pass
+  turn (Undo pass in its grace period), Resume, Rematch, Confirm win, Confirm
+  out.
+- **Left/Right:** life in a game. In the lobby, Left is Add/Drop seat B and
+  Right is Next starter. In a table decision, Left is Deny win or Cancel and
+  Right is Other seat.
+- **Down:** Switch seat on a shared Sigil; otherwise nothing.
+- **Up:** **Menu**, always. It is the same in Commander and other games.
+
+Menu holds every other action Atlas offers, in a fixed order (Cmd damage, Undo
+hit, Pause, Resume, Claim win, I'm out, Partner, Random start, Leave lobby,
+Reset table, Link phone, ...), then **Device** (Sleep, Unpair, Factory reset).
+With nothing else on offer (a Sigil waiting to join, or Atlas lost) Menu opens
+straight on the Device entries. Held entries (Claim win, I'm out's confirm,
+Leave lobby, Reset table, Unpair, Factory reset) still need their hold.
+
+- **OLED:** Menu is a scrolling list (below), ending with Device and Back.
+  Device is one list deeper, titled `DEVICE`.
+- **E-ink:** Menu is compass pages: the click, Up, Right and Down hold up to
+  four entries, in that order; while more follow, Down is **More**. Left goes
+  back a page, then out. The header names the page ("Page 1 of 2"); each page
+  is one full refresh.
+
+The Sigil 0.9.8 OLED list rendering below still applies; the earlier e-ink
+compass (Pause on Up, Claim win on Down, a separate Commander "Game menu") is
+historical.
+
 Since Sigil 0.9.8 (owner, 2026-10-02) the OLED's menu is a scrolling list
 (`OledDisplay::drawDeviceMenu`, fed by `MenuView::rows`): a `MENU` header with
 the row count ("3/8"), four 10-pixel rows with the highlighted one inverted,
 a scroll bar on the right, "(hold)" on held rows and "HOLD: ..." while one is
-held; Device recovery's list is titled `RECOVERY`. The bottom row keeps the
-stepping key legend. The click and Left/Right
-stay on the game screen; Up opens the list. The e-ink keeps its compass.
+held; the Device list is titled `DEVICE`. The bottom row keeps the
+stepping key legend. The click, Left/Right and Down stay on the game screen;
+Up opens the list.
 
 ## Adding another display
 
@@ -534,8 +566,8 @@ may be in either A/B or B/A order. The retired host flag no longer draws a crown
 
 ### Commander entry (2026-10-05)
 
-The Sigil can record received Commander damage and undo its last hit. OLED uses
-the action list; e-ink Up opens a game menu. Atlas supplies each entry page,
+The Sigil can record received Commander damage and undo its last hit, both
+from Menu (Up) on either display. Atlas supplies each entry page,
 including the receiving A/B seat and confirmation totals. See
 [Sigil Commander damage](../Documentation/engineering/SIGIL_COMMANDER_DAMAGE.md)
 for controls, validation, recovery and hardware acceptance.

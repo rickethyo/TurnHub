@@ -273,10 +273,9 @@ that starts with Atlas off shows it too. Logic: `Sigil/include/atlas_link.h`.
 
 - **Screen:** the same words on both displays (2026-10-02): "Atlas lost /
   Searching for Atlas" (e-ink, sentence case) or "ATLAS LOST / Searching for
-  Atlas" (OLED, capitals). Its only action is **Menu** on Up, the device
-  menu (Unpair, Sleep, Factory reset, Back; owner 2026-10-02; on the OLED a
-  list of Sleep, Device recovery and Back, with Unpair and Factory reset
-  under Device recovery), so a Sigil whose
+  Atlas" (OLED, capitals). Its only action is **Menu** on Up, which opens
+  straight on the Device entries (Sleep, Unpair, Factory reset; Sigil
+  0.9.10), so a Sigil whose
   Atlas is gone for good can still be unpaired or reset without the Pair
   button.
 - **Light:** one orange pixel sweeping back and forth around the ring, center

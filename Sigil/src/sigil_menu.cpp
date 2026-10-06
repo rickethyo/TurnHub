@@ -9,62 +9,43 @@ using TurnHubProtocol::SigilAction;
 
 namespace {
 
-constexpr uint8_t KEY_NONE = 0xFF;
-constexpr uint8_t U = static_cast<uint8_t>(Key::Up);
-constexpr uint8_t D = static_cast<uint8_t>(Key::Down);
-constexpr uint8_t L = static_cast<uint8_t>(Key::Left);
-constexpr uint8_t R = static_cast<uint8_t>(Key::Right);
-constexpr uint8_t C = static_cast<uint8_t>(Key::Select);
+// Bare keys (Menu closed), first offered wins. Up is always Menu.
+constexpr SigilAction CLICK_ORDER[] = {
+    SigilAction::ConfirmWin, SigilAction::Eliminate, SigilAction::Pass, SigilAction::CancelPass,
+    SigilAction::Join, SigilAction::StartGame, SigilAction::CancelStart, SigilAction::Resume,
+    SigilAction::Rematch};
+constexpr SigilAction LEFT_ORDER[] = {
+    SigilAction::DenyWin, SigilAction::CancelElimination, SigilAction::AddSeatB, SigilAction::RemoveSeatB};
+constexpr SigilAction RIGHT_ORDER[] = {SigilAction::NextTarget, SigilAction::CycleStarter};
+constexpr SigilAction DOWN_ORDER[] = {SigilAction::SwitchSeat};
 
-// Compass keys each action prefers, best first. Fixed so muscle memory works:
-// click = the likely action, Up = pause/resume, Down = deliberate (hold),
-// Left = no/back/cancel, Right = yes/next.
-struct Slots { uint8_t keys[KEY_COUNT]; };
-Slots preferences(uint8_t action) {
-  switch (static_cast<SigilAction>(action)) {
-    case SigilAction::Join:
-    case SigilAction::StartGame:
-    case SigilAction::Pass:
-    case SigilAction::ConfirmWin:
-    case SigilAction::Eliminate:
-    case SigilAction::Rematch: return {{C, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
-    case SigilAction::BeginElimination: return {{C, D, KEY_NONE, KEY_NONE, KEY_NONE}};
-    case SigilAction::RandomStarter:
-    case SigilAction::Pause:
-    case SigilAction::Resume: return {{U, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
-    case SigilAction::ClaimWin:
-    case SigilAction::ResetTable: return {{D, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
-    // Click again to undo a pass, like Atlas's "pass again" (Pass itself is
-    // not offered during the grace period, so the click is free).
-    case SigilAction::CancelPass: return {{C, L, KEY_NONE, KEY_NONE, KEY_NONE}};
-    case SigilAction::AddSeatB:
-    case SigilAction::RemoveSeatB:
-    case SigilAction::CancelStart:
-    case SigilAction::DenyWin:
-    case SigilAction::CancelElimination: return {{L, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
-    case SigilAction::CycleStarter:
-    case SigilAction::NextTarget: return {{R, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
-    case SigilAction::LinkPhone: return {{D, R, L, U, C}};
-    case SigilAction::Leave: return {{D, L, KEY_NONE, KEY_NONE, KEY_NONE}};
-    // Whatever is left of click, Up and Down (never Left/Right: they change
-    // life). Waiting on another player's turn, that is the click.
-    case SigilAction::SwitchSeat: return {{C, U, D, KEY_NONE, KEY_NONE}};
-    default: return {{KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE, KEY_NONE}};
-  }
-}
-
-// The OLED list's order: the likely actions of each stage first, so the
-// cursor starts on them; the deliberate ones (held) lower down.
-constexpr SigilAction LIST_ORDER[] = {
+// Menu's order: the game's actions first, then the lobby's, then anything a
+// bare key normally takes (listed so nothing offered is ever unreachable).
+constexpr SigilAction MENU_ORDER[] = {
+    SigilAction::CommanderDamage, SigilAction::UndoCommanderHit, SigilAction::Pause,
+    SigilAction::Resume, SigilAction::ClaimWin, SigilAction::BeginElimination,
+    SigilAction::AddPartner, SigilAction::DropPartner, SigilAction::RandomStarter,
+    SigilAction::CycleStarter, SigilAction::AddSeatB, SigilAction::RemoveSeatB, SigilAction::Leave,
+    SigilAction::Rematch, SigilAction::ResetTable, SigilAction::LinkPhone, SigilAction::SwitchSeat,
     SigilAction::Pass, SigilAction::CancelPass, SigilAction::Join, SigilAction::StartGame,
-    SigilAction::CancelStart, SigilAction::Resume, SigilAction::Pause, SigilAction::ConfirmWin,
-    SigilAction::DenyWin, SigilAction::Eliminate, SigilAction::NextTarget,
-    SigilAction::CancelElimination, SigilAction::CommanderDamage, SigilAction::UndoCommanderHit, SigilAction::SwitchSeat, SigilAction::RandomStarter,
-    SigilAction::CycleStarter, SigilAction::AddSeatB, SigilAction::RemoveSeatB,
-    SigilAction::LinkPhone, SigilAction::ClaimWin, SigilAction::BeginElimination,
-    SigilAction::Rematch, SigilAction::Leave, SigilAction::ResetTable};
-// Every action but AdjustLife (Left/Right, never a row).
-static_assert(sizeof(LIST_ORDER) / sizeof(LIST_ORDER[0]) == MENU_MAX_ITEMS - 1, "list every action once");
+    SigilAction::CancelStart, SigilAction::ConfirmWin, SigilAction::DenyWin, SigilAction::Eliminate,
+    SigilAction::NextTarget, SigilAction::CancelElimination};
+// Every action but AdjustLife (Left/Right, never an entry).
+static_assert(sizeof(MENU_ORDER) / sizeof(MENU_ORDER[0]) == MENU_MAX_ITEMS - 1, "list every action once");
+
+constexpr uint8_t DEVICE_ENTRIES[] = {MENU_LOCAL_SLEEP, MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET};
+
+// E-ink page slots, in legend order; Left is Back.
+constexpr Key PAGE_KEYS[] = {Key::Select, Key::Up, Key::Right, Key::Down};
+constexpr uint8_t PAGE_SLOTS = 4;
+
+template <size_t N>
+uint8_t firstOffered(uint32_t actions, const SigilAction (&order)[N]) {
+  for (SigilAction a : order) {
+    if (actions & TurnHubProtocol::sigilActionBit(a)) return static_cast<uint8_t>(a);
+  }
+  return MENU_NONE;
+}
 
 }  // namespace
 
@@ -81,7 +62,8 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_BACK: return "Back";
     case MENU_LOCAL_UNPAIR: return "Unpair";
     case MENU_LOCAL_SLEEP: return "Sleep";
-    case MENU_LOCAL_RECOVERY: return "Device recovery";
+    case MENU_LOCAL_DEVICE: return "Device";
+    case MENU_LOCAL_MORE: return "More";
     default: break;
   }
   switch (action) {
@@ -110,6 +92,8 @@ const char *sigilActionLabel(SigilAction action) {
     case SigilAction::AdjustLife: return "Change life";
     case SigilAction::CommanderDamage: return "Cmd damage";
     case SigilAction::UndoCommanderHit: return "Undo hit";
+    case SigilAction::AddPartner: return "Partner: off";
+    case SigilAction::DropPartner: return "Partner: on";
     case SigilAction::SwitchSeat: return "Switch seat";
     default: return "";
   }
@@ -123,50 +107,66 @@ MenuView::MenuView() {
 bool MenuView::operator==(const MenuView &o) const {
   return active == o.active && deviceMenu == o.deviceMenu && life == o.life &&
       holdAction == o.holdAction && memcmp(compass, o.compass, sizeof(compass)) == 0 &&
-      list == o.list && recovery == o.recovery && rowCount == o.rowCount && cursor == o.cursor &&
-      memcmp(rows, o.rows, rowCount) == 0;
+      list == o.list && recovery == o.recovery && page == o.page && pageCount == o.pageCount &&
+      rowCount == o.rowCount && cursor == o.cursor && memcmp(rows, o.rows, rowCount) == 0;
 }
 
-uint8_t SigilMenu::compassAction(uint32_t actions, Key key) {
-  const bool commander = (actions & TurnHubProtocol::sigilActionBit(SigilAction::CommanderDamage)) != 0;
-  if (commander) {
-    if (key == Key::Up) return MENU_LOCAL_DEVICE_MENU;
-    // Pause and Claim win are in the game submenu, leaving Down for Switch seat.
-    actions &= ~(TurnHubProtocol::sigilActionBit(SigilAction::Pause) |
-        TurnHubProtocol::sigilActionBit(SigilAction::Resume) |
-        TurnHubProtocol::sigilActionBit(SigilAction::ClaimWin));
+uint8_t SigilMenu::bareAction(uint32_t actions, Key key) {
+  switch (key) {
+    case Key::Select: return firstOffered(actions, CLICK_ORDER);
+    case Key::Left: return firstOffered(actions, LEFT_ORDER);
+    case Key::Right: return firstOffered(actions, RIGHT_ORDER);
+    case Key::Down: return firstOffered(actions, DOWN_ORDER);
+    case Key::Up: return MENU_LOCAL_DEVICE_MENU;
+    default: return MENU_NONE;
   }
-  // Assign in action order (Link phone before Leave: a waiting phone
-  // link outranks Leave for the last free key; Leave comes back after).
-  uint8_t owner[KEY_COUNT];
-  memset(owner, MENU_NONE, sizeof(owner));
-  if (commander) owner[static_cast<uint8_t>(Key::Up)] = MENU_LOCAL_DEVICE_MENU;
-  for (uint8_t action = 0; action < MENU_MAX_ITEMS; ++action) {
-    if ((actions & (1u << action)) == 0) continue;
-    const Slots slots = preferences(action);
-    for (uint8_t k : slots.keys) {
-      if (k == KEY_NONE) break;
-      if (owner[k] == MENU_NONE) {
-        owner[k] = action;
-        break;
-      }
+}
+
+uint8_t SigilMenu::menuEntries(uint32_t actions, uint8_t out[MENU_LIST_MAX], bool device) {
+  uint8_t count = 0;
+  if (!device) {
+    for (SigilAction a : MENU_ORDER) {
+      const uint8_t action = static_cast<uint8_t>(a);
+      if ((actions & TurnHubProtocol::sigilActionBit(a)) == 0) continue;
+      bool bare = false;
+      for (Key key : {Key::Select, Key::Left, Key::Right, Key::Down}) bare = bare || bareAction(actions, key) == action;
+      if (!bare) out[count++] = action;
+    }
+    if (count) {
+      out[count++] = MENU_LOCAL_DEVICE;
+      return count;
     }
   }
-  return owner[static_cast<uint8_t>(key)];
+  for (uint8_t local : DEVICE_ENTRIES) out[count++] = local;
+  return count;
 }
 
-uint8_t SigilMenu::listRows(uint32_t actions, uint8_t rows[MENU_LIST_MAX], bool recovery) {
-  uint8_t count = 0;
-  if (recovery) {
-    // Both held (the milder first), and kept out of the way of play.
-    for (uint8_t local : {MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET, MENU_LOCAL_BACK}) rows[count++] = local;
-    return count;
+uint8_t SigilMenu::levelEntries(uint8_t out[MENU_LIST_MAX]) const {
+  return menuEntries(offline_ ? 0 : actions_, out, deviceOpen_);
+}
+
+// Every page but the last shows three entries and More on Down.
+uint8_t SigilMenu::pageCount(uint8_t count) {
+  if (count <= PAGE_SLOTS) return 1;
+  return static_cast<uint8_t>(1 + (count - PAGE_SLOTS + (PAGE_SLOTS - 2)) / (PAGE_SLOTS - 1));
+}
+
+uint8_t SigilMenu::pageAction(const uint8_t entries[], uint8_t count, uint8_t page, Key key) {
+  if (key == Key::Left) return MENU_LOCAL_BACK;
+  const uint8_t first = page * (PAGE_SLOTS - 1);
+  const bool more = page + 1 < pageCount(count);
+  for (uint8_t slot = 0; slot < PAGE_SLOTS; ++slot) {
+    if (PAGE_KEYS[slot] != key) continue;
+    if (more && slot == PAGE_SLOTS - 1) return MENU_LOCAL_MORE;
+    const uint8_t index = first + slot;
+    return index < count ? entries[index] : MENU_NONE;
   }
-  for (SigilAction action : LIST_ORDER) {
-    if (actions & TurnHubProtocol::sigilActionBit(action)) rows[count++] = static_cast<uint8_t>(action);
-  }
-  for (uint8_t local : {MENU_LOCAL_SLEEP, MENU_LOCAL_RECOVERY, MENU_LOCAL_BACK}) rows[count++] = local;
-  return count;
+  return MENU_NONE;
+}
+
+void SigilMenu::listRows(uint8_t rows[MENU_LIST_MAX], uint8_t &count) const {
+  count = levelEntries(rows);
+  rows[count++] = MENU_LOCAL_BACK;
 }
 
 uint8_t SigilMenu::cursorRow(const uint8_t rows[], uint8_t count) const {
@@ -178,7 +178,8 @@ uint8_t SigilMenu::cursorRow(const uint8_t rows[], uint8_t count) const {
 
 void SigilMenu::moveCursor(int8_t step) {
   uint8_t rows[MENU_LIST_MAX];
-  const uint8_t count = listRows(actions_, rows, recoveryOpen_);
+  uint8_t count = 0;
+  listRows(rows, count);
   uint8_t row = cursorRow(rows, count);
   if (step < 0 && row > 0) --row;
   if (step > 0 && row + 1 < count) ++row;
@@ -186,52 +187,20 @@ void SigilMenu::moveCursor(int8_t step) {
   cursorAction_ = rows[row];
 }
 
-uint8_t SigilMenu::menuKey() const {
-  if (!active_ || inGame()) return MENU_NONE;
-  for (Key key : {Key::Up, Key::Down}) {
-    if (compassAction(actions_, key) == MENU_NONE) return static_cast<uint8_t>(key);
-  }
-  return MENU_NONE;
-}
-
 uint8_t SigilMenu::keyAction(Key key) const {
   if (!active_ || key >= Key::Count) return MENU_NONE;
+  if (!menuOpen_) return bareAction(offline_ ? 0 : actions_, key);
+  if (key == Key::Left) return MENU_LOCAL_BACK;
+  uint8_t entries[MENU_LIST_MAX];
   if (list_) {
-    if (deviceMenuOpen_) {
-      // Up/Down move the cursor (keyDown); the click or Right chooses its row.
-      if (key == Key::Left) return MENU_LOCAL_BACK;
-      if (key != Key::Select && key != Key::Right) return MENU_NONE;
-      uint8_t rows[MENU_LIST_MAX];
-      const uint8_t count = listRows(actions_, rows, recoveryOpen_);
-      return rows[cursorRow(rows, count)];
-    }
-    // Closed: the click keeps the compass's likely action (Pass in a game,
-    // Undo pass while it is pending), Up opens the list, Left/Right are life.
-    if (key == Key::Select) return compassAction(actions_, Key::Select);
-    if (key == Key::Up) return MENU_LOCAL_DEVICE_MENU;
-    return MENU_NONE;
+    // Up/Down move the cursor (keyDown); the click or Right chooses its row.
+    if (key != Key::Select && key != Key::Right) return MENU_NONE;
+    uint8_t count = 0;
+    listRows(entries, count);
+    return entries[cursorRow(entries, count)];
   }
-  if (deviceMenuOpen_ && commanderMenu()) {
-    if (key == Key::Left) return MENU_LOCAL_BACK;
-    const auto available = [&](SigilAction a) { return (actions_ & TurnHubProtocol::sigilActionBit(a)) ? static_cast<uint8_t>(a) : MENU_NONE; };
-    if (key == Key::Select) return available(SigilAction::CommanderDamage);
-    if (key == Key::Down) return available(SigilAction::UndoCommanderHit);
-    if (key == Key::Up) return available((actions_ & TurnHubProtocol::sigilActionBit(SigilAction::Resume)) ? SigilAction::Resume : SigilAction::Pause);
-    if (key == Key::Right) return available(SigilAction::ClaimWin);
-    return MENU_NONE;
-  }
-  if (deviceMenuOpen_) {
-    // The milder action on the click; Down, the compass's deliberate key,
-    // for the one that erases everything.
-    if (key == Key::Select) return MENU_LOCAL_UNPAIR;
-    if (key == Key::Up) return MENU_LOCAL_SLEEP;
-    if (key == Key::Down) return MENU_LOCAL_FACTORY_RESET;
-    if (key == Key::Left) return MENU_LOCAL_BACK;
-    return MENU_NONE;
-  }
-  const uint8_t action = compassAction(actions_, key);
-  if (action != MENU_NONE) return action;
-  return menuKey() == static_cast<uint8_t>(key) ? MENU_LOCAL_DEVICE_MENU : MENU_NONE;
+  const uint8_t count = levelEntries(entries);
+  return pageAction(entries, count, page_, key);
 }
 
 void SigilMenu::applyMenuState2(int32_t value, uint32_t nowMs) {
@@ -245,25 +214,30 @@ void SigilMenu::applyFields(const TurnHubProtocol::MenuStateFields &f) {
   offline_ = false;
   actions_ = f.actions;
   revision_ = f.revision;
-  // A game starting closes the device menu: its keys belong to the game now.
-  // (The OLED list can be opened again during the game; later menus keep it.)
-  if (deviceMenuOpen_ && inGame() && !wasInGame) closeDeviceMenu();
+  // A game starting closes Menu: its keys belong to the game now.
+  if (menuOpen_ && inGame() && !wasInGame) closeMenu();
+  // Menu's entries may have changed: keep the page in range.
+  if (menuOpen_ && !list_) {
+    uint8_t entries[MENU_LIST_MAX];
+    const uint8_t pages = pageCount(levelEntries(entries));
+    if (page_ >= pages) page_ = pages - 1;
+  }
   // A held action that is no longer offered stops counting.
-  if (holding_ && !offered(holdAction_)) holding_ = false;
+  if (holding_ && holdAction_ < MENU_MAX_ITEMS && !offered(holdAction_)) holding_ = false;
 }
 
 void SigilMenu::clear() {
   active_ = false;
   offline_ = false;
   actions_ = 0;
-  deviceMenuOpen_ = false;
+  closeMenu();
   holding_ = false;
   pending_ = MenuChoice();
 }
 
 void SigilMenu::setOffline() {
   clear();
-  // No Atlas actions, so Up is free and opens the device menu (menuKey).
+  // No Atlas actions: Up opens Menu straight onto the Device entries.
   active_ = true;
   offline_ = true;
 }
@@ -283,47 +257,65 @@ void SigilMenu::emit(uint8_t action) {
   pending_.revision = revision_;
 }
 
+void SigilMenu::openMenu() {
+  menuOpen_ = true;
+  page_ = 0;
+  cursor_ = 0;
+  cursorAction_ = MENU_NONE;
+  uint8_t entries[MENU_LIST_MAX];
+  // Nothing but Device on offer: open straight onto it.
+  menuEntries(offline_ ? 0 : actions_, entries);
+  deviceDirect_ = entries[0] == MENU_LOCAL_SLEEP;
+  deviceOpen_ = deviceDirect_;
+}
+
+void SigilMenu::back() {
+  if (deviceOpen_ && !deviceDirect_) {
+    // Up a level, onto the entry that opened it.
+    deviceOpen_ = false;
+    cursorAction_ = MENU_LOCAL_DEVICE;
+    uint8_t entries[MENU_LIST_MAX];
+    page_ = list_ ? 0 : static_cast<uint8_t>(pageCount(levelEntries(entries)) - 1);
+    return;
+  }
+  if (!list_ && page_ > 0) {
+    --page_;
+    return;
+  }
+  closeMenu();
+}
+
 void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
-  if (!offered(action)) return;
-  if (action == MENU_LOCAL_DEVICE_MENU) {
-    deviceMenuOpen_ = true;
+  if (action == MENU_NONE) return;
+  if (action == MENU_LOCAL_DEVICE_MENU) { openMenu(); return; }
+  if (action == MENU_LOCAL_BACK) { back(); return; }
+  if (action == MENU_LOCAL_MORE) { ++page_; return; }
+  if (action == MENU_LOCAL_DEVICE) {
+    deviceOpen_ = true;
+    page_ = 0;
     cursor_ = 0;
     cursorAction_ = MENU_NONE;
-    return;
-  }
-  if (action == MENU_LOCAL_RECOVERY) {
-    recoveryOpen_ = true;
-    cursor_ = 0;
-    cursorAction_ = MENU_NONE;
-    return;
-  }
-  if (action == MENU_LOCAL_BACK) {
-    if (recoveryOpen_) {
-      // Up a level, onto the row that opened it.
-      recoveryOpen_ = false;
-      cursorAction_ = MENU_LOCAL_RECOVERY;
-      return;
-    }
-    closeDeviceMenu();
     return;
   }
   // A tap: sleeping loses nothing (a click wakes the Sigil, which reconnects).
   if (action == MENU_LOCAL_SLEEP) {
     emit(action);
-    closeDeviceMenu();
+    closeMenu();
     return;
   }
   uint32_t holdMs = action == MENU_LOCAL_UNPAIR ? MENU_UNPAIR_HOLD_MS : MENU_FACTORY_RESET_HOLD_MS;
   if (action != MENU_LOCAL_FACTORY_RESET && action != MENU_LOCAL_UNPAIR) {
+    if (!offered(action)) return;
     const ActionHold hold = TurnHubProtocol::sigilActionHold(static_cast<SigilAction>(action));
     if (hold == ActionHold::None) {
       emit(action);
-      if (list_ || commanderMenu()) closeDeviceMenu();  // Chosen from the list: back to the screen.
+      closeMenu();  // Chosen from Menu: back to the screen.
       return;
     }
     holdMs = hold == ActionHold::Win ? winHoldMs_ : longPressMs_;
   }
   holding_ = true;
+  holdFromMenu_ = menuOpen_;
   holdKey_ = key;
   holdAction_ = action;
   holdStartMs_ = nowMs;
@@ -333,7 +325,7 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
 void SigilMenu::keyDown(Key key, uint32_t nowMs) {
   if (!active_ || key >= Key::Count) return;
   lastKeyMs_ = nowMs;
-  if (list_ && deviceMenuOpen_ && (key == Key::Up || key == Key::Down)) {
+  if (list_ && menuOpen_ && (key == Key::Up || key == Key::Down)) {
     if (!holding_) moveCursor(key == Key::Up ? -1 : 1);
     return;
   }
@@ -349,9 +341,9 @@ MenuChoice SigilMenu::update(uint32_t nowMs) {
   if (holding_ && nowMs - holdStartMs_ >= holdMs_) {
     holding_ = false;
     emit(holdAction_);
-    if (list_ || holdAction_ == MENU_LOCAL_FACTORY_RESET || holdAction_ == MENU_LOCAL_UNPAIR) closeDeviceMenu();
+    if (holdFromMenu_) closeMenu();
   }
-  if (deviceMenuOpen_ && !holding_ && nowMs - lastKeyMs_ >= MENU_DEVICE_IDLE_MS) closeDeviceMenu();
+  if (menuOpen_ && !holding_ && nowMs - lastKeyMs_ >= MENU_DEVICE_IDLE_MS) closeMenu();
   const MenuChoice choice = pending_;
   pending_ = MenuChoice();
   return choice;
@@ -370,14 +362,20 @@ MenuView SigilMenu::view() const {
   v.active = active_;
   if (!active_) return v;
   for (uint8_t k = 0; k < KEY_COUNT; ++k) v.compass[k] = keyAction(static_cast<Key>(k));
-  v.deviceMenu = deviceMenuOpen_;
+  v.deviceMenu = menuOpen_;
   v.holdAction = holding_ && holdOnScreen_ ? holdAction_ : MENU_NONE;
   v.life = lifeOffered();
   v.list = list_;
-  if (list_ && deviceMenuOpen_) {
-    v.recovery = recoveryOpen_;
-    v.rowCount = listRows(actions_, v.rows, recoveryOpen_);
-    v.cursor = cursorRow(v.rows, v.rowCount);
+  if (menuOpen_) {
+    v.recovery = deviceOpen_;
+    if (list_) {
+      listRows(v.rows, v.rowCount);
+      v.cursor = cursorRow(v.rows, v.rowCount);
+    } else {
+      uint8_t entries[MENU_LIST_MAX];
+      v.page = page_;
+      v.pageCount = pageCount(levelEntries(entries));
+    }
   }
   return v;
 }

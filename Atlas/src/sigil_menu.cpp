@@ -141,7 +141,16 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
     add(SigilAction::AdjustLife);
     if (game.settings().profile == TurnHub::GameProfile::Commander) {
       add(SigilAction::CommanderDamage);
-      if (game.lastCommanderHit(leds.shownPlayer(sigilId,game))) add(SigilAction::UndoCommanderHit);
+      const uint8_t shown = leds.shownPlayer(sigilId,game);
+      if (game.lastCommanderHit(shown)) add(SigilAction::UndoCommanderHit);
+      if (!game.hasPartner(shown)) {
+        add(SigilAction::AddPartner);
+      } else {
+        // Partners stay on once a second commander has dealt damage.
+        bool dealt = false;
+        for (uint8_t to = 1; to <= game.playerCount(); ++to) dealt = dealt || game.commanderDamage(to, shown, 2);
+        if (!dealt) add(SigilAction::DropPartner);
+      }
     }
   }
   // Two living seats on one Sigil: either one can be shown, and so have its
