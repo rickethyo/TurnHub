@@ -37,6 +37,8 @@ data class HomeUiState(
     val personalization: com.turnhub.android.data.Personalization? = null,
     /** The signed-in profile's PIN state and privacy choices. */
     val profileChoices: com.turnhub.android.data.ProfileChoices? = null,
+    /** The signed-in profile's statistics, once read (or why they couldn't be). */
+    val profileStats: com.turnhub.android.data.StatisticsLoad? = null,
     val avatars: List<com.turnhub.android.protocol.AvatarIcon> = emptyList(),
     /** The Sigil accessibility editor, while open. */
     val accessibility: AccessibilityPrompt? = null,

@@ -169,6 +169,7 @@ class HomeViewModel(
         val personalization: com.turnhub.android.data.Personalization?,
         val avatars: List<com.turnhub.android.protocol.AvatarIcon>,
         val choices: com.turnhub.android.data.ProfileChoices?,
+        val stats: com.turnhub.android.data.StatisticsLoad?,
     )
 
     private val sessionFlows = combine(
@@ -176,6 +177,7 @@ class HomeViewModel(
         playerSession.personalization,
         playerSession.avatars,
         playerSession.choices,
+        playerSession.stats,
         ::SessionExtras,
     )
 
@@ -185,7 +187,7 @@ class HomeViewModel(
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (view, personalization, avatars, choices) ->
+    ) { connectionState, tableSummary, repositoryFailure, screen, (view, personalization, avatars, choices, stats) ->
         val (session, busy, feedback, gameSettings, accessibility) = view
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
@@ -203,6 +205,7 @@ class HomeViewModel(
             personalization = personalization,
             avatars = avatars,
             profileChoices = choices,
+            profileStats = stats,
             accessibility = if (screen.accessibilityOpen && session is PlayerSessionState.SignedIn) {
                 AccessibilityPrompt(
                     settings = accessibility,
@@ -518,6 +521,15 @@ class HomeViewModel(
 
     fun onSavePolicy(allowPhysicalWithoutPin: Boolean, hideStatsWithoutAuthentication: Boolean) {
         viewModelScope.launch { playerSession.savePolicy(allowPhysicalWithoutPin, hideStatsWithoutAuthentication) }
+    }
+
+    fun onLoadStats() {
+        viewModelScope.launch { playerSession.loadStats() }
+    }
+
+    /** Fetches the shareable statistics report and hands it to [onText]; a failure shows with the statistics. */
+    fun onExportStats(onText: (String) -> Unit) {
+        viewModelScope.launch { playerSession.exportStats()?.let(onText) }
     }
 
     fun onClearPin() {

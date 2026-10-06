@@ -66,6 +66,9 @@ data class AccountActions(
     val onLoadChoices: () -> Unit = {},
     val onSavePolicy: (allowPhysicalWithoutPin: Boolean, hideStatsWithoutAuthentication: Boolean) -> Unit = { _, _ -> },
     val onClearPin: () -> Unit = {},
+    val onLoadStats: () -> Unit = {},
+    /** Hands the profile's statistics report to another app (never includes moderation history). */
+    val onShareStats: () -> Unit = {},
     val onLoadPersonalization: () -> Unit = {},
     val onSavePersonalization: (color: String?, avatar: Int?) -> Unit = { _, _ -> },
     val onAccessibility: () -> Unit = {},
@@ -103,6 +106,7 @@ fun AccountTab(
             }
         } else {
             ProfileCard(uiState, session, actions)
+            StatsCard(uiState.profileStats, reduceMotion, actions)
             if (uiState.appLockAvailable) AutomaticSignIn(uiState, actions)
             PrivacyCard(uiState, actions)
             PersonalizationCard(uiState, actions)
