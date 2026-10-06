@@ -105,10 +105,12 @@ function Get-SerialPorts {
   Get-CimInstance Win32_PnPEntity |
     Where-Object { $_.Name -match '\((COM\d+)\)' -and $_.PNPDeviceID -like 'USB\*' } |
     ForEach-Object {
+      # Read the port here, before the VID tests (each successful -match replaces $Matches).
+      $port = [regex]::Match($_.Name, '\((COM\d+)\)').Groups[1].Value
       $bridge = if ($_.PNPDeviceID -match 'VID_1A86') { 'CH340' }
                 elseif ($_.PNPDeviceID -match 'VID_10C4') { 'CP210x' }
                 else { 'other' }
-      [pscustomobject]@{ Port = $Matches[1]; Name = $_.Name; Bridge = $bridge }
+      [pscustomobject]@{ Port = $port; Name = $_.Name; Bridge = $bridge }
     } |
     Sort-Object { [int]($_.Port -replace '\D') }
 }
