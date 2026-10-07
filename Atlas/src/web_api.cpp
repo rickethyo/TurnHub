@@ -265,9 +265,11 @@ const Route *findRoute(HTTPMethod method, const String &uri) {
   return nullptr;
 }
 
+}  // namespace
+
 // The game a request acts on (TableHooks). Matches the token without
 // sessionForRequest's housekeeping, which the handler does anyway.
-uint8_t requestTable(WebServer &server) {
+uint8_t requestGame(WebServer &server) {
   if (tableHooks.count < 2) return 0;
   const String token = server.header(TOKEN_HEADER);
   const WebSession *session = nullptr;
@@ -288,6 +290,8 @@ uint8_t requestTable(WebServer &server) {
   return session->table < tableHooks.count ? session->table : 0;
 }
 
+namespace {
+
 class RouteTableHandler final : public RequestHandler {
  public:
   bool canHandle(HTTPMethod method, String uri) override {
@@ -297,7 +301,7 @@ class RouteTableHandler final : public RequestHandler {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
     // Every handler acts on the request's game; the previous one is restored.
-    const uint8_t previous = tableHooks.select ? tableHooks.select(requestTable(server)) : 0;
+    const uint8_t previous = tableHooks.select ? tableHooks.select(requestGame(server)) : 0;
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.

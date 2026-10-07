@@ -900,7 +900,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       if (pairingMs > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
             static_cast<unsigned long>((pairingMs + 999) / 1000));
-      } else if (nextGameSettings.twoHeadedGiant) {
+      } else if (table().nextGameSettings.twoHeadedGiant) {
         snprintf(screen.detail, sizeof(screen.detail), "%u %s, Two-Headed Giant",
             static_cast<unsigned>(players), players == 1 ? "player" : "players");
       } else {
@@ -1217,7 +1217,7 @@ void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
   char name[SCREEN_NAME_LENGTH + 1];
   playerName(seat, profileIdForTableSeat(seat, !inLobby), nowMs, name);
   snprintf(screen.title, sizeof(screen.title), "%s", name);
-  if (inLobby && nextGameSettings.twoHeadedGiant) {
+  if (inLobby && table().nextGameSettings.twoHeadedGiant) {
     // Two-Headed Giant teams are neighbours in turn order (1+2, 3+4, ...).
     snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u, Team %u",
         static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(table().lobby.playerCount()),

@@ -161,7 +161,7 @@ void startGame() {
     strncpy(players[i].profileId, profile.c_str(), sizeof(players[i].profileId) - 1);
   }
 
-  if (!table().game.start(players, count, starter, millis(), nextGameSettings)) {
+  if (!table().game.start(players, count, starter, millis(), table().nextGameSettings)) {
     cancelCountdown();
     return;
   }
@@ -693,7 +693,7 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
       table().lobby.playerCount() < 2) {
     return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
   }
-  if (!TurnHub::validTeamTable(nextGameSettings, table().lobby.playerCount())) {
+  if (!TurnHub::validTeamTable(table().nextGameSettings, table().lobby.playerCount())) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Two-Headed Giant needs an even number of players, at least 4");
   }
@@ -1330,7 +1330,7 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   if (!gameSettingsAvailable || TurnHub::saveGameSettings(settings) != TurnHubStorage::Status::Ok) {
     return IntentResult::reject(IntentStatus::Rejected, "Game settings could not be saved");
   }
-  nextGameSettings = settings;
+  table().nextGameSettings = settings;
   return IntentResult::accept("Game settings saved on Atlas");
 }
 

@@ -77,6 +77,10 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
+- **Two games per Atlas, later rounds** (round one, 2026-10-07: two tables,
+  Sigil "Switch game", the portal switch; see PLANNED_DESIGNS.md): the Atlas
+  touchscreen game selector (with pairing and turn order for Game 2), a
+  switch on the tablet page and in the Android app, and the user manual.
 - **Profile picker:** a per-Sigil startup choice (last profile or picker).
 - **Accessibility:** Sigil-local pairing/error lights in the player's style,
   e-ink text scale, a monochrome-safe portal

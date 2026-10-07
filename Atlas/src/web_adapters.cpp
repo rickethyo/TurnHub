@@ -82,7 +82,7 @@ bool resolveWebSeat(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot) 
     snapshot.active = table().game.hasTurn(seat.playerNumber) && !snapshot.eliminated;
     snapshot.winner = table().game.isWinner(seat.playerNumber);
     snapshot.team = table().game.teamOf(seat.playerNumber);
-  } else if (nextGameSettings.twoHeadedGiant) {
+  } else if (table().nextGameSettings.twoHeadedGiant) {
     snapshot.team = static_cast<uint8_t>((seat.playerNumber + 1) / TurnHub::TEAM_SIZE);
   }
   return true;
@@ -133,7 +133,7 @@ bool handleProfileControl(const String &profileId, WebControl control,
 }
 
 bool readGameSettings(TurnHub::GameSettings &settings, bool &editable) {
-  settings = table().game.hasPlayers() ? table().game.settings() : nextGameSettings;
+  settings = table().game.hasPlayers() ? table().game.settings() : table().nextGameSettings;
   editable = table().hubState == HubState::Lobby;
   return gameSettingsAvailable;
 }

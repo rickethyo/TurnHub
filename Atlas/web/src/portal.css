@@ -516,6 +516,8 @@ body.page .shell>.notice{margin-bottom:16px}
 .segmented{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;padding:3px;background:var(--c-fill);border-radius:var(--r-md)}
 .segmented button{min-height:38px;background:transparent;color:var(--c-text-secondary);border-radius:11px}
 .segmented button:hover:not(:disabled){background:transparent;color:var(--c-text)}
+.game-switch{margin-bottom:12px}
+.game-switch-meta{font-size:.85em;color:var(--c-text-secondary)}
 .segmented button[aria-selected=true]{background:var(--c-surface1);color:var(--c-text);box-shadow:var(--shadow-1),0 0 0 .5px var(--c-separator)}
 [data-theme=graphite] .segmented button[aria-selected=true],[data-theme=brass] .segmented button[aria-selected=true]{background:var(--c-surface3)}
 [data-theme=contrast] .segmented button[aria-selected=true]{background:var(--c-accent);color:#000}

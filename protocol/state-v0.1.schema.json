@@ -400,6 +400,48 @@
           "maximum": 4294967295
         }
       }
+    },
+    "game": {
+      "description": "Venue tables (since 2026-10-07): the game on this Atlas this snapshot describes, 1-based. A signed-in client sees the game its profile plays in, else the one it follows (POST /api/session/game); a client without a session may ask with ?game=N.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 255
+    },
+    "games": {
+      "description": "One line per game on this Atlas, for a game switch.",
+      "type": "array",
+      "maxItems": 255,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "game",
+          "state",
+          "players"
+        ],
+        "properties": {
+          "game": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "LOBBY",
+              "STARTING",
+              "RUNNING",
+              "PAUSED",
+              "GAME_OVER"
+            ]
+          },
+          "players": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          }
+        }
+      }
     }
   }
 }

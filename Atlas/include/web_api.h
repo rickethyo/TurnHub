@@ -165,6 +165,8 @@ struct TableHooks {
   uint8_t (*select)(uint8_t index) = nullptr;                 // Returns the previous one.
 };
 void configureTables(const TableHooks &hooks);
+// The game (0-based) a request acts on, for routes outside the route table.
+uint8_t requestGame(WebServer &server);
 
 // Called only for real physical Sigil activity. A pending browser claim is
 // approved when the user proves possession by choosing Link phone on that Sigil.

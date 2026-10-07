@@ -92,8 +92,6 @@ extern LedRenderer leds;
 extern AudioController audio;
 extern OtaManager ota;
 
-// Settings the next match will start with; persisted by game_settings_store.
-extern TurnHub::GameSettings nextGameSettings;
 // False when the settings store failed to load; starting a game is refused.
 extern bool gameSettingsAvailable;
 extern bool espNowReady;
@@ -147,6 +145,9 @@ struct GameTable {
   uint8_t eliminationTargetPlayer = 0;
   TurnTimerCueState turnTimerCue;
   NudgeState nudgeState;
+  // Settings this table's next match starts with. The last ones saved
+  // (game_settings_store) are every table's settings after a boot.
+  TurnHub::GameSettings nextGameSettings;
 };
 
 constexpr uint8_t MAX_GAME_TABLES = 2;

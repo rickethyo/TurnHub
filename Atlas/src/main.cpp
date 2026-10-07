@@ -73,7 +73,6 @@ uint8_t selectTable(uint8_t index) {
 TableScope::TableScope(uint8_t index) : previous_(selectTable(index)) {}
 TableScope::~TableScope() { currentTable = previous_; }
 
-TurnHub::GameSettings nextGameSettings;
 bool gameSettingsAvailable = true;
 bool espNowReady = false;
 uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
@@ -215,7 +214,7 @@ void observeClientState() {
   pending.nudgeFrom = table().nudgeState.fromPlayer;
   pending.nudgeTo = table().nudgeState.toPlayer;
   pending.nudgeAtMs = table().nudgeState.atMs;
-  table().clientState.observe(table().hubState, table().lobby, table().game, nextGameSettings, pending);
+  table().clientState.observe(table().hubState, table().lobby, table().game, table().nextGameSettings, pending);
 }
 
 uint32_t clientRevision() {
@@ -343,6 +342,7 @@ bool configureIntentHandlers() {
 // Compact status for the diagnostics page. Clients use /api/v1/state.
 void handleStatus() {
   TurnHub::HttpRequestTrace trace("/api/status");
+  TableScope scope(TurnHubWebApi::requestGame(server));
   PlayerSeat selected;
   const uint8_t starter = table().lobby.selectedStarter(selected)
       ? selected.playerNumber
@@ -351,8 +351,17 @@ void handleStatus() {
       ? table().game.activePlayerNumber()
       : 0;
   const uint8_t players = table().game.hasPlayers() ? table().game.playerCount() : table().lobby.playerCount();
-  const bool otaStateAllowed = table().hubState == HubState::Lobby || table().hubState == HubState::GameOver;
+  const bool otaStateAllowed = allTablesBetweenGames();
   const uint32_t nowMs = millis();
+  // Venue tables: a line on each game, for the portal's game switch.
+  char games[48 * MAX_GAME_TABLES];
+  size_t used = 0;
+  for (uint8_t t = 0; t < MAX_GAME_TABLES && used < sizeof(games); ++t) {
+    const GameTable &at = tables[t];
+    used += snprintf(games + used, sizeof(games) - used, "%s{\"game\":%u,\"state\":\"%s\",\"players\":%u}",
+        t ? "," : "", static_cast<unsigned>(t + 1), stateName(at.hubState),
+        static_cast<unsigned>(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount()));
+  }
   const uint32_t passElapsed = table().pendingPass.active ? nowMs - table().pendingPass.requestedAtMs : 0;
   const uint32_t passGraceRemainingMs = table().pendingPass.active && passElapsed < PASS_GRACE_MS
       ? PASS_GRACE_MS - passElapsed
@@ -371,7 +380,7 @@ void handleStatus() {
       "\"nudgeSeq\":%lu,\"nudgeFrom\":%u,\"nudgeTo\":%u,\"nudgeAgeMs\":%lu,"
       "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
       "\"espNow\":%s,\"firmware\":\"%s\","
-      "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
+      "\"build\":\"%s %s\",\"otaStateAllowed\":%s,\"game\":%u,\"games\":[%s]}",
       anyPresenceActive(nowMs) ? "true" : "false",
       pendingPresenceCode(nowMs) != nullptr ? "true" : "false",
       static_cast<unsigned>(sigilBus.activeCount(nowMs)),
@@ -388,7 +397,7 @@ void handleStatus() {
       static_cast<unsigned>(table().nudgeState.fromPlayer),
       static_cast<unsigned>(table().nudgeState.toPlayer),
       static_cast<unsigned long>(table().nudgeState.seq ? nowMs - table().nudgeState.atMs : 0),
-      static_cast<unsigned long>(table().game.hasPlayers() ? table().game.turnTimerMs() : nextGameSettings.turnTimerMs),
+      static_cast<unsigned long>(table().game.hasPlayers() ? table().game.turnTimerMs() : table().nextGameSettings.turnTimerMs),
       static_cast<unsigned long>(table().game.currentTurnElapsedMs(nowMs)),
       static_cast<unsigned long>(table().game.turnRemainingMs(nowMs)),
       TurnHub::turnTimerPhaseName(table().game.turnTimerPhase(nowMs)),
@@ -396,7 +405,9 @@ void handleStatus() {
       TurnHubFirmware::VERSION,
       TurnHubFirmware::BUILD_DATE,
       TurnHubFirmware::BUILD_TIME,
-      otaStateAllowed ? "true" : "false");
+      otaStateAllowed ? "true" : "false",
+      static_cast<unsigned>(tableIndex() + 1),
+      games);
 
   server.sendHeader("Cache-Control", "no-store");
   if (length < 0 || static_cast<size_t>(length) >= sizeof(json)) {
@@ -518,7 +529,8 @@ void setup() {
   }
   logHeapStep("PROFILES_AND_RECOVERY");
 
-  const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
+  const auto settingsStatus = TurnHub::loadGameSettings(tables[0].nextGameSettings);
+  for (GameTable &other : tables) other.nextGameSettings = tables[0].nextGameSettings;
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;
   if (!gameSettingsAvailable) serialLog.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");

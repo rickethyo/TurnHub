@@ -682,7 +682,7 @@ static void gameProfilesAndLife() {
   assert(request("/api/game/settings",first,{{"gameProfile","unknown"},{"startingLife","20"}})==400);
   ProfileFixture::gameSettingsWritable=false;
   assert(request("/api/game/settings",first,{{"gameProfile","yugioh"},{"startingLife","8000"}})==409);
-  assert(nextGameSettings.profile==GameProfile::Magic && nextGameSettings.startingLife==20);
+  assert(table().nextGameSettings.profile==GameProfile::Magic && table().nextGameSettings.startingLife==20);
   ProfileFixture::gameSettingsWritable=true;
   assert(request("/api/control/life",first,{{"delta","-1"}})==409); // Lobby.
   gameSettingsAvailable=false;
@@ -912,14 +912,14 @@ static void serialLogCapture() {
   // Log lines that make a downloaded log self-explanatory.
   freshLobby(2);
   assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|SYSTEM|FROM|"));
-  nextGameSettings.turnTimerMs=60000;
+  table().nextGameSettings.turnTimerMs=60000;
   startFromHost();
   assert(logHas("|PROFILE|generic|LIFE|40|TIMER_MS|60000|PLAYERS|2\n"));
   assert(web(0,1,WebControl::Concede) && table().hubState==HubState::GameOver);
   serialLog.clear();
   assert(web(0,1,WebControl::Reset) && table().hubState==HubState::Lobby);
   assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|BROWSER|CONTROLLER|0|FROM|GAME_OVER\n"));
-  nextGameSettings=TurnHub::GameSettings{};
+  table().nextGameSettings=TurnHub::GameSettings{};
   enterEmptyLobby();
 }
 static void virtualCapacity() {
@@ -1147,7 +1147,7 @@ static void commanderFlow() {
   using A = SigilAction;
   resetCommanderPickers();
   freshLobby(3,true);
-  nextGameSettings.profile = GameProfile::Commander; nextGameSettings.startingLife = 40;
+  table().nextGameSettings.profile = GameProfile::Commander; table().nextGameSettings.startingLife = 40;
   startFromHost();
   leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
   assert(leds.switchShownSeat(0,table().game));
@@ -1241,7 +1241,7 @@ static void commanderFlow() {
   open(false,1); dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::PhysicalSigil,*table().game.activePlayer());
   syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
   enterEmptyLobby();
-  nextGameSettings = GameSettings{};
+  table().nextGameSettings = GameSettings{};
   freshLobby(2); startFromHost(); syncSigilMenus(testNow);
   assert(!(sigilMenuFor(0).actions & sigilActionBit(A::CommanderDamage)));
   openCommanderPicker(0,1,false,testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
@@ -1915,7 +1915,7 @@ static void ledCueSelection() {
 static void turnTimerCuesAndMute() {
   using namespace TurnHub;
   freshLobby(2);
-  nextGameSettings.turnTimerMs = 60000;
+  table().nextGameSettings.turnTimerMs = 60000;
   startFromHost();
   assert(table().game.turnTimerMs() == 60000);
   const uint8_t active = table().game.activeController();
@@ -1949,7 +1949,7 @@ static void turnTimerCuesAndMute() {
   assert(selectSigilLedState(next,table().hubState,table().lobby,table().game,0,0,0,testNow).has(LedOverlay::TurnWarning));
   audio.setProfile(defaultAudioCueProfile());
   // Settings stay lobby-only while the captured timer runs.
-  nextGameSettings = GameSettings{};
+  table().nextGameSettings = GameSettings{};
   enterEmptyLobby();
 }
 
@@ -2073,7 +2073,7 @@ static void actionRequiredCues() {
 
 static void turnTimerSettingsHttp() {
   enterEmptyLobby(); TurnHub::fixtureRadio = false; testNow = 1000;
-  nextGameSettings = TurnHub::GameSettings{};
+  table().nextGameSettings = TurnHub::GameSettings{};
   String hostId, guestId;
   const String host = registerPhone("Timer host", hostId), guest = registerPhone("Timer guest", guestId);
   assert(request("/api/session/join", host) == 200 && request("/api/session/join", guest) == 200);
@@ -2085,14 +2085,14 @@ static void turnTimerSettingsHttp() {
     assert(request("/api/game/settings", host, {{"turnTimerMs", bad}}) == 400);
   // Any seated player may set the timer (no table host).
   assert(request("/api/game/settings", guest, {{"turnTimerMs", "90000"}}) == 200);
-  assert(nextGameSettings.turnTimerMs == 90000);
+  assert(table().nextGameSettings.turnTimerMs == 90000);
   assert(request("/api/game/settings", guest, {{"turnTimerMs", "0"}}) == 200);
-  assert(nextGameSettings.turnTimerMs == 0);
+  assert(table().nextGameSettings.turnTimerMs == 0);
   // Partial update: only the timer changes.
-  nextGameSettings.profile = TurnHub::GameProfile::Magic; nextGameSettings.startingLife = 20;
+  table().nextGameSettings.profile = TurnHub::GameProfile::Magic; table().nextGameSettings.startingLife = 20;
   assert(request("/api/game/settings", host, {{"turnTimerMs", "90000"}}) == 200);
-  assert(nextGameSettings.turnTimerMs == 90000 && nextGameSettings.profile == TurnHub::GameProfile::Magic &&
-      nextGameSettings.startingLife == 20);
+  assert(table().nextGameSettings.turnTimerMs == 90000 && table().nextGameSettings.profile == TurnHub::GameProfile::Magic &&
+      table().nextGameSettings.startingLife == 20);
   assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
   assert(server.body.find("\"turnTimerMs\":90000") != std::string::npos);
   assert(server.body.find("\"turnTimer\":{\"phase\":\"NORMAL\",\"remainingMs\":null}") != std::string::npos);
@@ -2108,7 +2108,7 @@ static void turnTimerSettingsHttp() {
   assert(server.body.find("\"turnTimerMs\":90000") != std::string::npos &&
       server.body.find("\"timerPhase\":\"WARNING\"") != std::string::npos);
   assert(request("/api/game/settings", host, {{"turnTimerMs", "60000"}}) == 409);  // Lobby only.
-  enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
+  enterEmptyLobby(); table().nextGameSettings = TurnHub::GameSettings{};
 }
 
 static void sigilReceivePackets() {
@@ -2147,7 +2147,7 @@ static void nativeClientBoundary() {
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
   table().clientState.setNameLookup(displayNameForTableSeat);  // As setup() does.
   enterEmptyLobby(); testNow = 1000;
-  nextGameSettings = TurnHub::GameSettings{};
+  table().nextGameSettings = TurnHub::GameSettings{};
   assert(request("/api/v1/info", "", {}, HTTP_GET) == 200);
   const String epoch = responseField("bootId");
   assert(epoch.length() == 32);
@@ -2211,7 +2211,7 @@ static void nativeClientBoundary() {
   saveClientFixture("reconnected", server.body);
 
   freshLobby(2);
-  nextGameSettings.profile = TurnHub::GameProfile::Commander;
+  table().nextGameSettings.profile = TurnHub::GameProfile::Commander;
   startFromHost();
   String message;
   TurnHub::IntentPayload payload;
@@ -2249,19 +2249,19 @@ static void nativeClientBoundary() {
   PlayerSeat seats[MAX_PLAYERS];
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i)
     seats[i] = PlayerSeat(i + 1, i / 2, i % 2 + 1);
-  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], testNow, nextGameSettings));
+  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], testNow, table().nextGameSettings));
   for (uint8_t i = 1; i <= MAX_PLAYERS; ++i)
     for (uint8_t j = 1; j <= MAX_PLAYERS; ++j)
       for (uint8_t c = 1; c <= 2; ++c)
         assert(fullGame.changeCommanderDamage(i, j, c, 1));
-  full.observe(HubState::Running, fullLobby, fullGame, nextGameSettings, {});
+  full.observe(HubState::Running, fullLobby, fullGame, table().nextGameSettings, {});
   const auto fullRevision = full.revision();
-  full.observe(HubState::Running, fullLobby, fullGame, nextGameSettings, {});
+  full.observe(HubState::Running, fullLobby, fullGame, table().nextGameSettings, {});
   assert(full.revision() == fullRevision);
   const String fullJson = full.json("THA-TEST", epoch.c_str(), fullGame, testNow, PASS_GRACE_MS);
   assert(fullJson.length() > 10000);
   saveClientFixture("full", fullJson);
-  enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
+  enterEmptyLobby(); table().nextGameSettings = TurnHub::GameSettings{};
 }
 
 // Recovery fault-injection scenarios run last: they change the process-wide
@@ -4017,7 +4017,7 @@ static void twoHeadedGiantTable() {
   assert(request("/api/game/settings",tokens[0],{{"twoHeadedGiant","yes"}})==400);
   assert(request("/api/game/settings",tokens[0],
       {{"gameProfile","mtg"},{"startingLife","30"},{"twoHeadedGiant","1"}})==200);
-  assert(nextGameSettings.twoHeadedGiant);
+  assert(table().nextGameSettings.twoHeadedGiant);
   GameSettings saved; assert(loadGameSettings(saved)==TurnHubStorage::Status::Ok && saved.twoHeadedGiant);
   assert(request("/api/game/settings",tokens[0],{},HTTP_GET)==200);
   assert(server.body.find("\"twoHeadedGiant\":true")!=std::string::npos);
@@ -4049,7 +4049,7 @@ static void twoHeadedGiantTable() {
   assert(request("/api/control/reset",tokens[0])==200);
   assert(request("/api/session/join",tokens[0])==200);
   assert(request("/api/game/settings",tokens[0],{{"gameProfile","generic"}})==200);
-  assert(!nextGameSettings.twoHeadedGiant);
+  assert(!table().nextGameSettings.twoHeadedGiant);
   // Later scenarios register their own accounts against the profile limit.
   assert(request("/api/control/reset",tokens[0])==200);
   for (const String &id : ids) ProfileFixture::profiles.erase(id.c_str());
@@ -4059,8 +4059,8 @@ static void twoHeadedGiantSigils() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
   freshLobby(4);
-  nextGameSettings.profile=GameProfile::Magic; nextGameSettings.startingLife=30;
-  nextGameSettings.twoHeadedGiant=true;
+  table().nextGameSettings.profile=GameProfile::Magic; table().nextGameSettings.startingLife=30;
+  table().nextGameSettings.twoHeadedGiant=true;
   startFromHost();
   assert(table().game.activePlayerNumber()==1);
   // Both teammates' Sigils show the turn and offer Pass; the other team's don't.
@@ -4080,7 +4080,7 @@ static void twoHeadedGiantSigils() {
   choose(1,SigilAction::Pass);
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
   assert(table().game.activePlayerNumber()==3 && table().game.hasTurn(4));
-  nextGameSettings=GameSettings{};
+  table().nextGameSettings=GameSettings{};
 }
 
 int main() {
