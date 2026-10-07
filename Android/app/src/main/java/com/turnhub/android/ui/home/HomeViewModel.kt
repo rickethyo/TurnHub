@@ -114,6 +114,7 @@ class HomeViewModel(
             // Qualified: unqualified, this resolved to this override itself and
             // recursed until the stack overflowed (crash after Finish, 2026-09-30).
             override suspend fun reconnectAfterRestart(): Boolean = this@HomeViewModel.reconnectAfterRestart()
+            override fun holdConnection(hold: Boolean) = repository.holdThroughOutages(hold)
         },
     )
     val setupState: StateFlow<SetupState> = setupAssistant.state

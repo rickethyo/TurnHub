@@ -91,6 +91,12 @@ interface SetupHost {
      * reconnect; true once Atlas answers again (a new boot).
      */
     suspend fun reconnectAfterRestart(): Boolean
+
+    /**
+     * Sigil updates are running: keep the connection (and with it Atlas's
+     * Wi-Fi and the session) through polls Atlas is too busy to answer.
+     */
+    fun holdConnection(hold: Boolean) {}
 }
 
 /**
@@ -462,6 +468,10 @@ class AtlasSetupAssistant(
 
     private suspend fun installSigils(targets: List<UpdateTarget>, lines: MutableList<UpdateProgress>, firstLine: Int) {
         _state.update { it.copy(busy = true) }
+        // Serving a package can keep Atlas from answering the state poll for
+        // longer than a lost connection allows (2026-10-07: every Sigil after
+        // the first came up "Signed out").
+        host.holdConnection(true)
         try {
             fun show(detail: String) = setUpdates(UpdatesState.Installing(lines.toList(), detail))
             // One package is staged on Atlas at a time: group by display type.
@@ -498,6 +508,7 @@ class AtlasSetupAssistant(
         } catch (e: AtlasException) {
             abortUpdates(lines, e)
         } finally {
+            host.holdConnection(false)
             _state.update { it.copy(busy = false) }
         }
     }
