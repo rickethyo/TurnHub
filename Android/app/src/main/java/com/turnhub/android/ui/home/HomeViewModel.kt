@@ -257,6 +257,21 @@ class HomeViewModel(
                 previous = state
             }
         }
+        // Tablet changes made while Atlas wasn't answering go to it as soon as
+        // it answers again; sent ones are forgotten once a snapshot carries them.
+        viewModelScope.launch {
+            var wasOffline = false
+            repository.offlineSinceMs.collect { since ->
+                val summary = repository.tableSummary.value
+                if (wasOffline && since == null && summary != null) {
+                    tablet.replayOffline(summary, com.turnhub.android.domain.TableClock.nowMs())
+                }
+                wasOffline = since != null
+            }
+        }
+        viewModelScope.launch {
+            repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
+        }
         // While Atlas isn't answering, rejoin its Wi-Fi whenever Android has
         // dropped it, so polling reaches Atlas as soon as it is back.
         viewModelScope.launch {

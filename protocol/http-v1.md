@@ -283,6 +283,12 @@ One shared screen at the table acting for every seat. Engineering record:
    - `POST /api/tablet/commander`: `delta`, `source`, `commander` (damage
      the seat received), as `/api/control/commander`.
    - `POST /api/tablet/life/respond`: `requestId`, `accept`.
+   - `life` and `commander` take an optional `queuedMs` (0 to 86400000): a
+     change the tablet kept while Atlas wasn't answering, tapped that long
+     ago. Atlas applies it now under its usual rules and only logs the age
+     (`ATLAS|TABLET|OFFLINE|...`); it has no wall clock to back-date with.
+     The app sends such changes once on reconnect, only for the same boot,
+     the same game and a player still in it, and never retries a refused one.
    - `POST /api/tablet/settings`: the `/api/game/settings` fields.
    - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `win`,
      `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch`,

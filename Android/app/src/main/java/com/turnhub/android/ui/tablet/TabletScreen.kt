@@ -47,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -121,16 +123,47 @@ fun TabletScreen(
             summary.state == TableState.LOBBY -> Lobby(summary, tablet, actions, onClose)
             else -> {
                 Immersive()
-                TabletTable(summary, tablet, actions, reduceMotion, onClose)
+                TabletTable(summary, tablet, actions, reduceMotion, onClose, offline)
             }
         }
-        if (offline && summary != null) OfflineCover(summary, onClose)
+        if (offline && summary != null) {
+            val playing = granted && summary.state != TableState.LOBBY
+            if (playing) OfflineStrip(tablet.waiting, Modifier.align(Alignment.TopCenter))
+            else OfflineCover(summary, onClose)
+        }
     }
 }
 
 /**
- * Keeps the last known table on screen while Atlas isn't answering, dimmed and
- * untouchable, with what happened and a way out. Lifts by itself on reconnect.
+ * During a game while Atlas isn't answering: the table stays usable for life
+ * and Commander damage, which wait for Atlas; this says so without covering it.
+ */
+@Composable
+private fun OfflineStrip(waiting: Int, modifier: Modifier) {
+    val p = palette
+    val saved = when (waiting) {
+        0 -> "Life and Commander damage are saved for Atlas"
+        1 -> "1 change saved for Atlas"
+        else -> "$waiting changes saved for Atlas"
+    }
+    Text(
+        "Atlas is offline, reconnecting. $saved.",
+        color = p.text,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = modifier
+            .safeDrawingPadding()
+            .padding(top = 6.dp)
+            .background(p.surface, RoundedCornerShape(99.dp))
+            .border(1.dp, p.warn, RoundedCornerShape(99.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    )
+}
+
+/**
+ * Outside a game (lobby, or before the grant), keeps the last known screen
+ * while Atlas isn't answering, dimmed and untouchable, with what happened and
+ * a way out. Lifts by itself on reconnect.
  */
 @Composable
 private fun OfflineCover(summary: TableSummary, onClose: () -> Unit) {

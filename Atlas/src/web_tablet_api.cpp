@@ -78,6 +78,25 @@ const TabletAction TABLET_ACTIONS[] = {
   {"move-later", WebControl::MoveLater},
 };
 
+// A change the tablet made while Atlas was out of reach carries `queuedMs`,
+// how long ago it was tapped (Atlas has no wall clock). It is applied now,
+// under today's rules, like any other change; the age only goes in the log.
+void logOfflineChange(WebServer &server, const char *kind, uint8_t module, uint8_t slot, bool applied) {
+  int32_t ageMs = 0;
+  if (!server.hasArg("queuedMs") || !parseBoundedNumber(server.arg("queuedMs"), 0, 86400000, ageMs)) return;
+  serialLog.print("ATLAS|TABLET|OFFLINE|");
+  serialLog.print(kind);
+  serialLog.print("|seat=");
+  serialLog.print(static_cast<unsigned>(module));
+  serialLog.print('/');
+  serialLog.print(static_cast<unsigned>(slot));
+  serialLog.print("|delta=");
+  serialLog.print(server.arg("delta"));
+  serialLog.print("|ageMs=");
+  serialLog.print(static_cast<long>(ageMs));
+  serialLog.println(applied ? "|applied" : "|refused");
+}
+
 }  // namespace
 
 // POST /api/tablet/enable: needs table presence (POST /api/presence/request
@@ -201,7 +220,9 @@ void handleTabletLife(WebServer &server) {
     return;
   }
   String message = "That player is not at the table";
-  sendSeatResult(server, changeLifeHandler && changeLifeHandler(module, slot, delta, message), message);
+  const bool applied = changeLifeHandler && changeLifeHandler(module, slot, delta, message);
+  logOfflineChange(server, "life", module, slot, applied);
+  sendSeatResult(server, applied, message);
 }
 
 // POST /api/tablet/settings: module and slot of any seated player, then the
@@ -229,7 +250,9 @@ void handleTabletCounter(WebServer &server, TurnHub::IntentType type) {
     return;
   }
   String message = "That player is not at the table";
-  if (!counterControlHandler || !counterControlHandler(module, slot, type, payload, message)) {
+  const bool applied = counterControlHandler && counterControlHandler(module, slot, type, payload, message);
+  if (type == TurnHub::IntentType::ChangeCounter) logOfflineChange(server, "commander", module, slot, applied);
+  if (!applied) {
     sendError(server, 409, message);
     return;
   }

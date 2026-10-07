@@ -6,7 +6,9 @@ import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.LedStyle
 import com.turnhub.android.protocol.LoginResult
 import com.turnhub.android.protocol.ProfileSummary
+import com.turnhub.android.domain.TableSummaryMapper
 import com.turnhub.android.protocol.SessionInfo
+import com.turnhub.android.testing.Fixtures
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -129,5 +131,77 @@ class AtlasTabletTest {
 
         assertTrue(tablet.life(TabletSeat(9, 1), -7))
         assertEquals(mapOf("module" to "9", "slot" to "1", "delta" to "-7"), atlas.posts.last().second)
+    }
+
+    // --- changes made while Atlas wasn't answering ------------------------------------
+
+    private val running = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json"))
+
+    private fun change(delta: Int, at: Long = 1_000, participant: Long = 28, source: Int? = null, elapsed: Long = 100) =
+        OfflineChange(participant, source = source, delta = delta, queuedAtMs = at, bootId = Fixtures.BOOT_ID, gameElapsedMs = elapsed)
+
+    @Test
+    fun `offline taps on one target add up, and cancel out`() = runTest {
+        val (_, tablet) = signedIn(TabletAtlas())
+        tablet.queueOffline(change(-1, at = 1_000))
+        tablet.queueOffline(change(-1, at = 2_000))
+        tablet.queueOffline(change(3, participant = 29))
+
+        val offline = tablet.state.value.offline
+        assertEquals(listOf(-2, 3), offline.map { it.delta })
+        assertEquals(1_000L, offline.first().queuedAtMs)
+        assertEquals(-2, tablet.state.value.offlineLife(28))
+        assertEquals(2, tablet.state.value.waiting)
+
+        tablet.queueOffline(change(2))
+        assertEquals(listOf(29L), tablet.state.value.offline.map { it.participantId })
+    }
+
+    @Test
+    fun `Commander damage kept offline costs life too`() = runTest {
+        val (_, tablet) = signedIn(TabletAtlas())
+        tablet.queueOffline(change(3, source = 2))
+        assertEquals(-3, tablet.state.value.offlineLife(28))
+        assertEquals(3, tablet.state.value.offlineCommander(28, 2, 1))
+        assertEquals(0, tablet.state.value.offlineCommander(28, 2, 2))
+    }
+
+    @Test
+    fun `on reconnect waiting changes go to Atlas with their age, quietly`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.queueOffline(change(-4, at = 1_000))
+
+        tablet.replayOffline(running, nowMs = 6_000)
+
+        val (path, fields) = atlas.posts.last()
+        assertEquals("/api/tablet/life", path)
+        assertEquals("-4", fields["delta"])
+        assertEquals("5000", fields["queuedMs"])
+        assertEquals("1", fields["slot"])
+        assertNull(tablet.state.value.message)
+        // Still shown until a newer snapshot carries it, then forgotten.
+        assertEquals(-4, tablet.state.value.offlineLife(28))
+        assertEquals(0, tablet.state.value.waiting)
+        tablet.settleOffline(running.revision)
+        assertEquals(-4, tablet.state.value.offlineLife(28))
+        tablet.settleOffline(running.revision + 1)
+        assertTrue(tablet.state.value.offline.isEmpty())
+    }
+
+    @Test
+    fun `changes from another boot, an earlier game or a refused one are dropped with a note`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.queueOffline(change(-1).copy(bootId = Fixtures.OTHER_BOOT_ID))
+        tablet.queueOffline(change(-2, participant = 29, elapsed = 50_000))
+        tablet.queueOffline(change(1, source = 2))
+
+        tablet.replayOffline(running, nowMs = 2_000)
+
+        // Only the Commander change was sent; the fake Atlas refuses it.
+        assertEquals(listOf("/api/tablet/commander"), atlas.posts.map { it.first }.filter { it.startsWith("/api/tablet/") })
+        assertTrue(tablet.state.value.offline.isEmpty())
+        assertTrue(tablet.state.value.message!!.message.startsWith("3 changes"))
     }
 }

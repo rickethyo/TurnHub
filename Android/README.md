@@ -196,8 +196,16 @@ updates on Atlas and the Sigils.
    reconnecting" banner and its age, rejoins Atlas's Wi-Fi if Android dropped
    it, and polls every 2 s until Atlas answers; the epoch rules above then
    apply, so a restarted Atlas is rebuilt from a fresh handshake and its
-   sessions reset. Nothing is sent while offline. Disconnect stops polling
-   and clears state. A match Atlas recovered after a reboot is simply shown
+   sessions reset. Disconnect stops polling and clears state.
+   During a game, tablet mode keeps working offline for life and Commander
+   damage only: each change is kept per participant with when it was tapped
+   (`AtlasTablet.queueOffline`), shown on the panels, and sent once Atlas
+   answers again through the usual tablet routes with `queuedMs`, where
+   Atlas's rules decide it. Changes from before an Atlas restart, from an
+   earlier game, or for a player no longer in it are dropped, as is any Atlas
+   refuses, with one note; a clean replay is silent. Passing, pausing,
+   conceding, win claims, answers, seating and settings are refused offline,
+   since they depend on Atlas's live clock and turn. A match Atlas recovered after a reboot is simply shown
    as `PAUSED`.
 
 V1 redesign, phases 5 and 6 (2026-10-02, *Implemented*, built by CI; not yet
