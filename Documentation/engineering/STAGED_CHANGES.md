@@ -66,6 +66,13 @@ everything implemented. Only the checks listed below are still open.
   "counters received"; player tile backgrounds as a profile personalization;
   tablet seating of Sigil seat B.
 
+- **Standalone tablet game, round two** (round one, 2026-10-07: the app plays
+  a game alone and keeps finished games as records; see `Android/README.md`).
+  Next: Atlas imports a finished game record once on connect (dedupe by record
+  ID, credit games played and won to the picked profile or a name match),
+  then the app forgets the records Atlas took. The user manual needs a
+  "Play without Atlas" section with that round.
+
 ### Setup and updates
 
 - **Atlas fetches updates over home Wi-Fi** (optional): an Admin stores a
@@ -77,6 +84,10 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
+- **Two games per Atlas, later rounds** (round one, 2026-10-07: two tables,
+  Sigil "Switch game", the portal switch; see PLANNED_DESIGNS.md): the Atlas
+  touchscreen game selector (with pairing and turn order for Game 2), a
+  switch on the tablet page and in the Android app, and the user manual.
 - **Profile picker:** a per-Sigil startup choice (last profile or picker).
 - **Accessibility:** Sigil-local pairing/error lights in the player's style,
   e-ink text scale, a monochrome-safe portal

@@ -40,7 +40,7 @@ bool uploadDenied = false;
 bool uploadSeen = false;
 constexpr uint32_t UPLOAD_STALL_MS = 30000;
 uint32_t lastUploadChunkMs = 0;
-bool betweenGames() { return hubState == HubState::Lobby || hubState == HubState::GameOver; }
+bool betweenGames() { return allTablesBetweenGames(); }
 using namespace TurnHubWebApi::internal;
 
 void statusRoute() {

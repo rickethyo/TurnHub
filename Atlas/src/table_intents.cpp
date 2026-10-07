@@ -5,6 +5,7 @@
 
 #include "atlas_app.h"
 #include "atlas_display.h"
+#include "sigil_menu.h"
 #include "sigil_update_service.h"
 #include "account_access.h"
 #include "controller_profiles.h"
@@ -51,16 +52,12 @@ bool validTableActor(const Intent &intent, IntentResult &rejection) {
 // table may start, pick the starter, change next-game settings, rematch or
 // reset. Start keeps its countdown, which any seated player can cancel.
 bool seatedAtTable(uint8_t module) {
-  return lobby.isJoined(module) || game.controllerInGame(module);
+  return table().lobby.isJoined(module) || table().game.controllerInGame(module);
 }
 
 void resetCountdown() {
-  countdownStartedAtMs = 0;
-  lastCountdownSecond = -1;
-}
-
-void clearPhysicalSeatProfiles() {
-  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) TurnHubControllers::releasePhysical(id, 1);
+  table().countdownStartedAtMs = 0;
+  table().lastCountdownSecond = -1;
 }
 
 void printPlayer(const PlayerSeat &player) {
@@ -76,18 +73,23 @@ void printPlayer(const PlayerSeat &player) {
 // --- Lifecycle transitions ---------------------------------------------------
 
 void clearDecisionState() {
-  eliminationTargetPlayer = 0;
-  pendingPass = PendingPassState{};
+  table().eliminationTargetPlayer = 0;
+  table().pendingPass = PendingPassState{};
 }
 
 void enterEmptyLobby(const Intent *cause) {
-  const HubState previous = hubState;
-  clearPhysicalSeatProfiles();
-  hubState = HubState::Lobby;
-  lobby.resetEmpty();
-  game.reset();
+  const HubState previous = table().hubState;
+  // Only this game's controllers are freed: the other game keeps its players.
+  bool here[MAX_CONTROLLERS];
+  for (uint8_t id = 0; id < MAX_CONTROLLERS; ++id) here[id] = tableForController(id) == tableIndex();
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (here[id]) TurnHubControllers::releasePhysical(id, 1);
+  }
+  table().hubState = HubState::Lobby;
+  table().lobby.resetEmpty();
+  table().game.reset();
   for (uint8_t id = MAX_PHYSICAL_SIGILS; id < MAX_CONTROLLERS; ++id) {
-    TurnHubControllers::releaseBrowser(id);
+    if (here[id]) TurnHubControllers::releaseBrowser(id);
   }
   resetCountdown();
   clearDecisionState();
@@ -107,15 +109,15 @@ namespace {
 
 void enterRematchLobby() {
   // The completed match retains identities on Atlas until the rematch decision.
-  for (uint8_t i = 0; i < game.playerCount(); ++i) {
-    const auto *seat = game.playerAt(i);
+  for (uint8_t i = 0; i < table().game.playerCount(); ++i) {
+    const auto *seat = table().game.playerAt(i);
     if (seat && seat->controllerId < MAX_PHYSICAL_SIGILS && seat->profileId[0]) {
       TurnHubControllers::bindPhysical(seat->controllerId, seat->slot, String(seat->profileId));
     }
   }
-  hubState = HubState::Lobby;
-  lobby.resetForRematch();
-  game.reset();
+  table().hubState = HubState::Lobby;
+  table().lobby.resetForRematch();
+  table().game.reset();
   resetCountdown();
   clearDecisionState();
   audio.clear();
@@ -124,20 +126,20 @@ void enterRematchLobby() {
 }
 
 void beginCountdown() {
-  if (lobby.playerCount() < 2 || !gameSettingsAvailable) return;
-  hubState = HubState::Starting;
-  countdownStartedAtMs = millis();
-  lastCountdownSecond = -1;
-  lobby.clearStartArm();
+  if (table().lobby.playerCount() < 2 || !gameSettingsAvailable) return;
+  table().hubState = HubState::Starting;
+  table().countdownStartedAtMs = millis();
+  table().lastCountdownSecond = -1;
+  table().lobby.clearStartArm();
   serialLog.println("ATLAS|LOBBY|COUNTDOWN|START");
 }
 
 void cancelCountdown() {
-  if (hubState != HubState::Starting) return;
+  if (table().hubState != HubState::Starting) return;
   const uint16_t targets = lobbyAudioMask();
-  hubState = HubState::Lobby;
+  table().hubState = HubState::Lobby;
   resetCountdown();
-  lobby.clearStartArm();
+  table().lobby.clearStartArm();
   audio.clear();
   audio.countdownCancelled(targets);
   serialLog.println("ATLAS|LOBBY|COUNTDOWN|CANCEL");
@@ -145,13 +147,13 @@ void cancelCountdown() {
 
 void startGame() {
   PlayerSeat starter;
-  if (!lobby.starterOrDefault(starter) || lobby.playerCount() < 2) {
+  if (!table().lobby.starterOrDefault(starter) || table().lobby.playerCount() < 2) {
     cancelCountdown();
     return;
   }
 
   PlayerSeat players[MAX_PLAYERS];
-  const uint8_t count = lobby.buildPlayers(players, MAX_PLAYERS);
+  const uint8_t count = table().lobby.buildPlayers(players, MAX_PLAYERS);
   // Capture each seat's profile now so statistics follow the person even if
   // controller assignments change during the match.
   for (uint8_t i = 0; i < count; ++i) {
@@ -159,12 +161,12 @@ void startGame() {
     strncpy(players[i].profileId, profile.c_str(), sizeof(players[i].profileId) - 1);
   }
 
-  if (!game.start(players, count, starter, millis(), nextGameSettings)) {
+  if (!table().game.start(players, count, starter, millis(), table().nextGameSettings)) {
     cancelCountdown();
     return;
   }
 
-  hubState = HubState::Running;
+  table().hubState = HubState::Running;
   resetCountdown();
   clearDecisionState();
   leds.invalidateAll();
@@ -172,7 +174,7 @@ void startGame() {
 
   serialLog.print("ATLAS|GAME|START|");
   printPlayer(starter);
-  const TurnHub::GameSettings &settings = game.settings();
+  const TurnHub::GameSettings &settings = table().game.settings();
   serialLog.print("|PROFILE|");
   serialLog.print(TurnHub::gameProfileKey(settings.profile));
   serialLog.print("|LIFE|");
@@ -192,30 +194,30 @@ void finishGameState() {
   // (test feedback, 2026-09-28); leaving GameOver releases them: Reset via
   // enterEmptyLobby(), Rematch by rebinding the match's profiles.
   clearPendingPass("GAME_OVER");
-  hubState = HubState::GameOver;
-  eliminationTargetPlayer = 0;
+  table().hubState = HubState::GameOver;
+  table().eliminationTargetPlayer = 0;
   leds.invalidateAll();
   audio.gameOver(gameAudioMask());
 
-  if (game.endedInDraw()) {
+  if (table().game.endedInDraw()) {
     serialLog.println("ATLAS|GAME|OVER|DRAW");
   } else {
     serialLog.print("ATLAS|GAME|OVER|WINNER|");
-    serialLog.println(game.winnerPlayerNumber());
+    serialLog.println(table().game.winnerPlayerNumber());
   }
 }
 
 void updateCountdown(uint32_t nowMs) {
-  if (hubState != HubState::Starting) return;
+  if (table().hubState != HubState::Starting) return;
 
   constexpr int8_t COUNTDOWN_SECONDS = static_cast<int8_t>(START_COUNTDOWN_MS / 1000);
   // nowMs is sampled before the loop's handlers run, so a countdown begun
   // later in the same pass reads as slightly in the future: treat it as 0.
-  uint32_t elapsed = nowMs - countdownStartedAtMs;
+  uint32_t elapsed = nowMs - table().countdownStartedAtMs;
   if (elapsed > 0x7FFFFFFFUL) elapsed = 0;
   const int8_t second = static_cast<int8_t>(elapsed / 1000);
-  if (second < COUNTDOWN_SECONDS && second != lastCountdownSecond) {
-    lastCountdownSecond = second;
+  if (second < COUNTDOWN_SECONDS && second != table().lastCountdownSecond) {
+    table().lastCountdownSecond = second;
     serialLog.print("ATLAS|LOBBY|COUNTDOWN|");
     serialLog.println(COUNTDOWN_SECONDS - second);
     audio.countdownTone(lobbyAudioMask(), static_cast<uint8_t>(second));
@@ -229,7 +231,7 @@ namespace {
 
 // Every applied participation change disarms a pending start.
 IntentResult participationChanged(IntentType type) {
-  lobby.clearStartArm();
+  table().lobby.clearStartArm();
   leds.invalidateAll();
   return IntentResult::accept(type == IntentType::LeaveProfile ? "Left the table" : "Ready at the table");
 }
@@ -242,7 +244,7 @@ IntentResult joinProfile(const Intent &intent, const String &profile, bool joine
     return IntentResult::accept("Already at the table; this browser controls your existing player");
   }
   const uint8_t controller = TurnHubControllers::registerBrowser(profile);
-  const uint8_t player = controller == INVALID_ID ? 0 : lobby.join(controller);
+  const uint8_t player = controller == INVALID_ID ? 0 : table().lobby.join(controller);
   if (player == 0) {
     TurnHubControllers::releaseBrowser(controller);
     return IntentResult::reject(IntentStatus::Conflict, "Table is full");
@@ -264,12 +266,12 @@ IntentResult leaveProfile(const Intent &intent, const String &profile, bool join
   if (existingSlot == 2) {
     bool added;
     PlayerSeat affected;
-    lobby.toggleSecondary(existing, added, affected);
+    table().lobby.toggleSecondary(existing, added, affected);
   } else {
-    if (lobby.hasSecondary(existing)) {
+    if (table().lobby.hasSecondary(existing)) {
       return IntentResult::reject(IntentStatus::Conflict, "Secondary player must leave first");
     }
-    lobby.leave(existing);
+    table().lobby.leave(existing);
   }
   // A profile seated on a Sigil (a phone leaving for it, or a Game Master
   // removal) frees that seat, as the Sigil's own Leave does, so the Sigil
@@ -304,15 +306,15 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
   // The Sigil's picker may add seat B with the chosen profile in one step
   // (playtest 2026-09-29, item 8); a phone binds only to a seat B that exists.
   const bool addsSeatB = slot == 2 && intent.type == IntentType::PickProfile &&
-      lobby.isJoined(module) && !lobby.hasSecondary(module);
-  if (slot == 2 && !lobby.hasSecondary(module) && !addsSeatB) {
+      table().lobby.isJoined(module) && !table().lobby.hasSecondary(module);
+  if (slot == 2 && !table().lobby.hasSecondary(module) && !addsSeatB) {
     return IntentResult::reject(IntentStatus::Conflict, "Join seat B on the Sigil first");
   }
   if (addsSeatB && joined) {
     return IntentResult::reject(IntentStatus::Conflict,
         "That profile is already at the table; leave there first");
   }
-  const bool occupied = slot == 1 ? lobby.isJoined(module) : lobby.hasSecondary(module);
+  const bool occupied = slot == 1 ? table().lobby.isJoined(module) : table().lobby.hasSecondary(module);
   // Physical confirmation can adopt a guest, but not another account.
   const String targetProfile = TurnHubControllers::profileForSeat(module, slot);
   if (targetProfile.length() && targetProfile != profile) {
@@ -322,7 +324,7 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
   if (joined && existing < MAX_PHYSICAL_SIGILS && existing != module) {
     return IntentResult::reject(IntentStatus::Conflict, "Profile already has a physical Sigil");
   }
-  if (!joined && !occupied && lobby.playerCount() >= MAX_PLAYERS) {
+  if (!joined && !occupied && table().lobby.playerCount() >= MAX_PLAYERS) {
     return IntentResult::reject(IntentStatus::Conflict, "Table is full");
   }
   if (!TurnHubControllers::bindPhysical(module, slot, profile)) {
@@ -331,20 +333,20 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
   if (joined && existing != module) {
     if (occupied) {
       // Keep the guest's table position and secondary seat.
-      lobby.leave(existing);
+      table().lobby.leave(existing);
     } else {
-      lobby.replaceController(existing, module);
+      table().lobby.replaceController(existing, module);
     }
     TurnHubControllers::releaseBrowser(existing);
   } else if (addsSeatB) {
     bool added = false;
     PlayerSeat affected;
-    if (!lobby.toggleSecondary(module, added, affected) || !added) {
+    if (!table().lobby.toggleSecondary(module, added, affected) || !added) {
       return IntentResult::reject(IntentStatus::InvalidState, "Could not add seat B");
     }
     audio.sharedPlayerAdded(module);
   } else if (!joined && !occupied) {
-    lobby.join(module);
+    table().lobby.join(module);
   }
   return participationChanged(intent.type);
 }
@@ -358,22 +360,22 @@ IntentResult attachInGame(const Intent &intent, const String &profile, bool join
       intent.actor.slot != 1) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Physical seat confirmation required");
   }
-  if (!joined || !game.controllerInGame(existing)) {
+  if (!joined || !table().game.controllerInGame(existing)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "Only players in this game can join it now");
   }
   if (existing == module) return IntentResult::accept("Controller already attached");
   if (existing < MAX_PHYSICAL_SIGILS) {
     return IntentResult::reject(IntentStatus::Conflict, "Profile already has a physical Sigil");
   }
-  if (game.controllerInGame(module) || lobby.isJoined(module)) {
+  if (table().game.controllerInGame(module) || table().lobby.isJoined(module)) {
     return IntentResult::reject(IntentStatus::Conflict, "This Sigil is already playing");
   }
   if (!TurnHubControllers::bindPhysical(module, 1, profile)) {
     return IntentResult::reject(IntentStatus::Rejected, "Could not save controller assignment");
   }
-  lobby.replaceController(existing, module);
-  game.replaceController(existing, module);
-  if (pendingPass.active && pendingPass.seat.controllerId == existing) pendingPass.seat.controllerId = module;
+  table().lobby.replaceController(existing, module);
+  table().game.replaceController(existing, module);
+  if (table().pendingPass.active && table().pendingPass.seat.controllerId == existing) table().pendingPass.seat.controllerId = module;
   TurnHubControllers::releaseBrowser(existing);
   leds.invalidateAll();
   serialLog.print("ATLAS|GAME|ATTACH|SIGIL|");
@@ -388,14 +390,19 @@ IntentResult attachInGame(const Intent &intent, const String &profile, bool join
 }  // namespace
 
 IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
-  const bool inGame = hubState == HubState::Running || hubState == HubState::Paused;
+  const bool inGame = table().hubState == HubState::Running || table().hubState == HubState::Paused;
   const bool attaches = intent.type == IntentType::PickProfile || intent.type == IntentType::BindProfile;
-  if (hubState != HubState::Lobby && !(inGame && attaches)) {
+  if (table().hubState != HubState::Lobby && !(inGame && attaches)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Participation changes require the lobby");
   }
   const String profile(intent.payload.profileId);
   if (!TurnHubProfiles::profileExists(profile)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "Unknown profile");
+  }
+  // A profile plays at one game at a time (venue tables).
+  const int8_t seatedAt = tableForProfile(profile);
+  if (intent.type != IntentType::LeaveProfile && seatedAt >= 0 && seatedAt != tableIndex()) {
+    return IntentResult::reject(IntentStatus::Conflict, "This profile is playing in the other game");
   }
   uint8_t existing = INVALID_ID, existingSlot = 1;
   const bool joined = resolveProfileParticipant(profile, existing, existingSlot);
@@ -407,7 +414,7 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
     // Chosen on the Sigil itself: no phone proved who is holding it, so the
     // profile's "Allow physical use without a PIN" choice decides.
     // Seat B is picked from the same Sigil once seat A is at the table.
-    if (!inGame && intent.actor.slot == 2 && !lobby.isJoined(intent.actor.controllerId)) {
+    if (!inGame && intent.actor.slot == 2 && !table().lobby.isJoined(intent.actor.controllerId)) {
       return IntentResult::reject(IntentStatus::Conflict, "Join seat A first");
     }
     if (!TurnHubWebApi::physicalUseAllowed(profile)) {
@@ -430,11 +437,11 @@ IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware && intent.actor.origin != IntentOrigin::TableTablet) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Set the turn order on the Atlas screen or a table tablet");
   }
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Set the turn order in the lobby");
   }
   PlayerSeat seats[MAX_PLAYERS];
-  const uint8_t count = lobby.buildPlayers(seats, MAX_PLAYERS);
+  const uint8_t count = table().lobby.buildPlayers(seats, MAX_PLAYERS);
   const PlayerSeat *seat = nullptr;
   for (uint8_t i = 0; i < count; ++i) {
     if (seats[i].playerNumber == intent.payload.targetPlayer) seat = &seats[i];
@@ -442,7 +449,7 @@ IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
   if (seat == nullptr) return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
   const int32_t direction = intent.payload.value;
   if ((direction != -1 && direction != 1) ||
-      !lobby.moveSeat(seat->controllerId, seat->slot, static_cast<int8_t>(direction))) {
+      !table().lobby.moveSeat(seat->controllerId, seat->slot, static_cast<int8_t>(direction))) {
     return IntentResult::reject(IntentStatus::Conflict,
         direction < 0 ? "Already first in turn order" : "Already last in turn order");
   }
@@ -456,15 +463,15 @@ IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
 IntentResult handleSetSeatSideIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware)
     return IntentResult::reject(IntentStatus::Unauthorized, "Set seat sides on the Atlas screen");
-  if (hubState != HubState::Lobby)
+  if (table().hubState != HubState::Lobby)
     return IntentResult::reject(IntentStatus::InvalidState, "Set seat sides in the lobby");
   if (intent.payload.value != 0 && intent.payload.value != 1)
     return IntentResult::reject(IntentStatus::Conflict, "Choose left or right");
   PlayerSeat seats[MAX_PLAYERS];
-  const uint8_t count = lobby.buildPlayers(seats, MAX_PLAYERS);
+  const uint8_t count = table().lobby.buildPlayers(seats, MAX_PLAYERS);
   for (uint8_t i = 0; i < count; ++i) {
     if (seats[i].playerNumber != intent.payload.targetPlayer) continue;
-    if (!lobby.setSecondaryFirst(seats[i].controllerId, intent.payload.value == 1))
+    if (!table().lobby.setSecondaryFirst(seats[i].controllerId, intent.payload.value == 1))
       return IntentResult::reject(IntentStatus::Conflict, "This Sigil has no seat B");
     leds.invalidateAll();
     return IntentResult::accept(intent.payload.value == 1 ? "B on left: before A" : "B on right: after A");
@@ -479,18 +486,18 @@ IntentResult handleSetSeatSideIntent(const Intent &intent, void *) {
 IntentResult handleRemoveSeatIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware)
     return IntentResult::reject(IntentStatus::Unauthorized, "Remove players on the Atlas screen");
-  if (hubState != HubState::Lobby)
+  if (table().hubState != HubState::Lobby)
     return IntentResult::reject(IntentStatus::InvalidState, "Remove players in the lobby");
   const uint8_t module = intent.actor.controllerId;
   const uint8_t slot = intent.actor.slot;
-  if (module >= MAX_CONTROLLERS || !validSlot(slot) || lobby.playerNumber(module, slot) == 0)
+  if (module >= MAX_CONTROLLERS || !validSlot(slot) || table().lobby.playerNumber(module, slot) == 0)
     return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
   if (slot == 2) {
     bool added = false;
     PlayerSeat affected;
-    if (!lobby.toggleSecondary(module, added, affected) || added)
+    if (!table().lobby.toggleSecondary(module, added, affected) || added)
       return IntentResult::reject(IntentStatus::InvalidState, "Could not remove seat B");
-  } else if (!lobby.leave(module)) {
+  } else if (!table().lobby.leave(module)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "That player is not at the table");
   }
   if (module < MAX_PHYSICAL_SIGILS) {
@@ -503,7 +510,7 @@ IntentResult handleRemoveSeatIntent(const Intent &intent, void *) {
   serialLog.print(module);
   serialLog.print("|SLOT|");
   serialLog.println(slot);
-  lobby.clearStartArm();
+  table().lobby.clearStartArm();
   leds.invalidateAll();
   return IntentResult::accept("Removed from the table");
 }
@@ -518,13 +525,13 @@ IntentResult seatChanged(bool joining) {
 }
 
 IntentResult toggleSecondarySeat(uint8_t module, bool joining) {
-  if (!lobby.isJoined(module) || lobby.hasSecondary(module) == joining) {
+  if (!table().lobby.isJoined(module) || table().lobby.hasSecondary(module) == joining) {
     return IntentResult::reject(IntentStatus::Conflict, "Secondary seat is already in the requested state");
   }
-  if (lobby.startArmedBy() == module) lobby.clearStartArm();
+  if (table().lobby.startArmedBy() == module) table().lobby.clearStartArm();
   bool added = false;
   PlayerSeat affected;
-  if (!lobby.toggleSecondary(module, added, affected)) {
+  if (!table().lobby.toggleSecondary(module, added, affected)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Could not change secondary seat");
   }
   if (added) {
@@ -542,8 +549,8 @@ IntentResult toggleSecondarySeat(uint8_t module, bool joining) {
 }
 
 IntentResult joinPrimarySeat(uint8_t module) {
-  if (lobby.isJoined(module)) return IntentResult::accept("Already joined");
-  const uint8_t player = lobby.join(module);
+  if (table().lobby.isJoined(module)) return IntentResult::accept("Already joined");
+  const uint8_t player = table().lobby.join(module);
   if (player == 0) return IntentResult::reject(IntentStatus::InvalidState, "Could not join");
   serialLog.print("ATLAS|LOBBY|JOIN|SIGIL|");
   serialLog.print(module);
@@ -559,28 +566,27 @@ IntentResult joinPrimarySeat(uint8_t module) {
 IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Seats can only change in the lobby");
   }
   const uint8_t module = intent.actor.controllerId;
   const uint8_t slot = intent.actor.slot;
   const bool joining = intent.type == IntentType::Join;
 
-  if (joining && lobby.playerNumber(module, slot) == 0) {
+  if (joining && table().lobby.playerNumber(module, slot) == 0) {
     const String profile = TurnHubControllers::profileForSeat(module, slot);
     if (module < MAX_PHYSICAL_SIGILS && !TurnHubWebApi::physicalUseAllowed(profile)) {
       return IntentResult::reject(IntentStatus::Unauthorized,
           "Sign into this profile on a phone before using its Sigil");
     }
-    uint8_t current = INVALID_ID, currentSlot = 1;
-    if (resolveProfileParticipant(profile, current, currentSlot)) {
+    if (profile.length() && tableForProfile(profile) >= 0) {
       return IntentResult::reject(IntentStatus::Conflict,
           "Profile is already playing; attach this Sigil from its signed-in phone");
     }
   }
   if (slot == 2) return toggleSecondarySeat(module, joining);
   if (joining) return joinPrimarySeat(module);
-  if (!lobby.leave(module)) {
+  if (!table().lobby.leave(module)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "Module is not joined");
   }
   // Seat profiles are temporary: a Sigil that leaves is free for anyone,
@@ -591,12 +597,46 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
   return seatChanged(false);
 }
 
+// --- Venue tables --------------------------------------------------------------
+
+IntentResult handleChooseTableIntent(const Intent &intent, void *) {
+  const uint8_t module = intent.actor.controllerId;
+  if (intent.actor.origin != IntentOrigin::PhysicalSigil || module >= MAX_PHYSICAL_SIGILS) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "Only a Sigil moves itself to another game");
+  }
+  if (intent.payload.value < 0 || intent.payload.value >= MAX_GAME_TABLES) {
+    return IntentResult::reject(IntentStatus::Rejected, "No such game");
+  }
+  const uint8_t target = static_cast<uint8_t>(intent.payload.value);
+  if (target == tableIndex()) {
+    return IntentResult::reject(IntentStatus::Conflict, "This Sigil is already at that game");
+  }
+  if (table().game.controllerInGame(module)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Finish or reset this game first");
+  }
+  if (table().lobby.isJoined(module)) {
+    if (table().hubState != HubState::Lobby) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Cancel the start first");
+    }
+    table().lobby.leave(module);
+    TurnHubControllers::releasePhysical(module, 1);
+  }
+  sigilTable[module] = target;
+  leds.invalidate(module);
+  invalidateSigilMenu(module);
+  serialLog.print("ATLAS|TABLE|SIGIL|");
+  serialLog.print(module);
+  serialLog.print("|GAME|");
+  serialLog.println(target + 1);
+  return IntentResult::accept("Moved to the other game");
+}
+
 // --- Starter selection ----------------------------------------------------------------
 
 IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Starter can only be selected in the lobby");
   }
   const uint8_t module = intent.actor.controllerId;
@@ -605,17 +645,17 @@ IntentResult handleSelectStarterIntent(const Intent &intent, void *) {
   const auto selection = static_cast<TurnHub::StarterSelection>(intent.payload.value);
   switch (selection) {
     case TurnHub::StarterSelection::Random:
-      if (!seatedAtTable(module) || lobby.playerCount() < 2) {
+      if (!seatedAtTable(module) || table().lobby.playerCount() < 2) {
         return IntentResult::reject(IntentStatus::Unauthorized,
             "Choose a random starter from a seat, with two players");
       }
-      selectedOk = lobby.randomStarter(selected);
+      selectedOk = table().lobby.randomStarter(selected);
       break;
     case TurnHub::StarterSelection::CycleModule:
-      selectedOk = lobby.selectStarter(module, selected);
+      selectedOk = table().lobby.selectStarter(module, selected);
       break;
     case TurnHub::StarterSelection::ExactSeat:
-      selectedOk = lobby.selectStarterSeat(module, intent.actor.slot, selected);
+      selectedOk = table().lobby.selectStarterSeat(module, intent.actor.slot, selected);
       break;
   }
   if (!selectedOk) {
@@ -649,21 +689,21 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Game settings storage is unavailable; restart Atlas after resolving the storage problem");
   }
-  if (hubState != HubState::Lobby || (!touchscreen && !lobby.isJoined(module)) ||
-      lobby.playerCount() < 2) {
+  if (table().hubState != HubState::Lobby || (!touchscreen && !table().lobby.isJoined(module)) ||
+      table().lobby.playerCount() < 2) {
     return IntentResult::reject(IntentStatus::InvalidState, "Start from a seat, with two players in the lobby");
   }
-  if (!TurnHub::validTeamTable(nextGameSettings, lobby.playerCount())) {
+  if (!TurnHub::validTeamTable(table().nextGameSettings, table().lobby.playerCount())) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Two-Headed Giant needs an even number of players, at least 4");
   }
   if (intent.type == IntentType::ArmStart) {
-    lobby.setStartArmedBy(module);
+    table().lobby.setStartArmedBy(module);
     audio.startArmed(module);
     serialLog.print("ATLAS|LOBBY|START_ARM|");
     serialLog.println(module);
   } else {
-    if (!touchscreen && intent.actor.origin != IntentOrigin::Browser && lobby.startArmedBy() != module) {
+    if (!touchscreen && intent.actor.origin != IntentOrigin::Browser && table().lobby.startArmedBy() != module) {
       return IntentResult::reject(IntentStatus::InvalidState, "Start is not armed");
     }
     beginCountdown();
@@ -674,12 +714,12 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
 // System-only: the countdown finished (see updateCountdown).
 IntentResult handleCompleteStartIntent(const Intent &intent, void *) {
   if (sigilUpdatesBusy() || ota.inProgress()) return IntentResult::reject(IntentStatus::Conflict, "Wait for the firmware update to finish");
-  if (intent.actor.origin != IntentOrigin::System || hubState != HubState::Starting ||
-      millis() - countdownStartedAtMs < START_COUNTDOWN_MS) {
+  if (intent.actor.origin != IntentOrigin::System || table().hubState != HubState::Starting ||
+      millis() - table().countdownStartedAtMs < START_COUNTDOWN_MS) {
     return IntentResult::reject(IntentStatus::InvalidState, "Countdown is not complete");
   }
   startGame();
-  return hubState == HubState::Running
+  return table().hubState == HubState::Running
       ? IntentResult::accept("Game started")
       : IntentResult::reject(IntentStatus::InvalidState, "Could not start game");
 }
@@ -689,7 +729,7 @@ IntentResult handleCancelStartIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware && !validTableActor(intent, rejection)) {
     return rejection;
   }
-  if (hubState != HubState::Starting) {
+  if (table().hubState != HubState::Starting) {
     return IntentResult::reject(IntentStatus::InvalidState, "No countdown");
   }
   // Any discovered module, or the Atlas touchscreen, can cancel the countdown.
@@ -706,13 +746,13 @@ IntentResult handleCancelStartIntent(const Intent &intent, void *) {
 // in the lobby (ResetGame) that sends every player back out.
 IntentResult handleResetIntent(const Intent &intent, void *) {
   if (intent.actor.origin == IntentOrigin::AtlasHardware) {
-    if (intent.type == IntentType::ResetGame && hubState == HubState::Lobby) {
+    if (intent.type == IntentType::ResetGame && table().hubState == HubState::Lobby) {
       serialLog.print("ATLAS|LOBBY|CLEAR|PLAYERS|");
-      serialLog.println(lobby.playerCount());
+      serialLog.println(table().lobby.playerCount());
       enterEmptyLobby(&intent);
       return IntentResult::accept("Lobby cleared");
     }
-    if (hubState != HubState::GameOver) {
+    if (table().hubState != HubState::GameOver) {
       return IntentResult::reject(IntentStatus::InvalidState, "Game is not over");
     }
     if (intent.type == IntentType::Rematch) {
@@ -729,15 +769,15 @@ IntentResult handleResetIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Only a player at the table can reset");
   }
   if (intent.type == IntentType::Rematch) {
-    if (hubState != HubState::GameOver) {
+    if (table().hubState != HubState::GameOver) {
       return IntentResult::reject(IntentStatus::InvalidState, "Game is not over");
     }
     enterRematchLobby();
     return IntentResult::accept();
   }
-  const bool lobbyReset = hubState == HubState::Lobby &&
-      (lobby.startArmedBy() == module || intent.actor.origin == IntentOrigin::Browser);
-  if (hubState != HubState::GameOver && !lobbyReset) {
+  const bool lobbyReset = table().hubState == HubState::Lobby &&
+      (table().lobby.startArmedBy() == module || intent.actor.origin == IntentOrigin::Browser);
+  if (table().hubState != HubState::GameOver && !lobbyReset) {
     return IntentResult::reject(IntentStatus::InvalidState, "Reset is not available");
   }
   enterEmptyLobby(&intent);
@@ -747,7 +787,7 @@ IntentResult handleResetIntent(const Intent &intent, void *) {
 IntentResult handleCancelPassIntent(const Intent &intent, void *) {
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
-  if (hubState != HubState::Running ||
+  if (table().hubState != HubState::Running ||
       !cancelPendingPassForModule(intent.actor.controllerId, "ACTION")) {
     return IntentResult::reject(IntentStatus::InvalidState, "No pending pass for this controller");
   }
@@ -760,48 +800,48 @@ IntentResult handleCancelPassIntent(const Intent &intent, void *) {
 namespace {
 
 void beginEliminationSelection(uint8_t sigilId) {
-  if (hubState != HubState::Paused || game.hasWinClaim()) return;
+  if (table().hubState != HubState::Paused || table().game.hasWinClaim()) return;
 
   PlayerSeat candidates[2];
-  if (game.livingPlayersForController(sigilId, candidates, 2) == 0) return;
+  if (table().game.livingPlayersForController(sigilId, candidates, 2) == 0) return;
 
-  eliminationTargetPlayer = candidates[0].playerNumber;
-  game.cancelLifeChanges();
+  table().eliminationTargetPlayer = candidates[0].playerNumber;
+  table().game.cancelLifeChanges();
   audio.eliminationArmed(sigilId);
   leds.invalidateAll();
 
   serialLog.print("ATLAS|GAME|ELIMINATION|ARMED|PLAYER|");
-  serialLog.println(eliminationTargetPlayer);
+  serialLog.println(table().eliminationTargetPlayer);
 }
 
 // Steps the selection through the controller's living seats (A <-> B).
 void cycleEliminationTarget(uint8_t sigilId) {
   PlayerSeat candidates[2];
-  const uint8_t count = game.livingPlayersForController(sigilId, candidates, 2);
+  const uint8_t count = table().game.livingPlayersForController(sigilId, candidates, 2);
   if (count == 0) {
-    eliminationTargetPlayer = 0;
+    table().eliminationTargetPlayer = 0;
     return;
   }
 
   uint8_t nextIndex = 0;
   for (uint8_t i = 0; i < count; ++i) {
-    if (candidates[i].playerNumber == eliminationTargetPlayer) {
+    if (candidates[i].playerNumber == table().eliminationTargetPlayer) {
       nextIndex = static_cast<uint8_t>((i + 1) % count);
       break;
     }
   }
 
-  eliminationTargetPlayer = candidates[nextIndex].playerNumber;
+  table().eliminationTargetPlayer = candidates[nextIndex].playerNumber;
   audio.eliminationTargetChanged(sigilId);
   leds.invalidateAll();
 
   serialLog.print("ATLAS|GAME|ELIMINATION|TARGET|");
-  serialLog.println(eliminationTargetPlayer);
+  serialLog.println(table().eliminationTargetPlayer);
 }
 
 void cancelEliminationSelection(const PlayerSeat &target) {
   audio.eliminationCancelled(target.controllerId);
-  eliminationTargetPlayer = 0;
+  table().eliminationTargetPlayer = 0;
   leds.invalidateAll();
   serialLog.println("ATLAS|GAME|ELIMINATION|CANCEL");
 }
@@ -811,9 +851,9 @@ void confirmElimination(const PlayerSeat &target) {
   const uint8_t eliminatedNumber = target.playerNumber;
   const uint8_t sigilId = target.controllerId;
   bool gameFinished = false;
-  if (!game.eliminatePlayer(eliminatedNumber, millis(), gameFinished)) return;
+  if (!table().game.eliminatePlayer(eliminatedNumber, millis(), gameFinished)) return;
 
-  eliminationTargetPlayer = 0;
+  table().eliminationTargetPlayer = 0;
   audio.playerEliminated(sigilId);
   leds.invalidateAll();
 
@@ -823,7 +863,7 @@ void confirmElimination(const PlayerSeat &target) {
   if (gameFinished) {
     finishGameState();
   } else {
-    hubState = HubState::Paused;
+    table().hubState = HubState::Paused;
   }
 }
 
@@ -833,7 +873,7 @@ void confirmElimination(const PlayerSeat &target) {
 IntentResult handleEliminationIntent(const Intent &intent, void *) {
   IntentResult rejection;
   if (!validTableActor(intent, rejection)) return rejection;
-  if (hubState != HubState::Paused || game.hasWinClaim()) {
+  if (table().hubState != HubState::Paused || table().game.hasWinClaim()) {
     return IntentResult::reject(IntentStatus::InvalidState, "Elimination requires a pause without a win claim");
   }
   const uint8_t module = intent.actor.controllerId;
@@ -846,7 +886,7 @@ IntentResult handleEliminationIntent(const Intent &intent, void *) {
     return IntentResult::accept();
   }
 
-  const PlayerSeat *target = game.playerByNumber(eliminationTargetPlayer);
+  const PlayerSeat *target = table().game.playerByNumber(table().eliminationTargetPlayer);
   if (target == nullptr) {
     return IntentResult::reject(IntentStatus::InvalidState, "No elimination is selected");
   }
@@ -873,7 +913,7 @@ IntentResult handlePairRequestIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Use Menu, then Pair a Sigil, on the Atlas screen");
   }
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Pair devices in the lobby");
   }
   if (!sigilBus.openPairing(pairingWindowMs)) {
@@ -919,7 +959,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   if (!adminIntent(intent) && intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Forget devices in the lobby, between games");
   }
   const int32_t target = intent.payload.value;
@@ -931,7 +971,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if ((!all && id != target) || !sigilBus.record(id)) continue;
     ++paired;
-    if (lobby.isJoined(id)) {
+    if (seatedAnywhere(id)) {
       return IntentResult::reject(IntentStatus::Conflict,
           all ? "Players are seated on a Sigil; they must leave the lobby first"
               : "Players are seated on this Sigil; they must leave the lobby first");
@@ -965,7 +1005,7 @@ IntentResult handlePairConfirmIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware && !adminIntent(intent)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
   }
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Pair devices in the lobby");
   }
   const int32_t value = intent.payload.value;
@@ -1073,7 +1113,7 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
     if (setupStage != SetupStage::Welcome) {
       return IntentResult::reject(IntentStatus::InvalidState, "Setup is already finished");
     }
-    if (hubState != HubState::Lobby && hubState != HubState::GameOver) {
+    if (!allTablesBetweenGames()) {
       return IntentResult::reject(IntentStatus::InvalidState, "Finish setup between games");
     }
     const String password = TurnHub::readStoredWifiPassword();
@@ -1117,10 +1157,10 @@ IntentResult handleResetTableIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Unauthorized,
         "Verify at the table first: enter the code the Atlas screen shows");
   }
-  if (hubState == HubState::Starting) cancelCountdown();
-  const bool matchInProgress = hubState == HubState::Running || hubState == HubState::Paused;
+  if (table().hubState == HubState::Starting) cancelCountdown();
+  const bool matchInProgress = table().hubState == HubState::Running || table().hubState == HubState::Paused;
   if (matchInProgress) {
-    if (!game.endInDraw(millis())) {
+    if (!table().game.endInDraw(millis())) {
       return IntentResult::reject(IntentStatus::Conflict, "Atlas could not end the match");
     }
     finishGameState();
@@ -1169,7 +1209,7 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
     if (sleepScheduled()) {
       return IntentResult::reject(IntentStatus::Conflict, "Atlas is going to sleep");
     }
-    if (!atBootButton && hubState != HubState::Lobby && hubState != HubState::GameOver) {
+    if (!atBootButton && !allTablesBetweenGames()) {
       return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Atlas between games");
     }
     if (!atlasResetScheduled) {
@@ -1179,14 +1219,14 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
     }
     return IntentResult::accept("Atlas is erasing its settings and microSD card, then restarting");
   }
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Sigils in the lobby, between games");
   }
   if (target < 0 || target >= MAX_PHYSICAL_SIGILS || !sigilBus.record(target)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "That Sigil is not paired with Atlas");
   }
   const uint8_t id = static_cast<uint8_t>(target);
-  if (lobby.isJoined(id)) {
+  if (seatedAnywhere(id)) {
     return IntentResult::reject(IntentStatus::Conflict,
         "Players are seated on this Sigil; they must leave the lobby first");
   }
@@ -1223,7 +1263,7 @@ IntentResult handleSleepIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Sleep from the Atlas screen");
   }
-  if (hubState != HubState::Lobby && hubState != HubState::GameOver) {
+  if (!allTablesBetweenGames()) {
     return IntentResult::reject(IntentStatus::InvalidState, "Put Atlas to sleep between games");
   }
   if (sigilUpdatesBusy() || ota.inProgress() || atlasResetScheduled) {
@@ -1262,7 +1302,7 @@ void serviceFactoryReset(uint32_t nowMs) {
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;
   // Any seated player, in the lobby (no table host).
-  if (hubState != HubState::Lobby || lobby.playerCount() == 0 ||
+  if (table().hubState != HubState::Lobby || table().lobby.playerCount() == 0 ||
       !seatForModuleSlot(intent.actor.controllerId, intent.actor.slot, actor) ||
       actor.playerNumber != intent.actor.playerNumber) {
     return IntentResult::reject(IntentStatus::Unauthorized,
@@ -1290,7 +1330,7 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   if (!gameSettingsAvailable || TurnHub::saveGameSettings(settings) != TurnHubStorage::Status::Ok) {
     return IntentResult::reject(IntentStatus::Rejected, "Game settings could not be saved");
   }
-  nextGameSettings = settings;
+  table().nextGameSettings = settings;
   return IntentResult::accept("Game settings saved on Atlas");
 }
 

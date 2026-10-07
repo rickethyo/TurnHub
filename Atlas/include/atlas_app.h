@@ -92,8 +92,6 @@ extern LedRenderer leds;
 extern AudioController audio;
 extern OtaManager ota;
 
-// Settings the next match will start with; persisted by game_settings_store.
-extern TurnHub::GameSettings nextGameSettings;
 // False when the settings store failed to load; starting a game is refused.
 extern bool gameSettingsAvailable;
 extern bool espNowReady;
@@ -132,8 +130,9 @@ struct NudgeState {
 constexpr uint32_t NUDGE_COOLDOWN_MS = 30000;
 
 // Everything that belongs to one game at the table: its lobby, engine,
-// table decisions and client projection. Groundwork for the venue model
-// (several games on one Atlas, STAGED_CHANGES.md); Atlas runs one for now.
+// table decisions and client projection. Atlas runs MAX_GAME_TABLES of them
+// side by side (the venue model, PLANNED_DESIGNS.md); profiles, statistics,
+// pairing and settings stay shared.
 struct GameTable {
   Lobby lobby;
   GameEngine game;
@@ -145,24 +144,54 @@ struct GameTable {
   // Player selected for elimination while paused; 0 when none.
   uint8_t eliminationTargetPlayer = 0;
   TurnTimerCueState turnTimerCue;
-  NudgeState nudge;
+  NudgeState nudgeState;
+  // Settings this table's next match starts with. The last ones saved
+  // (game_settings_store) are every table's settings after a boot.
+  TurnHub::GameSettings nextGameSettings;
 };
 
-constexpr uint8_t MAX_GAME_TABLES = 1;
+constexpr uint8_t MAX_GAME_TABLES = 2;
 extern GameTable tables[MAX_GAME_TABLES];
 
-// The single-game names used across Atlas; each refers into tables[0] until
-// the call sites take a GameTable explicitly.
-extern Lobby &lobby;
-extern GameEngine &game;
-extern TurnHub::ClientState &clientState;
-extern HubState &hubState;
-extern PendingPassState &pendingPass;
-extern uint32_t &countdownStartedAtMs;
-extern int8_t &lastCountdownSecond;
-extern uint8_t &eliminationTargetPlayer;
-extern TurnTimerCueState &turnTimerCue;
-extern NudgeState &nudgeState;
+// The table the running code acts on. Entry points (an Intent, a Sigil
+// event, an HTTP request, a loop tick) select it with a TableScope; outside
+// any scope it is table 0, Game 1.
+GameTable &table();
+uint8_t tableIndex();
+// Points table() at tables[index] (ignored when out of range) and returns the
+// previous index; TableScope is the usual way. For callbacks that can't hold
+// a scope object (the HTTP route table).
+uint8_t selectTable(uint8_t index);
+
+class TableScope {
+public:
+  explicit TableScope(uint8_t index);
+  ~TableScope();
+  TableScope(const TableScope &) = delete;
+  TableScope &operator=(const TableScope &) = delete;
+
+private:
+  uint8_t previous_;
+};
+
+// Venue tables. The game a Sigil joins when it isn't seated anywhere;
+// changed only by handleChooseTableIntent (RAM, Game 1 after a boot).
+extern uint8_t sigilTable[MAX_PHYSICAL_SIGILS];
+// The table a controller is seated at, or for an unseated Sigil its chosen
+// one; phone controllers outside every table are Game 1's.
+uint8_t tableForController(uint8_t controllerId);
+// Joined to a lobby or playing in a game, at any table.
+bool seatedAnywhere(uint8_t controllerId);
+// The table where a profile plays (lobby or game), or -1.
+int8_t tableForProfile(const String &profileId);
+// Bit per physical Sigil whose table is index.
+uint16_t sigilsAtTable(uint8_t index);
+// Device-wide gate: OTA and Sigil updates wait for every game. (Pairing
+// follows the game the Atlas screen shows.)
+bool allTablesBetweenGames();
+// True while more than one game is in progress: loop() then keeps Atlas's
+// speaker quiet (AudioController::setSpeakerShared).
+bool atlasSpeakerShared();
 
 // --- main.cpp ----------------------------------------------------------------
 
@@ -235,6 +264,7 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *);
 IntentResult handleMoveSeatIntent(const Intent &intent, void *);
 IntentResult handleNudgeIntent(const Intent &intent, void *);
 IntentResult handleRemoveSeatIntent(const Intent &intent, void *);
+IntentResult handleChooseTableIntent(const Intent &intent, void *);
 IntentResult handleSetSeatSideIntent(const Intent &intent, void *);
 IntentResult handleSeatMembershipIntent(const Intent &intent, void *);
 IntentResult handleSelectStarterIntent(const Intent &intent, void *);

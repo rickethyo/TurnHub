@@ -167,8 +167,9 @@ One rule set for every stage and both displays (`SigilMenu`, host-tested in
 
 Menu holds every other action Atlas offers, in a fixed order (Cmd damage, Undo
 hit, Pause, Resume, Claim win, I'm out, Partner, Random start, Leave lobby,
-Reset table, Link phone, ...), then **Device** (Sleep, Unpair, Factory reset).
-With nothing else on offer (a Sigil waiting to join, or Atlas lost) Menu opens
+Switch game, Reset table, Link phone, ...), then **Device** (Sleep, Unpair,
+Factory reset). Switch game moves a Sigil that isn't playing to Atlas's other
+game (Atlas runs two). With nothing else on offer (Atlas lost) Menu opens
 straight on the Device entries. Held entries (Claim win, I'm out's confirm,
 Leave lobby, Reset table, Unpair, Factory reset) still need their hold.
 

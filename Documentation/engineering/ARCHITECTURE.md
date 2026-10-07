@@ -121,10 +121,10 @@ operations to callers.
 - **Presentation reacts to state.** LED and audio cues are picked from state
   by cue layers ([Gameplay](GAMEPLAY.md), "Cues"); some invalidation still
   sits next to the transitions that cause it.
-- **Several games per Atlas** is groundwork only: one table's state is grouped
-  in `GameTable` (`tables[MAX_GAME_TABLES]`, one entry), and the old global
-  names are references into `tables[0]`. The plan is in
-  [Planned Designs](PLANNED_DESIGNS.md).
+- **Two games per Atlas** (*Experimental*, host-tested 2026-10-07): each
+  game's state is a `GameTable` (`tables[MAX_GAME_TABLES]`, two), reached
+  through `table()` under a `TableScope` that each entry point selects. The
+  design and the remaining steps are in [Planned Designs](PLANNED_DESIGNS.md).
 
 ## History
 

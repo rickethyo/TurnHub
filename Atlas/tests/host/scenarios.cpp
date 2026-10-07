@@ -172,19 +172,19 @@ static void freshLobby(int modules=3,bool shared=false) {
   }
   for(int i=0;i<modules;++i) choose(static_cast<uint8_t>(i),SigilAction::Join);
   if(shared) choose(0,SigilAction::AddSeatB);
-  assert(lobby.playerCount()==modules+(shared?1:0));
+  assert(table().lobby.playerCount()==modules+(shared?1:0));
 }
 static void startFromHost() {
   choose(0,SigilAction::StartGame);
-  assert(hubState==HubState::Starting);
-  testNow+=2999; updateCountdown(testNow); assert(hubState==HubState::Starting);
-  ++testNow; updateCountdown(testNow); assert(hubState==HubState::Running);
+  assert(table().hubState==HubState::Starting);
+  testNow+=2999; updateCountdown(testNow); assert(table().hubState==HubState::Starting);
+  ++testNow; updateCountdown(testNow); assert(table().hubState==HubState::Running);
 }
 static bool web(uint8_t module,uint8_t slot,WebControl control) {
   String message;
   return handleWebControl(module,slot,control,message);
 }
-static PlayerSeat player(uint8_t number) { return *game.playerByNumber(number); }
+static PlayerSeat player(uint8_t number) { return *table().game.playerByNumber(number); }
 
 static void dispatcherContract() {
   IntentDispatcher dispatcher;
@@ -221,29 +221,29 @@ static void deliberatePairing() {
 }
 static void lobbyLifecycle() {
   freshLobby(2,true);
-  assert(lobby.hostController()==0);
+  assert(table().lobby.hostController()==0);
   assert(!dispatchModuleIntent(IntentType::Join,255).accepted());
   // No table host: any seated Sigil may arm Start, not only the first to join.
-  assert(dispatchModuleIntent(IntentType::ArmStart,1).accepted() && lobby.startArmedBy()==1);
-  lobby.clearStartArm();
+  assert(dispatchModuleIntent(IntentType::ArmStart,1).accepted() && table().lobby.startArmedBy()==1);
+  table().lobby.clearStartArm();
   assert(web(0,2,WebControl::SelectStarter));
-  PlayerSeat selected; assert(lobby.selectedStarter(selected)&&selected.slot==2);
-  choose(0,SigilAction::CycleStarter); assert(lobby.selectedStarter(selected)&&selected.slot==1);
+  PlayerSeat selected; assert(table().lobby.selectedStarter(selected)&&selected.slot==2);
+  choose(0,SigilAction::CycleStarter); assert(table().lobby.selectedStarter(selected)&&selected.slot==1);
   // Any seated Sigil may ask for a random starter now (no table host).
-  choose(1,SigilAction::RandomStarter); assert(lobby.selectedStarter(selected));
+  choose(1,SigilAction::RandomStarter); assert(table().lobby.selectedStarter(selected));
   assert(dispatchModuleIntent(IntentType::Leave,0,2).accepted());
-  assert(lobby.playerCount()==2&&!lobby.hasSecondary(0));
+  assert(table().lobby.playerCount()==2&&!table().lobby.hasSecondary(0));
   assert(!dispatchModuleIntent(IntentType::Leave,0,2).accepted());
   assert(dispatchModuleIntent(IntentType::Join,0,2).accepted());
   assert(!dispatchModuleIntent(IntentType::Join,0,2).accepted());
   choose(0,SigilAction::StartGame);
-  assert(hubState==HubState::Starting);
+  assert(table().hubState==HubState::Starting);
   assert(!dispatchModuleIntent(IntentType::Join,2).accepted());
   assert(!dispatchSystemIntent(IntentType::CompleteStart).accepted());
-  choose(1,SigilAction::CancelStart); assert(hubState==HubState::Lobby);
+  choose(1,SigilAction::CancelStart); assert(table().hubState==HubState::Lobby);
   assert(!dispatchModuleIntent(IntentType::StartGame,0).accepted());
   assert(dispatchModuleIntent(IntentType::Leave,0).accepted());
-  assert(lobby.hostController()==1&&lobby.playerCount()==1);
+  assert(table().lobby.hostController()==1&&table().lobby.playerCount()==1);
   freshLobby(); startFromHost();
   assert(!dispatchModuleIntent(IntentType::Rematch,0).accepted());
   assert(!dispatchModuleIntent(IntentType::ResetGame,0).accepted());
@@ -252,27 +252,27 @@ static void winDecisions() {
   freshLobby(3,true); startFromHost();
   assert(!web(1,1,WebControl::ClaimWin));
   assert(web(0,1,WebControl::ClaimWin));
-  assert(game.nextWinConfirmationPlayerNumber()==3);
+  assert(table().game.nextWinConfirmationPlayerNumber()==3);
   assert(!web(0,2,WebControl::ConfirmWin));
   assert(!web(2,1,WebControl::DenyWin));
-  choose(1,SigilAction::ConfirmWin); assert(game.nextWinConfirmationPlayerNumber()==4);
+  choose(1,SigilAction::ConfirmWin); assert(table().game.nextWinConfirmationPlayerNumber()==4);
   assert(web(2,1,WebControl::ConfirmWin));
-  assert(game.nextWinConfirmationPlayerNumber()==2);
+  assert(table().game.nextWinConfirmationPlayerNumber()==2);
   choose(0,SigilAction::ConfirmWin);
-  assert(game.gameOver()&&game.winnerPlayerNumber()==1&&completedGames==1);
+  assert(table().game.gameOver()&&table().game.winnerPlayerNumber()==1&&completedGames==1);
   assert(!web(0,2,WebControl::ConfirmWin)); assert(completedGames==1);
   // Any seated Sigil may call the rematch (no table host).
   assert(dispatchModuleIntent(IntentType::Rematch,1).accepted());
-  assert(hubState==HubState::Lobby&&lobby.playerCount()==4&&!game.hasPlayers());
+  assert(table().hubState==HubState::Lobby&&table().lobby.playerCount()==4&&!table().game.hasPlayers());
   startFromHost(); assert(web(0,1,WebControl::ClaimWin));
-  choose(1,SigilAction::DenyWin); assert(hubState==HubState::Running&&!game.hasWinClaim());
+  choose(1,SigilAction::DenyWin); assert(table().hubState==HubState::Running&&!table().game.hasWinClaim());
   assert(web(1,1,WebControl::PauseResume));
   assert(web(0,1,WebControl::ClaimWin));
-  assert(web(1,1,WebControl::DenyWin)); assert(hubState==HubState::Paused);
+  assert(web(1,1,WebControl::DenyWin)); assert(table().hubState==HubState::Paused);
   assert(web(1,1,WebControl::PauseResume));
   // A claim chosen during play resumes play when denied.
-  choose(0,SigilAction::ClaimWin); assert(game.hasWinClaim());
-  assert(web(1,1,WebControl::DenyWin)); assert(hubState==HubState::Running);
+  choose(0,SigilAction::ClaimWin); assert(table().game.hasWinClaim());
+  assert(web(1,1,WebControl::DenyWin)); assert(table().hubState==HubState::Running);
 }
 static void eliminationAndConcession() {
   freshLobby(3,true); startFromHost();
@@ -283,24 +283,24 @@ static void eliminationAndConcession() {
   request.payload.targetPlayer=3;request.payload.value=-1;
   assert(intents.dispatch(request).accepted());
   choose(0,SigilAction::BeginElimination);
-  assert(eliminationTargetPlayer==1);
-  assert(game.lifeChangeFor(3)->state==TurnHub::LifeChangeState::Cancelled);
-  choose(0,SigilAction::NextTarget); assert(eliminationTargetPlayer==2);
-  choose(1,SigilAction::Eliminate); assert(!game.isEliminated(2));  // Not its seat: not offered.
-  choose(0,SigilAction::Eliminate); assert(game.isEliminated(2)&&hubState==HubState::Paused);
+  assert(table().eliminationTargetPlayer==1);
+  assert(table().game.lifeChangeFor(3)->state==TurnHub::LifeChangeState::Cancelled);
+  choose(0,SigilAction::NextTarget); assert(table().eliminationTargetPlayer==2);
+  choose(1,SigilAction::Eliminate); assert(!table().game.isEliminated(2));  // Not its seat: not offered.
+  choose(0,SigilAction::Eliminate); assert(table().game.isEliminated(2)&&table().hubState==HubState::Paused);
   assert(!web(0,2,WebControl::Concede));
   assert(web(1,1,WebControl::PauseResume));
-  assert(web(1,1,WebControl::Concede)); assert(hubState==HubState::Running&&game.isEliminated(3));
-  assert(web(0,1,WebControl::Concede)); assert(hubState==HubState::GameOver&&game.winnerPlayerNumber()==4);
+  assert(web(1,1,WebControl::Concede)); assert(table().hubState==HubState::Running&&table().game.isEliminated(3));
+  assert(web(0,1,WebControl::Concede)); assert(table().hubState==HubState::GameOver&&table().game.winnerPlayerNumber()==4);
   assert(completedGames==1);
-  choose(0,SigilAction::ResetTable); assert(hubState==HubState::Lobby&&lobby.playerCount()==0);
+  choose(0,SigilAction::ResetTable); assert(table().hubState==HubState::Lobby&&table().lobby.playerCount()==0);
   freshLobby(); startFromHost();
   assert(web(1,1,WebControl::PauseResume));
   assert(dispatchModuleIntent(IntentType::BeginElimination,0).accepted());
   assert(!web(0,1,WebControl::ClaimWin));
   assert(!web(1,1,WebControl::Concede));
   assert(dispatchModuleIntent(IntentType::CancelElimination,1).accepted());
-  assert(eliminationTargetPlayer==0);
+  assert(table().eliminationTargetPlayer==0);
   assert(web(0,1,WebControl::ClaimWin));
   assert(!dispatchModuleIntent(IntentType::BeginElimination,1).accepted());
 }
@@ -309,21 +309,21 @@ static void passTimingAndActors() {
   assert(!web(1,1,WebControl::Pass));
   Intent stale; stale.type=IntentType::ClaimWin; stale.actor={IntentOrigin::Browser,1,1,1};
   assert(!intents.dispatch(stale).accepted());
-  choose(0,SigilAction::Pass); assert(pendingPass.active);
+  choose(0,SigilAction::Pass); assert(table().pendingPass.active);
   assert(!dispatchModuleIntent(IntentType::CommitPass,0).accepted());
-  testNow+=2999; updatePendingPass(testNow); assert(game.activePlayerNumber()==1);
-  ++testNow; updatePendingPass(testNow); assert(game.activePlayerNumber()==2&&!pendingPass.active);
-  assert(game.statsForPlayer(1)->turnsCompleted==1);
+  testNow+=2999; updatePendingPass(testNow); assert(table().game.activePlayerNumber()==1);
+  ++testNow; updatePendingPass(testNow); assert(table().game.activePlayerNumber()==2&&!table().pendingPass.active);
+  assert(table().game.statsForPlayer(1)->turnsCompleted==1);
   assert(web(1,1,WebControl::Pass));
-  choose(1,SigilAction::CancelPass); assert(!pendingPass.active&&hubState==HubState::Running);
-  assert(web(1,1,WebControl::Pass)); assert(web(1,1,WebControl::Pass)); assert(!pendingPass.active);
-  assert(web(1,1,WebControl::Pass)); assert(web(0,1,WebControl::PauseResume)); assert(!pendingPass.active);
-  testNow+=3000; updatePendingPass(testNow); assert(game.activePlayerNumber()==2);
+  choose(1,SigilAction::CancelPass); assert(!table().pendingPass.active&&table().hubState==HubState::Running);
+  assert(web(1,1,WebControl::Pass)); assert(web(1,1,WebControl::Pass)); assert(!table().pendingPass.active);
+  assert(web(1,1,WebControl::Pass)); assert(web(0,1,WebControl::PauseResume)); assert(!table().pendingPass.active);
+  testNow+=3000; updatePendingPass(testNow); assert(table().game.activePlayerNumber()==2);
   assert(web(0,1,WebControl::PauseResume));
   testNow=UINT32_MAX-1000;
   assert(web(1,1,WebControl::Pass));
-  testNow+=2999; updatePendingPass(testNow); assert(game.activePlayerNumber()==2);
-  ++testNow; updatePendingPass(testNow); assert(game.activePlayerNumber()==3);
+  testNow+=2999; updatePendingPass(testNow); assert(table().game.activePlayerNumber()==2);
+  ++testNow; updatePendingPass(testNow); assert(table().game.activePlayerNumber()==3);
 }
 static void optionalStorage() {
   TurnHub::OptionalPreferences prefs; assert(prefs.begin("test"));
@@ -399,35 +399,35 @@ static void virtualProfileFlow() {
   assert(request("/api/session/join",first)==200);
   assert(request("/api/session/join",second)==200);
   const String companion=loginPhone(firstId);
-  assert(request("/api/session/join",companion)==200 && lobby.playerCount()==2);
+  assert(request("/api/session/join",companion)==200 && table().lobby.playerCount()==2);
   // No table host: the second phone may start too; its countdown is cancelable.
-  assert(request("/api/control/start",second)==200 && hubState==HubState::Starting);
-  assert(request("/api/control/cancel-start",first)==200 && hubState==HubState::Lobby);
-  assert(request("/api/control/start",first)==200 && hubState==HubState::Starting);
+  assert(request("/api/control/start",second)==200 && table().hubState==HubState::Starting);
+  assert(request("/api/control/cancel-start",first)==200 && table().hubState==HubState::Lobby);
+  assert(request("/api/control/start",first)==200 && table().hubState==HubState::Starting);
   assert(request("/api/session/leave",first)==409);
-  testNow+=3000; updateCountdown(testNow); assert(hubState==HubState::Running);
-  assert(game.playerCount()==2 && game.playerAt(0)->controllerId>=MAX_PHYSICAL_SIGILS);
-  assert(String(game.playerAt(0)->profileId)==firstId);
+  testNow+=3000; updateCountdown(testNow); assert(table().hubState==HubState::Running);
+  assert(table().game.playerCount()==2 && table().game.playerAt(0)->controllerId>=MAX_PHYSICAL_SIGILS);
+  assert(String(table().game.playerAt(0)->profileId)==firstId);
   assert(request("/api/control/pass",second,{{"module","8"},{"profileId",firstId}})==409);
-  assert(request("/api/control/pass",first)==200 && pendingPass.active);
-  assert(request("/api/control/pass",companion)==200 && !pendingPass.active);
+  assert(request("/api/control/pass",first)==200 && table().pendingPass.active);
+  assert(request("/api/control/pass",companion)==200 && !table().pendingPass.active);
   assert(request("/api/session/logout",first)==200);
   assert(request("/api/control/pass",first)==401);
   assert(request("/api/session/me",companion,{},HTTP_GET)==200);
   const String returned=loginPhone(firstId);
   assert(request("/api/session/me",returned,{},HTTP_GET)==200);
   assert(server.body.find("\"participating\":true")!=std::string::npos);
-  assert(game.playerCount()==2);
+  assert(table().game.playerCount()==2);
   assert(request("/api/control/win",returned)==200);
   assert(request("/api/control/confirm",returned)==409);
-  assert(request("/api/control/confirm",second)==200 && hubState==HubState::GameOver);
+  assert(request("/api/control/confirm",second)==200 && table().hubState==HubState::GameOver);
   assert(ProfileFixture::profiles[firstId].stats.gamesPlayed==1);
   assert(ProfileFixture::profiles[secondId].stats.gamesPlayed==1);
   assert(request("/api/control/confirm",second)==409);
   assert(ProfileFixture::profiles[firstId].stats.gamesPlayed==1);
-  assert(request("/api/control/rematch",returned)==200 && lobby.playerCount()==2);
+  assert(request("/api/control/rematch",returned)==200 && table().lobby.playerCount()==2);
   // Any seated phone may reset the table now (no table host).
-  assert(request("/api/control/reset",second)==200 && lobby.playerCount()==0);
+  assert(request("/api/control/reset",second)==200 && table().lobby.playerCount()==0);
   assert(request("/api/session/me",returned,{},HTTP_GET)==200);
   assert(server.body.find("\"participating\":false")!=std::string::npos);
   assert(request("/api/session/stats",returned,{{"profileId",secondId}},HTTP_GET)==200);
@@ -473,7 +473,7 @@ static void guestSigilsDoNotCreateAccounts() {
   ProfileFixture::bindings.clear();
   const size_t saved = ProfileFixture::profiles.size();
   freshLobby(2, true); // Primary and shared secondary guests can still play.
-  assert(lobby.playerCount() == 3);
+  assert(table().lobby.playerCount() == 3);
   for (int poll = 0; poll < 10; ++poll) {
     assert(request("/api/seats", "", {}, HTTP_GET) == 200);
     assert(server.body.find("\"profileId\":\"\"") != std::string::npos);
@@ -485,10 +485,10 @@ static void guestSigilsDoNotCreateAccounts() {
   TurnHubWebApi::notePhysicalAction(0);
   assert(ProfileFixture::profiles.size() == saved && ProfileFixture::bindings.empty());
   startFromHost();
-  for (uint8_t i = 0; i < game.playerCount(); ++i) assert(game.playerAt(i)->profileId[0] == '\0');
+  for (uint8_t i = 0; i < table().game.playerCount(); ++i) assert(table().game.playerAt(i)->profileId[0] == '\0');
   assert(web(0, 2, WebControl::Concede));
   assert(web(1, 1, WebControl::Concede));
-  assert(hubState == HubState::GameOver);
+  assert(table().hubState == HubState::GameOver);
   assert(ProfileFixture::profiles.size() == saved && ProfileFixture::bindings.empty());
   enterEmptyLobby();
 }
@@ -502,7 +502,7 @@ static void physicalCompanionFlow() {
   const String phone=registerPhone("Hybrid",id), other=registerPhone("Virtual opponent",otherId);
   assert(request("/api/session/join",phone)==200);
   assert(request("/api/session/join",other)==200);
-  PlayerSeat before[MAX_PLAYERS]; lobby.buildPlayers(before,MAX_PLAYERS);
+  PlayerSeat before[MAX_PLAYERS]; table().lobby.buildPlayers(before,MAX_PLAYERS);
   const size_t saved = ProfileFixture::profiles.size();
   assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
   assert(ProfileFixture::profiles.size() == saved);
@@ -511,19 +511,19 @@ static void physicalCompanionFlow() {
   assert(request("/api/session/poll","",{{"id",claim}},HTTP_GET)==200);
   assert(responseField("token")==phone);
   assert(ProfileFixture::profiles.size() == saved);
-  PlayerSeat after[MAX_PLAYERS]; lobby.buildPlayers(after,MAX_PLAYERS);
-  assert(lobby.playerCount()==2 && lobby.hostController()==0);
+  PlayerSeat after[MAX_PLAYERS]; table().lobby.buildPlayers(after,MAX_PLAYERS);
+  assert(table().lobby.playerCount()==2 && table().lobby.hostController()==0);
   assert(after[0].participantId==before[0].participantId && after[0].controllerId==0);
   const String secondPhone=loginPhone(id);
-  assert(request("/api/session/join",secondPhone)==200 && lobby.playerCount()==2);
+  assert(request("/api/session/join",secondPhone)==200 && table().lobby.playerCount()==2);
   assert(request("/api/control/start",phone)==200);
   testNow+=3000;updateCountdown(testNow);
-  choose(0,SigilAction::Pass); assert(pendingPass.active);
-  assert(request("/api/control/pass",secondPhone)==200 && !pendingPass.active);
+  choose(0,SigilAction::Pass); assert(table().pendingPass.active);
+  assert(request("/api/control/pass",secondPhone)==200 && !table().pendingPass.active);
   assert(request("/api/control/pass",phone)==200);
   testNow+=3000;updatePendingPass(testNow);
-  assert(game.activePlayerNumber()==2);
-  assert(request("/api/control/concede",other)==200 && hubState==HubState::GameOver);
+  assert(table().game.activePlayerNumber()==2);
+  assert(request("/api/control/concede",other)==200 && table().hubState==HubState::GameOver);
   assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
   assert(ProfileFixture::profiles[id].stats.gamesWon==1);
   assert(request("/api/session/me",secondPhone,{},HTTP_GET)==200);
@@ -534,9 +534,9 @@ static void physicalCompanionFlow() {
   assert(ProfileFixture::profiles[id].stats.gamesPlayed==1);
   assert(request("/api/control/reset",phone)==200);
   assert(request("/api/session/join",phone)==200); // Can play by phone again.
-  assert(lobby.playerCount()==1);
+  assert(table().lobby.playerCount()==1);
   choose(0,SigilAction::Join); // Finished-game binding cleared: this is now a guest.
-  assert(lobby.playerCount()==2);
+  assert(table().lobby.playerCount()==2);
   assert(TurnHubControllers::profileForSeat(0,1).length()==0);
   TurnHub::fixtureRadio=false;
 }
@@ -546,38 +546,38 @@ static void attachNamedProfileToGuest() {
   freshLobby(2, true);
   String id;
   const String phone = registerPhone("Named guest", id);
-  PlayerSeat before[MAX_PLAYERS]; lobby.buildPlayers(before, MAX_PLAYERS);
+  PlayerSeat before[MAX_PLAYERS]; table().lobby.buildPlayers(before, MAX_PLAYERS);
   const unsigned syncs = TurnHub::fixtureProfileSyncs;
   assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
   const String claim=responseField("requestId");
   TurnHubWebApi::notePhysicalAction(0);
   assert(request("/api/session/poll","",{{"id",claim}},HTTP_GET)==200);
-  assert(lobby.playerCount()==3 && lobby.hostController()==0 && lobby.hasSecondary(0));
+  assert(table().lobby.playerCount()==3 && table().lobby.hostController()==0 && table().lobby.hasSecondary(0));
   assert(TurnHubControllers::profileForSeat(0,1)==id);
   assert(TurnHub::fixtureProfileSyncs == syncs+1);
-  PlayerSeat after[MAX_PLAYERS]; lobby.buildPlayers(after,MAX_PLAYERS);
+  PlayerSeat after[MAX_PLAYERS]; table().lobby.buildPlayers(after,MAX_PLAYERS);
   assert(after[0].participantId==before[0].participantId);
   assert(request("/api/seats","",{},HTTP_GET)==200);
   assert(server.body.find("Named guest")!=std::string::npos);
   const String companion=loginPhone(id);
-  assert(request("/api/session/join",companion)==200 && lobby.playerCount()==3);
+  assert(request("/api/session/join",companion)==200 && table().lobby.playerCount()==3);
 
   // Merge an already joined phone with the guest Sigil instead of duplicating it.
   ProfileFixture::bindings.clear();
   freshLobby(1);
-  assert(request("/api/session/join",phone)==200 && lobby.playerCount()==2);
+  assert(request("/api/session/join",phone)==200 && table().lobby.playerCount()==2);
   assert(request("/api/session/request",phone,{{"module","0"},{"slot","1"}})==202);
   const String merge=responseField("requestId");
   TurnHubWebApi::notePhysicalAction(0);
   assert(request("/api/session/poll","",{{"id",merge}},HTTP_GET)==200);
-  assert(lobby.playerCount()==1 && lobby.hostController()==0);
-  assert(request("/api/session/join",companion)==200 && lobby.playerCount()==1);
+  assert(table().lobby.playerCount()==1 && table().lobby.hostController()==0);
+  assert(request("/api/session/join",companion)==200 && table().lobby.playerCount()==1);
   String otherId; const String other=registerPhone("Different owner",otherId);
   assert(request("/api/session/request",other,{{"module","0"},{"slot","1"}})==202);
   const String conflict=responseField("requestId");
   TurnHubWebApi::notePhysicalAction(0);
   assert(request("/api/session/poll","",{{"id",conflict}},HTTP_GET)==409);
-  assert(TurnHubControllers::profileForSeat(0,1)==id && lobby.playerCount()==1);
+  assert(TurnHubControllers::profileForSeat(0,1)==id && table().lobby.playerCount()==1);
   enterEmptyLobby();
   ProfileFixture::bindings.clear();
 }
@@ -597,7 +597,7 @@ static void profilePolicyFlow() {
   assert(request("/api/session/logout",owner)==200);
   assert(!TurnHubWebApi::physicalUseAllowed(id) && !TurnHubWebApi::physicalStatsVisible(id));
   assert(!dispatchModuleIntent(IntentType::Join,0).accepted());
-  assert(lobby.playerCount()==0);
+  assert(table().lobby.playerCount()==0);
   owner=loginPhone(id);
   assert(dispatchModuleIntent(IntentType::Join,0).accepted());
   assert(request("/api/session/request","",{{"module","0"},{"slot","1"}})==403);
@@ -607,7 +607,7 @@ static void profilePolicyFlow() {
   assert(TurnHubWebApi::physicalStatsVisible(id));
   assert(request("/api/session/logout",companion)==200);
   assert(!TurnHubWebApi::physicalStatsVisible(id));
-  assert(lobby.playerCount()==1); // Losing browser auth does not evict a player.
+  assert(table().lobby.playerCount()==1); // Losing browser auth does not evict a player.
   owner=loginPhone(id);
   for (const char *physical : {"0","1"}) for (const char *hidden : {"0","1"}) {
     assert(request("/api/session/policy",owner,{{"allowPhysicalWithoutPin",physical},{"hideStatsWithoutAuthentication",hidden}})==200);
@@ -682,47 +682,47 @@ static void gameProfilesAndLife() {
   assert(request("/api/game/settings",first,{{"gameProfile","unknown"},{"startingLife","20"}})==400);
   ProfileFixture::gameSettingsWritable=false;
   assert(request("/api/game/settings",first,{{"gameProfile","yugioh"},{"startingLife","8000"}})==409);
-  assert(nextGameSettings.profile==GameProfile::Magic && nextGameSettings.startingLife==20);
+  assert(table().nextGameSettings.profile==GameProfile::Magic && table().nextGameSettings.startingLife==20);
   ProfileFixture::gameSettingsWritable=true;
   assert(request("/api/control/life",first,{{"delta","-1"}})==409); // Lobby.
   gameSettingsAvailable=false;
-  assert(request("/api/control/start",first)==409 && hubState==HubState::Lobby);
+  assert(request("/api/control/start",first)==409 && table().hubState==HubState::Lobby);
   gameSettingsAvailable=true;
   assert(request("/api/control/start",first)==200);
   assert(request("/api/game/settings",first,magic)==409); // Countdown is frozen.
   testNow+=3000;updateCountdown(testNow);
-  assert(game.settings().profile==GameProfile::Magic && game.lifeTotal(1)==20 && game.lifeTotal(2)==20);
+  assert(table().game.settings().profile==GameProfile::Magic && table().game.lifeTotal(1)==20 && table().game.lifeTotal(2)==20);
   assert(request("/api/game/settings",first,magic)==409);
   assert(request("/api/control/life","",{{"delta","-1"}})==401);
   for (const char *invalid : {"", "0", "-", "1.5", "1abc", "1000001", "9999999999999"})
     assert(request("/api/control/life",first,{{"delta",invalid}})==400);
   assert(request("/api/control/life",first,{{"delta","-21"},{"player","2"},{"profileId",secondId}})==200);
-  assert(game.lifeTotal(1)==-1 && game.lifeTotal(2)==20 && !game.isEliminated(1));
+  assert(table().game.lifeTotal(1)==-1 && table().game.lifeTotal(2)==20 && !table().game.isEliminated(1));
   const String companion=loginPhone(firstId);
-  assert(request("/api/control/life",companion,{{"delta","6"}})==200 && game.lifeTotal(1)==5);
+  assert(request("/api/control/life",companion,{{"delta","6"}})==200 && table().game.lifeTotal(1)==5);
   assert(request("/api/session/me",first,{},HTTP_GET)==200);
   assert(server.body.find("\"life\":5")!=std::string::npos);
   assert(request("/api/seats","",{},HTTP_GET)==200);
   assert(server.body.find("\"life\":5")!=std::string::npos && server.body.find("\"life\":20")!=std::string::npos);
   assert(request("/api/control/life",first,{{"delta","999995"}})==200);
-  assert(request("/api/control/life",first,{{"delta","1"}})==409 && game.lifeTotal(1)==1000000);
-  assert(!game.changeLife(1,INT32_MAX) && game.lifeTotal(1)==1000000);
+  assert(request("/api/control/life",first,{{"delta","1"}})==409 && table().game.lifeTotal(1)==1000000);
+  assert(!table().game.changeLife(1,INT32_MAX) && table().game.lifeTotal(1)==1000000);
   assert(request("/api/control/life",first,{{"delta","-1000000"}})==200);
   assert(request("/api/control/life",first,{{"delta","-1000000"}})==200);
-  assert(request("/api/control/life",first,{{"delta","-1"}})==409 && game.lifeTotal(1)==-1000000);
+  assert(request("/api/control/life",first,{{"delta","-1"}})==409 && table().game.lifeTotal(1)==-1000000);
   assert(request("/api/control/pause",first)==200);
-  assert(request("/api/control/life",second,{{"delta","-5"}})==200 && game.lifeTotal(2)==15);
+  assert(request("/api/control/life",second,{{"delta","-5"}})==200 && table().game.lifeTotal(2)==15);
   assert(request("/api/control/win",first)==200);
   assert(request("/api/control/life",second,{{"delta","1"}})==409); // Pending win decision.
   assert(request("/api/control/deny",second)==200);
   assert(request("/api/control/concede",second)==200);
   assert(request("/api/control/life",second,{{"delta","1"}})==409); // Eliminated, game continues.
-  assert(request("/api/control/concede",third)==200 && hubState==HubState::GameOver);
+  assert(request("/api/control/concede",third)==200 && table().hubState==HubState::GameOver);
   assert(request("/api/control/life",first,{{"delta","1"}})==409);
   assert(request("/api/control/rematch",first)==200);
   assert(request("/api/control/start",first)==200);
   testNow+=3000;updateCountdown(testNow);
-  assert(game.lifeTotal(1)==20 && game.lifeTotal(2)==20 && !game.isEliminated(2));
+  assert(table().game.lifeTotal(1)==20 && table().game.lifeTotal(2)==20 && !table().game.isEliminated(2));
   assert(request("/api/control/concede",second)==200);
   assert(request("/api/control/concede",third)==200);
   assert(request("/api/control/reset",first)==200);
@@ -730,7 +730,7 @@ static void gameProfilesAndLife() {
   assert(request("/api/game/settings",first,{{"gameProfile","generic"},{"startingLife","0"}})==200);
   assert(request("/api/control/start",first)==200);
   testNow+=3000;updateCountdown(testNow);
-  assert(game.lifeTotal(1)==0 && game.lifeTotal(2)==0 && game.livingPlayerCount()==2);
+  assert(table().game.lifeTotal(1)==0 && table().game.lifeTotal(2)==0 && table().game.livingPlayerCount()==2);
 }
 
 
@@ -770,23 +770,23 @@ static void accountPermissionsAndModeration(){
   // Nudge: the muted account is refused; others nudge the active player once
   // per NUDGE_COOLDOWN_MS, never themselves, and state shows the last nudge.
   {
-    const uint32_t seq0=nudgeState.seq;
-    assert(request("/api/control/nudge",player)==409&&nudgeState.seq==seq0);
+    const uint32_t seq0=table().nudgeState.seq;
+    assert(request("/api/control/nudge",player)==409&&table().nudgeState.seq==seq0);
     int sent=0;
     for(const String *c:{&gm,&dev}) if(request("/api/control/nudge",*c)==200) ++sent;
-    assert(sent>=1&&nudgeState.seq==seq0+sent&&nudgeState.toPlayer==game.activePlayer()->playerNumber);
-    assert(nudgeState.fromPlayer!=nudgeState.toPlayer);
+    assert(sent>=1&&table().nudgeState.seq==seq0+sent&&table().nudgeState.toPlayer==table().game.activePlayer()->playerNumber);
+    assert(table().nudgeState.fromPlayer!=table().nudgeState.toPlayer);
     for(const String *c:{&gm,&dev}) assert(request("/api/control/nudge",*c)==409);
-    assert(nudgeState.seq==seq0+sent);
+    assert(table().nudgeState.seq==seq0+sent);
     assert(request("/api/v1/state",gm,{},HTTP_GET)==200&&server.body.find("\"nudge\":{\"seq\":")!=std::string::npos);
     testNow+=NUDGE_COOLDOWN_MS;
     int again=0;
     for(const String *c:{&gm,&dev}) if(request("/api/control/nudge",*c)==200) ++again;
-    assert(again==sent&&nudgeState.seq==seq0+2*sent);
+    assert(again==sent&&table().nudgeState.seq==seq0+2*sent);
   }
-  const auto life=game.lifeTotal(1);
+  const auto life=table().game.lifeTotal(1);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","reset"}})==200);
-  assert(game.lifeTotal(1)==life&&game.livingPlayerCount()==3);
+  assert(table().game.lifeTotal(1)==life&&table().game.livingPlayerCount()==3);
   assert(request("/api/session/me",player,{},HTTP_GET)==401);
   assert(request("/api/session/me",companion,{},HTTP_GET)==401);
   assert(TurnHubWebApi::connectionBlocked(playerId));
@@ -818,12 +818,12 @@ static void accountPermissionsAndModeration(){
       server.body.find("\"visible\":false")!=std::string::npos&&server.body.find("connectionResets")==std::string::npos);
   assert(request("/api/session/stats/export",reconnected,{},HTTP_GET)==200&&server.body.find("esets")==std::string::npos);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","pass"}})==200);
-  assert(game.activePlayerNumber()==2&&!pendingPass.active);
+  assert(table().game.activePlayerNumber()==2&&!table().pendingPass.active);
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","2"}})==200);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","26"}})==200);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==200);
-  assert(game.isEliminated(1)&&game.livingPlayerCount()==2);
+  assert(table().game.isEliminated(1)&&table().game.livingPlayerCount()==2);
   assert(TurnHubProfiles::loadModerationStatsForProfile(playerId,history)&&history.gameRemovals==1&&history.connectionResets==1);
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","31"}})==200);
@@ -912,14 +912,14 @@ static void serialLogCapture() {
   // Log lines that make a downloaded log self-explanatory.
   freshLobby(2);
   assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|SYSTEM|FROM|"));
-  nextGameSettings.turnTimerMs=60000;
+  table().nextGameSettings.turnTimerMs=60000;
   startFromHost();
   assert(logHas("|PROFILE|generic|LIFE|40|TIMER_MS|60000|PLAYERS|2\n"));
-  assert(web(0,1,WebControl::Concede) && hubState==HubState::GameOver);
+  assert(web(0,1,WebControl::Concede) && table().hubState==HubState::GameOver);
   serialLog.clear();
-  assert(web(0,1,WebControl::Reset) && hubState==HubState::Lobby);
+  assert(web(0,1,WebControl::Reset) && table().hubState==HubState::Lobby);
   assert(logHas("ATLAS|LOBBY|EMPTY|RESET|ORIGIN|BROWSER|CONTROLLER|0|FROM|GAME_OVER\n"));
-  nextGameSettings=TurnHub::GameSettings{};
+  table().nextGameSettings=TurnHub::GameSettings{};
   enterEmptyLobby();
 }
 static void virtualCapacity() {
@@ -928,16 +928,89 @@ static void virtualCapacity() {
     const String id=TurnHubProfiles::createProfile(); String message;
     assert(handleProfileControl(id,WebControl::Join,INVALID_ID,1,message));
   }
-  assert(lobby.playerCount()==MAX_PLAYERS);
+  assert(table().lobby.playerCount()==MAX_PLAYERS);
   const String extra=TurnHubProfiles::createProfile(); String message;
   assert(!handleProfileControl(extra,WebControl::Join,INVALID_ID,1,message));
   assert(!dispatchModuleIntent(IntentType::Join,MAX_PHYSICAL_SIGILS).accepted());
-  const uint8_t host=lobby.hostController();
+  const uint8_t host=table().lobby.hostController();
   assert(web(host,1,WebControl::Start));
   testNow+=3000; updateCountdown(testNow);
   assert(web(host,1,WebControl::ClaimWin));
   for(uint8_t i=1;i<MAX_PLAYERS;++i) assert(web(MAX_PHYSICAL_SIGILS+i,1,WebControl::ConfirmWin));
-  assert(hubState==HubState::GameOver);
+  assert(table().hubState==HubState::GameOver);
+}
+// Venue tables: two games side by side on one Atlas (PLANNED_DESIGNS.md).
+static void venueTables() {
+  using TurnHubProtocol::SigilAction;
+  const auto menuHas=[](uint8_t id,SigilAction a) {
+    return (sigilMenuFor(id).actions & TurnHubProtocol::sigilActionBit(a))!=0;
+  };
+  const auto startTable=[](uint8_t index,uint8_t sigil) {
+    choose(sigil,SigilAction::StartGame);
+    TableScope scope(index);
+    assert(table().hubState==HubState::Starting);
+    testNow+=3000; updateCountdown(testNow); assert(table().hubState==HubState::Running);
+  };
+  registerWebCallbacks();
+  freshLobby(2);  // Sigils 0 and 1 joined Game 1.
+  // An unseated Sigil switches to Game 2 and joins there; a joined one leaves first.
+  assert(menuHas(2,SigilAction::SwitchTable) && menuHas(0,SigilAction::SwitchTable));
+  choose(2,SigilAction::SwitchTable); assert(sigilTable[2]==1 && tableForController(2)==1);
+  choose(3,SigilAction::SwitchTable); choose(1,SigilAction::SwitchTable);
+  assert(tableForController(1)==1 && !tables[0].lobby.isJoined(1) && tables[0].lobby.playerCount()==1);
+  choose(1,SigilAction::Join); choose(2,SigilAction::Join); choose(3,SigilAction::Join);
+  assert(tables[1].lobby.playerCount()==3 && tables[1].lobby.isJoined(2));
+  choose(4,SigilAction::Join); assert(tables[0].lobby.playerCount()==2);  // Game 1 is the default.
+  // Phones follow a game: Game 2's player can't join Game 1 while seated there.
+  for (auto &session : TurnHubWebApi::internal::sessions) session = TurnHubWebApi::internal::WebSession{};
+  String gameTwoId, gameOneId;
+  const String gameTwo=registerPhone("Game Two phone",gameTwoId), gameOne=registerPhone("Game One phone",gameOneId);
+  assert(request("/api/session/game",gameTwo,{{"game","3"}})==400);
+  assert(request("/api/session/game",gameTwo,{{"game","2"}})==200);
+  assert(request("/api/session/join",gameTwo)==200 && tables[1].lobby.playerCount()==4);
+  assert(tableForProfile(gameTwoId)==1 && tables[0].lobby.playerCount()==2);
+  assert(request("/api/v1/state",gameTwo,{},HTTP_GET)==200);
+  assert(server.body.find("\"game\":2,\"games\":[{\"game\":1,\"state\":\"LOBBY\",\"players\":2},"
+      "{\"game\":2,\"state\":\"LOBBY\",\"players\":4}]")!=std::string::npos);
+  assert(request("/api/v1/state","",{{"game","2"}},HTTP_GET)==200 && server.body.find("\"game\":2,")!=std::string::npos);
+  assert(request("/api/v1/state",gameOne,{},HTTP_GET)==200 && server.body.find("\"game\":1,")!=std::string::npos);
+  // Back to Game 1 leaves Game 2's lobby; then over to Game 2 again.
+  assert(request("/api/session/game",gameTwo,{{"game","1"}})==200 && tableForProfile(gameTwoId)==-1);
+  assert(tables[1].lobby.playerCount()==3);
+  assert(request("/api/session/game",gameTwo,{{"game","2"}})==200 && request("/api/session/join",gameTwo)==200);
+  // A profile plays at one game at a time.
+  {
+    TableScope scope(0); String message;
+    assert(!handleProfileControl(gameTwoId,WebControl::Join,INVALID_ID,1,message));
+  }
+  // Both games run independently; Atlas's speaker goes quiet while both do.
+  startTable(0,0); assert(!atlasSpeakerShared());
+  startTable(1,2); assert(atlasSpeakerShared());
+  assert(tables[0].game.playerCount()==2 && tables[1].game.playerCount()==4);
+  assert(!allTablesBetweenGames());
+  {
+    TableScope scope(1);
+    const uint8_t active=table().game.activePlayerNumber();
+    const uint8_t gameOneActive=tables[0].game.activePlayerNumber();
+    const PlayerSeat *seat=table().game.activePlayer();
+    if(seat->controllerId<MAX_PHYSICAL_SIGILS) choose(seat->controllerId,SigilAction::Pass);
+    else assert(request("/api/control/pass",gameTwo)==200);
+    testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+    assert(table().game.activePlayerNumber()!=active && tables[0].game.activePlayerNumber()==gameOneActive);
+  }
+  // Playing Sigils and players can't switch; Game 2's state reaches its phone.
+  assert(!menuHas(2,SigilAction::SwitchTable) && !menuHas(0,SigilAction::SwitchTable));
+  assert(!dispatchModuleIntent(IntentType::ChooseTable,0,1,1).accepted());
+  assert(request("/api/session/game",gameTwo,{{"game","1"}})==409 && tableForProfile(gameTwoId)==1);
+  assert(request("/api/v1/state",gameTwo,{},HTTP_GET)==200 && server.body.find("\"state\":\"RUNNING\"")!=std::string::npos);
+  // Resetting Game 1 leaves Game 2's players and Sigil profiles alone.
+  { TableScope scope(0); enterEmptyLobby(); }
+  assert(tables[1].game.playerCount()==4 && tableForProfile(gameTwoId)==1 && tableForController(2)==1);
+  assert(tables[1].hubState==HubState::Running && !atlasSpeakerShared());
+  { TableScope scope(1); enterEmptyLobby(); }
+  for(uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) sigilTable[id]=0;
+  // Later scenarios register phones of their own; the sign-in store is small.
+  ProfileFixture::profiles.erase(gameOneId.c_str()); ProfileFixture::profiles.erase(gameTwoId.c_str());
 }
 static void lifeApprovalsAndCommander() {
   using namespace TurnHub;
@@ -959,7 +1032,7 @@ static void lifeApprovalsAndCommander() {
   for(const char *bad:{"0","17","-1","2x","256"})
     assert(request("/api/control/life/request",first,{{"target",bad},{"delta","-7"}})==400);
   assert(request("/api/control/life/request",first,{{"target","1"},{"delta","-7"}})==409);
-  assert(propose(-7)==200&&game.lifeTotal(2)==40);
+  assert(propose(-7)==200&&table().game.lifeTotal(2)==40);
   // A reused response workspace must be rebuilt for each viewer, including
   // virtual controllers 8/9. Unrelated requests may never leak between phones.
   assert(request("/api/game/counters",second,{},HTTP_GET)==200);
@@ -978,91 +1051,91 @@ static void lifeApprovalsAndCommander() {
   TurnHubWebApi::internal::readCountersHandler=countersCallback;
   assert(request("/api/game/counters",third,{},HTTP_GET)==200);
   assert(server.body.find("\"requests\":[]")!=std::string::npos);
-  auto id=game.lifeChangeFor(2)->id;
+  auto id=table().game.lifeChangeFor(2)->id;
   assert(propose(-7)==409); // One pending request per target.
   assert(respond(third,id,true)==409&&respond(first,id,true)==409);
   assert(request("/api/control/life",second,{{"delta","2"}})==200);
-  assert(respond(companion,id,true)==200&&game.lifeTotal(2)==35); // Delta, not stale total.
-  assert(respond(second,id,true)==409&&game.lifeTotal(2)==35);
+  assert(respond(companion,id,true)==200&&table().game.lifeTotal(2)==35); // Delta, not stale total.
+  assert(respond(second,id,true)==409&&table().game.lifeTotal(2)==35);
   assert(request("/api/game/counters",third,{},HTTP_GET)==200);
   assert(server.body.find("\"requests\":[]")!=std::string::npos); // No unrelated requests.
   assert(propose(-5)==200);
-  const auto replacement=game.lifeChangeFor(2)->id;
+  const auto replacement=table().game.lifeChangeFor(2)->id;
   assert(replacement!=id&&respond(second,id,true)==409);
-  assert(respond(second,replacement,false)==200&&game.lifeTotal(2)==35);
-  assert(game.lifeChangeFor(2)->state==LifeChangeState::Rejected);
+  assert(respond(second,replacement,false)==200&&table().game.lifeTotal(2)==35);
+  assert(table().game.lifeChangeFor(2)->state==LifeChangeState::Rejected);
   assert(propose(-3)==200);
-  testNow+=14999;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==35);
-  ++testNow;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==32);
-  dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==32);
-  assert(game.lifeChangeFor(2)->state==LifeChangeState::Automatic);
-  assert(propose(1)==200);id=game.lifeChangeFor(2)->id;
-  testNow+=15000;assert(respond(second,id,false)==409&&game.lifeTotal(2)==33); // Deadline race.
+  testNow+=14999;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(table().game.lifeTotal(2)==35);
+  ++testNow;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(table().game.lifeTotal(2)==32);
+  dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(table().game.lifeTotal(2)==32);
+  assert(table().game.lifeChangeFor(2)->state==LifeChangeState::Automatic);
+  assert(propose(1)==200);id=table().game.lifeChangeFor(2)->id;
+  testNow+=15000;assert(respond(second,id,false)==409&&table().game.lifeTotal(2)==33); // Deadline race.
   for(const char *bad:{"0","-1","1x","4294967296","99999999999999"})
     assert(request("/api/control/life/respond",second,{{"requestId",bad},{"accept","1"}})==400);
   Intent forged;forged.type=IntentType::ExpireLifeChanges;forged.actor.origin=IntentOrigin::Browser;
   assert(!intents.dispatch(forged).accepted());
   assert(request("/api/control/pause",first)==200);
   assert(propose(2)==200);testNow+=15000;dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  assert(game.lifeTotal(2)==35&&hubState==HubState::Paused);
+  assert(table().game.lifeTotal(2)==35&&table().hubState==HubState::Paused);
   // Automatic application must revalidate after intervening changes.
   assert(propose(1)==200);
   assert(request("/api/control/life",second,{{"delta","999965"}})==200);
   testNow+=15000;dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  assert(game.lifeTotal(2)==1000000&&game.lifeChangeFor(2)->state==LifeChangeState::Failed);
+  assert(table().game.lifeTotal(2)==1000000&&table().game.lifeChangeFor(2)->state==LifeChangeState::Failed);
   assert(request("/api/control/life",second,{{"delta","-999960"}})==200);
   assert(propose(-1)==200);
   const uint32_t beforeRollover=testNow;
-  game.cancelLifeChanges();
+  table().game.cancelLifeChanges();
   testNow=UINT32_MAX-10000;
   IntentPayload payload;payload.targetPlayer=2;payload.value=-1;String message;
-  assert(changeCounter(game.playerByNumber(1)->controllerId,1,IntentType::RequestLifeChange,payload,message));
-  testNow+=14999;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==40);
-  ++testNow;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(game.lifeTotal(2)==39);
+  assert(changeCounter(table().game.playerByNumber(1)->controllerId,1,IntentType::RequestLifeChange,payload,message));
+  testNow+=14999;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(table().game.lifeTotal(2)==40);
+  ++testNow;dispatchSystemIntent(IntentType::ExpireLifeChanges);assert(table().game.lifeTotal(2)==39);
   testNow=beforeRollover;
   const auto damage=[&](const String &token,int source,int commander,int delta){return request("/api/control/commander",token,{{"source",String(source)},{"commander",String(commander)},{"delta",String(delta)},{"target","1"}});};
   assert(damage("",1,1,2)==401);
   assert(damage(second,1,1,-2)==409);
   assert(server.body.find("Cannot remove more Commander damage") != std::string::npos);
-  assert(game.commanderDamage(2,1,1)==0&&game.lifeTotal(2)==39);
-  assert(damage(second,1,1,21)==200&&game.commanderDamage(2,1,1)==21&&game.lifeTotal(2)==18);
-  assert(!game.isEliminated(2)); // No automatic rules adjudication.
-  assert(damage(companion,1,2,3)==200&&game.commanderDamage(2,1,2)==3&&game.lifeTotal(2)==15);
-  assert(damage(second,3,1,5)==200&&game.commanderDamage(2,3,1)==5&&game.lifeTotal(2)==10);
-  assert(game.lifeTotal(1)==40); // Forged target ignored: received damage belongs to caller.
-  assert(damage(second,1,1,-2)==200&&game.commanderDamage(2,1,1)==19&&game.lifeTotal(2)==12);
-  assert(damage(second,1,1,-20)==409&&game.commanderDamage(2,1,1)==19&&game.lifeTotal(2)==12);
+  assert(table().game.commanderDamage(2,1,1)==0&&table().game.lifeTotal(2)==39);
+  assert(damage(second,1,1,21)==200&&table().game.commanderDamage(2,1,1)==21&&table().game.lifeTotal(2)==18);
+  assert(!table().game.isEliminated(2)); // No automatic rules adjudication.
+  assert(damage(companion,1,2,3)==200&&table().game.commanderDamage(2,1,2)==3&&table().game.lifeTotal(2)==15);
+  assert(damage(second,3,1,5)==200&&table().game.commanderDamage(2,3,1)==5&&table().game.lifeTotal(2)==10);
+  assert(table().game.lifeTotal(1)==40); // Forged target ignored: received damage belongs to caller.
+  assert(damage(second,1,1,-2)==200&&table().game.commanderDamage(2,1,1)==19&&table().game.lifeTotal(2)==12);
+  assert(damage(second,1,1,-20)==409&&table().game.commanderDamage(2,1,1)==19&&table().game.lifeTotal(2)==12);
   assert(request("/api/control/life",second,{{"delta","999988"}})==200);
-  assert(damage(second,1,1,-1)==409&&game.lifeTotal(2)==1000000&&game.commanderDamage(2,1,1)==19);
+  assert(damage(second,1,1,-1)==409&&table().game.lifeTotal(2)==1000000&&table().game.commanderDamage(2,1,1)==19);
   assert(request("/api/control/life",second,{{"delta","-999988"}})==200);
   assert(damage(second,16,1,2)==409);
   assert(damage(second,1,3,2)==400);
   assert(damage(second,1,1,0)==400);
-  assert(!game.changeCommanderDamage(2,1,1,INT32_MIN));
+  assert(!table().game.changeCommanderDamage(2,1,1,INT32_MIN));
   assert(request("/api/control/life",second,{{"delta","-1000000"}})==200);
-  assert(damage(second,1,1,13)==409&&game.lifeTotal(2)==-999988&&game.commanderDamage(2,1,1)==19);
+  assert(damage(second,1,1,13)==409&&table().game.lifeTotal(2)==-999988&&table().game.commanderDamage(2,1,1)==19);
   assert(request("/api/control/life",second,{{"delta","1000000"}})==200);
   assert(request("/api/game/counters",second,{},HTTP_GET)==200);
   assert(server.body.find("\"commanders\":[19,3]")!=std::string::npos);
   assert(propose(-1)==200);
   assert(request("/api/control/win",first)==200);
-  assert(game.lifeChangeFor(2)->state==LifeChangeState::Cancelled);
+  assert(table().game.lifeChangeFor(2)->state==LifeChangeState::Cancelled);
   assert(damage(second,1,1,1)==409&&propose(-1)==409);
   assert(request("/api/control/deny",second)==200);
-  assert(propose(-1)==200);id=game.lifeChangeFor(2)->id;
+  assert(propose(-1)==200);id=table().game.lifeChangeFor(2)->id;
   assert(request("/api/control/concede",second)==200);
-  assert(game.lifeChangeFor(2)->state==LifeChangeState::Cancelled&&damage(second,1,1,1)==409);
+  assert(table().game.lifeChangeFor(2)->state==LifeChangeState::Cancelled&&damage(second,1,1,1)==409);
   assert(propose(-1)==409);
   assert(request("/api/control/life/request",third,{{"target","1"},{"delta","-1"}})==200);
-  assert(request("/api/control/concede",third)==200&&hubState==HubState::GameOver);
-  assert(game.lifeChangeFor(1)->state==LifeChangeState::Cancelled);
+  assert(request("/api/control/concede",third)==200&&table().hubState==HubState::GameOver);
+  assert(table().game.lifeChangeFor(1)->state==LifeChangeState::Cancelled);
   assert(request("/api/control/rematch",first)==200);
   assert(request("/api/game/settings",first,{{"gameProfile","mtg"},{"startingLife","20"}})==200);
   assert(request("/api/control/start",first)==200);testNow+=3000;updateCountdown(testNow);
-  assert(game.lifeTotal(2)==20&&game.commanderDamage(2,1,1)==0&&!game.lifeChangeFor(2)->id);
+  assert(table().game.lifeTotal(2)==20&&table().game.commanderDamage(2,1,1)==0&&!table().game.lifeChangeFor(2)->id);
   assert(damage(second,1,1,1)==409); // Only Commander supports these counters.
-  assert(propose(-1)==200&&game.lifeChangeFor(2)->id>id);
-  assert(respond(second,id,true)==409&&game.lifeTotal(2)==20);
+  assert(propose(-1)==200&&table().game.lifeChangeFor(2)->id>id);
+  assert(respond(second,id,true)==409&&table().game.lifeTotal(2)==20);
   enterEmptyLobby();
 }
 
@@ -1072,18 +1145,18 @@ static void commanderFlow() {
   using A = SigilAction;
   resetCommanderPickers();
   freshLobby(3,true);
-  nextGameSettings.profile = GameProfile::Commander; nextGameSettings.startingLife = 40;
+  table().nextGameSettings.profile = GameProfile::Commander; table().nextGameSettings.startingLife = 40;
   startFromHost();
-  leds.render(hubState,lobby,game,0,0,0,testNow);
-  assert(leds.switchShownSeat(0,game));
-  leds.render(hubState,lobby,game,0,0,0,testNow);
+  leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
+  assert(leds.switchShownSeat(0,table().game));
+  leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
   auto open = [&](bool undo=false, uint8_t target=2) {
     syncSigilMenus(testNow);
     handleSelectAction(0,encodeSelectAction(undo ? A::UndoCommanderHit : A::CommanderDamage,sigilMenuRevision(0),target));
   };
   auto key = [&](uint8_t k) { handleCommanderKey(0,encodeCommanderKey(k,commanderPage(0).revision),testNow); };
   // Partners are off by default: a hit from commander 2 needs them turned on.
-  assert(!game.hasPartner(3) && !game.recordCommanderHit(2,3,2,1));
+  assert(!table().game.hasPartner(3) && !table().game.recordCommanderHit(2,3,2,1));
   open(); auto p=commanderPage(0);
   assert(validCommanderFlow(p) && p.stage==CommanderStage::Source && p.recipient==2 && p.recipientSlot==2);
   // Without partners, Select skips the Commander step; Up goes back past it.
@@ -1093,11 +1166,11 @@ static void commanderFlow() {
   // Player 3 turns partners on from their own Sigil's menu (seat on Sigil 1).
   {
     syncSigilMenus(testNow);
-    leds.render(hubState,lobby,game,0,0,0,testNow);
-    const PlayerSeat *three = game.playerByNumber(3);
+    leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
+    const PlayerSeat *three = table().game.playerByNumber(3);
     assert(three && (sigilMenuFor(three->controllerId).actions & sigilActionBit(A::AddPartner)));
     handleSelectAction(three->controllerId,encodeSelectAction(A::AddPartner,sigilMenuRevision(three->controllerId),3));
-    assert(game.hasPartner(3));
+    assert(table().game.hasPartner(3));
   }
   open(); p=commanderPage(0);
   // Sources skip the recipient (2): 1 -> 3, then back past 2 to 1.
@@ -1106,31 +1179,31 @@ static void commanderFlow() {
   key(3); assert(commanderPage(0).source==3);
   key(4); key(3); assert(commanderPage(0).commander==2);
   key(4); for (int i=0;i<4;++i) key(3);
-  assert(commanderPage(0).amount==5 && game.lifeTotal(2)==40);
+  assert(commanderPage(0).amount==5 && table().game.lifeTotal(2)==40);
   key(4); p=commanderPage(0);
   assert(p.stage==CommanderStage::Confirm && p.life==40 && p.damage==0);
   // Turn progression does not change the frozen recipient.
-  assert(game.passTurn(0,testNow));
+  assert(table().game.passTurn(0,testNow));
   const int32_t confirm=encodeCommanderKey(4,p.revision);
   handleCommanderKey(0,confirm,testNow);
-  assert(game.lifeTotal(2)==35 && game.commanderDamage(2,3,2)==5 && game.lifeTotal(1)==40);
+  assert(table().game.lifeTotal(2)==35 && table().game.commanderDamage(2,3,2)==5 && table().game.lifeTotal(1)==40);
   handleCommanderKey(0,confirm,testNow);
-  assert(game.lifeTotal(2)==35 && game.commanderDamage(2,3,2)==5);
+  assert(table().game.lifeTotal(2)==35 && table().game.commanderDamage(2,3,2)==5);
   key(4); assert(commanderPage(0).stage==CommanderStage::Closed);
   open(true); p=commanderPage(0);
   assert(p.stage==CommanderStage::UndoConfirm && p.amount==5 && p.life==35 && p.damage==5);
-  key(4); assert(game.lifeTotal(2)==40 && game.commanderDamage(2,3,2)==0 && !game.lastCommanderHit(2));
+  key(4); assert(table().game.lifeTotal(2)==40 && table().game.commanderDamage(2,3,2)==0 && !table().game.lastCommanderHit(2));
   key(4);
   // Fresh totals must be seen and reconfirmed after a concurrent life change.
   open(); key(4); key(4); p=commanderPage(0);  // Player 1 has no partner: Source, Amount, Confirm.
-  assert(game.changeLife(2,-2));
+  assert(table().game.changeLife(2,-2));
   handleCommanderKey(0,encodeCommanderKey(4,p.revision),testNow);
-  assert(game.lifeTotal(2)==38 && game.commanderDamage(2,1,1)==0 && commanderPage(0).revision!=p.revision);
-  key(4); assert(game.lifeTotal(2)==37 && game.commanderDamage(2,1,1)==1);
+  assert(table().game.lifeTotal(2)==38 && table().game.commanderDamage(2,1,1)==0 && commanderPage(0).revision!=p.revision);
+  key(4); assert(table().game.lifeTotal(2)==37 && table().game.commanderDamage(2,1,1)==1);
   // A correction to that cell invalidates Undo, rather than reversing the correction.
-  assert(game.changeCommanderDamage(2,1,1,1) && !game.lastCommanderHit(2));
+  assert(table().game.changeCommanderDamage(2,1,1,1) && !table().game.lastCommanderHit(2));
   key(4); open(); key(4); key(4); key(1);
-  assert(commanderPage(0).stage==CommanderStage::Closed && game.lifeTotal(2)==36);
+  assert(commanderPage(0).stage==CommanderStage::Closed && table().game.lifeTotal(2)==36);
   // Player source selection reaches every other participant, including the
   // shared seat's partner, and wraps past the recipient.
   open(); for (int i=0;i<2;++i) key(3);
@@ -1142,31 +1215,31 @@ static void commanderFlow() {
   forbidden.payload.counterSource=3; forbidden.payload.counterSlot=1; forbidden.payload.value=5;
   assert(intents.dispatch(forbidden).status==IntentStatus::Unauthorized);
   // Bounds failures are atomic; nothing changes and no Undo receipt is created.
-  assert(game.changeLife(2,-999036));
-  const int32_t before=game.lifeTotal(2), damage=game.commanderDamage(2,3,1);
-  assert(!game.recordCommanderHit(2,3,1,9999) && game.lifeTotal(2)==before &&
-      game.commanderDamage(2,3,1)==damage && !game.lastCommanderHit(2));
+  assert(table().game.changeLife(2,-999036));
+  const int32_t before=table().game.lifeTotal(2), damage=table().game.commanderDamage(2,3,1);
+  assert(!table().game.recordCommanderHit(2,3,1,9999) && table().game.lifeTotal(2)==before &&
+      table().game.commanderDamage(2,3,1)==damage && !table().game.lastCommanderHit(2));
   // Idle, offline, elimination and table decisions close the disposable flow.
   open(); syncCommanderPickers(testNow+COMMANDER_IDLE_MS);
   assert(commanderPage(0).stage==CommanderStage::Closed);
   open(); fixtureRadio=false; syncCommanderPickers(testNow); fixtureRadio=true;
   assert(commanderPage(0).stage==CommanderStage::Closed);
-  assert(dispatchSeatIntent(IntentType::Pause,IntentOrigin::PhysicalSigil,*game.playerByNumber(2)).accepted());
+  assert(dispatchSeatIntent(IntentType::Pause,IntentOrigin::PhysicalSigil,*table().game.playerByNumber(2)).accepted());
   open(); assert(commanderPage(0).stage==CommanderStage::Source); key(1);
-  assert(dispatchSeatIntent(IntentType::Resume,IntentOrigin::PhysicalSigil,*game.playerByNumber(2)).accepted());
+  assert(dispatchSeatIntent(IntentType::Resume,IntentOrigin::PhysicalSigil,*table().game.playerByNumber(2)).accepted());
   // Starting another match with the same seats cannot retain the old entry.
-  PlayerSeat sameSeats[4]; for (uint8_t i=0;i<4;++i) sameSeats[i]=*game.playerAt(i);
-  const GameSettings settings=game.settings();
-  open(); assert(game.start(sameSeats,4,sameSeats[0],testNow,settings));
-  syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed && !game.lastCommanderHit(2));
-  open(); assert(dispatchSeatIntent(IntentType::Concede,IntentOrigin::PhysicalSigil,*game.playerByNumber(2)).accepted());
-  assert(game.isEliminated(2));
+  PlayerSeat sameSeats[4]; for (uint8_t i=0;i<4;++i) sameSeats[i]=*table().game.playerAt(i);
+  const GameSettings settings=table().game.settings();
+  open(); assert(table().game.start(sameSeats,4,sameSeats[0],testNow,settings));
+  syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed && !table().game.lastCommanderHit(2));
+  open(); assert(dispatchSeatIntent(IntentType::Concede,IntentOrigin::PhysicalSigil,*table().game.playerByNumber(2)).accepted());
+  assert(table().game.isEliminated(2));
   syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
   // A remaining seat's flow closes for a table-wide win decision too.
-  open(false,1); dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::PhysicalSigil,*game.activePlayer());
+  open(false,1); dispatchSeatIntent(IntentType::ClaimWin,IntentOrigin::PhysicalSigil,*table().game.activePlayer());
   syncCommanderPickers(testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
   enterEmptyLobby();
-  nextGameSettings = GameSettings{};
+  table().nextGameSettings = GameSettings{};
   freshLobby(2); startFromHost(); syncSigilMenus(testNow);
   assert(!(sigilMenuFor(0).actions & sigilActionBit(A::CommanderDamage)));
   openCommanderPicker(0,1,false,testNow); assert(commanderPage(0).stage==CommanderStage::Closed);
@@ -1315,7 +1388,7 @@ static void profilePicker() {
 
   // Join opens the picker; browsing changes nothing at the table.
   pick(1, A::Join);
-  assert(pickerOpen(1) && !lobby.isJoined(1) && lobby.playerCount() == 1);
+  assert(pickerOpen(1) && !table().lobby.isJoined(1) && table().lobby.playerCount() == 1);
   ProfilePickerPacket page = profilePickerPage(1);
   assert(page.mode == PickerMode::List && page.page == 0 && page.pageCount == 2 && page.itemCount == 3);
   assert(page.items[0].flags == PICKER_ITEM_GUEST && !strcmp(page.items[0].name, "Guest"));
@@ -1327,7 +1400,7 @@ static void profilePicker() {
 
   // A key from an older page is dropped (and the page resent).
   handlePickerKey(1, encodePickerKey(PickerKeyCode::Up, page.revision - 1), testNow);
-  assert(pickerOpen(1) && !lobby.isJoined(1) && profilePickerPage(1).revision == page.revision);
+  assert(pickerOpen(1) && !table().lobby.isJoined(1) && profilePickerPage(1).revision == page.revision);
   syncProfilePickers(testNow); assert(pickerSends == quiet + 1);
 
   // Click: next page. Archived Eve is left out; Dan needs a phone sign-in.
@@ -1337,20 +1410,20 @@ static void profilePicker() {
   assert(!strcmp(page.items[1].name, "Dan") && (page.items[1].flags & PICKER_ITEM_LOCKED));
   key(1, PickerKeyCode::Right);
   page = profilePickerPage(1);
-  assert(page.mode == PickerMode::List && page.notice == PickerNotice::NeedsPhone && !lobby.isJoined(1));
+  assert(page.mode == PickerMode::List && page.notice == PickerNotice::NeedsPhone && !table().lobby.isJoined(1));
   // The handler enforces the same policy, whatever the page said.
   Intent sneaky; sneaky.type = IntentType::PickProfile; sneaky.actor.origin = IntentOrigin::PhysicalSigil;
   sneaky.actor.controllerId = 1; sneaky.actor.slot = 1; strcpy(sneaky.payload.profileId, "0000000D");
-  assert(intents.dispatch(sneaky).status == IntentStatus::Unauthorized && !lobby.isJoined(1));
+  assert(intents.dispatch(sneaky).status == IntentStatus::Unauthorized && !table().lobby.isJoined(1));
 
   // Left: back a page. Right: Alice, then confirm; Left backs out, click joins.
   key(1, PickerKeyCode::Left); assert(profilePickerPage(1).page == 0);
   key(1, PickerKeyCode::Right);
   page = profilePickerPage(1);
   assert(page.mode == PickerMode::Confirm && page.itemCount == 1 && !strcmp(page.items[0].name, "Alice"));
-  key(1, PickerKeyCode::Left); assert(profilePickerPage(1).mode == PickerMode::List && !lobby.isJoined(1));
+  key(1, PickerKeyCode::Left); assert(profilePickerPage(1).mode == PickerMode::List && !table().lobby.isJoined(1));
   key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
-  assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
+  assert(table().lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
   assert(!pickerOpen(1) && profilePickerPage(1).mode == PickerMode::Closed);
   syncProfilePickers(testNow); assert(sentPickers[1].mode == PickerMode::Closed);
 
@@ -1359,23 +1432,23 @@ static void profilePicker() {
   assert((sigilMenuFor(1).actions & sigilActionBit(A::Leave)) != 0);
   assert((decodeMenuState2(fixtureMenuState2[1]).actions & sigilActionBit(A::Leave)) != 0);
   pick(1, A::Leave);
-  assert(!lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1).length() == 0);
+  assert(!table().lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1).length() == 0);
   pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
-  assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
+  assert(table().lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
 
   // Playtest 2026-09-29 item 8: Add seat B opens the picker for seat B, and a
   // picked profile adds seat B in one step. Seat A's Alice is not offered.
   pick(1, A::AddSeatB);
-  assert(pickerOpen(1) && !lobby.hasSecondary(1));
+  assert(pickerOpen(1) && !table().lobby.hasSecondary(1));
   page = profilePickerPage(1);
   assert(!strcmp(page.items[1].name, "bob") && !strcmp(page.items[2].name, "Carol"));
   key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
-  assert(lobby.hasSecondary(1) && TurnHubControllers::profileForSeat(1, 2) == "0000000B" && !pickerOpen(1));
-  pick(1, A::RemoveSeatB); assert(!lobby.hasSecondary(1));
+  assert(table().lobby.hasSecondary(1) && TurnHubControllers::profileForSeat(1, 2) == "0000000B" && !pickerOpen(1));
+  pick(1, A::RemoveSeatB); assert(!table().lobby.hasSecondary(1));
   { // A profile already at the table cannot take seat B, whatever the page said.
     Intent twice; twice.type = IntentType::PickProfile; twice.actor.origin = IntentOrigin::PhysicalSigil;
     twice.actor.controllerId = 1; twice.actor.slot = 2; strcpy(twice.payload.profileId, "0000000A");
-    assert(intents.dispatch(twice).status == IntentStatus::Conflict && !lobby.hasSecondary(1));
+    assert(intents.dispatch(twice).status == IntentStatus::Conflict && !table().lobby.hasSecondary(1));
   }
   // Removing seat B freed bob's seat; leaving from a phone frees Alice's seat
   // A too, so the Sigil no longer shows her and its next Join is not her.
@@ -1383,34 +1456,34 @@ static void profilePicker() {
   {
     Intent leave; leave.type = IntentType::LeaveProfile; leave.actor.origin = IntentOrigin::Browser;
     strcpy(leave.payload.profileId, "0000000A");
-    assert(intents.dispatch(leave).accepted() && !lobby.isJoined(1) &&
+    assert(intents.dispatch(leave).accepted() && !table().lobby.isJoined(1) &&
         TurnHubControllers::profileForSeat(1, 1).length() == 0);
   }
   pick(1, A::Join); key(1, PickerKeyCode::Right); key(1, PickerKeyCode::Select);
-  assert(lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
+  assert(table().lobby.isJoined(1) && TurnHubControllers::profileForSeat(1, 1) == "0000000A");
 
   // The OLED Sigil gets the same picker (it draws it as a list); Guest joins.
-  pick(2, A::Join); assert(pickerOpen(2) && !lobby.isJoined(2));
-  key(2, PickerKeyCode::Up); assert(lobby.isJoined(2) && !pickerOpen(2));
+  pick(2, A::Join); assert(pickerOpen(2) && !table().lobby.isJoined(2));
+  key(2, PickerKeyCode::Up); assert(table().lobby.isJoined(2) && !pickerOpen(2));
   pick(4, A::Join); key(4, PickerKeyCode::Up);
-  assert(lobby.isJoined(4) && TurnHubControllers::profileForSeat(4, 1).length() == 0 && !pickerOpen(4));
+  assert(table().lobby.isJoined(4) && TurnHubControllers::profileForSeat(4, 1).length() == 0 && !pickerOpen(4));
   pick(4, A::AddSeatB); key(4, PickerKeyCode::Up);  // Guest in seat B.
-  assert(lobby.hasSecondary(4) && TurnHubControllers::profileForSeat(4, 2).length() == 0 && !pickerOpen(4));
-  pick(4, A::RemoveSeatB); assert(!lobby.hasSecondary(4));
+  assert(table().lobby.hasSecondary(4) && TurnHubControllers::profileForSeat(4, 2).length() == 0 && !pickerOpen(4));
+  pick(4, A::RemoveSeatB); assert(!table().lobby.hasSecondary(4));
 
   // Alice now plays on a Sigil, so she is no longer offered elsewhere.
   pick(5, A::Join);
   page = profilePickerPage(5);
   assert(page.pageCount == 2 && !strcmp(page.items[1].name, "bob") && !strcmp(page.items[2].name, "Carol"));
   // Left on the first page cancels.
-  key(5, PickerKeyCode::Left); assert(!pickerOpen(5) && !lobby.isJoined(5));
+  key(5, PickerKeyCode::Left); assert(!pickerOpen(5) && !table().lobby.isJoined(5));
 
   // Idle for a minute closes it.
   pick(5, A::Join); assert(pickerOpen(5));
   testNow += PICKER_IDLE_MS; syncProfilePickers(testNow); assert(!pickerOpen(5));
   // Leaving the lobby closes it too.
   pick(5, A::Join); assert(pickerOpen(5));
-  pick(0, A::StartGame); assert(hubState == HubState::Starting);
+  pick(0, A::StartGame); assert(table().hubState == HubState::Starting);
   syncProfilePickers(testNow); assert(!pickerOpen(5));
 
   // Owner request 2026-10-07: during a game a Sigil outside it may take over a
@@ -1420,13 +1493,13 @@ static void profilePicker() {
   { Intent join; join.type = IntentType::JoinProfile; join.actor.origin = IntentOrigin::Browser;
     strcpy(join.payload.profileId, "0000000B"); assert(intents.dispatch(join).accepted()); }
   pick(1, A::Join); key(1, PickerKeyCode::Up);  // Guest on Sigil 1.
-  assert(lobby.playerCount() == 2);
+  assert(table().lobby.playerCount() == 2);
   pick(1, A::StartGame); testNow += START_COUNTDOWN_MS; updateCountdown(testNow);
-  assert(hubState == HubState::Running);
+  assert(table().hubState == HubState::Running);
   uint8_t bobController = INVALID_ID, bobSlot = 1;
   assert(resolveProfileParticipant("0000000B", bobController, bobSlot) && bobController >= MAX_PHYSICAL_SIGILS);
-  PlayerSeat bobSeat[2]; assert(game.playersForController(bobController, bobSeat, 2) == 1);
-  const int32_t bobLife = game.lifeTotal(bobSeat[0].playerNumber);
+  PlayerSeat bobSeat[2]; assert(table().game.playersForController(bobController, bobSeat, 2) == 1);
+  const int32_t bobLife = table().game.lifeTotal(bobSeat[0].playerNumber);
   resetSigilMenus();
   assert((sigilMenuFor(3).actions & sigilActionBit(A::Join)) != 0);
   assert((sigilMenuFor(1).actions & sigilActionBit(A::Join)) == 0);
@@ -1435,13 +1508,13 @@ static void profilePicker() {
   assert(page.mode == PickerMode::List && page.pageCount == 1 && page.itemCount == 1 && !strcmp(page.items[0].name, "bob"));
   key(3, PickerKeyCode::Up); assert(profilePickerPage(3).mode == PickerMode::Confirm);
   key(3, PickerKeyCode::Select);
-  assert(!pickerOpen(3) && game.controllerInGame(3) && !game.controllerInGame(bobController) && lobby.isJoined(3));
+  assert(!pickerOpen(3) && table().game.controllerInGame(3) && !table().game.controllerInGame(bobController) && table().lobby.isJoined(3));
   assert(TurnHubControllers::profileForSeat(3, 1) == "0000000B");
-  assert(game.playerByNumber(bobSeat[0].playerNumber)->controllerId == 3 && game.lifeTotal(bobSeat[0].playerNumber) == bobLife);
+  assert(table().game.playerByNumber(bobSeat[0].playerNumber)->controllerId == 3 && table().game.lifeTotal(bobSeat[0].playerNumber) == bobLife);
   { // Nobody new joins mid-game, and a Sigil already playing cannot take another player.
     Intent late; late.type = IntentType::PickProfile; late.actor.origin = IntentOrigin::PhysicalSigil;
     late.actor.controllerId = 5; late.actor.slot = 1; strcpy(late.payload.profileId, "0000000C");
-    assert(intents.dispatch(late).status == IntentStatus::InvalidActor && !game.controllerInGame(5));
+    assert(intents.dispatch(late).status == IntentStatus::InvalidActor && !table().game.controllerInGame(5));
   }
   // With nobody left to take over, Join is not offered; an open picker says so.
   resetSigilMenus(); assert((sigilMenuFor(5).actions & sigilActionBit(A::Join)) == 0);
@@ -1496,15 +1569,15 @@ static void sigilLife() {
   fixtureRecords[1].capabilities |= CAPABILITY_HARNESS;
   assert(offered(1));
   fixtureRecords[1].capabilities = 0;
-  const PlayerSeat a = *game.playerByNumber(lobby.playerNumber(0, 1));
-  const PlayerSeat b = *game.playerByNumber(lobby.playerNumber(1, 1));
-  const int32_t start = game.lifeTotal(a.playerNumber);
+  const PlayerSeat a = *table().game.playerByNumber(table().lobby.playerNumber(0, 1));
+  const PlayerSeat b = *table().game.playerByNumber(table().lobby.playerNumber(1, 1));
+  const int32_t start = table().game.lifeTotal(a.playerNumber);
   handleLifeAdjust(0, encodeLifeAdjust(a.playerNumber, -39));
-  assert(game.lifeTotal(a.playerNumber) == start - 39);
+  assert(table().game.lifeTotal(a.playerNumber) == start - 39);
   handleLifeAdjust(0, encodeLifeAdjust(a.playerNumber, 11));
-  assert(game.lifeTotal(a.playerNumber) == start - 28);
+  assert(table().game.lifeTotal(a.playerNumber) == start - 28);
   handleLifeAdjust(0, encodeLifeAdjust(b.playerNumber, -5));  // Not this Sigil's player.
-  assert(game.lifeTotal(b.playerNumber) == start);
+  assert(table().game.lifeTotal(b.playerNumber) == start);
 
   // Sigil 1's player asks to take 3 from Sigil 0's player.
   assert(sigilLifeRequestFor(0) == 0);
@@ -1517,29 +1590,29 @@ static void sigilLife() {
   assert(sigilLifeRequestFor(1) == 0);
   syncSigilMenus(testNow); assert(fixtureLifeRequest[0] == sigilLifeRequestFor(0));
   handleLifeResponse(0, encodeLifeResponse(a.playerNumber, true, shown.tag + 1));  // Stale tag.
-  assert(game.lifeTotal(a.playerNumber) == start - 28);
+  assert(table().game.lifeTotal(a.playerNumber) == start - 28);
   handleLifeResponse(1, encodeLifeResponse(a.playerNumber, true, shown.tag));  // Not the target's Sigil.
-  assert(game.lifeTotal(a.playerNumber) == start - 28);
+  assert(table().game.lifeTotal(a.playerNumber) == start - 28);
   handleLifeResponse(0, encodeLifeResponse(a.playerNumber, true, shown.tag));
-  assert(game.lifeTotal(a.playerNumber) == start - 31 && sigilLifeRequestFor(0) == 0);
+  assert(table().game.lifeTotal(a.playerNumber) == start - 31 && sigilLifeRequestFor(0) == 0);
   syncSigilMenus(testNow); assert(fixtureLifeRequest[0] == 0);
   assert(intents.dispatch(ask).accepted());
   handleLifeResponse(0, encodeLifeResponse(a.playerNumber, false, decodeLifeRequest(sigilLifeRequestFor(0)).tag));
-  assert(game.lifeTotal(a.playerNumber) == start - 31);
+  assert(table().game.lifeTotal(a.playerNumber) == start - 31);
 
   // Every menu Sigil learns the starting life and sees a pending pass, not
   // only the passer (turntest, 2026-09-26).
   syncSigilMenus(testNow);
   assert(fixtureStartingLife[0] == start && fixtureStartingLife[1] == start);
-  const PlayerSeat *passer = game.activePlayer();
+  const PlayerSeat *passer = table().game.activePlayer();
   assert(passer != nullptr);
   Intent pass; pass.type = IntentType::Pass; pass.actor.origin = IntentOrigin::PhysicalSigil;
   pass.actor.controllerId = passer->controllerId; pass.actor.slot = passer->slot;
   pass.actor.playerNumber = passer->playerNumber;
-  assert(intents.dispatch(pass).accepted() && pendingPass.active);
+  assert(intents.dispatch(pass).accepted() && table().pendingPass.active);
   syncSigilMenus(testNow);
   assert(fixturePassPending[0] == passer->playerNumber && fixturePassPending[1] == passer->playerNumber);
-  assert(intents.dispatch(pass).accepted() && !pendingPass.active);  // Pressed again: undone.
+  assert(intents.dispatch(pass).accepted() && !table().pendingPass.active);  // Pressed again: undone.
   syncSigilMenus(testNow);
   assert(fixturePassPending[0] == 0 && fixturePassPending[1] == 0);
 
@@ -1547,7 +1620,7 @@ static void sigilLife() {
   assert(dispatchSeatIntent(IntentType::Pause, IntentOrigin::PhysicalSigil, a).accepted());
   assert(offered(0));
   dispatchModuleIntent(IntentType::BeginElimination, 0);
-  assert(eliminationTargetPlayer != 0 && !offered(0));
+  assert(table().eliminationTargetPlayer != 0 && !offered(0));
   for (auto &record : fixtureRecords) {
     record.helloInfoValid = false; record.capabilities = 0;
   }
@@ -1614,7 +1687,8 @@ static void sigilMenus() {
   const auto only = [](uint8_t id, std::initializer_list<A> list) {
     uint32_t mask = 0;
     for (A a : list) mask |= sigilActionBit(a);
-    return sigilMenuFor(id).actions == mask;
+    // Switch game (venue tables) has its own scenario.
+    return (sigilMenuFor(id).actions & ~sigilActionBit(A::SwitchTable)) == mask;
   };
   const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
 
@@ -1634,7 +1708,8 @@ static void sigilMenus() {
   syncSigilMenus(testNow);
   assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   MenuStateFields sent = decodeMenuState2(fixtureMenuState2[2]);
-  assert(sent.actions == sigilActionBit(A::Join) && sent.defaultAction == SIGIL_ACTION_NONE);
+  assert(sent.actions == (sigilActionBit(A::Join) | sigilActionBit(A::SwitchTable)) &&
+      sent.defaultAction == SIGIL_ACTION_NONE);
   syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   invalidateSigilMenu(2); syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS + 1);
 
@@ -1642,57 +1717,57 @@ static void sigilMenus() {
   const uint8_t oldRevision = sigilMenuRevision(2);
   pick(2, A::Join); assert(pickerOpen(2));  // Every Sigil picks who joins; Guest is Up.
   handlePickerKey(2, encodePickerKey(PickerKeyCode::Up, profilePickerPage(2).revision), testNow);
-  assert(lobby.isJoined(2) && lobby.playerCount() == 3);
+  assert(table().lobby.isJoined(2) && table().lobby.playerCount() == 3);
   syncSigilMenus(testNow);
   assert(sigilMenuRevision(2) != oldRevision && decodeMenuState2(fixtureMenuState2[2]).revision == sigilMenuRevision(2));
   // A choice from the old menu is dropped (and the menu resent).
   handleSelectAction(2, encodeSelectAction(A::Join, oldRevision));
-  assert(lobby.playerCount() == 3);
+  assert(table().lobby.playerCount() == 3);
   // Unoffered actions are dropped even at the current revision.
-  pick(1, A::Rematch); assert(hubState == HubState::Lobby && lobby.playerCount() == 3);
+  pick(1, A::Rematch); assert(table().hubState == HubState::Lobby && table().lobby.playerCount() == 3);
 
   pick(1, A::AddSeatB);  // Seat B opens the picker too; Guest.
   handlePickerKey(1, encodePickerKey(PickerKeyCode::Up, profilePickerPage(1).revision), testNow);
-  assert(lobby.hasSecondary(1) && has(1, A::RemoveSeatB));
-  pick(1, A::RemoveSeatB); assert(!lobby.hasSecondary(1));
+  assert(table().lobby.hasSecondary(1) && has(1, A::RemoveSeatB));
+  pick(1, A::RemoveSeatB); assert(!table().lobby.hasSecondary(1));
 
   // Start from the menu: one choice arms and starts; anyone seated may cancel.
-  pick(0, A::StartGame); assert(hubState == HubState::Starting);
+  pick(0, A::StartGame); assert(table().hubState == HubState::Starting);
   assert(only(1, {A::CancelStart}));
-  pick(1, A::CancelStart); assert(hubState == HubState::Lobby);
-  pick(0, A::StartGame); assert(hubState == HubState::Starting);
-  testNow += 3000; updateCountdown(testNow); assert(hubState == HubState::Running);
+  pick(1, A::CancelStart); assert(table().hubState == HubState::Lobby);
+  pick(0, A::StartGame); assert(table().hubState == HubState::Starting);
+  testNow += 3000; updateCountdown(testNow); assert(table().hubState == HubState::Running);
 
   // Running: the active Sigil passes, claims or pauses; others may pause.
   // Every living seat can change its own life.
-  const uint8_t activeId = game.activePlayer()->controllerId;
+  const uint8_t activeId = table().game.activePlayer()->controllerId;
   const uint8_t otherId = activeId == 0 ? 1 : 0;
   assert(only(activeId, {A::Pass, A::ClaimWin, A::Pause, A::AdjustLife}));
   assert(sigilMenuFor(activeId).defaultAction == static_cast<uint8_t>(A::Pass));
   assert(only(otherId, {A::Pause, A::AdjustLife}));
-  pick(activeId, A::Pass); assert(pendingPass.active);
+  pick(activeId, A::Pass); assert(table().pendingPass.active);
   assert(has(activeId, A::CancelPass) && !has(activeId, A::Pass));
-  pick(activeId, A::CancelPass); assert(!pendingPass.active);
+  pick(activeId, A::CancelPass); assert(!table().pendingPass.active);
 
   // Paused: resume, "I'm out", and a claim for the active player.
-  pick(otherId, A::Pause); assert(hubState == HubState::Paused);
+  pick(otherId, A::Pause); assert(table().hubState == HubState::Paused);
   assert(only(otherId, {A::Resume, A::BeginElimination, A::AdjustLife}));
   assert(only(activeId, {A::Resume, A::BeginElimination, A::ClaimWin, A::AdjustLife}));
   pick(otherId, A::BeginElimination);
-  assert(eliminationTargetPlayer != 0 && game.playerByNumber(eliminationTargetPlayer)->controllerId == otherId);
+  assert(table().eliminationTargetPlayer != 0 && table().game.playerByNumber(table().eliminationTargetPlayer)->controllerId == otherId);
   assert(only(otherId, {A::Eliminate, A::CancelElimination}));
   assert(sigilMenuFor(otherId).defaultAction == static_cast<uint8_t>(A::Eliminate));
   assert(only(activeId, {A::CancelElimination}));
-  pick(activeId, A::CancelElimination); assert(eliminationTargetPlayer == 0);
-  pick(otherId, A::Resume); assert(hubState == HubState::Running);
+  pick(activeId, A::CancelElimination); assert(table().eliminationTargetPlayer == 0);
+  pick(otherId, A::Resume); assert(table().hubState == HubState::Running);
 
   // A win claim asks the other players to confirm or deny.
-  pick(activeId, A::ClaimWin); assert(game.hasWinClaim());
-  const PlayerSeat *confirmer = game.playerByNumber(game.nextWinConfirmationPlayerNumber());
+  pick(activeId, A::ClaimWin); assert(table().game.hasWinClaim());
+  const PlayerSeat *confirmer = table().game.playerByNumber(table().game.nextWinConfirmationPlayerNumber());
   assert(confirmer != nullptr);
   assert(only(confirmer->controllerId, {A::ConfirmWin, A::DenyWin}));
   assert(sigilMenuFor(confirmer->controllerId).defaultAction == static_cast<uint8_t>(A::ConfirmWin));
-  pick(confirmer->controllerId, A::DenyWin); assert(!game.hasWinClaim());
+  pick(confirmer->controllerId, A::DenyWin); assert(!table().game.hasWinClaim());
 
   for (auto &record : fixtureRecords) { record.helloInfoValid = false; record.capabilities = 0; }
   resetSigilMenus();
@@ -1809,7 +1884,7 @@ static void ledCueSelection() {
   // overlay (no table host since 2026-09-25).
   freshLobby(2);
   auto lobbyCue = [](uint8_t id, uint32_t now) {
-    return selectSigilLedState(id,HubState::Lobby,lobby,game,0,0,0,now);
+    return selectSigilLedState(id,HubState::Lobby,table().lobby,table().game,0,0,0,now);
   };
   const auto host = lobbyCue(0,0);
   assert(host.cue == LedCue::Joined && host.playerNumber == 1 && !host.has(LedOverlay::Host));
@@ -1838,15 +1913,15 @@ static void ledCueSelection() {
 static void turnTimerCuesAndMute() {
   using namespace TurnHub;
   freshLobby(2);
-  nextGameSettings.turnTimerMs = 60000;
+  table().nextGameSettings.turnTimerMs = 60000;
   startFromHost();
-  assert(game.turnTimerMs() == 60000);
-  const uint8_t active = game.activeController();
+  assert(table().game.turnTimerMs() == 60000);
+  const uint8_t active = table().game.activeController();
   resetBuzzes();
   // loop() samples millis() before the countdown stamps the new turn; that
   // stale sample must not raise a spurious EXPIRED cue at game start.
   updateTurnTimerCues(testNow - 1); drainAudio();
-  assert(totalBuzzes() == 0 && turnTimerCue.phase == TurnTimerPhase::Normal);
+  assert(totalBuzzes() == 0 && table().turnTimerCue.phase == TurnTimerPhase::Normal);
   testNow += 49000; updateTurnTimerCues(testNow); drainAudio();
   assert(totalBuzzes() == 0);
   testNow += 1000; updateTurnTimerCues(testNow); updateTurnTimerCues(testNow); drainAudio();
@@ -1854,25 +1929,25 @@ static void turnTimerCuesAndMute() {
   testNow += 10000; updateTurnTimerCues(testNow); drainAudio();
   assert(fixtureBuzzes[active] == 3 && totalBuzzes() == 3);  // Two-note expiry, once.
   testNow += 600000; updateTurnTimerCues(testNow); drainAudio();
-  assert(totalBuzzes() == 3 && hubState == HubState::Running && game.activeController() == active);
+  assert(totalBuzzes() == 3 && table().hubState == HubState::Running && table().game.activeController() == active);
   // Pause/resume does not replay the timer cue.
   assert(web(active,1,WebControl::PauseResume) && web(active,1,WebControl::PauseResume));
   resetBuzzes(); updateTurnTimerCues(testNow); drainAudio();
   assert(totalBuzzes() == 0);
   // The next turn re-arms, and muted audio stays silent while LEDs still render.
   choose(active,SigilAction::Pass); testNow += 3000; updatePendingPass(testNow);
-  const uint8_t next = game.activeController();
+  const uint8_t next = table().game.activeController();
   assert(next != active);
   resetBuzzes();
   AudioCueProfile muted = defaultAudioCueProfile();
   muted.enabled = false;
   audio.setProfile(muted);
   testNow += 51000; updateTurnTimerCues(testNow); drainAudio();
-  assert(totalBuzzes() == 0 && turnTimerCue.phase == TurnTimerPhase::Warning);
-  assert(selectSigilLedState(next,hubState,lobby,game,0,0,0,testNow).has(LedOverlay::TurnWarning));
+  assert(totalBuzzes() == 0 && table().turnTimerCue.phase == TurnTimerPhase::Warning);
+  assert(selectSigilLedState(next,table().hubState,table().lobby,table().game,0,0,0,testNow).has(LedOverlay::TurnWarning));
   audio.setProfile(defaultAudioCueProfile());
   // Settings stay lobby-only while the captured timer runs.
-  nextGameSettings = GameSettings{};
+  table().nextGameSettings = GameSettings{};
   enterEmptyLobby();
 }
 
@@ -1970,33 +2045,33 @@ static void actionRequiredCues() {
   freshLobby(3); startFromHost();
   clearTones();
   assert(web(0,1,WebControl::ClaimWin)); drainAudio();
-  const uint8_t first = player(game.nextWinConfirmationPlayerNumber()).controllerId;
+  const uint8_t first = player(table().game.nextWinConfirmationPlayerNumber()).controllerId;
   assert(heardActionRequired(first) && !heardActionRequired(0));
   for (uint8_t id = 0; id < 3; ++id) if (id != first) assert(!heardActionRequired(id));
   clearTones();
   choose(first,SigilAction::ConfirmWin); drainAudio();
-  const uint8_t second = player(game.nextWinConfirmationPlayerNumber()).controllerId;
+  const uint8_t second = player(table().game.nextWinConfirmationPlayerNumber()).controllerId;
   assert(second != first && heardActionRequired(second) && !heardActionRequired(first));
   clearTones();
   choose(second,SigilAction::ConfirmWin); drainAudio();
-  assert(game.gameOver());
+  assert(table().game.gameOver());
   for (uint8_t id = 0; id < 3; ++id) assert(!heardActionRequired(id));  // Nothing left to decide.
   // A life change request reaches only the recipient, who must approve it.
-  choose(0,SigilAction::Rematch); assert(hubState == HubState::Lobby);
+  choose(0,SigilAction::Rematch); assert(table().hubState == HubState::Lobby);
   startFromHost();
   clearTones();
   TurnHub::IntentPayload payload; payload.targetPlayer = 2; payload.value = -3; String message;
-  const uint8_t requester = game.playerByNumber(1)->controllerId;
-  const uint8_t recipient = game.playerByNumber(2)->controllerId;
+  const uint8_t requester = table().game.playerByNumber(1)->controllerId;
+  const uint8_t recipient = table().game.playerByNumber(2)->controllerId;
   assert(changeCounter(requester, 1, IntentType::RequestLifeChange, payload, message)); drainAudio();
   assert(heardActionRequired(recipient) && !heardActionRequired(requester));
-  game.cancelLifeChanges();
+  table().game.cancelLifeChanges();
   enterEmptyLobby();
 }
 
 static void turnTimerSettingsHttp() {
   enterEmptyLobby(); TurnHub::fixtureRadio = false; testNow = 1000;
-  nextGameSettings = TurnHub::GameSettings{};
+  table().nextGameSettings = TurnHub::GameSettings{};
   String hostId, guestId;
   const String host = registerPhone("Timer host", hostId), guest = registerPhone("Timer guest", guestId);
   assert(request("/api/session/join", host) == 200 && request("/api/session/join", guest) == 200);
@@ -2008,20 +2083,20 @@ static void turnTimerSettingsHttp() {
     assert(request("/api/game/settings", host, {{"turnTimerMs", bad}}) == 400);
   // Any seated player may set the timer (no table host).
   assert(request("/api/game/settings", guest, {{"turnTimerMs", "90000"}}) == 200);
-  assert(nextGameSettings.turnTimerMs == 90000);
+  assert(table().nextGameSettings.turnTimerMs == 90000);
   assert(request("/api/game/settings", guest, {{"turnTimerMs", "0"}}) == 200);
-  assert(nextGameSettings.turnTimerMs == 0);
+  assert(table().nextGameSettings.turnTimerMs == 0);
   // Partial update: only the timer changes.
-  nextGameSettings.profile = TurnHub::GameProfile::Magic; nextGameSettings.startingLife = 20;
+  table().nextGameSettings.profile = TurnHub::GameProfile::Magic; table().nextGameSettings.startingLife = 20;
   assert(request("/api/game/settings", host, {{"turnTimerMs", "90000"}}) == 200);
-  assert(nextGameSettings.turnTimerMs == 90000 && nextGameSettings.profile == TurnHub::GameProfile::Magic &&
-      nextGameSettings.startingLife == 20);
+  assert(table().nextGameSettings.turnTimerMs == 90000 && table().nextGameSettings.profile == TurnHub::GameProfile::Magic &&
+      table().nextGameSettings.startingLife == 20);
   assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
   assert(server.body.find("\"turnTimerMs\":90000") != std::string::npos);
   assert(server.body.find("\"turnTimer\":{\"phase\":\"NORMAL\",\"remainingMs\":null}") != std::string::npos);
   assert(request("/api/control/start", host) == 200);
   testNow += 3000; updateCountdown(testNow);
-  assert(hubState == HubState::Running);
+  assert(table().hubState == HubState::Running);
   testNow += 81000;
   assert(request("/api/v1/state", "", {}, HTTP_GET) == 200);
   assert(server.body.find("\"phase\":\"WARNING\",\"remainingMs\":9000") != std::string::npos);
@@ -2031,7 +2106,7 @@ static void turnTimerSettingsHttp() {
   assert(server.body.find("\"turnTimerMs\":90000") != std::string::npos &&
       server.body.find("\"timerPhase\":\"WARNING\"") != std::string::npos);
   assert(request("/api/game/settings", host, {{"turnTimerMs", "60000"}}) == 409);  // Lobby only.
-  enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
+  enterEmptyLobby(); table().nextGameSettings = TurnHub::GameSettings{};
 }
 
 static void sigilReceivePackets() {
@@ -2068,9 +2143,9 @@ static void saveClientFixture(const char *name, const String &json) {
 
 static void nativeClientBoundary() {
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
-  clientState.setNameLookup(displayNameForTableSeat);  // As setup() does.
+  table().clientState.setNameLookup(displayNameForTableSeat);  // As setup() does.
   enterEmptyLobby(); testNow = 1000;
-  nextGameSettings = TurnHub::GameSettings{};
+  table().nextGameSettings = TurnHub::GameSettings{};
   assert(request("/api/v1/info", "", {}, HTTP_GET) == 200);
   const String epoch = responseField("bootId");
   assert(epoch.length() == 32);
@@ -2103,7 +2178,7 @@ static void nativeClientBoundary() {
   namesAgree();
   assert(request("/api/control/start", first) == 200);
   testNow += 3000; updateCountdown(testNow);
-  assert(hubState == HubState::Running);
+  assert(table().hubState == HubState::Running);
   namesAgree();
   const auto runningRevision = clientRevision();
   testNow += 100; dispatchSystemIntent(IntentType::ExpireLifeChanges);
@@ -2116,17 +2191,17 @@ static void nativeClientBoundary() {
   for (const char *bad : {"", "-1", "01", "1x", "4294967296", "99999999999999999999"})
     assert(request("/api/control/pass", first, {{"expectedRevision", bad}, {"expectedBootId", epoch}}) == 400);
   assert(request("/api/control/pass", first, {{"expectedRevision", String(runningRevision)}, {"expectedBootId", "old-boot"}}) == 409);
-  assert(!pendingPass.active);
+  assert(!table().pendingPass.active);
   assert(request("/api/control/pass", first, {{"expectedRevision", String(runningRevision)}, {"expectedBootId", epoch}}) == 200);
-  assert(pendingPass.active && clientRevision() > runningRevision);
+  assert(table().pendingPass.active && clientRevision() > runningRevision);
   saveClientFixture("pass-result", server.body);
   const auto armedRevision = clientRevision();
   // Retry with the old revision cannot toggle/cancel the pending PASS.
   assert(request("/api/control/pass", first, {{"expectedRevision", String(runningRevision)}, {"expectedBootId", epoch}}) == 409);
-  assert(pendingPass.active && clientRevision() == armedRevision);
+  assert(table().pendingPass.active && clientRevision() == armedRevision);
   saveClientFixture("conflict", server.body);
   testNow += 3000; updatePendingPass(testNow);
-  assert(game.activePlayerNumber() == 2 && clientRevision() > armedRevision);
+  assert(table().game.activePlayerNumber() == 2 && clientRevision() > armedRevision);
   const String reconnected = loginPhone(firstId);
   assert(request("/api/session/me", reconnected, {}, HTTP_GET) == 200);
   assert(request("/api/v1/state", reconnected, {}, HTTP_GET) == 200);
@@ -2134,7 +2209,7 @@ static void nativeClientBoundary() {
   saveClientFixture("reconnected", server.body);
 
   freshLobby(2);
-  nextGameSettings.profile = TurnHub::GameProfile::Commander;
+  table().nextGameSettings.profile = TurnHub::GameProfile::Commander;
   startFromHost();
   String message;
   TurnHub::IntentPayload payload;
@@ -2149,42 +2224,42 @@ static void nativeClientBoundary() {
   const auto pendingRevision = clientRevision();
   testNow += TurnHub::LIFE_APPROVAL_MS;
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  assert(clientState.revision() > pendingRevision && game.lifeTotal(2) == 38);
-  const auto settledRevision = clientState.revision();
+  assert(table().clientState.revision() > pendingRevision && table().game.lifeTotal(2) == 38);
+  const auto settledRevision = table().clientState.revision();
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  assert(clientState.revision() == settledRevision);
+  assert(table().clientState.revision() == settledRevision);
   testNow = UINT32_MAX - 10000;
   assert(changeCounter(0, 1, IntentType::RequestLifeChange, payload, message));
-  const auto rolloverRevision = clientState.revision();
+  const auto rolloverRevision = table().clientState.revision();
   testNow += TurnHub::LIFE_APPROVAL_MS;
   dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  assert(clientState.revision() > rolloverRevision && game.lifeTotal(2) == 36);
+  assert(table().clientState.revision() > rolloverRevision && table().game.lifeTotal(2) == 36);
   // A recipient's longer window (accessibility) holds the request past 15 s.
-  assert(game.requestLifeChange(1, 2, -1, testNow, 60000));
-  assert(game.lifeChangeFor(2)->windowMs == 60000);
-  testNow += TurnHub::LIFE_APPROVAL_MS; game.expireLifeChanges(testNow);
-  assert(game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Pending && game.lifeTotal(2) == 36);
-  testNow += 60000 - TurnHub::LIFE_APPROVAL_MS; game.expireLifeChanges(testNow);
-  assert(game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Automatic && game.lifeTotal(2) == 35);
+  assert(table().game.requestLifeChange(1, 2, -1, testNow, 60000));
+  assert(table().game.lifeChangeFor(2)->windowMs == 60000);
+  testNow += TurnHub::LIFE_APPROVAL_MS; table().game.expireLifeChanges(testNow);
+  assert(table().game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Pending && table().game.lifeTotal(2) == 36);
+  testNow += 60000 - TurnHub::LIFE_APPROVAL_MS; table().game.expireLifeChanges(testNow);
+  assert(table().game.lifeChangeFor(2)->state == TurnHub::LifeChangeState::Automatic && table().game.lifeTotal(2) == 35);
 
   // Exercise the largest snapshot with every Commander source populated.
   GameEngine fullGame; Lobby fullLobby; TurnHub::ClientState full;
   PlayerSeat seats[MAX_PLAYERS];
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i)
     seats[i] = PlayerSeat(i + 1, i / 2, i % 2 + 1);
-  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], testNow, nextGameSettings));
+  assert(fullGame.start(seats, MAX_PLAYERS, seats[0], testNow, table().nextGameSettings));
   for (uint8_t i = 1; i <= MAX_PLAYERS; ++i)
     for (uint8_t j = 1; j <= MAX_PLAYERS; ++j)
       for (uint8_t c = 1; c <= 2; ++c)
         assert(fullGame.changeCommanderDamage(i, j, c, 1));
-  full.observe(HubState::Running, fullLobby, fullGame, nextGameSettings, {});
+  full.observe(HubState::Running, fullLobby, fullGame, table().nextGameSettings, {});
   const auto fullRevision = full.revision();
-  full.observe(HubState::Running, fullLobby, fullGame, nextGameSettings, {});
+  full.observe(HubState::Running, fullLobby, fullGame, table().nextGameSettings, {});
   assert(full.revision() == fullRevision);
   const String fullJson = full.json("THA-TEST", epoch.c_str(), fullGame, testNow, PASS_GRACE_MS);
   assert(fullJson.length() > 10000);
   saveClientFixture("full", fullJson);
-  enterEmptyLobby(); nextGameSettings = TurnHub::GameSettings{};
+  enterEmptyLobby(); table().nextGameSettings = TurnHub::GameSettings{};
 }
 
 // Recovery fault-injection scenarios run last: they change the process-wide
@@ -2224,7 +2299,7 @@ static void holdEndMatch() {
 }
 // A player's own PASS from their Sigil (the touchscreen no longer passes).
 static void seatPass() {
-  assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::PhysicalSigil,*game.activePlayer()).accepted());
+  assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::PhysicalSigil,*table().game.activePlayer()).accepted());
 }
 
 // Touch calibration math: solve from four simulated presses, then map.
@@ -2270,10 +2345,10 @@ static void oledSigilSeatsTwoPlayers() {
   freshLobby(2);
   TurnHub::fixtureRecords[1].capabilities=CAPABILITY_DISPLAY_OLED;
   choose(1,SigilAction::AddSeatB);
-  assert(lobby.hasSecondary(1) && lobby.playerCount()==3);
+  assert(table().lobby.hasSecondary(1) && table().lobby.playerCount()==3);
   assert(dispatchModuleIntent(IntentType::Leave,1,2).accepted());
-  assert(dispatchModuleIntent(IntentType::Join,1,2).accepted() && lobby.hasSecondary(1));
-  assert(dispatchModuleIntent(IntentType::Join,0,2).accepted() && lobby.hasSecondary(0));
+  assert(dispatchModuleIntent(IntentType::Join,1,2).accepted() && table().lobby.hasSecondary(1));
+  assert(dispatchModuleIntent(IntentType::Join,0,2).accepted() && table().lobby.hasSecondary(0));
   assert(dispatchModuleIntent(IntentType::ArmStart,0).accepted());
   TurnHub::fixtureRecords[1].capabilities=0;
   enterEmptyLobby();
@@ -2293,7 +2368,7 @@ static void touchControls() {
   tapButton(TouchAction::OpenMenu); s=currentScreen();
   assert(s.kind==ScreenKind::Menu && String(s.badge)=="MENU" && screenButton(s,TouchAction::Pair) &&
       screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::OpenInfo) &&
-      screenButton(s,TouchAction::CloseScreen) && hubState==HubState::Lobby);
+      screenButton(s,TouchAction::CloseScreen) && table().hubState==HubState::Lobby);
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=SCREEN_BODY_Y && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
 
@@ -2354,7 +2429,7 @@ static void touchControls() {
       !screenButton(s,TouchAction::EndMatch) && !screenButton(s,TouchAction::MasterPass));
   seatPass(); assert(String(currentScreen().detail)=="Passing in 3s: that seat can cancel");
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
-  tapButton(TouchAction::Pause); assert(hubState==HubState::Paused);
+  tapButton(TouchAction::Pause); assert(table().hubState==HubState::Paused);
   s=currentScreen();
   assert(String(s.title)=="Paused" && s.buttonCount==2 && screenButton(s,TouchAction::Resume) &&
       screenButton(s,TouchAction::OpenTable));
@@ -2362,14 +2437,14 @@ static void touchControls() {
   tapButton(TouchAction::OpenTable); s=currentScreen();
   assert(s.kind==ScreenKind::Table && String(s.detail)=="Resume to use Master pass" &&
       !screenButton(s,TouchAction::MasterPass) && screenButton(s,TouchAction::EndMatch)->hold());
-  tapButton(TouchAction::CloseScreen); tapButton(TouchAction::Resume); assert(hubState==HubState::Running);
+  tapButton(TouchAction::CloseScreen); tapButton(TouchAction::Resume); assert(table().hubState==HubState::Running);
 
   // Playtest 2026-09-29 item 9: a player's chip opens their screen, which
   // changes their own life and concedes only after asking again.
   {
-    const PlayerSeat second=*game.playerAt(1);
-    const int32_t life=game.lifeTotal(second.playerNumber);
-    int16_t cx,cy,cw,ch; screenChipCell(1,game.playerCount(),cx,cy,cw,ch);
+    const PlayerSeat second=*table().game.playerAt(1);
+    const int32_t life=table().game.lifeTotal(second.playerNumber);
+    int16_t cx,cy,cw,ch; screenChipCell(1,table().game.playerCount(),cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+ch/2); testNow+=30; touchAt(cx+cw/2,cy+ch/2); touchRelease();
     s=currentScreen();
     assert(s.kind==ScreenKind::Player && String(s.badge)=="PLAYER" && s.buttonCount==6 &&
@@ -2377,11 +2452,11 @@ static void touchControls() {
         !screenButton(s,TouchAction::Concede)->hold());
     for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None) assert(b.w>=44 && b.h>=44);
     tapButton(TouchAction::LifeMinus5); tapButton(TouchAction::LifePlus1);
-    assert(game.lifeTotal(second.playerNumber)==life-4);
+    assert(table().game.lifeTotal(second.playerNumber)==life-4);
     tapButton(TouchAction::Concede); s=currentScreen();
-    assert(!game.isEliminated(second.playerNumber) && screenButton(s,TouchAction::ConfirmConcede) &&
+    assert(!table().game.isEliminated(second.playerNumber) && screenButton(s,TouchAction::ConfirmConcede) &&
         screenButton(s,TouchAction::CancelConcede) && startsWith(s.detail,"Concede for "));
-    tapButton(TouchAction::CancelConcede); assert(!game.isEliminated(second.playerNumber));
+    tapButton(TouchAction::CancelConcede); assert(!table().game.isEliminated(second.playerNumber));
     tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
   }
 
@@ -2393,13 +2468,13 @@ static void touchControls() {
   for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
     assert(b.w>=44 && b.h>=44 && b.x>=0 && b.y>=SCREEN_BODY_Y && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
   tapButton(TouchAction::EndMatch);
-  assert(hubState==HubState::Running && String(currentScreen().notice)=="Keep holding for 5 s to end the match");
+  assert(table().hubState==HubState::Running && String(currentScreen().notice)=="Keep holding for 5 s to end the match");
   completedGames=0;
   pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
   s=currentScreen(); assert(s.pressed==TouchAction::EndMatch && s.holdSecondsLeft==1);
-  assert(hubState==HubState::Running);
+  assert(table().hubState==HubState::Running);
   testNow+=1; pressButton(TouchAction::EndMatch);
-  assert(hubState==HubState::GameOver && game.endedInDraw() && completedGames==1);
+  assert(table().hubState==HubState::GameOver && table().game.endedInDraw() && completedGames==1);
   touchAt(160,120); testNow+=5000; touchAt(160,120); touchRelease();
   assert(completedGames==1);
   s=currentScreen();
@@ -2416,31 +2491,31 @@ static void touchControls() {
   // Four players across three Sigils: third is A on the last shared Sigil.
   enterEmptyLobby(); freshLobby(3);
   {
-    PlayerSeat joined[4]; lobby.buildPlayers(joined, 4);
+    PlayerSeat joined[4]; table().lobby.buildPlayers(joined, 4);
     const uint8_t shared = joined[2].controllerId;
     bool added; PlayerSeat b;
-    assert(lobby.toggleSecondary(shared, added, b) && added);
-    PlayerSeat starter; assert(lobby.selectStarterSeat(shared, 1, starter));
-    lobby.buildPlayers(joined, 4);
+    assert(table().lobby.toggleSecondary(shared, added, b) && added);
+    PlayerSeat starter; assert(table().lobby.selectStarterSeat(shared, 1, starter));
+    table().lobby.buildPlayers(joined, 4);
     const uint32_t aParticipant = joined[2].participantId;
     const uint32_t bParticipant = joined[3].participantId;
     int16_t cx,cy,cw,ch; screenChipCell(2,4,cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+ch/2); touchRelease();
     s=currentScreen();
     assert(startsWith(s.detail,"Turn order: 3 of 4") && screenButton(s,TouchAction::SeatBLeft));
-    lobby.setStartArmedBy(shared);
+    table().lobby.setStartArmedBy(shared);
     tapButton(TouchAction::MoveLater);
-    assert(lobby.playerNumber(shared,1)==4 && lobby.playerNumber(shared,2)==3 &&
-        lobby.startArmedBy()==INVALID_ID);
-    assert(lobby.selectedStarter(starter) && starter.slot==1 && starter.playerNumber==4);
+    assert(table().lobby.playerNumber(shared,1)==4 && table().lobby.playerNumber(shared,2)==3 &&
+        table().lobby.startArmedBy()==INVALID_ID);
+    assert(table().lobby.selectedStarter(starter) && starter.slot==1 && starter.playerNumber==4);
     assert(startsWith(currentScreen().detail,"Turn order: 4 of 4"));
     tapButton(TouchAction::MoveLater);
     assert(startsWith(currentScreen().notice,"Already last"));
     tapButton(TouchAction::SeatBRight);
-    assert(lobby.playerNumber(shared,1)==3 && !lobby.secondaryFirst(shared));
+    assert(table().lobby.playerNumber(shared,1)==3 && !table().lobby.secondaryFirst(shared));
     tapButton(TouchAction::SeatBLeft);
-    assert(lobby.playerNumber(shared,2)==3 && lobby.secondaryFirst(shared));
-    lobby.buildPlayers(joined,4);
+    assert(table().lobby.playerNumber(shared,2)==3 && table().lobby.secondaryFirst(shared));
+    table().lobby.buildPlayers(joined,4);
     assert(joined[2].slot==2 && joined[2].participantId==bParticipant &&
         joined[3].slot==1 && joined[3].participantId==aParticipant);
     Intent side; side.type=IntentType::SetSeatSide; side.payload.targetPlayer=3;
@@ -2452,10 +2527,10 @@ static void touchControls() {
     assert(intents.dispatch(side).status==IntentStatus::Conflict);
     tapButton(TouchAction::CloseScreen);
     startFromHost();
-    assert(game.playerAt(2)->slot==2 && game.playerAt(3)->slot==1);
+    assert(table().game.playerAt(2)->slot==2 && table().game.playerAt(3)->slot==1);
     side.payload.targetPlayer=3;
     assert(intents.dispatch(side).status==IntentStatus::InvalidState);
-    TurnHub::GameCheckpoint saved; game.checkpoint(saved,testNow);
+    TurnHub::GameCheckpoint saved; table().game.checkpoint(saved,testNow);
     assert(TurnHub::validCheckpoint(saved));
     Lobby restored;
     assert(restored.restorePlayers(saved.players,saved.count,saved.starter));
@@ -2485,13 +2560,13 @@ static void touchControls() {
     assert(pairRestored.secondaryFirst(0) && pairRestored.secondaryFirst(1));
     // Atlas sends physical B identity even when B has the lower number.
     LedRenderer renderer(sigilBus);
-    renderer.render(HubState::Running,lobby,game,0,0,0,testNow);
+    renderer.render(HubState::Running,table().lobby,table().game,0,0,0,testNow);
     assert(!TurnHubProtocol::hasDisplayFlag(TurnHub::sentGameDisplays[shared].state,
         TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B)); // starter is A
-    assert(game.passTurn(shared,testNow+1));
-    assert(game.passTurn(game.activeController(),testNow+1));
-    assert(game.passTurn(game.activeController(),testNow+1));
-    renderer.render(HubState::Running,lobby,game,0,0,0,testNow+1);
+    assert(table().game.passTurn(shared,testNow+1));
+    assert(table().game.passTurn(table().game.activeController(),testNow+1));
+    assert(table().game.passTurn(table().game.activeController(),testNow+1));
+    renderer.render(HubState::Running,table().lobby,table().game,0,0,0,testNow+1);
     assert(TurnHubProtocol::hasDisplayFlag(TurnHub::sentGameDisplays[shared].state,
         TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B));
     // Reject recovery with a nonadjacent B/A pair.
@@ -2503,19 +2578,19 @@ static void touchControls() {
   // that one seat out (seat A takes its Sigil's seat B too); a tap does not.
   enterEmptyLobby(); freshLobby(3);
   {
-    PlayerSeat seats[3]; lobby.buildPlayers(seats,3);
+    PlayerSeat seats[3]; table().lobby.buildPlayers(seats,3);
     const uint8_t gone=seats[1].controllerId;
     int16_t cx,cy,cw,ch; screenChipCell(1,3,cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+ch/2); touchRelease();
     assert(screenButton(currentScreen(),TouchAction::RemoveSeat));
-    tapButton(TouchAction::RemoveSeat); assert(lobby.playerCount()==3);
+    tapButton(TouchAction::RemoveSeat); assert(table().lobby.playerCount()==3);
     pressButton(TouchAction::RemoveSeat); testNow+=LOBBY_REMOVE_HOLD_MS; pressButton(TouchAction::RemoveSeat); touchRelease();
-    assert(lobby.playerCount()==2 && !lobby.isJoined(gone) && currentScreen().kind==ScreenKind::Status);
+    assert(table().lobby.playerCount()==2 && !table().lobby.isJoined(gone) && currentScreen().kind==ScreenKind::Status);
     assert(logHas("ATLAS|LOBBY|REMOVE|CONTROLLER|"));
     // Only the Atlas screen, and only in the lobby.
     Intent fromPhone; fromPhone.type=IntentType::RemoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
     fromPhone.actor.controllerId=seats[0].controllerId; fromPhone.actor.slot=1;
-    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
+    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && table().lobby.playerCount()==2);
     Intent missing; missing.type=IntentType::RemoveSeat; missing.actor.origin=IntentOrigin::AtlasHardware;
     missing.actor.controllerId=gone; missing.actor.slot=1;
     assert(intents.dispatch(missing).status==IntentStatus::InvalidActor);
@@ -2523,19 +2598,19 @@ static void touchControls() {
     const uint8_t shared=seats[0].controllerId;
     Intent addB; addB.type=IntentType::Join; addB.actor.origin=IntentOrigin::PhysicalSigil;
     addB.actor.controllerId=shared; addB.actor.slot=2;
-    assert(intents.dispatch(addB).accepted() && lobby.hasSecondary(shared) && lobby.playerCount()==3);
+    assert(intents.dispatch(addB).accepted() && table().lobby.hasSecondary(shared) && table().lobby.playerCount()==3);
     Intent removeB=missing; removeB.actor.controllerId=shared; removeB.actor.slot=2;
-    assert(intents.dispatch(removeB).accepted() && !lobby.hasSecondary(shared) && lobby.isJoined(shared));
+    assert(intents.dispatch(removeB).accepted() && !table().lobby.hasSecondary(shared) && table().lobby.isJoined(shared));
     assert(intents.dispatch(addB).accepted());
     Intent removeA=removeB; removeA.actor.slot=1;
-    assert(intents.dispatch(removeA).accepted() && !lobby.isJoined(shared) && lobby.playerCount()==1);
+    assert(intents.dispatch(removeA).accepted() && !table().lobby.isJoined(shared) && table().lobby.playerCount()==1);
   }
 
   // Playtest 2026-09-29 item 11: in the lobby a chip opens that seat's turn
   // order; any player may move it, from the Atlas screen only.
   enterEmptyLobby(); freshLobby(3);
   {
-    PlayerSeat seats[3]; lobby.buildPlayers(seats,3);
+    PlayerSeat seats[3]; table().lobby.buildPlayers(seats,3);
     const uint8_t mover=seats[2].controllerId;
     int16_t cx,cy,cw,ch; screenChipCell(2,3,cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+ch/2); touchRelease();
@@ -2544,16 +2619,16 @@ static void touchControls() {
         screenButton(s,TouchAction::MoveEarlier) && screenButton(s,TouchAction::MoveLater) &&
         !screenButton(s,TouchAction::Concede));
     tapButton(TouchAction::MoveEarlier);
-    assert(lobby.playerNumber(mover)==2 && startsWith(currentScreen().detail,"Turn order: 2 of 3"));
-    tapButton(TouchAction::MoveEarlier); assert(lobby.playerNumber(mover)==1);
+    assert(table().lobby.playerNumber(mover)==2 && startsWith(currentScreen().detail,"Turn order: 2 of 3"));
+    tapButton(TouchAction::MoveEarlier); assert(table().lobby.playerNumber(mover)==1);
     tapButton(TouchAction::MoveEarlier);
-    assert(lobby.playerNumber(mover)==1 && startsWith(currentScreen().notice,"Already first"));
+    assert(table().lobby.playerNumber(mover)==1 && startsWith(currentScreen().notice,"Already first"));
     Intent fromPhone; fromPhone.type=IntentType::MoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
     fromPhone.payload.targetPlayer=1; fromPhone.payload.value=1;
-    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && lobby.playerNumber(mover)==1);
+    assert(intents.dispatch(fromPhone).status==IntentStatus::Unauthorized && table().lobby.playerNumber(mover)==1);
     tapButton(TouchAction::CloseScreen);
     // The new order is the game's turn order.
-    startFromHost(); assert(game.playerAt(0)->controllerId==mover);
+    startFromHost(); assert(table().game.playerAt(0)->controllerId==mover);
     Intent late; late.type=IntentType::MoveSeat; late.actor.origin=IntentOrigin::AtlasHardware;
     late.payload.targetPlayer=1; late.payload.value=1;
     assert(intents.dispatch(late).status==IntentStatus::InvalidState);
@@ -2562,19 +2637,19 @@ static void touchControls() {
   // A confirmed concession from the Player screen goes through Concede: the
   // player is out, the match goes on, and their screen closes.
   {
-    const uint8_t third=game.playerAt(2)->playerNumber;
-    int16_t cx,cy,cw,ch; screenChipCell(2,game.playerCount(),cx,cy,cw,ch);
+    const uint8_t third=table().game.playerAt(2)->playerNumber;
+    int16_t cx,cy,cw,ch; screenChipCell(2,table().game.playerCount(),cx,cy,cw,ch);
     touchAt(cx+cw/2,cy+ch/2); touchRelease();
     tapButton(TouchAction::Concede); tapButton(TouchAction::ConfirmConcede);
-    assert(game.isEliminated(third) && hubState==HubState::Running && currentScreen().kind==ScreenKind::Status);
+    assert(table().game.isEliminated(third) && table().hubState==HubState::Running && currentScreen().kind==ScreenKind::Status);
     // An eliminated player's chip opens nothing.
     touchAt(cx+cw/2,cy+ch/2); touchRelease(); assert(currentScreen().kind==ScreenKind::Status);
   }
 
   // A press whose button disappears before release does nothing.
   enterEmptyLobby(); freshLobby(2); startFromHost();
-  pressButton(TouchAction::Pause); assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
-  touchRelease(); assert(hubState==HubState::Paused);
+  pressButton(TouchAction::Pause); assert(web(0,1,WebControl::PauseResume) && table().hubState==HubState::Paused);
+  touchRelease(); assert(table().hubState==HubState::Paused);
   resetTouchControls(); enterEmptyLobby();
 }
 
@@ -2605,7 +2680,7 @@ static void atlasScreens() {
   // The shipped default password is public, so its Wi-Fi code shows freely.
   assert(String(s.qr)=="WIFI:T:WPA;S:TurnHub-Atlas;P:TurnHub-Setup;;" && screenButton(s,TouchAction::QrWifi)->selected);
   tapButton(TouchAction::QrSignIn); assert(String(currentScreen().qr)=="http://192.168.4.1/login");
-  assert(hubState==HubState::Lobby && lobby.playerCount()==3);  // Screens change no table state.
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==3);  // Screens change no table state.
   // Back steps out one level: QR codes to the Menu, then the Menu to the lobby.
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Menu);
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind==ScreenKind::Status);
@@ -2629,11 +2704,11 @@ static void atlasScreens() {
   seatPass(); testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(currentScreen().round==2);
   uint8_t active=0;
   for (uint8_t i=0;i<s.playerCount;++i) {
-    assert(s.players[i].life==game.lifeTotal(s.players[i].number));
-    if (s.players[i].flags&CHIP_ACTIVE) { ++active; assert(s.players[i].number==game.activePlayerNumber()); }
+    assert(s.players[i].life==table().game.lifeTotal(s.players[i].number));
+    if (s.players[i].flags&CHIP_ACTIVE) { ++active; assert(s.players[i].number==table().game.activePlayerNumber()); }
   }
   assert(active==1);
-  char title[32]; snprintf(title,sizeof(title),"Player %u's turn",static_cast<unsigned>(game.activePlayerNumber()));
+  char title[32]; snprintf(title,sizeof(title),"Player %u's turn",static_cast<unsigned>(table().game.activePlayerNumber()));
   assert(String(s.title)==title);
   resetTouchControls(); enterEmptyLobby();
 }
@@ -2721,7 +2796,7 @@ static void harnessScreen() {
   TurnHub::fixtureHarnessCommands=0; tapButton(TouchAction::RunFullGame);
   assert(TurnHub::fixtureHarnessCommands==1 && harnessCommandKind(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessCommandKind::Run) &&
       harnessCommandTest(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessTest::FullGame));
-  assert(hubState==HubState::Lobby);  // Atlas changes nothing itself; the harness plays.
+  assert(table().hubState==HubState::Lobby);  // Atlas changes nothing itself; the harness plays.
 
   noteHarnessReport(2,encodeHarnessReport(running),testNow); s=currentScreen();
   assert(String(s.title)=="4-player game" && String(s.detail)=="TURN, 12 ok" &&
@@ -2751,35 +2826,35 @@ static void touchTableLifecycle() {
   resetTouchControls(); freshLobby(1); pairingActive=false;
   assert(!screenButton(currentScreen(),TouchAction::StartGame));
   Intent start; start.type=IntentType::StartGame; start.actor.origin=IntentOrigin::AtlasHardware;
-  assert(intents.dispatch(start).status==IntentStatus::InvalidState && hubState==HubState::Lobby);
+  assert(intents.dispatch(start).status==IntentStatus::InvalidState && table().hubState==HubState::Lobby);
   freshLobby(3); tapButton(TouchAction::StartGame);
-  assert(hubState==HubState::Starting);
+  assert(table().hubState==HubState::Starting);
   AtlasScreen s=currentScreen();
   assert(s.buttonCount==1 && screenButton(s,TouchAction::CancelStart));
-  tapButton(TouchAction::CancelStart); assert(hubState==HubState::Lobby && lobby.playerCount()==3);
+  tapButton(TouchAction::CancelStart); assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==3);
   // Only the touchscreen skips the seat and arming: an unseated browser cannot.
   Intent stranger=start; stranger.actor.origin=IntentOrigin::Browser;
   stranger.actor.controllerId=MAX_PHYSICAL_SIGILS; stranger.actor.slot=1;
-  assert(!intents.dispatch(stranger).accepted() && hubState==HubState::Lobby);
+  assert(!intents.dispatch(stranger).accepted() && table().hubState==HubState::Lobby);
   tapButton(TouchAction::StartGame); testNow+=START_COUNTDOWN_MS; updateCountdown(testNow);
-  assert(hubState==HubState::Running);
+  assert(table().hubState==HubState::Running);
   // Rematch and Reset only after a game.
   for (IntentType type : {IntentType::Rematch, IntentType::ResetGame}) {
     Intent early; early.type=type; early.actor.origin=IntentOrigin::AtlasHardware;
-    assert(intents.dispatch(early).status==IntentStatus::InvalidState && hubState==HubState::Running);
+    assert(intents.dispatch(early).status==IntentStatus::InvalidState && table().hubState==HubState::Running);
   }
-  holdEndMatch(); assert(hubState==HubState::GameOver);
-  tapButton(TouchAction::Rematch); assert(hubState==HubState::Lobby && lobby.playerCount()==3);
+  holdEndMatch(); assert(table().hubState==HubState::GameOver);
+  tapButton(TouchAction::Rematch); assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==3);
   tapButton(TouchAction::StartGame); testNow+=START_COUNTDOWN_MS; updateCountdown(testNow);
-  holdEndMatch(); assert(hubState==HubState::GameOver);
-  tapButton(TouchAction::ResetTable); assert(hubState==HubState::Lobby && lobby.playerCount()==0);
+  holdEndMatch(); assert(table().hubState==HubState::GameOver);
+  tapButton(TouchAction::ResetTable); assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==0);
   // Lobby Clear: a hold, shown only with someone joined; a tap only explains.
   assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
   freshLobby(3); resetTouchControls();
   assert(screenButton(currentScreen(),TouchAction::ClearLobby));
-  tapButton(TouchAction::ClearLobby); assert(lobby.playerCount()==3);
+  tapButton(TouchAction::ClearLobby); assert(table().lobby.playerCount()==3);
   pressButton(TouchAction::ClearLobby); testNow+=LOBBY_CLEAR_HOLD_MS; pressButton(TouchAction::ClearLobby); touchRelease();
-  assert(hubState==HubState::Lobby && lobby.playerCount()==0);
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==0);
   assert(!screenButton(currentScreen(),TouchAction::ClearLobby));
   resetTouchControls(); enterEmptyLobby();
 }
@@ -2795,41 +2870,41 @@ static void masterPass() {
     Intent other=master; other.actor.origin=origin;
     assert(intents.dispatch(other).status==IntentStatus::Unauthorized);
   }
-  const uint8_t first=game.activePlayerNumber();
+  const uint8_t first=table().game.activePlayerNumber();
   // A short press only explains; the full hold passes once, immediately, and
   // returns to the status screen.
   tapButton(TouchAction::OpenTable);
   char detail[48]; snprintf(detail,sizeof(detail),"Stuck turn? Master pass skips Player %u",static_cast<unsigned>(first));
   assert(String(currentScreen().detail)==detail);
   tapButton(TouchAction::MasterPass);
-  assert(game.activePlayerNumber()==first && String(currentScreen().notice)=="Keep holding for 2 s to pass this turn");
+  assert(table().game.activePlayerNumber()==first && String(currentScreen().notice)=="Keep holding for 2 s to pass this turn");
   const size_t activityBefore=TurnHub::Diagnostics::activityLog().count;
   pressButton(TouchAction::MasterPass); testNow+=MASTER_PASS_HOLD_MS-1; pressButton(TouchAction::MasterPass);
-  assert(game.activePlayerNumber()==first);
+  assert(table().game.activePlayerNumber()==first);
   testNow+=1; keepPressing();
-  const uint8_t second=game.activePlayerNumber();
-  assert(second!=first && !pendingPass.active && hubState==HubState::Running);
+  const uint8_t second=table().game.activePlayerNumber();
+  assert(second!=first && !table().pendingPass.active && table().hubState==HubState::Running);
   assert(currentScreen().kind==ScreenKind::Status && String(currentScreen().notice)=="Master pass: turn passed");
-  testNow+=5000; keepPressing(); touchRelease(); assert(game.activePlayerNumber()==second);
+  testNow+=5000; keepPressing(); touchRelease(); assert(table().game.activePlayerNumber()==second);
   { const TurnHub::Diagnostics::ActivityLog &log=TurnHub::Diagnostics::activityLog();
     assert(log.count==activityBefore+1 || log.count==TurnHub::Diagnostics::ACTIVITY_CAPACITY);
     const TurnHub::Diagnostics::ActivityEvent &last=log.entries[(log.next+TurnHub::Diagnostics::ACTIVITY_CAPACITY-1)%TurnHub::Diagnostics::ACTIVITY_CAPACITY];
     assert(String(last.kind)=="master_pass" && startsWith(last.message,"player=")); }
   // It overrides a queued PASS: one turn passes, not two.
-  seatPass(); assert(pendingPass.active);
+  seatPass(); assert(table().pendingPass.active);
   assert(intents.dispatch(master).accepted());
-  const uint8_t third=game.activePlayerNumber();
-  assert(third!=second && !pendingPass.active);
-  testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(game.activePlayerNumber()==third);
+  const uint8_t third=table().game.activePlayerNumber();
+  assert(third!=second && !table().pendingPass.active);
+  testNow+=PASS_GRACE_MS; updatePendingPass(testNow); assert(table().game.activePlayerNumber()==third);
   // Not while paused, nor over a win claim.
-  assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
+  assert(web(0,1,WebControl::PauseResume) && table().hubState==HubState::Paused);
   assert(intents.dispatch(master).status==IntentStatus::InvalidState);
-  assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Running);
-  const PlayerSeat claimant=*game.activePlayer();
-  assert(web(claimant.controllerId,claimant.slot,WebControl::ClaimWin) && game.hasWinClaim());
-  assert(!intents.dispatch(master).accepted() && game.hasWinClaim());
+  assert(web(0,1,WebControl::PauseResume) && table().hubState==HubState::Running);
+  const PlayerSeat claimant=*table().game.activePlayer();
+  assert(web(claimant.controllerId,claimant.slot,WebControl::ClaimWin) && table().game.hasWinClaim());
+  assert(!intents.dispatch(master).accepted() && table().game.hasWinClaim());
   // The Table screen closes with the match.
-  holdEndMatch(); assert(hubState==HubState::GameOver && currentScreen().kind==ScreenKind::Status);
+  holdEndMatch(); assert(table().hubState==HubState::GameOver && currentScreen().kind==ScreenKind::Status);
   resetTouchControls(); enterEmptyLobby();
 }
 
@@ -2838,30 +2913,30 @@ static void endMatchAsDraw() {
   // Only a match in progress, and only the Atlas hardware, can end it.
   resetTouchControls(); freshLobby(2);
   Intent end; end.type=IntentType::EndMatch; end.actor.origin=IntentOrigin::AtlasHardware;
-  assert(!intents.dispatch(end).accepted() && hubState==HubState::Lobby);
-  assert(lobby.playerCount()==2 && !screenButton(currentScreen(),TouchAction::EndMatch));
+  assert(!intents.dispatch(end).accepted() && table().hubState==HubState::Lobby);
+  assert(table().lobby.playerCount()==2 && !screenButton(currentScreen(),TouchAction::EndMatch));
   startFromHost();
   for (auto origin : {IntentOrigin::Browser, IntentOrigin::AndroidApp, IntentOrigin::PhysicalSigil,
                       IntentOrigin::Simulator, IntentOrigin::System}) {
     Intent other=end; other.actor.origin=origin;
     assert(intents.dispatch(other).status==IntentStatus::Unauthorized);
   }
-  assert(hubState==HubState::Running && !game.gameOver());
+  assert(table().hubState==HubState::Running && !table().game.gameOver());
 
   // The full hold overrides a queued PASS and ends the match once, as a draw.
-  seatPass(); assert(pendingPass.active);
+  seatPass(); assert(table().pendingPass.active);
   openTableScreen(); pressButton(TouchAction::EndMatch); testNow+=END_MATCH_HOLD_MS-1; pressButton(TouchAction::EndMatch);
-  assert(hubState==HubState::Running && pendingPass.active);
+  assert(table().hubState==HubState::Running && table().pendingPass.active);
   testNow+=1; keepPressing();
-  assert(hubState==HubState::GameOver && game.endedInDraw() && game.winnerPlayerNumber()==0);
-  assert(!pendingPass.active && completedGames==1);
+  assert(table().hubState==HubState::GameOver && table().game.endedInDraw() && table().game.winnerPlayerNumber()==0);
+  assert(!table().pendingPass.active && completedGames==1);
   testNow+=10000; keepPressing(); touchRelease();
-  assert(hubState==HubState::GameOver && completedGames==1 && !pendingPass.active);
+  assert(table().hubState==HubState::GameOver && completedGames==1 && !table().pendingPass.active);
   assert(!intents.dispatch(end).accepted() && completedGames==1);
 
   // A draw survives recovery validation (it used to be rejected as corrupt,
   // which would have locked the recovery store) and restores as a draw.
-  TurnHub::GameCheckpoint saved; game.checkpoint(saved,testNow);
+  TurnHub::GameCheckpoint saved; table().game.checkpoint(saved,testNow);
   assert(saved.over && saved.winner==0 && TurnHub::validCheckpoint(saved));
   GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow));
   assert(restored.gameOver() && restored.endedInDraw());
@@ -2869,9 +2944,9 @@ static void endMatchAsDraw() {
 
   // It overrides an open win claim, and works from a paused (e.g. recovered) match.
   freshLobby(2); startFromHost();
-  assert(web(0,1,WebControl::ClaimWin) && game.hasWinClaim() && hubState==HubState::Paused);
+  assert(web(0,1,WebControl::ClaimWin) && table().game.hasWinClaim() && table().hubState==HubState::Paused);
   holdEndMatch();
-  assert(game.endedInDraw() && !game.hasWinClaim() && completedGames==1);
+  assert(table().game.endedInDraw() && !table().game.hasWinClaim() && completedGames==1);
 
   // Statistics: every player gets a game played and a Draw, not a win or loss;
   // a player who conceded first keeps Eliminated.
@@ -2881,11 +2956,11 @@ static void endMatchAsDraw() {
   assert(request("/api/session/join",a)==200 && request("/api/session/join",b)==200 &&
       request("/api/session/join",c)==200);
   assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
-  assert(hubState==HubState::Running);
-  assert(request("/api/control/concede",c)==200 && hubState==HubState::Running);
-  assert(request("/api/control/pause",b)==200 && hubState==HubState::Paused);
+  assert(table().hubState==HubState::Running);
+  assert(request("/api/control/concede",c)==200 && table().hubState==HubState::Running);
+  assert(request("/api/control/pause",b)==200 && table().hubState==HubState::Paused);
   holdEndMatch();
-  assert(hubState==HubState::GameOver && game.endedInDraw() && completedGames==1);
+  assert(table().hubState==HubState::GameOver && table().game.endedInDraw() && completedGames==1);
   for (const String *id : {&aId,&bId,&cId}) {
     const auto &stats=ProfileFixture::profiles[id->c_str()].stats;
     assert(stats.gamesPlayed==1 && stats.gamesWon==0);
@@ -2897,7 +2972,7 @@ static void endMatchAsDraw() {
   assert(request("/api/v1/state",a,{},HTTP_GET)==200);
   assert(server.body.find("\"state\":\"GAME_OVER\"")!=std::string::npos &&
       server.body.find("\"winnerPlayer\":null")!=std::string::npos);
-  assert(request("/api/control/rematch",a)==200 && hubState==HubState::Lobby);
+  assert(request("/api/control/rematch",a)==200 && table().hubState==HubState::Lobby);
   assert(request("/api/control/reset",a)==200);
   enterEmptyLobby();
 }
@@ -3129,7 +3204,7 @@ struct FakeSpeaker final : TurnHub::ToneOutput {
 };
 static void playQueuedAudio() { for (int i=0;i<300;++i) { testNow+=20; audio.update(testNow); } }
 static void passActiveTurn() {
-  const PlayerSeat *active=game.activePlayer(); assert(active);
+  const PlayerSeat *active=table().game.activePlayer(); assert(active);
   assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::AtlasHardware,*active).accepted());
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow); playQueuedAudio();
 }
@@ -3156,7 +3231,7 @@ static void atlasSpeaker() {
   const String a=registerPhone("Speaker one",aId),b=registerPhone("Speaker two",bId);
   assert(request("/api/session/join",a)==200 && request("/api/session/join",b)==200);
   assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
-  assert(hubState==HubState::Running); playQueuedAudio();
+  assert(table().hubState==HubState::Running); playQueuedAudio();
   speaker.volumes.clear(); passActiveTurn();
   assert(!speaker.volumes.empty() && speaker.volumes.back()==3);
   enterEmptyLobby(); audio.clear();
@@ -3247,57 +3322,57 @@ static void tabletMode() {
   assert(request("/api/tablet/seat",tablet,{{"name","Ava"}})==200);
   const String avaId=responseField("profileId");
   assert(ProfileFixture::profiles[avaId].name=="Ava" && !TurnHubProfiles::hasPinForProfile(avaId));
-  assert(request("/api/tablet/seat",tablet,{{"name","ava"}})==409 && lobby.playerCount()==1);
-  assert(request("/api/tablet/seat",tablet,{{"name","Ben"}})==200 && lobby.playerCount()==2);
+  assert(request("/api/tablet/seat",tablet,{{"name","ava"}})==409 && table().lobby.playerCount()==1);
+  assert(request("/api/tablet/seat",tablet,{{"name","Ben"}})==200 && table().lobby.playerCount()==2);
   const String benId=responseField("profileId");
   // An existing profile: its own PIN unless it allows use without one.
   assert(request("/api/tablet/seat",tablet,{{"profileId","FFFFFFFF"}})==404);
   assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId}})==403);
-  assert(server.body.find("pinRequired")!=std::string::npos && lobby.playerCount()==2);
+  assert(server.body.find("pinRequired")!=std::string::npos && table().lobby.playerCount()==2);
   assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","9999"}})==401);
-  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","1234"}})==200 && lobby.playerCount()==3);
-  assert(request("/api/tablet/unseat",tablet,{{"profileId",lockedId}})==200 && lobby.playerCount()==2);
-  assert(request("/api/tablet/seat",tablet,{{"profileId",ownerId}})==200 && lobby.playerCount()==3);
-  assert(request("/api/tablet/unseat",tablet,{{"profileId",ownerId}})==200 && lobby.playerCount()==2);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",lockedId},{"pin","1234"}})==200 && table().lobby.playerCount()==3);
+  assert(request("/api/tablet/unseat",tablet,{{"profileId",lockedId}})==200 && table().lobby.playerCount()==2);
+  assert(request("/api/tablet/seat",tablet,{{"profileId",ownerId}})==200 && table().lobby.playerCount()==3);
+  assert(request("/api/tablet/unseat",tablet,{{"profileId",ownerId}})==200 && table().lobby.playerCount()==2);
 
   // Settings and Start for the table, through any seat.
-  PlayerSeat seats[MAX_PLAYERS]; assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2);
+  PlayerSeat seats[MAX_PLAYERS]; assert(table().lobby.buildPlayers(seats,MAX_PLAYERS)==2);
   const String m1=String(seats[0].controllerId), m2=String(seats[1].controllerId);
   // Turn order, from the tablet as from the Atlas screen (lobby only); a phone may not.
   const uint8_t c1=seats[0].controllerId, c2=seats[1].controllerId;
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","move-earlier"}})==409);
   assert(request("/api/tablet/control",tablet,{{"module",m2},{"slot","1"},{"action","move-earlier"}})==200);
-  assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c2 && seats[1].controllerId==c1);
+  assert(table().lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c2 && seats[1].controllerId==c1);
   assert(request("/api/tablet/control",tablet,{{"module",m2},{"slot","1"},{"action","move-later"}})==200);
-  assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c1);
+  assert(table().lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c1);
   { Intent fromPhone; fromPhone.type=IntentType::MoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
     fromPhone.payload.targetPlayer=2; fromPhone.payload.value=-1;
-    assert(!intents.dispatch(fromPhone).accepted() && lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c1); }
+    assert(!intents.dispatch(fromPhone).accepted() && table().lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c1); }
   assert(request("/api/tablet/settings",tablet,{{"module",m1},{"slot","1"},{"gameProfile","mtg_commander"},{"startingLife","40"}})==200);
   assert(request("/api/tablet/control",tablet,{{"module","99"},{"slot","1"},{"action","start"}})==400);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","fly"}})==400);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","start"}})==200);
-  testNow+=3000; updateCountdown(testNow); assert(hubState==HubState::Running);
+  testNow+=3000; updateCountdown(testNow); assert(table().hubState==HubState::Running);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","move-later"}})==409);
-  assert(String(game.playerAt(0)->profileId)==avaId && String(game.playerAt(1)->profileId)==benId);
+  assert(String(table().game.playerAt(0)->profileId)==avaId && String(table().game.playerAt(1)->profileId)==benId);
 
   // Each panel changes its own seat's life and records damage it received.
   assert(request("/api/tablet/life",tablet,{{"module",m2},{"slot","1"},{"delta","-3"}})==200);
-  assert(game.lifeTotal(2)==37 && game.lifeTotal(1)==40);
+  assert(table().game.lifeTotal(2)==37 && table().game.lifeTotal(1)==40);
   assert(request("/api/tablet/life",tablet,{{"module",m2},{"slot","1"},{"delta","0"}})==400);
   assert(request("/api/tablet/commander",tablet,{{"module",m2},{"slot","1"},{"source","1"},{"commander","1"},{"delta","5"}})==200);
-  assert(game.commanderDamage(2,1,1)==5 && game.lifeTotal(2)==32);
+  assert(table().game.commanderDamage(2,1,1)==5 && table().game.lifeTotal(2)==32);
   // The active panel passes; a pass from the other seat is refused.
-  const String active=String(game.activePlayer()->controllerId);
+  const String active=String(table().game.activePlayer()->controllerId);
   const String waiting=active==m1?m2:m1;
   assert(request("/api/tablet/control",tablet,{{"module",waiting},{"slot","1"},{"action","pass"}})==409);
-  assert(request("/api/tablet/control",tablet,{{"module",active},{"slot","1"},{"action","pass"}})==200 && pendingPass.active);
+  assert(request("/api/tablet/control",tablet,{{"module",active},{"slot","1"},{"action","pass"}})==200 && table().pendingPass.active);
   testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
-  assert(String(game.activePlayer()->controllerId)==waiting);
+  assert(String(table().game.activePlayer()->controllerId)==waiting);
   // A win claim (only the active player's) is confirmed on the other panel.
   assert(request("/api/tablet/control",tablet,{{"module",waiting},{"slot","1"},{"action","win"}})==200);
   assert(request("/api/tablet/control",tablet,{{"module",active},{"slot","1"},{"action","confirm"}})==200);
-  assert(hubState==HubState::GameOver);
+  assert(table().hubState==HubState::GameOver);
   const String winnerId=waiting==m1?avaId:benId;
   assert(ProfileFixture::profiles[winnerId].stats.gamesPlayed==1 && ProfileFixture::profiles[winnerId].stats.gamesWon==1);
 
@@ -3326,8 +3401,8 @@ static void resetTableFromPortal() {
 
   // Admin only, and only once that Admin is verified at the table (the code
   // the Atlas screen shows). A player cannot even ask for a code.
-  assert(request("/api/table/reset",player)==403 && hubState==HubState::Running);
-  assert(request("/api/table/reset",admin)==403 && hubState==HubState::Running);
+  assert(request("/api/table/reset",player)==403 && table().hubState==HubState::Running);
+  assert(request("/api/table/reset",admin)==403 && table().hubState==HubState::Running);
   assert(server.body.find("presenceRequired")!=std::string::npos);
   assert(request("/api/presence/request",player)==403 && pendingPresenceCode(testNow)==nullptr);
   // A wrong code does not verify; five wrong codes cancel it.
@@ -3341,28 +3416,28 @@ static void resetTableFromPortal() {
     assert(request("/api/presence/confirm",player,{{"code",digits}})==409); }
   verifyAtTable(admin);
   assert(request("/api/presence",admin,{},HTTP_GET)==200 && server.body.find("\"verified\":true")!=std::string::npos);
-  assert(request("/api/table/reset",player)==403 && hubState==HubState::Running);
+  assert(request("/api/table/reset",player)==403 && table().hubState==HubState::Running);
   Intent forged; forged.type=IntentType::ResetTable; forged.actor.origin=IntentOrigin::Browser;
   strncpy(forged.payload.moderatorId,playerId.c_str(),8);
-  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && hubState==HubState::Running);
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && table().hubState==HubState::Running);
 
   // A paused match ends as a draw once, and the table empties.
-  assert(web(0,1,WebControl::PauseResume) && hubState==HubState::Paused);
+  assert(web(0,1,WebControl::PauseResume) && table().hubState==HubState::Paused);
   assert(request("/api/table/reset",admin)==200);
   assert(server.body.find("ended as a draw")!=std::string::npos);
-  assert(hubState==HubState::Lobby && lobby.playerCount()==0 && !game.hasPlayers() && completedGames==1);
+  assert(table().hubState==HubState::Lobby && table().lobby.playerCount()==0 && !table().game.hasPlayers() && completedGames==1);
 
   // From a lobby (or a countdown) it just empties the table.
-  choose(0,SigilAction::Join); choose(1,SigilAction::Join); completedGames=0; assert(lobby.playerCount()==2);
-  choose(0,SigilAction::StartGame); assert(hubState==HubState::Starting);
-  assert(request("/api/table/reset",admin)==200 && hubState==HubState::Lobby && lobby.playerCount()==0);
+  choose(0,SigilAction::Join); choose(1,SigilAction::Join); completedGames=0; assert(table().lobby.playerCount()==2);
+  choose(0,SigilAction::StartGame); assert(table().hubState==HubState::Starting);
+  assert(request("/api/table/reset",admin)==200 && table().hubState==HubState::Lobby && table().lobby.playerCount()==0);
   assert(completedGames==0);
 
   // Verification lapses after PRESENCE_GRANT_MS, even for the Admin.
   choose(0,SigilAction::Join); choose(1,SigilAction::Join); testNow+=PRESENCE_GRANT_MS; updatePairingWindow(testNow);
-  assert(request("/api/table/reset",admin)==403 && lobby.playerCount()==2);
+  assert(request("/api/table/reset",admin)==403 && table().lobby.playerCount()==2);
   strncpy(forged.payload.moderatorId,adminId.c_str(),8);
-  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && lobby.playerCount()==2);
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && table().lobby.playerCount()==2);
   enterEmptyLobby();
 }
 
@@ -3612,7 +3687,7 @@ static void touchDeviceScreen() {
 
   // After a game: no Unpair (lobby only), but Factory reset, held 10 s.
   freshLobby(2); startFromHost(); holdEndMatch();
-  assert(hubState==HubState::GameOver);
+  assert(table().hubState==HubState::GameOver);
   openMenuScreen(); tapButton(TouchAction::OpenDevice); s=currentScreen();
   assert(s.kind==ScreenKind::Device && !screenButton(s,TouchAction::UnpairSigils) &&
       screenButton(s,TouchAction::FactoryResetAtlas));
@@ -3655,7 +3730,7 @@ static void touchDeviceSleep() {
   serviceSleep(millis()+3000); assert(fixtureSleeps==1 && !sleepScheduled());
   serviceSleep(millis()+6000); assert(fixtureSleeps==1);
   // After a game it is offered too; during one it is refused.
-  startFromHost(); holdEndMatch(); assert(hubState==HubState::GameOver);
+  startFromHost(); holdEndMatch(); assert(table().hubState==HubState::GameOver);
   openMenuScreen(); tapButton(TouchAction::OpenDevice);
   assert(screenButton(currentScreen(),TouchAction::SleepAtlas));
   enterEmptyLobby(); freshLobby(2); startFromHost();
@@ -3769,8 +3844,8 @@ static void gameRecoveryLifecycle() {
   freshLobby(2);
   testBlobs.clear();  // Ignore any fixture-reset observer checkpoint.
   testNow = 5000;
-  assert(TurnHub::beginGameRecovery(game, lobby, testNow) == Status::NotFound);
-  assert(!game.hasPlayers());
+  assert(TurnHub::beginGameRecovery(table().game, table().lobby, testNow) == Status::NotFound);
+  assert(!table().game.hasPlayers());
 
   // 2) Start a match and accept a semantic transition (a committed pass).
   // main.cpp's observer persists a checkpoint after every dispatched intent;
@@ -3778,12 +3853,12 @@ static void gameRecoveryLifecycle() {
   startFromHost();
   choose(0,SigilAction::Pass);
   testNow += PASS_GRACE_MS; updatePendingPass(testNow);
-  assert(!pendingPass.active && game.activePlayerNumber() == 2);
+  assert(!table().pendingPass.active && table().game.activePlayerNumber() == 2);
   assert(testBlobs.count("checkpoint") == 1);
   testNow += 45000; // 45s of real play before "power loss".
   choose(1,SigilAction::Pass);
   testNow += PASS_GRACE_MS; updatePendingPass(testNow);
-  const uint32_t elapsedBeforeLoss = game.gameElapsedMs(testNow);
+  const uint32_t elapsedBeforeLoss = table().game.gameElapsedMs(testNow);
   assert(elapsedBeforeLoss >= 45000);
 
   // 3) Simulate a reboot: fresh in-RAM objects standing in for cleared RAM,
@@ -3940,7 +4015,7 @@ static void twoHeadedGiantTable() {
   assert(request("/api/game/settings",tokens[0],{{"twoHeadedGiant","yes"}})==400);
   assert(request("/api/game/settings",tokens[0],
       {{"gameProfile","mtg"},{"startingLife","30"},{"twoHeadedGiant","1"}})==200);
-  assert(nextGameSettings.twoHeadedGiant);
+  assert(table().nextGameSettings.twoHeadedGiant);
   GameSettings saved; assert(loadGameSettings(saved)==TurnHubStorage::Status::Ok && saved.twoHeadedGiant);
   assert(request("/api/game/settings",tokens[0],{},HTTP_GET)==200);
   assert(server.body.find("\"twoHeadedGiant\":true")!=std::string::npos);
@@ -3951,28 +4026,28 @@ static void twoHeadedGiantTable() {
   assert(request("/api/session/join",tokens[3])==200);
   assert(request("/api/control/start",tokens[0])==200);
   testNow+=3000; updateCountdown(testNow);
-  assert(hubState==HubState::Running && game.twoHeadedGiant() && game.lifeTotal(4)==30);
-  const uint8_t starter = game.activePlayerNumber();
-  const uint8_t mate = game.teammateOf(starter);
+  assert(table().hubState==HubState::Running && table().game.twoHeadedGiant() && table().game.lifeTotal(4)==30);
+  const uint8_t starter = table().game.activePlayerNumber();
+  const uint8_t mate = table().game.teammateOf(starter);
   auto token = [&](uint8_t player) {
-    for (int i=0;i<4;++i) if (String(game.playerByNumber(player)->profileId)==ids[i]) return tokens[i];
+    for (int i=0;i<4;++i) if (String(table().game.playerByNumber(player)->profileId)==ids[i]) return tokens[i];
     assert(false); return String();
   };
   // The teammate passes the team's turn and changes the shared life.
   assert(request("/api/control/life",token(mate),{{"delta","-4"}})==200);
-  assert(game.lifeTotal(starter)==26 && game.lifeTotal(mate)==26);
-  assert(request("/api/control/pass",token(mate))==200 && pendingPass.active);
+  assert(table().game.lifeTotal(starter)==26 && table().game.lifeTotal(mate)==26);
+  assert(request("/api/control/pass",token(mate))==200 && table().pendingPass.active);
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
-  assert(!game.sameTeam(game.activePlayerNumber(),starter));
+  assert(!table().game.sameTeam(table().game.activePlayerNumber(),starter));
   // A conceding player takes the teammate along, and the other team wins together.
-  assert(request("/api/control/concede",token(starter))==200 && hubState==HubState::GameOver);
-  assert(game.isEliminated(mate) && game.isWinner(game.activePlayerNumber()));
-  assert(game.isWinner(game.teammateOf(game.activePlayerNumber())));
+  assert(request("/api/control/concede",token(starter))==200 && table().hubState==HubState::GameOver);
+  assert(table().game.isEliminated(mate) && table().game.isWinner(table().game.activePlayerNumber()));
+  assert(table().game.isWinner(table().game.teammateOf(table().game.activePlayerNumber())));
   // Leaving Magic for a profile without teams turns the mode off.
   assert(request("/api/control/reset",tokens[0])==200);
   assert(request("/api/session/join",tokens[0])==200);
   assert(request("/api/game/settings",tokens[0],{{"gameProfile","generic"}})==200);
-  assert(!nextGameSettings.twoHeadedGiant);
+  assert(!table().nextGameSettings.twoHeadedGiant);
   // Later scenarios register their own accounts against the profile limit.
   assert(request("/api/control/reset",tokens[0])==200);
   for (const String &id : ids) ProfileFixture::profiles.erase(id.c_str());
@@ -3982,28 +4057,28 @@ static void twoHeadedGiantSigils() {
   using namespace TurnHub;
   using namespace TurnHubProtocol;
   freshLobby(4);
-  nextGameSettings.profile=GameProfile::Magic; nextGameSettings.startingLife=30;
-  nextGameSettings.twoHeadedGiant=true;
+  table().nextGameSettings.profile=GameProfile::Magic; table().nextGameSettings.startingLife=30;
+  table().nextGameSettings.twoHeadedGiant=true;
   startFromHost();
-  assert(game.activePlayerNumber()==1);
+  assert(table().game.activePlayerNumber()==1);
   // Both teammates' Sigils show the turn and offer Pass; the other team's don't.
   syncSigilMenus(testNow);
   assert(sigilMenuFor(1).actions & sigilActionBit(SigilAction::Pass));
   assert(!(sigilMenuFor(2).actions & sigilActionBit(SigilAction::Pass)));
-  leds.render(hubState,lobby,game,0,0,0,testNow);
+  leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
   assert(hasDisplayFlag(sentGameDisplays[1].state,DISPLAY_FLAG_ACTIVE));
   assert(!hasDisplayFlag(sentGameDisplays[2].state,DISPLAY_FLAG_ACTIVE));
-  assert(game.changeLife(1,-2) && game.lifeTotal(2)==28);
-  leds.render(hubState,lobby,game,0,0,0,testNow);
+  assert(table().game.changeLife(1,-2) && table().game.lifeTotal(2)==28);
+  leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
   assert(sentGameDisplays[1].primary.life==28);
-  choose(1,SigilAction::Pass); assert(pendingPass.active);
+  choose(1,SigilAction::Pass); assert(table().pendingPass.active);
   syncSigilMenus(testNow);
   assert(sigilMenuFor(0).actions & sigilActionBit(SigilAction::CancelPass));
-  choose(0,SigilAction::CancelPass); assert(!pendingPass.active);
+  choose(0,SigilAction::CancelPass); assert(!table().pendingPass.active);
   choose(1,SigilAction::Pass);
   testNow+=PASS_GRACE_MS; updatePendingPass(testNow);
-  assert(game.activePlayerNumber()==3 && game.hasTurn(4));
-  nextGameSettings=GameSettings{};
+  assert(table().game.activePlayerNumber()==3 && table().game.hasTurn(4));
+  table().nextGameSettings=GameSettings{};
 }
 
 int main() {
@@ -4066,6 +4141,7 @@ int main() {
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
   accessibilityPreferences(); std::cout<<"PASS per-player accessibility: LED profiles, merge rules, API, Sigil mute, hold-timing radio\n";
   actionRequiredCues(); std::cout<<"PASS ActionRequired reaches only the Sigil whose win confirmation is next\n";
+  venueTables(); std::cout<<"PASS venue tables: two games, Sigil and phone switching, routing, separate resets, shared speaker\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
   serialLogStream();
   serialLogCapture(); std::cout<<"PASS serial log capture, redaction, stream draining, ring overflow and self-describing log lines\n";

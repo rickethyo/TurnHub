@@ -41,7 +41,9 @@ class LedRenderer {
       uint32_t countdownStartedAtMs,
       uint8_t eliminationTargetPlayer,
       uint8_t winConfirmationPlayer,
-      uint32_t nowMs);
+      uint32_t nowMs,
+      // The Sigils seated at (or headed for) this game, one bit per ID.
+      uint16_t sigilMask = 0xFFFF);
 
   // A shared Sigil shows one of its seats full screen, and its life keys
   // change the shown seat. This switches to its other living seat (the

@@ -55,18 +55,24 @@ AudioController audio(sigilBus);
 OtaManager ota(server, otaAllowed);
 
 GameTable tables[MAX_GAME_TABLES];
-Lobby &lobby = tables[0].lobby;
-GameEngine &game = tables[0].game;
-TurnHub::ClientState &clientState = tables[0].clientState;
-HubState &hubState = tables[0].hubState;
-PendingPassState &pendingPass = tables[0].pendingPass;
-uint32_t &countdownStartedAtMs = tables[0].countdownStartedAtMs;
-int8_t &lastCountdownSecond = tables[0].lastCountdownSecond;
-uint8_t &eliminationTargetPlayer = tables[0].eliminationTargetPlayer;
-TurnTimerCueState &turnTimerCue = tables[0].turnTimerCue;
-NudgeState &nudgeState = tables[0].nudge;
+static_assert(MAX_GAME_TABLES <= TurnHub::GAME_RECOVERY_SLOTS, "every game table needs a recovery record");
 
-TurnHub::GameSettings nextGameSettings;
+namespace {
+uint8_t currentTable = 0;
+}  // namespace
+
+GameTable &table() { return tables[currentTable]; }
+uint8_t tableIndex() { return currentTable; }
+
+uint8_t selectTable(uint8_t index) {
+  const uint8_t previous = currentTable;
+  if (index < MAX_GAME_TABLES) currentTable = index;
+  return previous;
+}
+
+TableScope::TableScope(uint8_t index) : previous_(selectTable(index)) {}
+TableScope::~TableScope() { currentTable = previous_; }
+
 bool gameSettingsAvailable = true;
 bool espNowReady = false;
 uint32_t pairingWindowMs = TurnHub::DEFAULT_PAIRING_WINDOW_MS;
@@ -78,7 +84,7 @@ uint32_t luxuryStoreGeneration = 0;
 
 // Polling cadence for the elapsed-clock recovery checkpoint (see below).
 constexpr uint32_t RECOVERY_POLL_INTERVAL_MS = 1000;
-uint32_t lastRecoveryPollMs = 0;
+uint32_t lastRecoveryPollMs[MAX_GAME_TABLES] = {};
 
 // Catches the "periodically checkpoint elapsed clocks" requirement for a long
 // turn with no dispatched intents in between: GameRecovery::save() only
@@ -86,9 +92,10 @@ uint32_t lastRecoveryPollMs = 0;
 // polling this once a second is cheap (no encode-vs-previous work happens
 // between checkpoints) and never spams NVS.
 void updateGameRecoveryClock(uint32_t nowMs) {
-  if (nowMs - lastRecoveryPollMs < RECOVERY_POLL_INTERVAL_MS) return;
-  lastRecoveryPollMs = nowMs;
-  TurnHub::checkpointGame(game, nowMs);
+  uint32_t &lastPollMs = lastRecoveryPollMs[tableIndex()];
+  if (nowMs - lastPollMs < RECOVERY_POLL_INTERVAL_MS) return;
+  lastPollMs = nowMs;
+  TurnHub::checkpointGame(table().game, nowMs);
 }
 
 // Heap and Wi-Fi client figures, logged periodically and whenever the phone
@@ -101,12 +108,13 @@ int lastStationCount = -1;
 // Names in /api/v1/state are re-read when a seat's occupant changes; this
 // also picks up a rename (profile page, Sigil picker) within a few seconds.
 constexpr uint32_t CLIENT_NAME_REFRESH_MS = 5000;
-uint32_t lastClientNameRefreshMs = 0;
+uint32_t lastClientNameRefreshMs[MAX_GAME_TABLES] = {};
 
 void refreshClientNames(uint32_t nowMs) {
-  if (nowMs - lastClientNameRefreshMs < CLIENT_NAME_REFRESH_MS) return;
-  lastClientNameRefreshMs = nowMs;
-  clientState.refreshNames();
+  uint32_t &lastRefreshMs = lastClientNameRefreshMs[tableIndex()];
+  if (nowMs - lastRefreshMs < CLIENT_NAME_REFRESH_MS) return;
+  lastRefreshMs = nowMs;
+  table().clientState.refreshNames();
 }
 
 void logRuntimeHealth(uint32_t nowMs) {
@@ -166,18 +174,19 @@ void serveDeveloperJson(const String &json) {
 // small active-match cache.
 void restoreInterruptedMatch() {
   using TurnHubStorage::Status;
-  const auto recoveryStatus = TurnHub::beginGameRecovery(game, lobby, millis());
-  if (recoveryStatus == Status::Ok && game.hasPlayers()) {
+  const auto recoveryStatus =
+      TurnHub::beginGameRecovery(table().game, table().lobby, millis(), tableIndex());
+  if (recoveryStatus == Status::Ok && table().game.hasPlayers()) {
     // A restored match is always paused (never running) and never charges
     // downtime -- GameEngine::restoreCheckpoint() already rebased the
     // elapsed clocks into this boot's millis() domain. The existing
     // Pause/Resume controls (physical and browser) are the "Resume" side of
     // recovery. There is deliberately no "Discard" affordance yet -- see the
     // STAGED_CHANGES note on interrupted-match recovery.
-    hubState = game.gameOver() ? HubState::GameOver : HubState::Paused;
+    table().hubState = table().game.gameOver() ? HubState::GameOver : HubState::Paused;
     leds.invalidateAll();
     serialLog.print("ATLAS|RECOVERY|OUTCOME|RESTORED|STATE|");
-    serialLog.println(stateName(hubState));
+    serialLog.println(stateName(table().hubState));
   } else if (recoveryStatus == Status::NotFound) {
     serialLog.println("ATLAS|RECOVERY|OUTCOME|NO_SAVED_MATCH");
   } else if (recoveryStatus == Status::Ok) {
@@ -197,25 +206,41 @@ void restoreInterruptedMatch() {
 
 void observeClientState() {
   TurnHub::ClientPending pending;
-  pending.passPlayer = pendingPass.active ? pendingPass.seat.playerNumber : 0;
-  pending.passStartedMs = pendingPass.active ? pendingPass.requestedAtMs : 0;
-  pending.countdownStartedMs = hubState == HubState::Starting ? countdownStartedAtMs : 0;
-  pending.eliminationTarget = eliminationTargetPlayer;
-  pending.nudgeSeq = nudgeState.seq;
-  pending.nudgeFrom = nudgeState.fromPlayer;
-  pending.nudgeTo = nudgeState.toPlayer;
-  pending.nudgeAtMs = nudgeState.atMs;
-  clientState.observe(hubState, lobby, game, nextGameSettings, pending);
+  pending.passPlayer = table().pendingPass.active ? table().pendingPass.seat.playerNumber : 0;
+  pending.passStartedMs = table().pendingPass.active ? table().pendingPass.requestedAtMs : 0;
+  pending.countdownStartedMs = table().hubState == HubState::Starting ? table().countdownStartedAtMs : 0;
+  pending.eliminationTarget = table().eliminationTargetPlayer;
+  pending.nudgeSeq = table().nudgeState.seq;
+  pending.nudgeFrom = table().nudgeState.fromPlayer;
+  pending.nudgeTo = table().nudgeState.toPlayer;
+  pending.nudgeAtMs = table().nudgeState.atMs;
+  table().clientState.observe(table().hubState, table().lobby, table().game, table().nextGameSettings, pending);
 }
 
 uint32_t clientRevision() {
   observeClientState();
-  return clientState.revision();
+  return table().clientState.revision();
 }
 
 String clientSnapshot(const String &atlasId, const char *bootId) {
   observeClientState();
-  return clientState.json(atlasId, bootId, game, millis(), PASS_GRACE_MS);
+  String json = table().clientState.json(atlasId, bootId, table().game, millis(), PASS_GRACE_MS);
+  // Venue tables: which game this is, and a line on each game for a switch.
+  if (json.length() == 0 || json[json.length() - 1] != '}') return json;
+  json.remove(json.length() - 1);
+  json += ",\"game\":"; json += String(tableIndex() + 1);
+  json += ",\"games\":[";
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    const GameTable &at = tables[t];
+    if (t) json += ',';
+    json += "{\"game\":"; json += String(t + 1);
+    json += ",\"state\":\""; json += stateName(at.hubState);
+    json += "\",\"players\":";
+    json += String(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount());
+    json += '}';
+  }
+  json += "]}";
+  return json;
 }
 
 // Dispatcher observer: runs after every Intent, accepted or not.
@@ -226,7 +251,7 @@ void observeIntent(const Intent &intent) {
   // projection still holds the old requests here, so expirationDue() says
   // whether this tick just settled one. Other completed handlers are
   // infrequent.
-  if (intent.type == IntentType::ExpireLifeChanges && !clientState.expirationDue(millis())) return;
+  if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
   observeClientState();
   // Persist a checkpoint after every dispatched intent. GameRecovery::save()
   // only actually touches NVS when the encoded game state changed or the
@@ -234,7 +259,7 @@ void observeIntent(const Intent &intent) {
   // -- including after a rejected intent, where nothing changed and it is a
   // no-op. This is the "after accepted semantic transitions" hook the
   // interrupted-match recovery design calls for.
-  TurnHub::checkpointGame(game, millis());
+  TurnHub::checkpointGame(table().game, millis());
 }
 
 // --- Intent bindings ---------------------------------------------------------------
@@ -296,6 +321,7 @@ bool configureIntentHandlers() {
       {IntentType::MoveSeat, handleMoveSeatIntent},
       {IntentType::SetSeatSide, handleSetSeatSideIntent},
       {IntentType::RemoveSeat, handleRemoveSeatIntent},
+      {IntentType::ChooseTable, handleChooseTableIntent},
       {IntentType::NudgePlayer, handleNudgeIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
       {IntentType::Sleep, handleSleepIntent},
@@ -316,18 +342,28 @@ bool configureIntentHandlers() {
 // Compact status for the diagnostics page. Clients use /api/v1/state.
 void handleStatus() {
   TurnHub::HttpRequestTrace trace("/api/status");
+  TableScope scope(TurnHubWebApi::requestGame(server));
   PlayerSeat selected;
-  const uint8_t starter = lobby.selectedStarter(selected)
+  const uint8_t starter = table().lobby.selectedStarter(selected)
       ? selected.playerNumber
-      : (game.hasPlayers() ? game.starterPlayerNumber() : 0);
-  const uint8_t active = (hubState == HubState::Running || hubState == HubState::Paused)
-      ? game.activePlayerNumber()
+      : (table().game.hasPlayers() ? table().game.starterPlayerNumber() : 0);
+  const uint8_t active = (table().hubState == HubState::Running || table().hubState == HubState::Paused)
+      ? table().game.activePlayerNumber()
       : 0;
-  const uint8_t players = game.hasPlayers() ? game.playerCount() : lobby.playerCount();
-  const bool otaStateAllowed = hubState == HubState::Lobby || hubState == HubState::GameOver;
+  const uint8_t players = table().game.hasPlayers() ? table().game.playerCount() : table().lobby.playerCount();
+  const bool otaStateAllowed = allTablesBetweenGames();
   const uint32_t nowMs = millis();
-  const uint32_t passElapsed = pendingPass.active ? nowMs - pendingPass.requestedAtMs : 0;
-  const uint32_t passGraceRemainingMs = pendingPass.active && passElapsed < PASS_GRACE_MS
+  // Venue tables: a line on each game, for the portal's game switch.
+  char games[48 * MAX_GAME_TABLES];
+  size_t used = 0;
+  for (uint8_t t = 0; t < MAX_GAME_TABLES && used < sizeof(games); ++t) {
+    const GameTable &at = tables[t];
+    used += snprintf(games + used, sizeof(games) - used, "%s{\"game\":%u,\"state\":\"%s\",\"players\":%u}",
+        t ? "," : "", static_cast<unsigned>(t + 1), stateName(at.hubState),
+        static_cast<unsigned>(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount()));
+  }
+  const uint32_t passElapsed = table().pendingPass.active ? nowMs - table().pendingPass.requestedAtMs : 0;
+  const uint32_t passGraceRemainingMs = table().pendingPass.active && passElapsed < PASS_GRACE_MS
       ? PASS_GRACE_MS - passElapsed
       : 0;
 
@@ -344,32 +380,34 @@ void handleStatus() {
       "\"nudgeSeq\":%lu,\"nudgeFrom\":%u,\"nudgeTo\":%u,\"nudgeAgeMs\":%lu,"
       "\"turnTimerMs\":%lu,\"turnElapsedMs\":%lu,\"turnRemainingMs\":%lu,\"timerPhase\":\"%s\","
       "\"espNow\":%s,\"firmware\":\"%s\","
-      "\"build\":\"%s %s\",\"otaStateAllowed\":%s}",
+      "\"build\":\"%s %s\",\"otaStateAllowed\":%s,\"game\":%u,\"games\":[%s]}",
       anyPresenceActive(nowMs) ? "true" : "false",
       pendingPresenceCode(nowMs) != nullptr ? "true" : "false",
       static_cast<unsigned>(sigilBus.activeCount(nowMs)),
       static_cast<unsigned>(players),
-      stateName(hubState),
+      stateName(table().hubState),
       static_cast<unsigned>(starter),
       static_cast<unsigned>(active),
-      static_cast<unsigned>(game.winnerPlayerNumber()),
-      static_cast<unsigned>(eliminationTargetPlayer),
-      static_cast<unsigned>(game.nextWinConfirmationPlayerNumber()),
-      static_cast<unsigned>(pendingPass.active ? pendingPass.seat.playerNumber : 0),
+      static_cast<unsigned>(table().game.winnerPlayerNumber()),
+      static_cast<unsigned>(table().eliminationTargetPlayer),
+      static_cast<unsigned>(table().game.nextWinConfirmationPlayerNumber()),
+      static_cast<unsigned>(table().pendingPass.active ? table().pendingPass.seat.playerNumber : 0),
       static_cast<unsigned long>(passGraceRemainingMs),
-      static_cast<unsigned long>(nudgeState.seq),
-      static_cast<unsigned>(nudgeState.fromPlayer),
-      static_cast<unsigned>(nudgeState.toPlayer),
-      static_cast<unsigned long>(nudgeState.seq ? nowMs - nudgeState.atMs : 0),
-      static_cast<unsigned long>(game.hasPlayers() ? game.turnTimerMs() : nextGameSettings.turnTimerMs),
-      static_cast<unsigned long>(game.currentTurnElapsedMs(nowMs)),
-      static_cast<unsigned long>(game.turnRemainingMs(nowMs)),
-      TurnHub::turnTimerPhaseName(game.turnTimerPhase(nowMs)),
+      static_cast<unsigned long>(table().nudgeState.seq),
+      static_cast<unsigned>(table().nudgeState.fromPlayer),
+      static_cast<unsigned>(table().nudgeState.toPlayer),
+      static_cast<unsigned long>(table().nudgeState.seq ? nowMs - table().nudgeState.atMs : 0),
+      static_cast<unsigned long>(table().game.hasPlayers() ? table().game.turnTimerMs() : table().nextGameSettings.turnTimerMs),
+      static_cast<unsigned long>(table().game.currentTurnElapsedMs(nowMs)),
+      static_cast<unsigned long>(table().game.turnRemainingMs(nowMs)),
+      TurnHub::turnTimerPhaseName(table().game.turnTimerPhase(nowMs)),
       espNowReady ? "true" : "false",
       TurnHubFirmware::VERSION,
       TurnHubFirmware::BUILD_DATE,
       TurnHubFirmware::BUILD_TIME,
-      otaStateAllowed ? "true" : "false");
+      otaStateAllowed ? "true" : "false",
+      static_cast<unsigned>(tableIndex() + 1),
+      games);
 
   server.sendHeader("Cache-Control", "no-store");
   if (length < 0 || static_cast<size_t>(length) >= sizeof(json)) {
@@ -478,14 +516,21 @@ void setup() {
   TurnHubProfiles::begin();
 
   configureIntentHandlers();
-  sigilBus.setSeatedQuery([](uint8_t id) { return lobby.isJoined(id) || game.controllerInGame(id); });
-  clientState.setNameLookup(displayNameForTableSeat);
-  observeClientState();
+  sigilBus.setSeatedQuery([](uint8_t id) {
+    const GameTable &at = tables[tableForController(id)];
+    return at.lobby.isJoined(id) || at.game.controllerInGame(id);
+  });
   intents.setObserver(observeIntent);
-  restoreInterruptedMatch();
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    TableScope scope(t);
+    table().clientState.setNameLookup(displayNameForTableSeat);
+    observeClientState();
+    restoreInterruptedMatch();
+  }
   logHeapStep("PROFILES_AND_RECOVERY");
 
-  const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
+  const auto settingsStatus = TurnHub::loadGameSettings(tables[0].nextGameSettings);
+  for (GameTable &other : tables) other.nextGameSettings = tables[0].nextGameSettings;
   gameSettingsAvailable = settingsStatus == TurnHubStorage::Status::Ok ||
       settingsStatus == TurnHubStorage::Status::NotFound;
   if (!gameSettingsAvailable) serialLog.println("ATLAS|GAME_SETTINGS|STORAGE_ERROR");
@@ -537,21 +582,26 @@ void loop() {
   serviceAtlasDisplay(nowMs);
   serviceFactoryReset(nowMs);
   serviceSleep(nowMs);
-  updatePendingPass(nowMs);
-  updateCountdown(nowMs);
-  updateTurnTimerCues(nowMs);
-  dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  updateGameRecoveryClock(nowMs);
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    TableScope scope(t);
+    updatePendingPass(nowMs);
+    updateCountdown(nowMs);
+    updateTurnTimerCues(nowMs);
+    dispatchSystemIntent(IntentType::ExpireLifeChanges);
+    updateGameRecoveryClock(nowMs);
+    leds.render(table().hubState, table().lobby, table().game, table().countdownStartedAtMs,
+        table().eliminationTargetPlayer, table().game.nextWinConfirmationPlayerNumber(), nowMs,
+        sigilsAtTable(t));
+    refreshClientNames(nowMs);
+  }
   updateSigilAccessibility(nowMs);
+  audio.setSpeakerShared(atlasSpeakerShared());
   audio.update(nowMs);
   serviceAtlasSpeaker(nowMs);
-  leds.render(hubState, lobby, game, countdownStartedAtMs, eliminationTargetPlayer,
-      game.nextWinConfirmationPlayerNumber(), nowMs);
   syncSigilMenus(nowMs);
   syncProfilePickers(nowMs);
   syncCommanderPickers(nowMs);
   ota.update(nowMs);
-  refreshClientNames(nowMs);
   logRuntimeHealth(nowMs);
 
   delay(1);

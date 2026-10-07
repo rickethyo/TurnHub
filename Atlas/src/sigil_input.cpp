@@ -35,7 +35,7 @@ void logRejected(const char *prefix, uint8_t sigilId, const IntentResult &result
 // Confirms or denies the open win claim when this Sigil owns the seat whose
 // answer Atlas is waiting for.
 void respondToWinClaim(uint8_t sigilId, IntentType response) {
-  const PlayerSeat *expected = game.playerByNumber(game.nextWinConfirmationPlayerNumber());
+  const PlayerSeat *expected = table().game.playerByNumber(table().game.nextWinConfirmationPlayerNumber());
   if (expected == nullptr || expected->controllerId != sigilId) return;
   dispatchSeatIntent(response, IntentOrigin::PhysicalSigil, *expected);
 }
@@ -76,13 +76,13 @@ const char *activityKind(PacketType type) {
 // unjoined Sigil reach the normal lobby join validator. That validator can
 // return the policy/PIN reason instead of losing the button event silently.
 bool connectionBlocked(uint8_t sigilId) {
-  if (hubState == HubState::Lobby && !lobby.isJoined(sigilId)) return false;
+  if (table().hubState == HubState::Lobby && !table().lobby.isJoined(sigilId)) return false;
   bool blocked = false;
   for (uint8_t slot = 1; slot <= 2; ++slot) {
     // A saved secondary binding is not an active connection until that seat
     // joins. Do not let an archived or reset placeholder disable the primary
     // seat on the same physical Sigil.
-    if (lobby.playerNumber(sigilId, slot) == 0) continue;
+    if (table().lobby.playerNumber(sigilId, slot) == 0) continue;
     const String id = TurnHubControllers::existingProfileForSeat(sigilId, slot);
     if (!id.length() || !TurnHubWebApi::connectionBlocked(id)) continue;
     serialLog.print("ATLAS|SIGIL|CONNECTION_BLOCKED|");
@@ -100,8 +100,8 @@ bool connectionBlocked(uint8_t sigilId) {
 
 // The menu's Pass: queues or cancels the pass for this Sigil's active seat.
 void passFromMenu(uint8_t sigilId) {
-  if (hubState != HubState::Running) return;
-  const PlayerSeat *active = game.turnSeatForController(sigilId);
+  if (table().hubState != HubState::Running) return;
+  const PlayerSeat *active = table().game.turnSeatForController(sigilId);
   if (active == nullptr) return;
   logRejected("GAME|PASS", sigilId,
       dispatchSeatIntent(IntentType::Pass, IntentOrigin::PhysicalSigil, *active));
@@ -109,6 +109,7 @@ void passFromMenu(uint8_t sigilId) {
 
 }  // namespace
 void handleSelectAction(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   using TurnHubProtocol::SigilAction;
   const uint8_t raw = TurnHubProtocol::selectedAction(value);
   // A choice from an out-of-date menu, or one no longer offered, is dropped
@@ -180,7 +181,7 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
     case SigilAction::AddPartner:
     case SigilAction::DropPartner: {
       // The seat shown when chosen, like Commander damage; only this Sigil's own.
-      const PlayerSeat *seat = game.playerByNumber(TurnHubProtocol::selectedPlayer(value));
+      const PlayerSeat *seat = table().game.playerByNumber(TurnHubProtocol::selectedPlayer(value));
       if (seat == nullptr || seat->controllerId != sigilId) break;
       Intent intent;
       intent.type = IntentType::SetPartner;
@@ -196,7 +197,7 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
     }
     case SigilAction::SwitchSeat:
       // View state only (which seat the display and life keys follow).
-      if (leds.switchShownSeat(sigilId, game)) invalidateSigilMenu(sigilId);
+      if (leds.switchShownSeat(sigilId, table().game)) invalidateSigilMenu(sigilId);
       break;
     case SigilAction::CancelPass:
       logRejected("MENU|CANCEL_PASS", sigilId, dispatchModuleIntent(IntentType::CancelPass, sigilId));
@@ -208,7 +209,7 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       dispatchPauseOrResume(sigilId, IntentType::Resume);
       break;
     case SigilAction::ClaimWin: {
-      const PlayerSeat *active = game.turnSeatForController(sigilId);
+      const PlayerSeat *active = table().game.turnSeatForController(sigilId);
       if (active != nullptr) {
         logRejected("MENU|WIN", sigilId,
             dispatchSeatIntent(IntentType::ClaimWin, IntentOrigin::PhysicalSigil, *active));
@@ -247,6 +248,10 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       // Proof of possession: only someone holding this Sigil can choose it.
       TurnHubWebApi::notePhysicalAction(sigilId);
       break;
+    case SigilAction::SwitchTable:
+      logRejected("MENU|SWITCH_TABLE", sigilId, dispatchModuleIntent(IntentType::ChooseTable, sigilId, 1,
+          static_cast<int32_t>((tableIndex() + 1) % MAX_GAME_TABLES)));
+      break;
     case SigilAction::Count:
       break;
   }
@@ -255,9 +260,10 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
 // LifeAdjust: a batched change to one of this Sigil's own players. The
 // ChangeLife handler checks ownership, state and limits.
 void handleLifeAdjust(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   const uint8_t player = TurnHubProtocol::lifeAdjustPlayer(value);
   const int32_t delta = TurnHubProtocol::lifeAdjustDelta(value);
-  const PlayerSeat *seat = game.playerByNumber(player);
+  const PlayerSeat *seat = table().game.playerByNumber(player);
   if (seat == nullptr || seat->controllerId != sigilId || delta == 0) {
     serialLog.print("ATLAS|LIFE|ADJUST|IGNORED|");
     serialLog.println(sigilId);
@@ -284,9 +290,10 @@ void handleLifeAdjust(uint8_t sigilId, int32_t value) {
 // LifeResponse: approve or deny the request this Sigil showed. The tag must
 // match the pending request, so an answer never lands on a newer one.
 void handleLifeResponse(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   const uint8_t target = TurnHubProtocol::lifeResponseTarget(value);
-  const PlayerSeat *seat = game.playerByNumber(target);
-  const TurnHub::LifeChangeRequest *request = game.lifeChangeFor(target);
+  const PlayerSeat *seat = table().game.playerByNumber(target);
+  const TurnHub::LifeChangeRequest *request = table().game.lifeChangeFor(target);
   if (seat == nullptr || seat->controllerId != sigilId || request == nullptr ||
       request->state != TurnHub::LifeChangeState::Pending ||
       (request->id & 0x3F) != TurnHubProtocol::lifeResponseTag(value)) {
@@ -307,7 +314,7 @@ void handleLifeResponse(uint8_t sigilId, int32_t value) {
 }
 
 void processSigilEvents() {
-  if (hubState != HubState::Lobby) {
+  if (table().hubState != HubState::Lobby) {
     sigilBus.closePairing();
     // A code check can't finish outside the lobby: tell each waiting Sigil no.
     if (sigilBus.pendingPairingCount() > 0) sigilBus.cancelPendingPairings();

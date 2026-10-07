@@ -125,18 +125,18 @@ void layoutTests(AtlasScreen &screen, uint32_t nowMs) {
 }
 
 bool matchInProgress() {
-  return hubState == HubState::Running || hubState == HubState::Paused;
+  return table().hubState == HubState::Running || table().hubState == HubState::Paused;
 }
 
 // The Menu belongs between games (the lobby and a finished game).
 bool menuAvailable() {
-  return hubState == HubState::Lobby || hubState == HubState::GameOver;
+  return table().hubState == HubState::Lobby || table().hubState == HubState::GameOver;
 }
 
 // The first Sigil waiting for its pairing code to be checked, or INVALID_ID.
 // One at a time on this screen; the next shows once it is decided.
 uint8_t waitingPairSlot() {
-  if (hubState != HubState::Lobby) return INVALID_ID;
+  if (table().hubState != HubState::Lobby) return INVALID_ID;
   for (uint8_t slot = 0; slot < MAX_PHYSICAL_SIGILS; ++slot) {
     if (sigilBus.pendingPairing(slot) != nullptr) return slot;
   }
@@ -146,10 +146,10 @@ uint8_t waitingPairSlot() {
 // The chips on the status screen, in the order they are drawn: the lobby's
 // seats, or the match's players while one is in progress.
 uint8_t chipSeats(PlayerSeat *out) {
-  if (hubState == HubState::Lobby) return lobby.buildPlayers(out, MAX_SCREEN_PLAYERS);
+  if (table().hubState == HubState::Lobby) return table().lobby.buildPlayers(out, MAX_SCREEN_PLAYERS);
   if (!matchInProgress()) return 0;
-  const uint8_t count = game.playerCount() < MAX_SCREEN_PLAYERS ? game.playerCount() : MAX_SCREEN_PLAYERS;
-  for (uint8_t i = 0; i < count; ++i) out[i] = *game.playerAt(i);
+  const uint8_t count = table().game.playerCount() < MAX_SCREEN_PLAYERS ? table().game.playerCount() : MAX_SCREEN_PLAYERS;
+  for (uint8_t i = 0; i < count; ++i) out[i] = *table().game.playerAt(i);
   return count;
 }
 
@@ -160,12 +160,12 @@ bool sameSeat(const PlayerSeat &a, const PlayerSeat &b) {
 // The shown seat as it is now (its current player number), if it still
 // plays: at the table in the lobby, or not out in a match.
 bool currentShownSeat(PlayerSeat &seat) {
-  if (hubState != HubState::Lobby && !matchInProgress()) return false;
+  if (table().hubState != HubState::Lobby && !matchInProgress()) return false;
   PlayerSeat seats[MAX_SCREEN_PLAYERS];
   const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
     if (!sameSeat(seats[i], shownSeat)) continue;
-    if (hubState != HubState::Lobby && game.isEliminated(seats[i].playerNumber)) return false;
+    if (table().hubState != HubState::Lobby && table().game.isEliminated(seats[i].playerNumber)) return false;
     seat = seats[i];
     return true;
   }
@@ -175,7 +175,7 @@ bool currentShownSeat(PlayerSeat &seat) {
 // First-run setup takes the lobby's status screen until it is complete
 // (Welcome can be skipped for now; "You're all set" waits for Done).
 bool setupScreenDue() {
-  if (hubState != HubState::Lobby || setupStage == TurnHub::SetupStage::Complete) return false;
+  if (table().hubState != HubState::Lobby || setupStage == TurnHub::SetupStage::Complete) return false;
   return !(setupStage == TurnHub::SetupStage::Welcome && setupSkipped);
 }
 
@@ -205,10 +205,10 @@ ScreenKind activeScreen(uint32_t nowMs) {
 void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
   ButtonSpec upper[3];
   uint8_t n = 0;
-  if (hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
+  if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
     upper[n++] = {TouchAction::OpenSetup, "Setup", 0, 1};
   }
-  if (hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
+  if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::Pair, "Pair a Sigil", 0, 1};
   upper[n++] = {TouchAction::OpenQr, "QR codes", 0, 1};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
   ButtonSpec lower[4];
@@ -227,7 +227,7 @@ void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
 void layoutDevice(AtlasScreen &screen) {
   ButtonSpec upper[2];
   uint8_t n = 0;
-  if (hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
+  if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
   upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
   const ButtonSpec lower[] = {{TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
@@ -237,7 +237,7 @@ void layoutDevice(AtlasScreen &screen) {
 // In-game controls kept off the main row: Master pass (a stuck turn, running
 // games only) above, End match and Back below. Both act only when held.
 void layoutTable(AtlasScreen &screen) {
-  if (hubState == HubState::Running) {
+  if (table().hubState == HubState::Running) {
     const ButtonSpec upper[] = {{TouchAction::MasterPass, "Master pass", MASTER_PASS_HOLD_MS, 1}};
     addRow(screen, BUTTON_UPPER_ROW_Y, upper, 1);
   }
@@ -251,13 +251,13 @@ void layoutTable(AtlasScreen &screen) {
 // alone: it asks again with Concede / Cancel.
 void layoutPlayer(AtlasScreen &screen) {
   // Lobby: turn order (item 11). Earlier and Later, then Back.
-  if (hubState == HubState::Lobby) {
+  if (table().hubState == HubState::Lobby) {
     const ButtonSpec upper[] = {{TouchAction::MoveEarlier, "Earlier", 0, 1},
         {TouchAction::MoveLater, "Later", 0, 1},
         {TouchAction::RemoveSeat, "Remove", LOBBY_REMOVE_HOLD_MS, 1}};
     addRow(screen, BUTTON_UPPER_ROW_Y, upper, 3);
     PlayerSeat seat;
-    if (currentShownSeat(seat) && lobby.hasSecondary(seat.controllerId)) {
+    if (currentShownSeat(seat) && table().lobby.hasSecondary(seat.controllerId)) {
       const ButtonSpec lower[] = {{TouchAction::SeatBLeft, "B left", 0, 1},
           {TouchAction::SeatBRight, "B right", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
       addRow(screen, BUTTON_ROW_Y, lower, 3);
@@ -274,7 +274,7 @@ void layoutPlayer(AtlasScreen &screen) {
     return;
   }
   // Yu-Gi-Oh! life moves in hundreds, as on the portal's life cards.
-  const bool hundreds = game.settings().profile == TurnHub::GameProfile::Yugioh;
+  const bool hundreds = table().game.settings().profile == TurnHub::GameProfile::Yugioh;
   const ButtonSpec upper[] = {{TouchAction::LifeMinus5, hundreds ? "-1000" : "-5", 0, 1},
       {TouchAction::LifeMinus1, hundreds ? "-100" : "-1", 0, 1},
       {TouchAction::LifePlus1, hundreds ? "+100" : "+1", 0, 1},
@@ -292,7 +292,7 @@ bool chipButton(const PlayerSeat &seat, uint32_t nowMs, TouchButton &out) {
   const uint8_t count = chipSeats(seats);
   for (uint8_t i = 0; i < count; ++i) {
     if (!sameSeat(seats[i], seat)) continue;
-    if (hubState != HubState::Lobby && game.isEliminated(seats[i].playerNumber)) return false;
+    if (table().hubState != HubState::Lobby && table().game.isEliminated(seats[i].playerNumber)) return false;
     out = TouchButton();
     out.action = TouchAction::OpenPlayer;
     screenChipCell(i, count, out.x, out.y, out.w, out.h);
@@ -374,13 +374,13 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       break;
   }
 
-  switch (hubState) {
+  switch (table().hubState) {
     // Start and Clear up front; Pair, QR codes, Tests and Info wait under Menu.
     case HubState::Lobby: {
       ButtonSpec row[3];
       uint8_t n = 0;
-      if (lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
-      if (lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", LOBBY_CLEAR_HOLD_MS, 2};
+      if (table().lobby.playerCount() >= 2) row[n++] = {TouchAction::StartGame, "Start", 0, 3};
+      if (table().lobby.playerCount() >= 1) row[n++] = {TouchAction::ClearLobby, "Clear", LOBBY_CLEAR_HOLD_MS, 2};
       row[n++] = {TouchAction::OpenMenu, "Menu", 0, 2};
       addRow(screen, BUTTON_ROW_Y, row, n);
       break;
@@ -613,7 +613,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     }
     case TouchAction::Pause:
     case TouchAction::Resume: {
-      const PlayerSeat *active = game.activePlayer();
+      const PlayerSeat *active = table().game.activePlayer();
       if (active == nullptr) {
         result = IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
         break;
@@ -631,7 +631,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
     case TouchAction::LifePlus5:
     case TouchAction::ConfirmConcede: {
       PlayerSeat seat;
-      if (!currentShownSeat(seat) || hubState == HubState::Lobby) {
+      if (!currentShownSeat(seat) || table().hubState == HubState::Lobby) {
         result = IntentResult::reject(IntentStatus::InvalidActor, "That player is not in this game");
         break;
       }
@@ -646,7 +646,7 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
         intent.type = IntentType::ChangeLife;
         intent.payload.targetPlayer = seat.playerNumber;
         // The small and big steps (LifeMinus1 / LifeMinus5 name the usual ones).
-        const int32_t step = game.settings().profile == TurnHub::GameProfile::Yugioh ? 100 : 1;
+        const int32_t step = table().game.settings().profile == TurnHub::GameProfile::Yugioh ? 100 : 1;
         const int32_t bigStep = step == 100 ? 1000 : 5;
         intent.payload.value = action == TouchAction::LifeMinus5 ? -bigStep
             : action == TouchAction::LifeMinus1 ? -step : action == TouchAction::LifePlus1 ? step : bigStep;
@@ -799,18 +799,18 @@ void playerName(const PlayerSeat &seat, const String &profileId, uint32_t nowMs,
 void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
   PlayerSeat seats[MAX_SCREEN_PLAYERS];
   uint8_t count = 0;
-  const bool inGame = game.hasPlayers() && hubState != HubState::Lobby;
+  const bool inGame = table().game.hasPlayers() && table().hubState != HubState::Lobby;
   if (inGame) {
-    for (uint8_t i = 0; i < game.playerCount() && count < MAX_SCREEN_PLAYERS; ++i) {
-      const PlayerSeat *seat = game.playerAt(i);
+    for (uint8_t i = 0; i < table().game.playerCount() && count < MAX_SCREEN_PLAYERS; ++i) {
+      const PlayerSeat *seat = table().game.playerAt(i);
       if (seat != nullptr) seats[count++] = *seat;
     }
   } else {
-    count = lobby.buildPlayers(seats, MAX_SCREEN_PLAYERS);
+    count = table().lobby.buildPlayers(seats, MAX_SCREEN_PLAYERS);
   }
   PlayerSeat starter;
-  const bool hasStarter = !inGame && lobby.selectedStarter(starter);
-  const uint8_t waitingOn = game.hasWinClaim() ? game.nextWinConfirmationPlayerNumber() : 0;
+  const bool hasStarter = !inGame && table().lobby.selectedStarter(starter);
+  const uint8_t waitingOn = table().game.hasWinClaim() ? table().game.nextWinConfirmationPlayerNumber() : 0;
   screen.showLife = inGame;
   for (uint8_t i = 0; i < count; ++i) {
     const PlayerSeat &seat = seats[i];
@@ -824,19 +824,19 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
         profile.length() ? profile : TurnHubControllers::profileForSeat(seat.controllerId, seat.slot));
     if (TurnHubAvatars::validPresetAvatar(avatar)) p.avatar = avatar;
     if (inGame) {
-      p.life = game.lifeTotal(seat.playerNumber);
+      p.life = table().game.lifeTotal(seat.playerNumber);
       uint32_t turnMs = 0;
-      if (const TurnHub::PlayerStats *stats = game.statsForPlayer(seat.playerNumber)) turnMs = stats->totalTurnMs;
+      if (const TurnHub::PlayerStats *stats = table().game.statsForPlayer(seat.playerNumber)) turnMs = stats->totalTurnMs;
       // Two-Headed Giant: both teammates hold the turn.
-      const bool hasTurn = hubState != HubState::GameOver && game.hasTurn(seat.playerNumber) &&
-          !game.isEliminated(seat.playerNumber);
+      const bool hasTurn = table().hubState != HubState::GameOver && table().game.hasTurn(seat.playerNumber) &&
+          !table().game.isEliminated(seat.playerNumber);
       if (hasTurn) {
-        turnMs += game.currentTurnElapsedMs(nowMs);
+        turnMs += table().game.currentTurnElapsedMs(nowMs);
       }
       formatClock(p.turnTime, sizeof(p.turnTime), turnMs);
       if (hasTurn) p.flags |= CHIP_ACTIVE;
-      if (game.isEliminated(seat.playerNumber)) p.flags |= CHIP_OUT;
-      if (hubState == HubState::GameOver && game.isWinner(seat.playerNumber)) p.flags |= CHIP_WINNER;
+      if (table().game.isEliminated(seat.playerNumber)) p.flags |= CHIP_OUT;
+      if (table().hubState == HubState::GameOver && table().game.isWinner(seat.playerNumber)) p.flags |= CHIP_WINNER;
       if (seat.playerNumber == waitingOn) p.flags |= CHIP_WAITING;
     } else {
       if (hasStarter && seat.sameSeat(starter)) p.flags |= CHIP_STARTER;
@@ -853,15 +853,15 @@ const char *nameOfPlayer(const AtlasScreen &screen, uint8_t number) {
 
 // "Ana's" or, in Two-Headed Giant, "Team 1's": whose turn or win it is.
 void formatSide(char *out, size_t size, const AtlasScreen &screen, uint8_t number, const char *suffix) {
-  const uint8_t team = game.teamOf(number);
+  const uint8_t team = table().game.teamOf(number);
   if (team) snprintf(out, size, "Team %u%s", static_cast<unsigned>(team), suffix);
   else snprintf(out, size, "%s%s", nameOfPlayer(screen, number), suffix);
 }
 
 // Two-Headed Giant: the starting team skips the draw of its first turn.
 bool startingTeamFirstTurn() {
-  if (!game.twoHeadedGiant() || !game.hasTurn(game.starterPlayerNumber())) return false;
-  const TurnHub::PlayerStats *stats = game.statsForPlayer(game.starterPlayerNumber());
+  if (!table().game.twoHeadedGiant() || !table().game.hasTurn(table().game.starterPlayerNumber())) return false;
+  const TurnHub::PlayerStats *stats = table().game.statsForPlayer(table().game.starterPlayerNumber());
   return stats != nullptr && stats->turnsCompleted == 0;
 }
 
@@ -870,29 +870,29 @@ bool startingTeamFirstTurn() {
 // finished by the players furthest along; if the active player is one of
 // them, their turn opens the next round.
 void formatTurnClock(AtlasScreen &screen, uint32_t nowMs) {
-  const bool over = hubState == HubState::GameOver && game.hasPlayers();
-  if (hubState != HubState::Running && hubState != HubState::Paused && !over) return;
+  const bool over = table().hubState == HubState::GameOver && table().game.hasPlayers();
+  if (table().hubState != HubState::Running && table().hubState != HubState::Paused && !over) return;
   // A finished game keeps its final round and length in the header.
-  screen.round = game.currentRound();
-  formatClock(screen.gameClock, sizeof(screen.gameClock), game.gameElapsedMs(nowMs));
+  screen.round = table().game.currentRound();
+  formatClock(screen.gameClock, sizeof(screen.gameClock), table().game.gameElapsedMs(nowMs));
   if (over) return;
-  if (game.turnTimerMs() > 0) {
-    const uint32_t left = game.turnRemainingMs(nowMs);
-    screen.timerPermille = static_cast<int16_t>(static_cast<uint64_t>(left) * 1000 / game.turnTimerMs());
-    const TurnHub::TurnTimerPhase phase = game.turnTimerPhase(nowMs);
+  if (table().game.turnTimerMs() > 0) {
+    const uint32_t left = table().game.turnRemainingMs(nowMs);
+    screen.timerPermille = static_cast<int16_t>(static_cast<uint64_t>(left) * 1000 / table().game.turnTimerMs());
+    const TurnHub::TurnTimerPhase phase = table().game.turnTimerPhase(nowMs);
     screen.timerWarning = phase == TurnHub::TurnTimerPhase::Warning ||
         phase == TurnHub::TurnTimerPhase::Expired;
     formatClock(screen.clock, sizeof(screen.clock), left);
   } else {
-    formatClock(screen.clock, sizeof(screen.clock), game.currentTurnElapsedMs(nowMs));
+    formatClock(screen.clock, sizeof(screen.clock), table().game.currentTurnElapsedMs(nowMs));
   }
 }
 
 void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
   addPlayers(screen, nowMs);
   formatTurnClock(screen, nowMs);
-  const uint8_t players = game.hasPlayers() ? game.playerCount() : lobby.playerCount();
-  switch (hubState) {
+  const uint8_t players = table().game.hasPlayers() ? table().game.playerCount() : table().lobby.playerCount();
+  switch (table().hubState) {
     case HubState::Lobby: {
       snprintf(screen.badge, sizeof(screen.badge), "LOBBY");
       snprintf(screen.title, sizeof(screen.title), "Lobby");
@@ -900,7 +900,7 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       if (pairingMs > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Pairing open: %lu s left",
             static_cast<unsigned long>((pairingMs + 999) / 1000));
-      } else if (nextGameSettings.twoHeadedGiant) {
+      } else if (table().nextGameSettings.twoHeadedGiant) {
         snprintf(screen.detail, sizeof(screen.detail), "%u %s, Two-Headed Giant",
             static_cast<unsigned>(players), players == 1 ? "player" : "players");
       } else {
@@ -924,17 +924,17 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       break;
     case HubState::Running: {
       snprintf(screen.badge, sizeof(screen.badge), "PLAYING");
-      formatSide(screen.title, sizeof(screen.title), screen, game.activePlayerNumber(), "'s turn");
-      if (pendingPass.active) {
+      formatSide(screen.title, sizeof(screen.title), screen, table().game.activePlayerNumber(), "'s turn");
+      if (table().pendingPass.active) {
         // Count down the grace period so the table sees the pass is still
         // cancelable, and for how long (turntest, 2026-09-26).
-        const uint32_t elapsed = millis() - pendingPass.requestedAtMs;
+        const uint32_t elapsed = millis() - table().pendingPass.requestedAtMs;
         const uint32_t leftMs = elapsed < PASS_GRACE_MS ? PASS_GRACE_MS - elapsed : 0;
         snprintf(screen.detail, sizeof(screen.detail), "Passing in %lus: that seat can cancel",
             static_cast<unsigned long>((leftMs + 999) / 1000));
       } else if (startingTeamFirstTurn()) {
         snprintf(screen.detail, sizeof(screen.detail), "Starting team: skip your first draw");
-      } else if (game.turnTimerMs() > 0) {
+      } else if (table().game.turnTimerMs() > 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Turn time left %s", screen.clock);
       } else {
         snprintf(screen.detail, sizeof(screen.detail), "Turn time %s", screen.clock);
@@ -944,29 +944,29 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
     case HubState::Paused:
       snprintf(screen.badge, sizeof(screen.badge), "PAUSED");
       snprintf(screen.title, sizeof(screen.title), "Paused");
-      if (game.hasWinClaim()) {
+      if (table().game.hasWinClaim()) {
         snprintf(screen.detail, sizeof(screen.detail), "Win claim: waiting on %s",
-            nameOfPlayer(screen, game.nextWinConfirmationPlayerNumber()));
-      } else if (eliminationTargetPlayer != 0) {
+            nameOfPlayer(screen, table().game.nextWinConfirmationPlayerNumber()));
+      } else if (table().eliminationTargetPlayer != 0) {
         snprintf(screen.detail, sizeof(screen.detail), "Eliminate %s? Their Sigil decides",
-            nameOfPlayer(screen, eliminationTargetPlayer));
+            nameOfPlayer(screen, table().eliminationTargetPlayer));
       } else {
-        formatSide(screen.detail, sizeof(screen.detail), screen, game.activePlayerNumber(), "'s turn");
+        formatSide(screen.detail, sizeof(screen.detail), screen, table().game.activePlayerNumber(), "'s turn");
       }
       break;
     case HubState::GameOver:
       snprintf(screen.badge, sizeof(screen.badge), "GAME OVER");
       snprintf(screen.title, sizeof(screen.title), "Game over");
-      if (game.endedInDraw()) {
+      if (table().game.endedInDraw()) {
         snprintf(screen.detail, sizeof(screen.detail), "The match ended in a draw");
       } else {
-        formatSide(screen.detail, sizeof(screen.detail), screen, game.winnerPlayerNumber(), " wins");
+        formatSide(screen.detail, sizeof(screen.detail), screen, table().game.winnerPlayerNumber(), " wins");
       }
       break;
   }
   // Sigil updates run between games; their progress and outcome, in words,
   // take the detail line so a failure is never silent at the table.
-  if (hubState == HubState::Lobby || hubState == HubState::GameOver) {
+  if (table().hubState == HubState::Lobby || table().hubState == HubState::GameOver) {
     char update[sizeof(screen.detail)];
     if (sigilUpdateNotice(update, sizeof(update), nowMs)) {
       snprintf(screen.detail, sizeof(screen.detail), "%s", update);
@@ -1061,15 +1061,15 @@ void formatPairCode(AtlasScreen &screen, uint32_t nowMs) {
 void formatTable(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.badge, sizeof(screen.badge), "TABLE");
   snprintf(screen.title, sizeof(screen.title), "Table controls");
-  if (hubState != HubState::Running) {
+  if (table().hubState != HubState::Running) {
     snprintf(screen.detail, sizeof(screen.detail), "Resume to use Master pass");
     return;
   }
-  if (game.hasWinClaim() || eliminationTargetPlayer != 0) {
+  if (table().game.hasWinClaim() || table().eliminationTargetPlayer != 0) {
     snprintf(screen.detail, sizeof(screen.detail), "Finish the table decision first");
     return;
   }
-  const PlayerSeat *active = game.activePlayer();
+  const PlayerSeat *active = table().game.activePlayer();
   if (active == nullptr) return;
   char name[SCREEN_NAME_LENGTH + 1];
   playerName(*active, String(active->profileId), nowMs, name);
@@ -1090,14 +1090,14 @@ void formatMenu(AtlasScreen &screen) {
     return;
   }
   snprintf(screen.detail, sizeof(screen.detail), "%s",
-      hubState == HubState::Lobby ? "Pair Sigils, share codes, table info" : "Share codes, table info");
+      table().hubState == HubState::Lobby ? "Pair Sigils, share codes, table info" : "Share codes, table info");
 }
 
 void formatDevice(AtlasScreen &screen) {
   snprintf(screen.badge, sizeof(screen.badge), "DEVICE");
   snprintf(screen.title, sizeof(screen.title), "Atlas device");
   snprintf(screen.detail, sizeof(screen.detail), "%s",
-      hubState == HubState::Lobby ? "Hold: Unpair 3 s, reset 10 s. Sleep: tap" : "Hold 10 s to reset. Sleep: tap");
+      table().hubState == HubState::Lobby ? "Hold: Unpair 3 s, reset 10 s. Sleep: tap" : "Hold 10 s to reset. Sleep: tap");
 }
 
 void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
@@ -1212,29 +1212,29 @@ void formatQr(AtlasScreen &screen, uint32_t nowMs) {
 void formatPlayer(AtlasScreen &screen, uint32_t nowMs) {
   PlayerSeat seat;
   if (!currentShownSeat(seat)) return;
-  const bool inLobby = hubState == HubState::Lobby;
+  const bool inLobby = table().hubState == HubState::Lobby;
   snprintf(screen.badge, sizeof(screen.badge), inLobby ? "ORDER" : "PLAYER");
   char name[SCREEN_NAME_LENGTH + 1];
   playerName(seat, profileIdForTableSeat(seat, !inLobby), nowMs, name);
   snprintf(screen.title, sizeof(screen.title), "%s", name);
-  if (inLobby && nextGameSettings.twoHeadedGiant) {
+  if (inLobby && table().nextGameSettings.twoHeadedGiant) {
     // Two-Headed Giant teams are neighbours in turn order (1+2, 3+4, ...).
     snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u, Team %u",
-        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(lobby.playerCount()),
+        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(table().lobby.playerCount()),
         static_cast<unsigned>((seat.playerNumber + 1) / 2));
   } else if (inLobby) {
     // Show each player's position and the shared Sigil's physical seating.
     snprintf(screen.detail, sizeof(screen.detail), "Turn order: %u of %u%s",
-        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(lobby.playerCount()),
-        lobby.hasSecondary(seat.controllerId) ?
-            (lobby.secondaryFirst(seat.controllerId) ? "; B left, before A" : "; B right, after A") : "");
+        static_cast<unsigned>(seat.playerNumber), static_cast<unsigned>(table().lobby.playerCount()),
+        table().lobby.hasSecondary(seat.controllerId) ?
+            (table().lobby.secondaryFirst(seat.controllerId) ? "; B left, before A" : "; B right, after A") : "");
   } else if (concedeArmed) {
     snprintf(screen.detail, sizeof(screen.detail), "Concede for %s? Their game ends.", name);
   } else {
     snprintf(screen.detail, sizeof(screen.detail), "%s %ld%s",
-        game.twoHeadedGiant() ? "Team life" : "Life",
-        static_cast<long>(game.lifeTotal(seat.playerNumber)),
-        game.hasTurn(seat.playerNumber) ? ", their turn" : "");
+        table().game.twoHeadedGiant() ? "Team life" : "Life",
+        static_cast<long>(table().game.lifeTotal(seat.playerNumber)),
+        table().game.hasTurn(seat.playerNumber) ? ", their turn" : "");
   }
 }
 
@@ -1317,7 +1317,7 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
 }
 
 bool touchCalibrationAllowed() {
-  return hubState == HubState::Lobby;
+  return table().hubState == HubState::Lobby;
 }
 
 void resetTouchControls() {

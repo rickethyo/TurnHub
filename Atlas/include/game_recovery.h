@@ -32,12 +32,15 @@ inline const char *storageStatusName(TurnHubStorage::Status status) {
 }
 
 // Serialized on the Atlas application task. Buffers live with this service,
-// never on the small ESP32 task stack. This is a persistence cache, not gameplay.
+// never on the small ESP32 task stack; every record shares them, since each
+// call finishes before the next. This is a persistence cache, not gameplay.
 // The last saved record is remembered by size and CRC-32 rather than a second
 // copy, to keep RAM free.
 class GameRecovery {
  public:
-  explicit GameRecovery(TurnHubStorage::BlobStore &store) : store_(store) {}
+  // key names this table's record in the store ("checkpoint" for Game 1).
+  explicit GameRecovery(TurnHubStorage::BlobStore &store, const char *key = "checkpoint")
+      : store_(store), key_(key) {}
   TurnHubStorage::Status load(GameEngine &game, Lobby &lobby, uint32_t nowMs);
   TurnHubStorage::Status save(const GameEngine &game, uint32_t nowMs);
   // Completion barrier: commit a finished snapshot before profile increments.
@@ -48,17 +51,21 @@ class GameRecovery {
   void rememberSaved(uint32_t nowMs);
 
   TurnHubStorage::BlobStore &store_;
-  GameCheckpoint scratch_{};
-  uint8_t bytes_[GAME_CHECKPOINT_CAPACITY]{};
+  const char *key_;
+  static GameCheckpoint scratch_;
+  static uint8_t bytes_[GAME_CHECKPOINT_CAPACITY];
   size_t previousSize_ = 0;
   uint32_t previousCrc_ = 0;
   uint32_t lastSavedMs_ = 0;
   bool writable_ = false;
   TurnHubStorage::Status status_ = TurnHubStorage::Status::Unavailable;
 };
-// Production NVS adapter, initialized explicitly during setup.
-TurnHubStorage::Status beginGameRecovery(GameEngine &game, Lobby &lobby, uint32_t nowMs);
+// Production NVS adapter, initialized explicitly during setup. Each game
+// table has its own record (venue model): beginGameRecovery binds an engine
+// to table slot's record, and the checkpoint calls find the record by engine.
+constexpr uint8_t GAME_RECOVERY_SLOTS = 2;
+TurnHubStorage::Status beginGameRecovery(GameEngine &game, Lobby &lobby, uint32_t nowMs, uint8_t slot = 0);
 TurnHubStorage::Status checkpointGame(const GameEngine &game, uint32_t nowMs);
 TurnHubStorage::Status checkpointCompletedGame(const GameEngine &game, uint32_t nowMs);
-TurnHubStorage::Status gameRecoveryStatus();
+TurnHubStorage::Status gameRecoveryStatus(uint8_t slot = 0);
 } // namespace TurnHub

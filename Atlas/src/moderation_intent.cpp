@@ -24,17 +24,17 @@ IntentResult saveNudgePreference(const String &target, Account &account, bool mu
 
 // Passes immediately for the active player, skipping the PASS grace period.
 IntentResult passForPlayer(bool joined, uint8_t controller, const PlayerSeat &seat) {
-  if (!joined || hubState != HubState::Running || !game.hasTurn(seat.playerNumber)) {
+  if (!joined || table().hubState != HubState::Running || !table().game.hasTurn(seat.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Target is not the active player");
   }
-  if (game.hasWinClaim() || eliminationTargetPlayer) {
+  if (table().game.hasWinClaim() || table().eliminationTargetPlayer) {
     return IntentResult::reject(IntentStatus::Conflict, "Resolve table decisions first");
   }
   clearPendingPass("GAME_MASTER");
-  if (!game.passTurn(controller, millis())) {
+  if (!table().game.passTurn(controller, millis())) {
     return IntentResult::reject(IntentStatus::InvalidState, "Pass rejected");
   }
-  const PlayerSeat *next = game.activePlayer();
+  const PlayerSeat *next = table().game.activePlayer();
   // A pass for someone else is a master pass, whoever asks for it.
   logMasterPass(seat.playerNumber, next ? next->playerNumber : 0, IntentOrigin::Browser);
   if (next) audio.turnPassed(controller, next->controllerId);
@@ -46,12 +46,12 @@ IntentResult passForPlayer(bool joined, uint8_t controller, const PlayerSeat &se
 // secondary seat, or a living player while no table decision is open.
 IntentResult validateRemoval(bool joined, uint8_t controller, uint8_t slot, const PlayerSeat &seat) {
   if (!joined) return IntentResult::reject(IntentStatus::InvalidState, "Target is not in this game");
-  if (hubState == HubState::Lobby) {
-    if (slot == 1 && lobby.hasSecondary(controller)) {
+  if (table().hubState == HubState::Lobby) {
+    if (slot == 1 && table().lobby.hasSecondary(controller)) {
       return IntentResult::reject(IntentStatus::Conflict, "Remove the secondary seat first");
     }
-  } else if ((hubState != HubState::Running && hubState != HubState::Paused) ||
-      game.hasWinClaim() || eliminationTargetPlayer || game.isEliminated(seat.playerNumber)) {
+  } else if ((table().hubState != HubState::Running && table().hubState != HubState::Paused) ||
+      table().game.hasWinClaim() || table().eliminationTargetPlayer || table().game.isEliminated(seat.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Resolve table decisions first, or target already removed");
   }
@@ -62,7 +62,7 @@ IntentResult validateRemoval(bool joined, uint8_t controller, uint8_t slot, cons
 IntentResult removeFromTable(const String &target, uint8_t controller, uint8_t slot,
     const PlayerSeat &seat) {
   Intent removal;
-  removal.type = hubState == HubState::Lobby ? IntentType::LeaveProfile : IntentType::Concede;
+  removal.type = table().hubState == HubState::Lobby ? IntentType::LeaveProfile : IntentType::Concede;
   removal.actor.origin = IntentOrigin::Browser;
   removal.actor.controllerId = controller;
   removal.actor.slot = slot;

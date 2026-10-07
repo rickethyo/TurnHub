@@ -7,8 +7,8 @@
 namespace TurnHubAtlas {
 namespace {
 using namespace TurnHubProtocol;
-bool tableReady() { return (hubState == HubState::Running || hubState == HubState::Paused) &&
-    !game.hasWinClaim() && eliminationTargetPlayer == 0; }
+bool tableReady() { return (table().hubState == HubState::Running || table().hubState == HubState::Paused) &&
+    !table().game.hasWinClaim() && table().eliminationTargetPlayer == 0; }
 struct Flow {
   CommanderFlowPacket page{};
   bool sent = false;
@@ -18,11 +18,11 @@ Flow flows[MAX_PHYSICAL_SIGILS];
 void changed(Flow &f) { ++f.page.revision; f.sent = false; }
 void close(Flow &f) { f.page.stage = CommanderStage::Closed; changed(f); }
 bool eligible(const Flow &f) {
-  const auto *seat = game.playerByNumber(f.page.recipient);
-  return tableReady() && f.generation == game.matchGeneration() &&
-      game.settings().profile == TurnHub::GameProfile::Commander && seat &&
+  const auto *seat = table().game.playerByNumber(f.page.recipient);
+  return tableReady() && f.generation == table().game.matchGeneration() &&
+      table().game.settings().profile == TurnHub::GameProfile::Commander && seat &&
       seat->controllerId == f.page.sigilId && seat->slot == f.page.recipientSlot &&
-      seat->participantId == f.participant && !game.isEliminated(seat->playerNumber);
+      seat->participantId == f.participant && !table().game.isEliminated(seat->playerNumber);
 }
 // Names read from the profile store (NVS) once per opened flow, not on every
 // source change: cycling sources runs on the loop task.
@@ -35,7 +35,7 @@ void name(uint8_t player, char *out) {
     memcpy(out, nameCache[player - 1], DISPLAY_NAME_MAX_LENGTH + 1);
     return;
   }
-  const auto *seat = game.playerByNumber(player);
+  const auto *seat = table().game.playerByNumber(player);
   String text = seat ? TurnHubProfiles::nameForProfile(String(seat->profileId)) : String();
   if (!text.length()) text = String("Player ") + String(player);
   size_t i = 0;
@@ -51,12 +51,12 @@ void name(uint8_t player, char *out) {
 // eliminated players (self-damage is rare; record it from a phone). Falls
 // back to `from` when nobody else qualifies.
 uint8_t nextSource(uint8_t recipient, uint8_t from, int step) {
-  const int count = game.playerCount();
+  const int count = table().game.playerCount();
   if (count <= 0) return from;
   int player = from;
   for (int i = 0; i < count; ++i) {
     player = (player - 1 + count + step) % count + 1;
-    if (player != recipient && !game.isEliminated(static_cast<uint8_t>(player)))
+    if (player != recipient && !table().game.isEliminated(static_cast<uint8_t>(player)))
       return static_cast<uint8_t>(player);
   }
   return from;
@@ -65,8 +65,8 @@ uint8_t nextSource(uint8_t recipient, uint8_t from, int step) {
 // a new revision, requiring the player to confirm the fresh values.
 void refresh(Flow &f) {
   auto &p = f.page;
-  const int32_t life = game.lifeTotal(p.recipient);
-  const int32_t damage = game.commanderDamage(p.recipient,p.source,p.commander);
+  const int32_t life = table().game.lifeTotal(p.recipient);
+  const int32_t damage = table().game.commanderDamage(p.recipient,p.source,p.commander);
   if (p.life != life || p.damage != damage) {
     p.life = life; p.damage = damage; changed(f);
   }
@@ -78,7 +78,7 @@ void result(Flow &f, const char *notice) {
   changed(f);
 }
 void apply(Flow &f, bool undo) {
-  const auto *seat = game.playerByNumber(f.page.recipient);
+  const auto *seat = table().game.playerByNumber(f.page.recipient);
   Intent intent;
   intent.type = undo ? IntentType::UndoCommanderHit : IntentType::RecordCommanderHit;
   intent.actor.origin = IntentOrigin::PhysicalSigil;
@@ -96,10 +96,10 @@ void apply(Flow &f, bool undo) {
 }
 void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t nowMs) {
   if (sigilId >= MAX_PHYSICAL_SIGILS) return;
-  const auto *seat = game.playerByNumber(recipient);
-  if (!seat || seat->controllerId != sigilId || game.isEliminated(recipient) ||
+  const auto *seat = table().game.playerByNumber(recipient);
+  if (!seat || seat->controllerId != sigilId || table().game.isEliminated(recipient) ||
       !tableReady() ||
-      game.settings().profile != TurnHub::GameProfile::Commander) return;
+      table().game.settings().profile != TurnHub::GameProfile::Commander) return;
   namesCached = 0;
   Flow &f = flows[sigilId];
   const uint16_t revision = f.page.revision;
@@ -108,11 +108,11 @@ void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t
   p.version = VERSION; p.type = PacketType::CommanderFlow; p.sigilId = sigilId;
   p.revision = revision; p.stage = CommanderStage::Source;
   p.recipient = recipient; p.recipientSlot = seat->slot; f.participant = seat->participantId;
-  p.source = nextSource(recipient, game.playerCount(), 1); p.commander = 1; p.amount = 1;
+  p.source = nextSource(recipient, table().game.playerCount(), 1); p.commander = 1; p.amount = 1;
   name(recipient,p.recipientName); name(p.source,p.sourceName);
-  f.lastKey = nowMs; f.generation = game.matchGeneration();
+  f.lastKey = nowMs; f.generation = table().game.matchGeneration();
   if (undo) {
-    const auto *hit = game.lastCommanderHit(recipient);
+    const auto *hit = table().game.lastCommanderHit(recipient);
     if (hit) {
       p.source = hit->source; p.commander = hit->commander; p.amount = hit->amount;
       p.stage = CommanderStage::UndoConfirm; name(p.source,p.sourceName);
@@ -121,6 +121,7 @@ void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t
   refresh(f); changed(f);
 }
 void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   if (sigilId >= MAX_PHYSICAL_SIGILS) return;
   Flow &f = flows[sigilId]; auto &p = f.page;
   if (p.stage == CommanderStage::Closed) { f.sent = false; return; }
@@ -136,7 +137,7 @@ void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
     if (p.stage == CommanderStage::Source || p.stage == CommanderStage::UndoConfirm) close(f);
     else {
       p.stage = static_cast<CommanderStage>(static_cast<uint8_t>(p.stage)-1);
-      if (p.stage == CommanderStage::Commander && !game.hasPartner(p.source)) p.stage = CommanderStage::Source;
+      if (p.stage == CommanderStage::Commander && !table().game.hasPartner(p.source)) p.stage = CommanderStage::Source;
       changed(f);
     }
     return;
@@ -148,7 +149,7 @@ void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
         name(p.source,p.sourceName); changed(f); refresh(f);
       } else if (key == 4) {
         // Without partners there is one commander: straight to the amount.
-        if (game.hasPartner(p.source)) p.stage = CommanderStage::Commander;
+        if (table().game.hasPartner(p.source)) p.stage = CommanderStage::Commander;
         else { p.commander = 1; p.stage = CommanderStage::Amount; refresh(f); }
         changed(f);
       }
@@ -184,6 +185,7 @@ void resetCommanderPickers() {
 }
 void syncCommanderPickers(uint32_t nowMs) {
   for (uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) {
+    TableScope scope(tableForController(id));
     Flow &f = flows[id];
     if (!f.page.version) { f.page.version = VERSION; f.page.type = PacketType::CommanderFlow; f.page.sigilId = id; }
     if (f.page.stage != CommanderStage::Closed) {

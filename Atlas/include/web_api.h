@@ -154,6 +154,20 @@ struct UpdateNoticeHooks {
 };
 void configureUpdateNotice(const UpdateNoticeHooks &hooks);
 
+// Venue tables (PLANNED_DESIGNS.md): Atlas runs `count` games side by side.
+// Each request acts on one: a table tablet's chosen game; else the game the
+// session's profile plays in; else the game the session follows (POST
+// /api/session/game, game=1..count); without a session, `game` (1-based) if
+// given, else Game 1.
+struct TableHooks {
+  uint8_t count = 1;
+  int8_t (*profileTable)(const String &profileId) = nullptr;  // -1: not seated.
+  uint8_t (*select)(uint8_t index) = nullptr;                 // Returns the previous one.
+};
+void configureTables(const TableHooks &hooks);
+// The game (0-based) a request acts on, for routes outside the route table.
+uint8_t requestGame(WebServer &server);
+
 // Called only for real physical Sigil activity. A pending browser claim is
 // approved when the user proves possession by choosing Link phone on that Sigil.
 void notePhysicalAction(uint8_t sigilId);

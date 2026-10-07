@@ -545,6 +545,37 @@ void handleSessionMe(WebServer &server) {
   sendJson(server, 200, response);
 }
 
+// Venue tables: follow another game. A profile in a lobby leaves it first;
+// one playing in a game finishes (or the table is reset) before moving. A
+// table tablet just moves; its seated players stay where they are.
+void handleSessionGame(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (session == nullptr) {
+    sendError(server, 401, "Sign in to a profile first");
+    return;
+  }
+  const long game = server.arg("game").toInt();
+  if (game < 1 || game > tableHooks.count) {
+    sendError(server, 400, "No such game");
+    return;
+  }
+  const uint8_t target = static_cast<uint8_t>(game - 1);
+  const String profileId = sessionProfileId(*session);
+  if (!session->tableDevice && tableHooks.profileTable != nullptr) {
+    const int8_t seated = tableHooks.profileTable(profileId);
+    // This request already acts on the game the profile is seated in.
+    String message;
+    if (seated >= 0 && seated != target &&
+        (!profileControlHandler ||
+         !profileControlHandler(profileId, WebControl::Leave, INVALID_ID, 1, message))) {
+      sendError(server, 409, "Finish this game before you switch");
+      return;
+    }
+  }
+  session->table = target;
+  sendOkMessage(server, String("Following Game ") + String(game));
+}
+
 void handleLogout(WebServer &server) {
   const String token = server.header(TOKEN_HEADER);
   for (auto &session : sessions) {

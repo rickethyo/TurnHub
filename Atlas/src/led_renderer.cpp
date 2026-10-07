@@ -420,8 +420,10 @@ void LedRenderer::render(
     uint32_t countdownStartedAtMs,
     uint8_t eliminationTargetPlayer,
     uint8_t winConfirmationPlayer,
-    uint32_t nowMs) {
+    uint32_t nowMs,
+    uint16_t sigilMask) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if ((sigilMask & (1u << id)) == 0) continue;
     if (!bus_.isOnline(id, nowMs)) {
       invalidate(id);
       continue;

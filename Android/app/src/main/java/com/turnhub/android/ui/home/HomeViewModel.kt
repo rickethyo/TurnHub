@@ -75,6 +75,9 @@ class HomeViewModel(
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
+    /** Receives Atlas's profile list while connected (the standalone game's player picks). */
+    var onAtlasProfiles: ((List<ProfileSummary>) -> Unit)? = null
+
     /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
     private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(
         playerSession,
@@ -271,6 +274,22 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
+        }
+        // The standalone game picks its players from the last Atlas's profiles:
+        // read them once per Atlas boot, and again when someone new sits down.
+        viewModelScope.launch {
+            repository.tableSummary
+                .map { summary -> summary?.let { Triple(it.atlasId, it.bootId, it.players.mapNotNull { p -> p.profileId }.toSet()) } }
+                .distinctUntilChanged()
+                .collectLatest { key ->
+                    val endpoint = repository.endpoint.value
+                    if (key == null || endpoint == null) return@collectLatest
+                    try {
+                        onAtlasProfiles?.invoke(playerSession.profiles(endpoint))
+                    } catch (_: AtlasException) {
+                        // Kept from last time; tried again on the next change.
+                    }
+                }
         }
         // While Atlas isn't answering, rejoin its Wi-Fi whenever Android has
         // dropped it, so polling reaches Atlas as soon as it is back.

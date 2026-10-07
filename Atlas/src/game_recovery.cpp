@@ -12,7 +12,6 @@ namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
 constexpr uint32_t SCHEMA = 1;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
-constexpr char RECORD_KEY[] = "checkpoint";
 // Wire layout (little-endian): magic, schema, 7 header bytes, 5 header words,
 // then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
 // eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
@@ -115,7 +114,7 @@ TurnHubStorage::Status GameRecovery::load(GameEngine &game, Lobby &lobby, uint32
   writable_ = false;
   previousSize_ = 0;
   size_t size = 0;
-  status_ = store_.read(RECORD_KEY, bytes_, sizeof(bytes_), size);
+  status_ = store_.read(key_, bytes_, sizeof(bytes_), size);
   serialLog.print("ATLAS|RECOVERY|READ|STATUS|");
   serialLog.print(storageStatusName(status_));
   serialLog.print("|SIZE|");
@@ -156,14 +155,14 @@ TurnHubStorage::Status GameRecovery::saveCompleted(const GameEngine &game, uint3
   // safe if recovery could not load at boot: damaged/future records are never
   // replaced simply because another match has since finished.
   size_t existingSize = 0;
-  status_ = store_.read(RECORD_KEY, bytes_, sizeof(bytes_), existingSize);
+  status_ = store_.read(key_, bytes_, sizeof(bytes_), existingSize);
   if (status_ == Status::Ok) status_ = decodeCheckpoint(bytes_, existingSize, scratch_);
   if (status_ != Status::Ok && status_ != Status::NotFound) return status_;
 
   game.checkpoint(scratch_, nowMs);
   const size_t size = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
   if (!size) return status_ = Status::InvalidArgument;
-  status_ = store_.write(RECORD_KEY, bytes_, size);
+  status_ = store_.write(key_, bytes_, size);
   serialLog.print("ATLAS|RECOVERY|COMPLETION|STATUS|");
   serialLog.println(storageStatusName(status_));
   if (status_ == Status::Ok) {
@@ -203,7 +202,7 @@ TurnHubStorage::Status GameRecovery::save(const GameEngine &game, uint32_t nowMs
   scratch_.gameElapsed = gameTime;
   scratch_.turnElapsed = turnTime;
   const size_t size = encodeCheckpoint(scratch_, bytes_, sizeof(bytes_));
-  status_ = store_.write(RECORD_KEY, bytes_, size);
+  status_ = store_.write(key_, bytes_, size);
   serialLog.print("ATLAS|RECOVERY|WRITE|REASON|");
   serialLog.print(changed ? "CHANGED" : "CLOCK");
   serialLog.print("|STATUS|");
@@ -213,4 +212,6 @@ TurnHubStorage::Status GameRecovery::save(const GameEngine &game, uint32_t nowMs
   if (status_ == Status::Ok) rememberSaved(nowMs);
   return status_;
 }
+GameCheckpoint GameRecovery::scratch_{};
+uint8_t GameRecovery::bytes_[GAME_CHECKPOINT_CAPACITY]{};
 } // namespace TurnHub

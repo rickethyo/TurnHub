@@ -33,6 +33,8 @@ class ClientState {
   void refreshNames() { namesStale_ = true; }
   void observe(HubState state, const Lobby &lobby, const GameEngine &game,
       const GameSettings &nextSettings, const ClientPending &pending);
+  // One counter for every game table, so a revision never repeats when a
+  // client follows another game, and a change in either game is a new one.
   uint32_t revision() const { return revision_; }
   // True when a pending life request has passed its approval window.
   bool expirationDue(uint32_t nowMs) const;
@@ -58,6 +60,6 @@ class ClientState {
   uint8_t count_ = 0, host_ = INVALID_ID, starter_ = 0, active_ = 0;
   uint8_t winner_ = 0, claimant_ = 0, confirmation_ = 0;
   bool inGame_ = false, initialized_ = false;
-  uint32_t revision_ = 0;
+  static uint32_t revision_;
 };
 } // namespace TurnHub

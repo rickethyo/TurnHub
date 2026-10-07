@@ -27,6 +27,8 @@ void nullablePlayer(String &out, uint8_t player) {
 }
 }
 
+uint32_t ClientState::revision_ = 0;
+
 void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &game,
     const GameSettings &nextSettings, const ClientPending &pending) {
   bool changed = !initialized_;

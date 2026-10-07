@@ -39,6 +39,7 @@ SetupStageCallback readSetupStage = nullptr;
 AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
+TableHooks tableHooks;
 
 namespace {
 WebServer *webServer = nullptr;
@@ -131,6 +132,10 @@ void configureSetup(SetupStageCallback stage) {
   readSetupStage = stage;
 }
 
+void configureTables(const TableHooks &hooks) {
+  tableHooks = hooks;
+}
+
 // --- Routes ---------------------------------------------------------------------------
 
 namespace {
@@ -217,6 +222,7 @@ const Route ROUTES[] = {
   {"/api/session/stats", HTTP_GET, handleProfileStats},
   {"/api/session/stats/export", HTTP_GET, handleProfileStatsExport},
   {"/api/session/logout", HTTP_POST, handleLogout},
+  {"/api/session/game", HTTP_POST, handleSessionGame},
 
   // Game settings and counters.
   {"/api/game/settings", HTTP_GET, handleGameSettings},
@@ -259,6 +265,33 @@ const Route *findRoute(HTTPMethod method, const String &uri) {
   return nullptr;
 }
 
+}  // namespace
+
+// The game a request acts on (TableHooks). Matches the token without
+// sessionForRequest's housekeeping, which the handler does anyway.
+uint8_t requestGame(WebServer &server) {
+  if (tableHooks.count < 2) return 0;
+  const String token = server.header(TOKEN_HEADER);
+  const WebSession *session = nullptr;
+  for (const WebSession &candidate : sessions) {
+    if (candidate.used && token.length() == TOKEN_LENGTH && token.equalsIgnoreCase(candidate.token)) {
+      session = &candidate;
+      break;
+    }
+  }
+  if (session == nullptr) {
+    const long game = server.hasArg("game") ? server.arg("game").toInt() : 1;
+    return game >= 1 && game <= tableHooks.count ? static_cast<uint8_t>(game - 1) : 0;
+  }
+  if (!session->tableDevice && tableHooks.profileTable != nullptr) {
+    const int8_t seated = tableHooks.profileTable(String(session->profileId));
+    if (seated >= 0) return static_cast<uint8_t>(seated);
+  }
+  return session->table < tableHooks.count ? session->table : 0;
+}
+
+namespace {
+
 class RouteTableHandler final : public RequestHandler {
  public:
   bool canHandle(HTTPMethod method, String uri) override {
@@ -267,6 +300,8 @@ class RouteTableHandler final : public RequestHandler {
   bool handle(WebServer &server, HTTPMethod method, String uri) override {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
+    // Every handler acts on the request's game; the previous one is restored.
+    const uint8_t previous = tableHooks.select ? tableHooks.select(requestGame(server)) : 0;
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.
@@ -277,10 +312,12 @@ class RouteTableHandler final : public RequestHandler {
     } else {
       route->handler(server);
     }
+    if (tableHooks.select) tableHooks.select(previous);
     return true;
   }
 };
 RouteTableHandler routeTable;
+
 }  // namespace
 
 void begin(WebServer &server) {
