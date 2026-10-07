@@ -25,6 +25,10 @@ data class LocalPlayer(
     /** 1 for the first player out, 2 for the next, and so on. */
     val outOrder: Int? = null,
     val turnsCompleted: Int = 0,
+    /** Time spent on completed turns, and the quickest and longest of them (0 until one completes). */
+    val turnMs: Long = 0,
+    val fastestTurnMs: Long = 0,
+    val longestTurnMs: Long = 0,
     /** Commander damage received, by source player index: one total per commander (1 and 2). */
     val commanderDamage: Map<Int, List<Int>> = emptyMap(),
 )
@@ -136,8 +140,16 @@ data class StandaloneGame(
         if (state != TableState.RUNNING || index != active) return this
         val next = nextIn(index) ?: return this
         val now = gameElapsedMs(nowMs)
+        val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         return copy(
-            players = players.mapIndexed { i, p -> if (i == index) p.copy(turnsCompleted = p.turnsCompleted + 1) else p },
+            players = players.mapIndexed { i, p ->
+                if (i != index) p else p.copy(
+                    turnsCompleted = p.turnsCompleted + 1,
+                    turnMs = p.turnMs + took,
+                    fastestTurnMs = if (p.fastestTurnMs == 0L) took else minOf(p.fastestTurnMs, took),
+                    longestTurnMs = maxOf(p.longestTurnMs, took),
+                )
+            },
             active = next,
             turnStartedAtElapsedMs = now,
         ).bump()
@@ -236,6 +248,9 @@ data class StandaloneGame(
                     profileId = p.profileId,
                     finalLife = p.life,
                     turnsCompleted = p.turnsCompleted,
+                    turnMs = p.turnMs,
+                    fastestTurnMs = p.fastestTurnMs,
+                    longestTurnMs = p.longestTurnMs,
                     outOrder = p.outOrder,
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
                 )

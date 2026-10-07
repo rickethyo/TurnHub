@@ -316,3 +316,35 @@ One shared screen at the table acting for every seat. Engineering record:
      `reset`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
      `expectedRevision`).
 
+
+## Standalone tablet game import (2026-10-07)
+
+With no Atlas at the table, the Android app can run a standalone game itself
+(`Android/README.md`, "The one exception"). Each finished game is kept on the
+device and sent once Atlas is connected and someone is signed in:
+
+`POST /api/standalone/import` (signed-in session, `X-TurnHub-Token`; 401
+otherwise), form fields:
+
+- `recordId`: 8-48 characters of letters, digits and `-` (the app uses a UUID).
+- `gameProfile`: `generic`, `mtg`, `mtg_commander` or `yugioh`.
+- `durationMs`: 0 to 604800000. `players`: 2 to 8.
+- `starter`, `winner`: a player index, or empty for none (no winner is a draw).
+- Per player `i` from 0, in turn order: `name<i>` (required), `profile<i>`
+  (the Atlas profile picked on the tablet, or empty), `turns<i>`, `turnMs<i>`,
+  `fastest<i>`, `longest<i>` (completed turns and their times), `out<i>`
+  (1 for the first player out, 0 for anyone still in).
+
+Atlas credits each player to the picked profile when it still exists and isn't
+archived, otherwise to the profile with the same name ignoring case; the rest
+are listed as unmatched and count for no one. One profile is credited once
+per game. Answers `{"ok":true,"duplicate":false,"credited":N,"unmatched":[names]}`;
+a record ID Atlas already took answers `"duplicate":true` and changes nothing.
+400 for a malformed record (the app drops it), 503 when Atlas couldn't save
+(the app keeps it for the next connect).
+
+Atlas remembers the last 64 record IDs (hashed, NVS `sgimport`) and saves the ID
+before any statistics, so a power cut can lose one game's statistics but never
+count it twice. Imported games add to games played, won, eliminated and
+started, completed turns and turn times, and set the last-game fields like a
+live game.

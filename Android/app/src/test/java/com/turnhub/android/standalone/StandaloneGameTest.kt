@@ -1,5 +1,6 @@
 package com.turnhub.android.standalone
 
+import com.turnhub.android.data.RawResponse
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
@@ -54,6 +55,8 @@ class StandaloneGameTest {
         assertEquals(1, game.active)
         assertEquals(1, game.players[0].turnsCompleted)
         assertEquals(60_000, game.turnStartedAtElapsedMs)
+        assertEquals(60_000, game.players[0].turnMs)
+        assertEquals(60_000, game.players[0].fastestTurnMs)
         // Only the active player passes.
         assertSame(game, game.pass(0, 62_000))
     }
@@ -130,6 +133,33 @@ class StandaloneGameTest {
         assertNull(again.state.value.records[1].winner)
         again.forgetRecords(setOf("g1"))
         assertEquals(listOf("g2"), again.state.value.records.map { it.recordId })
+    }
+
+    @Test
+    fun `finished games go to Atlas once and wait when it can't take them`() = runTest {
+        var ids = 0
+        val table = StandaloneTable(MemoryStore(), { 1_000L }, { "game-${++ids}" })
+        table.addPlayer("Ana", "p-ana")
+        table.addPlayer("Ben")
+        repeat(3) {
+            table.start()
+            table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "draw")
+            table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset")
+        }
+        assertEquals(3, table.state.value.records.size)
+        val fields = table.state.value.records[0].importFields().toMap()
+        assertEquals("game-1", fields["recordId"])
+        assertEquals("2", fields["players"])
+        assertEquals("", fields["winner"])
+        assertEquals("p-ana", fields["profile0"])
+        assertEquals("", fields["profile1"])
+
+        // Taken, refused as invalid, then Atlas can't save: the last one waits.
+        val answers = ArrayDeque(listOf(RawResponse(200, "{}"), RawResponse(400, "{}"), RawResponse(503, "{}")))
+        assertEquals(1, table.sendRecords { answers.removeFirst() })
+        assertEquals(listOf("game-3"), table.state.value.records.map { it.recordId })
+        assertEquals(0, table.sendRecords { null })
+        assertEquals(1, table.state.value.records.size)
     }
 
     private class MemoryStore : StandaloneStore {

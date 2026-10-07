@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "profile_fixture.h"
 #include "profile_statistics.h"
+#include "standalone_import.h"
 #ifdef _MSC_VER
 // Keep the production packet's packed layout when compiling with MSVC.
 #define __attribute__(...)
@@ -4081,6 +4082,80 @@ static void twoHeadedGiantSigils() {
   table().nextGameSettings=GameSettings{};
 }
 
+// A standalone tablet game's finished record: imported once, credited to the
+// picked profile or a name match, unmatched names reported, duplicates ignored.
+namespace {
+struct MemoryBlobs : TurnHubStorage::BlobStore {
+  std::map<std::string,std::vector<uint8_t>> blobs; bool failWrites=false;
+  TurnHubStorage::Status read(const char *key,void *data,size_t capacity,size_t &size) override {
+    auto found=blobs.find(key); if(found==blobs.end()) return TurnHubStorage::Status::NotFound;
+    size=found->second.size(); if(data==nullptr&&capacity==0) return TurnHubStorage::Status::Ok;
+    if(capacity<size) return TurnHubStorage::Status::InvalidArgument;
+    memcpy(data,found->second.data(),size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status write(const char *key,const void *data,size_t size) override {
+    if(failWrites) return TurnHubStorage::Status::IoError;
+    const auto *b=static_cast<const uint8_t*>(data); blobs[key]=std::vector<uint8_t>(b,b+size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status remove(const char *key) override { return blobs.erase(key)?TurnHubStorage::Status::Ok:TurnHubStorage::Status::NotFound; }
+};
+}
+static void standaloneImport() {
+  MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
+  TurnHubWebApi::configure(resolveWebSeat,handleWebControl,handleProfileControl,resolveProfileParticipant);
+  TurnHubWebApi::configureGameControls(readGameSettings,configureGame,changeLife);
+  TurnHubWebApi::configureCounterControls(readCounters,changeCounter);
+  enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
+  String anaId,benId; const String ana=registerPhone("Ana Import",anaId); const String ben=registerPhone("Ben Import",benId);
+  std::map<std::string,String> record={
+    {"recordId","0f8e5c2a-1111-4222-8333-444455556666"},{"gameProfile","mtg_commander"},
+    {"durationMs","1800000"},{"players","3"},{"starter","1"},{"winner","0"},
+    {"name0","Ana"},{"profile0",anaId},{"turns0","6"},{"turnMs0","600000"},{"fastest0","30000"},{"longest0","200000"},{"out0","0"},
+    {"name1","ben import"},{"profile1",""},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
+    {"name2","Stranger"},{"profile2",""},{"turns2","5"},{"turnMs2","400000"},{"fastest2","10000"},{"longest2","90000"},{"out2","2"},
+  };
+  const auto anaBefore=ProfileFixture::profiles[anaId.c_str()].stats;
+  const auto benBefore=ProfileFixture::profiles[benId.c_str()].stats;
+  // Signed-in sessions only, and only well-formed records.
+  assert(request("/api/standalone/import","",record)==401);
+  auto bad=record; bad["winner"]="3"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["recordId"]="x"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["players"]="1"; assert(request("/api/standalone/import",ana,bad)==400);
+  assert(blobs.blobs.empty());
+
+  assert(request("/api/standalone/import",ana,record)==200);
+  assert(server.body.find("\"duplicate\":false")!=std::string::npos);
+  assert(server.body.find("\"credited\":2")!=std::string::npos);
+  assert(server.body.find("\"unmatched\":[\"Stranger\"]")!=std::string::npos);
+  const auto &anaStats=ProfileFixture::profiles[anaId.c_str()].stats;
+  assert(anaStats.gamesPlayed==anaBefore.gamesPlayed+1 && anaStats.gamesWon==anaBefore.gamesWon+1);
+  assert(anaStats.lastGameResult==TurnHubProfiles::LastGameResult::Win && anaStats.lastGameTurns==6);
+  assert(anaStats.lastGameProfile==static_cast<uint8_t>(TurnHub::GameProfile::Commander));
+  const auto &benStats=ProfileFixture::profiles[benId.c_str()].stats;
+  assert(benStats.gamesPlayed==benBefore.gamesPlayed+1 && benStats.gamesWon==benBefore.gamesWon);
+  assert(benStats.gamesEliminated==benBefore.gamesEliminated+1 && benStats.gamesStarted==benBefore.gamesStarted+1);
+
+  // The same record again changes nothing.
+  assert(request("/api/standalone/import",ana,record)==200);
+  assert(server.body.find("\"duplicate\":true")!=std::string::npos);
+  assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaBefore.gamesPlayed+1);
+
+  // When the record ID can't be saved, nothing is credited and the app keeps the record.
+  auto next=record; next["recordId"]="0f8e5c2a-2222-4222-8333-444455556666";
+  blobs.failWrites=true; assert(request("/api/standalone/import",ana,next)==503);
+  assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaBefore.gamesPlayed+1);
+  blobs.failWrites=false;
+  // No winner: a draw for those still in, and one profile is credited once.
+  next["winner"]=""; next["profile1"]=anaId; next["name1"]="Ana again";
+  assert(request("/api/standalone/import",ana,next)==200 && server.body.find("\"credited\":1")!=std::string::npos);
+  assert(ProfileFixture::profiles[anaId.c_str()].stats.lastGameResult==TurnHubProfiles::LastGameResult::Draw);
+
+  assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
+  ProfileFixture::profiles.erase(anaId.c_str()); ProfileFixture::profiles.erase(benId.c_str());
+  TurnHubAccounts::accounts.erase(anaId.c_str()); TurnHubAccounts::accounts.erase(benId.c_str());
+  TurnHubStandalone::useImportStore(nullptr);
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -4116,6 +4191,7 @@ int main() {
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
+  standaloneImport(); std::cout<<"PASS standalone tablet game import: sign-in, validation, picked profile or name, unmatched, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;

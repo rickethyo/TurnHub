@@ -33,6 +33,37 @@ String recordDuration(uint32_t milliseconds) {
 
 }  // namespace
 
+void applyGameResult(ProfileStats &persistent, const GameResult &result) {
+  ++persistent.gamesPlayed;
+  persistent.lastGameProfile = result.gameProfile;
+  persistent.totalGameMs += result.durationMs;
+  persistent.lastGameResult = result.result;
+  if (result.result == LastGameResult::Win) {
+    ++persistent.gamesWon;
+  } else if (result.result == LastGameResult::Eliminated) {
+    ++persistent.gamesEliminated;
+  }
+  if (result.started) {
+    ++persistent.gamesStarted;
+  }
+
+  persistent.turnsCompleted += result.turns;
+  persistent.totalTurnMs += result.turnMs;
+  if (result.fastestTurnMs > 0 &&
+      (persistent.fastestTurnMs == 0 || result.fastestTurnMs < persistent.fastestTurnMs)) {
+    persistent.fastestTurnMs = result.fastestTurnMs;
+  }
+  if (result.longestTurnMs > persistent.longestTurnMs) {
+    persistent.longestTurnMs = result.longestTurnMs;
+  }
+
+  persistent.lastGameDurationMs = result.durationMs;
+  persistent.lastGameTurns = result.turns;
+  persistent.lastGameTurnMs = result.turnMs;
+  persistent.lastGameFastestTurnMs = result.fastestTurnMs;
+  persistent.lastGameLongestTurnMs = result.longestTurnMs;
+}
+
 uint8_t recordCompletedGame(
     const GameEngine &game,
     ResolveProfileIdCallback resolveProfileId) {
@@ -64,45 +95,26 @@ uint8_t recordCompletedGame(
     }
 
     const PlayerStats *current = game.statsForPlayer(seat->playerNumber);
-    const uint32_t turns = current != nullptr ? current->turnsCompleted : 0;
-    const uint32_t turnMs = current != nullptr ? current->totalTurnMs : 0;
-    const uint32_t fastest = current != nullptr ? current->fastestTurnMs : 0;
-    const uint32_t longest = current != nullptr ? current->longestTurnMs : 0;
-
-    ++persistent.gamesPlayed;
-    persistent.lastGameProfile = static_cast<uint8_t>(game.settings().profile);
-    persistent.totalGameMs += gameDurationMs;
+    GameResult result;
+    result.gameProfile = static_cast<uint8_t>(game.settings().profile);
+    result.durationMs = gameDurationMs;
     if (game.isWinner(seat->playerNumber)) {
-      ++persistent.gamesWon;
-      persistent.lastGameResult = LastGameResult::Win;
+      result.result = LastGameResult::Win;
     } else if (game.isEliminated(seat->playerNumber)) {
-      ++persistent.gamesEliminated;
-      persistent.lastGameResult = LastGameResult::Eliminated;
+      result.result = LastGameResult::Eliminated;
     } else if (game.endedInDraw()) {
-      persistent.lastGameResult = LastGameResult::Draw;
+      result.result = LastGameResult::Draw;
     } else {
-      persistent.lastGameResult = LastGameResult::Loss;
+      result.result = LastGameResult::Loss;
     }
-
-    if (seat->playerNumber == starter) {
-      ++persistent.gamesStarted;
+    result.started = seat->playerNumber == starter;
+    if (current != nullptr) {
+      result.turns = current->turnsCompleted;
+      result.turnMs = current->totalTurnMs;
+      result.fastestTurnMs = current->fastestTurnMs;
+      result.longestTurnMs = current->longestTurnMs;
     }
-
-    persistent.turnsCompleted += turns;
-    persistent.totalTurnMs += turnMs;
-    if (fastest > 0 &&
-        (persistent.fastestTurnMs == 0 || fastest < persistent.fastestTurnMs)) {
-      persistent.fastestTurnMs = fastest;
-    }
-    if (longest > persistent.longestTurnMs) {
-      persistent.longestTurnMs = longest;
-    }
-
-    persistent.lastGameDurationMs = gameDurationMs;
-    persistent.lastGameTurns = turns;
-    persistent.lastGameTurnMs = turnMs;
-    persistent.lastGameFastestTurnMs = fastest;
-    persistent.lastGameLongestTurnMs = longest;
+    applyGameResult(persistent, result);
 
     if (TurnHubProfiles::saveStatsForProfile(profileId, persistent)) {
       ++updated;

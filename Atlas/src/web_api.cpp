@@ -247,6 +247,7 @@ const Route ROUTES[] = {
   {"/api/control/reset", HTTP_POST, controlRoute<WebControl::Reset>},
   {"/api/control/nudge", HTTP_POST, controlRoute<WebControl::Nudge>},
   // Tablet mode: one shared table screen acting for any seated player.
+  {"/api/standalone/import", HTTP_POST, handleStandaloneImport},
   {"/api/tablet/enable", HTTP_POST, handleTabletEnable},
   {"/api/tablet/disable", HTTP_POST, handleTabletDisable},
   {"/api/tablet/seat", HTTP_POST, handleTabletSeat},

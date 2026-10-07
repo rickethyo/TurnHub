@@ -303,7 +303,7 @@ class MainActivity : ComponentActivity() {
         // Edge to edge from the first frame; the theme corrects the bar icons below.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        homeViewModel.onAtlasProfiles = standaloneViewModel.table::rememberProfiles
+        homeViewModel.standalone = standaloneViewModel.table
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         // Not again on rotation (the ViewModel also runs it once).

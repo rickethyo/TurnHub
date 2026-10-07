@@ -39,11 +39,12 @@ merged back live. The rules above apply in full whenever Atlas is present.
 - Players are typed names or picks from the profiles of the last Atlas the
   app connected to (cached on every connect). Typed names that match a
   cached profile become that profile.
-- Each finished game becomes a `GameRecord` kept on the device until an
-  Atlas imports it once on a later connect, crediting games played and won
-  to the matching profiles (by picked profile, else by name) and ignoring a
-  record it has already taken. The import is the only way a standalone game
-  reaches Atlas statistics.
+- Each finished game becomes a `GameRecord` kept on the device. Once the
+  app is connected to an Atlas and signed in, `HomeViewModel` sends each one
+  to `POST /api/standalone/import` (protocol/http-v1.md). Atlas imports it
+  once, crediting the matching profiles (by picked profile, else by name) and
+  ignoring a record it has already taken; the app then forgets it. The
+  import is the only way a standalone game reaches Atlas statistics.
 - No turn timer, Two-Headed Giant, phones or Sigils in this mode.
 
 ```text

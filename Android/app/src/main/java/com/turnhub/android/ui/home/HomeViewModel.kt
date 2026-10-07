@@ -75,8 +75,11 @@ class HomeViewModel(
 
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
-    /** Receives Atlas's profile list while connected (the standalone game's player picks). */
-    var onAtlasProfiles: ((List<ProfileSummary>) -> Unit)? = null
+    /**
+     * The standalone tablet game: while connected it learns Atlas's profiles
+     * for its player picks, and hands Atlas its finished games.
+     */
+    var standalone: com.turnhub.android.standalone.StandaloneTable? = null
 
     /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
     private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(
@@ -276,18 +279,33 @@ class HomeViewModel(
             repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
         }
         // The standalone game picks its players from the last Atlas's profiles:
-        // read them once per Atlas boot, and again when someone new sits down.
+        // read them once per Atlas boot and again when someone new sits down.
+        // Once someone is signed in, its finished games go to Atlas.
         viewModelScope.launch {
-            repository.tableSummary
-                .map { summary -> summary?.let { Triple(it.atlasId, it.bootId, it.players.mapNotNull { p -> p.profileId }.toSet()) } }
+            combine(
+                repository.tableSummary.map { summary ->
+                    summary?.let { Triple(it.atlasId, it.bootId, it.players.mapNotNull { p -> p.profileId }.toSet()) }
+                },
+                playerSession.state.map { it is PlayerSessionState.SignedIn },
+            ) { table, signedIn -> table to signedIn }
                 .distinctUntilChanged()
-                .collectLatest { key ->
+                .collectLatest { (table, signedIn) ->
                     val endpoint = repository.endpoint.value
-                    if (key == null || endpoint == null) return@collectLatest
+                    val local = standalone ?: return@collectLatest
+                    if (table == null || endpoint == null) return@collectLatest
                     try {
-                        onAtlasProfiles?.invoke(playerSession.profiles(endpoint))
+                        local.rememberProfiles(playerSession.profiles(endpoint))
                     } catch (_: AtlasException) {
                         // Kept from last time; tried again on the next change.
+                    }
+                    if (signedIn) {
+                        local.sendRecords { fields ->
+                            try {
+                                playerSession.raw("POST", "/api/standalone/import", fields)
+                            } catch (_: AtlasException) {
+                                null
+                            }
+                        }
                     }
                 }
         }

@@ -12,6 +12,7 @@
 //                        Commander counters, session controls
 //   web_admin_api.cpp    devices, network, serial log, account administration
 //   web_tablet_api.cpp   tablet mode: one shared table screen for every player
+//   web_standalone_api.cpp  finished standalone tablet games, imported once
 
 #include <Arduino.h>
 #include <WebServer.h>
@@ -179,6 +180,10 @@ void handleAvatars(WebServer &server);
 void handleSaveAccessibility(WebServer &server);
 void handleProfileStats(WebServer &server);
 void handleProfileStatsExport(WebServer &server);
+
+// --- Standalone tablet games (web_standalone_api.cpp) -----------------------------
+
+void handleStandaloneImport(WebServer &server);
 
 // --- Game (web_game_api.cpp) -------------------------------------------------------
 

@@ -2,6 +2,7 @@ package com.turnhub.android.standalone
 
 import android.content.Context
 import com.turnhub.android.data.OfflineChange
+import com.turnhub.android.data.RawResponse
 import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.protocol.GameProfile
@@ -92,6 +93,26 @@ class StandaloneTable(
         if (ids.isEmpty()) return
         _state.update { it.copy(records = it.records.filterNot { r -> r.recordId in ids }) }
         saveRecords()
+    }
+
+    /**
+     * Hands Atlas each finished game, oldest first, through [post] (a signed-in
+     * `POST /api/standalone/import`). One Atlas imported, already had or
+     * refused as invalid is forgotten here; with no answer or a storage error
+     * the rest wait for the next connect. Returns how many Atlas took.
+     */
+    suspend fun sendRecords(post: suspend (List<Pair<String, String>>) -> RawResponse?): Int {
+        var taken = 0
+        for (record in _state.value.records) {
+            val response = post(record.importFields()) ?: break
+            when {
+                response.ok -> taken++
+                response.code == 400 -> Unit
+                else -> break
+            }
+            forgetRecords(setOf(record.recordId))
+        }
+        return taken
     }
 
     // --- the table ------------------------------------------------------------------
@@ -190,6 +211,9 @@ class StandaloneTable(
                         put("eliminated", p.eliminated)
                         put("outOrder", p.outOrder ?: JSONObject.NULL)
                         put("turnsCompleted", p.turnsCompleted)
+                        put("turnMs", p.turnMs)
+                        put("fastestTurnMs", p.fastestTurnMs)
+                        put("longestTurnMs", p.longestTurnMs)
                         put("commanderDamage", JSONObject().apply {
                             p.commanderDamage.forEach { (source, damage) -> put("$source", JSONArray(damage)) }
                         })
@@ -223,6 +247,9 @@ class StandaloneTable(
                         eliminated = p.getBoolean("eliminated"),
                         outOrder = p.optIntOrNull("outOrder"),
                         turnsCompleted = p.getInt("turnsCompleted"),
+                        turnMs = p.optLong("turnMs"),
+                        fastestTurnMs = p.optLong("fastestTurnMs"),
+                        longestTurnMs = p.optLong("longestTurnMs"),
                         commanderDamage = damage.keys().asSequence().associate { key ->
                             val array = damage.getJSONArray(key)
                             key.toInt() to (0 until array.length()).map { array.getInt(it) }
