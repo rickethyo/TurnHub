@@ -128,6 +128,7 @@ private class FakeReleases(var feed: FirmwareReleaseFeed?) : FirmwareReleaseSour
 private class FakeHost(val atlas: FakeAtlas) : SetupHost {
     var restarts = 0
     var saved: Pair<String, String>? = null
+    val holds = mutableListOf<Boolean>()
     override fun endpoint() = AtlasEndpoint.DEFAULT
     override fun atlasFirmware() = atlas.firmware
     override fun wifiPasswordChanged(ssid: String, password: String) { saved = ssid to password }
@@ -136,6 +137,7 @@ private class FakeHost(val atlas: FakeAtlas) : SetupHost {
         atlas.restart()
         return true
     }
+    override fun holdConnection(hold: Boolean) { holds += hold }
 }
 
 class AtlasSetupAssistantTest {
@@ -191,6 +193,8 @@ class AtlasSetupAssistantTest {
         val finished = assistant.state.value.updates as UpdatesState.Finished
         assertTrue(finished.lines.all { it.done })
         assertEquals("0.9.0", atlas.sigilFirmware)
+        // The connection is held through the Sigil updates, then released.
+        assertEquals(listOf(true, false), host.holds)
 
         assistant.next()
         assertEquals(SetupStep.WIFI, assistant.state.value.step)

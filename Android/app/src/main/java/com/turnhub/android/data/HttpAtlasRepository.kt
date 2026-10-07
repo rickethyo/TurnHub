@@ -33,8 +33,9 @@ import kotlinx.coroutines.launch
  *   a fresh info + state handshake. Nothing is merged across epochs.
  * - After [maxConsecutivePollFailures] failed polls the live view is dropped
  *   and the repository returns to DISCONNECTED; the next [connect] starts from
- *   a fresh snapshot. This read-only milestone sends no commands, so there is
- *   nothing that could be replayed.
+ *   a fresh snapshot. [holdThroughOutages] suspends this during Sigil updates.
+ *   This read-only milestone sends no commands, so there is nothing that could
+ *   be replayed.
  *
  * All work runs in [scope]; canceling it stops polling. Each connection gets a
  * generation number and may only publish while it is still current, so a
@@ -56,6 +57,8 @@ class HttpAtlasRepository(
 
     private val _endpoint = MutableStateFlow<AtlasEndpoint?>(null)
     override val endpoint: StateFlow<AtlasEndpoint?> = _endpoint.asStateFlow()
+
+    @Volatile private var holding = false
 
     private val _tableSummary = MutableStateFlow<TableSummary?>(null)
     override val tableSummary: StateFlow<TableSummary?> = _tableSummary.asStateFlow()
@@ -135,7 +138,7 @@ class HttpAtlasRepository(
                 if (!publish(connection) { _tableSummary.value = live.summary; _failure.value = null }) return
             } catch (e: AtlasException) {
                 failures++
-                if (failures >= maxConsecutivePollFailures) {
+                if (failures >= maxConsecutivePollFailures && !holding) {
                     drop(connection, AtlasFailure.LostConnection(e.failure))
                     return
                 }
@@ -231,6 +234,10 @@ class HttpAtlasRepository(
         throw e
     } catch (e: Exception) {
         throw AtlasException(AtlasFailure.Unexpected("${e.javaClass.simpleName}: ${e.message}"))
+    }
+
+    override fun holdThroughOutages(hold: Boolean) {
+        holding = hold
     }
 
     private fun drop(connection: Long, failure: AtlasFailure) {

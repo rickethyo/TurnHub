@@ -345,6 +345,29 @@ class HttpAtlasRepositoryTest {
     }
 
     @Test
+    fun `holding keeps the connection through a busy Atlas`() = runTest {
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        repository.holdThroughOutages(true)
+
+        transport.state = { fail(timeout) }
+        advance(10_000)
+        assertEquals(CONNECTED, repository.connectionState.value)
+        assertSame(timeout, repository.failure.value)
+        assertNotNull(repository.tableSummary.value)
+
+        transport.state = { Fixtures.state("reconnected.response.json") }
+        advance(1_000)
+        assertNull(repository.failure.value)
+
+        // Released, the usual limit applies again.
+        repository.holdThroughOutages(false)
+        transport.state = { fail(timeout) }
+        advance(3_000)
+        assertEquals(DISCONNECTED, repository.connectionState.value)
+    }
+
+    @Test
     fun `a boot change between info and state is retried once`() = runTest {
         var infoBoot = Fixtures.BOOT_ID
         transport.info = { Fixtures.info { put("bootId", infoBoot) } }

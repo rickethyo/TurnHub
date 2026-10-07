@@ -38,4 +38,12 @@ interface AtlasRepository {
 
     /** Stops polling and clears live state. Safe to call in any state. */
     suspend fun disconnect()
+
+    /**
+     * While [hold] is true, failed polls stay transient (reported in [failure])
+     * instead of dropping the connection: Atlas is busy serving a Sigil its
+     * update and answers again shortly. Dropping would also give up Atlas's
+     * Wi-Fi and the signed-in session the update needs.
+     */
+    fun holdThroughOutages(hold: Boolean) {}
 }

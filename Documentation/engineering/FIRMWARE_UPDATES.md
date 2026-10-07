@@ -122,7 +122,10 @@ don't know.
 5. Atlas reports success when the Sigil's sealed Hello shows the new version.
 
 While a Sigil job runs, game starts, forget/reset and Wi-Fi password changes
-are refused, and Atlas OTA can't overwrite the staged package. A package
+are refused, and Atlas OTA can't overwrite the staged package. Serving the package can
+keep Atlas from answering the app's state poll for several seconds, so the app
+holds its connection (no "lost connection" drop, which would also leave
+Atlas's Wi-Fi and sign the Admin out) until its Sigil updates end. A package
 reloaded after an Atlas restart is re-hashed before use.
 
 **Atlas OTA** takes signed `.thfw` only (raw `.bin` is refused) and has no
