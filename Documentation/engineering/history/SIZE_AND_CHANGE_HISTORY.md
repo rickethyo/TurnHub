@@ -757,3 +757,14 @@ CI artifact for sizes.
    compiled RAM/flash usage, protocol version, and the exact release commit/tag.
 
 Last updated: 2026-10-06
+
+## 2026-10-07 App offline mode, tablet changes replayed on reconnect (Atlas 0.6.14)
+
+Atlas 0.6.13 -> 0.6.14: `/api/tablet/life` and `/api/tablet/commander`
+accept an optional `queuedMs` from the app's offline queue and log it as
+`ATLAS|TABLET|OFFLINE|...`; the change itself goes through the same seat
+callbacks and Intents as before. Android: the app keeps the last known table
+when Atlas stops answering and queues tablet life and Commander changes for
+replay. Radio version unchanged; Sigil firmware and portal pack unchanged.
+Local firmware compilation was unavailable; use the CI artifact for sizes.
+

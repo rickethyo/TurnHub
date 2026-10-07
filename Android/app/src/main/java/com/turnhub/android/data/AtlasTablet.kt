@@ -1,6 +1,8 @@
 package com.turnhub.android.data
 
+import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.ProfileSummary
+import com.turnhub.android.protocol.TableState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,6 +14,39 @@ import org.json.JSONObject
 /** A seat as Atlas names it in `/api/v1/state` players: controller handle and slot. */
 data class TabletSeat(val moduleId: Int, val slot: Int) {
     val fields: List<Pair<String, String>> get() = listOf("module" to "$moduleId", "slot" to "$slot")
+}
+
+/**
+ * A life or Commander-damage change tapped while Atlas wasn't answering. It is
+ * kept for one participant (not a seat, which a controller swap can move) in
+ * one game, and sent through the usual `/api/tablet/` routes once Atlas
+ * answers again, where Atlas's own rules decide it like any other tap.
+ */
+data class OfflineChange(
+    val participantId: Long,
+    /** Assigned by [AtlasTablet.queueOffline]. */
+    val id: Long = 0,
+    /** Commander damage from this player number, or null for a life change. */
+    val source: Int? = null,
+    /** Which of [source]'s commanders (1 or 2). */
+    val commander: Int = 1,
+    val delta: Int,
+    /** When it was first tapped, on [com.turnhub.android.domain.TableClock]. */
+    val queuedAtMs: Long,
+    /** Atlas boot and game clock it was tapped against: a restart or a new game drops it. */
+    val bootId: String,
+    val gameElapsedMs: Long,
+    /** [SENDING] while on its way; then the revision it was applied against, kept until a newer snapshot carries it. */
+    val sentAtRevision: Long? = null,
+) {
+    val isLife: Boolean get() = source == null
+    val sent: Boolean get() = sentAtRevision != null && sentAtRevision != SENDING
+    fun sameTarget(other: OfflineChange) =
+        participantId == other.participantId && source == other.source && commander == other.commander
+
+    companion object {
+        const val SENDING = -1L
+    }
 }
 
 /** A saved profile Atlas wants a PIN for before the tablet may seat it. */
@@ -26,7 +61,21 @@ data class TabletState(
     val pinPrompt: TabletPinPrompt? = null,
     /** The last refusal or note, phrased for the table; cleared by the next success. */
     val message: ActionFeedback? = null,
-)
+    /** Life and Commander changes waiting for Atlas, or sent and not yet in a snapshot. */
+    val offline: List<OfflineChange> = emptyList(),
+) {
+    /** Life still to show for [participantId] on top of the snapshot (Commander damage costs life too). */
+    fun offlineLife(participantId: Long): Int = offline.filter { it.participantId == participantId }
+        .sumOf { if (it.isLife) it.delta else -it.delta }
+
+    /** Commander damage still to show for [participantId] from [source]'s [commander]. */
+    fun offlineCommander(participantId: Long, source: Int, commander: Int): Int = offline
+        .filter { it.participantId == participantId && it.source == source && it.commander == commander }
+        .sumOf { it.delta }
+
+    /** Changes not yet sent. */
+    val waiting: Int get() = offline.count { it.sentAtRevision == null }
+}
 
 /**
  * Tablet mode (protocol/http-v1.md "Tablet mode"): this device is one shared
@@ -44,6 +93,7 @@ class AtlasTablet(
 ) {
     private val _state = MutableStateFlow(TabletState())
     val state: StateFlow<TabletState> = _state.asStateFlow()
+    private var nextOfflineId = 1L
 
     fun clearMessage() = _state.update { it.copy(message = null) }
 
@@ -165,6 +215,102 @@ class AtlasTablet(
         ) ?: return
         if (response.ok) succeed() else fail(response)
     }
+
+    // --- while Atlas isn't answering --------------------------------------------------
+
+    /**
+     * Keeps a life or Commander-damage change for when Atlas answers again.
+     * Taps on the same target add up into one change, keeping the first tap's
+     * time; a change that adds up to nothing is dropped.
+     */
+    fun queueOffline(change: OfflineChange) = _state.update { state ->
+        val index = state.offline.indexOfFirst { it.sentAtRevision == null && it.sameTarget(change) }
+        val offline = if (index < 0) {
+            state.offline + change.copy(id = nextOfflineId++, sentAtRevision = null)
+        } else {
+            val merged = state.offline[index].let { it.copy(delta = it.delta + change.delta) }
+            if (merged.delta == 0) state.offline.filterIndexed { i, _ -> i != index }
+            else state.offline.mapIndexed { i, it -> if (i == index) merged else it }
+        }
+        state.copy(offline = offline)
+    }
+
+    /** Refuses an action that only Atlas can decide live (passing, pausing, answers…). */
+    fun refuseOffline() = _state.update {
+        it.copy(message = ActionFeedback(
+            "Atlas is offline. Life and Commander damage are saved for it; this waits until it's back.",
+            isError = true,
+        ))
+    }
+
+    /**
+     * Sends the waiting changes, in the order they were tapped, now that Atlas
+     * answers with [summary]. Each is checked against it first: one from before
+     * an Atlas restart, from a game that has since ended or been replaced, or for
+     * a player no longer in the game is dropped. Atlas applies the rest under its
+     * usual rules. Quiet when everything lands; otherwise one note says what didn't.
+     */
+    suspend fun replayOffline(summary: TableSummary, nowMs: Long) {
+        val waiting = _state.value.offline.filter { it.sentAtRevision == null }.sortedBy { it.queuedAtMs }
+        if (waiting.isEmpty()) return
+        // Taken out of the queue first, so a tap made while these are sent never merges into one.
+        val ids = waiting.map { it.id }.toSet()
+        _state.update { state ->
+            state.copy(offline = state.offline.map { if (it.id in ids) it.copy(sentAtRevision = OfflineChange.SENDING) else it })
+        }
+        val playing = summary.state == TableState.RUNNING || summary.state == TableState.PAUSED
+        var dropped = 0
+        var refused = 0
+        for (change in waiting) {
+            val player = summary.players.firstOrNull { it.participantId == change.participantId }
+            val sameGame = playing && change.bootId == summary.bootId && summary.gameElapsedMs >= change.gameElapsedMs
+            val source = change.source
+            val sourceThere = source == null || summary.players.any { it.playerNumber == source }
+            if (!sameGame || player == null || player.eliminated || !sourceThere) {
+                dropped++
+                removeOffline(change)
+                continue
+            }
+            val seat = TabletSeat(player.controller.id, player.slot)
+            val age = listOf("queuedMs" to "${(nowMs - change.queuedAtMs).coerceIn(0, 86_400_000)}")
+            val response = if (source == null) {
+                post("/api/tablet/life", seat.fields + ("delta" to "${change.delta}") + age)
+            } else {
+                post(
+                    "/api/tablet/commander",
+                    seat.fields + listOf("source" to "$source", "commander" to "${change.commander}", "delta" to "${change.delta}") + age,
+                )
+            }
+            if (response?.ok == true) {
+                _state.update { state ->
+                    state.copy(offline = state.offline.map { if (it.id == change.id) it.copy(sentAtRevision = summary.revision) else it })
+                }
+            } else {
+                refused++
+                removeOffline(change)
+            }
+        }
+        val missed = dropped + refused
+        _state.update {
+            it.copy(message = if (missed == 0) null else ActionFeedback(
+                if (missed == 1) "1 change made while Atlas was offline wasn't applied: the game or player had changed, or Atlas refused it."
+                else "$missed changes made while Atlas was offline weren't applied: the game or players had changed, or Atlas refused them.",
+                isError = true,
+            ))
+        }
+    }
+
+    /** Forgets sent changes once a snapshot newer than the one they were sent against arrives. */
+    fun settleOffline(revision: Long) = _state.update { state ->
+        if (state.offline.none { it.sent && it.sentAtRevision != revision }) state
+        else state.copy(offline = state.offline.filter { !it.sent || it.sentAtRevision == revision })
+    }
+
+    /** Drops everything waiting (Atlas restarted, or the device left the table). */
+    fun clearOffline() = _state.update { it.copy(offline = emptyList()) }
+
+    private fun removeOffline(change: OfflineChange) =
+        _state.update { state -> state.copy(offline = state.offline.filterNot { it.id == change.id }) }
 
     // --- plumbing -----------------------------------------------------------------
 

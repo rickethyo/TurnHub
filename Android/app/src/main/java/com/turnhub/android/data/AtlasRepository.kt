@@ -10,8 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * Android/README.md's hard architecture rule is that this app renders Atlas
  * state and requests actions; it never becomes a second source of truth.
- * [tableSummary] is therefore only ever a copy of the latest Atlas snapshot,
- * and is cleared rather than left stale when the connection ends.
+ * [tableSummary] is therefore only ever a copy of the latest Atlas snapshot.
+ * When Atlas stops answering it stays on screen as the last known state, marked
+ * by [offlineSinceMs], and is cleared when the connection is ended.
  */
 interface AtlasRepository {
     val connectionState: StateFlow<AtlasConnectionState>
@@ -21,6 +22,14 @@ interface AtlasRepository {
 
     /** Latest authoritative table state; non-null only while [AtlasConnectionState.CONNECTED]. */
     val tableSummary: StateFlow<TableSummary?>
+
+    /**
+     * When Atlas stopped answering (local [com.turnhub.android.domain.TableClock]
+     * ms), or null while it answers. While set, the connection stays CONNECTED,
+     * [tableSummary] is the last state Atlas sent, and polling carries on until
+     * Atlas answers again or [disconnect] is called.
+     */
+    val offlineSinceMs: StateFlow<Long?> get() = NEVER_OFFLINE
 
     /**
      * Why the last attempt failed, or why the connection was dropped. While
@@ -47,3 +56,5 @@ interface AtlasRepository {
      */
     fun holdThroughOutages(hold: Boolean) {}
 }
+
+private val NEVER_OFFLINE: StateFlow<Long?> = kotlinx.coroutines.flow.MutableStateFlow(null)

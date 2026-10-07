@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.turnhub.android.data.OfflineChange
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
@@ -157,9 +158,12 @@ internal fun TabletTable(
     actions: TabletActions,
     reduceMotion: Boolean,
     onClose: () -> Unit,
+    /** Atlas isn't answering: life and Commander taps are kept for it, everything else waits. */
+    offline: Boolean = false,
 ) {
     val p = palette
     val haptics = rememberHaptics()
+    val isOffline by rememberUpdatedState(offline)
     val scope = rememberCoroutineScope()
     val current by rememberUpdatedState(summary)
     // Life taps gather per panel and go to Atlas once after a short pause.
@@ -183,13 +187,28 @@ internal fun TabletTable(
     fun send(seat: TabletSeat?, action: String) {
         seat ?: return
         haptics.tick()
-        actions.run { this.control(seat, action) }
+        if (isOffline) actions.run { refuseOffline() } else actions.run { this.control(seat, action) }
+    }
+
+    /** Keeps a change for Atlas while it isn't answering, against the last state it sent. */
+    fun keep(player: TablePlayer, delta: Int, source: Int? = null, commander: Int = 1) {
+        val change = OfflineChange(
+            participantId = player.participantId,
+            source = source,
+            commander = commander,
+            delta = delta,
+            queuedAtMs = TableClock.nowMs(),
+            bootId = current.bootId,
+            gameElapsedMs = current.gameElapsedMs,
+        )
+        actions.run { queueOffline(change) }
     }
 
     fun flush(key: String) {
         val delta = unsent.remove(key) ?: return
         if (delta == 0) return
         val unit = tableUnits(current).firstOrNull { it.key == key } ?: return
+        if (isOffline) return keep(unit.lifeSeat, delta)
         val entry = SentLife(nextId++, key, delta, current.revision)
         sent.add(entry)
         actions.run {
@@ -226,7 +245,8 @@ internal fun TabletTable(
             val unit = units[index]
             key(unit.key) {
                 val pending = unsent[unit.key] ?: 0
-                val life = (unit.lifeSeat.life ?: 0) + pending + sent.filter { it.key == unit.key }.sumOf { it.delta }
+                val life = (unit.lifeSeat.life ?: 0) + pending + sent.filter { it.key == unit.key }.sumOf { it.delta } +
+                    unit.members.sumOf { tablet.offlineLife(it.participantId) }
                 Box(modifier.padding(4.dp).facing((degrees + turn) % 360)) {
                     PlayerPanel(
                         unit = unit,
@@ -241,11 +261,16 @@ internal fun TabletTable(
                             if (action == "concede") drawers.remove(unit.key)
                             send(seat, action)
                         },
-                        onCommander = { seat, source, which, delta ->
+                        onCommander = { member, source, which, delta ->
                             haptics.tick()
-                            actions.run { this.commander(seat, source, which, delta) }
+                            if (isOffline) keep(member, delta, source, which)
+                            else actions.run { this.commander(member.seat(), source, which, delta) }
                         },
-                        onRespond = { seat, id, accept -> actions.run { this.respondLife(seat, id, accept) } },
+                        onRespond = { seat, id, accept ->
+                            if (isOffline) actions.run { refuseOffline() }
+                            else actions.run { this.respondLife(seat, id, accept) }
+                        },
+                        offlineCommander = tablet::offlineCommander,
                         haptics = haptics,
                     )
                 }
@@ -328,8 +353,12 @@ internal fun TabletTable(
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
                     ToneButton("Leave tablet mode", {
                         menuOpen = false
-                        actions.run { this.disable() }
-                        onClose()
+                        if (isOffline) {
+                            actions.run { refuseOffline() }
+                        } else {
+                            actions.run { this.disable() }
+                            onClose()
+                        }
                     }, Modifier.fillMaxWidth(), tone = Tone.BAD)
                     AccentButton("Close", { menuOpen = false }, Modifier.fillMaxWidth())
                 }
@@ -403,8 +432,9 @@ private fun PlayerPanel(
     onToggleDrawer: () -> Unit,
     onBump: (Int) -> Unit,
     onControl: (TabletSeat, String) -> Unit,
-    onCommander: (TabletSeat, Int, Int, Int) -> Unit,
+    onCommander: (TablePlayer, Int, Int, Int) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
+    offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
 ) {
     val p = palette
@@ -454,7 +484,7 @@ private fun PlayerPanel(
                 color = if (pendingDelta > 0) p.good else p.bad,
                 style = MaterialTheme.typography.titleMedium,
             )
-            CommanderSummary(unit, summary)
+            CommanderSummary(unit, summary, offlineCommander)
         }
 
         Row(
@@ -474,7 +504,7 @@ private fun PlayerPanel(
         }
 
         Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
-        if (drawerOpen) Drawer(unit, summary, onToggleDrawer, onControl, onCommander)
+        if (drawerOpen) Drawer(unit, summary, onToggleDrawer, onControl, onCommander, offlineCommander)
     }
 }
 
@@ -603,10 +633,15 @@ private fun TurnClock(summary: TableSummary, nowMs: Long) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CommanderSummary(unit: TableUnit, summary: TableSummary) {
+private fun CommanderSummary(unit: TableUnit, summary: TableSummary, offlineCommander: (Long, Int, Int) -> Int) {
     val p = palette
     if (summary.settings.profile != GameProfile.MTG_COMMANDER) return
-    val rows = unit.members.flatMap { m -> m.commanderDamage.map { it.sourcePlayer to it.damage.sum() } }.filter { it.second > 0 }
+    val rows = unit.members.flatMap { m ->
+        summary.players.filter { it.playerNumber != m.playerNumber }.map { source ->
+            val damage = m.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
+            source.playerNumber to (1..2).sumOf { c -> (damage.getOrNull(c - 1) ?: 0) + offlineCommander(m.participantId, source.playerNumber, c) }
+        }
+    }.filter { it.second > 0 }
     if (rows.isEmpty()) return
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         rows.forEach { (source, total) ->
@@ -669,7 +704,8 @@ private fun Drawer(
     summary: TableSummary,
     onClose: () -> Unit,
     onControl: (TabletSeat, String) -> Unit,
-    onCommander: (TabletSeat, Int, Int, Int) -> Unit,
+    onCommander: (TablePlayer, Int, Int, Int) -> Unit,
+    offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
     val partners = remember { mutableStateListOf<Int>() }
@@ -711,14 +747,15 @@ private fun Drawer(
                 val showPartner = member.playerNumber in partners
                 summary.players.filter { it.playerNumber != member.playerNumber }.forEach { source ->
                     val damage = member.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
-                    val commanders = if (showPartner || (damage.getOrNull(1) ?: 0) > 0) listOf(1, 2) else listOf(1)
+                    fun valueOf(c: Int) = (damage.getOrNull(c - 1) ?: 0) + offlineCommander(member.participantId, source.playerNumber, c)
+                    val commanders = if (showPartner || valueOf(2) > 0) listOf(1, 2) else listOf(1)
                     commanders.forEach { c ->
-                        val value = damage.getOrNull(c - 1) ?: 0
+                        val value = valueOf(c)
                         val label = source.label + if (commanders.size > 1) " ($c)" else ""
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(label, color = p.text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             StepButton("−", "Remove 1 Commander damage from $label", value > 0) {
-                                onCommander(member.seat(), source.playerNumber, c, -1)
+                                onCommander(member, source.playerNumber, c, -1)
                             }
                             Text(
                                 "$value",
@@ -728,7 +765,7 @@ private fun Drawer(
                                 modifier = Modifier.width(40.dp),
                             )
                             StepButton("+", "Add 1 Commander damage from $label", true) {
-                                onCommander(member.seat(), source.playerNumber, c, 1)
+                                onCommander(member, source.playerNumber, c, 1)
                             }
                         }
                     }

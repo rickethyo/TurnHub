@@ -45,9 +45,9 @@ sealed class AtlasFailure(val userMessage: String, val technicalDetail: String? 
     /** Atlas no longer knows this session (expired, logged out, or Atlas restarted). */
     data object SessionExpired : AtlasFailure("Your sign-in on Atlas ended. Sign in again to play from this phone.")
 
-    /** Polling kept failing, so the live view was dropped rather than shown stale. */
+    /** Polling kept failing: the app shows the last state Atlas sent, read-only, while it reconnects. */
     class LostConnection(val cause: AtlasFailure) : AtlasFailure(
-        "Lost connection to Atlas. ${cause.userMessage} Reconnect to load fresh state.",
+        "Atlas isn't answering. ${cause.userMessage} Showing the last table it sent while the app reconnects.",
         cause.technicalDetail,
     )
 }

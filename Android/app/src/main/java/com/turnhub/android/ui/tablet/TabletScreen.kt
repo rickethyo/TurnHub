@@ -45,7 +45,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -70,6 +73,7 @@ import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
+import com.turnhub.android.ui.components.OfflineBanner
 import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
@@ -102,6 +106,8 @@ fun TabletScreen(
     reduceMotion: Boolean,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Atlas isn't answering: [summary] is its last known state, shown read-only. */
+    offline: Boolean = false,
 ) {
     val p = palette
     KeepScreenOn()
@@ -117,8 +123,67 @@ fun TabletScreen(
             summary.state == TableState.LOBBY -> Lobby(summary, tablet, actions, onClose)
             else -> {
                 Immersive()
-                TabletTable(summary, tablet, actions, reduceMotion, onClose)
+                TabletTable(summary, tablet, actions, reduceMotion, onClose, offline)
             }
+        }
+        if (offline && summary != null) {
+            val playing = granted && summary.state != TableState.LOBBY
+            if (playing) OfflineStrip(tablet.waiting, Modifier.align(Alignment.TopCenter))
+            else OfflineCover(summary, onClose)
+        }
+    }
+}
+
+/**
+ * During a game while Atlas isn't answering: the table stays usable for life
+ * and Commander damage, which wait for Atlas; this says so without covering it.
+ */
+@Composable
+private fun OfflineStrip(waiting: Int, modifier: Modifier) {
+    val p = palette
+    val saved = when (waiting) {
+        0 -> "Life and Commander damage are saved for Atlas"
+        1 -> "1 change saved for Atlas"
+        else -> "$waiting changes saved for Atlas"
+    }
+    Text(
+        "Atlas is offline, reconnecting. $saved.",
+        color = p.text,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = modifier
+            .safeDrawingPadding()
+            .padding(top = 6.dp)
+            .background(p.surface, RoundedCornerShape(99.dp))
+            .border(1.dp, p.warn, RoundedCornerShape(99.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+    )
+}
+
+/**
+ * Outside a game (lobby, or before the grant), keeps the last known screen
+ * while Atlas isn't answering, dimmed and untouchable, with what happened and
+ * a way out. Lifts by itself on reconnect.
+ */
+@Composable
+private fun OfflineCover(summary: TableSummary, onClose: () -> Unit) {
+    val p = palette
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(p.bg.copy(alpha = 0.45f))
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent().changes.forEach { it.consume() }
+                }
+            },
+    ) {
+        Column(
+            Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(12.dp).widthIn(max = 520.dp).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OfflineBanner(summary.receivedAtMs, Modifier.fillMaxWidth())
+            ToneButton("Close tablet mode", onClose, Modifier.fillMaxWidth())
         }
     }
 }
