@@ -60,9 +60,9 @@ bool seatColorsRead = false;
 // A Sigil outside a game may take over a player in it who has no Sigil
 // (seated from a phone or the tablet; owner request 2026-10-07).
 bool canTakeOverPlayer(uint8_t sigilId) {
-  if (game.controllerInGame(sigilId) || !pickerSigil(sigilId)) return false;
-  for (uint8_t i = 0; i < game.playerCount(); ++i) {
-    const PlayerSeat *seat = game.playerAt(i);
+  if (table().game.controllerInGame(sigilId) || !pickerSigil(sigilId)) return false;
+  for (uint8_t i = 0; i < table().game.playerCount(); ++i) {
+    const PlayerSeat *seat = table().game.playerAt(i);
     if (seat != nullptr && seat->controllerId >= MAX_PHYSICAL_SIGILS) return true;
   }
   return false;
@@ -75,24 +75,24 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   const auto add = [&actions](SigilAction action) { actions |= TurnHubProtocol::sigilActionBit(action); };
   // No table host (owner decision 2026-09-25): every seated Sigil may start,
   // pick the starter, rematch or reset. Start keeps its cancelable countdown.
-  const bool seated = lobby.isJoined(sigilId) || game.controllerInGame(sigilId);
+  const bool seated = table().lobby.isJoined(sigilId) || table().game.controllerInGame(sigilId);
   PlayerSeat living;
   const bool hasLivingSeat = firstLivingSeatForModule(sigilId, living);
-  const bool isActive = game.turnSeatForController(sigilId) != nullptr;
+  const bool isActive = table().game.turnSeatForController(sigilId) != nullptr;
 
-  switch (hubState) {
+  switch (table().hubState) {
     case HubState::Lobby:
-      if (!lobby.isJoined(sigilId)) {
+      if (!table().lobby.isJoined(sigilId)) {
         add(SigilAction::Join);
         break;
       }
       add(SigilAction::CycleStarter);
-      if (lobby.hasSecondary(sigilId)) {
+      if (table().lobby.hasSecondary(sigilId)) {
         add(SigilAction::RemoveSeatB);
       } else {
         add(SigilAction::AddSeatB);
       }
-      if (lobby.playerCount() >= 2) {
+      if (table().lobby.playerCount() >= 2) {
         add(SigilAction::StartGame);
         add(SigilAction::RandomStarter);
       }
@@ -101,7 +101,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
 
     case HubState::Starting:
       // Any seated Sigil may cancel the countdown (handleCancelStartIntent).
-      if (lobby.isJoined(sigilId)) add(SigilAction::CancelStart);
+      if (table().lobby.isJoined(sigilId)) add(SigilAction::CancelStart);
       break;
 
     case HubState::Running:
@@ -109,7 +109,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       if (canTakeOverPlayer(sigilId)) add(SigilAction::Join);
       if (isActive) {
         // Any pass the team queued (Two-Headed Giant: either teammate's).
-        const bool passQueued = pendingPass.active;
+        const bool passQueued = table().pendingPass.active;
         add(passQueued ? SigilAction::CancelPass : SigilAction::Pass);
         add(SigilAction::ClaimWin);
       }
@@ -117,24 +117,24 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       break;
 
     case HubState::Paused:
-      if (canTakeOverPlayer(sigilId) && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
+      if (canTakeOverPlayer(sigilId) && !table().game.hasWinClaim() && table().eliminationTargetPlayer == 0) {
         add(SigilAction::Join);
       }
-      if (game.hasWinClaim()) {
-        const PlayerSeat *expected = game.playerByNumber(game.nextWinConfirmationPlayerNumber());
+      if (table().game.hasWinClaim()) {
+        const PlayerSeat *expected = table().game.playerByNumber(table().game.nextWinConfirmationPlayerNumber());
         if (expected != nullptr && expected->controllerId == sigilId) {
           add(SigilAction::ConfirmWin);
           add(SigilAction::DenyWin);
         }
-      } else if (eliminationTargetPlayer != 0) {
-        const PlayerSeat *target = game.playerByNumber(eliminationTargetPlayer);
+      } else if (table().eliminationTargetPlayer != 0) {
+        const PlayerSeat *target = table().game.playerByNumber(table().eliminationTargetPlayer);
         if (target != nullptr && target->controllerId == sigilId) {
           add(SigilAction::Eliminate);
           PlayerSeat seats[2];
-          if (game.livingPlayersForController(sigilId, seats, 2) > 1) add(SigilAction::NextTarget);
+          if (table().game.livingPlayersForController(sigilId, seats, 2) > 1) add(SigilAction::NextTarget);
         }
         // Canceling is table-wide (handleEliminationIntent).
-        if (game.controllerInGame(sigilId)) add(SigilAction::CancelElimination);
+        if (table().game.controllerInGame(sigilId)) add(SigilAction::CancelElimination);
       } else if (hasLivingSeat) {
         add(SigilAction::Resume);
         add(SigilAction::BeginElimination);
@@ -153,19 +153,19 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   if (TurnHubWebApi::hasPendingClaim(sigilId)) add(SigilAction::LinkPhone);
   // Left/Right life changes, whenever ChangeLife could
   // succeed: a living seat in a running or paused game, no table decision.
-  if ((hubState == HubState::Running || hubState == HubState::Paused) &&
-      hasLivingSeat && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
+  if ((table().hubState == HubState::Running || table().hubState == HubState::Paused) &&
+      hasLivingSeat && !table().game.hasWinClaim() && table().eliminationTargetPlayer == 0) {
     add(SigilAction::AdjustLife);
-    if (game.settings().profile == TurnHub::GameProfile::Commander) {
+    if (table().game.settings().profile == TurnHub::GameProfile::Commander) {
       add(SigilAction::CommanderDamage);
-      const uint8_t shown = leds.shownPlayer(sigilId,game);
-      if (game.lastCommanderHit(shown)) add(SigilAction::UndoCommanderHit);
-      if (!game.hasPartner(shown)) {
+      const uint8_t shown = leds.shownPlayer(sigilId,table().game);
+      if (table().game.lastCommanderHit(shown)) add(SigilAction::UndoCommanderHit);
+      if (!table().game.hasPartner(shown)) {
         add(SigilAction::AddPartner);
       } else {
         // Partners stay on once a second commander has dealt damage.
         bool dealt = false;
-        for (uint8_t to = 1; to <= game.playerCount(); ++to) dealt = dealt || game.commanderDamage(to, shown, 2);
+        for (uint8_t to = 1; to <= table().game.playerCount(); ++to) dealt = dealt || table().game.commanderDamage(to, shown, 2);
         if (!dealt) add(SigilAction::DropPartner);
       }
     }
@@ -173,8 +173,8 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   // Two living seats on one Sigil: either one can be shown, and so have its
   // life changed, on any turn.
   PlayerSeat shared[2];
-  if ((hubState == HubState::Running || hubState == HubState::Paused) &&
-      game.livingPlayersForController(sigilId, shared, 2) == 2) {
+  if ((table().hubState == HubState::Running || table().hubState == HubState::Paused) &&
+      table().game.livingPlayersForController(sigilId, shared, 2) == 2) {
     add(SigilAction::SwitchSeat);
   }
 
@@ -241,8 +241,8 @@ void syncSigilMenus(uint32_t nowMs) {
         cache.seatColorSent[slot - 1] = true;
       }
     }
-    const int32_t startingLife = hubState == HubState::Running || hubState == HubState::Paused
-        ? game.settings().startingLife : 0;
+    const int32_t startingLife = table().hubState == HubState::Running || table().hubState == HubState::Paused
+        ? table().game.settings().startingLife : 0;
     if (startingLife != cache.startingLife) {
       cache.startingLife = startingLife;
       cache.startingLifeSent = false;
@@ -251,7 +251,7 @@ void syncSigilMenus(uint32_t nowMs) {
         sigilBus.send(id, TurnHubProtocol::PacketType::StartingLife, startingLife)) {
       cache.startingLifeSent = true;
     }
-    const int32_t passing = pendingPass.active ? pendingPass.seat.playerNumber : 0;
+    const int32_t passing = table().pendingPass.active ? table().pendingPass.seat.playerNumber : 0;
     if (passing != cache.passing) {
       cache.passing = passing;
       cache.passingSent = false;
@@ -291,11 +291,11 @@ int32_t sigilSeatColorFor(uint8_t sigilId, uint8_t slot) {
 }
 
 int32_t sigilLifeRequestFor(uint8_t sigilId) {
-  if (hubState != HubState::Running && hubState != HubState::Paused) return 0;
+  if (table().hubState != HubState::Running && table().hubState != HubState::Paused) return 0;
   PlayerSeat seats[2];
-  const uint8_t count = game.livingPlayersForController(sigilId, seats, 2);
+  const uint8_t count = table().game.livingPlayersForController(sigilId, seats, 2);
   for (uint8_t i = 0; i < count; ++i) {
-    const TurnHub::LifeChangeRequest *request = game.lifeChangeFor(seats[i].playerNumber);
+    const TurnHub::LifeChangeRequest *request = table().game.lifeChangeFor(seats[i].playerNumber);
     if (request == nullptr || request->state != TurnHub::LifeChangeState::Pending) continue;
     TurnHubProtocol::LifeRequestFields f;
     f.target = request->target;

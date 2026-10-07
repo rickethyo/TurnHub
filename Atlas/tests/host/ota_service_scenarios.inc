@@ -50,7 +50,7 @@ static void otaServiceScenarios() {
   assert(request("/api/sigil-update",admin,{{"module","0"}})==409);
   r.capabilities=CAPABILITY_DISPLAY_OLED;
   assert(request("/api/sigil-update",admin,{{"module","abc"}})==400);
-  hubState=HubState::Running;assert(request("/api/sigil-update",admin,{{"module","0"}})==409);hubState=HubState::Lobby;
+  table().hubState=HubState::Running;assert(request("/api/sigil-update",admin,{{"module","0"}})==409);table().hubState=HubState::Lobby;
   assert(request("/api/sigil-update",admin,{{"module","0"}})==200 && sigilUpdatesBusy());
   serviceSigilUpdates(testNow);
   assert(strcmp(fixtureUpdateOffer.ssid, "OTA test AP")==0);

@@ -75,13 +75,13 @@ bool resolveWebSeat(uint8_t controllerId, uint8_t slot, SeatSnapshot &snapshot) 
   // "host" now means this seat may use table actions (start, rematch, reset,
   // next-game settings): every seated player may, since 2026-09-25.
   snapshot.host = true;
-  snapshot.lifeAvailable = game.hasPlayers();
-  snapshot.life = game.lifeTotal(seat.playerNumber);
-  if (game.hasPlayers()) {
-    snapshot.eliminated = game.isEliminated(seat.playerNumber);
-    snapshot.active = game.hasTurn(seat.playerNumber) && !snapshot.eliminated;
-    snapshot.winner = game.isWinner(seat.playerNumber);
-    snapshot.team = game.teamOf(seat.playerNumber);
+  snapshot.lifeAvailable = table().game.hasPlayers();
+  snapshot.life = table().game.lifeTotal(seat.playerNumber);
+  if (table().game.hasPlayers()) {
+    snapshot.eliminated = table().game.isEliminated(seat.playerNumber);
+    snapshot.active = table().game.hasTurn(seat.playerNumber) && !snapshot.eliminated;
+    snapshot.winner = table().game.isWinner(seat.playerNumber);
+    snapshot.team = table().game.teamOf(seat.playerNumber);
   } else if (nextGameSettings.twoHeadedGiant) {
     snapshot.team = static_cast<uint8_t>((seat.playerNumber + 1) / TurnHub::TEAM_SIZE);
   }
@@ -133,8 +133,8 @@ bool handleProfileControl(const String &profileId, WebControl control,
 }
 
 bool readGameSettings(TurnHub::GameSettings &settings, bool &editable) {
-  settings = game.hasPlayers() ? game.settings() : nextGameSettings;
-  editable = hubState == HubState::Lobby;
+  settings = table().game.hasPlayers() ? table().game.settings() : nextGameSettings;
+  editable = table().hubState == HubState::Lobby;
   return gameSettingsAvailable;
 }
 
@@ -156,7 +156,7 @@ bool changeLife(uint8_t controller, uint8_t slot, int32_t delta, String &message
 
 bool readCounters(uint8_t controller, uint8_t slot, TurnHubWebApi::CounterSnapshot &snapshot) {
   PlayerSeat seat;
-  if (!game.hasPlayers() || !seatForModuleSlot(controller, slot, seat)) return false;
+  if (!table().game.hasPlayers() || !seatForModuleSlot(controller, slot, seat)) return false;
   // This is an already-owned workspace. Aggregate assignment creates a
   // second ~470-byte snapshot on the pinned Xtensa compiler's stack.
   snapshot.editable = snapshot.commanderEnabled = false;
@@ -165,18 +165,18 @@ bool readCounters(uint8_t controller, uint8_t slot, TurnHubWebApi::CounterSnapsh
   for (auto &row : snapshot.damage) for (auto &value : row) value = 0;
   for (auto &request : snapshot.requests) request = TurnHub::LifeChangeRequest{};
   snapshot.player = seat.playerNumber;
-  snapshot.playerCount = game.playerCount();
-  snapshot.editable = (hubState == HubState::Running || hubState == HubState::Paused) &&
-      !game.isEliminated(seat.playerNumber) && !eliminationTargetPlayer && !game.hasWinClaim();
-  snapshot.commanderEnabled = game.settings().profile == TurnHub::GameProfile::Commander;
-  for (uint8_t i = 0; i < game.playerCount(); ++i) {
-    const auto source = game.playerAt(i)->playerNumber;
+  snapshot.playerCount = table().game.playerCount();
+  snapshot.editable = (table().hubState == HubState::Running || table().hubState == HubState::Paused) &&
+      !table().game.isEliminated(seat.playerNumber) && !table().eliminationTargetPlayer && !table().game.hasWinClaim();
+  snapshot.commanderEnabled = table().game.settings().profile == TurnHub::GameProfile::Commander;
+  for (uint8_t i = 0; i < table().game.playerCount(); ++i) {
+    const auto source = table().game.playerAt(i)->playerNumber;
     snapshot.sources[i] = source;
     for (uint8_t c = 0; c < TurnHub::COMMANDERS_PER_PLAYER; ++c) {
-      snapshot.damage[i][c] = game.commanderDamage(seat.playerNumber, source, c + 1);
+      snapshot.damage[i][c] = table().game.commanderDamage(seat.playerNumber, source, c + 1);
     }
     // Only requests this participant made or must answer are visible.
-    const auto *request = game.lifeChangeFor(source);
+    const auto *request = table().game.lifeChangeFor(source);
     if (request && (request->actor == seat.playerNumber || request->target == seat.playerNumber)) {
       snapshot.requests[i] = *request;
     }

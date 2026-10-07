@@ -227,7 +227,7 @@ void resetPresence() {
 }
 
 bool otaAllowed() {
-  return hubState == HubState::Lobby || hubState == HubState::GameOver;
+  return table().hubState == HubState::Lobby || table().hubState == HubState::GameOver;
 }
 
 uint32_t pairingRemainingMs(uint32_t nowMs) {
@@ -307,7 +307,7 @@ void readSerialCommands(uint32_t nowMs) {
 // ends; a shown presence code closes after PRESENCE_CODE_MS.
 void updatePairingWindow(uint32_t nowMs) {
   if (pairingActive &&
-      (nowMs - pairingStartedAtMs >= pairingIndicatorMs || hubState != HubState::Lobby)) {
+      (nowMs - pairingStartedAtMs >= pairingIndicatorMs || table().hubState != HubState::Lobby)) {
     pairingActive = false;
     serialLog.println("ATLAS|PAIRING|EXIT");
   }

@@ -94,7 +94,7 @@ void labelDuplicateNames(Entry *entries, size_t count, size_t start) {
 // During a game the list is only this game's players without a Sigil (seated
 // from a phone or the tablet): a Sigil takes one of them over. No Guest.
 size_t buildEntries(Entry *entries) {
-  const bool inGame = hubState != HubState::Lobby;
+  const bool inGame = table().hubState != HubState::Lobby;
   size_t count = 0;
   if (!inGame) {
     entries[count].id[0] = '\0';
@@ -110,7 +110,7 @@ size_t buildEntries(Entry *entries) {
     uint8_t controller = INVALID_ID, slot = 1;
     const bool playing = resolveProfileParticipant(id, controller, slot);
     if (playing && controller < MAX_PHYSICAL_SIGILS) continue;
-    if (inGame && (!playing || !game.controllerInGame(controller))) continue;
+    if (inGame && (!playing || !table().game.controllerInGame(controller))) continue;
     Entry &entry = entries[count];
     memcpy(entry.id, ids[i], ID_SIZE);
     entry.name = TurnHubProfiles::nameForProfile(id);
@@ -186,7 +186,7 @@ void closePicker(uint8_t sigilId, const char *reason) {
 
 PickerNotice noticeFor(const IntentResult &result) {
   // Joining a full table is refused under several statuses; say why.
-  if (hubState == HubState::Lobby && lobby.playerCount() >= MAX_PLAYERS) return PickerNotice::TableFull;
+  if (table().hubState == HubState::Lobby && table().lobby.playerCount() >= MAX_PLAYERS) return PickerNotice::TableFull;
   switch (result.status) {
     case IntentStatus::Unauthorized: return PickerNotice::NeedsPhone;
     case IntentStatus::Conflict:
@@ -262,7 +262,7 @@ void openProfilePicker(uint8_t sigilId, uint32_t nowMs, uint8_t slot) {
   PickerCache &cache = pickers[sigilId];
   cache.open = true;
   cache.slot = slot;
-  cache.inGame = hubState != HubState::Lobby;
+  cache.inGame = table().hubState != HubState::Lobby;
   cache.page = 0;
   cache.lastKeyMs = nowMs;
   showList(cache, PickerNotice::None);
@@ -338,11 +338,11 @@ void syncProfilePickers(uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     PickerCache &cache = pickers[id];
     if (cache.open) {
-      const bool playing = hubState == HubState::Running || hubState == HubState::Paused;
-      if (cache.inGame ? !playing : hubState != HubState::Lobby) closePicker(id, "STATE_CHANGED");
-      else if (cache.inGame && game.controllerInGame(id)) closePicker(id, "JOINED_ELSEWHERE");
-      else if (!cache.inGame && cache.slot == 1 && lobby.isJoined(id)) closePicker(id, "JOINED_ELSEWHERE");
-      else if (cache.slot == 2 && (!lobby.isJoined(id) || lobby.hasSecondary(id))) {
+      const bool playing = table().hubState == HubState::Running || table().hubState == HubState::Paused;
+      if (cache.inGame ? !playing : table().hubState != HubState::Lobby) closePicker(id, "STATE_CHANGED");
+      else if (cache.inGame && table().game.controllerInGame(id)) closePicker(id, "JOINED_ELSEWHERE");
+      else if (!cache.inGame && cache.slot == 1 && table().lobby.isJoined(id)) closePicker(id, "JOINED_ELSEWHERE");
+      else if (cache.slot == 2 && (!table().lobby.isJoined(id) || table().lobby.hasSecondary(id))) {
         closePicker(id, "SEAT_B_CHANGED");
       }
       else if (!sigilBus.isOnline(id, nowMs) || !pickerSigil(id)) closePicker(id, "OFFLINE");

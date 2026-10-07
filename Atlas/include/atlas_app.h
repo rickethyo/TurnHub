@@ -132,8 +132,9 @@ struct NudgeState {
 constexpr uint32_t NUDGE_COOLDOWN_MS = 30000;
 
 // Everything that belongs to one game at the table: its lobby, engine,
-// table decisions and client projection. Groundwork for the venue model
-// (several games on one Atlas, STAGED_CHANGES.md); Atlas runs one for now.
+// table decisions and client projection. Atlas runs MAX_GAME_TABLES of them
+// side by side (the venue model, PLANNED_DESIGNS.md); profiles, statistics,
+// pairing and settings stay shared.
 struct GameTable {
   Lobby lobby;
   GameEngine game;
@@ -145,24 +146,28 @@ struct GameTable {
   // Player selected for elimination while paused; 0 when none.
   uint8_t eliminationTargetPlayer = 0;
   TurnTimerCueState turnTimerCue;
-  NudgeState nudge;
+  NudgeState nudgeState;
 };
 
-constexpr uint8_t MAX_GAME_TABLES = 1;
+constexpr uint8_t MAX_GAME_TABLES = 2;
 extern GameTable tables[MAX_GAME_TABLES];
 
-// The single-game names used across Atlas; each refers into tables[0] until
-// the call sites take a GameTable explicitly.
-extern Lobby &lobby;
-extern GameEngine &game;
-extern TurnHub::ClientState &clientState;
-extern HubState &hubState;
-extern PendingPassState &pendingPass;
-extern uint32_t &countdownStartedAtMs;
-extern int8_t &lastCountdownSecond;
-extern uint8_t &eliminationTargetPlayer;
-extern TurnTimerCueState &turnTimerCue;
-extern NudgeState &nudgeState;
+// The table the running code acts on. Entry points (an Intent, a Sigil
+// event, an HTTP request, a loop tick) select it with a TableScope; outside
+// any scope it is table 0, Game 1.
+GameTable &table();
+uint8_t tableIndex();
+
+class TableScope {
+public:
+  explicit TableScope(uint8_t index);
+  ~TableScope();
+  TableScope(const TableScope &) = delete;
+  TableScope &operator=(const TableScope &) = delete;
+
+private:
+  uint8_t previous_;
+};
 
 // --- main.cpp ----------------------------------------------------------------
 

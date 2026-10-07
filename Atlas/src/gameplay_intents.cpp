@@ -23,7 +23,7 @@ namespace {
 // their own Sigil. Supplementary only: the portal/app and e-ink show the
 // same request as text. Browser-only seats have no Sigil to sound.
 void cueActionRequired(uint8_t playerNumber) {
-  const PlayerSeat *seat = game.playerByNumber(playerNumber);
+  const PlayerSeat *seat = table().game.playerByNumber(playerNumber);
   if (seat != nullptr && seat->controllerId < MAX_PHYSICAL_SIGILS) {
     audio.actionRequired(seat->controllerId);
   }
@@ -32,8 +32,8 @@ void cueActionRequired(uint8_t playerNumber) {
 // Two-Headed Giant: a turn cue for the active player also reaches their
 // teammate's Sigil when the teammate holds a different one.
 void cueTeammate(TurnHub::AudioCue cue, uint8_t playerNumber, uint8_t cuedController) {
-  const PlayerSeat *mate = game.playerByNumber(game.teammateOf(playerNumber));
-  if (mate != nullptr && mate->controllerId != cuedController && !game.isEliminated(mate->playerNumber)) {
+  const PlayerSeat *mate = table().game.playerByNumber(table().game.teammateOf(playerNumber));
+  if (mate != nullptr && mate->controllerId != cuedController && !table().game.isEliminated(mate->playerNumber)) {
     audio.play(cue, TurnHub::AudioController::maskForSigil(mate->controllerId));
   }
 }
@@ -49,12 +49,12 @@ void logIntent(const char *name, IntentOrigin origin, uint8_t playerNumber) {
 }
 
 bool gameInProgress() {
-  return hubState == HubState::Running || hubState == HubState::Paused;
+  return table().hubState == HubState::Running || table().hubState == HubState::Paused;
 }
 
 // A win claim or elimination selection blocks every other table decision.
 bool tableDecisionPending() {
-  return game.hasWinClaim() || eliminationTargetPlayer != 0;
+  return table().game.hasWinClaim() || table().eliminationTargetPlayer != 0;
 }
 
 IntentResult rejectMissingSeat() {
@@ -66,26 +66,26 @@ IntentResult rejectMissingSeat() {
 // --- PASS ---------------------------------------------------------------------
 
 void clearPendingPass(const char *reason) {
-  if (!pendingPass.active) return;
+  if (!table().pendingPass.active) return;
 
   serialLog.print("ATLAS|GAME|PASS|CANCEL|PLAYER|");
-  serialLog.print(pendingPass.seat.playerNumber);
+  serialLog.print(table().pendingPass.seat.playerNumber);
   serialLog.print("|ORIGIN|");
-  serialLog.print(intentOriginName(pendingPass.origin));
+  serialLog.print(intentOriginName(table().pendingPass.origin));
   if (reason != nullptr && reason[0] != '\0') {
     serialLog.print("|REASON|");
     serialLog.print(reason);
   }
   serialLog.println();
 
-  pendingPass = PendingPassState{};
+  table().pendingPass = PendingPassState{};
   leds.invalidateAll();
 }
 
 bool cancelPendingPassForModule(uint8_t sigilId, const char *reason) {
   // Two-Headed Giant: either teammate's controller may cancel the team's pass.
-  if (!pendingPass.active || (pendingPass.seat.controllerId != sigilId &&
-      game.turnSeatForController(sigilId) == nullptr)) return false;
+  if (!table().pendingPass.active || (table().pendingPass.seat.controllerId != sigilId &&
+      table().game.turnSeatForController(sigilId) == nullptr)) return false;
   clearPendingPass(reason);
   return true;
 }
@@ -93,17 +93,17 @@ bool cancelPendingPassForModule(uint8_t sigilId, const char *reason) {
 // PASS is a toggle: the first request arms a grace period, a second request
 // from the same seat inside it cancels. CommitPass applies it afterwards.
 IntentResult handlePassIntent(const Intent &intent, void *) {
-  if (hubState != HubState::Running) {
+  if (table().hubState != HubState::Running) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Pass is only available during a running game");
   }
-  if (game.activePlayer() == nullptr) {
+  if (table().game.activePlayer() == nullptr) {
     return IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
   }
   // The active seat, or in Two-Headed Giant either teammate: the turn is the team's.
-  const PlayerSeat *active = game.playerByNumber(intent.actor.playerNumber);
-  if (active == nullptr || !game.hasTurn(active->playerNumber) ||
-      game.isEliminated(active->playerNumber) ||
+  const PlayerSeat *active = table().game.playerByNumber(intent.actor.playerNumber);
+  if (active == nullptr || !table().game.hasTurn(active->playerNumber) ||
+      table().game.isEliminated(active->playerNumber) ||
       intent.actor.controllerId != active->controllerId ||
       intent.actor.slot != active->slot) {
     return IntentResult::reject(IntentStatus::Unauthorized, "It is not this seat's turn");
@@ -111,8 +111,8 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
 
   logIntent("PASS", intent.actor.origin, active->playerNumber);
 
-  if (pendingPass.active) {
-    if (game.sameTeam(pendingPass.seat.playerNumber, active->playerNumber)) {
+  if (table().pendingPass.active) {
+    if (table().game.sameTeam(table().pendingPass.seat.playerNumber, active->playerNumber)) {
       clearPendingPass("PASS");
       audio.passUndone(gameAudioMask());
       return IntentResult::accept("Pending pass canceled");
@@ -120,10 +120,10 @@ IntentResult handlePassIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected the pass");
   }
 
-  pendingPass.active = true;
-  pendingPass.seat = *active;
-  pendingPass.requestedAtMs = millis();
-  pendingPass.origin = intent.actor.origin;
+  table().pendingPass.active = true;
+  table().pendingPass.seat = *active;
+  table().pendingPass.requestedAtMs = millis();
+  table().pendingPass.origin = intent.actor.origin;
 
   serialLog.print("ATLAS|GAME|PASS|PENDING|PLAYER|");
   serialLog.print(active->playerNumber);
@@ -144,21 +144,21 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
   }
   const IntentResult notReady =
       IntentResult::reject(IntentStatus::InvalidState, "Pending pass is not ready");
-  if (!pendingPass.active) return notReady;
+  if (!table().pendingPass.active) return notReady;
 
-  const PlayerSeat *active = game.activePlayer();
-  const PlayerSeat *passer = game.playerByNumber(pendingPass.seat.playerNumber);
-  if (hubState != HubState::Running || active == nullptr || passer == nullptr ||
-      !passer->sameSeat(pendingPass.seat) || !game.hasTurn(passer->playerNumber)) {
+  const PlayerSeat *active = table().game.activePlayer();
+  const PlayerSeat *passer = table().game.playerByNumber(table().pendingPass.seat.playerNumber);
+  if (table().hubState != HubState::Running || active == nullptr || passer == nullptr ||
+      !passer->sameSeat(table().pendingPass.seat) || !table().game.hasTurn(passer->playerNumber)) {
     clearPendingPass("STATE_CHANGE");
     return notReady;
   }
-  if (millis() - pendingPass.requestedAtMs < PASS_GRACE_MS) return notReady;
+  if (millis() - table().pendingPass.requestedAtMs < PASS_GRACE_MS) return notReady;
 
-  const PendingPassState committing = pendingPass;
-  pendingPass = PendingPassState{};
+  const PendingPassState committing = table().pendingPass;
+  table().pendingPass = PendingPassState{};
 
-  if (!game.passTurn(committing.seat.controllerId, committing.requestedAtMs)) {
+  if (!table().game.passTurn(committing.seat.controllerId, committing.requestedAtMs)) {
     serialLog.print("ATLAS|GAME|PASS|COMMIT_REJECTED|PLAYER|");
     serialLog.print(committing.seat.playerNumber);
     serialLog.print("|ORIGIN|");
@@ -167,7 +167,7 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
     return notReady;
   }
 
-  const PlayerSeat *current = game.activePlayer();
+  const PlayerSeat *current = table().game.activePlayer();
   serialLog.print("ATLAS|GAME|PASS|COMMIT|");
   serialLog.print(committing.seat.playerNumber);
   serialLog.print("->");
@@ -184,7 +184,7 @@ IntentResult handleCommitPassIntent(const Intent &intent, void *) {
 }
 
 void updatePendingPass(uint32_t nowMs) {
-  if (pendingPass.active && nowMs - pendingPass.requestedAtMs >= PASS_GRACE_MS) {
+  if (table().pendingPass.active && nowMs - table().pendingPass.requestedAtMs >= PASS_GRACE_MS) {
     dispatchSystemIntent(IntentType::CommitPass);
   }
 }
@@ -193,20 +193,20 @@ void updatePendingPass(uint32_t nowMs) {
 
 IntentResult handlePauseIntent(const Intent &intent, void *) {
   const PlayerSeat *seat = seatForIntentActor(intent);
-  if (seat == nullptr || game.isEliminated(intent.actor.playerNumber)) {
+  if (seat == nullptr || table().game.isEliminated(intent.actor.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "This player is not active in the game");
   }
-  if (hubState != HubState::Running) {
+  if (table().hubState != HubState::Running) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Pause is only available during a running game");
   }
 
   clearPendingPass("PAUSE");
-  if (!game.pause(millis())) {
+  if (!table().game.pause(millis())) {
     return IntentResult::reject(IntentStatus::Conflict, "Could not pause the game");
   }
 
-  hubState = HubState::Paused;
+  table().hubState = HubState::Paused;
 
   audio.pause(gameAudioMask());
   leds.invalidateAll();
@@ -216,24 +216,24 @@ IntentResult handlePauseIntent(const Intent &intent, void *) {
 
 IntentResult handleResumeIntent(const Intent &intent, void *) {
   const PlayerSeat *seat = seatForIntentActor(intent);
-  if (seat == nullptr || game.isEliminated(intent.actor.playerNumber)) {
+  if (seat == nullptr || table().game.isEliminated(intent.actor.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "This player is not active in the game");
   }
-  if (hubState != HubState::Paused) {
+  if (table().hubState != HubState::Paused) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Resume is only available while the game is paused");
   }
-  if (game.hasWinClaim()) {
+  if (table().game.hasWinClaim()) {
     return IntentResult::reject(IntentStatus::Conflict, "Resolve the win claim before resuming");
   }
-  if (eliminationTargetPlayer != 0) {
+  if (table().eliminationTargetPlayer != 0) {
     return IntentResult::reject(IntentStatus::Conflict, "Resolve the elimination before resuming");
   }
-  if (!game.resume(millis())) {
+  if (!table().game.resume(millis())) {
     return IntentResult::reject(IntentStatus::Conflict, "Could not resume the game");
   }
 
-  hubState = HubState::Running;
+  table().hubState = HubState::Running;
   audio.resume(gameAudioMask());
   leds.invalidateAll();
   logIntent("RESUME", intent.actor.origin, seat->playerNumber);
@@ -245,7 +245,7 @@ IntentResult handleTogglePauseIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState, "Pause/resume is unavailable in this state");
   }
   Intent resolved = intent;
-  resolved.type = hubState == HubState::Running ? IntentType::Pause : IntentType::Resume;
+  resolved.type = table().hubState == HubState::Running ? IntentType::Pause : IntentType::Resume;
   return intents.dispatch(resolved);
 }
 
@@ -263,7 +263,7 @@ IntentResult handleEndMatchIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidState, "No match is in progress");
   }
   // finishGameState() then clears the queued PASS and table decisions.
-  if (!game.endInDraw(millis())) {
+  if (!table().game.endInDraw(millis())) {
     return IntentResult::reject(IntentStatus::Conflict, "Atlas could not end the match");
   }
   logIntent("END_MATCH", intent.actor.origin, 0);
@@ -293,22 +293,22 @@ IntentResult handleMasterPassIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Hold Master pass on the Atlas screen");
   }
-  if (hubState != HubState::Running) {
+  if (table().hubState != HubState::Running) {
     return IntentResult::reject(IntentStatus::InvalidState, "Master pass needs a running game");
   }
   if (tableDecisionPending()) {
     return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table decision first");
   }
-  const PlayerSeat *active = game.activePlayer();
+  const PlayerSeat *active = table().game.activePlayer();
   if (active == nullptr) {
     return IntentResult::reject(IntentStatus::InvalidState, "There is no active player");
   }
   const PlayerSeat passing = *active;
   clearPendingPass("MASTER_PASS");
-  if (!game.passTurn(passing.controllerId, millis())) {
+  if (!table().game.passTurn(passing.controllerId, millis())) {
     return IntentResult::reject(IntentStatus::Conflict, "Atlas could not pass the turn");
   }
-  const PlayerSeat *next = game.activePlayer();
+  const PlayerSeat *next = table().game.activePlayer();
   logMasterPass(passing.playerNumber, next != nullptr ? next->playerNumber : 0, intent.actor.origin);
   if (next != nullptr) {
     audio.turnPassed(passing.controllerId, next->controllerId);
@@ -331,37 +331,37 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   if (tableDecisionPending()) {
     return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table decision first");
   }
-  if (game.isEliminated(seat->playerNumber)) {
+  if (table().game.isEliminated(seat->playerNumber)) {
     return IntentResult::reject(IntentStatus::Conflict, "This player has already left the game");
   }
 
   clearPendingPass("CONCEDE");
   const uint32_t nowMs = millis();
-  const bool restoreRunning = hubState == HubState::Running;
+  const bool restoreRunning = table().hubState == HubState::Running;
   if (restoreRunning) {
-    if (!game.pause(nowMs)) {
+    if (!table().game.pause(nowMs)) {
       return IntentResult::reject(IntentStatus::Conflict, "Could not prepare the concession");
     }
-    hubState = HubState::Paused;
+    table().hubState = HubState::Paused;
   }
 
   bool gameFinished = false;
-  if (!game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished)) {
-    if (restoreRunning && game.resume(nowMs)) hubState = HubState::Running;
+  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished)) {
+    if (restoreRunning && table().game.resume(nowMs)) table().hubState = HubState::Running;
     return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected the concession");
   }
 
   audio.playerEliminated(seat->controllerId);
   // Two-Headed Giant: the teammate left with them.
-  if (const PlayerSeat *mate = game.playerByNumber(game.teammateOf(seat->playerNumber)))
+  if (const PlayerSeat *mate = table().game.playerByNumber(table().game.teammateOf(seat->playerNumber)))
     if (mate->controllerId != seat->controllerId) audio.playerEliminated(mate->controllerId);
   leds.invalidateAll();
   logIntent("CONCEDE", intent.actor.origin, seat->playerNumber);
 
   if (gameFinished) {
     finishGameState();
-  } else if (restoreRunning && game.resume(nowMs)) {
-    hubState = HubState::Running;
+  } else if (restoreRunning && table().game.resume(nowMs)) {
+    table().hubState = HubState::Running;
   }
   return IntentResult::accept("Player conceded");
 }
@@ -378,25 +378,25 @@ IntentResult handleClaimWinIntent(const Intent &intent, void *) {
   if (tableDecisionPending()) {
     return IntentResult::reject(IntentStatus::InvalidState, "Another table decision is already pending");
   }
-  const PlayerSeat *active = game.activePlayer();
-  if (active == nullptr || !game.hasTurn(seat.playerNumber) || game.isEliminated(seat.playerNumber)) {
+  const PlayerSeat *active = table().game.activePlayer();
+  if (active == nullptr || !table().game.hasTurn(seat.playerNumber) || table().game.isEliminated(seat.playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Only the active player can claim a win");
   }
 
   clearPendingPass("WIN_CLAIM");
   // A claim from running play resumes it on denial.
-  const bool restoreRunning = hubState == HubState::Running;
-  if (!game.beginWinClaim(seat.playerNumber, restoreRunning, millis())) {
+  const bool restoreRunning = table().hubState == HubState::Running;
+  if (!table().game.beginWinClaim(seat.playerNumber, restoreRunning, millis())) {
     return IntentResult::reject(IntentStatus::InvalidState, "Could not start the win claim");
   }
   leds.invalidateAll();
 
-  if (game.gameOver()) {
+  if (table().game.gameOver()) {
     finishGameState();
   } else {
-    hubState = HubState::Paused;
+    table().hubState = HubState::Paused;
     audio.winClaimed(gameAudioMask());
-    cueActionRequired(game.nextWinConfirmationPlayerNumber());
+    cueActionRequired(table().game.nextWinConfirmationPlayerNumber());
   }
 
   serialLog.print("ATLAS|INTENT|WIN|CLAIMED|PLAYER|");
@@ -413,10 +413,10 @@ const PlayerSeat *winResponder(const Intent &intent, const char *noClaimMessage,
   const PlayerSeat *seat = seatForIntentActor(intent);
   if (seat == nullptr) {
     rejection = rejectMissingSeat();
-  } else if (hubState != HubState::Paused || !game.hasWinClaim()) {
+  } else if (table().hubState != HubState::Paused || !table().game.hasWinClaim()) {
     rejection = IntentResult::reject(IntentStatus::InvalidState, noClaimMessage);
     seat = nullptr;
-  } else if (game.nextWinConfirmationPlayerNumber() != seat->playerNumber) {
+  } else if (table().game.nextWinConfirmationPlayerNumber() != seat->playerNumber) {
     rejection = IntentResult::reject(IntentStatus::InvalidState, "Another player must respond first");
     seat = nullptr;
   }
@@ -432,7 +432,7 @@ IntentResult handleConfirmWinIntent(const Intent &intent, void *) {
   const uint8_t player = responder->playerNumber;
 
   bool gameFinished = false;
-  if (!game.confirmWinClaim(player, millis(), gameFinished)) {
+  if (!table().game.confirmWinClaim(player, millis(), gameFinished)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Could not confirm the win claim");
   }
   audio.winConfirmed(gameAudioMask());
@@ -442,7 +442,7 @@ IntentResult handleConfirmWinIntent(const Intent &intent, void *) {
   if (gameFinished) {
     finishGameState();
   } else {
-    cueActionRequired(game.nextWinConfirmationPlayerNumber());
+    cueActionRequired(table().game.nextWinConfirmationPlayerNumber());
   }
   return IntentResult::accept("Win claim confirmed");
 }
@@ -453,11 +453,11 @@ IntentResult handleDenyWinIntent(const Intent &intent, void *) {
   if (responder == nullptr) return rejection;
   const uint8_t player = responder->playerNumber;
 
-  if (!game.denyWinClaim(player, millis())) {
+  if (!table().game.denyWinClaim(player, millis())) {
     return IntentResult::reject(IntentStatus::InvalidState, "Could not deny the win claim");
   }
   // The engine restores whichever state preceded the claim.
-  hubState = game.paused() ? HubState::Paused : HubState::Running;
+  table().hubState = table().game.paused() ? HubState::Paused : HubState::Running;
   audio.winDenied(gameAudioMask());
   leds.invalidateAll();
   serialLog.print("ATLAS|INTENT|WIN|DENIED|PLAYER|");
@@ -470,11 +470,11 @@ IntentResult handleDenyWinIntent(const Intent &intent, void *) {
 IntentResult handleChangeLifeIntent(const Intent &intent, void *) {
   const PlayerSeat *seat = seatForIntentActor(intent);
   // Two-Headed Giant: a teammate's life is the team's shared total.
-  if (!seat || !game.sameTeam(seat->playerNumber, intent.payload.targetPlayer)) {
+  if (!seat || !table().game.sameTeam(seat->playerNumber, intent.payload.targetPlayer)) {
     return IntentResult::reject(IntentStatus::Unauthorized, "You can change only your own life");
   }
-  if (!gameInProgress() || eliminationTargetPlayer ||
-      !game.changeLife(seat->playerNumber, intent.payload.value)) {
+  if (!gameInProgress() || table().eliminationTargetPlayer ||
+      !table().game.changeLife(seat->playerNumber, intent.payload.value)) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Life cannot be changed now or exceeds its limits");
   }
@@ -486,7 +486,7 @@ IntentResult handleExpireLifeChangesIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::System) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Only Atlas expires life requests");
   }
-  game.expireLifeChanges(millis());
+  table().game.expireLifeChanges(millis());
   return IntentResult::accept();
 }
 
@@ -498,21 +498,21 @@ IntentResult changeCommanderDamage(const PlayerSeat &seat, const TurnHub::Intent
     return IntentResult::reject(IntentStatus::Unauthorized,
         "Record only your own received Commander damage");
   }
-  if (game.settings().profile != TurnHub::GameProfile::Commander) {
+  if (table().game.settings().profile != TurnHub::GameProfile::Commander) {
     return IntentResult::reject(IntentStatus::Conflict,
         "Commander damage requires an MTG Commander game");
   }
-  if (!game.playerByNumber(payload.counterSource) || payload.counterSlot < 1 ||
+  if (!table().game.playerByNumber(payload.counterSource) || payload.counterSlot < 1 ||
       payload.counterSlot > TurnHub::COMMANDERS_PER_PLAYER) {
     return IntentResult::reject(IntentStatus::Conflict, "Select a valid commander owner and commander");
   }
   const int64_t recorded =
-      game.commanderDamage(seat.playerNumber, payload.counterSource, payload.counterSlot);
+      table().game.commanderDamage(seat.playerNumber, payload.counterSource, payload.counterSlot);
   if (payload.value < 0 && recorded + payload.value < 0) {
     return IntentResult::reject(IntentStatus::Conflict,
         "Cannot remove more Commander damage than recorded; use a positive number to add damage");
   }
-  if (!game.changeCommanderDamage(seat.playerNumber, payload.counterSource,
+  if (!table().game.changeCommanderDamage(seat.playerNumber, payload.counterSource,
           payload.counterSlot, payload.value)) {
     return IntentResult::reject(IntentStatus::Conflict,
         "Commander damage must be nonzero and keep damage and life within their limits");
@@ -526,7 +526,7 @@ IntentResult changeCommanderDamage(const PlayerSeat &seat, const TurnHub::Intent
 // undecided-table precondition.
 IntentResult handleCounterIntent(const Intent &intent, void *) {
   const PlayerSeat *seat = seatForIntentActor(intent);
-  if (!seat || game.isEliminated(seat->playerNumber)) {
+  if (!seat || table().game.isEliminated(seat->playerNumber)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "A living participant is required");
   }
   if (!gameInProgress() || tableDecisionPending()) {
@@ -537,11 +537,11 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
     case IntentType::RequestLifeChange: {
       // The recipient's own approval window (accessibility); 15 s for guests.
       TurnHubProfiles::AccessibilityPrefs prefs;
-      const PlayerSeat *target = game.playerByNumber(payload.targetPlayer);
+      const PlayerSeat *target = table().game.playerByNumber(payload.targetPlayer);
       if (target && target->profileId[0]) {
         TurnHubProfiles::loadAccessibilityForProfile(String(target->profileId), prefs);
       }
-      if (!game.requestLifeChange(seat->playerNumber, payload.targetPlayer, payload.value, millis(),
+      if (!table().game.requestLifeChange(seat->playerNumber, payload.targetPlayer, payload.value, millis(),
               prefs.lifeApprovalMs)) {
         return IntentResult::reject(IntentStatus::Conflict,
             "Request unavailable: check the target, pending request and life limits");
@@ -556,7 +556,7 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
     case IntentType::RespondLifeChange:
       // flags: 1 accepts, 0 rejects.
       if (payload.flags > 1 ||
-          !game.respondLifeChange(seat->playerNumber, payload.requestId, payload.flags == 1, millis())) {
+          !table().game.respondLifeChange(seat->playerNumber, payload.requestId, payload.flags == 1, millis())) {
         return IntentResult::reject(IntentStatus::Conflict,
             "Request ended, changed or could not be applied; refresh the current total");
       }
@@ -566,7 +566,7 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
     case IntentType::SetPartner:
       if (payload.targetPlayer != seat->playerNumber)
         return IntentResult::reject(IntentStatus::Unauthorized, "Set partners only for your own seat");
-      if (payload.flags > 1 || !game.setPartner(seat->playerNumber, payload.flags == 1))
+      if (payload.flags > 1 || !table().game.setPartner(seat->playerNumber, payload.flags == 1))
         return IntentResult::reject(IntentStatus::Conflict,
             "Partners need a Commander game, and stay on once a second commander has dealt damage");
       return IntentResult::accept(payload.flags ? "Partner commanders on" : "Partner commanders off");
@@ -576,11 +576,11 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
         return IntentResult::reject(IntentStatus::Unauthorized, "Record only your own received damage");
       bool applied = false;
       if (intent.type == IntentType::RecordCommanderHit) {
-        applied = game.recordCommanderHit(seat->playerNumber,payload.counterSource,payload.counterSlot,payload.value);
+        applied = table().game.recordCommanderHit(seat->playerNumber,payload.counterSource,payload.counterSlot,payload.value);
       } else {
-        const auto *hit = game.lastCommanderHit(seat->playerNumber);
+        const auto *hit = table().game.lastCommanderHit(seat->playerNumber);
         if (hit && hit->source == payload.counterSource && hit->commander == payload.counterSlot &&
-            hit->amount == payload.value) applied = game.undoCommanderHit(seat->playerNumber);
+            hit->amount == payload.value) applied = table().game.undoCommanderHit(seat->playerNumber);
       }
       return applied ? IntentResult::accept(intent.type == IntentType::RecordCommanderHit ?
           "Hit recorded" : "Hit undone") : IntentResult::reject(IntentStatus::Conflict,
@@ -600,22 +600,22 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
 // a paused game keeps its last phase so resuming does not repeat a cue.
 void updateTurnTimerCues(uint32_t nowMs) {
   using TurnHub::TurnTimerPhase;
-  if (hubState == HubState::Paused) return;
-  const PlayerSeat *active = hubState == HubState::Running ? game.activePlayer() : nullptr;
+  if (table().hubState == HubState::Paused) return;
+  const PlayerSeat *active = table().hubState == HubState::Running ? table().game.activePlayer() : nullptr;
   if (active == nullptr) {
-    turnTimerCue = TurnTimerCueState{};
+    table().turnTimerCue = TurnTimerCueState{};
     return;
   }
-  const TurnHub::PlayerStats *stats = game.statsForPlayer(active->playerNumber);
+  const TurnHub::PlayerStats *stats = table().game.statsForPlayer(active->playerNumber);
   const uint32_t turns = stats != nullptr ? stats->turnsCompleted : 0;
-  if (active->playerNumber != turnTimerCue.player || turns != turnTimerCue.turnsCompleted) {
-    turnTimerCue = TurnTimerCueState{};
-    turnTimerCue.player = active->playerNumber;
-    turnTimerCue.turnsCompleted = turns;
+  if (active->playerNumber != table().turnTimerCue.player || turns != table().turnTimerCue.turnsCompleted) {
+    table().turnTimerCue = TurnTimerCueState{};
+    table().turnTimerCue.player = active->playerNumber;
+    table().turnTimerCue.turnsCompleted = turns;
   }
-  const TurnTimerPhase phase = game.turnTimerPhase(nowMs);
-  if (phase == turnTimerCue.phase) return;
-  turnTimerCue.phase = phase;
+  const TurnTimerPhase phase = table().game.turnTimerPhase(nowMs);
+  if (phase == table().turnTimerCue.phase) return;
+  table().turnTimerCue.phase = phase;
   if (phase == TurnTimerPhase::Warning) {
     audio.turnWarning(active->controllerId);
     cueTeammate(TurnHub::AudioCue::TurnWarning, active->playerNumber, active->controllerId);
@@ -639,12 +639,12 @@ IntentResult handleNudgeIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::Browser)
     return IntentResult::reject(IntentStatus::Unauthorized, "Nudge from the app or the portal");
   const PlayerSeat *seat = seatForIntentActor(intent);
-  if (!seat || game.isEliminated(seat->playerNumber))
+  if (!seat || table().game.isEliminated(seat->playerNumber))
     return IntentResult::reject(IntentStatus::InvalidActor, "A living participant is required");
-  if (hubState != HubState::Running)
+  if (table().hubState != HubState::Running)
     return IntentResult::reject(IntentStatus::InvalidState, "Nudge while a game is running");
-  const PlayerSeat *active = game.activePlayer();
-  if (!active || game.hasTurn(seat->playerNumber))
+  const PlayerSeat *active = table().game.activePlayer();
+  if (!active || table().game.hasTurn(seat->playerNumber))
     return IntentResult::reject(IntentStatus::Conflict, "It is your turn");
   TurnHubAccounts::Account account;
   if (seat->profileId[0] && TurnHubAccounts::load(String(seat->profileId), account) && account.nudgeMuted)
@@ -652,14 +652,14 @@ IntentResult handleNudgeIntent(const Intent &intent, void *) {
   const uint32_t now = millis();
   if (seat->playerNumber > TurnHub::MAX_PLAYERS)
     return IntentResult::reject(IntentStatus::InvalidActor, "A living participant is required");
-  uint32_t &last = nudgeState.lastSentMs[seat->playerNumber];
+  uint32_t &last = table().nudgeState.lastSentMs[seat->playerNumber];
   if (last && now - last < NUDGE_COOLDOWN_MS)
     return IntentResult::reject(IntentStatus::Conflict, "You can nudge again in a few seconds");
   last = now ? now : 1;
-  ++nudgeState.seq;
-  nudgeState.fromPlayer = seat->playerNumber;
-  nudgeState.toPlayer = active->playerNumber;
-  nudgeState.atMs = now;
+  ++table().nudgeState.seq;
+  table().nudgeState.fromPlayer = seat->playerNumber;
+  table().nudgeState.toPlayer = active->playerNumber;
+  table().nudgeState.atMs = now;
   // Browser-only seats have no Sigil; their phone shows the nudge from state.
   if (active->controllerId < MAX_PHYSICAL_SIGILS) audio.nudge(active->controllerId);
   serialLog.print("ATLAS|GAME|NUDGE|FROM|");
