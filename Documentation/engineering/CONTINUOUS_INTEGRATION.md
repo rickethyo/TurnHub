@@ -70,7 +70,7 @@ the paths into four switches:
 | `Sigil/` | | yes | | |
 | `shared/` | yes | yes | | |
 | `protocol/` | yes | | yes | |
-| `Android/`, `design/` | | | yes | |
+| `Android/` (except the generated `assets/manual.md`), `design/` | | | yes | |
 | `tools/firmware/` | yes | yes | | yes |
 | `.github/` | yes | yes | yes | yes |
 | anything else (docs, KiCad, scripts) | | | | |
@@ -84,6 +84,11 @@ the paths into four switches:
 The quick Python checks (adapter audit, design tokens, portal pack, manual
 asset) run on every PR, so a documentation-only PR skips every build and
 suite.
+
+The firmware jobs cache PlatformIO's platform, toolchain and libraries per
+environment, keyed by the project's `platformio.ini`. Uncached, those downloads
+took about 70 s of the 107 s Atlas build step (run 37633088766); the compile
+itself always starts clean.
 
 Unaffected work is skipped inside each job, not by skipping the job, so every
 check name above still reports success and branch protection's required
