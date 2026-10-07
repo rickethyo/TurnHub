@@ -595,6 +595,7 @@ void loop() {
     refreshClientNames(nowMs);
   }
   updateSigilAccessibility(nowMs);
+  audio.setSpeakerShared(atlasSpeakerShared());
   audio.update(nowMs);
   serviceAtlasSpeaker(nowMs);
   syncSigilMenus(nowMs);

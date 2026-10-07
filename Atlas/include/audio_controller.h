@@ -91,6 +91,9 @@ class AudioController {
   // silences it without touching Sigil sound; 1-3 are low to high.
   void setSpeaker(ToneOutput *speaker) { speaker_ = speaker; }
   void setSpeakerVolume(uint8_t volume) { speakerVolume_ = volume; }
+  // Venue tables: Atlas's speaker is quiet while more than one game is in
+  // progress (owner decision 2026-09-29); Sigils still play every cue.
+  void setSpeakerShared(bool shared) { speakerShared_ = shared; }
   uint8_t speakerVolume() const { return speakerVolume_; }
 
   // The profile must outlive the controller (static or owned by the caller).
@@ -154,13 +157,14 @@ class AudioController {
   bool beginNext(uint32_t nowMs);
   void sendTone(uint16_t targetMask, uint16_t frequencyHz, uint16_t durationMs);
 
-  bool speakerAudible() const { return speaker_ != nullptr && speakerVolume_ > 0; }
+  bool speakerAudible() const { return speaker_ != nullptr && speakerVolume_ > 0 && !speakerShared_; }
 
   SigilBus &bus_;
   const AudioCueProfile *profile_;
   uint16_t mutedMask_ = 0;
   ToneOutput *speaker_ = nullptr;
   uint8_t speakerVolume_ = 0;
+  bool speakerShared_ = false;
   Job queue_[QUEUE_CAPACITY];
   uint8_t queueHead_ = 0;
   uint8_t queueTail_ = 0;

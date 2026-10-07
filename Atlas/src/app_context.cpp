@@ -90,10 +90,8 @@ bool atlasSpeakerShared() {
   return busy > 1;
 }
 
-// Atlas's speaker plays table-wide cues only while at most one game is in
-// progress (owner decision 2026-09-29); Sigils and phones still get them.
 uint16_t lobbyAudioMask() {
-  uint16_t mask = atlasSpeakerShared() ? 0 : AudioController::ATLAS_SPEAKER_MASK;
+  uint16_t mask = AudioController::ATLAS_SPEAKER_MASK;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (table().lobby.isJoined(id)) mask |= AudioController::maskForSigil(id);
   }
@@ -101,7 +99,7 @@ uint16_t lobbyAudioMask() {
 }
 
 uint16_t gameAudioMask() {
-  uint16_t mask = atlasSpeakerShared() ? 0 : AudioController::ATLAS_SPEAKER_MASK;
+  uint16_t mask = AudioController::ATLAS_SPEAKER_MASK;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (table().game.controllerInGame(id)) mask |= AudioController::maskForSigil(id);
   }

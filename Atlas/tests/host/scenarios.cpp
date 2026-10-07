@@ -984,10 +984,8 @@ static void venueTables() {
     assert(!handleProfileControl(gameTwoId,WebControl::Join,INVALID_ID,1,message));
   }
   // Both games run independently; Atlas's speaker goes quiet while both do.
-  startTable(0,0);
-  assert(!atlasSpeakerShared() && (lobbyAudioMask() & AudioController::ATLAS_SPEAKER_MASK));
-  startTable(1,2);
-  assert(atlasSpeakerShared() && !(gameAudioMask() & AudioController::ATLAS_SPEAKER_MASK));
+  startTable(0,0); assert(!atlasSpeakerShared());
+  startTable(1,2); assert(atlasSpeakerShared());
   assert(tables[0].game.playerCount()==2 && tables[1].game.playerCount()==4);
   assert(!allTablesBetweenGames());
   {

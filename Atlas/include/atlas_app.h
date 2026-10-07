@@ -189,7 +189,8 @@ uint16_t sigilsAtTable(uint8_t index);
 // Device-wide gate: OTA and Sigil updates wait for every game. (Pairing
 // follows the game the Atlas screen shows.)
 bool allTablesBetweenGames();
-// True while more than one game is in progress: Atlas's speaker is quiet.
+// True while more than one game is in progress: loop() then keeps Atlas's
+// speaker quiet (AudioController::setSpeakerShared).
 bool atlasSpeakerShared();
 
 // --- main.cpp ----------------------------------------------------------------
