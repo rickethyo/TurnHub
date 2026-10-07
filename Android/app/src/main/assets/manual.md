@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.11.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.12.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.11
+## Prototype Edition v0.12
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -39,9 +39,9 @@ Atlas is the authority for the game. Sigils, browsers, the Android app and the A
 
 The top line shows what the table is doing (Lobby, Starting, Playing, Paused or Game Over) and how many Sigils are online; during and after a game it also shows the round and how long the match has run. Below it, Atlas shows whose turn it is by name, a turn clock, and a card for each player with their name, life total, their total time on their own turns and a label: TURN, OUT, WINNER, STARTS, or CONFIRM for the player a win claim is waiting on.
 
-The buttons along the bottom change with the game: Start (once two players have joined), Clear (hold, to empty the lobby) and Menu in the lobby; Cancel start during the countdown; Pause (or Resume) and Table during a game; Rematch, Reset and Menu after it. Menu holds Pair a Sigil (lobby only), QR codes, Tests (section 23) and Info; Back steps out one screen at a time. **Table** opens the less-used game controls, **Master pass** and **End match**, so they stay out of the way during play. A pressed button changes color and gains a heavier border, and buttons that must be held say so and count down while you hold them.
+The buttons along the bottom change with the game: Start (once two players have joined), Clear (hold, to empty the lobby) and Menu in the lobby; Cancel start during the countdown; Pause (or Resume) and Table during a game; Rematch, Reset and Menu after it. Menu holds Pair a Sigil (lobby only), QR codes, Tests (section 27) and Info; Back steps out one screen at a time. **Table** opens the less-used game controls, **Master pass** and **End match**, so they stay out of the way during play. A pressed button changes color and gains a heavier border, and buttons that must be held say so and count down while you hold them.
 
-A red **NO SD CARD** label appears when no microSD card is in use. The game works without one; see section 19.
+A red **NO SD CARD** label appears when no microSD card is in use. The game works without one; see section 22.
 
 ## Sigils
 
@@ -59,23 +59,27 @@ A phone, tablet, or computer can also participate through the TurnHub browser in
 
 Virtual Sigils provide many of the same player functions without requiring an additional physical module.
 
+A tablet (or a phone or computer) can also lie in the middle of the table as one shared screen with a panel facing each player: **tablet mode** (section 17). With no Atlas at the table at all, the Android app can keep a simple game by itself (section 18).
+
 # 2. Before You Begin
 
 For a typical game you will need:
 
 - One TurnHub Atlas
 
-- One or more Sigils, or browser-based Virtual Sigils
+- One or more Sigils, Virtual Sigils (phones, the browser or the Android app), or one shared tablet in tablet mode
 
 - Power for Atlas
 
 - Power or sufficient battery charge for each physical Sigil
 
-- Optionally, a microSD card in Atlas for detailed statistics (section 19)
+- Optionally, a microSD card in Atlas for detailed statistics (section 22)
 
 - A phone, tablet, or computer for initial setup when desired. Play can begin without adding profiles, setting up an administrator, or ever opening the web portal. Without profiles, players are shown as “Player 1”, “Player 2” and so on, and their statistics are not saved.
 
 TurnHub is designed to operate locally and does not require an Internet connection for normal game operation.
+
+No Atlas with you? The Android app can run a game on its own tablet or phone and hand the results to Atlas later (section 18).
 
 # 3. Starting TurnHub
 
@@ -86,6 +90,22 @@ Connect power to Atlas. It shows the TurnHub logo for a moment, then the lobby.
 The first time Atlas starts, and after a factory reset, it asks you to calibrate the touchscreen: press and release the center of each cross as it appears, four in all. To calibrate again later, for example if touches land in the wrong place, press and hold anywhere on the lobby screen for 10 seconds.
 
 Do not begin pairing devices until Atlas shows the lobby.
+
+## Setting Up a New Table
+
+A new Atlas, or one that was factory reset, shows **Welcome to TurnHub** instead of the lobby. Setup takes a few minutes and is easiest with the Android app: open it and tap **Set up a new table**; it joins Atlas’s Wi-Fi by itself. Without the app, join the Wi-Fi network TurnHub-Atlas (password TurnHub-Setup) and open 192.168.4.1 in the browser.
+
+- **Your account:** create one or sign in.
+
+- **At the table:** type the code the Atlas screen shows. This account becomes the table’s Admin.
+
+- **Sigils:** pair each one (section 5), or skip.
+
+- **Updates:** install new firmware on Atlas and every Sigil, or choose Later. This needs internet on the phone; without it, Continue.
+
+- **Secure Wi-Fi:** choose the table’s own Wi-Fi password, 8 to 63 characters. Finish saves it and restarts Atlas, and the app rejoins with the new password.
+
+The browser covers the account, the code and the Wi-Fi password; pairing and updates are on the Atlas screen and in the app. To play first, tap **Skip for now** on the Atlas screen: setup comes back at the next start-up and under Menu. When setup is done, Atlas says You’re all set; tap **Pair a Sigil** or **Done**.
 
 ## Power On Your Sigils
 
@@ -113,15 +133,21 @@ Tap **Menu**, then QR codes, on the Atlas screen (in the lobby or after a game) 
 
 - **Sign in:** opens the profile sign-in page.
 
-The chosen code is framed and marked “shown”. If an administrator has set their own Wi-Fi password, the Wi-Fi code only appears while an administrator is verified at the table (section 17), so the password is not shown to everyone. An empty lobby explains how to join; its codes are under Menu.
+The chosen code is framed and marked “shown”. If an administrator has set their own Wi-Fi password, the Wi-Fi code only appears while an administrator is verified at the table (section 20), so the password is not shown to everyone. An empty lobby explains how to join; its codes are under Menu.
 
 **Info** (under Menu on the Atlas screen) shows the Wi-Fi name, the portal address, the firmware version, how many Sigils are online, the microSD card status and how long Atlas has been running. When newer firmware is available, Atlas’s small light blinks blue (red means a pairing window is open), and every Atlas screen shows an Update available tag (Update available for Atlas, if only Atlas is behind). Sigils say Update available on their screens too, and the app shows an Update available card with an Update now button for an Admin. The TurnHub app checks for new firmware and tells Atlas, since Atlas itself has no internet; install it with the app or the portal’s update pages.
 
 ## Using the Android App
 
-The TurnHub Android app joins the Atlas Wi-Fi and shows the table. A player can sign in with their profile PIN, join the table in the lobby, pass, and pause or resume the game.
+The TurnHub Android app is on Google Play. While TurnHub is a prototype it is offered through Google Play’s testing track, so the owner adds you as a tester first. The app joins the TurnHub-Atlas Wi-Fi by itself: tap **Connect to Atlas**. It tries the saved password, then TurnHub-Setup, and asks only if neither works. On newer Android versions, allow **Nearby devices** when asked; without it the app cannot reach Atlas.
 
-The app shows the same turn clock as the Sigils and the browser, because Atlas keeps the time.
+Sign in with your PIN or password, or choose **New here? Create an account** on the sign-in sheet to make one: a name, and either a PIN (quick to enter on a Sigil) or a password. An account made without a PIN, for example by a tablet (section 17), asks you to choose one the first time you sign in from a phone; enter it twice. From then on it is checked as usual.
+
+Signed in, you can join the table in the lobby, pass, pause or resume, change your life and Commander damage, claim or answer a win, concede, and set your Sigil accessibility. The app shows the same turn clock as the Sigils and the browser, because Atlas keeps the time.
+
+If Atlas stops answering, the app stays where it is and shows the last known table under an **Offline: reconnecting to Atlas** banner that says how old it is. It rejoins Atlas’s Wi-Fi by itself and carries on as soon as Atlas answers. Changes wait until then, except life and Commander damage in tablet mode (section 17).
+
+The app carries this manual (the ? in its top bar), so you can read it before connecting.
 
 # 5. Pairing a Physical Sigil
 
@@ -153,7 +179,7 @@ A forgotten Sigil can be paired again at any time.
 
 ## Factory Reset
 
-Device Settings has **Factory reset** next to each Sigil and a **Factory reset Atlas** button. Both need an administrator who is verified at the table (section 17), and neither works during a game.
+Device Settings has **Factory reset** next to each Sigil and a **Factory reset Atlas** button. Both need an administrator who is verified at the table (section 20), and neither works during a game.
 
 At Atlas itself, tap **Menu**, then **Device**, between games. Hold **Unpair Sigils** for 3 seconds (in the lobby, with nobody seated on a Sigil) to make Atlas forget every Sigil, or hold **Factory reset** for 10 seconds to erase Atlas. Like Atlas’s BOOT button, these need no administrator: anyone at the table can use them.
 
@@ -161,17 +187,23 @@ The same screen has **Sleep**: tap it between games and Atlas says “Going to s
 
 - **A Sigil** erases everything it has saved, including its pairing, and restarts as new. Atlas forgets it. Nobody may be seated on it. If the Sigil is out of range, Atlas only forgets it; hold the Sigil’s Pair button for 3 seconds to clear it too.
 
-- **Atlas** asks you to type RESET to confirm. It then erases every profile, PIN, statistic it holds, Sigil pairing, the Wi-Fi password (back to TurnHub-Setup) and all settings, and restarts as new, asking for touchscreen calibration. The microSD card is not erased. This cannot be undone.
+- **Atlas** asks you to type RESET to confirm. It then erases every profile, PIN, statistic it holds, Sigil pairing, the Wi-Fi password (back to TurnHub-Setup) and all settings, empties the microSD card apart from the web portal kept on it, and restarts as new, asking for touchscreen calibration and then setup (section 3). This cannot be undone.
 
 # 6. Player Setup
 
-Players can create or select a profile before beginning a game. A profile has a name, a PIN, and the player’s Sigil accessibility choices.
+Players can create or select a profile (an account) before beginning a game. A profile has a name, usually a PIN or password, and the player’s Sigil accessibility choices.
 
 Profiles are separate from physical Sigils. A player is not permanently assigned to one device, so the same Sigil can be used by different players in different games.
 
+## Moving onto a Sigil During a Game
+
+Nobody new joins a game once it has started, but a player who is playing from a phone or the tablet can move onto a Sigil. On a Sigil that is not in the game, choose **Join**: it lists only the players in the game who have no Sigil. Choose one, and that player carries on from the Sigil with their place, life and turn clock.
+
 ## Two Players on One Sigil
 
-Every Sigil can carry two players. After joining, choose **Add seat B** from its menu for the second player. The screen shows both names, and prompts say which seat (A or B) they are for. In the lobby, tap either player on the Atlas screen to set turn order. Earlier and Later can swap A and B; moving past their pair moves the whole Sigil. Choose B left for B to take its turn before A, or B right for B to follow A. Both seats stay next to each other in turn order. Set this before starting the game. The order is kept for a rematch.
+Every Sigil can carry two players. After joining, push Left in the lobby (**Add seat B**) for the second player; Left again drops seat B. The screen shows both names, prompts say which seat (A or B) they are for, and Down switches between the seats. In the lobby, tap either player on the Atlas screen to set turn order. Earlier and Later can swap A and B; moving past their pair moves the whole Sigil. Choose B left for B to take its turn before A, or B right for B to follow A. Both seats stay next to each other in turn order. Set this before starting the game. The order is kept for a rematch.
+
+The same Player screen on Atlas has **Remove**: hold it for 2 seconds to take that player out of the lobby. Removing seat A of a shared Sigil removes seat B too.
 
 # 7. Starting a Game
 
@@ -251,23 +283,23 @@ A Sigil offers a short menu of what you can do right now. Atlas decides the choi
 
 ## Choosing an Action
 
-Click (press the stick straight in) is always the most likely action: **Pass turn** on your turn, Join, Start game, Confirm win or Rematch. To undo a pass, click again while the Sigil says it is passing. In a game, Left and Right change your life (section 10). The two Sigils show their other actions differently:
+Every Sigil uses the same keys. Click (press the stick straight in) is the obvious next step: Join, Start game, **Pass turn** on your turn (Undo pass while it is passing), Resume, Rematch, Confirm win or Confirm out. In a game, Left and Right change your life (section 10). In the lobby, Left adds or drops seat B and Right picks the next starter. Down switches seat on a shared Sigil. Up always opens **Menu**, with every other action Atlas offers right now (such as Cmd damage, Pause, Claim win, I’m out, Partner, Random start, Leave lobby, Switch game or Link phone), then **Device**. The two Sigils show Menu differently:
 
-- **E-ink Sigil:** each action has its own direction. Push the stick the way shown, or click, to choose it. The bottom of the screen lists every choice; each line starts with a key: an arrow for a direction, or a filled circle for the click.
+- **E-ink Sigil:** Menu comes in pages of up to four choices, one each on the click, Up, Right and Down. The bottom of the screen lists them; each line starts with an arrow for a direction or a filled circle for the click. While more choices follow, Down is **More**. Left goes back a page, then out. The header names the page, such as Page 1 of 2.
 
-- **OLED Sigil:** push Up for **Menu**, a scrolling list of everything you can do right now (such as Pause, Claim win, Link phone or Leave lobby), followed by the Sigil's own Sleep and Device recovery. Push Up or Down to move through it, click (or push Right) to choose the highlighted line, and push Left to go back. The top line counts where you are in the list, and lines you must hold say (hold). Choosing an action closes the list. The bottom line of the screen names one key at a time, starting with the click, and moves on every few seconds.
+- **OLED Sigil:** Menu is a scrolling list of everything you can do right now, ending with Device and Back. Push Up or Down to move through it, click (or push Right) to choose the highlighted line, and push Left to go back. The top line counts where you are in the list, and lines you must hold say (hold). Choosing an action closes the list. The bottom line of the game screen names one key at a time, starting with the click, and moves on every few seconds.
 
 ## Device Menu
 
-Each Sigil has its own menu that Atlas is not asked about. On the E-ink Sigil, outside a game, Up (or Down, if Up is in use) shows **Menu** and opens it. On the OLED Sigil, Sleep ends its Menu list, which opens with Up at any time, even during a game, and Unpair and Factory reset sit one step further in, under Device recovery, so they stay out of the way of play.
+Each Sigil has its own **Device** menu that Atlas is not asked about. It is the last entry in Menu on both Sigils, at any time, even during a game. When Atlas cannot be reached, Menu opens straight on it.
 
-- **Unpair:** hold for 3 seconds (the click, on the E-ink Sigil). The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
+- **Unpair:** hold for 3 seconds. The Sigil forgets Atlas and shows Unpaired; hold the joystick in to pair it again.
 
-- **Sleep:** choose it (push Up, on the E-ink Sigil). The Sigil shows how to wake it and sleeps; its lights go off. Click the joystick (or press its Pair button) to wake it; it restarts and reconnects to Atlas by itself.
+- **Sleep:** choose it. The Sigil shows how to wake it and sleeps; its lights go off. Click the joystick (or press its Pair button) to wake it; it restarts and reconnects to Atlas by itself.
 
-- **Factory reset:** hold for 5 seconds (Down, on the E-ink Sigil). The Sigil erases everything it has saved, including its pairing, and restarts as new.
+- **Factory reset:** hold for 5 seconds. The Sigil erases everything it has saved, including its pairing, and restarts as new.
 
-- **Back:** push Left to close the menu (or choose Back at the end of the OLED list; in Device recovery, Back and Left return to Menu). It also closes by itself after 10 seconds.
+- **Back:** push Left to step back out, or choose Back at the end of the OLED list. The menu also closes by itself after 10 seconds.
 
 ## Actions You Hold
 
@@ -275,7 +307,7 @@ Actions that are hard to undo must be held: **Claim win**, **Confirm out**, **Re
 
 ## Pair Control
 
-The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game, when the E-ink Sigil's device menu is not offered. If the case hides the button, an unpaired Sigil also starts pairing when you hold its joystick in for 3 seconds.
+The Pair (BOOT) button is reserved for pairing: press it to pair, hold it for 3 seconds to make the Sigil forget Atlas, or hold it for 10 seconds to factory reset it. The hold works at any time, even during a game. If the case hides the button, an unpaired Sigil also starts pairing when you hold its joystick in for 3 seconds.
 
 ## Light Ring
 
@@ -287,23 +319,35 @@ If a Sigil cannot hear Atlas for about 7 seconds (Atlas is switched off, restart
 
 When life tracking is enabled, players can adjust life totals through TurnHub. The Atlas screen shows every player’s life total.
 
-For supported Magic-style configurations, TurnHub includes larger adjustment options such as:
+On a Sigil, Left and Right change your own life during a game; hold to repeat. The light ring shows the change you are making, and the Sigil sends it 2 seconds after your last press. In games that start at 1000 or more, a Sigil steps by 100.
 
-+10 and -10
+On the Atlas screen, tap a player’s card for -5, -1, +1 and +5, or Concede.
+
+In the browser the steps are 1 and 10, and in the app and tablet mode 1 and 5 (100 and 1000 for Yu-Gi-Oh! everywhere).
 
 Other players may also request changes to another player’s life total.
 
-When this occurs, TurnHub displays a confirmation prompt.
+The player asked must approve it: Right approves and Left denies on a Sigil, or use the buttons in the browser or the app.
 
-If no response is made, the current prototype can automatically confirm the change after approximately 15 seconds.
+If they do not answer, the change is accepted after 15 seconds, or after 30 or 60 seconds if that player chose a longer time in Sigil accessibility (section 13). Pausing the game does not stop that time.
 
 # 11. Commander Damage
 
 TurnHub can track Commander damage separately from the player’s main life total.
 
-This allows players to monitor Commander-specific damage without replacing normal life tracking.
+Damage is recorded by the player who received it, from each opponent’s commander (and their partner, if they have one). Each hit also comes off that player’s life, or the team’s life in Two-Headed Giant, and a correction gives it back. Record it on your Sigil (below), on the Game screen of the browser or app, or on your panel in tablet mode under **More**.
 
-Because game formats vary, players remain responsible for determining when a game rule requires elimination.
+Partner commanders are off until a player turns them on: choose **Partner** from the Sigil’s Menu, or enter damage from a second commander in the browser or app. Once a partner has dealt damage it stays on until a rematch or reset.
+
+Because game formats vary, players remain responsible for determining when a game rule requires elimination. Recording 21 Commander damage does not eliminate a player by itself.
+
+## Commander Damage from a Sigil
+
+Record damage on the Sigil of the player who received it. On a shared Sigil, first show the correct seat with Down (Switch seat). Push Up for Menu and choose **Cmd damage**. The receiving name and A/B seat stay fixed while you enter the hit.
+
+Use Left/Right to select who hit you and click; with partners on, choose Commander 1 or 2 and click; then enter the amount. Hold Left/Right to repeat. Click to review the life and Commander damage totals; click again to apply both together. Up goes back; Down cancels. This works during anyone’s turn without pausing the game.
+
+Undo hit previews and reverses the last hit recorded this way for the shown seat. It restores the life lost and removes that Commander damage together. A correction to the same damage entry removes that undo option. Entry pages and Undo clear on a restart or new match; recovered life and damage totals remain.
 
 # 12. Pausing the Game
 
@@ -321,7 +365,7 @@ This can be useful for rules discussions, food breaks, disconnected hardware, or
 
 # 13. Nudges and Alerts
 
-Players can send a nudge when another player needs attention.
+While a game runs, any player whose turn it is not can nudge the active player with **Nudge** in the browser or the app. The active player’s Sigil plays the nudge sound (if its sound is on), and their phone shows "<name> nudged you" and vibrates. Each player can nudge once every 30 seconds, and a Game Master can mute an account’s nudges, which stops that account sending them.
 
 TurnHub can provide alerts through:
 
@@ -347,6 +391,8 @@ Each player can choose how their Sigil behaves. Sign in, then open My Account in
 
 - Hold times: how long to hold for deliberate actions (1 to 4 seconds, normally 2) and to claim a win (3 to 10 seconds, normally 5). The win hold is always at least one second longer.
 
+- Time to answer life changes other players ask for: 15, 30 or 60 seconds (normally 15).
+
 If two players share a Sigil, it uses the more accommodating choice: it stays quiet if either player turned sound off, uses reduced motion if either chose it, and uses the longer hold times.
 
 When a decision is waiting on you, such as confirming a win or approving a life change, your Sigil plays two short tones (unless its sound is off) and the request appears on screen.
@@ -369,7 +415,7 @@ When a game ends, choose **Rematch** to play again with the same players, or **R
 
 # 15. Conceding
 
-A player who is leaving the game can concede. On a Sigil, pause the game, choose **I’m out**, then hold **Confirm out**. On a shared Sigil, **Other seat** switches to the other player first.
+A player who is leaving the game can concede. On a Sigil, choose **I’m out** from Menu, then hold **Confirm out**. On a shared Sigil, **Other seat** switches to the other player first. In the browser, the app or tablet mode, choose Concede and confirm.
 
 Conceding removes that player from normal turn progression while preserving the rest of the game.
 
@@ -391,6 +437,8 @@ Available functions include:
 
 - Join or leave the table
 
+- Switch between Game 1 and Game 2 (section 19)
+
 - Start game and choose who goes first
 
 - Choose the game profile, starting life and turn timer
@@ -411,7 +459,7 @@ Available functions include:
 
 ### Player
 
-- Create or sign into a profile with a PIN
+- Create an account or sign in with your PIN or password
 
 - Edit your name and PIN
 
@@ -423,6 +471,8 @@ Available functions include:
 
 - View Atlas status
 
+- Tablet mode, at http://192.168.4.1/tablet (section 17)
+
 - Device Settings (administrators): name, forget or factory reset Sigils, pairing window, speaker volume
 
 - Wi-Fi password (administrators)
@@ -431,15 +481,73 @@ Available functions include:
 
 - Firmware update (administrators)
 
-Some administrative functions require an administrator account, and some also require being verified at the table (section 17).
+Some administrative functions require an administrator account, and some also require being verified at the table (section 20).
 
-# 17. Administrators and Game Masters
+# 17. Tablet Mode
+
+In tablet mode one tablet (or a phone or computer) lies in the middle of the table and acts for everyone. The screen is split into a panel per player, each turned to face their seat, with their name, life, Commander damage and turn clock. Atlas still keeps the game and decides every action, exactly as if each player used their own phone.
+
+## Turning It On
+
+- In the Android app, sign in with any account, open **My account** and tap **Open tablet mode**. In the browser, sign in and open http://192.168.4.1/tablet.
+
+- Tap **Show a code on Atlas** and enter the six digits the Atlas screen shows. This proves the tablet is at the table. An account with the **Tablet access** role skips the code (section 20).
+
+- The tablet stays in tablet mode until you choose **Leave tablet mode** or sign out. Seated players stay seated when it leaves. The app keeps the screen on during play.
+
+## Seating Players
+
+In the lobby, add everyone who is playing with **Seat player**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. Use the arrows to set turn order; panels sit clockwise in that order. Then choose the game, starting life and Two-Headed Giant, and tap **Start the game**.
+
+Players seated by the tablet can still use their own Sigil or phone as well: a Sigil’s Join picker lists them as at the table, and a phone can sign in to the same player.
+
+## Playing on the Panels
+
+- Tap the top half of a panel to add life and the bottom half to subtract it; hold to repeat the bigger step.
+
+- The player whose turn it is holds **Hold to pass**. While it says **Passing… tap to keep**, a tap undoes the pass.
+
+- **More** on a panel holds **Claim the win** and **Concede** (tap again to confirm) and Commander damage received from each opponent, with partner commanders when needed.
+
+- **Menu** in the middle of the table holds **Pause**, **Turn panels around**, **End without a winner** (a draw) and **Leave tablet mode**. After the game choose **Rematch** or **New players**.
+
+If Atlas stops answering during a game, the panels keep taking life and Commander damage. The changes are saved with the time they were tapped and sent to Atlas as soon as it answers, and Atlas applies them by its usual rules. A change Atlas can no longer apply, for example after Atlas restarted or the player left the game, is dropped with a note. Passing, pausing, conceding, win claims and seating wait for Atlas.
+
+# 18. Playing Without Atlas
+
+With no Atlas at the table, the Android app can keep a simple game on its own. Tap **Play without Atlas** on the first screen. It is there whenever the app is not connected, including while it is still looking for Atlas.
+
+- Add everyone who is playing. Type a name, or pick from **Players from your Atlas**: the app remembers the players of the last Atlas it connected to. A typed name that matches one of them becomes that player.
+
+- Use the arrows to set turn order, choose the game and starting life, and tap **Start the game**.
+
+- The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede and the winner. There is no turn timer, no Two-Headed Giant, and no phones or Sigils in this mode.
+
+The device keeps each finished game. The next time the app connects to an Atlas (firmware 0.7.1 or later) and someone is signed in, it sends the finished games, and Atlas adds them to the statistics of the players it recognizes. Atlas counts each game only once, however often it is sent. Players who were typed in with no matching account are not counted.
+
+A game without Atlas is separate from any game Atlas is running: nothing in it changes a game on Atlas.
+
+# 19. Two Games on One Atlas
+
+One Atlas can run two games at once, **Game 1** and **Game 2**, each with its own lobby, players, settings and turn order. Everyone starts in Game 1. This is new in the prototype and still being tested at the table.
+
+- **In the browser,** the Game 1 / Game 2 switch chooses which game your phone follows. Switching leaves a lobby you were in; you cannot switch while you are playing in a game.
+
+- **On a Sigil,** choose **Switch game** from its menu while it is not in a game. It leaves its lobby and goes to the other game; a shared Sigil takes both seats with it.
+
+- A player, a Sigil or a phone is in one game at a time.
+
+- The Atlas screen, pairing and the tablet show Game 1 for now. The app shows the game your account is in, otherwise Game 1.
+
+While both games are in progress the Atlas speaker stays quiet, so neither table hears the other’s sounds; screens, Sigil lights and Sigil sounds work as usual. Firmware updates, Atlas factory reset and Sleep wait until both games are between games.
+
+# 20. Administrators and Game Masters
 
 ## Setting Up the First Administrator
 
-On a new Atlas, or after a factory reset, the browser shows a Set up this Atlas banner.
+On a new Atlas, or after a factory reset, the setup in section 3 makes your account the Admin. In the browser, the same step appears as a Set up this Atlas banner:
 
-1. Create or sign into your profile, with a PIN.
+1. Create or sign into your account, with a PIN or password.
 
 2. Select **Make my account the initial Admin**.
 
@@ -469,7 +577,11 @@ TurnHub supports a privileged Game Master role for table setup, game administrat
 
 When a Game Master resets a player’s connections or removes them from a game, TurnHub records it privately with that player’s statistics. Only the player can see these counts, on their statistics page after signing in with their PIN. Game Masters, other players and statistics downloads never show them.
 
-# 18. Reconnecting
+## Roles and Tablet Access
+
+An administrator gives roles under **Manage people** (Device Settings in the app, or the Players tab in the browser): Admin, Game Master, Developer and **Tablet access**. Roles need a PIN or password on the account. Tablet access lets an account turn on tablet mode without a code from the Atlas screen, for example an account kept on a tablet that stays at the table and never plays (section 17). It grants nothing else.
+
+# 21. Reconnecting
 
 If a Sigil or browser client temporarily disconnects, TurnHub attempts to restore it without requiring the game to restart.
 
@@ -487,7 +599,9 @@ If a device does not reconnect automatically:
 
 Do not restart Atlas unless normal reconnection attempts fail.
 
-# 19. Statistics and the microSD Card
+The Android app does not give up when Atlas goes quiet: it shows the last known table, marked offline, and reconnects by itself (section 4).
+
+# 22. Statistics and the microSD Card
 
 Atlas keeps statistics for each profile. Without a microSD card it keeps the basics: games played, games won, the last result and the type of the last game.
 
@@ -499,7 +613,21 @@ With a microSD card in Atlas, it also keeps detailed statistics: turn times, fas
 
 - Playing never depends on the card.
 
-# 20. Restarting Atlas
+- Games played without Atlas count once the app hands them to Atlas (section 18).
+
+# 23. Updating Firmware
+
+Atlas, the Sigils and the web portal are updated over the air with signed update packages. Each device checks the signature itself and refuses a package that is unsigned, altered, made for another device or older than what it runs.
+
+- **With the Android app:** while the phone has internet, the app checks for new releases and tells Atlas. Atlas, the Sigils and the app then show **Update available**. At the table, an administrator taps **Update now**; the app installs the update on Atlas and then on each Sigil that needs it. Atlas itself never needs the internet.
+
+- **In the browser:** an administrator can install a package file on the Update page (Atlas and the portal) or the Sigil firmware page.
+
+- Updates need an administrator verified at the table (section 20), and the table must be in the lobby or after a game. One update runs at a time.
+
+Atlas restarts after its own update, and Sigils restart and reconnect by themselves. Keep Atlas and the Sigils powered until the update finishes.
+
+# 24. Restarting Atlas
 
 To restart Atlas, disconnect its power and connect it again. Atlas also restarts on its own after a Wi-Fi password change, a firmware update or a factory reset.
 
@@ -507,7 +635,7 @@ If a game was in progress, it comes back paused. Resume it to continue, or tap T
 
 Avoid disconnecting power while Atlas is saving settings.
 
-# 21. Shutting Down
+# 25. Shutting Down
 
 There is no shut-down command. For a normal shutdown:
 
@@ -519,7 +647,7 @@ There is no shut-down command. For a normal shutdown:
 
 A game that was still in progress is restored, paused, the next time Atlas starts.
 
-# 22. Privacy and Local Operation
+# 26. Privacy and Local Operation
 
 TurnHub is designed around local-first operation.
 
@@ -529,7 +657,7 @@ Features involving statistics or potentially sensitive player information are in
 
 TurnHub’s goal is to help manage the table without requiring players to hand over unnecessary personal data.
 
-# 23. Troubleshooting
+# 27. Troubleshooting
 
 ## My Sigil Will Not Pair
 
@@ -611,7 +739,23 @@ Hold times can be lengthened in Sigil accessibility. If two players share the Si
 
 It appears only while a TurnHub test harness, a developer tool that plays as extra Sigils, is connected. Players can ignore it.
 
-# 24. Prototype Limitations
+## The App Says Offline: Reconnecting to Atlas
+
+Atlas has stopped answering. Check that Atlas is on and the phone is in range; the app rejoins its Wi-Fi and carries on by itself. In tablet mode, life and Commander damage tapped meanwhile are sent when Atlas answers.
+
+## A Game Played Without Atlas Is Missing From Statistics
+
+Connect the app that kept the game to Atlas (firmware 0.7.1 or later) and sign in; it sends finished games then. Only players matched to an account on that Atlas are counted.
+
+## Tablet Mode Asks for a Code Every Time
+
+Each time tablet mode is turned on, Atlas asks for a code to prove the tablet is at the table. An administrator can give the tablet’s account the Tablet access role to skip it (section 20).
+
+## The Atlas Speaker Went Quiet
+
+Atlas silences its speaker while two games are in progress at once (section 19). Its volume is set in Device Settings.
+
+# 28. Prototype Limitations
 
 The current TurnHub prototype is still under active development.
 
@@ -645,7 +789,7 @@ Helpful information includes:
 
 - Whether the issue could be reproduced
 
-# 25. The TurnHub Philosophy
+# 29. The TurnHub Philosophy
 
 TurnHub is not intended to play the game for you.
 
@@ -659,15 +803,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.9
+**Manual Version:** 0.12
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Development build (Atlas 0.6.4-dev, Sigil 0.9.6-dev)
+**Software:** Atlas 0.7.1, Sigil 0.9.13, TurnHub Android app (Google Play)
 **Product names and specifications subject to change.**
-
-## Commander damage from a Sigil
-
-Record damage on the Sigil of the player who received it. On a shared Sigil, first show the correct seat with Switch seat. OLED: press Up for the action list and choose Cmd damage. E-ink: press Up for Game menu, then click for Cmd damage. The receiving name and A/B seat stay fixed while you enter the hit.
-
-Use Left/Right to select who hit you, click, select Commander 1 or 2 (2 for a partner), click, then enter the amount. Hold Left/Right to repeat. Click to review the life and Commander damage totals; click again to apply both together. Up goes back; Down cancels. This works during anyone’s turn without pausing the game.
-
-Undo hit previews and reverses the last hit recorded this way for the shown seat. It restores the life lost and removes that Commander damage together. A correction to the same damage entry removes that undo option. Entry pages and Undo clear on a restart or new match; recovered life and damage totals remain. Recording 21 Commander damage does not automatically eliminate a player.
