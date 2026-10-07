@@ -53,6 +53,13 @@ uint8_t tableForController(uint8_t controllerId) {
   return controllerId < MAX_PHYSICAL_SIGILS ? sigilTable[controllerId] : 0;
 }
 
+bool seatedAnywhere(uint8_t controllerId) {
+  for (const GameTable &t : tables) {
+    if (t.lobby.isJoined(controllerId) || t.game.controllerInGame(controllerId)) return true;
+  }
+  return false;
+}
+
 int8_t tableForProfile(const String &profileId) {
   for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
     TableScope scope(t);

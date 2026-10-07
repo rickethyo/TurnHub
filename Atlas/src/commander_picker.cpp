@@ -121,6 +121,7 @@ void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t
   refresh(f); changed(f);
 }
 void handleCommanderKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   if (sigilId >= MAX_PHYSICAL_SIGILS) return;
   Flow &f = flows[sigilId]; auto &p = f.page;
   if (p.stage == CommanderStage::Closed) { f.sent = false; return; }

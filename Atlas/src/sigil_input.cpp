@@ -109,6 +109,7 @@ void passFromMenu(uint8_t sigilId) {
 
 }  // namespace
 void handleSelectAction(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   using TurnHubProtocol::SigilAction;
   const uint8_t raw = TurnHubProtocol::selectedAction(value);
   // A choice from an out-of-date menu, or one no longer offered, is dropped
@@ -259,6 +260,7 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
 // LifeAdjust: a batched change to one of this Sigil's own players. The
 // ChangeLife handler checks ownership, state and limits.
 void handleLifeAdjust(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   const uint8_t player = TurnHubProtocol::lifeAdjustPlayer(value);
   const int32_t delta = TurnHubProtocol::lifeAdjustDelta(value);
   const PlayerSeat *seat = table().game.playerByNumber(player);
@@ -288,6 +290,7 @@ void handleLifeAdjust(uint8_t sigilId, int32_t value) {
 // LifeResponse: approve or deny the request this Sigil showed. The tag must
 // match the pending request, so an answer never lands on a newer one.
 void handleLifeResponse(uint8_t sigilId, int32_t value) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   const uint8_t target = TurnHubProtocol::lifeResponseTarget(value);
   const PlayerSeat *seat = table().game.playerByNumber(target);
   const TurnHub::LifeChangeRequest *request = table().game.lifeChangeFor(target);
@@ -337,7 +340,6 @@ void processSigilEvents() {
     }
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));
     if (connectionBlocked(event.sigilId)) continue;
-    TableScope scope(tableForController(event.sigilId));
     switch (event.type) {
 
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;

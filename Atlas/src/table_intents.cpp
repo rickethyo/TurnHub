@@ -60,10 +60,6 @@ void resetCountdown() {
   table().lastCountdownSecond = -1;
 }
 
-void clearPhysicalSeatProfiles() {
-  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) TurnHubControllers::releasePhysical(id, 1);
-}
-
 void printPlayer(const PlayerSeat &player) {
   serialLog.print("Player ");
   serialLog.print(player.playerNumber);
@@ -83,12 +79,17 @@ void clearDecisionState() {
 
 void enterEmptyLobby(const Intent *cause) {
   const HubState previous = table().hubState;
-  clearPhysicalSeatProfiles();
+  // Only this game's controllers are freed: the other game keeps its players.
+  bool here[MAX_CONTROLLERS];
+  for (uint8_t id = 0; id < MAX_CONTROLLERS; ++id) here[id] = tableForController(id) == tableIndex();
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (here[id]) TurnHubControllers::releasePhysical(id, 1);
+  }
   table().hubState = HubState::Lobby;
   table().lobby.resetEmpty();
   table().game.reset();
   for (uint8_t id = MAX_PHYSICAL_SIGILS; id < MAX_CONTROLLERS; ++id) {
-    TurnHubControllers::releaseBrowser(id);
+    if (here[id]) TurnHubControllers::releaseBrowser(id);
   }
   resetCountdown();
   clearDecisionState();
@@ -397,6 +398,11 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
   const String profile(intent.payload.profileId);
   if (!TurnHubProfiles::profileExists(profile)) {
     return IntentResult::reject(IntentStatus::InvalidActor, "Unknown profile");
+  }
+  // A profile plays at one game at a time (venue tables).
+  const int8_t seatedAt = tableForProfile(profile);
+  if (intent.type != IntentType::LeaveProfile && seatedAt >= 0 && seatedAt != tableIndex()) {
+    return IntentResult::reject(IntentStatus::Conflict, "This profile is playing in the other game");
   }
   uint8_t existing = INVALID_ID, existingSlot = 1;
   const bool joined = resolveProfileParticipant(profile, existing, existingSlot);
@@ -965,7 +971,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if ((!all && id != target) || !sigilBus.record(id)) continue;
     ++paired;
-    if (table().lobby.isJoined(id)) {
+    if (seatedAnywhere(id)) {
       return IntentResult::reject(IntentStatus::Conflict,
           all ? "Players are seated on a Sigil; they must leave the lobby first"
               : "Players are seated on this Sigil; they must leave the lobby first");
@@ -1107,7 +1113,7 @@ IntentResult handleAdvanceSetupIntent(const Intent &intent, void *) {
     if (setupStage != SetupStage::Welcome) {
       return IntentResult::reject(IntentStatus::InvalidState, "Setup is already finished");
     }
-    if (table().hubState != HubState::Lobby && table().hubState != HubState::GameOver) {
+    if (!allTablesBetweenGames()) {
       return IntentResult::reject(IntentStatus::InvalidState, "Finish setup between games");
     }
     const String password = TurnHub::readStoredWifiPassword();
@@ -1203,7 +1209,7 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
     if (sleepScheduled()) {
       return IntentResult::reject(IntentStatus::Conflict, "Atlas is going to sleep");
     }
-    if (!atBootButton && table().hubState != HubState::Lobby && table().hubState != HubState::GameOver) {
+    if (!atBootButton && !allTablesBetweenGames()) {
       return IntentResult::reject(IntentStatus::InvalidState, "Factory reset Atlas between games");
     }
     if (!atlasResetScheduled) {
@@ -1220,7 +1226,7 @@ IntentResult handleFactoryResetIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::InvalidActor, "That Sigil is not paired with Atlas");
   }
   const uint8_t id = static_cast<uint8_t>(target);
-  if (table().lobby.isJoined(id)) {
+  if (seatedAnywhere(id)) {
     return IntentResult::reject(IntentStatus::Conflict,
         "Players are seated on this Sigil; they must leave the lobby first");
   }
@@ -1257,7 +1263,7 @@ IntentResult handleSleepIntent(const Intent &intent, void *) {
   if (intent.actor.origin != IntentOrigin::AtlasHardware) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Sleep from the Atlas screen");
   }
-  if (table().hubState != HubState::Lobby && table().hubState != HubState::GameOver) {
+  if (!allTablesBetweenGames()) {
     return IntentResult::reject(IntentStatus::InvalidState, "Put Atlas to sleep between games");
   }
   if (sigilUpdatesBusy() || ota.inProgress() || atlasResetScheduled) {

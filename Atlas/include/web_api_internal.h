@@ -76,6 +76,9 @@ struct WebSession {
   // Tablet mode: a table presence code turned this browser into the shared
   // table screen, which seats players and acts for any of them.
   bool tableDevice = false;
+  // Venue tables: the game (0-based) this browser follows while its profile
+  // isn't seated in one, and the one a table tablet serves.
+  uint8_t table = 0;
 };
 
 // --- Shared state (defined in web_api.cpp / web_session.cpp) -----------------
@@ -86,6 +89,7 @@ extern bool profileStoreReady;
 // Public per-boot epoch reported with state revisions; not a credential.
 extern char bootId[TOKEN_LENGTH + 1];
 
+extern TableHooks tableHooks;
 extern ResolveSeatCallback resolveSeat;
 extern ControlCallback controlHandler;
 extern ProfileControlCallback profileControlHandler;
@@ -159,6 +163,7 @@ void handleSessionPoll(WebServer &server);
 void handleSessionLogin(WebServer &server);
 void handleSessionMe(WebServer &server);
 void handleLogout(WebServer &server);
+void handleSessionGame(WebServer &server);
 
 // --- Profiles (web_profile_api.cpp) ----------------------------------------------
 

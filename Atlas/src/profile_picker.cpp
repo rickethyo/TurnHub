@@ -110,6 +110,7 @@ size_t buildEntries(Entry *entries) {
     uint8_t controller = INVALID_ID, slot = 1;
     const bool playing = resolveProfileParticipant(id, controller, slot);
     if (playing && controller < MAX_PHYSICAL_SIGILS) continue;
+    if (!playing && tableForProfile(id) >= 0) continue;  // Playing in the other game.
     if (inGame && (!playing || !table().game.controllerInGame(controller))) continue;
     Entry &entry = entries[count];
     memcpy(entry.id, ids[i], ID_SIZE);
@@ -273,6 +274,7 @@ void openProfilePicker(uint8_t sigilId, uint32_t nowMs, uint8_t slot) {
 }
 
 void handlePickerKey(uint8_t sigilId, int32_t value, uint32_t nowMs) {
+  TableScope scope(tableForController(sigilId));  // The Sigil's game.
   if (!pickerOpen(sigilId)) {
     invalidateProfilePicker(sigilId);  // It still shows a page: tell it Closed.
     return;

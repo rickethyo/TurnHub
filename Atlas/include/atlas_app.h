@@ -157,6 +157,10 @@ extern GameTable tables[MAX_GAME_TABLES];
 // any scope it is table 0, Game 1.
 GameTable &table();
 uint8_t tableIndex();
+// Points table() at tables[index] (ignored when out of range) and returns the
+// previous index; TableScope is the usual way. For callbacks that can't hold
+// a scope object (the HTTP route table).
+uint8_t selectTable(uint8_t index);
 
 class TableScope {
 public:
@@ -175,6 +179,8 @@ extern uint8_t sigilTable[MAX_PHYSICAL_SIGILS];
 // The table a controller is seated at, or for an unseated Sigil its chosen
 // one; phone controllers outside every table are Game 1's.
 uint8_t tableForController(uint8_t controllerId);
+// Joined to a lobby or playing in a game, at any table.
+bool seatedAnywhere(uint8_t controllerId);
 // The table where a profile plays (lobby or game), or -1.
 int8_t tableForProfile(const String &profileId);
 // Bit per physical Sigil whose table is index.

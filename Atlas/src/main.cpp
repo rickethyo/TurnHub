@@ -64,9 +64,13 @@ uint8_t currentTable = 0;
 GameTable &table() { return tables[currentTable]; }
 uint8_t tableIndex() { return currentTable; }
 
-TableScope::TableScope(uint8_t index) : previous_(currentTable) {
+uint8_t selectTable(uint8_t index) {
+  const uint8_t previous = currentTable;
   if (index < MAX_GAME_TABLES) currentTable = index;
+  return previous;
 }
+
+TableScope::TableScope(uint8_t index) : previous_(selectTable(index)) {}
 TableScope::~TableScope() { currentTable = previous_; }
 
 TurnHub::GameSettings nextGameSettings;
@@ -221,7 +225,23 @@ uint32_t clientRevision() {
 
 String clientSnapshot(const String &atlasId, const char *bootId) {
   observeClientState();
-  return table().clientState.json(atlasId, bootId, table().game, millis(), PASS_GRACE_MS);
+  String json = table().clientState.json(atlasId, bootId, table().game, millis(), PASS_GRACE_MS);
+  // Venue tables: which game this is, and a line on each game for a switch.
+  if (json.length() == 0 || json[json.length() - 1] != '}') return json;
+  json.remove(json.length() - 1);
+  json += ",\"game\":"; json += String(tableIndex() + 1);
+  json += ",\"games\":[";
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    const GameTable &at = tables[t];
+    if (t) json += ',';
+    json += "{\"game\":"; json += String(t + 1);
+    json += ",\"state\":\""; json += stateName(at.hubState);
+    json += "\",\"players\":";
+    json += String(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount());
+    json += '}';
+  }
+  json += "]}";
+  return json;
 }
 
 // Dispatcher observer: runs after every Intent, accepted or not.

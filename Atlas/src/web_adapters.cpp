@@ -273,6 +273,11 @@ void registerWebCallbacks() {
   TurnHubWebApi::configureSpeaker([]() { return audio.speakerVolume(); });
   TurnHubWebApi::configureSetup([]() { return static_cast<uint8_t>(setupStage); });
   TurnHubWebApi::configureClientState(clientSnapshot, clientRevision);
+  TurnHubWebApi::TableHooks games;
+  games.count = MAX_GAME_TABLES;
+  games.profileTable = tableForProfile;
+  games.select = selectTable;
+  TurnHubWebApi::configureTables(games);
 }
 
 }  // namespace TurnHubAtlas

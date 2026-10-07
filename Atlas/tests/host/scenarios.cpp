@@ -939,6 +939,81 @@ static void virtualCapacity() {
   for(uint8_t i=1;i<MAX_PLAYERS;++i) assert(web(MAX_PHYSICAL_SIGILS+i,1,WebControl::ConfirmWin));
   assert(table().hubState==HubState::GameOver);
 }
+// Venue tables: two games side by side on one Atlas (PLANNED_DESIGNS.md).
+static void venueTables() {
+  using TurnHubProtocol::SigilAction;
+  const auto menuHas=[](uint8_t id,SigilAction a) {
+    return (sigilMenuFor(id).actions & TurnHubProtocol::sigilActionBit(a))!=0;
+  };
+  const auto startTable=[](uint8_t index,uint8_t sigil) {
+    choose(sigil,SigilAction::StartGame);
+    TableScope scope(index);
+    assert(table().hubState==HubState::Starting);
+    testNow+=3000; updateCountdown(testNow); assert(table().hubState==HubState::Running);
+  };
+  registerWebCallbacks();
+  freshLobby(2);  // Sigils 0 and 1 joined Game 1.
+  // An unseated Sigil switches to Game 2 and joins there; a joined one leaves first.
+  assert(menuHas(2,SigilAction::SwitchTable) && menuHas(0,SigilAction::SwitchTable));
+  choose(2,SigilAction::SwitchTable); assert(sigilTable[2]==1 && tableForController(2)==1);
+  choose(3,SigilAction::SwitchTable); choose(1,SigilAction::SwitchTable);
+  assert(tableForController(1)==1 && !tables[0].lobby.isJoined(1) && tables[0].lobby.playerCount()==1);
+  choose(1,SigilAction::Join); choose(2,SigilAction::Join); choose(3,SigilAction::Join);
+  assert(tables[1].lobby.playerCount()==3 && tables[1].lobby.isJoined(2));
+  choose(4,SigilAction::Join); assert(tables[0].lobby.playerCount()==2);  // Game 1 is the default.
+  // Phones follow a game: Game 2's player can't join Game 1 while seated there.
+  for (auto &session : TurnHubWebApi::internal::sessions) session = TurnHubWebApi::internal::WebSession{};
+  String gameTwoId, gameOneId;
+  const String gameTwo=registerPhone("Game Two phone",gameTwoId), gameOne=registerPhone("Game One phone",gameOneId);
+  assert(request("/api/session/game",gameTwo,{{"game","3"}})==400);
+  assert(request("/api/session/game",gameTwo,{{"game","2"}})==200);
+  assert(request("/api/session/join",gameTwo)==200 && tables[1].lobby.playerCount()==4);
+  assert(tableForProfile(gameTwoId)==1 && tables[0].lobby.playerCount()==2);
+  assert(request("/api/v1/state",gameTwo,{},HTTP_GET)==200);
+  assert(server.body.find("\"game\":2,\"games\":[{\"game\":1,\"state\":\"LOBBY\",\"players\":2},"
+      "{\"game\":2,\"state\":\"LOBBY\",\"players\":4}]")!=std::string::npos);
+  assert(request("/api/v1/state","",{{"game","2"}},HTTP_GET)==200 && server.body.find("\"game\":2,")!=std::string::npos);
+  assert(request("/api/v1/state",gameOne,{},HTTP_GET)==200 && server.body.find("\"game\":1,")!=std::string::npos);
+  // Back to Game 1 leaves Game 2's lobby; then over to Game 2 again.
+  assert(request("/api/session/game",gameTwo,{{"game","1"}})==200 && tableForProfile(gameTwoId)==-1);
+  assert(tables[1].lobby.playerCount()==3);
+  assert(request("/api/session/game",gameTwo,{{"game","2"}})==200 && request("/api/session/join",gameTwo)==200);
+  // A profile plays at one game at a time.
+  {
+    TableScope scope(0); String message;
+    assert(!handleProfileControl(gameTwoId,WebControl::Join,INVALID_ID,1,message));
+  }
+  // Both games run independently; Atlas's speaker goes quiet while both do.
+  startTable(0,0);
+  assert(!atlasSpeakerShared() && (lobbyAudioMask() & AudioController::ATLAS_SPEAKER_MASK));
+  startTable(1,2);
+  assert(atlasSpeakerShared() && !(gameAudioMask() & AudioController::ATLAS_SPEAKER_MASK));
+  assert(tables[0].game.playerCount()==2 && tables[1].game.playerCount()==4);
+  assert(!allTablesBetweenGames());
+  {
+    TableScope scope(1);
+    const uint8_t active=table().game.activePlayerNumber();
+    const uint8_t gameOneActive=tables[0].game.activePlayerNumber();
+    const PlayerSeat *seat=table().game.activePlayer();
+    if(seat->controllerId<MAX_PHYSICAL_SIGILS) choose(seat->controllerId,SigilAction::Pass);
+    else assert(request("/api/control/pass",gameTwo)==200);
+    testNow+=PASS_GRACE_MS+1; updatePendingPass(testNow);
+    assert(table().game.activePlayerNumber()!=active && tables[0].game.activePlayerNumber()==gameOneActive);
+  }
+  // Playing Sigils and players can't switch; Game 2's state reaches its phone.
+  assert(!menuHas(2,SigilAction::SwitchTable) && !menuHas(0,SigilAction::SwitchTable));
+  assert(!dispatchModuleIntent(IntentType::ChooseTable,0,1,1).accepted());
+  assert(request("/api/session/game",gameTwo,{{"game","1"}})==409 && tableForProfile(gameTwoId)==1);
+  assert(request("/api/v1/state",gameTwo,{},HTTP_GET)==200 && server.body.find("\"state\":\"RUNNING\"")!=std::string::npos);
+  // Resetting Game 1 leaves Game 2's players and Sigil profiles alone.
+  { TableScope scope(0); enterEmptyLobby(); }
+  assert(tables[1].game.playerCount()==4 && tableForProfile(gameTwoId)==1 && tableForController(2)==1);
+  assert(tables[1].hubState==HubState::Running && !atlasSpeakerShared());
+  { TableScope scope(1); enterEmptyLobby(); }
+  for(uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) sigilTable[id]=0;
+  // Later scenarios register phones of their own; the sign-in store is small.
+  ProfileFixture::profiles.erase(gameOneId.c_str()); ProfileFixture::profiles.erase(gameTwoId.c_str());
+}
 static void lifeApprovalsAndCommander() {
   using namespace TurnHub;
   enterEmptyLobby(); fixtureRadio=false;
@@ -4068,6 +4143,7 @@ int main() {
   turnTimerSettingsHttp(); std::cout<<"PASS turn timer settings API, partial update, lobby-only edits and state projection\n";
   accessibilityPreferences(); std::cout<<"PASS per-player accessibility: LED profiles, merge rules, API, Sigil mute, hold-timing radio\n";
   actionRequiredCues(); std::cout<<"PASS ActionRequired reaches only the Sigil whose win confirmation is next\n";
+  venueTables(); std::cout<<"PASS venue tables: two games, Sigil and phone switching, routing, separate resets, shared speaker\n";
   virtualCapacity(); std::cout<<"PASS virtual capacity and 16-player win confirmation\n";
   serialLogStream();
   serialLogCapture(); std::cout<<"PASS serial log capture, redaction, stream draining, ring overflow and self-describing log lines\n";
