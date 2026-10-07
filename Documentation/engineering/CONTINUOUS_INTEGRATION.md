@@ -41,11 +41,13 @@ supplies the Android SDK; after license acceptance, Gradle installs the SDK
 components requested by the project.
 
 The workflow uses read-only repository permission and pinned revisions of
-official GitHub actions. Its secrets are `TURNHUB_FIRMWARE_SIGNING_KEY`, the
-firmware signing key ([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)),
-and the Play upload key below; without them (for example on a fork's pull
-request) builds are left unsigned and still pass. It does not flash devices, publish a release, or modify repository
-content/settings.
+official GitHub actions, plus `r0adkll/upload-google-play` for Play. Its
+secrets are `TURNHUB_FIRMWARE_SIGNING_KEY`, the firmware signing key
+([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)), the Play upload
+key and the Play service account below; without them (for example on a fork's
+pull request) builds are left unsigned and still pass. It does not flash devices
+or modify repository content/settings; its only publishing is master's
+Android bundle to Play internal testing.
 
 Releases are a separate workflow,
 [`.github/workflows/release.yml`](../../.github/workflows/release.yml): pushing
@@ -81,6 +83,22 @@ the decoded file when it ends. Without the secrets the bundle is unsigned and
 Play refuses it. Android Studio's **Build > Generate Signed App Bundle** with
 the same keystore produces an equivalent bundle locally (its `versionCode` is
 1 unless `-Pturnhub.versionCode` is given).
+
+## Publishing to Play
+
+A push to `master` also publishes that bundle to Play's **Internal testing**
+track as release "CI build <run number>", rolled out to the track's testers at
+once (`r0adkll/upload-google-play`, pinned in the workflow). Pull requests
+never publish. The step is skipped, with a notice, unless the upload key
+secrets above and `PLAY_SERVICE_ACCOUNT_JSON` are set.
+
+`PLAY_SERVICE_ACCOUNT_JSON` is the JSON key of a Google Cloud service account
+that Play Console has invited with release permissions for TurnHub
+(**Users and permissions > Invite new users**, the service account's email,
+app permission "Release to testing tracks"). The owner creates and keeps that
+key; CI never prints it. To stop automatic publishing, delete the secret.
+
+Promoting a build beyond Internal testing stays a manual Play Console step.
 
 ## Reading results
 

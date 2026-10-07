@@ -216,6 +216,30 @@ jobs:
           path: Android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 14
+      # Master builds go straight to Play's Internal testing track
+      # (CONTINUOUS_INTEGRATION.md, "Publishing to Play"). Skipped on pull
+      # requests and whenever the Play service account or upload key is absent.
+      - name: Check Play publishing
+        id: play
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ] || [ -z "${TURNHUB_UPLOAD_KEYSTORE:-}" ]; then
+            echo "::notice::No Play service account or upload key; not publishing to Play."
+            exit 0
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+      - name: Publish to Play internal testing
+        if: steps.play.outputs.publish == 'true'
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.turnhub.android
+          releaseFiles: Android/app/build/outputs/bundle/release/app-release.aab
+          releaseName: CI build ${{ github.run_number }}
+          track: internal
+          status: completed
       - name: Remove the decoded upload key
         if: ${{ always() }}
         run: rm -f "$RUNNER_TEMP/upload.jks"
