@@ -15,23 +15,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pull requests run only the work their changed paths can affect
+  # (CONTINUOUS_INTEGRATION.md, "What runs"). Pushes to master and manual runs
+  # build everything, so master's Play upload and artifacts are unchanged.
+  changes:
+    name: Detect changed components
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      atlas: ${{ steps.filter.outputs.atlas }}
+      sigil: ${{ steps.filter.outputs.sigil }}
+      android: ${{ steps.filter.outputs.android }}
+      tools: ${{ steps.filter.outputs.tools }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          # The PR merge commit and its first parent, the base branch tip.
+          fetch-depth: 2
+      - name: Classify changed paths
+        id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          all() { for c in atlas sigil android tools; do echo "$c=true"; done >> "$GITHUB_OUTPUT"; }
+          if [ "$EVENT" != pull_request ]; then
+            echo "::notice::$EVENT run: building everything."
+            all; exit 0
+          fi
+          if ! files=$(git diff --name-only HEAD^1 HEAD); then
+            echo "::warning::Could not list changed files; building everything."
+            all; exit 0
+          fi
+          atlas=false sigil=false android=false tools=false
+          while IFS= read -r f; do
+            case "$f" in
+              .github/*) atlas=true sigil=true android=true tools=true ;;
+              shared/*) atlas=true sigil=true ;;
+              Atlas/*) atlas=true ;;
+              Sigil/*) sigil=true ;;
+              # Shared fixtures feed the Atlas contract check and Android tests.
+              protocol/*) atlas=true android=true ;;
+              # Tokens generate Android resources (the portal pack check always runs).
+              design/*) android=true ;;
+              Android/*) android=true ;;
+              # Signing tool: its tests plus every packaged firmware build.
+              tools/firmware/*) tools=true atlas=true sigil=true ;;
+            esac
+          done <<< "$files"
+          printf '%s\n' "$files" | sed 's/^/  /'
+          printf 'atlas=%s\nsigil=%s\nandroid=%s\ntools=%s\n' "$atlas" "$sigil" "$android" "$tools" |
+            tee -a "$GITHUB_OUTPUT"
+
   host-tests:
     name: Host tests and contracts
+    needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      ATLAS: ${{ needs.changes.outputs.atlas }}
+      SIGIL: ${{ needs.changes.outputs.sigil }}
+      TOOLS: ${{ needs.changes.outputs.tools }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Atlas host suites (ASan and UBSan)
+        if: env.ATLAS == 'true'
         run: bash Atlas/tests/host/run-linux.sh
       - name: Sigil host suites (ASan and UBSan)
+        if: env.SIGIL == 'true'
         run: bash Sigil/tests/host/run-linux.sh
       - name: Audit authoritative adapters
         run: python3 Atlas/tests/host/audit_adapters.py
+      # Reads the responses the Atlas host suites generate.
       - name: Validate generated responses and shared contracts
+        if: env.ATLAS == 'true'
         run: python3 Atlas/tests/host/check_client_contract.py
       - name: Design tokens are current and pass contrast checks
         run: python3 design/build_tokens.py --check
@@ -40,15 +101,18 @@ jobs:
       - name: Android manual asset matches the newest user manual
         run: python3 Android/tools/export_manual.py --check
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        if: env.TOOLS == 'true'
         with:
           python-version: '3.12'
       - name: Firmware packaging tool
+        if: env.TOOLS == 'true'
         run: |
           python -m pip install --disable-pip-version-check cryptography==46.0.7
           python tools/firmware/test_thfw.py
 
   firmware:
     name: Firmware (${{ matrix.environment }})
+    needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -67,24 +131,32 @@ jobs:
           - project: Sigil
             environment: sigil-spare
     env:
+      # Steps are skipped (not the job) when this project is unaffected, so
+      # each matrix check still reports under its own name.
+      BUILD: ${{ matrix.project == 'Atlas' && needs.changes.outputs.atlas || needs.changes.outputs.sigil }}
       PIO_PROJECT: ${{ matrix.project }}
       PIO_ENVIRONMENT: ${{ matrix.environment }}
       # OTA product name; empty for builds that are never packaged.
       THFW_PRODUCT: ${{ matrix.product }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: env.BUILD == 'true'
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        if: env.BUILD == 'true'
         with:
           python-version: '3.12'
       - name: Install PlatformIO
+        if: env.BUILD == 'true'
         run: |
           python -m pip install --disable-pip-version-check platformio==6.2.0
           pio settings set enable_telemetry No
       - name: Build firmware
+        if: env.BUILD == 'true'
         run: pio run --project-dir "$PIO_PROJECT" --environment "$PIO_ENVIRONMENT"
       - name: Prepare firmware artifact and build identity
+        if: env.BUILD == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/firmware"
           cp "$PIO_PROJECT/.pio/build/$PIO_ENVIRONMENT/firmware.bin" "$RUNNER_TEMP/firmware/"
@@ -105,7 +177,7 @@ jobs:
       # descriptor, and is signed when the repository's signing key secret is
       # available (not for pull requests from forks).
       - name: Check descriptor and sign OTA package
-        if: matrix.product != ''
+        if: env.BUILD == 'true' && (matrix.product != '')
         env:
           TURNHUB_FIRMWARE_SIGNING_KEY: ${{ secrets.TURNHUB_FIRMWARE_SIGNING_KEY }}
         run: |
@@ -120,6 +192,7 @@ jobs:
           python tools/firmware/thfw.py package "$bin" --out "$out"             --expect-product "$THFW_PRODUCT" --build-id "$GITHUB_SHA"
           python tools/firmware/thfw.py verify "$out"
       - name: Upload firmware build
+        if: env.BUILD == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: firmware-${{ matrix.environment }}-${{ github.sha }}
@@ -129,7 +202,7 @@ jobs:
       # Screen previews: the real display code rendered to PNGs on the runner,
       # with the Atlas art's incremental redraws checked against full redraws.
       - name: Render screen previews
-        if: matrix.environment == 'atlas' || matrix.environment == 'sigil'
+        if: env.BUILD == 'true' && (matrix.environment == 'atlas' || matrix.environment == 'sigil')
         run: |
           mkdir -p "$RUNNER_TEMP/screens"
           if [ "$PIO_ENVIRONMENT" = atlas ]; then
@@ -140,7 +213,7 @@ jobs:
             cp Sigil/.pio/host-tests/screens/*.png "$RUNNER_TEMP/screens/"
           fi
       - name: Upload screen previews
-        if: matrix.environment == 'atlas' || matrix.environment == 'sigil'
+        if: env.BUILD == 'true' && (matrix.environment == 'atlas' || matrix.environment == 'sigil')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: screens-${{ matrix.environment }}-${{ github.sha }}
@@ -150,13 +223,18 @@ jobs:
 
   android:
     name: Android build and unit tests
+    needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      BUILD: ${{ needs.changes.outputs.android }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: env.BUILD == 'true'
         with:
           persist-credentials: false
       - name: Set up the repository's Gradle JVM
+        if: env.BUILD == 'true'
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
@@ -168,6 +246,7 @@ jobs:
             Android/gradle/libs.versions.toml
             Android/gradle/wrapper/gradle-wrapper.properties
       - name: Accept Android SDK licenses
+        if: env.BUILD == 'true'
         # The hosted runner includes the SDK. Gradle installs the platform and
         # build tools required by this project's compileSdk/AGP configuration.
         run: |
@@ -177,6 +256,7 @@ jobs:
       # Play upload key (CONTINUOUS_INTEGRATION.md, "Android release bundle").
       # Without the secrets (a fork's pull request) the bundle is unsigned.
       - name: Decode the Play upload key
+        if: env.BUILD == 'true'
         env:
           UPLOAD_KEYSTORE_BASE64: ${{ secrets.TURNHUB_UPLOAD_KEYSTORE_BASE64 }}
         run: |
@@ -190,6 +270,7 @@ jobs:
       # AGP 9 only creates unit-test tasks for the tested build type (debug).
       # The run number is the versionCode, so every bundle is a new upload.
       - name: Run JVM unit tests and build the release bundle
+        if: env.BUILD == 'true'
         working-directory: Android
         env:
           TURNHUB_UPLOAD_STORE_PASSWORD: ${{ secrets.TURNHUB_UPLOAD_STORE_PASSWORD }}
@@ -200,7 +281,7 @@ jobs:
           -Pturnhub.versionCode=${{ github.run_number }}
           testDebugUnitTest bundleRelease
       - name: Upload Android test reports
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.BUILD == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: android-test-reports-${{ github.sha }}
@@ -210,6 +291,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Upload release bundle
+        if: env.BUILD == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: android-release-${{ github.run_number }}-${{ github.sha }}
@@ -221,7 +303,7 @@ jobs:
       # requests and whenever the Play service account or upload key is absent.
       - name: Check Play publishing
         id: play
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: env.BUILD == 'true' && (github.event_name == 'push' && github.ref == 'refs/heads/master')
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
@@ -231,7 +313,7 @@ jobs:
           fi
           echo "publish=true" >> "$GITHUB_OUTPUT"
       - name: Publish to Play internal testing
-        if: steps.play.outputs.publish == 'true'
+        if: env.BUILD == 'true' && (steps.play.outputs.publish == 'true')
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}

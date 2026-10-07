@@ -1,7 +1,8 @@
 # Continuous Integration
 
 The workflow is [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
-GitHub runs it for pull requests targeting `master` and pushes to `master`.
+GitHub runs it for pull requests targeting `master` (only the parts the PR
+touches; see "What runs") and pushes to `master` (everything).
 After the workflow reaches `master`, it can also be started from **Actions >
 TurnHub CI > Run workflow**. A new push cancels an older run for the same PR or
 branch. A PR run tests GitHub's proposed merge with the base branch.
@@ -56,6 +57,44 @@ GitHub Release with the three `.thfw` packages and `turnhub-firmware.json`, the
 feed the Android app reads. It needs `contents: write` and fails without the
 signing secret. Branch protection is configured
 separately in GitHub, not by this file.
+
+## What runs
+
+A pull request runs only the work its changed files can affect. The first job,
+**Detect changed components**, diffs the PR against its base branch and turns
+the paths into four switches:
+
+| Changed path | Atlas | Sigil | Android | Packaging tool |
+| --- | --- | --- | --- | --- |
+| `Atlas/` | yes | | | |
+| `Sigil/` | | yes | | |
+| `shared/` | yes | yes | | |
+| `protocol/` | yes | | yes | |
+| `Android/`, `design/` | | | yes | |
+| `tools/firmware/` | yes | yes | | yes |
+| `.github/` | yes | yes | yes | yes |
+| anything else (docs, KiCad, scripts) | | | | |
+
+- **Atlas** runs the Atlas host suites, the generated-response contract check
+  and the `Firmware (atlas)` build and previews.
+- **Sigil** runs the Sigil host suites and the three Sigil firmware builds.
+- **Android** runs the Android unit tests and release bundle.
+- **Packaging tool** runs `tools/firmware/test_thfw.py`.
+
+The quick Python checks (adapter audit, design tokens, portal pack, manual
+asset) run on every PR, so a documentation-only PR skips every build and
+suite.
+
+Unaffected work is skipped inside each job, not by skipping the job, so every
+check name above still reports success and branch protection's required
+checks are satisfied. A skipped job's steps show as skipped in its log.
+
+Pushes to `master` and manual runs (**Run workflow**) always build and test
+everything, so master's Android bundle, its Play upload and the firmware
+artifacts are produced on every merge exactly as before. If the changed-file
+list cannot be read, the PR also builds everything. To force a full PR run,
+start the workflow manually on the PR's branch. The tag release workflow is
+separate and unaffected.
 
 ## Android release bundle
 
