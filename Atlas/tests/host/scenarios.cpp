@@ -454,6 +454,19 @@ static void virtualProfileFlow() {
   assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","2468"}})==200);
   assert(request("/api/session/profile",responseField("token"),{{"pin","Ünïcode pass 9"}})==200);
   assert(request("/api/session/login","",{{"profileId",passwordId},{"pin","Ünïcode pass 9"}})==200);
+
+  // A profile with no PIN yet (made on a Sigil or the tablet) takes the PIN
+  // of its first phone sign-in; after that the PIN is checked as usual.
+  const String pinless=TurnHubProfiles::createProfileWithName("No pin yet");
+  assert(pinless.length() && !TurnHubProfiles::hasPinForProfile(pinless));
+  assert(request("/api/session/login","",{{"profileId",pinless},{"pin","12"}})==401 &&
+      !TurnHubProfiles::hasPinForProfile(pinless));
+  assert(request("/api/session/login","",{{"profileId",pinless},{"pin","1357"}})==200);
+  assert(request("/api/session/me",responseField("token"),{},HTTP_GET)==200 &&
+      server.body.find("\"hasPin\":true")!=std::string::npos);
+  assert(request("/api/session/login","",{{"profileId",pinless},{"pin","2468"}})==401);
+  assert(request("/api/session/login","",{{"profileId",pinless},{"pin","1357"}})==200);
+  ProfileFixture::profiles.erase(pinless.c_str());
 }
 
 static void guestSigilsDoNotCreateAccounts() {

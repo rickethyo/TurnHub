@@ -57,8 +57,8 @@ import com.turnhub.android.ui.theme.palette
 /**
  * "Play from this phone": a sheet that rises from the bottom with Atlas's
  * accounts as a grouped list. Choosing one reveals its PIN or password field.
- * Profiles without a secret can only sign in physically, so they are listed
- * but not selectable. Atlas checks the secret (and throttles guesses); the app
+ * A profile without a secret yet (made on a Sigil or the tablet) asks for a
+ * new one twice instead: Atlas keeps the first sign-in's PIN. Atlas checks the secret (and throttles guesses); the app
  * only checks ProfileSecret's rule. Where the phone supports it, "Sign in
  * automatically" keeps the secret behind the phone's own lock (ProfileVault).
  * "Create an account" switches the sheet to a name, secret and confirmation,
@@ -82,10 +82,12 @@ fun SignInDialog(
     var confirm by rememberSaveable { mutableStateOf("") }
     // With no accounts on this Atlas yet, the sheet opens straight on Create.
     val create = creating || (!prompt.loading && prompt.profiles.isEmpty() && prompt.error == null)
-    val selected = prompt.profiles.firstOrNull { it.profileId == selectedId && it.hasPin }
+    val selected = prompt.profiles.firstOrNull { it.profileId == selectedId }
+    // No PIN yet: this sign-in sets it, so it is typed twice like a new account's.
+    val choosing = !create && selected?.hasPin == false
     val mismatch = confirm.isNotEmpty() && confirm != pin
     val canSubmit = !prompt.submitting && ProfileSecret.isValid(pin) &&
-        if (create) newName.isNotBlank() && confirm == pin else selected != null
+        if (create) newName.isNotBlank() && confirm == pin else selected != null && (!choosing || confirm == pin)
     val submit = {
         if (canSubmit) {
             val remember = prompt.offerRemember && keep
@@ -166,14 +168,14 @@ fun SignInDialog(
                 }
                 else -> GroupedList(Modifier.selectableGroup()) {
                     prompt.profiles.forEachIndexed { index, profile ->
-                        val enabled = profile.hasPin && !prompt.submitting
+                        val enabled = !prompt.submitting
                         val isSelected = profile.profileId == selectedId
                         row(
                             Modifier.selectable(
                                 selected = isSelected,
                                 enabled = enabled,
                                 role = Role.RadioButton,
-                                onClick = { selectedId = profile.profileId; pin = "" },
+                                onClick = { selectedId = profile.profileId; pin = ""; confirm = "" },
                             ),
                         ) {
                             PlayerAvatar(profile.name, index + 1, null, size = 36.dp)
@@ -181,9 +183,9 @@ fun SignInDialog(
                                 Text(profile.name, color = if (enabled) p.text else p.faint, style = MaterialTheme.typography.bodyLarge)
                                 if (!profile.hasPin) {
                                     Text(
-                                        "No PIN or password yet: sign in on a Sigil or in the portal first.",
+                                        "No PIN or password yet: choose one to sign in.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = p.faint,
+                                        color = p.muted,
                                     )
                                 }
                             }
@@ -200,20 +202,40 @@ fun SignInDialog(
                 }
             }
             AnimatedVisibility(visible = !create && selected != null) {
-                OutlinedTextField(
-                    value = pin,
-                    onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
-                    enabled = !prompt.submitting,
-                    singleLine = true,
-                    label = { Text("PIN or password") },
-                    visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = { submit() }),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(DesignTokens.Space.s3)) {
+                    OutlinedTextField(
+                        value = pin,
+                        onValueChange = { value -> pin = value.take(ProfileSecret.MAX_CHARS) },
+                        enabled = !prompt.submitting,
+                        singleLine = true,
+                        label = { Text(if (choosing) "Choose a PIN (4–8 digits) or password" else "PIN or password") },
+                        visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            TextButton(onClick = { shown = !shown }) { Text(if (shown) "Hide" else "Show") }
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = if (choosing) ImeAction.Next else ImeAction.Go,
+                        ),
+                        keyboardActions = KeyboardActions(onGo = { submit() }),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    )
+                    if (choosing) {
+                        OutlinedTextField(
+                            value = confirm,
+                            onValueChange = { value -> confirm = value.take(ProfileSecret.MAX_CHARS) },
+                            enabled = !prompt.submitting,
+                            singleLine = true,
+                            isError = mismatch,
+                            label = { Text("Type it again") },
+                            visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
+                            keyboardActions = KeyboardActions(onGo = { submit() }),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (mismatch) Text("The two entries don't match.", color = p.bad, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
             }
             if (prompt.offerRemember && (create || selected != null)) {
                 GroupedList {

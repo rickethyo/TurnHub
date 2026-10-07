@@ -50,6 +50,12 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   possession, not the secret). Signed in, it attaches that Sigil seat to the
   signed-in profile. The portal also offers PIN sign-in by seat; the app
   signs in from its profile list instead.
+- **First phone sign-in of a PIN-less profile** (owner request 2026-10-07):
+  `POST /api/session/login` for a profile with no secret saves the given PIN
+  or password as its secret and signs in (log `ATLAS|PROFILE|PIN_SET_AT_SIGN_IN`).
+  The app asks for it twice; from then on it is checked as usual. Anyone at
+  the table can already seat a PIN-less profile from a Sigil or the tablet,
+  so claiming it from a phone grants nothing new.
 - **Seat B** on a shared Sigil uses the same picker (**Add seat B**); Guest
   adds seat B directly. `PickProfile` with slot 2 adds the seat and binds the
   profile in one step.
