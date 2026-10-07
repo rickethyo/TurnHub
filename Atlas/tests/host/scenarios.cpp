@@ -735,6 +735,12 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","0"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",gmId},{"permissions","26"}})==200);
   assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","4"}})==200);
+  // Tablet access stands alone (no Game Master needed); nothing above it exists.
+  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","36"}})==200 &&
+      has(devId,TabletAccess));
+  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","64"}})==400);
+  assert(request("/api/accounts/permissions",admin,{{"profileId",devId},{"permissions","4"}})==200 &&
+      !has(devId,TabletAccess));
   assert(request("/api/device/name",player,{{"module","0"},{"name","No"}})==403);
   assert(request("/api/network",gm,{},HTTP_GET)==403);
   assert(request("/api/network",dev,{},HTTP_GET)==403);
@@ -3206,6 +3212,23 @@ static void tabletMode() {
   assert(request("/api/session/me",tablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
   assert(server.body.find("\"participating\":false")!=std::string::npos);
 
+  // The Tablet access role skips the code, e.g. for a tablet account that
+  // never joins the table; without the role the code is needed again.
+  {
+    String roleId; const String roleTablet=registerPhone("Table tablet",roleId);
+    TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::TabletAccess;
+    assert(TurnHubAccounts::save(roleId,account));
+    assert(request("/api/tablet/enable",roleTablet)==200);
+    assert(request("/api/session/me",roleTablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
+    assert(server.body.find("\"participating\":false")!=std::string::npos);
+    assert(request("/api/table/reset",roleTablet)==403);
+    assert(request("/api/tablet/disable",roleTablet)==200);
+    account.permissions=0; assert(TurnHubAccounts::save(roleId,account));
+    assert(request("/api/tablet/enable",roleTablet)==403 && server.body.find("presenceRequired")!=std::string::npos);
+    assert(request("/api/session/logout",roleTablet)==200);
+    ProfileFixture::profiles.erase(roleId.c_str()); TurnHubAccounts::accounts.erase(roleId.c_str());
+  }
+
   // New names become PIN-less profiles at the table; names stay unique.
   assert(request("/api/tablet/seat",tablet,{{"name","  "}})==400);
   assert(request("/api/tablet/seat",tablet,{{"name","Ava"}})==200);
@@ -4005,7 +4028,7 @@ int main() {
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
-  tabletMode(); std::cout<<"PASS tablet mode: presence code, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
+  tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
   pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;

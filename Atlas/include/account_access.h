@@ -15,8 +15,11 @@ enum Permission : uint8_t {
   // Moderation abilities; each requires GameMaster.
   ResetConnections = 8,
   RemovePlayer = 16,
+  // Turns tablet mode on without a table presence code (web_tablet_api.cpp),
+  // e.g. a dedicated tablet account that never joins the table itself.
+  TabletAccess = 32,
 };
-constexpr uint8_t ALL_PERMISSIONS = Admin | GameMaster | Developer | ResetConnections | RemovePlayer;
+constexpr uint8_t ALL_PERMISSIONS = Admin | GameMaster | Developer | ResetConnections | RemovePlayer | TabletAccess;
 constexpr uint8_t MODERATION_PERMISSIONS = ResetConnections | RemovePlayer;
 
 struct Account {

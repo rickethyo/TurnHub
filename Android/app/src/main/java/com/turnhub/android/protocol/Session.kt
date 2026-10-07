@@ -50,6 +50,8 @@ enum class AccountPermission(val bit: Int, val label: String) {
     DEVELOPER(4, "Developer"),
     GM_RESET_CONNECTIONS(8, "GM: reset connections"),
     GM_REMOVE_FROM_GAME(16, "GM: remove from game"),
+    /** Turns tablet mode on without a code from the Atlas screen. */
+    TABLET_ACCESS(32, "Tablet access"),
 }
 
 /**

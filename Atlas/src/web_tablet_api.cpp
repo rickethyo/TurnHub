@@ -100,17 +100,20 @@ void logOfflineChange(WebServer &server, const char *kind, uint8_t module, uint8
 }  // namespace
 
 // POST /api/tablet/enable: needs table presence (POST /api/presence/request
-// with purpose=tablet, then /api/presence/confirm).
+// with purpose=tablet, then /api/presence/confirm), unless the account holds
+// the Tablet access role.
 void handleTabletEnable(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
     sendError(server, 401, "Sign in first");
     return;
   }
-  if (!requirePhysicalPresence(server)) return;
+  const bool role = TurnHubAccounts::has(String(session->profileId), TurnHubAccounts::TabletAccess);
+  if (!role && !requirePhysicalPresence(server)) return;
   session->tableDevice = true;
   serialLog.print("ATLAS|TABLET|ON|");
-  serialLog.println(session->profileId);
+  serialLog.print(session->profileId);
+  serialLog.println(role ? "|ROLE" : "|CODE");
   sendOkMessage(server, "Tablet mode is on");
 }
 

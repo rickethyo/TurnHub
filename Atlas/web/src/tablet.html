@@ -138,10 +138,13 @@ function show(id){for(const s of ['gate','lobby','table'])$(s).hidden=s!==id;$('
 async function boot(){
   if(!token){show('gate');$('gateSignIn').hidden=false;return}
   try{me=await api('/api/session/me')}catch(e){if(e.status===401){show('gate');$('gateSignIn').hidden=false;return}note('gateMessage',e.message,true);show('gate');return}
-  if(!me.tablet){show('gate');$('gateCode').hidden=false;return}
+  if(!me.tablet){show('gate');$('gateCode').hidden=false;tabletRole();return}
   poll();
 }
+// The Tablet access role turns tablet mode on without a code.
+function tabletRole(){if(!(Number(me.permissions)&32))return;$('gateCodeHint').textContent='This account has tablet access, so no code is needed.';$('showCode').textContent='Turn on tablet mode'}
 $('showCode').onclick=async()=>{
+  if(Number(me.permissions)&32){try{await api('/api/tablet/enable',{});note('gateMessage','');me.tablet=true;poll()}catch(e){note('gateMessage',e.message,true)}return}
   try{await api('/api/presence/request',{purpose:'tablet'});$('codeForm').hidden=false;$('gateCodeHint').textContent='Enter the six digits the Atlas screen shows now.';$('code').focus()}
   catch(e){note('gateMessage',e.message,true)}
 };

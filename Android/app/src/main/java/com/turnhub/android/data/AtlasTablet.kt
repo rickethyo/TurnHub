@@ -115,6 +115,11 @@ class AtlasTablet(
     suspend fun confirmCode(code: String) {
         val confirm = post("/api/presence/confirm", listOf("code" to code.filter(Char::isDigit))) ?: return
         if (!confirm.ok) return fail(confirm, "That code was not accepted.")
+        enable()
+    }
+
+    /** Turns this session into the table's tablet; alone, for an account with the Tablet access role. */
+    suspend fun enable() {
         val enable = post("/api/tablet/enable") ?: return
         if (!enable.ok) return fail(enable)
         _state.update { it.copy(codePrompt = false, message = null) }

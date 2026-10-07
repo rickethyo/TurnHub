@@ -295,7 +295,7 @@
   </div>
   <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
  </section>
- <section class="card half"><div class="card-head"><div><h2 class="eyebrow">People and roles</h2><p class="small">Give accounts the Admin, Game Master or Developer role, and archive accounts that no longer play here.</p></div></div>
+ <section class="card half"><div class="card-head"><div><h2 class="eyebrow">People and roles</h2><p class="small">Give accounts the Admin, Game Master, Developer or Tablet access role, and archive accounts that no longer play here.</p></div></div>
   <div class="link-list"><button onclick="showPeople()"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Manage people</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></button></div>
  </section>
 </div>
@@ -323,7 +323,7 @@ const lifeSeen={};
 let browserPrefs={sound:true,vibration:true,volume:'medium'};
 try{browserPrefs=Object.assign(browserPrefs,JSON.parse(localStorage.getItem('turnhubBrowserPrefs')||'{}'))}catch(_){}
 const TABS=['game','players','account','settings'];
-const ROLES=[[1,'Admin'],[2,'Game Master'],[4,'Developer']];
+const ROLES=[[1,'Admin'],[2,'Game Master'],[4,'Developer'],[32,'Tablet access']];
 let heroStatsAt=0;
 // The profile header: who is signed in, their roles and a win-rate summary from /api/session/stats.
 function renderProfileHero(){const me=sessionInfo;profileHero.hidden=!(me&&me.authenticated);if(profileHero.hidden)return;const name=me.name||'Unnamed profile';
@@ -771,7 +771,7 @@ async function loadSetup(){try{const d=await pollJson('/api/accounts/setup');adm
 // opens a sheet with only what applies to them right now: moderation while they
 // are at the table (Game Master), nudges, roles that save as they change
 // (Admin) and archiving. Atlas still validates every action.
-const ROLE_INFO=[[1,'Admin','Device settings, Wi-Fi, updates and people.'],[2,'Game Master','Moderates players at the table.'],[4,'Developer','The diagnostics page and the Atlas log.']];
+const ROLE_INFO=[[1,'Admin','Device settings, Wi-Fi, updates and people.'],[2,'Game Master','Moderates players at the table.'],[4,'Developer','The diagnostics page and the Atlas log.'],[32,'Tablet access','Turns on tablet mode without a code from the Atlas screen, e.g. for a tablet account that never joins the table.']];
 const GM_POWERS=[[8,'Reset connections','Can sign a player out everywhere until they sign in again.'],[16,'Remove from game','Can take a player out of the game.']];
 let accounts=[],openPersonId='';
 function myFlags(){return Number(sessionInfo&&sessionInfo.permissions)||0}
