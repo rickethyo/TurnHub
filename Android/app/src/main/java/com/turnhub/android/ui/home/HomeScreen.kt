@@ -484,9 +484,10 @@ private fun ConnectCard(
             }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().height(56.dp))
         }
-        if (!working && uiState.connectionState != AtlasConnectionState.CONNECTED) {
+        if (uiState.connectionState != AtlasConnectionState.CONNECTED) {
             // No Atlas at the table: this device keeps a simple game itself and
-            // hands Atlas the finished games on the next connect.
+            // hands Atlas the finished games on the next connect. Offered while
+            // the app is still looking for Atlas too, so nobody has to wait.
             ToneButton("Play without Atlas", onPlayStandalone, Modifier.fillMaxWidth(), tone = Tone.INFO)
         }
         var advanced by rememberSaveable { mutableStateOf(false) }
