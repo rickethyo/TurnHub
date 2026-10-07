@@ -718,6 +718,18 @@ PIN choice) and acts for any seat through the phone's seat callbacks
 `tablet.css` (150 lines). Radio version unchanged; Sigil firmware unchanged.
 Local firmware compilation was unavailable; use the CI artifact for sizes.
 
+## 2026-10-07 Tablet turn order, Sigils joining mid-game (Atlas 0.6.13, portal pack 1.2.1)
+
+Atlas 0.6.12 -> 0.6.13: a table tablet may set the lobby's turn order
+(`MoveSeat` from the new `TableTablet` origin, `move-earlier`/`move-later`);
+during a running or paused game a Sigil outside it may take over a player
+seated from a phone or the tablet (`attachInGame`,
+`GameEngine::replaceController`; the picker then lists only those players).
+Portal pack 1.2.1 and the app add the lobby's turn-order arrows and put Claim
+the win and Concede at the top of each panel's More. Radio version unchanged;
+Sigil firmware unchanged. Local firmware compilation was unavailable; use the
+CI artifact for sizes.
+
 ## 2026-10-06 Tablet mode, round two (Android app)
 
 The Android app gains the tablet screen (`ui/tablet/TabletScreen.kt` 429

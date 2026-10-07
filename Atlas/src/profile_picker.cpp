@@ -28,6 +28,7 @@ constexpr size_t MAX_ENTRIES = TurnHubProfiles::MAX_LOGIN_PROFILES + 1;  // + Gu
 struct PickerCache {
   bool open = false;
   uint8_t slot = 1;            // The seat being filled: A (Join) or B (Add seat B).
+  bool inGame = false;         // Opened during a game: taking over a player in it.
   bool sent = false;           // The Sigil has the current page (or Closed).
   PickerMode mode = PickerMode::Closed;
   PickerNotice notice = PickerNotice::None;
@@ -66,10 +67,9 @@ bool lessByName(const Entry &a, const Entry &b) {
 // Profiles that would show the same name on a Sigil (the same name, or the
 // same first 12 characters) are numbered in list order: "Alex 1", "Alex 2".
 // Equal names sort by profile ID, so the numbers stay put.
-void labelDuplicateNames(Entry *entries, size_t count) {
+void labelDuplicateNames(Entry *entries, size_t count, size_t start) {
   char first[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
   char next[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1];
-  size_t start = 1;  // Guest is never numbered.
   while (start < count) {
     safeName(entries[start].name, first);
     size_t end = start + 1;
@@ -91,12 +91,17 @@ void labelDuplicateNames(Entry *entries, size_t count) {
 // (archived or moderated) profiles and ones already on a physical Sigil are
 // left out; ones needing a phone sign-in are shown locked, so the owner
 // learns why rather than wondering where their name went.
+// During a game the list is only this game's players without a Sigil (seated
+// from a phone or the tablet): a Sigil takes one of them over. No Guest.
 size_t buildEntries(Entry *entries) {
+  const bool inGame = hubState != HubState::Lobby;
   size_t count = 0;
-  entries[count].id[0] = '\0';
-  entries[count].name = "Guest";
-  entries[count].flags = TurnHubProtocol::PICKER_ITEM_GUEST;
-  ++count;
+  if (!inGame) {
+    entries[count].id[0] = '\0';
+    entries[count].name = "Guest";
+    entries[count].flags = TurnHubProtocol::PICKER_ITEM_GUEST;
+    ++count;
+  }
   static char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][ID_SIZE];
   const size_t listed = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
   for (size_t i = 0; i < listed; ++i) {
@@ -105,6 +110,7 @@ size_t buildEntries(Entry *entries) {
     uint8_t controller = INVALID_ID, slot = 1;
     const bool playing = resolveProfileParticipant(id, controller, slot);
     if (playing && controller < MAX_PHYSICAL_SIGILS) continue;
+    if (inGame && (!playing || !game.controllerInGame(controller))) continue;
     Entry &entry = entries[count];
     memcpy(entry.id, ids[i], ID_SIZE);
     entry.name = TurnHubProfiles::nameForProfile(id);
@@ -114,14 +120,15 @@ size_t buildEntries(Entry *entries) {
     ++count;
   }
   // Insertion sort keeps Guest first; at most 64 names.
-  for (size_t i = 2; i < count; ++i) {
-    for (size_t j = i; j > 1 && lessByName(entries[j], entries[j - 1]); --j) {
+  const size_t first = inGame ? 0 : 1;
+  for (size_t i = first + 1; i < count; ++i) {
+    for (size_t j = i; j > first && lessByName(entries[j], entries[j - 1]); --j) {
       Entry swap = entries[j];
       entries[j] = entries[j - 1];
       entries[j - 1] = swap;
     }
   }
-  labelDuplicateNames(entries, count);
+  labelDuplicateNames(entries, count, first);  // Guest is never numbered.
   return count;
 }
 
@@ -135,9 +142,10 @@ void showList(PickerCache &cache, PickerNotice notice) {
   static Entry entries[MAX_ENTRIES];
   const size_t count = buildEntries(entries);
   cache.pageCount = static_cast<uint8_t>((count + PICKER_PAGE_ITEMS - 1) / PICKER_PAGE_ITEMS);
+  if (cache.pageCount == 0) cache.pageCount = 1;  // Nobody left to take over mid-game.
   if (cache.page >= cache.pageCount) cache.page = cache.pageCount - 1;
   cache.mode = PickerMode::List;
-  cache.notice = notice;
+  cache.notice = count == 0 && notice == PickerNotice::None ? PickerNotice::Unavailable : notice;
   cache.itemCount = 0;
   memset(cache.ids, 0, sizeof(cache.ids));
   memset(cache.items, 0, sizeof(cache.items));
@@ -178,7 +186,7 @@ void closePicker(uint8_t sigilId, const char *reason) {
 
 PickerNotice noticeFor(const IntentResult &result) {
   // Joining a full table is refused under several statuses; say why.
-  if (lobby.playerCount() >= MAX_PLAYERS) return PickerNotice::TableFull;
+  if (hubState == HubState::Lobby && lobby.playerCount() >= MAX_PLAYERS) return PickerNotice::TableFull;
   switch (result.status) {
     case IntentStatus::Unauthorized: return PickerNotice::NeedsPhone;
     case IntentStatus::Conflict:
@@ -254,6 +262,7 @@ void openProfilePicker(uint8_t sigilId, uint32_t nowMs, uint8_t slot) {
   PickerCache &cache = pickers[sigilId];
   cache.open = true;
   cache.slot = slot;
+  cache.inGame = hubState != HubState::Lobby;
   cache.page = 0;
   cache.lastKeyMs = nowMs;
   showList(cache, PickerNotice::None);
@@ -329,8 +338,10 @@ void syncProfilePickers(uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     PickerCache &cache = pickers[id];
     if (cache.open) {
-      if (hubState != HubState::Lobby) closePicker(id, "NOT_LOBBY");
-      else if (cache.slot == 1 && lobby.isJoined(id)) closePicker(id, "JOINED_ELSEWHERE");
+      const bool playing = hubState == HubState::Running || hubState == HubState::Paused;
+      if (cache.inGame ? !playing : hubState != HubState::Lobby) closePicker(id, "STATE_CHANGED");
+      else if (cache.inGame && game.controllerInGame(id)) closePicker(id, "JOINED_ELSEWHERE");
+      else if (!cache.inGame && cache.slot == 1 && lobby.isJoined(id)) closePicker(id, "JOINED_ELSEWHERE");
       else if (cache.slot == 2 && (!lobby.isJoined(id) || lobby.hasSecondary(id))) {
         closePicker(id, "SEAT_B_CHANGED");
       }

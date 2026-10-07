@@ -53,6 +53,8 @@ bool seatIntentForControl(WebControl control, IntentType &type) {
     case WebControl::Join:
     case WebControl::Leave:
     case WebControl::AttachPhysical:
+    case WebControl::MoveEarlier:
+    case WebControl::MoveLater:
       return false;
   }
   return false;
@@ -91,6 +93,17 @@ bool handleWebControl(uint8_t controllerId, uint8_t slot, WebControl control, St
   if (!seatForModuleSlot(controllerId, slot, seat)) {
     message = "This seat is no longer at the table";
     return false;
+  }
+  if (control == WebControl::MoveEarlier || control == WebControl::MoveLater) {
+    // Only the tablet route offers these (a session verified at the table).
+    Intent intent;
+    intent.type = IntentType::MoveSeat;
+    intent.actor.origin = IntentOrigin::TableTablet;
+    intent.payload.targetPlayer = seat.playerNumber;
+    intent.payload.value = control == WebControl::MoveEarlier ? -1 : 1;
+    const IntentResult result = intents.dispatch(intent);
+    message = result.message;
+    return result.accepted();
   }
   IntentType type;
   if (!seatIntentForControl(control, type)) {

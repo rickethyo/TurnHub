@@ -173,6 +173,9 @@ class GameEngine {
   uint8_t nextWinConfirmationPlayerNumber() const;
 
   bool controllerInGame(uint8_t controllerId) const;
+  // Moves every seat of oldController to newController (a Sigil taking over a
+  // phone or tablet player mid-game). False if old has no seat or new has one.
+  bool replaceController(uint8_t oldController, uint8_t newController);
   // The controller of the active seat or (Two-Headed Giant) of a living teammate.
   bool controllerHasTurn(uint8_t controllerId) const;
   // That controller's living seat holding the turn: the active seat, else

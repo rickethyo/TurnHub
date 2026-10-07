@@ -264,7 +264,11 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                 if (summary.players.isEmpty()) {
                     Text("Add everyone who is playing. Sigils can join too.", color = p.muted)
                 }
-                summary.players.forEach { player -> SeatedRow(player, actions) }
+                summary.players.forEach { player -> SeatedRow(player, summary.players.size, tablet.busy, actions) }
+                if (summary.players.size > 1) {
+                    Text("Arrows set the turn order; panels sit clockwise in this order.", color = p.faint,
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 var name by rememberSaveable { mutableStateOf("") }
                 val add = {
                     val trimmed = name.trim()
@@ -315,7 +319,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
 }
 
 @Composable
-private fun SeatedRow(player: TablePlayer, actions: TabletActions) {
+private fun SeatedRow(player: TablePlayer, count: Int, busy: Boolean, actions: TabletActions) {
     val p = palette
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
@@ -333,12 +337,26 @@ private fun SeatedRow(player: TablePlayer, actions: TabletActions) {
                 modifier = Modifier.border(1.dp, p.line, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
+        MoveButton("↑", "Move ${player.label} earlier in turn order", !busy && player.playerNumber > 1) {
+            actions.run { control(player.seat(), "move-earlier") }
+        }
+        MoveButton("↓", "Move ${player.label} later in turn order", !busy && player.playerNumber < count) {
+            actions.run { control(player.seat(), "move-later") }
+        }
         player.profileId?.let { id ->
             IconButton(onClick = { actions.run { unseat(id) } }) {
                 Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.semantics { contentDescription = "Remove ${player.label}" })
             }
         }
+    }
+}
+
+@Composable
+private fun MoveButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val p = palette
+    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = label }) {
+        Text(glyph, color = if (enabled) p.text else p.faint, style = MaterialTheme.typography.titleLarge)
     }
 }
 

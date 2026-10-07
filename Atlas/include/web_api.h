@@ -30,6 +30,9 @@ enum class WebControl : uint8_t {
   Leave,
   Nudge,
   AttachPhysical,
+  // Turn order in the lobby; offered only by /api/tablet/control.
+  MoveEarlier,
+  MoveLater,
 };
 
 struct SeatSnapshot {

@@ -53,6 +53,7 @@ label small{display:block;font-weight:400;color:var(--c-text-tertiary);font-size
 .seat-no{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--c-accent-soft);color:var(--c-accent);font-weight:700;font-size:var(--t-footnote-size)}
 .tag{font-size:var(--t-caption-size);color:var(--c-text-secondary);background:var(--c-fill);border-radius:var(--r-full);padding:2px 8px}
 .remove{width:36px;height:36px;border:0;border-radius:50%;background:var(--c-fill);color:var(--c-text-secondary);font-size:20px;cursor:pointer}
+.remove:disabled{opacity:.3;cursor:default}
 .add-row{display:flex;gap:8px}
 .add-row .btn{flex:none}
 .chips{display:flex;flex-wrap:wrap;gap:8px}

@@ -1,6 +1,8 @@
 // Sigil menus: action availability and MenuState2 transport. See sigil_menu.h.
 #include "sigil_menu.h"
 
+#include "profile_picker.h"
+
 #include "atlas_app.h"
 #include "serial_log.h"
 #include "web_api.h"
@@ -55,6 +57,17 @@ constexpr uint32_t SEAT_COLOR_REFRESH_MS = 500;
 uint32_t lastSeatColorRefreshMs = 0;
 bool seatColorsRead = false;
 
+// A Sigil outside a game may take over a player in it who has no Sigil
+// (seated from a phone or the tablet; owner request 2026-10-07).
+bool canTakeOverPlayer(uint8_t sigilId) {
+  if (game.controllerInGame(sigilId) || !pickerSigil(sigilId)) return false;
+  for (uint8_t i = 0; i < game.playerCount(); ++i) {
+    const PlayerSeat *seat = game.playerAt(i);
+    if (seat != nullptr && seat->controllerId >= MAX_PHYSICAL_SIGILS) return true;
+  }
+  return false;
+}
+
 }  // namespace
 
 MenuStateFields sigilMenuFor(uint8_t sigilId) {
@@ -92,6 +105,8 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       break;
 
     case HubState::Running:
+      // A Sigil outside the game may take over a player already in it.
+      if (canTakeOverPlayer(sigilId)) add(SigilAction::Join);
       if (isActive) {
         // Any pass the team queued (Two-Headed Giant: either teammate's).
         const bool passQueued = pendingPass.active;
@@ -102,6 +117,9 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       break;
 
     case HubState::Paused:
+      if (canTakeOverPlayer(sigilId) && !game.hasWinClaim() && eliminationTargetPlayer == 0) {
+        add(SigilAction::Join);
+      }
       if (game.hasWinClaim()) {
         const PlayerSeat *expected = game.playerByNumber(game.nextWinConfirmationPlayerNumber());
         if (expected != nullptr && expected->controllerId == sigilId) {

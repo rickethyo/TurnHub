@@ -719,6 +719,16 @@ bool GameEngine::controllerInGame(uint8_t controllerId) const {
   return false;
 }
 
+bool GameEngine::replaceController(uint8_t oldController, uint8_t newController) {
+  if (oldController == newController || !controllerInGame(oldController) || controllerInGame(newController)) {
+    return false;
+  }
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    if (players_[i].controllerId == oldController) players_[i].controllerId = newController;
+  }
+  return true;
+}
+
 bool GameEngine::controllerHasTurn(uint8_t controllerId) const {
   return turnSeatForController(controllerId) != nullptr;
 }

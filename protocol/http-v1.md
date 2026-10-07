@@ -285,7 +285,7 @@ One shared screen at the table acting for every seat. Engineering record:
    - `POST /api/tablet/life/respond`: `requestId`, `accept`.
    - `POST /api/tablet/settings`: the `/api/game/settings` fields.
    - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `win`,
-     `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or
-     `reset`; answers like `/api/control/*` (status, revision, optional
+     `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch`,
+     `reset`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
      `expectedRevision`).
 

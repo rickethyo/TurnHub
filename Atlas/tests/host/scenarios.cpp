@@ -1394,6 +1394,44 @@ static void profilePicker() {
   pick(0, A::StartGame); assert(hubState == HubState::Starting);
   syncProfilePickers(testNow); assert(!pickerOpen(5));
 
+  // Owner request 2026-10-07: during a game a Sigil outside it may take over a
+  // player seated from a phone or the tablet; only those players are offered.
+  enterEmptyLobby(); resetProfilePickers(); resetSigilMenus();
+  ProfileFixture::bindings.clear();
+  { Intent join; join.type = IntentType::JoinProfile; join.actor.origin = IntentOrigin::Browser;
+    strcpy(join.payload.profileId, "0000000B"); assert(intents.dispatch(join).accepted()); }
+  pick(1, A::Join); key(1, PickerKeyCode::Up);  // Guest on Sigil 1.
+  assert(lobby.playerCount() == 2);
+  pick(1, A::StartGame); testNow += START_COUNTDOWN_MS; updateCountdown(testNow);
+  assert(hubState == HubState::Running);
+  uint8_t bobController = INVALID_ID, bobSlot = 1;
+  assert(resolveProfileParticipant("0000000B", bobController, bobSlot) && bobController >= MAX_PHYSICAL_SIGILS);
+  PlayerSeat bobSeat[2]; assert(game.playersForController(bobController, bobSeat, 2) == 1);
+  const int32_t bobLife = game.lifeTotal(bobSeat[0].playerNumber);
+  resetSigilMenus();
+  assert((sigilMenuFor(3).actions & sigilActionBit(A::Join)) != 0);
+  assert((sigilMenuFor(1).actions & sigilActionBit(A::Join)) == 0);
+  pick(3, A::Join);
+  page = profilePickerPage(3);
+  assert(page.mode == PickerMode::List && page.pageCount == 1 && page.itemCount == 1 && !strcmp(page.items[0].name, "bob"));
+  key(3, PickerKeyCode::Up); assert(profilePickerPage(3).mode == PickerMode::Confirm);
+  key(3, PickerKeyCode::Select);
+  assert(!pickerOpen(3) && game.controllerInGame(3) && !game.controllerInGame(bobController) && lobby.isJoined(3));
+  assert(TurnHubControllers::profileForSeat(3, 1) == "0000000B");
+  assert(game.playerByNumber(bobSeat[0].playerNumber)->controllerId == 3 && game.lifeTotal(bobSeat[0].playerNumber) == bobLife);
+  { // Nobody new joins mid-game, and a Sigil already playing cannot take another player.
+    Intent late; late.type = IntentType::PickProfile; late.actor.origin = IntentOrigin::PhysicalSigil;
+    late.actor.controllerId = 5; late.actor.slot = 1; strcpy(late.payload.profileId, "0000000C");
+    assert(intents.dispatch(late).status == IntentStatus::InvalidActor && !game.controllerInGame(5));
+  }
+  // With nobody left to take over, Join is not offered; an open picker says so.
+  resetSigilMenus(); assert((sigilMenuFor(5).actions & sigilActionBit(A::Join)) == 0);
+  openProfilePicker(5, testNow);
+  page = profilePickerPage(5);
+  assert(page.itemCount == 0 && page.pageCount == 1 && page.page == 0 && page.notice == PickerNotice::Unavailable);
+  // The picker closes when the game ends.
+  enterEmptyLobby(); syncProfilePickers(testNow); assert(!pickerOpen(5));
+
   // Names a Sigil would show alike are numbered by profile ID, cut to fit.
   enterEmptyLobby(); resetProfilePickers();
   ProfileFixture::bindings.clear(); ProfileFixture::profiles.clear();
@@ -3189,11 +3227,22 @@ static void tabletMode() {
   // Settings and Start for the table, through any seat.
   PlayerSeat seats[MAX_PLAYERS]; assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2);
   const String m1=String(seats[0].controllerId), m2=String(seats[1].controllerId);
+  // Turn order, from the tablet as from the Atlas screen (lobby only); a phone may not.
+  const uint8_t c1=seats[0].controllerId, c2=seats[1].controllerId;
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","move-earlier"}})==409);
+  assert(request("/api/tablet/control",tablet,{{"module",m2},{"slot","1"},{"action","move-earlier"}})==200);
+  assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c2 && seats[1].controllerId==c1);
+  assert(request("/api/tablet/control",tablet,{{"module",m2},{"slot","1"},{"action","move-later"}})==200);
+  assert(lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c1);
+  { Intent fromPhone; fromPhone.type=IntentType::MoveSeat; fromPhone.actor.origin=IntentOrigin::Browser;
+    fromPhone.payload.targetPlayer=2; fromPhone.payload.value=-1;
+    assert(!intents.dispatch(fromPhone).accepted() && lobby.buildPlayers(seats,MAX_PLAYERS)==2 && seats[0].controllerId==c1); }
   assert(request("/api/tablet/settings",tablet,{{"module",m1},{"slot","1"},{"gameProfile","mtg_commander"},{"startingLife","40"}})==200);
   assert(request("/api/tablet/control",tablet,{{"module","99"},{"slot","1"},{"action","start"}})==400);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","fly"}})==400);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","start"}})==200);
   testNow+=3000; updateCountdown(testNow); assert(hubState==HubState::Running);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","move-later"}})==409);
   assert(String(game.playerAt(0)->profileId)==avaId && String(game.playerAt(1)->profileId)==benId);
 
   // Each panel changes its own seat's life and records damage it received.
@@ -3956,7 +4005,7 @@ int main() {
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
-  tabletMode(); std::cout<<"PASS tablet mode: presence code, PIN-less new players, PIN choice, unique names, settings, life, Commander, pass, win, off\n";
+  tabletMode(); std::cout<<"PASS tablet mode: presence code, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
   pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;

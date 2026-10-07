@@ -349,10 +349,48 @@ IntentResult bindPhysicalProfile(const Intent &intent, const String &profile, bo
   return participationChanged(intent.type);
 }
 
+// Owner request (2026-10-07): during a game a Sigil may take over a player
+// already in it (seated from a phone or the tablet), keeping that player's
+// place, life and clock. Nobody new joins mid-game until venue lobbies.
+IntentResult attachInGame(const Intent &intent, const String &profile, bool joined, uint8_t existing) {
+  const uint8_t module = intent.actor.controllerId;
+  if (intent.actor.origin != IntentOrigin::PhysicalSigil || module >= MAX_PHYSICAL_SIGILS ||
+      intent.actor.slot != 1) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Physical seat confirmation required");
+  }
+  if (!joined || !game.controllerInGame(existing)) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "Only players in this game can join it now");
+  }
+  if (existing == module) return IntentResult::accept("Controller already attached");
+  if (existing < MAX_PHYSICAL_SIGILS) {
+    return IntentResult::reject(IntentStatus::Conflict, "Profile already has a physical Sigil");
+  }
+  if (game.controllerInGame(module) || lobby.isJoined(module)) {
+    return IntentResult::reject(IntentStatus::Conflict, "This Sigil is already playing");
+  }
+  if (!TurnHubControllers::bindPhysical(module, 1, profile)) {
+    return IntentResult::reject(IntentStatus::Rejected, "Could not save controller assignment");
+  }
+  lobby.replaceController(existing, module);
+  game.replaceController(existing, module);
+  if (pendingPass.active && pendingPass.seat.controllerId == existing) pendingPass.seat.controllerId = module;
+  TurnHubControllers::releaseBrowser(existing);
+  leds.invalidateAll();
+  serialLog.print("ATLAS|GAME|ATTACH|SIGIL|");
+  serialLog.print(module);
+  serialLog.print("|FROM|");
+  serialLog.print(existing);
+  serialLog.print("|PROFILE|");
+  serialLog.println(profile);
+  return IntentResult::accept("Joined the game on this Sigil");
+}
+
 }  // namespace
 
 IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
-  if (hubState != HubState::Lobby) {
+  const bool inGame = hubState == HubState::Running || hubState == HubState::Paused;
+  const bool attaches = intent.type == IntentType::PickProfile || intent.type == IntentType::BindProfile;
+  if (hubState != HubState::Lobby && !(inGame && attaches)) {
     return IntentResult::reject(IntentStatus::InvalidState, "Participation changes require the lobby");
   }
   const String profile(intent.payload.profileId);
@@ -369,7 +407,7 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
     // Chosen on the Sigil itself: no phone proved who is holding it, so the
     // profile's "Allow physical use without a PIN" choice decides.
     // Seat B is picked from the same Sigil once seat A is at the table.
-    if (intent.actor.slot == 2 && !lobby.isJoined(intent.actor.controllerId)) {
+    if (!inGame && intent.actor.slot == 2 && !lobby.isJoined(intent.actor.controllerId)) {
       return IntentResult::reject(IntentStatus::Conflict, "Join seat A first");
     }
     if (!TurnHubWebApi::physicalUseAllowed(profile)) {
@@ -377,17 +415,20 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *) {
           "Sign into this profile on a phone before using a Sigil");
     }
   }
+  if (inGame) return attachInGame(intent, profile, joined, existing);
   return bindPhysicalProfile(intent, profile, joined, existing, existingSlot);
 }
 
 // --- Turn order (MoveSeat) --------------------------------------------------------
 
 // Owner decision (2026-09-29): turn order is set in the lobby only, from the
-// Atlas touchscreen only, and any player may set it. Moving a seat moves its
-// whole controller outside its pair; A/B can swap within the shared Sigil.
+// Atlas touchscreen only, and any player may set it. Owner request
+// (2026-10-07): a table tablet may set it too, as it sits at the table.
+// Moving a seat moves its whole controller outside its pair; A/B can swap
+// within the shared Sigil.
 IntentResult handleMoveSeatIntent(const Intent &intent, void *) {
-  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
-    return IntentResult::reject(IntentStatus::Unauthorized, "Set the turn order on the Atlas screen");
+  if (intent.actor.origin != IntentOrigin::AtlasHardware && intent.actor.origin != IntentOrigin::TableTablet) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Set the turn order on the Atlas screen or a table tablet");
   }
   if (hubState != HubState::Lobby) {
     return IntentResult::reject(IntentStatus::InvalidState, "Set the turn order in the lobby");

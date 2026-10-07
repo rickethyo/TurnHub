@@ -198,6 +198,13 @@ function renderLobby(){
     const name=document.createElement('span');name.textContent=playerName(p);
     li.append(Object.assign(document.createElement('span'),{className:'seat-no',textContent:p.playerNumber}),name);
     if(p.moduleId<8)li.append(Object.assign(document.createElement('span'),{className:'tag',textContent:'Sigil'}));
+    // Turn order: panels sit clockwise in this order.
+    for(const [dir,glyph,label] of [['move-earlier','↑','earlier'],['move-later','↓','later']]){
+      const b=document.createElement('button');b.type='button';b.className='remove';b.textContent=glyph;
+      b.setAttribute('aria-label',`Move ${playerName(p)} ${label} in turn order`);
+      b.disabled=dir==='move-earlier'?p.playerNumber===1:p.playerNumber===state.players.length;
+      b.onclick=()=>control(seatOf(p),dir,'lobbyMessage');li.append(b);
+    }
     if(p.profileId){const x=document.createElement('button');x.type='button';x.className='remove';x.setAttribute('aria-label','Remove '+playerName(p));x.textContent='×';x.onclick=()=>unseat(p);li.append(x)}
     list.append(li);
   }
@@ -417,6 +424,19 @@ function drawer(u){
   const close=el('button','icon-btn','×');close.type='button';close.setAttribute('aria-label','Close');close.onclick=()=>{drawers.delete(u.key);render()};
   head.append(close);box.append(head);
   const body=el('div','drawer-body');
+  // Claim the win and concede first, so a long Commander list never hides them.
+  const acts=el('div','drawer-section');
+  const actor=u.members.find(m=>m.playerNumber===state.activePlayer);
+  if(actor&&state.state==='RUNNING'){
+    const win=el('button','btn','Claim the win');win.type='button';
+    win.onclick=()=>armed(win,'Tap again to claim',()=>control(seatOf(actor),'win'));acts.append(win);
+  }
+  for(const m of u.members){
+    if(m.eliminated||!(state.state==='RUNNING'||state.state==='PAUSED'))continue;
+    const c=el('button','btn danger',u.members.length>1?`${playerName(m)} concedes`:'Concede');c.type='button';
+    c.onclick=()=>armed(c,'Tap again to concede',()=>{drawers.delete(u.key);control(seatOf(m),'concede')});acts.append(c);
+  }
+  if(acts.childElementCount)body.append(acts);
   if(state.settings.profile==='mtg_commander'){
     for(const m of u.members){
       if(m.eliminated)continue;
@@ -445,18 +465,7 @@ function drawer(u){
       body.append(sec);
     }
   }
-  const acts=el('div','drawer-section');
-  const actor=u.members.find(m=>m.playerNumber===state.activePlayer);
-  if(actor&&state.state==='RUNNING'){
-    const win=el('button','btn','Claim the win');win.type='button';
-    win.onclick=()=>armed(win,'Tap again to claim',()=>control(seatOf(actor),'win'));acts.append(win);
-  }
-  for(const m of u.members){
-    if(m.eliminated||!(state.state==='RUNNING'||state.state==='PAUSED'))continue;
-    const c=el('button','btn danger',u.members.length>1?`${playerName(m)} concedes`:'Concede');c.type='button';
-    c.onclick=()=>armed(c,'Tap again to concede',()=>{drawers.delete(u.key);control(seatOf(m),'concede')});acts.append(c);
-  }
-  body.append(acts);box.append(body);
+  box.append(body);
   return box;
 }
 function armed(button,label,action){

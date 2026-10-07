@@ -128,6 +128,10 @@ enum class IntentOrigin : uint8_t {
   Browser,
   AndroidApp,
   AtlasHardware,
+  // A table tablet: a browser or app session granted tablet mode with a table
+  // presence code (web_tablet_api.cpp). Allowed what the touchscreen allows
+  // where noted (turn order).
+  TableTablet,
   Simulator,
   System,
 };

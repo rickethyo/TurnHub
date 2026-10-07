@@ -687,6 +687,20 @@ private fun Drawer(
             Text(unit.name, color = p.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onClose) { Text("Close", color = p.text) }
         }
+        // Claim the win and concede first, so a long Commander list never hides them.
+        val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
+        if (actor != null && summary.state == TableState.RUNNING) {
+            ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
+        }
+        if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
+            unit.members.filter { !it.eliminated }.forEach { member ->
+                ArmedButton(
+                    if (unit.members.size > 1) "${member.label} concedes" else "Concede",
+                    "Tap again to concede",
+                    Tone.BAD,
+                ) { onControl(member.seat(), "concede") }
+            }
+        }
         if (summary.settings.profile == GameProfile.MTG_COMMANDER) {
             unit.members.filter { !it.eliminated }.forEach { member ->
                 Text(
@@ -722,19 +736,6 @@ private fun Drawer(
                 TextButton(onClick = {
                     if (showPartner) partners.remove(member.playerNumber) else partners.add(member.playerNumber)
                 }) { Text(if (showPartner) "Hide partner commanders" else "Partner commanders", color = p.muted) }
-            }
-        }
-        val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
-        if (actor != null && summary.state == TableState.RUNNING) {
-            ArmedButton("Claim the win", "Tap again to claim", Tone.GOOD) { onControl(actor.seat(), "win") }
-        }
-        if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
-            unit.members.filter { !it.eliminated }.forEach { member ->
-                ArmedButton(
-                    if (unit.members.size > 1) "${member.label} concedes" else "Concede",
-                    "Tap again to concede",
-                    Tone.BAD,
-                ) { onControl(member.seat(), "concede") }
             }
         }
     }

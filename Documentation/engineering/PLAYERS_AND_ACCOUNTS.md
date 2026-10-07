@@ -53,9 +53,14 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
 - **Seat B** on a shared Sigil uses the same picker (**Add seat B**); Guest
   adds seat B directly. `PickProfile` with slot 2 adds the seat and binds the
   profile in one step.
-- Attachment and profile choice happen in the lobby only. No mid-game
-  reassignment, and a participant that already has a physical controller is
-  never silently moved.
+- Attachment and profile choice happen in the lobby, with one exception
+  (owner request 2026-10-07, *Experimental: host-tested*): during a running
+  or paused game a Sigil outside it offers **Join** while some player in the
+  game has no Sigil (seated from a phone or the tablet). Its picker then lists
+  only those players (no Guest), and choosing one moves that player onto the
+  Sigil with their place, life and clock (`GameEngine::replaceController`).
+  Nobody new joins mid-game until venue lobbies, and a participant that
+  already has a physical controller is never silently moved.
 - Seat bindings are temporary (RAM): released when the seat leaves (the
   Sigil's Leave, Drop seat B, a phone leaving for a profile seated on a
   Sigil, a Game Master removal), at Reset and on restart. They survive Game
@@ -63,7 +68,8 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   Sigil that reboots keeps its profiles.
 - **Turn order** is set on the Atlas touchscreen in the lobby by tapping a
   player chip: Earlier/Later (`MoveSeat`) and, on a shared Sigil, B left or
-  B right (`SetSeatSide`). Any player may do it; the app and web don't.
+  B right (`SetSeatSide`). Any player may do it, and so may a table tablet
+  (Earlier/Later, 2026-10-07); a phone may not.
   Starter, participants and bindings stay with their physical seats, and
   recovery restores A/B and B/A pairs.
 
@@ -87,6 +93,10 @@ the screen on and hides the system bars during play.
   (rate limited like a sign-in). Seated players join as browser controllers,
   so a Sigil can then attach to any of them through its picker ("at table:
   attach") and a phone can sign in to the same participant.
+- **Turn order.** The tablet lobby's arrows move a seat earlier or later
+  (`move-earlier`/`move-later`, `MoveSeat` with the `TableTablet` origin);
+  panels sit clockwise in that order. The game's order is fixed once it
+  starts. Claim the win and Concede sit at the top of each panel's More.
 - **Acting for a seat.** Every panel action names the seat (`module`, `slot`
   from `/api/v1/state`) and goes through the same seat callbacks and Intents
   a phone uses (`web_tablet_api.cpp`). Atlas still decides: a seat changes

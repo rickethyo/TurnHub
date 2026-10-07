@@ -74,6 +74,8 @@ const TabletAction TABLET_ACTIONS[] = {
   {"cancel-start", WebControl::CancelStart},
   {"rematch", WebControl::Rematch},
   {"reset", WebControl::Reset},
+  {"move-earlier", WebControl::MoveEarlier},
+  {"move-later", WebControl::MoveLater},
 };
 
 }  // namespace
