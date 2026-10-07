@@ -51,7 +51,7 @@ does this: it tries a saved password, then this default, then prompts.
 
 ### Two games on one Atlas
 
-Atlas runs two games side by side (since 2026-10-07, Atlas 0.6.17): Game 1
+Atlas runs two games side by side (since 2026-10-07, Atlas 0.7.0): Game 1
 and Game 2, each with its own lobby, turn order, timer and life totals.
 Profiles, statistics and pairing are shared, and a profile plays in one game
 at a time. Every request acts on one game: a table tablet's chosen game; else

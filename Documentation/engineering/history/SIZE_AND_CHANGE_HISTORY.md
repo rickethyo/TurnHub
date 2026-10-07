@@ -788,7 +788,7 @@ sign in from a phone. Its first `POST /api/session/login` saves that PIN or
 password as its secret. The app lists such profiles as selectable and asks for
 the new secret twice; the portal login notes the PIN becomes theirs.
 
-## 2026-10-07 Two games per Atlas, round one (Atlas 0.6.17, Sigil 0.9.13, portal pack 1.3.0)
+## 2026-10-07 Two games per Atlas, round one (Atlas 0.7.0, Sigil 0.9.13, portal pack 1.3.0)
 
 Atlas runs Game 1 and Game 2 side by side (`MAX_GAME_TABLES` 2): each game has
 its own lobby, engine, next-game settings and recovery record (`checkpoint2`),

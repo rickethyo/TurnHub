@@ -7,9 +7,9 @@ namespace TurnHubFirmware {
 // Keep MAJOR/MINOR/PATCH and VERSION in step. The numbers go into the
 // firmware descriptor that OTA packages are checked against (FIRMWARE_UPDATES.md).
 constexpr uint8_t MAJOR = 0;
-constexpr uint8_t MINOR = 6;
-constexpr uint8_t PATCH = 17;
-constexpr const char *VERSION = "0.6.17-dev";
+constexpr uint8_t MINOR = 7;
+constexpr uint8_t PATCH = 0;
+constexpr const char *VERSION = "0.7.0-dev";
 constexpr const char *BUILD_DATE = __DATE__;
 constexpr const char *BUILD_TIME = __TIME__;
 

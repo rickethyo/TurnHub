@@ -30,7 +30,7 @@ Steps:
 1. **Done 2026-09-29 (host-tested, firmware builds):** `GameTable` in
    `atlas_app.h` groups one game's `Lobby`, `GameEngine`, `ClientState` and
    table decisions.
-2. **Done 2026-10-07 (*Experimental*, host-tested; Atlas 0.6.17, Sigil
+2. **Done 2026-10-07 (*Experimental*, host-tested; Atlas 0.7.0, Sigil
    0.9.13, portal pack 1.3.0): two tables.** Defaults chosen: Game 1 and
    Game 2; everyone starts in Game 1.
    - *State owner:* each `GameTable`, plus `sigilTable[]` (the game an
