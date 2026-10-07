@@ -68,9 +68,9 @@ everything implemented. Only the checks listed below are still open.
 
 - **Standalone tablet game, later rounds** (round one, 2026-10-07: the app
   plays a game alone; round two: Atlas imports each finished game once,
-  `POST /api/standalone/import`, protocol/http-v1.md). Still to do: a "Play
-  without Atlas" section in the user manual; showing imported games in the
-  app (today the lobby only counts the games still waiting).
+  `POST /api/standalone/import`, protocol/http-v1.md; user manual V0.12,
+  section 18). Still to do: showing imported games in the app (today the
+  lobby only counts the games still waiting).
 
 ### Setup and updates
 
@@ -86,35 +86,14 @@ everything implemented. Only the checks listed below are still open.
 - **Two games per Atlas, later rounds** (round one, 2026-10-07: two tables,
   Sigil "Switch game", the portal switch; see PLANNED_DESIGNS.md): the Atlas
   touchscreen game selector (with pairing and turn order for Game 2), a
-  switch on the tablet page and in the Android app, and the user manual.
+  switch on the tablet page and in the Android app. User manual V0.12
+  (section 19) describes round one; update it when these land.
 - **Profile picker:** a per-Sigil startup choice (last profile or picker).
 - **Accessibility:** Sigil-local pairing/error lights in the player's style,
   e-ink text scale, a monochrome-safe portal
   theme, guest accessibility preferences. LED intensity and buzzer volume wait
   for hardware that can vary them.
 - **Atlas battery gauge.**
-
-### User manual (`Documentation/User Manual/TurnHub Manual V0.11.docx`)
-
-Make a V0.12 (then run `python3 Android/tools/export_manual.py`) that covers:
-
-- The single Sigil menu layout (Sigil 0.9.10): Up always opens Menu on both
-  displays, e-ink Menu as compass pages with More, Device as a sub-menu. The
-  Commander section still says "E-ink: press Up for Game menu".
-- **Partner** commanders (off by default, turned on from Menu).
-- Passwords as well as PINs.
-- Factory reset of Atlas now empties the microSD card (except the portal
-  pack); the manual says the card is not erased.
-- A "Setting up a new table" section (first-run setup).
-- Shared-Sigil turn order (B left/right) on the Atlas screen.
-- Remove (hold 2 s) on the Atlas lobby Player screen.
-- The life-approval window choice (15, 30 or 60 s) under Sigil accessibility;
-  the manual says requests are accepted after 15 s.
-- Nudge from the app and the portal, and what Mute nudges now does.
-- The footer still says Manual 0.9, Atlas 0.6.4-dev, Sigil 0.9.6-dev.
-- Tablet mode (`/tablet`): turning it on with a table code, adding players
-  (PIN-less accounts), panels, and the renamed "Allow Sigil and tablet use
-  without a PIN" choice.
 
 ### Hardware
 

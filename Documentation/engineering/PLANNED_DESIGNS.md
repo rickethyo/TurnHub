@@ -65,7 +65,8 @@ Steps:
    - *Accessibility:* the switch names each game and its state in words.
 3. Atlas touchscreen game selector (presentation state, Invariant 6), so the
    screen, pairing and turn order can serve Game 2; the tablet page's switch.
-4. Android app game switch, user manual.
+4. Android app game switch; then update the user manual (V0.12 section 19
+   describes round one).
 
 ## Sigil sleep (*Planned*)
 
