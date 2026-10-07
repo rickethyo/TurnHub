@@ -119,6 +119,21 @@ void handleProfileLogin(WebServer &server) {
   }
   if (!admitRateLimited(server, id)) return;
   const String stored = TurnHubProfiles::storedPinHashForProfile(id);
+  // A profile with no PIN yet (made on a Sigil or the tablet) is claimed by
+  // its first phone sign-in: the PIN given here becomes its PIN (owner
+  // request 2026-10-07). Clients ask for it twice before sending.
+  if (!TurnHubProfiles::hasPinForProfile(id)) {
+    if (!admitAccount(server, id)) return;
+    const String hash = profilePinHash(id, pin);
+    if (hash.length() != PIN_HASH_LENGTH || !TurnHubProfiles::setPinHashForProfile(id, hash)) {
+      sendError(server, 503, "Could not save PIN");
+      return;
+    }
+    serialLog.print("ATLAS|PROFILE|PIN_SET_AT_SIGN_IN|");
+    serialLog.println(id);
+    sendLogin(server, createProfileSession(id, millis(), true));
+    return;
+  }
   if (stored.length() != PIN_HASH_LENGTH || !stored.equalsIgnoreCase(profilePinHash(id, pin))) {
     sendError(server, 401, "Profile or PIN was not accepted");
     return;

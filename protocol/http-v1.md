@@ -35,6 +35,9 @@ does this: it tries a saved password, then this default, then prompts.
    `profileId` and `pin`, or `POST /api/profiles/register` with `name` and `pin`.
    `pin` is the profile's secret: a PIN of 4 to 8 digits or a password of 8 to
    64 UTF-8 bytes without control characters (since 2026-10-02).
+   A profile with no secret yet (`hasPin:false`, e.g. made on a Sigil or the
+   tablet) takes the `pin` of its first login as its secret (since 2026-10-07);
+   clients ask for it twice first.
    Keep the returned token private; send it in `X-TurnHub-Token` on authenticated
    requests. `POST /api/session/join` joins the authenticated profile.
 4. `GET /api/session/me` resolves the session's current `module`, `slot`, `player`

@@ -780,3 +780,10 @@ The account record layout is unchanged (the permissions byte already had room).
 Portal pack 1.2.1 -> 1.2.2 (People role, tablet gate); Android shows the role
 and turns tablet mode on directly for such an account. Radio version and Sigil
 firmware unchanged. Planned release: v0.9.11.
+
+## 2026-10-07 Phone sign-in for PIN-less profiles (Atlas 0.6.16, portal pack 1.2.3)
+
+Also planned for v0.9.11: a profile with no PIN yet (made on a Sigil or the tablet) can
+sign in from a phone. Its first `POST /api/session/login` saves that PIN or
+password as its secret. The app lists such profiles as selectable and asks for
+the new secret twice; the portal login notes the PIN becomes theirs.
