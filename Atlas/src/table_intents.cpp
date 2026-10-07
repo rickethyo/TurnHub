@@ -5,6 +5,7 @@
 
 #include "atlas_app.h"
 #include "atlas_display.h"
+#include "sigil_menu.h"
 #include "sigil_update_service.h"
 #include "account_access.h"
 #include "controller_profiles.h"
@@ -572,8 +573,7 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
       return IntentResult::reject(IntentStatus::Unauthorized,
           "Sign into this profile on a phone before using its Sigil");
     }
-    uint8_t current = INVALID_ID, currentSlot = 1;
-    if (resolveProfileParticipant(profile, current, currentSlot)) {
+    if (profile.length() && tableForProfile(profile) >= 0) {
       return IntentResult::reject(IntentStatus::Conflict,
           "Profile is already playing; attach this Sigil from its signed-in phone");
     }
@@ -589,6 +589,40 @@ IntentResult handleSeatMembershipIntent(const Intent &intent, void *) {
   serialLog.print("ATLAS|LOBBY|LEAVE|SIGIL|");
   serialLog.println(module);
   return seatChanged(false);
+}
+
+// --- Venue tables --------------------------------------------------------------
+
+IntentResult handleChooseTableIntent(const Intent &intent, void *) {
+  const uint8_t module = intent.actor.controllerId;
+  if (intent.actor.origin != IntentOrigin::PhysicalSigil || module >= MAX_PHYSICAL_SIGILS) {
+    return IntentResult::reject(IntentStatus::InvalidActor, "Only a Sigil moves itself to another game");
+  }
+  if (intent.payload.value < 0 || intent.payload.value >= MAX_GAME_TABLES) {
+    return IntentResult::reject(IntentStatus::Rejected, "No such game");
+  }
+  const uint8_t target = static_cast<uint8_t>(intent.payload.value);
+  if (target == tableIndex()) {
+    return IntentResult::reject(IntentStatus::Conflict, "This Sigil is already at that game");
+  }
+  if (table().game.controllerInGame(module)) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Finish or reset this game first");
+  }
+  if (table().lobby.isJoined(module)) {
+    if (table().hubState != HubState::Lobby) {
+      return IntentResult::reject(IntentStatus::InvalidState, "Cancel the start first");
+    }
+    table().lobby.leave(module);
+    TurnHubControllers::releasePhysical(module, 1);
+  }
+  sigilTable[module] = target;
+  leds.invalidate(module);
+  invalidateSigilMenu(module);
+  serialLog.print("ATLAS|TABLE|SIGIL|");
+  serialLog.print(module);
+  serialLog.print("|GAME|");
+  serialLog.println(target + 1);
+  return IntentResult::accept("Moved to the other game");
 }
 
 // --- Starter selection ----------------------------------------------------------------

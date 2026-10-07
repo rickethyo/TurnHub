@@ -67,6 +67,7 @@ AccessibilityPrefs seatedAccessibility(uint8_t sigilId) {
   AccessibilityPrefs merged;
   bool any = false;
   if (sigilId >= MAX_PHYSICAL_SIGILS) return merged;
+  TableScope scope(tableForController(sigilId));
   PlayerSeat seats[2];
   const uint8_t count = table().game.hasPlayers() ? table().game.playersForController(sigilId, seats, 2) : 0;
   if (count > 0) {

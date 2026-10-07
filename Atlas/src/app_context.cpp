@@ -36,8 +36,57 @@ String displayNameForTableSeat(const PlayerSeat &seat, bool inGame) {
   return profileId.length() ? TurnHubProfiles::nameForProfile(profileId) : String();
 }
 
+// --- Venue tables --------------------------------------------------------------
+
+uint8_t sigilTable[MAX_PHYSICAL_SIGILS] = {};
+
+namespace {
+bool gameInProgress(HubState state) {
+  return state == HubState::Starting || state == HubState::Running || state == HubState::Paused;
+}
+}  // namespace
+
+uint8_t tableForController(uint8_t controllerId) {
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    if (tables[t].lobby.isJoined(controllerId) || tables[t].game.controllerInGame(controllerId)) return t;
+  }
+  return controllerId < MAX_PHYSICAL_SIGILS ? sigilTable[controllerId] : 0;
+}
+
+int8_t tableForProfile(const String &profileId) {
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    TableScope scope(t);
+    uint8_t controllerId = INVALID_ID, slot = 1;
+    if (resolveProfileParticipant(profileId, controllerId, slot)) return static_cast<int8_t>(t);
+  }
+  return -1;
+}
+
+uint16_t sigilsAtTable(uint8_t index) {
+  uint16_t mask = 0;
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    if (tableForController(id) == index) mask |= static_cast<uint16_t>(1u << id);
+  }
+  return mask;
+}
+
+bool allTablesBetweenGames() {
+  for (const GameTable &t : tables) {
+    if (t.hubState != HubState::Lobby && t.hubState != HubState::GameOver) return false;
+  }
+  return true;
+}
+
+bool atlasSpeakerShared() {
+  uint8_t busy = 0;
+  for (const GameTable &t : tables) busy += gameInProgress(t.hubState) ? 1 : 0;
+  return busy > 1;
+}
+
+// Atlas's speaker plays table-wide cues only while at most one game is in
+// progress (owner decision 2026-09-29); Sigils and phones still get them.
 uint16_t lobbyAudioMask() {
-  uint16_t mask = AudioController::ATLAS_SPEAKER_MASK;
+  uint16_t mask = atlasSpeakerShared() ? 0 : AudioController::ATLAS_SPEAKER_MASK;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (table().lobby.isJoined(id)) mask |= AudioController::maskForSigil(id);
   }
@@ -45,7 +94,7 @@ uint16_t lobbyAudioMask() {
 }
 
 uint16_t gameAudioMask() {
-  uint16_t mask = AudioController::ATLAS_SPEAKER_MASK;
+  uint16_t mask = atlasSpeakerShared() ? 0 : AudioController::ATLAS_SPEAKER_MASK;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     if (table().game.controllerInGame(id)) mask |= AudioController::maskForSigil(id);
   }

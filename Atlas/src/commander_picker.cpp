@@ -184,6 +184,7 @@ void resetCommanderPickers() {
 }
 void syncCommanderPickers(uint32_t nowMs) {
   for (uint8_t id=0;id<MAX_PHYSICAL_SIGILS;++id) {
+    TableScope scope(tableForController(id));
     Flow &f = flows[id];
     if (!f.page.version) { f.page.version = VERSION; f.page.type = PacketType::CommanderFlow; f.page.sigilId = id; }
     if (f.page.stage != CommanderStage::Closed) {

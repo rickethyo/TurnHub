@@ -663,6 +663,9 @@ enum class SigilAction : uint8_t {
   // Commander: turn partner commanders on or off for the shown seat.
   AddPartner = 26,
   DropPartner = 27,
+  // Venue model: move this Sigil (both seats) to Atlas's other game. Offered
+  // only outside that Sigil's running game; it leaves its lobby first.
+  SwitchTable = 28,
   Count
 };
 constexpr uint8_t SIGIL_ACTION_NONE = 255;

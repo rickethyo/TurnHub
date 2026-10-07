@@ -336,6 +336,7 @@ ProfilePickerPacket profilePickerPage(uint8_t sigilId) {
 
 void syncProfilePickers(uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    TableScope scope(tableForController(id));
     PickerCache &cache = pickers[id];
     if (cache.open) {
       const bool playing = table().hubState == HubState::Running || table().hubState == HubState::Paused;

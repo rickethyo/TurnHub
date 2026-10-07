@@ -227,7 +227,7 @@ void resetPresence() {
 }
 
 bool otaAllowed() {
-  return table().hubState == HubState::Lobby || table().hubState == HubState::GameOver;
+  return allTablesBetweenGames();
 }
 
 uint32_t pairingRemainingMs(uint32_t nowMs) {

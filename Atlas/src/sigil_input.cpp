@@ -247,6 +247,10 @@ void handleSelectAction(uint8_t sigilId, int32_t value) {
       // Proof of possession: only someone holding this Sigil can choose it.
       TurnHubWebApi::notePhysicalAction(sigilId);
       break;
+    case SigilAction::SwitchTable:
+      logRejected("MENU|SWITCH_TABLE", sigilId, dispatchModuleIntent(IntentType::ChooseTable, sigilId, 1,
+          static_cast<int32_t>((tableIndex() + 1) % MAX_GAME_TABLES)));
+      break;
     case SigilAction::Count:
       break;
   }
@@ -333,6 +337,7 @@ void processSigilEvents() {
     }
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));
     if (connectionBlocked(event.sigilId)) continue;
+    TableScope scope(tableForController(event.sigilId));
     switch (event.type) {
 
       case PacketType::SelectAction: handleSelectAction(event.sigilId, event.value); break;

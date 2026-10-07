@@ -71,6 +71,7 @@ bool canTakeOverPlayer(uint8_t sigilId) {
 }  // namespace
 
 MenuStateFields sigilMenuFor(uint8_t sigilId) {
+  TableScope scope(tableForController(sigilId));
   uint32_t actions = 0;
   const auto add = [&actions](SigilAction action) { actions |= TurnHubProtocol::sigilActionBit(action); };
   // No table host (owner decision 2026-09-25): every seated Sigil may start,
@@ -150,6 +151,11 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
       break;
   }
 
+  // Venue model: a Sigil that isn't playing may move to Atlas's other game.
+  if (!table().game.controllerInGame(sigilId) &&
+      (!table().lobby.isJoined(sigilId) || table().hubState == HubState::Lobby)) {
+    add(SigilAction::SwitchTable);
+  }
   if (TurnHubWebApi::hasPendingClaim(sigilId)) add(SigilAction::LinkPhone);
   // Left/Right life changes, whenever ChangeLife could
   // succeed: a living seat in a running or paused game, no table decision.
@@ -191,6 +197,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
 
 void syncSigilMenus(uint32_t nowMs) {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    TableScope scope(tableForController(id));
     MenuCache &cache = menus[id];
     if (!sigilBus.isOnline(id, nowMs)) {
       cache.sent = false;
@@ -219,6 +226,7 @@ void syncSigilMenus(uint32_t nowMs) {
     lastSeatColorRefreshMs = nowMs;
   }
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
+    TableScope scope(tableForController(id));
     MenuCache &cache = menus[id];
     if (!sigilBus.isOnline(id, nowMs)) {
       cache.lifeSent = false;

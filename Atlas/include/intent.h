@@ -119,6 +119,11 @@ enum class IntentType : uint8_t {
   // Like the player leaving, not moderation: a phone can join again.
   RemoveSeat,
 
+  // Venue model: a Sigil (actor.controllerId, both seats) moves to another
+  // game on this Atlas, payload.value = that table's index. It leaves its
+  // lobby first; never while it plays in a game.
+  ChooseTable,
+
   Count,
 };
 
@@ -279,6 +284,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::Sleep: return "SLEEP";
     case IntentType::SetPartner: return "SET_PARTNER";
     case IntentType::RemoveSeat: return "REMOVE_SEAT";
+    case IntentType::ChooseTable: return "CHOOSE_TABLE";
     case IntentType::Count: return "COUNT";
     default: return "UNKNOWN";
   }

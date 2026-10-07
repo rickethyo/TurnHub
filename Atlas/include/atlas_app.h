@@ -169,6 +169,22 @@ private:
   uint8_t previous_;
 };
 
+// Venue tables. The game a Sigil joins when it isn't seated anywhere;
+// changed only by handleChooseTableIntent (RAM, Game 1 after a boot).
+extern uint8_t sigilTable[MAX_PHYSICAL_SIGILS];
+// The table a controller is seated at, or for an unseated Sigil its chosen
+// one; phone controllers outside every table are Game 1's.
+uint8_t tableForController(uint8_t controllerId);
+// The table where a profile plays (lobby or game), or -1.
+int8_t tableForProfile(const String &profileId);
+// Bit per physical Sigil whose table is index.
+uint16_t sigilsAtTable(uint8_t index);
+// Device-wide gate: OTA and Sigil updates wait for every game. (Pairing
+// follows the game the Atlas screen shows.)
+bool allTablesBetweenGames();
+// True while more than one game is in progress: Atlas's speaker is quiet.
+bool atlasSpeakerShared();
+
 // --- main.cpp ----------------------------------------------------------------
 
 bool configureIntentHandlers();
@@ -240,6 +256,7 @@ IntentResult handleProfileParticipationIntent(const Intent &intent, void *);
 IntentResult handleMoveSeatIntent(const Intent &intent, void *);
 IntentResult handleNudgeIntent(const Intent &intent, void *);
 IntentResult handleRemoveSeatIntent(const Intent &intent, void *);
+IntentResult handleChooseTableIntent(const Intent &intent, void *);
 IntentResult handleSetSeatSideIntent(const Intent &intent, void *);
 IntentResult handleSeatMembershipIntent(const Intent &intent, void *);
 IntentResult handleSelectStarterIntent(const Intent &intent, void *);

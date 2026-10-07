@@ -1614,7 +1614,8 @@ static void sigilMenus() {
   const auto only = [](uint8_t id, std::initializer_list<A> list) {
     uint32_t mask = 0;
     for (A a : list) mask |= sigilActionBit(a);
-    return sigilMenuFor(id).actions == mask;
+    // Switch game (venue tables) has its own scenario.
+    return (sigilMenuFor(id).actions & ~sigilActionBit(A::SwitchTable)) == mask;
   };
   const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
 
@@ -1634,7 +1635,8 @@ static void sigilMenus() {
   syncSigilMenus(testNow);
   assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   MenuStateFields sent = decodeMenuState2(fixtureMenuState2[2]);
-  assert(sent.actions == sigilActionBit(A::Join) && sent.defaultAction == SIGIL_ACTION_NONE);
+  assert(sent.actions == (sigilActionBit(A::Join) | sigilActionBit(A::SwitchTable)) &&
+      sent.defaultAction == SIGIL_ACTION_NONE);
   syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS);
   invalidateSigilMenu(2); syncSigilMenus(testNow); assert(fixtureMenuStateSends == sends + MAX_PHYSICAL_SIGILS + 1);
 

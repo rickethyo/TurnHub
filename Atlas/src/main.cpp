@@ -55,6 +55,7 @@ AudioController audio(sigilBus);
 OtaManager ota(server, otaAllowed);
 
 GameTable tables[MAX_GAME_TABLES];
+static_assert(MAX_GAME_TABLES <= TurnHub::GAME_RECOVERY_SLOTS, "every game table needs a recovery record");
 
 namespace {
 uint8_t currentTable = 0;
@@ -80,7 +81,7 @@ uint32_t luxuryStoreGeneration = 0;
 
 // Polling cadence for the elapsed-clock recovery checkpoint (see below).
 constexpr uint32_t RECOVERY_POLL_INTERVAL_MS = 1000;
-uint32_t lastRecoveryPollMs = 0;
+uint32_t lastRecoveryPollMs[MAX_GAME_TABLES] = {};
 
 // Catches the "periodically checkpoint elapsed clocks" requirement for a long
 // turn with no dispatched intents in between: GameRecovery::save() only
@@ -88,8 +89,9 @@ uint32_t lastRecoveryPollMs = 0;
 // polling this once a second is cheap (no encode-vs-previous work happens
 // between checkpoints) and never spams NVS.
 void updateGameRecoveryClock(uint32_t nowMs) {
-  if (nowMs - lastRecoveryPollMs < RECOVERY_POLL_INTERVAL_MS) return;
-  lastRecoveryPollMs = nowMs;
+  uint32_t &lastPollMs = lastRecoveryPollMs[tableIndex()];
+  if (nowMs - lastPollMs < RECOVERY_POLL_INTERVAL_MS) return;
+  lastPollMs = nowMs;
   TurnHub::checkpointGame(table().game, nowMs);
 }
 
@@ -103,11 +105,12 @@ int lastStationCount = -1;
 // Names in /api/v1/state are re-read when a seat's occupant changes; this
 // also picks up a rename (profile page, Sigil picker) within a few seconds.
 constexpr uint32_t CLIENT_NAME_REFRESH_MS = 5000;
-uint32_t lastClientNameRefreshMs = 0;
+uint32_t lastClientNameRefreshMs[MAX_GAME_TABLES] = {};
 
 void refreshClientNames(uint32_t nowMs) {
-  if (nowMs - lastClientNameRefreshMs < CLIENT_NAME_REFRESH_MS) return;
-  lastClientNameRefreshMs = nowMs;
+  uint32_t &lastRefreshMs = lastClientNameRefreshMs[tableIndex()];
+  if (nowMs - lastRefreshMs < CLIENT_NAME_REFRESH_MS) return;
+  lastRefreshMs = nowMs;
   table().clientState.refreshNames();
 }
 
@@ -168,7 +171,8 @@ void serveDeveloperJson(const String &json) {
 // small active-match cache.
 void restoreInterruptedMatch() {
   using TurnHubStorage::Status;
-  const auto recoveryStatus = TurnHub::beginGameRecovery(table().game, table().lobby, millis());
+  const auto recoveryStatus =
+      TurnHub::beginGameRecovery(table().game, table().lobby, millis(), tableIndex());
   if (recoveryStatus == Status::Ok && table().game.hasPlayers()) {
     // A restored match is always paused (never running) and never charges
     // downtime -- GameEngine::restoreCheckpoint() already rebased the
@@ -298,6 +302,7 @@ bool configureIntentHandlers() {
       {IntentType::MoveSeat, handleMoveSeatIntent},
       {IntentType::SetSeatSide, handleSetSeatSideIntent},
       {IntentType::RemoveSeat, handleRemoveSeatIntent},
+      {IntentType::ChooseTable, handleChooseTableIntent},
       {IntentType::NudgePlayer, handleNudgeIntent},
       {IntentType::AdvanceSetup, handleAdvanceSetupIntent},
       {IntentType::Sleep, handleSleepIntent},
@@ -480,11 +485,17 @@ void setup() {
   TurnHubProfiles::begin();
 
   configureIntentHandlers();
-  sigilBus.setSeatedQuery([](uint8_t id) { return table().lobby.isJoined(id) || table().game.controllerInGame(id); });
-  table().clientState.setNameLookup(displayNameForTableSeat);
-  observeClientState();
+  sigilBus.setSeatedQuery([](uint8_t id) {
+    const GameTable &at = tables[tableForController(id)];
+    return at.lobby.isJoined(id) || at.game.controllerInGame(id);
+  });
   intents.setObserver(observeIntent);
-  restoreInterruptedMatch();
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    TableScope scope(t);
+    table().clientState.setNameLookup(displayNameForTableSeat);
+    observeClientState();
+    restoreInterruptedMatch();
+  }
   logHeapStep("PROFILES_AND_RECOVERY");
 
   const auto settingsStatus = TurnHub::loadGameSettings(nextGameSettings);
@@ -539,21 +550,25 @@ void loop() {
   serviceAtlasDisplay(nowMs);
   serviceFactoryReset(nowMs);
   serviceSleep(nowMs);
-  updatePendingPass(nowMs);
-  updateCountdown(nowMs);
-  updateTurnTimerCues(nowMs);
-  dispatchSystemIntent(IntentType::ExpireLifeChanges);
-  updateGameRecoveryClock(nowMs);
+  for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
+    TableScope scope(t);
+    updatePendingPass(nowMs);
+    updateCountdown(nowMs);
+    updateTurnTimerCues(nowMs);
+    dispatchSystemIntent(IntentType::ExpireLifeChanges);
+    updateGameRecoveryClock(nowMs);
+    leds.render(table().hubState, table().lobby, table().game, table().countdownStartedAtMs,
+        table().eliminationTargetPlayer, table().game.nextWinConfirmationPlayerNumber(), nowMs,
+        sigilsAtTable(t));
+    refreshClientNames(nowMs);
+  }
   updateSigilAccessibility(nowMs);
   audio.update(nowMs);
   serviceAtlasSpeaker(nowMs);
-  leds.render(table().hubState, table().lobby, table().game, table().countdownStartedAtMs, table().eliminationTargetPlayer,
-      table().game.nextWinConfirmationPlayerNumber(), nowMs);
   syncSigilMenus(nowMs);
   syncProfilePickers(nowMs);
   syncCommanderPickers(nowMs);
   ota.update(nowMs);
-  refreshClientNames(nowMs);
   logRuntimeHealth(nowMs);
 
   delay(1);
