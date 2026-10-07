@@ -18,6 +18,8 @@ import com.turnhub.android.protocol.TableState
  */
 data class HomeUiState(
     val connectionState: AtlasConnectionState = AtlasConnectionState.DISCONNECTED,
+    /** When Atlas stopped answering; [tableSummary] is then its last known state. */
+    val offlineSinceMs: Long? = null,
     val endpointText: String = AtlasEndpoint.DEFAULT.baseUrl,
     val tableSummary: TableSummary? = null,
     /** A failure to show the user, if any. */
@@ -59,6 +61,9 @@ data class HomeUiState(
 
     /** Connected, but the latest poll failed and is being retried. */
     val isRetrying: Boolean get() = connectionState == AtlasConnectionState.CONNECTED && errorMessage != null
+
+    /** Atlas isn't answering: the table shown is its last known state, read-only. */
+    val isOffline: Boolean get() = offlineSinceMs != null
 }
 
 /** On launch the app rejoins the table it knows (HomeViewModel.onAppStarted). */

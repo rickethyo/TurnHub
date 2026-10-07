@@ -181,6 +181,7 @@ fun HomeScreen(
             tablet = tablet,
             actions = tabletActions,
             reduceMotion = reduceMotion,
+            offline = uiState.isOffline,
             onClose = { showTablet = false },
             modifier = modifier,
         )
@@ -261,7 +262,10 @@ fun HomeScreen(
             ) {
                 // Atlas dropping out is expected while an update installs; the update step explains it.
                 val installing = setup.visible && setup.updates is com.turnhub.android.data.UpdatesState.Installing
-                uiState.errorMessage?.takeUnless { installing }?.let {
+                val lastKnown = summary?.takeIf { uiState.isOffline && !installing }
+                if (lastKnown != null) {
+                    com.turnhub.android.ui.components.OfflineBanner(lastKnown.receivedAtMs, Modifier.fillMaxWidth())
+                } else uiState.errorMessage?.takeUnless { installing }?.let {
                     ErrorCard(it, uiState.errorDetail, uiState.isRetrying, onOpenAppSettings.takeIf { uiState.offerAppSettings })
                 }
                 if (setup.visible) {
@@ -388,6 +392,7 @@ private fun ConnectionPill(uiState: HomeUiState) {
     val p = palette
     val (text, color) = when {
         uiState.joiningSsid != null -> "Joining Wi-Fi" to p.warn
+        uiState.isOffline -> "Reconnecting" to p.warn
         uiState.isRetrying -> "Retrying" to p.warn
         uiState.connectionState == AtlasConnectionState.CONNECTED -> "Connected" to p.good
         uiState.connectionState == AtlasConnectionState.CONNECTING -> "Connecting" to p.warn

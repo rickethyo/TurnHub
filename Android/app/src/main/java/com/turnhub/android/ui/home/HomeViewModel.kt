@@ -31,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -186,17 +187,20 @@ class HomeViewModel(
         ::SessionExtras,
     )
 
+    private val linkFlows = combine(repository.connectionState, repository.offlineSinceMs, ::Pair)
+
     val uiState: StateFlow<HomeUiState> = combine(
-        repository.connectionState,
+        linkFlows,
         repository.tableSummary,
         repository.failure,
         local,
         sessionFlows,
-    ) { connectionState, tableSummary, repositoryFailure, screen, (view, personalization, avatars, choices, stats) ->
+    ) { (connectionState, offlineSinceMs), tableSummary, repositoryFailure, screen, (view, personalization, avatars, choices, stats) ->
         val (session, busy, feedback, gameSettings, accessibility) = view
         val shown = screen.failure ?: repositoryFailure
         HomeUiState(
             connectionState = connectionState,
+            offlineSinceMs = offlineSinceMs,
             endpointText = screen.endpointText,
             tableSummary = tableSummary,
             errorMessage = shown?.userMessage,
@@ -251,6 +255,20 @@ class HomeViewModel(
                     wifiLink.release()
                 }
                 previous = state
+            }
+        }
+        // While Atlas isn't answering, rejoin its Wi-Fi whenever Android has
+        // dropped it, so polling reaches Atlas as soon as it is back.
+        viewModelScope.launch {
+            repository.offlineSinceMs.collectLatest { since ->
+                if (since == null) return@collectLatest
+                while (true) {
+                    delay(RECONNECT_RETRY_MS)
+                    if (repository.endpoint.value != AtlasEndpoint.DEFAULT) continue
+                    if (wifiLink.joinedSsid.value != null || local.value.rejoining) continue
+                    val credentials = credentialStore.lastSsid()?.let(credentialStore::load) ?: continue
+                    wifiLink.join(credentials)
+                }
             }
         }
         // Atlas sessions are RAM-only: drop ours when the connection ends or

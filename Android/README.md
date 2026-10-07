@@ -190,8 +190,13 @@ updates on Atlas and the Sigils.
    CONNECTED. State is then polled about once per second.
 4. Every poll replaces the view (clocks change at the same revision). A new
    `atlasId`, new `bootId` or a lower `revision` discards the view and
-   re-runs info + state. Three failed polls in a row drop the live view to
-   DISCONNECTED; Connect again loads a fresh snapshot. Disconnect stops polling
+   re-runs info + state. Three failed polls in a row put the app offline
+   (2026-10-07, *Implemented*): it stays on its current screen, tablet mode
+   included, with the last snapshot shown read-only under an "Offline:
+   reconnecting" banner and its age, rejoins Atlas's Wi-Fi if Android dropped
+   it, and polls every 2 s until Atlas answers; the epoch rules above then
+   apply, so a restarted Atlas is rebuilt from a fresh handshake and its
+   sessions reset. Nothing is sent while offline. Disconnect stops polling
    and clears state. A match Atlas recovered after a reboot is simply shown
    as `PAUSED`.
 
@@ -309,9 +314,9 @@ Targeted Wi-Fi (no trip to Android settings):
   (`PreferencesWifiCredentialStore`, app-private, excluded from backup and
   device transfer).
 - Android shows its approval dialog at most once per access point, then
-  remembers it. Disconnect, a lost connection or a failed handshake gives the
-  network back. A joined network is dropped when Atlas reboots, so the view
-  drops to DISCONNECTED and Connect rejoins.
+  remembers it. Disconnect or a failed handshake gives the network back; a
+  lost connection keeps the request and rejoins with the saved password while
+  the app is offline.
 - Needs Android 10+ (API 29). On older phones the prompt points to the manual path.
 - Verified on a Pixel Fold (Android 17): the default fails against an Atlas
   with an owner-set password, the prompt appears, Join connects, Disconnect

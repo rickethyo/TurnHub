@@ -318,30 +318,67 @@ class HttpAtlasRepositoryTest {
     }
 
     @Test
-    fun `Atlas disappearing during polling drops the live view`() = runTest {
+    fun `Atlas disappearing during polling keeps the last state offline`() = runTest {
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        val lastKnown = repository.tableSummary.value
+
+        transport.state = { fail(AtlasFailure.Unreachable("connection refused or no route")) }
+        advance(2_000)
+        assertNull(repository.offlineSinceMs.value)
+        advance(1_000)
+
+        assertEquals(CONNECTED, repository.connectionState.value)
+        assertNotNull(repository.offlineSinceMs.value)
+        assertSame(lastKnown, repository.tableSummary.value)
+        val failure = repository.failure.value
+        assertTrue(failure is AtlasFailure.LostConnection)
+        assertTrue((failure as AtlasFailure.LostConnection).cause is AtlasFailure.Unreachable)
+
+        // Offline it keeps trying, more gently.
+        val callsWhenOffline = transport.stateCalls
+        advance(10_000)
+        assertEquals(callsWhenOffline + 5, transport.stateCalls)
+        assertSame(lastKnown, repository.tableSummary.value)
+
+        // The same boot answers again: back online with fresh state.
+        transport.state = { Fixtures.state("reconnected.response.json") }
+        advance(2_000)
+        assertEquals(CONNECTED, repository.connectionState.value)
+        assertNull(repository.offlineSinceMs.value)
+        assertNull(repository.failure.value)
+        assertEquals(6L, repository.tableSummary.value!!.revision)
+    }
+
+    @Test
+    fun `an Atlas that restarted while offline is rebuilt from a fresh handshake`() = runTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
 
         transport.state = { fail(AtlasFailure.Unreachable("connection refused or no route")) }
         advance(3_000)
+        assertNotNull(repository.offlineSinceMs.value)
 
-        assertEquals(DISCONNECTED, repository.connectionState.value)
-        assertNull(repository.tableSummary.value)
-        val failure = repository.failure.value
-        assertTrue(failure is AtlasFailure.LostConnection)
-        assertTrue((failure as AtlasFailure.LostConnection).cause is AtlasFailure.Unreachable)
-
-        val callsWhenDropped = transport.stateCalls
-        advance(5_000)
-        assertEquals(callsWhenDropped, transport.stateCalls)
-
-        // Power-cycled Atlas is back: reconnecting starts from a fresh snapshot.
         transport.info = { Fixtures.info { put("bootId", Fixtures.OTHER_BOOT_ID) } }
         transport.state = { Fixtures.state("running.response.json") { put("bootId", Fixtures.OTHER_BOOT_ID) } }
-        repository.connect(AtlasEndpoint.DEFAULT)
+        advance(2_000)
         assertEquals(CONNECTED, repository.connectionState.value)
+        assertNull(repository.offlineSinceMs.value)
         assertEquals(Fixtures.OTHER_BOOT_ID, repository.tableSummary.value!!.bootId)
-        assertNull(repository.failure.value)
+    }
+
+    @Test
+    fun `disconnecting while offline clears the last state`() = runTest {
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        transport.state = { fail(timeout) }
+        advance(3_000)
+        assertNotNull(repository.offlineSinceMs.value)
+
+        repository.disconnect()
+        assertEquals(DISCONNECTED, repository.connectionState.value)
+        assertNull(repository.tableSummary.value)
+        assertNull(repository.offlineSinceMs.value)
     }
 
     @Test
@@ -360,11 +397,13 @@ class HttpAtlasRepositoryTest {
         advance(1_000)
         assertNull(repository.failure.value)
 
+        assertNull(repository.offlineSinceMs.value)
+
         // Released, the usual limit applies again.
         repository.holdThroughOutages(false)
         transport.state = { fail(timeout) }
         advance(3_000)
-        assertEquals(DISCONNECTED, repository.connectionState.value)
+        assertNotNull(repository.offlineSinceMs.value)
     }
 
     @Test

@@ -31,11 +31,13 @@ import kotlinx.coroutines.launch
  * - A changed atlasId (different Atlas), changed bootId (Atlas restarted) or a
  *   lower revision (including wrap) discards the cached view and rebuilds from
  *   a fresh info + state handshake. Nothing is merged across epochs.
- * - After [maxConsecutivePollFailures] failed polls the live view is dropped
- *   and the repository returns to DISCONNECTED; the next [connect] starts from
- *   a fresh snapshot. [holdThroughOutages] suspends this during Sigil updates.
- *   This read-only milestone sends no commands, so there is nothing that could
- *   be replayed.
+ * - After [maxConsecutivePollFailures] failed polls the repository goes
+ *   offline: it stays CONNECTED with the last snapshot as [tableSummary], sets
+ *   [offlineSinceMs], and keeps polling every [offlinePollIntervalMs] until
+ *   Atlas answers (the epoch rules above then apply) or [disconnect] is
+ *   called. [holdThroughOutages] keeps a busy Atlas from counting as offline
+ *   during Sigil updates. A failed first handshake still returns to
+ *   DISCONNECTED.
  *
  * All work runs in [scope]; canceling it stops polling. Each connection gets a
  * generation number and may only publish while it is still current, so a
@@ -46,6 +48,8 @@ class HttpAtlasRepository(
     private val scope: CoroutineScope,
     private val pollIntervalMs: Long = 1_000,
     private val maxConsecutivePollFailures: Int = 3,
+    /** Poll spacing while Atlas isn't answering. */
+    private val offlinePollIntervalMs: Long = 2_000,
     /** Upper bound on polls between `/api/seats` name refreshes. */
     private val nameRefreshPolls: Int = 5,
     /** Local monotonic clock (ms), stamped on each summary so the UI can tick between polls. */
@@ -62,6 +66,9 @@ class HttpAtlasRepository(
 
     private val _tableSummary = MutableStateFlow<TableSummary?>(null)
     override val tableSummary: StateFlow<TableSummary?> = _tableSummary.asStateFlow()
+
+    private val _offlineSinceMs = MutableStateFlow<Long?>(null)
+    override val offlineSinceMs: StateFlow<Long?> = _offlineSinceMs.asStateFlow()
 
     private val _failure = MutableStateFlow<AtlasFailure?>(null)
     override val failure: StateFlow<AtlasFailure?> = _failure.asStateFlow()
@@ -88,6 +95,7 @@ class HttpAtlasRepository(
             _endpoint.value = endpoint
             _failure.value = null
             _tableSummary.value = null
+            _offlineSinceMs.value = null
             _connectionState.value = AtlasConnectionState.CONNECTING
             session = scope.launch {
                 try {
@@ -105,6 +113,7 @@ class HttpAtlasRepository(
             generation++
             _connectionState.value = AtlasConnectionState.DISCONNECTED
             _tableSummary.value = null
+            _offlineSinceMs.value = null
             _failure.value = null
             session.also { session = null }
         }
@@ -131,18 +140,23 @@ class HttpAtlasRepository(
 
         var failures = 0
         while (true) {
-            delay(pollIntervalMs)
+            delay(if (_offlineSinceMs.value != null) offlinePollIntervalMs else pollIntervalMs)
             try {
                 live = call { refresh(transport, live) }
                 failures = 0
-                if (!publish(connection) { _tableSummary.value = live.summary; _failure.value = null }) return
+                if (!publish(connection) {
+                        _tableSummary.value = live.summary
+                        _failure.value = null
+                        _offlineSinceMs.value = null
+                    }) return
             } catch (e: AtlasException) {
                 failures++
-                if (failures >= maxConsecutivePollFailures && !holding) {
-                    drop(connection, AtlasFailure.LostConnection(e.failure))
-                    return
-                }
-                if (!publish(connection) { _failure.value = e.failure }) return
+                val offline = _offlineSinceMs.value != null ||
+                    (failures >= maxConsecutivePollFailures && !holding)
+                if (!publish(connection) {
+                        if (offline && _offlineSinceMs.value == null) _offlineSinceMs.value = clock()
+                        _failure.value = if (offline) AtlasFailure.LostConnection(e.failure) else e.failure
+                    }) return
             }
         }
     }
@@ -244,6 +258,7 @@ class HttpAtlasRepository(
         publish(connection) {
             _connectionState.value = AtlasConnectionState.DISCONNECTED
             _tableSummary.value = null
+            _offlineSinceMs.value = null
             _failure.value = failure
             session = null
         }
