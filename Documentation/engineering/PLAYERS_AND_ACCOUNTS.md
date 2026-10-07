@@ -85,7 +85,10 @@ the screen on and hides the system bars during play.
 - **Turning it on.** Any signed-in account asks for a table presence code
   with `purpose=tablet` (a player's code unlocks only this; every Admin action
   still checks Admin), enters the code the Atlas screen shows, then
-  `POST /api/tablet/enable`. The grant lives on that browser session (RAM)
+  `POST /api/tablet/enable`. An account with the **Tablet access** role
+  (owner request 2026-10-07) calls `enable` with no code, e.g. a dedicated
+  tablet account that never joins the table; the log line ends `|ROLE`
+  instead of `|CODE`. The grant lives on that browser session (RAM)
   until `POST /api/tablet/disable`, sign-out or the eight-hour idle expiry.
 - **Seating.** In the lobby the tablet adds players: a new name creates a
   profile with no PIN (names are unique, ignoring case); an existing profile
@@ -127,6 +130,7 @@ sign-in list.
 | Admin | Account permissions, device names, network settings, firmware and portal updates, pairing confirmation and forget, factory reset, Return table to lobby, speaker volume |
 | Game Master | Force pass (logged as a master pass), nudge mute; optional sub-permissions **reset connections** and **remove from game** |
 | Developer | Developer page, diagnostics and the RAM log download (`GET /api/diagnostics/log`) |
+| Tablet access | Turns on tablet mode without a table presence code (bit 32; needs no other role) |
 
 A normal account has none. Permissions combine freely and are checked on
 Atlas for every protected request. Privileged accounts can't remove their

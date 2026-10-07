@@ -174,7 +174,8 @@ Session-token authenticated; other accounts get 403.
 `GET /api/accounts` (session token) lists accounts: everyone for an Admin,
 non-archived accounts for a Game Master, only the caller otherwise. Each entry
 has `profileId`, `name`, `permissions` (bits: 1 Admin, 2 Game Master,
-4 Developer, 8 GM reset connections, 16 GM remove from game), `archived` and
+4 Developer, 8 GM reset connections, 16 GM remove from game, 32 Tablet
+access), `archived` and
 `avatar`; Game Masters and the account itself also get `nudgeMuted`. Admins
 and Game Masters also get `hasPin`, `primary` (the initial Admin), `atTable`
 and `reconnectRequired`, so clients can explain a blocked action up front.
@@ -271,7 +272,9 @@ One shared screen at the table acting for every seat. Engineering record:
 1. Signed in, `POST /api/presence/request` with `purpose=tablet` (open to any
    account), then `POST /api/presence/confirm` with the `code` the Atlas
    screen shows, then `POST /api/tablet/enable`. `GET /api/session/me`
-   reports `"tablet":true|false`. `POST /api/tablet/disable` turns it off.
+   reports `"tablet":true|false`. An account with the Tablet access role
+   (permission bit 32 in `/api/session/me`) skips the code and calls
+   `POST /api/tablet/enable` directly. `POST /api/tablet/disable` turns it off.
    Without the grant every route below answers
    `403 {"ok":false,"tabletRequired":true,"error":...}`.
 2. Lobby: `POST /api/tablet/seat` with `name` (creates a profile with no PIN;

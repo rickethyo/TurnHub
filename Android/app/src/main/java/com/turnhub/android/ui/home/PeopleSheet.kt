@@ -64,6 +64,8 @@ private val ROLES = listOf(
     Triple(AccountPermission.ADMIN, "Admin", "Device settings, Wi-Fi, updates and people."),
     Triple(AccountPermission.GAME_MASTER, "Game Master", "Moderates players at the table."),
     Triple(AccountPermission.DEVELOPER, "Developer", "The diagnostics page and the Atlas log."),
+    Triple(AccountPermission.TABLET_ACCESS, "Tablet access",
+        "Turns on tablet mode without a code from the Atlas screen, e.g. for a tablet account that never joins the table."),
 )
 private val GM_POWERS = listOf(
     Triple(AccountPermission.GM_RESET_CONNECTIONS, "Reset connections", "Can sign a player out everywhere until they sign in again."),

@@ -768,3 +768,15 @@ when Atlas stops answering and queues tablet life and Commander changes for
 replay. Radio version unchanged; Sigil firmware and portal pack unchanged.
 Local firmware compilation was unavailable; use the CI artifact for sizes.
 
+
+## 2026-10-07 Tablet access role (Atlas 0.6.15, portal pack 1.2.2)
+
+Atlas 0.6.14 -> 0.6.15: a new account permission, **Tablet access** (bit 32,
+`TurnHubAccounts::TabletAccess`), lets `POST /api/tablet/enable` skip the
+table presence code, e.g. for a dedicated tablet account that never joins the
+table. Admins set it from People (portal and app) like the other roles, and
+like them it needs a PIN on the account. Everyone else still enters the code.
+The account record layout is unchanged (the permissions byte already had room).
+Portal pack 1.2.1 -> 1.2.2 (People role, tablet gate); Android shows the role
+and turns tablet mode on directly for such an account. Radio version and Sigil
+firmware unchanged. Planned release: v0.9.11.

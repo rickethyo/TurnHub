@@ -68,6 +68,7 @@ import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
+import com.turnhub.android.protocol.AccountPermission
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
@@ -119,7 +120,9 @@ fun TabletScreen(
             summary == null -> Gate(tablet, actions, onClose) {
                 Text("Connect to Atlas first, then open tablet mode again.", color = p.muted)
             }
-            !granted -> Gate(tablet, actions, onClose) { GateSteps(signedIn, tablet, actions) }
+            !granted -> Gate(tablet, actions, onClose) {
+                GateSteps(signedIn, session?.has(AccountPermission.TABLET_ACCESS) == true, tablet, actions)
+            }
             summary.state == TableState.LOBBY -> Lobby(summary, tablet, actions, onClose)
             else -> {
                 Immersive()
@@ -242,11 +245,16 @@ private fun Gate(tablet: TabletState, actions: TabletActions, onClose: () -> Uni
 }
 
 @Composable
-private fun GateSteps(signedIn: Boolean, tablet: TabletState, actions: TabletActions) {
+private fun GateSteps(signedIn: Boolean, tabletAccess: Boolean, tablet: TabletState, actions: TabletActions) {
     val p = palette
     if (!signedIn) {
         Text("Sign in first. Any account can turn on tablet mode.", color = p.muted)
         AccentButton("Sign in", actions.onSignIn, Modifier.fillMaxWidth())
+        return
+    }
+    if (tabletAccess) {
+        Text("This account has tablet access, so no code is needed.", color = p.muted)
+        AccentButton("Use this device as the tablet", { actions.run { enable() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
         return
     }
     if (!tablet.codePrompt) {
