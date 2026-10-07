@@ -59,6 +59,9 @@ jobs:
               protocol/*) atlas=true android=true ;;
               # Tokens generate Android resources (the portal pack check always runs).
               design/*) android=true ;;
+              # The offline manual is generated from the docx; the always-run
+              # manual asset check covers it, so it needs no Gradle build.
+              Android/app/src/main/assets/manual.md) ;;
               Android/*) android=true ;;
               # Signing tool: its tests plus every packaged firmware build.
               tools/firmware/*) tools=true atlas=true sigil=true ;;
@@ -147,6 +150,18 @@ jobs:
         if: env.BUILD == 'true'
         with:
           python-version: '3.12'
+      # Platform, toolchain and libraries (about a minute of downloads per job
+      # uncached). Keyed by the project's platformio.ini, so a version change
+      # downloads fresh; the build itself always starts clean.
+      - name: Cache PlatformIO packages
+        if: env.BUILD == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/platforms
+            ${{ matrix.project }}/.pio/libdeps
+          key: pio-6.2.0-${{ runner.os }}-${{ matrix.environment }}-${{ hashFiles(format('{0}/platformio.ini', matrix.project)) }}
       - name: Install PlatformIO
         if: env.BUILD == 'true'
         run: |
