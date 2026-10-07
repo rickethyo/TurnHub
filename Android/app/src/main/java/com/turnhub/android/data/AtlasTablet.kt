@@ -90,7 +90,7 @@ data class TabletState(
 class AtlasTablet(
     private val session: AtlasPlayerSession,
     private val endpoint: () -> AtlasEndpoint?,
-) {
+) : TableControls {
     private val _state = MutableStateFlow(TabletState())
     val state: StateFlow<TabletState> = _state.asStateFlow()
     private var nextOfflineId = 1L
@@ -129,7 +129,7 @@ class AtlasTablet(
     fun dismissCode() = _state.update { it.copy(codePrompt = false) }
 
     /** Hands the table back: the session stays signed in, without the tablet grant. */
-    suspend fun disable() {
+    override suspend fun disable() {
         post("/api/tablet/disable")
         _state.update { TabletState() }
         session.refresh()
@@ -190,21 +190,21 @@ class AtlasTablet(
     // --- the table ----------------------------------------------------------------
 
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or `reset`. */
-    suspend fun control(seat: TabletSeat, action: String): Boolean {
+    override suspend fun control(seat: TabletSeat, action: String): Boolean {
         val response = post("/api/tablet/control", seat.fields + ("action" to action)) ?: return false
         if (response.ok) succeed() else fail(response)
         return response.ok
     }
 
     /** Changes the seat's own life by [delta]; true when Atlas applied it. */
-    suspend fun life(seat: TabletSeat, delta: Int): Boolean {
+    override suspend fun life(seat: TabletSeat, delta: Int): Boolean {
         val response = post("/api/tablet/life", seat.fields + ("delta" to "$delta")) ?: return false
         if (response.ok) succeed() else fail(response)
         return response.ok
     }
 
     /** Commander damage the seat received from [source]'s [commander] (1 or 2). */
-    suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int) {
+    override suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int) {
         val response = post(
             "/api/tablet/commander",
             seat.fields + listOf("source" to "$source", "commander" to "$commander", "delta" to "$delta"),
@@ -213,7 +213,7 @@ class AtlasTablet(
     }
 
     /** Answers a phone's request to change this seat's life. */
-    suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean) {
+    override suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean) {
         val response = post(
             "/api/tablet/life/respond",
             seat.fields + listOf("requestId" to "$requestId", "accept" to if (accept) "1" else "0"),
@@ -228,7 +228,7 @@ class AtlasTablet(
      * Taps on the same target add up into one change, keeping the first tap's
      * time; a change that adds up to nothing is dropped.
      */
-    fun queueOffline(change: OfflineChange) = _state.update { state ->
+    override fun queueOffline(change: OfflineChange) = _state.update { state ->
         val index = state.offline.indexOfFirst { it.sentAtRevision == null && it.sameTarget(change) }
         val offline = if (index < 0) {
             state.offline + change.copy(id = nextOfflineId++, sentAtRevision = null)
@@ -241,7 +241,7 @@ class AtlasTablet(
     }
 
     /** Refuses an action that only Atlas can decide live (passing, pausing, answers…). */
-    fun refuseOffline() = _state.update {
+    override fun refuseOffline() = _state.update {
         it.copy(message = ActionFeedback(
             "Atlas is offline. Life and Commander damage are saved for it; this waits until it's back.",
             isError = true,

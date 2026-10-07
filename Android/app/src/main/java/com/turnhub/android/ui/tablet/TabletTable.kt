@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.turnhub.android.data.OfflineChange
+import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
@@ -155,11 +156,15 @@ private const val PASS_HOLD_MS = 600L
 internal fun TabletTable(
     summary: TableSummary,
     tablet: TabletState,
-    actions: TabletActions,
+    /** Sends one request for a seat: to Atlas, or (standalone) to the app's own game. */
+    controls: (suspend TableControls.() -> Unit) -> Unit,
+    onDismissMessage: () -> Unit,
     reduceMotion: Boolean,
     onClose: () -> Unit,
     /** Atlas isn't answering: life and Commander taps are kept for it, everything else waits. */
     offline: Boolean = false,
+    /** The standalone game (no Atlas): the menu has no tablet grant to hand back. */
+    standalone: Boolean = false,
 ) {
     val p = palette
     val haptics = rememberHaptics()
@@ -180,14 +185,14 @@ internal fun TabletTable(
     LaunchedEffect(tablet.message) {
         if (tablet.message != null) {
             delay(3_500)
-            actions.onDismissMessage()
+            onDismissMessage()
         }
     }
 
     fun send(seat: TabletSeat?, action: String) {
         seat ?: return
         haptics.tick()
-        if (isOffline) actions.run { refuseOffline() } else actions.run { this.control(seat, action) }
+        if (isOffline) controls { refuseOffline() } else controls { this.control(seat, action) }
     }
 
     /** Keeps a change for Atlas while it isn't answering, against the last state it sent. */
@@ -201,7 +206,7 @@ internal fun TabletTable(
             bootId = current.bootId,
             gameElapsedMs = current.gameElapsedMs,
         )
-        actions.run { queueOffline(change) }
+        controls { queueOffline(change) }
     }
 
     fun flush(key: String) {
@@ -211,7 +216,7 @@ internal fun TabletTable(
         if (isOffline) return keep(unit.lifeSeat, delta)
         val entry = SentLife(nextId++, key, delta, current.revision)
         sent.add(entry)
-        actions.run {
+        controls {
             if (this.life(unit.lifeSeat.seat(), delta)) {
                 val i = sent.indexOfFirst { it.id == entry.id }
                 if (i >= 0) sent[i] = entry.copy(acked = true)
@@ -264,11 +269,11 @@ internal fun TabletTable(
                         onCommander = { member, source, which, delta ->
                             haptics.tick()
                             if (isOffline) keep(member, delta, source, which)
-                            else actions.run { this.commander(member.seat(), source, which, delta) }
+                            else controls { this.commander(member.seat(), source, which, delta) }
                         },
                         onRespond = { seat, id, accept ->
-                            if (isOffline) actions.run { refuseOffline() }
-                            else actions.run { this.respondLife(seat, id, accept) }
+                            if (isOffline) controls { refuseOffline() }
+                            else controls { this.respondLife(seat, id, accept) }
                         },
                         offlineCommander = tablet::offlineCommander,
                         haptics = haptics,
@@ -351,15 +356,22 @@ internal fun TabletTable(
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                     ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
-                    ToneButton("Leave tablet mode", {
-                        menuOpen = false
-                        if (isOffline) {
-                            actions.run { refuseOffline() }
-                        } else {
-                            actions.run { this.disable() }
-                            onClose()
+                    if (standalone) {
+                        ArmedButton("End without a winner", "Tap again to end the game", Tone.BAD) {
+                            menuOpen = false
+                            send(anySeat, "draw")
                         }
-                    }, Modifier.fillMaxWidth(), tone = Tone.BAD)
+                    } else {
+                        ToneButton("Leave tablet mode", {
+                            menuOpen = false
+                            if (isOffline) {
+                                controls { refuseOffline() }
+                            } else {
+                                controls { this.disable() }
+                                onClose()
+                            }
+                        }, Modifier.fillMaxWidth(), tone = Tone.BAD)
+                    }
                     AccentButton("Close", { menuOpen = false }, Modifier.fillMaxWidth())
                 }
             }

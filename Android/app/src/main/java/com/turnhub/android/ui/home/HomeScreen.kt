@@ -136,6 +136,8 @@ fun HomeScreen(
     seatActions: SeatActions = SeatActions(),
     tablet: com.turnhub.android.data.TabletState = com.turnhub.android.data.TabletState(),
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
+    /** Opens the standalone tablet game, for a table with no Atlas. */
+    onPlayStandalone: () -> Unit = {},
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -271,7 +273,7 @@ fun HomeScreen(
                 if (setup.visible) {
                     SetupScreen(setup, setupActions)
                 } else if (summary == null) {
-                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
+                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion, onPlayStandalone)
                 } else {
                     if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
                     // A short fade and rise between tabs; none when motion is reduced.
@@ -437,6 +439,7 @@ private fun ConnectCard(
     onDisconnectClick: () -> Unit,
     discovery: DiscoveryActions,
     reduceMotion: Boolean,
+    onPlayStandalone: () -> Unit,
 ) {
     val p = palette
     val working = uiState.rejoining || uiState.joiningSsid != null ||
@@ -480,6 +483,11 @@ private fun ConnectCard(
                 ToneButton("Connect to a table", onConnectClick, Modifier.fillMaxWidth())
             }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().height(56.dp))
+        }
+        if (!working && uiState.connectionState != AtlasConnectionState.CONNECTED) {
+            // No Atlas at the table: this device keeps a simple game itself and
+            // hands Atlas the finished games on the next connect.
+            ToneButton("Play without Atlas", onPlayStandalone, Modifier.fillMaxWidth(), tone = Tone.INFO)
         }
         var advanced by rememberSaveable { mutableStateOf(false) }
         TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {

@@ -48,6 +48,13 @@ import com.turnhub.android.data.HttpAtlasTransport
 import com.turnhub.android.data.PreferencesWifiCredentialStore
 import com.turnhub.android.data.TargetedAtlasWifiLink
 import com.turnhub.android.ui.home.HomeScreen
+import com.turnhub.android.standalone.PreferencesStandaloneStore
+import com.turnhub.android.standalone.StandaloneTable
+import com.turnhub.android.standalone.StandaloneViewModel
+import com.turnhub.android.ui.tablet.StandaloneScreen
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.turnhub.android.ui.home.HomeViewModel
 import com.turnhub.android.ui.theme.TurnHubTheme
 import com.turnhub.android.ui.theme.palette
@@ -81,6 +88,13 @@ class MainActivity : ComponentActivity() {
             },
             vault = KeystoreProfileVault(applicationContext).takeIf { it.available },
         )
+    }
+
+    /** The standalone tablet game (no Atlas), kept across rotation. */
+    private val standaloneViewModel: StandaloneViewModel by viewModels {
+        viewModelFactory {
+            initializer { StandaloneViewModel(StandaloneTable(PreferencesStandaloneStore(applicationContext))) }
+        }
     }
 
     // On launch: local network permission (Android 17), then rejoin the saved table.
@@ -289,6 +303,7 @@ class MainActivity : ComponentActivity() {
         // Edge to edge from the first frame; the theme corrects the bar icons below.
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        homeViewModel.onAtlasProfiles = standaloneViewModel.table::rememberProfiles
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         // Not again on rotation (the ViewModel also runs it once).
@@ -313,7 +328,16 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
-                    HomeScreen(
+                    var standalone by rememberSaveable { mutableStateOf(false) }
+                    if (standalone) {
+                        StandaloneScreen(
+                            state = standaloneViewModel.table.state.collectAsStateWithLifecycle().value,
+                            table = standaloneViewModel.table,
+                            reduceMotion = reduceMotion,
+                            onClose = { standalone = false },
+                        )
+                    } else HomeScreen(
+                        onPlayStandalone = { standalone = true },
                         uiState = uiState,
                         onEndpointChange = homeViewModel::onEndpointChanged,
                         onConnectClick = ::connectToAtlas,

@@ -126,7 +126,7 @@ fun TabletScreen(
             summary.state == TableState.LOBBY -> Lobby(summary, tablet, actions, onClose)
             else -> {
                 Immersive()
-                TabletTable(summary, tablet, actions, reduceMotion, onClose, offline)
+                TabletTable(summary, tablet, { block -> actions.run { this.block() } }, actions.onDismissMessage, reduceMotion, onClose, offline)
             }
         }
         if (offline && summary != null) {
@@ -193,7 +193,7 @@ private fun OfflineCover(summary: TableSummary, onClose: () -> Unit) {
 
 /** The table screen stays on while tablet mode is open. */
 @Composable
-private fun KeepScreenOn() {
+internal fun KeepScreenOn() {
     val view = LocalView.current
     DisposableEffect(view) {
         view.keepScreenOn = true
@@ -203,7 +203,7 @@ private fun KeepScreenOn() {
 
 /** During play the system bars hide; a swipe from the edge shows them briefly. */
 @Composable
-private fun Immersive() {
+internal fun Immersive() {
     val view = LocalView.current
     DisposableEffect(view) {
         val window = view.context.findActivity()?.window
@@ -287,7 +287,7 @@ internal fun Feedback(message: String, isError: Boolean) {
 // --- the lobby ----------------------------------------------------------------------
 
 /** Formats offered in the lobby, with the starting life each sets. */
-private val FORMATS = listOf(
+internal val FORMATS = listOf(
     Triple(GameProfile.MTG_COMMANDER, "Commander", 40),
     Triple(GameProfile.MTG, "Magic", 20),
     Triple(GameProfile.YUGIOH, "Yu-Gi-Oh!", 8000),
@@ -426,7 +426,7 @@ private fun SeatedRow(player: TablePlayer, count: Int, busy: Boolean, actions: T
 }
 
 @Composable
-private fun MoveButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun MoveButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
     val p = palette
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = label }) {
         Text(glyph, color = if (enabled) p.text else p.faint, style = MaterialTheme.typography.titleLarge)

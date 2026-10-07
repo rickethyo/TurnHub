@@ -2,7 +2,7 @@
 
 This directory holds the native TurnHub Android client.
 
-The Android app is a controller and presentation client. It is not a second TurnHub game engine.
+The Android app is a controller and presentation client. It is not a second TurnHub game engine, with one exception: the standalone tablet game below.
 
 ## Hard architecture rule
 
@@ -24,6 +24,27 @@ The app must not:
 - Become authoritative for life totals, active player, timers, winner, or elimination state.
 - Reimplement gameplay rules that already belong to Atlas.
 - Depend directly on ESP32 C++ implementation details.
+
+### The one exception: the standalone tablet game
+
+With **no Atlas at the table**, **Play without Atlas** (on the Connect card)
+runs a small game on the device itself: life, Commander damage, turns, pause,
+concede and the winner (`standalone/StandaloneGame.kt`). It is a separate
+game, never a copy of or a change to a game Atlas is running, so nothing is
+merged back live. The rules above apply in full whenever Atlas is present.
+
+- The table screen is tablet mode's (`ui/tablet/TabletTable.kt`); it sends
+  the same seat actions through `data/TableControls`, which
+  `StandaloneTable` applies locally instead of `AtlasTablet` sending them.
+- Players are typed names or picks from the profiles of the last Atlas the
+  app connected to (cached on every connect). Typed names that match a
+  cached profile become that profile.
+- Each finished game becomes a `GameRecord` kept on the device until an
+  Atlas imports it once on a later connect, crediting games played and won
+  to the matching profiles (by picked profile, else by name) and ignoring a
+  record it has already taken. The import is the only way a standalone game
+  reaches Atlas statistics.
+- No turn timer, Two-Headed Giant, phones or Sigils in this mode.
 
 ```text
 Compose UI
