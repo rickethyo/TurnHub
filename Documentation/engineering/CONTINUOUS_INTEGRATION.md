@@ -41,10 +41,11 @@ supplies the Android SDK; after license acceptance, Gradle installs the SDK
 components requested by the project.
 
 The workflow uses read-only repository permission and pinned revisions of
-official GitHub actions. Its secrets are `TURNHUB_FIRMWARE_SIGNING_KEY`, the
-firmware signing key ([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)),
-the Play upload key and the Play service account below; without them (for example on a fork's pull
-request) builds are left unsigned and still pass. It does not flash devices
+official GitHub actions, plus `r0adkll/upload-google-play` for Play. Its
+secrets are `TURNHUB_FIRMWARE_SIGNING_KEY`, the firmware signing key
+([Firmware Updates](FIRMWARE_UPDATES.md#keys-and-signing)), the Play upload
+key and the Play service account below; without them (for example on a fork's
+pull request) builds are left unsigned and still pass. It does not flash devices
 or modify repository content/settings; its only publishing is master's
 Android bundle to Play internal testing.
 
