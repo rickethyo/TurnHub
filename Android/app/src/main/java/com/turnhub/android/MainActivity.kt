@@ -371,7 +371,10 @@ class MainActivity : ComponentActivity() {
                             state = localState,
                             table = standaloneViewModel.table,
                             reduceMotion = reduceMotion,
-                            onClose = { standalone = false },
+                            onClose = {
+                                standalone = false
+                                uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
+                            },
                             onHistory = { localHistory = true },
                         )
                     } else HomeScreen(

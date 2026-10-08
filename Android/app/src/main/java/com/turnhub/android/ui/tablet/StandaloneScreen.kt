@@ -79,6 +79,7 @@ fun StandaloneScreen(
         if (state.storageProblem != null) {
             Column(Modifier.safeDrawingPadding().padding(24.dp)) {
                 Text(state.storageProblem, color = p.text)
+                TextButton(onClick = { table.startFresh() }) { Text("Keep old data aside and start fresh") }
                 TextButton(onClick = onClose) { Text("Back") }
             }
         } else if (game.state == TableState.LOBBY) {
