@@ -31,20 +31,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: github.event_name == 'pull_request'
         with:
-          persist-credentials: false
-          # The PR merge commit and its first parent, the base branch tip.
-          fetch-depth: 2
+          # Kept so the classifier can fetch the base tip; this job runs only git.
+          persist-credentials: true
+          fetch-depth: 1
       - name: Classify changed paths
         id: filter
         env:
           EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           all() { for c in atlas sigil android tools; do echo "$c=true"; done >> "$GITHUB_OUTPUT"; }
           if [ "$EVENT" != pull_request ]; then
             echo "::notice::$EVENT run: building everything."
             all; exit 0
           fi
-          if ! files=$(git diff --name-only HEAD^1 HEAD); then
+          # Compare against the base branch tip itself, not HEAD^1: when the
+          # branch already contains the base (merged master into it), the merge
+          # ref's first parent is the branch's own previous commit and the
+          # classifier would miss the PR's real changes.
+          if ! git fetch --quiet --depth=1 origin "$BASE_SHA" ||
+             ! files=$(git diff --name-only "$BASE_SHA" HEAD); then
             echo "::warning::Could not list changed files; building everything."
             all; exit 0
           fi
