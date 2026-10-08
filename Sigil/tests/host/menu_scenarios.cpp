@@ -2,6 +2,7 @@
 #include "picker_list.h"
 #include "life_adjust.h"
 #include "three_part_button.h"
+#include "idle_sleep.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -378,5 +379,34 @@ int main() {
     for (uint8_t i = 0; i < v.rowCount; ++i)
       for (uint8_t j = 0; j < i; ++j) assert(v.rows[i] != v.rows[j]);
   }
-  std::cout << "Menu wire format, bare keys, e-ink pages, OLED list, Device, holds and stale menus passed\n";
+  // Auto sleep: never mid-game, sooner with no Atlas, never while busy.
+  {
+    IdleSleepInputs in;
+    in.lastInputMs = 1000;
+    in.nowMs = 1000 + IDLE_SLEEP_MS - 1;
+    in.mode = DisplayMode::Lobby;
+    assert(!idleSleepDue(in));
+    in.nowMs = 1000 + IDLE_SLEEP_MS;
+    assert(idleSleepDue(in));
+    for (DisplayMode m : {DisplayMode::Starting, DisplayMode::Running, DisplayMode::Paused}) {
+      in.mode = m;
+      assert(!idleSleepDue(in));
+    }
+    in.mode = DisplayMode::GameOver;
+    assert(idleSleepDue(in));
+    in.busy = true;
+    assert(!idleSleepDue(in));
+    in.busy = false;
+    in.mode = DisplayMode::Running;
+    in.atlasAbsent = true;
+    in.nowMs = 1000 + IDLE_SLEEP_NO_ATLAS_MS - 1;
+    assert(!idleSleepDue(in));
+    in.nowMs = 1000 + IDLE_SLEEP_NO_ATLAS_MS;
+    assert(idleSleepDue(in));
+    // millis() wrapping is still just elapsed time.
+    in.lastInputMs = 0xFFFFFF00u;
+    in.nowMs = in.lastInputMs + IDLE_SLEEP_NO_ATLAS_MS;
+    assert(idleSleepDue(in));
+  }
+  std::cout << "Menu wire format, bare keys, e-ink pages, OLED list, Device, holds, stale menus and auto sleep passed\n";
 }

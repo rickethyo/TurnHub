@@ -266,6 +266,8 @@ void observeIntent(const Intent &intent) {
   // whether this tick just settled one. Other completed handlers are
   // infrequent.
   if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
+  // Anything a player does keeps Atlas from sleeping on the cell.
+  if (intent.actor.origin != IntentOrigin::System) noteAtlasActivity(millis());
   observeClientState();
   // Persist a checkpoint after every dispatched intent. GameRecovery::save()
   // only actually touches NVS when the encoded game state changed or the
@@ -493,6 +495,9 @@ void startNetworking() {
 using namespace TurnHubAtlas;
 
 void setup() {
+  // Asleep on the cell, Atlas wakes each minute to look for USB: without it,
+  // back to sleep before anything starts.
+  stayAsleepWithoutUsb();
   // Back from Sleep: the wake pins return to the digital GPIO driver and the
   // backlight's hold is released before anything configures them.
   releaseSleepWakePins();
@@ -596,6 +601,7 @@ void loop() {
   updateBootButton(digitalRead(AtlasConfig::BOOT_BUTTON_PIN) == LOW, nowMs);
   serviceAtlasDisplay(nowMs);
   serviceFactoryReset(nowMs);
+  serviceAutoSleep(nowMs);
   serviceSleep(nowMs);
   for (uint8_t t = 0; t < MAX_GAME_TABLES; ++t) {
     TableScope scope(t);

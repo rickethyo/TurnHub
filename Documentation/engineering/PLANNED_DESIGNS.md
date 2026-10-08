@@ -72,7 +72,10 @@ Steps:
 
 *Shipped meanwhile (2026-10-02):* a manual **Sleep** in the Sigil device menu
 and on Atlas's Menu > Device screen, using deep sleep and a pin wake (see
-[Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md), "Sleep"). The automatic, Atlas-managed light sleep below is still
+[Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md), "Sleep"), and
+(2026-10-08) the same deep sleep chosen by itself: a Sigil idle outside a game
+or without Atlas, Atlas idle or empty on its battery. The Atlas-managed light
+sleep below, which may sleep a seated player's Sigil mid-game, is still
 planned.
 
 Owner, 2026-09-30: after 5 to 10 minutes with no physical input, a Sigil

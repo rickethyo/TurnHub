@@ -62,6 +62,7 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 #include "picker_list.h"
 #include "life_adjust.h"
 #include "status_ring.h"
+#include "idle_sleep.h"
 
 namespace {
 
@@ -442,6 +443,9 @@ bool readButton(uint8_t pin) {
   return digitalRead(pin);
 }
 
+// The last key, joystick or Pair press or release (auto sleep, idle_sleep.h).
+uint32_t lastInputMs = 0;
+
 // Returns true once each time the button settles in a new state.
 bool debouncedEdge(ButtonState &button, uint32_t nowMs) {
   const bool reading = readButton(button.pin);
@@ -453,6 +457,7 @@ bool debouncedEdge(ButtonState &button, uint32_t nowMs) {
     return false;
   }
   button.stableState = button.rawState;
+  lastInputMs = nowMs;
   return true;
 }
 
@@ -1675,6 +1680,30 @@ void updateSleep(uint32_t nowMs) {
   if (drawn && released) enterDeepSleep();
 }
 
+#if !TURNHUB_SPARE
+// Auto sleep (idle_sleep.h): the device menu's Sleep, chosen by itself after
+// a while untouched outside a game, or with no Atlas to play with.
+void updateIdleSleep(uint32_t nowMs) {
+  TurnHubSigil::IdleSleepInputs in;
+  in.nowMs = nowMs;
+  in.lastInputMs = lastInputMs;
+  in.atlasAbsent = sigilId == UNASSIGNED_SIGIL_ID || atlasLink.lost();
+  // A running game arrives as game display packets, not a display state.
+  in.mode = gameDisplayValid ? DisplayMode::Running : TurnHubProtocol::displayMode(displayPayload);
+  in.busy = pairingActive || sleepRequested
+#if TURNHUB_OTA
+      || updater.pending()
+#endif
+      ;
+  if (!TurnHubSigil::idleSleepDue(in)) return;
+  Serial.println("SIGIL|SLEEP|IDLE");
+  sleepRequested = true;
+  sleepRequestedMs = nowMs;
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+#endif
+
 // Only a physical Pair press enables broadcast association requests.
 void startPairing() {
   if (pairingActive ||
@@ -2010,6 +2039,9 @@ void loop() {
   updatePairButton();
   updatePairing();
   applyAtlasLinkChange(atlasLink.update(millis()));
+#if !TURNHUB_SPARE
+  updateIdleSleep(millis());
+#endif
   updateLeds();
   updateBuzzer();
   updateDisplayProfileSync();

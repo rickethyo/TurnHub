@@ -3751,6 +3751,42 @@ static void touchDeviceSleep() {
   assert(fixtureFactoryResets==0);
 }
 
+// Auto sleep on the cell (owner 2026-10-08): idle between games, or an empty
+// charge at any time. On USB Atlas never sleeps by itself.
+extern bool fixtureOnBattery;
+extern bool fixtureSleptEmpty;
+static void autoSleepOnBattery() {
+  resetPresence(); resetTouchControls();
+  freshLobby(2); fixtureSleeps=0; fixtureOnBattery=false;
+  fixtureBattery=TurnHub::BatteryReading(); fixtureBattery.present=true; fixtureBattery.percent=50;
+  const uint32_t idle=AtlasConfig::BATTERY_IDLE_SLEEP_MS;
+  serviceAutoSleep(testNow); testNow+=idle*2; serviceAutoSleep(testNow);
+  assert(!sleepScheduled());
+  // Unplugged: the idle count starts now, and any player action restarts it.
+  fixtureOnBattery=true; serviceAutoSleep(testNow);
+  testNow+=idle-60000; serviceAutoSleep(testNow); assert(!sleepScheduled());
+  Intent web; web.type=IntentType::Sleep; web.actor.origin=IntentOrigin::Browser;
+  assert(intents.dispatch(web).status==IntentStatus::Unauthorized);
+  testNow+=idle-60000; serviceAutoSleep(testNow); assert(!sleepScheduled());
+  testNow+=60000; serviceAutoSleep(testNow); assert(sleepScheduled());
+  serviceSleep(testNow+3000); assert(fixtureSleeps==1 && !fixtureSleptEmpty && !sleepScheduled());
+  // Mid-game, idle never sleeps it.
+  enterEmptyLobby(); freshLobby(2); startFromHost();
+  testNow+=idle*2; serviceAutoSleep(testNow); assert(!sleepScheduled());
+  // An empty cell does, once the reading has held, but not while charging.
+  fixtureBattery.percent=AtlasConfig::BATTERY_EMPTY_PERCENT; fixtureBattery.low=true; fixtureBattery.charging=true;
+  serviceAutoSleep(testNow); testNow+=AtlasConfig::BATTERY_EMPTY_CONFIRM_MS*2; serviceAutoSleep(testNow);
+  assert(!sleepScheduled());
+  fixtureBattery.charging=false;
+  serviceAutoSleep(testNow); testNow+=AtlasConfig::BATTERY_EMPTY_CONFIRM_MS/2; serviceAutoSleep(testNow);
+  assert(!sleepScheduled());
+  testNow+=AtlasConfig::BATTERY_EMPTY_CONFIRM_MS/2; serviceAutoSleep(testNow);
+  assert(sleepScheduled() && table().hubState==HubState::Running);
+  serviceSleep(testNow+3000); assert(fixtureSleeps==2 && fixtureSleptEmpty);
+  fixtureOnBattery=false; fixtureBattery=TurnHub::BatteryReading();
+  enterEmptyLobby(); resetTouchControls();
+}
+
 struct CompletionPowerLoss {};
 static unsigned completionWritesBeforeLoss = 0;
 static void interruptCompletionWrite() {
@@ -4342,6 +4378,7 @@ int main() {
   bootButtonGestures(); std::cout<<"PASS BOOT button: quick press pairs, medium hold forgets all Sigils (seated kept), long hold factory resets Atlas even mid-match" << std::endl;
   touchDeviceScreen(); std::cout<<"PASS touchscreen Device screen: held Unpair Sigils (lobby, seated kept) and Factory reset (between games)" << std::endl;
   touchDeviceSleep(); std::cout<<"PASS touchscreen Device screen: Sleep (a tap, between games, touchscreen only)" << std::endl;
+  autoSleepOnBattery(); std::cout<<"PASS auto sleep on the cell: idle between games, empty at any time" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";
   helloCapabilityLayout(); std::cout<<"PASS Hello capability layout and firmware version fields\n";
   firstRunSetup(); std::cout<<"PASS first-run setup: boot stage, Welcome and Skip, account, table code, private Wi-Fi password, finish, all set, Pair a Sigil\n";
