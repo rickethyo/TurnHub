@@ -28,7 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Entry/library CI passed; explicit linking implemented | Codex / codex/app-only-entry; final CI and device acceptance pending |
+| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
@@ -423,3 +423,59 @@ Please append your response here:
 - No repeated local domain unit-suite run: those 209 tests passed for C and do
   not test these platform/Compose paths. Actual motor, transition, app-lock and
   assistive-device validation remain pending, with no attached adb device.
+
+### 2026-10-08 / Codex / final unattended-session handoff
+
+- Branch: `codex/app-only-entry`; master was never checked out, written, merged
+  or pushed. PR #73 remains draft. Fresh cloud checkout was clean at `55ee4eb`;
+  existing user working copies and their uncommitted work were not accessed.
+- Commits: `9e9aa6c` boundary/ownership claim [skip ci]; `0e3aed7` local UUID
+  players/history; `ae5df30` explicit Atlas mapping/retained import outcomes;
+  `adfc626` CI/size evidence and lint claim [skip ci]; `92668d5` platform guards,
+  typed haptics and control animation snapshots; final handoff commit [skip ci].
+- Latest code SHA: `92668d532213a42981f99c9dd0b5ca88300ff78d`.
+  [CI run 219](https://github.com/rickethyo/TurnHub/actions/runs/37751933672)
+  completed successfully, including Android unit tests/release bundle and all
+  required host/contract/firmware checks. Runs 217 and 218 also passed; run 216
+  remained the baseline entry evidence, not manually rerun unchanged.
+- Local final checks: C passed 209 JVM tests and debug assembly; cleanup passed
+  lint/debug assembly (zero lint errors, 28 warnings, 4 hints). Existing warnings
+  include dependency-version suggestions, inlined API constants, SDK checks,
+  KTX/style and resources; they were not hidden or turned into a lint baseline.
+  No domain test rerun after a passing C result merely for the cleanup: CI ran
+  the required full tests for its code change. Local Atlas sanitizer/contract
+  and manual export checks are detailed above. Debug APK and lint report remain
+  in ignored Android/app/build outputs in this workspace.
+- Documentation uses `project owner`, including current manual author/last
+  modifier and the style guide's illustrative player label. Historical commits
+  and archived manuals were not rewritten. The latest handoff is documentation
+  only and deliberately skips CI; code CI evidence is run 219 above.
+
+| Acceptance item | Available evidence | Device result |
+|---|---|---|
+| Fresh/local play with no Atlas/network/nearby permission | Activity source review; local engine/JVM scenarios | Pending: no attached phone |
+| Relaunch, rotation, Resume and preferred entry | Saved-state/preference source review; game/library reconstruction and pause-clock JVM cases | Pending: actual Android lifecycle |
+| Discovery/join/connect and delivery cancellation | Existing four entry scenarios plus changed-Atlas/delivery cancellation JVM cases; CI passes | Pending: live Wi-Fi/system callbacks |
+| Reusable players, equal names, retained history/totals | Local UUID/selection/rematch/reset, >200 history, corruption/write-failure and persistence tests | Pending: touch/assistive acceptance |
+| Safe optional imports and retained rejection | Android delivery tests and real Atlas-handler sanitizer scenarios for destination/profile rejection, duplicates and storage failure | Pending: real Atlas + signed-in phone |
+| Phone/folded/unfolded/tablet, large text, TalkBack | Scroll/flow/text-label source review, minimum launch-button height, lint with zero errors | Pending: no device; no accessibility certification claimed |
+| App lock, haptics, control transition and reduce motion | API guards/type validation, compile and lint | Pending: actual device behavior |
+| Manual | V0.12 asset export/check, content and project owner metadata inspection | Pending: visual rendering of continuation edits |
+
+- `adb devices -l` was empty after SDK provisioning; no KVM/USB device was
+  available at environment inspection. No emulator, physical device, board flash
+  or bench result is claimed. Do not merge before review/device acceptance.
+- When testing optional import, install this Android build and Atlas 0.7.2+.
+  The app refuses the older/unparseable firmware that can use name fallback.
+  After uncertain acknowledgement, retry the same pending mapping on the same
+  Atlas. Review acknowledged partial credit instead of replaying it; the existing
+  64-receipt window and partial-write durability limits still apply.
+- Remaining staged work: export/backup and deliberate deletion/retention policy,
+  local-player editing/reusable reviewed links, large-history storage/performance,
+  and device acceptance. History has no automatic pruning, but storage is finite
+  and current writes are synchronous. Battery presence, tablet-only accounts,
+  richer artwork and parked partition/password work remain outside this session.
+- Next owner/action: project owner for physical acceptance/review; a future
+  implementation agent should fetch this branch and read this final handoff,
+  then claim a bounded remaining slice. No routine confirmation is needed to
+  inspect/review it; this handoff grants no approval to merge.
