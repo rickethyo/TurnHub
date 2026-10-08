@@ -2680,6 +2680,9 @@ static void atlasScreens() {
   fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED"); fixtureSdCardReady=true;
   fixtureBattery.present=true; fixtureBattery.percent=64;
   assert(String(currentScreen().lines[3])=="SD card: ready, battery 64%");
+  fixtureBattery.charging=true;
+  assert(currentScreen().batteryCharging && String(currentScreen().lines[3])=="SD card: ready, battery 64%, charging");
+  fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED, battery 64%"); fixtureSdCardReady=true;
   fixtureBattery=TurnHub::BatteryReading();
   tapButton(TouchAction::OpenQr); s=currentScreen();
   assert(s.kind==ScreenKind::Qr && String(s.qr)=="http://192.168.4.1/portal" &&
@@ -4199,7 +4202,10 @@ static void batteryGauge() {
   assert(server.body.find("\"battery\":null") != std::string::npos);
   fixtureBattery.present=true; fixtureBattery.percent=12; fixtureBattery.millivolts=3705; fixtureBattery.low=true;
   assert(request("/api/devices", "", {}, HTTP_GET) == 200);
-  assert(server.body.find("\"battery\":{\"percent\":12,\"millivolts\":3705,\"low\":true}") != std::string::npos);
+  assert(server.body.find("\"battery\":{\"percent\":12,\"millivolts\":3705,\"low\":true,\"charging\":false}") != std::string::npos);
+  fixtureBattery.charging=true;
+  assert(request("/api/devices", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"low\":true,\"charging\":true}") != std::string::npos);
   fixtureBattery=TurnHub::BatteryReading();
   gauge.reseed(3800);
   assert(gauge.reading().present && gauge.reading().millivolts==3800 && gauge.reading().percent==38);
@@ -4207,6 +4213,53 @@ static void batteryGauge() {
 
 // USB or the cell, from the steps in the cell voltage (four samples a
 // second; the numbers are from the bench trace in battery_gauge.h).
+// Charging: the percent counts up from the last on-battery percent instead
+// of reading the charger's voltage (battery_gauge.h).
+static void chargingEstimate() {
+  using TurnHub::lipoPercentFromMillivolts;
+  TurnHub::BatteryGauge gauge;
+  for (int i=0;i<30;++i) gauge.addSample(3860);
+  const uint8_t before=gauge.reading().percent;
+  assert(before==54 && !gauge.reading().charging);
+  // USB in: the reading jumps 210 mV, the percent doesn't.
+  gauge.addSample(4070, true);
+  assert(gauge.reading().charging && gauge.reading().percent==before);
+  // One point per CHARGE_MS_PER_POINT (30 s at 300 mA into 250 mAh), never
+  // down, whatever the reading does.
+  assert(TurnHub::CHARGE_MS_PER_POINT==30000);
+  uint8_t last=before;
+  uint32_t mv=4070;
+  for (int s=1;s<=300;++s) {
+    mv+=s%2;
+    gauge.addSample(mv-(s%7==0 ? 40 : 0), true);
+    assert(gauge.reading().percent>=last && gauge.reading().percent<=last+1);
+    last=gauge.reading().percent;
+  }
+  assert(last==before+10);
+  // Short of the charger's limit it stops at 90.
+  for (int s=0;s<1800;++s) gauge.addSample(s%2 ? 4010 : 3990, true);
+  assert(gauge.reading().percent==TurnHub::CHARGE_BELOW_LIMIT_MAX_PERCENT);
+  // At the limit (steady at 4.08 V or more for 4 minutes): half the rate, and
+  // 100 only after 20 minutes there.
+  for (int s=0;s<1300;++s) gauge.addSample(4110, true);
+  assert(gauge.reading().percent==99);
+  for (int s=0;s<200;++s) gauge.addSample(4110, true);
+  assert(gauge.reading().percent==100 && !gauge.reading().low);
+  // USB out: read from the curve again.
+  gauge.addSample(3900);
+  assert(!gauge.reading().charging && gauge.reading().percent==62);
+
+  // Started on USB: nothing to count from, so the cell is taken as 210 mV
+  // below the charger's reading...
+  TurnHub::BatteryGauge cold;
+  cold.addSample(4070, true);
+  assert(cold.reading().charging && cold.reading().percent==lipoPercentFromMillivolts(3860));
+  // ...and already at the limit means at least 85.
+  TurnHub::BatteryGauge full;
+  for (int s=0;s<241;++s) full.addSample(4120, true);
+  assert(full.reading().percent>=TurnHub::CHARGE_AT_LIMIT_MIN_PERCENT && full.reading().percent<=TurnHub::CHARGE_AT_LIMIT_MIN_PERCENT+1);
+}
+
 static void powerSource() {
   using TurnHub::PowerSource;
   TurnHub::PowerSourceTracker power;
@@ -4277,6 +4330,7 @@ int main() {
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";
+  chargingEstimate(); std::cout<<"PASS charging estimate: no jump on USB, counted climb, never down, full only after the limit\n";
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
   standaloneImport(); std::cout<<"PASS standalone tablet game import: sign-in, validation, picked profile or name, unmatched, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";

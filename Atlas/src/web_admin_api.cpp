@@ -107,6 +107,7 @@ void handleDevices(WebServer &server) {
     json += "{\"percent\":"; json += String(battery.percent);
     json += ",\"millivolts\":"; json += String(battery.millivolts);
     json += ",\"low\":"; json += jsonBool(battery.low);
+    json += ",\"charging\":"; json += jsonBool(battery.charging);
     json += "}";
   } else {
     json += "null";

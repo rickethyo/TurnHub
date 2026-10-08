@@ -1111,8 +1111,14 @@ void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "Portal: 192.168.4.1");
   snprintf(screen.lines[2], sizeof(screen.lines[2]), "Sigils online: %u", static_cast<unsigned>(screen.sigilsOnline));
   if (screen.batteryPercent >= 0) {
-    snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s, battery %d%%",
-        screen.sdMissing ? "NOT INSERTED" : "ready", static_cast<int>(screen.batteryPercent));
+    // ", charging" when it fits the line (not beside NOT INSERTED; the header's bolt shows it).
+    const int n = snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s, battery %d%%%s",
+        screen.sdMissing ? "NOT INSERTED" : "ready", static_cast<int>(screen.batteryPercent),
+        screen.batteryCharging ? ", charging" : "");
+    if (n >= static_cast<int>(sizeof(screen.lines[3]))) {
+      snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s, battery %d%%",
+          screen.sdMissing ? "NOT INSERTED" : "ready", static_cast<int>(screen.batteryPercent));
+    }
   } else {
     snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s", screen.sdMissing ? "NOT INSERTED" : "ready");
   }
@@ -1253,6 +1259,7 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   const TurnHub::BatteryReading &battery = atlasBattery();
   screen.batteryPercent = battery.present ? static_cast<int8_t>(battery.percent) : -1;
   screen.batteryLow = battery.present && battery.low;
+  screen.batteryCharging = battery.present && battery.charging;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {

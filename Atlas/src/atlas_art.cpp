@@ -385,6 +385,16 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     int16_t fillW = static_cast<int16_t>(((CELL_W - 4) * percent + 50) / 100);
     if (fillW == 0 && percent > 0) fillW = 1;
     if (fillW > 0) g.fillRect(cx + 2, cy + 2, fillW, CELL_H - 4, screen.batteryLow ? DANGER : INK);
+    if (screen.batteryCharging) {
+      // Charging: a lightning bolt over the cell (a shape, not only a color),
+      // light with a dark edge so it reads on the fill and on the brass.
+      const int16_t mx = cx + CELL_W / 2, my = cy + CELL_H / 2;
+      const int16_t top = cy - 2, bottom = cy + CELL_H + 1;
+      g.fillTriangle(mx + 3, top, mx - 4, my + 1, mx + 1, my + 1, INK);
+      g.fillTriangle(mx - 3, bottom, mx + 4, my - 1, mx - 1, my - 1, INK);
+      g.fillTriangle(mx + 2, top + 2, mx - 2, my, mx + 1, my, CREAM);
+      g.fillTriangle(mx - 2, bottom - 2, mx + 2, my, mx - 1, my, CREAM);
+    }
     char charge[6];
     snprintf(charge, sizeof(charge), "%d%%", static_cast<int>(percent));
     g.setFont(nameFont.get());
