@@ -57,6 +57,7 @@ TurnHub::BatteryReading fixtureBattery;
 void TurnHubAtlas::beginAtlasBattery() {}
 void TurnHubAtlas::serviceAtlasBattery(uint32_t) {}
 const TurnHub::BatteryReading &TurnHubAtlas::atlasBattery() { return fixtureBattery; }
+bool TurnHubAtlas::atlasOnBattery() { return false; }
 
 #include "sigil_bus.h"
 #include "../../../Sigil/tests/host/test_crypto.h"

@@ -4201,6 +4201,44 @@ static void batteryGauge() {
   assert(request("/api/devices", "", {}, HTTP_GET) == 200);
   assert(server.body.find("\"battery\":{\"percent\":12,\"millivolts\":3705,\"low\":true}") != std::string::npos);
   fixtureBattery=TurnHub::BatteryReading();
+  gauge.reseed(3800);
+  assert(gauge.reading().present && gauge.reading().millivolts==3800 && gauge.reading().percent==38);
+}
+
+// USB or the cell, from the steps in the cell voltage (four samples a
+// second; the numbers are from the bench trace in battery_gauge.h).
+static void powerSource() {
+  using TurnHub::PowerSource;
+  TurnHub::PowerSourceTracker power;
+  assert(power.source()==PowerSource::Usb);  // Screen on at power-up.
+  // On USB: steady, with sample noise.
+  for (int i=0;i<200;++i) assert(!power.addSample(i%2 ? 4106 : 4096));
+  // USB pulled: the next sample is 240 mV down.
+  assert(power.addSample(3866) && power.source()==PowerSource::Battery);
+  // The cell sags quickly under load; noisy, but no step up.
+  uint32_t mv=3860;
+  for (int i=0;i<180;++i) { mv-=1; assert(!power.addSample(mv + (i%3==0 ? 30 : 0))); }
+  assert(power.source()==PowerSource::Battery);
+  // USB back: 200 mV up, then charging climbs slowly.
+  assert(power.addSample(mv+200) && power.source()==PowerSource::Usb);
+  for (int i=0;i<400;++i) assert(!power.addSample(mv+200+i/4));
+  // A small step (the backlight going off) is not USB.
+  assert(power.addSample(3700) && power.source()==PowerSource::Battery);
+  for (int i=0;i<8;++i) assert(!power.addSample(3730));
+  // No cell: only USB can be powering Atlas.
+  assert(power.addSample(100) && power.source()==PowerSource::Usb);
+  assert(!power.addSample(100));
+
+  // Started on the cell: no step, but the steady fall gives it away within
+  // a minute, and USB's steady rise brings it back.
+  TurnHub::PowerSourceTracker cold;
+  int seen=-1;
+  for (int i=0;i<240 && seen<0;++i) if (cold.addSample(3860-i/2)) seen=i;
+  assert(seen>0 && seen<240 && cold.source()==PowerSource::Battery);
+  mv=3860-seen/2;
+  seen=-1;
+  for (int i=0;i<400 && seen<0;++i) if (cold.addSample(mv+i/2)) seen=i;
+  assert(seen>0 && cold.source()==PowerSource::Usb);
 }
 
 int main() {
@@ -4239,6 +4277,7 @@ int main() {
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
   batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";
+  powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
   standaloneImport(); std::cout<<"PASS standalone tablet game import: sign-in, validation, picked profile or name, unmatched, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";

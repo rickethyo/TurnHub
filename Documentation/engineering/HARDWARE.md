@@ -41,10 +41,10 @@ There is no master button (2026-09-24): game controls are on the touchscreen.
 connector (the first one tried: a 502030 pouch, 250 mAh, with its own
 protection board) is charged by the on-board charger from USB. Atlas has no
 fuel-gauge chip, so the charge is estimated from the cell voltage alone:
-`atlas_battery.cpp` reads GPIO 34 once a second (8 ADC reads averaged, the
+`atlas_battery.cpp` reads GPIO 34 four times a second (8 ADC reads averaged, the
 ESP32's calibrated millivolts) and scales it by the divider ratio in
 `config.h` (`BATTERY_DIVIDER_NUMERATOR` / `DENOMINATOR`, 2/1). The pure logic
-in `battery_gauge.h` smooths it (an exponential average over about 16 s),
+in `battery_gauge.h` smooths their per-second average (an exponential average over about 16 s),
 maps it through a LiPo discharge curve (flat through the middle, steep at both
 ends, not linear), holds the shown percent until it moves 2 points, and
 raises a low warning at 15 % that clears at 20 %. Below 2.5 V there is no cell.
@@ -57,6 +57,28 @@ Devices, the basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
 `millivolts`, `low`, or `null` with no cell). Each 5-point change is logged as
 `ATLAS|BATTERY|<mV>|<percent>` for checking the curve against a timed
 discharge.
+
+**Screen off on battery** (2026-10-08). The cell is a backup that keeps the
+game, the radio and the portal running through a pulled cable, not a power
+source for play (it lasts minutes under Atlas's load), so on battery the
+backlight, Atlas's biggest load, is off; it comes back on with USB. A touch
+lights it for 15 s after the last touch (that first press presses nothing).
+Nothing essential is lost while it is dark: the Sigils and the portal carry
+all game state (`ACCESSIBILITY.md`).
+
+The board has no USB-sense pin, so `PowerSourceTracker` (`battery_gauge.h`)
+reads the power source from the raw samples. Measured on the 502030 with a
+temporary probe (2026-10-08, four samples a second, two pulls and replugs):
+pulling USB dropped the reading 220-240 mV within one sample (4.10 V to
+3.83-3.87 V), plugging it back raised it 200-220 mV, sample noise stayed
+within about 30 mV, and on the cell alone it fell about 100 mV in 45 s. So a
+sample 100 mV below the highest of the last second is USB pulled, and 100 mV
+above the lowest is USB back. Atlas starts as if on USB (screen on); if it
+was started on the cell, a steady 60 mV fall within a minute (which the
+charger never allows) switches it to battery, in about 20 s on the measured
+trace, and a steady 60 mV rise switches it back. With no cell it is always
+USB. Changes are logged as `ATLAS|POWER|BATTERY` / `ATLAS|POWER|USB`, and the
+charge estimate restarts from the new level.
 
 *Needs verification:*
 - The divider ratio: compare the portal's voltage with a meter at the plug

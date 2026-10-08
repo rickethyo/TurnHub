@@ -12,6 +12,7 @@
 #include <esp_sleep.h>
 
 #include "atlas_art.h"
+#include "atlas_battery.h"
 #include "config.h"
 #include "firmware_version.h"
 #include "optional_preferences.h"
@@ -38,6 +39,14 @@ constexpr uint8_t CALIBRATE_MIN_SAMPLES = 3;
 // a touch panel) and keeps the calibration it had.
 constexpr uint32_t CALIBRATE_IDLE_MS = 30000;
 constexpr uint32_t CALIBRATE_RESULT_MS = 1500;
+
+constexpr uint8_t BACKLIGHT_ON = 200;
+// The cell is a backup that keeps Atlas (the game, the radio, the portal)
+// running through a pulled cable, not a power source for play: on it the
+// backlight, Atlas's biggest load, is off. A touch lights the screen this
+// long after the last touch, so someone can check it; that first press
+// presses nothing.
+constexpr uint32_t BATTERY_PEEK_MS = 15000;
 
 constexpr char TOUCH_PREF_NAMESPACE[] = "atlas-touch";
 // "cal2": readings before the 2026-09-25 SPI sampling fix were scrambled, so
@@ -100,6 +109,11 @@ class AtlasPanel : public lgfx::LGFX_Device {
 
 AtlasPanel tft;
 bool displayReady = false;
+bool backlightOn = true;
+// On battery: lit by a touch until BATTERY_PEEK_MS after the last one.
+bool peeking = false;
+// A press that woke the dark screen; ignored until the finger lifts.
+bool wakePress = false;
 
 // --- Touch (XPT2046, bit-banged SPI mode 0) ----------------------------------
 
@@ -355,7 +369,7 @@ void beginAtlasDisplay() {
     return;
   }
   tft.setRotation(AtlasConfig::TFT_ROTATION);
-  tft.setBrightness(200);
+  tft.setBrightness(BACKLIGHT_ON);
   const AtlasArtStatus art = beginAtlasArt(tft);
   serialLog.println(art.fonts ? "ATLAS|DISPLAY|FONTS|BRASS" : "ATLAS|DISPLAY|FONTS|FALLBACK");
   if (!art.buffers) serialLog.println("ATLAS|DISPLAY|SPRITES|UNBUFFERED");
@@ -365,23 +379,40 @@ void beginAtlasDisplay() {
   serialLog.println("ATLAS|DISPLAY|SPLASH");
 }
 
+// Backlight off on battery (unless a touch is peeking), on with USB.
+void serviceBacklight(uint32_t nowMs) {
+  const bool battery = atlasOnBattery();
+  if (!battery || nowMs - lastTouchedAtMs >= BATTERY_PEEK_MS) peeking = false;
+  const bool lit = !battery || peeking;
+  if (lit == backlightOn) return;
+  backlightOn = lit;
+  if (displayReady) tft.setBrightness(lit ? BACKLIGHT_ON : 0);
+  serialLog.println(lit ? "ATLAS|DISPLAY|BACKLIGHT|ON" : "ATLAS|DISPLAY|BACKLIGHT|OFF");
+}
+
 void serviceAtlasDisplay(uint32_t nowMs) {
   if (nowMs - lastTouchPollMs >= TOUCH_POLL_MS) {
     lastTouchPollMs = nowMs;
     uint16_t rawX = 0, rawY = 0;
-    const bool touched = readTouchRaw(rawX, rawY);
+    bool touched = readTouchRaw(rawX, rawY);
     int16_t x = 0, y = 0;
     if (touched) mapTouch(touchCal, rawX, rawY, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT, x, y);
     if (touched) {
       // A new press, not a resistive drop-out within one.
       if (nowMs - lastTouchedAtMs >= TOUCH_RELEASE_MS) {
         touchHeldSinceMs = nowMs;
+        wakePress = !backlightOn;
         char line[64];
         snprintf(line, sizeof(line), "ATLAS|TOUCH|RAW|%u|%u|SCREEN|%d|%d", rawX, rawY, x, y);
         serialLog.println(line);
       }
       lastTouchedAtMs = nowMs;
+      if (atlasOnBattery()) peeking = true;
+    } else if (nowMs - lastTouchedAtMs >= TOUCH_RELEASE_MS) {
+      wakePress = false;
     }
+    // The press that lit a dark screen acts on nothing.
+    if (wakePress) touched = false;
 
     switch (mode) {
       case DisplayMode::Calibrate:
@@ -403,6 +434,7 @@ void serviceAtlasDisplay(uint32_t nowMs) {
     }
   }
 
+  serviceBacklight(nowMs);
   if (!displayReady) return;
   if (mode == DisplayMode::Splash) {
     if (nowMs - displayStartedAtMs < SPLASH_MS) return;

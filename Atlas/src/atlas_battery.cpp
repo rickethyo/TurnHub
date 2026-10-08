@@ -8,7 +8,10 @@
 namespace TurnHubAtlas {
 namespace {
 
-constexpr uint32_t SAMPLE_INTERVAL_MS = 1000;
+// Four samples a second, so pulling USB is seen within a quarter second
+// (PowerSourceTracker); the charge estimate takes their average once a second.
+constexpr uint32_t SAMPLE_INTERVAL_MS = 250;
+constexpr uint8_t SAMPLES_PER_GAUGE = 4;
 // Reads averaged into one sample, to quiet ADC noise.
 constexpr uint8_t READS_PER_SAMPLE = 8;
 // Log the estimate when it moves this many points, for checking the curve
@@ -16,6 +19,9 @@ constexpr uint8_t READS_PER_SAMPLE = 8;
 constexpr uint8_t LOG_STEP_PERCENT = 5;
 
 TurnHub::BatteryGauge gauge;
+TurnHub::PowerSourceTracker power;
+uint32_t gaugeSum = 0;
+uint8_t gaugeCount = 0;
 uint32_t lastSampleMs = 0;
 bool sampled = false;
 bool loggedPresent = false;
@@ -52,7 +58,20 @@ void serviceAtlasBattery(uint32_t nowMs) {
   if (sampled && nowMs - lastSampleMs < SAMPLE_INTERVAL_MS) return;
   sampled = true;
   lastSampleMs = nowMs;
-  gauge.addSample(readCellMillivolts());
+  const uint32_t mv = readCellMillivolts();
+  if (power.addSample(mv)) {
+    TurnHub::serialLog.println(power.source() == TurnHub::PowerSource::Battery ? "ATLAS|POWER|BATTERY" : "ATLAS|POWER|USB");
+    // The charger held the reading up (or stopped): start the estimate over.
+    gauge.reseed(mv);
+    gaugeSum = 0;
+    gaugeCount = 0;
+  } else {
+    gaugeSum += mv;
+    if (++gaugeCount < SAMPLES_PER_GAUGE) return;
+    gauge.addSample(gaugeSum / SAMPLES_PER_GAUGE);
+    gaugeSum = 0;
+    gaugeCount = 0;
+  }
 
   const TurnHub::BatteryReading &reading = gauge.reading();
   const int moved = static_cast<int>(reading.percent) - static_cast<int>(loggedPercent);
@@ -64,5 +83,7 @@ void serviceAtlasBattery(uint32_t nowMs) {
 }
 
 const TurnHub::BatteryReading &atlasBattery() { return gauge.reading(); }
+
+bool atlasOnBattery() { return power.source() == TurnHub::PowerSource::Battery; }
 
 }  // namespace TurnHubAtlas
