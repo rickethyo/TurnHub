@@ -230,8 +230,9 @@ const char BASIC_PORTAL_HTML[] PROGMEM = R"HTML(
 </fieldset></form><p class="note" id="accessNote">Sign in to change your own settings.</p></section>
 
 <section class="card" id="device" aria-labelledby="deviceH"><h2 id="deviceH">Device settings</h2>
-<p class="note">Admin only. Wi-Fi, resets and updates also need you verified at the table.</p>
+<p class="note">Admin only. With the table code on, Wi-Fi, resets and updates also need you verified at the table.</p>
 <h3>Verify at the table</h3><p id="presence" class="note" role="status" aria-live="polite"></p>
+<label class="opt"><input type="checkbox" id="tableCode"><span>Require a table code (the code the Atlas screen shows) for these settings</span></label>
 <div class="row"><button id="showCode" type="button" class="small">Show a code on Atlas</button><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="6-digit code" aria-label="Code from the Atlas screen"><button id="verify" type="button" class="small">Verify</button></div>
 <h3>Atlas</h3><p id="atlasInfo" class="note"></p>
 <div class="row"><label for="volume">Speaker</label><select id="volume"></select><label for="pairing">Pairing window</label><select id="pairing"></select><button id="saveHw" type="button" class="small">Save</button></div>
@@ -270,12 +271,13 @@ async function refresh(){try{const s=await api('/api/v1/state');const cur=s.play
 $('mine').onclick=e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.u.endsWith('concede')&&!confirm('Concede this game?'))return;act(t.dataset.u,t.dataset.b?JSON.parse(t.dataset.b):null)};
 async function loadAccess(){if(!me){$('accessFields').disabled=true;return}try{const a=await api('/api/session/accessibility');$('sigilSound').checked=a.sigilSound;document.querySelectorAll('[name=ledStyle]').forEach(r=>r.checked=r.value===a.ledStyle);$('longPressMs').value=a.longPressMs;$('winHoldMs').value=a.winHoldMs;const L=a.limits||{};$('limits').textContent=`Long press ${L.longPressMinMs}–${L.longPressMaxMs} ms; win hold ${L.winHoldMinMs}–${L.winHoldMaxMs} ms and at least ${L.minGapMs} ms longer.`;$('accessFields').disabled=false;$('accessNote').textContent='Your settings follow you to any Sigil.'}catch(e){$('accessNote').textContent=e.message}}
 $('accessForm').onsubmit=e=>{e.preventDefault();const s=document.querySelector('[name=ledStyle]:checked');act('/api/session/accessibility',{sigilSound:$('sigilSound').checked?1:0,ledStyle:s?s.value:'standard',longPressMs:$('longPressMs').value,winHoldMs:$('winHoldMs').value},'Accessibility saved.')};
-async function loadDevice(){try{const p=await api('/api/presence');$('presence').textContent=p.verified?'You are verified at the table.':'Not verified.'}catch(e){$('presence').textContent=e.message}
+async function loadDevice(){try{const p=await api('/api/presence');$('tableCode').checked=p.codeRequired!==false;$('presence').textContent=p.codeRequired===false?'Table code off: no code needed.':p.verified?'You are verified at the table.':'Not verified.'}catch(e){$('presence').textContent=e.message}
  try{const d=await api('/api/devices');const b=d.atlas.battery;$('atlasInfo').textContent=d.atlas.hardwareId+' · firmware '+d.atlas.firmware+(b?' · battery '+b.percent+'%'+(b.low?' (low)':'')+(b.charging?' (charging)':''):'');
   $('sigils').innerHTML=d.devices.map(x=>`<li class="p"><span>${esc(x.label)} · ${x.online?'online':'offline'} · ${esc(x.firmware||'')}</span><button class="small" type="button" data-forget="${Number(x.id)}">Forget</button></li>`).join('')||'<li class="note">No Sigils paired.</li>'}catch(e){$('atlasInfo').textContent=e.message}
  try{const v=await api('/api/speaker'),names=['Off','Low','Medium','High'];$('volume').innerHTML=names.slice(0,(v.max??3)+1).map((n,i)=>`<option value="${i}">${n}</option>`).join('');$('volume').value=v.volume}catch(_){}
  try{const p=await api('/api/pairing');$('pairing').innerHTML=(p.choicesMs||[]).map(ms=>`<option value="${ms}">${ms/1000} s</option>`).join('');$('pairing').value=p.windowMs}catch(_){}
  try{const n=await api('/api/network');$('net').textContent=n.ssid+(n.passwordIsDefault?' · default password':'')+' · '+n.stations+' connected'}catch(e){$('net').textContent=e.message}}
+$('tableCode').onchange=async e=>{await act('/api/table-code?required='+(e.target.checked?1:0));loadDevice()};
 $('showCode').onclick=()=>act('/api/presence/request',null,'Atlas is showing a code now.');
 $('verify').onclick=async()=>{await act('/api/presence/confirm?code='+encodeURIComponent($('code').value.trim()),null,'Verified at the table for 10 minutes.');loadDevice()};
 $('saveHw').onclick=async()=>{await act('/api/speaker?volume='+$('volume').value,null,'Speaker saved.');await act('/api/pairing?windowMs='+$('pairing').value,null,'Atlas settings saved.')};

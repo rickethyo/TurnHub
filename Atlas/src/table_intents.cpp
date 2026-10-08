@@ -13,6 +13,7 @@
 #include "game_settings_store.h"
 #include "pairing_settings.h"
 #include "speaker_settings.h"
+#include "table_code_setting.h"
 #include "wifi_password_store.h"
 #include "profile_store.h"
 #include "sd_card.h"
@@ -1059,6 +1060,35 @@ IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *) {
   serialLog.print("ATLAS|SPEAKER|VOLUME|");
   serialLog.println(TurnHub::speakerVolumeName(volume));
   return IntentResult::accept("Speaker volume saved");
+}
+
+// Payload: value = 1 to require a table presence code for protected device
+// actions, 0 to stop. Turning it off while it is on takes a code the Admin
+// actually entered, so a remote Admin cannot drop the extra step.
+IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) {
+    return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  }
+  if (intent.payload.value != 0 && intent.payload.value != 1) {
+    return IntentResult::reject(IntentStatus::Rejected, "Choose on or off");
+  }
+  const bool required = intent.payload.value == 1;
+  if (required == tableCodeRequired) {
+    return IntentResult::accept(required ? "The table code is already on" : "The table code is already off");
+  }
+  if (!required && presenceCodeRemainingMs(String(intent.payload.moderatorId), millis()) == 0) {
+    return IntentResult::reject(IntentStatus::Unauthorized,
+        "Verify at the table with a code before turning the table code off");
+  }
+  if (TurnHub::saveTableCodeRequired(required) != TurnHubStorage::Status::Ok) {
+    return IntentResult::reject(IntentStatus::Rejected, "The table code setting could not be saved");
+  }
+  tableCodeRequired = required;
+  // Grants made while it was off were never codes; start clean either way.
+  resetPresence();
+  serialLog.print("ATLAS|PRESENCE|REQUIRED|");
+  serialLog.println(required ? "ON" : "OFF");
+  return IntentResult::accept(required ? "Table code turned on" : "Table code turned off");
 }
 
 // --- First-run setup (FIRST_RUN_SETUP.md) ---------------------------------

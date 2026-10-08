@@ -105,8 +105,17 @@ class AtlasTablet(
 
     // --- the grant ----------------------------------------------------------------
 
-    /** Asks Atlas to show a six-digit code on its screen. */
+    /**
+     * Turns tablet mode on. With the table code off (Atlas's default) that
+     * works at once; otherwise Atlas shows a six-digit code on its screen.
+     */
     suspend fun requestCode() {
+        val direct = post("/api/tablet/enable") ?: return
+        if (direct.ok) {
+            _state.update { it.copy(codePrompt = false, message = null) }
+            session.refresh()
+            return
+        }
         val response = post("/api/presence/request", listOf("purpose" to "tablet")) ?: return
         if (response.ok) _state.update { it.copy(codePrompt = true, message = null) } else fail(response)
     }

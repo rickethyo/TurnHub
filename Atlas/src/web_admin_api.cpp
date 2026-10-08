@@ -279,6 +279,36 @@ void handleSaveSpeakerSettings(WebServer &server) {
   sendOkMessage(server, message);
 }
 
+// Whether protected actions need a table presence code (off by default).
+// Admin only; saving is the ConfigureTableCode Intent.
+void handleTableCodeSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const bool required = presenceHooks.required && presenceHooks.required();
+  sendJson(server, 200, String("{\"required\":") + jsonBool(required) + "}");
+}
+
+void handleSaveTableCodeSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const String value = server.arg("required");
+  if (value != "0" && value != "1") {
+    sendError(server, 400, "required must be 0 (off) or 1 (on)");
+    return;
+  }
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+          TurnHub::IntentType::ConfigureTableCode, value.toInt(), message)) {
+    // Turning it off while it is on needs a real code: let the client start one.
+    if (value == "0" && presenceHooks.required && presenceHooks.required() && !physicalPresence(server)) {
+      sendJson(server, 403, String("{\"ok\":false,\"presenceRequired\":true,\"error\":\"") +
+          jsonEscape(message) + "\"}");
+      return;
+    }
+    sendError(server, 409, message);
+    return;
+  }
+  sendOkMessage(server, message);
+}
+
 // Returns the table to an empty lobby (ResetTable). Admin, and verified
 // at the table; Atlas re-checks both in the Intent handler.
 void handleResetTable(WebServer &server) {
@@ -650,6 +680,7 @@ void handlePresenceStatus(WebServer &server) {
   json += ",\"remainingMs\":" + String(remaining);
   json += String(",\"setup\":") + jsonBool(setup);
   json += String(",\"canRequest\":") + jsonBool(setup || TurnHubAccounts::has(profile, TurnHubAccounts::Admin));
+  json += String(",\"codeRequired\":") + jsonBool(presenceHooks.required && presenceHooks.required());
   json += '}';
   sendJson(server, 200, json);
 }

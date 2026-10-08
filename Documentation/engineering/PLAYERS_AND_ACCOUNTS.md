@@ -159,6 +159,17 @@ Settings ends a grant early. Without it the request gets
 needed for the first Admin, network settings, device names, firmware and
 portal updates, pairing confirmation, Return table to lobby and factory reset.
 
+**The table code is optional** (2026-10-08, after testers found the code on
+every update a reason not to use TurnHub). It is **off by default**: every
+signed-in account counts as at the table, so the account permission alone
+decides (an Admin for everything above), and firmware still installs only
+when signed and the same or newer. An Admin turns it on in Device Settings
+(portal, basic portal or app), saved in NVS as `tcode`
+(`table_code_setting.h`, Intent `ConfigureTableCode`). Turning it off again
+needs a code that Admin actually entered, so an Admin elsewhere on the Wi-Fi
+cannot quietly drop the extra step. While it is off the Atlas screen's Wi-Fi
+QR code also shows a private password without a code.
+
 ## Moderation
 
 Game Master actions go through the `Moderate` Intent, which re-checks

@@ -28,6 +28,7 @@
 #include "secure_link_backend.h"
 #include "serial_log.h"
 #include "speaker_settings.h"
+#include "table_code_setting.h"
 #include "wifi_password_store.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -331,6 +332,7 @@ bool configureIntentHandlers() {
       {IntentType::PairConfirm, handlePairConfirmIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
+      {IntentType::ConfigureTableCode, handleConfigureTableCodeIntent},
       {IntentType::ResetTable, handleResetTableIntent},
       {IntentType::FactoryReset, handleFactoryResetIntent},
       {IntentType::UpdateSigil, handleUpdateSigilIntent},
@@ -568,6 +570,15 @@ void setup() {
       speakerStatus != TurnHubStorage::Status::NotFound) {
     speakerVolume = TurnHub::DEFAULT_SPEAKER_VOLUME;
     serialLog.println("ATLAS|SPEAKER|VOLUME|STORAGE_ERROR");
+  }
+  // The table code is an optional extra step; a missing or unreadable
+  // setting keeps it off.
+  bool codeRequired = TurnHub::DEFAULT_TABLE_CODE_REQUIRED;
+  const auto codeStatus = TurnHub::loadTableCodeRequired(codeRequired);
+  if (codeStatus == TurnHubStorage::Status::Ok) {
+    tableCodeRequired = codeRequired;
+  } else if (codeStatus != TurnHubStorage::Status::NotFound) {
+    serialLog.println("ATLAS|PRESENCE|SETTING|STORAGE_ERROR");
   }
   audio.setSpeaker(beginAtlasSpeaker());
   audio.setSpeakerVolume(speakerVolume);

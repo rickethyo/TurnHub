@@ -4,6 +4,7 @@
 #include "pairing_settings.h"
 #include "setup_stage.h"
 #include "speaker_settings.h"
+#include "table_code_setting.h"
 namespace TurnHub {
 GameSettings fixtureSettings;
 TurnHubStorage::Status loadGameSettings(GameSettings &value) {value=fixtureSettings;return TurnHubStorage::Status::Ok;}
@@ -38,6 +39,10 @@ TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {
 TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
   if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
   fixtureSpeakerVolumeSaved=volume;return TurnHubStorage::Status::Ok;
+}
+TurnHubStorage::Status loadTableCodeRequired(bool &) { return TurnHubStorage::Status::NotFound; }
+TurnHubStorage::Status saveTableCodeRequired(bool) {
+  return ProfileFixture::gameSettingsWritable ? TurnHubStorage::Status::Ok : TurnHubStorage::Status::IoError;
 }
 }
 namespace ProfileFixture {

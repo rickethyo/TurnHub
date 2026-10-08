@@ -144,7 +144,13 @@ actions", which is true for every seated player; `hostModuleId` in the state is
 always `null`. Both fields remain for compatibility.
 
 Table presence (2026-09-25): `GET /api/presence` returns `{verified,
-remainingMs, setup, canRequest}`. `POST /api/presence/request` (an Admin, or
+remainingMs, setup, canRequest, codeRequired}`. `codeRequired` is the Admin's
+table code setting (2026-10-08, off by default): while it is false every
+signed-in account reads as verified (`remainingMs` 600000) and no request
+returns `presenceRequired`. `GET /api/table-code` (Admin) returns
+`{required}`; `POST /api/table-code?required=0|1` (Admin) changes it, and
+turning it off while it is on returns `403 {"presenceRequired": true}` until
+that Admin has entered a code. `POST /api/presence/request` (an Admin, or
 anyone signed in before any Admin exists) shows a six-digit code on the Atlas
 screen for 90 s. `POST /api/presence/confirm?code=NNNNNN` returns 200 when
 verified (for 10 minutes), 400 for a wrong code, 409 when no code is showing

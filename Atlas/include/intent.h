@@ -124,6 +124,10 @@ enum class IntentType : uint8_t {
   // lobby first; never while it plays in a game.
   ChooseTable,
 
+  // Admin: payload.value = 1 to require a table presence code for protected
+  // device actions, 0 to stop (needs a code while it is on).
+  ConfigureTableCode,
+
   Count,
 };
 
@@ -274,6 +278,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::EndMatch: return "END_MATCH";
     case IntentType::ConfigurePairing: return "CONFIGURE_PAIRING";
     case IntentType::ConfigureSpeaker: return "CONFIGURE_SPEAKER";
+    case IntentType::ConfigureTableCode: return "CONFIGURE_TABLE_CODE";
     case IntentType::ResetTable: return "RESET_TABLE";
     case IntentType::FactoryReset: return "FACTORY_RESET";
     case IntentType::MasterPass: return "MASTER_PASS";

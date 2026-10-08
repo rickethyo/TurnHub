@@ -241,7 +241,7 @@ void beginSigilUpdates(const char *ssid, const char *password) {
   });
   server.on("/api/sigil-firmware", HTTP_GET, statusRoute);
   server.on("/api/sigil-firmware", HTTP_POST, []() {
-    if (uploadDenied) sendError(server, 403, "Verify at the table and upload between games with no update running");
+    if (uploadDenied) sendError(server, 403, "Upload as an Admin (verified at the table if the table code is on), between games, with no update running");
     else if (!uploadOk) sendError(server, 400, TurnHubFirmwarePackage::errorMessage(store.error()));
     else sendOkMessage(server, "Signed Sigil package ready");
     uploadSeen = uploadOk = uploadDenied = false;

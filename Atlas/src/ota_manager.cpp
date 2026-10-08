@@ -137,7 +137,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
     <h1>Atlas Firmware Update</h1>
     <p class="small">Upload a signed <code>.thfw</code> package: Atlas firmware, or the web portal pack (<code>portal-x.y.z.thfw</code>). A portal pack goes onto the microSD card and needs no restart.</p>
     <div class="notice" style="margin-top:14px">
-      For safety, start updates only from Lobby or Game Over and <strong>verify at the table first (Device Settings in the portal, or Device settings in the basic portal: Verify at the table, then the code the Atlas screen shows), then upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
+      Sign in as an Admin and start updates only from Lobby or Game Over. If an Admin turned the table code on, <strong>verify at the table first (Device settings: Verify at the table, then the code the Atlas screen shows) and upload within 10 minutes</strong>. Atlas will restart automatically after the image is written.
     </div>
     <div id="current" class="status">Reading current firmware...</div>
     <div class="drop"><label for="file">Firmware or portal package</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
@@ -265,7 +265,7 @@ const char UPDATE_HTML[] PROGMEM = R"HTML(
       uploadPortal(file.files[0]);
       return;
     }
-    setMessage('Uploading... Atlas checks that you are still verified at the table when the upload begins.');
+    setMessage('Uploading... Atlas checks your Admin sign-in (and the table code, if on) when the upload begins.');
 
     const form = new FormData();
     form.append('firmware', file.files[0]);
@@ -475,7 +475,7 @@ void OtaManager::handlePortalComplete() {
   server_.sendHeader("Cache-Control", "no-store");
   if (portalDenied_) {
     server_.send(403, "application/json",
-        "{\"ok\":false,\"error\":\"Portal install not armed. Return to Lobby or Game Over and verify at the table in the portal (the code the Atlas screen shows), then start the upload within 10 minutes.\"}");
+        "{\"ok\":false,\"error\":\"Portal install not armed. Sign in as an Admin and return to Lobby or Game Over; if the table code is on, verify at the table first (the code the Atlas screen shows) and start the upload within 10 minutes.\"}");
     return;
   }
   if (!portalSuccess_) {
@@ -588,7 +588,7 @@ void OtaManager::handleComplete() {
     server_.send(
         403,
         "application/json",
-        "{\"ok\":false,\"error\":\"Update not armed. Return to Lobby or Game Over and verify at the table in the portal (the code the Atlas screen shows), then start the upload within 10 minutes.\"}");
+        "{\"ok\":false,\"error\":\"Update not armed. Sign in as an Admin and return to Lobby or Game Over; if the table code is on, verify at the table first (the code the Atlas screen shows) and start the upload within 10 minutes.\"}");
     return;
   }
 

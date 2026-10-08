@@ -3452,6 +3452,53 @@ static void resetTableFromPortal() {
   enterEmptyLobby();
 }
 
+// The table code is optional (off by default, 2026-10-08): while off, a
+// signed-in Admin counts as at the table with no code. An Admin turns it on
+// freely; turning it off again takes a code that Admin actually entered.
+static void tableCodeOptional() {
+  TurnHubWebApi::configureDevices(manageDevices, []() { return pairingWindowMs; });
+  TurnHubWebApi::configurePresence(presenceHooks());
+  resetPresence(); resetTouchControls();
+  tableCodeRequired=false;
+  freshLobby(2);
+  String adminId,playerId;
+  const String admin=registerPhone("Code admin",adminId),player=registerPhone("Code player",playerId);
+  TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId,account));
+
+  // Off: no code asked, but Admin still is.
+  assert(request("/api/presence",admin,{},HTTP_GET)==200);
+  assert(server.body.find("\"verified\":true")!=std::string::npos && server.body.find("\"codeRequired\":false")!=std::string::npos);
+  assert(request("/api/table-code",player,{},HTTP_GET)==403 && request("/api/table-code",player,{{"required","1"}})==403);
+  assert(request("/api/table-code",admin,{},HTTP_GET)==200 && server.body.find("\"required\":false")!=std::string::npos);
+  assert(request("/api/table/reset",player)==403);
+  choose(0,SigilAction::Join); choose(1,SigilAction::Join);
+  assert(request("/api/table/reset",admin)==200 && table().lobby.playerCount()==0 && pendingPresenceCode(testNow)==nullptr);
+  assert(request("/api/table-code",admin,{{"required","2"}})==400 && !tableCodeRequired);
+
+  // On: protected actions need a code again.
+  assert(request("/api/table-code",admin,{{"required","1"}})==200 && tableCodeRequired);
+  choose(0,SigilAction::Join); choose(1,SigilAction::Join);
+  assert(request("/api/table/reset",admin)==403 && server.body.find("presenceRequired")!=std::string::npos);
+  assert(table().lobby.playerCount()==2);
+  // Off again needs that code: a forged Intent or a request without one fails.
+  Intent forged; forged.type=IntentType::ConfigureTableCode; forged.actor.origin=IntentOrigin::Browser;
+  strncpy(forged.payload.moderatorId,adminId.c_str(),8); forged.payload.value=0;
+  assert(intents.dispatch(forged).status==IntentStatus::Unauthorized && tableCodeRequired);
+  assert(request("/api/table-code",admin,{{"required","0"}})==403 && server.body.find("presenceRequired")!=std::string::npos);
+  assert(tableCodeRequired);
+  verifyAtTable(admin);
+  assert(request("/api/table-code",admin,{{"required","0"}})==200 && !tableCodeRequired);
+  assert(request("/api/table/reset",admin)==200 && table().lobby.playerCount()==0);
+
+  // The rest of this suite exercises the code path.
+  tableCodeRequired=true;
+  for (const String &id:{adminId,playerId}) {
+    ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str());
+  }
+  resetPresence(); enterEmptyLobby();
+}
+
 // Factory reset from Device Settings: Admin verified at the table (presence code),
 // between games. A Sigil is told to erase itself and is forgotten; Atlas
 // erases its NVS and restarts after the reply has gone.
@@ -4340,6 +4387,9 @@ static void powerSource() {
 }
 
 int main() {
+  // These scenarios exercise the presence code; tableCodeOptional() covers
+  // the default (off).
+  tableCodeRequired=true;
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
   observeClientState(); intents.setObserver(observeIntent);
@@ -4380,6 +4430,7 @@ int main() {
   standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
+  tableCodeOptional(); std::cout<<"PASS table code optional: off by default (Admin still required), on needs codes, off again needs one" << std::endl;
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;
   pairCodeTouchScreen(); std::cout<<"PASS pairing code on the Atlas screen: shown in the lobby after presence codes, Codes match and Reject, one Sigil at a time" << std::endl;
   pairConfirmFromPortal(); std::cout<<"PASS pairing code check from the portal: listed with the code, Admin verified at the table, confirm stores securely, reject stores nothing" << std::endl;

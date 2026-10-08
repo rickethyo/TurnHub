@@ -3,7 +3,8 @@
 // touchscreen (touch_controls.cpp) is Atlas's main physical input. A code the
 // Atlas screen shows, typed or scanned on a phone, proves that phone's user is
 // at the table, which protected web actions (first Admin, system settings,
-// device names, OTA, Return to lobby, factory reset) require.
+// device names, OTA, Return to lobby, factory reset) require when an Admin has
+// turned the table code on (off by default: then signing in is enough).
 
 #include <esp_system.h>
 #include <string.h>
@@ -12,11 +13,14 @@
 #include "config.h"
 #include "firmware_version.h"
 #include "serial_log.h"
+#include "table_code_setting.h"
 #include "three_part_button.h"
 
 using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
+
+bool tableCodeRequired = TurnHub::DEFAULT_TABLE_CODE_REQUIRED;
 
 bool pairingActive = false;
 
@@ -198,10 +202,17 @@ void cancelPresenceCode() {
   serialLog.println("ATLAS|PRESENCE|CODE_CANCELLED");
 }
 
-uint32_t presenceRemainingMs(const String &profileId, uint32_t nowMs) {
+uint32_t presenceCodeRemainingMs(const String &profileId, uint32_t nowMs) {
   const PresenceGrant *grant = grantFor(profileId);
   if (grant == nullptr || !grantLive(*grant, nowMs)) return 0;
   return PRESENCE_GRANT_MS - (nowMs - grant->grantedAtMs);
+}
+
+// With the table code off (the default), every signed-in account counts as
+// at the table; the callers still check Admin and everything else.
+uint32_t presenceRemainingMs(const String &profileId, uint32_t nowMs) {
+  if (!tableCodeRequired) return profileId.length() ? PRESENCE_GRANT_MS : 0;
+  return presenceCodeRemainingMs(profileId, nowMs);
 }
 
 bool presenceConfirmedFor(const String &profileId, uint32_t nowMs) {
@@ -209,6 +220,7 @@ bool presenceConfirmedFor(const String &profileId, uint32_t nowMs) {
 }
 
 bool anyPresenceActive(uint32_t nowMs) {
+  if (!tableCodeRequired) return true;
   for (const auto &grant : grants) if (grantLive(grant, nowMs)) return true;
   return false;
 }

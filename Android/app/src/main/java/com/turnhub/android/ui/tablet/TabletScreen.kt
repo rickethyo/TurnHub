@@ -258,8 +258,8 @@ private fun GateSteps(signedIn: Boolean, tabletAccess: Boolean, tablet: TabletSt
         return
     }
     if (!tablet.codePrompt) {
-        Text("Atlas shows a code on its screen to prove this device is at the table.", color = p.muted)
-        AccentButton("Show a code on Atlas", { actions.run { requestCode() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
+        Text("If an Admin turned the table code on, Atlas shows a code on its screen to prove this device is at the table.", color = p.muted)
+        AccentButton("Use this device as the tablet", { actions.run { requestCode() } }, Modifier.fillMaxWidth(), enabled = !tablet.busy)
         return
     }
     var code by rememberSaveable { mutableStateOf("") }

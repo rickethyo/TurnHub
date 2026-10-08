@@ -32,7 +32,7 @@
  <section class="card">
   <ol class="steps compact">
    <li class="step"><span class="step-dot" aria-hidden="true">1</span><div><strong>Between games</strong><p class="small">Start updates from Lobby or Game Over.</p></div></li>
-   <li class="step"><span class="step-dot" aria-hidden="true">2</span><div><strong>Verify at the table</strong><p class="small">In Device Settings, tap Verify at the table and type the code the Atlas screen shows. Then upload within 10 minutes.</p></div></li>
+   <li class="step"><span class="step-dot" aria-hidden="true">2</span><div><strong>Sign in as an Admin</strong><p class="small">If an Admin turned the table code on, also verify at the table in Device Settings (the code the Atlas screen shows), then upload within 10 minutes.</p></div></li>
    <li class="step"><span class="step-dot" aria-hidden="true">3</span><div><strong>Upload the package</strong><p class="small">Atlas checks the signature first. Firmware restarts Atlas by itself once it is written.</p></div></li>
   </ol>
  </section>
@@ -165,7 +165,7 @@
       uploadPortal(file.files[0]);
       return;
     }
-    setMessage('Uploading... Atlas checks that you are still verified at the table when the upload begins.');
+    setMessage('Uploading... Atlas checks your Admin sign-in (and the table code, if on) when the upload begins.');
 
     const form = new FormData();
     form.append('firmware', file.files[0]);

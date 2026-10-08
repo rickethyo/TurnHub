@@ -236,7 +236,8 @@ class AtlasSetupAssistant(
         val response = session.raw("POST", "/api/presence/confirm", listOf("code" to digits))
             ?: return@work signedOut()
         if (!response.ok) return@work fail(errorOf(response) ?: "That code was not accepted.")
-        _state.update { it.copy(codeShowing = false) }
+        // The code is used up: drop its prompt too, or it outlives the step it was for.
+        _state.update { it.copy(codeShowing = false, note = null) }
         val status = host.endpoint()?.let { session.setupStatus(it) }
         if (status != null && !status.adminExists) {
             val made = session.raw("POST", "/api/accounts/setup") ?: return@work signedOut()
@@ -578,7 +579,8 @@ class AtlasSetupAssistant(
 
     private fun finishUpdates(lines: List<UpdateProgress>) {
         updatesPassed = true
-        setUpdates(UpdatesState.Finished(lines.toList()))
+        // Nothing waits on a code once the updates are over.
+        _state.update { it.copy(updates = UpdatesState.Finished(lines.toList()), codeShowing = false, note = null) }
     }
 
     // --- plumbing ---------------------------------------------------------------

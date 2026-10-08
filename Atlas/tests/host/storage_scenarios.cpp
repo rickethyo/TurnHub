@@ -14,6 +14,7 @@
 #include "diagnostic_log.h"
 #include "sd_hotplug.h"
 #include "speaker_settings.h"
+#include "table_code_setting.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -280,6 +281,27 @@ void speakerVolumeRecords() {
     assert(readSpeakerVolume(store,volume)==expected && volume==2);
   }
   assert(std::string(speakerVolumeName(0))=="off" && std::string(speakerVolumeName(3))=="high");
+  FakeNvs::blobs.clear();
+}
+
+void tableCodeRecords() {
+  using namespace TurnHub;
+  FakeNvs::reset();
+  NvsBlobStore store;
+  assert(store.begin("turnhub")==Status::Ok);
+  bool required=DEFAULT_TABLE_CODE_REQUIRED;
+  assert(!required && readTableCodeRequired(store,required)==Status::NotFound && !required);
+  for (const bool choice : {true,false}) {
+    assert(writeTableCodeRequired(store,choice)==Status::Ok);
+    assert((FakeNvs::blobs["tcode"]==std::vector<uint8_t>{1,static_cast<uint8_t>(choice)}));
+    bool again=!choice; assert(readTableCodeRequired(store,again)==Status::Ok && again==choice);
+  }
+  for (const auto &bytes : {std::vector<uint8_t>{}, {1}, {1,1,0}, {1,2}, {2,1}}) {
+    FakeNvs::blobs["tcode"]=bytes;
+    required=false;
+    const Status expected=bytes.size()==2&&bytes[0]==2?Status::UnsupportedSchema:Status::Corrupt;
+    assert(readTableCodeRequired(store,required)==expected && !required);
+  }
   FakeNvs::blobs.clear();
 }
 
@@ -696,6 +718,7 @@ int main() {
   gameSettingsRecords();
   pairingWindowRecords();
   speakerVolumeRecords();
+  tableCodeRecords();
   accessibilityRecords();
   sdRecords();
   sdHotplugPolicy();

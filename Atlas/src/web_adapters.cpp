@@ -231,13 +231,15 @@ TurnHubWebApi::PresenceHooks presenceHooks() {
     return static_cast<TurnHubWebApi::PresenceResult>(confirmPresenceCode(profile, code, millis()));
   };
   hooks.revoke = [](const String &profile) { revokePresence(profile); };
+  hooks.required = []() { return tableCodeRequired; };
   return hooks;
 }
 
 bool manageDevices(const String &actor, IntentType type, int32_t value, String &message) {
   if (actor.length() != 8 ||
       (type != IntentType::ForgetPairing && type != IntentType::ConfigurePairing &&
-       type != IntentType::ConfigureSpeaker && type != IntentType::ResetTable &&
+       type != IntentType::ConfigureSpeaker && type != IntentType::ConfigureTableCode &&
+       type != IntentType::ResetTable &&
        type != IntentType::FactoryReset && type != IntentType::PairConfirm && type != IntentType::UpdateSigil &&
        type != IntentType::AdvanceSetup)) {
     message = "Invalid request";

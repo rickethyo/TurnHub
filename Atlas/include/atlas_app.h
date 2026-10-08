@@ -280,6 +280,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handlePairConfirmIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
+IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);
 IntentResult handleFactoryResetIntent(const Intent &intent, void *);
 IntentResult handleAdvanceSetupIntent(const Intent &intent, void *);
@@ -405,9 +406,14 @@ PresenceOutcome confirmPresenceCode(const String &profileId, uint32_t code, uint
 // The code on screen now, or nullptr.
 const PresenceRequest *pendingPresenceCode(uint32_t nowMs);
 void cancelPresenceCode();
+// Admin setting (table_code_setting.h, off by default): while false, every
+// signed-in profile counts as verified at the table and no code is needed.
+extern bool tableCodeRequired;
 bool presenceConfirmedFor(const String &profileId, uint32_t nowMs);
 // Time left for that profile, or 0.
 uint32_t presenceRemainingMs(const String &profileId, uint32_t nowMs);
+// Time left on a code that profile actually entered, whatever the setting.
+uint32_t presenceCodeRemainingMs(const String &profileId, uint32_t nowMs);
 // Someone verified is at the table (for the Wi-Fi QR code's private password).
 bool anyPresenceActive(uint32_t nowMs);
 void revokePresence(const String &profileId);
