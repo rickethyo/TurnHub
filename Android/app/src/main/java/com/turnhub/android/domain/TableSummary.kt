@@ -1,5 +1,6 @@
 package com.turnhub.android.domain
 
+import com.turnhub.android.protocol.AtlasBattery
 import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.LifeRequest
@@ -51,6 +52,8 @@ data class TableSummary(
     val physicalSigils: List<PhysicalSigilAtTable>,
     /** The last nudge since Atlas booted; its age is as of [sampledAtMs]. */
     val nudge: Nudge? = null,
+    /** Atlas's own battery, for the header gauge; null with no cell. */
+    val battery: AtlasBattery? = null,
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding

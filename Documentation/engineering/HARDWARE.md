@@ -52,7 +52,7 @@ raises a low warning at 15 % that clears at 20 %. Below 2.5 V there is no cell.
 Shown in: the touchscreen header (at the right, a phone-style cell icon and
 the percent, the Sigil count having moved to the header's middle; the icon
 fills red and a red **LOW BATTERY** pill appears while low; a lightning bolt
-over it while charging) and Menu > Info ("SD card: ready, battery 82%",
+over it while charging, gone once full at 100%) and Menu > Info ("SD card: ready, battery 82%",
 ", charging" added when it fits), the portal's Atlas line under Devices, the
 basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
 `millivolts`, `low`, `charging`, or `null` with no cell). Each 5-point
@@ -107,7 +107,30 @@ trace, and a steady 60 mV rise switches it back. With no cell it is always
 USB. Changes are logged as `ATLAS|POWER|BATTERY` / `ATLAS|POWER|USB`, and the
 charge estimate restarts from the new level.
 
+**Auto sleep on battery** (2026-10-08, owner: keep the cell from running
+flat). On the cell, Atlas goes into the menu's deep sleep by itself
+(`serviceAutoSleep`, `table_intents.cpp`; a System-origin `Sleep` Intent):
+- between games, after `BATTERY_IDLE_SLEEP_MS` (5 min) with no player action:
+  any Intent from a Sigil, phone or the touchscreen, or a touch;
+- at any time, once the shown charge has stayed at or below
+  `BATTERY_EMPTY_PERCENT` (3%, about 3.58 V under load) for 30 s. Mid-game
+  the interrupted-match record brings the game back paused. A touch or BOOT
+  doesn't wake an empty Atlas; only USB does.
+
+On USB it never sleeps by itself, and an update, Sigil update or factory reset
+under way holds it off. Asleep on the cell, the RTC timer wakes the chip 5 s
+after it sleeps (the resting-cell reading) and then each minute
+(`stayAsleepWithoutUsb`, `atlas_display.cpp`, before anything else in
+`setup()`): a reading 80 mV over the last one, or 4.15 V and up, is the
+charger, so Atlas starts; otherwise it is back asleep within a few
+milliseconds. Deep sleep still leaves the board's regulator, CH340 and
+power LED drawing a few mA, so a sleeping Atlas still drains the cell, only
+far slower; the cell's protection board is the last stop.
+
 *Needs verification:*
+- Auto sleep's USB check: that plugging in raises the resting cell by more
+  than `USB_STEP_MV` (80 mV), at any charge, and that noise never does.
+- Sleep current on the cell, and how long a sleeping Atlas lasts.
 - The divider ratio: compare the portal's voltage with a meter at the plug
   and correct `config.h` if they differ.
 - The curve under Atlas's load (TFT backlight, Wi-Fi AP: roughly 1 C on a

@@ -442,6 +442,34 @@
           }
         }
       }
+    },
+    "battery": {
+      "description": "Atlas's own battery, estimated from the cell voltage: sampled like turnElapsedMs, so it may change without a revision change. null with no cell; absent from older firmware.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "percent",
+        "low",
+        "charging"
+      ],
+      "properties": {
+        "percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "low": {
+          "description": "At or below 15 % (clears at 20 %).",
+          "type": "boolean"
+        },
+        "charging": {
+          "description": "On USB with a cell and below 100: the board's charger is filling it, and percent counts up. False once full.",
+          "type": "boolean"
+        }
+      }
     }
   }
 }

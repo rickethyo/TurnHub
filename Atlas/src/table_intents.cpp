@@ -4,6 +4,7 @@
 // transitions (empty lobby, rematch lobby, game start, game over).
 
 #include "atlas_app.h"
+#include "atlas_battery.h"
 #include "atlas_display.h"
 #include "sigil_menu.h"
 #include "sigil_update_service.h"
@@ -1252,18 +1253,27 @@ namespace {
 // Long enough to read "touch the screen to wake it" before the screen goes dark.
 constexpr uint32_t SLEEP_DELAY_MS = 2500;
 bool atlasSleepScheduled = false;
+bool atlasSleepEmpty = false;
 uint32_t atlasSleepAtMs = 0;
+uint32_t lastActivityMs = 0;
+bool emptySeen = false;
+uint32_t emptySinceMs = 0;
 }  // namespace
 
 // Menu > Device Sleep: the touchscreen only (whoever taps it is at the
 // table), between games, with no update or factory reset under way. Deep
 // sleep loses RAM, so the lobby empties and phones sign in again; nothing
 // saved is touched. Sigils show Atlas lost until Atlas wakes.
+// Auto sleep (System origin, serviceAutoSleep) follows the same rules, except
+// that an empty cell sleeps mid-game too: the interrupted-match record
+// brings the game back paused when USB wakes Atlas.
 IntentResult handleSleepIntent(const Intent &intent, void *) {
-  if (intent.actor.origin != IntentOrigin::AtlasHardware) {
+  const bool system = intent.actor.origin == IntentOrigin::System;
+  const bool empty = system && intent.payload.value == SLEEP_REASON_EMPTY;
+  if (intent.actor.origin != IntentOrigin::AtlasHardware && !system) {
     return IntentResult::reject(IntentStatus::Unauthorized, "Sleep from the Atlas screen");
   }
-  if (!allTablesBetweenGames()) {
+  if (!empty && !allTablesBetweenGames()) {
     return IntentResult::reject(IntentStatus::InvalidState, "Put Atlas to sleep between games");
   }
   if (sigilUpdatesBusy() || ota.inProgress() || atlasResetScheduled) {
@@ -1271,9 +1281,12 @@ IntentResult handleSleepIntent(const Intent &intent, void *) {
   }
   if (!atlasSleepScheduled) {
     atlasSleepScheduled = true;
+    atlasSleepEmpty = empty;
     atlasSleepAtMs = millis() + SLEEP_DELAY_MS;
-    serialLog.println("ATLAS|SLEEP|SCHEDULED");
+    serialLog.println(empty ? "ATLAS|SLEEP|SCHEDULED|BATTERY_EMPTY"
+        : system ? "ATLAS|SLEEP|SCHEDULED|IDLE" : "ATLAS|SLEEP|SCHEDULED");
   }
+  if (empty) return IntentResult::accept("Battery empty: sleeping. Plug in USB to wake");
   return IntentResult::accept("Going to sleep. Touch the screen to wake");
 }
 
@@ -1283,7 +1296,42 @@ void serviceSleep(uint32_t nowMs) {
   if (!atlasSleepScheduled || static_cast<int32_t>(nowMs - atlasSleepAtMs) < 0) return;
   atlasSleepScheduled = false;
   serialLog.println("ATLAS|SLEEP|ENTER");
-  sleepAtlas();
+  sleepAtlas(atlasSleepEmpty);
+}
+
+void noteAtlasActivity(uint32_t nowMs) { lastActivityMs = nowMs; }
+
+void serviceAutoSleep(uint32_t nowMs) {
+  if (atlasSleepScheduled) return;
+  // On USB nothing sleeps by itself, and the idle count starts at unplugging.
+  if (!atlasOnBattery()) {
+    lastActivityMs = nowMs;
+    emptySeen = false;
+    return;
+  }
+  Intent intent;
+  intent.type = IntentType::Sleep;
+  intent.actor.origin = IntentOrigin::System;
+  const TurnHub::BatteryReading &battery = atlasBattery();
+  if (battery.present && !battery.charging && battery.percent <= AtlasConfig::BATTERY_EMPTY_PERCENT) {
+    if (!emptySeen) {
+      emptySeen = true;
+      emptySinceMs = nowMs;
+    } else if (nowMs - emptySinceMs >= AtlasConfig::BATTERY_EMPTY_CONFIRM_MS) {
+      intent.payload.value = SLEEP_REASON_EMPTY;
+      // Refused (an update is running): try again after another confirm wait.
+      if (!intents.dispatch(intent).accepted()) emptySinceMs = nowMs;
+      return;
+    }
+  } else {
+    emptySeen = false;
+  }
+  if (nowMs - lastActivityMs < AtlasConfig::BATTERY_IDLE_SLEEP_MS) return;
+  // A full idle wait again before the next try, whatever happens now.
+  lastActivityMs = nowMs;
+  if (pairingActive || !allTablesBetweenGames()) return;
+  intent.payload.value = SLEEP_REASON_IDLE;
+  intents.dispatch(intent);
 }
 
 void serviceFactoryReset(uint32_t nowMs) {

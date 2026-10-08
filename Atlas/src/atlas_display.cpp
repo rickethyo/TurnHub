@@ -24,6 +24,10 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
+// A player is at the table: restarts the idle count (table_intents.cpp,
+// declared in atlas_app.h).
+void noteAtlasActivity(uint32_t nowMs);
+
 namespace {
 
 constexpr uint32_t SPLASH_MS = 2000;
@@ -407,6 +411,7 @@ void serviceAtlasDisplay(uint32_t nowMs) {
         serialLog.println(line);
       }
       lastTouchedAtMs = nowMs;
+      noteAtlasActivity(nowMs);
       if (atlasOnBattery()) peeking = true;
     } else if (nowMs - lastTouchedAtMs >= TOUCH_RELEASE_MS) {
       wakePress = false;
@@ -473,9 +478,48 @@ constexpr gpio_num_t WAKE_BOOT_PIN = static_cast<gpio_num_t>(AtlasConfig::BOOT_B
 // The wake is level-triggered, so a finger still on the panel would wake
 // Atlas at once; wait this long at most for it to lift.
 constexpr uint32_t SLEEP_RELEASE_WAIT_MS = 3000;
+
+// Asleep on the cell, the timer wakes Atlas this often to look for USB. The
+// first check comes soon after the load is gone, to read the resting cell
+// before USB could come back.
+constexpr uint64_t USB_CHECK_INTERVAL_US = 60ULL * 1000000ULL;
+constexpr uint64_t USB_FIRST_CHECK_US = 5ULL * 1000000ULL;
+// The board has no USB-sense pin. Asleep, the cell rests with no load, so
+// the charger pushing it up this far over the last check (or to near full)
+// means USB is back. *Needs verification* on the 502030: awake, plugging in
+// stepped the reading 200-220 mV, but that included Atlas's own load.
+constexpr uint16_t USB_STEP_MV = 80;
+constexpr uint16_t USB_FULL_MV = 4150;
+constexpr uint8_t USB_CHECK_READS = 32;
+
+// Kept through deep sleep (RTC slow memory); cleared by a cold start.
+RTC_DATA_ATTR bool sleptOnBattery = false;
+RTC_DATA_ATTR bool sleptEmpty = false;
+RTC_DATA_ATTR uint16_t restingCellMv = 0;
+
+uint16_t readRestingCellMv() {
+  analogSetPinAttenuation(AtlasConfig::BATTERY_ADC_PIN, ADC_11db);
+  uint32_t total = 0;
+  for (uint8_t i = 0; i < USB_CHECK_READS; ++i) total += analogReadMilliVolts(AtlasConfig::BATTERY_ADC_PIN);
+  return static_cast<uint16_t>(total / USB_CHECK_READS * AtlasConfig::BATTERY_DIVIDER_NUMERATOR /
+      AtlasConfig::BATTERY_DIVIDER_DENOMINATOR);
+}
+
+// The outputs are already held; arms the wake sources and sleeps.
+void armWakeAndSleep() {
+  gpio_deep_sleep_hold_en();
+  // The pen interrupt line has its pull-up on the board (GPIO36 has no
+  // internal one); BOOT's moves to the RTC domain, which ext0 keeps on.
+  rtc_gpio_pullup_en(WAKE_BOOT_PIN);
+  rtc_gpio_pulldown_dis(WAKE_BOOT_PIN);
+  esp_sleep_enable_ext0_wakeup(WAKE_TOUCH_PIN, 0);
+  esp_sleep_enable_ext1_wakeup(1ULL << WAKE_BOOT_PIN, ESP_EXT1_WAKEUP_ALL_LOW);
+  if (sleptOnBattery) esp_sleep_enable_timer_wakeup(restingCellMv == 0 ? USB_FIRST_CHECK_US : USB_CHECK_INTERVAL_US);
+  esp_deep_sleep_start();
+}
 }  // namespace
 
-void sleepAtlas() {
+void sleepAtlas(bool batteryEmpty) {
   using namespace AtlasConfig;
   const uint32_t startedMs = millis();
   while ((digitalRead(TOUCH_IRQ_PIN) == LOW || digitalRead(BOOT_BUTTON_PIN) == LOW) &&
@@ -499,19 +543,37 @@ void sleepAtlas() {
   holdPin(RGB_GREEN_PIN, HIGH);
   holdPin(RGB_BLUE_PIN, HIGH);
   holdPin(AUDIO_ENABLE_PIN, HIGH);  // Amplifier off.
-  gpio_deep_sleep_hold_en();
-  // The pen interrupt line has its pull-up on the board (GPIO36 has no
-  // internal one); BOOT's moves to the RTC domain, which ext0 keeps on.
-  rtc_gpio_pullup_en(WAKE_BOOT_PIN);
-  rtc_gpio_pulldown_dis(WAKE_BOOT_PIN);
-  esp_sleep_enable_ext0_wakeup(WAKE_TOUCH_PIN, 0);
-  esp_sleep_enable_ext1_wakeup(1ULL << WAKE_BOOT_PIN, ESP_EXT1_WAKEUP_ALL_LOW);
-  esp_deep_sleep_start();
+  // On USB, only a touch or BOOT wakes Atlas; on the cell, so does USB.
+  sleptOnBattery = atlasOnBattery();
+  sleptEmpty = batteryEmpty;
+  restingCellMv = 0;
+  armWakeAndSleep();
+}
+
+void stayAsleepWithoutUsb() {
+  const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
+  const bool timer = wake == ESP_SLEEP_WAKEUP_TIMER;
+  const bool pressed = wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1;
+  // A touch or BOOT starts Atlas, unless the cell is flat.
+  if (!sleptOnBattery || !(timer || (pressed && sleptEmpty))) {
+    sleptOnBattery = false;
+    sleptEmpty = false;
+    return;
+  }
+  const uint16_t mv = readRestingCellMv();
+  if (mv >= USB_FULL_MV || (restingCellMv != 0 && mv >= restingCellMv + USB_STEP_MV)) {
+    sleptOnBattery = false;
+    sleptEmpty = false;
+    return;
+  }
+  // The resting cell creeps up after the load goes; follow it.
+  restingCellMv = mv;
+  armWakeAndSleep();
 }
 
 void releaseSleepWakePins() {
   const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
-  if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1) {
+  if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1 || wake == ESP_SLEEP_WAKEUP_TIMER) {
     rtc_gpio_deinit(WAKE_TOUCH_PIN);
     rtc_gpio_deinit(WAKE_BOOT_PIN);
   }

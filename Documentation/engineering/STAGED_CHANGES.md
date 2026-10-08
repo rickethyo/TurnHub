@@ -96,7 +96,9 @@ everything implemented. Only the checks listed below are still open.
 - **Atlas battery gauge, later rounds** (round one, 2026-10-08: the voltage
   estimate, see HARDWARE.md "Atlas battery"): calibrate the divider and curve
   on the board, the percent in the Android app, and a manual entry once the
-  readings are trusted.
+  readings are trusted. Auto sleep (2026-10-08: Atlas idle or empty on the
+  cell, Sigils idle; HARDWARE.md, PAIRING_AND_SECURE_LINK.md) also needs its
+  manual entry, and its USB wake check a bench test.
 
 ### Hardware
 

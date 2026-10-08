@@ -31,6 +31,19 @@ data class StateSnapshot(
     val players: List<Player>,
     /** The last nudge since Atlas booted, or null. */
     val nudge: Nudge? = null,
+    /** Atlas's own battery; null with no cell or from older firmware. Sampled, not versioned. */
+    val battery: AtlasBattery? = null,
+)
+
+/**
+ * Mirrors `battery` in protocol/state-v0.1.schema.json: Atlas's cell, estimated
+ * from its voltage. [low] is at or below 15 %; while [charging] (on USB) the
+ * percent counts up.
+ */
+data class AtlasBattery(
+    val percent: Int,
+    val low: Boolean,
+    val charging: Boolean,
 )
 
 /**

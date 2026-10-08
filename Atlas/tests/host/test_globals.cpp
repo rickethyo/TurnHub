@@ -20,7 +20,9 @@ void TurnHubAtlas::beginAtlasDisplay() {}
 void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
 // Deep sleep is firmware-only: counted instead.
 unsigned fixtureSleeps = 0;
-void TurnHubAtlas::sleepAtlas() { ++fixtureSleeps; }
+bool fixtureSleptEmpty = false;
+void TurnHubAtlas::sleepAtlas(bool batteryEmpty) { ++fixtureSleeps; fixtureSleptEmpty = batteryEmpty; }
+void TurnHubAtlas::stayAsleepWithoutUsb() {}
 void TurnHubAtlas::releaseSleepWakePins() {}
 
 // The microSD card is firmware-only (Arduino SD library); host builds have no card.
@@ -57,7 +59,8 @@ TurnHub::BatteryReading fixtureBattery;
 void TurnHubAtlas::beginAtlasBattery() {}
 void TurnHubAtlas::serviceAtlasBattery(uint32_t) {}
 const TurnHub::BatteryReading &TurnHubAtlas::atlasBattery() { return fixtureBattery; }
-bool TurnHubAtlas::atlasOnBattery() { return false; }
+bool fixtureOnBattery = false;
+bool TurnHubAtlas::atlasOnBattery() { return fixtureOnBattery; }
 
 #include "sigil_bus.h"
 #include "../../../Sigil/tests/host/test_crypto.h"

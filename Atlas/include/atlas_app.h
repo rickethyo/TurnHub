@@ -293,9 +293,22 @@ void eraseSettingsAndRestart();
 // from loop() once the notice has been on screen. sleepAtlas() is firmware-
 // only (atlas_display.h); host tests stub it. Waking is a restart: saved data
 // survives, the lobby and sessions do not.
+// The same Intent with System origin is auto sleep on the cell
+// (serviceAutoSleep): payload.value SLEEP_REASON_IDLE between games, or
+// SLEEP_REASON_EMPTY at any time.
 IntentResult handleSleepIntent(const Intent &intent, void *);
 void serviceSleep(uint32_t nowMs);
 bool sleepScheduled();
+constexpr int32_t SLEEP_REASON_MENU = 0;
+constexpr int32_t SLEEP_REASON_IDLE = 1;
+constexpr int32_t SLEEP_REASON_EMPTY = 2;
+// On the cell only: dispatches Sleep after AtlasConfig::BATTERY_IDLE_SLEEP_MS
+// with no player action between games, or once the charge has read empty for
+// BATTERY_EMPTY_CONFIRM_MS. Called from loop().
+void serviceAutoSleep(uint32_t nowMs);
+// A player did something (a non-System Intent, or a touch): restarts the idle
+// count.
+void noteAtlasActivity(uint32_t nowMs);
 
 // Clears Atlas-owned table decisions.
 void clearDecisionState();

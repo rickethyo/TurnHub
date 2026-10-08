@@ -48,7 +48,7 @@ struct BatteryReading {
   uint16_t millivolts = 0;  // Smoothed cell voltage.
   uint8_t percent = 0;      // Shown charge, 0-100; meaningful only when present.
   bool low = false;         // At or below BATTERY_LOW_PERCENT.
-  bool charging = false;    // On USB with a cell: the board's charger is filling it.
+  bool charging = false;    // On USB with a cell and below 100 %: the charger is filling it.
 };
 
 // Below this the line is floating or shorted: no cell.
@@ -110,7 +110,7 @@ class BatteryGauge {
       reset();
       return;
     }
-    if (!seeded_ || charging != reading_.charging) {
+    if (!seeded_ || charging != onUsb_) {
       start(cellMillivolts, charging);
     } else {
       // Fixed point (x16) so small steps aren't lost to rounding.
@@ -120,6 +120,8 @@ class BatteryGauge {
       if (charging) countCharge(static_cast<uint16_t>(cellMillivolts));
       else followCurve();
     }
+    // Full shows as full, not charging (owner 2026-10-08: no bolt at 100 %).
+    reading_.charging = onUsb_ && reading_.percent < 100;
     if (reading_.percent <= BATTERY_LOW_PERCENT) {
       reading_.low = true;
     } else if (reading_.percent >= BATTERY_LOW_PERCENT + BATTERY_LOW_CLEAR_MARGIN) {
@@ -138,12 +140,12 @@ class BatteryGauge {
  private:
   void start(uint32_t cellMillivolts, bool charging) {
     // The on-battery percent, if there is one, is where a charge starts.
-    const bool fromBattery = seeded_ && !reading_.charging;
+    const bool fromBattery = seeded_ && !onUsb_;
     const uint8_t last = reading_.percent;
     seeded_ = true;
     averageMv16_ = static_cast<int32_t>(cellMillivolts * 16);
     reading_.present = true;
-    reading_.charging = charging;
+    onUsb_ = charging;
     reading_.millivolts = static_cast<uint16_t>(cellMillivolts);
     chargeMs_ = 0;
     limitMs_ = 0;
@@ -198,6 +200,7 @@ class BatteryGauge {
   }
 
   bool seeded_ = false;
+  bool onUsb_ = false;
   int32_t averageMv16_ = 0;
   BatteryReading reading_;
   // Charging.

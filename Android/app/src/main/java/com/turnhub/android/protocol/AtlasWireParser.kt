@@ -93,6 +93,15 @@ object AtlasWireParser {
                         ageMs = nudge.uint32("ageMs"),
                     )
                 },
+                battery = if (root.isAbsentOrNull("battery")) null else root.obj("battery").let { battery ->
+                    val percent = battery.int("percent")
+                    if (percent !in 0..100) malformed("Battery percent $percent is out of range")
+                    AtlasBattery(
+                        percent = percent,
+                        low = battery.boolean("low"),
+                        charging = battery.boolean("charging"),
+                    )
+                },
             )
         }
     }

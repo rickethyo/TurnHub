@@ -64,6 +64,14 @@ until that game is over and back in its lobby. State and `/api/status` add
 `players`). `revision` is one counter across both games, so it never repeats
 when a client follows another game.
 
+### Atlas battery
+
+State carries `battery`: `{percent, low, charging}` for Atlas's own cell
+(estimated from its voltage; `low` at 15 %, `charging` while on USB and below 100 %), or
+`null` with no cell. Like the clocks it is sampled, so it can change without a
+revision change. The Android app draws it as a header gauge;
+`GET /api/devices` also reports it under `atlas.battery` with `millivolts`.
+
 Controls dispatch through the same `IntentDispatcher` as Sigils and Atlas's
 button. PASS acceptance may arm **or cancel** the existing three-second grace
 period; it does not mean the next turn has started. State confirms the later commit.

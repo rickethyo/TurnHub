@@ -93,8 +93,15 @@ saved data and pairings survive. A Sigil wakes on the joystick click or BOOT
 from the touchscreen only, between games, and wakes on a touch or BOOT; the
 lobby empties, phones sign in again and Sigils show Atlas lost until it is
 back. Sleep current is *Needs verification*; the DevKit regulator, USB bridge
-and NeoPixels still draw a few mA, so this is not a battery "off". Automatic
-Atlas-managed sleep is in [Planned Designs](PLANNED_DESIGNS.md).
+and NeoPixels still draw a few mA, so this is not a battery "off".
+
+**Auto sleep** (2026-10-08) is the same sleep, chosen by the device itself. A
+Sigil sleeps after 10 minutes with no key, joystick or Pair press outside a
+game (Ready, the lobby, game over), or after 3 minutes when Atlas is lost or
+the Sigil is unpaired; never mid-game, while pairing or during an update
+(`idle_sleep.h`). Atlas sleeps by itself only on its battery (HARDWARE.md,
+"Auto sleep on battery"); its Sigils then see Atlas lost and follow. The
+Atlas-managed light sleep is in [Planned Designs](PLANNED_DESIGNS.md).
 
 ## The Secure Link
 
