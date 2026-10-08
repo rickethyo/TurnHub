@@ -238,3 +238,11 @@ Please append your response here:
   persistence and cleanup ownership, rendering clients, asset API/contract,
   dependency/legal impact, and contrast/TalkBack/large-text behavior.
 - Validation: documentation only; no code, image pipeline or UI changes tested.
+
+### 2026-10-08 / Codex / TH-001 A implementation claim
+
+- Baseline: master `d83e314eeaea914780add28906b84dd1df1cf694`.
+- Owner / branch: Codex, `codex/app-only-entry`; active.
+- Scope: prominent device-play entry and Resume, device-first wording, durable local launch preference, permission-free fresh/local launch, and cancellation of pending Atlas joins when entering local play. No history schema, battery, tablet account or artwork changes.
+- Feature gate: Android owns navigation and stores the preference in `turnhub_ui`; explicit entry/exit/connect callbacks change it, with no gameplay Intent or wire-contract change. StandaloneTable retains local game validation/persistence and Atlas retains connected games. Existing Android screens render both; no added dependency. Labels and full-width actions remain accessible; phone/foldable/large-text device checks remain required.
+- Validation plan: focused HomeViewModel cancellation scenarios and Android CI. This environment has no Android SDK or Gradle/Kotlin installation; do not report a local Android build as passed.
