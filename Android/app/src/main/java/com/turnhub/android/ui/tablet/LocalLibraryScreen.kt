@@ -47,6 +47,7 @@ fun LocalLibraryScreen(
     importState: LocalImportState = LocalImportState(),
     onLoadProfiles: () -> Unit = {},
     onImport: (String, List<String>) -> Unit = { _, _ -> },
+    onCancelImport: (String) -> Unit = {},
 ) {
     val p = palette
     BackHandler(onBack = onClose)
@@ -62,7 +63,7 @@ fun LocalLibraryScreen(
                 Text("Atlas statistics are separate. To import, connect and sign in, load its players, then explicitly map every player in a match. Names never choose an account.", color = p.muted)
                 if (canImport) ToneButton("Load Atlas players for import", onLoadProfiles,
                     enabled = !importState.busy && state.storageProblem == null)
-                importState.atlasId?.let { Text("Import destination: $it", color = p.text) }
+                
                 if (importState.busy) Text("Contacting Atlas…", color = p.muted)
                 importState.message?.let { Text(it, color = p.text) }
             }
@@ -71,7 +72,7 @@ fun LocalLibraryScreen(
             items(state.library.players, key = { "player-${it.localId}" }) { player ->
                 val totals = state.library.totals(player.localId)
                 BrassCard {
-                    Text("${player.name} · ${player.localId.take(6)}", color = p.text)
+                    Text(player.name, color = p.text)
                     Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted)
                 }
             }
@@ -84,7 +85,7 @@ fun LocalLibraryScreen(
                     Text("${record.profile.wireValue} · ${record.durationMs / 60_000} minutes · ${record.startingLife} starting life", color = p.muted)
                     Text(record.winner?.let { "Winner: ${record.players[it].name}" } ?: "Draw / no winner", color = p.text)
                     record.players.forEach { player ->
-                        Text("${player.name}${player.localId?.let { " · ${it.take(6)}" } ?: " · legacy identity"}: ${player.finalLife} life, ${player.turnsCompleted} completed turns", color = p.muted)
+                        Text("${player.name}: ${player.finalLife} life, ${player.turnsCompleted} completed turns", color = p.muted)
                     }
                     val status = when (delivery.status) {
                         DeliveryStatus.NEEDS_LINKING -> "Local result · Atlas import needs explicit linking"
@@ -93,13 +94,13 @@ fun LocalLibraryScreen(
                         DeliveryStatus.REJECTED -> "Atlas import needs attention"
                     }
                     Text(status, color = p.text)
-                    delivery.atlasId?.let { Text("Atlas: $it", color = p.muted) }
+                    
                     delivery.reason?.let { Text(it, color = p.muted) }
                     if (canImport && importState.atlasId != null && state.storageProblem == null &&
                         delivery.status != DeliveryStatus.IMPORTED) {
-                        MatchImportForm(record, delivery, importState, onImport)
+                        MatchImportForm(record, delivery, importState, onImport, onCancelImport)
                     }
-                    Text("Match ${record.recordId}", color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    
                 }
             }
         }
@@ -112,14 +113,18 @@ private fun MatchImportForm(
     delivery: MatchDelivery,
     destination: LocalImportState,
     onImport: (String, List<String>) -> Unit,
+    onCancel: (String) -> Unit,
 ) {
     val p = palette
     if (delivery.status == DeliveryStatus.PENDING) {
-        Text("Pending mapping: ${delivery.profileIds.joinToString()}", color = p.muted)
+        Text("Waiting to import with the chosen player mapping.", color = p.muted)
         if (delivery.atlasId == destination.atlasId) {
             ToneButton("Retry import with this mapping", { onImport(record.recordId, delivery.profileIds) },
                 enabled = !destination.busy)
-        } else Text("Reconnect to ${delivery.atlasId} to retry this mapping.", color = p.muted)
+        } else {
+            Text("Reconnect to the Atlas this was linked to, or link it again for another Atlas.", color = p.muted)
+            ToneButton("Cancel and link again", { onCancel(record.recordId) })
+        }
         return
     }
     var editing by rememberSaveable(record.recordId) { mutableStateOf(false) }
@@ -132,16 +137,16 @@ private fun MatchImportForm(
         mutableStateOf(List(record.players.size) { "" })
     }
     record.players.forEachIndexed { index, player ->
-        Text("Player ${index + 1}: ${player.name}${player.localId?.let { " · ${it.take(6)}" } ?: " · legacy identity"}", color = p.text)
+        Text("Player ${index + 1}: ${player.name}", color = p.text)
         var expanded by rememberSaveable(record.recordId, destination.atlasId, index) { mutableStateOf(false) }
         Box {
             val choice = destination.profiles.firstOrNull { it.profileId == selected[index] }
             TextButton(onClick = { expanded = true }, enabled = !destination.busy) {
-                Text(choice?.let { "${it.name} · ${it.profileId}" } ?: "Choose Atlas profile for player ${index + 1}")
+                Text(choice?.let { it.name } ?: "Choose Atlas profile for player ${index + 1}")
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 destination.profiles.forEach { profile ->
-                    DropdownMenuItem(text = { Text("${profile.name} · ${profile.profileId}") }, onClick = {
+                    DropdownMenuItem(text = { Text(profile.name) }, onClick = {
                         selected = selected.mapIndexed { i, old -> if (i == index) profile.profileId else old }
                         expanded = false
                     })
@@ -149,7 +154,7 @@ private fun MatchImportForm(
             }
         }
     }
-    Text("Import this match to ${destination.atlasId}. Local identities and results stay on this device. Check every choice before importing.", color = p.muted)
+    Text("Import this match to the connected Atlas. Local identities and results stay on this device. Check every choice before importing.", color = p.muted)
     ToneButton("Import mapped match", { onImport(record.recordId, selected) }, enabled = !destination.busy &&
         selected.all { id -> destination.profiles.any { it.profileId == id } } && selected.distinct().size == selected.size)
     TextButton(onClick = { editing = false }) { Text("Cancel linking") }

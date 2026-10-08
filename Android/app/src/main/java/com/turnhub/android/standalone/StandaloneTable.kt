@@ -28,6 +28,8 @@ interface StandaloneStore {
     fun loadLibrary(): String?
     /** Production stores both keys in one preference transaction. */
     fun saveSnapshot(game: String, library: String): Boolean
+    /** Copies unreadable saved data aside before a fresh start; false if it could not be kept. */
+    fun keepUnreadable(): Boolean = false
 }
 
 class PreferencesStandaloneStore(context: Context) : StandaloneStore {
@@ -36,7 +38,14 @@ class PreferencesStandaloneStore(context: Context) : StandaloneStore {
     override fun loadRecords(): String? = prefs.getString("records", null)
     override fun loadLibrary(): String? = prefs.getString("library", null)
     override fun saveSnapshot(game: String, library: String): Boolean = prefs.edit()
-        .putString("game", game).putString("library", library).commit()
+        .putString("game", game).putString("library", library).apply().let { true }
+
+    // Both keys go in one editor, so the swap is atomic; the old data stays under *_unreadable.
+    override fun keepUnreadable(): Boolean = prefs.edit()
+        .putString("game_unreadable", prefs.getString("game", null))
+        .putString("library_unreadable", prefs.getString("library", null))
+        .putString("records_unreadable", prefs.getString("records", null))
+        .commit()
 }
 
 data class StandaloneState(
@@ -96,6 +105,14 @@ class StandaloneTable(
         if (old.status == DeliveryStatus.PENDING) return old.atlasId == atlasId && old.profileIds == profileIds
         return publish(before.copy(library = before.library.withDelivery(
             MatchDelivery(recordId, DeliveryStatus.PENDING, atlasId = atlasId, profileIds = profileIds.toList()))))
+    }
+
+    /** Gives a waiting (not yet acknowledged) match back to linking, e.g. for another Atlas. */
+    fun cancelImport(recordId: String): Boolean {
+        val before = _state.value
+        val old = before.library.delivery(recordId)
+        if (old.status != DeliveryStatus.PENDING) return false
+        return publish(before.copy(library = before.library.withDelivery(MatchDelivery(recordId))))
     }
 
     /** Sends only explicitly mapped work for this Atlas, serialized and oldest first. */
@@ -188,6 +205,16 @@ class StandaloneTable(
         val record = after.record()?.takeIf { before.state != TableState.GAME_OVER || before.gameId != after.gameId }
         val library = record?.let { _state.value.library.withRecord(it) } ?: _state.value.library
         publish(_state.value.copy(game = after, library = library))
+    }
+
+    /** Leaves a blocked store: keeps the unreadable data aside, then starts empty. */
+    fun startFresh(): Boolean {
+        if (_state.value.storageProblem == null || !store.keepUnreadable()) return false
+        val fresh = StandaloneState()
+        val saved = runCatching { store.saveSnapshot(gameToJson(fresh.game).toString(), fresh.library.toJson().toString()) }
+            .getOrDefault(false)
+        if (saved) _state.value = fresh
+        return saved
     }
 
     private fun publish(next: StandaloneState): Boolean {

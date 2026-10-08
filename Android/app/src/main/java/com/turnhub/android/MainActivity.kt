@@ -365,13 +365,17 @@ class MainActivity : ComponentActivity() {
                             importState = importState,
                             onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                             onImport = homeViewModel::onImportLocalRecord,
+                            onCancelImport = { standaloneViewModel.table.cancelImport(it) },
                         )
                     } else if (standalone) {
                         StandaloneScreen(
                             state = localState,
                             table = standaloneViewModel.table,
                             reduceMotion = reduceMotion,
-                            onClose = { standalone = false },
+                            onClose = {
+                                standalone = false
+                                uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
+                            },
                             onHistory = { localHistory = true },
                         )
                     } else HomeScreen(

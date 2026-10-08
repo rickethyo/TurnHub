@@ -79,6 +79,7 @@ fun StandaloneScreen(
         if (state.storageProblem != null) {
             Column(Modifier.safeDrawingPadding().padding(24.dp)) {
                 Text(state.storageProblem, color = p.text)
+                TextButton(onClick = { table.startFresh() }) { Text("Keep old data aside and start fresh") }
                 TextButton(onClick = onClose) { Text("Back") }
             }
         } else if (game.state == TableState.LOBBY) {
@@ -155,7 +156,7 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                         free.forEach { player ->
                             SuggestionChip(
                                 onClick = { table.selectPlayer(player.localId) },
-                                label = { Text("${player.name} · ${player.localId.take(6)}") },
+                                label = { Text(player.name) },
                                 enabled = !full,
                             )
                         }
@@ -216,9 +217,6 @@ private fun PlayerRow(index: Int, player: LocalPlayer, count: Int, table: Standa
         }
         Column(Modifier.weight(1f)) {
             Text(player.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
-            if (player.localId != null) {
-                Text("Local player · ${player.localId.take(6)}", color = p.faint, style = MaterialTheme.typography.bodySmall)
-            }
         }
         MoveButton("↑", "Move ${player.name} earlier in turn order", index > 0) { table.movePlayer(index, -1) }
         MoveButton("↓", "Move ${player.name} later in turn order", index < count - 1) { table.movePlayer(index, 1) }

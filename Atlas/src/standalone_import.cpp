@@ -127,9 +127,11 @@ ImportResult importGame(const ImportedGame &game) {
   // or changing any statistics. Names remain display labels.
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     const String &id = game.players[i].profileId;
-    if (id.length() == 0 || !TurnHubProfiles::profileExists(id) || archived(id)) return result;
-    for (uint8_t j = 0; j < i; ++j) {
-      if (game.players[j].profileId == id) return result;
+    bool bad = id.length() == 0 || !TurnHubProfiles::profileExists(id) || archived(id);
+    for (uint8_t j = 0; j < i; ++j) bad = bad || game.players[j].profileId == id;
+    if (bad) {
+      result.status = ImportStatus::BadMapping;
+      return result;
     }
   }
   // Remembered first: a cut after this loses the statistics, never doubles them.
