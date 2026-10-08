@@ -386,3 +386,23 @@ Networking notes:
   show as `Player N`. Paired Sigils come from the Admin device list, not from
   the state snapshot.
 
+
+### Local library feature boundary (TH-001 B/C, implementation in progress)
+
+Android's standalone domain owns reusable local-player UUIDs, completed match
+snapshots and their derived local statistics. Explicit add/select actions are
+validated locally; names are labels and never identity keys. The local library
+is a versioned JSON document in `turnhub_standalone/library`, separate from the
+active game's `game` key. Match UUIDs remain stable across import. History is
+retained without automatic pruning; delivery metadata references history by
+match UUID and acknowledgement/rejection cannot delete a result. Clearing app
+data/uninstall removes it; export and storage-error recovery remain future work.
+Existing unscoped records are retained without inferred Atlas or local identity.
+
+Optional delivery requires a per-match explicit `(atlasId, profileId)` mapping
+for every player, validated locally and by Atlas's import domain. Connected
+state remains Atlas-owned. No new dependency or gameplay Intent is needed;
+the import form contract/validator changes together. Android renders text
+statuses and labeled player picks in scrollable layouts; local controls use
+existing TableControls. TalkBack, text-scale and phone/foldable acceptance must
+be recorded separately from JVM tests and builds.

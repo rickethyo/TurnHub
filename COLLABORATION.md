@@ -265,3 +265,46 @@ Please append your response here:
 - [TurnHub CI run 216](https://github.com/rickethyo/TurnHub/actions/runs/37747422886) completed successfully. Android ran `testDebugUnitTest bundleRelease`, including the four new cancellation scenarios; job log reports `BUILD SUCCESSFUL in 1m 55s`. The always-run adapter, token, portal-pack and manual checks passed. Firmware jobs skipped compilation because firmware source was unaffected; no firmware/device pass is claimed.
 - Status: ready for source review and local Codex continuation. Physical phone/foldable, large-text and TalkBack checks remain pending. No merge or hardware validation performed. The continuation should use the existing CI evidence and rerun affected checks only after code changes or for a concrete unresolved concern.
 - Documentation cleanup also replaces the personal name in the Wokwi example. Future documentation uses the project-owner role; Git history and archived binary manual versions have not been rewritten.
+
+### 2026-10-08 / Codex / TH-001 B/C continuation claim and entry review
+
+- Reviewed/fetched branch: `codex/app-only-entry`, `55ee4eb`; new cloud checkout,
+  clean working tree, no pre-existing uncommitted work. Master will not be changed.
+- Owner: Codex on this branch. Scope: reusable device-local player IDs, visible
+  retained match history and derived played/won/draw totals, delivery state
+  separate from history; then explicit Atlas-scoped profile linking/import.
+  Battery, tablet-only accounts, artwork and parked storage/password work excluded.
+- Entry review: source confirms permission-free fresh/local launch, durable mode
+  preference, saved rotation state and tracked join/connect cancellation. Existing
+  CI run 216 at `3bf62e1` independently confirmed successful; its unchanged
+  passing cancellation suite will not be rerun merely for baseline review.
+- Device blocker: this cloud workspace has no Android SDK, adb, attached USB
+  device or KVM at inspection. Phone/foldable, rotation/relaunch through Android,
+  actual permission prompts, large text and TalkBack acceptance cannot be claimed.
+  SDK provisioning will be attempted for new-code JVM/build checks. Source review
+  and persistence reconstruction tests are automated/source evidence only.
+- Identity assumption: adding a typed name always creates a fresh local UUID;
+  selecting an existing local player reuses that UUID. Equal labels never merge.
+  Historical player names are snapshots, local statistics key only by local ID.
+  An Atlas link is `(atlasId, profileId)` chosen explicitly, never inferred by name.
+- Persistence assumption: Android owns local roster/history/delivery in a single
+  versioned `turnhub_standalone/library` document; active game remains `game`.
+  History has no automatic pruning or 200-record policy. Until export/delete is
+  designed it lasts until app data is cleared/uninstalled, subject to available
+  storage. No crash-safe disk durability or backup guarantee is claimed. Existing
+  queued records are preserved for review without guessing old identity scope;
+  already discarded/imported records cannot be reconstructed.
+- Delivery assumption: initial B commit pauses automatic import while linking is
+  built. C will require explicit per-match destination/player mapping and a
+  server-validated Atlas ID; remove server name fallback rather than retain a
+  prototype compatibility path. HTTP 400 records/reasons stay visible and are
+  not retried automatically; transient failure leaves pending work. Success only
+  changes delivery status, never deletes history or adds another local result.
+- Feature gate: local domain owns/validates add/select/link/history actions and
+  existing TableControls own local gameplay; Atlas import domain validates exact
+  destination/profile identities and credits Atlas statistics. Android alone
+  persists/renders local facts; Atlas persists its existing import receipts. C
+  changes the import form contract and corresponding validators/tests/docs.
+  No dependencies added. Text statuses, scrollable/flow layouts and labeled
+  selection/actions provide accessible alternatives; physical assistive checks
+  remain pending. See Android/README.md for the owning boundary specification.
