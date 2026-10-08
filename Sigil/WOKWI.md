@@ -117,7 +117,7 @@ timing 3000 6000
 menu 0xA1 0
 led 5 0 1 0
 buzz 2000 250
-name A Ricky
+name A Alex
 name B Micky
 profile
 state lobby 1 2 0 0

@@ -110,21 +110,28 @@ class KeystoreProfileVault(context: Context) : ProfileVault {
         runCatching { keyStore().deleteEntry(KEY_ALIAS) }
     }
 
-    private fun key(): SecretKey = existingKey() ?: KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).run {
-        init(
-            KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .setUserAuthenticationRequired(true)
-                .setUserAuthenticationParameters(
-                    ProfileVault.AUTH_SECONDS,
-                    KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL,
-                )
-                .setInvalidatedByBiometricEnrollment(true)
-                .build(),
-        )
-        generateKey()
+    private fun key(): SecretKey {
+        // Keep the platform requirement explicit at the API boundary, even if
+        // a future caller bypasses the public availability check.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            throw IllegalStateException("Profile app lock requires Android 11 or later")
+        }
+        return existingKey() ?: KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).run {
+            init(
+                KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .setUserAuthenticationRequired(true)
+                    .setUserAuthenticationParameters(
+                        ProfileVault.AUTH_SECONDS,
+                        KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL,
+                    )
+                    .setInvalidatedByBiometricEnrollment(true)
+                    .build(),
+            )
+            generateKey()
+        }
     }
 
     private fun encode(bytes: ByteArray) = Base64.encodeToString(bytes, Base64.NO_WRAP)

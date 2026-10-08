@@ -90,6 +90,11 @@ void handleStandaloneImport(WebServer &server) {
     sendError(server, 401, "Sign in first");
     return;
   }
+  // Hardware scope is mandatory; profile IDs are only unique within one Atlas.
+  if (server.arg("atlasId") != atlasHardwareId()) {
+    sendError(server, 400, "That record is linked to a different Atlas; review its mapping");
+    return;
+  }
   ImportedGame game;
   if (!parseGame(server, game)) {
     sendError(server, 400, "That game record is not valid");

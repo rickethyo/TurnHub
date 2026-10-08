@@ -51,13 +51,19 @@ private class RecordingRepository : AtlasRepository {
     override val failure = MutableStateFlow<AtlasFailure?>(null)
     val connects = mutableListOf<AtlasEndpoint>()
     var disconnects = 0
+    var connectGate: CompletableDeferred<Unit>? = null
+    var disconnectGate: CompletableDeferred<Unit>? = null
+    var completedConnects = 0
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
         connects += endpoint
+        connectGate?.await()
+        completedConnects++
     }
 
     override suspend fun disconnect() {
         disconnects++
+        disconnectGate?.await()
     }
 }
 
@@ -107,7 +113,19 @@ private class FakeSessionTransport : AtlasSessionTransport {
         turnTimerMaxMs = 3_600_000,
     )
 
-    override suspend fun getProfiles(): List<ProfileSummary> = listOf(ProfileSummary("p1", "Ricky", hasPin = true))
+    var profileChoices = listOf(ProfileSummary("p1", "Ricky", hasPin = true))
+    var profilesGate: CompletableDeferred<Unit>? = null
+    val importRequests = mutableListOf<List<Pair<String, String>>>()
+    var importGate: CompletableDeferred<Unit>? = null
+    override suspend fun getProfiles(): List<ProfileSummary> {
+        profilesGate?.await()
+        return profileChoices
+    }
+    override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): com.turnhub.android.data.RawResponse {
+        importRequests += fields
+        importGate?.await()
+        return com.turnhub.android.data.RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}")
+    }
     override suspend fun login(profileId: String, pin: String): LoginResult =
         LoginResult("token", profileId).also { calls += "login $profileId" }
     var registerFailure: AtlasException? = null
@@ -437,6 +455,139 @@ class HomeViewModelTest {
 
     // --- playing from this phone ------------------------------------------------
 
+    @Test
+    fun `device play cancels saved-table discovery before a late join can connect`() = runTest {
+        store.save(defaultCredentials)
+        val gate = CompletableDeferred<Unit>()
+        link.gate = gate
+        val viewModel = viewModel()
+        viewModel.onAppStarted()
+        assertEquals(Discovery.Searching, viewModel.uiState.value.discovery)
+
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+
+        assertTrue(repository.connects.isEmpty())
+        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
+        assertNull(viewModel.uiState.value.joiningSsid)
+        assertNull(viewModel.uiState.value.wifiPrompt)
+        assertTrue(link.releases > 0)
+
+        // Explicitly returning to Atlas still works after the cancelled search.
+        link.gate = null
+        viewModel.onConnectClicked()
+        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+    }
+
+    @Test
+    fun `device play cancels a manual join and its password fallback`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        link.gate = gate
+        link.results.addLast(WifiJoinResult.Unavailable)
+        val viewModel = viewModel()
+        viewModel.onConnectClicked()
+        assertNotNull(viewModel.uiState.value.joiningSsid)
+
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+
+        assertTrue(repository.connects.isEmpty())
+        assertNull(viewModel.uiState.value.wifiPrompt)
+        assertNull(viewModel.uiState.value.joiningSsid)
+        assertNull(store.last)
+    }
+
+    @Test
+    fun `device play cancels an in-flight repository connection`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        repository.connectGate = gate
+        val viewModel = viewModel()
+        viewModel.onConnectClicked()
+        assertEquals(1, repository.connects.size)
+
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+
+        assertEquals(0, repository.completedConnects)
+        assertEquals(1, repository.disconnects)
+    }
+
+    @Test
+    fun `returning to Atlas waits for the local-play disconnect to finish`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        repository.disconnectGate = gate
+        val viewModel = viewModel()
+        viewModel.onDisconnectClicked()
+        viewModel.onConnectClicked()
+        assertTrue(link.joins.isEmpty())
+        assertTrue(repository.connects.isEmpty())
+
+        gate.complete(Unit)
+
+        assertEquals(listOf(defaultCredentials), link.joins)
+        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+    }
+
+    @Test
+    fun `old or unknown Atlas firmware cannot enable explicit local import`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.1-dev"))
+        viewModel.signIn()
+        for (version in listOf("0.7.1-dev", "unknown")) {
+            repository.tableSummary.value = repository.tableSummary.value!!.copy(firmwareVersion = version)
+            viewModel.onLoadLocalImportProfiles()
+            assertNull(viewModel.localImport.value.atlasId)
+            assertTrue(viewModel.localImport.value.message!!.contains("0.7.2"))
+            assertTrue(sessionTransport.importRequests.isEmpty())
+        }
+    }
+
+    @Test
+    fun `changing Atlas discards in-flight local import choices`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
+        viewModel.signIn()
+        val gate = CompletableDeferred<Unit>()
+        sessionTransport.profilesGate = gate
+        viewModel.onLoadLocalImportProfiles()
+        assertTrue(viewModel.localImport.value.busy)
+        repository.tableSummary.value = repository.tableSummary.value!!.copy(atlasId = "THA-OTHER")
+        gate.complete(Unit)
+        assertNull(viewModel.localImport.value.atlasId)
+        assertTrue(viewModel.localImport.value.profiles.isEmpty())
+    }
+
+    @Test
+    fun `device play cancels delivery and leaves the mapped match pending`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
+        viewModel.signIn()
+        sessionTransport.profileChoices = listOf(ProfileSummary("p1", "Ana", true), ProfileSummary("p2", "Ben", true))
+        viewModel.onLoadLocalImportProfiles()
+        val store = object : com.turnhub.android.standalone.StandaloneStore {
+            var game: String? = null
+            var library: String? = null
+            override fun loadGame() = game
+            override fun loadRecords(): String? = null
+            override fun loadLibrary() = library
+            override fun saveSnapshot(game: String, library: String): Boolean {
+                this.game = game; this.library = library; return true
+            }
+        }
+        val local = com.turnhub.android.standalone.StandaloneTable(store)
+        viewModel.standalone = local
+        local.addPlayer("Ana"); local.addPlayer("Ben"); local.start()
+        local.control(com.turnhub.android.data.TabletSeat(com.turnhub.android.standalone.StandaloneGame.seatHandle(0).id, 1), "draw")
+        val record = local.state.value.library.history.single()
+        val gate = CompletableDeferred<Unit>()
+        sessionTransport.importGate = gate
+        viewModel.onImportLocalRecord(record.recordId, listOf("p1", "p2"))
+        assertEquals(1, sessionTransport.importRequests.size)
+        assertEquals(repository.tableSummary.value!!.atlasId, sessionTransport.importRequests.single().toMap()["atlasId"])
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+        assertEquals(com.turnhub.android.standalone.DeliveryStatus.PENDING, local.state.value.library.delivery(record.recordId).status)
+        assertEquals(listOf(record), local.state.value.library.history)
+        assertNull(viewModel.localImport.value.atlasId)
+    }
+
     private fun table(name: String, revision: Long, edit: org.json.JSONObject.() -> Unit = {}) =
         TableSummaryMapper.map(Fixtures.info(), Fixtures.state(name) { put("revision", revision); edit() })
 
@@ -737,3 +888,4 @@ class HomeViewModelTest {
         assertEquals(false, state.endpointEditable)
     }
 }
+

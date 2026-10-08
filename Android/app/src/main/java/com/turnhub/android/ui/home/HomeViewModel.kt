@@ -28,6 +28,10 @@ import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -76,10 +80,67 @@ class HomeViewModel(
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
     /**
-     * The standalone tablet game: while connected it learns Atlas's profiles
-     * for its player picks, and hands Atlas its finished games.
+     * Local game/library owner. Atlas delivery requires an explicit per-match
+     * mapping; connected profiles never become local identity by name.
      */
     var standalone: com.turnhub.android.standalone.StandaloneTable? = null
+    private val _localImport = MutableStateFlow(com.turnhub.android.standalone.LocalImportState())
+    val localImport: StateFlow<com.turnhub.android.standalone.LocalImportState> = _localImport.asStateFlow()
+    private var localImportJob: Job? = null
+
+    private fun supportsExplicitLocalImport(version: String): Boolean =
+        runCatching { com.turnhub.android.data.FirmwareVersion.parse(version) }.getOrNull()?.let {
+            it >= com.turnhub.android.data.FirmwareVersion(0, 7, 2)
+        } == true
+
+    fun onLoadLocalImportProfiles() {
+        val summary = repository.tableSummary.value ?: return
+        val endpoint = repository.endpoint.value ?: return
+        if (repository.connectionState.value != AtlasConnectionState.CONNECTED ||
+            playerSession.state.value !is PlayerSessionState.SignedIn || localImportJob?.isActive == true) return
+        if (!supportsExplicitLocalImport(summary.firmwareVersion)) {
+            _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Update Atlas to 0.7.2 or later before importing. Older firmware can match players by name.")
+            return
+        }
+        _localImport.value = com.turnhub.android.standalone.LocalImportState(atlasId = summary.atlasId, busy = true)
+        localImportJob = viewModelScope.launch {
+            try {
+                val profiles = playerSession.profiles(endpoint)
+                if (repository.tableSummary.value?.atlasId == summary.atlasId &&
+                    playerSession.state.value is PlayerSessionState.SignedIn) {
+                    _localImport.value = com.turnhub.android.standalone.LocalImportState(summary.atlasId, profiles)
+                } else _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Atlas changed. Load its players again.")
+            } catch (e: AtlasException) {
+                _localImport.value = com.turnhub.android.standalone.LocalImportState(message = e.failure.userMessage)
+            }
+        }
+    }
+
+    fun onImportLocalRecord(recordId: String, profileIds: List<String>) {
+        val summary = repository.tableSummary.value ?: return
+        val choices = _localImport.value
+        val table = standalone ?: return
+        if (!supportsExplicitLocalImport(summary.firmwareVersion) || choices.atlasId != summary.atlasId || localImportJob?.isActive == true ||
+            repository.connectionState.value != AtlasConnectionState.CONNECTED ||
+            playerSession.state.value !is PlayerSessionState.SignedIn) return
+        if (!table.queueImport(recordId, summary.atlasId, profileIds, choices.profiles.map { it.profileId }.toSet())) {
+            _localImport.value = choices.copy(message = "Choose a different Atlas profile for every player. A pending or imported mapping cannot be changed.")
+            return
+        }
+        _localImport.value = choices.copy(busy = true, message = null)
+        localImportJob = viewModelScope.launch {
+            try {
+                table.sendRecords(summary.atlasId) { fields ->
+                    if (repository.tableSummary.value?.atlasId != summary.atlasId ||
+                        repository.connectionState.value != AtlasConnectionState.CONNECTED) null
+                    else try { playerSession.raw("POST", "/api/standalone/import", fields) }
+                    catch (_: AtlasException) { null }
+                }
+            } finally {
+                _localImport.value = _localImport.value.copy(busy = false)
+            }
+        }
+    }
 
     /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
     private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(
@@ -278,34 +339,14 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
         }
-        // The standalone game picks its players from the last Atlas's profiles:
-        // read them once per Atlas boot and again when someone new sits down.
-        // Once someone is signed in, its finished games go to Atlas.
+        // Profile choices are ephemeral and belong to exactly one Atlas/session.
         viewModelScope.launch {
-            combine(
-                repository.tableSummary.map { summary ->
-                    summary?.let { Triple(it.atlasId, it.bootId, it.players.mapNotNull { p -> p.profileId }.toSet()) }
-                },
-                playerSession.state.map { it is PlayerSessionState.SignedIn },
-            ) { table, signedIn -> table to signedIn }
-                .distinctUntilChanged()
-                .collectLatest { (table, signedIn) ->
-                    val endpoint = repository.endpoint.value
-                    val local = standalone ?: return@collectLatest
-                    if (table == null || endpoint == null) return@collectLatest
-                    try {
-                        local.rememberProfiles(playerSession.profiles(endpoint))
-                    } catch (_: AtlasException) {
-                        // Kept from last time; tried again on the next change.
-                    }
-                    if (signedIn) {
-                        local.sendRecords { fields ->
-                            try {
-                                playerSession.raw("POST", "/api/standalone/import", fields)
-                            } catch (_: AtlasException) {
-                                null
-                            }
-                        }
+            combine(repository.tableSummary.map { it?.atlasId }, playerSession.state.map { it is PlayerSessionState.SignedIn })
+                { atlasId, signedIn -> atlasId to signedIn }
+                .distinctUntilChanged().collect { (atlasId, signedIn) ->
+                    if (!signedIn || atlasId != _localImport.value.atlasId) {
+                        localImportJob?.cancel()
+                        _localImport.value = com.turnhub.android.standalone.LocalImportState()
                     }
                 }
         }
@@ -759,6 +800,10 @@ class HomeViewModel(
     // --- finding the table on launch --------------------------------------------
 
     private var autoStarted = false
+    private var discoveryJob: Job? = null
+    private var wifiJoinJob: Job? = null
+    private var connectJob: Job? = null
+    private var disconnectJob: Job? = null
 
     /**
      * The Activity calls this on launch, once permissions are settled: rejoins
@@ -771,12 +816,19 @@ class HomeViewModel(
     fun onAppStarted() {
         if (autoStarted) return
         autoStarted = true
-        viewModelScope.launch { rejoinSavedTable() }
+        discoveryJob = viewModelScope.launch {
+            disconnectJob?.join()
+            rejoinSavedTable()
+        }
     }
 
     /** "Try again" after the saved table didn't answer. */
     fun onSearchAgain() {
-        viewModelScope.launch { rejoinSavedTable() }
+        if (discoveryJob?.isActive == true) return
+        discoveryJob = viewModelScope.launch {
+            disconnectJob?.join()
+            rejoinSavedTable()
+        }
     }
 
     /**
@@ -815,6 +867,7 @@ class HomeViewModel(
     private suspend fun quietJoin(endpoint: AtlasEndpoint, credentials: WifiCredentials): Boolean {
         local.update { it.copy(joiningSsid = credentials.ssid, failure = null) }
         val result = wifiLink.join(credentials)
+        currentCoroutineContext().ensureActive()
         local.update { it.copy(joiningSsid = null) }
         if (result != WifiJoinResult.Joined) return false
         credentialStore.save(credentials)
@@ -918,8 +971,16 @@ class HomeViewModel(
     }
 
     fun onDisconnectClicked() {
-        local.update { it.copy(discovery = Discovery.Idle) }
-        viewModelScope.launch {
+        // A device-play choice must also stop a join that has not answered yet.
+        // Otherwise its late result can reconnect and poll behind the local game.
+        localImportJob?.cancel()
+        _localImport.value = com.turnhub.android.standalone.LocalImportState()
+        discoveryJob?.cancel()
+        wifiJoinJob?.cancel()
+        connectJob?.cancel()
+        pendingEndpoint = null
+        local.update { it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, failure = null) }
+        disconnectJob = viewModelScope.launch {
             repository.disconnect()
             wifiLink.release()
         }
@@ -936,8 +997,11 @@ class HomeViewModel(
 
     private fun joinThenConnect(endpoint: AtlasEndpoint, credentials: WifiCredentials) {
         local.update { it.copy(joiningSsid = credentials.ssid, failure = null) }
-        viewModelScope.launch {
+        wifiJoinJob?.cancel()
+        wifiJoinJob = viewModelScope.launch {
+            disconnectJob?.join()
             val result = wifiLink.join(credentials)
+            currentCoroutineContext().ensureActive()
             local.update { it.copy(joiningSsid = null) }
             when (result) {
                 WifiJoinResult.Joined -> {
@@ -966,7 +1030,11 @@ class HomeViewModel(
 
     private fun connectRepository(endpoint: AtlasEndpoint) {
         pendingEndpoint = null
-        viewModelScope.launch { repository.connect(endpoint) }
+        connectJob?.cancel()
+        connectJob = viewModelScope.launch {
+            disconnectJob?.join()
+            repository.connect(endpoint)
+        }
     }
 
     companion object {
@@ -1001,3 +1069,4 @@ class HomeViewModel(
         }
     }
 }
+

@@ -202,3 +202,21 @@ revocation, mixed attachment, the picker for both seats and policies,
 permissions, presence codes, moderation and counter privacy. Phone-only
 games, phone plus Sigil on one player and persistence across reboots are
 verified in use (owner, 2026-10-02).
+
+## Standalone device identity and optional import
+
+Android local players have their own UUIDs, independent of Atlas profiles.
+Adding a name creates a player; selecting a saved player reuses the local ID.
+Equal names remain separate. Completed matches snapshot identity/name and keep
+local statistics independent of Atlas totals. History/import state belongs to
+Android's local library; see [Android](../../Android/README.md) for the schema.
+
+Optional import requires explicit per-match choices for all players on a
+specific `(atlasId, profileId)` destination. Linking never renames/replaces a
+local player or rewrites historical match facts. No typed-name, cached-name or
+cross-Atlas matching exists. Pending mappings are frozen for retry, imported
+matches cannot be submitted again by the app, and rejected records/reasons stay
+visible for explicit review. Atlas validates destination hardware identity and
+all exact profile identities before crediting a new record. Existing session
+sign-in is still required; profile linking does not itself grant permissions.
+See [import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07).

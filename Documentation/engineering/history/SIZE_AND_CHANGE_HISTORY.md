@@ -798,3 +798,15 @@ so Atlas and Sigils must be reflashed together. HTTP adds `POST
 /api/session/game` and `game`/`games` in state and `/api/status`. RAM: one
 more `GameTable`; the two recovery records share one set of scratch buffers.
 Flash size not measured here (CI builds the firmware).
+
+## 2026-10-08 Explicit standalone identity and local history (Atlas 0.7.2)
+
+Atlas 0.7.1 -> 0.7.2: standalone import requires destination `atlasId` and
+unique explicit profile IDs; invalid/deleted/archived/unreadable identities are
+rejected before receipt/statistics writes, with no name fallback. Receipt ring
+layout/capacity, radio and Sigil firmware are unchanged. Android now retains
+local UUID players, immutable history and separate delivery states with explicit
+per-match mapping. No new dependency or NVS allocation. CI run 218 at
+`ae5df30` built Atlas successfully: static RAM 105,148 / 327,680 bytes (32.1%),
+flash 1,471,169 / 1,966,080 bytes (74.8%); the signed descriptor reports Atlas
+0.7.2, radio 3. These are build sizes, not runtime heap or bench measurements.

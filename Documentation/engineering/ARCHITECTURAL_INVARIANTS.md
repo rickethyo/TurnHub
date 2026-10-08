@@ -23,7 +23,7 @@ Canonical state includes, at minimum:
 
 Physical Sigils, Virtual Sigils, browsers, future apps, and simulated controllers MUST NOT independently decide or mutate canonical game state.
 
-*Exception (2026-10-07, Ricky):* the Android app's **standalone tablet game**
+*Exception (2026-10-07, project owner):* the Android app's **standalone tablet game**
 runs its own simple game when no Atlas is at the table. It is a separate game,
 not Atlas state: it never changes a game Atlas is running, and it reaches
 Atlas only as a finished game record that Atlas validates, imports once and
@@ -107,7 +107,10 @@ Examples:
 
 - Game/session recovery: Atlas.
 - Pairing relationship: Atlas is authoritative; Sigil may retain the minimum identity needed to reconnect.
-- Player profiles/statistics: Atlas.
+- Connected player profiles/statistics: Atlas.
+- Standalone Android player UUIDs, match history and delivery metadata: Android
+  local domain (the separate-game exception above); no name-derived or unscoped
+  Atlas identity. Delivery acknowledgement cannot delete local history.
 - Sigil user/device settings, including startup preference: Atlas, keyed to the
   device. Sigils apply disposable runtime values and do not persist user settings.
 - Minimum device identity/pairing bootstrap material is distinct from user

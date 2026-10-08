@@ -2,19 +2,21 @@
 
 This is the permanent shared conversation and handoff document for **all of TurnHub**: Atlas, Sigils, Android, protocols, hardware, PCB and enclosure design, testing, releases, documentation, and product decisions. It is not limited to one feature or review.
 
-Scope confirmed by Ricky: 2026-10-08.
+Scope confirmed by project owner: 2026-10-08.
 
 ## Working agreement
+
+- Refer to the project owner by role, without their personal name, in document text and author metadata (owner, 2026-10-08).
 
 - Read this document at the start of project work and fetch current Git state before editing. Read CLAUDE.md and relevant engineering references as well.
 - Both Codex and Claude may add topics, ask questions, respond, record disagreements, and hand work to the other. Neither is assumed to have approved the other's proposal.
 - Give each discussion a stable ID and title. Include date, author, reviewed commit, status, affected areas, evidence, next action, and any blocker.
 - Append clearly attributed replies. Preserve the other agent's statements; explain corrections rather than silently rewriting them. Update the topic index as status changes.
 - Before implementation, record the intended scope and current owner to reduce conflicting work. An ownership entry is coordination, not a lock; check branches and current work before editing overlapping files.
-- Documentation-only updates should not run CI (Ricky, 2026-10-08). Use `[skip ci]` in documentation-only commit messages; do not skip CI for code or mixed changes.
+- Documentation-only updates should not run CI (project owner, 2026-10-08). Use `[skip ci]` in documentation-only commit messages; do not skip CI for code or mixed changes.
 - Record implementation commits and actual validation results at handoff. Distinguish source review, host tests, and device acceptance. Never claim tests or hardware checks that did not happen.
-- This document does not grant permissions or supersede Ricky's directions. Follow the repository's feature gate and architectural rules.
-- Git is the shared transport. Updating this file does not automatically notify or run either agent. Ricky can ask either agent to read and reply here.
+- This document does not grant permissions or supersede project owner's directions. Follow the repository's feature gate and architectural rules.
+- Git is the shared transport. Updating this file does not automatically notify or run either agent. project owner can ask either agent to read and reply here.
 
 ## One home per fact
 
@@ -26,7 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Proposed; source review complete | Claude review requested; implementation unassigned |
+| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
@@ -51,7 +53,7 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 Review baseline: master `cb200a63b0bc48ac452e2339890a9b55fd9574ec`.
 Status: source review complete; proposals below are not implemented or hardware-verified.
 
-## Ricky's request
+## project owner's request
 
 Review the new master commits, make the app more friendly to players who do not own an Atlas, and address detection of an Atlas with no battery installed.
 
@@ -186,7 +188,7 @@ Please append your response here:
 
 ## TH-002: Shared tablet access and dedicated account type
 
-### 2026-10-08 / Codex / recording Ricky's requirements
+### 2026-10-08 / Codex / recording project owner's requirements
 
 - Reviewed baseline: master `782e23b931542ddd479ba18a258bf4ad50f71316`.
 - Status: agreed requirements, not implemented. No runtime validation performed.
@@ -217,7 +219,7 @@ Please append your response here:
 
 ## TH-003: High-resolution player artwork and fuller tablet UI
 
-### 2026-10-08 / Codex / recording Ricky's requirements
+### 2026-10-08 / Codex / recording project owner's requirements
 
 - Reviewed baseline: master `953ce303359ec32cf941404c26d6bcd896a9978a`.
 - Status: planned, not implemented. Owner requests uploadable high-resolution
@@ -238,3 +240,242 @@ Please append your response here:
   persistence and cleanup ownership, rendering clients, asset API/contract,
   dependency/legal impact, and contrast/TalkBack/large-text behavior.
 - Validation: documentation only; no code, image pipeline or UI changes tested.
+
+### 2026-10-08 / Codex / TH-001 A implementation claim
+
+- Baseline: master `d83e314eeaea914780add28906b84dd1df1cf694`.
+- Owner / branch: Codex, `codex/app-only-entry`; active.
+- Scope: prominent device-play entry and Resume, device-first wording, durable local launch preference, permission-free fresh/local launch, and cancellation of pending Atlas joins when entering local play. No history schema, battery, tablet account or artwork changes.
+- Feature gate: Android owns navigation and stores the preference in `turnhub_ui`; explicit entry/exit/connect callbacks change it, with no gameplay Intent or wire-contract change. StandaloneTable retains local game validation/persistence and Atlas retains connected games. Existing Android screens render both; no added dependency. Labels and full-width actions remain accessible; phone/foldable/large-text device checks remain required.
+- Validation plan: focused HomeViewModel cancellation scenarios and Android CI. This environment has no Android SDK or Gradle/Kotlin installation; do not report a local Android build as passed.
+
+### 2026-10-08 / Codex / TH-001 A implementation handoff
+
+- Branch: `codex/app-only-entry`; implementation commit recorded below once pushed.
+- Implemented: prominent Play on this device / Resume game entry; device-first copy; persisted local launch choice; fresh/local launches do not ask for nearby-device permission; explicit Atlas Connect/search/setup does. Entering local play cancels tracked discovery/join/connect jobs and disconnects polling. Returning to Atlas waits for disconnect completion. Existing StandaloneTable game persistence and import queue are unchanged.
+- Added four HomeViewModel regression scenarios: saved-table discovery cancellation, manual Wi-Fi join cancellation without password fallback, pending repository connect cancellation, and reconnect after disconnect completes.
+- Manual V0.12 and generated Android manual asset updated; bounded import queue and lack of permanent history now explained. Personal name removed from current text documents that contained it; current manual author/last-modifier set to TurnHub. Existing Git history was not rewritten.
+- Local checks: manual export `--check` passed; 28-page manual rendered and visually reviewed, with changed pages 5 and 19 inspected at full size. Android SDK, Kotlin and Gradle are unavailable here, so no local build/test pass is claimed. Draft PR CI is the build/test gate.
+- Local Codex continuation: fetch this branch, read CLAUDE.md and this handoff; run `cd Android && ./gradlew testDebugUnitTest assembleDebug` if CI has not already passed. Fix actual failures before extending the feature. Device acceptance: fresh install with no Atlas/network and Nearby devices denied; local start/end; relaunch/rotation/resume; Back to Home and explicit Atlas Connect/search/setup; switch to local while a join is pending; narrow/folded/unfolded/tablet layouts, large text and TalkBack. Do not merge before review/device acceptance.
+- Remaining outside this slice: permanent local players/history, rejected-import retention and Atlas-scoped identity (B/C); battery presence investigation; TH-002 tablet accounts/re-entry; TH-003 artwork and richer tablet UI.
+
+### 2026-10-08 / Codex / verified CI outcome
+
+- Implementation commit: `3bf62e14a6953f41039aa522a59424e4b854f3ec`; draft [PR #73](https://github.com/rickethyo/TurnHub/pull/73).
+- [TurnHub CI run 216](https://github.com/rickethyo/TurnHub/actions/runs/37747422886) completed successfully. Android ran `testDebugUnitTest bundleRelease`, including the four new cancellation scenarios; job log reports `BUILD SUCCESSFUL in 1m 55s`. The always-run adapter, token, portal-pack and manual checks passed. Firmware jobs skipped compilation because firmware source was unaffected; no firmware/device pass is claimed.
+- Status: ready for source review and local Codex continuation. Physical phone/foldable, large-text and TalkBack checks remain pending. No merge or hardware validation performed. The continuation should use the existing CI evidence and rerun affected checks only after code changes or for a concrete unresolved concern.
+- Documentation cleanup also replaces the personal name in the Wokwi example. Future documentation uses the project-owner role; Git history and archived binary manual versions have not been rewritten.
+
+### 2026-10-08 / Codex / TH-001 B/C continuation claim and entry review
+
+- Reviewed/fetched branch: `codex/app-only-entry`, `55ee4eb`; new cloud checkout,
+  clean working tree, no pre-existing uncommitted work. Master will not be changed.
+- Owner: Codex on this branch. Scope: reusable device-local player IDs, visible
+  retained match history and derived played/won/draw totals, delivery state
+  separate from history; then explicit Atlas-scoped profile linking/import.
+  Battery, tablet-only accounts, artwork and parked storage/password work excluded.
+- Entry review: source confirms permission-free fresh/local launch, durable mode
+  preference, saved rotation state and tracked join/connect cancellation. Existing
+  CI run 216 at `3bf62e1` independently confirmed successful; its unchanged
+  passing cancellation suite will not be rerun merely for baseline review.
+- Device blocker: this cloud workspace has no Android SDK, adb, attached USB
+  device or KVM at inspection. Phone/foldable, rotation/relaunch through Android,
+  actual permission prompts, large text and TalkBack acceptance cannot be claimed.
+  SDK provisioning will be attempted for new-code JVM/build checks. Source review
+  and persistence reconstruction tests are automated/source evidence only.
+- Identity assumption: adding a typed name always creates a fresh local UUID;
+  selecting an existing local player reuses that UUID. Equal labels never merge.
+  Historical player names are snapshots, local statistics key only by local ID.
+  An Atlas link is `(atlasId, profileId)` chosen explicitly, never inferred by name.
+- Persistence assumption: Android owns local roster/history/delivery in a single
+  versioned `turnhub_standalone/library` document; active game remains `game`.
+  History has no automatic pruning or 200-record policy. Until export/delete is
+  designed it lasts until app data is cleared/uninstalled, subject to available
+  storage. No crash-safe disk durability or backup guarantee is claimed. Existing
+  queued records are preserved for review without guessing old identity scope;
+  already discarded/imported records cannot be reconstructed.
+- Delivery assumption: initial B commit pauses automatic import while linking is
+  built. C will require explicit per-match destination/player mapping and a
+  server-validated Atlas ID; remove server name fallback rather than retain a
+  prototype compatibility path. HTTP 400 records/reasons stay visible and are
+  not retried automatically; transient failure leaves pending work. Success only
+  changes delivery status, never deletes history or adds another local result.
+- Feature gate: local domain owns/validates add/select/link/history actions and
+  existing TableControls own local gameplay; Atlas import domain validates exact
+  destination/profile identities and credits Atlas statistics. Android alone
+  persists/renders local facts; Atlas persists its existing import receipts. C
+  changes the import form contract and corresponding validators/tests/docs.
+  No dependencies added. Text statuses, scrollable/flow layouts and labeled
+  selection/actions provide accessible alternatives; physical assistive checks
+  remain pending. See Android/README.md for the owning boundary specification.
+
+### 2026-10-08 / Codex / TH-001 B local library handoff
+
+- Implemented reusable local UUID players, explicit saved-player picks, retained
+  immutable match history, local-only derived played/won/draw totals and a
+  scrollable players/history screen reachable from Home or the local lobby.
+  Same names remain distinct; reset/rematch retains IDs. The former 200-record
+  queue limit is not applied to history. Delivery acknowledgement retains facts.
+- Game and library use one preference transaction; corrupt/future documents and
+  failed writes block edits with a visible message. Legacy queued records survive
+  without guessed identity. No historical recovery beyond available records.
+- Import temporarily paused in this reviewable intermediate commit until C's
+  explicit per-match mapping and strict server validator land. No battery,
+  tablet account or parked storage/password edits. README/invariants/manual and
+  generated asset agree with this intermediate behavior.
+- Added JVM cases for equal labels/distinct identity, saved picks, rematch/reset,
+  >200 retained results, legacy retention, corrupt/future data, acknowledgement
+  retention and game reconstruction/clock pause. Local Gradle setup in progress;
+  API 37 package was unavailable from sdkmanager. No test/build pass yet claimed.
+  Manual export/check and whitespace check passed. CI will run on this code push.
+- Physical device checks remain blocked as recorded above. Local persistence
+  reconstruction tests are not actual Android relaunch or rotation tests.
+
+### 2026-10-08 / Codex / TH-001 B validation and C implementation handoff
+
+- B implementation: `0e3aed73bb2e62d699d7d52f1e999ff36e4498b8`.
+  [CI run 217](https://github.com/rickethyo/TurnHub/actions/runs/37749094149)
+  passed Android unit tests/release bundle and always-run checks. Unaffected
+  firmware compilation was skipped; no hardware acceptance claimed.
+- C implemented: explicit per-match profile mapping, mandatory destination Atlas
+  ID and no automatic import on connection/sign-in. Local IDs, names and match
+  facts remain unchanged. Pending payloads are frozen for retries; successful
+  acknowledgement retains history and marks imported. HTTP 400 retains record/
+  reason as needs-attention and requires explicit review/relink; transient or
+  malformed responses stay pending. Partial credited counts/unmatched names are
+  shown without resubmitting an acknowledged match. Delivery is serialized.
+- Atlas 0.7.2 validates destination scope and unique exact, existing, readable,
+  non-archived profile IDs before writing a new receipt/statistics; all name
+  fallback is removed. Old/unparseable Atlas firmware is gated out in Android
+  so an older server cannot silently use the former behavior. Duplicate receipt
+  acknowledgements still work after a profile is archived. Receipt schema/window
+  and partial-write/power-loss durability remain unchanged, documented honestly.
+- Source review refinement: device-play launch button now uses minimum height,
+  permitting scaled text to grow. No claim of device text-scale acceptance.
+- Local automated validation: provisioned Gradle 9.8, Temurin JDK 25, Android
+  SDK/platform tools using the session proxy and system CA trust. Initial SDK
+  spelling (`android-37`) was unavailable; Gradle installed `android-37.0`.
+  Initial JRE/compiler and downloaded-JDK trust errors were environment failures.
+  New-code missing `asStateFlow` import was fixed; one new test fixture reused a
+  connected fake repository across ViewModel constructions and was corrected.
+  Final `testDebugUnitTest assembleDebug` passed: 209 tests, zero failures/errors.
+- Atlas ASan/UBSan host suites all passed; after tightening unreadable-account
+  handling only affected application scenarios were rebuilt/rerun and passed.
+  New cases cover wrong/missing Atlas scope, name-match refusal, deleted/archived
+  and duplicate identities, rejection-before-receipt, duplicate ack, storage
+  failure and draw. Adapter audit (31) and generated/shared contract check (20
+  responses/fixtures) passed. No unchanged passing storage suites were rerun.
+- Android cases cover success/duplicate/rejection/transient acknowledgement,
+  retained records/reasons/totals, wrong Atlas and remap refusal, malformed ack,
+  frozen mapping/no resubmit, local write failure, old/unknown firmware, changed
+  Atlas choice cancellation and device-play delivery cancellation.
+- Manual V0.12 and generated asset, owning Android/identity/storage/import
+  references and size/change history updated. Manual export/check, text/metadata
+  review and whitespace check passed; author/last modifier are `project owner`.
+  This continuation did not render the changed manual pages visually.
+- Physical testing: `adb devices -l` after provisioning lists no attached device.
+  Phone/foldable/tablet layout, Android relaunch/rotation, real permission denial/
+  grant prompts, large text, TalkBack and actual Wi-Fi cancellation remain
+  blocked. JVM reconstruction/cancellation tests are not those device checks.
+- Remaining useful slices: export/backup, deliberate deletion/retention controls,
+  local-player editing/reusable reviewed links, large-history persistence and
+  performance, plus physical acceptance. Per-match links were chosen to avoid
+  silently applying a new profile association to older results. No battery,
+  TH-002 account/authorization, TH-003 assets or parked storage/password changes.
+- Next: push this small C commit, verify its required CI, append exact SHA/run/
+  size evidence in a `[skip ci]` handoff. Keep PR #73 draft and do not merge.
+
+### 2026-10-08 / Codex / C CI verification and bounded lint cleanup claim
+
+- C implementation: `ae5df30ca9cefcf1cae463a140eceab2dc4bf07c`.
+  [CI run 218](https://github.com/rickethyo/TurnHub/actions/runs/37750825050)
+  passed all required checks. Android `testDebugUnitTest bundleRelease` reports
+  BUILD SUCCESSFUL (1m 32s). Atlas firmware 0.7.2 build, signed descriptor/package
+  verification and screen renders passed. Static RAM/flash evidence is recorded
+  in the size history. No firmware flash or actual device acceptance performed.
+- Additional local `lintDebug` found 3 errors, 37 warnings and 4 hints. The three
+  errors predate this branch's edits: ProfileVault.key's API-30 guard is only
+  implicit in callers; haptics spread an untyped primitive array; GameTab's
+  AnimatedContent ignores its target stage. None is in the new library/import
+  files. Lint is not claimed passed at this point; no suppressions/baseline added.
+- Owner / branch: Codex, `codex/app-only-entry`; next bounded scope is these
+  three Android platform/presentation fixes. Make the existing Android-11 key
+  requirement explicit at the API call, type the existing click/thud choices,
+  and render the animation's target snapshot with stage-based content keys.
+  Existing authentication/storage policy, gameplay semantics, wire contracts
+  and dependency inventory remain the owners of their unchanged behavior.
+- Validation plan: lint and debug compilation; CI for this code commit. Pure
+  domain tests already passed and do not exercise Android platform APIs or
+  Compose animation, so no redundant local unit-suite rerun is planned.
+  Physical haptics, animation, app-lock and assistive acceptance remain pending.
+
+### 2026-10-08 / Codex / Android lint cleanup outcome
+
+- Implemented the three claimed fixes without lint suppression or a baseline:
+  explicit API-30 guard at key generation, typed click/thud capability checks,
+  and AnimatedContent target snapshots with stage keys and disabled outgoing
+  controls. The current Android boundary reference describes these paths.
+- Local `lintDebug assembleDebug` passed. All three prior lint errors are gone;
+  remaining warnings/hints are recorded in the final verification below.
+  No authentication policy/storage format or parked firmware password work was
+  changed. No new dependencies or user instruction flow was introduced, so the
+  existing manual remains applicable. Source changes will run Android CI.
+- No repeated local domain unit-suite run: those 209 tests passed for C and do
+  not test these platform/Compose paths. Actual motor, transition, app-lock and
+  assistive-device validation remain pending, with no attached adb device.
+
+### 2026-10-08 / Codex / final unattended-session handoff
+
+- Branch: `codex/app-only-entry`; master was never checked out, written, merged
+  or pushed. PR #73 remains draft. Fresh cloud checkout was clean at `55ee4eb`;
+  existing user working copies and their uncommitted work were not accessed.
+- Commits: `9e9aa6c` boundary/ownership claim [skip ci]; `0e3aed7` local UUID
+  players/history; `ae5df30` explicit Atlas mapping/retained import outcomes;
+  `adfc626` CI/size evidence and lint claim [skip ci]; `92668d5` platform guards,
+  typed haptics and control animation snapshots; final handoff commit [skip ci].
+- Latest code SHA: `92668d532213a42981f99c9dd0b5ca88300ff78d`.
+  [CI run 219](https://github.com/rickethyo/TurnHub/actions/runs/37751933672)
+  completed successfully, including Android unit tests/release bundle and all
+  required host/contract/firmware checks. Runs 217 and 218 also passed; run 216
+  remained the baseline entry evidence, not manually rerun unchanged.
+- Local final checks: C passed 209 JVM tests and debug assembly; cleanup passed
+  lint/debug assembly (zero lint errors, 28 warnings, 4 hints). Existing warnings
+  include dependency-version suggestions, inlined API constants, SDK checks,
+  KTX/style and resources; they were not hidden or turned into a lint baseline.
+  No domain test rerun after a passing C result merely for the cleanup: CI ran
+  the required full tests for its code change. Local Atlas sanitizer/contract
+  and manual export checks are detailed above. Debug APK and lint report remain
+  in ignored Android/app/build outputs in this workspace.
+- Documentation uses `project owner`, including current manual author/last
+  modifier and the style guide's illustrative player label. Historical commits
+  and archived manuals were not rewritten. The latest handoff is documentation
+  only and deliberately skips CI; code CI evidence is run 219 above.
+
+| Acceptance item | Available evidence | Device result |
+|---|---|---|
+| Fresh/local play with no Atlas/network/nearby permission | Activity source review; local engine/JVM scenarios | Pending: no attached phone |
+| Relaunch, rotation, Resume and preferred entry | Saved-state/preference source review; game/library reconstruction and pause-clock JVM cases | Pending: actual Android lifecycle |
+| Discovery/join/connect and delivery cancellation | Existing four entry scenarios plus changed-Atlas/delivery cancellation JVM cases; CI passes | Pending: live Wi-Fi/system callbacks |
+| Reusable players, equal names, retained history/totals | Local UUID/selection/rematch/reset, >200 history, corruption/write-failure and persistence tests | Pending: touch/assistive acceptance |
+| Safe optional imports and retained rejection | Android delivery tests and real Atlas-handler sanitizer scenarios for destination/profile rejection, duplicates and storage failure | Pending: real Atlas + signed-in phone |
+| Phone/folded/unfolded/tablet, large text, TalkBack | Scroll/flow/text-label source review, minimum launch-button height, lint with zero errors | Pending: no device; no accessibility certification claimed |
+| App lock, haptics, control transition and reduce motion | API guards/type validation, compile and lint | Pending: actual device behavior |
+| Manual | V0.12 asset export/check, content and project owner metadata inspection | Pending: visual rendering of continuation edits |
+
+- `adb devices -l` was empty after SDK provisioning; no KVM/USB device was
+  available at environment inspection. No emulator, physical device, board flash
+  or bench result is claimed. Do not merge before review/device acceptance.
+- When testing optional import, install this Android build and Atlas 0.7.2+.
+  The app refuses the older/unparseable firmware that can use name fallback.
+  After uncertain acknowledgement, retry the same pending mapping on the same
+  Atlas. Review acknowledged partial credit instead of replaying it; the existing
+  64-receipt window and partial-write durability limits still apply.
+- Remaining staged work: export/backup and deliberate deletion/retention policy,
+  local-player editing/reusable reviewed links, large-history storage/performance,
+  and device acceptance. History has no automatic pruning, but storage is finite
+  and current writes are synchronous. Battery presence, tablet-only accounts,
+  richer artwork and parked partition/password work remain outside this session.
+- Next owner/action: project owner for physical acceptance/review; a future
+  implementation agent should fetch this branch and read this final handoff,
+  then claim a bounded remaining slice. No routine confirmation is needed to
+  inspect/review it; this handoff grants no approval to merge.

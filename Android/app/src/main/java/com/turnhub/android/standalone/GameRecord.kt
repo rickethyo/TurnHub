@@ -5,9 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * A finished standalone game, kept on the tablet until an Atlas imports it.
- * Atlas credits each player that matches one of its profiles ([profileId], or
- * the name when none was picked) and ignores a [recordId] it has seen before.
+ * An immutable finished local match, retained independently of Atlas delivery.
+ * Local identity is [Player.localId]; an old unscoped profileId is not a link.
  * Player indices ([starter], [winner]) are positions in [players], which is
  * turn order.
  */
@@ -34,6 +33,7 @@ data class GameRecord(
         /** 1 for the first player out; null for whoever was still in at the end. */
         val outOrder: Int?,
         val commanderDamageReceived: Int,
+        val localId: String? = null,
     )
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -49,6 +49,7 @@ data class GameRecord(
                 put(JSONObject().apply {
                     put("name", p.name)
                     put("profileId", p.profileId ?: JSONObject.NULL)
+                    put("localId", p.localId ?: JSONObject.NULL)
                     put("finalLife", p.finalLife)
                     put("turnsCompleted", p.turnsCompleted)
                     put("turnMs", p.turnMs)
@@ -65,7 +66,9 @@ data class GameRecord(
      * The `/api/standalone/import` form fields (protocol/http-v1.md): one game,
      * players numbered from 0 in turn order.
      */
-    fun importFields(): List<Pair<String, String>> = buildList {
+    fun importFields(atlasId: String, profileIds: List<String>): List<Pair<String, String>> = buildList {
+        require(atlasId.isNotBlank() && profileIds.size == players.size && profileIds.all { it.isNotBlank() })
+        add("atlasId" to atlasId)
         add("recordId" to recordId)
         add("gameProfile" to profile.wireValue)
         add("durationMs" to "${durationMs.coerceIn(0, MAX_DURATION_MS)}")
@@ -74,7 +77,7 @@ data class GameRecord(
         add("winner" to (winner?.toString() ?: ""))
         players.forEachIndexed { i, p ->
             add("name$i" to p.name)
-            add("profile$i" to (p.profileId ?: ""))
+            add("profile$i" to profileIds[i])
             add("turns$i" to "${p.turnsCompleted}")
             add("turnMs$i" to "${p.turnMs.coerceIn(0, MAX_DURATION_MS)}")
             add("fastest$i" to "${p.fastestTurnMs.coerceIn(0, DAY_MS)}")
@@ -102,6 +105,7 @@ data class GameRecord(
                     val p = players.getJSONObject(i)
                     Player(
                         name = p.getString("name"),
+                        localId = p.optStringOrNull("localId"),
                         profileId = p.optStringOrNull("profileId"),
                         finalLife = p.getInt("finalLife"),
                         turnsCompleted = p.getInt("turnsCompleted"),
@@ -112,7 +116,11 @@ data class GameRecord(
                         commanderDamageReceived = p.optInt("commanderDamageReceived"),
                     )
                 },
-            )
+            ).also { record ->
+                require(record.recordId.isNotBlank() && record.players.size in 2..StandaloneGame.MAX_PLAYERS)
+                require(record.winner == null || record.winner in record.players.indices)
+                require(record.starter == null || record.starter in record.players.indices)
+            }
         }.getOrNull()
     }
 }

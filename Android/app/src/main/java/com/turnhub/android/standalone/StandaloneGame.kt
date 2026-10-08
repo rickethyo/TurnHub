@@ -13,9 +13,9 @@ import com.turnhub.android.protocol.TurnTimerPhase
 import kotlin.random.Random
 
 /**
- * One player of a standalone game. [profileId] is an Atlas profile picked from
- * the cached list, so the finished record can credit it on the next connect;
- * null means Atlas matches the name instead.
+ * One player at the local table. [localId] keys reusable device-local identity;
+ * names are snapshots, never identity. Legacy [profileId] is unscoped and must
+ * not be used for delivery without an explicit per-match Atlas mapping.
  */
 data class LocalPlayer(
     val name: String,
@@ -31,6 +31,7 @@ data class LocalPlayer(
     val longestTurnMs: Long = 0,
     /** Commander damage received, by source player index: one total per commander (1 and 2). */
     val commanderDamage: Map<Int, List<Int>> = emptyMap(),
+    val localId: String? = null,
 )
 
 /**
@@ -72,11 +73,12 @@ data class StandaloneGame(
 
     // --- the lobby ------------------------------------------------------------------
 
-    fun addPlayer(name: String, profileId: String? = null): StandaloneGame {
+    fun addPlayer(name: String, profileId: String? = null, localId: String? = null): StandaloneGame {
         val trimmed = name.trim().take(MAX_NAME)
         if (state != TableState.LOBBY || trimmed.isEmpty() || players.size >= MAX_PLAYERS) return this
         if (profileId != null && players.any { it.profileId == profileId }) return this
-        return copy(players = players + LocalPlayer(trimmed, profileId)).bump()
+        if (localId != null && players.any { it.localId == localId }) return this
+        return copy(players = players + LocalPlayer(trimmed, profileId, localId = localId)).bump()
     }
 
     fun removePlayer(index: Int): StandaloneGame {
@@ -112,7 +114,7 @@ data class StandaloneGame(
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
-            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife) },
+            players = players.map { LocalPlayer(it.name, it.profileId, life = startingLife, localId = it.localId) },
             active = first,
             starter = first,
             winner = null,
@@ -129,7 +131,7 @@ data class StandaloneGame(
         return StandaloneGame(
             profile = profile,
             startingLife = startingLife,
-            players = players.map { LocalPlayer(it.name, it.profileId) },
+            players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
     }
@@ -245,6 +247,7 @@ data class StandaloneGame(
             players = players.map { p ->
                 GameRecord.Player(
                     name = p.name,
+                    localId = p.localId,
                     profileId = p.profileId,
                     finalLife = p.life,
                     turnsCompleted = p.turnsCompleted,

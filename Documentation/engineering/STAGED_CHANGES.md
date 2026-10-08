@@ -84,7 +84,7 @@ everything implemented. Only the checks listed below are still open.
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
   seating, the portal's `/tablet` with life, Commander damage, pass, win and
   concede; round two, the same screen in the Android app; see
-  PLAYERS_AND_ACCOUNTS.md). Next, as Ricky asked: more counters
+  PLAYERS_AND_ACCOUNTS.md). Next, as project owner asked: more counters
   per player (poison, commander tax, energy, experience and similar) in
   `GameEngine` and the state, each also kept in profile statistics as
   "counters received"; uploaded player backgrounds are tracked above;
@@ -93,8 +93,11 @@ everything implemented. Only the checks listed below are still open.
 - **Standalone tablet game, later rounds** (round one, 2026-10-07: the app
   plays a game alone; round two: Atlas imports each finished game once,
   `POST /api/standalone/import`, protocol/http-v1.md; user manual V0.12,
-  section 18). Still to do: showing imported games in the app (today the
-  lobby only counts the games still waiting).
+  section 18). Local UUID players and retained history/basic local totals now
+  and explicit per-match Atlas mapping/import/rejection status exist on
+  `codex/app-only-entry` (TH-001 B/C; Android/README.md). Remaining: export/backup,
+  deliberate deletion/retention controls, local-player editing, storage/performance
+  work for large histories, and physical device acceptance.
 
 ### Setup and updates
 

@@ -329,30 +329,37 @@ One shared screen at the table acting for every seat. Engineering record:
 
 With no Atlas at the table, the Android app can run a standalone game itself
 (`Android/README.md`, "The one exception"). Each finished game is kept on the
-device and sent once Atlas is connected and someone is signed in:
+device separately from delivery metadata. Import is explicit: connect, sign in,
+map every player to a profile on that Atlas, then request delivery. Android
+retains acknowledged/rejected history. Atlas 0.7.2 requires exact identities:
 
 `POST /api/standalone/import` (signed-in session, `X-TurnHub-Token`; 401
 otherwise), form fields:
 
+- `atlasId`: required destination hardware ID, exactly this Atlas’s `/api/v1/info`
+  identity. A foreign/missing ID is rejected before importing anything.
 - `recordId`: 8-48 characters of letters, digits and `-` (the app uses a UUID).
 - `gameProfile`: `generic`, `mtg`, `mtg_commander` or `yugioh`.
 - `durationMs`: 0 to 604800000. `players`: 2 to 8.
 - `starter`, `winner`: a player index, or empty for none (no winner is a draw).
 - Per player `i` from 0, in turn order: `name<i>` (required), `profile<i>`
-  (the Atlas profile picked on the tablet, or empty), `turns<i>`, `turnMs<i>`,
+  (required exact profile ID chosen on the destination Atlas), `turns<i>`, `turnMs<i>`,
   `fastest<i>`, `longest<i>` (completed turns and their times), `out<i>`
   (1 for the first player out, 0 for anyone still in).
 
-Atlas credits each player to the picked profile when it still exists and isn't
-archived, otherwise to the profile with the same name ignoring case; the rest
-are listed as unmatched and count for no one. One profile is credited once
-per game. Answers `{"ok":true,"duplicate":false,"credited":N,"unmatched":[names]}`;
-a record ID Atlas already took answers `"duplicate":true` and changes nothing.
-400 for a malformed record (the app drops it), 503 when Atlas couldn't save
-(the app keeps it for the next connect).
+Atlas validates the whole mapping before writing a new receipt or statistics:
+every profile must exist, be readable and not archived, with no duplicate ID.
+Names are display labels and never an identity fallback. Answers
+`{"ok":true,"duplicate":false,"credited":N,"unmatched":[names]}`; a record ID
+Atlas already took answers `"duplicate":true` and changes nothing (also if a
+profile was subsequently archived). 400 for malformed/foreign/invalid mapping:
+the app keeps the result and reason for explicit review, with no automatic retry.
+503 when Atlas couldn't save: pending delivery stays for retry with the same ID
+and mapping. A successful acknowledgement retains the local result and marks
+it imported; partial credit/unmatched players are displayed, not retried.
 
 Atlas remembers the last 64 record IDs (hashed, NVS `sgimport`) and saves the ID
-before any statistics, so a power cut can lose one game's statistics but never
-count it twice. Imported games add to games played, won, eliminated and
+before any statistics, so a power cut can lose one game's statistics but does not count a replay twice while its receipt remains in that 64-ID
+window. It does not guarantee arbitrary long-term replay protection. Imported games add to games played, won, eliminated and
 started, completed turns and turn times, and set the last-game fields like a
 live game.

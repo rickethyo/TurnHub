@@ -21,44 +21,53 @@ import androidx.compose.ui.platform.LocalContext
 class TurnHubHaptics internal constructor(private val vibrator: Vibrator?) {
 
     /** A life button or a tab: one crisp click. */
-    fun tick() = play(listOf(VibrationEffect.Composition.PRIMITIVE_CLICK to 1f), fallbackMs = 18)
+    fun tick() = play(listOf(Primitive.CLICK to 1f), fallbackMs = 18)
 
     /** An action went through (Pass): a strong double click. */
     fun confirm() = play(
-        listOf(VibrationEffect.Composition.PRIMITIVE_CLICK to 1f, VibrationEffect.Composition.PRIMITIVE_CLICK to 1f),
+        listOf(Primitive.CLICK to 1f, Primitive.CLICK to 1f),
         fallbackMs = 35,
     )
 
     /** Another player nudged this phone's player: a quick triple tap. */
     fun nudged() = play(
         listOf(
-            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
-            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
-            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
+            Primitive.CLICK to 1f,
+            Primitive.CLICK to 1f,
+            Primitive.CLICK to 1f,
         ),
         fallbackMs = 90,
     )
 
     /** An action was undone (cancel a pass): a low thud. */
-    fun reject() = play(listOf(VibrationEffect.Composition.PRIMITIVE_THUD to 1f), fallbackMs = 45)
+    fun reject() = play(listOf(Primitive.THUD to 1f), fallbackMs = 45)
 
     /** The turn reached this phone's player: unmistakable, felt in a pocket. */
     fun yourTurn() = play(
         listOf(
-            VibrationEffect.Composition.PRIMITIVE_THUD to 1f,
-            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
-            VibrationEffect.Composition.PRIMITIVE_CLICK to 1f,
+            Primitive.THUD to 1f,
+            Primitive.CLICK to 1f,
+            Primitive.CLICK to 1f,
         ),
         fallbackMs = 120,
     )
 
-    private fun play(primitives: List<Pair<Int, Float>>, fallbackMs: Long) {
+    private enum class Primitive(val id: Int) {
+        CLICK(VibrationEffect.Composition.PRIMITIVE_CLICK),
+        THUD(VibrationEffect.Composition.PRIMITIVE_THUD),
+    }
+
+    private fun play(primitives: List<Pair<Primitive, Float>>, fallbackMs: Long) {
         val v = vibrator?.takeIf { it.hasVibrator() } ?: return
-        val ids = primitives.map { it.first }.distinct().toIntArray()
         val effect = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && v.areAllPrimitivesSupported(*ids) ->
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && primitives.map { it.first }.distinct().all { primitive ->
+                when (primitive) {
+                    Primitive.CLICK -> v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)
+                    Primitive.THUD -> v.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)
+                }
+            } ->
                 VibrationEffect.startComposition().apply {
-                    primitives.forEachIndexed { i, (id, scale) -> addPrimitive(id, scale, if (i == 0) 0 else GAP_MS) }
+                    primitives.forEachIndexed { i, (primitive, scale) -> addPrimitive(primitive.id, scale, if (i == 0) 0 else GAP_MS) }
                 }.compose()
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && fallbackMs < 60 ->
                 VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)

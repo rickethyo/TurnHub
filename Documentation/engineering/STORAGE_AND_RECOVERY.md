@@ -7,7 +7,8 @@ record is for.
 ## Rules
 
 - **Every persistent fact has one owner** (Invariant 7). Sigils keep only
-  their pairing; every user and device setting lives on Atlas.
+  their pairing; connected user and device settings live on Atlas. Standalone
+  Android local identities/history are the explicit separate-game exception.
 - **No migrations before release** (owner, 2026-09-30). Saved layouts can
   change freely; a changed layout means a factory reset. Do not add
   compatibility readers for old records. This ends when the owner says
@@ -149,3 +150,17 @@ NVS and file-system fakes. Profiles, PINs and totals surviving updates and
 reboots, booting without a card, failing cards and SD hot-plug are verified
 in use (owner, 2026-10-02). Power-cut checks R05-R07 and card swaps D04-D05
 are open ([Staged Changes](STAGED_CHANGES.md), "Open checks").
+
+## Android local library
+
+Android owns local player UUIDs, immutable finished-match UUIDs/snapshots and
+separate delivery metadata in `turnhub_standalone/library` (JSON schema 1).
+Active local game and library writes share one SharedPreferences transaction.
+No import acknowledgement/rejection deletes history; no automatic retention
+limit is applied. Existing queued records are retained for explicit review
+without inferred local or Atlas identity, as required by TH-001. This bounded
+queue intake is not a firmware storage migration. Already discarded records
+cannot be recovered. See [Android](../../Android/README.md) for schema, validators,
+retention, storage-failure and backup limits. Atlas's existing `sgimport` receipt
+ring remains 64 entries; completion receipts/partial-write durability are not
+expanded by this feature, and the parked storage batch remains parked.

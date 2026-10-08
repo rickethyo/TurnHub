@@ -27,7 +27,22 @@ The app must not:
 
 ### The one exception: the standalone tablet game
 
-With **no Atlas at the table**, **Play without Atlas** (on the Connect card)
+Device-first entry (2026-10-08, implemented on `codex/app-only-entry`, device
+acceptance pending): the disconnected landing screen leads with **Play on this
+device**, or **Resume game** for a running/paused local match. No account,
+network or nearby-device permission is needed. `MainActivity` owns navigation:
+`turnhub_ui/prefer_device_play` remembers local play across launches, while the
+saved instance state remembers the currently open screen across rotation.
+Back returns to Home without changing the preference or game. Explicit Atlas
+Connect, Try again or setup selects Atlas for future launches and requests local
+network permission if needed. Fresh launches never request that permission;
+Atlas-preferred launches rejoin only when permission is already available.
+Entering device play cancels discovery, Wi-Fi joins and pending repository
+connects, then disconnects polling and releases the Atlas network. A later
+connection waits for the disconnect to finish. Local history and explicit Atlas-scoped linking are described below
+(TH-001 in `COLLABORATION.md`).
+
+With **no Atlas at the table**, **Play on this device**
 runs a small game on the device itself: life, Commander damage, turns, pause,
 concede and the winner (`standalone/StandaloneGame.kt`). It is a separate
 game, never a copy of or a change to a game Atlas is running, so nothing is
@@ -36,15 +51,39 @@ merged back live. The rules above apply in full whenever Atlas is present.
 - The table screen is tablet mode's (`ui/tablet/TabletTable.kt`); it sends
   the same seat actions through `data/TableControls`, which
   `StandaloneTable` applies locally instead of `AtlasTablet` sending them.
-- Players are typed names or picks from the profiles of the last Atlas the
-  app connected to (cached on every connect). Typed names that match a
-  cached profile become that profile.
-- Each finished game becomes a `GameRecord` kept on the device. Once the
-  app is connected to an Atlas and signed in, `HomeViewModel` sends each one
-  to `POST /api/standalone/import` (protocol/http-v1.md). Atlas imports it
-  once, crediting the matching profiles (by picked profile, else by name) and
-  ignoring a record it has already taken; the app then forgets it. The
-  import is the only way a standalone game reaches Atlas statistics.
+- Adding a typed name creates a reusable player with a local UUID. Selecting a
+  saved player reuses that identity. Same-name players stay distinct and short ID
+  labels distinguish them. Reset/rematch preserves IDs; records snapshot names.
+- **Device players and history** opens from Home (connected or disconnected),
+  and the local lobby. It shows results and basic played/won/draw totals derived
+  only from retained local matches by local ID, without combining Atlas totals.
+- The versioned local library owns roster, history and independent delivery
+  metadata. Active game/library writes share one preference transaction. Every
+  completed match is retained once by its match UUID; there is no automatic
+  200-record pruning. Imported/rejected results stay in history. Current game
+  and identities survive reconstruction; actual Android rotation/relaunch still
+  needs device acceptance. Corrupt/future data fails closed, preserves the
+  stored bytes, and explains the problem rather than overwriting it.
+- Import is optional and explicit, never automatic on sign-in. From history,
+  connect/sign in, load current Atlas profiles, choose a different profile for
+  each player in a match, then Import mapped match. Nothing is preselected by
+  name. The delivery mapping snapshots `(atlasId, profileId)` per match; it
+  does not merge/replace local identities or change historical player names.
+  Pending mappings are frozen through uncertain acknowledgements; retry uses the
+  same match UUID and destination. Imported mappings cannot be resubmitted.
+- History separately shows needs-linking, pending, imported and needs-attention
+  (rejected) states. HTTP 400 retains the record and reason without automatic
+  retry; explicit review/relink can queue it again. Transient/malformed responses
+  keep pending work and block newer deliveries until acknowledged. A signed-in
+  user can send only pending work for the current Atlas. Atlas 0.7.2+ requires
+  exact destination/profile IDs and rejects missing, duplicate, deleted,
+  archived or unreadable identities before taking a receipt; no name fallback.
+  Acknowledged partial credit is displayed and never automatically retried.
+- Existing queue records are retained as legacy history without guessed local
+  or Atlas identity and can be explicitly mapped per match. Earlier imported/
+  dropped records cannot be reconstructed. Atlas's 64-receipt dedupe window and
+  possible partial credit after storage failure/power loss remain unchanged;
+  this is not crash-safe exactly-once statistics across arbitrary retries.
 - No turn timer, Two-Headed Giant, phones or Sigils in this mode.
 
 ```text
@@ -370,3 +409,46 @@ Networking notes:
 - `/api/v1/state` carries each player's `displayName`; players without one
   show as `Player N`. Paired Sigils come from the Admin device list, not from
   the state snapshot.
+
+
+### Local library feature boundary (TH-001 B/C implemented, device acceptance pending)
+
+Android's standalone domain owns reusable local-player UUIDs, completed match
+snapshots and their derived local statistics. Explicit add/select actions are
+validated locally; names are labels and never identity keys. The local library
+is a versioned JSON document in `turnhub_standalone/library`, separate from the
+active game's `game` key. Match UUIDs remain stable across import. History is
+retained without automatic pruning; delivery metadata references history by
+match UUID and acknowledgement/rejection cannot delete a result. Clearing app
+data/uninstall removes it; export and storage-error recovery remain future work.
+Existing unscoped records are retained without inferred Atlas or local identity.
+
+Optional delivery requires a per-match explicit `(atlasId, profileId)` mapping
+for every player, validated locally and by Atlas's import domain. Connected
+state remains Atlas-owned. No new dependency or gameplay Intent is needed;
+the import form contract/validator changes together. Android renders text
+statuses and labeled player picks in scrollable layouts; local controls use
+existing TableControls. TalkBack, text-scale and phone/foldable acceptance must
+be recorded separately from JVM tests and builds.
+
+Local schema 1 uses JSON object fields `schema`, `players` (localId/name),
+`history` (immutable GameRecord objects) and `deliveries` (recordId/status/reason/
+atlasId/profileIds in immutable player order). IDs are UUID strings; dates and
+clocks are Unix/integer milliseconds. JSON null marks unknown legacy identity.
+Unknown schema, malformed records or duplicate local/match IDs fail closed.
+Android platform backup may include these preferences under existing app backup
+rules, but no TurnHub export/restore guarantee is offered. Every local game edit
+currently serializes the library and commits preferences synchronously; very
+large histories need performance/storage work before a release guarantee.
+
+### Platform and control presentation boundaries
+
+The profile vault checks Android 11 at its key-generation API boundary as well
+as exposing availability; its authentication policy and stored format are
+unchanged. Haptics use typed click/thud primitives, check each required motor
+capability, and retain the existing predefined-click/pulse fallbacks. The
+connected-player control transition renders its target table/player snapshot,
+keyed by control stage so ordinary polls do not start another stage animation.
+Outgoing-stage controls are disabled while the next stage is shown. These
+presentation paths still send existing Atlas actions and require physical
+app-lock, haptics, motion and assistive checks before device acceptance.
