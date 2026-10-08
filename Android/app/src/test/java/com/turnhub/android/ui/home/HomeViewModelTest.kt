@@ -113,7 +113,19 @@ private class FakeSessionTransport : AtlasSessionTransport {
         turnTimerMaxMs = 3_600_000,
     )
 
-    override suspend fun getProfiles(): List<ProfileSummary> = listOf(ProfileSummary("p1", "Ricky", hasPin = true))
+    var profileChoices = listOf(ProfileSummary("p1", "Ricky", hasPin = true))
+    var profilesGate: CompletableDeferred<Unit>? = null
+    val importRequests = mutableListOf<List<Pair<String, String>>>()
+    var importGate: CompletableDeferred<Unit>? = null
+    override suspend fun getProfiles(): List<ProfileSummary> {
+        profilesGate?.await()
+        return profileChoices
+    }
+    override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): com.turnhub.android.data.RawResponse {
+        importRequests += fields
+        importGate?.await()
+        return com.turnhub.android.data.RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}")
+    }
     override suspend fun login(profileId: String, pin: String): LoginResult =
         LoginResult("token", profileId).also { calls += "login $profileId" }
     var registerFailure: AtlasException? = null
@@ -514,6 +526,66 @@ class HomeViewModelTest {
 
         assertEquals(listOf(defaultCredentials), link.joins)
         assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+    }
+
+    @Test
+    fun `old or unknown Atlas firmware cannot enable explicit local import`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.1-dev"))
+        viewModel.signIn()
+        for (version in listOf("0.7.1-dev", "unknown")) {
+            repository.tableSummary.value = repository.tableSummary.value!!.copy(firmwareVersion = version)
+            viewModel.onLoadLocalImportProfiles()
+            assertNull(viewModel.localImport.value.atlasId)
+            assertTrue(viewModel.localImport.value.message!!.contains("0.7.2"))
+            assertTrue(sessionTransport.importRequests.isEmpty())
+        }
+    }
+
+    @Test
+    fun `changing Atlas discards in-flight local import choices`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
+        viewModel.signIn()
+        val gate = CompletableDeferred<Unit>()
+        sessionTransport.profilesGate = gate
+        viewModel.onLoadLocalImportProfiles()
+        assertTrue(viewModel.localImport.value.busy)
+        repository.tableSummary.value = repository.tableSummary.value!!.copy(atlasId = "THA-OTHER")
+        gate.complete(Unit)
+        assertNull(viewModel.localImport.value.atlasId)
+        assertTrue(viewModel.localImport.value.profiles.isEmpty())
+    }
+
+    @Test
+    fun `device play cancels delivery and leaves the mapped match pending`() = runTest {
+        val viewModel = connectedViewModel(table("lobby.response.json", 1).copy(firmwareVersion = "0.7.2-dev"))
+        viewModel.signIn()
+        sessionTransport.profileChoices = listOf(ProfileSummary("p1", "Ana", true), ProfileSummary("p2", "Ben", true))
+        viewModel.onLoadLocalImportProfiles()
+        val store = object : com.turnhub.android.standalone.StandaloneStore {
+            var game: String? = null
+            var library: String? = null
+            override fun loadGame() = game
+            override fun loadRecords(): String? = null
+            override fun loadLibrary() = library
+            override fun saveSnapshot(game: String, library: String): Boolean {
+                this.game = game; this.library = library; return true
+            }
+        }
+        val local = com.turnhub.android.standalone.StandaloneTable(store)
+        viewModel.standalone = local
+        local.addPlayer("Ana"); local.addPlayer("Ben"); local.start()
+        local.control(com.turnhub.android.data.TabletSeat(com.turnhub.android.standalone.StandaloneGame.seatHandle(0).id, 1), "draw")
+        val record = local.state.value.library.history.single()
+        val gate = CompletableDeferred<Unit>()
+        sessionTransport.importGate = gate
+        viewModel.onImportLocalRecord(record.recordId, listOf("p1", "p2"))
+        assertEquals(1, sessionTransport.importRequests.size)
+        assertEquals(repository.tableSummary.value!!.atlasId, sessionTransport.importRequests.single().toMap()["atlasId"])
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+        assertEquals(com.turnhub.android.standalone.DeliveryStatus.PENDING, local.state.value.library.delivery(record.recordId).status)
+        assertEquals(listOf(record), local.state.value.library.history)
+        assertNull(viewModel.localImport.value.atlasId)
     }
 
     private fun table(name: String, revision: Long, edit: org.json.JSONObject.() -> Unit = {}) =

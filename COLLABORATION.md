@@ -28,7 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Device entry CI passed; local library implemented; explicit linking active | Codex / codex/app-only-entry; CI and device acceptance pending |
+| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Entry/library CI passed; explicit linking implemented | Codex / codex/app-only-entry; final CI and device acceptance pending |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
@@ -330,3 +330,57 @@ Please append your response here:
   Manual export/check and whitespace check passed. CI will run on this code push.
 - Physical device checks remain blocked as recorded above. Local persistence
   reconstruction tests are not actual Android relaunch or rotation tests.
+
+### 2026-10-08 / Codex / TH-001 B validation and C implementation handoff
+
+- B implementation: `0e3aed73bb2e62d699d7d52f1e999ff36e4498b8`.
+  [CI run 217](https://github.com/rickethyo/TurnHub/actions/runs/37749094149)
+  passed Android unit tests/release bundle and always-run checks. Unaffected
+  firmware compilation was skipped; no hardware acceptance claimed.
+- C implemented: explicit per-match profile mapping, mandatory destination Atlas
+  ID and no automatic import on connection/sign-in. Local IDs, names and match
+  facts remain unchanged. Pending payloads are frozen for retries; successful
+  acknowledgement retains history and marks imported. HTTP 400 retains record/
+  reason as needs-attention and requires explicit review/relink; transient or
+  malformed responses stay pending. Partial credited counts/unmatched names are
+  shown without resubmitting an acknowledged match. Delivery is serialized.
+- Atlas 0.7.2 validates destination scope and unique exact, existing, readable,
+  non-archived profile IDs before writing a new receipt/statistics; all name
+  fallback is removed. Old/unparseable Atlas firmware is gated out in Android
+  so an older server cannot silently use the former behavior. Duplicate receipt
+  acknowledgements still work after a profile is archived. Receipt schema/window
+  and partial-write/power-loss durability remain unchanged, documented honestly.
+- Source review refinement: device-play launch button now uses minimum height,
+  permitting scaled text to grow. No claim of device text-scale acceptance.
+- Local automated validation: provisioned Gradle 9.8, Temurin JDK 25, Android
+  SDK/platform tools using the session proxy and system CA trust. Initial SDK
+  spelling (`android-37`) was unavailable; Gradle installed `android-37.0`.
+  Initial JRE/compiler and downloaded-JDK trust errors were environment failures.
+  New-code missing `asStateFlow` import was fixed; one new test fixture reused a
+  connected fake repository across ViewModel constructions and was corrected.
+  Final `testDebugUnitTest assembleDebug` passed: 209 tests, zero failures/errors.
+- Atlas ASan/UBSan host suites all passed; after tightening unreadable-account
+  handling only affected application scenarios were rebuilt/rerun and passed.
+  New cases cover wrong/missing Atlas scope, name-match refusal, deleted/archived
+  and duplicate identities, rejection-before-receipt, duplicate ack, storage
+  failure and draw. Adapter audit (31) and generated/shared contract check (20
+  responses/fixtures) passed. No unchanged passing storage suites were rerun.
+- Android cases cover success/duplicate/rejection/transient acknowledgement,
+  retained records/reasons/totals, wrong Atlas and remap refusal, malformed ack,
+  frozen mapping/no resubmit, local write failure, old/unknown firmware, changed
+  Atlas choice cancellation and device-play delivery cancellation.
+- Manual V0.12 and generated asset, owning Android/identity/storage/import
+  references and size/change history updated. Manual export/check, text/metadata
+  review and whitespace check passed; author/last modifier are `project owner`.
+  This continuation did not render the changed manual pages visually.
+- Physical testing: `adb devices -l` after provisioning lists no attached device.
+  Phone/foldable/tablet layout, Android relaunch/rotation, real permission denial/
+  grant prompts, large text, TalkBack and actual Wi-Fi cancellation remain
+  blocked. JVM reconstruction/cancellation tests are not those device checks.
+- Remaining useful slices: export/backup, deliberate deletion/retention controls,
+  local-player editing/reusable reviewed links, large-history persistence and
+  performance, plus physical acceptance. Per-match links were chosen to avoid
+  silently applying a new profile association to older results. No battery,
+  TH-002 account/authorization, TH-003 assets or parked storage/password changes.
+- Next: push this small C commit, verify its required CI, append exact SHA/run/
+  size evidence in a `[skip ci]` handoff. Keep PR #73 draft and do not merge.

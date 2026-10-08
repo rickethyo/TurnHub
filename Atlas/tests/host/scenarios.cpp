@@ -4129,7 +4129,7 @@ static void twoHeadedGiantSigils() {
 }
 
 // A standalone tablet game's finished record: imported once, credited to the
-// picked profile or a name match, unmatched names reported, duplicates ignored.
+// explicit Atlas-scoped profiles only; invalid mappings never take a receipt.
 namespace {
 struct MemoryBlobs : TurnHubStorage::BlobStore {
   std::map<std::string,std::vector<uint8_t>> blobs; bool failWrites=false;
@@ -4154,25 +4154,33 @@ static void standaloneImport() {
   enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
   String anaId,benId; const String ana=registerPhone("Ana Import",anaId); const String ben=registerPhone("Ben Import",benId);
   std::map<std::string,String> record={
-    {"recordId","0f8e5c2a-1111-4222-8333-444455556666"},{"gameProfile","mtg_commander"},
-    {"durationMs","1800000"},{"players","3"},{"starter","1"},{"winner","0"},
+    {"recordId","0f8e5c2a-1111-4222-8333-444455556666"},{"atlasId",TurnHubWebApi::internal::atlasHardwareId()},
+    {"gameProfile","mtg_commander"},{"durationMs","1800000"},{"players","2"},{"starter","1"},{"winner","0"},
     {"name0","Ana"},{"profile0",anaId},{"turns0","6"},{"turnMs0","600000"},{"fastest0","30000"},{"longest0","200000"},{"out0","0"},
-    {"name1","ben import"},{"profile1",""},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
-    {"name2","Stranger"},{"profile2",""},{"turns2","5"},{"turnMs2","400000"},{"fastest2","10000"},{"longest2","90000"},{"out2","2"},
+    {"name1","ben import"},{"profile1",benId},{"turns1","6"},{"turnMs1","500000"},{"fastest1","20000"},{"longest1","150000"},{"out1","1"},
   };
   const auto anaBefore=ProfileFixture::profiles[anaId.c_str()].stats;
   const auto benBefore=ProfileFixture::profiles[benId.c_str()].stats;
-  // Signed-in sessions only, and only well-formed records.
   assert(request("/api/standalone/import","",record)==401);
-  auto bad=record; bad["winner"]="3"; assert(request("/api/standalone/import",ana,bad)==400);
+  auto bad=record; bad["winner"]="2"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["recordId"]="x"; assert(request("/api/standalone/import",ana,bad)==400);
   bad=record; bad["players"]="1"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["atlasId"]="THA-OTHER"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad.erase("atlasId"); assert(request("/api/standalone/import",ana,bad)==400);
+  // A same-name account must never rescue missing, deleted or foreign identity.
+  bad=record; bad["profile1"]=""; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["profile1"]="000000000000"; assert(request("/api/standalone/import",ana,bad)==400);
+  bad=record; bad["profile1"]=anaId; assert(request("/api/standalone/import",ana,bad)==400);
+  TurnHubAccounts::accounts[benId.c_str()].archived=true;
+  assert(request("/api/standalone/import",ana,record)==400);
+  TurnHubAccounts::accounts[benId.c_str()].archived=false;
   assert(blobs.blobs.empty());
+  assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaBefore.gamesPlayed);
+  assert(ProfileFixture::profiles[benId.c_str()].stats.gamesPlayed==benBefore.gamesPlayed);
 
   assert(request("/api/standalone/import",ana,record)==200);
   assert(server.body.find("\"duplicate\":false")!=std::string::npos);
   assert(server.body.find("\"credited\":2")!=std::string::npos);
-  assert(server.body.find("\"unmatched\":[\"Stranger\"]")!=std::string::npos);
   const auto &anaStats=ProfileFixture::profiles[anaId.c_str()].stats;
   assert(anaStats.gamesPlayed==anaBefore.gamesPlayed+1 && anaStats.gamesWon==anaBefore.gamesWon+1);
   assert(anaStats.lastGameResult==TurnHubProfiles::LastGameResult::Win && anaStats.lastGameTurns==6);
@@ -4181,19 +4189,19 @@ static void standaloneImport() {
   assert(benStats.gamesPlayed==benBefore.gamesPlayed+1 && benStats.gamesWon==benBefore.gamesWon);
   assert(benStats.gamesEliminated==benBefore.gamesEliminated+1 && benStats.gamesStarted==benBefore.gamesStarted+1);
 
-  // The same record again changes nothing.
+  // Duplicate receipt is acknowledged even if a profile was subsequently archived.
+  TurnHubAccounts::accounts[benId.c_str()].archived=true;
   assert(request("/api/standalone/import",ana,record)==200);
   assert(server.body.find("\"duplicate\":true")!=std::string::npos);
   assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaBefore.gamesPlayed+1);
+  TurnHubAccounts::accounts[benId.c_str()].archived=false;
 
-  // When the record ID can't be saved, nothing is credited and the app keeps the record.
   auto next=record; next["recordId"]="0f8e5c2a-2222-4222-8333-444455556666";
   blobs.failWrites=true; assert(request("/api/standalone/import",ana,next)==503);
   assert(ProfileFixture::profiles[anaId.c_str()].stats.gamesPlayed==anaBefore.gamesPlayed+1);
   blobs.failWrites=false;
-  // No winner: a draw for those still in, and one profile is credited once.
-  next["winner"]=""; next["profile1"]=anaId; next["name1"]="Ana again";
-  assert(request("/api/standalone/import",ana,next)==200 && server.body.find("\"credited\":1")!=std::string::npos);
+  next["winner"]="";
+  assert(request("/api/standalone/import",ana,next)==200 && server.body.find("\"credited\":2")!=std::string::npos);
   assert(ProfileFixture::profiles[anaId.c_str()].stats.lastGameResult==TurnHubProfiles::LastGameResult::Draw);
 
   assert(request("/api/session/logout",ana)==200 && request("/api/session/logout",ben)==200);
@@ -4369,7 +4377,7 @@ int main() {
   batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";
   chargingEstimate(); std::cout<<"PASS charging estimate: no jump on USB, counted climb, never down, full only after the limit\n";
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";
-  standaloneImport(); std::cout<<"PASS standalone tablet game import: sign-in, validation, picked profile or name, unmatched, duplicates, storage failure, draw\n";
+  standaloneImport(); std::cout<<"PASS standalone import: exact Atlas/profile scope, no name fallback, invalid mapping, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";
   pairConfirmIntent(); std::cout<<"PASS pairing v2 code check: Atlas screen or portal Admin, lobby only, waiting Sigil only, confirm stores, reject and store failure store nothing" << std::endl;

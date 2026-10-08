@@ -31,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -79,10 +80,67 @@ class HomeViewModel(
     private val repository: AtlasRepository = repositoryFactory(viewModelScope)
 
     /**
-     * The standalone tablet game: while connected it learns Atlas's profiles
-     * for its player picks, and hands Atlas its finished games.
+     * Local game/library owner. Atlas delivery requires an explicit per-match
+     * mapping; connected profiles never become local identity by name.
      */
     var standalone: com.turnhub.android.standalone.StandaloneTable? = null
+    private val _localImport = MutableStateFlow(com.turnhub.android.standalone.LocalImportState())
+    val localImport: StateFlow<com.turnhub.android.standalone.LocalImportState> = _localImport.asStateFlow()
+    private var localImportJob: Job? = null
+
+    private fun supportsExplicitLocalImport(version: String): Boolean =
+        runCatching { com.turnhub.android.data.FirmwareVersion.parse(version) }.getOrNull()?.let {
+            it >= com.turnhub.android.data.FirmwareVersion(0, 7, 2)
+        } == true
+
+    fun onLoadLocalImportProfiles() {
+        val summary = repository.tableSummary.value ?: return
+        val endpoint = repository.endpoint.value ?: return
+        if (repository.connectionState.value != AtlasConnectionState.CONNECTED ||
+            playerSession.state.value !is PlayerSessionState.SignedIn || localImportJob?.isActive == true) return
+        if (!supportsExplicitLocalImport(summary.firmwareVersion)) {
+            _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Update Atlas to 0.7.2 or later before importing. Older firmware can match players by name.")
+            return
+        }
+        _localImport.value = com.turnhub.android.standalone.LocalImportState(atlasId = summary.atlasId, busy = true)
+        localImportJob = viewModelScope.launch {
+            try {
+                val profiles = playerSession.profiles(endpoint)
+                if (repository.tableSummary.value?.atlasId == summary.atlasId &&
+                    playerSession.state.value is PlayerSessionState.SignedIn) {
+                    _localImport.value = com.turnhub.android.standalone.LocalImportState(summary.atlasId, profiles)
+                } else _localImport.value = com.turnhub.android.standalone.LocalImportState(message = "Atlas changed. Load its players again.")
+            } catch (e: AtlasException) {
+                _localImport.value = com.turnhub.android.standalone.LocalImportState(message = e.failure.userMessage)
+            }
+        }
+    }
+
+    fun onImportLocalRecord(recordId: String, profileIds: List<String>) {
+        val summary = repository.tableSummary.value ?: return
+        val choices = _localImport.value
+        val table = standalone ?: return
+        if (!supportsExplicitLocalImport(summary.firmwareVersion) || choices.atlasId != summary.atlasId || localImportJob?.isActive == true ||
+            repository.connectionState.value != AtlasConnectionState.CONNECTED ||
+            playerSession.state.value !is PlayerSessionState.SignedIn) return
+        if (!table.queueImport(recordId, summary.atlasId, profileIds, choices.profiles.map { it.profileId }.toSet())) {
+            _localImport.value = choices.copy(message = "Choose a different Atlas profile for every player. A pending or imported mapping cannot be changed.")
+            return
+        }
+        _localImport.value = choices.copy(busy = true, message = null)
+        localImportJob = viewModelScope.launch {
+            try {
+                table.sendRecords(summary.atlasId) { fields ->
+                    if (repository.tableSummary.value?.atlasId != summary.atlasId ||
+                        repository.connectionState.value != AtlasConnectionState.CONNECTED) null
+                    else try { playerSession.raw("POST", "/api/standalone/import", fields) }
+                    catch (_: AtlasException) { null }
+                }
+            } finally {
+                _localImport.value = _localImport.value.copy(busy = false)
+            }
+        }
+    }
 
     /** Device Settings, accounts and the Developer page (Atlas checks every permission). */
     private val adminConsole = com.turnhub.android.data.AtlasAdminConsole(
@@ -281,8 +339,17 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
         }
-        // Automatic standalone import is paused while explicit Atlas-scoped
-        // per-match linking is introduced. Local identity never comes from names.
+        // Profile choices are ephemeral and belong to exactly one Atlas/session.
+        viewModelScope.launch {
+            combine(repository.tableSummary.map { it?.atlasId }, playerSession.state.map { it is PlayerSessionState.SignedIn })
+                { atlasId, signedIn -> atlasId to signedIn }
+                .distinctUntilChanged().collect { (atlasId, signedIn) ->
+                    if (!signedIn || atlasId != _localImport.value.atlasId) {
+                        localImportJob?.cancel()
+                        _localImport.value = com.turnhub.android.standalone.LocalImportState()
+                    }
+                }
+        }
         // While Atlas isn't answering, rejoin its Wi-Fi whenever Android has
         // dropped it, so polling reaches Atlas as soon as it is back.
         viewModelScope.launch {
@@ -906,6 +973,8 @@ class HomeViewModel(
     fun onDisconnectClicked() {
         // A device-play choice must also stop a join that has not answered yet.
         // Otherwise its late result can reconnect and poll behind the local game.
+        localImportJob?.cancel()
+        _localImport.value = com.turnhub.android.standalone.LocalImportState()
         discoveryJob?.cancel()
         wifiJoinJob?.cancel()
         connectJob?.cancel()

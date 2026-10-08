@@ -358,7 +358,14 @@ class MainActivity : ComponentActivity() {
                     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                     val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
                     if (localHistory) {
-                        com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = { localHistory = false })
+                        val importState by homeViewModel.localImport.collectAsStateWithLifecycle()
+                        com.turnhub.android.ui.tablet.LocalLibraryScreen(
+                            localState, onClose = { localHistory = false },
+                            canImport = uiState.connectionState == AtlasConnectionState.CONNECTED && uiState.player?.signedIn == true,
+                            importState = importState,
+                            onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
+                            onImport = homeViewModel::onImportLocalRecord,
+                        )
                     } else if (standalone) {
                         StandaloneScreen(
                             state = localState,

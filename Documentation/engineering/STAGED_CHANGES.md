@@ -94,9 +94,10 @@ everything implemented. Only the checks listed below are still open.
   plays a game alone; round two: Atlas imports each finished game once,
   `POST /api/standalone/import`, protocol/http-v1.md; user manual V0.12,
   section 18). Local UUID players and retained history/basic local totals now
-  exist on `codex/app-only-entry` (TH-001 B). Remaining: explicit per-match
-  Atlas mapping and visible import/rejection state (C, in progress), export/backup,
-  deliberate deletion/retention controls and physical device acceptance.
+  and explicit per-match Atlas mapping/import/rejection status exist on
+  `codex/app-only-entry` (TH-001 B/C; Android/README.md). Remaining: export/backup,
+  deliberate deletion/retention controls, local-player editing, storage/performance
+  work for large histories, and physical device acceptance.
 
 ### Setup and updates
 

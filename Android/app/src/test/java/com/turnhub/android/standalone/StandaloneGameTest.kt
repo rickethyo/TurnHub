@@ -1,6 +1,7 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.data.TabletSeat
+import com.turnhub.android.data.RawResponse
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 import kotlinx.coroutines.test.runTest
@@ -131,7 +132,8 @@ class StandaloneGameTest {
         assertEquals(2, again.state.value.library.history.size)
         assertNull(again.state.value.library.history[1].winner)
         val id = again.state.value.library.history.first().recordId
-        again.forgetRecords(setOf(id))
+        assertTrue(again.queueImport(id, "THA-A", listOf("p-a", "p-b"), setOf("p-a", "p-b")))
+        again.sendRecords("THA-A") { RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}") }
         assertEquals(2, again.state.value.library.history.size)
         assertEquals(DeliveryStatus.IMPORTED, again.state.value.library.delivery(id).status)
         assertEquals(again.state.value.library, StandaloneTable(store).state.value.library)
@@ -216,12 +218,83 @@ class StandaloneGameTest {
         assertEquals(id, pausedAgain.players.first().localId)
     }
 
+    @Test
+    fun `delivery success rejection and transient failure preserve history and local totals`() = runTest {
+        val store = MemoryStore()
+        val table = StandaloneTable(store)
+        table.addPlayer("Ana"); table.addPlayer("Ben")
+        val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
+        repeat(3) {
+            table.start(); table.control(seat, "draw"); table.control(seat, "reset")
+        }
+        val history = table.state.value.library.history
+        history.forEach { assertTrue(table.queueImport(it.recordId, "THA-A", listOf("p-a", "p-b"), setOf("p-a", "p-b"))) }
+        val answers = ArrayDeque(listOf(
+            RawResponse(200, "{\"ok\":true,\"duplicate\":true,\"credited\":0,\"unmatched\":[]}"),
+            RawResponse(400, "{\"error\":\"Profile was archived\"}"), RawResponse(503, "{}")))
+        assertEquals(1, table.sendRecords("THA-A") { fields ->
+            assertEquals("THA-A", fields.toMap()["atlasId"])
+            assertEquals("p-a", fields.toMap()["profile0"])
+            answers.removeFirst()
+        })
+        val library = StandaloneTable(store).state.value.library
+        assertEquals(history, library.history)
+        assertEquals(listOf(DeliveryStatus.IMPORTED, DeliveryStatus.REJECTED, DeliveryStatus.PENDING),
+            history.map { library.delivery(it.recordId).status })
+        assertEquals("Profile was archived", library.delivery(history[1].recordId).reason)
+        assertEquals(LocalTotals(3, 0, 3), library.totals(history.first().players.first().localId!!))
+        var calls = 0
+        table.sendRecords("THA-A") { calls++; null }
+        assertEquals(1, calls) // Rejection is not automatically retried.
+        assertEquals(history, table.state.value.library.history)
+    }
+
+    @Test
+    fun `failed local writes report a problem and do not publish unsaved completion`() = runTest {
+        val store = MemoryStore()
+        val table = StandaloneTable(store)
+        table.addPlayer("Ana"); table.addPlayer("Ben"); table.start()
+        val before = table.state.value.game
+        val saved = store.library
+        store.failWrites = true
+        table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "draw")
+        assertEquals(before, table.state.value.game)
+        assertEquals(saved, store.library)
+        assertTrue(table.state.value.storageProblem != null)
+        assertTrue(table.state.value.library.history.isEmpty())
+    }
+
+    @Test
+    fun `scope mapping and uncertain acknowledgements fail closed without matching names`() = runTest {
+        val table = StandaloneTable(MemoryStore())
+        table.addPlayer("Ana"); table.addPlayer("Ana")
+        val seat = TabletSeat(StandaloneGame.seatHandle(0).id, 1)
+        table.start(); table.control(seat, "draw")
+        val id = table.state.value.library.history.single().recordId
+        assertTrue(!table.queueImport(id, "THA-A", listOf("p-a", "p-a"), setOf("p-a")))
+        assertTrue(!table.queueImport(id, "THA-A", listOf("p-a", "foreign"), setOf("p-a", "p-b")))
+        assertTrue(table.queueImport(id, "THA-A", listOf("p-a", "p-b"), setOf("p-a", "p-b")))
+        assertTrue(!table.queueImport(id, "THA-B", listOf("p-a", "p-b"), setOf("p-a", "p-b")))
+        var calls = 0
+        assertEquals(0, table.sendRecords("THA-B") { calls++; RawResponse(200, "{}") })
+        assertEquals(0, calls)
+        assertEquals(0, table.sendRecords("THA-A") { RawResponse(200, "{}") })
+        assertEquals(DeliveryStatus.PENDING, table.state.value.library.delivery(id).status)
+        table.sendRecords("THA-A") { RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}") }
+        assertEquals(DeliveryStatus.IMPORTED, table.state.value.library.delivery(id).status)
+        assertTrue(!table.queueImport(id, "THA-A", listOf("p-a", "p-b"), setOf("p-a", "p-b")))
+        assertEquals(0, table.sendRecords("THA-A") { calls++; null })
+        assertEquals(0, calls)
+    }
+
     private class MemoryStore : StandaloneStore {
         var game: String? = null
         var records: String? = null
         var library: String? = null
+        var failWrites = false
         override fun loadLibrary() = library
         override fun saveSnapshot(game: String, library: String): Boolean {
+            if (failWrites) return false
             this.game = game
             this.library = library
             return true

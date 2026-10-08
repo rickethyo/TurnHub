@@ -523,7 +523,9 @@ The Android app can keep a game on this phone or tablet with no Atlas, account o
 
 - The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede and the winner. There is no turn timer, no Two-Headed Giant, and no phones or Sigils in this mode.
 
-This device saves the current game and reusable local players when you close the app. Add creates a new player, even if another player has the same name; pick a saved player to reuse their identity. Device players and history on Home, or Players and history in the local lobby, shows finished matches and each local player’s played, won and draw totals. History has no automatic pruning and stays after import or rejection. Clearing app data or uninstalling removes it; export/backup is not available yet. Older queued records are kept without guessing their player identities. Automatic Atlas import is temporarily paused while explicit player linking is added.
+Atlas import is optional (firmware 0.7.2 or later). Connect and sign in, open Device players and history, then Load Atlas players for import. For a match, choose Link this match for Atlas import and explicitly pick a different Atlas profile for every player. Nothing is selected by name. Check the destination Atlas ID and all player choices, then Import mapped match. Local players and match results stay on this device. History shows pending, imported or needs-attention status and the response reason. Retry a pending import with the same mapping after reconnecting; review a rejected match before explicitly linking it again. The app never automatically resends an imported match. Atlas remembers only its last 64 import IDs, and storage failures or power loss can leave partial credit; acknowledged partial credit is shown and must be reviewed rather than blindly replayed.
+
+This device saves the current game and reusable local players when you close the app. Device players and history on Home, or Players and history in the local lobby, shows finished matches and each local player’s played, won and draw totals. History has no automatic pruning and stays after import or rejection. Clearing app data or uninstalling removes it; export/backup is not available yet. Older queued records are kept without guessing their local identities; earlier discarded records cannot be recovered.
 
 A game without Atlas is separate from any game Atlas is running: nothing in it changes a game on Atlas.
 
@@ -745,7 +747,7 @@ Atlas has stopped answering. Check that Atlas is on and the phone is in range; t
 
 ## A Game Played Without Atlas Is Missing From Statistics
 
-Device players and history shows local results. Atlas import is temporarily paused while explicit linking is added; no same-name account is selected automatically.
+Connect the app that kept the game to Atlas (firmware 0.7.2 or later), sign in and explicitly map each player through Device players and history (section 18). Names never select an Atlas account. Pending work can be retried with the same mapping; rejected records stay available with their reason. Import never deletes the local result.
 
 ## Tablet Mode Asks for a Code Every Time
 

@@ -1,6 +1,9 @@
 package com.turnhub.android.standalone
 
 import android.content.Context
+import com.turnhub.android.data.RawResponse
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.turnhub.android.data.OfflineChange
 import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
@@ -47,7 +50,7 @@ data class StandaloneState(
  * Runs the standalone tablet game: the tablet table screen's [TableControls]
  * apply to [StandaloneGame] here instead of going to Atlas. Every change is
  * saved, so closing the app keeps the game; each finished game is kept as a
- * [GameRecord] for Atlas.
+ * immutable [GameRecord] in local history, independent of optional Atlas delivery.
  */
 class StandaloneTable(
     private val store: StandaloneStore,
@@ -56,6 +59,8 @@ class StandaloneTable(
 ) : TableControls {
     private val _state = MutableStateFlow(load())
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
+
+    private val deliveryMutex = Mutex()
 
     // --- the lobby ------------------------------------------------------------------
 
@@ -79,14 +84,64 @@ class StandaloneTable(
     fun setStartingLife(life: Int) = edit { it.setStartingLife(life) }
     fun start() = edit { it.start(wallClock(), newId()) }
 
-    /** Local results remain in history even when delivery is acknowledged. */
-    fun forgetRecords(ids: Set<String>) {
-        var library = _state.value.library
-        ids.filter { id -> library.history.any { it.recordId == id } }.forEach { id ->
-            library = library.withDelivery(library.delivery(id).copy(status = DeliveryStatus.IMPORTED))
-        }
-        publish(_state.value.copy(library = library))
+    /** A pending/acknowledged payload cannot be silently redirected or remapped. */
+    fun queueImport(recordId: String, atlasId: String, profileIds: List<String>, availableProfileIds: Set<String>): Boolean {
+        val before = _state.value
+        val record = before.library.history.firstOrNull { it.recordId == recordId } ?: return false
+        if (atlasId.isBlank() || profileIds.size != record.players.size ||
+            profileIds.any { it.isBlank() || it !in availableProfileIds } ||
+            profileIds.distinct().size != profileIds.size) return false
+        val old = before.library.delivery(recordId)
+        if (old.status == DeliveryStatus.IMPORTED) return false
+        if (old.status == DeliveryStatus.PENDING) return old.atlasId == atlasId && old.profileIds == profileIds
+        return publish(before.copy(library = before.library.withDelivery(
+            MatchDelivery(recordId, DeliveryStatus.PENDING, atlasId = atlasId, profileIds = profileIds.toList()))))
     }
+
+    /** Sends only explicitly mapped work for this Atlas, serialized and oldest first. */
+    suspend fun sendRecords(atlasId: String, post: suspend (List<Pair<String, String>>) -> RawResponse?): Int =
+        deliveryMutex.withLock {
+            var taken = 0
+            for (record in _state.value.library.history) {
+                val delivery = _state.value.library.delivery(record.recordId)
+                if (delivery.status != DeliveryStatus.PENDING || delivery.atlasId != atlasId) continue
+                if (_state.value.storageProblem != null) break
+                val response = post(record.importFields(atlasId, delivery.profileIds))
+                val next = when {
+                    response == null -> delivery.copy(reason = "No acknowledgement from Atlas. Retry this same mapping after reconnecting.")
+                    response.code == 400 -> delivery.copy(status = DeliveryStatus.REJECTED,
+                        reason = response.reason("Atlas rejected this record (HTTP 400). Review the player mapping."))
+                    response.ok -> {
+                        val detail = runCatching {
+                            val ack = JSONObject(response.body)
+                            require(ack.getBoolean("ok"))
+                            val duplicate = ack.getBoolean("duplicate")
+                            val credited = ack.getInt("credited")
+                            require(credited in 0..record.players.size)
+                            val unmatched = ack.getJSONArray("unmatched")
+                            val names = (0 until unmatched.length()).map { unmatched.getString(it) }
+                            if (duplicate) "Atlas already had this match."
+                            else "Atlas credited $credited of ${record.players.size} players." +
+                                if (names.isEmpty()) "" else " Not credited: ${names.joinToString()}."
+                        }.getOrNull()
+                        if (detail != null) delivery.copy(status = DeliveryStatus.IMPORTED, reason = detail)
+                        else delivery.copy(reason = "Atlas returned no valid import acknowledgement. Retry the same mapping.")
+                    }
+                    else -> delivery.copy(reason = response.reason("Atlas import is waiting (HTTP ${response.code}). Retry after reconnecting."))
+                }
+                if (!publish(_state.value.copy(library = _state.value.library.withDelivery(next)))) break
+                if (next.status == DeliveryStatus.IMPORTED) taken++
+                // Rejected records stay visible but do not block other queued work.
+                // A lost acknowledgement blocks newer work so retries stay inside
+                // Atlas's bounded receipt window rather than evicting uncertain IDs.
+                if (next.status == DeliveryStatus.PENDING) break
+            }
+            taken
+        }
+
+    private fun RawResponse.reason(fallback: String): String = runCatching {
+        JSONObject(body).optString("error").takeIf { it.isNotBlank() }?.take(300)
+    }.getOrNull() ?: fallback
 
     // --- the table ------------------------------------------------------------------
 
@@ -205,8 +260,8 @@ class StandaloneTable(
             val players = json.getJSONArray("players")
             return StandaloneGame(
                 gameId = json.getString("gameId"),
-                state = TableState.fromWire(json.getString("state")) ?: TableState.LOBBY,
-                profile = GameProfile.fromWire(json.getString("gameProfile")) ?: GameProfile.MTG_COMMANDER,
+                state = TableState.fromWire(json.getString("state")) ?: error("Unsupported local game state"),
+                profile = GameProfile.fromWire(json.getString("gameProfile")) ?: error("Unsupported local game format"),
                 startingLife = json.getInt("startingLife"),
                 active = json.optIntOrNull("active"),
                 starter = json.optIntOrNull("starter"),

@@ -8,10 +8,10 @@
 // Finished standalone tablet games (Android/README.md "The one exception"):
 // a game the app ran with no Atlas at the table reaches Atlas only as one of
 // these records, imported once. Atlas credits each player that matches one of
-// its profiles (the profile the app picked, else the same name ignoring case)
+// its profiles by explicit ID (never by name)
 // and ignores a record ID it has already taken. The ID is remembered before
 // any statistics are written, so a cut can lose a record's statistics but
-// never count them twice.
+// a replay is not counted twice while its receipt remains in the 64-ID ring.
 namespace TurnHubStandalone {
 
 constexpr uint8_t MAX_IMPORT_PLAYERS = 8;
@@ -19,7 +19,7 @@ constexpr size_t MAX_RECORD_ID_LENGTH = 48;
 
 struct ImportedPlayer {
   String name;
-  // The Atlas profile the app picked, or empty to match by name.
+  // Required explicit profile ID on the destination Atlas.
   String profileId;
   uint32_t turnsCompleted = 0;
   uint32_t turnMs = 0;
@@ -45,7 +45,7 @@ enum class ImportStatus : uint8_t { Imported, Duplicate, Invalid, StorageError }
 struct ImportResult {
   ImportStatus status = ImportStatus::Invalid;
   uint8_t credited = 0;
-  // Players no Atlas profile matched (their game counts for no one).
+  // Players whose statistics could not be credited (e.g. a storage write failed).
   uint8_t unmatchedCount = 0;
   String unmatched[MAX_IMPORT_PLAYERS];
 };

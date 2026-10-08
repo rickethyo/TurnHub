@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -283,7 +284,7 @@ fun HomeScreen(
                         Text("No Atlas, account or network needed. Your game stays on this device when you close the app.",
                             color = p.muted, style = MaterialTheme.typography.bodySmall)
                         AccentButton(if (hasLocalGame) "Resume game" else "Play on this device", onPlayStandalone,
-                            Modifier.fillMaxWidth().height(56.dp))
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp))
                     }
                     ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                 } else {
@@ -492,14 +493,14 @@ private fun ConnectCard(
             uiState.connectionState == AtlasConnectionState.CONNECTED ->
                 ToneButton("Disconnect", onDisconnectClick, Modifier.fillMaxWidth())
             uiState.discovery == Discovery.NotFound -> {
-                AccentButton("Try again", discovery.onSearchAgain, Modifier.fillMaxWidth().height(56.dp))
+                AccentButton("Try again", discovery.onSearchAgain, Modifier.fillMaxWidth().heightIn(min = 56.dp))
                 ToneButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth())
             }
             !uiState.hasSavedTable -> {
-                AccentButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth().height(56.dp))
+                AccentButton("Set up a new table", discovery.onSetUpNewTable, Modifier.fillMaxWidth().heightIn(min = 56.dp))
                 ToneButton("Connect to a table", onConnectClick, Modifier.fillMaxWidth())
             }
-            else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().height(56.dp))
+            else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().heightIn(min = 56.dp))
         }
         var advanced by rememberSaveable { mutableStateOf(false) }
         TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {

@@ -65,23 +65,7 @@ Status writeTaken(TurnHubStorage::BlobStore &blobs, const Taken &taken) {
 
 bool archived(const String &profileId) {
   TurnHubAccounts::Account account;
-  return TurnHubAccounts::load(profileId, account) && account.archived;
-}
-
-// The picked profile when it still exists, else the profile with this name.
-String matchProfile(const ImportedPlayer &player) {
-  if (player.profileId.length() > 0 && TurnHubProfiles::profileExists(player.profileId) &&
-      !archived(player.profileId)) {
-    return player.profileId;
-  }
-  if (player.name.length() == 0) return String();
-  char ids[TurnHubProfiles::MAX_LOGIN_PROFILES][TurnHubProfiles::PROFILE_ID_LENGTH + 1];
-  const size_t count = TurnHubProfiles::listProfileIds(ids, TurnHubProfiles::MAX_LOGIN_PROFILES);
-  for (size_t i = 0; i < count; ++i) {
-    const String id(ids[i]);
-    if (TurnHubProfiles::nameForProfile(id).equalsIgnoreCase(player.name) && !archived(id)) return id;
-  }
-  return String();
+  return !TurnHubAccounts::load(profileId, account) || account.archived;
 }
 
 TurnHubProfiles::LastGameResult resultFor(const ImportedGame &game, uint8_t index) {
@@ -135,6 +119,19 @@ ImportResult importGame(const ImportedGame &game) {
       return result;
     }
   }
+  if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
+    result.status = ImportStatus::StorageError;
+    return result;
+  }
+  // Exact identities only. Validate the whole mapping before taking the receipt
+  // or changing any statistics. Names remain display labels.
+  for (uint8_t i = 0; i < game.playerCount; ++i) {
+    const String &id = game.players[i].profileId;
+    if (id.length() == 0 || !TurnHubProfiles::profileExists(id) || archived(id)) return result;
+    for (uint8_t j = 0; j < i; ++j) {
+      if (game.players[j].profileId == id) return result;
+    }
+  }
   // Remembered first: a cut after this loses the statistics, never doubles them.
   taken.hashes[taken.next] = hash;
   taken.next = static_cast<uint8_t>((taken.next + 1) % IMPORTED_CAPACITY);
@@ -143,15 +140,10 @@ ImportResult importGame(const ImportedGame &game) {
     result.status = ImportStatus::StorageError;
     return result;
   }
-  if (!TurnHubProfiles::ready() && !TurnHubProfiles::begin()) {
-    result.status = ImportStatus::StorageError;
-    return result;
-  }
-
   String credited[MAX_IMPORT_PLAYERS];
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     const ImportedPlayer &player = game.players[i];
-    const String profileId = matchProfile(player);
+    const String profileId = player.profileId;
     bool repeat = false;
     for (uint8_t c = 0; c < result.credited; ++c) repeat = repeat || credited[c] == profileId;
     TurnHubProfiles::ProfileStats stats{};

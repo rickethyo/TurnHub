@@ -39,7 +39,7 @@ network permission if needed. Fresh launches never request that permission;
 Atlas-preferred launches rejoin only when permission is already available.
 Entering device play cancels discovery, Wi-Fi joins and pending repository
 connects, then disconnects polling and releases the Atlas network. A later
-connection waits for the disconnect to finish. Local history is described below; explicit Atlas-scoped linking is the next slice
+connection waits for the disconnect to finish. Local history and explicit Atlas-scoped linking are described below
 (TH-001 in `COLLABORATION.md`).
 
 With **no Atlas at the table**, **Play on this device**
@@ -64,9 +64,26 @@ merged back live. The rules above apply in full whenever Atlas is present.
   and identities survive reconstruction; actual Android rotation/relaunch still
   needs device acceptance. Corrupt/future data fails closed, preserves the
   stored bytes, and explains the problem rather than overwriting it.
-- Automatic import is paused until explicit per-match Atlas mapping is built.
-  Existing queue records are retained as legacy history without guessed local or
-  Atlas identity. Earlier imported/dropped records cannot be reconstructed.
+- Import is optional and explicit, never automatic on sign-in. From history,
+  connect/sign in, load current Atlas profiles, choose a different profile for
+  each player in a match, then Import mapped match. Nothing is preselected by
+  name. The delivery mapping snapshots `(atlasId, profileId)` per match; it
+  does not merge/replace local identities or change historical player names.
+  Pending mappings are frozen through uncertain acknowledgements; retry uses the
+  same match UUID and destination. Imported mappings cannot be resubmitted.
+- History separately shows needs-linking, pending, imported and needs-attention
+  (rejected) states. HTTP 400 retains the record and reason without automatic
+  retry; explicit review/relink can queue it again. Transient/malformed responses
+  keep pending work and block newer deliveries until acknowledged. A signed-in
+  user can send only pending work for the current Atlas. Atlas 0.7.2+ requires
+  exact destination/profile IDs and rejects missing, duplicate, deleted,
+  archived or unreadable identities before taking a receipt; no name fallback.
+  Acknowledged partial credit is displayed and never automatically retried.
+- Existing queue records are retained as legacy history without guessed local
+  or Atlas identity and can be explicitly mapped per match. Earlier imported/
+  dropped records cannot be reconstructed. Atlas's 64-receipt dedupe window and
+  possible partial credit after storage failure/power loss remain unchanged;
+  this is not crash-safe exactly-once statistics across arbitrary retries.
 - No turn timer, Two-Headed Giant, phones or Sigils in this mode.
 
 ```text
@@ -394,7 +411,7 @@ Networking notes:
   the state snapshot.
 
 
-### Local library feature boundary (TH-001 B implemented; C linking in progress)
+### Local library feature boundary (TH-001 B/C implemented, device acceptance pending)
 
 Android's standalone domain owns reusable local-player UUIDs, completed match
 snapshots and their derived local statistics. Explicit add/select actions are
@@ -413,3 +430,13 @@ the import form contract/validator changes together. Android renders text
 statuses and labeled player picks in scrollable layouts; local controls use
 existing TableControls. TalkBack, text-scale and phone/foldable acceptance must
 be recorded separately from JVM tests and builds.
+
+Local schema 1 uses JSON object fields `schema`, `players` (localId/name),
+`history` (immutable GameRecord objects) and `deliveries` (recordId/status/reason/
+atlasId/profileIds in immutable player order). IDs are UUID strings; dates and
+clocks are Unix/integer milliseconds. JSON null marks unknown legacy identity.
+Unknown schema, malformed records or duplicate local/match IDs fail closed.
+Android platform backup may include these preferences under existing app backup
+rules, but no TurnHub export/restore guarantee is offered. Every local game edit
+currently serializes the library and commits preferences synchronously; very
+large histories need performance/storage work before a release guarantee.

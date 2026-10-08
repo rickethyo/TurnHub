@@ -81,7 +81,24 @@ data class LocalLibrary(
                 require(library.players.all { it.localId.isNotBlank() && it.name.isNotBlank() })
                 require(library.players.map { it.localId }.distinct().size == library.players.size)
                 require(library.history.map { it.recordId }.distinct().size == library.history.size)
+                require(library.deliveries.map { it.recordId }.distinct().size == library.deliveries.size)
+                library.deliveries.forEach { delivery ->
+                    val record = requireNotNull(library.history.firstOrNull { it.recordId == delivery.recordId })
+                    if (delivery.status != DeliveryStatus.NEEDS_LINKING) {
+                        require(!delivery.atlasId.isNullOrBlank())
+                        require(delivery.profileIds.size == record.players.size && delivery.profileIds.all { it.isNotBlank() })
+                        require(delivery.profileIds.distinct().size == delivery.profileIds.size)
+                    }
+                }
             }
         }
     }
 }
+
+/** Ephemeral profile choices fetched from one connected Atlas, never cached as local identity. */
+data class LocalImportState(
+    val atlasId: String? = null,
+    val profiles: List<com.turnhub.android.protocol.ProfileSummary> = emptyList(),
+    val busy: Boolean = false,
+    val message: String? = null,
+)
