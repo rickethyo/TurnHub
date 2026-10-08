@@ -93,8 +93,10 @@ everything implemented. Only the checks listed below are still open.
 - **Standalone tablet game, later rounds** (round one, 2026-10-07: the app
   plays a game alone; round two: Atlas imports each finished game once,
   `POST /api/standalone/import`, protocol/http-v1.md; user manual V0.12,
-  section 18). Still to do: showing imported games in the app (today the
-  lobby only counts the games still waiting).
+  section 18). Local UUID players and retained history/basic local totals now
+  exist on `codex/app-only-entry` (TH-001 B). Remaining: explicit per-match
+  Atlas mapping and visible import/rejection state (C, in progress), export/backup,
+  deliberate deletion/retention controls and physical device acceptance.
 
 ### Setup and updates
 

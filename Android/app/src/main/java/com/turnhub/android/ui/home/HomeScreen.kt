@@ -140,6 +140,7 @@ fun HomeScreen(
     /** Opens the standalone tablet game, for a table with no Atlas. */
     onPlayStandalone: () -> Unit = {},
     hasLocalGame: Boolean = false,
+    onLocalHistory: () -> Unit = {},
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -272,6 +273,7 @@ fun HomeScreen(
                 } else uiState.errorMessage?.takeUnless { installing }?.let {
                     ErrorCard(it, uiState.errorDetail, uiState.isRetrying, onOpenAppSettings.takeIf { uiState.offerAppSettings })
                 }
+                ToneButton("Device players and history", onLocalHistory, Modifier.fillMaxWidth())
                 if (setup.visible) {
                     SetupScreen(setup, setupActions)
                 } else if (summary == null) {

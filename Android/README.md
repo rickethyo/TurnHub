@@ -39,10 +39,10 @@ network permission if needed. Fresh launches never request that permission;
 Atlas-preferred launches rejoin only when permission is already available.
 Entering device play cancels discovery, Wi-Fi joins and pending repository
 connects, then disconnects polling and releases the Atlas network. A later
-connection waits for the disconnect to finish. Local history and Atlas-scoped
-player identity remain planned separately (TH-001 in `COLLABORATION.md`).
+connection waits for the disconnect to finish. Local history is described below; explicit Atlas-scoped linking is the next slice
+(TH-001 in `COLLABORATION.md`).
 
-With **no Atlas at the table**, **Play without Atlas** (on the Connect card)
+With **no Atlas at the table**, **Play on this device**
 runs a small game on the device itself: life, Commander damage, turns, pause,
 concede and the winner (`standalone/StandaloneGame.kt`). It is a separate
 game, never a copy of or a change to a game Atlas is running, so nothing is
@@ -51,15 +51,22 @@ merged back live. The rules above apply in full whenever Atlas is present.
 - The table screen is tablet mode's (`ui/tablet/TabletTable.kt`); it sends
   the same seat actions through `data/TableControls`, which
   `StandaloneTable` applies locally instead of `AtlasTablet` sending them.
-- Players are typed names or picks from the profiles of the last Atlas the
-  app connected to (cached on every connect). Typed names that match a
-  cached profile become that profile.
-- Each finished game becomes a `GameRecord` kept on the device. Once the
-  app is connected to an Atlas and signed in, `HomeViewModel` sends each one
-  to `POST /api/standalone/import` (protocol/http-v1.md). Atlas imports it
-  once, crediting the matching profiles (by picked profile, else by name) and
-  ignoring a record it has already taken; the app then forgets it. The
-  import is the only way a standalone game reaches Atlas statistics.
+- Adding a typed name creates a reusable player with a local UUID. Selecting a
+  saved player reuses that identity. Same-name players stay distinct and short ID
+  labels distinguish them. Reset/rematch preserves IDs; records snapshot names.
+- **Device players and history** opens from Home (connected or disconnected),
+  and the local lobby. It shows results and basic played/won/draw totals derived
+  only from retained local matches by local ID, without combining Atlas totals.
+- The versioned local library owns roster, history and independent delivery
+  metadata. Active game/library writes share one preference transaction. Every
+  completed match is retained once by its match UUID; there is no automatic
+  200-record pruning. Imported/rejected results stay in history. Current game
+  and identities survive reconstruction; actual Android rotation/relaunch still
+  needs device acceptance. Corrupt/future data fails closed, preserves the
+  stored bytes, and explains the problem rather than overwriting it.
+- Automatic import is paused until explicit per-match Atlas mapping is built.
+  Existing queue records are retained as legacy history without guessed local or
+  Atlas identity. Earlier imported/dropped records cannot be reconstructed.
 - No turn timer, Two-Headed Giant, phones or Sigils in this mode.
 
 ```text
@@ -387,7 +394,7 @@ Networking notes:
   the state snapshot.
 
 
-### Local library feature boundary (TH-001 B/C, implementation in progress)
+### Local library feature boundary (TH-001 B implemented; C linking in progress)
 
 Android's standalone domain owns reusable local-player UUIDs, completed match
 snapshots and their derived local statistics. Explicit add/select actions are

@@ -228,6 +228,7 @@ class MainActivity : ComponentActivity() {
     private var theme by mutableStateOf(TurnHubThemeChoice.AUTO)
     private var reduceMotion by mutableStateOf(false)
     private var standalone by mutableStateOf(false)
+    private var localHistory by mutableStateOf(false)
 
     private fun playOnDevice() {
         homeViewModel.onDisconnectClicked()
@@ -237,6 +238,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("device_play_open", standalone)
+        outState.putBoolean("local_history_open", localHistory)
         outState.putString("atlas_action", pendingAtlasAction.name)
         super.onSaveInstanceState(outState)
     }
@@ -328,6 +330,7 @@ class MainActivity : ComponentActivity() {
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         standalone = savedInstanceState?.getBoolean("device_play_open")
             ?: uiPrefs.getBoolean("prefer_device_play", false)
+        localHistory = savedInstanceState?.getBoolean("local_history_open") ?: false
         pendingAtlasAction = AtlasAction.entries.firstOrNull {
             it.name == savedInstanceState?.getString("atlas_action")
         } ?: AtlasAction.CONNECT
@@ -354,15 +357,19 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                     val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
-                    if (standalone) {
+                    if (localHistory) {
+                        com.turnhub.android.ui.tablet.LocalLibraryScreen(localState, onClose = { localHistory = false })
+                    } else if (standalone) {
                         StandaloneScreen(
                             state = localState,
                             table = standaloneViewModel.table,
                             reduceMotion = reduceMotion,
                             onClose = { standalone = false },
+                            onHistory = { localHistory = true },
                         )
                     } else HomeScreen(
                         onPlayStandalone = ::playOnDevice,
+                        onLocalHistory = { localHistory = true },
                         hasLocalGame = localState.game.state == com.turnhub.android.protocol.TableState.RUNNING ||
                             localState.game.state == com.turnhub.android.protocol.TableState.PAUSED,
                         uiState = uiState,

@@ -107,7 +107,10 @@ Examples:
 
 - Game/session recovery: Atlas.
 - Pairing relationship: Atlas is authoritative; Sigil may retain the minimum identity needed to reconnect.
-- Player profiles/statistics: Atlas.
+- Connected player profiles/statistics: Atlas.
+- Standalone Android player UUIDs, match history and delivery metadata: Android
+  local domain (the separate-game exception above); no name-derived or unscoped
+  Atlas identity. Delivery acknowledgement cannot delete local history.
 - Sigil user/device settings, including startup preference: Atlas, keyed to the
   device. Sigils apply disposable runtime values and do not persist user settings.
 - Minimum device identity/pairing bootstrap material is distinct from user

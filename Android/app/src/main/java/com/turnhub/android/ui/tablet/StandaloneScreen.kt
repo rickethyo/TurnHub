@@ -68,6 +68,7 @@ fun StandaloneScreen(
     reduceMotion: Boolean,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onHistory: () -> Unit = {},
 ) {
     val p = palette
     KeepScreenOn()
@@ -75,8 +76,13 @@ fun StandaloneScreen(
     val scope = rememberCoroutineScope()
     val game = state.game
     Box(modifier.fillMaxSize().tableBackground(p)) {
-        if (game.state == TableState.LOBBY) {
-            Lobby(state, table, onClose)
+        if (state.storageProblem != null) {
+            Column(Modifier.safeDrawingPadding().padding(24.dp)) {
+                Text(state.storageProblem, color = p.text)
+                TextButton(onClick = onClose) { Text("Back") }
+            }
+        } else if (game.state == TableState.LOBBY) {
+            Lobby(state, table, onClose, onHistory)
         } else {
             Immersive()
             TabletTable(
@@ -94,7 +100,7 @@ fun StandaloneScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () -> Unit) {
+private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () -> Unit, onHistory: () -> Unit) {
     val p = palette
     val game = state.game
     Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
@@ -125,9 +131,7 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                 val full = game.players.size >= StandaloneGame.MAX_PLAYERS
                 val add = {
                     if (name.isNotBlank()) {
-                        // A typed name that matches a saved player becomes that player.
-                        val match = state.knownProfiles.firstOrNull { it.name.equals(name.trim(), ignoreCase = true) }
-                        table.addPlayer(match?.name ?: name, match?.profileId)
+                        table.addPlayer(name)
                         name = ""
                     }
                 }
@@ -143,25 +147,22 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                     )
                     ToneButton("Add", add, enabled = name.isNotBlank() && !full)
                 }
-                val seated = game.players.mapNotNull { it.profileId }.toSet()
-                val free = state.knownProfiles.filter { it.profileId !in seated }
+                val seated = game.players.mapNotNull { it.localId }.toSet()
+                val free = state.library.players.filter { it.localId !in seated }
                 if (free.isNotEmpty()) {
-                    Text("Players from your Atlas", color = p.muted, style = MaterialTheme.typography.labelLarge)
+                    Text("Saved on this device", color = p.muted, style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        free.forEach { profile ->
+                        free.forEach { player ->
                             SuggestionChip(
-                                onClick = { table.addPlayer(profile.name, profile.profileId) },
-                                label = { Text(profile.name) },
+                                onClick = { table.selectPlayer(player.localId) },
+                                label = { Text("${player.name} · ${player.localId.take(6)}") },
                                 enabled = !full,
                             )
                         }
                     }
-                    Text("You can also add anyone by name.", color = p.faint,
-                        style = MaterialTheme.typography.bodySmall)
-                } else {
-                    Text("Add players by name. No account is needed.", color = p.faint,
-                        style = MaterialTheme.typography.bodySmall)
                 }
+                Text("Add creates a new player. Pick a saved player to keep their results together; equal names stay separate.",
+                    color = p.faint, style = MaterialTheme.typography.bodySmall)
             }
 
             BrassCard {
@@ -194,14 +195,7 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                 }
             }
 
-            if (state.records.isNotEmpty()) {
-                val n = state.records.size
-                Text(
-                    if (n == 1) "1 finished game record is stored on this device." else "$n finished game records are stored on this device.",
-                    color = p.muted,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+            ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
             AccentButton(
                 if (game.players.size < 2) "Add two players to start" else "Start the game",
@@ -222,8 +216,8 @@ private fun PlayerRow(index: Int, player: LocalPlayer, count: Int, table: Standa
         }
         Column(Modifier.weight(1f)) {
             Text(player.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
-            if (player.profileId == null) {
-                Text("Local player", color = p.faint, style = MaterialTheme.typography.bodySmall)
+            if (player.localId != null) {
+                Text("Local player · ${player.localId.take(6)}", color = p.faint, style = MaterialTheme.typography.bodySmall)
             }
         }
         MoveButton("↑", "Move ${player.name} earlier in turn order", index > 0) { table.movePlayer(index, -1) }

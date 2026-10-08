@@ -281,37 +281,8 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.tableSummary.collect { summary -> summary?.let { tablet.settleOffline(it.revision) } }
         }
-        // The standalone game picks its players from the last Atlas's profiles:
-        // read them once per Atlas boot and again when someone new sits down.
-        // Once someone is signed in, its finished games go to Atlas.
-        viewModelScope.launch {
-            combine(
-                repository.tableSummary.map { summary ->
-                    summary?.let { Triple(it.atlasId, it.bootId, it.players.mapNotNull { p -> p.profileId }.toSet()) }
-                },
-                playerSession.state.map { it is PlayerSessionState.SignedIn },
-            ) { table, signedIn -> table to signedIn }
-                .distinctUntilChanged()
-                .collectLatest { (table, signedIn) ->
-                    val endpoint = repository.endpoint.value
-                    val local = standalone ?: return@collectLatest
-                    if (table == null || endpoint == null) return@collectLatest
-                    try {
-                        local.rememberProfiles(playerSession.profiles(endpoint))
-                    } catch (_: AtlasException) {
-                        // Kept from last time; tried again on the next change.
-                    }
-                    if (signedIn) {
-                        local.sendRecords { fields ->
-                            try {
-                                playerSession.raw("POST", "/api/standalone/import", fields)
-                            } catch (_: AtlasException) {
-                                null
-                            }
-                        }
-                    }
-                }
-        }
+        // Automatic standalone import is paused while explicit Atlas-scoped
+        // per-match linking is introduced. Local identity never comes from names.
         // While Atlas isn't answering, rejoin its Wi-Fi whenever Android has
         // dropped it, so polling reaches Atlas as soon as it is back.
         viewModelScope.launch {

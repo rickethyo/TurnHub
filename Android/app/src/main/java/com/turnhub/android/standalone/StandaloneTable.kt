@@ -2,11 +2,9 @@ package com.turnhub.android.standalone
 
 import android.content.Context
 import com.turnhub.android.data.OfflineChange
-import com.turnhub.android.data.RawResponse
 import com.turnhub.android.data.TableControls
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.protocol.GameProfile
-import com.turnhub.android.protocol.ProfileSummary
 import com.turnhub.android.protocol.TableState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,40 +17,30 @@ import java.util.UUID
 /** Owns the [StandaloneTable] for the Activity, so rotation keeps it. */
 class StandaloneViewModel(val table: StandaloneTable) : androidx.lifecycle.ViewModel()
 
-/** Where the standalone game, its finished records and the cached Atlas profiles are kept. */
+/** Android owns the active game and a separate, versioned local library. */
 interface StandaloneStore {
     fun loadGame(): String?
-    fun saveGame(json: String)
+    /** Read-only legacy import queue, retained without inferred identities. */
     fun loadRecords(): String?
-    fun saveRecords(json: String)
-    fun loadProfiles(): String?
-    fun saveProfiles(json: String)
+    fun loadLibrary(): String?
+    /** Production stores both keys in one preference transaction. */
+    fun saveSnapshot(game: String, library: String): Boolean
 }
 
 class PreferencesStandaloneStore(context: Context) : StandaloneStore {
     private val prefs = context.applicationContext.getSharedPreferences("turnhub_standalone", Context.MODE_PRIVATE)
-    override fun loadGame(): String? = prefs.getString(GAME, null)
-    override fun saveGame(json: String) = prefs.edit().putString(GAME, json).apply()
-    override fun loadRecords(): String? = prefs.getString(RECORDS, null)
-    override fun saveRecords(json: String) = prefs.edit().putString(RECORDS, json).apply()
-    override fun loadProfiles(): String? = prefs.getString(PROFILES, null)
-    override fun saveProfiles(json: String) = prefs.edit().putString(PROFILES, json).apply()
-
-    private companion object {
-        const val GAME = "game"
-        const val RECORDS = "records"
-        const val PROFILES = "profiles"
-    }
+    override fun loadGame(): String? = prefs.getString("game", null)
+    override fun loadRecords(): String? = prefs.getString("records", null)
+    override fun loadLibrary(): String? = prefs.getString("library", null)
+    override fun saveSnapshot(game: String, library: String): Boolean = prefs.edit()
+        .putString("game", game).putString("library", library).commit()
 }
-
-/** A profile from the last Atlas this device was connected to, for picking players offline. */
-data class KnownProfile(val profileId: String, val name: String)
 
 data class StandaloneState(
     val game: StandaloneGame = StandaloneGame(),
-    /** Finished games waiting for an Atlas to import them, oldest first. */
-    val records: List<GameRecord> = emptyList(),
-    val knownProfiles: List<KnownProfile> = emptyList(),
+    val library: LocalLibrary = LocalLibrary(),
+    /** A damaged/unsupported library is kept untouched rather than silently reset. */
+    val storageProblem: String? = null,
 )
 
 /**
@@ -71,48 +59,33 @@ class StandaloneTable(
 
     // --- the lobby ------------------------------------------------------------------
 
-    fun addPlayer(name: String, profileId: String? = null) = edit { it.addPlayer(name, profileId) }
+    /** Typing a name creates an identity; selecting a saved player reuses it. */
+    fun addPlayer(name: String) {
+        val clean = name.trim().take(StandaloneGame.MAX_NAME)
+        val before = _state.value
+        if (clean.isEmpty() || before.game.state != TableState.LOBBY ||
+            before.game.players.size >= StandaloneGame.MAX_PLAYERS) return
+        val player = SavedLocalPlayer(newId(), clean)
+        val game = before.game.addPlayer(clean, localId = player.localId)
+        publish(before.copy(game = game, library = before.library.copy(players = before.library.players + player)))
+    }
+    fun selectPlayer(localId: String) {
+        val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return
+        edit { it.addPlayer(player.name, localId = player.localId) }
+    }
     fun removePlayer(index: Int) = edit { it.removePlayer(index) }
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
     fun setFormat(profile: GameProfile) = edit { it.setFormat(profile) }
     fun setStartingLife(life: Int) = edit { it.setStartingLife(life) }
     fun start() = edit { it.start(wallClock(), newId()) }
 
-    /** Remembers the profiles of the Atlas just connected to, for the lobby's quick picks. */
-    fun rememberProfiles(profiles: List<ProfileSummary>) {
-        val known = profiles.map { KnownProfile(it.profileId, it.name) }.filter { it.name.isNotBlank() }
-        if (known == _state.value.knownProfiles) return
-        _state.update { it.copy(knownProfiles = known) }
-        store.saveProfiles(JSONArray().apply {
-            known.forEach { put(JSONObject().put("profileId", it.profileId).put("name", it.name)) }
-        }.toString())
-    }
-
-    /** Drops records Atlas has taken (imported, or already had). */
+    /** Local results remain in history even when delivery is acknowledged. */
     fun forgetRecords(ids: Set<String>) {
-        if (ids.isEmpty()) return
-        _state.update { it.copy(records = it.records.filterNot { r -> r.recordId in ids }) }
-        saveRecords()
-    }
-
-    /**
-     * Hands Atlas each finished game, oldest first, through [post] (a signed-in
-     * `POST /api/standalone/import`). One Atlas imported, already had or
-     * refused as invalid is forgotten here; with no answer or a storage error
-     * the rest wait for the next connect. Returns how many Atlas took.
-     */
-    suspend fun sendRecords(post: suspend (List<Pair<String, String>>) -> RawResponse?): Int {
-        var taken = 0
-        for (record in _state.value.records) {
-            val response = post(record.importFields()) ?: break
-            when {
-                response.ok -> taken++
-                response.code == 400 -> Unit
-                else -> break
-            }
-            forgetRecords(setOf(record.recordId))
+        var library = _state.value.library
+        ids.filter { id -> library.history.any { it.recordId == id } }.forEach { id ->
+            library = library.withDelivery(library.delivery(id).copy(status = DeliveryStatus.IMPORTED))
         }
-        return taken
+        publish(_state.value.copy(library = library))
     }
 
     // --- the table ------------------------------------------------------------------
@@ -158,37 +131,42 @@ class StandaloneTable(
         val after = change(before)
         if (after === before) return
         val record = after.record()?.takeIf { before.state != TableState.GAME_OVER || before.gameId != after.gameId }
-        _state.update { s -> s.copy(game = after, records = if (record != null) (s.records + record).takeLast(MAX_RECORDS) else s.records) }
-        store.saveGame(gameToJson(after).toString())
-        if (record != null) saveRecords()
+        val library = record?.let { _state.value.library.withRecord(it) } ?: _state.value.library
+        publish(_state.value.copy(game = after, library = library))
     }
 
-    private fun saveRecords() =
-        store.saveRecords(JSONArray().apply { _state.value.records.forEach { put(it.toJson()) } }.toString())
+    private fun publish(next: StandaloneState): Boolean {
+        if (_state.value.storageProblem != null) return false
+        val saved = runCatching { store.saveSnapshot(gameToJson(next.game).toString(), next.library.toJson().toString()) }
+            .getOrDefault(false)
+        if (!saved) {
+            _state.update { it.copy(storageProblem = "Couldn't save local play. Close and reopen the app before continuing; do not clear app data.") }
+            return false
+        }
+        _state.value = next
+        return true
+    }
 
     private fun load(): StandaloneState {
-        val game = store.loadGame()?.let { runCatching { gameFromJson(JSONObject(it)) }.getOrNull() } ?: StandaloneGame()
-        val records = store.loadRecords()?.let { text ->
-            runCatching {
-                val array = JSONArray(text)
-                (0 until array.length()).mapNotNull { GameRecord.fromJson(array.getJSONObject(it)) }
-            }.getOrNull()
-        }.orEmpty()
-        val profiles = store.loadProfiles()?.let { text ->
-            runCatching {
-                val array = JSONArray(text)
-                (0 until array.length()).map { i ->
-                    array.getJSONObject(i).let { KnownProfile(it.getString("profileId"), it.getString("name")) }
-                }
-            }.getOrNull()
-        }.orEmpty()
-        return StandaloneState(game, records, profiles)
+        return try {
+            val game = store.loadGame()?.let { gameFromJson(JSONObject(it)) } ?: StandaloneGame()
+            val savedLibrary = store.loadLibrary()
+            var library = if (savedLibrary != null) LocalLibrary.fromJson(JSONObject(savedLibrary)) else {
+                // Preserve the old queue as history, without inventing identity from its labels.
+                val records = store.loadRecords()?.let { JSONArray(it) } ?: JSONArray()
+                LocalLibrary(history = (0 until records.length()).map { i ->
+                    requireNotNull(GameRecord.fromJson(records.getJSONObject(i)))
+                })
+            }
+            // Also covers a game that was completed before its old queue write reached storage.
+            game.record()?.let { library = library.withRecord(it) }
+            StandaloneState(game = game, library = library)
+        } catch (_: Exception) {
+            StandaloneState(storageProblem = "Local saved data could not be read. It has been kept untouched. Do not clear app data; recovery needs review.")
+        }
     }
 
     companion object {
-        /** Finished games kept for Atlas; the oldest go first past this. */
-        const val MAX_RECORDS = 200
-
         fun gameToJson(game: StandaloneGame): JSONObject = JSONObject().apply {
             put("gameId", game.gameId)
             put("state", game.state.name)
@@ -207,6 +185,7 @@ class StandaloneTable(
                     put(JSONObject().apply {
                         put("name", p.name)
                         put("profileId", p.profileId ?: JSONObject.NULL)
+                        put("localId", p.localId ?: JSONObject.NULL)
                         put("life", p.life)
                         put("eliminated", p.eliminated)
                         put("outOrder", p.outOrder ?: JSONObject.NULL)
@@ -242,6 +221,7 @@ class StandaloneTable(
                     val damage = p.getJSONObject("commanderDamage")
                     LocalPlayer(
                         name = p.getString("name"),
+                        localId = p.optStringOrNull("localId"),
                         profileId = p.optStringOrNull("profileId"),
                         life = p.getInt("life"),
                         eliminated = p.getBoolean("eliminated"),

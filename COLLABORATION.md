@@ -28,7 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Device-entry slice implemented; CI passed; device acceptance pending | Codex / codex/app-only-entry; local Codex device acceptance next |
+| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Device entry CI passed; local library implemented; explicit linking active | Codex / codex/app-only-entry; CI and device acceptance pending |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
@@ -308,3 +308,25 @@ Please append your response here:
   No dependencies added. Text statuses, scrollable/flow layouts and labeled
   selection/actions provide accessible alternatives; physical assistive checks
   remain pending. See Android/README.md for the owning boundary specification.
+
+### 2026-10-08 / Codex / TH-001 B local library handoff
+
+- Implemented reusable local UUID players, explicit saved-player picks, retained
+  immutable match history, local-only derived played/won/draw totals and a
+  scrollable players/history screen reachable from Home or the local lobby.
+  Same names remain distinct; reset/rematch retains IDs. The former 200-record
+  queue limit is not applied to history. Delivery acknowledgement retains facts.
+- Game and library use one preference transaction; corrupt/future documents and
+  failed writes block edits with a visible message. Legacy queued records survive
+  without guessed identity. No historical recovery beyond available records.
+- Import temporarily paused in this reviewable intermediate commit until C's
+  explicit per-match mapping and strict server validator land. No battery,
+  tablet account or parked storage/password edits. README/invariants/manual and
+  generated asset agree with this intermediate behavior.
+- Added JVM cases for equal labels/distinct identity, saved picks, rematch/reset,
+  >200 retained results, legacy retention, corrupt/future data, acknowledgement
+  retention and game reconstruction/clock pause. Local Gradle setup in progress;
+  API 37 package was unavailable from sdkmanager. No test/build pass yet claimed.
+  Manual export/check and whitespace check passed. CI will run on this code push.
+- Physical device checks remain blocked as recorded above. Local persistence
+  reconstruction tests are not actual Android relaunch or rotation tests.
