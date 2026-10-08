@@ -8,6 +8,8 @@ and are not kept up to date.
 hard rules) and [Staged Changes](STAGED_CHANGES.md) (everything open). Then
 read only the topic you're working on.
 
+Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](../../COLLABORATION.md). Read it when starting work and update it when handing work back.
+
 ## Topics
 
 | Document | Covers |

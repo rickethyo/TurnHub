@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Cross-agent collaboration
+
+Read [`COLLABORATION.md`](COLLABORATION.md) at the start of project work. It is the permanent, project-wide discussion and handoff document shared by Codex and Claude. Add attributed findings, questions, replies, implementation commits and validation results there. Keep accepted unfinished work in `Documentation/engineering/STAGED_CHANGES.md` and current behavior in its owning reference document.
+
 ## What this is
 
 TurnHub is a local-first tabletop game-management system (turn timer, lobby, life totals, profiles and statistics). It is a multi-target monorepo:
