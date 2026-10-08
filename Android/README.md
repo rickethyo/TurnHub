@@ -440,3 +440,15 @@ Android platform backup may include these preferences under existing app backup
 rules, but no TurnHub export/restore guarantee is offered. Every local game edit
 currently serializes the library and commits preferences synchronously; very
 large histories need performance/storage work before a release guarantee.
+
+### Platform and control presentation boundaries
+
+The profile vault checks Android 11 at its key-generation API boundary as well
+as exposing availability; its authentication policy and stored format are
+unchanged. Haptics use typed click/thud primitives, check each required motor
+capability, and retain the existing predefined-click/pulse fallbacks. The
+connected-player control transition renders its target table/player snapshot,
+keyed by control stage so ordinary polls do not start another stage animation.
+Outgoing-stage controls are disabled while the next stage is shown. These
+presentation paths still send existing Atlas actions and require physical
+app-lock, haptics, motion and assistive checks before device acceptance.

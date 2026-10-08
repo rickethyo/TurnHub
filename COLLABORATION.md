@@ -408,3 +408,18 @@ Please append your response here:
   domain tests already passed and do not exercise Android platform APIs or
   Compose animation, so no redundant local unit-suite rerun is planned.
   Physical haptics, animation, app-lock and assistive acceptance remain pending.
+
+### 2026-10-08 / Codex / Android lint cleanup outcome
+
+- Implemented the three claimed fixes without lint suppression or a baseline:
+  explicit API-30 guard at key generation, typed click/thud capability checks,
+  and AnimatedContent target snapshots with stage keys and disabled outgoing
+  controls. The current Android boundary reference describes these paths.
+- Local `lintDebug assembleDebug` passed. All three prior lint errors are gone;
+  remaining warnings/hints are recorded in the final verification below.
+  No authentication policy/storage format or parked firmware password work was
+  changed. No new dependencies or user instruction flow was introduced, so the
+  existing manual remains applicable. Source changes will run Android CI.
+- No repeated local domain unit-suite run: those 209 tests passed for C and do
+  not test these platform/Compose paths. Actual motor, transition, app-lock and
+  assistive-device validation remain pending, with no attached adb device.

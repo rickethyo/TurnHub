@@ -374,7 +374,10 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             else -> 2 + summary.state.ordinal * 2 + (if (me.eliminated) 1 else 0)
         }
         AnimatedContent(
-            targetState = stage,
+            targetState = Triple(stage, summary, me),
+            // New polls refresh a stage without animating every snapshot. During
+            // a stage change, outgoing controls retain their target snapshot.
+            contentKey = { it.first },
             transitionSpec = {
                 if (reduceMotion) {
                     EnterTransition.None togetherWith ExitTransition.None
@@ -385,91 +388,92 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                 }
             },
             label = "seatStage",
-        ) { _ ->
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        when {
-            !signedIn -> AccentButton("Sign in or pick a profile", actions.onPlayFromPhone, Modifier.fillMaxWidth(), enabled = panel != null)
-            me == null -> AccentButton(
-                if (summary.state == TableState.LOBBY) "Join table" else "Join in the lobby",
-                actions.onJoin,
-                Modifier.fillMaxWidth(),
-                enabled = !busy && summary.state == TableState.LOBBY,
-            )
-            summary.state == TableState.LOBBY -> {
-                ControlGrid {
-                    ToneButton("I go first", { actions.onControl(ControlAction.SELECT_STARTER) }, Modifier.weight(1f), enabled = !busy)
-                    AccentButton("Start game", { actions.onControl(ControlAction.START) }, Modifier.weight(1f),
-                        enabled = !busy && summary.players.size >= 2)
-                }
-                ControlGrid {
-                    ToneButton("Leave table", { actions.onControl(ControlAction.LEAVE) }, Modifier.weight(1f), enabled = !busy)
-                    ToneButton("Reset table", { confirmReset = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !busy)
-                }
-            }
-            summary.state == TableState.STARTING ->
-                ToneButton("Cancel countdown", { actions.onControl(ControlAction.CANCEL_START) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !busy)
-            summary.state == TableState.RUNNING && !me.eliminated -> {
-                val myTurn = summary.hasTurn(me.playerNumber)
-                val passing = summary.sameTeam(summary.pending.passPlayer, me.playerNumber)
-                AccentButton(
-                    if (passing) "Cancel pending pass" else "Pass turn",
-                    {
-                        if (passing) haptics.reject() else haptics.confirm()
-                        actions.onControl(ControlAction.PASS)
-                    },
-                    Modifier.fillMaxWidth().height(64.dp),
-                    enabled = !busy && myTurn,
-                )
-                if (!myTurn) {
-                    val activeName = summary.players.firstOrNull { it.playerNumber == summary.activePlayerNumber }?.label
-                    // Prods the active player: their Sigil sounds and their phone buzzes.
-                    // Atlas allows one nudge per player every 30 seconds.
-                    ToneButton(
-                        activeName?.let { "Nudge $it" } ?: "Nudge",
-                        { haptics.tick(); actions.onControl(ControlAction.NUDGE) },
-                        Modifier.fillMaxWidth(),
-                        tone = Tone.WARN,
-                        enabled = !busy && summary.activePlayerNumber != null,
-                    )
-                }
-                ControlGrid {
-                    ToneButton("Pause", { actions.onControl(ControlAction.PAUSE_RESUME) }, Modifier.weight(1f), enabled = !busy)
-                    ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !busy && myTurn)
-                }
-                ToneButton("Concede", { confirmConcede = true }, Modifier.fillMaxWidth(), tone = Tone.BAD, enabled = !busy)
-            }
-            summary.state == TableState.PAUSED && !me.eliminated -> {
-                val pending = summary.pending
+        ) { (shownStage, shownSummary, shownMe) ->
+            val shownBusy = busy || shownStage != stage
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when {
-                    pending.winConfirmationPlayer == me.playerNumber -> {
-                        Text(
-                            "${pending.winClaimPlayer?.let { "Player $it" } ?: "A player"} claims the win. Do you agree?",
-                            color = p.text,
+                    shownStage == 0 -> AccentButton("Sign in or pick a profile", actions.onPlayFromPhone, Modifier.fillMaxWidth(), enabled = panel != null && shownStage == stage)
+                    shownMe == null -> AccentButton(
+                        if (shownSummary.state == TableState.LOBBY) "Join table" else "Join in the lobby",
+                        actions.onJoin,
+                        Modifier.fillMaxWidth(),
+                        enabled = !shownBusy && shownSummary.state == TableState.LOBBY,
+                    )
+                    shownSummary.state == TableState.LOBBY -> {
+                        ControlGrid {
+                            ToneButton("I go first", { actions.onControl(ControlAction.SELECT_STARTER) }, Modifier.weight(1f), enabled = !shownBusy)
+                            AccentButton("Start game", { actions.onControl(ControlAction.START) }, Modifier.weight(1f),
+                                enabled = !shownBusy && shownSummary.players.size >= 2)
+                        }
+                        ControlGrid {
+                            ToneButton("Leave table", { actions.onControl(ControlAction.LEAVE) }, Modifier.weight(1f), enabled = !shownBusy)
+                            ToneButton("Reset table", { confirmReset = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !shownBusy)
+                        }
+                    }
+                    shownSummary.state == TableState.STARTING ->
+                        ToneButton("Cancel countdown", { actions.onControl(ControlAction.CANCEL_START) }, Modifier.fillMaxWidth(), tone = Tone.WARN, enabled = !shownBusy)
+                    shownSummary.state == TableState.RUNNING && !shownMe.eliminated -> {
+                        val myTurn = shownSummary.hasTurn(shownMe.playerNumber)
+                        val passing = shownSummary.sameTeam(shownSummary.pending.passPlayer, shownMe.playerNumber)
+                        AccentButton(
+                            if (passing) "Cancel pending pass" else "Pass turn",
+                            {
+                                if (passing) haptics.reject() else haptics.confirm()
+                                actions.onControl(ControlAction.PASS)
+                            },
+                            Modifier.fillMaxWidth().height(64.dp),
+                            enabled = !shownBusy && myTurn,
                         )
-                        ControlGrid {
-                            AccentButton("Confirm win", { actions.onControl(ControlAction.CONFIRM_WIN) }, Modifier.weight(1f), enabled = !busy)
-                            ToneButton("Deny claim", { actions.onControl(ControlAction.DENY_WIN) }, Modifier.weight(1f), tone = Tone.BAD, enabled = !busy)
+                        if (!myTurn) {
+                            val activeName = shownSummary.players.firstOrNull { it.playerNumber == shownSummary.activePlayerNumber }?.label
+                            // Prods the active player: their Sigil sounds and their phone buzzes.
+                            // Atlas allows one nudge per player every 30 seconds.
+                            ToneButton(
+                                activeName?.let { "Nudge $it" } ?: "Nudge",
+                                { haptics.tick(); actions.onControl(ControlAction.NUDGE) },
+                                Modifier.fillMaxWidth(),
+                                tone = Tone.WARN,
+                                enabled = !shownBusy && shownSummary.activePlayerNumber != null,
+                            )
                         }
-                    }
-                    pending.winConfirmationPlayer == null && pending.eliminationTargetPlayer == null -> {
-                        AccentButton("Resume game", { actions.onControl(ControlAction.PAUSE_RESUME) }, Modifier.fillMaxWidth().height(64.dp), enabled = !busy)
                         ControlGrid {
-                            if (summary.hasTurn(me.playerNumber)) {
-                                ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !busy)
+                            ToneButton("Pause", { actions.onControl(ControlAction.PAUSE_RESUME) }, Modifier.weight(1f), enabled = !shownBusy)
+                            ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !shownBusy && myTurn)
+                        }
+                        ToneButton("Concede", { confirmConcede = true }, Modifier.fillMaxWidth(), tone = Tone.BAD, enabled = !shownBusy)
+                    }
+                    shownSummary.state == TableState.PAUSED && !shownMe.eliminated -> {
+                        val pending = shownSummary.pending
+                        when {
+                            pending.winConfirmationPlayer == shownMe.playerNumber -> {
+                                Text(
+                                    "${pending.winClaimPlayer?.let { "Player $it" } ?: "A player"} claims the win. Do you agree?",
+                                    color = p.text,
+                                )
+                                ControlGrid {
+                                    AccentButton("Confirm win", { actions.onControl(ControlAction.CONFIRM_WIN) }, Modifier.weight(1f), enabled = !shownBusy)
+                                    ToneButton("Deny claim", { actions.onControl(ControlAction.DENY_WIN) }, Modifier.weight(1f), tone = Tone.BAD, enabled = !shownBusy)
+                                }
                             }
-                            ToneButton("Concede", { confirmConcede = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !busy)
+                            pending.winConfirmationPlayer == null && pending.eliminationTargetPlayer == null -> {
+                                AccentButton("Resume game", { actions.onControl(ControlAction.PAUSE_RESUME) }, Modifier.fillMaxWidth().height(64.dp), enabled = !shownBusy)
+                                ControlGrid {
+                                    if (shownSummary.hasTurn(shownMe.playerNumber)) {
+                                        ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !shownBusy)
+                                    }
+                                    ToneButton("Concede", { confirmConcede = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !shownBusy)
+                                }
+                            }
+                            else -> Text("Waiting for the table to decide.", color = p.muted)
                         }
                     }
-                    else -> Text("Waiting for the table to decide.", color = p.muted)
+                    shownSummary.state == TableState.GAME_OVER -> ControlGrid {
+                        AccentButton("Rematch", { actions.onControl(ControlAction.REMATCH) }, Modifier.weight(1f), enabled = !shownBusy)
+                        ToneButton("Reset table", { confirmReset = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !shownBusy)
+                    }
+                    shownMe.eliminated -> Text("You are out of this game. You can still follow the table here.", color = p.muted)
                 }
             }
-            summary.state == TableState.GAME_OVER -> ControlGrid {
-                AccentButton("Rematch", { actions.onControl(ControlAction.REMATCH) }, Modifier.weight(1f), enabled = !busy)
-                ToneButton("Reset table", { confirmReset = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !busy)
-            }
-            me.eliminated -> Text("You are out of this game. You can still follow the table here.", color = p.muted)
-        }
-        }
         }
     }
 }
