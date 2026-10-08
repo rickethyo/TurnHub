@@ -83,6 +83,34 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
+- **Tablet re-entry and dedicated tablet-only accounts** (*Planned*, owner,
+  2026-10-08; discussion TH-002 in [COLLABORATION.md](../../COLLABORATION.md)):
+  - A seated player can reopen tablet mode during an active game after leaving
+    that screen, without giving up their seat, resetting the game or creating
+    another participant.
+  - Add a distinct **Tablet-only account type**, not a player role. It has no
+    PIN, earns no statistics of its own, and cannot take a seat or become a
+    player participant. It represents a shared table screen.
+  - Restrict it to capabilities needed to operate tablet mode, including game
+    setup settings. It cannot change unrelated account, administration,
+    network, device, firmware or system settings. Define the exact tablet
+    operation allowlist before implementation; do not grant general Admin
+    access to make tablet mode work.
+  - Shared tablet mode can change player life directly, without the ordinary
+    approval request. Apply that capability to authorized tablet operations,
+    including a seated player's shared-tablet session, without granting the
+    same bypass to ordinary personal-controller requests.
+  - Atlas must validate account type, table scope and permitted operations on
+    the server through the existing semantic action path. Hiding buttons or
+    accepting a client-supplied tablet flag is not authorization. Player
+    results/statistics remain attributed to the actual players.
+  - Acceptance: seated-player re-entry mid-game preserves game/seat state;
+    tablet-only access needs no PIN; seat-taking and own-stat creation are
+    rejected; game setup and direct life edits work; unrelated settings remain
+    rejected even through direct API calls; personal-controller life approval
+    remains intact. Verify isolation between the two Atlas games.
+
+
 - **Two games per Atlas, later rounds** (round one, 2026-10-07: two tables,
   Sigil "Switch game", the portal switch; see PLANNED_DESIGNS.md): the Atlas
   touchscreen game selector (with pairing and turn order for Game 2), a

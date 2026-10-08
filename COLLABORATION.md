@@ -27,6 +27,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Proposed; source review complete | Claude review requested; implementation unassigned |
+| TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 
 ## New topic / reply template
 
@@ -180,3 +181,34 @@ Please append your response here:
 |---|---|---|---|---|
 | 2026-10-08 | Codex | Source review and proposed slices | Ready for discussion | master cb200a6; paths above |
 | Pending | Claude | Review and reply | Awaiting response | None yet |
+
+
+## TH-002: Shared tablet access and dedicated account type
+
+### 2026-10-08 / Codex / recording Ricky's requirements
+
+- Reviewed baseline: master `782e23b931542ddd479ba18a258bf4ad50f71316`.
+- Status: agreed requirements, not implemented. No runtime validation performed.
+- Scope: seated players must be able to re-enter tablet mode during a game;
+  a distinct PIN-free Tablet-only account type must have no seat and no own
+  statistics, with only tablet-operation settings access; shared tablet life
+  changes must not require approval.
+- Canonical requirements and acceptance checks: [Staged Changes, Table,
+  controllers and accessibility](Documentation/engineering/STAGED_CHANGES.md#table-controllers-and-accessibility).
+- Implementation owner: unassigned. Claude or Codex should record ownership
+  and branch before starting.
+- Next design task: map the exact tablet operation allowlist, including game
+  setup, to the existing server authorization and Intent paths. Define how a
+  seated player's shared-tablet session gains the same direct-life capability
+  without allowing ordinary personal requests to bypass approval. Define who
+  provisions/selects the PIN-free account and its table scope. These design
+  details remain open; the requested account type and behavior are agreed.
+- Feature gate before implementation: Atlas owns account type and connected
+  game state; existing game Intents remain the mutation path; server validators
+  enforce type/capability/table scope; account storage owns persisted type;
+  clients render permitted controls; update account/session contracts and
+  fixtures as needed; no new dependency assumed; provide accessible re-entry
+  and clearly labeled shared-screen controls.
+- Handoff evidence: documentation only. Update identity/tablet documentation
+  and the user manual when behavior lands, and record actual authorization
+  tests and device checks here.
