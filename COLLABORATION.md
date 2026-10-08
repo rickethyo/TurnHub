@@ -384,3 +384,27 @@ Please append your response here:
   TH-002 account/authorization, TH-003 assets or parked storage/password changes.
 - Next: push this small C commit, verify its required CI, append exact SHA/run/
   size evidence in a `[skip ci]` handoff. Keep PR #73 draft and do not merge.
+
+### 2026-10-08 / Codex / C CI verification and bounded lint cleanup claim
+
+- C implementation: `ae5df30ca9cefcf1cae463a140eceab2dc4bf07c`.
+  [CI run 218](https://github.com/rickethyo/TurnHub/actions/runs/37750825050)
+  passed all required checks. Android `testDebugUnitTest bundleRelease` reports
+  BUILD SUCCESSFUL (1m 32s). Atlas firmware 0.7.2 build, signed descriptor/package
+  verification and screen renders passed. Static RAM/flash evidence is recorded
+  in the size history. No firmware flash or actual device acceptance performed.
+- Additional local `lintDebug` found 3 errors, 37 warnings and 4 hints. The three
+  errors predate this branch's edits: ProfileVault.key's API-30 guard is only
+  implicit in callers; haptics spread an untyped primitive array; GameTab's
+  AnimatedContent ignores its target stage. None is in the new library/import
+  files. Lint is not claimed passed at this point; no suppressions/baseline added.
+- Owner / branch: Codex, `codex/app-only-entry`; next bounded scope is these
+  three Android platform/presentation fixes. Make the existing Android-11 key
+  requirement explicit at the API call, type the existing click/thud choices,
+  and render the animation's target snapshot with stage-based content keys.
+  Existing authentication/storage policy, gameplay semantics, wire contracts
+  and dependency inventory remain the owners of their unchanged behavior.
+- Validation plan: lint and debug compilation; CI for this code commit. Pure
+  domain tests already passed and do not exercise Android platform APIs or
+  Compose animation, so no redundant local unit-suite rerun is planned.
+  Physical haptics, animation, app-lock and assistive acceptance remain pending.

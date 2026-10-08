@@ -806,5 +806,7 @@ unique explicit profile IDs; invalid/deleted/archived/unreadable identities are
 rejected before receipt/statistics writes, with no name fallback. Receipt ring
 layout/capacity, radio and Sigil firmware are unchanged. Android now retains
 local UUID players, immutable history and separate delivery states with explicit
-per-match mapping. No new dependency or NVS allocation. Firmware size will be
-recorded from this branch's CI build when available; no bench result claimed.
+per-match mapping. No new dependency or NVS allocation. CI run 218 at
+`ae5df30` built Atlas successfully: static RAM 105,148 / 327,680 bytes (32.1%),
+flash 1,471,169 / 1,966,080 bytes (74.8%); the signed descriptor reports Atlas
+0.7.2, radio 3. These are build sizes, not runtime heap or bench measurements.
