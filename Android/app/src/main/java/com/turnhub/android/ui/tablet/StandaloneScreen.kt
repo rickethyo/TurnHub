@@ -103,13 +103,13 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Play without Atlas", color = p.text, style = MaterialTheme.typography.headlineSmall,
+                Text("Play on this device", color = p.text, style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.weight(1f).semantics { heading() })
                 TextButton(onClick = onClose) { Text("Back", color = p.muted) }
             }
             Text(
                 "This device keeps the game: life, Commander damage, turns and the winner. " +
-                    "Next time it connects to Atlas, finished games go to the players' statistics.",
+                    "Add names below and start playing. Your game is saved when you close the app.",
                 color = p.muted,
             )
 
@@ -156,10 +156,10 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                             )
                         }
                     }
-                    Text("Their games count toward their statistics on Atlas.", color = p.faint,
+                    Text("You can also add anyone by name.", color = p.faint,
                         style = MaterialTheme.typography.bodySmall)
                 } else {
-                    Text("Connect to Atlas once to pick its players here.", color = p.faint,
+                    Text("Add players by name. No account is needed.", color = p.faint,
                         style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -197,7 +197,7 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
             if (state.records.isNotEmpty()) {
                 val n = state.records.size
                 Text(
-                    if (n == 1) "1 finished game is waiting to go to Atlas." else "$n finished games are waiting to go to Atlas.",
+                    if (n == 1) "1 finished game record is stored on this device." else "$n finished game records are stored on this device.",
                     color = p.muted,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -223,7 +223,7 @@ private fun PlayerRow(index: Int, player: LocalPlayer, count: Int, table: Standa
         Column(Modifier.weight(1f)) {
             Text(player.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
             if (player.profileId == null) {
-                Text("Matched by name on Atlas", color = p.faint, style = MaterialTheme.typography.bodySmall)
+                Text("Local player", color = p.faint, style = MaterialTheme.typography.bodySmall)
             }
         }
         MoveButton("↑", "Move ${player.name} earlier in turn order", index > 0) { table.movePlayer(index, -1) }
@@ -234,3 +234,4 @@ private fun PlayerRow(index: Int, player: LocalPlayer, count: Int, table: Standa
         }
     }
 }
+

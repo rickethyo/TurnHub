@@ -52,7 +52,6 @@ import com.turnhub.android.standalone.PreferencesStandaloneStore
 import com.turnhub.android.standalone.StandaloneTable
 import com.turnhub.android.standalone.StandaloneViewModel
 import com.turnhub.android.ui.tablet.StandaloneScreen
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.turnhub.android.ui.home.HomeViewModel
@@ -97,37 +96,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // On launch: local network permission (Android 17), then rejoin the saved table.
-    private val launchPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) homeViewModel.onAppStarted() else homeViewModel.onLocalNetworkPermissionDenied()
-        }
-
+    // Rejoin silently only when permission is already available. A fresh
+    // install must reach device play without an Atlas permission dialog.
     private fun findTableOnLaunch() {
-        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK &&
-            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+        if (Build.VERSION.SDK_INT < LOCAL_NETWORK_PERMISSION_SDK ||
+            checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED
         ) {
-            launchPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
-        } else {
             homeViewModel.onAppStarted()
         }
     }
 
     // Android 17 blocks local-network traffic (so every Atlas request would just
     // time out) until the user grants ACCESS_LOCAL_NETWORK ("Nearby devices").
-    // Asked on launch, and again here on Connect if it was refused then.
+    // Ask only after an explicit Atlas action, including search and setup.
+    private enum class AtlasAction { CONNECT, SEARCH, SETUP }
+    private var pendingAtlasAction = AtlasAction.CONNECT
     private val localNetworkPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) homeViewModel.onConnectClicked() else homeViewModel.onLocalNetworkPermissionDenied()
+            if (granted) performAtlasAction() else homeViewModel.onLocalNetworkPermissionDenied()
         }
 
-    private fun connectToAtlas() {
+    private fun performAtlasAction() {
+        when (pendingAtlasAction) {
+            AtlasAction.CONNECT -> homeViewModel.onConnectClicked()
+            AtlasAction.SEARCH -> homeViewModel.onSearchAgain()
+            AtlasAction.SETUP -> homeViewModel.onSetUpNewTable()
+        }
+    }
+
+    private fun connectToAtlas() = requestAtlas(AtlasAction.CONNECT)
+
+    private fun requestAtlas(action: AtlasAction) {
+        pendingAtlasAction = action
+        uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
         if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_PERMISSION_SDK &&
             checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
         ) {
             localNetworkPermission.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
         } else {
-            homeViewModel.onConnectClicked()
+            performAtlasAction()
         }
     }
 
@@ -220,6 +227,19 @@ class MainActivity : ComponentActivity() {
     private val uiPrefs by lazy { getSharedPreferences("turnhub_ui", MODE_PRIVATE) }
     private var theme by mutableStateOf(TurnHubThemeChoice.AUTO)
     private var reduceMotion by mutableStateOf(false)
+    private var standalone by mutableStateOf(false)
+
+    private fun playOnDevice() {
+        homeViewModel.onDisconnectClicked()
+        uiPrefs.edit().putBoolean("prefer_device_play", true).apply()
+        standalone = true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("device_play_open", standalone)
+        outState.putString("atlas_action", pendingAtlasAction.name)
+        super.onSaveInstanceState(outState)
+    }
 
     private fun chooseTheme(choice: TurnHubThemeChoice) {
         theme = choice
@@ -306,8 +326,13 @@ class MainActivity : ComponentActivity() {
         homeViewModel.standalone = standaloneViewModel.table
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
+        standalone = savedInstanceState?.getBoolean("device_play_open")
+            ?: uiPrefs.getBoolean("prefer_device_play", false)
+        pendingAtlasAction = AtlasAction.entries.firstOrNull {
+            it.name == savedInstanceState?.getString("atlas_action")
+        } ?: AtlasAction.CONNECT
         // Not again on rotation (the ViewModel also runs it once).
-        if (savedInstanceState == null) findTableOnLaunch()
+        if (savedInstanceState == null && !standalone) findTableOnLaunch()
         lifecycleScope.launch { homeViewModel.updatesAvailable.collect(::onUpdatesAvailable) }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) { homeViewModel.appLock.collect(::runAppLock) }
@@ -328,16 +353,18 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
-                    var standalone by rememberSaveable { mutableStateOf(false) }
+                    val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
                     if (standalone) {
                         StandaloneScreen(
-                            state = standaloneViewModel.table.state.collectAsStateWithLifecycle().value,
+                            state = localState,
                             table = standaloneViewModel.table,
                             reduceMotion = reduceMotion,
                             onClose = { standalone = false },
                         )
                     } else HomeScreen(
-                        onPlayStandalone = { standalone = true },
+                        onPlayStandalone = ::playOnDevice,
+                        hasLocalGame = localState.game.state == com.turnhub.android.protocol.TableState.RUNNING ||
+                            localState.game.state == com.turnhub.android.protocol.TableState.PAUSED,
                         uiState = uiState,
                         onEndpointChange = homeViewModel::onEndpointChanged,
                         onConnectClick = ::connectToAtlas,
@@ -347,8 +374,8 @@ class MainActivity : ComponentActivity() {
                         onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
                         onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
                         discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
-                            onSearchAgain = homeViewModel::onSearchAgain,
-                            onSetUpNewTable = homeViewModel::onSetUpNewTable,
+                            onSearchAgain = { requestAtlas(AtlasAction.SEARCH) },
+                            onSetUpNewTable = { requestAtlas(AtlasAction.SETUP) },
                         ),
                         gameActions = GameActions(
                             onControl = homeViewModel::onControl,
@@ -422,3 +449,4 @@ class MainActivity : ComponentActivity() {
 
 /** Android 17 (API 37), where ACCESS_LOCAL_NETWORK is enforced for apps targeting it. */
 private const val LOCAL_NETWORK_PERMISSION_SDK = 37
+

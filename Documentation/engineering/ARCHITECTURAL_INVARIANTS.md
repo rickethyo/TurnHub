@@ -23,7 +23,7 @@ Canonical state includes, at minimum:
 
 Physical Sigils, Virtual Sigils, browsers, future apps, and simulated controllers MUST NOT independently decide or mutate canonical game state.
 
-*Exception (2026-10-07, Ricky):* the Android app's **standalone tablet game**
+*Exception (2026-10-07, project owner):* the Android app's **standalone tablet game**
 runs its own simple game when no Atlas is at the table. It is a separate game,
 not Atlas state: it never changes a game Atlas is running, and it reaches
 Atlas only as a finished game record that Atlas validates, imports once and

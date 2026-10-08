@@ -28,6 +28,9 @@ import com.turnhub.android.protocol.AtlasConnectionState
 import com.turnhub.android.protocol.GameSettingsInfo
 import com.turnhub.android.protocol.ProfileSummary
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -759,6 +762,10 @@ class HomeViewModel(
     // --- finding the table on launch --------------------------------------------
 
     private var autoStarted = false
+    private var discoveryJob: Job? = null
+    private var wifiJoinJob: Job? = null
+    private var connectJob: Job? = null
+    private var disconnectJob: Job? = null
 
     /**
      * The Activity calls this on launch, once permissions are settled: rejoins
@@ -771,12 +778,19 @@ class HomeViewModel(
     fun onAppStarted() {
         if (autoStarted) return
         autoStarted = true
-        viewModelScope.launch { rejoinSavedTable() }
+        discoveryJob = viewModelScope.launch {
+            disconnectJob?.join()
+            rejoinSavedTable()
+        }
     }
 
     /** "Try again" after the saved table didn't answer. */
     fun onSearchAgain() {
-        viewModelScope.launch { rejoinSavedTable() }
+        if (discoveryJob?.isActive == true) return
+        discoveryJob = viewModelScope.launch {
+            disconnectJob?.join()
+            rejoinSavedTable()
+        }
     }
 
     /**
@@ -815,6 +829,7 @@ class HomeViewModel(
     private suspend fun quietJoin(endpoint: AtlasEndpoint, credentials: WifiCredentials): Boolean {
         local.update { it.copy(joiningSsid = credentials.ssid, failure = null) }
         val result = wifiLink.join(credentials)
+        currentCoroutineContext().ensureActive()
         local.update { it.copy(joiningSsid = null) }
         if (result != WifiJoinResult.Joined) return false
         credentialStore.save(credentials)
@@ -918,8 +933,14 @@ class HomeViewModel(
     }
 
     fun onDisconnectClicked() {
-        local.update { it.copy(discovery = Discovery.Idle) }
-        viewModelScope.launch {
+        // A device-play choice must also stop a join that has not answered yet.
+        // Otherwise its late result can reconnect and poll behind the local game.
+        discoveryJob?.cancel()
+        wifiJoinJob?.cancel()
+        connectJob?.cancel()
+        pendingEndpoint = null
+        local.update { it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, failure = null) }
+        disconnectJob = viewModelScope.launch {
             repository.disconnect()
             wifiLink.release()
         }
@@ -936,8 +957,11 @@ class HomeViewModel(
 
     private fun joinThenConnect(endpoint: AtlasEndpoint, credentials: WifiCredentials) {
         local.update { it.copy(joiningSsid = credentials.ssid, failure = null) }
-        viewModelScope.launch {
+        wifiJoinJob?.cancel()
+        wifiJoinJob = viewModelScope.launch {
+            disconnectJob?.join()
             val result = wifiLink.join(credentials)
+            currentCoroutineContext().ensureActive()
             local.update { it.copy(joiningSsid = null) }
             when (result) {
                 WifiJoinResult.Joined -> {
@@ -966,7 +990,11 @@ class HomeViewModel(
 
     private fun connectRepository(endpoint: AtlasEndpoint) {
         pendingEndpoint = null
-        viewModelScope.launch { repository.connect(endpoint) }
+        connectJob?.cancel()
+        connectJob = viewModelScope.launch {
+            disconnectJob?.join()
+            repository.connect(endpoint)
+        }
     }
 
     companion object {
@@ -1001,3 +1029,4 @@ class HomeViewModel(
         }
     }
 }
+

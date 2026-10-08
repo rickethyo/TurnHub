@@ -27,6 +27,21 @@ The app must not:
 
 ### The one exception: the standalone tablet game
 
+Device-first entry (2026-10-08, implemented on `codex/app-only-entry`, device
+acceptance pending): the disconnected landing screen leads with **Play on this
+device**, or **Resume game** for a running/paused local match. No account,
+network or nearby-device permission is needed. `MainActivity` owns navigation:
+`turnhub_ui/prefer_device_play` remembers local play across launches, while the
+saved instance state remembers the currently open screen across rotation.
+Back returns to Home without changing the preference or game. Explicit Atlas
+Connect, Try again or setup selects Atlas for future launches and requests local
+network permission if needed. Fresh launches never request that permission;
+Atlas-preferred launches rejoin only when permission is already available.
+Entering device play cancels discovery, Wi-Fi joins and pending repository
+connects, then disconnects polling and releases the Atlas network. A later
+connection waits for the disconnect to finish. Local history and Atlas-scoped
+player identity remain planned separately (TH-001 in `COLLABORATION.md`).
+
 With **no Atlas at the table**, **Play without Atlas** (on the Connect card)
 runs a small game on the device itself: life, Commander damage, turns, pause,
 concede and the winner (`standalone/StandaloneGame.kt`). It is a separate
@@ -370,3 +385,4 @@ Networking notes:
 - `/api/v1/state` carries each player's `displayName`; players without one
   show as `Player N`. Paired Sigils come from the Admin device list, not from
   the state snapshot.
+

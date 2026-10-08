@@ -51,13 +51,19 @@ private class RecordingRepository : AtlasRepository {
     override val failure = MutableStateFlow<AtlasFailure?>(null)
     val connects = mutableListOf<AtlasEndpoint>()
     var disconnects = 0
+    var connectGate: CompletableDeferred<Unit>? = null
+    var disconnectGate: CompletableDeferred<Unit>? = null
+    var completedConnects = 0
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
         connects += endpoint
+        connectGate?.await()
+        completedConnects++
     }
 
     override suspend fun disconnect() {
         disconnects++
+        disconnectGate?.await()
     }
 }
 
@@ -437,6 +443,79 @@ class HomeViewModelTest {
 
     // --- playing from this phone ------------------------------------------------
 
+    @Test
+    fun `device play cancels saved-table discovery before a late join can connect`() = runTest {
+        store.save(defaultCredentials)
+        val gate = CompletableDeferred<Unit>()
+        link.gate = gate
+        val viewModel = viewModel()
+        viewModel.onAppStarted()
+        assertEquals(Discovery.Searching, viewModel.uiState.value.discovery)
+
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+
+        assertTrue(repository.connects.isEmpty())
+        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
+        assertNull(viewModel.uiState.value.joiningSsid)
+        assertNull(viewModel.uiState.value.wifiPrompt)
+        assertTrue(link.releases > 0)
+
+        // Explicitly returning to Atlas still works after the cancelled search.
+        link.gate = null
+        viewModel.onConnectClicked()
+        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+    }
+
+    @Test
+    fun `device play cancels a manual join and its password fallback`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        link.gate = gate
+        link.results.addLast(WifiJoinResult.Unavailable)
+        val viewModel = viewModel()
+        viewModel.onConnectClicked()
+        assertNotNull(viewModel.uiState.value.joiningSsid)
+
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+
+        assertTrue(repository.connects.isEmpty())
+        assertNull(viewModel.uiState.value.wifiPrompt)
+        assertNull(viewModel.uiState.value.joiningSsid)
+        assertNull(store.last)
+    }
+
+    @Test
+    fun `device play cancels an in-flight repository connection`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        repository.connectGate = gate
+        val viewModel = viewModel()
+        viewModel.onConnectClicked()
+        assertEquals(1, repository.connects.size)
+
+        viewModel.onDisconnectClicked()
+        gate.complete(Unit)
+
+        assertEquals(0, repository.completedConnects)
+        assertEquals(1, repository.disconnects)
+    }
+
+    @Test
+    fun `returning to Atlas waits for the local-play disconnect to finish`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        repository.disconnectGate = gate
+        val viewModel = viewModel()
+        viewModel.onDisconnectClicked()
+        viewModel.onConnectClicked()
+        assertTrue(link.joins.isEmpty())
+        assertTrue(repository.connects.isEmpty())
+
+        gate.complete(Unit)
+
+        assertEquals(listOf(defaultCredentials), link.joins)
+        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+    }
+
     private fun table(name: String, revision: Long, edit: org.json.JSONObject.() -> Unit = {}) =
         TableSummaryMapper.map(Fixtures.info(), Fixtures.state(name) { put("revision", revision); edit() })
 
@@ -737,3 +816,4 @@ class HomeViewModelTest {
         assertEquals(false, state.endpointEditable)
     }
 }
+

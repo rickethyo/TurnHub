@@ -2,19 +2,21 @@
 
 This is the permanent shared conversation and handoff document for **all of TurnHub**: Atlas, Sigils, Android, protocols, hardware, PCB and enclosure design, testing, releases, documentation, and product decisions. It is not limited to one feature or review.
 
-Scope confirmed by Ricky: 2026-10-08.
+Scope confirmed by project owner: 2026-10-08.
 
 ## Working agreement
+
+- Refer to the project owner by role, without their personal name, in document text and author metadata (owner, 2026-10-08).
 
 - Read this document at the start of project work and fetch current Git state before editing. Read CLAUDE.md and relevant engineering references as well.
 - Both Codex and Claude may add topics, ask questions, respond, record disagreements, and hand work to the other. Neither is assumed to have approved the other's proposal.
 - Give each discussion a stable ID and title. Include date, author, reviewed commit, status, affected areas, evidence, next action, and any blocker.
 - Append clearly attributed replies. Preserve the other agent's statements; explain corrections rather than silently rewriting them. Update the topic index as status changes.
 - Before implementation, record the intended scope and current owner to reduce conflicting work. An ownership entry is coordination, not a lock; check branches and current work before editing overlapping files.
-- Documentation-only updates should not run CI (Ricky, 2026-10-08). Use `[skip ci]` in documentation-only commit messages; do not skip CI for code or mixed changes.
+- Documentation-only updates should not run CI (project owner, 2026-10-08). Use `[skip ci]` in documentation-only commit messages; do not skip CI for code or mixed changes.
 - Record implementation commits and actual validation results at handoff. Distinguish source review, host tests, and device acceptance. Never claim tests or hardware checks that did not happen.
-- This document does not grant permissions or supersede Ricky's directions. Follow the repository's feature gate and architectural rules.
-- Git is the shared transport. Updating this file does not automatically notify or run either agent. Ricky can ask either agent to read and reply here.
+- This document does not grant permissions or supersede project owner's directions. Follow the repository's feature gate and architectural rules.
+- Git is the shared transport. Updating this file does not automatically notify or run either agent. project owner can ask either agent to read and reply here.
 
 ## One home per fact
 
@@ -26,7 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Proposed; source review complete | Claude review requested; implementation unassigned |
+| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Device-entry slice implemented; validation pending | Codex / codex/app-only-entry; local Codex device acceptance next |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
@@ -51,7 +53,7 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 Review baseline: master `cb200a63b0bc48ac452e2339890a9b55fd9574ec`.
 Status: source review complete; proposals below are not implemented or hardware-verified.
 
-## Ricky's request
+## project owner's request
 
 Review the new master commits, make the app more friendly to players who do not own an Atlas, and address detection of an Atlas with no battery installed.
 
@@ -186,7 +188,7 @@ Please append your response here:
 
 ## TH-002: Shared tablet access and dedicated account type
 
-### 2026-10-08 / Codex / recording Ricky's requirements
+### 2026-10-08 / Codex / recording project owner's requirements
 
 - Reviewed baseline: master `782e23b931542ddd479ba18a258bf4ad50f71316`.
 - Status: agreed requirements, not implemented. No runtime validation performed.
@@ -217,7 +219,7 @@ Please append your response here:
 
 ## TH-003: High-resolution player artwork and fuller tablet UI
 
-### 2026-10-08 / Codex / recording Ricky's requirements
+### 2026-10-08 / Codex / recording project owner's requirements
 
 - Reviewed baseline: master `953ce303359ec32cf941404c26d6bcd896a9978a`.
 - Status: planned, not implemented. Owner requests uploadable high-resolution
@@ -246,3 +248,13 @@ Please append your response here:
 - Scope: prominent device-play entry and Resume, device-first wording, durable local launch preference, permission-free fresh/local launch, and cancellation of pending Atlas joins when entering local play. No history schema, battery, tablet account or artwork changes.
 - Feature gate: Android owns navigation and stores the preference in `turnhub_ui`; explicit entry/exit/connect callbacks change it, with no gameplay Intent or wire-contract change. StandaloneTable retains local game validation/persistence and Atlas retains connected games. Existing Android screens render both; no added dependency. Labels and full-width actions remain accessible; phone/foldable/large-text device checks remain required.
 - Validation plan: focused HomeViewModel cancellation scenarios and Android CI. This environment has no Android SDK or Gradle/Kotlin installation; do not report a local Android build as passed.
+
+### 2026-10-08 / Codex / TH-001 A implementation handoff
+
+- Branch: `codex/app-only-entry`; implementation commit recorded below once pushed.
+- Implemented: prominent Play on this device / Resume game entry; device-first copy; persisted local launch choice; fresh/local launches do not ask for nearby-device permission; explicit Atlas Connect/search/setup does. Entering local play cancels tracked discovery/join/connect jobs and disconnects polling. Returning to Atlas waits for disconnect completion. Existing StandaloneTable game persistence and import queue are unchanged.
+- Added four HomeViewModel regression scenarios: saved-table discovery cancellation, manual Wi-Fi join cancellation without password fallback, pending repository connect cancellation, and reconnect after disconnect completes.
+- Manual V0.12 and generated Android manual asset updated; bounded import queue and lack of permanent history now explained. Personal name removed from current text documents that contained it; current manual author/last-modifier set to TurnHub. Existing Git history was not rewritten.
+- Local checks: manual export `--check` passed; 28-page manual rendered and visually reviewed, with changed pages 5 and 19 inspected at full size. Android SDK, Kotlin and Gradle are unavailable here, so no local build/test pass is claimed. Draft PR CI is the build/test gate.
+- Local Codex continuation: fetch this branch, read CLAUDE.md and this handoff; run `cd Android && ./gradlew testDebugUnitTest assembleDebug` if CI has not already passed. Fix actual failures before extending the feature. Device acceptance: fresh install with no Atlas/network and Nearby devices denied; local start/end; relaunch/rotation/resume; Back to Home and explicit Atlas Connect/search/setup; switch to local while a join is pending; narrow/folded/unfolded/tablet layouts, large text and TalkBack. Do not merge before review/device acceptance.
+- Remaining outside this slice: permanent local players/history, rejected-import retention and Atlas-scoped identity (B/C); battery presence investigation; TH-002 tablet accounts/re-entry; TH-003 artwork and richer tablet UI.

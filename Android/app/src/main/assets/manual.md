@@ -139,7 +139,7 @@ The chosen code is framed and marked “shown”. If an administrator has set th
 
 ## Using the Android App
 
-The TurnHub Android app is on Google Play. While TurnHub is a prototype it is offered through Google Play’s testing track, so the owner adds you as a tester first. The app joins the TurnHub-Atlas Wi-Fi by itself: tap **Connect to Atlas**. It tries the saved password, then TurnHub-Setup, and asks only if neither works. On newer Android versions, allow **Nearby devices** when asked; without it the app cannot reach Atlas.
+The TurnHub Android app is on Google Play. While TurnHub is a prototype it is offered through Google Play’s testing track, so the owner adds you as a tester first. Choose Play on this device for a local game (section 18), or Connect to Atlas to join a table. The app joins the TurnHub-Atlas Wi-Fi by itself. It tries the saved password, then TurnHub-Setup, and asks only if neither works. On newer Android versions, allow Nearby devices when you choose an Atlas action; local play needs no nearby-device permission.
 
 Sign in with your PIN or password, or choose **New here? Create an account** on the sign-in sheet to make one: a name, and either a PIN (quick to enter on a Sigil) or a password. An account made without a PIN, for example by a tablet (section 17), asks you to choose one the first time you sign in from a phone; enter it twice. From then on it is checked as usual.
 
@@ -515,7 +515,7 @@ If Atlas stops answering during a game, the panels keep taking life and Commande
 
 # 18. Playing Without Atlas
 
-With no Atlas at the table, the Android app can keep a simple game on its own. Tap **Play without Atlas** on the first screen. It is there whenever the app is not connected, including while it is still looking for Atlas.
+The Android app can keep a game on this phone or tablet with no Atlas, account or network. Tap **Play on this device** on the first screen, or **Resume game** if a local match is running or paused. Local play is available while the app is looking for Atlas; choosing it stops that connection attempt. The app remembers device play for its next launch. Back returns to the connection screen without ending the local game; an explicit Atlas connection, search or setup chooses Atlas for future launches.
 
 - Add everyone who is playing. Type a name, or pick from **Players from your Atlas**: the app remembers the players of the last Atlas it connected to. A typed name that matches one of them becomes that player.
 
@@ -523,7 +523,7 @@ With no Atlas at the table, the Android app can keep a simple game on its own. T
 
 - The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede and the winner. There is no turn timer, no Two-Headed Giant, and no phones or Sigils in this mode.
 
-The device keeps each finished game. The next time the app connects to an Atlas (firmware 0.7.1 or later) and someone is signed in, it sends the finished games, and Atlas adds them to the statistics of the players it recognizes. Atlas counts each game only once, however often it is sent. Players who were typed in with no matching account are not counted.
+This device saves the current game when you close the app. Finished game records form a queue for optional Atlas import, capped at the newest 200 records. When the app connects to an Atlas (firmware 0.7.1 or later) and someone is signed in, it sends these records, and Atlas adds recognized players to their statistics. Atlas counts each game only once, however often it is sent. Players typed in with no matching account are not counted. Imported records and records Atlas rejects as invalid leave the queue; a permanent local history is still planned.
 
 A game without Atlas is separate from any game Atlas is running: nothing in it changes a game on Atlas.
 

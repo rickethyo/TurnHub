@@ -139,6 +139,7 @@ fun HomeScreen(
     tabletActions: com.turnhub.android.ui.tablet.TabletActions = com.turnhub.android.ui.tablet.TabletActions(),
     /** Opens the standalone tablet game, for a table with no Atlas. */
     onPlayStandalone: () -> Unit = {},
+    hasLocalGame: Boolean = false,
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -274,7 +275,15 @@ fun HomeScreen(
                 if (setup.visible) {
                     SetupScreen(setup, setupActions)
                 } else if (summary == null) {
-                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion, onPlayStandalone)
+                    BrassCard(highlight = p.accent) {
+                        Eyebrow("Play on this device")
+                        Text("Track life, Commander damage, turns and results on this phone or tablet.", color = p.text)
+                        Text("No Atlas, account or network needed. Your game stays on this device when you close the app.",
+                            color = p.muted, style = MaterialTheme.typography.bodySmall)
+                        AccentButton(if (hasLocalGame) "Resume game" else "Play on this device", onPlayStandalone,
+                            Modifier.fillMaxWidth().height(56.dp))
+                    }
+                    ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                 } else {
                     if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
                     // A short fade and rise between tabs; none when motion is reduced.
@@ -308,7 +317,7 @@ fun HomeScreen(
                     }
                 }
                 Text(
-                    "TurnHub runs locally on Atlas. No cloud connection is required for table control.",
+                    "Play locally on this device or connect to Atlas. No cloud connection is required for play.",
                     color = p.faint,
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
@@ -342,7 +351,7 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
                 if (battery != null) AtlasBatteryGauge(battery)
             }
             if (p.ornament) {
-                Text("ATLAS TABLE CONSOLE", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
+                Text("YOUR TABLE, YOUR TURN", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
             }
         }
         ConnectionPill(uiState)
@@ -446,7 +455,6 @@ private fun ConnectCard(
     onDisconnectClick: () -> Unit,
     discovery: DiscoveryActions,
     reduceMotion: Boolean,
-    onPlayStandalone: () -> Unit,
 ) {
     val p = palette
     val working = uiState.rejoining || uiState.joiningSsid != null ||
@@ -460,7 +468,7 @@ private fun ConnectCard(
         uiState.discovery == Discovery.Searching -> "Looking for your table" to "Rejoining your table's Wi-Fi…"
         uiState.discovery == Discovery.NotFound -> "Couldn't reach your table" to
             "Check that Atlas is switched on and close by. If it was factory reset, set it up again."
-        !uiState.hasSavedTable -> "Welcome to TurnHub" to
+        !uiState.hasSavedTable -> "Connect to Atlas" to
             "Setting up a new table takes a few minutes: an account, a code from the Atlas screen, your " +
             "Sigils and a Wi-Fi password. Joining a table someone already set up? Connect to it instead."
         else -> "Join your table" to "TurnHub joins the Atlas Wi-Fi for you, then shows the live table."
@@ -490,12 +498,6 @@ private fun ConnectCard(
                 ToneButton("Connect to a table", onConnectClick, Modifier.fillMaxWidth())
             }
             else -> AccentButton("Connect to Atlas", onConnectClick, Modifier.fillMaxWidth().height(56.dp))
-        }
-        if (uiState.connectionState != AtlasConnectionState.CONNECTED) {
-            // No Atlas at the table: this device keeps a simple game itself and
-            // hands Atlas the finished games on the next connect. Offered while
-            // the app is still looking for Atlas too, so nobody has to wait.
-            ToneButton("Play without Atlas", onPlayStandalone, Modifier.fillMaxWidth(), tone = Tone.INFO)
         }
         var advanced by rememberSaveable { mutableStateOf(false) }
         TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {
@@ -545,3 +547,4 @@ private fun ErrorCard(message: String, detail: String?, retrying: Boolean, onOpe
         }
     }
 }
+

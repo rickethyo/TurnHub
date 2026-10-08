@@ -84,7 +84,7 @@ everything implemented. Only the checks listed below are still open.
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
   seating, the portal's `/tablet` with life, Commander damage, pass, win and
   concede; round two, the same screen in the Android app; see
-  PLAYERS_AND_ACCOUNTS.md). Next, as Ricky asked: more counters
+  PLAYERS_AND_ACCOUNTS.md). Next, as project owner asked: more counters
   per player (poison, commander tax, energy, experience and similar) in
   `GameEngine` and the state, each also kept in profile statistics as
   "counters received"; uploaded player backgrounds are tracked above;
