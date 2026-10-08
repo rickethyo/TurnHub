@@ -105,6 +105,9 @@ void handleStandaloneImport(WebServer &server) {
     case ImportStatus::Invalid:
       sendError(server, 400, "That game record is not valid");
       return;
+    case ImportStatus::BadMapping:
+      sendError(server, 400, "A player is linked to a missing, archived or repeated Atlas profile; review the mapping");
+      return;
     case ImportStatus::StorageError:
       sendError(server, 503, "Atlas couldn't save that game; try again");
       return;

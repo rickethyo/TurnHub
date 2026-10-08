@@ -365,6 +365,7 @@ class MainActivity : ComponentActivity() {
                             importState = importState,
                             onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                             onImport = homeViewModel::onImportLocalRecord,
+                            onCancelImport = { standaloneViewModel.table.cancelImport(it) },
                         )
                     } else if (standalone) {
                         StandaloneScreen(

@@ -107,6 +107,14 @@ class StandaloneTable(
             MatchDelivery(recordId, DeliveryStatus.PENDING, atlasId = atlasId, profileIds = profileIds.toList()))))
     }
 
+    /** Gives a waiting (not yet acknowledged) match back to linking, e.g. for another Atlas. */
+    fun cancelImport(recordId: String): Boolean {
+        val before = _state.value
+        val old = before.library.delivery(recordId)
+        if (old.status != DeliveryStatus.PENDING) return false
+        return publish(before.copy(library = before.library.withDelivery(MatchDelivery(recordId))))
+    }
+
     /** Sends only explicitly mapped work for this Atlas, serialized and oldest first. */
     suspend fun sendRecords(atlasId: String, post: suspend (List<Pair<String, String>>) -> RawResponse?): Int =
         deliveryMutex.withLock {

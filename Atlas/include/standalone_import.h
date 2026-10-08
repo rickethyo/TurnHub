@@ -40,7 +40,7 @@ struct ImportedGame {
   ImportedPlayer players[MAX_IMPORT_PLAYERS];
 };
 
-enum class ImportStatus : uint8_t { Imported, Duplicate, Invalid, StorageError };
+enum class ImportStatus : uint8_t { Imported, Duplicate, Invalid, BadMapping, StorageError };
 
 struct ImportResult {
   ImportStatus status = ImportStatus::Invalid;
