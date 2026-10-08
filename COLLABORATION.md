@@ -28,7 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Device-entry slice implemented; validation pending | Codex / codex/app-only-entry; local Codex device acceptance next |
+| TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Device-entry slice implemented; CI passed; device acceptance pending | Codex / codex/app-only-entry; local Codex device acceptance next |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
@@ -258,3 +258,10 @@ Please append your response here:
 - Local checks: manual export `--check` passed; 28-page manual rendered and visually reviewed, with changed pages 5 and 19 inspected at full size. Android SDK, Kotlin and Gradle are unavailable here, so no local build/test pass is claimed. Draft PR CI is the build/test gate.
 - Local Codex continuation: fetch this branch, read CLAUDE.md and this handoff; run `cd Android && ./gradlew testDebugUnitTest assembleDebug` if CI has not already passed. Fix actual failures before extending the feature. Device acceptance: fresh install with no Atlas/network and Nearby devices denied; local start/end; relaunch/rotation/resume; Back to Home and explicit Atlas Connect/search/setup; switch to local while a join is pending; narrow/folded/unfolded/tablet layouts, large text and TalkBack. Do not merge before review/device acceptance.
 - Remaining outside this slice: permanent local players/history, rejected-import retention and Atlas-scoped identity (B/C); battery presence investigation; TH-002 tablet accounts/re-entry; TH-003 artwork and richer tablet UI.
+
+### 2026-10-08 / Codex / verified CI outcome
+
+- Implementation commit: `3bf62e14a6953f41039aa522a59424e4b854f3ec`; draft [PR #73](https://github.com/rickethyo/TurnHub/pull/73).
+- [TurnHub CI run 216](https://github.com/rickethyo/TurnHub/actions/runs/37747422886) completed successfully. Android ran `testDebugUnitTest bundleRelease`, including the four new cancellation scenarios; job log reports `BUILD SUCCESSFUL in 1m 55s`. The always-run adapter, token, portal-pack and manual checks passed. Firmware jobs skipped compilation because firmware source was unaffected; no firmware/device pass is claimed.
+- Status: ready for source review and local Codex continuation. Physical phone/foldable, large-text and TalkBack checks remain pending. No merge or hardware validation performed. The continuation should use the existing CI evidence and rerun affected checks only after code changes or for a concrete unresolved concern.
+- Documentation cleanup also replaces the personal name in the Wokwi example. Future documentation uses the project-owner role; Git history and archived binary manual versions have not been rewritten.
