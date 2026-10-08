@@ -98,7 +98,7 @@ fun LocalLibraryScreen(
                     delivery.reason?.let { Text(it, color = p.muted) }
                     if (canImport && importState.atlasId != null && state.storageProblem == null &&
                         delivery.status != DeliveryStatus.IMPORTED) {
-                        MatchImportForm(record, delivery, importState, onImport, onCancel)
+                        MatchImportForm(record, delivery, importState, onImport, onCancelImport)
                     }
                     
                 }
