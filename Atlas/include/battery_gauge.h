@@ -48,6 +48,7 @@ struct BatteryReading {
   uint16_t millivolts = 0;  // Smoothed cell voltage.
   uint8_t percent = 0;      // Shown charge, 0-100; meaningful only when present.
   bool low = false;         // At or below BATTERY_LOW_PERCENT.
+  bool charging = false;    // On USB with a cell: the board's charger is filling it.
 };
 
 // Below this the line is floating or shorted: no cell.
@@ -56,45 +57,69 @@ constexpr uint8_t BATTERY_LOW_PERCENT = 15;
 // The low warning clears only once the charge is this much above the threshold.
 constexpr uint8_t BATTERY_LOW_CLEAR_MARGIN = 5;
 
+// Charging. The board's TP4054 charges at about 300 mA (R27, 3.3 kOhm, on
+// PROG) to 4.2 V, then tapers and stops; with USB in, the board runs from USB,
+// so all of it goes into the cell. Plugged in, the reading is the charger's,
+// not the cell's: the cell plus the charge current through its resistance
+// (about 210 mV on the bench), and then the 4.2 V limit. Read through the
+// curve it says "full" at once. So while charging the percent is counted, not
+// read: it climbs from the last on-battery percent at the rate the charger
+// can fill the cell, more slowly once the reading has reached the limit, and
+// shows 100 only after a while there. *Needs verification*: an estimate; the
+// board can't measure the charge current.
+constexpr uint16_t BATTERY_CAPACITY_MAH = 250;  // The 502030 cell.
+constexpr uint16_t BATTERY_CHARGE_MA = 300;     // TP4054 with R27 = 3.3 kOhm.
+// One point of charge at full charge current: capacity / 100 / current.
+constexpr uint32_t CHARGE_MS_PER_POINT = 36000UL * BATTERY_CAPACITY_MAH / BATTERY_CHARGE_MA;
+// At the charger's voltage limit the current tapers; half the rate on average.
+constexpr uint32_t CHARGE_LIMIT_MS_PER_POINT = 2 * CHARGE_MS_PER_POINT;
+// The reading has reached the limit when it holds this steady, this high, for
+// CHARGE_LIMIT_SAMPLES samples.
+constexpr uint16_t CHARGE_LIMIT_MIN_MV = 4080;
+constexpr uint16_t CHARGE_LIMIT_SPREAD_MV = 12;
+constexpr uint8_t CHARGE_LIMIT_SAMPLES = 240;  // 4 minutes; climbing to it, the reading rises 30 mV or more in that time.
+// Below the limit the count stops here; 100 only after this long at the limit.
+constexpr uint8_t CHARGE_BELOW_LIMIT_MAX_PERCENT = 90;
+constexpr uint32_t CHARGE_FULL_AFTER_LIMIT_MS = 20UL * 60 * 1000;
+// Started on USB, nothing is known but the charger's reading: the cell is
+// taken as about this much below it until the count takes over.
+constexpr uint16_t CHARGE_RISE_MV = 210;
+// Started on USB and already at the limit: at least this full.
+constexpr uint8_t CHARGE_AT_LIMIT_MIN_PERCENT = 85;
+
 // Smooths the samples and steadies the shown percent, so a load change (the
-// backlight, a radio burst, a chime) doesn't make it jump.
+// backlight, a radio burst, a chime) doesn't make it jump; counts it up while
+// charging (above).
 class BatteryGauge {
  public:
   // Exponential average with a time constant of about SMOOTHING_SAMPLES
   // samples (one sample a second on firmware).
   static constexpr uint8_t SMOOTHING_SAMPLES = 16;
+  static constexpr uint32_t SAMPLE_MS = 1000;
   // The shown percent moves only when the estimate is this far from it.
   static constexpr uint8_t PERCENT_HYSTERESIS = 2;
 
   void reset() { *this = BatteryGauge(); }
 
-  // One reading of the cell voltage (already scaled for the divider).
-  void addSample(uint32_t cellMillivolts) {
+  // One reading of the cell voltage (already scaled for the divider), and
+  // whether Atlas is on USB (charging). A change of source starts over from
+  // this sample instead of easing over a minute.
+  void addSample(uint32_t cellMillivolts, bool charging = false) {
     if (cellMillivolts < BATTERY_ABSENT_BELOW_MV) {
       // Unplugged: start over so a new cell isn't averaged with nothing.
       reset();
       return;
     }
-    if (!seeded_) {
-      averageMv16_ = cellMillivolts * 16;
-      seeded_ = true;
+    if (!seeded_ || charging != reading_.charging) {
+      start(cellMillivolts, charging);
     } else {
       // Fixed point (x16) so small steps aren't lost to rounding.
       const int32_t target = static_cast<int32_t>(cellMillivolts * 16);
       averageMv16_ += (target - averageMv16_) / SMOOTHING_SAMPLES;
+      reading_.millivolts = static_cast<uint16_t>((averageMv16_ + 8) / 16);
+      if (charging) countCharge(static_cast<uint16_t>(cellMillivolts));
+      else followCurve();
     }
-    const uint16_t mv = static_cast<uint16_t>((averageMv16_ + 8) / 16);
-    const uint8_t estimate = lipoPercentFromMillivolts(mv);
-    if (!reading_.present) {
-      reading_.percent = estimate;
-    } else {
-      const int diff = static_cast<int>(estimate) - static_cast<int>(reading_.percent);
-      if (diff >= PERCENT_HYSTERESIS || diff <= -PERCENT_HYSTERESIS || estimate == 0 || estimate == 100) {
-        reading_.percent = estimate;
-      }
-    }
-    reading_.present = true;
-    reading_.millivolts = mv;
     if (reading_.percent <= BATTERY_LOW_PERCENT) {
       reading_.low = true;
     } else if (reading_.percent >= BATTERY_LOW_PERCENT + BATTERY_LOW_CLEAR_MARGIN) {
@@ -104,17 +129,85 @@ class BatteryGauge {
 
   const BatteryReading &reading() const { return reading_; }
 
-  // Starts over from this sample, so the estimate jumps straight to a new
-  // level (USB plugged in or pulled) instead of easing over a minute.
+  // Starts over from this sample (on the cell).
   void reseed(uint32_t cellMillivolts) {
     reset();
     addSample(cellMillivolts);
   }
 
  private:
+  void start(uint32_t cellMillivolts, bool charging) {
+    // The on-battery percent, if there is one, is where a charge starts.
+    const bool fromBattery = seeded_ && !reading_.charging;
+    const uint8_t last = reading_.percent;
+    seeded_ = true;
+    averageMv16_ = static_cast<int32_t>(cellMillivolts * 16);
+    reading_.present = true;
+    reading_.charging = charging;
+    reading_.millivolts = static_cast<uint16_t>(cellMillivolts);
+    chargeMs_ = 0;
+    limitMs_ = 0;
+    atLimit_ = false;
+    recentCount_ = 0;
+    recentNext_ = 0;
+    startedOnUsb_ = charging && !fromBattery;
+    if (!charging) {
+      reading_.percent = lipoPercentFromMillivolts(cellMillivolts);
+    } else if (fromBattery) {
+      reading_.percent = last;
+    } else {
+      const uint8_t guess = lipoPercentFromMillivolts(cellMillivolts > CHARGE_RISE_MV ? cellMillivolts - CHARGE_RISE_MV : 0);
+      reading_.percent = guess < CHARGE_BELOW_LIMIT_MAX_PERCENT ? guess : CHARGE_BELOW_LIMIT_MAX_PERCENT;
+    }
+  }
+
+  void followCurve() {
+    const uint8_t estimate = lipoPercentFromMillivolts(reading_.millivolts);
+    const int diff = static_cast<int>(estimate) - static_cast<int>(reading_.percent);
+    if (diff >= PERCENT_HYSTERESIS || diff <= -PERCENT_HYSTERESIS || estimate == 0 || estimate == 100) {
+      reading_.percent = estimate;
+    }
+  }
+
+  // Never down while charging; up one point per CHARGE_MS_PER_POINT, half
+  // that at the limit, and 100 only after CHARGE_FULL_AFTER_LIMIT_MS there.
+  void countCharge(uint16_t mv) {
+    recent_[recentNext_] = mv;
+    recentNext_ = static_cast<uint8_t>((recentNext_ + 1) % CHARGE_LIMIT_SAMPLES);
+    if (recentCount_ < CHARGE_LIMIT_SAMPLES) ++recentCount_;
+    if (!atLimit_ && recentCount_ == CHARGE_LIMIT_SAMPLES) {
+      uint16_t lo = recent_[0], hi = recent_[0];
+      for (uint8_t i = 1; i < CHARGE_LIMIT_SAMPLES; ++i) {
+        if (recent_[i] < lo) lo = recent_[i];
+        if (recent_[i] > hi) hi = recent_[i];
+      }
+      atLimit_ = lo >= CHARGE_LIMIT_MIN_MV && hi - lo <= CHARGE_LIMIT_SPREAD_MV;
+      if (atLimit_ && startedOnUsb_ && reading_.percent < CHARGE_AT_LIMIT_MIN_PERCENT) {
+        reading_.percent = CHARGE_AT_LIMIT_MIN_PERCENT;
+      }
+    }
+    chargeMs_ += SAMPLE_MS;
+    if (atLimit_) limitMs_ += SAMPLE_MS;
+    const uint32_t perPoint = atLimit_ ? CHARGE_LIMIT_MS_PER_POINT : CHARGE_MS_PER_POINT;
+    const uint8_t cap = !atLimit_ ? CHARGE_BELOW_LIMIT_MAX_PERCENT : limitMs_ >= CHARGE_FULL_AFTER_LIMIT_MS ? 100 : 99;
+    if (chargeMs_ >= perPoint) {
+      chargeMs_ -= perPoint;
+      if (reading_.percent < cap) ++reading_.percent;
+    }
+    if (cap == 100 && reading_.percent == 99) reading_.percent = 100;
+  }
+
   bool seeded_ = false;
   int32_t averageMv16_ = 0;
   BatteryReading reading_;
+  // Charging.
+  uint32_t chargeMs_ = 0;
+  uint32_t limitMs_ = 0;
+  bool atLimit_ = false;
+  bool startedOnUsb_ = false;
+  uint16_t recent_[CHARGE_LIMIT_SAMPLES] = {};
+  uint8_t recentNext_ = 0;
+  uint8_t recentCount_ = 0;
 };
 
 // Whether Atlas runs from USB ("shore power") or its cell. The board has no

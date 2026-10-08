@@ -51,12 +51,39 @@ raises a low warning at 15 % that clears at 20 %. Below 2.5 V there is no cell.
 
 Shown in: the touchscreen header (at the right, a phone-style cell icon and
 the percent, the Sigil count having moved to the header's middle; the icon
-fills red and a red **LOW BATTERY** pill appears while low) and
-Menu > Info ("SD card: ready, battery 82%"), the portal's Atlas line under
-Devices, the basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
-`millivolts`, `low`, or `null` with no cell). Each 5-point change is logged as
-`ATLAS|BATTERY|<mV>|<percent>` for checking the curve against a timed
-discharge.
+fills red and a red **LOW BATTERY** pill appears while low; a lightning bolt
+over it while charging) and Menu > Info ("SD card: ready, battery 82%",
+", charging" added when it fits), the portal's Atlas line under Devices, the
+basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
+`millivolts`, `low`, `charging`, or `null` with no cell). Each 5-point
+change, and each start or end of charging, is logged as
+`ATLAS|BATTERY|<mV>|<percent>` (`|LOW`, `|CHARGING`) for checking the curve
+against a timed discharge.
+
+**Charging** (2026-10-08). The charger is a TP4054 (the schematic's U6; the
+fitted part is marked LTH7, the LTC4054 equivalent): 4.2 V, stopping on its
+own as the current tapers, at about 300 mA set by R27 (3.3 kOhm on PROG,
+1000 V / R). An SL2305 MOSFET runs the board from USB while it is plugged in,
+so all of that current goes into the cell. 300 mA is 1.2 C for the 250 mAh
+cell, above the 0.5-1 C most small pouches are rated to charge at; R27 at
+6.8 kOhm (about 150 mA) or 10 kOhm (about 100 mA), or a cell of 500 mAh or
+more, would be gentler. `BATTERY_CAPACITY_MAH` and `BATTERY_CHARGE_MA` in
+`battery_gauge.h` must follow either change.
+
+Plugged in, the reading is the charger's, not the cell's: the cell plus the
+charge current through its resistance (about 210 mV on the bench), then a
+flat 4.21 V at the charger's limit, and a flat 4.10 V once it has stopped
+(measured 2026-10-08). Read through the curve that is "full" at once (it
+jumped 60 % to 100 %). So while charging the percent is counted instead: it
+starts from the last on-battery percent, never falls, and climbs one point
+per 30 s (300 mA into 250 mAh), stopping at 90 % until the reading has held
+steady at 4.08 V or more for 4 minutes (the charger's limit; climbing to it,
+the reading rises 30 mV or more in that time). Then it climbs one point a
+minute and shows 100 % only after 20 minutes there. Started on USB, with no
+on-battery percent, it takes the cell as 210 mV below the reading, and as at
+least 85 % once at the limit. Unplugged, it reads the curve again. Checked on
+the bench (unplug, replug: the percent held and crept up with the bolt
+showing); the counted rate is *Needs verification* against a timed charge.
 
 **Screen off on battery** (2026-10-08). The cell is a backup that keeps the
 game, the radio and the portal running through a pulled cable, not a power
@@ -85,10 +112,9 @@ charge estimate restarts from the new level.
   and correct `config.h` if they differ.
 - The curve under Atlas's load (TFT backlight, Wi-Fi AP: roughly 1 C on a
   250 mAh cell), which sags the voltage so the estimate reads low.
-- While charging (USB in) the charger holds the voltage up, so the percent
-  reads high, and with USB in and no cell the charger output can look like a
-  full battery. The board has no charge-status or USB-sense pin, so Atlas
-  can't tell these apart from voltage alone.
+- With USB in and no cell the charger output can look like a full battery.
+  The board has no charge-status or USB-sense pin, so Atlas can't tell these
+  apart from voltage alone.
 - When the cell is too low for the 3.3 V regulator; the curve's 0 % (3.45 V)
   may need raising so Atlas warns before it browns out.
 

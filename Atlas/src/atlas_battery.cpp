@@ -25,6 +25,7 @@ uint8_t gaugeCount = 0;
 uint32_t lastSampleMs = 0;
 bool sampled = false;
 bool loggedPresent = false;
+bool loggedCharging = false;
 uint8_t loggedPercent = 0;
 
 uint32_t readCellMillivolts() {
@@ -37,8 +38,8 @@ uint32_t readCellMillivolts() {
 void logReading(const TurnHub::BatteryReading &reading) {
   char line[64];
   if (reading.present) {
-    snprintf(line, sizeof(line), "ATLAS|BATTERY|%u|%u%s", static_cast<unsigned>(reading.millivolts),
-        static_cast<unsigned>(reading.percent), reading.low ? "|LOW" : "");
+    snprintf(line, sizeof(line), "ATLAS|BATTERY|%u|%u%s%s", static_cast<unsigned>(reading.millivolts),
+        static_cast<unsigned>(reading.percent), reading.low ? "|LOW" : "", reading.charging ? "|CHARGING" : "");
   } else {
     snprintf(line, sizeof(line), "ATLAS|BATTERY|NONE");
   }
@@ -59,24 +60,28 @@ void serviceAtlasBattery(uint32_t nowMs) {
   sampled = true;
   lastSampleMs = nowMs;
   const uint32_t mv = readCellMillivolts();
-  if (power.addSample(mv)) {
-    TurnHub::serialLog.println(power.source() == TurnHub::PowerSource::Battery ? "ATLAS|POWER|BATTERY" : "ATLAS|POWER|USB");
-    // The charger held the reading up (or stopped): start the estimate over.
-    gauge.reseed(mv);
+  const bool changed = power.addSample(mv);
+  const bool usb = power.source() == TurnHub::PowerSource::Usb;
+  if (changed) {
+    TurnHub::serialLog.println(usb ? "ATLAS|POWER|USB" : "ATLAS|POWER|BATTERY");
+    // The gauge starts over from this sample: counting up from the last
+    // percent on USB, read from the curve on the cell.
+    gauge.addSample(mv, usb);
     gaugeSum = 0;
     gaugeCount = 0;
   } else {
     gaugeSum += mv;
     if (++gaugeCount < SAMPLES_PER_GAUGE) return;
-    gauge.addSample(gaugeSum / SAMPLES_PER_GAUGE);
+    gauge.addSample(gaugeSum / SAMPLES_PER_GAUGE, usb);
     gaugeSum = 0;
     gaugeCount = 0;
   }
 
   const TurnHub::BatteryReading &reading = gauge.reading();
   const int moved = static_cast<int>(reading.percent) - static_cast<int>(loggedPercent);
-  if (reading.present != loggedPresent || (reading.present && (moved >= LOG_STEP_PERCENT || moved <= -LOG_STEP_PERCENT))) {
+  if (reading.present != loggedPresent || reading.charging != loggedCharging || (reading.present && (moved >= LOG_STEP_PERCENT || moved <= -LOG_STEP_PERCENT))) {
     loggedPresent = reading.present;
+    loggedCharging = reading.charging;
     loggedPercent = reading.percent;
     logReading(reading);
   }

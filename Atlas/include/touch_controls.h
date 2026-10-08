@@ -158,6 +158,7 @@ struct AtlasScreen {
   // as a cell icon and percent, and warns "LOW BATTERY" while batteryLow is set.
   int8_t batteryPercent = -1;
   bool batteryLow = false;
+  bool batteryCharging = false;  // On USB: a lightning bolt over the cell icon.
   TurnHub::UpdateKind update = TurnHub::UpdateKind::None;  // Header pill: "Update available".
   uint8_t sigilsOnline = 0;
   // In a game: the round (the starter's turn opens each one; 0 between
@@ -209,6 +210,7 @@ inline bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
 inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
   return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing &&
       a.batteryPercent == b.batteryPercent && a.batteryLow == b.batteryLow &&
+      a.batteryCharging == b.batteryCharging &&
       a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
       a.round == b.round;
 }
