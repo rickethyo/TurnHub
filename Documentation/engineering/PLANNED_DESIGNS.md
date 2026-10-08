@@ -77,9 +77,9 @@ planned.
 
 Owner, 2026-09-30: after 5 to 10 minutes with no physical input, a Sigil
 sleeps and mostly drops off the radio until its buttons are pressed or Atlas
-wants it. Mainly for future battery power (the board's battery connector,
-charger and battery ADC on GPIO 34 are unused so far, see the hardware
-hardware doc), and also for fewer active radio devices in a large game where
+wants it. Mainly for future battery power (Atlas's battery connector, charger
+and battery ADC on GPIO 34 now give a charge estimate, see the hardware
+doc), and also for fewer active radio devices in a large game where
 people play from phones. A seated player's Sigil may sleep mid-game; Atlas
 wakes it when it's needed.
 

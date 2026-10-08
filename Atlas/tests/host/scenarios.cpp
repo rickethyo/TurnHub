@@ -2657,12 +2657,16 @@ static void touchControls() {
 // The status screen's chips, the NO SD CARD warning, and the Info and QR
 // screens, which change no table state.
 extern bool fixtureSdCardReady;
+extern TurnHub::BatteryReading fixtureBattery;
 static void atlasScreens() {
   resetTouchControls(); enterEmptyLobby(); pairingActive=false;
   AtlasScreen s=currentScreen();
   assert(s.kind==ScreenKind::Status && String(s.badge)=="LOBBY" && s.playerCount==0 && !s.sdMissing);
   assert(s.qr[0]=='\0' && s.lineCount>0);  // Empty table: how to join, no QR code (it is under Menu).
   fixtureSdCardReady=false; assert(currentScreen().sdMissing); fixtureSdCardReady=true;
+  fixtureBattery.present=true; fixtureBattery.percent=12; fixtureBattery.low=true;
+  s=currentScreen(); assert(s.batteryLow && s.batteryPercent==12);
+  fixtureBattery=TurnHub::BatteryReading(); assert(!currentScreen().batteryLow && currentScreen().batteryPercent==-1);
 
   freshLobby(3); s=currentScreen();
   assert(s.playerCount==3 && s.qr[0]=='\0' && !s.showLife);
@@ -2674,6 +2678,9 @@ static void atlasScreens() {
   assert(s.kind==ScreenKind::Info && String(s.title)=="Table info" && s.lineCount==5 &&
       screenButton(s,TouchAction::OpenQr) && screenButton(s,TouchAction::CloseScreen));
   fixtureSdCardReady=false; assert(String(currentScreen().lines[3])=="SD card: NOT INSERTED"); fixtureSdCardReady=true;
+  fixtureBattery.present=true; fixtureBattery.percent=64;
+  assert(String(currentScreen().lines[3])=="SD card: ready, battery 64%");
+  fixtureBattery=TurnHub::BatteryReading();
   tapButton(TouchAction::OpenQr); s=currentScreen();
   assert(s.kind==ScreenKind::Qr && String(s.qr)=="http://192.168.4.1/portal" &&
       screenButton(s,TouchAction::QrPortal)->selected && !screenButton(s,TouchAction::QrWifi)->selected);
@@ -4156,6 +4163,46 @@ static void standaloneImport() {
   TurnHubStandalone::useImportStore(nullptr);
 }
 
+// Battery charge from the cell voltage: the LiPo curve, smoothing, the shown
+// percent's hysteresis, the low warning, and /api/devices.
+static void batteryGauge() {
+  using TurnHub::lipoPercentFromMillivolts;
+  assert(lipoPercentFromMillivolts(4250)==100 && lipoPercentFromMillivolts(4180)==100);
+  assert(lipoPercentFromMillivolts(3450)==0 && lipoPercentFromMillivolts(3000)==0);
+  assert(lipoPercentFromMillivolts(3830)==46);
+  // Not linear: the flat middle holds most of the charge.
+  assert(lipoPercentFromMillivolts(3815)>40 && lipoPercentFromMillivolts(3815)<46);
+  for (uint32_t mv=3400; mv<4300; mv+=5) assert(lipoPercentFromMillivolts(mv)<=lipoPercentFromMillivolts(mv+5));
+
+  TurnHub::BatteryGauge gauge;
+  assert(!gauge.reading().present);
+  gauge.addSample(3900);
+  assert(gauge.reading().present && gauge.reading().millivolts==3900 && gauge.reading().percent==62 && !gauge.reading().low);
+  // One sagging sample (a chime, the backlight) barely moves it.
+  gauge.addSample(3700);
+  assert(gauge.reading().millivolts>3880 && gauge.reading().percent>=60);
+  // A steady new level is followed.
+  for (int i=0;i<120;++i) gauge.addSample(3700);
+  assert(gauge.reading().millivolts>=3700 && gauge.reading().millivolts<=3702 && gauge.reading().percent<=15 && gauge.reading().low);
+  // The low warning clears only well above the threshold.
+  for (int i=0;i<120;++i) gauge.addSample(3720);
+  assert(gauge.reading().low);
+  for (int i=0;i<120;++i) gauge.addSample(3800);
+  assert(!gauge.reading().low && gauge.reading().percent>=36 && gauge.reading().percent<=38);
+  // Unplugged: no cell, and the next cell starts fresh.
+  gauge.addSample(100);
+  assert(!gauge.reading().present);
+  gauge.addSample(4100);
+  assert(gauge.reading().millivolts==4100 && gauge.reading().percent==92);
+
+  assert(request("/api/devices", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"battery\":null") != std::string::npos);
+  fixtureBattery.present=true; fixtureBattery.percent=12; fixtureBattery.millivolts=3705; fixtureBattery.low=true;
+  assert(request("/api/devices", "", {}, HTTP_GET) == 200);
+  assert(server.body.find("\"battery\":{\"percent\":12,\"millivolts\":3705,\"low\":true}") != std::string::npos);
+  fixtureBattery=TurnHub::BatteryReading();
+}
+
 int main() {
   sigilReceivePackets(); std::cout<<"PASS Sigil radio queue preserves legacy and game display packets\n";
   assert(configureIntentHandlers());
@@ -4191,6 +4238,7 @@ int main() {
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
+  batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";
   standaloneImport(); std::cout<<"PASS standalone tablet game import: sign-in, validation, picked profile or name, unmatched, duplicates, storage failure, draw\n";
   tabletMode(); std::cout<<"PASS tablet mode: presence code, Tablet access role, PIN-less new players, PIN choice, unique names, turn order, settings, life, Commander, pass, win, off\n";
   resetTableFromPortal(); std::cout<<"PASS admin returns the table to an empty lobby: permission, presence code (wrong, too many, other phone, expiry), draw once, countdown\n";

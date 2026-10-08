@@ -93,7 +93,10 @@ everything implemented. Only the checks listed below are still open.
   e-ink text scale, a monochrome-safe portal
   theme, guest accessibility preferences. LED intensity and buzzer volume wait
   for hardware that can vary them.
-- **Atlas battery gauge.**
+- **Atlas battery gauge, later rounds** (round one, 2026-10-08: the voltage
+  estimate, see HARDWARE.md "Atlas battery"): calibrate the divider and curve
+  on the board, the percent in the Android app, and a manual entry once the
+  readings are trusted.
 
 ### Hardware
 

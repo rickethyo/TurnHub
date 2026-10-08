@@ -468,9 +468,11 @@ function renderSigilSteps(){const authed=!!(sessionInfo&&sessionInfo.authenticat
 function openInvite(){inviteSsid.textContent=networkData&&networkData.ssid?` (${networkData.ssid})`:'';if(typeof inviteSheet.showModal==='function')inviteSheet.showModal();else inviteSheet.setAttribute('open','')}
 function seatsForModule(id){return seatData.seats.filter(s=>Number(s.module)===Number(id))}
 function capabilityHtml(x){const caps=[];if(x.display==='oled')caps.push(badge('OLED: up to 2 players','blue'));else if(x.display==='epaper')caps.push(badge('E-paper: up to 2 players','blue'));if(!x.metadata)caps.push(badge('No Hello yet','warn'));if(x.customName)caps.push(badge('Custom name','blue'));return caps.join('')}
+function batteryText(b){return b?`Battery ${Number(b.percent)}%${b.low?' (low)':''} · ${(Number(b.millivolts)/1000).toFixed(2)} V`:''}
 function renderDevices(d){renderPresence();
- deviceData=d;atlasDevice.className='notice good';
- atlasDevice.innerHTML=`<strong>Atlas</strong> · <span class="mono">${esc(d.atlas.hardwareId)}</span> · firmware ${esc(d.atlas.firmware)}`;
+ const battery=d.atlas.battery;
+ deviceData=d;atlasDevice.className=battery&&battery.low?'notice bad':'notice good';
+ atlasDevice.innerHTML=`<strong>Atlas</strong> · <span class="mono">${esc(d.atlas.hardwareId)}</span> · firmware ${esc(d.atlas.firmware)}${battery?' · '+esc(batteryText(battery)):''}`;
  const html=d.devices.length?d.devices.map(x=>{
   const state=x.online?'<span class="device-state online-text">ONLINE</span>':'<span class="device-state offline-text">OFFLINE</span>';
   const fw=x.metadata?`Firmware ${esc(x.firmware)}`:'Firmware metadata unavailable';

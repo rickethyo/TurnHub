@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "atlas_app.h"
+#include "atlas_battery.h"
 #include "controller_profiles.h"
 #include "firmware_version.h"
 #include "harness_link.h"
@@ -1109,7 +1110,12 @@ void formatInfo(AtlasScreen &screen, uint32_t nowMs) {
   snprintf(screen.lines[0], sizeof(screen.lines[0]), "Wi-Fi: %s", AtlasConfig::WIFI_SSID);
   snprintf(screen.lines[1], sizeof(screen.lines[1]), "Portal: 192.168.4.1");
   snprintf(screen.lines[2], sizeof(screen.lines[2]), "Sigils online: %u", static_cast<unsigned>(screen.sigilsOnline));
-  snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s", screen.sdMissing ? "NOT INSERTED" : "ready");
+  if (screen.batteryPercent >= 0) {
+    snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s, battery %d%%",
+        screen.sdMissing ? "NOT INSERTED" : "ready", static_cast<int>(screen.batteryPercent));
+  } else {
+    snprintf(screen.lines[3], sizeof(screen.lines[3]), "SD card: %s", screen.sdMissing ? "NOT INSERTED" : "ready");
+  }
   const TurnHub::UpdateKind update = firmwareUpdateKind();
   if (update != TurnHub::UpdateKind::None) {
     formatUpdateLine(screen.lines[4], sizeof(screen.lines[4]), update);
@@ -1244,6 +1250,9 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen = AtlasScreen();
   screen.kind = activeScreen(nowMs);
   screen.sdMissing = !sdCardReady();
+  const TurnHub::BatteryReading &battery = atlasBattery();
+  screen.batteryPercent = battery.present ? static_cast<int8_t>(battery.percent) : -1;
+  screen.batteryLow = battery.present && battery.low;
   screen.update = firmwareUpdateKind();
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {

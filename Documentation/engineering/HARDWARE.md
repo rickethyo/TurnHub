@@ -13,7 +13,7 @@ playtesting and bench testing (2026-10-02).
 2.8" ESP32-32E display module (resistive touch): ESP32 N4, 4 MB flash, no
 PSRAM, **CH340C** USB bridge (Sigils use CP210x), ILI9341V 240x320 TFT,
 XPT2046 touch, microSD slot, common-anode RGB LED, speaker amplifier, battery
-connector and charger (unused), RESET and BOOT buttons.
+connector and charger (see "Atlas battery" below), RESET and BOOT buttons.
 
 PlatformIO `Atlas/platformio.ini`: `esp32dev`, Arduino, 115200 baud,
 `min_spiffs.csv` (two 1.9 MB OTA app slots, NVS at `0x9000`; a new partition
@@ -30,10 +30,43 @@ table needs one USB upload), LovyanGFX.
 | RGB LED red / green / blue | 22 / 16 / 17 | Active low. Red blinks 250/250 ms while pairing; blue blinks while an update is available |
 | Speaker amp enable | 4 | Active low, on only while a chime sounds (+250 ms) |
 | Speaker audio | 26 | DAC 2 streamed by I2S0 (`atlas_speaker.cpp`) |
-| Battery ADC | 34 | Unused |
+| Battery ADC | 34 | Cell voltage through the board's divider (halved); `atlas_battery.cpp` |
 | BOOT | 0 | Pair / unpair all / factory reset (quick, 3 s, 10 s); never a game action |
 
 There is no master button (2026-09-24): game controls are on the touchscreen.
+
+### Atlas battery
+
+*Experimental* (2026-10-08). A single-cell LiPo on the board's battery
+connector (the first one tried: a 502030 pouch, 250 mAh, with its own
+protection board) is charged by the on-board charger from USB. Atlas has no
+fuel-gauge chip, so the charge is estimated from the cell voltage alone:
+`atlas_battery.cpp` reads GPIO 34 once a second (8 ADC reads averaged, the
+ESP32's calibrated millivolts) and scales it by the divider ratio in
+`config.h` (`BATTERY_DIVIDER_NUMERATOR` / `DENOMINATOR`, 2/1). The pure logic
+in `battery_gauge.h` smooths it (an exponential average over about 16 s),
+maps it through a LiPo discharge curve (flat through the middle, steep at both
+ends, not linear), holds the shown percent until it moves 2 points, and
+raises a low warning at 15 % that clears at 20 %. Below 2.5 V there is no cell.
+
+Shown in: the touchscreen header (a red **LOW BATTERY** pill while low) and
+Menu > Info ("SD card: ready, battery 82%"), the portal's Atlas line under
+Devices, the basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
+`millivolts`, `low`, or `null` with no cell). Each 5-point change is logged as
+`ATLAS|BATTERY|<mV>|<percent>` for checking the curve against a timed
+discharge.
+
+*Needs verification:*
+- The divider ratio: compare the portal's voltage with a meter at the plug
+  and correct `config.h` if they differ.
+- The curve under Atlas's load (TFT backlight, Wi-Fi AP: roughly 1 C on a
+  250 mAh cell), which sags the voltage so the estimate reads low.
+- While charging (USB in) the charger holds the voltage up, so the percent
+  reads high, and with USB in and no cell the charger output can look like a
+  full battery. The board has no charge-status or USB-sense pin, so Atlas
+  can't tell these apart from voltage alone.
+- When the cell is too low for the 3.3 V regulator; the curve's 0 % (3.45 V)
+  may need raising so Atlas warns before it browns out.
 
 ### Atlas touchscreen
 
@@ -162,5 +195,6 @@ signing tools are described in `CLAUDE.md`.
   not a breadboard that happens to work.
 - **Open:** the Sigil carrier PCB layout, DRC and a test fit (the OLED PCB is
   a placeholder); power measurements (idle, radio, display, buzzer, capped
-  LEDs, sleep) and USB supply behavior; battery, final Atlas module, enclosure
+  LEDs, sleep) and USB supply behavior; Atlas battery runtime and calibration
+  (above), final Atlas module, enclosure
   and docking decisions. Tracked in [Staged Changes](STAGED_CHANGES.md).

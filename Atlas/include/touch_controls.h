@@ -154,6 +154,10 @@ struct AtlasScreen {
   char detail[48] = {};
   char notice[48] = {};   // Action message; shown in place of detail while set.
   bool sdMissing = false; // Header warning: "NO SD CARD".
+  // Battery charge estimate (0-100), or -1 with no cell; the header warns
+  // "LOW BATTERY" while batteryLow is set.
+  int8_t batteryPercent = -1;
+  bool batteryLow = false;
   TurnHub::UpdateKind update = TurnHub::UpdateKind::None;  // Header pill: "Update available".
   uint8_t sigilsOnline = 0;
   // In a game: the round (the starter's turn opens each one; 0 between
@@ -203,7 +207,8 @@ inline bool samePlayerTime(const ScreenPlayer &a, const ScreenPlayer &b) {
 }
 
 inline bool sameHeader(const AtlasScreen &a, const AtlasScreen &b) {
-  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
+  return sameScreenText(a.badge, b.badge) && a.sdMissing == b.sdMissing && a.batteryLow == b.batteryLow &&
+      a.update == b.update && a.sigilsOnline == b.sigilsOnline &&
       a.round == b.round;
 }
 

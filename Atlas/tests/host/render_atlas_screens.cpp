@@ -127,6 +127,13 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   six.playerCount = 6;
   out.push_back({"six-players-no-sd", six});
 
+  AtlasScreen lowBattery = playing();
+  lowBattery.batteryPercent = 12;
+  lowBattery.batteryLow = true;
+  lowBattery.round = 4;
+  text(lowBattery.gameClock, sizeof(lowBattery.gameClock), "38:20");
+  out.push_back({"low-battery", lowBattery});
+
   AtlasScreen lobby = base("LOBBY", "Lobby", "3 players, 3 Sigils");
   lobby.sigilsOnline = 3;
   lobby.players[0] = player(1, "Rowan", 0, CHIP_STARTER, "", 1);

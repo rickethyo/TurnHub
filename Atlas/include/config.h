@@ -74,8 +74,14 @@ constexpr uint8_t BOOT_BUTTON_PIN = 0;
 constexpr uint8_t AUDIO_ENABLE_PIN = 4;
 constexpr uint8_t AUDIO_DAC_PIN = 26;
 
-// Battery voltage divider (input-only ADC pin).
+// Battery voltage divider (input-only ADC pin), from the board's battery
+// connector (a single-cell LiPo, charged on board). The cell voltage is the
+// pin voltage times NUMERATOR / DENOMINATOR: the LCDwiki ESP32-32E boards
+// halve it. *Needs verification*: if the shown voltage disagrees with a
+// meter at the battery plug, correct the ratio here (atlas_battery.cpp).
 constexpr uint8_t BATTERY_ADC_PIN = 34;
+constexpr uint32_t BATTERY_DIVIDER_NUMERATOR = 2;
+constexpr uint32_t BATTERY_DIVIDER_DENOMINATOR = 1;
 
 constexpr char WIFI_SSID[] = "TurnHub-Atlas";
 constexpr uint8_t WIFI_CHANNEL = 6;

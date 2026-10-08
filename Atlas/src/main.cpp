@@ -12,6 +12,7 @@
 #include "sigil_menu.h"
 #include "profile_picker.h"
 #include "commander_picker.h"
+#include "atlas_battery.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "config.h"
@@ -553,6 +554,7 @@ void setup() {
   audio.setSpeaker(beginAtlasSpeaker());
   audio.setSpeakerVolume(speakerVolume);
   logHeapStep("SPEAKER");
+  beginAtlasBattery();
   startNetworking();
   serialLog.println("ATLAS|READY");
 }
@@ -598,6 +600,7 @@ void loop() {
   audio.setSpeakerShared(atlasSpeakerShared());
   audio.update(nowMs);
   serviceAtlasSpeaker(nowMs);
+  serviceAtlasBattery(nowMs);
   syncSigilMenus(nowMs);
   syncProfilePickers(nowMs);
   syncCommanderPickers(nowMs);

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+#include "atlas_battery.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "sd_card.h"
@@ -50,6 +51,12 @@ int wipeSdCard() { ++fixtureSdWipes; return fixtureSdCardReady ? 0 : -1; }
 // The speaker is firmware-only (ESP32 DAC); host builds have none.
 TurnHub::ToneOutput *TurnHubAtlas::beginAtlasSpeaker() { return nullptr; }
 void TurnHubAtlas::serviceAtlasSpeaker(uint32_t) {}
+
+// The battery ADC is firmware-only; scenarios set the reading directly.
+TurnHub::BatteryReading fixtureBattery;
+void TurnHubAtlas::beginAtlasBattery() {}
+void TurnHubAtlas::serviceAtlasBattery(uint32_t) {}
+const TurnHub::BatteryReading &TurnHubAtlas::atlasBattery() { return fixtureBattery; }
 
 #include "sigil_bus.h"
 #include "../../../Sigil/tests/host/test_crypto.h"

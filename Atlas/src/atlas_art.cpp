@@ -284,9 +284,9 @@ void drawSplash() {
 // --- Status screens ------------------------------------------------------------
 //
 // Regions, top to bottom: header (state badge, round and match clock, Sigil
-// count, the NO SD CARD warning), hero (title, detail or action message, the
-// turn gauge and its tube), body (player chips, text lines or a QR code) and
-// the button row(s). Each region redraws only when its part of the
+// count, the NO SD CARD and LOW BATTERY warnings), hero (title, detail or
+// action message, the turn gauge and its tube), body (player chips, text
+// lines or a QR code) and the button row(s). Each region redraws only when its part of the
 // AtlasScreen changes; the chips' turn times and the header clock update in
 // place.
 
@@ -339,6 +339,18 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     g.setTextDatum(lgfx::middle_center);
     g.setTextColor(CREAM, DANGER_DEEP);
     g.drawString("NO SD CARD", right - w / 2, oy + 13);
+    right -= w + 8;
+  }
+
+  if (screen.batteryLow) {
+    // Red and written out, like the card warning.
+    g.setFont(&fonts::DejaVu9);
+    const int16_t w = g.textWidth("LOW BATTERY") + 12;
+    g.fillRoundRect(right - w, oy + 5, w, 15, 3, DANGER_DEEP);
+    g.drawRoundRect(right - w, oy + 5, w, 15, 3, 0x3A0A06);
+    g.setTextDatum(lgfx::middle_center);
+    g.setTextColor(CREAM, DANGER_DEEP);
+    g.drawString("LOW BATTERY", right - w / 2, oy + 13);
     right -= w + 8;
   }
 

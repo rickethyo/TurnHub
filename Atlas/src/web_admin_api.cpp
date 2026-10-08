@@ -17,6 +17,7 @@
 #include "web_api_internal.h"
 #include "avatars.h"
 #include "sd_card.h"
+#include "atlas_battery.h"
 
 using TurnHub::serialLog;
 
@@ -99,7 +100,18 @@ void handleDevices(WebServer &server) {
   json += atlasHardwareId();
   json += "\",\"firmware\":\"";
   json += TurnHubFirmware::VERSION;
-  json += "\"},\"devices\":[";
+  // Estimated from the cell voltage (battery_gauge.h); null with no cell.
+  const TurnHub::BatteryReading &battery = TurnHubAtlas::atlasBattery();
+  json += "\",\"battery\":";
+  if (battery.present) {
+    json += "{\"percent\":"; json += String(battery.percent);
+    json += ",\"millivolts\":"; json += String(battery.millivolts);
+    json += ",\"low\":"; json += jsonBool(battery.low);
+    json += "}";
+  } else {
+    json += "null";
+  }
+  json += "},\"devices\":[";
 
   bool first = true;
   for (uint8_t id = 0; bus != nullptr && id < MAX_PHYSICAL_SIGILS; ++id) {
