@@ -807,5 +807,5 @@ Then get out of the way.
 
 **Manual Version:** 0.12
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Atlas 0.7.3, Sigil 0.9.14, TurnHub Android app (Google Play)
+**Software:** Atlas 0.7.1, Sigil 0.9.13, TurnHub Android app (Google Play)
 **Product names and specifications subject to change.**
