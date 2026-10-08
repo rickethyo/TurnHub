@@ -74,8 +74,11 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
   app. Rotating it needs a USB flash of every device, or an update signed by
   the old key that carries the new one (last rotated 2026-10-05, `e89210a`).
 - **CI** signs every firmware build when the secret is available (fork PRs
-  stay unsigned). **Releases:** pushing a `v*` tag runs `release.yml`, which
-  builds, signs and publishes the `.thfw` files and `turnhub-firmware.json`.
+  stay unsigned). **Releases:** pushing a `v*` tag (everything), `atlas-v*` (Atlas and
+  portal pack) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
+  signs and publishes the `.thfw` files and `turnhub-firmware.json`; a
+  one-product tag carries the other products over from the previous release so
+  the feed stays complete (CONTINUOUS_INTEGRATION.md).
   Cloud sessions can't push tags; the owner pushes them.
 - **Local:** `tools\sign-local.cmd` builds from the working copy and writes
   verified packages to `Private\TurnHub-builds`; `tools\flash-all.cmd -Sign`
