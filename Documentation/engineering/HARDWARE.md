@@ -52,7 +52,7 @@ raises a low warning at 15 % that clears at 20 %. Below 2.5 V there is no cell.
 Shown in: the touchscreen header (at the right, a phone-style cell icon and
 the percent, the Sigil count having moved to the header's middle; the icon
 fills red and a red **LOW BATTERY** pill appears while low; a lightning bolt
-over it while charging) and Menu > Info ("SD card: ready, battery 82%",
+over it while charging, gone once full at 100%) and Menu > Info ("SD card: ready, battery 82%",
 ", charging" added when it fits), the portal's Atlas line under Devices, the
 basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
 `millivolts`, `low`, `charging`, or `null` with no cell). Each 5-point

@@ -67,7 +67,7 @@ when a client follows another game.
 ### Atlas battery
 
 State carries `battery`: `{percent, low, charging}` for Atlas's own cell
-(estimated from its voltage; `low` at 15 %, `charging` while on USB), or
+(estimated from its voltage; `low` at 15 %, `charging` while on USB and below 100 %), or
 `null` with no cell. Like the clocks it is sampled, so it can change without a
 revision change. The Android app draws it as a header gauge;
 `GET /api/devices` also reports it under `atlas.battery` with `millivolts`.

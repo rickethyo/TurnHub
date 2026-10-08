@@ -4278,9 +4278,10 @@ static void chargingEstimate() {
   // At the limit (steady at 4.08 V or more for 4 minutes): half the rate, and
   // 100 only after 20 minutes there.
   for (int s=0;s<1300;++s) gauge.addSample(4110, true);
-  assert(gauge.reading().percent==99);
+  assert(gauge.reading().percent==99 && gauge.reading().charging);
   for (int s=0;s<200;++s) gauge.addSample(4110, true);
-  assert(gauge.reading().percent==100 && !gauge.reading().low);
+  // Full is shown as full: no bolt at 100.
+  assert(gauge.reading().percent==100 && !gauge.reading().low && !gauge.reading().charging);
   // USB out: read from the curve again.
   gauge.addSample(3900);
   assert(!gauge.reading().charging && gauge.reading().percent==62);
