@@ -283,8 +283,8 @@ void drawSplash() {
 
 // --- Status screens ------------------------------------------------------------
 //
-// Regions, top to bottom: header (state badge, round and match clock, Sigil
-// count, the NO SD CARD and LOW BATTERY warnings), hero (title, detail or
+// Regions, top to bottom: header (state badge, Sigil count in the middle,
+// round and match clock, battery, the NO SD CARD and LOW BATTERY warnings), hero (title, detail or
 // action message, the turn gauge and its tube), body (player chips, text
 // lines or a QR code) and the button row(s). Each region redraws only when its part of the
 // AtlasScreen changes; the chips' turn times and the header clock update in
@@ -373,37 +373,36 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     right -= w + 8;
   }
 
-  char sigils[16];
-  snprintf(sigils, sizeof(sigils), "%u %s", static_cast<unsigned>(screen.sigilsOnline),
-      screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
+  g.setTextDatum(lgfx::middle_right);
+  if (screen.batteryPercent >= 0) {
+    // Like a phone: the cell drawn with its charge (red while low), and the
+    // percent written beside it.
+    constexpr int16_t CELL_W = 20, CELL_H = 11, NUB_W = 2;
+    const int16_t cx = right - NUB_W - CELL_W, cy = oy + H / 2 - 1 - CELL_H / 2;
+    g.drawRoundRect(cx, cy, CELL_W, CELL_H, 2, INK);
+    g.fillRect(cx + CELL_W, cy + 3, NUB_W, CELL_H - 6, INK);
+    const int16_t percent = screen.batteryPercent > 100 ? 100 : screen.batteryPercent;
+    int16_t fillW = static_cast<int16_t>(((CELL_W - 4) * percent + 50) / 100);
+    if (fillW == 0 && percent > 0) fillW = 1;
+    if (fillW > 0) g.fillRect(cx + 2, cy + 2, fillW, CELL_H - 4, screen.batteryLow ? DANGER : INK);
+    char charge[6];
+    snprintf(charge, sizeof(charge), "%d%%", static_cast<int>(percent));
+    g.setFont(nameFont.get());
+    headerInk(g, INK, buffered);
+    g.drawString(charge, cx - 4, oy + H / 2);
+    right = cx - 4 - g.textWidth(charge) - 8;
+  }
+
   char round[12] = {};
   if (screen.round > 0) snprintf(round, sizeof(round), "Round %u", static_cast<unsigned>(screen.round));
   g.setFont(nameFont.get());
-  const int16_t sigilsW = g.textWidth(sigils);
   const int16_t roundW = round[0] ? g.textWidth(round) : 0;
   g.setFont(clockFont.get());
   const int16_t clockW = screen.gameClock[0] ? g.textWidth(screen.gameClock) : 0;
   const int16_t gameW = roundW + (clockW ? clockW + 14 : 0);
-  // Room for everything, else the round and clock win over the Sigil count
-  // (Info lists it), else the round alone.
-  bool showSigils = true, showClock = clockW > 0;
-  if (right - sigilsW - (gameW ? gameW + 14 : 0) < leftLimit) showSigils = false;
-  if (!showSigils && right - gameW < leftLimit) showClock = false;
-  if (!round[0]) showSigils = right - sigilsW >= leftLimit;
-
-  g.setTextDatum(lgfx::middle_right);
-  if (showSigils) {
-    g.setFont(nameFont.get());
-    headerInk(g, INK, buffered);
-    g.drawString(sigils, right, oy + H / 2);
-    right -= sigilsW + 8;
-    if (round[0]) {
-      g.drawFastVLine(right, oy + 6, H - 14, BRASS_LO);
-      right -= 8;
-    }
-  }
+  // The round and clock if they fit, else the round alone.
   if (round[0]) {
-    if (showClock) {
+    if (clockW && right - gameW >= leftLimit) {
       g.setFont(clockFont.get());
       headerInk(g, INK, buffered);
       g.drawString(screen.gameClock, right, oy + H / 2);
@@ -415,7 +414,24 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
       g.setFont(nameFont.get());
       headerInk(g, INK, buffered);
       g.drawString(round, right, oy + H / 2);
+      right -= roundW;
     }
+  }
+
+  // The Sigil count in the middle, or as near it as the badge and the right
+  // side allow; left out if there is no room (Info lists it).
+  char sigils[16];
+  snprintf(sigils, sizeof(sigils), "%u %s", static_cast<unsigned>(screen.sigilsOnline),
+      screen.sigilsOnline == 1 ? "Sigil" : "Sigils");
+  g.setFont(nameFont.get());
+  const int16_t sigilsW = g.textWidth(sigils);
+  int16_t sigilsX = W / 2 - sigilsW / 2;
+  if (sigilsX + sigilsW > right - 12) sigilsX = right - 12 - sigilsW;
+  if (sigilsX < leftLimit) sigilsX = leftLimit;
+  if (sigilsX + sigilsW <= right - 12) {
+    g.setTextDatum(lgfx::middle_left);
+    headerInk(g, INK, buffered);
+    g.drawString(sigils, sigilsX, oy + H / 2);
   }
 }
 
