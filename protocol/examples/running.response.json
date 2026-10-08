@@ -56,5 +56,10 @@
       "commanderDamage": [],
       "lifeRequest": null
     }
-  ]
+  ],
+  "battery": {
+    "percent": 82,
+    "low": false,
+    "charging": false
+  }
 }

@@ -55,6 +55,26 @@ class AtlasWireParserTest {
 
 
     @Test
+    fun `parses Atlas's battery, absent or null as none`() {
+        assertEquals(AtlasBattery(percent = 82, low = false, charging = false), Fixtures.state("running.response.json").battery)
+        assertNull(Fixtures.state("lobby.response.json").battery)
+        assertNull(Fixtures.state("running.response.json") { put("battery", JSONObject.NULL) }.battery)
+        val charging = Fixtures.state("running.response.json") {
+            put("battery", JSONObject().put("percent", 12).put("low", true).put("charging", true))
+        }
+        assertEquals(AtlasBattery(percent = 12, low = true, charging = true), charging.battery)
+        listOf<JSONObject.() -> Unit>(
+            { getJSONObject("battery").put("percent", 101) },
+            { getJSONObject("battery").remove("charging") },
+        ).forEach { edit ->
+            assertThrows(AtlasWireException.Malformed::class.java) {
+                Fixtures.state("running.response.json", edit)
+            }
+        }
+    }
+
+
+    @Test
     fun `an unknown timer phase or bad remaining time is malformed`() {
         listOf<JSONObject.() -> Unit>(
             { remove("turnTimer") },

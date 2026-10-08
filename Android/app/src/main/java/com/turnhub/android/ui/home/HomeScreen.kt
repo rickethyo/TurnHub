@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.drawBehind
+import com.turnhub.android.ui.components.AtlasBatteryGauge
 import com.turnhub.android.ui.components.rememberHaptics
 import androidx.compose.ui.res.painterResource
 import com.turnhub.android.ui.theme.DesignTokens
@@ -332,8 +333,14 @@ private fun BrandBar(uiState: HomeUiState, running: Boolean, reduceMotion: Boole
     ) {
         GearMark(if (p.ornament) 34.dp else 28.dp, spinning = running, reduceMotion = reduceMotion)
         Column(Modifier.weight(1f)) {
-            Text("TurnHub", color = p.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),
-                modifier = Modifier.semantics { heading() })
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("TurnHub", color = p.text, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 22.sp),
+                    modifier = Modifier.semantics { heading() })
+                // Atlas's battery, while connected to one that has a cell.
+                val battery = uiState.tableSummary?.battery
+                    ?.takeIf { uiState.connectionState == AtlasConnectionState.CONNECTED && !uiState.isOffline }
+                if (battery != null) AtlasBatteryGauge(battery)
+            }
             if (p.ornament) {
                 Text("ATLAS TABLE CONSOLE", color = p.muted, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp))
             }

@@ -240,7 +240,20 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
     json += String(at.game.hasPlayers() ? at.game.playerCount() : at.lobby.playerCount());
     json += '}';
   }
-  json += "]}";
+  json += ']';
+  // Atlas's battery, sampled like the clocks (no revision change); null with
+  // no cell. The app's header gauge draws it.
+  const TurnHub::BatteryReading &battery = atlasBattery();
+  json += ",\"battery\":";
+  if (battery.present) {
+    json += "{\"percent\":"; json += String(battery.percent);
+    json += ",\"low\":"; json += battery.low ? "true" : "false";
+    json += ",\"charging\":"; json += battery.charging ? "true" : "false";
+    json += '}';
+  } else {
+    json += "null";
+  }
+  json += '}';
   return json;
 }
 
