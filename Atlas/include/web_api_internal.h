@@ -217,6 +217,8 @@ void handlePairingSettings(WebServer &server);
 void handleSavePairingSettings(WebServer &server);
 void handleSpeakerSettings(WebServer &server);
 void handleSaveSpeakerSettings(WebServer &server);
+void handleTableCodeSettings(WebServer &server);
+void handleSaveTableCodeSettings(WebServer &server);
 void handleResetTable(WebServer &server);
 void handleFactoryReset(WebServer &server);
 void handlePairConfirm(WebServer &server);

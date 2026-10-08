@@ -94,6 +94,7 @@ touchscreen and BOOT button: physical presence), `Simulator`, `System`
 | `PairRequest`, `PairConfirm`, `ForgetPairing`, `ConfigurePairing` | Touchscreen/BOOT; Admin (portal) | See [Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md) |
 | `FactoryReset`, `ResetTable` | Admin verified at the table; `FactoryReset` also touchscreen/BOOT | `ResetTable` is the portal's Return table to lobby: ends a match as a draw, then empties the lobby |
 | `ConfigureSpeaker` | Admin | Atlas speaker volume 0-3 |
+| `ConfigureTableCode` | Admin; off needs a code | The optional table presence code (off by default); see [Players and Accounts](PLAYERS_AND_ACCOUNTS.md) |
 | `UpdateSigil` | Admin verified at the table | See [Firmware Updates](FIRMWARE_UPDATES.md) |
 | `AdvanceSetup` | Admin (portal/app), touchscreen | See [First-run Setup](FIRST_RUN_SETUP.md) |
 | `Sleep` | Touchscreen, between games | Deep sleep; touch or BOOT wakes (a restart) |

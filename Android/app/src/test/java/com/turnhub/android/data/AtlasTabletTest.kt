@@ -20,6 +20,9 @@ import org.junit.Test
 private class TabletAtlas : AtlasSessionTransport {
     val posts = mutableListOf<Pair<String, Map<String, String>>>()
     var tablet = false
+    /** Atlas's table code setting (off is its default); [verified] once the code is entered. */
+    var codeRequired = true
+    var verified = false
 
     override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): RawResponse {
         val f = fields.toMap()
@@ -27,9 +30,11 @@ private class TabletAtlas : AtlasSessionTransport {
         return when (path) {
             "/api/presence/request" -> RawResponse(200, """{"ok":true}""")
             "/api/presence/confirm" ->
-                if (f["code"] == "123456") RawResponse(200, """{"ok":true}""")
+                if (f["code"] == "123456") { verified = true; RawResponse(200, """{"ok":true}""") }
                 else RawResponse(403, """{"ok":false,"error":"That code is not the one Atlas shows"}""")
-            "/api/tablet/enable" -> { tablet = true; RawResponse(200, """{"ok":true}""") }
+            "/api/tablet/enable" ->
+                if (codeRequired && !verified) RawResponse(403, """{"ok":false,"presenceRequired":true,"error":"Verify at the table first"}""")
+                else { tablet = true; RawResponse(200, """{"ok":true}""") }
             "/api/tablet/seat" -> when {
                 f["name"] == "Ann" -> RawResponse(409, """{"ok":false,"error":"That name is taken"}""")
                 f["name"] != null -> RawResponse(200, """{"ok":true,"profileId":"P0000009"}""")
@@ -79,6 +84,17 @@ class AtlasTabletTest {
         assertFalse(tablet.state.value.codePrompt)
         val info = (session.state.value as PlayerSessionState.SignedIn).info
         assertTrue(info!!.tablet)
+    }
+
+    @Test
+    fun `with the table code off the tablet turns on with no code`() = runTest {
+        val atlas = TabletAtlas().apply { codeRequired = false }
+        val (session, tablet) = signedIn(atlas)
+
+        tablet.requestCode()
+        assertEquals(listOf("/api/tablet/enable"), atlas.posts.map { it.first })
+        assertFalse(tablet.state.value.codePrompt)
+        assertTrue((session.state.value as PlayerSessionState.SignedIn).info!!.tablet)
     }
 
     @Test

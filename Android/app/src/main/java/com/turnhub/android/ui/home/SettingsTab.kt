@@ -12,6 +12,7 @@ import com.turnhub.android.ui.components.QrScanner
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -24,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -194,22 +196,42 @@ fun PresenceCodeDialog(admin: AdminState, actions: AdminActions) {
 private fun PresenceCard(admin: AdminState, actions: AdminActions) {
     val p = palette
     val presence = admin.presence
+    val codeOn = presence?.codeRequired != false
     BrassCard {
-        Eyebrow("Verified at the table")
-        Text(
-            "Renaming Sigils, the Wi-Fi password, Return to lobby and factory resets need proof you are at the table: " +
-                "Atlas shows a code on its screen and you enter it here.",
-            color = p.muted,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (presence?.verified == true) {
-            StatusBadge("Verified · ${(presence.remainingMs / 60_000) + 1} min left", Tone.GOOD)
-        } else {
-            StatusBadge("Not verified", Tone.WARN)
+        Eyebrow("Table code")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = codeOn,
+                    enabled = !admin.busy && presence != null,
+                    role = Role.Switch,
+                    onValueChange = { on -> actions.run { setTableCodeRequired(on) } },
+                ),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Require a code from the Atlas screen", color = p.text)
+                Text(
+                    "Off: signing in as an Admin is enough to rename Sigils, change the Wi-Fi password, update, " +
+                        "Return to lobby or factory reset. On: each also needs the code Atlas shows. " +
+                        "Firmware installs only when signed either way.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = codeOn, onCheckedChange = null, enabled = !admin.busy && presence != null)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AccentButton("Verify at the table", { actions.run { requestCode() } }, Modifier.weight(1f), enabled = !admin.busy)
-            ToneButton("Stop", { actions.run { lockPresence() } }, Modifier.weight(1f), enabled = presence?.verified == true)
+        if (codeOn) {
+            if (presence?.verified == true) {
+                StatusBadge("Verified · ${(presence.remainingMs / 60_000) + 1} min left", Tone.GOOD)
+            } else {
+                StatusBadge("Not verified", Tone.WARN)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AccentButton("Verify at the table", { actions.run { requestCode() } }, Modifier.weight(1f), enabled = !admin.busy)
+                ToneButton("Stop", { actions.run { lockPresence() } }, Modifier.weight(1f), enabled = presence?.verified == true)
+            }
         }
     }
 }

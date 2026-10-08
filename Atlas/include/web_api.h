@@ -111,8 +111,8 @@ void revokeConnections(const String &id);
 using ModerateCallback = bool (*)(const String &actor,const String &target,const String &action,String &message);
 void configureModeration(ModerateCallback callback);
 // Admin device and table management (ForgetPairing, ConfigurePairing,
-// ConfigureSpeaker, PairConfirm, ResetTable, FactoryReset, UpdateSigil,
-// AdvanceSetup; intent.h documents each value). actor is the signed-in
+// ConfigureSpeaker, ConfigureTableCode, PairConfirm, ResetTable, FactoryReset,
+// UpdateSigil, AdvanceSetup; intent.h documents each value). actor is the signed-in
 // account; Atlas re-checks its Admin permission.
 using DeviceIntentCallback = bool (*)(const String &actor, TurnHub::IntentType type,
     int32_t value, String &message);
@@ -134,13 +134,17 @@ void configureAccessibility(AccessibilityChangedCallback callback);
 // Table presence (front_panel.cpp): a code the Atlas screen shows, entered on
 // the phone, verifies that profile is at the table for a while. First-Admin
 // setup, system settings, device names, OTA, Return to lobby and factory
-// reset require it on top of the account permission.
+// reset require it on top of the account permission, but only while an Admin
+// has turned the table code on (off by default: then remainingMs reports
+// every signed-in profile as verified). GET/POST /api/table-code reads and
+// sets it (ConfigureTableCode through the device callback).
 enum class PresenceResult : uint8_t { Verified, WrongCode, NoCode, TooManyAttempts };
 struct PresenceHooks {
   uint32_t (*remainingMs)(const String &profileId) = nullptr;  // 0: not verified.
   bool (*request)(const String &profileId, bool setup) = nullptr;
   PresenceResult (*confirm)(const String &profileId, uint32_t code) = nullptr;
   void (*revoke)(const String &profileId) = nullptr;
+  bool (*required)() = nullptr;  // The table code setting; null: off.
 };
 void configurePresence(const PresenceHooks &hooks);
 // Newer firmware (update_notice.h, front_panel.cpp). POST /api/updates/latest

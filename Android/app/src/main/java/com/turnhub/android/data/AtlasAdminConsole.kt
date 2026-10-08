@@ -10,7 +10,14 @@ import org.json.JSONException
 import org.json.JSONObject
 
 /** `/api/presence`: whether this account is verified at the table (see protocol/http-v1.md). */
-data class PresenceInfo(val verified: Boolean, val remainingMs: Long, val setup: Boolean, val canRequest: Boolean)
+/** `/api/presence`. [codeRequired] false (Atlas's default) means no table code is asked for. */
+data class PresenceInfo(
+    val verified: Boolean,
+    val remainingMs: Long,
+    val setup: Boolean,
+    val canRequest: Boolean,
+    val codeRequired: Boolean = true,
+)
 
 /** `/api/network`. The password itself is never returned. */
 data class NetworkInfo(
@@ -140,12 +147,7 @@ class AtlasAdminConsole(
         get("/api/presence")?.let { d ->
             _state.update {
                 it.copy(
-                    presence = PresenceInfo(
-                        d.optBoolean("verified"),
-                        d.optLong("remainingMs"),
-                        d.optBoolean("setup"),
-                        d.optBoolean("canRequest"),
-                    ),
+                    presence = parsePresence(d),
                 )
             }
         }
@@ -280,6 +282,16 @@ class AtlasAdminConsole(
         _state.update { it.copy(codePrompt = false) }
     }
 
+    /**
+     * Turns the table code on or off (`/api/table-code`). Off is Atlas's
+     * default; turning it off again asks for a code while it is on.
+     */
+    suspend fun setTableCodeRequired(required: Boolean) = protectedPost(
+        "/api/table-code",
+        listOf("required" to if (required) "1" else "0"),
+        success = if (required) "Table code turned on." else "Table code turned off.",
+    ) { refreshPresence() }
+
     suspend fun lockPresence() {
         post("/api/presence/lock", success = "Verification ended.")
         refreshPresence()
@@ -363,13 +375,21 @@ class AtlasAdminConsole(
     private suspend fun refreshPresence() {
         get("/api/presence")?.let { d ->
             _state.update {
-                it.copy(presence = PresenceInfo(d.optBoolean("verified"), d.optLong("remainingMs"), d.optBoolean("setup"), d.optBoolean("canRequest")))
+                it.copy(presence = parsePresence(d))
             }
         }
     }
 
     /** A POST Atlas may gate on table presence: on 403 presenceRequired, show a code and retry once verified. */
     /** [then] runs only after Atlas accepts (for example, rejoining after a restart). */
+    private fun parsePresence(d: JSONObject) = PresenceInfo(
+        d.optBoolean("verified"),
+        d.optLong("remainingMs"),
+        d.optBoolean("setup"),
+        d.optBoolean("canRequest"),
+        d.optBoolean("codeRequired", true),
+    )
+
     private suspend fun protectedPost(
         path: String,
         fields: List<Pair<String, String>> = emptyList(),

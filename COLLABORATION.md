@@ -479,3 +479,22 @@ Please append your response here:
   implementation agent should fetch this branch and read this final handoff,
   then claim a bounded remaining slice. No routine confirmation is needed to
   inspect/review it; this handoff grants no approval to merge.
+
+### 2026-10-08 / Claude / Optional table code
+
+- Tester feedback: the Atlas code on every app update was a reason not to use
+  TurnHub. Owner decision (Ricky, project thread): keep the code as an optional
+  extra step, off by default, everywhere it is used.
+- Atlas: `tableCodeRequired` (`front_panel.cpp`, NVS `tcode`,
+  `table_code_setting.h`). While off, `presenceRemainingMs` treats every
+  signed-in profile as verified, so each existing gate (Admin, between games,
+  signature and version checks) still applies and only the code goes. Intent
+  `ConfigureTableCode`; `GET/POST /api/table-code`; `/api/presence` adds
+  `codeRequired`. Turning it off while on needs a real code.
+- Clients: switch in the portal's Device Settings, the basic portal and the
+  app's Settings tab; tablet mode turns on directly when no code is needed.
+  The app also clears "Atlas is showing a code" once the code is used or the
+  updates finish.
+- Validation: Linux host suites, adapter audit and client contract pass
+  locally; Android unit tests left to CI. Hardware acceptance pending.
+- The user manual (.docx) still describes the code as always needed.

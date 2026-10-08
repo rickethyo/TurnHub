@@ -8,8 +8,12 @@ implemented part of the broader provisioning ideas in `Atlas/OOBE.md`.
 
 - **Local-first:** no cloud account or internet; everything runs on Atlas's
   own Wi-Fi.
-- **Physical presence:** only someone at the table can claim a new Atlas, via
-  the six-digit presence code ([Players and Accounts](PLAYERS_AND_ACCOUNTS.md)).
+- **Physical presence:** a new Atlas is claimed by the first account set up on
+  its own Wi-Fi (in range of the table, with the printed password). The
+  six-digit presence code is an optional extra step, off by default since
+  2026-10-08; with it on, the table code step asks for it
+  ([Players and Accounts](PLAYERS_AND_ACCOUNTS.md)). The app skips that step
+  when Atlas reports the account verified.
 - **The public default Wi-Fi password must be replaced** before setup can
   finish. The default `TurnHub-Setup` lives in `Atlas/include/config.h`
   (`WIFI_DEFAULT_PASSWORD`) and `WifiCredentials.DEFAULT_ATLAS_PASSPHRASE`;

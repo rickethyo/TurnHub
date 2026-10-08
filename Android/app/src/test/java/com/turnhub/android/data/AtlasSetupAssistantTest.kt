@@ -13,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -192,6 +193,9 @@ class AtlasSetupAssistantTest {
         assistant.confirmCode("123456")
         val finished = assistant.state.value.updates as UpdatesState.Finished
         assertTrue(finished.lines.all { it.done })
+        // The code prompt does not outlive the updates it was for.
+        assertFalse(assistant.state.value.codeShowing)
+        assertNull(assistant.state.value.note)
         assertEquals("0.9.0", atlas.sigilFirmware)
         // The connection is held through the Sigil updates, then released.
         assertEquals(listOf(true, false), host.holds)

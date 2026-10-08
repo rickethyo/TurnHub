@@ -14,8 +14,10 @@ USB flashing and board identification are in [Hardware](HARDWARE.md).
 - The **Android app carries updates**: it reads the public release feed while
   the phone is online, then installs on Atlas and each Sigil at the table.
   Atlas never needs the internet.
-- All updates need an Admin verified at the table and a table in Lobby or
-  Game Over, one job at a time.
+- All updates need an Admin (also verified at the table when the optional
+  table code is on; off by default, see PLAYERS_AND_ACCOUNTS.md) and a table
+  in Lobby or Game Over, one job at a time. The signature and version checks
+  never depend on that setting.
 - Signed releases have shipped since `v0.9.1` (2026-09-30). Ordinary updates
   of every variant, and refusal of wrong-variant, unsigned, altered and older
   packages, are verified in use (owner, 2026-10-02). Interrupted transfers and
