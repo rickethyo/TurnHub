@@ -51,10 +51,24 @@ or modify repository content/settings; its only publishing is master's
 Android bundle to Play internal testing.
 
 Releases are a separate workflow,
-[`.github/workflows/release.yml`](../../.github/workflows/release.yml): pushing
-a tag like `v0.9.0` builds Atlas and both Sigils, signs them, and publishes a
-GitHub Release with the three `.thfw` packages and `turnhub-firmware.json`, the
-feed the Android app reads. It needs `contents: write` and fails without the
+[`.github/workflows/release.yml`](../../.github/workflows/release.yml), run by
+a pushed tag:
+
+| Tag | Builds and signs | Carried over unchanged |
+| --- | --- | --- |
+| `v0.9.0` | Atlas, the web portal pack, both Sigils | nothing |
+| `atlas-v0.7.1` | Atlas and the web portal pack | both Sigil packages |
+| `sigil-v0.9.13` | both Sigils (e-ink and OLED) | Atlas and the portal pack |
+
+Each publishes a GitHub Release with the `.thfw` packages and
+`turnhub-firmware.json`, the feed the Android app reads from the *latest*
+release. Because of that, a one-product release copies the other products'
+packages from the previous latest release and lists them in its feed, so the
+feed always names every product and the app and Atlas see every available
+update. A `atlas-v`/`sigil-v` tag fails if there is no earlier release to
+carry from, so publish a plain `v*` release first. The version in a tag is a
+release label only; each package's own version comes from `firmware_version.h`
+(or `Atlas/web/VERSION`). It needs `contents: write` and fails without the
 signing secret. Branch protection is configured
 separately in GitHub, not by this file.
 
