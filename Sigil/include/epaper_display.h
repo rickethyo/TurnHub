@@ -5,12 +5,22 @@
 
 // Panel driver class. Default GDEM0213B74 (SSD1680, the panel's OTP partial
 // waveform); TURNHUB_EPD_PANEL_BN=1 selects DEPG0213BN (SSD1680, a partial
-// LUT loaded by the driver) for the partial-refresh trial.
+// LUT loaded by the driver) for the partial-refresh trial, and
+// TURNHUB_EPD_PANEL_GDEY=1 selects GDEY0213B74, the panel the flex marking
+// FPC-A002 points to (Sigil/DISPLAY.md).
 #ifndef TURNHUB_EPD_PANEL_BN
 #define TURNHUB_EPD_PANEL_BN 0
 #endif
+#ifndef TURNHUB_EPD_PANEL_GDEY
+#define TURNHUB_EPD_PANEL_GDEY 0
+#endif
+#if TURNHUB_EPD_PANEL_BN && TURNHUB_EPD_PANEL_GDEY
+#error "Select one e-paper panel driver"
+#endif
 #if TURNHUB_EPD_PANEL_BN
 using EpdPanel = GxEPD2_213_BN;
+#elif TURNHUB_EPD_PANEL_GDEY
+using EpdPanel = GxEPD2_213_GDEY0213B74;
 #else
 using EpdPanel = GxEPD2_213_B74;
 #endif
@@ -101,8 +111,10 @@ class EpaperDisplay final : public SigilDisplay {
   // waveform (LUT). Partial defaults, when enabled:
   // The sigil-epd-bn bench build drives the same SSD1680 with GxEPD2's
   // DEPG0213BN class, which loads its own partial waveform instead of the
-  // panel's OTP one, and starts with partials on to try it.
-  static constexpr bool DEFAULT_PARTIAL_REFRESH = TURNHUB_EPD_PANEL_BN != 0;
+  // panel's OTP one, and starts with partials on to try it. The
+  // sigil-epd-gdey bench build does the same with GxEPD2's GDEY0213B74 class.
+  static constexpr bool DEFAULT_PARTIAL_REFRESH =
+      TURNHUB_EPD_PANEL_BN != 0 || TURNHUB_EPD_PANEL_GDEY != 0;
   static constexpr uint8_t DEFAULT_MAX_PARTIALS = 4;
   static constexpr uint32_t DEFAULT_IDLE_CLEANUP_MS = 20000;
   volatile bool partialEnabled_ = DEFAULT_PARTIAL_REFRESH;

@@ -18,8 +18,8 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 | Firmware (sigil-spare) | The inert spare image `flash-all` puts on spare boards; never packaged |
 | Android build and unit tests | Run JVM unit tests and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
 
-The bench and simulation builds (`sigil-epd-bn`, `sigil-wokwi`) left CI on
-2026-10-06: nothing ships them, and they compile the same sources as `sigil`.
+The bench and simulation builds (`sigil-epd-bn`, `sigil-epd-gdey`, `sigil-wokwi`)
+are not built in CI (since 2026-10-06): nothing ships them, and they compile the same sources as `sigil`.
 Build them locally with `pio run -e <env>` when working on them.
 
 The hardware `TestHarness/` target was retired on 2026-10-05. CI no longer

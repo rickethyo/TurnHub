@@ -420,6 +420,26 @@ the same four-partial and 20 s clean-ups, and logs `SIGIL|DISPLAY|PANEL|...` at
 boot. It is a USB-only bench build, not packaged for OTA. If full refreshes
 look wrong with it, the panel is not BN-compatible: flash `sigil` again.
 
+### Board switches and the GDEY0213B74 trial (2026-10-08, Planned)
+
+The owner asked whether the driver board's P1 switch (`3` / `0.47`) could fix
+the refresh problem. P1 sets the current-sense resistor (RESE) of the panel's
+high-voltage booster, which limits how much current the booster can draw; it
+does not change refresh timing or the waveform. Small panels use `3`, and the
+Keyestudio reference above warns against `0.47`. P2 picks the supply: `3.3VIN`
+when VCC is the DevKit's 3.3 V rail, as on the Sigil carrier. The owner's photo
+(2026-10-08) shows P1 on `3` and P2 on `3.3VIN`, both correct, so the switches
+are not the cause.
+
+The stronger lead is the driver class. The flex marking `FPC-A002` points to
+GDEY0213B74, and GxEPD2's `GxEPD2_213_GDEY0213B74` class differs from the
+default B74 class in its init (border waveform `0x05`, display update control)
+and uses the panel's fast full update (`0xD7`, about 1.7 s, against the B74
+class's 3.6 s budget). The `sigil-epd-gdey` environment builds it
+(`TURNHUB_EPD_PANEL_GDEY=1`) with partials on, the same clean-up policy, and
+`SIGIL|DISPLAY|PANEL|GDEY0213B74` at boot. It is a USB-only bench build; if the
+image fades or full refreshes look wrong, flash `sigil` again.
+
 ### Partial-refresh bench result (first trial, historical)
 
 The supplied bench video shows progressive contrast loss during partial

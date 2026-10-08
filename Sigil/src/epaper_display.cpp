@@ -276,7 +276,8 @@ void EpaperDisplay::begin() {
 
   Serial.printf("SIGIL|DISPLAY|READY|%dx%d|ROTATION|%u\n",
       display_.width(), display_.height(), DISPLAY_ROTATION);
-  Serial.printf("SIGIL|DISPLAY|PANEL|%s\n", TURNHUB_EPD_PANEL_BN ? "DEPG0213BN" : "GDEM0213B74");
+  Serial.printf("SIGIL|DISPLAY|PANEL|%s\n", TURNHUB_EPD_PANEL_BN ? "DEPG0213BN"
+      : TURNHUB_EPD_PANEL_GDEY ? "GDEY0213B74" : "GDEM0213B74");
   Serial.printf("SIGIL|DISPLAY|POLICY|%s\n",
       partialEnabled_ && EpdPanel::hasFastPartialUpdate
           ? "PARTIAL_TRIAL" : "FULL_ONLY");
