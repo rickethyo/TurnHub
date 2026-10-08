@@ -28,6 +28,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 |---|---|---|---|---|
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Proposed; source review complete | Claude review requested; implementation unassigned |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
+| TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
 
 ## New topic / reply template
 
@@ -212,3 +213,28 @@ Please append your response here:
 - Handoff evidence: documentation only. Update identity/tablet documentation
   and the user manual when behavior lands, and record actual authorization
   tests and device checks here.
+
+
+## TH-003: High-resolution player artwork and fuller tablet UI
+
+### 2026-10-08 / Codex / recording Ricky's requirements
+
+- Reviewed baseline: master `953ce303359ec32cf941404c26d6bcd896a9978a`.
+- Status: planned, not implemented. Owner requests uploadable high-resolution
+  avatars, tablet-mode card backgrounds, and to "de minimize" tablet mode.
+- Canonical scope: [Staged Changes, Accounts, portal and app](Documentation/engineering/STAGED_CHANGES.md#accounts-portal-and-app).
+- Working interpretation of the last phrase: visually richer player cards with
+  more useful information exposed, rather than the current minimal presentation.
+  Exact layout and information density remain open for a visual design review.
+- Preserve the existing public-avatar Admin approval requirement. Do not mistake
+  the new PIN-free tablet-only account for a player profile or grant it general
+  profile/asset administration implicitly.
+- Next action / owner: unassigned. Propose the upload, crop, storage, derivative
+  and cache pipeline plus a tablet mockup. Account for standalone local players
+  and the existing rule that SD is optional for play.
+- Feature gate to complete before implementation: Atlas owns connected profile
+  asset metadata and authorized uploads; Android owns standalone local assets;
+  define upload/replace/remove/approve operations and their server validators,
+  persistence and cleanup ownership, rendering clients, asset API/contract,
+  dependency/legal impact, and contrast/TalkBack/large-text behavior.
+- Validation: documentation only; no code, image pipeline or UI changes tested.

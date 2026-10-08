@@ -50,7 +50,31 @@ everything implemented. Only the checks listed below are still open.
 ### Accounts, portal and app
 
 - **Password hashing:** parked, see "Parked: storage batch" below.
-- **Custom avatars** with Admin approval before they go public.
+- **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
+  owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):
+  upload custom player avatars and player-card background artwork, with crop,
+  preview, replace and remove controls. Preserve enough image detail for large
+  tablet cards; choose explicit source/display dimensions and file limits during
+  design rather than reducing everything to tiny icons. Retain the existing
+  Admin-approval requirement for avatars before public display.
+  Connected assets need an Atlas-owned metadata/storage design; standalone
+  players must be able to use local artwork without owning Atlas. Scope artwork
+  to player identity, not the tablet-only account. Plan device-sized derivatives
+  and caching so large originals do not burden Atlas RAM or game-state polling.
+  Define SD storage/failure behavior and safe fallback artwork; play must remain
+  available without an image or SD card. Exact storage/transfer contracts remain
+  to be designed.
+- **Fuller tablet-mode presentation** (*Planned*, owner, 2026-10-08):
+  "de minimize the tablet mode screen." Working interpretation: richer player
+  cards, prominent avatar/background artwork, and more useful game information
+  and controls visible without opening secondary views. Prepare a visual design
+  before implementation to settle density and which controls remain exposed;
+  this is not yet a request to disable Android immersive/full-screen mode.
+  Keep life totals, active-player state, names and touch controls readable over
+  custom artwork, with contrast overlays and accessible labels. Apply the
+  presentation direction to connected and standalone tablet play, including
+  phone/foldable layouts. Verify crop fidelity, large text, orientation changes,
+  missing/rejected images, and responsive gameplay while images load.
 - **App and portal screenshot tests:** golden images of the Android screens
   in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
   renders.
@@ -63,7 +87,7 @@ everything implemented. Only the checks listed below are still open.
   PLAYERS_AND_ACCOUNTS.md). Next, as Ricky asked: more counters
   per player (poison, commander tax, energy, experience and similar) in
   `GameEngine` and the state, each also kept in profile statistics as
-  "counters received"; player tile backgrounds as a profile personalization;
+  "counters received"; uploaded player backgrounds are tracked above;
   tablet seating of Sigil seat B.
 
 - **Standalone tablet game, later rounds** (round one, 2026-10-07: the app
