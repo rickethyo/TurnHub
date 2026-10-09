@@ -118,6 +118,8 @@ using DeviceIntentCallback = bool (*)(const String &actor, TurnHub::IntentType t
     int32_t value, String &message);
 using PairingWindowCallback = uint32_t (*)();
 void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window);
+using HardwareTestCallback = bool (*)(const String &test);
+void configureHardwareTests(HardwareTestCallback callback);
 // Atlas speaker volume (0 off to 3 high). Saving goes through the device
 // callback as ConfigureSpeaker.
 using SpeakerVolumeCallback = uint8_t (*)();

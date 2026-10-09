@@ -14,6 +14,7 @@ class OledDisplay final : public SigilDisplay {
   explicit OledDisplay(const OledConfig &config = OLED_CONFIG) : config_(config) {}
   void begin() override;
   void showBooting() override;
+  void showHardwareTest() override;
   void showUnpaired() override;
   void showReady(uint8_t sigilId) override;
   void showAtlasLost(uint8_t sigilId) override;

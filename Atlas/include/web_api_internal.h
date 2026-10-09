@@ -211,6 +211,8 @@ void runSeatControl(WebServer &server, uint8_t controllerId, uint8_t slot, WebCo
 // --- Administration (web_admin_api.cpp) ---------------------------------------------
 
 void handleDevices(WebServer &server);
+extern HardwareTestCallback hardwareTestHandler;
+void handleHardwareTest(WebServer &server);
 void handleDeviceName(WebServer &server);
 void handleForgetDevice(WebServer &server);
 void handlePairingSettings(WebServer &server);

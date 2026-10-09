@@ -585,6 +585,25 @@ void EpaperDisplay::showBooting() {
   drawStatus("Booting");
 }
 
+void EpaperDisplay::showHardwareTest() {
+  drawnValid_ = false;
+  gameFrameValid_ = false;
+  partialRefreshCount_ = 0;
+  for (uint8_t phase = 0; phase < 3; ++phase) {
+    display_.setFullWindow();
+    display_.firstPage();
+    do {
+      display_.fillScreen(phase == 1 ? GxEPD_BLACK : GxEPD_WHITE);
+      if (phase == 2) {
+        for (int16_t y = 0; y < display_.height(); y += 16)
+          for (int16_t x = 0; x < display_.width(); x += 16)
+            if ((x / 16 + y / 16) % 2 == 0) display_.fillRect(x, y, 16, 16, GxEPD_BLACK);
+      }
+    } while (display_.nextPage());
+    delay(1500);
+  }
+}
+
 void EpaperDisplay::showUnpaired() {
   // The BOOT button may be inside the case: the joystick hold always works
   // (main.cpp's updateJoystickPair). Unpaired has no menu, so no legend.

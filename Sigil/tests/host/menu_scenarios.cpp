@@ -22,6 +22,20 @@ static int32_t menu(std::initializer_list<A> actions, A fallback, uint8_t revisi
 static uint8_t id(A a) { return static_cast<uint8_t>(a); }
 
 int main() {
+  // A diagnostic overlay cancels held and queued actions, preserving the
+  // menu Atlas offered. Releasing a key afterward must not perform a choice.
+  for (MenuStyle style : {MenuStyle::Compass, MenuStyle::List}) {
+    SigilMenu m(style);
+    m.applyMenuState2(menu({A::Join}, A::Join, 7), 0);
+    m.keyDown(Key::Select, 10);
+    m.cancelInput();
+    m.keyUp(Key::Select, 10000);
+    assert(!m.update(10000).ready);
+    assert(m.active() && m.actions() == sigilActionBit(A::Join));
+    m.keyDown(Key::Select, 11000);
+    m.keyUp(Key::Select, 11010);
+    assert(m.update(11010).ready);
+  }
   // One button, three gestures: quick press pairs (on release), a medium hold
   // unpairs once, a long hold factory resets once; nothing more on release.
   {

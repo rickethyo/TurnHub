@@ -95,6 +95,7 @@ class SigilMenu {
 
   void applyMenuState2(int32_t value, uint32_t nowMs);
   void clear();  // Unpaired: no menu until Atlas sends one.
+  void cancelInput() { holding_ = false; pending_ = MenuChoice(); closeMenu(); }
   // Atlas lost: drop Atlas's menu; Up still opens Menu, on the Device entries.
   // endOffline() takes it away again, unless Atlas has sent a menu since.
   void setOffline();

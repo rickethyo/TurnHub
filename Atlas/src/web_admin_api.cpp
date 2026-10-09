@@ -167,6 +167,39 @@ void handleDevices(WebServer &server) {
   sendJson(server, 200, json);
 }
 
+void handleHardwareTest(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Developer)) return;
+  const String test = server.arg("test");
+  const String target = server.arg("target");
+  if (test != "buzzer" && test != "screen" && test != "lights") {
+    sendError(server, 400, "Choose buzzer, screen or lights");
+    return;
+  }
+  if (target == "atlas") {
+    if (test == "lights") { sendError(server, 400, "Lights test is for Sigils"); return; }
+    if (!hardwareTestHandler || !hardwareTestHandler(test)) {
+      sendError(server, 409, "Atlas test unavailable or already running"); return;
+    }
+  } else if (target == "sigil") {
+    int32_t id = 0;
+    if (!parseBoundedNumber(server.arg("module"), 0, MAX_PHYSICAL_SIGILS - 1, id)) {
+      sendError(server, 400, "Choose a valid Sigil module"); return;
+    }
+    SigilBus *bus = SigilBus::activeInstance();
+    const SigilRecord *record = bus ? bus->record(static_cast<uint8_t>(id)) : nullptr;
+    if (!record || millis() - record->lastSeenMs > SigilBus::SIGIL_TIMEOUT_MS ||
+        (record->capabilities & (TurnHubProtocol::CAPABILITY_SPARE | TurnHubProtocol::CAPABILITY_HARNESS))) {
+      sendError(server, 409, "Choose an online player Sigil"); return;
+    }
+    const auto type = test == "buzzer" ? TurnHubProtocol::PacketType::Buzzer : TurnHubProtocol::PacketType::HardwareTest;
+    const int32_t value = test == "buzzer" ? TurnHubProtocol::encodeTone(880, 700) : test == "screen" ? 1 : 2;
+    if (!bus->send(static_cast<uint8_t>(id), type, value)) {
+      sendError(server, 503, "Could not send the test"); return;
+    }
+  } else { sendError(server, 400, "Choose atlas or sigil"); return; }
+  sendOkMessage(server, "Test started. Check the hardware; the normal outputs return automatically.");
+}
+
 void handleDeviceName(WebServer &server) {
   if (!requirePermission(server, TurnHubAccounts::Admin)) return;
   if (!requirePhysicalPresence(server)) return;

@@ -54,6 +54,7 @@ SigilBus sigilBus(AtlasConfig::WIFI_CHANNEL);
 IntentDispatcher intents;
 LedRenderer leds(sigilBus);
 AudioController audio(sigilBus);
+TurnHub::ToneOutput *hardwareTestSpeaker = nullptr;
 OtaManager ota(server, otaAllowed);
 
 GameTable tables[MAX_GAME_TABLES];
@@ -580,7 +581,21 @@ void setup() {
   } else if (codeStatus != TurnHubStorage::Status::NotFound) {
     serialLog.println("ATLAS|PRESENCE|SETTING|STORAGE_ERROR");
   }
-  audio.setSpeaker(beginAtlasSpeaker());
+  hardwareTestSpeaker = beginAtlasSpeaker();
+  audio.setSpeaker(hardwareTestSpeaker);
+  TurnHubWebApi::configureHardwareTests([](const String &test) {
+    if (test == "screen") return startAtlasScreenTest();
+    if (test == "buzzer") {
+      static uint32_t lastTestMs = 0;
+      const uint32_t nowMs = millis();
+      if (lastTestMs && nowMs - lastTestMs < 1000) return false;
+      lastTestMs = nowMs;
+      hardwareTestSpeaker->tone(880, 700, 1);
+      noteAtlasActivity(nowMs);
+      return true;
+    }
+    return false;
+  });
   audio.setSpeakerVolume(speakerVolume);
   logHeapStep("SPEAKER");
   beginAtlasBattery();

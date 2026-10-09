@@ -372,6 +372,12 @@ void sendHello() {
 constexpr uint32_t IDENTIFY_MS = 10000;
 uint32_t identifyUntilMs = 0;
 bool identifying = false;
+uint32_t ringTestStartedMs = 0;
+bool ringTesting = false;
+bool screenTestPending = false;  // Guarded by displayProfileMux.
+bool screenTestBusy = false;     // Guarded by displayProfileMux.
+void publishMenuView();
+void publishLifeOverlay();
 
 void updateLeds() {
   const uint32_t nowMs = millis();
@@ -379,6 +385,14 @@ void updateLeds() {
   lastLedFrameMs = nowMs;
   if (identifying && static_cast<int32_t>(nowMs - identifyUntilMs) >= 0) identifying = false;
   TurnHubSigil::LedFrame frame = ledModel.render(nowMs);
+  if (ringTesting) {
+    const uint32_t elapsed = nowMs - ringTestStartedMs;
+    if (elapsed >= 6000) ringTesting = false;
+    else {
+      const TurnHubSigil::Rgb colors[] = {{80, 0, 0}, {0, 80, 0}, {0, 0, 80}, {80, 80, 80}};
+      for (auto &pixel : frame.pixels) pixel = colors[elapsed / 1500];
+    }
+  }
   if (identifying) {
     const bool on = nowMs % 500 < 250;
     for (auto &pixel : frame.pixels) pixel = on ? TurnHubSigil::Rgb(80, 80, 80) : TurnHubSigil::Rgb();
@@ -387,17 +401,20 @@ void updateLeds() {
   ledOutputValid = true;
 }
 
-// The stick is mounted rotated 90 degrees on the E-ink Sigil after the
-// 2026-09-30 rewiring (owner pushes top/bottom/left/right read RIGHT/LEFT/UP/DOWN
-// before this fix), so the axes swap and X is reversed. The OLED Sigil's stick
-// (2026-10-01) uses the same mounting until it is checked on hardware; if it
-// reads turned, give TURNHUB_DISPLAY_OLED its own values here.
+// Both physical builds swap the stick axes. E-ink hardware check
+// (2026-10-09): reverse both axes from the previous mapping so Right is
+// Right and Down is Down.
 TurnHubSigil::StickConfig stickConfig() {
   TurnHubSigil::StickConfig config;
 #ifndef TURNHUB_WOKWI  // The simulated stick reads the right way round.
   config.swapAxes = true;
+#ifdef TURNHUB_DISPLAY_OLED
   config.invertX = true;
   config.invertY = false;
+#else
+  config.invertX = true;
+  config.invertY = false;
+#endif
 #endif
   return config;
 }
@@ -670,6 +687,23 @@ void updateDisplay() {
   updateEnded = updateDrawn;
   updateDrawn = false;
 #endif
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool testScreen = screenTestPending;
+  screenTestPending = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (testScreen) {
+    sigilDisplay.showHardwareTest();
+    portENTER_CRITICAL(&displayProfileMux);
+    screenTestBusy = false;
+    portEXIT_CRITICAL(&displayProfileMux);
+    renderedGameValid = false;
+    pickerShown = false;
+    commanderShown = false;
+    lostDrawn = false;
+    codeDrawn = false;
+    displayNeedsRefresh = true;
+    updateEnded = true;
+  }
   if (pairingCodeShown) {
     displayNeedsRefresh = false;
     const uint16_t code = pairingCodeValue;
@@ -1244,6 +1278,26 @@ void handleAtlasPacket(
       playBuzzerPayload(packet.value);
       break;
 
+    case PacketType::HardwareTest:
+      if (packet.value == 1) {
+        portENTER_CRITICAL(&displayProfileMux);
+        const bool busy = screenTestBusy;
+        if (!busy) { screenTestPending = true; screenTestBusy = true; }
+        portEXIT_CRITICAL(&displayProfileMux);
+        if (busy) break;
+        sigilMenu.cancelInput();
+        lifeAdjuster.cancel();
+        for (bool &routed : lifeKeyRouted) routed = false;
+        publishMenuView();
+        publishLifeOverlay();
+        lastInputMs = millis();
+        notifyDisplayTask();
+      } else if (packet.value == 2) {
+        ringTestStartedMs = millis();
+        ringTesting = true;
+      }
+      break;
+
     case PacketType::InputTiming: {
       const uint16_t longMs = TurnHubProtocol::inputTimingLongPress(packet.value);
       const uint16_t winMs = TurnHubProtocol::inputTimingWinHold(packet.value);
@@ -1517,6 +1571,22 @@ void updateMenuKeys() {
   static uint32_t commanderRepeatAt = 0;
   static uint8_t commanderRepeatKey = 255;
   const uint32_t nowMs = millis();
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool testing = screenTestBusy;
+  portEXIT_CRITICAL(&displayProfileMux);
+  static bool waitForRelease = false;
+  if (testing) waitForRelease = true;
+  if (waitForRelease) {
+    bool released = true;
+    for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
+      debouncedEdge(keys[k], nowMs);
+      if (keys[k].rawState == LOW || keys[k].stableState == LOW) released = false;
+    }
+    commanderRepeatKey = 255;
+    ledModel.setHoldProgress(0);
+    if (!testing && released) waitForRelease = false;
+    return;
+  }
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
   lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(!TURNHUB_DISPLAY_OLED, longPressMs));
   lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));

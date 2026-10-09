@@ -242,6 +242,9 @@ uint32_t lastTouchedAtMs = 0;
 uint32_t touchHeldSinceMs = 0;
 DisplayMode mode = DisplayMode::Splash;
 bool calibrationSaved = false;
+bool screenTestReleaseTouch = false;
+uint32_t screenTestStartedMs = 0;
+bool screenTesting = false;
 
 // --- Touch calibration screen ------------------------------------------------
 
@@ -395,10 +398,34 @@ void serviceBacklight(uint32_t nowMs) {
 }
 
 void serviceAtlasDisplay(uint32_t nowMs) {
+  if (screenTesting) {
+    const uint32_t elapsed = nowMs - screenTestStartedMs;
+    if (elapsed < 9000) {
+      static uint8_t drawn = 255;
+      const uint8_t phase = elapsed / 1500;
+      if (phase != drawn) {
+        drawn = phase;
+        const uint16_t colors[] = {0x0000, 0xffff, 0xf800, 0x07e0, 0x001f};
+        tft.fillScreen(phase < 5 ? colors[phase] : 0x0000);
+        if (phase == 5)
+          for (int y = 0; y < tft.height(); y += 20)
+            for (int x = 0; x < tft.width(); x += 20)
+              if ((x / 20 + y / 20) % 2 == 0) tft.fillRect(x, y, 20, 20, 0xffff);
+      }
+      return;  // Touches must not activate controls hidden by the test.
+    }
+    screenTesting = false;
+    invalidateAtlasScreen();
+    serviceBacklight(nowMs);
+  }
   if (nowMs - lastTouchPollMs >= TOUCH_POLL_MS) {
     lastTouchPollMs = nowMs;
     uint16_t rawX = 0, rawY = 0;
     bool touched = readTouchRaw(rawX, rawY);
+    if (screenTestReleaseTouch) {
+      if (!touched) screenTestReleaseTouch = false;
+      touched = false;
+    }
     int16_t x = 0, y = 0;
     if (touched) mapTouch(touchCal, rawX, rawY, ATLAS_SCREEN_WIDTH, ATLAS_SCREEN_HEIGHT, x, y);
     if (touched) {
@@ -460,6 +487,17 @@ void serviceAtlasDisplay(uint32_t nowMs) {
   AtlasScreen screen;
   buildAtlasScreen(nowMs, screen);
   renderAtlasScreen(screen, nowMs);
+}
+
+bool startAtlasScreenTest() {
+  if (!displayReady || mode != DisplayMode::Status || screenTesting) return false;
+  screenTestStartedMs = millis();
+  screenTesting = true;
+  screenTestReleaseTouch = true;
+  tft.setBrightness(BACKLIGHT_ON);
+  backlightOn = true;
+  noteAtlasActivity(screenTestStartedMs);
+  return true;
 }
 
 namespace {

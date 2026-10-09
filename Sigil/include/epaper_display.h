@@ -36,6 +36,7 @@ class EpaperDisplay final : public SigilDisplay {
 
   void begin() override;
   void showBooting() override;
+  void showHardwareTest() override;
   void showUnpaired() override;
   void showReady(uint8_t sigilId) override;
   void showAtlasLost(uint8_t sigilId) override;

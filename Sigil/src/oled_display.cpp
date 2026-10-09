@@ -530,6 +530,22 @@ void OledDisplay::showBooting() {
   display_->display();
 }
 
+void OledDisplay::showHardwareTest() {
+  legendShown_ = false;
+  if (!ready_) return;
+  for (uint8_t phase = 0; phase < 3; ++phase) {
+    display_->clearDisplay();
+    if (phase == 1) display_->fillRect(0, 0, display_->width(), display_->height(), SH110X_WHITE);
+    if (phase == 2) {
+      for (int16_t y = 0; y < display_->height(); y += 8)
+        for (int16_t x = 0; x < display_->width(); x += 8)
+          if ((x / 8 + y / 8) % 2 == 0) display_->fillRect(x, y, 8, 8, 1);
+    }
+    display_->display();
+    delay(1500);
+  }
+}
+
 void OledDisplay::showUnpaired() {
   // The BOOT button may be inside the case: the joystick hold always works
   // (main.cpp's updateJoystickPair).

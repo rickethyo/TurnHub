@@ -49,6 +49,7 @@ class SigilDisplay {
   virtual ~SigilDisplay() = default;
   virtual void begin() = 0;
   virtual void showBooting() = 0;
+  virtual void showHardwareTest() {}
   virtual void showUnpaired() = 0;
   virtual void showReady(uint8_t sigilId) = 0;
   // The paired Atlas stopped answering (atlas_link.h). Replaces every other

@@ -109,6 +109,24 @@ back. Same version or newer only. `GET /api/portal` reports
   internet; fonts and icons ship in the pack from `design/`. The vendored
   `qrcode-generator` 1.4.4 (MIT) is the only third-party script.
 
+## Hardware tests
+
+Open Developer (`/dev`) and select Atlas or an online Sigil. Buzzer Test
+plays a short tone; Screen Test shows solid fills and a checkerboard before
+restoring the current screen. Atlas also shows red, green and blue fills.
+Sigil Status Light Test cycles the Jewel ring through red, green, blue and
+white for six seconds. Screen tests ignore normal input until controls are
+released. These are visual/audible checks: inspect the physical device to
+judge the result. E-paper takes several full refreshes.
+
+Apps may use the same Developer-authenticated endpoint:
+`POST /api/device/test?target=atlas&test=screen` or
+`POST /api/device/test?target=sigil&module=0&test=lights`.
+Tests are `buzzer`, `screen`, and (Sigil only) `lights`; module IDs are
+zero-based. Offline, spare and harness Sigils are rejected. HTTP success
+means the request was started/sent, not that the hardware passed. Update
+both the firmware and the SD portal pack to use these controls.
+
 ## Status
 
 Host smoke checks cover both portals and the installer; the pack is the portal in daily use.

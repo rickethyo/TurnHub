@@ -40,6 +40,7 @@ AccessibilityChangedCallback accessibilityChanged = nullptr;
 StateCallback readClientState = nullptr;
 RevisionCallback readClientRevision = nullptr;
 TableHooks tableHooks;
+HardwareTestCallback hardwareTestHandler = nullptr;
 
 namespace {
 WebServer *webServer = nullptr;
@@ -110,6 +111,10 @@ void configureModeration(ModerateCallback callback) {
 void configureDevices(DeviceIntentCallback manage, PairingWindowCallback window) {
   deviceHandler = manage;
   readPairingWindow = window;
+}
+
+void configureHardwareTests(HardwareTestCallback callback) {
+  hardwareTestHandler = callback;
 }
 
 void configureAccessibility(AccessibilityChangedCallback callback) {
@@ -184,6 +189,7 @@ const Route ROUTES[] = {
   {"/api/accounts/moderate", HTTP_POST, handleModerate},
   {"/api/diagnostics/log", HTTP_GET, handleSerialLogDownload},
   {"/api/devices", HTTP_GET, handleDevices},
+  {"/api/device/test", HTTP_POST, handleHardwareTest},
   {"/api/device/name", HTTP_POST, handleDeviceName},
   {"/api/device/forget", HTTP_POST, handleForgetDevice},
   {"/api/pairing", HTTP_GET, handlePairingSettings},

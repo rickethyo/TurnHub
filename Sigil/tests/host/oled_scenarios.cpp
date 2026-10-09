@@ -87,6 +87,10 @@ int main() {
   assert(panel.mosi == 23 && panel.sclk == 18 && panel.cs == 17 && panel.dc == 16);
   assert(panel.reset == 22 && panel.resetRequested);
   d.showBooting(); assert(has("Booting") && has("TurnHub") && panel.shapes > 0);
+  const int beforeTest = panel.frames;
+  d.showHardwareTest();
+  assert(panel.frames == beforeTest + 3 && panel.lines.empty());
+  d.showReady(0); assert(has("SIGIL 1"));  // Normal output returns after a test.
   d.showUnpaired(); assert(has("UNPAIRED") && has("Hold joystick to") && has("enter pairing mode"));
   d.showReady(7); assert(has("SIGIL 8") && has("Welcome to TurnHub!"));
   d.showUpdate("Downloading", 40); assert(has("UPDATE") && has("40%") && has("Downloading") && has("Keep it powered"));

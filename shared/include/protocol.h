@@ -106,6 +106,7 @@ enum class PacketType : uint8_t {
   // (encodeLifeResponse).
   LifeResponse = 17,
   Buzzer = 23,
+  HardwareTest = 50,  // Atlas -> Sigil: 1 screen, 2 status ring; temporary only.
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
   HarnessCommand = 27,  // Atlas -> harness: run or stop a test (encodeHarnessCommand).
