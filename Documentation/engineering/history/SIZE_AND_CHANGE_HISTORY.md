@@ -826,7 +826,7 @@ hardware attached). These are static RAM/flash sizes, not runtime heap:
 
 | Environment | Static RAM / 327,680 B | Flash / application partition |
 |---|---|---|
-| Atlas | 105,276 B (32.1%) | 1,545,281 / 1,966,080 B (78.6%) |
+| Atlas | 105,276 B (32.1%) | 1,545,293 / 1,966,080 B (78.6%) |
 | Sigil e-paper | 53,868 B (16.4%) | 945,337 / 1,310,720 B (72.1%) |
 | Sigil OLED | 49,908 B (15.2%) | 954,661 / 1,310,720 B (72.8%) |
 | Sigil spare | 48,996 B (15.0%) | 880,613 / 1,310,720 B (67.2%) |
@@ -834,6 +834,9 @@ hardware attached). These are static RAM/flash sizes, not runtime heap:
 Inter adds 65,530 B of Atlas glyph data and 14,658 B of Sigil glyph/metric data
 in generated headers (the linker retains fonts referenced by each target).
 
-Atlas raw source/header total: 1,926,216 B in 124 files. Largest: `Atlas/include/brass_fonts.h` (438,366 B), `Atlas/include/modern_fonts.h` (402,949 B), `Atlas/src/touch_controls.cpp` (63,404 B).
+Atlas flash size includes the font reload ownership fix in `f108a34`;
+the unchanged static RAM figure excludes dynamically allocated font tables.
+
+Atlas raw source/header total before that fix: 1,926,216 B in 124 files. Largest: `Atlas/include/brass_fonts.h` (438,366 B), `Atlas/include/modern_fonts.h` (402,949 B), `Atlas/src/touch_controls.cpp` (63,404 B).
 
 Sigil raw source/header total: 467,718 B in 33 files. Largest: `Sigil/include/brass_fonts.h` (91,265 B), `Sigil/include/modern_fonts.h` (87,297 B), `Sigil/src/main.cpp` (79,069 B).

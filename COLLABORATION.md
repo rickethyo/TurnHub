@@ -627,3 +627,11 @@ before repointing its data wrapper and releases failed loads. The preview
 regression repeatedly cycles every theme and checks that returning to the
 original theme restores identical pixels. GitHub LeakSanitizer validation is
 required because local workspace tracing prevents leak detection.
+
+GitHub run `37890951092` validates code commit `f108a34`: all four firmware
+jobs passed, including Atlas previews under LeakSanitizer and repeated theme
+switches. The font reload leak is resolved. Atlas rebuilt locally at
+1,545,293 B flash and 105,276 B static RAM; history records the corrected size.
+Android build/unit tests and host tests/contracts also passed in the same run.
+TH-006 implementation is complete in draft PR #80; physical device acceptance
+remains open. The prerequisite host fixture PR #79 is separately green.
