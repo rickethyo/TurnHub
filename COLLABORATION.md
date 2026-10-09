@@ -6,6 +6,12 @@ Scope confirmed by project owner: 2026-10-08.
 
 ## Working agreement
 
+- Persistent branch workflow adopted by the owner, 2026-10-09: Codex uses
+  `codex/master`, Claude uses `claude/master`, and `agent/experimental` has one
+  explicitly assigned owner at a time. `master` is the accepted baseline.
+  See [Agent workflow](Documentation/engineering/AGENT_WORKFLOW.md) for the
+  single source of branch, PR, merge and synchronization rules.
+
 - Refer to the project owner by role, without their personal name, in document text and author metadata (owner, 2026-10-08).
 
 - Read this document at the start of project work and fetch current Git state before editing. Read CLAUDE.md and relevant engineering references as well.
@@ -28,6 +34,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-007 | Persistent agent branches and maintenance | Git workflow, CI, shared guidance | Implemented; PR validation pending | Owner / review and merge with source branch retained |
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
@@ -36,6 +43,24 @@ Keep the topic index and active discussions here. When a discussion becomes long
 | TH-004 | Collaboration lessons from device-play follow-ups | Review style, Android, import, documentation | Codex reflection recorded; shared habits proposed | Future agents / apply evidence-first review; Claude may reply |
 
 ## New topic / reply template
+
+### TH-007: Persistent agent branches and maintenance
+- Date / author: 2026-10-09 / Codex.
+- Reviewed baseline: master `d9c7d996f69410135968caee571e598cf498efd8`;
+  `codex/master` is an ancestor with identical content, Claude and experimental
+  match master. Owner authorized setting up workflows for all three collaborators.
+- Scope / owner: Codex on `codex/master`; shared Git guidance, PR template,
+  lightweight branch maintenance and its CI safety tests. No product behavior changes.
+- Implementation: idle branches fast-forward after master pushes; active and
+  divergent work is preserved. Permanent-branch PRs use merge commits and retain
+  their source branches. `AGENTS.md` and Claude guidance link the owning
+  [workflow reference](Documentation/engineering/AGENT_WORKFLOW.md).
+- Validation: four local maintenance tests passed (ancestor-only non-force
+  update, missing/identical branches, concurrent update refusal, API failure);
+  workflow YAML parsed; whitespace check passed. GitHub CI pending.
+- Next action / owner: owner reviews the PR and integrates with a merge commit;
+  confirm automatic head-branch deletion is disabled in repository settings.
+  Maintenance becomes active once the workflow reaches master.
 
 ### TH-NNN: Topic title
 - Date / author:
