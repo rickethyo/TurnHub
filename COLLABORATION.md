@@ -714,3 +714,12 @@ remains open. The prerequisite host fixture PR #79 is separately green.
   match the requested Python 3.12 settings and reference the checked-in pins.
   Packaging/signing tool's five local tests passed; whitespace check passed.
   Actual cache restore/save behavior awaits GitHub Actions.
+
+## TH-008: E-ink joystick cardinal direction correction
+
+- Date / author: 2026-10-09 / Codex.
+- Baseline: `673013a`; owner: Codex; branch: `codex/eink-joystick-directions`.
+- Scope: reverse both e-ink joystick axes in `Sigil/src/main.cpp`, per owner report that Up/Down and Left/Right are still reversed. OLED and Wokwi keep their existing orientation.
+- Remote fetch and open-PR inspection attempted; environment proxy unavailable. Working tree was clean; branch starts at the locally available `origin/master`.
+- Validation: compiled the actual `stickConfig()` with the production joystick tracker for e-ink, OLED and Wokwi using GCC C++14 with warnings as errors. All four corrected e-ink cardinal directions passed; OLED and Wokwi configuration checks passed. `git diff --check` passed. PlatformIO is unavailable, so no firmware build or device test was run.
+- Status: implemented locally; physical acceptance requires flashing the updated firmware. Remote push/PR remains blocked by environment proxy connectivity.

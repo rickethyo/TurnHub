@@ -406,9 +406,9 @@ void updateLeds() {
   ledOutputValid = true;
 }
 
-// Both physical builds swap the stick axes. E-ink hardware check
-// (2026-10-09): reverse both axes from the previous mapping so Right is
-// Right and Down is Down.
+// Both physical builds swap the stick axes. Owner follow-up (2026-10-09):
+// e-ink still reports both cardinal axes backwards; invert both relative
+// to the previous e-ink mapping. OLED retains its existing orientation.
 TurnHubSigil::StickConfig stickConfig() {
   TurnHubSigil::StickConfig config;
 #ifndef TURNHUB_WOKWI  // The simulated stick reads the right way round.
@@ -417,8 +417,8 @@ TurnHubSigil::StickConfig stickConfig() {
   config.invertX = true;
   config.invertY = false;
 #else
-  config.invertX = true;
-  config.invertY = false;
+  config.invertX = false;
+  config.invertY = true;
 #endif
 #endif
   return config;
