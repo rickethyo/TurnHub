@@ -12,9 +12,12 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
   without an explicit handoff.
 - Record scope, owner, branch and baseline SHA in `COLLABORATION.md`. Read the
   other agent's active scope before editing overlapping files.
-- Keep one reviewable slice per PR targeting `master`. If your agent branch
-  already has active work, use a temporary `codex/<topic>` or `claude/<topic>`
-  branch in a separate worktree instead of stacking unrelated changes.
+- Minimize third-party resource use and agent runtime. Batch related work into
+  the existing PR when practical; avoid redundant calls, agents, CI runs and PRs.
+  Follow the mandatory resource-efficiency rules in `AGENT_WORKFLOW.md`.
+- Keep each PR reviewable and target `master`. Use a separate temporary branch
+  and worktree only when scope, ownership, dependencies or reviewability require
+  separation; explain the reason in `COLLABORATION.md`.
 - Run the relevant checks and record actual results. Only documentation-only
   commits use `[skip ci]`; workflow and script changes require CI.
 - Use a merge commit for persistent-branch PRs and retain their source branches.

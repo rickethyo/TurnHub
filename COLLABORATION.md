@@ -740,3 +740,10 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - Validation: parsed all 12 binary STL files; triangle counts match their byte lengths and all vertex coordinates are finite. Measured extents and inspected a rendered mesh overview. README local links resolve and all 12 uploaded models are listed; whitespace check passed. No physical fit or slicer validation claimed. Documentation-only; no CI run.
 
 - Consolidation / owner verification (2026-10-09): owner confirms both installed joysticks now work correctly. At owner request, enclosure README PR #85 is combined into joystick PR #84 on `codex/master`; PR #85 is superseded. Physical enclosure fit remains unverified.
+
+## TH-010: Mandatory resource efficiency
+
+- Date / author: 2026-10-09 / Codex; baseline `2cd5a56`; owner Codex on `codex/master`.
+- Owner requests a firm rule minimizing third-party resource time, agent execution and PR count.
+- Implemented in AGENT_WORKFLOW.md with entry points in AGENTS.md and CLAUDE.md: batch calls/pushes and related work, reuse applicable evidence, avoid redundant polling/validation, use one agent by default, and justify separate PRs. Required checks and task completion remain mandatory.
+- Included in active PR #84 as requested; documentation-only validation is link/reference review and whitespace checks.
