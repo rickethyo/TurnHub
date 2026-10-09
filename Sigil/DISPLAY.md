@@ -265,6 +265,22 @@ now matches the OLED:
 
 The words carry every meaning; icons only add character.
 
+**One-bit theme identities (Sigil 0.9.16).** Graphite uses chevrons, an angular
+life shield and open corner marks; Daylight uses outline action glyphs, a heart
+and a rounded frame; Brass uses engraved glyph pedestals, its life dial and
+Cinzel/Oswald; High Contrast uses boxed action glyphs, a heavy life shield and
+a double square frame. Modern themes retain Inter for legibility. Banner icons
+give way when words need the width. Every meaning still has words/numbers.
+No additional panel refreshes are scheduled for decoration.
+
+Calm Joined/Waiting LED cues use theme defaults: Graphite teal, Daylight blue,
+Brass amber, High Contrast soft warm white. Explicit seat colors override these
+(including black); clearing a seat color restores the current theme default.
+Shared seats override independently. Theme colors never change action/alert
+cues, temporal patterns, seat halves or accessibility styles. Defaults follow
+the existing saved device theme immediately and after reboot on both Sigil types.
+Host validation is separate from physical e-ink/LED acceptance.
+
 **Device themes (Sigil 0.9.15, 2026-10-09).** Each Sigil chooses independently
 of Atlas and of the app/portal. The Device list/compass has a Theme tap that
 cycles Graphite, Daylight, Brass and High contrast without closing the menu.

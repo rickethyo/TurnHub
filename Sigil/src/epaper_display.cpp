@@ -379,9 +379,18 @@ void EpaperDisplay::ornamentRule(int16_t y, const char *label) {
   if (label) fontCentered(label, y + 4, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall));
 }
 
-// A thin border with rounded corners: the page is one brass-framed plate.
+// Distinct frames remain recognizable even on text-only screens.
 void EpaperDisplay::drawFrame() {
-  display_.drawRoundRect(0, 0, display_.width(), display_.height(), 4, GxEPD_BLACK);
+  if (theme() == TurnHubTheme::Id::Graphite) {
+    for (int16_t x : {int16_t(0), int16_t(display_.width()-9)}) {
+      display_.drawFastHLine(x, 0, 9, GxEPD_BLACK);
+      display_.drawFastHLine(x, display_.height()-1, 9, GxEPD_BLACK);
+    }
+  } else if (theme() == TurnHubTheme::Id::Contrast) {
+    display_.drawRect(0, 0, display_.width(), display_.height(), GxEPD_BLACK);
+    display_.drawRect(1, 1, display_.width()-2, display_.height()-2, GxEPD_BLACK);
+  } else display_.drawRoundRect(0, 0, display_.width(), display_.height(),
+      ornamental() ? 4 : 9, GxEPD_BLACK);
 }
 
 void EpaperDisplay::drawTwoLines(const char *text, int16_t y, int16_t width) {
@@ -449,7 +458,7 @@ void EpaperDisplay::drawHeader(
     char sigil[12];
     snprintf(sigil, sizeof(sigil), "Sigil %u", static_cast<unsigned>(sigilId + 1));
     fontAt(sigil, MARGIN, 32, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall));
-    if (host) drawIcon(display_, Icon::Crown, MARGIN + fontWidth(sigil, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall)) + 4, 24, GxEPD_WHITE);
+    if (host) drawThemeIcon(display_, theme(), Icon::Crown, MARGIN + fontWidth(sigil, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall)) + 4, 24, GxEPD_WHITE);
     if (turnNumber != 0) {
       char turn[12];
       snprintf(turn, sizeof(turn), "Round %u", static_cast<unsigned>(turnNumber));
@@ -464,7 +473,6 @@ void EpaperDisplay::drawHeader(
 // meaning.
 void EpaperDisplay::drawBanner(const char *message, int16_t y, bool highlight, Icon kind,
     uint8_t maxSize) {
-  (void)kind;
   const int16_t width = display_.width() - 2 * MARGIN;
   const uint16_t ink = highlight ? GxEPD_WHITE : GxEPD_BLACK;
   if (highlight) {
@@ -477,11 +485,21 @@ void EpaperDisplay::drawBanner(const char *message, int16_t y, bool highlight, I
     if (ornamental() || theme() == TurnHubTheme::Id::Contrast) display_.drawRoundRect(MARGIN + 2, y + 2, width - 4, BANNER_HEIGHT - 4, 2, GxEPD_BLACK);
   }
   display_.setTextColor(ink);
-  const int16_t room = width - 18;
+  const bool hasIcon = kind != Icon::None &&
+      fontFits(message, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall), width-30);
+  if (hasIcon) drawThemeIcon(display_, theme(), kind, MARGIN + 5, y + 6, ink);
+  const int16_t room = width - (hasIcon ? 30 : 18);
+  const auto bannerText = [&](const GFXfont *font, int16_t baseline) {
+    int16_t x1, y1; uint16_t w, h;
+    display_.setFont(font);
+    display_.getTextBounds(message, 0, 0, &x1, &y1, &w, &h);
+    display_.setFont(nullptr);
+    fontAt(message, MARGIN + (hasIcon ? 24 : 9) + (room-w)/2 - x1, baseline, font);
+  };
   if (maxSize >= 2 && fontFits(message, (ornamental() ? &BrassFonts::EinkBanner : &ModernFonts::EinkBanner), room)) {
-    fontCentered(message, y + 16, (ornamental() ? &BrassFonts::EinkBanner : &ModernFonts::EinkBanner));
+    bannerText((ornamental() ? &BrassFonts::EinkBanner : &ModernFonts::EinkBanner), y + 16);
   } else if (fontFits(message, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall), room)) {
-    fontCentered(message, y + 15, (ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall));
+    bannerText((ornamental() ? &BrassFonts::EinkSmall : &ModernFonts::EinkSmall), y + 15);
   } else {
     drawCentered(message, y + (BANNER_HEIGHT - 8) / 2, 1);
   }
@@ -507,7 +525,10 @@ void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
     const int16_t heartH = static_cast<int16_t>(iconHeight(Icon::Heart) * look.sizePercent / 100);
     while (size > 1 && heartW + 4 + length * CHAR_WIDTH * size > width) --size;
     const int16_t x = MARGIN + (width - heartW - 4 - length * CHAR_WIDTH * size) / 2;
-    drawLifeHeart(display_, x, y + (7 * size - heartH) / 2, heartW, heartH, look.fill, GxEPD_BLACK);
+    if (theme() == TurnHubTheme::Id::Graphite || theme() == TurnHubTheme::Id::Contrast)
+      drawLifeShield(display_, x, y + (7 * size - heartH) / 2, heartW, heartH,
+          look.fill, GxEPD_BLACK, theme() == TurnHubTheme::Id::Contrast);
+    else drawLifeHeart(display_, x, y + (7 * size - heartH) / 2, heartW, heartH, look.fill, GxEPD_BLACK);
     display_.setTextSize(size);
     display_.setCursor(x + heartW + 4, y);
     display_.print(number);
@@ -527,7 +548,10 @@ void EpaperDisplay::drawLife(int32_t life, int16_t y, uint8_t maxSize) {
     if (ornamental()) drawLifeDial(display_, left + r + 2, middle, r, look.fill, GxEPD_BLACK, look.sizePercent - 100);
     else {
       const int16_t size = max<int16_t>(4, 2*r*look.sizePercent/150);
-      drawLifeHeart(display_, left + r + 2-size/2, middle-size/2, size, size, look.fill, GxEPD_BLACK);
+      if (theme() == TurnHubTheme::Id::Daylight)
+        drawLifeHeart(display_, left + r + 2-size/2, middle-size/2, size, size, look.fill, GxEPD_BLACK);
+      else drawLifeShield(display_, left + r + 2-size/2, middle-size/2, size, size,
+          look.fill, GxEPD_BLACK, theme() == TurnHubTheme::Id::Contrast);
     }
   }
   fontAt(number, left + total - static_cast<int16_t>(w) - x1, middle + static_cast<int16_t>(h) / 2, font);

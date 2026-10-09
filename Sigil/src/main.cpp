@@ -496,6 +496,7 @@ void loadDisplayTheme() {
   }
   pendingTheme = selectedTheme;
   sigilDisplay.setTheme(selectedTheme);
+  ledModel.setTheme(selectedTheme);
 }
 
 void cycleDisplayTheme() {
@@ -506,6 +507,7 @@ void cycleDisplayTheme() {
   prefs.end();
   if (!saved) { Serial.println("SIGIL|THEME|STORE_ERROR"); return; }
   selectedTheme = next;
+  ledModel.setTheme(next);
   portENTER_CRITICAL(&displayProfileMux);
   pendingTheme = next;
   themeChanged = true;

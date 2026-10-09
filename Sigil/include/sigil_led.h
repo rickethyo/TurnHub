@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #include "protocol.h"
+#include "device_theme.h"
 
 namespace TurnHubSigil {
 
@@ -79,6 +80,7 @@ class SigilLedModel {
   void syncTableClock(int32_t atlasMs, uint32_t nowMs);
   uint32_t tableNow(uint32_t nowMs) const { return nowMs + tableOffset_; }
 
+  void setTheme(TurnHubTheme::Id theme) { theme_ = theme; }
   LedFrame render(uint32_t nowMs) const;
 
   const TurnHubProtocol::LedStateFields &state() const { return state_; }
@@ -108,10 +110,11 @@ class SigilLedModel {
   uint8_t clockSampleCount_ = 0;
   uint8_t clockSampleNext_ = 0;
   uint32_t tableOffset_ = 0;
+  TurnHubTheme::Id theme_ = TurnHubTheme::Id::Graphite;
   bool seatColorSet_[2] = {false, false};  // [0] = seat A, [1] = seat B.
   Rgb seatColor_[2];
-  // The color for ring pixel i (1-6) of a calm cue, or `standard` if unset.
-  Rgb calmColor(uint8_t pixel, Rgb standard) const;
+  // The color for ring pixel i (1-6): explicit seat preference, then theme.
+  Rgb calmColor(uint8_t pixel) const;
 };
 
 }  // namespace TurnHubSigil

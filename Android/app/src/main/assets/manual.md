@@ -297,7 +297,7 @@ On Atlas, between games, tap Menu, then Device, then Theme. Tap a named theme to
 
 On a Sigil, push Up for Menu, choose Device when it is listed, then choose Theme. Each tap cycles to the next theme while the menu stays open. OLED shows the current name beside Theme; e-paper shows it under Device. The local menu works while Atlas is unavailable or the Sigil is unpaired. Close the menu before holding the joystick to pair.
 
-Daylight uses dark text on a light OLED background; other OLED themes use light text on dark. E-paper keeps black text on white and adapts the lettering and borders. Modern themes use clear sans-serif type, life hearts and simple cards; Brass keeps its serif lettering and decoration. The screens always show turn and warning states in words.
+Daylight uses dark text on a light OLED background; other OLED themes use light text on dark. E-paper keeps black text on white: Graphite uses chevrons and a life shield, Daylight uses outline icons and a heart, Brass uses engraved icons and a gauge with serif lettering, and High contrast uses boxed icons and heavier borders. Modern themes use clear sans-serif type. The screens always show turn and warning states in words. Calm ring lights default to teal for Graphite, blue for Daylight, amber for Brass and soft white for High contrast. A player’s saved ring color overrides the theme default. Action and warning colors and patterns keep their usual meaning.
 
 ## Device Menu
 

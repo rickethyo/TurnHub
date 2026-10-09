@@ -5,6 +5,7 @@
 // only add character: the words beside them always carry the meaning
 // (ACCESSIBILITY.md).
 
+#include "device_theme.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -45,6 +46,64 @@ inline void drawIcon(Gfx &g, Icon kind, int16_t x, int16_t y, uint16_t color, ui
       break;
     case Icon::None:
       break;
+  }
+}
+
+// One-bit theme glyphs share the same 13-pixel footprint. Words carry meaning.
+template <typename Gfx>
+inline void drawThemeIcon(Gfx &g, TurnHubTheme::Id theme, Icon kind,
+    int16_t x, int16_t y, uint16_t color) {
+  if (kind == Icon::None) return;
+  if (theme == TurnHubTheme::Id::Daylight) {
+    // Airy outline glyphs.
+    if (kind == Icon::Turn || kind == Icon::TurnBack) {
+      const bool back = kind == Icon::TurnBack;
+      g.drawTriangle(x + (back ? 10 : 2), y, x + (back ? 10 : 2), y + 8,
+          x + (back ? 2 : 10), y + 4, color);
+    } else if (kind == Icon::Pause) {
+      g.drawRect(x + 2, y, 3, 9, color); g.drawRect(x + 8, y, 3, 9, color);
+    } else if (kind == Icon::Crown) {
+      g.drawLine(x, y + 2, x + 2, y + 8, color);
+      g.drawLine(x + 2, y + 8, x + 10, y + 8, color);
+      g.drawLine(x + 10, y + 8, x + 12, y + 2, color);
+      g.drawLine(x, y + 2, x + 4, y + 5, color);
+      g.drawLine(x + 4, y + 5, x + 6, y, color);
+      g.drawLine(x + 6, y, x + 8, y + 5, color);
+      g.drawLine(x + 8, y + 5, x + 12, y + 2, color);
+    } else drawIcon(g, kind, x, y, color);
+  } else if (theme == TurnHubTheme::Id::Brass) {
+    drawIcon(g, kind, x, y, color);
+    g.drawFastHLine(x, y + 10, 13, color); // Engraved pedestal.
+  } else if (theme == TurnHubTheme::Id::Contrast) {
+    // Solid, boxed glyphs with a heavier silhouette.
+    drawIcon(g, kind, x, y, color);
+    g.drawRect(x - 2, y - 2, 17, 13, color);
+  } else {
+    // Graphite: compact solid geometry and directional chevrons.
+    if (kind == Icon::Turn || kind == Icon::TurnBack) {
+      const bool back = kind == Icon::TurnBack;
+      for (int i = 0; i < 2; ++i) {
+        int16_t a = x + (back ? 10 - 5*i : 2 + 5*i);
+        int16_t b = a + (back ? -3 : 3);
+        g.drawLine(a, y, b, y + 4, color);
+        g.drawLine(b, y + 4, a, y + 8, color);
+      }
+    } else drawIcon(g, kind, x, y, color);
+  }
+}
+
+// Graphite's angular life shield, with the same bottom-up fill as the heart.
+template <typename Gfx>
+inline void drawLifeShield(Gfx &g, int16_t x, int16_t y, int16_t w, int16_t h,
+    uint8_t fill, uint16_t color, bool heavy = false) {
+  if (w < 3 || h < 3) return;
+  const int16_t filledFrom = h - (static_cast<int32_t>(h) * fill + 254) / 255;
+  for (int16_t py = 0; py < h; ++py) {
+    const int16_t inset = py < h/2 ? 0 : (py-h/2)*(w/2)/(h-h/2);
+    for (int16_t px = inset; px < w-inset; ++px) {
+      if (py == 0 || py >= filledFrom || px < inset + (heavy ? 2 : 1) ||
+          px >= w-inset-(heavy ? 2 : 1)) g.drawPixel(x+px, y+py, color);
+    }
   }
 }
 

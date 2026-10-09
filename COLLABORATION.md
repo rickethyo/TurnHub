@@ -660,3 +660,21 @@ switches. The font reload leak is resolved. Atlas rebuilt locally at
 Android build/unit tests and host tests/contracts also passed in the same run.
 TH-006 implementation is complete in draft PR #80; physical device acceptance
 remains open. The prerequisite host fixture PR #79 is separately green.
+
+### 2026-10-09 / Codex / E-ink theme identities
+
+- Owner: Codex; branch `codex/master`; baseline `8a2002f`.
+- Scope: distinct one-bit icon families and frames for existing Sigil themes;
+  calm LED theme defaults with explicit seat colors taking precedence.
+- Presentation remains Sigil-owned, validated by existing theme IDs, persisted
+  in existing display NVS. No Intent, wire contract or dependency changes.
+  Words, life totals, action colors and accessibility patterns remain authoritative.
+- Implemented four glyph/frame families, existing font families retained; calm
+  defaults follow theme on load/cycle, with independent seat overrides.
+- Validation: both firmware builds passed; Sigil Linux host suites passed with
+  ASan/UBSan (`detect_leaks=0`: LeakSanitizer cannot run under this workspace's
+  ptrace). All four themes rendered for e-paper/OLED; turn comparison inspected.
+  Generated tokens and manual export checks passed. Firmware 0.9.16; sizes
+  recorded in SIZE_AND_CHANGE_HISTORY. No new dependencies or wire changes.
+- Next owner: project owner for review and physical e-paper/LED acceptance.
+  Merge with a merge commit and retain `codex/master`.
