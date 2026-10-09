@@ -705,3 +705,12 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - User confirmed the continuation belongs in PR #82; no additional PR.
   Next owner: review and physical acceptance in STAGED_CHANGES.md. Merge with
   a merge commit and retain `codex/master`; no integration performed here.
+- User also requested Python 3.12 pip caching in this same PR. Both CI Python
+  setup steps now cache against `tools/ci-requirements.txt`; that file pins the
+  existing PlatformIO/cryptography versions and drives their install commands.
+  Requirement changes trigger firmware and packaging checks; the redundant
+  signing-step cryptography install is removed. No version upgrades.
+- CI cache validation: workflow YAML parsed; both Python setup/cache blocks
+  match the requested Python 3.12 settings and reference the checked-in pins.
+  Packaging/signing tool's five local tests passed; whitespace check passed.
+  Actual cache restore/save behavior awaits GitHub Actions.
