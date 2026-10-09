@@ -97,8 +97,12 @@ struct DisplayFont {
   bool ready = false;
   explicit DisplayFont(const lgfx::IFont *fb) : fallback(fb) {}
   void load(const uint8_t *vlw, size_t size) {
+    // VLWfont::loadFont allocates glyph tables without releasing an old font.
+    // Close its wrapper before pointing that wrapper at the next theme's data.
+    font.unloadFont();
     data.set(vlw, size);
     ready = font.loadFont(&data);
+    if (!ready) font.unloadFont();
   }
   const lgfx::IFont *get() const { return ready ? static_cast<const lgfx::IFont *>(&font) : fallback; }
 };

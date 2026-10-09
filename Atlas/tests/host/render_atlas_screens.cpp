@@ -287,6 +287,25 @@ int main(int argc, char **argv) {
   setAtlasArtTheme(theme);
   drawAtlasSplash();
   int failures = writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + "-splash.png") ? 0 : 1;
+  // Exercise font ownership across repeated switches and verify returning to
+  // the original theme restores exactly the same rendered text and colors.
+  invalidateAtlasScreen();
+  renderAtlasScreen(playing(), NOW);
+  const auto original = pixels(sprite);
+  for (int cycle = 0; cycle < 3; ++cycle) {
+    for (int id = 0; id < static_cast<int>(TurnHubTheme::Id::Count); ++id) {
+      setAtlasArtTheme(static_cast<TurnHubTheme::Id>(id));
+      invalidateAtlasScreen();
+      renderAtlasScreen(playing(), NOW);
+    }
+  }
+  setAtlasArtTheme(theme);
+  invalidateAtlasScreen();
+  renderAtlasScreen(playing(), NOW);
+  if (pixels(sprite) != original) {
+    printf("FAIL repeated theme switches changed the restored scene\n");
+    ++failures;
+  }
   for (const auto &scene : scenes()) {
     invalidateAtlasScreen();
     renderAtlasScreen(scene.second, NOW);

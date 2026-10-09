@@ -618,3 +618,12 @@ checks passed. Footprints are recorded in `Documentation/engineering/history/SIZ
 The generated modern font headers were regenerated from the checked-in Inter
 source. Source review found and corrected a dark-on-dark Brass gauge face.
 Device acceptance remains outstanding; no hardware was flashed.
+
+TH-006 implementation commit: `6b26a4a`, draft PR #80. GitHub run
+`37890517304` exposed a 3,933-byte Atlas font reload leak in the real-renderer
+preview under LeakSanitizer. LovyanGFX's VLWfont loader replaces allocated
+glyph tables without freeing them. Theme reload now unloads the previous font
+before repointing its data wrapper and releases failed loads. The preview
+regression repeatedly cycles every theme and checks that returning to the
+original theme restores identical pixels. GitHub LeakSanitizer validation is
+required because local workspace tracing prevents leak detection.
