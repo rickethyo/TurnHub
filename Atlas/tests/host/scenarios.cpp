@@ -3779,6 +3779,14 @@ static void touchThemeChoices() {
     assert(screenButton(screen, choices[i])->selected);
     for (uint8_t b = 0; b < screen.buttonCount; ++b) assert(screen.buttons[b].w >= 44 && screen.buttons[b].h >= 44);
   }
+  const auto before = table().hubState;
+  tapButton(TouchAction::InvertDisplay);
+  assert(atlasDisplayInverted() && screenButton(currentScreen(), TouchAction::InvertDisplay)->selected);
+  assert(table().hubState == before);
+  tapButton(TouchAction::ThemeDaylight);
+  assert(atlasDisplayInverted()); // Theme changes retain independent inversion.
+  tapButton(TouchAction::InvertDisplay);
+  assert(!atlasDisplayInverted() && !screenButton(currentScreen(), TouchAction::InvertDisplay)->selected);
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind == ScreenKind::Device);
   tapButton(TouchAction::CloseScreen); assert(currentScreen().kind == ScreenKind::Menu);
   assert(chooseAtlasDisplayTheme(TurnHubTheme::Id::Graphite));

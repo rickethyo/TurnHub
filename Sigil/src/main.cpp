@@ -253,6 +253,8 @@ portMUX_TYPE displayProfileMux = portMUX_INITIALIZER_UNLOCKED;
 TurnHubTheme::Id selectedTheme = TURNHUB_DISPLAY_OLED ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Daylight;
 TurnHubTheme::Id pendingTheme = selectedTheme;
 bool themeChanged = false;
+bool selectedInverted = false;
+bool pendingInverted = false;
 
 #if TURNHUB_OTA
 // Sigil OTA (sigil_updater.h). While an update runs, loop() is inside
@@ -491,10 +493,13 @@ void loadDisplayTheme() {
   Preferences prefs;
   if (prefs.begin("display", true)) {
     const uint8_t stored = prefs.getUChar("theme", static_cast<uint8_t>(selectedTheme));
+    selectedInverted = prefs.getBool("inverted", false);
     prefs.end();
     if (TurnHubTheme::valid(stored)) selectedTheme = static_cast<TurnHubTheme::Id>(stored);
   }
   pendingTheme = selectedTheme;
+  pendingInverted = selectedInverted;
+  sigilDisplay.setInverted(selectedInverted);
   sigilDisplay.setTheme(selectedTheme);
   ledModel.setTheme(selectedTheme);
 }
@@ -510,6 +515,23 @@ void cycleDisplayTheme() {
   ledModel.setTheme(next);
   portENTER_CRITICAL(&displayProfileMux);
   pendingTheme = next;
+  themeChanged = true;
+  menuViewChanged = true;
+  portEXIT_CRITICAL(&displayProfileMux);
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
+void toggleDisplayInversion() {
+  const bool next = !selectedInverted;
+  Preferences prefs;
+  if (!prefs.begin("display", false)) { Serial.println("SIGIL|THEME|STORE_ERROR"); return; }
+  const bool saved = prefs.putBool("inverted", next) == 1;
+  prefs.end();
+  if (!saved) { Serial.println("SIGIL|THEME|STORE_ERROR"); return; }
+  selectedInverted = next;
+  portENTER_CRITICAL(&displayProfileMux);
+  pendingInverted = next;
   themeChanged = true;
   menuViewChanged = true;
   portEXIT_CRITICAL(&displayProfileMux);
@@ -697,10 +719,12 @@ void updateDisplay() {
   portENTER_CRITICAL(&displayProfileMux);
   const bool changedTheme = themeChanged;
   const auto theme = pendingTheme;
+  const bool inverted = pendingInverted;
   themeChanged = false;
   portEXIT_CRITICAL(&displayProfileMux);
   if (changedTheme) {
     sigilDisplay.setTheme(theme);
+    sigilDisplay.setInverted(inverted);
     renderedGameValid = false;
     pickerShown = false;
     commanderShown = false;
@@ -1712,6 +1736,8 @@ void updateMenuKeys() {
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
   if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_THEME) {
     cycleDisplayTheme();
+  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_INVERT) {
+    toggleDisplayInversion();
   } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
     // Chosen in the device menu: Atlas is not asked (it sees the Sigil go
     // quiet, as when it is unplugged).

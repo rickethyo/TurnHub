@@ -39,6 +39,8 @@ extern uint32_t DIM;
 constexpr uint32_t QR_LIGHT = 0xFFFFFF;
 void setAtlasArtTheme(TurnHubTheme::Id theme);
 TurnHubTheme::Id atlasArtTheme();
+void setAtlasArtInverted(bool inverted);
+bool atlasArtInverted();
 
 struct AtlasArtStatus {
   bool fonts = false;    // Every Brass font loaded (else DejaVu stands in).

@@ -30,4 +30,5 @@ fi
   render_atlas_screens.cpp ../../src/atlas_art.cpp build/lgfx/liblgfx.a -o build/render_atlas_screens
 for theme in 0 1 2 3; do
   ./build/render_atlas_screens build/screens "$theme"
+  ./build/render_atlas_screens build/screens "$theme" 1
 done

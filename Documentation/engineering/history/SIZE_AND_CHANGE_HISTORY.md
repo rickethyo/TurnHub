@@ -850,3 +850,15 @@ E-paper glyph families/frames and calm LED defaults reuse the existing fonts.
 |---|---|---|
 | Sigil e-paper | 53,868 B (16.4%) | 947,129 B (72.3%) |
 | Sigil OLED | 49,908 B (15.2%) | 954,657 B (72.8%) |
+
+### 2026-10-09 / Device inversion and header emblems
+
+Verified local PlatformIO 6.2.0 builds; no hardware acceptance claimed.
+Atlas 0.7.5 and Sigil 0.9.17 save screen inversion independently of theme.
+All themes have a header mark; glyphs reuse existing graphics primitives.
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,388 B (32.2%) | 1,546,557 / 1,966,080 B (78.7%) |
+| Sigil e-paper | 53,876 B (16.4%) | 948,509 / 1,310,720 B (72.4%) |
+| Sigil OLED | 49,916 B (15.2%) | 955,973 / 1,310,720 B (72.9%) |

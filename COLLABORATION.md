@@ -678,3 +678,30 @@ remains open. The prerequisite host fixture PR #79 is separately green.
   recorded in SIZE_AND_CHANGE_HISTORY. No new dependencies or wire changes.
 - Next owner: project owner for review and physical e-paper/LED acceptance.
   Merge with a merge commit and retain `codex/master`.
+
+### 2026-10-09 / Codex / Inversion and header emblems
+
+- Owner: Codex; continuing PR #82 on `codex/master`, baseline `8d54fda`.
+- User requested saved inversion on e-ink and possibly all three hardware
+  displays, plus a header icon in every theme. Scope: e-ink/OLED/Atlas saved
+  independent inversion setting and shared monochrome header marks. Retain
+  four themes; no new library entries until these eight looks are reviewed.
+- Device-local presentation and existing display NVS; no gameplay Intent,
+  transport change or third-party dependency. Words remain the accessible
+  meaning; LED preferences and defaults are independent of screen inversion.
+- Implemented device-local Invert controls for all three screens. Swaps all
+  monochrome pixels; complements Atlas RGB palette, preserving black-on-white
+  QR codes for scanning. Shared header marks added to all modern themes;
+  Brass keeps its gear. Existing themes and LED preferences stay independent.
+- Validation: Atlas and Sigil Linux host suites passed (ASan/UBSan with leak
+  detection disabled under ptrace); Atlas touch toggle/selected state and
+  Sigil menu paging tested. All normal/inverted themes rendered on all three
+  screens; e-paper/OLED gameplay frames assert exact pixel complements;
+  e-paper full refresh/cache behavior and Atlas incremental/full redraw and
+  repeated theme/inversion restoration passed. Comparison previews inspected.
+- Latest firmware builds passed: Atlas 0.7.5, Sigil e-paper/OLED 0.9.17.
+  Adapter audit, HTTP/client contract, design token, manual export and whitespace
+  checks passed. Sizes recorded; no new dependency or wire contract.
+- User confirmed the continuation belongs in PR #82; no additional PR.
+  Next owner: review and physical acceptance in STAGED_CHANGES.md. Merge with
+  a merge commit and retain `codex/master`; no integration performed here.

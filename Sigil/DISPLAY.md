@@ -265,6 +265,21 @@ now matches the OLED:
 
 The words carry every meaning; icons only add character.
 
+**Inversion and header marks (Sigil 0.9.17).** Device > Invert toggles the
+saved polarity independently of the selected theme. It works on e-paper and
+OLED, including offline/unpaired screens, prompts, menus and standby screens.
+E-paper swaps every foreground/background pixel; OLED swaps the theme's existing
+polarity (so inverted Daylight is light-on-dark). Inversion triggers a full
+clean e-paper frame and invalidates duplicate/partial caches, with subsequent
+identical frames skipped. Unpair keeps inversion; factory reset clears it.
+The e-paper Device compass now has two pages: Sleep/Unpair/Factory reset/More,
+then Theme/Invert/Back. Its theme subtitle adds INV while inverted; OLED shows
+Invert: on/off in the Device list. Failed saves keep the active appearance.
+
+Every header has a theme mark: Graphite diamond, Daylight sun, Brass gear,
+High Contrast boxed hourglass. Marks reserve the existing title margin.
+Screen inversion does not affect LEDs or player color/accessibility preferences.
+
 **One-bit theme identities (Sigil 0.9.16).** Graphite uses chevrons, an angular
 life shield and open corner marks; Daylight uses outline action glyphs, a heart
 and a rounded frame; Brass uses engraved glyph pedestals, its life dial and

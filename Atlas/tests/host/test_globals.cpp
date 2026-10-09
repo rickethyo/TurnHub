@@ -20,6 +20,9 @@ void TurnHubAtlas::beginAtlasDisplay() {}
 void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
 // No TFT is initialized on the host, so its hardware screen test is unavailable.
 bool TurnHubAtlas::startAtlasScreenTest() { return false; }
+static bool fixtureInverted = false;
+bool TurnHubAtlas::atlasDisplayInverted() { return fixtureInverted; }
+bool TurnHubAtlas::chooseAtlasDisplayInverted(bool inverted) { fixtureInverted = inverted; return true; }
 static TurnHubTheme::Id fixtureTheme = TurnHubTheme::Id::Graphite;
 TurnHubTheme::Id TurnHubAtlas::atlasDisplayTheme() { return fixtureTheme; }
 bool TurnHubAtlas::chooseAtlasDisplayTheme(TurnHubTheme::Id theme) {

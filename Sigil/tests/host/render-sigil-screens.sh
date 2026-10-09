@@ -21,10 +21,12 @@ includes=(-Ipreview_stubs -I../../include -I../../../shared/include -isystem "$g
   ../../src/sigil_menu.cpp "$gfx/Adafruit_GFX.cpp" -o ../../.pio/host-tests/render_eink_screens
 for theme in 0 1 2 3; do
   ../../.pio/host-tests/render_eink_screens "$out" "$theme"
+  ../../.pio/host-tests/render_eink_screens "$out" "$theme" 1
 done
 
 "$compiler" "${flags[@]}" "${includes[@]}" -DTURNHUB_DISPLAY_OLED=1 render_sigil_screens.cpp \
   ../../src/oled_display.cpp ../../src/sigil_menu.cpp "$gfx/Adafruit_GFX.cpp" -o ../../.pio/host-tests/render_oled_screens
 for theme in 0 1 2 3; do
   ../../.pio/host-tests/render_oled_screens "$out" "$theme"
+  ../../.pio/host-tests/render_oled_screens "$out" "$theme" 1
 done

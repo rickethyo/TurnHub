@@ -2,6 +2,7 @@
 #include "secure_link.h"
 #include "brass_fonts.h"
 #include "modern_fonts.h"
+#include "theme_emblem.h"
 #include "picker_list.h"
 #include "avatars.h"
 #include "display_name.h"
@@ -43,6 +44,12 @@ bool availableOutputPin(int pin) {
 void OledDisplay::setTheme(TurnHubTheme::Id theme) {
   if (!TurnHubTheme::valid(static_cast<uint8_t>(theme))) theme = TurnHubTheme::Id::Graphite;
   SigilDisplay::setTheme(theme);
+  legendShown_ = false;
+}
+
+void OledDisplay::setInverted(bool inverted) {
+  if (inverted == this->inverted()) return;
+  SigilDisplay::setInverted(inverted);
   legendShown_ = false;
 }
 
@@ -207,7 +214,7 @@ void OledDisplay::header(const char *title, const char *right, bool host) {
   const int16_t w = display_->width();
   display_->fillRect(0, 0, w, HEADER_HEIGHT, foreground());
   if (ornamental()) drawGear(*display_, 6, 5, 4, 6, background(), 1, foreground());
-  else display_->fillTriangle(3, 2, 3, 8, 9, 5, background());
+  else TurnHubTheme::drawHeaderMark(*display_, theme(), 6, 5, 4, background());
   const int16_t rightStart = w - 3 - static_cast<int16_t>(strlen(right)) * 6;
   const int16_t titleRight = rightStart - (host ? 18 : 4);
   // Caps sit on row 8; a descender (the J of JOIN AS) may use the bar's
@@ -379,6 +386,7 @@ bool OledDisplay::drawDeviceMenu() {
     const bool selected = i == menu_.cursor;
     char line[28];
     if (selected && menu_.holdAction == action) snprintf(line, sizeof(line), "HOLD: %s", label);
+    else if (action == MENU_LOCAL_INVERT) snprintf(line, sizeof(line), "Invert: %s", inverted() ? "on" : "off");
     else if (action == MENU_LOCAL_THEME) snprintf(line, sizeof(line), "Theme: %s", TurnHubTheme::palette(theme()).label);
     else snprintf(line, sizeof(line), "%s%s", label, menuActionNeedsHold(action) ? " (hold)" : "");
     if (selected) display_->fillRect(0, y - 1, w - 4, ROW_HEIGHT - 1, foreground());
