@@ -134,6 +134,7 @@ class Adafruit_SH1106G {
     box(std::min(x0, x1), std::min(y0, y1), std::abs(x1 - x0) + 1, std::abs(y1 - y0) + 1, color);
   }
   void fillCircle(int x, int y, int r, int color) { box(x - r, y - r, 2 * r + 1, 2 * r + 1, color); }
+  void drawRect(int x, int y, int w, int h, int color) { box(x, y, w, h, color); }
   void drawCircle(int x, int y, int r, int color) { box(x - r, y - r, 2 * r + 1, 2 * r + 1, color); }
   void fillTriangle(int x0, int y0, int x1, int y1, int x2, int y2, int color) {
     triangle(x0, y0, x1, y1, x2, y2, color);

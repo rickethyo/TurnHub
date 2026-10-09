@@ -51,6 +51,8 @@ class SigilDisplay {
   virtual void begin() = 0;
   // Called only by setup or the display task; changing theme invalidates its caches.
   virtual void setTheme(TurnHubTheme::Id theme) { theme_ = theme; }
+  virtual void setInverted(bool inverted) { inverted_ = inverted; }
+  bool inverted() const { return inverted_; }
   TurnHubTheme::Id theme() const { return theme_; }
   bool ornamental() const { return theme_ == TurnHubTheme::Id::Brass; }
   virtual void showBooting() = 0;
@@ -104,6 +106,7 @@ class SigilDisplay {
 
  protected:
   TurnHubTheme::Id theme_ = TurnHubTheme::Id::Graphite;
+  bool inverted_ = false;
   MenuView menu_;
   LifeOverlay life_;
 };

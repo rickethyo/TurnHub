@@ -660,3 +660,57 @@ switches. The font reload leak is resolved. Atlas rebuilt locally at
 Android build/unit tests and host tests/contracts also passed in the same run.
 TH-006 implementation is complete in draft PR #80; physical device acceptance
 remains open. The prerequisite host fixture PR #79 is separately green.
+
+### 2026-10-09 / Codex / E-ink theme identities
+
+- Owner: Codex; branch `codex/master`; baseline `8a2002f`.
+- Scope: distinct one-bit icon families and frames for existing Sigil themes;
+  calm LED theme defaults with explicit seat colors taking precedence.
+- Presentation remains Sigil-owned, validated by existing theme IDs, persisted
+  in existing display NVS. No Intent, wire contract or dependency changes.
+  Words, life totals, action colors and accessibility patterns remain authoritative.
+- Implemented four glyph/frame families, existing font families retained; calm
+  defaults follow theme on load/cycle, with independent seat overrides.
+- Validation: both firmware builds passed; Sigil Linux host suites passed with
+  ASan/UBSan (`detect_leaks=0`: LeakSanitizer cannot run under this workspace's
+  ptrace). All four themes rendered for e-paper/OLED; turn comparison inspected.
+  Generated tokens and manual export checks passed. Firmware 0.9.16; sizes
+  recorded in SIZE_AND_CHANGE_HISTORY. No new dependencies or wire changes.
+- Next owner: project owner for review and physical e-paper/LED acceptance.
+  Merge with a merge commit and retain `codex/master`.
+
+### 2026-10-09 / Codex / Inversion and header emblems
+
+- Owner: Codex; continuing PR #82 on `codex/master`, baseline `8d54fda`.
+- User requested saved inversion on e-ink and possibly all three hardware
+  displays, plus a header icon in every theme. Scope: e-ink/OLED/Atlas saved
+  independent inversion setting and shared monochrome header marks. Retain
+  four themes; no new library entries until these eight looks are reviewed.
+- Device-local presentation and existing display NVS; no gameplay Intent,
+  transport change or third-party dependency. Words remain the accessible
+  meaning; LED preferences and defaults are independent of screen inversion.
+- Implemented device-local Invert controls for all three screens. Swaps all
+  monochrome pixels; complements Atlas RGB palette, preserving black-on-white
+  QR codes for scanning. Shared header marks added to all modern themes;
+  Brass keeps its gear. Existing themes and LED preferences stay independent.
+- Validation: Atlas and Sigil Linux host suites passed (ASan/UBSan with leak
+  detection disabled under ptrace); Atlas touch toggle/selected state and
+  Sigil menu paging tested. All normal/inverted themes rendered on all three
+  screens; e-paper/OLED gameplay frames assert exact pixel complements;
+  e-paper full refresh/cache behavior and Atlas incremental/full redraw and
+  repeated theme/inversion restoration passed. Comparison previews inspected.
+- Latest firmware builds passed: Atlas 0.7.5, Sigil e-paper/OLED 0.9.17.
+  Adapter audit, HTTP/client contract, design token, manual export and whitespace
+  checks passed. Sizes recorded; no new dependency or wire contract.
+- User confirmed the continuation belongs in PR #82; no additional PR.
+  Next owner: review and physical acceptance in STAGED_CHANGES.md. Merge with
+  a merge commit and retain `codex/master`; no integration performed here.
+- User also requested Python 3.12 pip caching in this same PR. Both CI Python
+  setup steps now cache against `tools/ci-requirements.txt`; that file pins the
+  existing PlatformIO/cryptography versions and drives their install commands.
+  Requirement changes trigger firmware and packaging checks; the redundant
+  signing-step cryptography install is removed. No version upgrades.
+- CI cache validation: workflow YAML parsed; both Python setup/cache blocks
+  match the requested Python 3.12 settings and reference the checked-in pins.
+  Packaging/signing tool's five local tests passed; whitespace check passed.
+  Actual cache restore/save behavior awaits GitHub Actions.

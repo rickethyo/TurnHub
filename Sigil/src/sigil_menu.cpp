@@ -34,7 +34,7 @@ constexpr SigilAction MENU_ORDER[] = {
 // Every action but AdjustLife (Left/Right, never an entry).
 static_assert(sizeof(MENU_ORDER) / sizeof(MENU_ORDER[0]) == MENU_MAX_ITEMS - 1, "list every action once");
 
-constexpr uint8_t DEVICE_ENTRIES[] = {MENU_LOCAL_SLEEP, MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET, MENU_LOCAL_THEME};
+constexpr uint8_t DEVICE_ENTRIES[] = {MENU_LOCAL_SLEEP, MENU_LOCAL_UNPAIR, MENU_LOCAL_FACTORY_RESET, MENU_LOCAL_THEME, MENU_LOCAL_INVERT};
 
 // E-ink page slots, in legend order; Left is Back.
 constexpr Key PAGE_KEYS[] = {Key::Select, Key::Up, Key::Right, Key::Down};
@@ -66,6 +66,7 @@ const char *sigilActionLabel(SigilAction action) {
     case MENU_LOCAL_DEVICE: return "Device";
     case MENU_LOCAL_MORE: return "More";
     case MENU_LOCAL_THEME: return "Theme";
+    case MENU_LOCAL_INVERT: return "Invert";
     default: break;
   }
   switch (action) {
@@ -300,7 +301,7 @@ void SigilMenu::choose(uint8_t action, Key key, uint32_t nowMs) {
     cursorAction_ = MENU_NONE;
     return;
   }
-  if (action == MENU_LOCAL_THEME) { emit(action); return; }
+  if (action == MENU_LOCAL_THEME || action == MENU_LOCAL_INVERT) { emit(action); return; }
   // A tap: sleeping loses nothing (a click wakes the Sigil, which reconnects).
   if (action == MENU_LOCAL_SLEEP) {
     emit(action);

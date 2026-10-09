@@ -174,7 +174,7 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
 
   AtlasScreen themes = base("THEME", "Screen theme", "Choose the look for this Atlas");
   themes.kind = ScreenKind::Themes;
-  row(themes, BUTTON_UPPER_ROW_Y, {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}});
+  row(themes, BUTTON_UPPER_ROW_Y, {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}, {TouchAction::InvertDisplay, atlasArtInverted() ? "Invert: on" : "Invert: off", 0, 1}});
   row(themes, BUTTON_ROW_Y, {{TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 2}, {TouchAction::CloseScreen, "Back", 0, 1}});
   out.push_back({"themes", themes});
 
@@ -273,6 +273,8 @@ int checkIncremental(lgfx::LGFX_Sprite &sprite, const char *name, const AtlasScr
 
 int main(int argc, char **argv) {
   const auto theme = static_cast<TurnHubTheme::Id>(argc > 2 ? std::atoi(argv[2]) : 0);
+  const bool inverted = argc > 3 && std::atoi(argv[3]) != 0;
+  const std::string variant = inverted ? "-inverted" : "";
   const std::string outDir = argc > 1 ? argv[1] : "build/screens";
   lgfx::LGFX_Sprite sprite;
   sprite.setColorDepth(16);
@@ -285,14 +287,16 @@ int main(int argc, char **argv) {
   constexpr uint32_t NOW = 123456;
 
   setAtlasArtTheme(theme);
+  setAtlasArtInverted(inverted);
   drawAtlasSplash();
-  int failures = writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + "-splash.png") ? 0 : 1;
+  int failures = writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + variant + "-splash.png") ? 0 : 1;
   // Exercise font ownership across repeated switches and verify returning to
   // the original theme restores exactly the same rendered text and colors.
   invalidateAtlasScreen();
   renderAtlasScreen(playing(), NOW);
   const auto original = pixels(sprite);
   for (int cycle = 0; cycle < 3; ++cycle) {
+    setAtlasArtInverted(!inverted);
     for (int id = 0; id < static_cast<int>(TurnHubTheme::Id::Count); ++id) {
       setAtlasArtTheme(static_cast<TurnHubTheme::Id>(id));
       invalidateAtlasScreen();
@@ -300,6 +304,7 @@ int main(int argc, char **argv) {
     }
   }
   setAtlasArtTheme(theme);
+  setAtlasArtInverted(inverted);
   invalidateAtlasScreen();
   renderAtlasScreen(playing(), NOW);
   if (pixels(sprite) != original) {
@@ -309,7 +314,7 @@ int main(int argc, char **argv) {
   for (const auto &scene : scenes()) {
     invalidateAtlasScreen();
     renderAtlasScreen(scene.second, NOW);
-    if (!writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + "-" + scene.first + ".png")) {
+    if (!writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + variant + "-" + scene.first + ".png")) {
       printf("FAIL writing %s\n", scene.first.c_str());
       ++failures;
     }

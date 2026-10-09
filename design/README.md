@@ -97,10 +97,16 @@ The web references `#i-<name>` in the sprite; Android uses
 Atlas offers all four color themes under Menu > Device > Theme, defaulting to
 Graphite. Sigils choose independently through their local Theme menu entry.
 OLED Daylight is dark ink on white; its other themes are light ink on black.
-E-paper uses black on white, adapting the typography, hierarchy and ornament
+E-paper normally uses black on white, adapting the typography, hierarchy and ornament
 rather than trying to reproduce color. Brass alone uses Cinzel/Oswald and gears;
-modern themes use Inter, plain cards and life hearts. See
+modern themes use Inter and plain cards, with distinct one-bit glyphs, life symbols and header marks. See
 [Hardware](../Documentation/engineering/HARDWARE.md) for persistence and refresh
 behavior. To regenerate Inter device fonts, install `freetype-py` in a Python
 virtual environment and run `python tools/fonts/make_modern_fonts.py`. No fonts
 are downloaded: it reads the checked-in Inter variable font at weight 600.
+
+Each device also saves an independent Invert switch, exposed next to its theme
+controls. Sigils swap foreground/background; Atlas complements its RGB palette
+while retaining conventional black-on-white QR codes. This does not change LED
+preferences. `shared/include/theme_emblem.h` owns the diamond, sun and boxed
+hourglass marks; Brass retains its renderer's gear.

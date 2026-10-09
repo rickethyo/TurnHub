@@ -840,3 +840,25 @@ the unchanged static RAM figure excludes dynamically allocated font tables.
 Atlas raw source/header total before that fix: 1,926,216 B in 124 files. Largest: `Atlas/include/brass_fonts.h` (438,366 B), `Atlas/include/modern_fonts.h` (402,949 B), `Atlas/src/touch_controls.cpp` (63,404 B).
 
 Sigil raw source/header total: 467,718 B in 33 files. Largest: `Sigil/include/brass_fonts.h` (91,265 B), `Sigil/include/modern_fonts.h` (87,297 B), `Sigil/src/main.cpp` (79,069 B).
+
+### 2026-10-09 / Sigil 0.9.16 theme identities
+
+Verified local PlatformIO 6.2.0 builds; no hardware acceptance claimed.
+E-paper glyph families/frames and calm LED defaults reuse the existing fonts.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,310,720 B |
+|---|---|---|
+| Sigil e-paper | 53,868 B (16.4%) | 947,129 B (72.3%) |
+| Sigil OLED | 49,908 B (15.2%) | 954,657 B (72.8%) |
+
+### 2026-10-09 / Device inversion and header emblems
+
+Verified local PlatformIO 6.2.0 builds; no hardware acceptance claimed.
+Atlas 0.7.5 and Sigil 0.9.17 save screen inversion independently of theme.
+All themes have a header mark; glyphs reuse existing graphics primitives.
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,388 B (32.2%) | 1,546,557 / 1,966,080 B (78.7%) |
+| Sigil e-paper | 53,876 B (16.4%) | 948,509 / 1,310,720 B (72.4%) |
+| Sigil OLED | 49,916 B (15.2%) | 955,973 / 1,310,720 B (72.9%) |

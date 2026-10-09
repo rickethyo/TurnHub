@@ -70,7 +70,7 @@ jobs:
               Android/app/src/main/assets/manual.md) ;;
               Android/*) android=true ;;
               # Signing tool: its tests plus every packaged firmware build.
-              tools/firmware/*) tools=true atlas=true sigil=true ;;
+              tools/firmware/*|tools/ci-requirements.txt) tools=true atlas=true sigil=true ;;
             esac
           done <<< "$files"
           printf '%s\n' "$files" | sed 's/^/  /'
@@ -115,10 +115,12 @@ jobs:
         if: env.TOOLS == 'true'
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/ci-requirements.txt
       - name: Firmware packaging tool
         if: env.TOOLS == 'true'
         run: |
-          python -m pip install --disable-pip-version-check cryptography==46.0.7
+          python -m pip install --disable-pip-version-check -r tools/ci-requirements.txt
           python tools/firmware/test_thfw.py
 
   firmware:
@@ -158,6 +160,8 @@ jobs:
         if: env.BUILD == 'true'
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/ci-requirements.txt
       # Platform, toolchain and libraries (about a minute of downloads per job
       # uncached). Keyed by the project's platformio.ini, so a version change
       # downloads fresh; the build itself always starts clean.
@@ -173,7 +177,7 @@ jobs:
       - name: Install PlatformIO
         if: env.BUILD == 'true'
         run: |
-          python -m pip install --disable-pip-version-check platformio==6.2.0
+          python -m pip install --disable-pip-version-check -r tools/ci-requirements.txt
           pio settings set enable_telemetry No
       - name: Build firmware
         if: env.BUILD == 'true'
@@ -204,7 +208,6 @@ jobs:
         env:
           TURNHUB_FIRMWARE_SIGNING_KEY: ${{ secrets.TURNHUB_FIRMWARE_SIGNING_KEY }}
         run: |
-          python -m pip install --disable-pip-version-check cryptography==46.0.7
           bin="$RUNNER_TEMP/firmware/firmware.bin"
           python tools/firmware/thfw.py descriptor "$bin" --expect-product "$THFW_PRODUCT"
           if [ -z "$TURNHUB_FIRMWARE_SIGNING_KEY" ]; then

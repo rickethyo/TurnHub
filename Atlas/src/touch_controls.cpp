@@ -237,12 +237,13 @@ void layoutDevice(AtlasScreen &screen) {
 }
 
 void layoutThemes(AtlasScreen &screen) {
-  const ButtonSpec upper[] = {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}};
+  const ButtonSpec upper[] = {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}, {TouchAction::InvertDisplay, atlasDisplayInverted() ? "Invert: on" : "Invert: off", 0, 1}};
   const ButtonSpec lower[] = {{TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 2}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 2);
+  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 3);
   addRow(screen, BUTTON_ROW_Y, lower, 3);
   for (uint8_t i = 0; i < screen.buttonCount; ++i) {
     auto &button = screen.buttons[i];
+    if (button.action == TouchAction::InvertDisplay) button.selected = atlasDisplayInverted();
     if (button.action >= TouchAction::ThemeGraphite && button.action <= TouchAction::ThemeContrast)
       button.selected = static_cast<uint8_t>(button.action) - static_cast<uint8_t>(TouchAction::ThemeGraphite) == static_cast<uint8_t>(atlasDisplayTheme());
   }
@@ -499,6 +500,7 @@ const char *actionName(TouchAction action) {
     case TouchAction::SetupDone: return "SETUP_DONE";
     case TouchAction::OpenDevice: return "OPEN_DEVICE";
     case TouchAction::OpenThemes: return "OPEN_THEMES";
+    case TouchAction::InvertDisplay: return "INVERT_DISPLAY";
     case TouchAction::ThemeGraphite: return "THEME_GRAPHITE";
     case TouchAction::ThemeDaylight: return "THEME_DAYLIGHT";
     case TouchAction::ThemeBrass: return "THEME_BRASS";
@@ -552,6 +554,9 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
+    case TouchAction::InvertDisplay:
+      if (!chooseAtlasDisplayInverted(!atlasDisplayInverted())) showNotice(millis(), "Inversion could not be saved");
+      return true;
     case TouchAction::ThemeGraphite:
     case TouchAction::ThemeDaylight:
     case TouchAction::ThemeBrass:

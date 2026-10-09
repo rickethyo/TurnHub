@@ -262,10 +262,32 @@ int main() {
   m.clear();
   assert(lit(m.render(0)) == 0);
 
+  // Theme changes use defaults only for unset seats, including explicit black.
+  {
+    SigilLedModel c;
+    const Rgb defaults[] = {Rgb(0,200,200), Rgb(0,90,255), Rgb(255,120,0), Rgb(120,100,70)};
+    for (uint8_t i = 0; i < 4; ++i) {
+      c.setTheme(static_cast<TurnHubTheme::Id>(i));
+      c.applyLedState(led(LedCue::Joined, 0, 7), 0);
+      assert(c.render(0).pixels[1] == defaults[i]);
+      c.applySeatColor(encodeSeatColor(1, true, 0));
+      assert(dark(c.render(0).pixels[1]));
+      c.applySeatColor(encodeSeatColor(1, false, 0));
+      assert(c.render(0).pixels[1] == defaults[i]);
+      c.applySeatColor(encodeSeatColor(2, true, 0x990022));
+      c.applyLedState(led(LedCue::Joined, 0, 6, 1, true), 0);
+      assert(c.render(0).pixels[1] == defaults[i]);
+      assert(c.render(0).pixels[4] == Rgb(153,0,34));
+      c.applyLedState(led(LedCue::YourTurn, 0, 0, 1, false, LedStyle::ReducedMotion), 0);
+      assert(c.render(0).pixels[1] == Rgb(0,255,0));
+    }
+  }
+
   // Seat colors: only the calm cues (Joined, Waiting) take them; action cues
   // keep their standard colors; a shared Sigil splits the ring by seat.
   {
     SigilLedModel c;
+    c.setTheme(TurnHubTheme::Id::Daylight);
     c.applySeatColor(encodeSeatColor(1, true, 0xFF8800));
     c.applyLedState(led(LedCue::Waiting), 0);
     LedFrame w = c.render(0);

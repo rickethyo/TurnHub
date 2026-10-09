@@ -73,7 +73,7 @@ enum class TouchAction : uint8_t {
   // factory reset Atlas, each held like the BOOT button's gestures; Sleep
   // (a tap) until the screen is touched.
   OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas,
-  OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast
+  OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast, InvertDisplay
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.

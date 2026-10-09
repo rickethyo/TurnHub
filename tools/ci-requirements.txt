@@ -1,0 +1,3 @@
+# Python packages for CI firmware builds and packaging tests.
+platformio==6.2.0
+cryptography==46.0.7

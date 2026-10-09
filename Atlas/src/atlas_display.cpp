@@ -380,11 +380,13 @@ void beginAtlasDisplay() {
   TurnHub::OptionalPreferences themePrefs;
   if (themePrefs.begin("display", true)) {
     const String key = themePrefs.getString("theme", "graphite");
+    const bool inverted = themePrefs.getBool("inverted", false);
     themePrefs.end();
     for (uint8_t i = 0; i < static_cast<uint8_t>(TurnHubTheme::Id::Count); ++i) {
       const auto id = static_cast<TurnHubTheme::Id>(i);
       if (key == TurnHubTheme::palette(id).key) setAtlasArtTheme(id);
     }
+    setAtlasArtInverted(inverted);
   }
   const AtlasArtStatus art = beginAtlasArt(tft);
   serialLog.println(art.fonts ? "ATLAS|DISPLAY|FONTS|THEMED" : "ATLAS|DISPLAY|FONTS|FALLBACK");
@@ -507,6 +509,16 @@ bool chooseAtlasDisplayTheme(TurnHubTheme::Id theme) {
   const bool saved = prefs.putString("theme", key) == key.length();
   prefs.end();
   if (saved) setAtlasArtTheme(theme);
+  return saved;
+}
+
+bool atlasDisplayInverted() { return atlasArtInverted(); }
+bool chooseAtlasDisplayInverted(bool inverted) {
+  TurnHub::OptionalPreferences prefs;
+  if (!prefs.begin("display", false)) return false;
+  const bool saved = prefs.putBool("inverted", inverted) == 1;
+  prefs.end();
+  if (saved) setAtlasArtInverted(inverted);
   return saved;
 }
 

@@ -265,6 +265,37 @@ now matches the OLED:
 
 The words carry every meaning; icons only add character.
 
+**Inversion and header marks (Sigil 0.9.17).** Device > Invert toggles the
+saved polarity independently of the selected theme. It works on e-paper and
+OLED, including offline/unpaired screens, prompts, menus and standby screens.
+E-paper swaps every foreground/background pixel; OLED swaps the theme's existing
+polarity (so inverted Daylight is light-on-dark). Inversion triggers a full
+clean e-paper frame and invalidates duplicate/partial caches, with subsequent
+identical frames skipped. Unpair keeps inversion; factory reset clears it.
+The e-paper Device compass now has two pages: Sleep/Unpair/Factory reset/More,
+then Theme/Invert/Back. Its theme subtitle adds INV while inverted; OLED shows
+Invert: on/off in the Device list. Failed saves keep the active appearance.
+
+Every header has a theme mark: Graphite diamond, Daylight sun, Brass gear,
+High Contrast boxed hourglass. Marks reserve the existing title margin.
+Screen inversion does not affect LEDs or player color/accessibility preferences.
+
+**One-bit theme identities (Sigil 0.9.16).** Graphite uses chevrons, an angular
+life shield and open corner marks; Daylight uses outline action glyphs, a heart
+and a rounded frame; Brass uses engraved glyph pedestals, its life dial and
+Cinzel/Oswald; High Contrast uses boxed action glyphs, a heavy life shield and
+a double square frame. Modern themes retain Inter for legibility. Banner icons
+give way when words need the width. Every meaning still has words/numbers.
+No additional panel refreshes are scheduled for decoration.
+
+Calm Joined/Waiting LED cues use theme defaults: Graphite teal, Daylight blue,
+Brass amber, High Contrast soft warm white. Explicit seat colors override these
+(including black); clearing a seat color restores the current theme default.
+Shared seats override independently. Theme colors never change action/alert
+cues, temporal patterns, seat halves or accessibility styles. Defaults follow
+the existing saved device theme immediately and after reboot on both Sigil types.
+Host validation is separate from physical e-ink/LED acceptance.
+
 **Device themes (Sigil 0.9.15, 2026-10-09).** Each Sigil chooses independently
 of Atlas and of the app/portal. The Device list/compass has a Theme tap that
 cycles Graphite, Daylight, Brass and High contrast without closing the menu.

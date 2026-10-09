@@ -228,3 +228,9 @@ names stable when editing the workflow. Do not add path filters that prevent a
 required check from reporting. A solo-maintainer setup does not need a mandatory
 second person's approval just to require checks.
 
+
+Python 3.12 setup in CI caches pip downloads against
+`tools/ci-requirements.txt`, which pins PlatformIO and cryptography. Both
+firmware builds and packaging tests install from this file; signing reuses
+those packages. Changing the requirement pins triggers firmware and packaging
+checks. The existing PlatformIO framework/toolchain/library cache is separate.

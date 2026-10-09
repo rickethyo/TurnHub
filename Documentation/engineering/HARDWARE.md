@@ -303,3 +303,15 @@ signing tools are described in `CLAUDE.md`.
   LEDs, sleep) and USB supply behavior; Atlas battery runtime and calibration
   (above), final Atlas module, enclosure
   and docking decisions. Tracked in [Staged Changes](STAGED_CHANGES.md).
+
+### Display inversion and header marks (2026-10-09)
+
+Atlas 0.7.5 and Sigil 0.9.17 add a separate saved `display/inverted` bool.
+On Atlas use Menu > Device > Theme > Invert: on/off; on either Sigil use
+Device > Invert. Changing theme retains inversion, unpairing retains it and
+factory reset clears it. Saves must succeed before the visible setting changes.
+Atlas complements the RGB palette; Sigils swap foreground/background. Atlas
+QR codes retain conventional black-on-white modules and quiet zones for scanning.
+LED colors/preferences are independent. Each theme has a header emblem on all
+three displays: diamond, sun, gear or boxed hourglass. Normal/inverted host
+previews and firmware checks do not establish physical panel acceptance.

@@ -5,6 +5,7 @@
 // preview build it, the host test runners do not (it needs LovyanGFX).
 
 #include "atlas_art.h"
+#include "theme_emblem.h"
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
@@ -45,6 +46,8 @@ uint32_t UPDATE_BLUE_EDGE = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).su
 uint32_t DIM = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).textTertiary;
 
 static TurnHubTheme::Id artTheme = TurnHubTheme::Id::Graphite;
+static bool artInverted = false;
+static TurnHubTheme::Palette activePalette = TurnHubTheme::palette(artTheme);
 static bool ornamental() { return artTheme == TurnHubTheme::Id::Brass; }
 
 namespace {
@@ -364,7 +367,9 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
 
   // The gear turns while a game runs (redrawn by serviceGear).
   const float angle = gearTurning(screen) && buffered ? static_cast<float>((nowMs / 50) % 360) : 0.0f;
-  gear(g, 22, oy + H / 2 - 1, 8, 8, angle, BRASS_DEEP, 3, buffered ? brassRow(H / 2 - 1, H - 2) : BRASS);
+  if (ornamental()) gear(g, 22, oy + H / 2 - 1, 8, 8, angle, BRASS_DEEP, 3,
+      buffered ? brassRow(H / 2 - 1, H - 2) : BRASS);
+  else TurnHubTheme::drawHeaderMark(g, artTheme, 22, oy + H / 2 - 1, 8, CREAM);
 
   g.setFont(labelFont.get());
   g.setTextDatum(lgfx::middle_left);
@@ -411,7 +416,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     g.fillRoundRect(right - w, oy + 5, w, 15, 3, UPDATE_BLUE);
     g.drawRoundRect(right - w, oy + 5, w, 15, 3, UPDATE_BLUE_EDGE);
     g.setTextDatum(lgfx::middle_center);
-    g.setTextColor(TurnHubTheme::palette(artTheme).bg, UPDATE_BLUE);
+    g.setTextColor(activePalette.bg, UPDATE_BLUE);
     g.drawString(words, right - w / 2, oy + 13);
     right -= w + 8;
   }
@@ -573,7 +578,7 @@ void drawGaugeTo(Gfx &g, int16_t ox, int16_t oy, const AtlasScreen &screen, bool
   constexpr int16_t R = 22;
   g.fillRect(ox, oy, GAUGE_W, GAUGE_H, WALNUT);
   if (!ornamental()) {
-    const auto &p = TurnHubTheme::palette(artTheme);
+    const auto &p = activePalette;
     g.fillRoundRect(ox + 2, oy + 3, GAUGE_W - 4, GAUGE_H - 6, 8, PLATE);
     g.drawRoundRect(ox + 2, oy + 3, GAUGE_W - 4, GAUGE_H - 6, 8, warn ? p.warning : p.turn);
     g.setTextDatum(lgfx::middle_center);
@@ -590,7 +595,7 @@ void drawGaugeTo(Gfx &g, int16_t ox, int16_t oy, const AtlasScreen &screen, bool
   g.fillArc(cx, cy, R + 2, R + 1, 190, 300, BRASS_HI);
   g.fillArc(cx, cy, R + 2, R, 10, 110, BRASS_LO);
   const uint32_t face = warn ? DANGER_DEEP : DIAL;
-  const uint32_t mark = warn ? 0xF0C0A0 : DIAL_INK;
+  const uint32_t mark = warn ? (artInverted ? 0x0F3F5F : 0xF0C0A0) : DIAL_INK;
   g.fillCircle(cx, cy, R, face);
   constexpr float START = 135.0f, SPAN = 270.0f, RAD = 0.017453292f;
   for (uint8_t i = 0; i <= 10; ++i) {
@@ -602,7 +607,7 @@ void drawGaugeTo(Gfx &g, int16_t ox, int16_t oy, const AtlasScreen &screen, bool
   float fraction;
   if (screen.timerPermille >= 0) {
     fraction = screen.timerPermille / 1000.0f;
-    arc(g, cx, cy, R - 2, R - 4, START, START + SPAN * 0.12f, 0xC0392B);
+    arc(g, cx, cy, R - 2, R - 4, START, START + SPAN * 0.12f, artInverted ? 0x3FC6D4 : 0xC0392B);
     arc(g, cx, cy, R - 8, R - 9, START, START + SPAN * fraction, warn ? DANGER : BRASS_LO);
   } else {
     // Timer off: one sweep per elapsed minute, from the clock's seconds.
@@ -613,7 +618,7 @@ void drawGaugeTo(Gfx &g, int16_t ox, int16_t oy, const AtlasScreen &screen, bool
   const float a = (START + SPAN * fraction) * RAD;
   const int16_t tipX = cx + static_cast<int16_t>(cosf(a) * (R - 5));
   const int16_t tipY = cy + static_cast<int16_t>(sinf(a) * (R - 5));
-  const uint32_t needle = warn ? 0xFFD2C8 : INK;
+  const uint32_t needle = warn ? (artInverted ? 0x002D37 : 0xFFD2C8) : INK;
   if (buffered) {
     g.drawWideLine(cx, cy, tipX, tipY, 1.0f, needle);
   } else {
@@ -646,8 +651,8 @@ void drawTube(const AtlasScreen &screen) {
   tft().drawRoundRect(TX, BAR_Y, TW, BAR_H, 2, LINE);
   tft().fillRect(TX + 1, BAR_Y + 1, TW - 2, BAR_H - 2, TUBE);
   const int16_t filled = static_cast<int16_t>((TW - 2) * screen.timerPermille / 1000);
-  tft().fillRect(TX + 1, BAR_Y + 1, filled, 1, screen.timerWarning ? DANGER : TurnHubTheme::palette(artTheme).turn);
-  tft().fillRect(TX + 1, BAR_Y + 2, filled, 1, screen.timerWarning ? DANGER : TurnHubTheme::palette(artTheme).turn);
+  tft().fillRect(TX + 1, BAR_Y + 1, filled, 1, screen.timerWarning ? DANGER : activePalette.turn);
+  tft().fillRect(TX + 1, BAR_Y + 2, filled, 1, screen.timerWarning ? DANGER : activePalette.turn);
   for (uint8_t i = 1; i < 10; ++i) tft().drawFastVLine(TX + TW * i / 10, BAR_Y + 1, BAR_H - 2, TUBE);
 }
 
@@ -688,7 +693,7 @@ void drawChipTime(const ScreenPlayer &p, int16_t x, int16_t y, int16_t w, int16_
   const bool active = p.flags & CHIP_ACTIVE;
   const bool out = p.flags & CHIP_OUT;
   const uint32_t fill = active || (p.flags & CHIP_WINNER) ? PLATE_HI : PLATE;
-  const uint32_t ink = out ? DIM : (active ? TurnHubTheme::palette(artTheme).turn : FAINT);
+  const uint32_t ink = out ? DIM : (active ? activePalette.turn : FAINT);
   const bool tall = h >= 60;
   tft().setFont(&fonts::DejaVu9);
   const int16_t tw = tft().textWidth(p.turnTime);
@@ -724,7 +729,7 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   tft().fillRoundRect(x, y, w, h, 5, fill);
   tft().drawFastHLine(x + 5, y + 1, w - 10, mix(fill, CREAM, 22));
   if (active || winner) {
-    const uint32_t emphasis = ornamental() ? BRASS : TurnHubTheme::palette(artTheme).turn;
+    const uint32_t emphasis = ornamental() ? BRASS : activePalette.turn;
     tft().drawRoundRect(x, y, w, h, 5, emphasis);
     tft().drawRoundRect(x + 1, y + 1, w - 2, h - 2, 4, emphasis);
     tft().drawRoundRect(x + 2, y + 2, w - 4, h - 4, 3, emphasis);
@@ -771,8 +776,8 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   tft().clearClipRect();
   if (out) tft().drawFastHLine(nameX, y + 11, tft().textWidth(name), ink);
 
-  const uint32_t lifeInk = out ? DIM : (active ? TurnHubTheme::palette(artTheme).turn : CREAM);
-  const uint32_t tagInk = active || winner ? TurnHubTheme::palette(artTheme).turn : (p.flags & CHIP_WAITING) ? BRASS_HI : MUTED;
+  const uint32_t lifeInk = out ? DIM : (active ? activePalette.turn : CREAM);
+  const uint32_t tagInk = active || winner ? activePalette.turn : (p.flags & CHIP_WAITING) ? BRASS_HI : MUTED;
   if (tall) {
     if (showLife) {
       tft().setFont(lifeW <= w - 8 ? numeralsFont.get() : clockFont.get());
@@ -1032,11 +1037,47 @@ void renderScreen(const AtlasScreen &screen, uint32_t nowMs) {
 }  // namespace
 
 
+bool atlasArtInverted() { return artInverted; }
+void setAtlasArtInverted(bool inverted) {
+  if (artInverted == inverted) return;
+  artInverted = inverted;
+  setAtlasArtTheme(artTheme);
+}
+
 TurnHubTheme::Id atlasArtTheme() { return artTheme; }
 void setAtlasArtTheme(TurnHubTheme::Id theme) {
   if (!TurnHubTheme::valid(static_cast<uint8_t>(theme))) theme = TurnHubTheme::Id::Graphite;
   artTheme = theme;
-  const auto &p = TurnHubTheme::palette(theme);
+  activePalette = TurnHubTheme::palette(theme);
+  if (artInverted) {
+    activePalette.bg ^= 0xFFFFFFu;
+    activePalette.surface1 ^= 0xFFFFFFu;
+    activePalette.surface2 ^= 0xFFFFFFu;
+    activePalette.surface3 ^= 0xFFFFFFu;
+    activePalette.fill ^= 0xFFFFFFu;
+    activePalette.fillStrong ^= 0xFFFFFFu;
+    activePalette.separator ^= 0xFFFFFFu;
+    activePalette.separatorStrong ^= 0xFFFFFFu;
+    activePalette.text ^= 0xFFFFFFu;
+    activePalette.textSecondary ^= 0xFFFFFFu;
+    activePalette.textTertiary ^= 0xFFFFFFu;
+    activePalette.accent ^= 0xFFFFFFu;
+    activePalette.accentPressed ^= 0xFFFFFFu;
+    activePalette.onAccent ^= 0xFFFFFFu;
+    activePalette.accentSoft ^= 0xFFFFFFu;
+    activePalette.turn ^= 0xFFFFFFu;
+    activePalette.onTurn ^= 0xFFFFFFu;
+    activePalette.turnSoft ^= 0xFFFFFFu;
+    activePalette.good ^= 0xFFFFFFu;
+    activePalette.warning ^= 0xFFFFFFu;
+    activePalette.critical ^= 0xFFFFFFu;
+    activePalette.info ^= 0xFFFFFFu;
+    activePalette.focus ^= 0xFFFFFFu;
+    activePalette.scrim ^= 0xFFFFFFu;
+    activePalette.glowA ^= 0xFFFFFFu;
+    activePalette.glowB ^= 0xFFFFFFu;
+  }
+  const auto &p = activePalette;
   WALNUT = p.bg;
   PLATE = p.surface1;
   PLATE_HI = p.turnSoft;

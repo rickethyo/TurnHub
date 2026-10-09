@@ -291,13 +291,13 @@ Every Sigil uses the same keys. Click (press the stick straight in) is the obvio
 
 ## Screen Themes
 
-Each Atlas and Sigil remembers its own screen theme: Graphite, Daylight, Brass or High contrast. Changing one device does not change another device, the app, or the browser. Unpairing keeps the choice; factory reset clears it.
+Each Atlas and Sigil remembers its own screen theme: Graphite, Daylight, Brass or High contrast. Changing one device does not change another device, the app, or the browser. Unpairing keeps the choice; factory reset clears it. Each device also remembers a separate Invert setting. It flips black and white on Sigils and reverses screen colors on Atlas. Changing theme keeps this setting; unpairing keeps it and factory reset clears it. The setting leaves player LED preferences unchanged. Atlas QR codes keep their usual black-on-white format.
 
-On Atlas, between games, tap Menu, then Device, then Theme. Tap a named theme to preview and save it immediately. The framed choice is selected; Back returns to Device. Graphite is the default.
+On Atlas, between games, tap Menu, then Device, then Theme. Tap a named theme to preview and save it immediately. The framed choice is selected; Back returns to Device. Graphite is the default. Tap Invert: off/on on the same page to toggle inversion.
 
-On a Sigil, push Up for Menu, choose Device when it is listed, then choose Theme. Each tap cycles to the next theme while the menu stays open. OLED shows the current name beside Theme; e-paper shows it under Device. The local menu works while Atlas is unavailable or the Sigil is unpaired. Close the menu before holding the joystick to pair.
+On a Sigil, push Up for Menu, choose Device when it is listed, then choose Theme. Each tap cycles to the next theme while the menu stays open. OLED shows the current name beside Theme; e-paper shows it under Device. The local menu works while Atlas is unavailable or the Sigil is unpaired. Close the menu before holding the joystick to pair. Choose Invert to toggle the screen polarity. On e-paper, choose More on the first Device page to reach Theme and Invert; INV beside the theme name means inversion is on. OLED shows Invert: on/off in the Device list.
 
-Daylight uses dark text on a light OLED background; other OLED themes use light text on dark. E-paper keeps black text on white and adapts the lettering and borders. Modern themes use clear sans-serif type, life hearts and simple cards; Brass keeps its serif lettering and decoration. The screens always show turn and warning states in words.
+Daylight uses dark text on a light OLED background; other OLED themes use light text on dark. E-paper keeps black text on white: Graphite uses chevrons and a life shield, Daylight uses outline icons and a heart, Brass uses engraved icons and a gauge with serif lettering, and High contrast uses boxed icons and heavier borders. Modern themes use clear sans-serif type. The screens always show turn and warning states in words. Calm ring lights default to teal for Graphite, blue for Daylight, amber for Brass and soft white for High contrast. A player’s saved ring color overrides the theme default. Action and warning colors and patterns keep their usual meaning. Each theme has a header emblem on all three displays: Graphite diamond, Daylight sun, Brass gear and High contrast boxed hourglass. Inverted Daylight OLED uses light text on a dark background.
 
 ## Device Menu
 

@@ -134,10 +134,16 @@ void SigilLedModel::applySeatColor(int32_t value) {
       static_cast<uint8_t>(rgb));
 }
 
-Rgb SigilLedModel::calmColor(uint8_t pixel, Rgb standard) const {
+Rgb SigilLedModel::calmColor(uint8_t pixel) const {
   // Shared: seat A owns pixels 1-3, seat B 4-6; otherwise the focused seat.
   const uint8_t seat = state_.sharedSeat ? (pixel >= 4 ? 1 : 0) : (state_.seatSlot == 2 ? 1 : 0);
-  return seatColorSet_[seat] ? seatColor_[seat] : standard;
+  if (seatColorSet_[seat]) return seatColor_[seat];
+  switch (theme_) {
+    case TurnHubTheme::Id::Daylight: return BLUE;
+    case TurnHubTheme::Id::Brass: return AMBER;
+    case TurnHubTheme::Id::Contrast: return WHITE;
+    default: return CYAN;
+  }
 }
 
 void SigilLedModel::clear() {
@@ -292,7 +298,7 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       break;
     case LedCue::Joined:
       // Player number as that many steady ring pixels.
-      for (uint8_t i = 1; i < LED_PIXELS && i <= s.playerNumber; ++i) frame.pixels[i] = calmColor(i, CYAN);
+      for (uint8_t i = 1; i < LED_PIXELS && i <= s.playerNumber; ++i) frame.pixels[i] = calmColor(i);
       break;
     case LedCue::ConfirmationNeeded:
     case LedCue::EliminationSelect:
@@ -306,7 +312,7 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
       break;
     case LedCue::Waiting:
       // Another player's turn: the seat's own color, at the waiting level.
-      for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = scaled(calmColor(i, cue.color), cue.level);
+      for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = scaled(calmColor(i), cue.level);
       break;
     default:
       for (uint8_t i = 1; i < LED_PIXELS; ++i) frame.pixels[i] = cueColor;
@@ -323,9 +329,9 @@ LedFrame SigilLedModel::render(uint32_t nowMs) const {
   if (hasOverlay) {
     frame.pixels[LED_CENTER] = scaled(overlay.color, overlay.level);
   } else if (s.cue == LedCue::Joined) {
-    if (s.playerNumber > 6) frame.pixels[LED_CENTER] = calmColor(1, CYAN);
+    if (s.playerNumber > 6) frame.pixels[LED_CENTER] = calmColor(1);
   } else if (s.cue == LedCue::Waiting) {
-    frame.pixels[LED_CENTER] = scaled(calmColor(1, cue.color), cue.level);
+    frame.pixels[LED_CENTER] = scaled(calmColor(1), cue.level);
   } else if (s.cue != LedCue::Unassigned || reduced(s.style)) {
     frame.pixels[LED_CENTER] = cueColor;
   }

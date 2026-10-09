@@ -148,6 +148,12 @@ everything implemented. Only the checks listed below are still open.
   e-ink text scale, a monochrome-safe portal
   theme, guest accessibility preferences. LED intensity and buzzer volume wait
   for hardware that can vary them.
+- **Device theme acceptance (2026-10-09, PR #82):** owner to check all four
+  normal/inverted looks on Atlas and both Sigils, header emblems, e-paper full
+  refresh/ghosting, inversion retained through reboot/unpair and cleared by
+  factory reset, scanning Atlas QR codes, and calm LED colors with independent
+  shared-seat preferences. Host previews/tests and firmware builds passed;
+  physical appearance/persistence acceptance is still open.
 - **Atlas battery gauge, later rounds** (round one, 2026-10-08: the voltage
   estimate, see HARDWARE.md "Atlas battery"): calibrate the divider and curve
   on the board, the percent in the Android app, and a manual entry once the

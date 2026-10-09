@@ -36,6 +36,7 @@ class EpaperDisplay final : public SigilDisplay {
 
   void begin() override;
   void setTheme(TurnHubTheme::Id theme) override;
+  void setInverted(bool inverted) override;
   void showBooting() override;
   void showHardwareTest() override;
   void showUnpaired() override;
@@ -74,6 +75,8 @@ class EpaperDisplay final : public SigilDisplay {
   uint32_t idleCleanupMs() const { return idleCleanupMs_; }
 
  private:
+  uint16_t foreground() const { return inverted() ? GxEPD_WHITE : GxEPD_BLACK; }
+  uint16_t background() const { return inverted() ? GxEPD_BLACK : GxEPD_WHITE; }
   void drawHeader(const char *title, uint8_t sigilId = 0xFF,
       bool host = false, uint8_t turnNumber = 0, const char *subtitle = nullptr);
   // Brass text (the Cinzel and Oswald bitmaps in brass_fonts.h). Baselines,

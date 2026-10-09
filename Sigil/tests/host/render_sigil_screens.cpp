@@ -129,15 +129,18 @@ MenuView compass(bool active) {
 
 int main(int argc, char **argv) {
   const auto theme = static_cast<TurnHubTheme::Id>(argc > 2 ? std::atoi(argv[2]) : 0);
+  const bool inverted = argc > 3 && std::atoi(argv[3]) != 0;
+  const std::string variant = inverted ? "-inverted" : "";
   const std::string dir = argc > 1 ? argv[1] : "screens";
 #ifdef TURNHUB_DISPLAY_OLED
   OledDisplay display;
-  const std::string prefix = dir + "/oled-" + TurnHubTheme::palette(theme).key + "-";
+  const std::string prefix = dir + "/oled-" + TurnHubTheme::palette(theme).key + variant + "-";
 #else
   EpaperDisplay display;
-  const std::string prefix = dir + "/eink-" + TurnHubTheme::palette(theme).key + "-";
+  const std::string prefix = dir + "/eink-" + TurnHubTheme::palette(theme).key + variant + "-";
 #endif
   display.setTheme(theme);
+  display.setInverted(inverted);
   display.begin();
   GFXcanvas1 &canvas = static_cast<GFXcanvas1 &>(display.previewGfx());
   int failures = 0;
@@ -378,6 +381,31 @@ int main(int argc, char **argv) {
   display.setTheme(TurnHubTheme::next(theme));
   display.showGame(sameGame);
   assert(panel.fullRefreshes == full+1 && panel.partialRefreshes == partial);
+  std::vector<uint16_t> before;
+  for (int16_t y = 0; y < canvas.height(); ++y)
+    for (int16_t x = 0; x < canvas.width(); ++x) before.push_back(canvas.getPixel(x,y));
+  display.setInverted(!inverted);
+  display.showGame(sameGame);
+  assert(panel.fullRefreshes == full+2 && panel.partialRefreshes == partial);
+  size_t pixel = 0;
+  for (int16_t y = 0; y < canvas.height(); ++y)
+    for (int16_t x = 0; x < canvas.width(); ++x)
+      assert(canvas.getPixel(x,y) != before[pixel++]);
+  display.showGame(sameGame);
+  assert(panel.fullRefreshes == full+2 && panel.partialRefreshes == partial);
+#else
+  display.setLifeOverlay(LifeOverlay());
+  const auto sameGame = game(true, 32);
+  display.showGame(sameGame);
+  std::vector<uint16_t> before;
+  for (int16_t y = 0; y < canvas.height(); ++y)
+    for (int16_t x = 0; x < canvas.width(); ++x) before.push_back(canvas.getPixel(x,y));
+  display.setInverted(!inverted);
+  display.showGame(sameGame);
+  size_t pixel = 0;
+  for (int16_t y = 0; y < canvas.height(); ++y)
+    for (int16_t x = 0; x < canvas.width(); ++x)
+      assert(canvas.getPixel(x,y) != before[pixel++]);
 #endif
   printf("%s\n", failures ? "FAILED" : "OK");
   return failures ? 1 : 0;

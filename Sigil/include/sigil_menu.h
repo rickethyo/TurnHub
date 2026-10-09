@@ -47,7 +47,8 @@ constexpr uint8_t MENU_LOCAL_DEVICE = MENU_MAX_ITEMS + 5;
 constexpr uint8_t MENU_LOCAL_MORE = MENU_MAX_ITEMS + 6;
 // Cycles the local display appearance without closing Menu; never sent to Atlas.
 constexpr uint8_t MENU_LOCAL_THEME = MENU_MAX_ITEMS + 7;
-static_assert(MENU_LOCAL_THEME < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+constexpr uint8_t MENU_LOCAL_INVERT = MENU_MAX_ITEMS + 8;
+static_assert(MENU_LOCAL_INVERT < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
 constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // The most Menu rows: every Atlas action but AdjustLife, then Device and Back.

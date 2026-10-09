@@ -16,6 +16,8 @@ void serviceAtlasDisplay(uint32_t nowMs);
 bool startAtlasScreenTest();
 TurnHubTheme::Id atlasDisplayTheme();
 bool chooseAtlasDisplayTheme(TurnHubTheme::Id theme);
+bool atlasDisplayInverted();
+bool chooseAtlasDisplayInverted(bool inverted);
 // Menu > Device Sleep (scheduled by handleSleepIntent, table_intents.cpp):
 // screen dark, outputs held off, then deep sleep until the screen is touched
 // (the XPT2046 pen interrupt, GPIO36) or BOOT (GPIO0) is pressed. Never

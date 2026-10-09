@@ -158,7 +158,7 @@ accessibility tools. Anyone at the table can read the code aloud.
 All four device themes keep these rules (2026-10-09). Graphite, Daylight and
 High contrast use Inter with tabular digits, measured against each existing
 text band. Atlas palettes come from the same design tokens as the app/portal;
-OLED Daylight reverses the ground and ink, while e-paper stays black on white.
+OLED Daylight reverses the ground and ink, while e-paper defaults to black on white (Invert swaps its polarity).
 Both monochrome panels preserve word/shape cues. Theme choices are device-local
 and persisted; they never change action timing or game authority. Atlas retains
 60 px touch targets. Device-theme rendering and cache invalidation are checked
@@ -442,3 +442,11 @@ For every user-facing feature, ask:
 The expected answer is **yes** whenever a practical alternative exists.
 
 Last established: 2026-09-20; implemented settings added 2026-09-24
+
+Device screen inversion (Atlas 0.7.5 / Sigil 0.9.17) is saved independently of
+theme. It preserves words, symbols, selected borders and touch/key targets; it
+does not change LED color/motion preferences. Every header has a distinct
+theme emblem. E-paper/OLED inversion is checked against opposite pixels in
+host previews; physical legibility and e-paper ghosting still need acceptance.
+Atlas QR codes retain black-on-white quiet zones so inverted UI does not affect
+scanning.
