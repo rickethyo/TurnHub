@@ -9,6 +9,13 @@ branch. A PR run tests GitHub's proposed merge with the base branch.
 
 ## Checks
 
+Persistent agent branch maintenance is a separate lightweight workflow:
+[agent-branches.yml](../../.github/workflows/agent-branches.yml). On master pushes
+it fast-forwards idle branches and reports divergent work without overwriting it.
+See [Agent workflow](AGENT_WORKFLOW.md). Agent-branch pushes do not run heavy CI;
+open a PR targeting master for the existing component-aware validation. Workflow
+and maintenance-script changes require CI, not `[skip ci]`.
+
 | Check name | Work performed |
 | --- | --- |
 | Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); portal pack builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |

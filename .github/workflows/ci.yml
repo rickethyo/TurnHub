@@ -99,6 +99,8 @@ jobs:
         run: bash Sigil/tests/host/run-linux.sh
       - name: Audit authoritative adapters
         run: python3 Atlas/tests/host/audit_adapters.py
+      - name: Persistent branch maintenance safety checks
+        run: python3 tools/scripts/test_sync_agent_branches.py
       # Reads the responses the Atlas host suites generate.
       - name: Validate generated responses and shared contracts
         if: env.ATLAS == 'true'

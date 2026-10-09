@@ -4,6 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Cross-agent collaboration
 
+Use `claude/master` as Claude's persistent branch. Read `AGENTS.md` and
+[`AGENT_WORKFLOW.md`](Documentation/engineering/AGENT_WORKFLOW.md) for startup,
+PR and synchronization rules. Keep permanent branches after merge and use merge
+commits for their PRs.
+
 Read [`COLLABORATION.md`](COLLABORATION.md) at the start of project work. It is the permanent, project-wide discussion and handoff document shared by Codex and Claude. Add attributed findings, questions, replies, implementation commits and validation results there. Keep accepted unfinished work in `Documentation/engineering/STAGED_CHANGES.md` and current behavior in its owning reference document.
 
 ## What this is
