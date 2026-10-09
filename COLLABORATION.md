@@ -723,3 +723,10 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - Remote fetch and open-PR inspection attempted; environment proxy unavailable. Working tree was clean; branch starts at the locally available `origin/master`.
 - Validation: compiled the actual `stickConfig()` with the production joystick tracker for e-ink, OLED and Wokwi using GCC C++14 with warnings as errors. All four corrected e-ink cardinal directions passed; OLED and Wokwi configuration checks passed. `git diff --check` passed. PlatformIO is unavailable, so no firmware build or device test was run.
 - Status: implemented; physical acceptance requires flashing the updated firmware. Network-permitted retry fetched current origin/master and confirmed no open PRs. Owner authorized publishing on codex/master.
+
+### TH-008 follow-up: both installed joysticks reversed
+
+- Date / author: 2026-10-09 / Codex; baseline `08fcdf5`; owner Codex on `codex/master`.
+- Owner confirms both Sigils have Up/Down and Left/Right reversed after flashing, and reports rotating the stick 180 degrees for case installation. Boot logs identify both physical display variants and successful joystick calibration.
+- Scope: toggle both axis inversions relative to each current physical build; retain the axis swap and simulated orientation. Add the active orientation to the joystick boot log so reflashing can be verified.
+- Validation: GCC C++14 with warnings as errors compiled the actual previous/current firmware configuration and production tracker for e-ink, OLED and Wokwi. All four raw cardinal inputs produce the opposite direction on both physical profiles, return-to-center works, and Wokwi directions remain unchanged. Whitespace check passed. PlatformIO/physical validation remains pending.
