@@ -1,6 +1,7 @@
 #pragma once
 
 #include "protocol.h"
+#include "device_theme.h"
 #include "sigil_menu.h"
 
 namespace TurnHubSigil {
@@ -48,6 +49,10 @@ class SigilDisplay {
  public:
   virtual ~SigilDisplay() = default;
   virtual void begin() = 0;
+  // Called only by setup or the display task; changing theme invalidates its caches.
+  virtual void setTheme(TurnHubTheme::Id theme) { theme_ = theme; }
+  TurnHubTheme::Id theme() const { return theme_; }
+  bool ornamental() const { return theme_ == TurnHubTheme::Id::Brass; }
   virtual void showBooting() = 0;
   virtual void showHardwareTest() {}
   virtual void showUnpaired() = 0;
@@ -98,6 +103,7 @@ class SigilDisplay {
   virtual bool handleCommand(const char *line) { (void)line; return false; }
 
  protected:
+  TurnHubTheme::Id theme_ = TurnHubTheme::Id::Graphite;
   MenuView menu_;
   LifeOverlay life_;
 };

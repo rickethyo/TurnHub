@@ -28,4 +28,6 @@ fi
 "$compiler" -std=c++17 -O1 -g -Wall -Wextra -fsanitize=address,undefined "${defines[@]}" \
   -Istubs -I../../include -I../../../shared/include -isystem "$lgfx" \
   render_atlas_screens.cpp ../../src/atlas_art.cpp build/lgfx/liblgfx.a -o build/render_atlas_screens
-./build/render_atlas_screens build/screens
+for theme in 0 1 2 3; do
+  ./build/render_atlas_screens build/screens "$theme"
+done

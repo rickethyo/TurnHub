@@ -3766,6 +3766,24 @@ static void touchDeviceScreen() {
 // Menu > Device Sleep (owner 2026-10-02): a tap, between games, from the
 // touchscreen only; Atlas sleeps once the notice has been shown.
 extern unsigned fixtureSleeps;
+static void touchThemeChoices() {
+  freshLobby(2); resetTouchControls(); openMenuScreen();
+  tapButton(TouchAction::OpenDevice); tapButton(TouchAction::OpenThemes);
+  const TouchAction choices[] = {TouchAction::ThemeGraphite, TouchAction::ThemeDaylight, TouchAction::ThemeBrass, TouchAction::ThemeContrast};
+  for (uint8_t i = 0; i < 4; ++i) {
+    const auto before = table().hubState;
+    tapButton(choices[i]);
+    const auto screen = currentScreen();
+    assert(screen.kind == ScreenKind::Themes && table().hubState == before);
+    assert(static_cast<uint8_t>(atlasDisplayTheme()) == i);
+    assert(screenButton(screen, choices[i])->selected);
+    for (uint8_t b = 0; b < screen.buttonCount; ++b) assert(screen.buttons[b].w >= 44 && screen.buttons[b].h >= 44);
+  }
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind == ScreenKind::Device);
+  tapButton(TouchAction::CloseScreen); assert(currentScreen().kind == ScreenKind::Menu);
+  assert(chooseAtlasDisplayTheme(TurnHubTheme::Id::Graphite));
+}
+
 static void touchDeviceSleep() {
   resetPresence(); resetTouchControls();
   freshLobby(2); fixtureSleeps=0; fixtureFactoryResets=0;
@@ -4437,6 +4455,7 @@ int main() {
   factoryResetFromPortal(); std::cout<<"PASS factory reset: admin verified at the table, seated/in-game refusal, Sigil told and forgotten, Atlas erase after the reply" << std::endl;
   bootButtonGestures(); std::cout<<"PASS BOOT button: quick press pairs, medium hold forgets all Sigils (seated kept), long hold factory resets Atlas even mid-match" << std::endl;
   touchDeviceScreen(); std::cout<<"PASS touchscreen Device screen: held Unpair Sigils (lobby, seated kept) and Factory reset (between games)" << std::endl;
+  touchThemeChoices(); std::cout<<"PASS theme picker: four independent choices, selected state, targets, Back and no game mutation" << std::endl;
   touchDeviceSleep(); std::cout<<"PASS touchscreen Device screen: Sleep (a tap, between games, touchscreen only)" << std::endl;
   autoSleepOnBattery(); std::cout<<"PASS auto sleep on the cell: idle between games, empty at any time" << std::endl;
   deviceManagement(); std::cout<<"PASS admin forget one/all Sigils, seated and in-game refusal, storage failure, pairing window setting\n";

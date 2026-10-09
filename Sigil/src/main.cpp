@@ -250,6 +250,9 @@ TaskHandle_t displayTaskHandle = nullptr;
 TurnHubProtocol::GameDisplayPacket pendingGameDisplay{};
 bool gameDisplayValid = false;
 portMUX_TYPE displayProfileMux = portMUX_INITIALIZER_UNLOCKED;
+TurnHubTheme::Id selectedTheme = TURNHUB_DISPLAY_OLED ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Daylight;
+TurnHubTheme::Id pendingTheme = selectedTheme;
+bool themeChanged = false;
 
 #if TURNHUB_OTA
 // Sigil OTA (sigil_updater.h). While an update runs, loop() is inside
@@ -484,6 +487,34 @@ void notifyDisplayTask() {
   }
 }
 
+void loadDisplayTheme() {
+  Preferences prefs;
+  if (prefs.begin("display", true)) {
+    const uint8_t stored = prefs.getUChar("theme", static_cast<uint8_t>(selectedTheme));
+    prefs.end();
+    if (TurnHubTheme::valid(stored)) selectedTheme = static_cast<TurnHubTheme::Id>(stored);
+  }
+  pendingTheme = selectedTheme;
+  sigilDisplay.setTheme(selectedTheme);
+}
+
+void cycleDisplayTheme() {
+  const auto next = TurnHubTheme::next(selectedTheme);
+  Preferences prefs;
+  if (!prefs.begin("display", false)) { Serial.println("SIGIL|THEME|STORE_ERROR"); return; }
+  const bool saved = prefs.putUChar("theme", static_cast<uint8_t>(next)) == 1;
+  prefs.end();
+  if (!saved) { Serial.println("SIGIL|THEME|STORE_ERROR"); return; }
+  selectedTheme = next;
+  portENTER_CRITICAL(&displayProfileMux);
+  pendingTheme = next;
+  themeChanged = true;
+  menuViewChanged = true;
+  portEXIT_CRITICAL(&displayProfileMux);
+  displayNeedsRefresh = true;
+  notifyDisplayTask();
+}
+
 void queueReadyDisplay() {
   portENTER_CRITICAL(&displayProfileMux);
   gameDisplayValid = false;
@@ -661,15 +692,28 @@ void updateDisplay() {
   static bool renderedGameValid = false;
   static bool pickerShown = false;
   static bool commanderShown = false;
+  portENTER_CRITICAL(&displayProfileMux);
+  const bool changedTheme = themeChanged;
+  const auto theme = pendingTheme;
+  themeChanged = false;
+  portEXIT_CRITICAL(&displayProfileMux);
+  if (changedTheme) {
+    sigilDisplay.setTheme(theme);
+    renderedGameValid = false;
+    pickerShown = false;
+    commanderShown = false;
+  }
   // Atlas lost replaces every screen. Once it answers again, redraw the last
   // state it sent (Atlas resends it too, but unchanged packets draw nothing).
   static bool lostDrawn = false;
   static bool codeDrawn = false;
+  if (changedTheme) { lostDrawn = false; codeDrawn = false; }
   static uint16_t drawnCode = 0;
   bool updateEnded = false;
 #if TURNHUB_OTA
   // A firmware update outranks every screen.
   static bool updateDrawn = false;
+  if (changedTheme) updateDrawn = false;
   char updateText[sizeof(updateScreenText)];
   portENTER_CRITICAL(&displayProfileMux);
   const bool updating = updateScreenActive;
@@ -1529,7 +1573,7 @@ uint32_t joystickPairStartMs = 0;
 uint8_t updateJoystickPair(uint32_t nowMs) {
   const bool down = keys[static_cast<uint8_t>(TurnHubSigil::Key::Select)].stableState == LOW;
   if (!down) joystickPairUsed = false;
-  const bool eligible = sigilId == UNASSIGNED_SIGIL_ID && !pairingActive &&
+  const bool eligible = sigilId == UNASSIGNED_SIGIL_ID && !pairingActive && !sigilMenu.deviceMenuOpen() &&
       pairingV2.state() != TurnHubSecureLink::SigilPairing::State::AwaitingConfirm;
   if (!down || !eligible || joystickPairUsed) {
     joystickPairHolding = false;
@@ -1587,6 +1631,7 @@ void updateMenuKeys() {
     if (!testing && released) waitForRelease = false;
     return;
   }
+  if (sigilId == UNASSIGNED_SIGIL_ID && !sigilMenu.active()) sigilMenu.setOffline();
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
   lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(!TURNHUB_DISPLAY_OLED, longPressMs));
   lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));
@@ -1663,7 +1708,9 @@ void updateMenuKeys() {
   commanderRepeatKey = 255;
   updateLife(nowMs);
   const TurnHubSigil::MenuChoice choice = sigilMenu.update(nowMs);
-  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
+  if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_THEME) {
+    cycleDisplayTheme();
+  } else if (choice.ready && static_cast<uint8_t>(choice.action) == TurnHubSigil::MENU_LOCAL_SLEEP) {
     // Chosen in the device menu: Atlas is not asked (it sees the Sigil go
     // quiet, as when it is unplugged).
     Serial.println("SIGIL|MENU|SLEEP");
@@ -2003,6 +2050,7 @@ void setup() {
   Serial.println("SIGIL|BOOT|UNASSIGNED|UNIFIED");
   runSecureLinkSelfTest();
   loadSavedPairing();
+  loadDisplayTheme();
   sigilDisplay.begin();
   // SPI startup configures its default MISO pin as INPUT; reclaim the pin
   // only after the write-only display has initialized and detached MISO.

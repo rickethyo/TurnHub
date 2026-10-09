@@ -35,6 +35,7 @@ class EpaperDisplay final : public SigilDisplay {
   EpaperDisplay();
 
   void begin() override;
+  void setTheme(TurnHubTheme::Id theme) override;
   void showBooting() override;
   void showHardwareTest() override;
   void showUnpaired() override;
@@ -60,6 +61,7 @@ class EpaperDisplay final : public SigilDisplay {
 #ifdef TURNHUB_SCREEN_PREVIEW
   // The host screen preview reads the canvas back (tests/host/render_sigil_screens.cpp).
   Adafruit_GFX &previewGfx() { return display_; }
+  GxEPD2_BW<EpdPanel, EpdPanel::HEIGHT> &previewPanel() { return display_; }
 #endif
 
   // Partial-refresh policy, adjustable at runtime for bench tuning (serial

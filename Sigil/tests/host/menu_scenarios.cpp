@@ -123,7 +123,7 @@ int main() {
         SigilMenu::bareAction(out, Key::Left) == id(A::CancelElimination));
     // Nothing else on offer: Menu is the Device entries.
     n = SigilMenu::menuEntries(0, e);
-    assert(n == 3 && e[0] == MENU_LOCAL_SLEEP && e[1] == MENU_LOCAL_UNPAIR && e[2] == MENU_LOCAL_FACTORY_RESET);
+    assert(n == 4 && e[0] == MENU_LOCAL_SLEEP && e[1] == MENU_LOCAL_UNPAIR && e[2] == MENU_LOCAL_FACTORY_RESET && e[3] == MENU_LOCAL_THEME);
     // Every offered action is reachable: on a bare key or in Menu.
     for (uint8_t a = 0; a < MENU_MAX_ITEMS; ++a) {
       if (a == id(A::AdjustLife)) continue;
@@ -200,6 +200,11 @@ int main() {
     dev.applyMenuState2(menu({A::Join}, A::Join, 1), 0);
     dev.keyDown(Key::Up, 0);  // Menu is the Device entries: nothing else offered.
     assert(dev.view().recovery && dev.keyAction(Key::Select) == MENU_LOCAL_SLEEP);
+    assert(dev.keyAction(Key::Down) == MENU_LOCAL_THEME);
+    dev.keyDown(Key::Down, 5);
+    const auto theme = dev.update(6);
+    assert(theme.ready && static_cast<uint8_t>(theme.action) == MENU_LOCAL_THEME && dev.deviceMenuOpen());
+    dev.keyUp(Key::Down, 7);
     dev.keyDown(Key::Select, 10);
     MenuChoice c = dev.update(20);
     assert(c.ready && static_cast<uint8_t>(c.action) == MENU_LOCAL_SLEEP && !dev.deviceMenuOpen());
@@ -373,7 +378,7 @@ int main() {
     oled.keyDown(Key::Down, 20);
     oled.keyDown(Key::Select, 30);  // Device.
     v = oled.view();
-    assert(v.recovery && v.rowCount == 4 && v.rows[0] == MENU_LOCAL_SLEEP && v.rows[3] == MENU_LOCAL_BACK);
+    assert(v.recovery && v.rowCount == 5 && v.rows[0] == MENU_LOCAL_SLEEP && v.rows[3] == MENU_LOCAL_THEME && v.rows[4] == MENU_LOCAL_BACK);
     oled.keyDown(Key::Left, 40);  // Back onto the Device row.
     v = oled.view();
     assert(!v.recovery && v.rows[v.cursor] == MENU_LOCAL_DEVICE);

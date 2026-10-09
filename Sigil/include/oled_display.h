@@ -13,6 +13,7 @@ class OledDisplay final : public SigilDisplay {
  public:
   explicit OledDisplay(const OledConfig &config = OLED_CONFIG) : config_(config) {}
   void begin() override;
+  void setTheme(TurnHubTheme::Id theme) override;
   void showBooting() override;
   void showHardwareTest() override;
   void showUnpaired() override;
@@ -40,6 +41,9 @@ class OledDisplay final : public SigilDisplay {
  private:
   enum class Align : uint8_t { Left, Center, Right };
 
+  uint16_t foreground() const { return theme() == TurnHubTheme::Id::Daylight ? SH110X_BLACK : SH110X_WHITE; }
+  uint16_t background() const { return theme() == TurnHubTheme::Id::Daylight ? SH110X_WHITE : SH110X_BLACK; }
+  void clearCanvas() { display_->clearDisplay(); display_->fillRect(0, 0, display_->width(), display_->height(), background()); }
   bool validConfig() const;
   int16_t text(const char *value, int16_t y, uint8_t maxSize, Align align,
       bool inverse = false, int16_t left = 0, int16_t right = -1);

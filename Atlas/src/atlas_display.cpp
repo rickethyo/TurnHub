@@ -377,8 +377,17 @@ void beginAtlasDisplay() {
   }
   tft.setRotation(AtlasConfig::TFT_ROTATION);
   tft.setBrightness(BACKLIGHT_ON);
+  TurnHub::OptionalPreferences themePrefs;
+  if (themePrefs.begin("display", true)) {
+    const String key = themePrefs.getString("theme", "graphite");
+    themePrefs.end();
+    for (uint8_t i = 0; i < static_cast<uint8_t>(TurnHubTheme::Id::Count); ++i) {
+      const auto id = static_cast<TurnHubTheme::Id>(i);
+      if (key == TurnHubTheme::palette(id).key) setAtlasArtTheme(id);
+    }
+  }
   const AtlasArtStatus art = beginAtlasArt(tft);
-  serialLog.println(art.fonts ? "ATLAS|DISPLAY|FONTS|BRASS" : "ATLAS|DISPLAY|FONTS|FALLBACK");
+  serialLog.println(art.fonts ? "ATLAS|DISPLAY|FONTS|THEMED" : "ATLAS|DISPLAY|FONTS|FALLBACK");
   if (!art.buffers) serialLog.println("ATLAS|DISPLAY|SPRITES|UNBUFFERED");
   drawAtlasSplash();
   displayStartedAtMs = millis();
@@ -487,6 +496,18 @@ void serviceAtlasDisplay(uint32_t nowMs) {
   AtlasScreen screen;
   buildAtlasScreen(nowMs, screen);
   renderAtlasScreen(screen, nowMs);
+}
+
+TurnHubTheme::Id atlasDisplayTheme() { return atlasArtTheme(); }
+bool chooseAtlasDisplayTheme(TurnHubTheme::Id theme) {
+  if (!TurnHubTheme::valid(static_cast<uint8_t>(theme))) return false;
+  TurnHub::OptionalPreferences prefs;
+  if (!prefs.begin("display", false)) return false;
+  const String key(TurnHubTheme::palette(theme).key);
+  const bool saved = prefs.putString("theme", key) == key.length();
+  prefs.end();
+  if (saved) setAtlasArtTheme(theme);
+  return saved;
 }
 
 bool startAtlasScreenTest() {

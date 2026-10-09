@@ -41,11 +41,13 @@ constexpr uint8_t MENU_LOCAL_UNPAIR = MENU_MAX_ITEMS + 3;
 // Deep sleep until the joystick is clicked (main.cpp's enterSleep). A tap:
 // nothing is lost, and the Sigil reconnects when it wakes.
 constexpr uint8_t MENU_LOCAL_SLEEP = MENU_MAX_ITEMS + 4;
-// Opens the Device entries (Sleep, Unpair, Factory reset).
+// Opens the Device entries (Sleep, Unpair, Factory reset, Theme).
 constexpr uint8_t MENU_LOCAL_DEVICE = MENU_MAX_ITEMS + 5;
 // E-ink only: the next page of Menu.
 constexpr uint8_t MENU_LOCAL_MORE = MENU_MAX_ITEMS + 6;
-static_assert(MENU_LOCAL_MORE < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
+// Cycles the local display appearance without closing Menu; never sent to Atlas.
+constexpr uint8_t MENU_LOCAL_THEME = MENU_MAX_ITEMS + 7;
+static_assert(MENU_LOCAL_THEME < TurnHubProtocol::SIGIL_ACTION_NONE, "menu ids must stay below MENU_NONE");
 constexpr uint32_t MENU_UNPAIR_HOLD_MS = 3000;
 constexpr uint32_t MENU_FACTORY_RESET_HOLD_MS = 5000;
 // The most Menu rows: every Atlas action but AdjustLife, then Device and Back.

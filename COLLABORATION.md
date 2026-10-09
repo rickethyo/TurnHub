@@ -31,6 +31,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
+| TH-006 | Shared themes on device screens | Atlas, Sigil, design | Locally verified; ready for review | Codex / codex/device-screen-themes |
 | TH-005 | Atlas host CI display fixture | Atlas host tests | Fixed and locally validated | Codex / codex/fix-atlas-host-ci |
 | TH-004 | Collaboration lessons from device-play follow-ups | Review style, Android, import, documentation | Codex reflection recorded; shared habits proposed | Future agents / apply evidence-first review; Claude may reply |
 
@@ -590,3 +591,30 @@ Those questions remain open; Claude can append a response under TH-004.
 - Evidence: Atlas host application fails to link `TurnHubAtlas::startAtlasScreenTest()` called from `main.cpp`.
 - Validation: Atlas application, storage, profile-store and OTA suites passed with ASan/UBSan (`ASAN_OPTIONS=detect_leaks=0`; LeakSanitizer cannot run under this workspace tracing). Generated responses/shared contracts, adapter audit, design tokens, portal pack and manual asset checks passed. No hardware acceptance performed.
 - Implementation: commit on `codex/fix-atlas-host-ci` titled "Fix Atlas host screen-test fixture"; GitHub CI confirmation pending.
+
+## TH-006: Shared themes on device screens
+
+- Date / author: 2026-10-09 / Codex.
+- Reviewed baseline: `f3c559e` plus host CI fixture `c8472c2`.
+- Status: active; owner authorized implementation for tonight.
+- Scope / owner: Codex on `codex/device-screen-themes`; shared generated palettes, Inter display fonts, four Atlas themes, monochrome Sigil adaptations and theme selection.
+- Feature boundary: presentation state owned by each device; local theme selection validates the generated theme IDs, device NVS persists the choice, existing display tasks render it. Game/table authority, game Intents and radio contracts stay with Atlas. No new third-party font family (Inter is already licensed in design/fonts); preserve word/shape cues and existing input targets.
+- Validation plan: real-renderer PNG previews and incremental redraw checks, host sanitizer suites/contracts, all supported firmware builds, documentation and firmware size evidence. Physical panel readability and e-paper ghosting require device acceptance.
+
+### TH-006 implementation / Codex, 2026-10-09
+
+- Owner chose independent device themes and permitted a light OLED ground.
+- Implemented four Atlas token palettes with a local picker; modern Inter type and flat cards, Brass decoration retained, teal active-turn emphasis. OLED Daylight is dark-on-light. E-paper keeps a light ground and adapts type, cards and borders; color-only palettes necessarily converge in one bit.
+- Sigil Theme cycles locally and remains in Menu, names the current choice and saves only successful NVS writes. Local menus work unpaired/offline; pairing holds are suppressed while the menu owns the joystick. Theme changes are handed to the display task and force a first full e-paper redraw.
+- Modern digits are centered in equal-width cells. Host OLED scenarios cover every theme with signed/large totals and light-background legend updates; Atlas scenarios cover all choices, selected frames, target sizes and Back navigation. E-paper preview checks unchanged-packet caching and full redraw after a theme change.
+- Initial host suites, real-renderer previews (all themes) and firmware builds passed. Final versions: Atlas 0.7.4-dev, Sigil 0.9.15-dev. Manual advanced to V0.13 and its Android asset regenerated; V0.12 preserved in archive. Physical-panel contrast, OLED current and e-paper ghosting remain device acceptance.
+
+TH-006 final local validation: all four configured firmware targets passed;
+Atlas and Sigil ASan/UBSan suites passed (`detect_leaks=0` for the workspace's
+tracing restriction). All four theme variants passed real-renderer previews;
+Atlas incremental/full comparisons had zero differing pixels. Client contracts,
+adapter audit, design-token freshness/contrast, portal pack and manual asset
+checks passed. Footprints are recorded in `Documentation/engineering/history/SIZE_AND_CHANGE_HISTORY.md`.
+The generated modern font headers were regenerated from the checked-in Inter
+source. Source review found and corrected a dark-on-dark Brass gauge face.
+Device acceptance remains outstanding; no hardware was flashed.

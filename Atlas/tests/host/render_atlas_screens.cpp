@@ -169,8 +169,14 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   device.kind = ScreenKind::Device;
   row(device, BUTTON_UPPER_ROW_Y, {{TouchAction::UnpairSigils, "Unpair Sigils", 3000, 1},
       {TouchAction::FactoryResetAtlas, "Factory reset", 10000, 1}});
-  row(device, BUTTON_ROW_Y, {{TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}});
+  row(device, BUTTON_ROW_Y, {{TouchAction::OpenThemes, "Theme", 0, 1}, {TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}});
   out.push_back({"device", device});
+
+  AtlasScreen themes = base("THEME", "Screen theme", "Choose the look for this Atlas");
+  themes.kind = ScreenKind::Themes;
+  row(themes, BUTTON_UPPER_ROW_Y, {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}});
+  row(themes, BUTTON_ROW_Y, {{TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 2}, {TouchAction::CloseScreen, "Back", 0, 1}});
+  out.push_back({"themes", themes});
 
   AtlasScreen sleeping = device;
   text(sleeping.notice, sizeof(sleeping.notice), "Going to sleep. Touch the screen to wake");
@@ -266,6 +272,7 @@ int checkIncremental(lgfx::LGFX_Sprite &sprite, const char *name, const AtlasScr
 }  // namespace
 
 int main(int argc, char **argv) {
+  const auto theme = static_cast<TurnHubTheme::Id>(argc > 2 ? std::atoi(argv[2]) : 0);
   const std::string outDir = argc > 1 ? argv[1] : "build/screens";
   lgfx::LGFX_Sprite sprite;
   sprite.setColorDepth(16);
@@ -277,12 +284,13 @@ int main(int argc, char **argv) {
   }
   constexpr uint32_t NOW = 123456;
 
+  setAtlasArtTheme(theme);
   drawAtlasSplash();
-  int failures = writePng(sprite, outDir + "/splash.png") ? 0 : 1;
+  int failures = writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + "-splash.png") ? 0 : 1;
   for (const auto &scene : scenes()) {
     invalidateAtlasScreen();
     renderAtlasScreen(scene.second, NOW);
-    if (!writePng(sprite, outDir + "/" + scene.first + ".png")) {
+    if (!writePng(sprite, outDir + "/" + TurnHubTheme::palette(theme).key + "-" + scene.first + ".png")) {
       printf("FAIL writing %s\n", scene.first.c_str());
       ++failures;
     }

@@ -5,6 +5,8 @@
 // render-sigil-screens.sh.
 
 #include <cstdio>
+#include <cstdlib>
+#include <cassert>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -126,14 +128,16 @@ MenuView compass(bool active) {
 }  // namespace
 
 int main(int argc, char **argv) {
+  const auto theme = static_cast<TurnHubTheme::Id>(argc > 2 ? std::atoi(argv[2]) : 0);
   const std::string dir = argc > 1 ? argv[1] : "screens";
 #ifdef TURNHUB_DISPLAY_OLED
   OledDisplay display;
-  const std::string prefix = dir + "/oled-";
+  const std::string prefix = dir + "/oled-" + TurnHubTheme::palette(theme).key + "-";
 #else
   EpaperDisplay display;
-  const std::string prefix = dir + "/eink-";
+  const std::string prefix = dir + "/eink-" + TurnHubTheme::palette(theme).key + "-";
 #endif
+  display.setTheme(theme);
   display.begin();
   GFXcanvas1 &canvas = static_cast<GFXcanvas1 &>(display.previewGfx());
   int failures = 0;
@@ -363,6 +367,18 @@ int main(int argc, char **argv) {
 #endif
   display.setMenuView(MenuView());
 
+#ifndef TURNHUB_DISPLAY_OLED
+  display.setLifeOverlay(LifeOverlay());
+  const auto sameGame = game(true, 32);
+  display.showGame(sameGame);
+  auto &panel = display.previewPanel();
+  const int full = panel.fullRefreshes, partial = panel.partialRefreshes;
+  display.showGame(sameGame);
+  assert(panel.fullRefreshes == full && panel.partialRefreshes == partial);
+  display.setTheme(TurnHubTheme::next(theme));
+  display.showGame(sameGame);
+  assert(panel.fullRefreshes == full+1 && panel.partialRefreshes == partial);
+#endif
   printf("%s\n", failures ? "FAILED" : "OK");
   return failures ? 1 : 0;
 }

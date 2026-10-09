@@ -225,8 +225,8 @@ int main() {
     m.keyDown(Key::Select, 3200); m.keyUp(Key::Select, 3210);
     d.setMenuView(m.view());
     resetTrace(); d.showState(0, DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
-    assert(highlighted("DEVICE") && has("1/4") && highlighted("Sleep") && has("Unpair (hold)") &&
-        has("Factory reset (hold)") && has("Back"));
+    assert(highlighted("DEVICE") && has("1/5") && highlighted("Sleep") && has("Unpair (hold)") &&
+        has("Factory reset (hold)") && has("Theme: Graphite"));
     m.keyDown(Key::Down, 3300); m.keyUp(Key::Down, 3310);
     m.keyDown(Key::Down, 3320); m.keyUp(Key::Down, 3330);
     m.keyDown(Key::Select, 3400);
@@ -305,6 +305,29 @@ int main() {
         lifeHeartLook(20, 40).fill == 127 && lifeHeartLook(40, 40).fill == 255 &&
         lifeHeartLook(40, 40).sizePercent == 100 && lifeHeartLook(60, 40).sizePercent == 125 &&
         lifeHeartLook(500, 40).sizePercent == 150 && lifeHeartLook(7, 0).fill == 255);
+  }
+  // Real text/shape bounds and polarity for every theme, including extreme
+  // life totals and a legend that redraws in place on a light background.
+  for (uint8_t i = 0; i < static_cast<uint8_t>(TurnHubTheme::Id::Count); ++i) {
+    resetTrace(); OledDisplay themed(fixture());
+    const auto theme = static_cast<TurnHubTheme::Id>(i);
+    themed.setTheme(theme); themed.begin();
+    SigilMenu menu(MenuStyle::List);
+    menu.applyMenuState2(encodeMenuState2({sigilActionBit(SigilAction::Pass) | sigilActionBit(SigilAction::AdjustLife), 0, 0}), 0);
+    themed.setMenuView(menu.view());
+    for (int32_t total : {-1000000, 0, 1, 40, 1000000}) {
+      GameDisplayPacket game{}; game.sigilId = 0;
+      game.state = encodeDisplayState(DisplayMode::Running, 1, 0, 1, DISPLAY_FLAG_ACTIVE);
+      std::strcpy(game.primary.name, "Michael12345"); game.primary.life = total;
+      themed.showGame(game);
+      const int onBanner = theme == TurnHubTheme::Id::Daylight ? SH110X_WHITE : SH110X_BLACK;
+      bool turn = false;
+      for (const auto &line : panel.lines) if (line.text == "YOUR TURN" && line.color == onBanner) turn = true;
+      assert(turn);
+      themed.idleWork(10000); // Erases and redraws the bottom legend in its theme ground.
+    }
+    themed.setTheme(static_cast<TurnHubTheme::Id>(255));
+    assert(themed.theme() == TurnHubTheme::Id::Graphite);
   }
   std::cout << "OLED configuration, failure, lifecycle, shared-seat and numeric-bound scenarios passed\n";
 }

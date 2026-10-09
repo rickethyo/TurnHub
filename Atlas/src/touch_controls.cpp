@@ -13,6 +13,7 @@
 
 #include "atlas_app.h"
 #include "atlas_battery.h"
+#include "atlas_display.h"
 #include "controller_profiles.h"
 #include "firmware_version.h"
 #include "harness_link.h"
@@ -192,7 +193,7 @@ ScreenKind activeScreen(uint32_t nowMs) {
     openScreen = ScreenKind::Status;
     concedeArmed = false;
   }
-  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device) && !menuAvailable()) {
+  if ((openScreen == ScreenKind::Menu || openScreen == ScreenKind::Device || openScreen == ScreenKind::Themes) && !menuAvailable()) {
     openScreen = ScreenKind::Status;
   }
   if (pendingPresenceCode(nowMs) != nullptr) return ScreenKind::Code;
@@ -231,8 +232,20 @@ void layoutDevice(AtlasScreen &screen) {
   if (table().hubState == HubState::Lobby) upper[n++] = {TouchAction::UnpairSigils, "Unpair Sigils", DEVICE_UNPAIR_HOLD_MS, 1};
   upper[n++] = {TouchAction::FactoryResetAtlas, "Factory reset", DEVICE_RESET_HOLD_MS, 1};
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
-  const ButtonSpec lower[] = {{TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
-  addRow(screen, BUTTON_ROW_Y, lower, 2);
+  const ButtonSpec lower[] = {{TouchAction::OpenThemes, "Theme", 0, 1}, {TouchAction::SleepAtlas, "Sleep", 0, 1}, {TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_ROW_Y, lower, 3);
+}
+
+void layoutThemes(AtlasScreen &screen) {
+  const ButtonSpec upper[] = {{TouchAction::ThemeGraphite, "Graphite", 0, 1}, {TouchAction::ThemeDaylight, "Daylight", 0, 1}};
+  const ButtonSpec lower[] = {{TouchAction::ThemeBrass, "Brass", 0, 1}, {TouchAction::ThemeContrast, "High contrast", 0, 2}, {TouchAction::CloseScreen, "Back", 0, 1}};
+  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 2);
+  addRow(screen, BUTTON_ROW_Y, lower, 3);
+  for (uint8_t i = 0; i < screen.buttonCount; ++i) {
+    auto &button = screen.buttons[i];
+    if (button.action >= TouchAction::ThemeGraphite && button.action <= TouchAction::ThemeContrast)
+      button.selected = static_cast<uint8_t>(button.action) - static_cast<uint8_t>(TouchAction::ThemeGraphite) == static_cast<uint8_t>(atlasDisplayTheme());
+  }
 }
 
 // In-game controls kept off the main row: Master pass (a stuck turn, running
@@ -340,6 +353,7 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
     case ScreenKind::Menu:
       layoutMenu(screen, nowMs);
       return;
+    case ScreenKind::Themes: layoutThemes(screen); return;
     case ScreenKind::Device:
       layoutDevice(screen);
       return;
@@ -484,6 +498,11 @@ const char *actionName(TouchAction action) {
     case TouchAction::SetupPair: return "SETUP_PAIR";
     case TouchAction::SetupDone: return "SETUP_DONE";
     case TouchAction::OpenDevice: return "OPEN_DEVICE";
+    case TouchAction::OpenThemes: return "OPEN_THEMES";
+    case TouchAction::ThemeGraphite: return "THEME_GRAPHITE";
+    case TouchAction::ThemeDaylight: return "THEME_DAYLIGHT";
+    case TouchAction::ThemeBrass: return "THEME_BRASS";
+    case TouchAction::ThemeContrast: return "THEME_CONTRAST";
     case TouchAction::UnpairSigils: return "UNPAIR_SIGILS";
     case TouchAction::FactoryResetAtlas: return "FACTORY_RESET_ATLAS";
     case TouchAction::SleepAtlas: return "SLEEP_ATLAS";
@@ -532,6 +551,16 @@ bool navigate(TouchAction action) {
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
     case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
+    case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
+    case TouchAction::ThemeGraphite:
+    case TouchAction::ThemeDaylight:
+    case TouchAction::ThemeBrass:
+    case TouchAction::ThemeContrast: {
+      const auto id = static_cast<TurnHubTheme::Id>(static_cast<uint8_t>(action) - static_cast<uint8_t>(TouchAction::ThemeGraphite));
+      const bool saved = chooseAtlasDisplayTheme(id);
+      if (!saved) showNotice(millis(), "Theme could not be saved");
+      return true;
+    }
     case TouchAction::OpenDevice: openScreen = ScreenKind::Device; return true;
     case TouchAction::OpenPlayer:
       openScreen = ScreenKind::Player;
@@ -544,6 +573,7 @@ bool navigate(TouchAction action) {
     case TouchAction::CloseScreen:
     case TouchAction::CloseTests: {
       concedeArmed = false;
+      if (openScreen == ScreenKind::Themes) { openScreen = ScreenKind::Device; return true; }
       const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
           openScreen == ScreenKind::Tests || openScreen == ScreenKind::Device;
       openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
@@ -1271,6 +1301,11 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
     case ScreenKind::PairCode: formatPairCode(screen, nowMs); break;
     case ScreenKind::Table: formatTable(screen, nowMs); break;
     case ScreenKind::Menu: formatMenu(screen); break;
+    case ScreenKind::Themes:
+      snprintf(screen.badge, sizeof(screen.badge), "THEME");
+      snprintf(screen.title, sizeof(screen.title), "%s", TurnHubTheme::palette(atlasDisplayTheme()).label);
+      snprintf(screen.detail, sizeof(screen.detail), "Choose the look for this Atlas");
+      break;
     case ScreenKind::Device: formatDevice(screen); break;
     case ScreenKind::Player: formatPlayer(screen, nowMs); break;
     case ScreenKind::Setup: formatSetup(screen, nowMs); break;

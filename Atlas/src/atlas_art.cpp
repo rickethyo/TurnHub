@@ -1,4 +1,4 @@
-// Atlas touchscreen art: the Brass theme's drawing of the AtlasScreen
+// Atlas touchscreen art: the selected theme's drawing of the AtlasScreen
 // (touch_controls.h) and the splash, onto any LovyanGFX target: the panel on
 // the device (atlas_display.cpp), a sprite in the host preview
 // (tests/host/render_atlas_screens.cpp). Presentation only; firmware and the
@@ -16,9 +16,36 @@
 
 #include "avatars.h"
 #include "brass_fonts.h"
+#include "modern_fonts.h"
 #include "firmware_version.h"
 
 namespace TurnHubAtlas {
+
+uint32_t WALNUT = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).bg;
+uint32_t PLATE = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).surface1;
+uint32_t PLATE_HI = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).turnSoft;
+uint32_t LINE = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).separatorStrong;
+uint32_t LINE_OUT = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).separator;
+uint32_t LINE_HI = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).accent;
+uint32_t BRASS = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).accent;
+uint32_t BRASS_HI = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).accent;
+uint32_t BRASS_LO = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).accentPressed;
+uint32_t BRASS_DEEP = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).separatorStrong;
+uint32_t CREAM = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).text;
+uint32_t MUTED = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).textSecondary;
+uint32_t FAINT = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).textTertiary;
+uint32_t INK = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).onAccent;
+uint32_t DIAL = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).surface2;
+uint32_t DIAL_INK = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).text;
+uint32_t TUBE = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).surface3;
+uint32_t DANGER = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).critical;
+uint32_t DANGER_DEEP = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).surface3;
+uint32_t UPDATE_BLUE = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).info;
+uint32_t UPDATE_BLUE_EDGE = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).surface3;
+uint32_t DIM = TurnHubTheme::palette(TurnHubTheme::Id::Graphite).textTertiary;
+
+static TurnHubTheme::Id artTheme = TurnHubTheme::Id::Graphite;
+static bool ornamental() { return artTheme == TurnHubTheme::Id::Brass; }
 
 namespace {
 
@@ -61,14 +88,14 @@ using Gfx = lgfx::LovyanGFX;  // The panel and its sprites alike.
 Gfx *target = nullptr;
 Gfx &tft() { return *target; }
 
-// A Brass font, loaded once from flash. Falls back to a DejaVu size if its
+// A selected display font, loaded from flash. Falls back to a DejaVu size if its
 // VLW data cannot be read, so text always shows.
-struct BrassFont {
+struct DisplayFont {
   lgfx::PointerWrapper data;
   lgfx::VLWfont font;
   const lgfx::IFont *fallback;
   bool ready = false;
-  explicit BrassFont(const lgfx::IFont *fb) : fallback(fb) {}
+  explicit DisplayFont(const lgfx::IFont *fb) : fallback(fb) {}
   void load(const uint8_t *vlw, size_t size) {
     data.set(vlw, size);
     ready = font.loadFont(&data);
@@ -76,14 +103,14 @@ struct BrassFont {
   const lgfx::IFont *get() const { return ready ? static_cast<const lgfx::IFont *>(&font) : fallback; }
 };
 
-BrassFont titleFont(&fonts::DejaVu24);
-BrassFont labelFont(&fonts::DejaVu18);
-BrassFont nameFont(&fonts::DejaVu12);
-BrassFont tagFont(&fonts::DejaVu9);
-BrassFont numeralsFont(&fonts::DejaVu24);
-BrassFont clockFont(&fonts::DejaVu12);
-BrassFont codeFont(&fonts::DejaVu40);
-BrassFont wordmarkFont(&fonts::DejaVu40);
+DisplayFont titleFont(&fonts::DejaVu24);
+DisplayFont labelFont(&fonts::DejaVu18);
+DisplayFont nameFont(&fonts::DejaVu12);
+DisplayFont tagFont(&fonts::DejaVu9);
+DisplayFont numeralsFont(&fonts::DejaVu24);
+DisplayFont clockFont(&fonts::DejaVu12);
+DisplayFont codeFont(&fonts::DejaVu40);
+DisplayFont wordmarkFont(&fonts::DejaVu40);
 
 bool loadBrassFonts() {
   titleFont.load(BrassFonts::TitleVlw, BrassFonts::TitleVlwSize);
@@ -133,6 +160,7 @@ uint32_t brassRow(int16_t row, int16_t height) {
 }
 
 void rivet(Gfx &g, int16_t x, int16_t y) {
+  if (!ornamental()) return;
   g.fillCircle(x, y, 2, BRASS_DEEP);
   g.fillCircle(x, y, 1, BRASS);
   g.drawPixel(x - 1, y - 1, BRASS_HI);
@@ -140,6 +168,7 @@ void rivet(Gfx &g, int16_t x, int16_t y) {
 
 // A rivet pressed into brass: a dark dot with a bright speck.
 void brassRivet(Gfx &g, int16_t x, int16_t y) {
+  if (!ornamental()) return;
   g.fillCircle(x, y, 2, BRASS_LO);
   g.fillCircle(x, y, 1, BRASS_DEEP);
   g.drawPixel(x - 1, y - 1, BRASS_HI);
@@ -149,6 +178,11 @@ void brassRivet(Gfx &g, int16_t x, int16_t y) {
 // angle degrees, and an axle hole.
 void gear(Gfx &g, int16_t cx, int16_t cy, int16_t r, uint8_t teeth, float angle, uint32_t color,
     int16_t hole, uint32_t holeColor) {
+  if (!ornamental()) {
+    g.drawCircle(cx, cy, r, color);
+    g.fillTriangle(cx - r/4, cy - r/3, cx - r/4, cy + r/3, cx + r/3, cy, color);
+    return;
+  }
   const float root = r * 0.76f;
   g.fillCircle(cx, cy, static_cast<int32_t>(root + 0.5f), color);
   const float step = 360.0f / teeth;
@@ -177,7 +211,7 @@ void plate(Gfx &g, int16_t x, int16_t y, int16_t w, int16_t h, uint32_t fill, ui
   g.fillRoundRect(x, y, w, h, 5, fill);
   g.drawRoundRect(x, y, w, h, 5, frame);
   g.drawFastHLine(x + 5, y + 1, w - 10, mix(fill, CREAM, 22));
-  if (rivets) {
+  if (rivets && ornamental()) {
     rivet(g, x + 5, y + 5);
     rivet(g, x + w - 6, y + 5);
     rivet(g, x + 5, y + h - 6);
@@ -189,6 +223,7 @@ void plate(Gfx &g, int16_t x, int16_t y, int16_t w, int16_t h, uint32_t fill, ui
 // shaded bottom edge, a dark rim and pressed-in rivets.
 void brassFace(Gfx &g, int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, uint32_t face) {
   g.fillRoundRect(x, y, w, h, r, face);
+  if (!ornamental()) { g.drawRoundRect(x, y, w, h, r, LINE_HI); return; }
   g.drawFastHLine(x + r, y + 1, w - 2 * r, mix(face, BRASS_HI, 200));
   g.drawFastHLine(x + r, y + 2, w - 2 * r, mix(face, BRASS_HI, 110));
   g.drawFastHLine(x + r, y + h - 3, w - 2 * r, mix(face, BRASS_LO, 120));
@@ -202,6 +237,7 @@ void brassFace(Gfx &g, int16_t x, int16_t y, int16_t w, int16_t h, int16_t r, ui
 
 // A small diamond, the Brass look's separator.
 void diamond(Gfx &g, int16_t cx, int16_t cy, int16_t r, uint32_t color) {
+  if (!ornamental()) return;
   g.fillTriangle(cx - r, cy, cx, cy - r, cx + r, cy, color);
   g.fillTriangle(cx - r, cy, cx, cy + r, cx + r, cy, color);
 }
@@ -236,9 +272,9 @@ const lgfx::IFont *fitFont(const char *text, int16_t width) {
   return &fonts::DejaVu9;
 }
 
-// Largest Brass size that fits: label, then name, then tag.
-const lgfx::IFont *fitBrass(Gfx &g, const char *text, int16_t width) {
-  for (const BrassFont *font : {&labelFont, &nameFont, &tagFont}) {
+// Largest selected display size that fits: label, then name, then tag.
+const lgfx::IFont *fitDisplay(Gfx &g, const char *text, int16_t width) {
+  for (const DisplayFont *font : {&labelFont, &nameFont, &tagFont}) {
     g.setFont(font->get());
     if (g.textWidth(text) <= width) return font->get();
   }
@@ -295,20 +331,23 @@ bool hasClock(const AtlasScreen &screen) {
 }
 
 bool gearTurning(const AtlasScreen &screen) {
-  return screen.kind == ScreenKind::Status && strcmp(screen.badge, "PLAYING") == 0;
+  return ornamental() && screen.kind == ScreenKind::Status && strcmp(screen.badge, "PLAYING") == 0;
 }
 
 // The header's text is transparent (blended onto the brass) in the buffer,
 // and set on flat brass when drawn straight to the panel.
 void headerInk(Gfx &g, uint32_t ink, bool buffered) {
   if (buffered) g.setTextColor(ink);
-  else g.setTextColor(ink, BRASS);
+  else g.setTextColor(ink, ornamental() ? BRASS : PLATE);
 }
 
 // Draws the header with its top at y = oy (negative for a lower band).
 void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffered, int16_t oy) {
   constexpr int16_t H = SCREEN_HEADER_H;
-  if (buffered) {
+  if (!ornamental()) {
+    g.fillRect(0, oy, W, H, PLATE);
+    g.drawFastHLine(0, oy + H - 1, W, LINE);
+  } else if (buffered) {
     for (int16_t y = 0; y < H - 2; ++y) g.drawFastHLine(0, oy + y, W, brassRow(y, H - 2));
   } else {
     g.fillRect(0, oy, W, H - 2, BRASS);
@@ -325,7 +364,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
 
   g.setFont(labelFont.get());
   g.setTextDatum(lgfx::middle_left);
-  headerInk(g, INK, buffered);
+  headerInk(g, ornamental() ? INK : CREAM, buffered);
   g.drawString(screen.badge, 35, oy + H / 2);
   const int16_t leftLimit = 35 + g.textWidth(screen.badge) + 12;
 
@@ -335,7 +374,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     g.setFont(&fonts::DejaVu9);
     const int16_t w = g.textWidth("NO SD CARD") + 12;
     g.fillRoundRect(right - w, oy + 5, w, 15, 3, DANGER_DEEP);
-    g.drawRoundRect(right - w, oy + 5, w, 15, 3, 0x3A0A06);
+    g.drawRoundRect(right - w, oy + 5, w, 15, 3, DANGER);
     g.setTextDatum(lgfx::middle_center);
     g.setTextColor(CREAM, DANGER_DEEP);
     g.drawString("NO SD CARD", right - w / 2, oy + 13);
@@ -347,7 +386,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     g.setFont(&fonts::DejaVu9);
     const int16_t w = g.textWidth("LOW BATTERY") + 12;
     g.fillRoundRect(right - w, oy + 5, w, 15, 3, DANGER_DEEP);
-    g.drawRoundRect(right - w, oy + 5, w, 15, 3, 0x3A0A06);
+    g.drawRoundRect(right - w, oy + 5, w, 15, 3, DANGER);
     g.setTextDatum(lgfx::middle_center);
     g.setTextColor(CREAM, DANGER_DEEP);
     g.drawString("LOW BATTERY", right - w / 2, oy + 13);
@@ -368,7 +407,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     g.fillRoundRect(right - w, oy + 5, w, 15, 3, UPDATE_BLUE);
     g.drawRoundRect(right - w, oy + 5, w, 15, 3, UPDATE_BLUE_EDGE);
     g.setTextDatum(lgfx::middle_center);
-    g.setTextColor(CREAM, UPDATE_BLUE);
+    g.setTextColor(TurnHubTheme::palette(artTheme).bg, UPDATE_BLUE);
     g.drawString(words, right - w / 2, oy + 13);
     right -= w + 8;
   }
@@ -398,7 +437,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     char charge[6];
     snprintf(charge, sizeof(charge), "%d%%", static_cast<int>(percent));
     g.setFont(nameFont.get());
-    headerInk(g, INK, buffered);
+    headerInk(g, ornamental() ? INK : CREAM, buffered);
     g.drawString(charge, cx - 4, oy + H / 2);
     right = cx - 4 - g.textWidth(charge) - 8;
   }
@@ -414,7 +453,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
   if (round[0]) {
     if (clockW && right - gameW >= leftLimit) {
       g.setFont(clockFont.get());
-      headerInk(g, INK, buffered);
+      headerInk(g, ornamental() ? INK : CREAM, buffered);
       g.drawString(screen.gameClock, right, oy + H / 2);
       right -= clockW + 7;
       diamond(g, right, oy + H / 2 - 1, 2, BRASS_DEEP);
@@ -422,7 +461,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
     }
     if (right - roundW >= leftLimit) {
       g.setFont(nameFont.get());
-      headerInk(g, INK, buffered);
+      headerInk(g, ornamental() ? INK : CREAM, buffered);
       g.drawString(round, right, oy + H / 2);
       right -= roundW;
     }
@@ -440,7 +479,7 @@ void drawHeaderTo(Gfx &g, const AtlasScreen &screen, uint32_t nowMs, bool buffer
   if (sigilsX < leftLimit) sigilsX = leftLimit;
   if (sigilsX + sigilsW <= right - 12) {
     g.setTextDatum(lgfx::middle_left);
-    headerInk(g, INK, buffered);
+    headerInk(g, ornamental() ? INK : CREAM, buffered);
     g.drawString(sigils, sigilsX, oy + H / 2);
   }
 }
@@ -529,6 +568,19 @@ void drawGaugeTo(Gfx &g, int16_t ox, int16_t oy, const AtlasScreen &screen, bool
   const int16_t cx = ox + GAUGE_W / 2, cy = oy + GAUGE_H / 2 + 1;
   constexpr int16_t R = 22;
   g.fillRect(ox, oy, GAUGE_W, GAUGE_H, WALNUT);
+  if (!ornamental()) {
+    const auto &p = TurnHubTheme::palette(artTheme);
+    g.fillRoundRect(ox + 2, oy + 3, GAUGE_W - 4, GAUGE_H - 6, 8, PLATE);
+    g.drawRoundRect(ox + 2, oy + 3, GAUGE_W - 4, GAUGE_H - 6, 8, warn ? p.warning : p.turn);
+    g.setTextDatum(lgfx::middle_center);
+    g.setFont(clockFont.get());
+    g.setTextColor(warn ? p.warning : p.turn, PLATE);
+    g.drawString(screen.clock, ox + GAUGE_W/2, oy + GAUGE_H/2 - 3);
+    g.setFont(tagFont.get());
+    g.setTextColor(MUTED, PLATE);
+    g.drawString(warn ? "LOW TIME" : "TURN", ox + GAUGE_W/2, oy + GAUGE_H - 13);
+    return;
+  }
   g.fillCircle(cx, cy, R + 3, BRASS_DEEP);
   g.fillCircle(cx, cy, R + 2, BRASS);
   g.fillArc(cx, cy, R + 2, R + 1, 190, 300, BRASS_HI);
@@ -590,8 +642,8 @@ void drawTube(const AtlasScreen &screen) {
   tft().drawRoundRect(TX, BAR_Y, TW, BAR_H, 2, LINE);
   tft().fillRect(TX + 1, BAR_Y + 1, TW - 2, BAR_H - 2, TUBE);
   const int16_t filled = static_cast<int16_t>((TW - 2) * screen.timerPermille / 1000);
-  tft().fillRect(TX + 1, BAR_Y + 1, filled, 1, screen.timerWarning ? 0xFFB0A4 : BRASS_HI);
-  tft().fillRect(TX + 1, BAR_Y + 2, filled, 1, screen.timerWarning ? DANGER : BRASS_LO);
+  tft().fillRect(TX + 1, BAR_Y + 1, filled, 1, screen.timerWarning ? DANGER : TurnHubTheme::palette(artTheme).turn);
+  tft().fillRect(TX + 1, BAR_Y + 2, filled, 1, screen.timerWarning ? DANGER : TurnHubTheme::palette(artTheme).turn);
   for (uint8_t i = 1; i < 10; ++i) tft().drawFastVLine(TX + TW * i / 10, BAR_Y + 1, BAR_H - 2, TUBE);
 }
 
@@ -632,7 +684,7 @@ void drawChipTime(const ScreenPlayer &p, int16_t x, int16_t y, int16_t w, int16_
   const bool active = p.flags & CHIP_ACTIVE;
   const bool out = p.flags & CHIP_OUT;
   const uint32_t fill = active || (p.flags & CHIP_WINNER) ? PLATE_HI : PLATE;
-  const uint32_t ink = out ? DIM : (active ? BRASS_HI : FAINT);
+  const uint32_t ink = out ? DIM : (active ? TurnHubTheme::palette(artTheme).turn : FAINT);
   const bool tall = h >= 60;
   tft().setFont(&fonts::DejaVu9);
   const int16_t tw = tft().textWidth(p.turnTime);
@@ -668,9 +720,10 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   tft().fillRoundRect(x, y, w, h, 5, fill);
   tft().drawFastHLine(x + 5, y + 1, w - 10, mix(fill, CREAM, 22));
   if (active || winner) {
-    tft().drawRoundRect(x, y, w, h, 5, BRASS_LO);
-    tft().drawRoundRect(x + 1, y + 1, w - 2, h - 2, 4, BRASS);
-    tft().drawRoundRect(x + 2, y + 2, w - 4, h - 4, 3, BRASS_HI);
+    const uint32_t emphasis = ornamental() ? BRASS : TurnHubTheme::palette(artTheme).turn;
+    tft().drawRoundRect(x, y, w, h, 5, emphasis);
+    tft().drawRoundRect(x + 1, y + 1, w - 2, h - 2, 4, emphasis);
+    tft().drawRoundRect(x + 2, y + 2, w - 4, h - 4, 3, emphasis);
   } else {
     tft().drawRoundRect(x, y, w, h, 5, out ? LINE_OUT : LINE);
   }
@@ -714,8 +767,8 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   tft().clearClipRect();
   if (out) tft().drawFastHLine(nameX, y + 11, tft().textWidth(name), ink);
 
-  const uint32_t lifeInk = out ? DIM : (active ? BRASS_HI : CREAM);
-  const uint32_t tagInk = active || winner ? BRASS : (p.flags & CHIP_WAITING) ? BRASS_HI : MUTED;
+  const uint32_t lifeInk = out ? DIM : (active ? TurnHubTheme::palette(artTheme).turn : CREAM);
+  const uint32_t tagInk = active || winner ? TurnHubTheme::palette(artTheme).turn : (p.flags & CHIP_WAITING) ? BRASS_HI : MUTED;
   if (tall) {
     if (showLife) {
       tft().setFont(lifeW <= w - 8 ? numeralsFont.get() : clockFont.get());
@@ -729,7 +782,7 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
       }
     } else {
       // Between games: a small gear where the life total will be.
-      gear(tft(), x + w / 2, y + h / 2 - 3, 11, 10, 0.0f, out ? LINE_OUT : 0x4A3820, 4, fill);
+      gear(tft(), x + w / 2, y + h / 2 - 3, 11, 10, 0.0f, out ? LINE_OUT : LINE, 4, fill);
     }
     ruledTag(tft(), tag, x, w, y + h - 10, tagInk, active || winner ? BRASS_LO : LINE, fill);
   } else {
@@ -778,8 +831,8 @@ void drawLines(const AtlasScreen &screen, int16_t x, int16_t y, uint32_t bg) {
 void drawJoinPlate(const AtlasScreen &screen) {
   plate(tft(), PAD, SCREEN_BODY_Y, W - 2 * PAD, BODY_H, PLATE, LINE);
   const int16_t gx = W - PAD - 44, gy = SCREEN_BODY_Y + BODY_H / 2 + 2;
-  gear(tft(), gx - 34, gy + 19, 13, 9, 20.0f, 0x4A3820, 4, PLATE);
-  gear(tft(), gx, gy, 28, 12, 0.0f, 0x4A3820, 9, PLATE);
+  gear(tft(), gx - 34, gy + 19, 13, 9, 20.0f, LINE, 4, PLATE);
+  gear(tft(), gx, gy, 28, 12, 0.0f, LINE, 9, PLATE);
   tft().drawCircle(gx, gy, 9, LINE);
   drawLines(screen, PAD + 12, SCREEN_BODY_Y + 16, PLATE);
 }
@@ -810,7 +863,7 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
   // Their buttons use the body.
   if (screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table ||
       screen.kind == ScreenKind::Menu || screen.kind == ScreenKind::Player ||
-      screen.kind == ScreenKind::Device) return;
+      screen.kind == ScreenKind::Device || screen.kind == ScreenKind::Themes) return;
 
   // Chips alone: redraw only those that changed, and only the time line of
   // a chip whose time alone moved.
@@ -900,7 +953,7 @@ void drawButton(const AtlasScreen &screen, const TouchButton &button) {
   const bool shown = button.selected && !pressed;
   tft().setTextDatum(lgfx::middle_center);
   tft().setTextColor(ink, fill);
-  tft().setFont(fitBrass(tft(), label, w - 16));
+  tft().setFont(fitDisplay(tft(), label, w - 16));
   tft().drawString(label, x + w / 2, y + h / 2 - (caption || shown ? 6 : 0));
   if (caption) ruledTag(tft(), "hold", x + 4, w - 8, y + h / 2 + 13, primary ? INK : MUTED,
       primary ? BRASS_LO : LINE, fill);
@@ -974,10 +1027,53 @@ void renderScreen(const AtlasScreen &screen, uint32_t nowMs) {
 
 }  // namespace
 
+
+TurnHubTheme::Id atlasArtTheme() { return artTheme; }
+void setAtlasArtTheme(TurnHubTheme::Id theme) {
+  if (!TurnHubTheme::valid(static_cast<uint8_t>(theme))) theme = TurnHubTheme::Id::Graphite;
+  artTheme = theme;
+  const auto &p = TurnHubTheme::palette(theme);
+  WALNUT = p.bg;
+  PLATE = p.surface1;
+  PLATE_HI = p.turnSoft;
+  LINE = p.separatorStrong;
+  LINE_OUT = p.separator;
+  LINE_HI = p.accent;
+  BRASS = p.accent;
+  BRASS_HI = ornamental() ? p.text : p.accent;
+  BRASS_LO = p.accentPressed;
+  BRASS_DEEP = p.separatorStrong;
+  CREAM = p.text;
+  MUTED = p.textSecondary;
+  FAINT = p.textTertiary;
+  INK = p.onAccent;
+  DIAL = ornamental() ? p.text : p.surface2;
+  DIAL_INK = ornamental() ? p.onAccent : p.text;
+  TUBE = p.surface3;
+  DANGER = p.critical;
+  DANGER_DEEP = p.surface3;
+  UPDATE_BLUE = p.info;
+  UPDATE_BLUE_EDGE = p.surface3;
+  DIM = p.textTertiary;
+  if (ornamental()) loadBrassFonts();
+  else {
+    titleFont.load(ModernFonts::TitleVlw, ModernFonts::TitleVlwSize);
+    labelFont.load(ModernFonts::LabelVlw, ModernFonts::LabelVlwSize);
+    nameFont.load(ModernFonts::NameVlw, ModernFonts::NameVlwSize);
+    tagFont.load(ModernFonts::TagVlw, ModernFonts::TagVlwSize);
+    numeralsFont.load(ModernFonts::NumeralsVlw, ModernFonts::NumeralsVlwSize);
+    clockFont.load(ModernFonts::ClockVlw, ModernFonts::ClockVlwSize);
+    codeFont.load(ModernFonts::CodeVlw, ModernFonts::CodeVlwSize);
+    wordmarkFont.load(ModernFonts::WordmarkVlw, ModernFonts::WordmarkVlwSize);
+  }
+  statusDrawn = false;
+}
+
 AtlasArtStatus beginAtlasArt(lgfx::LovyanGFX &panel) {
   target = &panel;
   AtlasArtStatus status;
-  status.fonts = loadBrassFonts();
+  setAtlasArtTheme(artTheme);
+  status.fonts = titleFont.ready && labelFont.ready && nameFont.ready && tagFont.ready && numeralsFont.ready && clockFont.ready && codeFont.ready && wordmarkFont.ready;
   status.buffers = createBuffers();
   statusDrawn = false;
   return status;

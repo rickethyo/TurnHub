@@ -810,3 +810,30 @@ per-match mapping. No new dependency or NVS allocation. CI run 218 at
 `ae5df30` built Atlas successfully: static RAM 105,148 / 327,680 bytes (32.1%),
 flash 1,471,169 / 1,966,080 bytes (74.8%); the signed descriptor reports Atlas
 0.7.2, radio 3. These are build sizes, not runtime heap or bench measurements.
+
+## 2026-10-09 Shared device themes (Atlas 0.7.4, Sigil 0.9.15)
+
+Implementation on `codex/device-screen-themes`, based on `f3c559e` plus the
+`c8472c2` Atlas host CI fixture fix. Four independent saved display themes,
+generated RGB888 palettes from the portal/app tokens, Inter bitmap fonts with
+tabular digits, modern cards/hearts, and retained Brass type/ornament. OLED
+Daylight uses a light ground; e-paper adapts the theme family in black/white.
+Device `display/theme` NVS setting only; radio/game contracts unchanged. Manual
+V0.13 documents the new controls.
+
+Verified local PlatformIO 6.2.0 builds (configured project dependencies; no
+hardware attached). These are static RAM/flash sizes, not runtime heap:
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,276 B (32.1%) | 1,545,281 / 1,966,080 B (78.6%) |
+| Sigil e-paper | 53,868 B (16.4%) | 945,337 / 1,310,720 B (72.1%) |
+| Sigil OLED | 49,908 B (15.2%) | 954,661 / 1,310,720 B (72.8%) |
+| Sigil spare | 48,996 B (15.0%) | 880,613 / 1,310,720 B (67.2%) |
+
+Inter adds 65,530 B of Atlas glyph data and 14,658 B of Sigil glyph/metric data
+in generated headers (the linker retains fonts referenced by each target).
+
+Atlas raw source/header total: 1,926,216 B in 124 files. Largest: `Atlas/include/brass_fonts.h` (438,366 B), `Atlas/include/modern_fonts.h` (402,949 B), `Atlas/src/touch_controls.cpp` (63,404 B).
+
+Sigil raw source/header total: 467,718 B in 33 files. Largest: `Sigil/include/brass_fonts.h` (91,265 B), `Sigil/include/modern_fonts.h` (87,297 B), `Sigil/src/main.cpp` (79,069 B).

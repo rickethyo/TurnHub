@@ -168,8 +168,8 @@ One rule set for every stage and both displays (`SigilMenu`, host-tested in
 Menu holds every other action Atlas offers, in a fixed order (Cmd damage, Undo
 hit, Pause, Resume, Claim win, I'm out, Partner, Random start, Leave lobby,
 Switch game, Reset table, Link phone, ...), then **Device** (Sleep, Unpair,
-Factory reset). Switch game moves a Sigil that isn't playing to Atlas's other
-game (Atlas runs two). With nothing else on offer (Atlas lost) Menu opens
+Factory reset, Theme). Switch game moves a Sigil that isn't playing to Atlas's other
+game (Atlas runs two). With nothing else on offer (Atlas lost or unpaired) Menu opens
 straight on the Device entries. Held entries (Claim win, I'm out's confirm,
 Leave lobby, Reset table, Unpair, Factory reset) still need their hold.
 
@@ -264,6 +264,27 @@ now matches the OLED:
   or a filled circle for the click
 
 The words carry every meaning; icons only add character.
+
+**Device themes (Sigil 0.9.15, 2026-10-09).** Each Sigil chooses independently
+of Atlas and of the app/portal. The Device list/compass has a Theme tap that
+cycles Graphite, Daylight, Brass and High contrast without closing the menu.
+The OLED row shows the current name; the e-paper Device subtitle names it.
+NVS namespace `display`, key `theme`, stores the validated theme ID. Missing or
+invalid choices default to Graphite on OLED and Daylight on e-paper. Unpair
+preserves the choice; factory reset clears it; failed writes leave it alone.
+Local Device menus work while unpaired; joystick pairing holds apply outside
+that menu. Theme changes are consumed by the display task, invalidate its
+screen caches and require a full first e-paper refresh.
+
+Modern themes use Inter from the app/portal's checked-in font, rendered into
+`include/modern_fonts.h` by `tools/fonts/make_modern_fonts.py` (weight 600,
+equal digit advances). Their simple rounded banners/cards, plain rules and
+life hearts replace the Brass ornaments. Every font run still uses measured
+fallbacks; body/key legends retain the built-in glyphs. OLED Daylight is black
+on white; other OLED choices are white on black. E-paper stays black on white,
+so its modern palettes share a monochrome adaptation; High contrast adds an
+inner banner frame. Panel contrast, OLED current and e-paper ghosting remain
+physical acceptance checks.
 
 **Brass look (2026-09-29).** The portal's Brass theme carried onto both
 Sigils, one bit deep:

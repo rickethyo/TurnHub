@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "device_theme.h"
 
 // Atlas's built-in 2.8" TFT. Presentation only: it renders Atlas state and
 // never decides game outcomes. Firmware-only; host tests use a no-op stub.
@@ -13,6 +14,8 @@ void beginAtlasDisplay();
 // Polls touch and redraws the status screen when it changes. Call every loop.
 void serviceAtlasDisplay(uint32_t nowMs);
 bool startAtlasScreenTest();
+TurnHubTheme::Id atlasDisplayTheme();
+bool chooseAtlasDisplayTheme(TurnHubTheme::Id theme);
 // Menu > Device Sleep (scheduled by handleSleepIntent, table_intents.cpp):
 // screen dark, outputs held off, then deep sleep until the screen is touched
 // (the XPT2046 pen interrupt, GPIO36) or BOOT (GPIO0) is pressed. Never

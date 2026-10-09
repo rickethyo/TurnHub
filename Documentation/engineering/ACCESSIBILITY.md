@@ -155,7 +155,16 @@ screen shows a six-digit code in large digits and a QR code, and the account
 holder enters or scans it on their own phone, with the phone's own
 accessibility tools. Anyone at the table can read the code aloud.
 
-The Brass look (2026-09-29) keeps these rules on all three device screens.
+All four device themes keep these rules (2026-10-09). Graphite, Daylight and
+High contrast use Inter with tabular digits, measured against each existing
+text band. Atlas palettes come from the same design tokens as the app/portal;
+OLED Daylight reverses the ground and ink, while e-paper stays black on white.
+Both monochrome panels preserve word/shape cues. Theme choices are device-local
+and persisted; they never change action timing or game authority. Atlas retains
+60 px touch targets. Device-theme rendering and cache invalidation are checked
+on the host; physical contrast and e-paper ghosting remain device acceptance.
+
+The Brass look keeps its decorative family on all three device screens.
 Every state stays written out: TURN, OUT (also struck through), WINNER,
 STARTS, CONFIRM, YOUR TURN, NO SD CARD. The gear, rivets, gauges and dials are
 decoration beside numbers that carry the value; the turn gauge's red face

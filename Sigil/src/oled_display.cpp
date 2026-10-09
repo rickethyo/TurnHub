@@ -1,6 +1,7 @@
 #include "oled_display.h"
 #include "secure_link.h"
 #include "brass_fonts.h"
+#include "modern_fonts.h"
 #include "picker_list.h"
 #include "avatars.h"
 #include "display_name.h"
@@ -12,6 +13,7 @@
 #include <Wire.h>
 #include <cstring>
 #include <new>
+#include <algorithm>
 
 namespace TurnHubSigil {
 namespace {
@@ -36,6 +38,12 @@ bool availableOutputPin(int pin) {
     default: return true;
   }
 }
+}
+
+void OledDisplay::setTheme(TurnHubTheme::Id theme) {
+  if (!TurnHubTheme::valid(static_cast<uint8_t>(theme))) theme = TurnHubTheme::Id::Graphite;
+  SigilDisplay::setTheme(theme);
+  legendShown_ = false;
 }
 
 bool OledDisplay::validConfig() const {
@@ -98,8 +106,8 @@ void OledDisplay::begin() {
   }
   display_->setRotation(c.rotation);
   display_->setTextWrap(false);
-  display_->setTextColor(SH110X_WHITE);
-  display_->clearDisplay();
+  display_->setTextColor(foreground());
+  clearCanvas();
   ready_ = true;
   Serial.printf("SIGIL|DISPLAY|OLED|READY|%dx%d|ROTATION|%u\n",
       display_->width(), display_->height(), static_cast<unsigned>(c.rotation));
@@ -138,11 +146,11 @@ int16_t OledDisplay::text(const char *value, int16_t y, uint8_t maxSize,
   int16_t x = left;
   if (align == Align::Center) x = left + (span - width) / 2;
   else if (align == Align::Right) x = right - width;
-  display_->setTextColor(inverse ? SH110X_BLACK : SH110X_WHITE);
+  display_->setTextColor(inverse ? background() : foreground());
   display_->setTextSize(size);
   display_->setCursor(x, y);
   for (size_t i = 0; i < shown; ++i) display_->print(value[i]);
-  display_->setTextColor(SH110X_WHITE);
+  display_->setTextColor(foreground());
   return x + width;
 }
 
@@ -174,21 +182,22 @@ int16_t OledDisplay::fontText(const char *value, const GFXfont *font, int16_t to
   int16_t x = left;
   if (align == Align::Center) x = left + (right - left - static_cast<int16_t>(w)) / 2;
   else if (align == Align::Right) x = right - static_cast<int16_t>(w);
-  display_->setTextColor(inverse ? SH110X_BLACK : SH110X_WHITE);
+  display_->setTextColor(inverse ? background() : foreground());
   display_->setTextSize(1);
   display_->setCursor(x - x1, baseline);
   for (const char *c = value; *c; ++c) display_->print(*c);
   display_->setFont(nullptr);
-  display_->setTextColor(SH110X_WHITE);
+  display_->setTextColor(foreground());
   return x + static_cast<int16_t>(w);
 }
 
 void OledDisplay::rule(int16_t y, int16_t left, int16_t right) {
+  if (!ornamental()) { display_->drawFastHLine(left, y, right-left, foreground()); return; }
   const int16_t cx = (left + right) / 2;
-  display_->drawFastHLine(left, y, cx - 4 - left, SH110X_WHITE);
-  display_->drawFastHLine(cx + 5, y, right - cx - 5, SH110X_WHITE);
-  display_->fillTriangle(cx - 2, y, cx, y - 2, cx + 2, y, SH110X_WHITE);
-  display_->fillTriangle(cx - 2, y, cx, y + 2, cx + 2, y, SH110X_WHITE);
+  display_->drawFastHLine(left, y, cx - 4 - left, foreground());
+  display_->drawFastHLine(cx + 5, y, right - cx - 5, foreground());
+  display_->fillTriangle(cx - 2, y, cx, y - 2, cx + 2, y, foreground());
+  display_->fillTriangle(cx - 2, y, cx, y + 2, cx + 2, y, foreground());
 }
 
 // The nameplate: a solid bar with a gear at the left, the title in Cinzel
@@ -196,18 +205,19 @@ void OledDisplay::rule(int16_t y, int16_t left, int16_t right) {
 // the right and a crown for the host.
 void OledDisplay::header(const char *title, const char *right, bool host) {
   const int16_t w = display_->width();
-  display_->fillRect(0, 0, w, HEADER_HEIGHT, SH110X_WHITE);
-  drawGear(*display_, 6, 5, 4, 6, SH110X_BLACK, 1, SH110X_WHITE);
+  display_->fillRect(0, 0, w, HEADER_HEIGHT, foreground());
+  if (ornamental()) drawGear(*display_, 6, 5, 4, 6, background(), 1, foreground());
+  else display_->fillTriangle(3, 2, 3, 8, 9, 5, background());
   const int16_t rightStart = w - 3 - static_cast<int16_t>(strlen(right)) * 6;
   const int16_t titleRight = rightStart - (host ? 18 : 4);
   // Caps sit on row 8; a descender (the J of JOIN AS) may use the bar's
   // last rows.
-  int16_t titleEnd = fontText(title, &BrassFonts::OledHeader, 1, 9, Align::Left, true, 13, titleRight);
-  if (titleEnd < 0) titleEnd = fontText(title, &BrassFonts::OledHeader, 0, HEADER_HEIGHT, Align::Left, true, 13, titleRight);
+  int16_t titleEnd = fontText(title, (ornamental() ? &BrassFonts::OledHeader : &ModernFonts::OledHeader), 1, 9, Align::Left, true, 13, titleRight);
+  if (titleEnd < 0) titleEnd = fontText(title, (ornamental() ? &BrassFonts::OledHeader : &ModernFonts::OledHeader), 0, HEADER_HEIGHT, Align::Left, true, 13, titleRight);
   if (titleEnd < 0) titleEnd = text(title, 2, 1, Align::Left, true, 13, w / 2 + 8);
   text(right, 2, 1, Align::Right, true, titleEnd + 2, w - 3);
   if (host && rightStart - 16 >= titleEnd + 2) {
-    icon(Icon::Crown, rightStart - 16, 1, SH110X_BLACK);
+    icon(Icon::Crown, rightStart - 16, 1, background());
   }
 }
 
@@ -217,22 +227,29 @@ void OledDisplay::header(const char *title, const char *right, bool host) {
 void OledDisplay::banner(const char *message, int16_t y, bool highlight, Icon kind) {
   const int16_t w = display_->width();
   constexpr int16_t NOTCH = 3, MID = BANNER_HEIGHT / 2;
+  if (!ornamental()) {
+    if (highlight) display_->fillRoundRect(1, y, w-2, BANNER_HEIGHT, 3, foreground());
+    else display_->drawRoundRect(1, y, w-2, BANNER_HEIGHT, 3, foreground());
+    if (fontText(message, &ModernFonts::OledHeader, y+1, y+10, Align::Center, highlight, 4, w-4) < 0)
+      text(message, y+2, 1, Align::Center, highlight, 4, w-4);
+    return;
+  }
   if (highlight) {
-    display_->fillRect(NOTCH, y, w - 2 * NOTCH, BANNER_HEIGHT, SH110X_WHITE);
-    display_->fillTriangle(0, y + MID, NOTCH, y, NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
-    display_->fillTriangle(w - 1, y + MID, w - 1 - NOTCH, y, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
-    icon(kind, 2, y + 1, SH110X_BLACK);
-    icon(kind == Icon::Turn ? Icon::TurnBack : kind, w - 15, y + 1, SH110X_BLACK);
-    if (fontText(message, &BrassFonts::OledHeader, y + 2, y + 10, Align::Center, true, 16, w - 16) < 0) {
+    display_->fillRect(NOTCH, y, w - 2 * NOTCH, BANNER_HEIGHT, foreground());
+    display_->fillTriangle(0, y + MID, NOTCH, y, NOTCH, y + BANNER_HEIGHT - 1, foreground());
+    display_->fillTriangle(w - 1, y + MID, w - 1 - NOTCH, y, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, foreground());
+    icon(kind, 2, y + 1, background());
+    icon(kind == Icon::Turn ? Icon::TurnBack : kind, w - 15, y + 1, background());
+    if (fontText(message, (ornamental() ? &BrassFonts::OledHeader : &ModernFonts::OledHeader), y + 2, y + 10, Align::Center, true, 16, w - 16) < 0) {
       text(message, y + 2, 1, Align::Center, true, 16, w - 16);
     }
   } else {
-    display_->drawFastHLine(NOTCH, y, w - 2 * NOTCH, SH110X_WHITE);
-    display_->drawFastHLine(NOTCH, y + BANNER_HEIGHT - 1, w - 2 * NOTCH, SH110X_WHITE);
-    display_->drawLine(0, y + MID, NOTCH, y, SH110X_WHITE);
-    display_->drawLine(0, y + MID, NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
-    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y, SH110X_WHITE);
-    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, SH110X_WHITE);
+    display_->drawFastHLine(NOTCH, y, w - 2 * NOTCH, foreground());
+    display_->drawFastHLine(NOTCH, y + BANNER_HEIGHT - 1, w - 2 * NOTCH, foreground());
+    display_->drawLine(0, y + MID, NOTCH, y, foreground());
+    display_->drawLine(0, y + MID, NOTCH, y + BANNER_HEIGHT - 1, foreground());
+    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y, foreground());
+    display_->drawLine(w - 1, y + MID, w - 1 - NOTCH, y + BANNER_HEIGHT - 1, foreground());
     // Outlined tickets keep the built-in font: Cinzel crowds the thin frame.
     text(message, y + 2, 1, Align::Center, false, 4, w - 4);
   }
@@ -255,9 +272,9 @@ void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
   const int16_t w = display_->width();
   const int16_t bottom = y + 8 * maxSize;
   struct Figures { const GFXfont *font; int16_t dialR; };
-  const Figures large[] = {{&BrassFonts::OledLife, 9}, {&BrassFonts::OledLifeMid, 7},
-      {&BrassFonts::OledLifeSmall, 6}};
-  const Figures small[] = {{&BrassFonts::OledLifeSmall, 6}};
+  const Figures large[] = {{(ornamental() ? &BrassFonts::OledLife : &ModernFonts::OledLife), 9}, {(ornamental() ? &BrassFonts::OledLifeMid : &ModernFonts::OledLifeMid), 7},
+      {(ornamental() ? &BrassFonts::OledLifeSmall : &ModernFonts::OledLifeSmall), 6}};
+  const Figures small[] = {{(ornamental() ? &BrassFonts::OledLifeSmall : &ModernFonts::OledLifeSmall), 6}};
   const Figures *options = maxSize >= 3 ? large : small;
   const uint8_t count = maxSize >= 3 ? 3 : 1;
   for (uint8_t i = 0; i < count; ++i) {
@@ -277,7 +294,11 @@ void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
     int16_t cy = inkTop + static_cast<int16_t>(th) / 2;
     if (cy - r - 2 < y) cy = y + r + 2;
     if (cy + r + 2 >= display_->height()) cy = display_->height() - r - 3;
-    drawLifeDial(*display_, x + r + 2, cy, r, look.fill, SH110X_WHITE, look.sizePercent - 100);
+    if (ornamental()) drawLifeDial(*display_, x + r + 2, cy, r, look.fill, foreground(), look.sizePercent - 100);
+    else {
+      const int16_t size = std::max<int16_t>(4, 2*r*look.sizePercent/150);
+      drawLifeHeart(*display_, x + r + 2 - size/2, cy - size/2, size, size, look.fill, foreground());
+    }
     fontText(number, options[i].font, y, inkTop + static_cast<int16_t>(th), Align::Left, false,
         x + dialW + 4, w);
     return;
@@ -295,7 +316,11 @@ void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
   int16_t cy = y + (7 * size) / 2;
   if (cy - r - 2 < y) cy = y + r + 2;
   if (cy + r + 2 >= display_->height()) cy = display_->height() - r - 3;
-  drawLifeDial(*display_, x + r + 2, cy, r, look.fill, SH110X_WHITE, look.sizePercent - 100);
+  if (ornamental()) drawLifeDial(*display_, x + r + 2, cy, r, look.fill, foreground(), look.sizePercent - 100);
+  else {
+      const int16_t size = std::max<int16_t>(4, 2*r*look.sizePercent/150);
+      drawLifeHeart(*display_, x + r + 2 - size/2, cy - size/2, size, size, look.fill, foreground());
+    }
   text(number, y, size, Align::Left, false, x + dialW(size) + 3, w);
 }
 
@@ -303,10 +328,11 @@ void OledDisplay::lifeTotal(int32_t life, int16_t y, uint8_t maxSize) {
 // meshed with a smaller one.
 void OledDisplay::splash(const char *caption) {
   const int16_t cx = display_->width() / 2;
-  drawGear(*display_, cx + 15, 21, 7, 8, SH110X_WHITE, 2, SH110X_BLACK, 10.0f);
-  drawGear(*display_, cx - 3, 14, 13, 10, SH110X_WHITE, 6, SH110X_BLACK);
-  display_->fillTriangle(cx - 6, 10, cx - 6, 18, cx + 1, 14, SH110X_WHITE);
-  if (fontText("TurnHub", &BrassFonts::OledName, 31, 43, Align::Center) < 0) {
+  if (ornamental()) drawGear(*display_, cx + 15, 21, 7, 8, foreground(), 2, background(), 10.0f);
+  if (ornamental()) drawGear(*display_, cx - 3, 14, 13, 10, foreground(), 6, background());
+  if (!ornamental()) display_->drawRoundRect(cx - 16, 1, 32, 26, 8, foreground());
+  display_->fillTriangle(cx - 6, 10, cx - 6, 18, cx + 1, 14, foreground());
+  if (fontText("TurnHub", (ornamental() ? &BrassFonts::OledName : &ModernFonts::OledName), 31, 43, Align::Center) < 0) {
     text("TurnHub", 30, 2, Align::Center);
   }
   rule(48, 20, display_->width() - 20);
@@ -338,7 +364,7 @@ bool OledDisplay::drawDeviceMenu() {
   if (!menu_.active || !menu_.deviceMenu || menu_.rowCount == 0) return false;
   constexpr int16_t ROW_HEIGHT = 10;
   constexpr uint8_t FIT = 4;  // Rows between the header and the legend.
-  display_->clearDisplay();
+  clearCanvas();
   char position[8];
   snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(menu_.cursor + 1),
       static_cast<unsigned>(menu_.rowCount));
@@ -353,8 +379,9 @@ bool OledDisplay::drawDeviceMenu() {
     const bool selected = i == menu_.cursor;
     char line[28];
     if (selected && menu_.holdAction == action) snprintf(line, sizeof(line), "HOLD: %s", label);
+    else if (action == MENU_LOCAL_THEME) snprintf(line, sizeof(line), "Theme: %s", TurnHubTheme::palette(theme()).label);
     else snprintf(line, sizeof(line), "%s%s", label, menuActionNeedsHold(action) ? " (hold)" : "");
-    if (selected) display_->fillRect(0, y - 1, w - 4, ROW_HEIGHT - 1, SH110X_WHITE);
+    if (selected) display_->fillRect(0, y - 1, w - 4, ROW_HEIGHT - 1, foreground());
     text(line, y, 1, Align::Left, selected, 3, w - 4);
   }
   // A scroll bar on the right edge: where the visible rows sit in the list.
@@ -362,8 +389,8 @@ bool OledDisplay::drawDeviceMenu() {
     const int16_t top = HEADER_HEIGHT + 2, height = FIT * ROW_HEIGHT;
     const int16_t thumb = height * FIT / menu_.rowCount;
     const int16_t offset = (height - thumb) * first / (menu_.rowCount - FIT);
-    display_->drawFastVLine(w - 2, top, height, SH110X_WHITE);
-    display_->fillRect(w - 3, top + offset, 3, thumb, SH110X_WHITE);
+    display_->drawFastVLine(w - 2, top, height, foreground());
+    display_->fillRect(w - 3, top + offset, 3, thumb, foreground());
   }
   legend(true);
   display_->display();
@@ -405,7 +432,7 @@ void OledDisplay::drawLegendRow() {
   char entries[KEY_COUNT + 1][24];
   const uint8_t count = legendEntries(entries);
   if (count == 0) return;
-  display_->fillRect(0, LEGEND_Y, display_->width(), 8, SH110X_BLACK);
+  display_->fillRect(0, LEGEND_Y, display_->width(), 8, background());
   text(entries[legendIndex_ % count], LEGEND_Y, 1, Align::Center);
 }
 
@@ -458,7 +485,7 @@ void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, u
   const bool confirm = page.mode == TurnHubProtocol::PickerMode::Confirm;
   const PickerRows rows = pickerRows(page);
   if (cursor >= rows.count) cursor = 0;
-  display_->clearDisplay();
+  clearCanvas();
   char position[12] = "";
   if (!confirm && page.pageCount > 1) {
     snprintf(position, sizeof(position), "%u/%u", static_cast<unsigned>(page.page + 1),
@@ -472,8 +499,8 @@ void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, u
       page.notice == PickerNotice::TableFull ? "Table is full" :
       page.notice == PickerNotice::Failed ? "Try again" : nullptr;
   if (confirm) {
-    if (fontText(page.items[0].name, &BrassFonts::OledName, y + 1, y + 16, Align::Center) < 0 &&
-        fontText(page.items[0].name, &BrassFonts::OledSmall, y + 3, y + 14, Align::Center) < 0) {
+    if (fontText(page.items[0].name, (ornamental() ? &BrassFonts::OledName : &ModernFonts::OledName), y + 1, y + 16, Align::Center) < 0 &&
+        fontText(page.items[0].name, (ornamental() ? &BrassFonts::OledSmall : &ModernFonts::OledSmall), y + 3, y + 14, Align::Center) < 0) {
       text(page.items[0].name, y, 2, Align::Center);
     }
     y += 18;
@@ -486,7 +513,7 @@ void OledDisplay::showPicker(const TurnHubProtocol::ProfilePickerPacket &page, u
   const uint8_t first = cursor >= fit ? cursor - (fit - 1) : 0;
   for (uint8_t i = first; i < rows.count && i < first + fit; ++i, y += ROW_HEIGHT) {
     const bool selected = i == cursor;
-    if (selected) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, SH110X_WHITE);
+    if (selected) display_->fillRect(0, y - 1, w, ROW_HEIGHT - 1, foreground());
     char line[32];
     const PickerRow row = rows.rows[i];
     if (row == PickerRow::More) snprintf(line, sizeof(line), "More names");
@@ -507,7 +534,7 @@ void OledDisplay::status(const char *headerRight, const char *big,
     const char *first, const char *second) {
   if (!ready_) return;
   if (drawDeviceMenu()) return;
-  display_->clearDisplay();
+  clearCanvas();
   header("TurnHub", headerRight);
   bigLine(big);
   text(first, 41, 1, Align::Center);
@@ -518,14 +545,14 @@ void OledDisplay::status(const char *headerRight, const char *big,
 
 // The status screens' big line: Cinzel over an ornamental rule.
 void OledDisplay::bigLine(const char *big) {
-  if (fontText(big, &BrassFonts::OledName, 15, 31, Align::Center) < 0) text(big, 16, 2, Align::Center);
+  if (fontText(big, (ornamental() ? &BrassFonts::OledName : &ModernFonts::OledName), 15, 31, Align::Center) < 0) text(big, 16, 2, Align::Center);
   rule(36, 16, display_->width() - 16);
 }
 
 void OledDisplay::showBooting() {
   legendShown_ = false;
   if (!ready_) return;
-  display_->clearDisplay();
+  clearCanvas();
   splash("Booting");
   display_->display();
 }
@@ -534,12 +561,12 @@ void OledDisplay::showHardwareTest() {
   legendShown_ = false;
   if (!ready_) return;
   for (uint8_t phase = 0; phase < 3; ++phase) {
-    display_->clearDisplay();
-    if (phase == 1) display_->fillRect(0, 0, display_->width(), display_->height(), SH110X_WHITE);
+    clearCanvas();
+    if (phase == 1) display_->fillRect(0, 0, display_->width(), display_->height(), foreground());
     if (phase == 2) {
       for (int16_t y = 0; y < display_->height(); y += 8)
         for (int16_t x = 0; x < display_->width(); x += 8)
-          if ((x / 8 + y / 8) % 2 == 0) display_->fillRect(x, y, 8, 8, 1);
+          if ((x / 8 + y / 8) % 2 == 0) display_->fillRect(x, y, 8, 8, foreground());
     }
     display_->display();
     delay(1500);
@@ -549,7 +576,8 @@ void OledDisplay::showHardwareTest() {
 void OledDisplay::showUnpaired() {
   // The BOOT button may be inside the case: the joystick hold always works
   // (main.cpp's updateJoystickPair).
-  status("PAIR", "UNPAIRED", "Hold joystick to", "enter pairing mode");
+  if (menu_.active) status("PAIR", "UNPAIRED", "Hold click to pair");
+  else status("PAIR", "UNPAIRED", "Hold joystick to", "enter pairing mode");
 }
 
 void OledDisplay::showReady(uint8_t sigilId) {
@@ -566,7 +594,7 @@ void OledDisplay::showAtlasLost(uint8_t sigilId) {
   if (drawDeviceMenu()) return;
   char label[12];
   snprintf(label, sizeof(label), "SIGIL %u", static_cast<unsigned>(sigilId + 1));
-  display_->clearDisplay();
+  clearCanvas();
   header("TurnHub", label);
   bigLine("ATLAS LOST");
   text("Searching for Atlas", 41, 1, Align::Center);
@@ -580,9 +608,9 @@ void OledDisplay::showPairingCode(uint16_t code) {
   char digits[5];
   TurnHubSecureLink::formatPairingCode(code, digits);
   // Drawn directly: an open menu list must not cover the code.
-  display_->clearDisplay();
+  clearCanvas();
   header("TurnHub", "PAIR");
-  if (fontText(digits, &BrassFonts::OledLifeMid, 13, 38, Align::Center) < 0) {
+  if (fontText(digits, (ornamental() ? &BrassFonts::OledLifeMid : &ModernFonts::OledLifeMid), 13, 38, Align::Center) < 0) {
     text(digits, 15, 3, Align::Center);
   }
   text("Same code on Atlas?", 41, 1, Align::Center);
@@ -597,14 +625,14 @@ void OledDisplay::showSleeping() {
   legendShown_ = false;
   // Drawn directly: the menu list Sleep came from may still be open in the
   // last menu view.
-  display_->clearDisplay();
+  clearCanvas();
   header("TurnHub", "SLEEP");
   bigLine("SLEEPING");
   text("Click joystick", 41, 1, Align::Center);
   text("to wake", 52, 1, Align::Center);
   display_->display();
   delay(1500);
-  display_->clearDisplay();
+  clearCanvas();
   display_->display();
   display_->oled_command(SH110X_DISPLAYOFF);
 }
@@ -613,7 +641,7 @@ void OledDisplay::showUpdate(const char *status, int8_t percent) {
   legendShown_ = false;
   if (!ready_) return;
   // Drawn directly: an open menu list must not cover it.
-  display_->clearDisplay();
+  clearCanvas();
   header("TurnHub", "UPDATE");
   char big[8];
   if (percent >= 0) {
@@ -630,7 +658,7 @@ void OledDisplay::showUpdate(const char *status, int8_t percent) {
 void OledDisplay::showCommander(const TurnHubProtocol::CommanderFlowPacket &page) {
   if (!ready_) return;
   const auto v = commanderFlowView(page);
-  display_->clearDisplay();
+  clearCanvas();
   header(v.title,"",false);
   for (uint8_t i=0;i<6;++i) text(v.lines[i],12+i*8,1,Align::Center);
   display_->display();
@@ -645,7 +673,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
   const char seat = TurnHubProtocol::hasDisplayFlag(s.state, TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B) ? 'B' : 'A';
   const int16_t w = display_->width();
   char label[32];
-  display_->clearDisplay();
+  clearCanvas();
   snprintf(label, sizeof(label), "S%u R%u", static_cast<unsigned>(s.sigilId + 1),
       static_cast<unsigned>(TurnHubProtocol::displayTurnNumber(s.state)));
   header(s.commander ? "COMMANDER" : "GAME", label,
@@ -682,7 +710,7 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     snprintf(label, sizeof(label), "%c: %s", seat, s.primary.name);
     if (!shared) snprintf(label, sizeof(label), "%s", s.primary.name);
     if (asking || pending ||
-        fontText(label, &BrassFonts::OledSmall, 23, 31, Align::Center) < 0) {
+        fontText(label, (ornamental() ? &BrassFonts::OledSmall : &ModernFonts::OledSmall), 23, 31, Align::Center) < 0) {
       text(asking || pending ? line : label, 24, 1, Align::Center);
     }
     lifeTotal(shownLife, 32, cmdShown ? 2 : 3);
@@ -691,8 +719,8 @@ void OledDisplay::showGame(const TurnHubProtocol::GameDisplayPacket &s) {
     snprintf(digits, sizeof(digits), "%ld", static_cast<long>(shownLife));
     const uint8_t mine = seat == 'A' || !secondary ? life_.avatar[0] : life_.avatar[1];
     if (mine && strlen(digits) <= 3) {
-      display_->fillRect(0, lifeY, 18, 16, SH110X_BLACK);
-      TurnHubAvatars::drawAvatar(*display_, mine, 0, lifeY, SH110X_WHITE);
+      display_->fillRect(0, lifeY, 18, 16, background());
+      TurnHubAvatars::drawAvatar(*display_, mine, 0, lifeY, foreground());
     }
     if (cmdShown) {
       // "Cmd <source>" left, damage right. With more than two sources the
@@ -759,7 +787,7 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
       indicateSeat = winner; kind = Icon::Crown; break;
     default: showReady(sigilId); return;
   }
-  display_->clearDisplay();
+  clearCanvas();
   char label[32];
   snprintf(label, sizeof(label), "S%u R%u", static_cast<unsigned>(sigilId + 1),
       static_cast<unsigned>(turnNumber));
@@ -775,15 +803,15 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
     const bool seatA = !(flags & TurnHubProtocol::DISPLAY_FLAG_PRIMARY_B);
     snprintf(label, sizeof(label), "%c: %s", seatA ? 'A' : 'B',
         seatA ? (seatNameA_[0] ? seatNameA_ : "Guest") : (seatNameB_[0] ? seatNameB_ : "Guest"));
-    if (fontText(label, &BrassFonts::OledName, 28, 44, Align::Center) < 0 &&
-        fontText(label, &BrassFonts::OledSmall, 31, 42, Align::Center) < 0) {
+    if (fontText(label, (ornamental() ? &BrassFonts::OledName : &ModernFonts::OledName), 28, 44, Align::Center) < 0 &&
+        fontText(label, (ornamental() ? &BrassFonts::OledSmall : &ModernFonts::OledSmall), 31, 42, Align::Center) < 0) {
       text(label, 30, 1, Align::Center);
     }
   } else {
     snprintf(label, sizeof(label), "Player %u", static_cast<unsigned>(primaryPlayer));
     const char *name = seatNameA_[0] ? seatNameA_ : label;
-    if (fontText(name, &BrassFonts::OledName, 28, 44, Align::Center) < 0 &&
-        fontText(name, &BrassFonts::OledSmall, 31, 42, Align::Center) < 0) {
+    if (fontText(name, (ornamental() ? &BrassFonts::OledName : &ModernFonts::OledName), 28, 44, Align::Center) < 0 &&
+        fontText(name, (ornamental() ? &BrassFonts::OledSmall : &ModernFonts::OledSmall), 31, 42, Align::Center) < 0) {
       text(name, 30, 2, Align::Center);
     }
   }
@@ -793,7 +821,7 @@ void OledDisplay::showState(uint8_t sigilId, TurnHubProtocol::DisplayMode mode,
   const bool legendFits = legendEntries(entries) > 0;
   legend(legendFits);
   if (!legendFits && !secondaryPlayer && mode == TurnHubProtocol::DisplayMode::GameOver && winner) {
-    icon(Icon::Crown, display_->width() / 2 - 6, 52, SH110X_WHITE);
+    icon(Icon::Crown, display_->width() / 2 - 6, 52, foreground());
   }
   display_->display();
 }

@@ -20,6 +20,13 @@ void TurnHubAtlas::beginAtlasDisplay() {}
 void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
 // No TFT is initialized on the host, so its hardware screen test is unavailable.
 bool TurnHubAtlas::startAtlasScreenTest() { return false; }
+static TurnHubTheme::Id fixtureTheme = TurnHubTheme::Id::Graphite;
+TurnHubTheme::Id TurnHubAtlas::atlasDisplayTheme() { return fixtureTheme; }
+bool TurnHubAtlas::chooseAtlasDisplayTheme(TurnHubTheme::Id theme) {
+  if (!TurnHubTheme::valid(static_cast<uint8_t>(theme))) return false;
+  fixtureTheme = theme;
+  return true;
+}
 // Deep sleep is firmware-only: counted instead.
 unsigned fixtureSleeps = 0;
 bool fixtureSleptEmpty = false;

@@ -115,11 +115,10 @@ class Adafruit_SH1106G {
     *w = static_cast<uint16_t>(maxX - minX + 1); *h = static_cast<uint16_t>(maxY - minY + 1);
   }
   // Every primitive must stay fully on the panel.
-  // A black fill erases the text runs it covers completely (the OLED legend
+  // A fill erases the text runs it covers completely (the OLED legend
   // redraws its row in place).
   void fillRect(int x, int y, int w, int h, int color) {
     box(x, y, w, h, color);
-    if (color != SH110X_BLACK) return;
     panel.lines.erase(std::remove_if(panel.lines.begin(), panel.lines.end(), [&](const DrawnLine &line) {
       int l, t, r, b;
       line.box(l, t, r, b);
