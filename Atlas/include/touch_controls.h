@@ -72,7 +72,8 @@ enum class TouchAction : uint8_t {
   // Menu's Device screen (between games): unpair every Sigil (lobby only) or
   // factory reset Atlas, each held like the BOOT button's gestures; Sleep
   // (a tap) until the screen is touched.
-  OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas
+  OpenDevice, UnpairSigils, FactoryResetAtlas, SleepAtlas,
+  OpenThemes, ThemeGraphite, ThemeDaylight, ThemeBrass, ThemeContrast
 };
 
 // Code: a presence code a phone asked for, shown over any other screen.
@@ -84,7 +85,7 @@ enum class TouchAction : uint8_t {
 // turn order in the lobby.
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
 // Device: under Menu, Unpair Sigils and Factory reset (held), and Sleep.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup, Device };
+enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup, Device, Themes };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;

@@ -141,10 +141,41 @@ far slower; the cell's protection board is the last stop.
 - When the cell is too low for the 3.3 V regulator; the curve's 0 % (3.45 V)
   may need raising so Atlas warns before it browns out.
 
+### Device theme choices
+
+Each device owns its appearance independently. Atlas uses Menu > Device >
+Theme to select a named theme; each Sigil uses Menu > Device > Theme to cycle
+Graphite, Daylight, Brass and High contrast. The current Sigil theme is shown
+in the OLED row and e-paper Device subtitle. Its menu stays open after a theme
+tap. Local device menus also work while unpaired or Atlas is unreachable.
+The joystick hold for pairing applies only outside the open device menu.
+
+Choices are saved in the device's `display` NVS namespace (`theme`), preserved
+by unpairing and cleared by factory reset. Missing/invalid choices use Graphite
+on Atlas/OLED and Daylight on e-paper; failed writes retain the old theme.
+Rendering consumes the new choice on the existing display task, and e-paper
+invalidates its cache and partial-refresh frame so the first redraw is full.
+No theme packets or new game state are introduced.
+
+OLED Daylight uses dark ink on a light ground. Graphite, Brass and High contrast
+use light ink on dark. E-paper keeps black ink on white in all themes: the
+modern palettes converge on their one-bit typography and simple cards, Brass
+keeps the serif/ornament family, and High contrast adds a second banner frame.
+Monochrome panels cannot reproduce the color palettes or translucent surfaces.
+Inter digits use equal advances; measured fallbacks preserve long names and
+large/signed life totals. All status meanings remain in words and shapes.
+Physical-panel readability, OLED current and e-paper ghosting need device
+acceptance; host previews demonstrate source rendering only.
+
 ### Atlas touchscreen
 
-Landscape, rotation 3. A 2 s splash, then the status screen in the Brass look
-(`atlas_art.cpp`; Cinzel and Oswald bitmaps from `tools/fonts/make_fonts.py`):
+Landscape, rotation 3. A 2 s splash, then the status screen in the selected
+Graphite (default), Daylight, Brass or High contrast theme (`atlas_art.cpp`).
+`design/tokens.json` generates RGB888 roles in `shared/include/device_theme.h`;
+the TFT displays them at RGB565. Modern themes use Inter bitmaps from
+`tools/fonts/make_modern_fonts.py`; Brass keeps Cinzel and Oswald from
+`tools/fonts/make_fonts.py`. Modern themes use flat surfaces, an outlined turn
+clock and teal turn emphasis; Brass retains its plates, gears and gauge.
 
 - **Header:** state (LOBBY, STARTING, PLAYING, PAUSED, GAME OVER or the open
   screen), Sigils online, a red **NO SD CARD** pill, round and match time,
@@ -159,7 +190,8 @@ Landscape, rotation 3. A 2 s splash, then the status screen in the Brass look
 |---|---|
 | Lobby | Start (two or more players), Clear (hold), Menu. Tap a chip for the Player screen: Earlier/Later, Remove (hold 2 s) and the B side |
 | Menu (between games) | Pair a Sigil (lobby), QR codes, Info, Device, Back |
-| Device (between games) | Unpair Sigils (hold 3 s), Factory reset (hold 10 s), Sleep |
+| Device (between games) | Theme, Unpair Sigils (hold 3 s), Factory reset (hold 10 s), Sleep |
+| Theme | Graphite, Daylight, Brass, High contrast, Back; the selected theme is framed |
 | Starting | Cancel start |
 | Running / Paused | Pause or Resume, Table. Tap a chip for the Player screen (-5/-1/+1/+5, Concede) |
 | Table screen | Master pass (hold 2 s, running), End match (hold 5 s), Back |
@@ -221,7 +253,7 @@ slots).
 Resume, Rematch, Confirm); Left/Right change life in a game (seat B and next
 starter in the lobby, answers in a decision); Down switches seat on a shared
 Sigil; Up always opens **Menu** with every other action, then Device (Sleep,
-Unpair, Factory reset). The OLED shows Menu as a scrolling list, the e-ink as
+Unpair, Factory reset, Theme). The OLED shows Menu as a scrolling list, the e-ink as
 compass pages. Holds use the seated players' times: long press 2 s default
 (1-4 s), win hold 5 s (3-10 s, at least 1 s longer); the ring fills while
 held. An unpaired Sigil also opens pairing with a 3 s click hold.

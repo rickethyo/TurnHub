@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.12.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.13.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.12
+## Prototype Edition v0.13
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -288,6 +288,16 @@ Every Sigil uses the same keys. Click (press the stick straight in) is the obvio
 - **E-ink Sigil:** Menu comes in pages of up to four choices, one each on the click, Up, Right and Down. The bottom of the screen lists them; each line starts with an arrow for a direction or a filled circle for the click. While more choices follow, Down is **More**. Left goes back a page, then out. The header names the page, such as Page 1 of 2.
 
 - **OLED Sigil:** Menu is a scrolling list of everything you can do right now, ending with Device and Back. Push Up or Down to move through it, click (or push Right) to choose the highlighted line, and push Left to go back. The top line counts where you are in the list, and lines you must hold say (hold). Choosing an action closes the list. The bottom line of the game screen names one key at a time, starting with the click, and moves on every few seconds.
+
+## Screen Themes
+
+Each Atlas and Sigil remembers its own screen theme: Graphite, Daylight, Brass or High contrast. Changing one device does not change another device, the app, or the browser. Unpairing keeps the choice; factory reset clears it.
+
+On Atlas, between games, tap Menu, then Device, then Theme. Tap a named theme to preview and save it immediately. The framed choice is selected; Back returns to Device. Graphite is the default.
+
+On a Sigil, push Up for Menu, choose Device when it is listed, then choose Theme. Each tap cycles to the next theme while the menu stays open. OLED shows the current name beside Theme; e-paper shows it under Device. The local menu works while Atlas is unavailable or the Sigil is unpaired. Close the menu before holding the joystick to pair.
+
+Daylight uses dark text on a light OLED background; other OLED themes use light text on dark. E-paper keeps black text on white and adapts the lettering and borders. Modern themes use clear sans-serif type, life hearts and simple cards; Brass keeps its serif lettering and decoration. The screens always show turn and warning states in words.
 
 ## Device Menu
 
@@ -805,7 +815,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.12
+**Manual Version:** 0.13
 **Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Atlas 0.7.1, Sigil 0.9.13, TurnHub Android app (Google Play)
+**Software:** Atlas 0.7.4, Sigil 0.9.15, TurnHub Android app (Google Play)
 **Product names and specifications subject to change.**
