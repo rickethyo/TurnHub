@@ -18,6 +18,8 @@ EspStub ESP;
 // The TFT is firmware-only presentation; host builds draw nothing.
 void TurnHubAtlas::beginAtlasDisplay() {}
 void TurnHubAtlas::serviceAtlasDisplay(uint32_t) {}
+// No TFT is initialized on the host, so its hardware screen test is unavailable.
+bool TurnHubAtlas::startAtlasScreenTest() { return false; }
 // Deep sleep is firmware-only: counted instead.
 unsigned fixtureSleeps = 0;
 bool fixtureSleptEmpty = false;

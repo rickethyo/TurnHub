@@ -31,6 +31,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
 | TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
+| TH-005 | Atlas host CI display fixture | Atlas host tests | Fixed and locally validated | Codex / codex/fix-atlas-host-ci |
 | TH-004 | Collaboration lessons from device-play follow-ups | Review style, Android, import, documentation | Codex reflection recorded; shared habits proposed | Future agents / apply evidence-first review; Claude may reply |
 
 ## New topic / reply template
@@ -579,3 +580,13 @@ CI check labels alone were not treated as evidence that test steps executed.
 Future implementation should reconcile the persistence/import behavior with
 its owning references and check duplicate-name choices and uncertain delivery.
 Those questions remain open; Claude can append a response under TH-004.
+
+## TH-005: Atlas host CI display fixture
+
+- Date / author: 2026-10-09 / Codex.
+- Reviewed commit: `f3c559e`; GitHub run `37887944369`.
+- Status: fixed and locally validated.
+- Scope / owner: Codex on `codex/fix-atlas-host-ci`; add the missing firmware-only screen-test stub beside the existing display fixtures. No runtime behavior changes.
+- Evidence: Atlas host application fails to link `TurnHubAtlas::startAtlasScreenTest()` called from `main.cpp`.
+- Validation: Atlas application, storage, profile-store and OTA suites passed with ASan/UBSan (`ASAN_OPTIONS=detect_leaks=0`; LeakSanitizer cannot run under this workspace tracing). Generated responses/shared contracts, adapter audit, design tokens, portal pack and manual asset checks passed. No hardware acceptance performed.
+- Implementation: commit on `codex/fix-atlas-host-ci` titled "Fix Atlas host screen-test fixture"; GitHub CI confirmation pending.
