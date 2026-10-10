@@ -74,6 +74,7 @@ object AtlasWireParser {
                 starterPlayer = root.optionalInt("starterPlayer"),
                 activePlayer = root.optionalInt("activePlayer"),
                 winnerPlayer = root.optionalInt("winnerPlayer"),
+                monarchPlayer = root.optionalInt("monarchPlayer"),
                 settings = parseSettings(settings, profileKey),
                 sampledAtMs = root.uint32("sampledAtMs"),
                 gameElapsedMs = root.uint32("gameElapsedMs"),

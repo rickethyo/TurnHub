@@ -50,6 +50,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
       game.activePlayerNumber() : 0;
   changed |= update(active_, active);
   changed |= update(winner_, game.winnerPlayerNumber());
+  changed |= update(monarch_, game.monarchPlayerNumber());
   changed |= update(claimant_, game.winClaimPlayerNumber());
   changed |= update(confirmation_, game.nextWinConfirmationPlayerNumber());
   changed |= update(pending_.passPlayer, pending.passPlayer);
@@ -135,6 +136,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"starterPlayer\":"; nullablePlayer(out, starter_);
   out += ",\"activePlayer\":"; nullablePlayer(out, active_);
   out += ",\"winnerPlayer\":"; nullablePlayer(out, winner_);
+  out += ",\"monarchPlayer\":"; nullablePlayer(out, monarch_);
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
   out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);

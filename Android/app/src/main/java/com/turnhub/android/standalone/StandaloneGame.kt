@@ -57,6 +57,8 @@ data class StandaloneGame(
     val active: Int? = null,
     val starter: Int? = null,
     val winner: Int? = null,
+    /** One individual player, even when teams share life. */
+    val monarch: Int? = null,
     /** Wall clock when the match started. */
     val startedAtMs: Long = 0,
     /** Game time banked before [runningSinceMs]. */
@@ -120,6 +122,7 @@ data class StandaloneGame(
             active = first,
             starter = first,
             winner = null,
+            monarch = null,
             startedAtMs = nowMs,
             elapsedMs = 0,
             runningSinceMs = nowMs,
@@ -191,6 +194,12 @@ data class StandaloneGame(
     }
 
     /** The player leaves the game; when one is left standing, they win. */
+    fun claimMonarch(index: Int): StandaloneGame {
+        if (!playing || index !in players.indices || players[index].eliminated ||
+            (profile != GameProfile.MTG && profile != GameProfile.MTG_COMMANDER) || monarch == index) return this
+        return copy(monarch = index).bump()
+    }
+
     fun concede(index: Int, nowMs: Long): StandaloneGame = eliminate(index, nowMs, conceded = true)
 
     fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false): StandaloneGame {
@@ -198,6 +207,7 @@ data class StandaloneGame(
         if (!playing || player.eliminated) return this
         val out = players.count { it.eliminated } + 1
         var game = update(index) { it.copy(eliminated = true, conceded = conceded, outOrder = out) }
+            .let { if (it.monarch == index) it.copy(monarch = null) else it }
         val standing = game.players.indices.filter { !game.players[it].eliminated }
         if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
         if (active == index) {
@@ -217,7 +227,7 @@ data class StandaloneGame(
         val targets = players.indices.filter { !players[it].eliminated && players[it].life <= 0 }
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
-        var game = copy(players = players.mapIndexed { i, p ->
+        var game = copy(monarch = monarch?.takeUnless { it in targets }, players = players.mapIndexed { i, p ->
             if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
         }).bump()
         val standing = game.players.indices.filter { !game.players[it].eliminated }
@@ -308,6 +318,7 @@ data class StandaloneGame(
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
             winnerPlayerNumber = winner?.plus(1),
+            monarchPlayerNumber = monarch?.plus(1),
             pending = PendingDecisions(null, 0, null, null, null),
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),

@@ -478,6 +478,15 @@
           "type": "boolean"
         }
       }
+    },
+    "monarchPlayer": {
+      "description": "The single living monarch in a Magic game, or null. Individual player number, including in team games.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 255
     }
   }
 }

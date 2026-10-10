@@ -35,6 +35,7 @@ void GameEngine::reset() {
   playerCount_ = 0;
   activeIndex_ = 0;
   starterPlayer_ = 0;
+  monarchPlayer_ = 0;
   running_ = false;
   paused_ = false;
   gameOver_ = false;
@@ -401,6 +402,7 @@ bool GameEngine::eliminatePlayer(
   const int mate = teammateIndex(index);
   const bool wasActive = static_cast<uint8_t>(index) == activeIndex_ ||
       (mate >= 0 && static_cast<uint8_t>(mate) == activeIndex_);
+  if (sameTeam(monarchPlayer_, playerNumber)) monarchPlayer_ = 0;
   eliminated_[index] = true;
   conceded_[index] = conceded;
   cancelLifeChanges(playerNumber);
@@ -430,6 +432,14 @@ bool GameEngine::eliminatePlayer(
     }
   }
 
+  return true;
+}
+
+bool GameEngine::claimMonarch(uint8_t playerNumber) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || eliminated_[index] || gameOver_ || !running_ ||
+      (settings_.profile != GameProfile::Magic && settings_.profile != GameProfile::Commander)) return false;
+  monarchPlayer_ = playerNumber;
   return true;
 }
 

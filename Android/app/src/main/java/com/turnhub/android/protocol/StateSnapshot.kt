@@ -33,6 +33,7 @@ data class StateSnapshot(
     val nudge: Nudge? = null,
     /** Atlas's own battery; null with no cell or from older firmware. Sampled, not versioned. */
     val battery: AtlasBattery? = null,
+    val monarchPlayer: Int? = null,
     val game: Int = 1,
     val games: List<VenueGame> = emptyList(),
 )

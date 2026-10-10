@@ -58,6 +58,7 @@ class ClientState {
   GameSettings settings_{};
   ClientPending pending_{};
   uint8_t count_ = 0, host_ = INVALID_ID, starter_ = 0, active_ = 0;
+  uint8_t monarch_ = 0;
   uint8_t winner_ = 0, claimant_ = 0, confirmation_ = 0;
   bool inGame_ = false, initialized_ = false;
   static uint32_t revision_;

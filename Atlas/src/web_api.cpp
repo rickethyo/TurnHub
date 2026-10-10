@@ -248,6 +248,7 @@ const Route ROUTES[] = {
   {"/api/control/pause", HTTP_POST, controlRoute<WebControl::PauseResume>},
   {"/api/control/concede", HTTP_POST, controlRoute<WebControl::Concede>},
   {"/api/control/eliminate", HTTP_POST, controlRoute<WebControl::EliminateSeat>},
+  {"/api/control/monarch", HTTP_POST, controlRoute<WebControl::ClaimMonarch>},
   {"/api/control/win", HTTP_POST, controlRoute<WebControl::ClaimWin>},
   {"/api/control/confirm", HTTP_POST, controlRoute<WebControl::ConfirmWin>},
   {"/api/control/deny", HTTP_POST, controlRoute<WebControl::DenyWin>},

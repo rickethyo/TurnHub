@@ -172,6 +172,7 @@ class StandaloneTable(
                 "pause" -> game.togglePause(now)
                 "concede" -> game.concede(index, now)
                 "eliminate" -> game.eliminate(index, now)
+                "monarch" -> game.claimMonarch(index)
                 "win" -> game.claimWin(index, now)
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> game.rematch(now, newId())
@@ -265,6 +266,7 @@ class StandaloneTable(
             put("active", game.active ?: JSONObject.NULL)
             put("starter", game.starter ?: JSONObject.NULL)
             put("winner", game.winner ?: JSONObject.NULL)
+            put("monarch", game.monarch ?: JSONObject.NULL)
             put("startedAtMs", game.startedAtMs)
             put("elapsedMs", game.elapsedMs)
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
@@ -303,6 +305,7 @@ class StandaloneTable(
                 active = json.optIntOrNull("active"),
                 starter = json.optIntOrNull("starter"),
                 winner = json.optIntOrNull("winner"),
+                monarch = json.optIntOrNull("monarch"),
                 startedAtMs = json.getLong("startedAtMs"),
                 elapsedMs = json.getLong("elapsedMs"),
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),

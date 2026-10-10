@@ -430,3 +430,15 @@ Statistics add lifetime `gamesConceded` and last result `Conceded`, separate fro
 `gamesEliminated`/`Eliminated`. Standalone import optionally accepts `concededN`
 (0 or 1, default 0); 1 requires nonzero `outN`. Android retains the reason in
 local history regardless of import.
+
+### Magic monarch
+
+`POST /api/control/monarch` declares the authenticated seated player monarch.
+The tablet equivalent is action `monarch` at `/api/tablet/control`, using the
+normal module, slot and game scope. Both require a living player in a running
+or paused `mtg`/`mtg_commander` game; invalid game/seat state returns 409.
+Declaring monarch transfers the crown immediately, with at most one holder
+per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individual
+player number), absent on older firmware. It clears when that player leaves
+play, on reset or new match, and survives pause and recovery. Players apply
+Magic’s card rules themselves. No life, turn or victory change is implied.

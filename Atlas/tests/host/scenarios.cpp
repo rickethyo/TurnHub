@@ -3482,6 +3482,8 @@ static void tabletMode() {
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","start"}})==200);
   testNow+=3000; updateCountdown(testNow); assert(table().hubState==HubState::Running);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","move-later"}})==409);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","monarch"}})==200 && table().game.monarchPlayerNumber()==1);
+  assert(request("/api/tablet/control",tablet,{{"module",m2},{"slot","1"},{"action","monarch"}})==200 && table().game.monarchPlayerNumber()==2);
   assert(String(table().game.playerAt(0)->profileId)==avaId && String(table().game.playerAt(1)->profileId)==benId);
 
   // Each panel changes its own seat's life and records damage it received.
@@ -4529,6 +4531,51 @@ static void powerSource() {
   assert(seen>0 && cold.source()==PowerSource::Usb);
 }
 
+static void magicMonarch() {
+  using namespace TurnHub;
+  enterEmptyLobby(); fixtureRadio=false;
+  String aId,bId,cId;
+  const String a=registerPhone("Monarch one",aId), b=registerPhone("Monarch two",bId), c=registerPhone("Monarch three",cId);
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/join",*token)==200);
+  assert(request("/api/control/monarch",a)==409); // Lobby cannot hold the crown.
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg"},{"startingLife","20"},{"twoHeadedGiant","0"},{"autoEliminateAtZeroLife","1"}})==200);
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  assert(request("/api/control/monarch","")==401);
+  observeClientState(); const uint32_t before=table().clientState.revision();
+  assert(request("/api/control/monarch",a)==200 && table().game.monarchPlayerNumber()==1);
+  assert(table().clientState.revision()>before);
+  assert(request("/api/control/monarch",b)==200 && table().game.monarchPlayerNumber()==2);
+  assert(request("/api/v1/state",b,{},HTTP_GET)==200 && server.body.find("\"monarchPlayer\":2")!=std::string::npos);
+  assert(request("/api/control/pause",a)==200);
+  assert(request("/api/control/monarch",c)==200 && table().game.monarchPlayerNumber()==3);
+  GameCheckpoint saved; table().game.checkpoint(saved,testNow);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY]; const size_t size=encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && decodeCheckpoint(bytes,size,saved)==TurnHubStorage::Status::Ok && saved.monarch==3);
+  GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow) && restored.monarchPlayerNumber()==3);
+  saved.monarch=4; assert(!validCheckpoint(saved)); saved.monarch=3;
+  assert(request("/api/control/concede",c)==200 && table().game.monarchPlayerNumber()==0);
+  assert(request("/api/control/monarch",c)==409);
+  assert(request("/api/control/monarch",a)==200);
+  assert(request("/api/control/life",a,{{"delta","-20"}})==200 && table().game.monarchPlayerNumber()==0);
+  assert(request("/api/control/monarch",b)==409); // Finished game.
+  enterEmptyLobby();
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
+  for (const String *id : {&aId,&bId,&cId}) {
+    ProfileFixture::profiles.erase(id->c_str()); TurnHubAccounts::accounts.erase(id->c_str());
+  }
+  PlayerSeat seats[4]; for (uint8_t i=0;i<4;++i) { seats[i].playerNumber=i+1; seats[i].controllerId=i; seats[i].slot=1; }
+  GameEngine engine; GameSettings settings;
+  for (GameProfile profile : {GameProfile::Generic, GameProfile::Yugioh}) {
+    settings.profile=profile; assert(engine.start(seats,4,seats[0],testNow,settings)); assert(!engine.claimMonarch(1));
+  }
+  settings.profile=GameProfile::Commander; settings.twoHeadedGiant=true;
+  assert(engine.start(seats,4,seats[0],testNow,settings));
+  assert(engine.claimMonarch(1) && engine.claimMonarch(2) && engine.monarchPlayerNumber()==2);
+  bool finished=false; assert(engine.pause(testNow) && engine.eliminatePlayer(1,testNow,finished));
+  assert(engine.monarchPlayerNumber()==0); // Individual crown clears if either teammate leaves.
+  assert(engine.start(seats,4,seats[0],testNow,settings) && engine.monarchPlayerNumber()==0);
+}
+
 static void zeroLifeAndExitReasons() {
   using namespace TurnHub;
   using TurnHubProfiles::LastGameResult;
@@ -4613,6 +4660,7 @@ int main() {
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
+  magicMonarch(); std::cout<<"PASS Magic monarch: transfer, permissions, pause, recovery, exit, reset and teams\n";
   zeroLifeAndExitReasons(); std::cout<<"PASS zero-life policy, immediate toggle, separate exits, recovery, lethal requests, Commander and teams\n";
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
   twoHeadedGiantEngine(); std::cout<<"PASS Two-Headed Giant engine: team turns, shared life, requests, claims, elimination, Commander, recovery\n";

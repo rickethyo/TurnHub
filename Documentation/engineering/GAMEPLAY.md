@@ -225,3 +225,21 @@ HTTP/controller tests and host scenarios retain approval coverage. Life, approva
 the timer and Commander from phones are in use at the table (owner,
 2026-10-02). Sigil Commander entry and partners (Sigil 0.9.10, Atlas 0.6.8)
 and the shared-seat turn order (2026-10-05) still need a playtest.
+
+## Magic monarch
+
+Magic and Commander games have one optional monarch, identified by individual
+player number even in Two-Headed Giant. A living player can choose **I’m the
+monarch** from their player controls or table tile drawer, including while
+paused. Claiming immediately transfers the crown from the previous holder;
+there is no turn restriction. Table tiles show the crown and a Monarch label.
+If the holder concedes or is eliminated (including through zero-life resolution
+or team removal), the crown clears. Pause and recovery preserve it; a new
+match or return to lobby clears it. TurnHub tracks the declaration; players
+resolve the card’s combat and draw rules themselves.
+
+Atlas owns this singleton in GameEngine. Authenticated seat controls converge
+on ClaimMonarch; the domain rejects other formats, players out of the game,
+and inactive matches. The state projection exposes nullable `monarchPlayer`,
+and schema 3 checkpoints preserve it. Android standalone maintains and recovers
+the equivalent singleton for its separate local game. No radio change.

@@ -42,6 +42,7 @@ bool seatIntentForControl(WebControl control, IntentType &type) {
     case WebControl::PauseResume: type = IntentType::TogglePause; return true;
     case WebControl::Concede: type = IntentType::Concede; return true;
     case WebControl::EliminateSeat: type = IntentType::EliminateSeat; return true;
+    case WebControl::ClaimMonarch: type = IntentType::ClaimMonarch; return true;
     case WebControl::ClaimWin: type = IntentType::ClaimWin; return true;
     case WebControl::ConfirmWin: type = IntentType::ConfirmWin; return true;
     case WebControl::DenyWin: type = IntentType::DenyWin; return true;

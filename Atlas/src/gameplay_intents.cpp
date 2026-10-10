@@ -318,6 +318,15 @@ IntentResult handleMasterPassIntent(const Intent &intent, void *) {
   return IntentResult::accept("Master pass: turn passed");
 }
 
+IntentResult handleClaimMonarchIntent(const Intent &intent, void *) {
+  const PlayerSeat *seat = seatForIntentActor(intent);
+  if (!seat) return rejectMissingSeat();
+  if (!gameInProgress() || !table().game.claimMonarch(seat->playerNumber))
+    return IntentResult::reject(IntentStatus::InvalidState, "Only a living player in an active Magic game can be monarch");
+  logIntent("MONARCH", intent.actor.origin, seat->playerNumber);
+  return IntentResult::accept("You are the monarch");
+}
+
 // --- Concession -----------------------------------------------------------------
 
 // Unlike Eliminate, a concession restores running play if the match continues.

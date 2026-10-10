@@ -1000,3 +1000,29 @@ management/invitations from TH-002 remain separate planned work.
   1,649,473 B flash. Physical tablet/phone and hardware acceptance pending.
 - Handoff: new PR from `codex/master` because PR #86 is already integrated;
   owner reviews/integrates. No hardware flashing, release or merge performed.
+
+### 2026-10-10 — Codex: Magic monarch (active follow-up to PR #87)
+
+- Owner: Codex; branch `codex/master`; baseline `4f65854`. Add a crown and
+  “I’m the monarch” control for Magic/Commander, with exactly one holder.
+- Feature gate: GameEngine owns the connected singleton player number;
+  ClaimMonarch Intent validates a living seated player in an active Magic game.
+  Atlas checkpoints persist it; clients render it. Standalone owns its separate
+  equivalent. Additive HTTP/state fields only, no radio changes or dependencies.
+  Crown has a text/accessibility label and claims transfer immediately. Clear
+  when the holder leaves or a new game begins; preserve through pause/recovery.
+- Implementation: added per-game monarch state, seated ClaimMonarch intent and
+  personal/tablet HTTP controls; nullable state projection and schema 3 recovery.
+  Native personal/table tiles show the existing crown icon with a text label;
+  Magic/Commander controls transfer it immediately, including while paused.
+  Standalone games persist the same behavior. Exiting clears the crown, including
+  team removal. Updated Manual V0.16 within the same unintegrated feature PR.
+- Validation: 226 Android unit tests passed and final debug APK built; Atlas
+  application/storage/profile-store/OTA host suites passed with ASan/UBSan at
+  -O0 (LeakSanitizer disabled for workspace tracing). New scenarios cover
+  authenticated personal and tablet claims, transfer, pause, recovery, invalid
+  formats/states, exits and teams. All 20 state contracts, 31 adapter guards,
+  generated tokens and manual export passed. Atlas 0.7.10-dev built: 109,588 B
+  RAM, 1,650,065 B flash. Physical phone/tablet and hardware acceptance pending.
+- Handoff: included in active PR #87 for owner review/integration; no merge,
+  release or hardware flashing performed.

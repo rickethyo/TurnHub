@@ -19,6 +19,7 @@ enum class WebControl : uint8_t {
   PauseResume,
   Concede,
   EliminateSeat,
+  ClaimMonarch,
   ClaimWin,
   ConfirmWin,
   DenyWin,

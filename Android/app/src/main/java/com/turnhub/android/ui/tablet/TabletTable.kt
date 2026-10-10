@@ -76,6 +76,7 @@ import com.turnhub.android.protocol.LifeRequestState
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
@@ -347,6 +348,13 @@ internal fun TabletTable(
                             ZeroLifeSetting(summary, isOffline || anySeat == null) { enabled ->
                                 anySeat?.let { seat -> controls { setAutoEliminateAtZeroLife(seat, enabled) } }
                             }
+                            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                                summary.players.filter { !it.eliminated }.forEach { member ->
+                                    ToneButton("${member.label}: I’m the monarch", { send(member.seat(), "monarch") },
+                                        Modifier.fillMaxWidth(), tone = Tone.ACCENT,
+                                        enabled = !isOffline && member.playerNumber != summary.monarchPlayerNumber)
+                                }
+                            }
                             AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                         }
                     }
@@ -511,6 +519,11 @@ private fun PlayerPanel(
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)
             if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
+        }
+
+        unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
+            MonarchBadge(if (unit.members.size > 1) monarch.label else null,
+                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 52.dp))
         }
 
         Column(
@@ -773,6 +786,13 @@ private fun Drawer(
         }
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
             unit.members.filter { !it.eliminated }.forEach { member ->
+                if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                    ToneButton(
+                        if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
+                        { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
+                        enabled = member.playerNumber != summary.monarchPlayerNumber,
+                    )
+                }
                 ArmedButton(
                     if (unit.members.size > 1) "${member.label} concedes" else "Concede",
                     "Tap again to concede",

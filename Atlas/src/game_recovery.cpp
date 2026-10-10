@@ -10,12 +10,12 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 2;
+constexpr uint32_t SCHEMA = 3;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
-// Wire layout (little-endian): magic, schema, 7 header bytes, 5 header words,
+// Wire layout (little-endian): magic, schema, 8 header bytes (including monarch), 5 header words,
 // then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
 // eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
-constexpr size_t HEADER_SIZE = 4 + 4 + 7 + 5 * 4;
+constexpr size_t HEADER_SIZE = 4 + 4 + 8 + 5 * 4;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
 constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4;
@@ -60,6 +60,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.word(MAGIC); w.word(SCHEMA);
   w.byte(s.count); w.byte(s.active); w.byte(s.starter); w.byte(s.winner);
   w.byte(s.paused); w.byte(s.over); w.byte(profileByte(s.settings));
+  w.byte(s.monarch);
   w.word(static_cast<uint32_t>(s.settings.startingLife));
   w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.settings.turnTimerMs); w.word(s.nextRequestId);
   for (uint8_t i=0;i<s.count;++i) {
@@ -78,11 +79,11 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
 }
 TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameCheckpoint &s) {
   using TurnHubStorage::Status;
-  if (!bytes || size < MIN_RECORD_SIZE || size > GAME_CHECKPOINT_CAPACITY) return Status::Corrupt;
+  if (!bytes || size < MIN_RECORD_SIZE - 1 || size > GAME_CHECKPOINT_CAPACITY) return Status::Corrupt;
   Reader header{bytes,size};
   if (header.word()!=MAGIC) return Status::Corrupt;
   const uint32_t schema = header.word();
-  if (schema != 1 && schema != SCHEMA) return Status::UnsupportedSchema;
+  if (schema != 1 && schema != 2 && schema != SCHEMA) return Status::UnsupportedSchema;
   Reader checksum{bytes + size - CRC_SIZE, CRC_SIZE};
   if (checksum.word() != crc32(bytes, size - CRC_SIZE)) return Status::Corrupt;
   Reader r{bytes, size - CRC_SIZE};
@@ -91,6 +92,7 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   clearCheckpoint(s);
   s.count=r.byte(); s.active=r.byte(); s.starter=r.byte(); s.winner=r.byte();
   s.paused=r.flag(); s.over=r.flag(); readProfileByte(r.byte(), s.settings);
+  if (schema >= 3) s.monarch = r.byte();
   s.settings.startingLife=static_cast<int32_t>(r.word());
   s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.settings.turnTimerMs=r.word(); s.nextRequestId=r.word();
   if (s.count>MAX_PLAYERS) return Status::Corrupt;

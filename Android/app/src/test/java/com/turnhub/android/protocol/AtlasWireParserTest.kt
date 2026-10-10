@@ -11,6 +11,13 @@ import org.junit.Test
 class AtlasWireParserTest {
 
     @Test
+    fun `monarch parses and older snapshots have no monarch`() {
+        assertNull(Fixtures.state("running.response.json").monarchPlayer)
+        assertNull(Fixtures.state("running.response.json") { put("monarchPlayer", JSONObject.NULL) }.monarchPlayer)
+        assertEquals(2, Fixtures.state("running.response.json") { put("monarchPlayer", 2) }.monarchPlayer)
+    }
+
+    @Test
     fun `parses zero life setting and concession reason`() {
         val state = Fixtures.state("running.response.json") {
             getJSONObject("settings").put("autoEliminateAtZeroLife", true)

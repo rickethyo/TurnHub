@@ -58,6 +58,7 @@ enum class ControlAction(val path: String) {
     DENY_WIN("/api/control/deny"),
     CONCEDE("/api/control/concede"),
     ELIMINATE("/api/control/eliminate"),
+    MONARCH("/api/control/monarch"),
     SELECT_STARTER("/api/control/starter"),
     START("/api/control/start"),
     CANCEL_START("/api/control/cancel-start"),

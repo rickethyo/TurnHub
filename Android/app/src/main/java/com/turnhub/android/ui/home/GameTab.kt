@@ -91,6 +91,7 @@ import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.CountdownBar
 import com.turnhub.android.ui.components.Eyebrow
@@ -384,6 +385,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
         if (me != null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (summary.hasTurn(me.playerNumber) && summary.state == TableState.RUNNING) StatusBadge("Your turn", Tone.ACTIVE)
+                if (summary.monarchPlayerNumber == me.playerNumber) MonarchBadge()
                 if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else "Eliminated", Tone.BAD)
                 if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
                 me.life?.let { StatusBadge(if (me.team != null) "Team life $it" else "Life $it", Tone.GOOD) }
@@ -398,6 +400,12 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             )
         }
         val busy = panel?.busy == true
+        if (me != null && !me.eliminated &&
+            (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) &&
+            (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER)) {
+            ToneButton("I’m the monarch", { actions.onControl(ControlAction.MONARCH) }, Modifier.fillMaxWidth(),
+                tone = Tone.ACCENT, enabled = !busy && summary.monarchPlayerNumber != me.playerNumber)
+        }
         // The join flow moves through stages (sign in, join, seated, playing):
         // each new set of controls rises in as the old one gives way.
         val stage = when {
@@ -615,6 +623,7 @@ private fun LifeCard(
                     active = summary.hasTurn(player.playerNumber),
                     mine = player.playerNumber == me?.playerNumber,
                     winner = summary.isWinner(player.playerNumber),
+                    monarch = summary.monarchPlayerNumber == player.playerNumber,
                     onRequest = if (canAct && player.playerNumber != me.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
@@ -656,6 +665,7 @@ private fun LifeTile(
     active: Boolean,
     mine: Boolean,
     winner: Boolean,
+    monarch: Boolean,
     onRequest: (() -> Unit)?,
     reduceMotion: Boolean,
     modifier: Modifier = Modifier,
@@ -733,7 +743,7 @@ private fun LifeTile(
             .padding(12.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${player.label}, life ${life ?: "not set"}" +
-                    (if (active) ", active" else "") + (if (player.eliminated) ", eliminated" else "")
+                    (if (active) ", active" else "") + (if (monarch) ", monarch" else "") + (if (player.eliminated) ", eliminated" else "")
             },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -747,6 +757,7 @@ private fun LifeTile(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (monarch) MonarchBadge()
         Box(contentAlignment = Alignment.TopEnd) {
             Text(
                 if (life == null) "—" else counter.value.roundToInt().toString(),

@@ -787,3 +787,7 @@ Manual Version: 0.15
 Hardware: Prototype (Atlas E32R28T touchscreen board; frozen e-ink/OLED Sigils; ESP32-S3 LCD layouts planned)
 Software: Atlas 0.7.8, existing Sigil firmware, TurnHub Android app (Google Play)
 Product names and specifications subject to change.
+
+## The monarch (Magic and Commander)
+
+Choose I’m the monarch in your player controls or the More drawer on your table tile. While paused, the table also lists the monarch controls. A crown and Monarch label identify the holder. Only one player can be monarch: claiming it immediately transfers the crown. In team games, the crown belongs to the named individual. If the holder concedes or is eliminated, the crown clears. It survives pause and game recovery, and resets for a new match. Players resolve the card’s combat and draw rules themselves.

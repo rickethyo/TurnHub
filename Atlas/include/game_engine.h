@@ -76,6 +76,8 @@ class GameEngine {
       const GameSettings &settings = GameSettings{});
 
   const GameSettings &settings() const { return settings_; }
+  uint8_t monarchPlayerNumber() const { return monarchPlayer_; }
+  bool claimMonarch(uint8_t playerNumber);
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
   bool resolveZeroLife(uint32_t nowMs);
   bool hasConceded(uint8_t player) const;
@@ -249,6 +251,7 @@ class GameEngine {
   uint8_t playerCount_ = 0;
   uint8_t activeIndex_ = 0;
   uint8_t starterPlayer_ = 0;
+  uint8_t monarchPlayer_ = 0;
 
   bool running_ = false;
   bool paused_ = false;

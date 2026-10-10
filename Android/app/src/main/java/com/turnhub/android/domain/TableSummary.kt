@@ -54,6 +54,7 @@ data class TableSummary(
     val nudge: Nudge? = null,
     /** Atlas's own battery, for the header gauge; null with no cell. */
     val battery: AtlasBattery? = null,
+    val monarchPlayerNumber: Int? = null,
     val game: Int = 1,
     val games: List<com.turnhub.android.protocol.VenueGame> = emptyList(),
 ) {

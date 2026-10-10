@@ -27,6 +27,43 @@ class StandaloneGameTest {
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
 
     @Test
+    fun `monarch transfers to one living player and survives pause and storage`() {
+        val game = threePlayers().claimMonarch(0).claimMonarch(1).togglePause(2_000)
+        assertEquals(1, game.monarch)
+        assertEquals(2, game.toSummary(2_000, 2_000).monarchPlayerNumber)
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertEquals(1, restored.monarch)
+        assertEquals(2, restored.claimMonarch(2).monarch)
+        assertSame(restored, restored.claimMonarch(99))
+    }
+
+    @Test
+    fun `crown clears on concession elimination lethal life and new match`() {
+        val game = threePlayers().claimMonarch(0)
+        assertNull(game.concede(0, 2_000).monarch)
+        assertNull(game.eliminate(0, 2_000).monarch)
+        assertNull(game.changeLife(0, -40, 2_000).monarch)
+        assertNull(game.reset().monarch)
+        assertNull(game.claimWin(1, 2_000).rematch(3_000, "g2", firstSeat).monarch)
+        val out = game.eliminate(0, 2_000)
+        assertSame(out, out.claimMonarch(0))
+    }
+
+    @Test
+    fun `monarch is only available in active Magic games`() {
+        val lobby = StandaloneGame().addPlayer("Ana").addPlayer("Ben")
+        assertSame(lobby, lobby.claimMonarch(0))
+        for (profile in listOf(GameProfile.GENERIC, GameProfile.YUGIOH)) {
+            val game = lobby.setFormat(profile).start(1_000, "g", firstSeat)
+            assertSame(game, game.claimMonarch(0))
+        }
+        val magic = lobby.setFormat(GameProfile.MTG).start(1_000, "g", firstSeat)
+        assertEquals(0, magic.claimMonarch(0).monarch)
+        val over = magic.claimWin(0, 2_000)
+        assertSame(over, over.claimMonarch(1))
+    }
+
+    @Test
     fun `zero life eliminates by default and advances the turn`() {
         val game = threePlayers().changeLife(0, -40, 2_000)
         assertTrue(game.players[0].eliminated)

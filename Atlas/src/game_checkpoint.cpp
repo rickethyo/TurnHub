@@ -6,6 +6,7 @@
 namespace TurnHub {
 void clearCheckpoint(GameCheckpoint &out) {
   out.settings = GameSettings{};
+  out.monarch = 0;
   out.count = out.active = out.starter = out.winner = 0;
   out.paused = out.over = false;
   out.gameElapsed = out.turnElapsed = out.nextRequestId = 0;
@@ -21,6 +22,8 @@ void clearCheckpoint(GameCheckpoint &out) {
 
 bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
+  if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] ||
+      (s.settings.profile != GameProfile::Magic && s.settings.profile != GameProfile::Commander))) return false;
   if (!s.count) return !s.over && !s.winner;
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
       s.winner > s.count || (!s.over && s.winner)) return false;
@@ -66,6 +69,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   if (!hasPlayers()) return;
   out.settings = settings_;
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
+  out.monarch = monarchPlayer_;
   out.winner = winnerPlayer_; out.paused = paused_; out.over = gameOver_;
   out.gameElapsed = gameElapsedMs(nowMs); out.turnElapsed = currentTurnElapsedMs(nowMs);
   out.nextRequestId = nextLifeRequestId_;
@@ -83,6 +87,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   reset();
   if (!s.count) return true;
   settings_ = s.settings; playerCount_ = s.count; activeIndex_ = s.active;
+  monarchPlayer_ = s.monarch;
   starterPlayer_ = s.starter; winnerPlayer_ = s.winner;
   running_ = true; gameOver_ = s.over; paused_ = !s.over;
   nextLifeRequestId_ = s.nextRequestId;
