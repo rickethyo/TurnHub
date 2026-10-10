@@ -131,6 +131,7 @@ private fun StatsSheet(stats: ProfileStatistics, error: String?, actions: Accoun
                 StatusRow("Win rate", stats.winRate)
                 StatusRow("Started first", l.gamesStarted.toString())
                 StatusRow("Eliminated", l.gamesEliminated.toString())
+                StatusRow("Conceded", l.gamesConceded.toString())
                 StatusRow("Completed turns", l.turnsCompleted.toString())
             }
             BrassCard {

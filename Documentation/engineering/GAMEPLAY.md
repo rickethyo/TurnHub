@@ -1,8 +1,9 @@
 # Gameplay: Turns, Life, Commander and Cues
 
 The rules Atlas runs during a match, and how they reach players as light,
-sound and text. TurnHub is a bookkeeping tool, not a rules engine: no life or
-damage total ever eliminates anyone automatically.
+sound and text. TurnHub tracks life and outcomes. Automatic elimination at zero
+or negative life is on by default and may be disabled when cards change the
+loss condition; Commander damage totals alone do not trigger elimination.
 
 ## Game profiles and settings
 
@@ -21,6 +22,38 @@ damage total ever eliminates anyone automatically.
 - HTTP: `GET/POST /api/game/settings` (omitted fields keep their value);
   `/api/session/me` and `/api/seats` report `lifeAvailable` and `life`.
 - Lifetime statistics are not yet split by game (staged).
+
+## Zero-life elimination and exit reasons
+
+`autoEliminateAtZeroLife` is on by default. Any seated player can change it in
+Android Game, the connected tablet lobby/table menu, or standalone play. During
+a connected match ConfigureGame permits only this field to change: profile,
+starting life, teams and turn timer stay fixed. The live change belongs to the
+current match; lobby changes choose the next-match default. Changes wait while a
+win claim or manual elimination decision is open.
+
+Enabling it immediately checks all living players at zero or below, including
+paused games. The engine resolves the full set before choosing a winner; if
+no side survives the match is a draw. Life reductions from Commander hits and
+accepted or expired life requests use the same check. Active-player elimination
+advances the turn and cancels a queued pass; eliminated players cannot be healed
+back into the match. Disable the setting before applying a card's alternate
+loss condition. Shared team life eliminates both teammates.
+
+Concede records a voluntary exit (`conceded=true`, `eliminated=true`); Eliminate
+and automatic zero-life removal record elimination (`conceded=false`). Both
+remove the player from turn order and can leave the last side as winner. The
+Android controls confirm both actions; table panels and standalone history show
+the recorded reason. Concessions increment `gamesConceded` and use the Conceded
+last result; eliminations increment `gamesEliminated`. Team exits share a reason.
+Saved match recovery preserves the policy and reason. Standalone results carry
+the reason through optional Atlas import (`concededN`, 0 or 1).
+
+The settings profile byte uses bit 0x40 for manual-only elimination (clear means
+automatic). Checkpoint schema 2 uses the existing eliminated byte as flags:
+bit 0 out, bit 1 conceded. Statistics schema 2 uses the former four trailing
+padding bytes for `gamesConceded`, preserving the record size. Historical
+concessions cannot be reconstructed from older eliminated results.
 
 ## Two-Headed Giant
 
@@ -120,7 +153,7 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   nudge per player every 30 s; a Game Master can mute an account's nudges.
 - Life is bounded to ±1,000,000 and changes are accepted while running or
   paused, except during a table decision or after elimination. Zero or less
-  never eliminates. Life changes never write flash (only the checkpoint).
+  eliminates when `autoEliminateAtZeroLife` is enabled (default true). Life changes never write flash (only the checkpoint).
 - HTTP: `POST /api/control/life` (own life), `/life/request`,
   `/life/respond`, `GET /api/game/counters`.
 
@@ -192,3 +225,58 @@ HTTP/controller tests and host scenarios retain approval coverage. Life, approva
 the timer and Commander from phones are in use at the table (owner,
 2026-10-02). Sigil Commander entry and partners (Sigil 0.9.10, Atlas 0.6.8)
 and the shared-seat turn order (2026-10-05) still need a playtest.
+
+## Magic monarch
+
+Magic and Commander games have one optional monarch, identified by individual
+player number even in Two-Headed Giant. A living player can choose **I’m the
+monarch** from their player controls or table tile drawer, including while
+paused. Claiming immediately transfers the crown from the previous holder;
+there is no turn restriction. Table tiles show the crown and a Monarch label.
+If the holder concedes or is eliminated (including through zero-life resolution
+or team removal), the crown clears. Pause and recovery preserve it; a new
+match or return to lobby clears it. TurnHub tracks the declaration; players
+resolve the card’s combat and draw rules themselves.
+
+Atlas owns this singleton in GameEngine. Authenticated seat controls converge
+on ClaimMonarch; the domain rejects other formats, players out of the game,
+and inactive matches. The state projection exposes nullable `monarchPlayer`,
+and schema 3 checkpoints preserve it. Android standalone maintains and recovers
+the equivalent singleton for its separate local game. No radio change.
+
+## Magic counters, commander tax and statuses
+
+Magic/Commander native player controls and table drawers now expose poison,
+energy and experience, initiative, city’s blessing, and (Commander) command-zone
+casts. Counters range from 0 to 1,000,000; negative corrections cannot cross zero.
+Counters and city’s blessing remain associated with their individual owner.
+Initiative has one living holder per game, independent of monarch; claiming it
+transfers it, and the holder may release it to correct an entry. City’s blessing
+is independently declared by each player; clearing it is an explicit correction.
+TurnHub does not count permanents, resolve the Undercity or enforce card effects.
+
+Each commander’s casts from the command zone are tracked separately. Its next
+cast tax is derived as twice the count; first cast has no tax. Counting a second
+commander’s casts enables partners in Atlas. A minus corrects an accidental cast.
+
+Automatic elimination has independent live toggles for zero life, poison and
+21 damage received from one commander (not pooled across sources or partners).
+New-game defaults are on. Poison defaults to 10, or 15 shared for a Two-Headed
+Giant team; its limit is editable. Switching team mode in the lobby selects the
+standard poison limit unless the request supplies a custom one. Changing a limit
+or enabling a rule immediately checks all living players, as one batch; this
+avoids a false winner if multiple players meet loss conditions simultaneously.
+Poison/Commander losses use the elimination reason, not concession. The relevant
+rule should be disabled before a card changes that loss condition. All these
+settings remain reachable during pause.
+
+Connected counters use the existing ChangeCounter intent with CounterKind,
+validated by GameEngine and the living-seat/table-decision handler. Settings use
+ConfigureGame; the common post-intent rule finalizer resolves automatic losses
+before projecting/checkpointing. Settings schema 3 and checkpoint schema 4
+persist rules, counters and initiative. The HTTP state is a read model; no
+radio change. Native connected clients require Atlas for the new actions while
+disconnected (they do not replay status/counter changes). Standalone games own
+and persist their equivalent local state. New matches reset counters/status;
+match settings carry forward. Elimination clears initiative; city’s blessing
+and numerical counters remain as the last values on an eliminated player.

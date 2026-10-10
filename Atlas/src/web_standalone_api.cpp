@@ -79,6 +79,10 @@ bool parseGame(WebServer &server, ImportedGame &game) {
       return false;
     }
     player.outOrder = static_cast<uint8_t>(out);
+    const String conceded = playerField(server, "conceded", i);
+    if (conceded.length() && conceded != "0" && conceded != "1") return false;
+    player.conceded = conceded == "1";
+    if (player.conceded && !player.outOrder) return false;
   }
   return true;
 }

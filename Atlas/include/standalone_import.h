@@ -27,6 +27,7 @@ struct ImportedPlayer {
   uint32_t longestTurnMs = 0;
   // 1 for the first player out; 0 for anyone still in at the end.
   uint8_t outOrder = 0;
+  bool conceded = false;
 };
 
 struct ImportedGame {

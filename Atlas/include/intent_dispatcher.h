@@ -22,6 +22,8 @@ class IntentDispatcher {
   // Application-owned read models may observe completed handlers. No authority
   // is delegated to the observer; nested dispatches are observed on completion.
   void setObserver(Observer observer) { observer_ = observer; }
+  // Application domain rules settle after a handler, before projections and recovery.
+  void setRuleFinalizer(Observer finalizer) { ruleFinalizer_ = finalizer; }
 
  private:
   struct Binding {
@@ -34,6 +36,7 @@ class IntentDispatcher {
 
   Binding bindings_[HANDLER_COUNT]{};
   Observer observer_ = nullptr;
+  Observer ruleFinalizer_ = nullptr;
 };
 
 }  // namespace TurnHub

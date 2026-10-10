@@ -6,7 +6,7 @@ namespace TurnHub {
 // Serialization DTO only. GameEngine remains the sole live game state owner.
 struct GameCheckpoint {
   GameSettings settings{};
-  uint8_t count = 0, active = 0, starter = 0, winner = 0;
+  uint8_t count = 0, active = 0, starter = 0, winner = 0, monarch = 0, initiative = 0;
   bool paused = false, over = false;
   // settings.turnTimerMs travels in schema 1's former per-turn "warningMs"
   // word: it was always 0 before the turn timer existed, which means OFF.
@@ -14,6 +14,8 @@ struct GameCheckpoint {
   PlayerSeat players[MAX_PLAYERS]{};
   PlayerStats stats[MAX_PLAYERS]{};
   bool eliminated[MAX_PLAYERS]{};
+  bool conceded[MAX_PLAYERS]{};
+  PlayerCounters counters[MAX_PLAYERS]{};
   int32_t life[MAX_PLAYERS]{};
   int32_t damage[MAX_PLAYERS][MAX_PLAYERS][2]{};
 };

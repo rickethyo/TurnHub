@@ -93,8 +93,11 @@ void existingRecords() {
   assert(writeStoredStats(store, key, again) == Status::Ok);
   assert(FakeNvs::blobs[key][66] == 4);
   assert(readStoredStats(store, key, out) == Status::Ok && out.lastGameResult == LastGameResult::Draw);
+  again.lastGameResult = LastGameResult::Conceded; again.gamesConceded = 2;
+  assert(writeStoredStats(store, key, again) == Status::Ok);
+  assert(readStoredStats(store, key, out) == Status::Ok && out.lastGameResult == LastGameResult::Conceded && out.gamesConceded == 2);
   std::vector<uint8_t> future = FakeNvs::blobs[key];
-  future[66] = 5;
+  future[66] = 6;
   FakeNvs::blobs[key] = future;
   assert(readStoredStats(store, key, out) == Status::Corrupt);
   FakeNvs::blobs[key] = legacy;
@@ -143,7 +146,7 @@ void protectedRecords() {
   reject(std::vector<uint8_t>(71, 0), Status::Corrupt);
   reject(std::vector<uint8_t>(73, 0), Status::Corrupt);
   std::vector<uint8_t> future(72, 0);
-  future[64] = 2;
+  future[64] = 3;
   reject(future, Status::UnsupportedSchema);
   future[64] = 1; future[66] = 255;
   reject(future, Status::Corrupt);
@@ -157,7 +160,7 @@ void protectedRecords() {
   assert(FakeNvs::writes == 0);
   FakeNvs::readError = ESP_OK;
   ProfileStats invalid;
-  invalid.schemaVersion = 2;
+  invalid.schemaVersion = 3;
   assert(writeStoredStats(store, "s12345678", invalid) == Status::UnsupportedSchema);
   assert(FakeNvs::writes == 0);
 }
@@ -324,11 +327,12 @@ void gameSettingsRecords() {
   for (uint8_t profile=0;profile<4;++profile) for(int32_t life : {0,27,1000000})
       for(uint32_t timer : {TURN_TIMER_OFF,TURN_TIMER_MIN_MS,120000u,TURN_TIMER_MAX_MS}) {
     settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;settings.turnTimerMs=timer;
+    settings.autoEliminateAtPoisonLimit = profile & 1; settings.autoEliminateAtCommanderDamage = profile & 2; settings.poisonLimit = 17;
     assert(writeGameSettings(store,settings)==Status::Ok);
-    assert(FakeNvs::blobs["gamecfg"].size()==10 && FakeNvs::blobs["gamecfg"][0]==2);
+    assert(FakeNvs::blobs["gamecfg"].size()==15 && FakeNvs::blobs["gamecfg"][0]==3);
     NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
     GameSettings again;assert(readGameSettings(reopened,again)==Status::Ok);
-    assert(again.profile==settings.profile && again.startingLife==life && again.turnTimerMs==timer);
+    assert(sameGameSettings(again,settings));
     const int before=FakeNvs::writes;
     assert(writeGameSettings(reopened,settings)==Status::Ok && FakeNvs::writes==before);
   }
@@ -344,10 +348,10 @@ void gameSettingsRecords() {
     {settings.turnTimerMs=timer;assert(writeGameSettings(store,settings)==Status::InvalidArgument);}
   for(const auto &bytes : {std::vector<uint8_t>{}, {1,0,20}, {1,0,20,0,0,0,0},
       {1,4,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}, {1,0,20,0,0,0,0,0,0,0},
-      {2,0,20,0,0,0,0xe8,0x03,0,0}, {3,0,20,0,0,0}}) {
+      {2,0,20,0,0,0,0xe8,0x03,0,0}, {99,0,20,0,0,0}}) {
     FakeNvs::blobs["gamecfg"]=bytes;
     settings=GameSettings{};
-    const Status expected=bytes.size()==6&&bytes[0]==3?Status::UnsupportedSchema:Status::Corrupt;
+    const Status expected=bytes.size()==6&&bytes[0]==99?Status::UnsupportedSchema:Status::Corrupt;
     const int before=FakeNvs::writes;
     assert(readGameSettings(store,settings)==expected && settings.startingLife==40);
     assert(writeGameSettings(store,settings)==expected && FakeNvs::writes==before);

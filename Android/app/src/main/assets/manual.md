@@ -1,4 +1,4 @@
-<!-- Generated from TurnHub Manual V0.15.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.16.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
@@ -423,13 +423,13 @@ This helps prevent an accidental button press from ending the game.
 
 When a game ends, choose Rematch to play again with the same players, or Reset to empty the table. Both are on the Atlas screen as well as on the Sigils and in the app.
 
-# 15. Conceding
+# 15. Conceding and elimination
 
 A player who is leaving the game can concede. On a Sigil, choose I’m out from Menu, then hold Confirm out. On a shared Sigil, Other seat switches to the other player first. In the app or tablet mode, choose Concede and confirm.
 
-Conceding removes that player from normal turn progression while preserving the rest of the game.
+Concede records a voluntary exit. Eliminate records a loss due to a game condition. Both remove that player from turn progression; the last player or team remaining wins. They have separate statistics and are shown separately in tablet panels and local history.
 
-Earlier prototype versions may refer to this function as Eliminate. Current terminology uses Concede for a player intentionally leaving the game.
+Automatic elimination at zero life is on by default. You can change it before or during play from Game, the table menu, or the standalone lobby. Disable it before a card changes the loss condition. Enabling it immediately eliminates every living player at zero or below, including while paused. If nobody survives, the match ends as a draw. Turning it off does not restore eliminated players.
 
 ## Ending a Match as a Draw
 
@@ -485,7 +485,7 @@ Players seated by the tablet can still use their own Sigil or phone as well: a S
 
 - The player whose turn it is holds **Hold to pass**. While it says **Passing… tap to keep**, a tap undoes the pass.
 
-- **More** on a panel holds **Claim the win** and **Concede** (tap again to confirm) and Commander damage received from each opponent, with partner commanders when needed.
+- **More on a panel holds Claim the win, Concede and Eliminate (tap again to confirm), and Commander damage received from each opponent, with partner commanders when needed. Tap the middle table control to change Automatic elimination at zero life during play; the paused screen also offers this setting.**
 
 - **Menu** in the middle of the table holds **Pause**, **Turn panels around**, **End without a winner** (a draw) and **Leave tablet mode**. After the game choose **Rematch** or **New players**.
 
@@ -787,3 +787,19 @@ Manual Version: 0.15
 Hardware: Prototype (Atlas E32R28T touchscreen board; frozen e-ink/OLED Sigils; ESP32-S3 LCD layouts planned)
 Software: Atlas 0.7.8, existing Sigil firmware, TurnHub Android app (Google Play)
 Product names and specifications subject to change.
+
+## The monarch (Magic and Commander)
+
+Choose I’m the monarch in your player controls or the More drawer on your table tile. While paused, the table also lists the monarch controls. A crown and Monarch label identify the holder. Only one player can be monarch: claiming it immediately transfers the crown. In team games, the crown belongs to the named individual. If the holder concedes or is eliminated, the crown clears. It survives pause and game recovery, and resets for a new match. Players resolve the card’s combat and draw rules themselves.
+
+## Magic counters, commander tax and statuses
+
+Use Counters and status in your player controls or the More drawer on a table tile. Poison, energy and experience have plus/minus controls; minus corrects or spends a counter. Two-Headed Giant shares poison across the team. Table tiles show poison and active status markers.
+
+I have the initiative transfers it from its previous holder. Initiative and monarch may belong to different players. Release initiative corrects an entry. I have the city’s blessing marks your own blessing; multiple players can have it. Clearing blessing is a correction, not a game rule. Players resolve card effects and the Undercity themselves.
+
+For Commander, count each commander’s casts from the command zone separately. The next-cast tax is two generic mana per previous command-zone cast. First cast has no tax; each commander has its own count. Use minus to correct an accidental cast.
+
+Automatic elimination has separate switches for zero life, poison, and 21 damage from one commander. All are on by default. Poison normally loses at 10, or 15 shared poison in Two-Headed Giant; the poison limit is editable. Commander damage is never pooled across different commanders. Change the switches and poison limit in game settings during play, including while paused. Enabling a rule or changing a limit checks existing totals immediately. Disable the relevant rule before a card changes a loss condition.
+
+Counters and statuses survive app close and game recovery. New matches clear them. Leaving the game clears held initiative and monarch. Connected counter/status controls need Atlas to be answering; standalone games apply them locally.

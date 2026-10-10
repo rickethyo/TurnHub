@@ -34,6 +34,11 @@ data class TableSettings(
      * the team's total. Older firmware omits it (false).
      */
     val twoHeadedGiant: Boolean = false,
+    /** Older firmware omits this setting and never auto-eliminates. */
+    val autoEliminateAtZeroLife: Boolean = false,
+    val autoEliminateAtPoisonLimit: Boolean = false,
+    val autoEliminateAtCommanderDamage: Boolean = false,
+    val poisonLimit: Int = if (twoHeadedGiant) 15 else 10,
 ) {
     val turnTimerEnabled: Boolean get() = turnTimerMs > 0
 }

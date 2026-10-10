@@ -261,7 +261,7 @@ decimal text) and `expectedBootId`. Supply both from the latest snapshot. A stal
 revision, missing/wrong boot ID, or unavailable revision provider returns HTTP 409
 with `status: "CONFLICT"` before dispatch. Invalid revision text returns HTTP 400.
 
-Supported routes: `/api/control/pass`, `pause`, `concede`, `win`, `confirm`, `deny`,
+Supported routes: `/api/control/pass`, `pause`, `concede`, `eliminate`, `win`, `confirm`, `deny`,
 `starter`, `start`, `cancel-start`, `rematch`, `reset`, `nudge`. Omitting the check preserves
 browser behavior. Life, counters, participation and settings retain their existing
 contracts and do not yet accept this check.
@@ -353,7 +353,7 @@ One shared screen at the table acting for every seat. Engineering record:
      The app sends such changes once on reconnect, only for the same boot,
      the same game and a player still in it, and never retries a refused one.
    - `POST /api/tablet/settings`: the `/api/game/settings` fields.
-   - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `win`,
+   - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `eliminate`, `win`,
      `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch`,
      `reset`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
      `expectedRevision`).
@@ -410,3 +410,68 @@ not use this guard. Authentication and semantic Intent validation remain require
 
 Browser `/tablet` and `/stats` now serve administration recovery. Native gameplay,
 profile statistics and `/api/tablet/*` contracts remain available.
+
+### Zero-life elimination and voluntary concessions (2026-10-10)
+
+`GET /api/game/settings` and state `settings` expose `autoEliminateAtZeroLife`
+(Boolean, default true). The settings POST and `/api/tablet/settings` accept
+`autoEliminateAtZeroLife=0|1`. Seated players can change it in the lobby or during
+running/paused play; only this field may change during play. Enabling applies
+immediately to all living participants at zero or negative life, including
+paused matches. An open win claim/elimination decision blocks changes. Lobby
+changes persist as the next-game default; in-play changes persist in recovery
+for the current match. Profile/life/timer/team changes remain lobby-only.
+
+`POST /api/control/eliminate` and tablet control `action=eliminate` remove the
+caller/selected seat with an elimination reason. Concede remains a voluntary
+exit. State `players[].conceded` distinguishes it while `eliminated` remains
+true for either exit. Both actions reject already-out seats and open decisions.
+Statistics add lifetime `gamesConceded` and last result `Conceded`, separate from
+`gamesEliminated`/`Eliminated`. Standalone import optionally accepts `concededN`
+(0 or 1, default 0); 1 requires nonzero `outN`. Android retains the reason in
+local history regardless of import.
+
+### Magic monarch
+
+`POST /api/control/monarch` declares the authenticated seated player monarch.
+The tablet equivalent is action `monarch` at `/api/tablet/control`, using the
+normal module, slot and game scope. Both require a living player in a running
+or paused `mtg`/`mtg_commander` game; invalid game/seat state returns 409.
+Declaring monarch transfers the crown immediately, with at most one holder
+per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individual
+player number), absent on older firmware. It clears when that player leaves
+play, on reset or new match, and survives pause and recovery. Players apply
+Magic’s card rules themselves. No life, turn or victory change is implied.
+
+### Magic counters and live loss rules
+
+`POST /api/control/counter` changes the authenticated living player’s own
+Magic counters. The shared-table equivalent is `/api/tablet/counter` with the
+normal `module`, `slot` and game scope. Both converge on ChangeCounter.
+
+| counter | Value fields | Meaning |
+| --- | --- | --- |
+| `poison`, `energy`, `experience` | `delta` (nonzero, ±1,000,000) | Add/correct a nonnegative bounded total. Poison is shared by 2HG teammates. |
+| `commander-casts` | `delta`, `commander` (1 or 2) | Command-zone casts in Commander. Next tax = 2 × casts. |
+| `city-blessing` | `value` (0 or 1) | Declare blessing or clear an erroneous entry; independent per player. |
+| `initiative` | `value` (0 or 1) | Claim/transfer, or release one’s own initiative. |
+
+Lobby/finished matches, eliminated seats, non-Magic formats and open table
+decisions are rejected (409). Bad fields/ranges are 400; unauthenticated
+personal requests are 401. Existing commander-damage routes are unchanged.
+
+`POST /api/game/settings` and `/api/tablet/settings` additionally accept
+`autoEliminateAtPoisonLimit`, `autoEliminateAtCommanderDamage` (0 or 1) and
+`poisonLimit` (1..1,000,000), in the lobby and during running/paused play.
+Zero-life, poison and Commander rules are independent. All default on for
+new matches; poison defaults 10, or 15 for 2HG. A team-mode change selects
+the standard poison limit unless a limit is explicitly supplied. Enabling
+a rule/changing a limit applies immediately. Commander loss is 21 from one
+commander, never a pooled damage sum; only Commander games apply it.
+
+State adds nullable `initiativePlayer` and per-player `counters` with poison,
+energy, experience, exactly two `commanderCasts`, and `cityBlessing`. Settings
+expose the three new fields. Old snapshots omit these fields (clients render
+zero counters/no initiative and disabled new automatic rules). Clocks and
+turns do not change when statuses are claimed. Recovery preserves these facts;
+new matches clear counters/status, and leaving clears held initiative.

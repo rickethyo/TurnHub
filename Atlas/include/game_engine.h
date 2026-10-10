@@ -76,6 +76,15 @@ class GameEngine {
       const GameSettings &settings = GameSettings{});
 
   const GameSettings &settings() const { return settings_; }
+  uint8_t monarchPlayerNumber() const { return monarchPlayer_; }
+  bool claimMonarch(uint8_t playerNumber);
+  uint8_t initiativePlayerNumber() const { return initiativePlayer_; }
+  const PlayerCounters *countersForPlayer(uint8_t playerNumber) const;
+  bool changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander = 1);
+  bool setEliminationSettings(const GameSettings &settings);
+  void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
+  bool resolveEliminationRules(uint32_t nowMs);
+  bool hasConceded(uint8_t player) const;
 
   // --- Two-Headed Giant teams (game_profile.h) ---
   // Teams are neighbours in turn order: players 1+2 are team 1, 3+4 team 2.
@@ -125,7 +134,7 @@ class GameEngine {
   bool eliminatePlayer(
       uint8_t playerNumber,
       uint32_t nowMs,
-      bool &gameFinished);
+      bool &gameFinished, bool conceded = false);
 
   // Pauses and asks every other living player (not the claimant's teammate),
   // in controller order after the claimant's, to confirm. A denial resumes play when restoreRunning is set.
@@ -241,9 +250,13 @@ class GameEngine {
   uint32_t nextLifeRequestId_ = 0; // Deliberately survives reset/rematch in this boot.
   PlayerStats stats_[MAX_PLAYERS];
   bool eliminated_[MAX_PLAYERS] = {};
+  bool conceded_[MAX_PLAYERS] = {};
+  bool batchElimination_ = false;
   uint8_t playerCount_ = 0;
   uint8_t activeIndex_ = 0;
   uint8_t starterPlayer_ = 0;
+  uint8_t monarchPlayer_ = 0, initiativePlayer_ = 0;
+  PlayerCounters counters_[MAX_PLAYERS]{};
 
   bool running_ = false;
   bool paused_ = false;

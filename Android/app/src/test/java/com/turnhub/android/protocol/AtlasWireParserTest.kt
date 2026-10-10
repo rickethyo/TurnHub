@@ -11,6 +11,46 @@ import org.junit.Test
 class AtlasWireParserTest {
 
     @Test
+    fun `Magic counters rules and initiative parse with strict bounds`() {
+        val c = JSONObject().put("poison", 3).put("energy", 4).put("experience", 5)
+            .put("commanderCasts", org.json.JSONArray(listOf(2, 1))).put("cityBlessing", true)
+        val state = Fixtures.state("running.response.json") {
+            put("initiativePlayer", 2)
+            getJSONObject("settings").put("poisonLimit", 15).put("autoEliminateAtPoisonLimit", true).put("autoEliminateAtCommanderDamage", true)
+            getJSONArray("players").getJSONObject(0).put("counters", c)
+        }
+        assertEquals(2, state.initiativePlayer)
+        assertEquals(15, state.settings.poisonLimit)
+        assertTrue(state.settings.autoEliminateAtCommanderDamage)
+        assertEquals(3, state.players[0].counters.poison)
+        assertEquals(4, state.players[0].counters.commanderTax(1))
+        assertEquals(com.turnhub.android.protocol.PlayerCounters(), Fixtures.state("running.response.json").players[0].counters)
+        assertThrows(Exception::class.java) {
+            Fixtures.state("running.response.json") { getJSONArray("players").getJSONObject(0).put("counters", c.put("poison", -1)) }
+        }
+    }
+
+    @Test
+    fun `monarch parses and older snapshots have no monarch`() {
+        assertNull(Fixtures.state("running.response.json").monarchPlayer)
+        assertNull(Fixtures.state("running.response.json") { put("monarchPlayer", JSONObject.NULL) }.monarchPlayer)
+        assertEquals(2, Fixtures.state("running.response.json") { put("monarchPlayer", 2) }.monarchPlayer)
+    }
+
+    @Test
+    fun `parses zero life setting and concession reason`() {
+        val state = Fixtures.state("running.response.json") {
+            getJSONObject("settings").put("autoEliminateAtZeroLife", true)
+            getJSONArray("players").getJSONObject(0).put("eliminated", true).put("conceded", true)
+        }
+        assertTrue(state.settings.autoEliminateAtZeroLife)
+        assertTrue(state.players[0].conceded)
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("running.response.json") { getJSONObject("settings").put("autoEliminateAtZeroLife", "yes") }
+        }
+    }
+
+    @Test
     fun `parses the info fixture`() {
         val info = AtlasWireParser.parseInfo(Fixtures.text("info.response.json"))
 

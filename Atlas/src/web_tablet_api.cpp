@@ -66,6 +66,8 @@ const TabletAction TABLET_ACTIONS[] = {
   {"pass", WebControl::Pass},
   {"pause", WebControl::PauseResume},
   {"concede", WebControl::Concede},
+  {"eliminate", WebControl::EliminateSeat},
+  {"monarch", WebControl::ClaimMonarch},
   {"win", WebControl::ClaimWin},
   {"confirm", WebControl::ConfirmWin},
   {"deny", WebControl::DenyWin},

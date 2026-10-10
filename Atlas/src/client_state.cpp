@@ -39,6 +39,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.startingLife, settings.startingLife);
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
   changed |= update(settings_.twoHeadedGiant, settings.twoHeadedGiant);
+  changed |= update(settings_.autoEliminateAtZeroLife, settings.autoEliminateAtZeroLife);
   // hostModuleId stays null: there is no table host (2026-09-25); the field
   // remains for client-contract compatibility.
   PlayerSeat selected;
@@ -49,6 +50,8 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
       game.activePlayerNumber() : 0;
   changed |= update(active_, active);
   changed |= update(winner_, game.winnerPlayerNumber());
+  changed |= update(monarch_, game.monarchPlayerNumber());
+  changed |= update(initiative_, game.initiativePlayerNumber());
   changed |= update(claimant_, game.winClaimPlayerNumber());
   changed |= update(confirmation_, game.nextWinConfirmationPlayerNumber());
   changed |= update(pending_.passPlayer, pending.passPlayer);
@@ -82,6 +85,10 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
       }
     }
     changed |= update(p.eliminated, inGame_ && game.isEliminated(seat.playerNumber));
+    changed |= update(p.conceded, inGame_ && game.hasConceded(seat.playerNumber));
+    const auto *counters = inGame_ ? game.countersForPlayer(seat.playerNumber) : nullptr;
+    const PlayerCounters countersValue = counters ? *counters : PlayerCounters{};
+    if (!sameCounters(p.counters, countersValue)) { p.counters = countersValue; changed = true; }
     changed |= update(p.life, inGame_ ? game.lifeTotal(seat.playerNumber) : int32_t(0));
     const auto *stats = inGame_ ? game.statsForPlayer(seat.playerNumber) : nullptr;
     changed |= update(p.turnsCompleted, stats ? stats->turnsCompleted : uint32_t(0));
@@ -118,7 +125,7 @@ bool ClientState::expirationDue(uint32_t nowMs) const {
 String ClientState::json(const String &atlasId, const char *bootId, const GameEngine &game,
     uint32_t nowMs, uint32_t passGraceMs) const {
   String out;
-  size_t capacity = 1024 + count_ * 300;
+  size_t capacity = 1024 + count_ * 460;
   for (uint8_t i = 0; i < count_; ++i)
     for (uint8_t j = 0; j < count_; ++j)
       if (players_[i].damage[j][0] || players_[i].damage[j][1]) capacity += 64;
@@ -133,9 +140,15 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"starterPlayer\":"; nullablePlayer(out, starter_);
   out += ",\"activePlayer\":"; nullablePlayer(out, active_);
   out += ",\"winnerPlayer\":"; nullablePlayer(out, winner_);
+  out += ",\"monarchPlayer\":"; nullablePlayer(out, monarch_);
+  out += ",\"initiativePlayer\":"; nullablePlayer(out, initiative_);
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
   out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);
+  out += ",\"autoEliminateAtZeroLife\":"; out += settings_.autoEliminateAtZeroLife ? "true" : "false";
+  out += ",\"autoEliminateAtPoisonLimit\":"; out += settings_.autoEliminateAtPoisonLimit ? "true" : "false";
+  out += ",\"autoEliminateAtCommanderDamage\":"; out += settings_.autoEliminateAtCommanderDamage ? "true" : "false";
+  out += ",\"poisonLimit\":"; out += String(settings_.poisonLimit);
   out += ",\"twoHeadedGiant\":"; out += settings_.twoHeadedGiant ? "true" : "false";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
@@ -175,6 +188,12 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     if (p.name[0]) { out += '"'; out += jsonEscape(p.name); out += '"'; } else out += "null";
     out += ",\"participantId\":"; out += String(p.participant);
     out += ",\"turnsCompleted\":"; out += String(p.turnsCompleted);
+    out += ",\"counters\":{\"poison\":"; out += String(p.counters.poison);
+    out += ",\"energy\":"; out += String(p.counters.energy);
+    out += ",\"experience\":"; out += String(p.counters.experience);
+    out += ",\"commanderCasts\":["; out += String(p.counters.commanderCasts[0]); out += ','; out += String(p.counters.commanderCasts[1]);
+    out += "],\"cityBlessing\":"; out += p.counters.cityBlessing ? "true" : "false"; out += '}';
+    out += ",\"conceded\":"; out += p.conceded ? "true" : "false";
     out += ",\"eliminated\":"; out += p.eliminated ? "true" : "false";
     out += ",\"life\":";
     if (inGame_) out += String(p.life); else out += "null";

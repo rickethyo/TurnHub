@@ -61,6 +61,7 @@ IntentResult IntentDispatcher::dispatch(const Intent &intent) const {
   }
 
   const auto result = binding.handler(intent, binding.context);
+  if (ruleFinalizer_) ruleFinalizer_(intent);
   if (observer_) observer_(intent);
   return result;
 }

@@ -972,3 +972,91 @@ profile-free tablet credential, with an explicit route allowlist, preserving
 other devices' sessions/player seats and leaving the app signed out on exit.
 This covers the requested dedicated runtime identity; persisted tablet account
 management/invitations from TH-002 remain separate planned work.
+
+### 2026-10-10 / Codex / Zero-life elimination and concessions
+- Owner: Codex on `codex/master`, baseline `c111da0`; no open PR or overlapping active implementation found.
+- Owner request: automatic elimination at zero or negative life, on by default,
+  editable during play and applied immediately on enable; separate Concede and
+  Eliminate controls and recorded reasons.
+- Feature gate: Atlas GameEngine owns connected settings/outcomes; ConfigureGame
+  validates seated-player changes and allows only this setting during play.
+  A separate seat elimination Intent shares domain removal with concession.
+  NVS settings and match checkpoints persist the setting and exit reason;
+  Android standalone owns its separate equivalent and local history. HTTP state,
+  settings and standalone import expose the additions; no radio change or new
+  dependency. Controls have text labels and deliberate confirmation for removal.
+- Implementation: automatic zero/negative-life elimination defaults on, with
+  live settings in personal Game, shared tablet menus (including pause) and
+  standalone play. Immediate batch resolution prevents a false winner when
+  all remaining players have nonpositive life. Separate confirmed controls,
+  state/recovery reasons, local history/import and profile statistics distinguish
+  concession from elimination. Existing Sigil “I’m out” records a concession;
+  no Sigil firmware or radio contract change. Manual V0.16 supersedes V0.15.
+- Validation: all Atlas application/storage/profile-store/OTA host suites passed
+  with ASan/UBSan at -O0 (LeakSanitizer disabled for workspace tracing); 20
+  actual/fixture contracts, 31 adapter guards, generated tokens and manual export
+  passed. Android 222 unit tests passed and the final debug APK (including
+  the scrollable table menu) built. Atlas 0.7.9-dev firmware built: 109,580 B RAM,
+  1,649,473 B flash. Physical tablet/phone and hardware acceptance pending.
+- Handoff: new PR from `codex/master` because PR #86 is already integrated;
+  owner reviews/integrates. No hardware flashing, release or merge performed.
+
+### 2026-10-10 — Codex: Magic monarch (active follow-up to PR #87)
+
+- Owner: Codex; branch `codex/master`; baseline `4f65854`. Add a crown and
+  “I’m the monarch” control for Magic/Commander, with exactly one holder.
+- Feature gate: GameEngine owns the connected singleton player number;
+  ClaimMonarch Intent validates a living seated player in an active Magic game.
+  Atlas checkpoints persist it; clients render it. Standalone owns its separate
+  equivalent. Additive HTTP/state fields only, no radio changes or dependencies.
+  Crown has a text/accessibility label and claims transfer immediately. Clear
+  when the holder leaves or a new game begins; preserve through pause/recovery.
+- Implementation: added per-game monarch state, seated ClaimMonarch intent and
+  personal/tablet HTTP controls; nullable state projection and schema 3 recovery.
+  Native personal/table tiles show the existing crown icon with a text label;
+  Magic/Commander controls transfer it immediately, including while paused.
+  Standalone games persist the same behavior. Exiting clears the crown, including
+  team removal. Updated Manual V0.16 within the same unintegrated feature PR.
+- Validation: 226 Android unit tests passed and final debug APK built; Atlas
+  application/storage/profile-store/OTA host suites passed with ASan/UBSan at
+  -O0 (LeakSanitizer disabled for workspace tracing). New scenarios cover
+  authenticated personal and tablet claims, transfer, pause, recovery, invalid
+  formats/states, exits and teams. All 20 state contracts, 31 adapter guards,
+  generated tokens and manual export passed. Atlas 0.7.10-dev built: 109,588 B
+  RAM, 1,650,065 B flash. Physical phone/tablet and hardware acceptance pending.
+- Handoff: included in active PR #87 for owner review/integration; no merge,
+  release or hardware flashing performed.
+
+### 2026-10-10 — Codex: Magic counters and statuses (PR #87 follow-up)
+
+- Owner Codex, branch `codex/master`, baseline `a332e61`. Add poison, optional
+  automatic poison/Commander-damage loss, commander casts/tax, initiative,
+  city’s blessing, energy and experience to connected and standalone games.
+- Feature gate: Atlas GameEngine owns connected counters and the initiative
+  singleton. Authenticated ChangeCounter and ConfigureGame intents validate
+  living seats, Magic format and live rule changes. NVS checkpoints/settings
+  persist them; Android renders state. Standalone owns its separate equivalent.
+  Additive HTTP/state contracts only; no radio change or dependency. Text labels
+  identify status and counter controls, corrections are explicit, automatic
+  elimination remains independently switchable while playing. Standard defaults
+  are 10 poison (15 shared for 2HG) and 21 per commander, never pooled.
+- Implementation: Magic/Commander poison, energy, experience, initiative and
+  city’s blessing; Commander command-zone casts with separate derived tax.
+  Poison is shared in 2HG. Independent live zero-life, poison and 21-per-commander
+  rules default on; poison limit defaults 10/15 on team-mode selection and is
+  editable. The common rule finalizer checks loss conditions as one batch.
+  Authenticated personal/tablet counter routes share ChangeCounter; state,
+  settings schema 3 and checkpoint schema 4 preserve all additions. Native
+  personal/table drawers and paused controls expose them; standalone mirrors
+  the behavior and recovery. Updated Manual V0.16 in this same feature PR.
+- Validation: Atlas application/storage/profile-store/OTA suites passed with
+  ASan/UBSan at -O0 (LeakSanitizer disabled for workspace tracing). New scenarios
+  cover scoped personal/tablet actions, shared poison, independent damage totals,
+  live immediate rule changes, casts, statuses, bounds and recovery. All 20
+  state contracts, 31 adapter guards, generated tokens and manual export passed.
+  Final Android 231 tests and debug APK passed, including tablet expected-game
+  scope. Atlas 0.7.11-dev built: 111,884 B RAM, 1,655,053 B flash.
+- Handoff: extend PR #87 for owner review/integration. Physical phone/tablet and
+  hardware acceptance pending. Per-counter profile statistics/custom counters
+  remain future work in STAGED_CHANGES; this slice tracks current match values.
+  No Sigil firmware/radio change, new dependency, merge, flash or release.

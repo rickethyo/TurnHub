@@ -10,15 +10,15 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 1;
+constexpr uint32_t SCHEMA = 4;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
-// Wire layout (little-endian): magic, schema, 7 header bytes, 5 header words,
+// Wire layout (little-endian): magic, schema, 10 header bytes (including monarch, initiative and loss flags), 6 header words,
 // then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
-// eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
-constexpr size_t HEADER_SIZE = 4 + 4 + 7 + 5 * 4;
+// 5 counter words, blessing byte, eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
+constexpr size_t HEADER_SIZE = 4 + 4 + 10 + 6 * 4;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
-constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4;
+constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4 + 21;
 static_assert(GAME_CHECKPOINT_CAPACITY ==
                   MIN_RECORD_SIZE + MAX_PLAYERS * (PLAYER_SIZE + MAX_PLAYERS * 2 * 4),
               "GAME_CHECKPOINT_CAPACITY must match the largest record");
@@ -60,6 +60,10 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.word(MAGIC); w.word(SCHEMA);
   w.byte(s.count); w.byte(s.active); w.byte(s.starter); w.byte(s.winner);
   w.byte(s.paused); w.byte(s.over); w.byte(profileByte(s.settings));
+  w.byte(s.monarch);
+  w.byte(s.initiative);
+  w.byte((s.settings.autoEliminateAtPoisonLimit ? 1 : 0) | (s.settings.autoEliminateAtCommanderDamage ? 2 : 0));
+  w.word(static_cast<uint32_t>(s.settings.poisonLimit));
   w.word(static_cast<uint32_t>(s.settings.startingLife));
   w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.settings.turnTimerMs); w.word(s.nextRequestId);
   for (uint8_t i=0;i<s.count;++i) {
@@ -68,7 +72,10 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
     for (char c : p.profileId) w.byte(static_cast<uint8_t>(c));
     w.word(stats.turnsCompleted); w.word(stats.totalTurnMs);
     w.word(stats.fastestTurnMs); w.word(stats.longestTurnMs);
-    w.byte(s.eliminated[i]); w.word(static_cast<uint32_t>(s.life[i]));
+    const auto &counters = s.counters[i];
+    w.word(counters.poison); w.word(counters.energy); w.word(counters.experience);
+    w.word(counters.commanderCasts[0]); w.word(counters.commanderCasts[1]); w.byte(counters.cityBlessing);
+    w.byte((s.eliminated[i] ? 1 : 0) | (s.conceded[i] ? 2 : 0)); w.word(static_cast<uint32_t>(s.life[i]));
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       w.word(static_cast<uint32_t>(s.damage[i][j][c]));
   }
@@ -78,10 +85,11 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
 }
 TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameCheckpoint &s) {
   using TurnHubStorage::Status;
-  if (!bytes || size < MIN_RECORD_SIZE || size > GAME_CHECKPOINT_CAPACITY) return Status::Corrupt;
+  if (!bytes || size < 39 || size > GAME_CHECKPOINT_CAPACITY) return Status::Corrupt;
   Reader header{bytes,size};
   if (header.word()!=MAGIC) return Status::Corrupt;
-  if (header.word()!=SCHEMA) return Status::UnsupportedSchema;
+  const uint32_t schema = header.word();
+  if (schema != 1 && schema != 2 && schema != 3 && schema != SCHEMA) return Status::UnsupportedSchema;
   Reader checksum{bytes + size - CRC_SIZE, CRC_SIZE};
   if (checksum.word() != crc32(bytes, size - CRC_SIZE)) return Status::Corrupt;
   Reader r{bytes, size - CRC_SIZE};
@@ -90,6 +98,13 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   clearCheckpoint(s);
   s.count=r.byte(); s.active=r.byte(); s.starter=r.byte(); s.winner=r.byte();
   s.paused=r.flag(); s.over=r.flag(); readProfileByte(r.byte(), s.settings);
+  if (schema >= 3) s.monarch = r.byte();
+  if (schema >= 4) {
+    s.initiative = r.byte();
+    const uint8_t flags = r.byte(); if (flags > 3) return Status::Corrupt;
+    s.settings.autoEliminateAtPoisonLimit = flags & 1; s.settings.autoEliminateAtCommanderDamage = flags & 2;
+    s.settings.poisonLimit = static_cast<int32_t>(r.word());
+  } else s.settings.poisonLimit = s.settings.twoHeadedGiant ? 15 : 10;
   s.settings.startingLife=static_cast<int32_t>(r.word());
   s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.settings.turnTimerMs=r.word(); s.nextRequestId=r.word();
   if (s.count>MAX_PLAYERS) return Status::Corrupt;
@@ -99,7 +114,15 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
     for (char &c : p.profileId) c=static_cast<char>(r.byte());
     stats.turnsCompleted=r.word(); stats.totalTurnMs=r.word();
     stats.fastestTurnMs=r.word(); stats.longestTurnMs=r.word();
-    s.eliminated[i]=r.flag(); s.life[i]=static_cast<int32_t>(r.word());
+    if (schema >= 4) {
+      auto &c = s.counters[i];
+      c.poison = static_cast<int32_t>(r.word()); c.energy = static_cast<int32_t>(r.word()); c.experience = static_cast<int32_t>(r.word());
+      c.commanderCasts[0] = static_cast<int32_t>(r.word()); c.commanderCasts[1] = static_cast<int32_t>(r.word()); c.cityBlessing = r.flag();
+    }
+    const uint8_t exitFlags = r.byte();
+    if (exitFlags > (schema == 1 ? 1 : 3)) return Status::Corrupt;
+    s.eliminated[i] = (exitFlags & 1) != 0;
+    s.conceded[i] = (exitFlags & 2) != 0; s.life[i]=static_cast<int32_t>(r.word());
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       s.damage[i][j][c]=static_cast<int32_t>(r.word());
   }

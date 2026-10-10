@@ -102,14 +102,22 @@ everything implemented. Only the checks listed below are still open.
   System/Dark/Light/High contrast accessibility appearance.
 - **HTTPS on Atlas:** revisit administration transport after the app-first cutover; native tablet wake/immersive behavior does not depend on portal HTTPS.
 
+- **Zero-life elimination and separate concessions** (*Implemented locally*,
+  owner, 2026-10-10): automatic elimination at zero/negative life defaults on,
+  editable in lobby and during running/paused play; enabling checks everyone
+  immediately. Concede and Eliminate have separate controls, state, saved exit
+  reasons and statistics, in connected and standalone play. Atlas host/firmware
+  checks and 222 Android unit tests pass; physical acceptance pending. See [GAMEPLAY.md](GAMEPLAY.md).
+
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
   seating, the portal's `/tablet` with life, Commander damage, pass, win and
   concede; round two, the same screen in the Android app; see
-  PLAYERS_AND_ACCOUNTS.md). Next, as project owner asked: more counters
-  per player (poison, commander tax, energy, experience and similar) in
-  `GameEngine` and the state, each also kept in profile statistics as
-  "counters received"; uploaded player backgrounds are tracked above;
-  tablet seating of Sigil seat B.
+  PLAYERS_AND_ACCOUNTS.md). Magic counters and statuses now include poison,
+  commander casts/tax, energy, experience, initiative and city’s blessing,
+  with live poison/Commander elimination settings and shared team poison.
+  Physical native acceptance remains pending. Per-counter profile statistics,
+  arbitrary custom counters and tablet seating of Sigil seat B remain future
+  work; uploaded player backgrounds are tracked above.
 
 - **Seat B attachment:** the picker offers already-seated tablet players but
   the handler rejects them. Needs identity-preserving seat-level reassignment,

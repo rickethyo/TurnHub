@@ -280,6 +280,52 @@
                 "description": "The recipient's approval window; Atlas accepts the request this long after requestedAtMs."
               }
             }
+          },
+          "conceded": {
+            "type": "boolean",
+            "description": "Voluntary concession; eliminated remains true for all removed players."
+          },
+          "counters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "poison",
+              "energy",
+              "experience",
+              "commanderCasts",
+              "cityBlessing"
+            ],
+            "properties": {
+              "poison": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "energy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "experience": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "commanderCasts": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "cityBlessing": {
+                "type": "boolean"
+              }
+            },
+            "description": "Shared team poison in 2HG; other values belong to this player. Commander tax is twice each command-zone cast count."
           }
         }
       },
@@ -319,6 +365,21 @@
         "twoHeadedGiant": {
           "description": "Two-Headed Giant (mtg and mtg_commander only): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
           "type": "boolean"
+        },
+        "autoEliminateAtZeroLife": {
+          "type": "boolean",
+          "description": "Eliminate living players at zero or negative life; editable during play."
+        },
+        "autoEliminateAtPoisonLimit": {
+          "type": "boolean"
+        },
+        "autoEliminateAtCommanderDamage": {
+          "type": "boolean"
+        },
+        "poisonLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
         }
       }
     },
@@ -470,6 +531,24 @@
           "type": "boolean"
         }
       }
+    },
+    "monarchPlayer": {
+      "description": "The single living monarch in a Magic game, or null. Individual player number, including in team games.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 255
+    },
+    "initiativePlayer": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 16,
+      "description": "The one living initiative holder in a Magic game, independent of monarch."
     }
   }
 }

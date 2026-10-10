@@ -42,6 +42,8 @@ void applyGameResult(ProfileStats &persistent, const GameResult &result) {
     ++persistent.gamesWon;
   } else if (result.result == LastGameResult::Eliminated) {
     ++persistent.gamesEliminated;
+  } else if (result.result == LastGameResult::Conceded) {
+    ++persistent.gamesConceded;
   }
   if (result.started) {
     ++persistent.gamesStarted;
@@ -101,7 +103,7 @@ uint8_t recordCompletedGame(
     if (game.isWinner(seat->playerNumber)) {
       result.result = LastGameResult::Win;
     } else if (game.isEliminated(seat->playerNumber)) {
-      result.result = LastGameResult::Eliminated;
+      result.result = game.hasConceded(seat->playerNumber) ? LastGameResult::Conceded : LastGameResult::Eliminated;
     } else if (game.endedInDraw()) {
       result.result = LastGameResult::Draw;
     } else {
@@ -130,6 +132,7 @@ const char *resultName(LastGameResult result) {
     case LastGameResult::Loss: return "Loss";
     case LastGameResult::Eliminated: return "Eliminated";
     case LastGameResult::Draw: return "Draw";
+    case LastGameResult::Conceded: return "Conceded";
     default: return "None";
   }
 }
@@ -178,6 +181,7 @@ String buildTextReport(
   appendNumber(out, F("Non-wins: "), stats.gamesPlayed >= stats.gamesWon ? stats.gamesPlayed - stats.gamesWon : 0);
   appendNumber(out, F("Games started first: "), stats.gamesStarted);
   appendNumber(out, F("Games eliminated: "), stats.gamesEliminated);
+  appendNumber(out, F("Games conceded: "), stats.gamesConceded);
   appendNumber(out, F("Completed turns: "), stats.turnsCompleted);
   appendLine(out, F("Total completed-turn time: "), formatDuration(stats.totalTurnMs));
   appendLine(out, F("Average completed turn: "), stats.turnsCompleted == 0 ? String("—") : formatDuration(averageMs(stats.totalTurnMs, stats.turnsCompleted)));

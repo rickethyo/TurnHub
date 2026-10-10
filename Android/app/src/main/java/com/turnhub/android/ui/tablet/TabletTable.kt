@@ -76,6 +76,10 @@ import com.turnhub.android.protocol.LifeRequestState
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.EliminationRulesEditor
+import com.turnhub.android.ui.components.magicStatus
+import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
@@ -264,13 +268,17 @@ internal fun TabletTable(
                         onToggleDrawer = { if (unit.key in drawers) drawers.remove(unit.key) else drawers.add(unit.key) },
                         onBump = { bump(unit, it) },
                         onControl = { seat, action ->
-                            if (action == "concede") drawers.remove(unit.key)
+                            if (action == "concede" || action == "eliminate") drawers.remove(unit.key)
                             send(seat, action)
                         },
                         onCommander = { member, source, which, delta ->
                             haptics.tick()
                             if (isOffline) keep(member, delta, source, which)
                             else controls { this.commander(member.seat(), source, which, delta) }
+                        },
+                        onCounter = { member, kind, value, commander ->
+                            if (isOffline) controls { refuseOffline() }
+                            else controls { counter(member.seat(), kind, value, commander) }
                         },
                         onRespond = { seat, id, accept ->
                             if (isOffline) controls { refuseOffline() }
@@ -344,6 +352,19 @@ internal fun TabletTable(
                         Overlay("Player removal pending", "Confirm or cancel the removal on Atlas or the selecting Sigil.") {}
                     } else {
                         Overlay("Paused", "The clocks are stopped.") {
+                            EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
+                                anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
+                            }
+                            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                                summary.players.filter { !it.eliminated }.forEach { member ->
+                                    ToneButton("${member.label}: I’m the monarch", { send(member.seat(), "monarch") },
+                                        Modifier.fillMaxWidth(), tone = Tone.ACCENT,
+                                        enabled = !isOffline && member.playerNumber != summary.monarchPlayerNumber)
+                                }
+                            }
+                            PausedMagicCounters(summary, !isOffline) { member, kind, value, commander ->
+                                controls { counter(member.seat(), kind, value, commander) }
+                            }
                             AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                         }
                     }
@@ -364,6 +385,9 @@ internal fun TabletTable(
             }
             else -> if (menuOpen) {
                 Overlay("Table", "Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", onDismiss = { menuOpen = false }) {
+                    EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
+                        anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
+                    }
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                     ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
@@ -434,7 +458,7 @@ private fun OverlayFrame(title: String, text: String, onDismiss: (() -> Unit)?, 
             .pointerInput(onDismiss) { detectTapGestures { onDismiss?.invoke() } },
         contentAlignment = Alignment.Center,
     ) {
-        BrassCard(Modifier.widthIn(max = 380.dp).padding(16.dp).pointerInput(Unit) { detectTapGestures { } }) {
+        BrassCard(Modifier.widthIn(max = 380.dp).padding(16.dp).verticalScroll(rememberScrollState()).pointerInput(Unit) { detectTapGestures { } }) {
             Text(title, color = p.text, style = MaterialTheme.typography.headlineSmall)
             Text(text, color = p.muted)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
@@ -442,7 +466,24 @@ private fun OverlayFrame(title: String, text: String, onDismiss: (() -> Unit)?, 
     }
 }
 
-// --- one player's panel -----------------------------------------------------------
+@Composable
+private fun PausedMagicCounters(summary: TableSummary, enabled: Boolean, onCounter: (TablePlayer, String, Int, Int) -> Unit) {
+    if (summary.settings.profile != GameProfile.MTG && summary.settings.profile != GameProfile.MTG_COMMANDER) return
+    var selected by remember { mutableStateOf<Int?>(null) }
+    var expanded by remember { mutableStateOf(false) }
+    val living = summary.players.filter { !it.eliminated }
+    val player = living.firstOrNull { it.playerNumber == selected } ?: living.firstOrNull() ?: return
+    Box {
+        TextButton({ expanded = true }) { Text("Counters: ${player.label}") }
+        androidx.compose.material3.DropdownMenu(expanded, { expanded = false }) {
+            living.forEach { member ->
+                androidx.compose.material3.DropdownMenuItem(text = { Text(member.label) }, onClick = { selected = member.playerNumber; expanded = false })
+            }
+        }
+    }
+    MagicCountersEditor(player.counters, summary.initiativePlayerNumber == player.playerNumber,
+        summary.settings.profile == GameProfile.MTG_COMMANDER, enabled) { kind, value, commander -> onCounter(player, kind, value, commander) }
+}
 
 @Composable
 private fun PlayerPanel(
@@ -456,6 +497,7 @@ private fun PlayerPanel(
     onBump: (Int) -> Unit,
     onControl: (TabletSeat, String) -> Unit,
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
+    onCounter: (TablePlayer, String, Int, Int) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
@@ -493,7 +535,12 @@ private fun PlayerPanel(
             Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)
-            if (out) Tag("Out", p.bad, p.surface)
+            if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
+        }
+
+        unit.members.firstOrNull { it.playerNumber == summary.monarchPlayerNumber }?.let { monarch ->
+            MonarchBadge(if (unit.members.size > 1) monarch.label else null,
+                Modifier.align(Alignment.TopStart).padding(start = 16.dp, top = 52.dp))
         }
 
         Column(
@@ -511,6 +558,14 @@ private fun PlayerPanel(
                 style = MaterialTheme.typography.titleMedium,
             )
             CommanderSummary(unit, summary, offlineCommander)
+            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                Text("Poison ${unit.lifeSeat.counters.poison}", color = p.text, style = MaterialTheme.typography.labelLarge)
+                unit.members.forEach { member ->
+                    val status = magicStatus(member.counters, summary.initiativePlayerNumber == member.playerNumber).substringAfter(" · ", "")
+                    if (status.isNotEmpty()) Text(if (unit.members.size > 1) "${member.label}: $status" else status,
+                        color = p.text, style = MaterialTheme.typography.labelSmall)
+                }
+            }
         }
 
         Row(
@@ -530,7 +585,7 @@ private fun PlayerPanel(
         }
 
         Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
-        if (drawerOpen) Drawer(unit, summary, onToggleDrawer, onControl, onCommander, offlineCommander)
+        if (drawerOpen) Drawer(unit, summary, onToggleDrawer, onControl, onCommander, onCounter, offlineCommander)
     }
 }
 
@@ -731,6 +786,7 @@ private fun Drawer(
     onClose: () -> Unit,
     onControl: (TabletSeat, String) -> Unit,
     onCommander: (TablePlayer, Int, Int, Int) -> Unit,
+    onCounter: (TablePlayer, String, Int, Int) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
 ) {
     val p = palette
@@ -756,11 +812,25 @@ private fun Drawer(
         }
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
             unit.members.filter { !it.eliminated }.forEach { member ->
+                if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                    Text(if (unit.members.size > 1) "${member.label} counters and status" else "Counters and status", color = p.text)
+                    MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+                        summary.settings.profile == GameProfile.MTG_COMMANDER) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                    ToneButton(
+                        if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
+                        { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
+                        enabled = member.playerNumber != summary.monarchPlayerNumber,
+                    )
+                }
                 ArmedButton(
                     if (unit.members.size > 1) "${member.label} concedes" else "Concede",
                     "Tap again to concede",
                     Tone.BAD,
                 ) { onControl(member.seat(), "concede") }
+                ArmedButton(
+                    if (unit.members.size > 1) "Eliminate ${member.label}" else "Eliminate",
+                    "Tap again to eliminate", Tone.BAD,
+                ) { onControl(member.seat(), "eliminate") }
             }
         }
         if (summary.settings.profile == GameProfile.MTG_COMMANDER) {

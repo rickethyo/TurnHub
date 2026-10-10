@@ -91,6 +91,10 @@ import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.EliminationRulesEditor
+import com.turnhub.android.ui.components.magicStatus
+import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.CountdownBar
 import com.turnhub.android.ui.components.Eyebrow
@@ -115,6 +119,9 @@ data class GameActions(
     val onRequestLife: (target: Int, delta: Int) -> Unit = { _, _ -> },
     val onRespondLife: (requestId: Long, accept: Boolean) -> Unit = { _, _ -> },
     val onCommanderDamage: (source: Int, commander: Int, delta: Int) -> Unit = { _, _, _ -> },
+    val onPlayerCounter: (String, Int, Int) -> Unit = { _, _, _ -> },
+    val onEliminationRule: (String, Int) -> Unit = { _, _ -> },
+    val onSetZeroLifeElimination: (Boolean) -> Unit = {},
     val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?) -> Unit =
         { _, _, _, _ -> },
 )
@@ -155,8 +162,25 @@ fun GameTab(
         ) {
             CommanderCard(summary, me, labelFor, actions)
         }
+        if (me != null && (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) &&
+            (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
+            BrassCard {
+                Eyebrow("Counters and status")
+                MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
+                    summary.settings.profile == GameProfile.MTG_COMMANDER,
+                    enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                    onChange = actions.onPlayerCounter)
+            }
+        }
         if (summary.state == TableState.LOBBY) {
             SetupCard(summary, uiState.gameSettings, me != null, actions)
+        }
+        if (me != null && (summary.state == TableState.LOBBY || summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
+            BrassCard {
+                EliminationRulesEditor(summary.settings,
+                    enabled = uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                    onChange = actions.onEliminationRule)
+            }
         }
         TableCard(summary, labelFor)
         BrassCard {
@@ -324,11 +348,17 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
     val signedIn = panel?.signedIn == true
     val name = (panel?.session as? PlayerSessionState.SignedIn)?.name ?: "Not signed in"
     var confirmConcede by remember { mutableStateOf(false) }
+    var confirmEliminate by remember { mutableStateOf(false) }
+    if (confirmEliminate) {
+        ConfirmDialog(title = "Eliminate yourself?", text = "Record a loss and leave this game.", confirm = "Eliminate",
+            onConfirm = { confirmEliminate = false; actions.onControl(ControlAction.ELIMINATE) },
+            onDismiss = { confirmEliminate = false })
+    }
     var confirmReset by remember { mutableStateOf(false) }
     if (confirmConcede) {
         ConfirmDialog(
             title = "Concede this game?",
-            text = "You leave this game as eliminated. The others play on.",
+            text = "Your voluntary concession is recorded. The others play on.",
             confirm = "Concede",
             onConfirm = { confirmConcede = false; actions.onControl(ControlAction.CONCEDE) },
             onDismiss = { confirmConcede = false },
@@ -365,7 +395,8 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
         if (me != null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (summary.hasTurn(me.playerNumber) && summary.state == TableState.RUNNING) StatusBadge("Your turn", Tone.ACTIVE)
-                if (me.eliminated) StatusBadge("Eliminated", Tone.BAD)
+                if (summary.monarchPlayerNumber == me.playerNumber) MonarchBadge()
+                if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else "Eliminated", Tone.BAD)
                 if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
                 me.life?.let { StatusBadge(if (me.team != null) "Team life $it" else "Life $it", Tone.GOOD) }
             }
@@ -379,6 +410,12 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
             )
         }
         val busy = panel?.busy == true
+        if (me != null && !me.eliminated &&
+            (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) &&
+            (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER)) {
+            ToneButton("I’m the monarch", { actions.onControl(ControlAction.MONARCH) }, Modifier.fillMaxWidth(),
+                tone = Tone.ACCENT, enabled = !busy && summary.monarchPlayerNumber != me.playerNumber)
+        }
         // The join flow moves through stages (sign in, join, seated, playing):
         // each new set of controls rises in as the old one gives way.
         val stage = when {
@@ -454,6 +491,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                             ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !shownBusy && myTurn)
                         }
                         ToneButton("Concede", { confirmConcede = true }, Modifier.fillMaxWidth(), tone = Tone.BAD, enabled = !shownBusy)
+                        ToneButton("Eliminate", { confirmEliminate = true }, Modifier.fillMaxWidth(), tone = Tone.BAD, enabled = !shownBusy)
                     }
                     shownSummary.state == TableState.PAUSED && !shownMe.eliminated -> {
                         val pending = shownSummary.pending
@@ -475,6 +513,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                                         ToneButton("Claim win", { actions.onControl(ControlAction.CLAIM_WIN) }, Modifier.weight(1f), tone = Tone.GOOD, enabled = !shownBusy)
                                     }
                                     ToneButton("Concede", { confirmConcede = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !shownBusy)
+                                    ToneButton("Eliminate", { confirmEliminate = true }, Modifier.weight(1f), tone = Tone.BAD, enabled = !shownBusy)
                                 }
                             }
                             else -> Text("Waiting for the table to decide.", color = p.muted)
@@ -594,6 +633,9 @@ private fun LifeCard(
                     active = summary.hasTurn(player.playerNumber),
                     mine = player.playerNumber == me?.playerNumber,
                     winner = summary.isWinner(player.playerNumber),
+                    monarch = summary.monarchPlayerNumber == player.playerNumber,
+                    initiative = summary.initiativePlayerNumber == player.playerNumber,
+                    magic = summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER,
                     onRequest = if (canAct && player.playerNumber != me.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
@@ -635,6 +677,9 @@ private fun LifeTile(
     active: Boolean,
     mine: Boolean,
     winner: Boolean,
+    monarch: Boolean,
+    initiative: Boolean,
+    magic: Boolean,
     onRequest: (() -> Unit)?,
     reduceMotion: Boolean,
     modifier: Modifier = Modifier,
@@ -712,7 +757,7 @@ private fun LifeTile(
             .padding(12.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${player.label}, life ${life ?: "not set"}" +
-                    (if (active) ", active" else "") + (if (player.eliminated) ", eliminated" else "")
+                    (if (active) ", active" else "") + (if (monarch) ", monarch" else "") + (if (magic) ", " + magicStatus(player.counters, initiative) else "") + (if (player.eliminated) ", eliminated" else "")
             },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -726,6 +771,8 @@ private fun LifeTile(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (monarch) MonarchBadge()
+        if (magic) Text(magicStatus(player.counters, initiative), color = p.text, style = MaterialTheme.typography.labelSmall)
         Box(contentAlignment = Alignment.TopEnd) {
             Text(
                 if (life == null) "—" else counter.value.roundToInt().toString(),
@@ -759,7 +806,7 @@ private fun LifeTile(
         Text(
             when {
                 winner -> "Winner"
-                player.eliminated -> "Eliminated"
+                player.eliminated -> if (player.conceded) "Conceded" else "Eliminated"
                 active -> "Active"
                 onRequest != null -> "Tap to request"
                 else -> "Player ${player.playerNumber}"
@@ -920,7 +967,7 @@ private fun CommanderCard(summary: TableSummary, me: TablePlayer, labelFor: (Int
                     )
                 }
             }
-            Text("Players decide when to concede; damage never eliminates anyone automatically.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+            Text("Concede records a voluntary exit; Eliminate records a loss. The table’s zero-life setting controls automatic elimination.", color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

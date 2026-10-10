@@ -45,7 +45,8 @@ class ClientState {
   struct Player {
     uint8_t number = 0, controller = INVALID_ID, slot = 0, team = 0;
     uint32_t participant = 0, turnsCompleted = 0;
-    bool eliminated = false;
+    bool eliminated = false, conceded = false;
+    PlayerCounters counters{};
     int32_t life = 0;
     int32_t damage[MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
     LifeChangeRequest request{};
@@ -58,6 +59,7 @@ class ClientState {
   GameSettings settings_{};
   ClientPending pending_{};
   uint8_t count_ = 0, host_ = INVALID_ID, starter_ = 0, active_ = 0;
+  uint8_t monarch_ = 0, initiative_ = 0;
   uint8_t winner_ = 0, claimant_ = 0, confirmation_ = 0;
   bool inGame_ = false, initialized_ = false;
   static uint32_t revision_;

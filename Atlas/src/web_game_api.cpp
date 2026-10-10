@@ -211,6 +211,10 @@ void handleGameSettings(WebServer &server) {
   const String json = String("{\"gameProfile\":\"") + TurnHub::gameProfileKey(settings.profile) +
       "\",\"startingLife\":" + String(settings.startingLife) +
       ",\"turnTimerMs\":" + String(settings.turnTimerMs) +
+      ",\"autoEliminateAtZeroLife\":" + jsonBool(settings.autoEliminateAtZeroLife) +
+      ",\"autoEliminateAtPoisonLimit\":" + jsonBool(settings.autoEliminateAtPoisonLimit) +
+      ",\"autoEliminateAtCommanderDamage\":" + jsonBool(settings.autoEliminateAtCommanderDamage) +
+      ",\"poisonLimit\":" + String(settings.poisonLimit) +
       ",\"twoHeadedGiant\":" + jsonBool(settings.twoHeadedGiant) +
       ",\"teamLife\":{\"mtg\":" + String(TurnHub::TEAM_LIFE_MAGIC) +
       ",\"mtg_commander\":" + String(TurnHub::TEAM_LIFE_COMMANDER) + "}" +
@@ -227,6 +231,7 @@ bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings) {
   // Omitted fields keep their current value, so a client can change one setting.
   bool editable = false;
   if (readGameConfiguration) readGameConfiguration(settings, editable);
+  const bool previousTeams = settings.twoHeadedGiant;
   if ((server.hasArg("gameProfile") &&
           !TurnHub::parseGameProfile(server.arg("gameProfile").c_str(), settings.profile)) ||
       (server.hasArg("startingLife") &&
@@ -248,6 +253,25 @@ bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings) {
   } else if (!TurnHub::teamsAllowed(settings.profile)) {
     // Switching to a profile without teams turns Two-Headed Giant off.
     settings.twoHeadedGiant = false;
+  }
+  if (server.hasArg("autoEliminateAtZeroLife")) {
+    const String value = server.arg("autoEliminateAtZeroLife");
+    if (value != "0" && value != "1") {
+      sendError(server, 400, "autoEliminateAtZeroLife must be 0 or 1");
+      return false;
+    }
+    settings.autoEliminateAtZeroLife = value == "1";
+  }
+  if (settings.twoHeadedGiant != previousTeams && !server.hasArg("poisonLimit")) settings.poisonLimit = settings.twoHeadedGiant ? 15 : 10;
+  for (uint8_t i = 0; i < 2; ++i) {
+    const char *key = i ? "autoEliminateAtCommanderDamage" : "autoEliminateAtPoisonLimit";
+    if (!server.hasArg(key)) continue;
+    const String value = server.arg(key);
+    if (value != "0" && value != "1") { sendError(server, 400, "Elimination toggles must be 0 or 1"); return false; }
+    (i ? settings.autoEliminateAtCommanderDamage : settings.autoEliminateAtPoisonLimit) = value == "1";
+  }
+  if (server.hasArg("poisonLimit") && !parseBoundedNumber(server.arg("poisonLimit"), 1, TurnHub::LIFE_LIMIT, settings.poisonLimit)) {
+    sendError(server, 400, "Poison limit must be between 1 and 1000000"); return false;
   }
   return true;
 }
@@ -349,6 +373,23 @@ void handleCounters(WebServer &server) {
 bool parseCounterPayload(WebServer &server, TurnHub::IntentType type, TurnHub::IntentPayload &payload) {
   if (type == TurnHub::IntentType::RespondLifeChange) return parseLifeResponse(server, payload);
   int32_t number = 0;
+  if (type == TurnHub::IntentType::ChangeCounter && server.hasArg("counter")) {
+    const String kind = server.arg("counter");
+    const char *keys[] = {"", "poison", "energy", "experience", "commander-casts", "city-blessing", "initiative"};
+    for (uint8_t i = 1; i < static_cast<uint8_t>(TurnHub::CounterKind::Count); ++i) {
+      if (kind != keys[i]) continue;
+      payload.flags = i;
+      if (i >= static_cast<uint8_t>(TurnHub::CounterKind::CityBlessing))
+        return parseBoundedNumber(server.arg("value"), 0, 1, payload.value);
+      if (!parseLifeInteger(server.arg("delta"), payload.value, true) || !payload.value) return false;
+      if (i == static_cast<uint8_t>(TurnHub::CounterKind::CommanderCast)) {
+        if (!parseBoundedNumber(server.arg("commander"), 1, 2, number)) return false;
+        payload.counterSlot = static_cast<uint8_t>(number);
+      }
+      return true;
+    }
+    return false;
+  }
   bool valid = parseLifeInteger(server.arg("delta"), payload.value, true) && payload.value != 0;
   if (type == TurnHub::IntentType::RequestLifeChange) {
     valid = valid && parseBoundedNumber(server.arg("target"), 1, MAX_PLAYERS, number);

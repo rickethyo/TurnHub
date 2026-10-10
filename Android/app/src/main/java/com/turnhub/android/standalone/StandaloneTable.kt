@@ -171,6 +171,8 @@ class StandaloneTable(
                 "pass" -> game.pass(index, now)
                 "pause" -> game.togglePause(now)
                 "concede" -> game.concede(index, now)
+                "eliminate" -> game.eliminate(index, now)
+                "monarch" -> game.claimMonarch(index)
                 "win" -> game.claimWin(index, now)
                 "draw" -> game.endWithoutWinner(now)
                 "rematch" -> game.rematch(now, newId())
@@ -183,14 +185,26 @@ class StandaloneTable(
 
     override suspend fun life(seat: TabletSeat, delta: Int): Boolean {
         val before = _state.value.game
-        edit { it.changeLife(StandaloneGame.indexOf(seat.moduleId), delta) }
+        edit { it.changeLife(StandaloneGame.indexOf(seat.moduleId), delta, wallClock()) }
         return _state.value.game !== before
     }
 
     override suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int) =
-        edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta) }
+        edit { it.commanderDamage(StandaloneGame.indexOf(seat.moduleId), source - 1, commander, delta, wallClock()) }
 
     // A standalone game has no phones asking for life changes, and is never offline.
+    fun setZeroLifeElimination(enabled: Boolean) { edit { it.setAutoEliminateAtZeroLife(enabled, wallClock()) } }
+
+    override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) =
+        edit { it.changeCounter(StandaloneGame.indexOf(seat.moduleId), kind, value, commander, wallClock()) }
+
+    override suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int) =
+        edit { it.setEliminationRule(field, value, wallClock()) }
+
+    override suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean) {
+        setZeroLifeElimination(enabled)
+    }
+
     override suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean) = Unit
     override fun queueOffline(change: OfflineChange) = Unit
     override fun refuseOffline() = Unit
@@ -254,9 +268,15 @@ class StandaloneTable(
             put("state", game.state.name)
             put("gameProfile", game.profile.wireValue)
             put("startingLife", game.startingLife)
+            put("autoEliminateAtZeroLife", game.autoEliminateAtZeroLife)
             put("active", game.active ?: JSONObject.NULL)
             put("starter", game.starter ?: JSONObject.NULL)
             put("winner", game.winner ?: JSONObject.NULL)
+            put("monarch", game.monarch ?: JSONObject.NULL)
+            put("initiative", game.initiative ?: JSONObject.NULL)
+            put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
+            put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
+            put("poisonLimit", game.poisonLimit)
             put("startedAtMs", game.startedAtMs)
             put("elapsedMs", game.elapsedMs)
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
@@ -270,6 +290,11 @@ class StandaloneTable(
                         put("localId", p.localId ?: JSONObject.NULL)
                         put("life", p.life)
                         put("eliminated", p.eliminated)
+                        put("conceded", p.conceded)
+                        put("counters", JSONObject().apply {
+                            put("poison", p.counters.poison); put("energy", p.counters.energy); put("experience", p.counters.experience)
+                            put("commanderCasts", JSONArray(p.counters.commanderCasts)); put("cityBlessing", p.counters.cityBlessing)
+                        })
                         put("outOrder", p.outOrder ?: JSONObject.NULL)
                         put("turnsCompleted", p.turnsCompleted)
                         put("turnMs", p.turnMs)
@@ -290,9 +315,15 @@ class StandaloneTable(
                 state = TableState.fromWire(json.getString("state")) ?: error("Unsupported local game state"),
                 profile = GameProfile.fromWire(json.getString("gameProfile")) ?: error("Unsupported local game format"),
                 startingLife = json.getInt("startingLife"),
+                autoEliminateAtZeroLife = json.optBoolean("autoEliminateAtZeroLife", true),
                 active = json.optIntOrNull("active"),
                 starter = json.optIntOrNull("starter"),
                 winner = json.optIntOrNull("winner"),
+                monarch = json.optIntOrNull("monarch"),
+                initiative = json.optIntOrNull("initiative"),
+                autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),
+                autoEliminateAtCommanderDamage = json.optBoolean("autoEliminateAtCommanderDamage", true),
+                poisonLimit = json.optInt("poisonLimit", 10),
                 startedAtMs = json.getLong("startedAtMs"),
                 elapsedMs = json.getLong("elapsedMs"),
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),
@@ -307,6 +338,11 @@ class StandaloneTable(
                         profileId = p.optStringOrNull("profileId"),
                         life = p.getInt("life"),
                         eliminated = p.getBoolean("eliminated"),
+                        conceded = p.optBoolean("conceded"),
+                        counters = p.optJSONObject("counters")?.let { c ->
+                            com.turnhub.android.protocol.PlayerCounters(c.getInt("poison"), c.getInt("energy"), c.getInt("experience"),
+                                c.getJSONArray("commanderCasts").let { a -> List(2) { a.getInt(it) } }, c.getBoolean("cityBlessing"))
+                        } ?: com.turnhub.android.protocol.PlayerCounters(),
                         outOrder = p.optIntOrNull("outOrder"),
                         turnsCompleted = p.getInt("turnsCompleted"),
                         turnMs = p.optLong("turnMs"),

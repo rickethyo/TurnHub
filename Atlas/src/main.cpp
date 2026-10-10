@@ -259,6 +259,23 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
   return json;
 }
 
+// Application domain phase: settle automatic loss outcomes before projecting or saving.
+void finalizeGameRules(const Intent &intent) {
+  if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
+  if (table().eliminationTargetPlayer) return;
+  bool wasOut[MAX_PLAYERS]{};
+  for (uint8_t i=0;i<table().game.playerCount();++i)
+    wasOut[i] = table().game.isEliminated(table().game.playerAt(i)->playerNumber);
+  if (!table().game.resolveEliminationRules(millis())) return;
+  clearPendingPass("AUTO_ELIMINATION");
+  for (uint8_t i=0;i<table().game.playerCount();++i) {
+    const auto *seat = table().game.playerAt(i);
+    if (!wasOut[i] && table().game.isEliminated(seat->playerNumber)) audio.playerEliminated(seat->controllerId);
+  }
+  leds.invalidateAll();
+  if (table().game.gameOver()) finishGameState();
+}
+
 // Dispatcher observer: runs after every Intent, accepted or not.
 void observeIntent(const Intent &intent) {
   // The loop dispatches expiry every frame. Its no-op path must not rebuild
@@ -296,6 +313,8 @@ bool configureIntentHandlers() {
       {IntentType::Pause, handlePauseIntent},
       {IntentType::Resume, handleResumeIntent},
       {IntentType::Concede, handleConcedeIntent},
+      {IntentType::EliminateSeat, handleEliminateSeatIntent},
+      {IntentType::ClaimMonarch, handleClaimMonarchIntent},
       {IntentType::TogglePause, handleTogglePauseIntent},
       {IntentType::ClaimWin, handleClaimWinIntent},
       {IntentType::ConfirmWin, handleConfirmWinIntent},
@@ -353,6 +372,7 @@ bool configureIntentHandlers() {
     serialLog.println(bound ? "|BOUND" : "|BIND_FAILED");
     allBound = bound && allBound;
   }
+  intents.setRuleFinalizer(finalizeGameRules);
   return allBound;
 }
 

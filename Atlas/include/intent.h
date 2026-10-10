@@ -20,6 +20,8 @@ enum class IntentType : uint8_t {
   Resume,
   TogglePause,
   Concede,
+  EliminateSeat,
+  ClaimMonarch,
   ClaimWin,
   ConfirmWin,
   DenyWin,
@@ -185,10 +187,11 @@ enum class ModerationAction : int32_t {
 struct IntentPayload {
   uint8_t targetPlayer = 0;
   int32_t value = 0;
-  uint32_t flags = 0;
+  uint32_t flags = 0; // ChangeCounter: CounterKind; ConfigureGame: profile and rule flags.
   uint32_t requestId = 0; // RespondLifeChange: exact pending approval.
   uint8_t counterSource = 0; // ChangeCounter: owner of the commander.
   uint8_t counterSlot = 1; // ChangeCounter: commander 1 or 2.
+  int32_t poisonLimit = 10; // ConfigureGame: live loss threshold.
   uint32_t durationMs = 0; // ConfigureGame: turn timer (0 = OFF).
   char moderatorId[9] = {}; // Authenticated account issuing moderation.
   char profileId[9] = {}; // Only populated by trusted Atlas authentication adapters.
@@ -242,6 +245,8 @@ inline const char *intentName(IntentType type) {
     case IntentType::Resume: return "RESUME";
     case IntentType::TogglePause: return "TOGGLE_PAUSE";
     case IntentType::Concede: return "CONCEDE";
+    case IntentType::EliminateSeat: return "ELIMINATE_SEAT";
+    case IntentType::ClaimMonarch: return "CLAIM_MONARCH";
     case IntentType::ClaimWin: return "CLAIM_WIN";
     case IntentType::ConfirmWin: return "CONFIRM_WIN";
     case IntentType::DenyWin: return "DENY_WIN";

@@ -6,6 +6,7 @@ import com.turnhub.android.protocol.CommanderDamage
 import com.turnhub.android.protocol.LifeRequest
 import com.turnhub.android.protocol.Nudge
 import com.turnhub.android.protocol.PendingDecisions
+import com.turnhub.android.protocol.PlayerCounters
 import com.turnhub.android.protocol.TableSettings
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimer
@@ -54,6 +55,8 @@ data class TableSummary(
     val nudge: Nudge? = null,
     /** Atlas's own battery, for the header gauge; null with no cell. */
     val battery: AtlasBattery? = null,
+    val monarchPlayerNumber: Int? = null,
+    val initiativePlayerNumber: Int? = null,
     val game: Int = 1,
     val games: List<com.turnhub.android.protocol.VenueGame> = emptyList(),
 ) {
@@ -98,6 +101,8 @@ data class TablePlayer(
     /** The seated profile; tablet mode removes a player by it. */
     val profileId: String? = null,
     val eliminated: Boolean,
+    val conceded: Boolean = false,
+    val counters: PlayerCounters = PlayerCounters(),
     /** Null in the lobby. */
     val life: Int?,
     val turnsCompleted: Long,

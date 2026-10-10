@@ -678,6 +678,19 @@ class HomeViewModel(
         }
     }
 
+    fun onPlayerCounter(kind: String, value: Int, commander: Int) {
+        val key = if (kind == "initiative" || kind == "city-blessing") "value" else "delta"
+        launchTable { playerSession.counter("/api/control/counter", listOf("counter" to kind, key to "$value", "commander" to "$commander"), "Counter updated.") }
+    }
+
+    fun onEliminationRule(field: String, value: Int) {
+        launchTable { playerSession.counter("/api/game/settings", listOf(field to "$value"), "Elimination settings updated.") }
+    }
+
+    fun onSetZeroLifeElimination(enabled: Boolean) {
+        launchTable { playerSession.saveGameSettings(null, null, null, autoEliminateAtZeroLife = enabled) }
+    }
+
     fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean? = null) {
         launchTable { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs, twoHeadedGiant) }
     }

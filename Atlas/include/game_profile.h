@@ -39,12 +39,37 @@ constexpr int32_t TEAM_LIFE_COMMANDER = 60;
 constexpr uint8_t PROFILE_BYTE_TEAMS = 0x80;
 // The ConfigureGame Intent's payload.flags bit for the same setting.
 constexpr uint32_t GAME_FLAG_TWO_HEADED_GIANT = 0x100;
+constexpr uint32_t GAME_FLAG_MANUAL_ELIMINATION = 0x200;
+constexpr uint8_t PROFILE_BYTE_MANUAL_ELIMINATION = 0x40;
+
+constexpr uint32_t GAME_FLAG_MANUAL_POISON = 0x400;
+constexpr uint32_t GAME_FLAG_MANUAL_COMMANDER = 0x800;
+constexpr int32_t COMMANDER_DAMAGE_LIMIT = 21;
+enum class CounterKind : uint8_t { CommanderDamage, Poison, Energy, Experience, CommanderCast, CityBlessing, Initiative, Count };
+struct PlayerCounters {
+  int32_t poison = 0, energy = 0, experience = 0;
+  int32_t commanderCasts[2] = {};
+  bool cityBlessing = false;
+};
+inline bool sameCounters(const PlayerCounters &a, const PlayerCounters &b) {
+  return a.poison == b.poison && a.energy == b.energy && a.experience == b.experience &&
+      a.commanderCasts[0] == b.commanderCasts[0] && a.commanderCasts[1] == b.commanderCasts[1] && a.cityBlessing == b.cityBlessing;
+}
+inline bool validCounters(const PlayerCounters &c) {
+  return c.poison >= 0 && c.poison <= LIFE_LIMIT && c.energy >= 0 && c.energy <= LIFE_LIMIT &&
+      c.experience >= 0 && c.experience <= LIFE_LIMIT && c.commanderCasts[0] >= 0 && c.commanderCasts[0] <= LIFE_LIMIT &&
+      c.commanderCasts[1] >= 0 && c.commanderCasts[1] <= LIFE_LIMIT;
+}
 
 struct GameSettings {
   GameProfile profile = GameProfile::Generic;
   int32_t startingLife = 40;
   uint32_t turnTimerMs = TURN_TIMER_OFF;
   bool twoHeadedGiant = false;
+  bool autoEliminateAtZeroLife = true;
+  bool autoEliminateAtPoisonLimit = true;
+  bool autoEliminateAtCommanderDamage = true;
+  int32_t poisonLimit = 10;
 };
 inline bool teamsAllowed(GameProfile profile) {
   return profile == GameProfile::Magic || profile == GameProfile::Commander;
@@ -52,23 +77,28 @@ inline bool teamsAllowed(GameProfile profile) {
 inline bool validGameSettings(const GameSettings &settings) {
   return settings.profile < GameProfile::Count &&
       settings.startingLife >= 0 && settings.startingLife <= LIFE_LIMIT &&
-      validTurnTimerMs(settings.turnTimerMs) &&
+      validTurnTimerMs(settings.turnTimerMs) && settings.poisonLimit >= 1 && settings.poisonLimit <= LIFE_LIMIT &&
       (!settings.twoHeadedGiant || teamsAllowed(settings.profile));
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
   return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
-      a.twoHeadedGiant == b.twoHeadedGiant;
+      a.twoHeadedGiant == b.twoHeadedGiant &&
+      a.autoEliminateAtZeroLife == b.autoEliminateAtZeroLife &&
+      a.autoEliminateAtPoisonLimit == b.autoEliminateAtPoisonLimit &&
+      a.autoEliminateAtCommanderDamage == b.autoEliminateAtCommanderDamage && a.poisonLimit == b.poisonLimit;
 }
 inline bool validTeamTable(const GameSettings &settings, uint8_t playerCount) {
   return !settings.twoHeadedGiant ||
       (playerCount >= TEAM_MIN_PLAYERS && playerCount % TEAM_SIZE == 0);
 }
 inline uint8_t profileByte(const GameSettings &settings) {
-  return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0);
+  return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0) |
+      (settings.autoEliminateAtZeroLife ? 0 : PROFILE_BYTE_MANUAL_ELIMINATION);
 }
 inline void readProfileByte(uint8_t value, GameSettings &settings) {
-  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~PROFILE_BYTE_TEAMS));
+  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~(PROFILE_BYTE_TEAMS | PROFILE_BYTE_MANUAL_ELIMINATION)));
   settings.twoHeadedGiant = (value & PROFILE_BYTE_TEAMS) != 0;
+  settings.autoEliminateAtZeroLife = (value & PROFILE_BYTE_MANUAL_ELIMINATION) == 0;
 }
 inline const char *gameProfileKey(GameProfile profile) {
   switch (profile) {

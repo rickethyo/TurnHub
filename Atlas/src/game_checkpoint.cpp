@@ -6,6 +6,7 @@
 namespace TurnHub {
 void clearCheckpoint(GameCheckpoint &out) {
   out.settings = GameSettings{};
+  out.monarch = out.initiative = 0;
   out.count = out.active = out.starter = out.winner = 0;
   out.paused = out.over = false;
   out.gameElapsed = out.turnElapsed = out.nextRequestId = 0;
@@ -13,6 +14,8 @@ void clearCheckpoint(GameCheckpoint &out) {
     out.players[i] = PlayerSeat{};
     out.stats[i] = PlayerStats{};
     out.eliminated[i] = false;
+    out.conceded[i] = false;
+    out.counters[i] = PlayerCounters{};
     out.life[i] = 0;
     for (auto &source : out.damage[i]) for (auto &value : source) value = 0;
   }
@@ -20,6 +23,9 @@ void clearCheckpoint(GameCheckpoint &out) {
 
 bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
+  if (s.initiative && (s.initiative > s.count || s.eliminated[s.initiative-1] || !teamsAllowed(s.settings.profile))) return false;
+  if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] ||
+      (s.settings.profile != GameProfile::Magic && s.settings.profile != GameProfile::Commander))) return false;
   if (!s.count) return !s.over && !s.winner;
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
       s.winner > s.count || (!s.over && s.winner)) return false;
@@ -27,7 +33,7 @@ bool validCheckpoint(const GameCheckpoint &s) {
   // Two-Headed Giant teammates share one life total and leave together.
   if (s.settings.twoHeadedGiant)
     for (uint8_t i = 0; i + 1 < s.count; i += TEAM_SIZE)
-      if (s.life[i] != s.life[i+1] || s.eliminated[i] != s.eliminated[i+1]) return false;
+      if (s.life[i] != s.life[i+1] || s.eliminated[i] != s.eliminated[i+1] || s.counters[i].poison != s.counters[i+1].poison) return false;
   uint8_t living = 0;
   for (uint8_t i = 0; i < s.count; ++i) {
     const auto &p = s.players[i];
@@ -49,13 +55,17 @@ bool validCheckpoint(const GameCheckpoint &s) {
           (p.participantId && p.participantId == s.players[j].participantId) ||
           (p.profileId[0] && !strcmp(p.profileId, s.players[j].profileId))) return false;
     }
+    if (!validCounters(s.counters[i]) ||
+        (!teamsAllowed(s.settings.profile) && !sameCounters(s.counters[i], PlayerCounters{})) ||
+        (s.settings.profile != GameProfile::Commander && (s.counters[i].commanderCasts[0] || s.counters[i].commanderCasts[1]))) return false;
+    if (s.conceded[i] && !s.eliminated[i]) return false;
     if (!s.eliminated[i]) ++living;
     for (uint8_t j = 0; j < s.count; ++j) for (uint8_t c = 0; c < 2; ++c)
       if (s.damage[i][j][c] < 0 || s.damage[i][j][c] > LIFE_LIMIT ||
           (s.settings.profile != GameProfile::Commander && s.damage[i][j][c])) return false;
   }
   // A finished match without a winner is a draw (GameEngine::endInDraw).
-  return living && (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
+  return (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
       (living >= 2 && !s.eliminated[s.active]));
 }
 
@@ -64,11 +74,15 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   if (!hasPlayers()) return;
   out.settings = settings_;
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
+  out.monarch = monarchPlayer_;
+  out.initiative = initiativePlayer_;
   out.winner = winnerPlayer_; out.paused = paused_; out.over = gameOver_;
   out.gameElapsed = gameElapsedMs(nowMs); out.turnElapsed = currentTurnElapsedMs(nowMs);
   out.nextRequestId = nextLifeRequestId_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
     out.players[i] = players_[i]; out.stats[i] = stats_[i];
+    out.conceded[i] = conceded_[i];
+    out.counters[i] = counters_[i];
     out.eliminated[i] = eliminated_[i]; out.life[i] = life_[i];
     for (uint8_t j = 0; j < playerCount_; ++j)
       for (uint8_t c = 0; c < 2; ++c) out.damage[i][j][c] = commanderDamage_[i][j][c];
@@ -80,6 +94,8 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   reset();
   if (!s.count) return true;
   settings_ = s.settings; playerCount_ = s.count; activeIndex_ = s.active;
+  monarchPlayer_ = s.monarch;
+  initiativePlayer_ = s.initiative;
   starterPlayer_ = s.starter; winnerPlayer_ = s.winner;
   running_ = true; gameOver_ = s.over; paused_ = !s.over;
   nextLifeRequestId_ = s.nextRequestId;
@@ -90,6 +106,9 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   gameEndedAtMs_ = s.over ? nowMs : 0;
   for (uint8_t i = 0; i < s.count; ++i) {
     players_[i] = s.players[i]; stats_[i] = s.stats[i];
+    conceded_[i] = s.conceded[i];
+    counters_[i] = s.counters[i];
+    if (counters_[i].commanderCasts[1]) partner_[i] = true;
     eliminated_[i] = s.eliminated[i]; life_[i] = s.life[i];
     for (uint8_t j = 0; j < s.count; ++j)
       for (uint8_t c = 0; c < 2; ++c) commanderDamage_[i][j][c] = s.damage[i][j][c];

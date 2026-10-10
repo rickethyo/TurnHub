@@ -27,6 +27,136 @@ class StandaloneGameTest {
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
 
     @Test
+    fun `poison and commander damage rules are independent and live`() {
+        var game = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+        val poisoned = game.changeCounter(0, "poison", 10, nowMs = 2_000)
+        assertTrue(poisoned.players[0].eliminated)
+        assertEquals(40, poisoned.players[0].life)
+        game = game.setEliminationRule("autoEliminateAtPoisonLimit", 0, 1_000).changeCounter(0, "poison", 12)
+        assertTrue(!game.players[0].eliminated)
+        assertTrue(game.togglePause(2_000).setEliminationRule("autoEliminateAtPoisonLimit", 1, 3_000).players[0].eliminated)
+        val custom = threePlayers().setEliminationRule("poisonLimit", 20, 1_000).changeCounter(0, "poison", 19)
+        assertTrue(!custom.players[0].eliminated)
+        assertTrue(custom.setEliminationRule("poisonLimit", 19, 2_000).players[0].eliminated)
+        val damage = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+            .commanderDamage(0, 1, 1, 20).commanderDamage(0, 1, 2, 20).commanderDamage(0, 2, 1, 20)
+        assertTrue(!damage.players[0].eliminated) // Never pool sources or partners.
+        assertTrue(damage.commanderDamage(0, 1, 2, 1).players[0].eliminated)
+        val protected = threePlayers().setEliminationRule("autoEliminateAtCommanderDamage", 0, 1_000).commanderDamage(0, 1, 1, 21)
+        assertTrue(!protected.players[0].eliminated)
+        assertTrue(protected.setEliminationRule("autoEliminateAtCommanderDamage", 1, 2_000).players[0].eliminated)
+    }
+
+    @Test
+    fun `statuses transfer independently and counters tax and rules survive recovery`() {
+        val game = threePlayers().claimMonarch(0).changeCounter(1, "initiative", 1).changeCounter(2, "initiative", 1)
+            .changeCounter(0, "city-blessing", 1).changeCounter(1, "city-blessing", 1)
+            .changeCounter(0, "energy", 4).changeCounter(0, "energy", -1).changeCounter(0, "experience", 2)
+            .changeCounter(0, "commander-casts", 2, 1).changeCounter(0, "commander-casts", 1, 2)
+            .setEliminationRule("poisonLimit", 17, 1_000).setEliminationRule("autoEliminateAtCommanderDamage", 0, 1_000)
+        assertEquals(0, game.monarch)
+        assertEquals(2, game.initiative)
+        assertTrue(game.players[0].counters.cityBlessing && game.players[1].counters.cityBlessing)
+        assertEquals(4, game.players[0].counters.commanderTax(1))
+        assertEquals(2, game.players[0].counters.commanderTax(2))
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertEquals(game, restored)
+        assertEquals(game.players[0].counters, restored.toSummary(2_000, 2_000).players[0].counters)
+        assertNull(restored.concede(2, 2_000).initiative)
+        val reset = game.reset()
+        assertNull(reset.initiative)
+        assertEquals(com.turnhub.android.protocol.PlayerCounters(), reset.players[0].counters)
+        assertEquals(17, reset.poisonLimit)
+    }
+
+    @Test
+    fun `counter corrections reject negative overflow format and inactive seats`() {
+        val game = threePlayers()
+        assertSame(game, game.changeCounter(0, "energy", -1))
+        assertSame(game, game.changeCounter(0, "poison", Int.MAX_VALUE))
+        assertSame(game, game.changeCounter(0, "commander-casts", 1, 3))
+        assertSame(game, game.changeCounter(0, "city-blessing", 2))
+        assertSame(game, game.setEliminationRule("poisonLimit", 0, 2_000))
+        val out = game.eliminate(0, 2_000)
+        assertSame(out, out.changeCounter(0, "experience", 1))
+        val generic = game.reset().setFormat(GameProfile.GENERIC).start(3_000, "g2", firstSeat)
+        assertSame(generic, generic.changeCounter(0, "initiative", 1))
+    }
+
+    @Test
+    fun `monarch transfers to one living player and survives pause and storage`() {
+        val game = threePlayers().claimMonarch(0).claimMonarch(1).togglePause(2_000)
+        assertEquals(1, game.monarch)
+        assertEquals(2, game.toSummary(2_000, 2_000).monarchPlayerNumber)
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertEquals(1, restored.monarch)
+        assertEquals(2, restored.claimMonarch(2).monarch)
+        assertSame(restored, restored.claimMonarch(99))
+    }
+
+    @Test
+    fun `crown clears on concession elimination lethal life and new match`() {
+        val game = threePlayers().claimMonarch(0)
+        assertNull(game.concede(0, 2_000).monarch)
+        assertNull(game.eliminate(0, 2_000).monarch)
+        assertNull(game.changeLife(0, -40, 2_000).monarch)
+        assertNull(game.reset().monarch)
+        assertNull(game.claimWin(1, 2_000).rematch(3_000, "g2", firstSeat).monarch)
+        val out = game.eliminate(0, 2_000)
+        assertSame(out, out.claimMonarch(0))
+    }
+
+    @Test
+    fun `monarch is only available in active Magic games`() {
+        val lobby = StandaloneGame().addPlayer("Ana").addPlayer("Ben")
+        assertSame(lobby, lobby.claimMonarch(0))
+        for (profile in listOf(GameProfile.GENERIC, GameProfile.YUGIOH)) {
+            val game = lobby.setFormat(profile).start(1_000, "g", firstSeat)
+            assertSame(game, game.claimMonarch(0))
+        }
+        val magic = lobby.setFormat(GameProfile.MTG).start(1_000, "g", firstSeat)
+        assertEquals(0, magic.claimMonarch(0).monarch)
+        val over = magic.claimWin(0, 2_000)
+        assertSame(over, over.claimMonarch(1))
+    }
+
+    @Test
+    fun `zero life eliminates by default and advances the turn`() {
+        val game = threePlayers().changeLife(0, -40, 2_000)
+        assertTrue(game.players[0].eliminated)
+        assertTrue(!game.players[0].conceded)
+        assertEquals(1, game.active)
+        val won = game.commanderDamage(1, 2, 1, 40, 3_000)
+        assertEquals(TableState.GAME_OVER, won.state)
+        assertEquals(2, won.winner)
+    }
+
+    @Test
+    fun `zero life policy can change while paused and checks everyone together`() {
+        var game = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+        for (i in game.players.indices) game = game.changeLife(i, -41, 2_000)
+        assertTrue(game.players.none { it.eliminated })
+        game = game.togglePause(3_000).setAutoEliminateAtZeroLife(true, 4_000)
+        assertEquals(TableState.GAME_OVER, game.state)
+        assertNull(game.winner)
+        assertTrue(game.players.all { it.eliminated && !it.conceded })
+    }
+
+    @Test
+    fun `concession and elimination preserve distinct reasons in saved games and records`() {
+        val game = threePlayers().concede(0, 2_000).eliminate(1, 3_000)
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertTrue(restored.players[0].conceded)
+        assertTrue(!restored.players[1].conceded)
+        val record = GameRecord.fromJson(game.record()!!.toJson())!!
+        assertTrue(record.players[0].conceded)
+        assertTrue(!record.players[1].conceded)
+        assertTrue(record.importFields("THA-1", listOf("1", "2", "3")).contains("conceded0" to "1"))
+        val disabled = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+        assertTrue(!StandaloneTable.gameFromJson(StandaloneTable.gameToJson(disabled)).autoEliminateAtZeroLife)
+    }
+
+    @Test
     fun `a game starts everyone on the format's life with a first player`() {
         val game = threePlayers()
         assertEquals(TableState.RUNNING, game.state)

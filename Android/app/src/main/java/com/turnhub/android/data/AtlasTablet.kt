@@ -203,6 +203,22 @@ class AtlasTablet(
     // --- the table ----------------------------------------------------------------
 
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or `reset`. */
+    override suspend fun counter(seat: TabletSeat, kind: String, value: Int, commander: Int) {
+        val key = if (kind == "initiative" || kind == "city-blessing") "value" else "delta"
+        val response = post("/api/tablet/counter", seat.fields + listOf("counter" to kind, key to "$value", "commander" to "$commander")) ?: return
+        if (response.ok) succeed() else fail(response)
+    }
+
+    override suspend fun setEliminationRule(seat: TabletSeat, field: String, value: Int) {
+        val response = post("/api/tablet/settings", seat.fields + (field to "$value")) ?: return
+        if (response.ok) succeed() else fail(response)
+    }
+
+    override suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean) {
+        val response = post("/api/tablet/settings", seat.fields + ("autoEliminateAtZeroLife" to if (enabled) "1" else "0")) ?: return
+        if (response.ok) succeed() else fail(response)
+    }
+
     override suspend fun control(seat: TabletSeat, action: String): Boolean {
         val response = post("/api/tablet/control", seat.fields + ("action" to action)) ?: return false
         if (response.ok) succeed() else fail(response)
