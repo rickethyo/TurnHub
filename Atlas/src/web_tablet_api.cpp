@@ -1,7 +1,7 @@
 // Tablet mode: one shared screen in the middle of the table that seats the
 // players and acts for any of them, as the Atlas touchscreen does. A signed-in
-// account turns it on with a table presence code; the grant lives on that
-// browser session (RAM) until it leaves tablet mode, signs out or expires.
+// account turns it on under the table presence policy; activation replaces
+// that personal credential with a restricted RAM-only Shared tablet account.
 // Every action reuses the seat callbacks a phone uses, so Atlas's Intent
 // handlers still decide (a seat changes only its own life, records only the
 // Commander damage it received, and so on). See protocol/http-v1.md.
@@ -110,11 +110,18 @@ void handleTabletEnable(WebServer &server) {
   }
   const bool role = TurnHubAccounts::has(String(session->profileId), TurnHubAccounts::TabletAccess);
   if (!role && !requirePhysicalPresence(server)) return;
+  // Replace this device's personal credential with a RAM-only tablet account.
+  // Other devices' sessions and the player's seat remain independent.
+  const uint8_t game = requestGame(server);
+  *session = WebSession{};
+  session->used = true;
   session->tableDevice = true;
-  serialLog.print("ATLAS|TABLET|ON|");
-  serialLog.print(session->profileId);
-  serialLog.println(role ? "|ROLE" : "|CODE");
-  sendOkMessage(server, "Tablet mode is on");
+  session->table = game;
+  session->lastSeenMs = millis();
+  makeToken(session->token);
+  serialLog.println(role ? "ATLAS|TABLET|ON|ROLE" : "ATLAS|TABLET|ON|PRESENCE");
+  sendJson(server, 200, String("{\"ok\":true,\"token\":\"") + session->token +
+      "\",\"profileId\":\"\",\"message\":\"Shared tablet account active; personal account signed out\"}");
 }
 
 void handleTabletDisable(WebServer &server) {
@@ -123,12 +130,9 @@ void handleTabletDisable(WebServer &server) {
     sendError(server, 401, "Sign in first");
     return;
   }
-  if (session->tableDevice) {
-    serialLog.print("ATLAS|TABLET|OFF|");
-    serialLog.println(session->profileId);
-  }
-  session->tableDevice = false;
-  sendOkMessage(server, "Tablet mode is off");
+  *session = WebSession{};
+  serialLog.println("ATLAS|TABLET|OFF");
+  sendOkMessage(server, "Tablet mode is off; sign in to a personal account to continue");
 }
 
 // POST /api/tablet/seat: profileId (with pin when that profile needs one at

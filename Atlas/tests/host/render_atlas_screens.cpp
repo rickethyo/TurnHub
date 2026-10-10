@@ -92,6 +92,21 @@ AtlasScreen playing() {
   return s;
 }
 
+AtlasScreen uploadedAvatar(uint32_t revision = 1) {
+  static uint8_t thumbnail[256], replacement[256];
+  for (int y=0;y<16;++y) for (int x=0;x<16;++x) {
+    thumbnail[y*16+x]=static_cast<uint8_t>(((x/2)<<5) | ((y/2)<<2) | (x/4));
+    replacement[y*16+x]=static_cast<uint8_t>(255-thumbnail[y*16+x]);
+  }
+  AtlasScreen screen=playing();
+  text(screen.players[0].name, sizeof(screen.players[0].name), "Ava");
+  text(screen.title, sizeof(screen.title), "Ava's turn");
+  screen.players[0].avatar=128;
+  screen.players[0].imageRevision=revision;
+  screen.players[0].avatarPixels=revision==1 ? thumbnail : replacement;
+  return screen;
+}
+
 std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   std::vector<std::pair<std::string, AtlasScreen>> out;
   out.push_back({"playing", playing()});
@@ -232,6 +247,7 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   AtlasScreen pressed = lobby;
   pressed.pressed = TouchAction::StartGame;
   out.push_back({"lobby-start-pressed", pressed});
+  out.push_back({"uploaded-avatar", uploadedAvatar()});
   return out;
 }
 
@@ -322,6 +338,14 @@ int main(int argc, char **argv) {
 
   // Region-by-region redraws: a clock tick, a pass to the next player, a
   // life change, an action message, a hold's progress, lobby to game.
+  AtlasScreen preset = uploadedAvatar();
+  preset.players[0].avatar = 1; preset.players[0].imageRevision = 0; preset.players[0].avatarPixels = nullptr;
+  invalidateAtlasScreen(); renderAtlasScreen(preset, NOW); const auto presetPixels = pixels(sprite);
+  invalidateAtlasScreen(); renderAtlasScreen(uploadedAvatar(), NOW);
+  if (presetPixels == pixels(sprite)) { printf("FAIL uploaded artwork was not rendered\n"); ++failures; }
+  failures += checkIncremental(sprite, "preset to uploaded artwork", preset, uploadedAvatar(), NOW);
+  failures += checkIncremental(sprite, "approved artwork revision replacement", uploadedAvatar(), uploadedAvatar(2), NOW);
+  failures += checkIncremental(sprite, "uploaded artwork to fallback", uploadedAvatar(), playing(), NOW);
   const AtlasScreen a = playing();
   AtlasScreen tick = a;
   tick.timerPermille = 610;

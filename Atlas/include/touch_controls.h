@@ -140,7 +140,9 @@ struct ScreenPlayer {
   char name[SCREEN_NAME_LENGTH + 1] = {};
   int32_t life = 0;
   uint8_t flags = 0;
-  uint8_t avatar = 0;  // A preset (avatars.h), drawn before the name; 0 none.
+  uint8_t avatar = 0;  // Preset or approved custom image; 0 none.
+  uint32_t imageRevision = 0;
+  const uint8_t *avatarPixels = nullptr;  // Stable profile cache, RGB332 16px thumbnail.
   // In a game: this player's time on their own turns so far, the current
   // turn included ("12:40"); empty between games.
   char turnTime[9] = {};
@@ -200,7 +202,7 @@ struct AtlasScreen {
 inline bool sameScreenText(const char *a, const char *b) { return strcmp(a, b) == 0; }
 
 inline bool samePlayer(const ScreenPlayer &a, const ScreenPlayer &b) {
-  return a.number == b.number && a.life == b.life && a.flags == b.flags && a.avatar == b.avatar &&
+  return a.number == b.number && a.life == b.life && a.flags == b.flags && a.avatar == b.avatar && a.imageRevision == b.imageRevision &&
       sameScreenText(a.name, b.name);
 }
 

@@ -40,7 +40,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 | TH-007 | Persistent agent branches and maintenance | Git workflow, CI, shared guidance | Implemented; PR validation pending | Owner / review and merge with source branch retained |
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
-| TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
+| TH-003 | High-resolution player artwork and fuller tablet UI | Android, assets, profiles, storage | Artwork and tablet identity implemented in PR #86; physical acceptance pending | Owner acceptance; future LCD firmware/layouts remain planned |
 | TH-006 | Shared themes on device screens | Atlas, Sigil, design | Locally verified; ready for review | Codex / codex/device-screen-themes |
 | TH-005 | Atlas host CI display fixture | Atlas host tests | Fixed and locally validated | Codex / codex/fix-atlas-host-ci |
 | TH-004 | Collaboration lessons from device-play follow-ups | Review style, Android, import, documentation | Codex reflection recorded; shared habits proposed | Future agents / apply evidence-first review; Claude may reply |
@@ -920,3 +920,55 @@ remains open. The prerequisite host fixture PR #79 is separately green.
   cardless administration and maintenance smokes pass. Atlas firmware build
   passes: RAM 105,164 B; flash 1,583,305 B (80.5%); stored portal 103,078 B.
   No physical flashing, release or integration. Owner reviews draft PR #86.
+
+### TH-003 / 2026-10-10 / Codex / Player icon implementation
+
+- Owner: Codex, continuing draft PR #86 on `codex/master`; baseline `c0ca713`.
+- Scope: scalable default artwork, Android crop/upload/replace/remove and Admin
+  review, Atlas-owned bounded SD artwork and public approved-image delivery.
+  Current e-paper/OLED Sigil development is frozen by owner; their firmware,
+  bitmaps and radio contract stay at the accepted baseline. Future ESP32-S3
+  2.8/4-inch layouts remain planned, with provisional 64/128-pixel previews.
+- Feature gate: Atlas profiles own artwork/approval; authenticated profile
+  upload/remove requests and Admin approve/reject requests change it. Atlas
+  validates identity, ordered chunks, JPEG dimensions/length and approval.
+  Checksummed SD blobs own image chunks and metadata, using the existing card
+  lock; originals never enter NVS or game snapshots. Android renders vectors
+  and approved JPEGs, and crops/compresses before transfer. HTTP adds artwork
+  routes/metadata; no gameplay Intent or radio change. No production dependency.
+  Names remain visible, crop sliders provide an accessible alternative to
+  dragging, preview and errors are labeled, and missing media falls back safely.
+- Limits: input 20 MiB/32 megapixels; cropped square JPEG up to 512 pixels and
+  48 KiB; 768-byte SD chunks keep Atlas scratch buffers bounded. Pending
+  replacement does not displace approved art until Admin approval.
+- Implementation: default vectors now generate 64-pixel Atlas masks; the native
+  app imports, orients, crops and previews bounded JPEGs before ordered upload.
+  Approved masters remain on SD; current Atlas uses a 16-pixel RGB332 projection.
+  Admin review, replacement/removal and revision-scoped delivery are implemented.
+- Validation: Android debug APK and 218 unit tests passed, including ordered
+  upload failure and tablet identity handoff. Atlas application, real SD storage,
+  profile-store and OTA host suites passed with ASan/UBSan (LeakSanitizer disabled
+  because of workspace tracing). All four Atlas themes and both inversion modes
+  passed incremental/full rendering comparisons, including visible uploaded
+  thumbnail, revision replacement and missing-art fallback. Atlas 0.7.8-dev
+  PlatformIO build passed: 109,516 B RAM, 1,646,429 B flash; complete image
+  1,653,152 B leaves 312,928 B in the unchanged OTA slot.
+- Generated masks/tokens, adapter audit (31 rules), client contracts (10 actual
+  plus 10 fixture responses), portal pack and actual flash asset responses
+  (13), manual export, workflow YAML and whitespace checks passed. Manual V0.15
+  replaces V0.14, which is archived. No Sigil/shared implementation changes.
+- Physical acceptance remains: SD removal/replacement during upload, on-device
+  crop/approval and Atlas readability, tablet activation/exit and simultaneous
+  personal-phone login. Future LCD layouts/firmware and persisted tablet account
+  administration are still planned. No hardware flashing, integration or release.
+- Handoff: continue existing draft PR #86; owner reviews and accepts hardware
+  behavior before integration. Implementation is in the commit containing this
+  entry (baseline `c0ca713`).
+
+TH-003 scope follow-up / owner, 2026-10-10: move Open tablet mode to Game;
+on activation sign out this device's personal account and automatically use a
+separate shared tablet account. Codex implements a token rotation to a RAM-only,
+profile-free tablet credential, with an explicit route allowlist, preserving
+other devices' sessions/player seats and leaving the app signed out on exit.
+This covers the requested dedicated runtime identity; persisted tablet account
+management/invitations from TH-002 remain separate planned work.

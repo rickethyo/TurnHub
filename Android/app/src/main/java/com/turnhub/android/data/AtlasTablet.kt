@@ -142,11 +142,10 @@ class AtlasTablet(
 
     fun dismissCode() = _state.update { it.copy(codePrompt = false) }
 
-    /** Hands the table back: the session stays signed in, without the tablet grant. */
+    /** End the shared tablet credential and leave this device signed out. */
     override suspend fun disable() {
-        post("/api/tablet/disable")
-        _state.update { TabletState() }
-        session.refresh()
+        try { post("/api/tablet/disable") }
+        finally { session.forget(); _state.value = TabletState() }
     }
 
     // --- the lobby ----------------------------------------------------------------

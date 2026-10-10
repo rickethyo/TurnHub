@@ -423,12 +423,48 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     suspend fun loadPersonalization() = act {
         val transport = transports.create(it.first)
         if (_avatars.value.isEmpty()) _avatars.value = transport.getAvatars()
-        _personalization.value = transport.getPersonalization(it.second)
+        _personalization.value = artworkImages(transport, it.second, transport.getPersonalization(it.second))
         null
     }
 
+    private suspend fun artworkImages(transport: AtlasSessionTransport, token: String, value: Personalization): Personalization {
+        suspend fun image(path: String): ByteArray? = if (path.isBlank()) null else try {
+            transport.getAvatarImage(path, token)
+        } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+        return value.copy(customImage = image(value.customAvatar), pendingImage = image(value.pendingAvatar))
+    }
+
+    suspend fun uploadAvatar(bytes: ByteArray, thumbnail: String) = act {
+        require(bytes.size in 32..48 * 1024)
+        val transport = transports.create(it.first)
+        suspend fun post(fields: List<Pair<String, String>>): org.json.JSONObject {
+            val response = transport.raw("POST", "/api/session/avatar", it.second, fields)
+            if (!response.ok) throw AtlasException(AtlasFailure.Rejected(
+                com.turnhub.android.protocol.AtlasWireParser.errorMessage(response.body) ?: "Image upload failed"))
+            return org.json.JSONObject(response.body)
+        }
+        val revision = post(listOf("action" to "start", "size" to bytes.size.toString())).getString("revision")
+        bytes.asList().chunked(768).forEachIndexed { index, chunk ->
+            val hex = chunk.joinToString("") { byte -> "%02x".format(byte.toInt() and 255) }
+            post(listOf("action" to "chunk", "revision" to revision, "index" to index.toString(), "data" to hex))
+        }
+        post(listOf("action" to "submit", "revision" to revision, "thumbnail" to thumbnail))
+        _personalization.value = artworkImages(transport, it.second, transport.getPersonalization(it.second))
+        ActionFeedback("Image saved on Atlas. An Admin must approve it before it appears at the table.", false)
+    }
+
+    suspend fun removeAvatar() = act {
+        val transport = transports.create(it.first)
+        val result = transport.raw("POST", "/api/session/avatar", it.second, listOf("action" to "remove"))
+        if (!result.ok) throw AtlasException(AtlasFailure.Rejected(
+            com.turnhub.android.protocol.AtlasWireParser.errorMessage(result.body) ?: "Could not remove image"))
+        _personalization.value = transport.getPersonalization(it.second)
+        ActionFeedback("Uploaded image removed.", false)
+    }
+
     suspend fun savePersonalization(color: String?, avatar: Int?) = act {
-        _personalization.value = transports.create(it.first).savePersonalization(it.second, color, avatar)
+        val transport = transports.create(it.first)
+        _personalization.value = artworkImages(transport, it.second, transport.savePersonalization(it.second, color, avatar))
         ActionFeedback("Saved. Your Sigil and the table update within a few seconds.", isError = false)
     }
 
@@ -468,12 +504,34 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
      * serialized with player actions (they are reads and deliberate admin
      * taps); an expired session signs out as usual. Null when signed out.
      */
-    suspend fun raw(method: String, path: String, fields: List<Pair<String, String>> = emptyList()): RawResponse? {
+    suspend fun avatarImage(path: String): ByteArray? {
+        val endpoint = endpoint ?: return null
+        val token = token ?: return null
+        return try { transports.create(endpoint).getAvatarImage(path, token) }
+        catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+    }
+
+    suspend fun raw(method: String, path: String, fields: List<Pair<String, String>> = emptyList()): RawResponse? =
+        if (method == "POST" && (path == "/api/tablet/enable" || path == "/api/tablet/disable"))
+            mutex.withLock { rawRequest(method, path, fields) }
+        else rawRequest(method, path, fields)
+
+    private suspend fun rawRequest(method: String, path: String, fields: List<Pair<String, String>>): RawResponse? {
         val endpoint = endpoint ?: return null
         val token = token ?: return null
         val game = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game ?: (_state.value as? PlayerSessionState.SignedIn)?.info?.game ?: viewedGame
         val scopedFields = if (method == "POST" && (path.startsWith("/api/tablet/") || path.startsWith("/api/control/") || path.startsWith("/api/game/") || path == "/api/table/reset" || path == "/api/accounts/moderate")) fields + ("expectedGame" to "$game") else fields
         val response = call { transports.create(endpoint).raw(method, path, token, scopedFields) }
+        if (response.ok && method == "POST" && path == "/api/tablet/enable") {
+            val replacement = org.json.JSONObject(response.body).optString("token")
+            if (replacement.length != 32) throw AtlasException(AtlasFailure.Malformed("Missing tablet credential"))
+            clear()
+            this.endpoint = endpoint
+            this.token = replacement
+            _state.value = PlayerSessionState.SignedIn("", "Shared tablet", null)
+            refreshLocked()
+        }
+        if (response.ok && method == "POST" && path == "/api/tablet/disable") clear()
         if (response.code == 401) {
             clear()
             _feedback.value = ActionFeedback(AtlasFailure.SessionExpired.userMessage, isError = true)

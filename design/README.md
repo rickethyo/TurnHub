@@ -110,3 +110,15 @@ controls. Sigils swap foreground/background; Atlas complements its RGB palette
 while retaining conventional black-on-white QR codes. This does not change LED
 preferences. `shared/include/theme_emblem.h` owns the diamond, sun and boxed
 hourglass marks; Brass retains its renderer's gear.
+
+## Player artwork for LCD hardware (2026-10-10)
+
+SVG player defaults are resolution independent. `build_avatar_masks.py`
+rasterizes them at 256px and filters to 64px alpha masks in
+`Atlas/include/avatar_masks.h`; current Atlas filters into its 16px slot without
+blocky bitmap enlargement. Android uses the original vector drawables. Frozen
+Sigils keep `shared/include/avatars.h` unchanged. Regenerate with
+`pip install -r tools/artwork-requirements.txt` and run the generator; its
+`--check` verifies source/artifact digests using stdlib only and runs in CI.
+Uploaded JPEG masters are 512px/48KiB; 64/128px previews are provisional device
+slots until the ESP32-S3 2.8/4-inch layouts are built.

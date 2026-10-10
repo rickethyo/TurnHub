@@ -226,6 +226,9 @@ const Route ROUTES[] = {
   {"/api/session/personalization", HTTP_GET, handlePersonalization},
   {"/api/session/personalization", HTTP_POST, handleSavePersonalization},
   {"/api/avatars", HTTP_GET, handleAvatars},
+  {"/api/session/avatar", HTTP_POST, handleAvatarUpload},
+  {"/api/avatar/review", HTTP_POST, handleAvatarReview},
+  {"/api/avatar", HTTP_GET, handleAvatarImage},
   {"/api/session/stats", HTTP_GET, handleProfileStats},
   {"/api/session/stats/export", HTTP_GET, handleProfileStatsExport},
   {"/api/session/logout", HTTP_POST, handleLogout},
@@ -308,6 +311,18 @@ class RouteTableHandler final : public RequestHandler {
   bool handle(WebServer &server, HTTPMethod method, String uri) override {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
+    const WebSession *session = sessionForRequest(server);
+    if (session && session->tableDevice && session->profileId[0] == 0) {
+      const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0;
+      const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" ||
+          uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
+          uri == "/api/counters" || uri == "/api/session/me");
+      const bool sessionRoute = method == HTTP_POST && (uri == "/api/session/game" || uri == "/api/session/logout");
+      if (!tabletRoute && !readRoute && !sessionRoute) {
+        sendError(server, 403, "The shared tablet account only has table controls");
+        return true;
+      }
+    }
     // Every handler acts on the request's game; the previous one is restored.
     const uint8_t game = requestGame(server);
     // A stale native screen must not mutate a different followed table, even

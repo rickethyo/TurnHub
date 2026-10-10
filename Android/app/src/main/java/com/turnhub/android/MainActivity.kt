@@ -419,6 +419,8 @@ class MainActivity : ComponentActivity() {
                             onShareStats = { homeViewModel.onExportStats(::shareStats) },
                             onLoadPersonalization = homeViewModel::onLoadPersonalization,
                             onSavePersonalization = homeViewModel::onSavePersonalization,
+                            onUploadAvatar = homeViewModel::onUploadAvatar,
+                            onRemoveAvatar = homeViewModel::onRemoveAvatar,
                             onAccessibility = homeViewModel::onAccessibilityClicked,
                             onSignOut = homeViewModel::onSignOutClicked,
                             onThemeChosen = ::chooseTheme,

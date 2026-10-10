@@ -1,0 +1,3 @@
+# Offline asset-generation tools only; no firmware/Android runtime dependencies.
+CairoSVG==2.8.2
+Pillow==11.3.0

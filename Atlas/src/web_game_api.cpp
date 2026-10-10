@@ -184,6 +184,7 @@ void handleSeats(WebServer &server) {
       const uint8_t avatar = TurnHubProfiles::avatarForProfile(profileId);
       json += "\",\"avatar\":";
       json += String(TurnHubAvatars::validPresetAvatar(avatar) ? avatar : 0);
+    json += ",\"customAvatar\":\"" + jsonEscape(avatar == TurnHubAvatars::AVATAR_CUSTOM ? TurnHubProfiles::artworkPath(profileId) : String()) + "\"";
       json += ",\"hasPin\":"; json += jsonBool(hasPin(controllerId, slot));
       json += ",\"sessionClaimed\":"; json += jsonBool(seatHasSession(controllerId, slot));
       json += '}';

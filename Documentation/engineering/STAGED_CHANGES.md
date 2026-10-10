@@ -71,7 +71,8 @@ everything implemented. Only the checks listed below are still open.
 - **Password hashing:** parked, see "Parked: storage batch" below.
 - **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
   owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):
-  upload custom player avatars and player-card background artwork, with crop,
+  Connected avatar upload/crop/review is implemented in PR #86 (2026-10-10).
+  Remaining: standalone local player avatars and player-card background artwork, with crop,
   preview, replace and remove controls. Preserve enough image detail for large
   tablet cards; choose explicit source/display dimensions and file limits during
   design rather than reducing everything to tiny icons. Retain the existing
@@ -224,6 +225,21 @@ everything implemented. Only the checks listed below are still open.
   current; confirm the USB supplies and power banks hold up.
 - Freeze hardware revisions only after GPIO, power, display, transport,
   controls and accessibility decisions settle.
+
+## Frozen legacy Sigils (owner, 2026-10-10)
+
+Current e-paper/OLED Sigil feature development is frozen. Future display work
+moves to planned ESP32-S3 2.8/4-inch LCD hardware; board specifications, layouts,
+firmware targets and artwork transfer/cache remain to be built. Player artwork's
+512px SD master and provisional 64/128px app previews are implemented in PR #86;
+physical acceptance of crop fidelity, card removal/reinsert, approval and Atlas
+thumbnail display remains outstanding. Background artwork and standalone local
+player images from TH-003 remain planned separately.
+
+Shared tablet credential handoff is implemented in PR #86: Game-tab entry,
+automatic replacement of this device's personal token with the restricted
+Shared tablet account, and signed-out exit. Physical simultaneous tablet/phone
+sign-in and exit/reconnect acceptance remains pending.
 
 ## Parked: storage batch
 

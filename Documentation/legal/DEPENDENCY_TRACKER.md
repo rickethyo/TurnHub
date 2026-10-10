@@ -112,3 +112,11 @@ Added the test-only `org.json:json` dependency introduced with the Android live-
 ### 2026-09-19
 
 Initial tracker created from the current `intent-android-foundation` branch. Known direct dependencies and current game-name compatibility references were inventoried. GxEPD2 was marked RED for production review because the current Sigil firmware directly uses it under GPLv3.
+
+### Artwork build tools (2026-10-10)
+
+CairoSVG 2.8.2 (LGPL-3.0-or-later) and Pillow 11.3.0 (HPND/Pillow license)
+are development-only rasterization tools pinned in `tools/artwork-requirements.txt`.
+They generate alpha masks from TurnHub's original SVG artwork and are not linked
+or bundled into Atlas or Android. CI provenance checking uses stdlib only.
+No third-party artwork or new production image/crop library is introduced.

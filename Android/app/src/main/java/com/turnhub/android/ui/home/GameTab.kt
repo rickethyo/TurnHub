@@ -109,6 +109,7 @@ import com.turnhub.android.ui.theme.palette
 data class GameActions(
     val onControl: (ControlAction) -> Unit = {},
     val onJoin: () -> Unit = {},
+    val onOpenTablet: () -> Unit = {},
     val onPlayFromPhone: () -> Unit = {},
     val onChangeMyLife: (Int) -> Unit = {},
     val onRequestLife: (target: Int, delta: Int) -> Unit = { _, _ -> },
@@ -139,6 +140,7 @@ fun GameTab(
     labelFor: (Int) -> String,
 ) {
     val me = uiState.me()
+    val p = palette
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         StageCard(summary, me?.playerNumber, nowMs, labelFor, reduceMotion)
         IncomingLifeRequest(summary, me, nowMs, labelFor, actions)
@@ -157,6 +159,17 @@ fun GameTab(
             SetupCard(summary, uiState.gameSettings, me != null, actions)
         }
         TableCard(summary, labelFor)
+        BrassCard {
+                Eyebrow("Tablet mode")
+                Text(
+                    "Lay this device in the middle of the table: every player gets a panel facing their seat for life, " +
+                        "Commander damage and passing the turn. New players can be added by name.",
+                    color = p.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ToneButton("Open tablet mode", actions.onOpenTablet, Modifier.fillMaxWidth(), tone = Tone.INFO)
+            }
+
     }
 }
 

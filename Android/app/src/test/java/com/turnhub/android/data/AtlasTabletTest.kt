@@ -34,7 +34,8 @@ private class TabletAtlas : AtlasSessionTransport {
                 else RawResponse(403, """{"ok":false,"error":"That code is not the one Atlas shows"}""")
             "/api/tablet/enable" ->
                 if (codeRequired && !verified) RawResponse(403, """{"ok":false,"presenceRequired":true,"error":"Verify at the table first"}""")
-                else { tablet = true; RawResponse(200, """{"ok":true}""") }
+                else { tablet = true; RawResponse(200, """{"ok":true,"token":"11111111111111111111111111111111","profileId":""}""") }
+            "/api/tablet/disable" -> { tablet = false; RawResponse(200, """{"ok":true}""") }
             "/api/tablet/seat" -> when {
                 f["name"] == "Ann" -> RawResponse(409, """{"ok":false,"error":"That name is taken"}""")
                 f["name"] != null -> RawResponse(200, """{"ok":true,"profileId":"P0000009"}""")
@@ -49,7 +50,7 @@ private class TabletAtlas : AtlasSessionTransport {
     }
 
     override suspend fun login(profileId: String, pin: String) = LoginResult("tablet-token", profileId)
-    override suspend fun me(token: String) = SessionInfo("P0000001", "Host", 0, 0, 0, false, false, false, false, tablet = tablet)
+    override suspend fun me(token: String) = SessionInfo(if (tablet) "" else "P0000001", if (tablet) "Shared tablet" else "Host", 0, 0, 0, false, false, false, false, tablet = tablet)
     override suspend fun getProfiles() = listOf(ProfileSummary("P0000002", "Bea", hasPin = true))
     override suspend fun join(token: String): String? = null
     override suspend fun control(token: String, action: ControlAction, expectedRevision: Long?, expectedBootId: String?) =
@@ -95,6 +96,21 @@ class AtlasTabletTest {
         assertEquals(listOf("/api/tablet/enable"), atlas.posts.map { it.first })
         assertFalse(tablet.state.value.codePrompt)
         assertTrue((session.state.value as PlayerSessionState.SignedIn).info!!.tablet)
+    }
+
+    @Test
+    fun `tablet activation replaces personal identity and closing signs out`() = runTest {
+        val atlas = TabletAtlas().apply { codeRequired = false }
+        val (session, tablet) = signedIn(atlas)
+        tablet.enable()
+        val state = session.state.value as PlayerSessionState.SignedIn
+        assertEquals("", state.profileId)
+        assertEquals("Shared tablet", state.name)
+        assertEquals("11111111111111111111111111111111", session.pollContext(AtlasEndpoint.DEFAULT).token)
+        assertNull(session.personalization.value)
+        tablet.disable()
+        assertEquals(PlayerSessionState.SignedOut, session.state.value)
+        assertEquals("", session.pollContext(AtlasEndpoint.DEFAULT).token)
     }
 
     @Test
@@ -231,4 +247,44 @@ class AtlasTabletTest {
         assertTrue(tablet.state.value.message!!.isError)
     }
 
+}
+
+private class ArtworkAtlas : AtlasSessionTransport by TabletAtlas() {
+    val fields = mutableListOf<Map<String, String>>()
+    var failIndex: Int? = null
+    override suspend fun getPersonalization(token: String) = Personalization(null, 1, true)
+    override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): RawResponse {
+        val data = fields.toMap(); this.fields += data
+        if (data["action"] == "chunk" && data["index"]?.toInt() == failIndex) return RawResponse(503, """{"error":"Card removed"}""")
+        return if (data["action"] == "start") RawResponse(200, """{"ok":true,"revision":"1234abcd","chunkBytes":768}""")
+        else RawResponse(200, """{"ok":true}""")
+    }
+}
+
+class AvatarUploadTest {
+    @Test
+    fun `artwork transfer keeps chunks bounded and publishes after the last chunk`() = runTest {
+        val atlas = ArtworkAtlas(); val session = AtlasPlayerSession { atlas }
+        session.signIn(AtlasEndpoint.DEFAULT, ProfileSummary("P0000001", "Host", true), "1234")
+        val bytes = ByteArray(1900) { it.toByte() }
+        session.uploadAvatar(bytes, "aa".repeat(256))
+        assertEquals(listOf("start", "chunk", "chunk", "chunk", "submit"), atlas.fields.map { it["action"] })
+        val chunks = atlas.fields.filter { it["action"] == "chunk" }
+        assertEquals(listOf("0", "1", "2"), chunks.map { it["index"] })
+        assertTrue(chunks.all { it.getValue("data").length <= 1536 && it["revision"] == "1234abcd" })
+        val restored = chunks.flatMap { it.getValue("data").chunked(2).map { hex -> hex.toInt(16).toByte() } }.toByteArray()
+        assertTrue(bytes.contentEquals(restored))
+        assertEquals("aa".repeat(256), atlas.fields.last()["thumbnail"])
+        assertFalse(session.feedback.value!!.isError)
+    }
+    @Test
+    fun `a failed chunk never publishes a partial image or changes the chosen icon`() = runTest {
+        val atlas = ArtworkAtlas().apply { failIndex = 1 }; val session = AtlasPlayerSession { atlas }
+        session.signIn(AtlasEndpoint.DEFAULT, ProfileSummary("P0000001", "Host", true), "1234")
+        session.loadPersonalization()
+        session.uploadAvatar(ByteArray(1900), "aa".repeat(256))
+        assertTrue(atlas.fields.none { it["action"] == "submit" })
+        assertEquals(1, session.personalization.value!!.avatar)
+        assertTrue(session.feedback.value!!.isError)
+    }
 }

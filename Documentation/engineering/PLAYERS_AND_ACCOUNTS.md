@@ -84,7 +84,7 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
 
 *Experimental: host-tested, not yet played on hardware.* One shared tablet or
 phone lies in the middle of the table, split into a panel per player that
-faces their seat (Android app, My account → Open tablet mode, `ui/tablet/`).
+faces their seat (Android app, Game → Open tablet mode, `ui/tablet/`).
 The app renders `/api/v1/state` and sends `/api/tablet/*` requests; it keeps
 the screen on and hides system bars during play. Browser tablet mode is retired.
 The game selector follows Atlas’s venue list. A shared-tablet switch keeps its
@@ -93,14 +93,19 @@ reset when games change; queued offline changes include the venue game, boot
 and participant identity. Native raw table actions include `expectedGame`; Atlas
 rejects a stale selected-game context before dispatching the semantic action.
 
-- **Turning it on.** Any signed-in account asks for a table presence code
-  with `purpose=tablet` (a player's code unlocks only this; every Admin action
-  still checks Admin), enters the code the Atlas screen shows, then
-  `POST /api/tablet/enable`. An account with the **Tablet access** role
-  (owner request 2026-10-07) calls `enable` with no code, e.g. a dedicated
-  tablet account that never joins the table; the log line ends `|ROLE`
-  instead of `|CODE`. The grant lives on that browser session (RAM)
-  until `POST /api/tablet/disable`, sign-out or the eight-hour idle expiry.
+- **Turning it on.** A signed-in account activates tablet mode from Game.
+  With the table-code setting off it activates directly; when on, prove table
+  presence with `purpose=tablet` and the Atlas code, unless the account has
+  Tablet access. Successful `POST /api/tablet/enable` revokes this device's
+  personal token and returns a fresh RAM-only shared-tablet credential. Its
+  profile ID is empty, its name is Shared tablet, and it has no personal or
+  Admin permissions. It cannot join as a player, edit profiles, upload artwork,
+  inspect private preferences/statistics or administer Atlas. The route allowlist
+  permits game/state/seats/profile-list/artwork reads, tablet actions, game
+  selection and logout. Existing player seats and other phones stay independent.
+  Closing or leaving tablet mode revokes the grant and leaves the app signed
+  out, including local exit while disconnected. Remote sessions expire after
+  eight idle hours or restart. No personal login is restored on exit.
 - **Seating.** In the lobby the tablet adds players: a new name creates a
   profile with no PIN (names are unique, ignoring case); an existing profile
   follows its owner's PIN choice below, else the tablet asks for its PIN
@@ -208,8 +213,7 @@ can be restored, and are hidden from Game Master tools.
   larger NVS partition, since today's 20 KB likely fits only about 20 profiles
   rather than 64. Both are parked together in
   [Staged Changes](STAGED_CHANGES.md), "Parked: storage batch".
-- Custom avatars with Admin approval (`AVATAR_CUSTOM` is reserved; presets
-  work).
+- Future LCD artwork transfer/cache and final ESP32-S3 screen layouts.
 - Per-Sigil startup choice (last profile or picker).
 - Moderation from the Atlas Player screen.
 
@@ -240,3 +244,29 @@ visible for explicit review. Atlas validates destination hardware identity and
 all exact profile identities before crediting a new record. Existing session
 sign-in is still required; profile linking does not itself grant permissions.
 See [import contract](../../protocol/http-v1.md#standalone-tablet-game-import-2026-10-07).
+
+## Player artwork (2026-10-10)
+
+*Implemented; host/build validation recorded in COLLABORATION.md; physical
+acceptance pending.* Preset keys and IDs stay stable. Android uses scalable
+vector masters in `design/avatars`; Atlas uses generated 64-pixel alpha masks
+area-filtered into its current slot. Frozen Sigils retain their existing assets.
+
+My account → Personalization accepts a phone-local JPEG/PNG/WebP (up to 20 MiB
+and 32 megapixels). Bounded decode honors EXIF orientation, crop sliders choose
+zoom and position, and Preview displays the final compressed image plus
+provisional 64/128-pixel LCD previews. The phone flattens transparency on white
+and produces a baseline RGB JPEG, 512 square pixels and at most 48 KiB. The
+original is never uploaded. Upload/replace stores pending art on Atlas's SD;
+Admin review in Players → People → person approves or rejects the specific
+revision. Pending art is private to that player and Admins; approval selects it
+for public app/tablet/Atlas display. Pending replacement retains approved art.
+None/presets may be selected without deleting approved artwork; Remove uploaded
+image removes pending/approved artwork and selects None. Refresh image approval
+reloads the profile after review. Current Sigils render their ordinary fallback.
+
+SD unavailability fails saves visibly and falls back safely for play. A checksum
+or decode failure displays a neutral fallback. Artwork is outside game-state
+polling; immutable image paths are cached per connection/game. Names, life totals
+and controls remain separate from decorative artwork. The master is suitable for
+future LCD layouts; those firmware targets and their radio transfer are pending.

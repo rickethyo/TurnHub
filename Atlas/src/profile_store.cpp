@@ -1,3 +1,5 @@
+#include "avatars.h"
+#include "avatar_artwork.h"
 #include "profile_store.h"
 #include "account_access.h"
 
@@ -271,6 +273,8 @@ struct JewelCacheEntry {
   bool set = false;
   uint32_t rgb = 0;
   uint8_t avatar = 0;
+  uint32_t imageRevision = 0;
+  uint8_t thumbnail[257] = {};
 };
 JewelCacheEntry jewelCache[16];
 uint8_t jewelCacheNext = 0;
@@ -302,6 +306,14 @@ static JewelCacheEntry *personalization(const String &profileId) {
             TurnHubStorage::Status::Ok && size == sizeof(avatar) && avatar[0] == 1) {
       entry->avatar = avatar[1];
     }
+    if (entry->avatar == TurnHubAvatars::AVATAR_CUSTOM) {
+      TurnHubArtwork::Image image;
+      if (TurnHubArtwork::metadata(*luxuryStore, profileKey('a', profileId).c_str(), image) == TurnHubStorage::Status::Ok) {
+        char key[16]; TurnHubArtwork::thumbnailKey(key, image.revision);
+        if (luxuryStore->read(key, entry->thumbnail, sizeof(entry->thumbnail), size) == TurnHubStorage::Status::Ok &&
+            size == sizeof(entry->thumbnail) && entry->thumbnail[0] == 1) entry->imageRevision = image.revision;
+      }
+    }
   }
   return entry;
 }
@@ -316,6 +328,12 @@ bool jewelColorForProfile(const String &profileId, uint32_t &rgb) {
 uint8_t avatarForProfile(const String &profileId) {
   const JewelCacheEntry *entry = personalization(profileId);
   return entry == nullptr ? 0 : entry->avatar;
+}
+
+const uint8_t *artworkThumbnail(const String &profileId, uint32_t &revision) {
+  const auto *entry = personalization(profileId);
+  revision = entry ? entry->imageRevision : 0;
+  return revision ? entry->thumbnail + 1 : nullptr;
 }
 
 bool saveAvatarForProfile(const String &profileId, uint8_t avatar) {
@@ -361,6 +379,16 @@ void setLuxuryStore(TurnHubStorage::BlobStore *store) {
   // A different card (or none) holds different Jewel colors and avatars.
   for (auto &entry : jewelCache) entry = JewelCacheEntry{};
   jewelCacheNext = 0;
+}
+
+TurnHubStorage::BlobStore *profileArtworkStore() { return luxuryStore; }
+
+String artworkPath(const String &profileId, bool pending) {
+  if (!luxuryStore || !profileExists(profileId)) return String();
+  TurnHubArtwork::Image image;
+  if (TurnHubArtwork::metadata(*luxuryStore, profileKey(pending ? 'p' : 'a', profileId).c_str(), image) != TurnHubStorage::Status::Ok) return String();
+  char revision[9]; snprintf(revision, sizeof(revision), "%08lx", static_cast<unsigned long>(image.revision));
+  return String("/api/avatar?profileId=") + profileId + "&revision=" + revision + (pending ? "&pending=1" : "");
 }
 
 bool luxuryStoreAvailable() { return luxuryStore != nullptr; }

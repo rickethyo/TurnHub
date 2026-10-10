@@ -1,6 +1,8 @@
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <fstream>
+#include "avatar_artwork.h"
 #include <type_traits>
 #include "identity.h"
 #include "account_access.h"
@@ -705,7 +707,37 @@ void diagnosticLogRecords() {
   assert(fs.files[DiagnosticLog::current()].size() == 9);
 }
 
+void artworkStorage() {
+  using namespace TurnHubArtwork;
+  FakeFs fs; SdBlobStore store; assert(store.begin(fs,"/turnhub")==Status::Ok);
+  std::ifstream input("fixtures/avatar-64.jpg",std::ios::binary);
+  std::vector<uint8_t> jpeg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  assert(jpeg.size()>CHUNK);
+  Image image; image.revision=0xa1234567; image.size=jpeg.size();
+  for(size_t i=0;i<(jpeg.size()+CHUNK-1)/CHUNK;++i) {
+    char key[16]; chunkKey(key,image.revision,i);
+    const size_t n=std::min(CHUNK,jpeg.size()-i*CHUNK);
+    assert(store.write(key,jpeg.data()+i*CHUNK,n)==Status::Ok);
+  }
+  assert(validateJpeg(store,image));
+  assert(publish(store,"aAB12CD34",image)==Status::Ok);
+  Image loaded; assert(metadata(store,"aAB12CD34",loaded)==Status::Ok && loaded.size==jpeg.size());
+  uint8_t bytes[CHUNK];size_t n=0;
+  assert(readChunk(store,image,99,bytes,n)==Status::InvalidArgument);
+  char key[16];chunkKey(key,image.revision,1);
+  auto &file=fs.files[std::string("/turnhub/")+key]; const auto clean=file;
+  file.back()^=1;
+  assert(!validateJpeg(store,image)); // CRC failure in a later chunk fails closed.
+  file=clean;
+  fs.failRead=true; assert(!validateJpeg(store,image)); fs.failRead=false;
+  store.end(); assert(!validateJpeg(store,image));
+  assert(store.begin(fs,"/turnhub")==Status::Ok && validateJpeg(store,image));
+  Image tooLarge=image;tooLarge.size=MAX_BYTES+1;assert(!valid(tooLarge));
+  discard(store,image);assert(!validateJpeg(store,image));
+}
+
 int main() {
+  artworkStorage(); std::cout << "PASS bounded artwork on checksummed SD records\n";
   diagnosticLogRecords();
   accountRecords();
   moderationRecords();

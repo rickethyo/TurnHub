@@ -191,7 +191,10 @@ fun HomeScreen(
             offline = uiState.isOffline,
             onFollowGame = onFollowGame,
             switching = uiState.player?.busy == true,
-            onClose = { showTablet = false },
+            onClose = {
+                showTablet = false
+                if (info?.tablet == true) tabletActions.run { disable() }
+            },
             modifier = modifier,
         )
         return
@@ -310,13 +313,13 @@ fun HomeScreen(
                         androidx.compose.runtime.key(summary.atlasId, summary.bootId, summary.game) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             when (shown) {
-                                HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
+                                HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions.copy(onOpenTablet = { showTablet = true }), labelFor)
                                 HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions, admin.devices, uiState.player?.signedIn == true && !uiState.isOffline) {
                                     if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                 }
                                 HomeTab.ACCOUNT -> {
                                     if (admin.presence?.setup == true) AdminSetupCard(adminActions)
-                                    AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick, onOpenTablet = { showTablet = true }))
+                                    AccountTab(uiState, theme, reduceMotion, accountActions.copy(onDisconnect = onDisconnectClick))
                                 }
                                 HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, adminActions, onShowPeople = { tab = HomeTab.PLAYERS }) }
                                 HomeTab.DEV -> DevTab(admin, adminActions)

@@ -93,6 +93,7 @@ class HttpAtlasRepository(
         synchronized(lock) {
             if (_connectionState.value != AtlasConnectionState.DISCONNECTED) return
             val connection = ++generation
+            artworkCache.clear()
             _endpoint.value = endpoint
             _failure.value = null
             _tableSummary.value = null
@@ -162,6 +163,8 @@ class HttpAtlasRepository(
         }
     }
 
+    private val artworkCache = linkedMapOf<String, ByteArray>()
+
     private suspend fun refresh(transport: AtlasTransport, live: Live): Live {
         val snapshot = call { transport.getState() }
         AtlasCompatibility.requireCompatible(snapshot)
@@ -181,11 +184,11 @@ class HttpAtlasRepository(
         val avatars = seats?.second ?: live.seatAvatars
         return Live(
             info = live.info,
-            summary = map(live.info, snapshot, names, avatars, live.avatarIcons),
+            summary = map(live.info, snapshot, names, avatars, live.avatarIcons + seats?.third.orEmpty()),
             names = names,
             pollsSinceNames = if (seats != null) 0 else live.pollsSinceNames + 1,
             seatAvatars = avatars,
-            avatarIcons = live.avatarIcons,
+            avatarIcons = live.avatarIcons.filterKeys { it > 0 } + (seats?.third ?: live.avatarIcons.filterKeys { it < 0 }),
             contextKey = live.contextKey,
         ).also { requireContext(transport, live.contextKey) }
     }
@@ -202,7 +205,7 @@ class HttpAtlasRepository(
                 val seats = fetchSeats(transport)
                 val names = seats?.first.orEmpty()
                 val avatars = seats?.second.orEmpty()
-                val icons = fetchAvatarIcons(transport)
+                val icons = fetchAvatarIcons(transport) + seats?.third.orEmpty()
                 return Live(info, map(info, snapshot, names, avatars, icons), names, pollsSinceNames = 0,
                     seatAvatars = avatars, avatarIcons = icons, contextKey = contextKey).also { requireContext(transport, contextKey) }
             }
@@ -215,11 +218,25 @@ class HttpAtlasRepository(
     }
 
     /** Seat names and avatars are presentation only: any failure keeps what we have. */
-    private suspend fun fetchSeats(transport: AtlasTransport): Pair<Map<SeatKey, String>, Map<SeatKey, Int>>? = try {
+    private suspend fun fetchSeats(transport: AtlasTransport): Triple<Map<SeatKey, String>, Map<SeatKey, Int>, Map<Int, AvatarIcon>>? = try {
         val seats = transport.getSeats()
         val names = seats.mapNotNull { seat -> seat.name?.let { SeatKey(seat.moduleId, seat.slot) to it } }.toMap()
-        val avatars = seats.filter { it.avatar > 0 }.associate { SeatKey(it.moduleId, it.slot) to it.avatar }
-        names to avatars
+        val icons = mutableMapOf<Int, AvatarIcon>()
+        val avatars = seats.filter { it.avatar > 0 || it.customAvatar.isNotBlank() }.associate { seat ->
+            val id = if (seat.customAvatar.isBlank()) seat.avatar else -(seat.moduleId * 2 + seat.slot + 1)
+            if (id < 0) {
+                val cacheKey = transport.contextKey + ":" + seat.customAvatar
+                val bytes = artworkCache[cacheKey] ?: try {
+                    transport.getAvatarImage(seat.customAvatar).also {
+                        if (artworkCache.size >= 32) artworkCache.remove(artworkCache.keys.first())
+                        artworkCache[cacheKey] = it
+                    }
+                } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                icons[id] = AvatarIcon(id, "custom", "Uploaded player image", emptyList(), bytes)
+            }
+            SeatKey(seat.moduleId, seat.slot) to id
+        }
+        Triple(names, avatars, icons)
     } catch (e: CancellationException) {
         throw e
     } catch (_: Exception) {

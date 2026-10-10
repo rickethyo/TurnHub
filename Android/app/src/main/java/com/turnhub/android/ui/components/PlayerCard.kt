@@ -3,6 +3,7 @@ package com.turnhub.android.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import com.turnhub.android.ui.theme.DesignTokens
 import androidx.compose.foundation.layout.Row
@@ -156,6 +157,19 @@ fun PlayerCard(
  */
 @Composable
 fun AvatarGlyph(icon: AvatarIcon, color: Color, size: Dp = 24.dp) {
+    if (icon.key == "custom") {
+        val bitmap = androidx.compose.runtime.remember(icon.image) {
+            icon.image?.let { bytes ->
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                if (bounds.outWidth in 32..512 && bounds.outWidth == bounds.outHeight)
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) else null
+            }
+        }
+        if (bitmap != null) Image(bitmap.asImageBitmap(), null, Modifier.size(size))
+        else Text("?", modifier = Modifier.size(size), color = color)
+        return
+    }
     val drawable = DesignTokens.Avatars.forKey(icon.key)
     if (drawable != null) {
         Image(

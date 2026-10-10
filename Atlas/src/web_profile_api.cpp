@@ -5,6 +5,7 @@
 #include "profile_statistics.h"
 #include "web_api_internal.h"
 #include "avatars.h"
+#include "avatar_artwork.h"
 #include "game_profile.h"
 
 namespace TurnHubWebApi {
@@ -334,12 +335,14 @@ void handlePersonalization(WebServer &server) {
   if (set) { body += '"'; body += color; body += '"'; } else { body += "null"; }
   body += ",\"avatar\":";
   body += String(TurnHubProfiles::avatarForProfile(id));
+  body += ",\"customAvatar\":\"" + jsonEscape(TurnHubProfiles::artworkPath(id)) + "\"";
+  body += ",\"pendingAvatar\":\"" + jsonEscape(TurnHubProfiles::artworkPath(id, true)) + "\"";
   body += '}';
   sendJson(server, 200, body);
 }
 
 // Omitted fields keep their value. color=#rrggbb or none; avatar=0..count
-// (custom avatars are not accepted here yet).
+// Approved custom avatars may also be selected. Pending artwork stays private.
 void handleSavePersonalization(WebServer &server) {
   WebSession *session = sessionForRequest(server);
   if (!session) {
@@ -377,8 +380,9 @@ void handleSavePersonalization(WebServer &server) {
     bool digits = value.length() > 0 && value.length() <= 3;
     for (size_t i = 0; digits && i < value.length(); ++i) digits = value[i] >= '0' && value[i] <= '9';
     avatar = digits ? value.toInt() : -1;
-    if (avatar < 0 || (avatar != 0 && !TurnHubAvatars::validPresetAvatar(static_cast<uint8_t>(avatar)))) {
-      sendError(server, 400, "avatar must be 0 or a preset number");
+    if (!(avatar == 0 || (avatar >= 1 && avatar <= TurnHubAvatars::AVATAR_COUNT) ||
+          (avatar == TurnHubAvatars::AVATAR_CUSTOM && TurnHubProfiles::artworkPath(id).length() != 0))) {
+      sendError(server, 400, "Choose None, a preset or an approved uploaded image");
       return;
     }
   }
@@ -546,6 +550,204 @@ void handleProfileStatsExport(WebServer &server) {
   server.sendHeader("Content-Disposition",
       String("attachment; filename=\"") + safeExportName(name, profileId) + "\"");
   server.send(200, "text/plain; charset=utf-8", report);
+}
+
+
+namespace {
+using TurnHubArtwork::Image;
+using TurnHubStorage::Status;
+struct ArtworkUpload {
+  String profile;
+  Image image;
+  size_t received = 0;
+  uint32_t touched = 0;
+} artworkUpload;
+String artworkKey(char kind, const String &profile) { String key; key += kind; key += profile; return key; }
+void discardUnreferencedArtwork(TurnHubStorage::BlobStore &store, const String &profile, const Image &old) {
+  for (char reference : {'a', 'p', 'u'}) {
+    Image retained;
+    const Status status = TurnHubArtwork::metadata(store, artworkKey(reference, profile).c_str(), retained);
+    if (status != Status::NotFound && (status != Status::Ok || retained.revision == old.revision)) return;
+  }
+  TurnHubArtwork::discard(store, old);
+}
+bool removeArtwork(TurnHubStorage::BlobStore &store, char kind, const String &profile) {
+  Image old;
+  const String key = artworkKey(kind, profile);
+  const Status read = TurnHubArtwork::metadata(store, key.c_str(), old);
+  if (read == Status::NotFound) return true;
+  if (read != Status::Ok) return false;
+  if (store.remove(key.c_str()) != Status::Ok) return false;
+  discardUnreferencedArtwork(store, profile, old);
+  return true;
+}
+bool decimal(const String &s, size_t &value) {
+  if (s.length() == 0 || s.length() > 6) return false;
+  value = 0;
+  for (size_t i = 0; i < s.length(); ++i) {
+    if (s[i] < '0' || s[i] > '9') return false;
+    value = value * 10 + s[i] - '0';
+  }
+  return true;
+}
+String imageRevision(const Image &image) {
+  char revision[9]; snprintf(revision, sizeof(revision), "%08lx", static_cast<unsigned long>(image.revision));
+  return String(revision);
+}
+}
+
+void handleAvatarUpload(WebServer &server) {
+  WebSession *session = sessionForRequest(server);
+  if (!session || session->tableDevice) { sendError(server, 401, "Sign into your personal profile first"); return; }
+  const String profile = sessionProfileId(*session);
+  auto *store = TurnHubProfiles::profileArtworkStore();
+  if (!store) { sendError(server, 503, "Insert a working microSD card to save an image"); return; }
+  const String action = server.arg("action");
+  if (action == "remove") {
+    // Switch to a safe fallback before deleting any public artwork.
+    if (!TurnHubProfiles::saveAvatarForProfile(profile, 0) ||
+        !removeArtwork(*store, 'p', profile) || !removeArtwork(*store, 'a', profile) ||
+        !removeArtwork(*store, 'u', profile)) {
+      sendError(server, 503, "The image could not be removed from the card"); return;
+    }
+    if (artworkUpload.profile == profile) artworkUpload = {};
+    handlePersonalization(server); return;
+  }
+  if (action == "start") {
+    size_t size = 0;
+    if (!decimal(server.arg("size"), size) || size < 32 || size > TurnHubArtwork::MAX_BYTES) {
+      sendError(server, 400, "Use a square JPEG up to 512 pixels and 48 KiB"); return;
+    }
+    if (artworkUpload.profile.length() != 0 && artworkUpload.profile != profile &&
+        uint32_t(millis() - artworkUpload.touched) < 120000) {
+      sendError(server, 409, "Another image is uploading; try again shortly"); return;
+    }
+    if (!removeArtwork(*store, 'u', profile)) { sendError(server, 503, "Unfinished image could not be cleared"); return; }
+    Image image; image.size = size;
+    // Check for an existing chunk before choosing an immutable asset ID.
+    for (int attempt = 0; attempt < 8; ++attempt) {
+      image.revision = esp_random(); char key[16]; size_t existing = 0;
+      TurnHubArtwork::chunkKey(key, image.revision, 0);
+      if (image.revision && store->read(key, nullptr, 0, existing) == Status::NotFound) break;
+      image.revision = 0;
+    }
+    if (!image.revision || TurnHubArtwork::publish(*store, artworkKey('u', profile).c_str(), image) != Status::Ok) {
+      sendError(server, 503, "Image upload could not start on the card"); return;
+    }
+    artworkUpload.profile = profile; artworkUpload.image = image; artworkUpload.received = 0; artworkUpload.touched = millis();
+    sendJson(server, 200, String("{\"ok\":true,\"revision\":\"") + imageRevision(image) + "\",\"chunkBytes\":768}"); return;
+  }
+  if (artworkUpload.profile != profile || server.arg("revision") != imageRevision(artworkUpload.image) ||
+      uint32_t(millis() - artworkUpload.touched) >= 120000) {
+    sendError(server, 409, "Image upload expired; choose the image again"); return;
+  }
+  // Recheck the persisted staging manifest: a removed/swapped card cannot
+  // accept chunks belonging to a transfer started on another card.
+  Image stage;
+  if (TurnHubArtwork::metadata(*store, artworkKey('u', profile).c_str(), stage) != Status::Ok ||
+      stage.revision != artworkUpload.image.revision || stage.size != artworkUpload.image.size) {
+    sendError(server, 409, "The image's card changed; start the upload again"); return;
+  }
+  if (action == "chunk") {
+    size_t index = 0;
+    const String hex = server.arg("data");
+    size_t bytes = artworkUpload.image.size - artworkUpload.received;
+    if (bytes > TurnHubArtwork::CHUNK) bytes = TurnHubArtwork::CHUNK;
+    if (!bytes || !decimal(server.arg("index"), index) || index != artworkUpload.received / TurnHubArtwork::CHUNK || hex.length() != bytes * 2) {
+      sendError(server, 400, "Image chunks must arrive in order with the declared length"); return;
+    }
+    uint8_t buffer[TurnHubArtwork::CHUNK];
+    for (size_t i = 0; i < hex.length(); ++i) {
+      const char c = hex[i]; int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+      if (digit < 0) { sendError(server, 400, "Invalid image chunk"); return; }
+      if (!(i & 1)) buffer[i / 2] = digit << 4; else buffer[i / 2] |= digit;
+    }
+    char key[16]; TurnHubArtwork::chunkKey(key, stage.revision, index);
+    if (store->write(key, buffer, bytes) != Status::Ok) { sendError(server, 503, "Image chunk could not be saved"); return; }
+    artworkUpload.received += bytes; artworkUpload.touched = millis();
+    sendJson(server, 200, "{\"ok\":true}"); return;
+  }
+  if (action != "submit" || artworkUpload.received != stage.size || !TurnHubArtwork::validateJpeg(*store, stage)) {
+    sendError(server, 400, "The upload must be a complete square baseline JPEG, 32–512 pixels"); return;
+  }
+  const String thumbnail = server.arg("thumbnail");
+  if (thumbnail.length() != 512) { sendError(server, 400, "Include a 16-pixel RGB332 Atlas thumbnail"); return; }
+  uint8_t thumb[257] = {1};
+  for (size_t i = 0; i < thumbnail.length(); ++i) {
+    char c = thumbnail[i]; int digit = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+    if (digit < 0) { sendError(server, 400, "Invalid Atlas thumbnail"); return; }
+    if (!(i & 1)) thumb[1 + i / 2] = digit << 4; else thumb[1 + i / 2] |= digit;
+  }
+  char thumbKey[16]; TurnHubArtwork::thumbnailKey(thumbKey, stage.revision);
+  if (store->write(thumbKey, thumb, sizeof(thumb)) != Status::Ok) { sendError(server, 503, "Atlas thumbnail could not be saved"); return; }
+  Image previous;
+  const String pendingKey = artworkKey('p', profile);
+  const Status previousStatus = TurnHubArtwork::metadata(*store, pendingKey.c_str(), previous);
+  if ((previousStatus != Status::Ok && previousStatus != Status::NotFound) ||
+      TurnHubArtwork::publish(*store, pendingKey.c_str(), stage) != Status::Ok) {
+    sendError(server, 503, "The image could not be submitted for review"); return;
+  }
+  // Manifest publication happens first; uncertain failures never discard new chunks.
+  store->remove(artworkKey('u', profile).c_str());
+  if (previousStatus == Status::Ok) discardUnreferencedArtwork(*store, profile, previous);
+  artworkUpload = {};
+  handlePersonalization(server);
+}
+
+void handleAvatarReview(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const String profile = server.arg("profileId");
+  auto *store = TurnHubProfiles::profileArtworkStore();
+  if (!store || !TurnHubProfiles::profileExists(profile)) { sendError(server, 503, "Profile or image card unavailable"); return; }
+  Image pending;
+  if (TurnHubArtwork::metadata(*store, artworkKey('p', profile).c_str(), pending) != Status::Ok ||
+      server.arg("revision") != imageRevision(pending)) { sendError(server, 409, "The image awaiting review changed; refresh first"); return; }
+  const String action = server.arg("action");
+  if (action == "reject") {
+    if (!removeArtwork(*store, 'p', profile)) { sendError(server, 503, "Could not reject the image"); return; }
+  } else if (action == "approve") {
+    if (!TurnHubArtwork::validateJpeg(*store, pending)) { sendError(server, 400, "The saved image is incomplete or invalid"); return; }
+    Image old; const String key = artworkKey('a', profile);
+    const Status previous = TurnHubArtwork::metadata(*store, key.c_str(), old);
+    if ((previous != Status::Ok && previous != Status::NotFound) ||
+        TurnHubArtwork::publish(*store, key.c_str(), pending) != Status::Ok ||
+        !TurnHubProfiles::saveAvatarForProfile(profile, TurnHubAvatars::AVATAR_CUSTOM)) {
+      sendError(server, 503, "Could not approve the image on the card"); return;
+    }
+    store->remove(artworkKey('p', profile).c_str());
+    if (previous == Status::Ok && old.revision != pending.revision) discardUnreferencedArtwork(*store, profile, old);
+  } else { sendError(server, 400, "Choose approve or reject"); return; }
+  sendJson(server, 200, "{\"ok\":true}");
+}
+
+void handleAvatarImage(WebServer &server) {
+  const String profile = server.arg("profileId");
+  const bool pending = server.arg("pending") == "1";
+  if (pending) {
+    WebSession *session = sessionForRequest(server);
+    TurnHubAccounts::Account account;
+    if (!session || (sessionProfileId(*session) != profile &&
+        (!TurnHubAccounts::load(sessionProfileId(*session), account) || !(account.permissions & TurnHubAccounts::Admin)))) {
+      sendError(server, 403, "Pending images are private to their player and Admins"); return;
+    }
+  }
+  auto *store = TurnHubProfiles::profileArtworkStore();
+  Image image;
+  if (!store || !TurnHubProfiles::profileExists(profile) ||
+      TurnHubArtwork::metadata(*store, artworkKey(pending ? 'p' : 'a', profile).c_str(), image) != Status::Ok ||
+      server.arg("revision") != imageRevision(image) || !TurnHubArtwork::validateJpeg(*store, image)) {
+    sendError(server, 404, "Image unavailable; use the default icon"); return;
+  }
+  server.sendHeader("Cache-Control", "private, no-store");
+  server.sendHeader("X-Content-Type-Options", "nosniff");
+  server.setContentLength(image.size);
+  server.send(200, "image/jpeg", "");
+  uint8_t bytes[TurnHubArtwork::CHUNK];
+  for (size_t index = 0; index < (image.size + TurnHubArtwork::CHUNK - 1) / TurnHubArtwork::CHUNK; ++index) {
+    size_t size = 0;
+    if (TurnHubArtwork::readChunk(*store, image, index, bytes, size) != Status::Ok) { server.client().stop(); return; }
+    server.sendContent(reinterpret_cast<const char *>(bytes), size);
+  }
 }
 
 }  // namespace internal

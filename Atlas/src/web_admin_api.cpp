@@ -809,6 +809,8 @@ void handleAccounts(WebServer &server) {
     const uint8_t avatar = TurnHubProfiles::avatarForProfile(id);
     json += ",\"avatar\":";
     json += String(TurnHubAvatars::validPresetAvatar(avatar) ? avatar : 0);
+    json += ",\"customAvatar\":\"" + jsonEscape(avatar == TurnHubAvatars::AVATAR_CUSTOM ? TurnHubProfiles::artworkPath(id) : String()) + "\"";
+    if (admin) json += ",\"pendingAvatar\":\"" + jsonEscape(TurnHubProfiles::artworkPath(id, true)) + "\"";
     if (gameMaster || self) {
       json += ",\"nudgeMuted\":";
       json += jsonBool(account.nudgeMuted);

@@ -725,6 +725,9 @@ class HomeViewModel(
     }
 
     /** [color] is `#rrggbb` or `none`; [avatar] 0 clears it. */
+    fun onUploadAvatar(bytes: ByteArray, thumbnail: String) { viewModelScope.launch { playerSession.uploadAvatar(bytes, thumbnail) } }
+    fun onRemoveAvatar() { viewModelScope.launch { playerSession.removeAvatar() } }
+
     fun onSavePersonalization(color: String?, avatar: Int?) {
         viewModelScope.launch { playerSession.savePersonalization(color, avatar) }
     }

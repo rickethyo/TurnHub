@@ -910,3 +910,21 @@ Verified local PlatformIO 6.1.19 build; no hardware acceptance claimed.
 13 embedded web files use 103,155 B (previously 17 files / 248 KB).
 Complete firmware image: 1,590,096 B; OTA slot headroom: 375,984 B.
 Both existing OTA slots remain unchanged. Sigil source is unchanged.
+
+
+### 2026-10-10 / Atlas 0.7.8-dev SD artwork and shared tablet identity
+
+Verified local PlatformIO build; no physical acceptance claimed. High-resolution
+64-pixel default masks are generated from the existing vector masters. Custom
+512-pixel/48-KiB JPEG masters and 16-pixel RGB332 display projections live on SD;
+no new partition or legacy Sigil firmware/radio change. Tablet activation rotates
+this device's personal token into a restricted, profile-free RAM credential.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 109,516 B (33.4%) | 1,646,429 B (83.7%) |
+
+Complete firmware image: 1,653,152 B; OTA slot headroom: 312,928 B.
+Relative to the accessibility-only portal baseline: +4,352 B static RAM and
++63,044 B reported flash. Existing application slots are unchanged.
+Android debug APK: 15,849,907 B; all 218 unit tests passed.

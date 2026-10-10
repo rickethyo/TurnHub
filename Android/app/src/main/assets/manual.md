@@ -1,4 +1,4 @@
-<!-- Generated from TurnHub Manual V0.14.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.15.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
@@ -455,15 +455,23 @@ The app’s Players screen displays an installation QR. After installing, join A
 
 # 17. Tablet Mode
 
+## Player images
+
+In My account, open Personalization to choose a smooth default icon or Upload your own image. Insert a working microSD card in Atlas first. Choose a JPEG, PNG or WebP image up to 20 MiB and 32 megapixels; the source stays on your phone.
+
+Use Zoom, Horizontal position and Vertical position to crop a square. Preview compressed image shows the final crop and provisional 2.8-inch/4-inch display previews. Tap Upload for approval to save a 512-pixel JPEG up to 48 KiB on Atlas. An Admin opens Players → People, selects your account and approves or rejects the image. Until approved, only you and Admins can preview it; an earlier approved image stays visible while a replacement waits.
+
+Refresh image approval reloads your image status. You can choose None or a default icon without deleting your uploaded image. Remove uploaded image deletes pending and approved artwork and selects None. Missing card or damaged artwork uses a fallback while play continues. The current Atlas shows a small thumbnail; current e-ink/OLED Sigils keep their existing icons. Larger ESP32-S3 LCD layouts are planned.
+
 In tablet mode one Android tablet or phone lies in the middle of the table and acts for everyone. Panels face their seats and show name, life, Commander damage and turn clock. Atlas remains authoritative.
 
 ## Turning It On
 
-- In the Android app, sign in, open My account and tap Open tablet mode. Browser tablet mode is retired.
+- In the Android app, sign in, open Game and tap Open tablet mode. When activated, this device signs your personal account out and automatically switches to the Shared tablet account. Your own phone can stay signed in to your player account. Browser tablet mode is retired.
 
 - Tap **Show a code on Atlas** and enter the six digits the Atlas screen shows. This proves the tablet is at the table. An account with the **Tablet access** role skips the code (section 20).
 
-- The tablet stays in tablet mode until you choose **Leave tablet mode** or sign out. Seated players stay seated when it leaves. The app keeps the screen on during play.
+- Closing or leaving tablet mode ends the Shared tablet account and leaves this device signed out. Your player stays seated, and personal sessions on other phones stay active. Shared tablet access cannot open private account settings or Atlas administration. The app keeps the screen on during play.
 
 ## Seating Players
 
@@ -775,7 +783,7 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-**Manual Version:** 0.13
-**Hardware:** Prototype (Atlas E32R28T touchscreen board; E-ink and OLED Sigils)
-**Software:** Atlas 0.7.4, Sigil 0.9.15, TurnHub Android app (Google Play)
-**Product names and specifications subject to change.**
+Manual Version: 0.15
+Hardware: Prototype (Atlas E32R28T touchscreen board; frozen e-ink/OLED Sigils; ESP32-S3 LCD layouts planned)
+Software: Atlas 0.7.8, existing Sigil firmware, TurnHub Android app (Google Play)
+Product names and specifications subject to change.

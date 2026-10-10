@@ -1,3 +1,7 @@
+#include "avatars.h"
+#include "avatar_artwork.h"
+#include <vector>
+#include <cstring>
 #include "profile_fixture.h"
 #include "account_access.h"
 #include "game_settings_store.h"
@@ -152,6 +156,48 @@ bool saveAvatarForProfile(const String &id, uint8_t avatar) {
   if (avatar) avatars[id.c_str()] = avatar; else avatars.erase(id.c_str());
   return true;
 }
+namespace {
+class ArtworkFixture final : public TurnHubStorage::BlobStore {
+ public:
+  TurnHubStorage::Status read(const char *key, void *data, size_t capacity, size_t &size) override {
+    using TurnHubStorage::Status;
+    size = 0; if (!ProfileFixture::artworkAvailable) return Status::Unavailable;
+    auto it = records.find(key); if (it == records.end()) return Status::NotFound;
+    size = it->second.size(); if (!data) return Status::Ok;
+    if (capacity < size) return Status::Corrupt;
+    memcpy(data, it->second.data(), size); return Status::Ok;
+  }
+  TurnHubStorage::Status write(const char *key, const void *data, size_t size) override {
+    if (!ProfileFixture::artworkAvailable || !ProfileFixture::artworkWritable) return TurnHubStorage::Status::IoError;
+    if (!size || size > 1024) return TurnHubStorage::Status::InvalidArgument;
+    const auto *bytes = static_cast<const uint8_t *>(data);
+    records[key] = std::vector<uint8_t>(bytes, bytes + size); return TurnHubStorage::Status::Ok;
+  }
+  TurnHubStorage::Status remove(const char *key) override {
+    if (!ProfileFixture::artworkAvailable || !ProfileFixture::artworkWritable) return TurnHubStorage::Status::IoError;
+    return records.erase(key) ? TurnHubStorage::Status::Ok : TurnHubStorage::Status::NotFound;
+  }
+  std::map<std::string, std::vector<uint8_t>> records;
+} artwork;
+}
+TurnHubStorage::BlobStore *profileArtworkStore() { return ProfileFixture::artworkAvailable ? &artwork : nullptr; }
+String artworkPath(const String &id, bool pending) {
+  if (!profileArtworkStore() || !profileExists(id)) return {};
+  TurnHubArtwork::Image image;
+  if (TurnHubArtwork::metadata(artwork, (String(pending ? "p" : "a") + id).c_str(), image) != TurnHubStorage::Status::Ok) return {};
+  char revision[9]; snprintf(revision, sizeof(revision), "%08lx", static_cast<unsigned long>(image.revision));
+  return String("/api/avatar?profileId=") + id + "&revision=" + revision + (pending ? "&pending=1" : "");
+}
+const uint8_t *artworkThumbnail(const String &id, uint32_t &revision) {
+  static uint8_t thumbnail[257]; revision = 0;
+  if (avatarForProfile(id) != TurnHubAvatars::AVATAR_CUSTOM) return nullptr;
+  TurnHubArtwork::Image image;
+  if (TurnHubArtwork::metadata(artwork, (String("a") + id).c_str(), image) != TurnHubStorage::Status::Ok) return nullptr;
+  char key[16]; TurnHubArtwork::thumbnailKey(key, image.revision); size_t size = 0;
+  if (artwork.read(key, thumbnail, sizeof(thumbnail), size) != TurnHubStorage::Status::Ok || size != sizeof(thumbnail) || thumbnail[0] != 1) return nullptr;
+  revision = image.revision; return thumbnail + 1;
+}
+
 void setLuxuryStore(TurnHubStorage::BlobStore *) {}
 bool luxuryStoreAvailable() { return true; }
 bool saveStatsForProfile(const String &id,const ProfileStats &stats) {
@@ -172,3 +218,5 @@ bool save(const String &id,const Account &a){if(!TurnHubProfiles::profileExists(
 bool primaryAdmin(String &id){id=primary;return true;}
 bool establishAdmin(const String &id){if(primary.length()||!TurnHubProfiles::hasPinForProfile(id))return false;accounts[id].permissions|=Admin;primary=id;return true;}
 }
+
+namespace ProfileFixture { bool artworkAvailable = true; bool artworkWritable = true; }

@@ -126,6 +126,7 @@ object AtlasWireParser {
                     playerNumber = seat.int("player"),
                     name = seat.optionalString("name")?.trim()?.takeIf { it.isNotEmpty() },
                     avatar = seat.optionalInt("avatar") ?: 0,
+                    customAvatar = seat.optionalString("customAvatar") ?: "",
                 )
             }
         }

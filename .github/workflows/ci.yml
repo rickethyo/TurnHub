@@ -106,7 +106,9 @@ jobs:
         if: env.ATLAS == 'true'
         run: python3 Atlas/tests/host/check_client_contract.py
       - name: Design tokens are current and pass contrast checks
-        run: python3 design/build_tokens.py --check
+        run: |
+          python3 design/build_tokens.py --check
+          python3 design/build_avatar_masks.py --check
       - name: Embedded admin portal builds
         run: python3 Atlas/web/build.py --check
       - name: Firmware portal asset serving integrity

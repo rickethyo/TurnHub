@@ -487,6 +487,9 @@ private fun PlayerPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            unit.members.forEach { member -> member.avatar?.let {
+                com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
+            } }
             Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)
