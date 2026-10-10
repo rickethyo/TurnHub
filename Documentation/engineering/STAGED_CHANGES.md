@@ -97,7 +97,8 @@ everything implemented. Only the checks listed below are still open.
 - **App and portal screenshot tests:** golden images of the Android screens
   in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
   renders.
-- **Portal theme packs** from the card; built-in themes stay in firmware.
+- **Portal theme packs:** retired by owner, 2026-10-10; the portal keeps only
+  System/Dark/Light/High contrast accessibility appearance.
 - **HTTPS on Atlas:** revisit administration transport after the app-first cutover; native tablet wake/immersive behavior does not depend on portal HTTPS.
 
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and

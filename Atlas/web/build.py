@@ -45,10 +45,8 @@ import bundle  # noqa: E402  (design/bundle.py)
 GZIP_TYPES = {".html", ".css", ".js", ".json", ".svg", ".txt", ".webmanifest"}
 SAFE_PATH = re.compile(r"^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$")
 # Files copied into the site as they are (path in site: source).
-STATIC = {
-    "assets/licenses/OFL-Inter.txt": ROOT / "design/fonts/OFL-Inter.txt",
-    "assets/licenses/OFL-Cinzel.txt": ROOT / "design/fonts/OFL-Cinzel.txt",
-}
+STATIC = {}
+
 
 CSS_BLOCK = re.compile(r"<!-- build:css ([A-Za-z0-9_-]+)\.css -->(.*?)<!-- /build:css -->", re.S)
 LOCAL_REF = re.compile(r'(href|src)="\./([^"]+)"')
@@ -82,6 +80,12 @@ class Site:
 
 def css_with_assets(site: Site, css_path: Path) -> str:
     css = css_path.read_text(encoding="utf-8")
+    if css_path.resolve() == (ROOT / "design/dist/tokens.css").resolve():
+        # Portal-only accessibility subset; app/device themes keep their catalog.
+        css = re.sub(r"@font-face\{[^{}]*\}", "", css)
+        css = re.sub(r"\[data-theme=brass\]\{[^{}]*\}", "", css)
+        css = re.sub(r"--font-serif:[^;]*;", "", css)
+        css = re.sub(r"--font-text:[^;]*;", '--font-text:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;', css)
 
     def fix(m):
         ref = m.group(1)

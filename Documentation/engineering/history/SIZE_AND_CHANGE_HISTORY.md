@@ -894,3 +894,19 @@ slot. Packaging/verification of the complete image passed using a disposable
 test key, without signing a release or installing on hardware. Sigil firmware
 source is unchanged apart from the shared package product allowlist retiring
 product 4; its package regression now verifies refusal.
+
+
+### 2026-10-10 / Accessibility-only portal after firmware handoff
+
+Baseline `4da302a` already embeds administration in Atlas 0.7.7-dev. The portal
+now keeps System/Dark/Light/High contrast appearance, uses system fonts, and
+excludes decorative Brass/font assets. Shared app/device themes are unchanged.
+Verified local PlatformIO 6.1.19 build; no hardware acceptance claimed.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 105,164 B (32.1%) | 1,583,385 B (80.5%) |
+
+13 embedded web files use 103,155 B (previously 17 files / 248 KB).
+Complete firmware image: 1,590,096 B; OTA slot headroom: 375,984 B.
+Both existing OTA slots remain unchanged. Sigil source is unchanged.

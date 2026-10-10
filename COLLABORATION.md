@@ -875,3 +875,28 @@ remains open. The prerequisite host fixture PR #79 is separately green.
   and bootstrap acceptance. No physical flashing, release signing/publication
   or integration performed. Existing app-first physical acceptance remains in
   STAGED_CHANGES; merge with a merge commit and retain the source branch.
+
+
+## TH-014: Accessibility-only portal appearance after thread handoff
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `4da302a`.
+  Owner identified another thread's completed firmware embedding. Fetched its
+  explicit remote ref (this clone's normal fetch covers only master), reviewed
+  the handoff, preserved the overlapping local work in a named stash, then
+  fast-forwarded. Keep that completed implementation and extend draft PR #86.
+- Owner follow-up: remove all decorative portal themes. Scope: portal-only
+  System/Dark/Light/High contrast appearance, explicit Save, safe migration of
+  old Brass choices to System; remove decorative styling and bundled fonts.
+  Shared Android/device themes and full device administration remain unchanged.
+- Validation: real Chromium card-present/cardless administration and maintenance
+  smokes pass accessibility options, preview/Save, old Brass migration, saved
+  High contrast on maintenance pages, firmware uploads and Developer controls.
+  Added CI smoke verifies all 13 actual flash-serving C++ gzip/binary responses,
+  cache/type headers and unknown paths. Asset generation, manual export,
+  whitespace and Android debug APK pass. Reused the unchanged handoff's 215
+  Android unit tests, Atlas/HTTP/adapter/Sigil/signing verification.
+- Atlas PlatformIO build passes: RAM 105,164 B; flash 1,583,385 B (80.5%).
+  Embedded web bytes: 103,155 B. Full image/slot figures recorded in size history.
+  No partition changes, physical flashing, release publication or integration.
+  Owner still performs cardless device administration, OTA and native play
+  acceptance. Continue draft PR #86; preserve the local pre-handoff stash.

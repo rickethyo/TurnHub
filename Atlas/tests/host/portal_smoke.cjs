@@ -13,7 +13,7 @@ const full = source.html;
    const page = await browser.newPage({viewport:{width:390,height:844}});
    const errors=[], posts=[]; let permissions=1, initial=false, volume=2;
    page.on('pageerror',e=>errors.push(e.message));
-   await page.addInitScript(()=>localStorage.setItem('turnhubSessionToken','T'.repeat(32)));
+   await page.addInitScript(()=>{localStorage.setItem('turnhubSessionToken','T'.repeat(32));localStorage.setItem('turnhubTheme','brass')});
    await page.route('http://atlas.test/**', async route=>{
     const req=route.request(), url=new URL(req.url()); let data={};
     if(url.pathname==='/portal')return route.fulfill({contentType:'text/html',body:html});
@@ -44,11 +44,18 @@ const full = source.html;
    await page.waitForFunction(()=>document.getElementById('speakerVolumeSelect')?.options.length || document.getElementById('volume')?.options.length);
    for(const name of ['Join table','Pass turn','Claim win','Concede','Tablet mode','Apply life change'])assert.equal(await page.getByRole('button',{name,exact:true}).count(),0);
    assert.equal(await page.locator('a[href="/tablet"],a[href="/stats"]').count(),0);
+   assert.deepEqual(await page.locator('#portalTheme option').allTextContents(),['System','Dark','Light','High contrast']);
+   assert.equal(await page.inputValue('#portalTheme'),'auto','Old Brass choice becomes System');
+   await page.selectOption('#portalTheme','contrast');
+   assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'contrast');
+   assert.equal(await page.evaluate(()=>localStorage.getItem('turnhubTheme')),'brass','Preview must not save');
+   await page.getByRole('button',{name:'Save appearance',exact:true}).click();
+   assert.equal(await page.evaluate(()=>localStorage.getItem('turnhubTheme')),'contrast');
    await page.selectOption('#speakerVolumeSelect','3');
    await page.evaluate(()=>refreshAll());assert.equal(await page.inputValue('#speakerVolumeSelect'),'3');
    assert.equal(posts.length,0,'Staging settings must not save');
    await page.getByRole('button',{name:'Save Atlas settings',exact:true}).click();
-   await page.waitForFunction(()=>document.body.innerText.includes('saved')||document.body.innerText.includes('Saved'));
+   await page.waitForFunction(()=>document.body.innerText.includes('Atlas settings saved.'));
    assert.equal(volume,3);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390,`${kind}: mobile overflow`);
    if(process.env.PORTAL_RENDERS) {

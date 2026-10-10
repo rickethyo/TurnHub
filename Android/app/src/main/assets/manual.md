@@ -407,7 +407,7 @@ If two players share a Sigil, it uses the more accommodating choice: it stays qu
 
 When a decision is waiting on you, such as confirming a win or approving a life change, your Sigil plays two short tones (unless its sound is off) and the request appears on screen.
 
-The administration portal has its own theme selector. The Android app has themes and Reduce motion, and follows the phone’s contrast, text size and screen-reader settings.
+The administration portal offers System, Dark, Light and High contrast accessibility appearance, saved on this browser. Decorative themes remain in the app and devices. The Android app has themes and Reduce motion, and follows the phone’s contrast, text size and screen-reader settings.
 
 # 14. Claiming a Win
 

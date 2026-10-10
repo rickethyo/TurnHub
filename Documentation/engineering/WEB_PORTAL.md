@@ -26,8 +26,8 @@ Reload existing browser tabs after updating firmware.
 
 Restricted pages first serve an authentication shell; their contents require
 the session header. Page gzip bytes are sent directly from flash with explicit
-lengths and content types, without decompression or SD reads. Fonts, icons,
-styles and font licenses are embedded too. An unknown asset returns 404.
+lengths and content types, without decompression or SD reads. Icons and
+styles are embedded; text uses system fonts. An unknown asset returns 404.
 `?classic=1` no longer selects another UI. `/api/portal` and
 `/api/portal/install` are retired. HTTP gameplay/tablet APIs remain available
 for native clients; permissions stay Atlas-owned.
@@ -67,7 +67,9 @@ bootstrap is complete. Existing authentication/permission checks on APIs remain
 Atlas-owned. Developer diagnostics and hardware tests require Developer, including
 for an Admin; the portal links them only when that bit is present.
 
-Automatic/Graphite/Daylight/Brass/High contrast themes remain browser-local. Setup
+System/Dark/Light/High contrast accessibility appearance remains browser-local.
+Brass, ornamental styling and bundled web fonts are excluded from portal assets.
+Old decorative choices use System. Shared Android/device themes are unchanged. Setup
 uses the existing account, presence and Wi-Fi endpoints. All signed package file
 pickers and device-specific update selection remain on the maintenance pages.
 
@@ -91,7 +93,7 @@ pickers and device-specific update selection remain on the maintenance pages.
   The former browser gameplay/Commander/tablet smokes are retired; Atlas host
   and Android tests cover those contracts.
 - **Dependencies:** no web fonts or frameworks are downloaded from the
-  internet; fonts and icons ship in firmware from `design/`. No third-party browser script is required.
+  internet; icons ship in firmware from `design/`, and text uses system fonts. No third-party browser script is required.
 
 ## Hardware tests
 

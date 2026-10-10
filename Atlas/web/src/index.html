@@ -14,7 +14,6 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="TurnHub">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preload" href="./../../../design/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <!-- build:css portal.css -->
 <link rel="stylesheet" href="../../../design/dist/tokens.css">
 <link rel="stylesheet" href="portal.css">
@@ -27,7 +26,7 @@
 <div class="appbar-end"><span id="connection" role="status">Connecting</span><a id="signInButton" class="btn primary" href="/login">Admin sign in</a><span id="accountName"></span><button id="signOutButton" hidden onclick="logoutSession()">Sign out</button></div></header>
 <section class="notice info"><h1>Atlas administration</h1><p>Play, tablet mode, player accounts and statistics are in the TurnHub Android app. Use a Sigil for physical play.</p><a class="btn" href="https://play.google.com/store/apps/details?id=com.turnhub.android">Get the Android app</a></section>
 <section id="accessNotice" class="notice" role="status">Sign in with an Admin account to manage Atlas.</section>
-<div class="actions"><label for="portalTheme">Portal theme</label><select id="portalTheme" onchange="previewTheme(this.value)"><option value="auto">Automatic</option><option value="graphite">Graphite</option><option value="daylight">Daylight</option><option value="brass">Brass</option><option value="contrast">High contrast</option></select><button onclick="savePortalTheme()">Save portal theme</button><span id="themeMessage" role="status"></span><a id="devLink" class="btn" href="/dev" hidden>Developer diagnostics and hardware tests</a></div>
+<div class="actions"><label for="portalTheme">Accessibility appearance</label><select id="portalTheme" onchange="previewTheme(this.value)"><option value="auto">System</option><option value="graphite">Dark</option><option value="daylight">Light</option><option value="contrast">High contrast</option></select><button onclick="savePortalTheme()">Save appearance</button><span id="themeMessage" role="status"></span><a id="devLink" class="btn" href="/dev" hidden>Developer diagnostics and hardware tests</a></div>
 <section id="setupWizard" class="card wizard" hidden aria-labelledby="wizardTitle">
  <div class="wizard-head"><span class="brand-mark hero-mark" aria-hidden="true"></span><div><p class="eyebrow">New table</p><h2 id="wizardTitle">Set up this Atlas</h2><p class="small">Three short steps. Only someone at the table can finish them.</p></div><button class="small ghost" onclick="skipSetup()">Skip for now</button></div>
  <div class="wizard-progress" aria-hidden="true"><span id="wizardBar"></span></div>
@@ -109,8 +108,8 @@ function badge(t,c=''){return `<span class="badge ${c}">${esc(t)}</span>`}
 function avatar(name){return `<span class="avatar" aria-hidden="true">${esc((name||'?').slice(0,2))}</span>`}
 function deviceById(id){return deviceData.devices.find(d=>Number(d.id)===Number(id))}
 function showToast(msg,bad=false){toast.textContent=msg;toast.className='toast show'+(bad?' bad':'');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.className='toast',3500)}
-function previewTheme(name){document.documentElement.dataset.theme=name==='auto'?deviceTheme():name;themeMessage.textContent='Previewing. Save portal theme to keep this choice.'}
-function savePortalTheme(){setTheme(portalTheme.value);themeMessage.textContent='Portal theme saved on this browser.'}
+function previewTheme(name){document.documentElement.dataset.theme=name==='auto'?deviceTheme():name;themeMessage.textContent='Previewing. Save appearance to keep this choice.'}
+function savePortalTheme(){setTheme(portalTheme.value);themeMessage.textContent='Appearance saved on this browser.'}
 function setTheme(name){if(name==='auto'){localStorage.removeItem('turnhubTheme');document.documentElement.dataset.theme=deviceTheme()}else{localStorage.setItem('turnhubTheme',name);document.documentElement.dataset.theme=name}}
 function showTab(){document.getElementById('main').scrollIntoView({block:'start'})}
 async function logoutSession(){try{await fetch('/api/session/logout',{method:'POST',headers:authHeaders()})}catch(_){}localStorage.removeItem('turnhubSessionToken');sessionToken='';sessionInfo=null;await refreshAll()}
@@ -252,5 +251,5 @@ async function finishSetup(){const password=wizardPassword.value;if(password.len
   wizardWifi.hidden=true;wizardBar.style.width='100%';wizardMessage.textContent=`You’re all set. Atlas is restarting: rejoin ${setupInfo.ssid||'TurnHub-Atlas'} with your new password, then open this page again.`;showToast('Setup finished. Atlas is restarting.')}catch(e){wizardMessage.textContent=e.message}}
 
 
-portalTheme.value=localStorage.getItem('turnhubTheme')||'auto';refreshAll().then(presenceFromHash);setInterval(()=>{if(!document.hidden)refreshAll()},5000);
+portalTheme.value=savedTheme()||'auto';refreshAll().then(presenceFromHash);setInterval(()=>{if(!document.hidden)refreshAll()},5000);
 </script></body></html>

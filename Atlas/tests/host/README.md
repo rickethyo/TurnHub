@@ -182,3 +182,9 @@ cannot be bypassed by the later observer. The per-profile boundary remains a
 fixture; real profile-store/storage suites test those repositories separately.
 Missing/partial results after interruption are an explicit limitation, not a
 passing claim of exactly-once multi-record persistence.
+
+`python3 Atlas/tests/host/firmware_portal_smoke.py` checks every actual C++ asset
+response against its source bytes, including gzip decoding, binary icons,
+cache/type headers and unknown paths. The administration browser smoke also
+checks accessibility-only choices, preview versus Save and old-theme migration;
+maintenance smoke checks saved High contrast across maintenance pages.
