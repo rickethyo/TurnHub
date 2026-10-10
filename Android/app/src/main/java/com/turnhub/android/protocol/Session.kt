@@ -39,6 +39,7 @@ data class SessionInfo(
     val permissions: Int = 0,
     /** This session acts as the table's shared tablet (`POST /api/tablet/enable`). */
     val tablet: Boolean = false,
+    val game: Int = 1,
 ) {
     fun has(permission: AccountPermission): Boolean = permissions and permission.bit != 0
 }

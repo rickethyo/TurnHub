@@ -565,6 +565,7 @@ pre.code{margin:0;max-height:360px;overflow:auto;font:var(--t-caption-size)/1.5 
 .presence.verified .presence-icon{background:color-mix(in srgb,var(--c-good) 16%,transparent);color:var(--c-good)}
 .presence h2{font-size:var(--t-headline-size);margin:0}
 .presence p{margin:2px 0 0}
+.presence>.switch-row{grid-column:1/-1}
 .presence-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .presence-actions .inline{flex:1;min-width:min(100%,280px)}
 #presenceCode{font:650 1.25rem/1 var(--font-mono);letter-spacing:.3em;text-align:center}

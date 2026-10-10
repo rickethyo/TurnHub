@@ -123,7 +123,7 @@ class AtlasTabletTest {
         assertEquals("Wrong PIN", tablet.state.value.message?.message)
 
         tablet.seatSaved("P0000002", "Bea", pin = "1234")
-        assertEquals(mapOf("profileId" to "P0000002", "pin" to "1234"), atlas.posts.last().second)
+        assertEquals(mapOf("profileId" to "P0000002", "pin" to "1234", "expectedGame" to "1"), atlas.posts.last().second)
         assertNull(tablet.state.value.message)
     }
 
@@ -133,7 +133,7 @@ class AtlasTabletTest {
         val (_, tablet) = signedIn(atlas)
 
         tablet.seatNew("  Cid ")
-        assertEquals(mapOf("name" to "Cid"), atlas.posts.last { it.first == "/api/tablet/seat" }.second)
+        assertEquals(mapOf("name" to "Cid", "expectedGame" to "1"), atlas.posts.last { it.first == "/api/tablet/seat" }.second)
         assertEquals(listOf("Bea"), tablet.state.value.savedProfiles.map { it.name })
 
         tablet.seatNew("Ann")
@@ -146,7 +146,7 @@ class AtlasTabletTest {
         val (_, tablet) = signedIn(atlas)
 
         assertTrue(tablet.life(TabletSeat(9, 1), -7))
-        assertEquals(mapOf("module" to "9", "slot" to "1", "delta" to "-7"), atlas.posts.last().second)
+        assertEquals(mapOf("module" to "9", "slot" to "1", "delta" to "-7", "expectedGame" to "1"), atlas.posts.last().second)
     }
 
     // --- changes made while Atlas wasn't answering ------------------------------------
@@ -220,4 +220,15 @@ class AtlasTabletTest {
         assertTrue(tablet.state.value.offline.isEmpty())
         assertTrue(tablet.state.value.message!!.message.startsWith("3 changes"))
     }
+    @Test
+    fun `offline edits cannot cross venue games with matching player IDs`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.queueOffline(change(-5).copy(game = 1))
+        tablet.replayOffline(running.copy(game = 2), nowMs = 2_000)
+        assertTrue(atlas.posts.none { it.first == "/api/tablet/life" })
+        assertTrue(tablet.state.value.offline.isEmpty())
+        assertTrue(tablet.state.value.message!!.isError)
+    }
+
 }

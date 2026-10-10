@@ -33,6 +33,8 @@ data class StateSnapshot(
     val nudge: Nudge? = null,
     /** Atlas's own battery; null with no cell or from older firmware. Sampled, not versioned. */
     val battery: AtlasBattery? = null,
+    val game: Int = 1,
+    val games: List<VenueGame> = emptyList(),
 )
 
 /**
@@ -72,3 +74,6 @@ data class PendingDecisions(
     val winConfirmationPlayer: Int?,
     val eliminationTargetPlayer: Int?,
 )
+
+/** Read-only venue overview supplied by Atlas. Game numbers are 1-based. */
+data class VenueGame(val game: Int, val state: TableState, val players: Int)

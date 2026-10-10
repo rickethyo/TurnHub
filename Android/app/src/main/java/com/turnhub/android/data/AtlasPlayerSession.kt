@@ -76,8 +76,41 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     val choices: StateFlow<ProfileChoices?> = _choices.asStateFlow()
 
     private val mutex = Mutex()
-    private var endpoint: AtlasEndpoint? = null
-    private var token: String? = null
+    @Volatile private var endpoint: AtlasEndpoint? = null
+    @Volatile private var token: String? = null
+    @Volatile private var viewedGame = 1
+
+    fun pollContext(requestEndpoint: AtlasEndpoint): PollContext =
+        PollContext(if (endpoint == requestEndpoint) token.orEmpty() else "", viewedGame)
+
+    /** Atlas validates a personal move; tablet sessions move without moving players. */
+    suspend fun followGame(game: Int): Boolean {
+        if (game !in 1..255 || _claim.value?.waiting == true || !mutex.tryLock()) return false
+        try {
+            _busy.value = true
+            val endpoint = endpoint
+            val token = token
+            if (endpoint != null && token != null) {
+                val response = call { transports.create(endpoint).raw("POST", "/api/session/game", token, listOf("game" to "$game")) }
+                if (!response.ok) {
+                    _feedback.value = ActionFeedback(com.turnhub.android.protocol.AtlasWireParser.errorMessage(response.body) ?: "Could not switch games.", true)
+                    return false
+                }
+            }
+            viewedGame = game
+            _gameSettings.value = null
+            _claim.value = null
+            refreshLocked()
+            _feedback.value = ActionFeedback("Following Game $game.", false)
+            return true
+        } catch (e: AtlasException) {
+            _feedback.value = ActionFeedback(e.failure.userMessage, true)
+            return false
+        } finally {
+            _busy.value = false
+            mutex.unlock()
+        }
+    }
 
     /** Public profile list for the sign-in picker. Throws [AtlasException]. */
     suspend fun profiles(endpoint: AtlasEndpoint): List<ProfileSummary> =
@@ -95,6 +128,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             }
             this.endpoint = endpoint
             token = login.token
+            viewedGame = info?.game ?: viewedGame
             _feedback.value = null
             _state.value = PlayerSessionState.SignedIn(login.profileId, info?.name ?: profile.name, info)
             refreshGameSettings(transport, login.token, info)
@@ -113,6 +147,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             }
             this.endpoint = endpoint
             token = login.token
+            viewedGame = info?.game ?: viewedGame
             _feedback.value = null
             _state.value = PlayerSessionState.SignedIn(login.profileId, info?.name ?: name, info)
         }
@@ -436,7 +471,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     suspend fun raw(method: String, path: String, fields: List<Pair<String, String>> = emptyList()): RawResponse? {
         val endpoint = endpoint ?: return null
         val token = token ?: return null
-        val response = call { transports.create(endpoint).raw(method, path, token, fields) }
+        val game = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game ?: (_state.value as? PlayerSessionState.SignedIn)?.info?.game ?: viewedGame
+        val scopedFields = if (method == "POST" && (path.startsWith("/api/tablet/") || path.startsWith("/api/control/") || path.startsWith("/api/game/") || path == "/api/table/reset" || path == "/api/accounts/moderate")) fields + ("expectedGame" to "$game") else fields
+        val response = call { transports.create(endpoint).raw(method, path, token, scopedFields) }
         if (response.code == 401) {
             clear()
             _feedback.value = ActionFeedback(AtlasFailure.SessionExpired.userMessage, isError = true)
@@ -518,6 +555,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         try {
             val transport = transports.create(endpoint)
             val info = call { transport.me(token) }
+            viewedGame = info.game
             _state.value = signedIn.copy(name = info.name ?: signedIn.name, info = info)
             refreshGameSettings(transport, token, info)
         } catch (e: AtlasException) {

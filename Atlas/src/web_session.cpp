@@ -531,6 +531,7 @@ void handleSessionMe(WebServer &server) {
   const bool policyAvailable = TurnHubProfiles::loadPolicyForProfile(profileId, policy);
   response += ",\"policyAvailable\":"; response += jsonBool(policyAvailable);
   response += ",\"tablet\":"; response += jsonBool(session->tableDevice);
+  response += ",\"game\":"; response += String(requestGame(server) + 1);
   if (policyAvailable) {
     response += ",\"allowPhysicalWithoutPin\":"; response += jsonBool(policy.allowPhysicalWithoutPin);
     response += ",\"hideStatsWithoutAuthentication\":";

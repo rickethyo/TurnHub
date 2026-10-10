@@ -41,7 +41,7 @@ does this: it tries a saved password, then this default, then prompts.
    Keep the returned token private; send it in `X-TurnHub-Token` on authenticated
    requests. `POST /api/session/join` joins the authenticated profile.
 4. `GET /api/session/me` resolves the session's current `module`, `slot`, `player`
-   and `participating` status. Physical companion attachment retains its existing
+   and `participating` status, plus 1-based `game` (the resolved venue table). Physical companion attachment retains its existing
    [physical claim flow](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md).
 5. Fetch state. Map semantic `PASS` to `POST /api/control/pass` with
    `application/x-www-form-urlencoded` fields, not the draft JSON envelope.
@@ -369,3 +369,16 @@ before any statistics, so a power cut can lose one game's statistics but does no
 window. It does not guarantee arbitrary long-term replay protection. Imported games add to games played, won, eliminated and
 started, completed turns and turn times, and set the last-game fields like a
 live game.
+
+### Native game-context guard (2026-10-10)
+
+Raw native tablet/game actions can include `expectedGame` as the decimal 1-based
+game number rendered by their screen. The route adapter compares it to the game
+resolved from the current session before selecting a table or invoking the
+handler. A mismatch returns HTTP 409 and performs no action. It supplements
+revision/boot checks: two games may have matching revisions/player numbers.
+`POST /api/session/game` remains the explicit follow/switch operation; it does
+not use this guard. Authentication and semantic Intent validation remain required.
+
+Browser `/tablet` and `/stats` now serve administration recovery. Native gameplay,
+profile statistics and `/api/tablet/*` contracts remain available.

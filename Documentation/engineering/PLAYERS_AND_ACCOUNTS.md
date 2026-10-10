@@ -12,7 +12,7 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   secrets travel in the same `pin` field, use the same hash
   (`profilePinHash`, a single SHA-256 over profile ID and secret) and the same
   login limiter. At most 64 profiles; new profiles need a name and secret.
-- Anyone on Atlas's network can register. Signing in gives a browser or app
+- Anyone on Atlas's network can register. Signing in gives a native client
   session token (RAM only, eight-hour inactivity expiry, sent in the
   `X-TurnHub-Token` header, never in URLs). Changing the secret revokes the
   profile's other tokens. Logout removes authorization, not the participant.
@@ -42,14 +42,15 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
   same name, or the same first 12 characters) are numbered in profile ID
   order, "Sam 1" and "Sam 2", cut to fit (2026-10-06). The picker closes after a minute idle, at game start,
   or when the Sigil joins another way.
-- **Use this seat** (portal Players tab and the app's Players tab):
+- **Use this seat** (the app’s Players tab):
   `POST /api/session/request` with `module` and `slot`, then poll
   `GET /api/session/poll?id=` while the player chooses **Link phone** on that
   Sigil within 30 s. Signed out, approval signs the phone in to the seat's
   profile, and only for a profile without a PIN (a Sigil press proves
   possession, not the secret). Signed in, it attaches that Sigil seat to the
-  signed-in profile. The portal also offers PIN sign-in by seat; the app
-  signs in from its profile list instead.
+  signed-in profile. The app signs in from its profile list. In a lobby its Paired Sigils list
+  can also request attachment of an empty seat A, with the same physical
+  confirmation and server validation.
 - **First phone sign-in of a PIN-less profile** (owner request 2026-10-07):
   `POST /api/session/login` for a profile with no secret saves the given PIN
   or password as its secret and signs in (log `ATLAS|PROFILE|PIN_SET_AT_SIGN_IN`).
@@ -83,10 +84,14 @@ HTTP routes are in `protocol/http-v1.md` and the route table in
 
 *Experimental: host-tested, not yet played on hardware.* One shared tablet or
 phone lies in the middle of the table, split into a panel per player that
-faces their seat (`Atlas/web/src/tablet.html`, served at `/tablet`; in the
-Android app, My account → Open tablet mode, `ui/tablet/`). Both draw
-`/api/v1/state` and send the same `/api/tablet/*` requests; the app also keeps
-the screen on and hides the system bars during play.
+faces their seat (Android app, My account → Open tablet mode, `ui/tablet/`).
+The app renders `/api/v1/state` and sends `/api/tablet/*` requests; it keeps
+the screen on and hides system bars during play. Browser tablet mode is retired.
+The game selector follows Atlas’s venue list. A shared-tablet switch keeps its
+players seated in their original game. State/name caches and local staged edits
+reset when games change; queued offline changes include the venue game, boot
+and participant identity. Native raw table actions include `expectedGame`; Atlas
+rejects a stale selected-game context before dispatching the semantic action.
 
 - **Turning it on.** Any signed-in account asks for a table presence code
   with `purpose=tablet` (a player's code unlocks only this; every Admin action

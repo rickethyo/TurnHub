@@ -11,17 +11,17 @@ const char HTML[] PROGMEM = R"HTML(
 #message{min-height:3em;padding:12px 14px;border-left:4px solid var(--info);background:var(--surface-2);border-radius:var(--radius-sm);overflow-wrap:anywhere;margin:0 0 18px}
 form button[type=submit]{width:100%;margin-top:20px;min-height:50px}
 </style></head><body><div class="page narrow">
-<header class="page-head"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Accounts</span></span></a><a class="btn small ghost" href="/">← Back to table</a></header>
+<header class="page-head"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Accounts</span></span></a><a class="btn small ghost" href="/">← Back to administration</a></header>
 <main>
-<div class="page-title"><h1>Your TurnHub account</h1>
-<p>Your name and statistics stay with you. Play from a phone, a Sigil, or both. No physical Sigil is required.</p></div>
+<div class="page-title"><h1>Atlas administrator sign-in</h1>
+<p>Sign in with an Admin account for maintenance. Play and personal accounts are in the Android app.</p></div>
 <p id="message" role="status" aria-live="polite" tabindex="-1">Loading saved accounts…</p>
 <div class="cols"><section class="card"><h2 class="eyebrow">Sign in</h2>
 <form id="loginForm"><label for="savedProfile">Saved account</label><select id="savedProfile" required aria-describedby="loginHint"><option value="">Choose an account</option></select>
 <label for="loginPin">PIN or password</label><input id="loginPin" type="password" minlength="4" maxlength="64" autocomplete="current-password" required>
 <p id="loginHint" class="hint">Use your 4–8 digit PIN or your password. An account without a saved PIN or password can still use physical sign-in at the table, then set one in My Account.</p>
 <button type="submit" class="primary">Sign in</button></form></section>
-<section class="card"><h2 class="eyebrow">Create an account</h2><form id="registerForm">
+<section class="card"><h2 class="eyebrow">Create initial Admin account</h2><form id="registerForm">
 <label for="newName">Display name</label><input id="newName" maxlength="32" autocomplete="nickname" required>
 <label for="newPin">Choose a PIN or password</label><input id="newPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" required>
 <label for="confirmPin">Confirm PIN or password</label><input id="confirmPin" type="password" minlength="4" maxlength="64" autocomplete="new-password" required>
@@ -35,7 +35,7 @@ async function loadProfiles(){try{const r=await fetch('/api/profiles',{cache:'no
 async function submit(form,path,data){const button=form.querySelector('button');button.disabled=true;try{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sign-in failed');localStorage.setItem('turnhubSessionToken',d.token);location.assign('/')}catch(e){notify(e.message);button.disabled=false}}
 loginForm.addEventListener('submit',e=>{e.preventDefault();submit(loginForm,'/api/session/login',{profileId:savedProfile.value,pin:loginPin.value})});
 registerForm.addEventListener('submit',e=>{e.preventDefault();if(newPin.value!==confirmPin.value){notify('The two entries do not match.');confirmPin.focus();return}submit(registerForm,'/api/profiles/register',{name:newName.value.trim(),pin:newPin.value})});
-loadProfiles();
+fetch('/api/accounts/setup',{cache:'no-store'}).then(r=>r.json()).then(d=>{registerForm.closest('section').hidden=!d.setupRequired}).catch(()=>registerForm.closest('section').hidden=true);loadProfiles();
 </script></body></html>
 )HTML";
 }

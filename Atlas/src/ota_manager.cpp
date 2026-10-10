@@ -402,7 +402,7 @@ String OtaManager::portalErrorText() const {
   }
   if (error == Error::WrongProduct) return "That package is firmware, not a portal pack";
   if (error == Error::OlderVersion) {
-    return "Atlas already has portal v" + portalVersionText() + "; install the same or a newer pack";
+    return "Administration needs portal v2.0.0 or newer. Atlas has portal v" + portalVersionText() + "; install the same or a newer pack";
   }
   if (error == Error::None) return "Atlas could not install the portal pack";
   return TurnHubFirmwarePackage::errorMessage(error);
@@ -430,6 +430,7 @@ void OtaManager::handlePortalUpload() {
       if (portalInstaller == nullptr) portalInstaller = new TurnHubPortal::Installer(*files, atlasFirmwareDescriptor.magic);
       TurnHubFirmwarePackage::Version running{0, 0, 0};
       TurnHubAtlas::sdPortalVersion(running);
+      if (running.major < 2) running = {2, 0, 0};
       portalReader.begin(atlasCrypto, {TurnHubFirmwarePackage::PUBLIC_KEY, TurnHubFirmwarePackage::KEY_ID,
           TurnHubFirmwarePackage::productBit(TurnHubFirmwarePackage::Product::Portal), running,
           TurnHubPortal::MAX_PACK_BYTES}, *portalInstaller);

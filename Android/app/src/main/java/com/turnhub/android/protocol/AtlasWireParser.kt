@@ -93,6 +93,15 @@ object AtlasWireParser {
                         ageMs = nudge.uint32("ageMs"),
                     )
                 },
+                game = if (root.isAbsentOrNull("game")) 1 else root.int("game").also {
+                    if (it !in 1..255) malformed("Invalid game number")
+                },
+                games = if (root.isAbsentOrNull("games")) emptyList() else root.array("games").objects().map {
+                    val game = it.int("game")
+                    val players = it.int("players")
+                    if (game !in 1..255 || players !in 0..16) malformed("Invalid venue game")
+                    VenueGame(game, TableState.fromWire(it.string("state")) ?: malformed("Unknown venue state"), players)
+                }.also { if (it.map { game -> game.game }.distinct().size != it.size) malformed("Duplicate venue game") },
                 battery = if (root.isAbsentOrNull("battery")) null else root.obj("battery").let { battery ->
                     val percent = battery.int("percent")
                     if (percent !in 0..100) malformed("Battery percent $percent is out of range")
@@ -168,6 +177,7 @@ object AtlasWireParser {
                 eliminated = root.boolean("eliminated"),
                 permissions = root.int("permissions"),
                 tablet = root.optionalBoolean("tablet"),
+                game = if (root.isAbsentOrNull("game")) 1 else root.int("game"),
             )
         }
     }

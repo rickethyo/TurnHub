@@ -41,6 +41,7 @@ import com.turnhub.android.ui.theme.palette
 data class SeatActions(
     val onClaim: (moduleId: Int, slot: Int, seatName: String) -> Unit = { _, _, _ -> },
     val onDismiss: () -> Unit = {},
+    val onRefresh: () -> Unit = {},
 )
 
 /** The table's seats and Sigils, as the portal's Players tab shows them. */
@@ -53,6 +54,8 @@ fun PlayersTab(
     endpoint: String,
     claim: SeatClaim? = null,
     seatActions: SeatActions = SeatActions(),
+    pairedSigils: List<com.turnhub.android.data.DeviceInfo> = emptyList(),
+    signedIn: Boolean = false,
     people: @Composable () -> Unit = {},
 ) {
     val p = palette
@@ -94,6 +97,20 @@ fun PlayersTab(
                 )
             }
         }
+        BrassCard {
+            Eyebrow("Paired Sigils")
+            ToneButton("Refresh paired Sigils", seatActions.onRefresh)
+            Text("Pair on Atlas, then attach seat A here. Confirm with Link phone on the Sigil.", color = p.muted)
+            if (!signedIn) Text("Sign in to attach a Sigil to your profile.", color = p.muted)
+            if (pairedSigils.isEmpty()) EmptyNote("No paired Sigils loaded. Sign in and refresh the list.")
+            pairedSigils.filter { !it.isHarness }.forEach { sigil ->
+                Text(sigil.label + if (sigil.online) " · Online" else " · Offline", color = p.text)
+                val occupied = summary.players.any { it.controller.kind == ControllerHandle.Kind.PHYSICAL && it.controller.id == sigil.id && it.slot == 1 }
+                ToneButton("Attach ${sigil.label} seat A to my profile", {
+                    seatActions.onClaim(sigil.id, 1, "${sigil.label} seat A")
+                }, enabled = signedIn && sigil.online && !occupied && summary.state == TableState.LOBBY && claim?.waiting != true)
+            }
+        }
         people()
         BrassCard {
             Eyebrow("Sigils at this table")
@@ -127,12 +144,9 @@ fun PlayersTab(
         }
         BrassCard {
             Eyebrow("Invite players")
-            Text(
-                "Players join the table's Wi-Fi, then open the portal at $endpoint, or install the TurnHub app. " +
-                    "The Atlas screen's QR button shows a code to scan.",
-                color = p.muted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text("Scan to install TurnHub, then join the Atlas Wi-Fi and choose Connect in the app. The web portal is for administration.", color = p.muted)
+            com.turnhub.android.ui.components.AppInstallQr()
+
         }
     }
 }

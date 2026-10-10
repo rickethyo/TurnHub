@@ -153,9 +153,9 @@ void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubWeb::BASIC_PORTAL_HTML); }
+void statsPage(WebServer &server) { servePortalPage(server, nullptr, TurnHubWeb::BASIC_PORTAL_HTML); }
 void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
-void tabletPage(WebServer &server) { servePortalPage(server, "tablet.html", TurnHubWeb::BASIC_PORTAL_HTML); }
+void tabletPage(WebServer &server) { servePortalPage(server, nullptr, TurnHubWeb::BASIC_PORTAL_HTML); }
 
 struct Route {
   const char *uri;
@@ -310,7 +310,14 @@ class RouteTableHandler final : public RequestHandler {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
     // Every handler acts on the request's game; the previous one is restored.
-    const uint8_t previous = tableHooks.select ? tableHooks.select(requestGame(server)) : 0;
+    const uint8_t game = requestGame(server);
+    // A stale native screen must not mutate a different followed table, even
+    // when that table happens to have the same revision/player numbers.
+    if (server.hasArg("expectedGame") && server.arg("expectedGame") != String(game + 1)) {
+      internal::sendError(server, 409, "The selected game changed. Refresh the table and try again");
+      return true;
+    }
+    const uint8_t previous = tableHooks.select ? tableHooks.select(game) : 0;
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.

@@ -101,18 +101,17 @@ PIN-protected physical claim rejection, hidden-stat accumulation, and unavailabl
 policy storage. The storage executable checks the real three-byte policy codec
 and NVS failure handling; gameplay scenarios use the profile repository fixture.
 
-Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolvable
-(or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed (or set
-`PLAYWRIGHT_CHANNEL=` to use Playwright's bundled Chromium, e.g. on Linux/CI). It uses local
-HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
-It also checks policy saving/reloading and that polling preserves unsaved choices.
+Optional administration smoke: `node Atlas/tests/host/portal_smoke.cjs` with
+Playwright/Chromium (or `PLAYWRIGHT_EXECUTABLE_PATH`). Build the portal first.
+It renders SD and flash variants, checks Admin-only visibility, bootstrap,
+explicit hardware saves and absence of gameplay requests.
 The gameplay executable also covers ending a match as a draw through the real
 touchscreen adapter (hold threshold, overrides, statistics once, recovery
 validation), table presence codes (request, confirm, wrong codes, expiry), no table host, the
 Atlas speaker's cue routing and volume setting, and admin device management (forget one/all Sigils,
 seated/in-game refusal, storage failure, the 60/90/120-second pairing window). The
 storage executable checks the `pairwin` and `spkvol` codecs and the v1 `Draw` result byte.
-The portal smoke also covers the Paired Sigils card and the Draw label.
+The administration smoke covers both the SD-pack page and the cardless fallback, including staged settings and initial Admin setup.
 
 Game/life checks cover persisted setup, host-only edits, captured match settings,
 own-life authorization, bounds, companion sessions, negative life and rematches.
@@ -121,10 +120,8 @@ The harness now links real LED/audio renderers and replaces the radio boundary.
 Life approval and Commander coverage: the native gameplay executable checks
 recipient-only acceptance/rejection, duplicate and stale IDs, Atlas's 15-second
 deadline including rollover, concurrent edits, lifecycle cancellation and atomic
-Commander/life bounds. `node counter_smoke.cjs` uses the same Playwright setup as
-the portal smoke check and opens two independent browser contexts to check the
-production UI, cross-tab prompts, keyboard focus, corrections and reconnects.
-These counter features still require a hardware table check after flashing.
+Commander/life bounds. Browser gameplay tests are retired after the app-first
+cutover. These features still require native device/table acceptance.
 
 Manual pairing Intent scenarios cover origin authorization, radio unavailability,
 15-second timeout, clock rollover and rejection during gameplay. Radio transport
@@ -183,10 +180,3 @@ cannot be bypassed by the later observer. The per-profile boundary remains a
 fixture; real profile-store/storage suites test those repositories separately.
 Missing/partial results after interruption are an explicit limitation, not a
 passing claim of exactly-once multi-record persistence.
-
-Optional tablet browser regression: `node Atlas/tests/host/tablet_smoke.cjs`
-uses Playwright and Chromium to exercise the real tablet page with four virtual
-players, claim/denial, sequential win confirmations in portrait, normal resume
-and elimination-selection display. Set `PLAYWRIGHT_EXECUTABLE_PATH` or
-`PLAYWRIGHT_CHANNEL` when needed for the installed browser. This checks browser
-interaction, not Android layout or hardware acceptance.

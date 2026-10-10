@@ -125,8 +125,8 @@ internal fun HomeUiState.sessionInfo(): SessionInfo? =
 
 internal fun HomeUiState.me(): TablePlayer? {
     val info = sessionInfo() ?: return null
-    if (!info.participating) return null
-    return tableSummary?.players?.firstOrNull { it.playerNumber == info.playerNumber }
+    if (!info.participating || tableSummary?.game != info.game) return null
+    return tableSummary.players.firstOrNull { it.playerNumber == info.playerNumber }
 }
 
 @Composable
@@ -953,6 +953,10 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     val presets = info?.turnTimerPresetsMs?.takeIf { it.isNotEmpty() } ?: listOf(0L, 60_000L, 90_000L, 120_000L, 180_000L)
     val timerOptions = (listOf(0L) + presets).distinct().let { if (current.turnTimerMs in it) it else it + current.turnTimerMs }
     var timer by remember(current.turnTimerMs) { mutableStateOf(current.turnTimerMs) }
+    var custom by remember(current.turnTimerMs) { mutableStateOf(false) }
+    var seconds by remember(current.turnTimerMs) { mutableStateOf((current.turnTimerMs / 1000).takeIf { it > 0 }?.toString() ?: "90") }
+    val customMs = seconds.toLongOrNull()?.takeIf { it in 15..3600 }?.times(1000)
+    val chosenTimer = if (custom) customMs else timer
     var teams by remember(current.twoHeadedGiant) { mutableStateOf(current.twoHeadedGiant) }
     val teamsAllowed = profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER
     // Two-Headed Giant team life: 30, or 60 for Commander.
@@ -1010,11 +1014,22 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
         )
         ChoiceDropdown(
             label = "Turn timer",
-            options = timerOptions.map { it to TurnTimerStatus.settingLabel(it) },
-            selected = timer,
-            onSelect = { timer = it },
+            options = timerOptions.map { it to TurnTimerStatus.settingLabel(it) } + (-1L to "Custom…"),
+            selected = if (custom) -1L else timer,
+            onSelect = { if (it == -1L) custom = true else { custom = false; timer = it } },
             enabled = editable,
         )
+        if (custom) {
+            OutlinedTextField(
+                value = seconds,
+                onValueChange = { seconds = it.filter(Char::isDigit).take(4) },
+                label = { Text("Custom turn length in seconds") },
+                supportingText = { Text("15 to 3600 seconds") },
+                singleLine = true, enabled = editable, isError = customMs == null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         Text(
             "Off: no countdown; a gentle cue appears after 5 minutes. With a timer, Atlas warns 10 seconds " +
                 "before time runs out. Running out of time never passes the turn.",
@@ -1023,9 +1038,9 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
         )
         AccentButton(
             "Save game settings",
-            { actions.onSaveGameSettings(profile.wireValue, life.toIntOrNull(), timer, teams && teamsAllowed) },
+            { actions.onSaveGameSettings(profile.wireValue, life.toIntOrNull(), chosenTimer, teams && teamsAllowed) },
             Modifier.fillMaxWidth(),
-            enabled = editable && life.toIntOrNull() != null,
+            enabled = editable && life.toIntOrNull()?.let { it in 0..1_000_000 } == true && chosenTimer != null,
         )
         if (!editable) {
             Text(

@@ -27,7 +27,7 @@ everything implemented. Only the checks listed below are still open.
 - **2026-10-09 play-note investigation:** source findings and proposed designs
   for all ten notes are in [the report](history/2026-10-09-play-note-investigation.md).
   Minor tablet overlay and signup scrolling fixes are staged on `codex/master`;
-  portal browser verification passed, Android/device acceptance remains open.
+  the former browser verification passed; Android build and device acceptance are tracked in TH-013.
 - **Multi-phone stability** (in progress): bench the Atlas 0.6.7+ build with
   unchanged polling, then the wider matrix, then seat-metadata caching and
   lighter client polling. Steps in [Diagnostics](DIAGNOSTICS.md).
@@ -53,7 +53,7 @@ everything implemented. Only the checks listed below are still open.
 
 ### Accounts, portal and app
 
-- **Router-style web administration** (*Planned*, owner confirmed, 2026-10-09):
+- **Router-style web administration** (*Implemented locally; device acceptance pending*, owner confirmed, 2026-10-09):
   web portal for Admin settings/maintenance and Android for personal/shared
   tablet play; retire browser gameplay, including the web tablet. Preserve the
   app's HTTP game APIs.
@@ -63,7 +63,12 @@ everything implemented. Only the checks listed below are still open.
   records existing app coverage and missing custom timer entry, multi-game
   selection, empty paired-Sigil attachment, invite QR generation and local
   event feedback settings. Hardware tests/local signed-package uploads remain
-  web-admin features. No portal functionality removed yet.
+  web-admin features. Implemented in the current TH-013 slice: administration-only SD/flash pages,
+  old-pack v2 floor, retired tablet/statistics routes, preserved bootstrap and
+  signed maintenance, native game/session polling, custom timer entry, empty
+  seat A attachment and app-install QR. Android unit tests/debug build, Atlas
+  host/firmware checks and both administration browser smokes pass; device
+  acceptance remains pending; native event-feedback preferences/background decision alert remain open.
 - **Password hashing:** parked, see "Parked: storage batch" below.
 - **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
   owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):
@@ -94,7 +99,7 @@ everything implemented. Only the checks listed below are still open.
   in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
   renders.
 - **Portal theme packs** from the card; built-in themes stay in the pack.
-- **HTTPS on Atlas** (unlocks the portal's full-screen launch and wake lock).
+- **HTTPS on Atlas:** revisit administration transport after the app-first cutover; native tablet wake/immersive behavior does not depend on portal HTTPS.
 
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
   seating, the portal's `/tablet` with life, Commander damage, pass, win and
@@ -179,7 +184,7 @@ everything implemented. Only the checks listed below are still open.
 - **Two games per Atlas, later rounds** (round one, 2026-10-07: two tables,
   Sigil "Switch game", the portal switch; see PLANNED_DESIGNS.md): the Atlas
   touchscreen game selector (with pairing and turn order for Game 2), a
-  switch on the tablet page and in the Android app. User manual V0.12
+  native personal/shared-tablet selector is implemented in TH-013, awaiting device acceptance. User manual V0.12
   (section 19) describes round one; update it when these land.
 - **Profile picker:** a per-Sigil startup choice (last profile or picker).
 - **Accessibility:** Sigil-local pairing/error lights in the player's style,
@@ -194,7 +199,7 @@ everything implemented. Only the checks listed below are still open.
   physical appearance/persistence acceptance is still open.
 - **Atlas battery gauge, later rounds** (round one, 2026-10-08: the voltage
   estimate, see HARDWARE.md "Atlas battery"): calibrate the divider and curve
-  on the board, the percent in the Android app, and a manual entry once the
+  on the board, the existing Android percent gauge needs device acceptance, and a manual entry once the
   readings are trusted. Auto sleep (2026-10-08: Atlas idle or empty on the
   cell, Sigils idle; HARDWARE.md, PAIRING_AND_SECURE_LINK.md) also needs its
   manual entry, and its USB wake check a bench test.

@@ -205,6 +205,7 @@ internal fun TabletTable(
             queuedAtMs = TableClock.nowMs(),
             bootId = current.bootId,
             gameElapsedMs = current.gameElapsedMs,
+            game = current.game,
         )
         controls { queueOffline(change) }
     }

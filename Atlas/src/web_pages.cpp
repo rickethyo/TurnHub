@@ -198,8 +198,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font:.78rem/1.55 ui-mon
 
 // The basic portal in flash, served at /portal (and /stats, /dev) whenever
 // the microSD card has no portal pack: a dead or missing card must not take
-// away the essentials (owner, 2026-10-02). Game status and the player's own
-// controls, accessibility preferences, device settings, updates and the
+// away administration/recovery. Play lives in Android and on Sigils;
+// bootstrap, device settings, signed updates and the
 // portal pack install. The full portal is the SD pack (WEB_PORTAL.md).
 const char BASIC_PORTAL_HTML[] PROGMEM = R"HTML(
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>TurnHub basic portal</title>
@@ -209,25 +209,15 @@ const char BASIC_PORTAL_HTML[] PROGMEM = R"HTML(
 </head><body><div class="page narrow">
 <header class="page-head"><span class="brand"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Basic portal</span></span></span><span id="acct" class="small"></span></header>
 <div class="notice" id="card" role="status">Checking the microSD card…</div>
-<nav aria-label="Sections"><a class="btn small" href="#game">Game</a><a class="btn small" href="#access">Accessibility</a><a class="btn small" href="#device">Device</a><a class="btn small" href="#updates">Updates</a></nav>
+<nav aria-label="Sections"><a class="btn small" href="#game">Status</a><a class="btn small" href="#device">Device</a><a class="btn small" href="#updates">Updates</a></nav>
 
-<section class="card" id="game" aria-labelledby="gameH"><h2 id="gameH">Game</h2>
+<section class="notice"><h1>Atlas administration</h1><p>Use the TurnHub Android app for play, tablet mode, accounts and statistics.</p><a href="https://play.google.com/store/apps/details?id=com.turnhub.android">Get the app</a></section>
+<section class="card" id="bootstrap" hidden><h2>Set up this Atlas</h2><p>Sign in or create the first Admin account, request a code on Atlas, then enter it below to verify.</p><a href="/login">Sign in or create the initial Admin</a><button id="bootstrapCode">Show setup code on Atlas</button><input id="bootstrapPresence" maxlength="6" inputmode="numeric" aria-label="Setup code from Atlas"><button id="bootstrapAdmin">Make this account the initial Admin</button><p>After becoming Admin, save a new Wi-Fi password under Device settings to finish setup.</p></section>
+<p id="accessNotice" role="status">Admin sign-in required.</p><div id="adminContent" hidden>
+<section class="card" id="game" aria-labelledby="gameH"><h2 id="gameH">Status</h2>
 <p id="gameState" role="status" aria-live="polite">Connecting…</p>
 <ul id="players"></ul>
-<div class="row" id="mine" style="margin-top:12px"></div></section>
-
-<section class="card" id="access" aria-labelledby="accessH"><h2 id="accessH">Accessibility</h2>
-<form id="accessForm"><fieldset id="accessFields" disabled>
-<label class="opt"><input type="checkbox" id="sigilSound"><span><strong>Sigil sounds</strong><br><span class="note">Beeps and buzzes on your Sigil.</span></span></label>
-<strong>Sigil lights</strong>
-<label class="opt"><input type="radio" name="ledStyle" value="standard"><span>Standard</span></label>
-<label class="opt"><input type="radio" name="ledStyle" value="reduced-motion"><span>Reduced motion: steady lights and slow blinks only</span></label>
-<label class="opt"><input type="radio" name="ledStyle" value="monochrome-safe"><span>Monochrome-safe: no signal differs by color alone</span></label>
-<div class="row"><label for="longPressMs">Long press (ms)</label><input type="number" id="longPressMs" inputmode="numeric"></div>
-<div class="row"><label for="winHoldMs">Win hold (ms)</label><input type="number" id="winHoldMs" inputmode="numeric"></div>
-<p class="note" id="limits"></p>
-<div><button class="primary">Save accessibility</button></div>
-</fieldset></form><p class="note" id="accessNote">Sign in to change your own settings.</p></section>
+</section>
 
 <section class="card" id="device" aria-labelledby="deviceH"><h2 id="deviceH">Device settings</h2>
 <p class="note">Admin only. With the table code on, Wi-Fi, resets and updates also need you verified at the table.</p>
@@ -246,7 +236,7 @@ const char BASIC_PORTAL_HTML[] PROGMEM = R"HTML(
 <h3>Install the portal pack</h3><p class="note">The full portal lives on the microSD card as a signed pack (<code>portal-x.y.z.thfw</code>). Verify at the table first; Lobby or Game Over only.</p>
 <div class="row"><input id="file" type="file" accept=".thfw" aria-label="Portal pack"><button id="upload" class="primary" type="button" disabled>Install</button></div>
 <progress id="bar" max="100" value="0" aria-label="Upload progress" hidden></progress></section>
-<p id="toast" role="status" aria-live="polite" hidden></p>
+</div><p id="toast" role="status" aria-live="polite" hidden></p>
 </div>
 <script>
 const $=id=>document.getElementById(id),tok=()=>localStorage.getItem('turnhubSessionToken')||'',H=()=>({'X-TurnHub-Token':tok()});
@@ -261,16 +251,7 @@ async function loadMe(){me=null;if(tok())try{me=await api('/api/session/me')}cat
 async function refresh(){try{const s=await api('/api/v1/state');const cur=s.players.find(p=>p.playerNumber===s.activePlayer);
  $('gameState').textContent={LOBBY:'Lobby',STARTING:'Starting',RUNNING:'In play',PAUSED:'Paused',GAME_OVER:'Game over'}[s.state]?.concat(cur&&s.state!=='LOBBY'?': '+who(cur)+"'s turn":'')||s.state;
  $('players').innerHTML=s.players.map(p=>`<li class="p${p.playerNumber===s.activePlayer?' on':''}"><span>${esc(who(p))}${p.eliminated?' (out)':''}</span><span class="big" aria-label="Life ${p.life}">${p.life}</span></li>`).join('')||'<li class="note">No players yet.</li>';
- const b=(l,u,body)=>`<button class="small" type="button" data-u="${u}" data-b='${body?JSON.stringify(body):''}'>${l}</button>`;let h='';
- if(!me)h='<span class="note">Sign in to play from this phone.</span>';
- else if(!me.participating)h=b('Join the table','/api/session/join');
- else{if(s.state==='LOBBY')h+=b('Start game','/api/control/start')+b('Leave the table','/api/session/leave');
-  if(s.state==='RUNNING'||s.state==='PAUSED')h+=b('Pass','/api/control/pass')+b(s.state==='PAUSED'?'Resume':'Pause','/api/control/pause')+b('Life −1','/api/control/life',{delta:-1})+b('Life +1','/api/control/life',{delta:1})+b('Concede','/api/control/concede');
-  if(s.state==='GAME_OVER')h+=b('Rematch','/api/control/rematch')+b('Leave the table','/api/session/leave')}
- if($('mine').innerHTML!==h)$('mine').innerHTML=h}catch(e){$('gameState').textContent=e.message}}
-$('mine').onclick=e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.u.endsWith('concede')&&!confirm('Concede this game?'))return;act(t.dataset.u,t.dataset.b?JSON.parse(t.dataset.b):null)};
-async function loadAccess(){if(!me){$('accessFields').disabled=true;return}try{const a=await api('/api/session/accessibility');$('sigilSound').checked=a.sigilSound;document.querySelectorAll('[name=ledStyle]').forEach(r=>r.checked=r.value===a.ledStyle);$('longPressMs').value=a.longPressMs;$('winHoldMs').value=a.winHoldMs;const L=a.limits||{};$('limits').textContent=`Long press ${L.longPressMinMs}–${L.longPressMaxMs} ms; win hold ${L.winHoldMinMs}–${L.winHoldMaxMs} ms and at least ${L.minGapMs} ms longer.`;$('accessFields').disabled=false;$('accessNote').textContent='Your settings follow you to any Sigil.'}catch(e){$('accessNote').textContent=e.message}}
-$('accessForm').onsubmit=e=>{e.preventDefault();const s=document.querySelector('[name=ledStyle]:checked');act('/api/session/accessibility',{sigilSound:$('sigilSound').checked?1:0,ledStyle:s?s.value:'standard',longPressMs:$('longPressMs').value,winHoldMs:$('winHoldMs').value},'Accessibility saved.')};
+}catch(e){$('gameState').textContent=e.message}}
 async function loadDevice(){try{const p=await api('/api/presence');$('tableCode').checked=p.codeRequired!==false;$('presence').textContent=p.codeRequired===false?'Table code off: no code needed.':p.verified?'You are verified at the table.':'Not verified.'}catch(e){$('presence').textContent=e.message}
  try{const d=await api('/api/devices');const b=d.atlas.battery;$('atlasInfo').textContent=d.atlas.hardwareId+' · firmware '+d.atlas.firmware+(b?' · battery '+b.percent+'%'+(b.low?' (low)':'')+(b.charging?' (charging)':''):'');
   $('sigils').innerHTML=d.devices.map(x=>`<li class="p"><span>${esc(x.label)} · ${x.online?'online':'offline'} · ${esc(x.firmware||'')}</span><button class="small" type="button" data-forget="${Number(x.id)}">Forget</button></li>`).join('')||'<li class="note">No Sigils paired.</li>'}catch(e){$('atlasInfo').textContent=e.message}
@@ -281,19 +262,21 @@ $('tableCode').onchange=async e=>{await act('/api/table-code?required='+(e.targe
 $('showCode').onclick=()=>act('/api/presence/request',null,'Atlas is showing a code now.');
 $('verify').onclick=async()=>{await act('/api/presence/confirm?code='+encodeURIComponent($('code').value.trim()),null,'Verified at the table for 10 minutes.');loadDevice()};
 $('saveHw').onclick=async()=>{await act('/api/speaker?volume='+$('volume').value,null,'Speaker saved.');await act('/api/pairing?windowMs='+$('pairing').value,null,'Atlas settings saved.')};
-$('saveWifi').onclick=()=>{const p=$('wifi').value;if(p.length<8||p.length>63)return toast('Wi-Fi password must be 8 to 63 characters.',true);if(confirm('Atlas restarts and every device disconnects. Continue?'))act('/api/network/password?password='+encodeURIComponent(p),null,'Saved. Atlas is restarting.')};
+$('saveWifi').onclick=()=>{const p=$('wifi').value;if(p.length<8||p.length>63)return toast('Wi-Fi password must be 8 to 63 characters.',true);if(confirm('Atlas restarts and every device disconnects. Continue?'))api('/api/setup').then(x=>x.stage==='welcome'?act('/api/setup/finish',{password:p},'Setup complete. Atlas is restarting.'):act('/api/network/password?password='+encodeURIComponent(p),null,'Saved. Atlas is restarting.'))};
 $('sigils').onclick=e=>{const id=e.target.dataset.forget;if(id&&confirm('Forget this Sigil? It must be paired again.'))act('/api/device/forget?module='+id).then(loadDevice)};
 $('resetTable').onclick=()=>{if(confirm('A match in progress ends as a draw and every player leaves the table.'))act('/api/table/reset')};
 $('factory').onclick=()=>{if((prompt('Erases every profile, statistic, pairing and setting. Type RESET to confirm.')||'').trim().toUpperCase()==='RESET')act('/api/device/factory-reset?atlas=1',null,'Atlas is restarting as new.')};
-async function loadCard(){try{const p=await api('/api/portal');$('card').textContent=!p.card?'No microSD card found, so this is the basic portal. Insert the card that came with Atlas for the full portal.':p.installed?'Portal v'+p.version+' is installed: reload for the full portal.':'The microSD card has no portal yet. Install the portal pack under Updates.'}catch(e){$('card').textContent=e.message}}
+async function loadCard(){try{const p=await api('/api/portal');$('card').textContent=!p.card?'No microSD card found, so this is the basic portal. Insert the card that came with Atlas for the full portal.':p.installed?'Installed portal v'+p.version+'. Administration requires v2 or newer; install a current signed pack if this fallback remains.':'The microSD card has no portal yet. Install the portal pack under Updates.'}catch(e){$('card').textContent=e.message}}
 $('file').onchange=()=>{$('upload').disabled=!$('file').files.length};
 $('upload').onclick=()=>{const f=$('file').files[0];if(!f)return;const x=new XMLHttpRequest(),form=new FormData();form.append('portal',f);$('upload').disabled=true;$('bar').hidden=false;
  x.open('POST','/api/portal/install');x.setRequestHeader('X-TurnHub-Token',tok());
  x.upload.onprogress=e=>{if(e.lengthComputable)$('bar').value=Math.round(e.loaded*100/e.total)};
  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(_){}if(x.status===200){toast('Portal v'+j.version+' installed. Opening it…');setTimeout(()=>location.assign('/portal'),1500)}else{toast(j.error||'Install failed ('+x.status+')',true);$('upload').disabled=false}};
  x.onerror=()=>{toast('The connection to Atlas was lost. Try again.',true);$('upload').disabled=false};x.send(form)};
-async function load(){await loadMe();loadCard();refresh();loadAccess();loadDevice()}
-load();setInterval(()=>{if(!document.hidden)refresh()},2000);
+async function load(){await loadMe();loadCard();const admin=!!(me&&me.permissions&1);$('adminContent').hidden=!admin;$('accessNotice').hidden=admin;$('accessNotice').textContent=me?'This account has no Admin permission. Use the app for play.':'Sign in with an Admin account.';try{const x=await api('/api/accounts/setup');$('bootstrap').hidden=!x.setupRequired}catch(_){}if(admin){refresh();loadDevice()}}
+$('bootstrapCode').onclick=()=>act('/api/presence/request',null,'Enter the code shown on Atlas.');
+$('bootstrapAdmin').onclick=async()=>{try{await api('/api/presence/confirm?code='+encodeURIComponent($('bootstrapPresence').value),{method:'POST'});await api('/api/accounts/setup',{method:'POST'});await load()}catch(e){toast(e.message,true)}};
+load();setInterval(()=>{if(!document.hidden&&me&&me.permissions&1)refresh()},5000);
 </script></body></html>
 )HTML";
 

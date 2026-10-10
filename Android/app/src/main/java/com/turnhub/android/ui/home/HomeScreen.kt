@@ -141,6 +141,7 @@ fun HomeScreen(
     /** Opens the standalone tablet game, for a table with no Atlas. */
     onPlayStandalone: () -> Unit = {},
     hasLocalGame: Boolean = false,
+    onFollowGame: (Int) -> Unit = {},
     onLocalHistory: () -> Unit = {},
 ) {
     PresenceCodeDialog(admin, adminActions)
@@ -188,6 +189,8 @@ fun HomeScreen(
             actions = tabletActions,
             reduceMotion = reduceMotion,
             offline = uiState.isOffline,
+            onFollowGame = onFollowGame,
+            switching = uiState.player?.busy == true,
             onClose = { showTablet = false },
             modifier = modifier,
         )
@@ -288,6 +291,7 @@ fun HomeScreen(
                     }
                     ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)
                 } else {
+                    GameSelector(summary, onFollowGame, enabled = !uiState.isOffline && uiState.player?.busy != true && seatClaim?.waiting != true)
                     if (updatesAvailable > 0) UpdateAvailableCard(updatesAvailable, onOpenUpdates)
                     // A short fade and rise between tabs; none when motion is reduced.
                     AnimatedContent(
@@ -303,10 +307,11 @@ fun HomeScreen(
                         },
                         label = "tab",
                     ) { shown ->
+                        androidx.compose.runtime.key(summary.atlasId, summary.bootId, summary.game) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             when (shown) {
                                 HomeTab.GAME -> GameTab(uiState, summary, nowMs, reduceMotion, gameActions, labelFor)
-                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions) {
+                                HomeTab.PLAYERS -> PlayersTab(summary, me?.playerNumber, nowMs, labelFor, uiState.endpointText, seatClaim, seatActions, admin.devices, uiState.player?.signedIn == true && !uiState.isOffline) {
                                     if (canPeople) PeopleCard(info, admin, uiState.avatars, adminActions)
                                 }
                                 HomeTab.ACCOUNT -> {
@@ -316,6 +321,7 @@ fun HomeScreen(
                                 HomeTab.SETTINGS -> info?.let { SettingsTab(it, admin, adminActions, onShowPeople = { tab = HomeTab.PLAYERS }) }
                                 HomeTab.DEV -> DevTab(admin, adminActions)
                             }
+                        }
                         }
                     }
                 }

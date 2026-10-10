@@ -85,6 +85,7 @@ class HttpAtlasRepository(
         val pollsSinceNames: Int,
         val seatAvatars: Map<SeatKey, Int> = emptyMap(),
         val avatarIcons: Map<Int, AvatarIcon> = emptyMap(),
+        val contextKey: String = "",
     )
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
@@ -165,7 +166,8 @@ class HttpAtlasRepository(
         val snapshot = call { transport.getState() }
         AtlasCompatibility.requireCompatible(snapshot)
         val current = live.summary
-        val sameEpoch = snapshot.atlasId == current.atlasId && snapshot.bootId == current.bootId
+        val sameEpoch = snapshot.atlasId == current.atlasId && snapshot.bootId == current.bootId &&
+            snapshot.game == current.game && transport.contextKey == live.contextKey
         if (!sameEpoch || snapshot.revision < current.revision) {
             // Different Atlas, new boot, or revision went backwards: start over.
             return handshake(transport)
@@ -184,12 +186,14 @@ class HttpAtlasRepository(
             pollsSinceNames = if (seats != null) 0 else live.pollsSinceNames + 1,
             seatAvatars = avatars,
             avatarIcons = live.avatarIcons,
-        )
+            contextKey = live.contextKey,
+        ).also { requireContext(transport, live.contextKey) }
     }
 
     /** info -> compatibility -> state (+ names), retried once if Atlas restarted in between. */
     private suspend fun handshake(transport: AtlasTransport): Live {
         repeat(2) {
+            val contextKey = transport.contextKey
             val info = call { transport.getInfo() }
             AtlasCompatibility.requireCompatible(info)
             val snapshot: StateSnapshot = call { transport.getState() }
@@ -200,10 +204,14 @@ class HttpAtlasRepository(
                 val avatars = seats?.second.orEmpty()
                 val icons = fetchAvatarIcons(transport)
                 return Live(info, map(info, snapshot, names, avatars, icons), names, pollsSinceNames = 0,
-                    seatAvatars = avatars, avatarIcons = icons)
+                    seatAvatars = avatars, avatarIcons = icons, contextKey = contextKey).also { requireContext(transport, contextKey) }
             }
         }
         throw AtlasException(AtlasFailure.Malformed("Atlas identity changed while connecting; try again"))
+    }
+
+    private fun requireContext(transport: AtlasTransport, key: String) {
+        if (transport.contextKey != key) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
     }
 
     /** Seat names and avatars are presentation only: any failure keeps what we have. */

@@ -862,3 +862,17 @@ All themes have a header mark; glyphs reuse existing graphics primitives.
 | Atlas | 105,388 B (32.2%) | 1,546,557 / 1,966,080 B (78.7%) |
 | Sigil e-paper | 53,876 B (16.4%) | 948,509 / 1,310,720 B (72.4%) |
 | Sigil OLED | 49,916 B (15.2%) | 955,973 / 1,310,720 B (72.9%) |
+
+
+### 2026-10-10 / Atlas 0.7.6-dev app-first administration cutover
+
+Verified local PlatformIO 6.1.19 Atlas build; no hardware acceptance claimed.
+Portal pack 2.0.0 removes browser play and requires matching cutover firmware.
+Native Android actions can pin their selected game with `expectedGame`; Atlas
+rejects a changed game before dispatching the existing action handler.
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,388 B (32.2%) | 1,545,377 / 1,966,080 B (78.6%) |
+
+Sigil source is unchanged. SD pack: 17 files, 401 KB raw / 243 KB packed.

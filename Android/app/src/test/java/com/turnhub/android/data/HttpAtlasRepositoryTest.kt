@@ -28,6 +28,7 @@ private class FakeAtlasTransport : AtlasTransport {
     var info: suspend () -> AtlasInfo = { Fixtures.info() }
     var state: suspend () -> StateSnapshot = { Fixtures.state("running.response.json") }
     var seats: suspend () -> List<SeatEntry> = { emptyList() }
+    override var contextKey: String = ""
     var infoCalls = 0
     var stateCalls = 0
     var seatCalls = 0
@@ -504,4 +505,32 @@ class HttpAtlasRepositoryTest {
 
         assertEquals(1, transport.stateCalls)
     }
+    @Test
+    fun `switching games discards names even with the same revision and handles`() = runTest {
+        transport.seats = { listOf(SeatEntry(8, 1, 1, "Game one")) }
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        transport.contextKey = "game-two"
+        transport.state = { Fixtures.state("running.response.json") { put("game", 2) } }
+        transport.seats = { listOf(SeatEntry(8, 1, 1, "Game two")) }
+        advance(1_000)
+        assertEquals(2, repository.tableSummary.value!!.game)
+        assertEquals("Game two", repository.tableSummary.value!!.players.first().label)
+        assertEquals(2, transport.infoCalls)
+    }
+
+    @Test
+    fun `context changes during a poll do not publish the mixed snapshot`() = runTest {
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        val previous = repository.tableSummary.value
+        transport.state = {
+            transport.contextKey = "changed"
+            Fixtures.state("running.response.json") { put("game", 2) }
+        }
+        transport.seats = { transport.contextKey += "again"; emptyList() }
+        advance(1_000)
+        assertEquals(previous, repository.tableSummary.value)
+    }
+
 }

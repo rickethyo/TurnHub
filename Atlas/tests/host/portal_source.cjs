@@ -10,7 +10,7 @@ if(!fs.existsSync(path.join(site,'index.html')))require('node:child_process').ex
 module.exports={
  enabled,
  html:enabled?fs.readFileSync(path.join(site,'index.html'),'utf8'):null,
- // Another page of the pack (login.html, stats.html...), or null in flash mode.
+ // Another page of the pack (login.html, update.html...), or null in flash mode.
  page:name=>enabled?fs.readFileSync(path.join(site,name),'utf8'):null,
  // True when the request was a pack asset and has been answered.
  serve(pathname,res){

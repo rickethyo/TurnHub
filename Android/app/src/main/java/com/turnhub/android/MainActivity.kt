@@ -71,9 +71,11 @@ class MainActivity : ComponentActivity() {
         // One link both joins the Atlas Wi-Fi and routes Atlas requests over it
         // (falling back to a manually joined Wi-Fi when it holds no network).
         val wifiLink = TargetedAtlasWifiLink(applicationContext)
-        val transports = AtlasTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
         val sessionTransports = AtlasSessionTransportFactory { endpoint -> HttpAtlasTransport(endpoint, wifiLink) }
         val playerSession = AtlasPlayerSession(sessionTransports)
+        val transports = AtlasTransportFactory { endpoint ->
+            HttpAtlasTransport(endpoint, wifiLink, pollContext = { playerSession.pollContext(endpoint) })
+        }
         HomeViewModel.factory(
             repositoryFactory = { scope -> HttpAtlasRepository(transports, scope) },
             wifiLink = wifiLink,
@@ -379,6 +381,7 @@ class MainActivity : ComponentActivity() {
                             onHistory = { localHistory = true },
                         )
                     } else HomeScreen(
+                        onFollowGame = homeViewModel::onFollowGame,
                         onPlayStandalone = ::playOnDevice,
                         onLocalHistory = { localHistory = true },
                         hasLocalGame = localState.game.state == com.turnhub.android.protocol.TableState.RUNNING ||
@@ -444,6 +447,7 @@ class MainActivity : ComponentActivity() {
                         seatActions = com.turnhub.android.ui.home.SeatActions(
                             onClaim = homeViewModel::onClaimSeat,
                             onDismiss = homeViewModel::onSeatClaimDismissed,
+                            onRefresh = { homeViewModel.onPlayersRefresh() },
                         ),
                         setupActions = com.turnhub.android.ui.setup.SetupActions(
                             run = homeViewModel::onSetup,

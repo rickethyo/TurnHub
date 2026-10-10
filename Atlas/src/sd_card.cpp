@@ -601,6 +601,9 @@ bool sdPortalVersion(TurnHubFirmwarePackage::Version &version) {
 
 bool sdServePortalFile(WebServer &server, const char *relPath, const char *cacheControl) {
   if (!storeUsable() || !TurnHubPortal::safePackPath(relPath, strlen(relPath))) return false;
+  // Pre-cutover packs must not revive browser gameplay.
+  TurnHubFirmwarePackage::Version version;
+  if (!sdPortalVersion(version) || version.major < 2) return false;
   char path[160];
   CardLock lock;
   if (!cardMounted()) return false;

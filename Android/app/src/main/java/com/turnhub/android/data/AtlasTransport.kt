@@ -24,6 +24,9 @@ import com.turnhub.android.protocol.StateSnapshot
  * next milestone; `/api/v1/intent` and events do not exist yet.
  */
 interface AtlasTransport {
+    /** Changes when sign-in or followed game changes; never log this opaque key. */
+    val contextKey: String get() = ""
+
     /** `GET /api/v1/info`. */
     suspend fun getInfo(): AtlasInfo
 

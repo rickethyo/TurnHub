@@ -799,3 +799,38 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - Next owner: project owner reviews the migration order. Implementation should
   close the identified gameplay gaps and verify device flows before removal;
   preserve the app's HTTP API and initial setup/cardless update recovery.
+
+## TH-013: App-first play cutover
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `6fa2627`.
+- Owner requested beginning portal play retirement and bridging app parity.
+  Latest TH-011/012 handoff explicitly identified by owner and fast-forwarded.
+- Scope: game-scoped native polling/selection, reachable custom timer input,
+  paired-Sigil attachment, and administration-only web cutover. Preserve Atlas
+  HTTP gameplay/tablet APIs, initial Admin bootstrap, cardless recovery, signed
+  updates and existing Developer authorization. No new dependencies.
+- Feature boundary: Atlas owns/validates game and controller actions through
+  existing Intents. Android owns only selected viewing context and presentation
+  caches; context changes discard cross-game caches/offline edits. Portal renders
+  administration; hiding gameplay UI does not change HTTP authorization.
+- Implemented: native venue selector and authenticated/game-scoped polling;
+  context changes discard presentation caches and offline edits. Explicit custom
+  timers, paired empty-Sigil attachment and app-install QR close reachable app
+  gaps. Atlas `expectedGame` rejects stale-screen actions before dispatch.
+- Web cutover: full/flash administration pages, preserved Admin bootstrap and
+  signed maintenance; retired browser tablet/statistics pages. Firmware
+  0.7.6-dev requires portal pack >=2.0.0, so installed legacy packs fall back to
+  cardless administration until replaced. Deploy firmware and pack together.
+- Validation: 215 Android unit tests and debug APK passed; Atlas ASan/UBSan host,
+  storage/profile/OTA suites passed (`detect_leaks=0` for runner restrictions).
+  HTTP contracts (10 projections / 10 fixtures), adapter audit (31 adapters),
+  design tokens (4 themes / 65 icons), manual export and whitespace checks passed.
+  Real Chromium smokes passed full/flash Admin access, explicit save, bootstrap,
+  no gameplay requests and 390px layout. Portal pack build passed (17 files).
+  Atlas PlatformIO build passed: 105,388 B RAM, 1,545,377 B flash. Sigil unchanged.
+- Manual advanced to V0.14; V0.13 archived. Native foreground sound/vibration
+  preferences and background win-decision notification remain planned. Physical
+  two-game switching, claim attachment, tablet decisions, accessibility and
+  cutover/update acceptance remain owner checks; no hardware acceptance claimed.
+- Delivery: one draft review PR from `codex/master` to `master`, following
+  AGENT_WORKFLOW; owner integration and physical cutover acceptance remain pending.

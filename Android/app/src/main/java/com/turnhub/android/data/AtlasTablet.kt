@@ -36,13 +36,14 @@ data class OfflineChange(
     /** Atlas boot and game clock it was tapped against: a restart or a new game drops it. */
     val bootId: String,
     val gameElapsedMs: Long,
+    val game: Int = 1,
     /** [SENDING] while on its way; then the revision it was applied against, kept until a newer snapshot carries it. */
     val sentAtRevision: Long? = null,
 ) {
     val isLife: Boolean get() = source == null
     val sent: Boolean get() = sentAtRevision != null && sentAtRevision != SENDING
     fun sameTarget(other: OfflineChange) =
-        participantId == other.participantId && source == other.source && commander == other.commander
+        game == other.game && bootId == other.bootId && participantId == other.participantId && source == other.source && commander == other.commander
 
     companion object {
         const val SENDING = -1L
@@ -94,6 +95,10 @@ class AtlasTablet(
     private val _state = MutableStateFlow(TabletState())
     val state: StateFlow<TabletState> = _state.asStateFlow()
     private var nextOfflineId = 1L
+
+    /** Bind requests to the table rendered by the originating screen. */
+    suspend fun inGame(game: Int, block: suspend AtlasTablet.() -> Unit) =
+        kotlinx.coroutines.withContext(ExpectedGame(game)) { block() }
 
     fun clearMessage() = _state.update { it.copy(message = null) }
 
@@ -277,7 +282,7 @@ class AtlasTablet(
         var refused = 0
         for (change in waiting) {
             val player = summary.players.firstOrNull { it.participantId == change.participantId }
-            val sameGame = playing && change.bootId == summary.bootId && summary.gameElapsedMs >= change.gameElapsedMs
+            val sameGame = playing && change.game == summary.game && change.bootId == summary.bootId && summary.gameElapsedMs >= change.gameElapsedMs
             val source = change.source
             val sourceThere = source == null || summary.players.any { it.playerNumber == source }
             if (!sameGame || player == null || player.eliminated || !sourceThere) {
@@ -366,4 +371,9 @@ class AtlasTablet(
         json(response)?.let { it.optString("error").ifBlank { it.optString("message") } }?.ifBlank { null }
 
     private fun flag(response: RawResponse, key: String): Boolean = json(response)?.optBoolean(key) == true
+}
+
+/** Per-coroutine presentation context; concurrent seat taps cannot overwrite it. */
+class ExpectedGame(val game: Int) : kotlin.coroutines.AbstractCoroutineContextElement(Key) {
+    companion object Key : kotlin.coroutines.CoroutineContext.Key<ExpectedGame>
 }

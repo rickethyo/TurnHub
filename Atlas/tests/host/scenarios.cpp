@@ -1003,6 +1003,13 @@ static void venueTables() {
   assert(!menuHas(2,SigilAction::SwitchTable) && !menuHas(0,SigilAction::SwitchTable));
   assert(!dispatchModuleIntent(IntentType::ChooseTable,0,1,1).accepted());
   assert(request("/api/session/game",gameTwo,{{"game","1"}})==409 && tableForProfile(gameTwoId)==1);
+  assert(request("/api/session/me",gameTwo,{},HTTP_GET)==200 && server.body.find("\"game\":2")!=std::string::npos);
+  const uint8_t activeBefore = tables[1].game.activePlayerNumber();
+  assert(request("/api/control/pause",gameTwo,{{"expectedGame","1"}})==409);
+  assert(tables[1].hubState==HubState::Running && tables[1].game.activePlayerNumber()==activeBefore);
+  assert(request("/api/control/pause",gameTwo,{{"expectedGame","2"}})==200);
+  assert(tables[1].hubState==HubState::Paused);
+  assert(request("/api/control/pause",gameTwo,{{"expectedGame","2"}})==200);
   assert(request("/api/v1/state",gameTwo,{},HTTP_GET)==200 && server.body.find("\"state\":\"RUNNING\"")!=std::string::npos);
   // Resetting Game 1 leaves Game 2's players and Sigil profiles alone.
   { TableScope scope(0); enterEmptyLobby(); }
