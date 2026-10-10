@@ -41,7 +41,7 @@ does this: it tries a saved password, then this default, then prompts.
    Keep the returned token private; send it in `X-TurnHub-Token` on authenticated
    requests. `POST /api/session/join` joins the authenticated profile.
 4. `GET /api/session/me` resolves the session's current `module`, `slot`, `player`
-   and `participating` status. Physical companion attachment retains its existing
+   and `participating` status, plus 1-based `game` (the resolved venue table). Physical companion attachment retains its existing
    [physical claim flow](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md).
 5. Fetch state. Map semantic `PASS` to `POST /api/control/pass` with
    `application/x-www-form-urlencoded` fields, not the draft JSON envelope.
@@ -284,17 +284,38 @@ The next Android slice can test info → login/join → snapshot → PASS → sn
 Generic envelopes, richer per-intent statuses, deduplication and events remain
 separate future work. No Android application ID is selected here.
 
-## Personalization and avatars (2026-09-25)
+## Personalization and artwork (2026-10-10)
 
-- `GET /api/avatars` (public): `{"size":16,"avatars":[{"id":1,"key":"die","label":"Die","rows":["....", ...]}]}`,
-  the preset icons from `shared/include/avatars.h`. Each row is `size` characters, `#` ink, `.` background.
-  Clients draw these rows so every screen shows the same icon.
-- `GET /api/seats` entries carry `"avatar"`: the seat's preset id, or 0. Custom avatars never appear here.
-- `GET`/`POST /api/session/personalization` (signed-in profile only): `color` (`#rrggbb` or `none`) and
-  `avatar` (0 or a preset id). Both are saved on Atlas's microSD card; without one, `card` is false and
-  saving answers 503.
-- Planned: custom avatars (`AVATAR_CUSTOM`), visible to signed-in viewers only, with a possible Admin
-  approval to make one public. Not implemented.
+- `GET /api/avatars`: stable preset IDs/keys/labels and historical 16px rows.
+  Android renders vector masters; Atlas has generated 64px alpha masks; current
+  Sigil assets are frozen. These tiny rows do not constrain uploaded artwork.
+- `GET/POST /api/session/personalization`: color and avatar selection (`0`,
+  preset ID, or `128` when an approved image exists), `card`, `customAvatar`
+  (approved image path, even when a preset is selected), `pendingAvatar` (private
+  pending path). Empty paths mean unavailable. Saves require working SD storage.
+- Seats/accounts add `customAvatar` when an approved custom image is selected;
+  the historical numeric seat `avatar` remains preset-or-zero. Only Admins see
+  `pendingAvatar` in account listings. Artwork bytes never enter live state.
+- `POST /api/session/avatar`: authenticated personal account, form requests.
+  `action=start,size=<bytes>` reserves a JPEG transfer (32..49152 bytes), returns
+  `revision` (8 lowercase hex) and `chunkBytes:768`. `action=chunk,revision,index,data`
+  writes the next zero-based chunk; `data` is lowercase hex, exactly 768 bytes
+  except the final chunk. `action=submit,revision,thumbnail` validates the complete
+  square baseline JPEG (32..512px, RGB, not progressive), plus a 512-character hex
+  RGB332 16px Atlas thumbnail, then publishes pending art. Start/submit/remove
+  responses return personalization where appropriate; chunk returns `{ok:true}`.
+  `action=remove` clears art and selects None. 401 sign-in, 400 invalid envelope,
+  409 busy/stale/order/card-change, 503 SD failure. One transfer, 120s idle timeout;
+  no automatic retry after uncertain delivery. Re-start cleans interrupted data.
+- `POST /api/avatar/review`: Admin, `profileId,revision,action=approve|reject`.
+  Exact pending revision required (409 if changed). Approval publishes and selects
+  custom art; rejection retains previously approved art. Storage failures are 503.
+- `GET /api/avatar?profileId=<id>&revision=<8-hex>[&pending=1]`: bounded JPEG,
+  `image/jpeg`, exact Content-Length, private/no-store, nosniff. Pending requires
+  owner/Admin; approved is public. Missing card/image, stale revision or corrupt
+  chunks yield 404 and clients show a fallback. Transfer streams one SD chunk at
+  a time. The 512px master serves app/tablet and future hardware derivatives;
+  future S3 LCD firmware/radio transfer is not implemented.
 
 ## Tablet mode (2026-10-06)
 
@@ -306,7 +327,14 @@ One shared screen at the table acting for every seat. Engineering record:
    screen shows, then `POST /api/tablet/enable`. `GET /api/session/me`
    reports `"tablet":true|false`. An account with the Tablet access role
    (permission bit 32 in `/api/session/me`) skips the code and calls
-   `POST /api/tablet/enable` directly. `POST /api/tablet/disable` turns it off.
+   `POST /api/tablet/enable` directly. With table-code verification off, enable
+   works directly for any signed-in player. Success returns a new `token` and
+   empty `profileId`, revokes the initiating token, and uses a RAM-only Shared
+   tablet account (`tablet:true`, no profile or permissions). Other personal
+   sessions/participants remain intact. This token has only the table route
+   allowlist documented in PLAYERS_AND_ACCOUNTS.md. Personal/admin routes are
+   403. `POST /api/tablet/disable` revokes it; subsequent session use is 401.
+   Native close leaves the app signed out even if Atlas is unavailable.
    Without the grant every route below answers
    `403 {"ok":false,"tabletRequired":true,"error":...}`.
 2. Lobby: `POST /api/tablet/seat` with `name` (creates a profile with no PIN;
@@ -369,3 +397,16 @@ before any statistics, so a power cut can lose one game's statistics but does no
 window. It does not guarantee arbitrary long-term replay protection. Imported games add to games played, won, eliminated and
 started, completed turns and turn times, and set the last-game fields like a
 live game.
+
+### Native game-context guard (2026-10-10)
+
+Raw native tablet/game actions can include `expectedGame` as the decimal 1-based
+game number rendered by their screen. The route adapter compares it to the game
+resolved from the current session before selecting a table or invoking the
+handler. A mismatch returns HTTP 409 and performs no action. It supplements
+revision/boot checks: two games may have matching revisions/player numbers.
+`POST /api/session/game` remains the explicit follow/switch operation; it does
+not use this guard. Authentication and semantic Intent validation remain required.
+
+Browser `/tablet` and `/stats` now serve administration recovery. Native gameplay,
+profile statistics and `/api/tablet/*` contracts remain available.

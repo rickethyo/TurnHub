@@ -3,6 +3,8 @@
 #include "profile_store.h"
 #include "account_access.h"
 #include "storage.h"
+#include "avatars.h"
+#include "avatar_artwork.h"
 #include <cstring>
 #include <nvs.h>
 
@@ -178,6 +180,31 @@ static void statisticsSplit() {
   setLuxuryStore(nullptr);
 }
 
+static void artworkProfiles() {
+  FakeCard card;
+  const String id = createProfileWithCredentials("Artwork", "1234", hashPin);
+  setLuxuryStore(&card);
+  TurnHubArtwork::Image image; image.revision=0x12345678; image.size=1200;
+  const String key=String("a")+id;
+  assert(TurnHubArtwork::publish(card,key.c_str(),image)==TurnHubStorage::Status::Ok);
+  char thumbKey[16]; TurnHubArtwork::thumbnailKey(thumbKey,image.revision);
+  uint8_t bytes[257]={1}; bytes[1]=0xab;
+  assert(card.write(thumbKey,bytes,sizeof(bytes))==TurnHubStorage::Status::Ok);
+  assert(saveAvatarForProfile(id,TurnHubAvatars::AVATAR_CUSTOM));
+  uint32_t revision=0;
+  const uint8_t *thumb=artworkThumbnail(id,revision);
+  assert(thumb && thumb[0]==0xab && revision==image.revision);
+  assert(std::string(artworkPath(id).c_str()).find("revision=12345678")!=std::string::npos);
+  assert(saveAvatarForProfile(id,2));
+  assert(!artworkThumbnail(id,revision) && revision==0);
+  assert(artworkPath(id).length()>0); // Approved art stays selectable after choosing a preset.
+  setLuxuryStore(nullptr);
+  assert(avatarForProfile(id)==0 && artworkPath(id).length()==0 && !artworkThumbnail(id,revision));
+  setLuxuryStore(&card);
+  assert(avatarForProfile(id)==2);
+  setLuxuryStore(nullptr);
+}
+
 int main() {
   assert(begin());
   guestLookups();
@@ -185,5 +212,6 @@ int main() {
   legacyPlaceholders();
   accessibilityPreferences();
   statisticsSplit();
+  artworkProfiles();
   std::cout << "PASS: real profile store guest lookups, reconnects, saved bindings, legacy placeholder filtering, accessibility preferences and the NVS/SD statistics split\n";
 }

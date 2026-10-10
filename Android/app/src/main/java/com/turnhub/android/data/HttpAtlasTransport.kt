@@ -49,6 +49,7 @@ class HttpAtlasTransport(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val connectTimeoutMs: Int = 3_000,
     private val readTimeoutMs: Int = 3_000,
+    private val pollContext: () -> PollContext = { PollContext() },
 ) : AtlasTransport, AtlasSessionTransport {
 
     override suspend fun getInfo(): AtlasInfo {
@@ -63,8 +64,12 @@ class HttpAtlasTransport(
         return parse { AtlasWireParser.parseInfo(response.body) }
     }
 
+    override val contextKey: String get() = pollContext().key
+
     override suspend fun getState(): StateSnapshot {
-        val response = request("GET", "/api/v1/state")
+        val context = pollContext()
+        val response = request("GET", "/api/v1/state?game=${context.game}", headers = context.headers)
+        if (pollContext() != context) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
         if (response.code != HttpURLConnection.HTTP_OK) {
             val detail = if (response.code == HttpURLConnection.HTTP_UNAVAILABLE) {
                 "Atlas has not published table state yet"
@@ -77,7 +82,9 @@ class HttpAtlasTransport(
     }
 
     override suspend fun getSeats(): List<SeatEntry> {
-        val response = request("GET", "/api/seats")
+        val context = pollContext()
+        val response = request("GET", "/api/seats?game=${context.game}", headers = context.headers)
+        if (pollContext() != context) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
         if (response.code != HttpURLConnection.HTTP_OK) {
             throw AtlasException(AtlasFailure.HttpStatus(response.code, "Atlas seats request failed"))
         }
@@ -267,12 +274,41 @@ class HttpAtlasTransport(
         return parsePersonalization(response.body)
     }
 
+    override suspend fun getAvatarImage(path: String, token: String): ByteArray = withContext(ioDispatcher) {
+        // Only Atlas-owned paths; metadata cannot redirect the app to another host.
+        require(path.matches(Regex("/api/avatar\\?profileId=[a-zA-Z0-9_-]+&revision=[0-9a-f]{8}(&pending=1)?")))
+        val connection = opener.open(URL(endpoint.baseUrl + path))
+        try {
+            connection.connectTimeout = connectTimeoutMs
+            connection.readTimeout = readTimeoutMs
+            connection.instanceFollowRedirects = false
+            connection.useCaches = false
+            if (token.isNotEmpty()) connection.setRequestProperty(TOKEN_HEADER, token)
+            if (connection.responseCode != 200 || connection.contentType?.substringBefore(';') != "image/jpeg")
+                throw AtlasException(AtlasFailure.Rejected("Image unavailable"))
+            val out = ByteArrayOutputStream()
+            connection.inputStream.use { input ->
+                val buffer = ByteArray(1024)
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    if (out.size() + n > 48 * 1024) throw AtlasException(AtlasFailure.Malformed("Image too large"))
+                    out.write(buffer, 0, n)
+                }
+            }
+            out.toByteArray()
+        } catch (e: IOException) { throw classify(e) }
+        finally { connection.disconnect() }
+    }
+
     private fun parsePersonalization(body: String): Personalization = try {
         val root = org.json.JSONObject(body)
         Personalization(
             color = if (root.isNull("color")) null else root.optString("color").takeIf { it.startsWith("#") },
             avatar = root.optInt("avatar", 0),
             cardPresent = root.optBoolean("card", true),
+            customAvatar = root.optString("customAvatar"),
+            pendingAvatar = root.optString("pendingAvatar"),
         )
     } catch (e: org.json.JSONException) {
         throw AtlasException(AtlasFailure.Malformed(e.message ?: "personalization"))
@@ -378,6 +414,14 @@ class HttpAtlasTransport(
         contentType: String? = null,
         readTimeout: Int = readTimeoutMs,
     ): Response = withContext(ioDispatcher) {
+        val expectedGame = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game
+        val tableAction = path.startsWith("/api/control/") || path.startsWith("/api/tablet/") ||
+            path.startsWith("/api/game/") || path == "/api/session/join" || path == "/api/session/leave"
+        val scopedBody = formBody?.let {
+            if (expectedGame != null && tableAction && !Regex("(^|&)expectedGame=").containsMatchIn(it))
+                it + (if (it.isEmpty()) "" else "&") + "expectedGame=$expectedGame"
+            else it
+        }
         val connection = try {
             opener.open(URL(endpoint.baseUrl + path))
         } catch (e: IOException) {
@@ -392,10 +436,10 @@ class HttpAtlasTransport(
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("Accept", "application/json")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
-            if (formBody != null) {
+            if (scopedBody != null) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                connection.outputStream.use { it.write(formBody.toByteArray(Charsets.UTF_8)) }
+                connection.outputStream.use { it.write(scopedBody.toByteArray(Charsets.UTF_8)) }
             } else if (rawBody != null) {
                 connection.doOutput = true
                 connection.setFixedLengthStreamingMode(rawBody.size)
@@ -451,4 +495,11 @@ class HttpAtlasTransport(
         /** A firmware upload: about 1.3 MB over the Atlas AP while Atlas writes flash. */
         const val UPLOAD_TIMEOUT_MS = 180_000
     }
+}
+
+/** Session-scoped polling context. Tokens never appear in diagnostic strings. */
+data class PollContext(val token: String = "", val game: Int = 1) {
+    val headers: Map<String, String> get() = if (token.isEmpty()) emptyMap() else mapOf("X-TurnHub-Token" to token)
+    val key: String get() = "$game:$token"
+    override fun toString() = "PollContext(game=$game, authenticated=${token.isNotEmpty()})"
 }

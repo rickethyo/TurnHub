@@ -91,7 +91,7 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
 - `/api/v1/state` reports `settings.turnTimerMs` and
   `turnTimer {phase, remainingMs}` (clock samples: they change without a
   revision bump). The recovery checkpoint carries the timer.
-- Shown as text in the portal and app and as a countdown on the Atlas screen.
+- Shown as text in the app and as a countdown on the Atlas screen.
   Not on Sigil screens: e-ink refresh doesn't suit a live clock (owner
   decision); try it on a future LCD Sigil, which needs a radio field.
 
@@ -114,7 +114,7 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   and Concede (asks again). In the lobby the Player screen has Earlier, Later
   and Remove (hold 2 s): Remove takes that seat out (seat A also takes its
   Sigil's seat B).
-- **Nudge** (app and portal): while a game runs, a living player who is not
+- **Nudge** (app): while a game runs, a living player who is not
   up can nudge the active player. Their Sigil plays the Nudge cue (if its
   sound is on) and their phone shows "<name> nudged you" and vibrates. One
   nudge per player every 30 s; a Game Master can mute an account's nudges.
@@ -173,7 +173,7 @@ phone players hear them: a small chime synthesizer (`atlas_speaker.cpp`,
 pentatonic chimes on the DAC), volume Off/Low/Medium/High (Admin,
 `ConfigureSpeaker`). Timer cues play once per turn.
 
-**Text.** The portal, app and Atlas screen show every state in words (time
+**Text.** The app and Atlas screen show every state in words (time
 left, warning, time over, long turn, PASSING, pending requests).
 
 ## Verification
@@ -187,7 +187,8 @@ Host scenarios cover settings and storage, life bounds and approvals
 (authorization, deadline races, rollover, cancellation), Commander entry from
 both Sigils (shared seats, partners, preview, undo, stale keys, closure), the
 timer phases and cue selection, turn order with shared seats and recovery.
-`counter_smoke.cjs` drives two browsers through approvals. Life, approvals,
+Browser approval smoke was retired with the administration-only portal; native
+HTTP/controller tests and host scenarios retain approval coverage. Life, approvals,
 the timer and Commander from phones are in use at the table (owner,
 2026-10-02). Sigil Commander entry and partners (Sigil 0.9.10, Atlas 0.6.8)
 and the shared-seat turn order (2026-10-05) still need a playtest.

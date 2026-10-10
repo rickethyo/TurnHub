@@ -205,6 +205,7 @@ internal fun TabletTable(
             queuedAtMs = TableClock.nowMs(),
             bootId = current.bootId,
             gameElapsedMs = current.gameElapsedMs,
+            game = current.game,
         )
         controls { queueOffline(change) }
     }
@@ -335,8 +336,18 @@ internal fun TabletTable(
             TableState.STARTING -> Overlay("Starting…", "The game begins in a moment.") {
                 ToneButton("Cancel", { send(anySeat, "cancel-start") }, Modifier.fillMaxWidth())
             }
-            TableState.PAUSED -> Overlay("Paused", "The clocks are stopped.") {
-                AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
+            TableState.PAUSED -> {
+                // A win claim pauses the game too. Keep the confirming player's
+                // panel reachable; Atlas requires an answer before resuming.
+                if (summary.pending.winClaimPlayer == null && summary.pending.winConfirmationPlayer == null) {
+                    if (summary.pending.eliminationTargetPlayer != null) {
+                        Overlay("Player removal pending", "Confirm or cancel the removal on Atlas or the selecting Sigil.") {}
+                    } else {
+                        Overlay("Paused", "The clocks are stopped.") {
+                            AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
+                        }
+                    }
+                }
             }
             TableState.GAME_OVER -> {
                 val winner = summary.players.firstOrNull { it.playerNumber == summary.winnerPlayerNumber }
@@ -476,6 +487,9 @@ private fun PlayerPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            unit.members.forEach { member -> member.avatar?.let {
+                com.turnhub.android.ui.components.AvatarGlyph(it, p.text, 32.dp)
+            } }
             Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)

@@ -8,6 +8,22 @@ menus are in `Sigil/DISPLAY.md`.
 Pin maps are in daily use and the owner reports them verified through
 playtesting and bench testing (2026-10-02).
 
+## Hardware development direction (owner, 2026-10-10)
+
+Current ESP32 DevKit e-paper and OLED Sigil feature development is frozen.
+Their accepted firmware, radio contract and 16-pixel preset assets remain the
+baseline. New screen work targets planned ESP32-S3 LCD hardware with 2.8-inch
+and 4-inch displays. Board/panel selection, GPIOs, orientation, exact display
+resolution, PSRAM, power budget and the new screen layouts are still to be
+confirmed; neither S3 firmware target exists yet.
+
+Player artwork begins independently of those ports: vector defaults, 64-pixel
+Atlas alpha masks, and square JPEG masters up to 512 pixels/48 KiB stored on
+Atlas's SD card. Android previews provisional 64/128-pixel icon slots for the
+2.8/4-inch layouts. Inch size does not determine pixel resolution. Today's
+Atlas renders a small approved RGB332 thumbnail in its existing 16-pixel slot;
+future layouts consume the master rather than enlarging that thumbnail.
+
 ## Atlas: LCDwiki E32R28T
 
 2.8" ESP32-32E display module (resistive touch): ESP32 N4, 4 MB flash, no

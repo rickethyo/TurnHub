@@ -114,6 +114,7 @@ data class PlayerPanel(
             val signedIn = session as? PlayerSessionState.SignedIn
                 ?: return PlayerPanel(session = session, busy = busy, feedback = feedback)
             val info = signedIn.info
+            if (info != null && info.game != summary.game) return PlayerPanel(session=session, busy=true, feedback=feedback, status="Refreshing the selected game…")
             val me = summary.players.firstOrNull { info?.participating == true && it.playerNumber == info.playerNumber }
             val name = signedIn.name ?: "this profile"
             if (me == null) {

@@ -220,8 +220,7 @@ for the Internal testing track; see "Android release bundle" in
 ## What the app does
 
 The app talks to a physical Atlas over its HTTP API; production always uses
-`HttpAtlasRepository`. It shows the live table, gives a signed-in player every
-control the portal offers, runs first-run setup, and installs firmware
+`HttpAtlasRepository`. It shows the live table, gives a signed-in player personal and shared-tablet game controls, runs first-run setup, and installs firmware
 updates on Atlas and the Sigils.
 
 1. Open the app. It asks for "Nearby devices" (local network, Android 17),
@@ -314,15 +313,15 @@ checked on a phone):
   the Atlas connection.
 - Haptics use the vibrator's full-strength primitives (`ui/components/Haptics.kt`).
 
-Portal parity (2026-09-26):
+Native player experience (original parity pass: 2026-09-26):
 
-- The app now mirrors the Atlas portal's look and its player features. The
-  portal themes (since V1: Automatic, Graphite, Daylight, Brass, High contrast;
+- The app provides the player experience and shares TurnHub design tokens. The
+  themes (since V1: Automatic, Graphite, Daylight, Brass, High contrast;
   `ui/theme/Palette.kt`) are chosen in My Account and saved on the phone only; the
   device's raised-contrast setting still forces High contrast. A Reduce motion
   switch stops the turning gear and dial sweeps.
-- Tabs as in the portal: **Game** (the brass turn dial, my seat with every
-  session control the portal offers: join, I go first, start, cancel
+- Native tabs: **Game** (the brass turn dial, my seat with every
+  session controls: join, I go first, start, cancel
   countdown, pass/cancel pass, pause/resume, claim, confirm or deny a win,
   concede, leave, rematch, reset; life tiles for every player with my -5/-1/
   +1/+5 and custom changes, tap-to-request changes to other players, the
@@ -452,3 +451,29 @@ keyed by control stage so ordinary polls do not start another stage animation.
 Outgoing-stage controls are disabled while the next stage is shown. These
 presentation paths still send existing Atlas actions and require physical
 app-lock, haptics, motion and assistive checks before device acceptance.
+
+### App-first play cutover (2026-10-10)
+
+Atlas 0.7.7 (with the embedded admin portal) retires browser gameplay and browser tablet/statistics.
+Android polls state and seats with the current session token, or `?game=N` while
+signed out. It parses Atlas’s existing `game`/`games` fields and offers the venue
+selector in personal and shared-tablet views. Atlas validates switching; personal
+players cannot leave an active game, and tablet switches leave their players in
+place. Game changes rebuild name/avatar presentation and reset staged controls;
+responses from changed polling contexts never publish. Tablet queued edits are
+scoped by game, boot and participant. `expectedGame` protects raw table actions
+from a session switch racing a queued request. No new gameplay owner or dependency.
+
+The reachable Game setup now accepts custom 15–3600-second timers, saved explicitly.
+Normal signed-in players can refresh paired Sigils and request attachment of an
+empty seat A in the lobby, confirmed with Link phone. Atlas still rejects occupied
+or unavailable seats. The Players invitation QR installs the app; joining Atlas
+Wi-Fi and choosing Connect remain explicit steps. There is no password in the QR.
+
+Native foreground event sound/vibration settings and a background win-decision
+notification remain planned. Existing native haptics, turn notifications and
+text decision controls remain; device acceptance is tracked in STAGED_CHANGES.
+
+Atlas firmware includes the complete admin portal and its maintenance/Developer
+assets. The update assistant lists only Atlas and Sigils, never queries portal
+installation or card status, and ignores retired `portal` release entries.

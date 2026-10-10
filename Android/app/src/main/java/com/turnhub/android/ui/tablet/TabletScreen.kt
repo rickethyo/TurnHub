@@ -92,7 +92,7 @@ data class TabletActions(
 )
 
 /**
- * Tablet mode, as the portal's `/tablet`: this device lies in the middle of
+ * Native shared tablet mode: this device lies in the middle of
  * the table and every player has a panel facing their seat. Atlas grants it
  * with a presence code and decides every outcome; the screen draws the state
  * snapshot and sends the `/api/tablet/` routes.
@@ -109,30 +109,41 @@ fun TabletScreen(
     modifier: Modifier = Modifier,
     /** Atlas isn't answering: [summary] is its last known state, shown read-only. */
     offline: Boolean = false,
+    onFollowGame: (Int) -> Unit = {},
+    switching: Boolean = false,
 ) {
+    val scopedActions = actions.copy(run = { block -> actions.run { inGame(summary?.game ?: 1, block) } })
     val p = palette
     KeepScreenOn()
     BackHandler(onBack = onClose)
-    tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> actions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = actions.onDismissPin) }
+    tablet.pinPrompt?.let { prompt -> PinDialog(prompt.name, onSubmit = { pin -> scopedActions.run { seatSaved(prompt.profileId, prompt.name, pin) } }, onDismiss = scopedActions.onDismissPin) }
     val granted = signedIn && session?.tablet == true
-    Box(modifier.fillMaxSize().tableBackground(p)) {
-        when {
-            summary == null -> Gate(tablet, actions, onClose) {
-                Text("Connect to Atlas first, then open tablet mode again.", color = p.muted)
+    Column(modifier.fillMaxSize().tableBackground(p)) {
+        if (summary != null) com.turnhub.android.ui.home.GameSelector(summary, onFollowGame, enabled = !offline && !switching && !tablet.busy)
+        androidx.compose.runtime.key(summary?.atlasId, summary?.bootId, summary?.game) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    summary == null -> Gate(tablet, scopedActions, onClose) {
+                        Text("Connect to Atlas first, then open tablet mode again.", color = p.muted)
+                    }
+                    !granted -> Gate(tablet, scopedActions, onClose) {
+                        GateSteps(signedIn, session?.has(AccountPermission.TABLET_ACCESS) == true, tablet, scopedActions)
+                    }
+                    session.game != summary.game -> Gate(tablet, scopedActions, onClose) {
+                        Text("Refreshing the selected game…", color = p.muted)
+                    }
+                    summary.state == TableState.LOBBY -> Lobby(summary, tablet, scopedActions, onClose)
+                    else -> {
+                        Immersive()
+                        TabletTable(summary, tablet, { block -> scopedActions.run { this.block() } }, scopedActions.onDismissMessage, reduceMotion, onClose, offline)
+                    }
+                }
+                if (offline && summary != null) {
+                    val playing = granted && summary.state != TableState.LOBBY
+                    if (playing) OfflineStrip(tablet.waiting, Modifier.align(Alignment.TopCenter))
+                    else OfflineCover(summary, onClose)
+                }
             }
-            !granted -> Gate(tablet, actions, onClose) {
-                GateSteps(signedIn, session?.has(AccountPermission.TABLET_ACCESS) == true, tablet, actions)
-            }
-            summary.state == TableState.LOBBY -> Lobby(summary, tablet, actions, onClose)
-            else -> {
-                Immersive()
-                TabletTable(summary, tablet, { block -> actions.run { this.block() } }, actions.onDismissMessage, reduceMotion, onClose, offline)
-            }
-        }
-        if (offline && summary != null) {
-            val playing = granted && summary.state != TableState.LOBBY
-            if (playing) OfflineStrip(tablet.waiting, Modifier.align(Alignment.TopCenter))
-            else OfflineCover(summary, onClose)
         }
     }
 }

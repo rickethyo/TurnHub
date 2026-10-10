@@ -13,9 +13,11 @@
 #pragma pack(pop)
 #endif
 #include "avatars.h"
+#include "avatar_artwork.h"
 #include "controller_profiles.h"
 #include "profile_store.h"
 #include "web_api_internal.h"
+#include "web_pages.h"
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
@@ -141,10 +143,7 @@ bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &p) 
 static unsigned fixtureBuzzes[MAX_PHYSICAL_SIGILS]{};
 static std::vector<int32_t> fixtureTones[MAX_PHYSICAL_SIGILS];
 bool SigilBus::buzzer(uint8_t id,int32_t v) { ++fixtureBuzzes[id]; fixtureTones[id].push_back(v); return send(id,PacketType::Buzzer,v); }
-OtaManager::OtaManager(WebServer &webServer,AllowedCallback allowed) : server_(webServer),allowedCallback_(allowed) {}
-void OtaManager::begin() {}
-void OtaManager::update(uint32_t) {}
-bool OtaManager::inProgress() const { return false; }
+
 }
 static int completedGames=0;
 static void completed(const GameEngine &g) {
@@ -829,9 +828,31 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","31"}})==200);
   assert(has(adminId,Admin|GameMaster|Developer));
+  // Every maintenance route is present without a card; the separate pack
+  // installer/status are gone. /assets cannot expose permission-gated pages.
+  ota.begin();
+  assert(server.routes.count("0/portal") && server.routes.count("0/dev") && server.routes.count("0/update"));
+  assert(server.uploads.count("/api/firmware"));
+  assert(!server.routes.count("0/api/portal") && !server.uploads.count("/api/portal/install"));
+  server.headers["X-TurnHub-Token"]=gm;
+  server.routes.at("0/update")();assert(server.status==403);
+  server.headers["X-TurnHub-Token"]=admin;
+  server.routes.at("0/update")();assert(server.status==200 && server.contentType=="text/html");
+  assert(static_cast<unsigned char>(server.body[0])==0x1f);
   // Direct page requests with credentials must enforce the independent permission.
-  server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==200&&server.body=="dev-secret");
-  server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==403);
+  // The full Developer page and all fonts/styles are flash assets, independent
+  // of the SD stub (which has no card). Binary-safe lengths and HTTP metadata.
+  WebServer assets(80);
+  assert(TurnHubWeb::serveFile(assets,"index.html"));
+  assert(assets.status==200 && assets.contentType=="text/html");
+  assert(assets.responseHeaders["Cache-Control"]=="no-store");
+  assert(assets.responseHeaders["Content-Encoding"]=="gzip");
+  assert(static_cast<unsigned char>(assets.body[0])==0x1f && static_cast<unsigned char>(assets.body[1])==0x8b);
+  assets.status=0;
+  assert(!TurnHubWeb::serveFile(assets,"../index.html") && assets.status==0);
+  assert(!TurnHubWeb::serveFile(assets,"assets/missing.css") && assets.status==0);
+  server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,Developer,"dev.html");assert(server.status==200&&!server.body.empty());
+  server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,Developer,"dev.html");assert(server.status==403);
   // The serial log download is a Developer diagnostic, like /api/diagnostics.
   assert(request("/api/diagnostics/log","",{},HTTP_GET)==401);
   assert(request("/api/diagnostics/log",gm,{},HTTP_GET)==403);
@@ -1003,6 +1024,13 @@ static void venueTables() {
   assert(!menuHas(2,SigilAction::SwitchTable) && !menuHas(0,SigilAction::SwitchTable));
   assert(!dispatchModuleIntent(IntentType::ChooseTable,0,1,1).accepted());
   assert(request("/api/session/game",gameTwo,{{"game","1"}})==409 && tableForProfile(gameTwoId)==1);
+  assert(request("/api/session/me",gameTwo,{},HTTP_GET)==200 && server.body.find("\"game\":2")!=std::string::npos);
+  const uint8_t activeBefore = tables[1].game.activePlayerNumber();
+  assert(request("/api/control/pause",gameTwo,{{"expectedGame","1"}})==409);
+  assert(tables[1].hubState==HubState::Running && tables[1].game.activePlayerNumber()==activeBefore);
+  assert(request("/api/control/pause",gameTwo,{{"expectedGame","2"}})==200);
+  assert(tables[1].hubState==HubState::Paused);
+  assert(request("/api/control/pause",gameTwo,{{"expectedGame","2"}})==200);
   assert(request("/api/v1/state",gameTwo,{},HTTP_GET)==200 && server.body.find("\"state\":\"RUNNING\"")!=std::string::npos);
   // Resetting Game 1 leaves Game 2's players and Sigil profiles alone.
   { TableScope scope(0); enterEmptyLobby(); }
@@ -1651,7 +1679,7 @@ static void jewelColors() {
   assert(!seatColorSet(sigilSeatColorFor(0, 2)) && !seatColorSet(sigilSeatColorFor(1, 1)));
   syncSigilMenus(testNow); assert(TurnHub::fixtureSeatColor[0][1] == c);
   // Avatars: presets only; 0 clears; custom and unknown values are refused.
-  for (const char *bad : {"13", "128", "-1", "x", "1000"})
+  for (const char *bad : {"13", "128", "257", "-1", "x", "1000"})
     assert(request("/api/session/personalization", owner, {{"avatar", bad}}) == 400);
   assert(request("/api/session/personalization", owner, {{"avatar", "3"}}) == 200 &&
       server.body.find("\"avatar\":3") != std::string::npos && server.body.find("#ff8800") != std::string::npos);
@@ -1676,6 +1704,85 @@ static void jewelColors() {
     record.helloInfoValid = false; record.capabilities = 0;
   }
   resetSigilMenus(); enterEmptyLobby(); ProfileFixture::bindings.clear();
+}
+
+static void artworkUploads() {
+  enterEmptyLobby();
+  String playerId, adminId, otherId;
+  const String player = registerPhone("Image player", playerId);
+  const String admin = registerPhone("Image admin", adminId);
+  const String other = registerPhone("Image other", otherId);
+  TurnHubAccounts::Account account; account.permissions = TurnHubAccounts::Admin;
+  assert(TurnHubAccounts::save(adminId, account));
+  std::ifstream input("fixtures/avatar-64.jpg", std::ios::binary);
+  std::string jpeg((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  assert(jpeg.size() > TurnHubArtwork::CHUNK && jpeg.size() < TurnHubArtwork::MAX_BYTES);
+  auto start = [&]() {
+    assert(request("/api/session/avatar",player,{{"action","start"},{"size",String(jpeg.size())}})==200);
+    return responseField("revision");
+  };
+  auto chunk = [&](const String &revision, size_t index) {
+    static const char *digits = "0123456789abcdef"; String hex;
+    for (size_t i = index * TurnHubArtwork::CHUNK; i < jpeg.size() && i < (index+1)*TurnHubArtwork::CHUNK; ++i) {
+      const uint8_t b = jpeg[i]; hex += digits[b >> 4]; hex += digits[b & 15];
+    }
+    return request("/api/session/avatar",player,{{"action","chunk"},{"revision",revision},{"index",String(index)},{"data",hex}});
+  };
+  auto submit = [&](const String &revision) {
+    return request("/api/session/avatar",player,{{"action","submit"},{"revision",revision},{"thumbnail",String(std::string(512,'a'))}});
+  };
+  auto upload = [&]() {
+    String revision = start();
+    for (size_t i = 0; i < (jpeg.size()+TurnHubArtwork::CHUNK-1)/TurnHubArtwork::CHUNK; ++i) assert(chunk(revision,i)==200);
+    assert(submit(revision)==200); return revision;
+  };
+  assert(request("/api/session/avatar","",{{"action","start"},{"size","1000"}})==401);
+  assert(request("/api/session/avatar",player,{{"action","start"},{"size","49153"}})==400);
+  ProfileFixture::artworkAvailable=false;
+  assert(request("/api/session/avatar",player,{{"action","start"},{"size","1000"}})==503);
+  ProfileFixture::artworkAvailable=true;
+  String revision=start();
+  assert(chunk(revision,1)==400); // Out-of-order and incomplete transfers cannot publish.
+  assert(submit(revision)==400);
+  assert(request("/api/session/avatar",other,{{"action","chunk"},{"revision",revision},{"index","0"},{"data","aa"}})==409);
+  ProfileFixture::artworkWritable=false; assert(chunk(revision,0)==503);
+  ProfileFixture::artworkWritable=true; assert(chunk(revision,0)==200);
+  assert(chunk(revision,0)==400); // No blind retry after acknowledgement.
+  revision=upload(); // Starting again cleans the unfinished transfer.
+  assert(TurnHubProfiles::avatarForProfile(playerId)==0);
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",revision}},HTTP_GET)==404);
+  assert(request("/api/avatar",other,{{"profileId",playerId},{"revision",revision},{"pending","1"}},HTTP_GET)==403);
+  assert(request("/api/avatar",player,{{"profileId",playerId},{"revision",revision},{"pending","1"}},HTTP_GET)==200);
+  assert(server.body.size()==jpeg.size() && std::string(server.body.data(),server.body.size())==jpeg);
+  assert(request("/api/avatar/review",player,{{"profileId",playerId},{"revision",revision},{"action","approve"}})==403);
+  assert(request("/api/avatar/review",admin,{{"profileId",playerId},{"revision","00000000"},{"action","approve"}})==409);
+  assert(request("/api/avatar/review",admin,{{"profileId",playerId},{"revision",revision},{"action","approve"}})==200);
+  assert(TurnHubProfiles::avatarForProfile(playerId)==TurnHubAvatars::AVATAR_CUSTOM);
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",revision}},HTTP_GET)==200 && server.body.size()==jpeg.size());
+  uint32_t thumbRevision=0; assert(TurnHubProfiles::artworkThumbnail(playerId,thumbRevision)!=nullptr && thumbRevision!=0);
+  assert(request("/api/session/join",player)==200);
+  AtlasScreen screen; buildAtlasScreen(testNow,screen);
+  assert(screen.playerCount==1 && screen.players[0].avatar==TurnHubAvatars::AVATAR_CUSTOM && screen.players[0].avatarPixels);
+  assert(request("/api/seats","",{},HTTP_GET)==200 && server.body.find("customAvatar")!=std::string::npos);
+  const String approved=revision;
+  // Simulate interrupted approval cleanup: pending still references approved chunks.
+  auto *artworkStore = TurnHubProfiles::profileArtworkStore();
+  TurnHubArtwork::Image retained;
+  assert(TurnHubArtwork::metadata(*artworkStore, (String("a")+playerId).c_str(), retained)==TurnHubStorage::Status::Ok);
+  assert(TurnHubArtwork::publish(*artworkStore, (String("p")+playerId).c_str(), retained)==TurnHubStorage::Status::Ok);
+  revision=upload();
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",approved}},HTTP_GET)==200);
+  assert(request("/api/avatar/review",admin,{{"profileId",playerId},{"revision",revision},{"action","reject"}})==200);
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",approved}},HTTP_GET)==200);
+  // The JPEG validator rejects a truncated envelope even with all declared chunks.
+  const char last=jpeg.back(); jpeg.back()=0; revision=start();
+  for(size_t i=0;i<(jpeg.size()+TurnHubArtwork::CHUNK-1)/TurnHubArtwork::CHUNK;++i) assert(chunk(revision,i)==200);
+  assert(submit(revision)==400); jpeg.back()=last;
+  assert(request("/api/session/avatar",player,{{"action","remove"}})==200);
+  assert(TurnHubProfiles::avatarForProfile(playerId)==0);
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",approved}},HTTP_GET)==404);
+  enterEmptyLobby();
+  for (const String &id : {playerId,adminId,otherId}) { ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str()); }
 }
 
 // Sigil menus: availability per state, the default action, MenuState2
@@ -3290,7 +3397,7 @@ static void tabletMode() {
   TurnHubWebApi::configurePresence(presenceHooks());
   resetPresence(); enterEmptyLobby(); TurnHub::fixtureRadio=false; testNow=1000;
   String ownerId,lockedId;
-  const String tablet=registerPhone("Tablet owner",ownerId);
+  String tablet=registerPhone("Tablet owner",ownerId);
   const String locked=registerPhone("Locked Lee",lockedId);
   ProfileFixture::profiles[lockedId].policy.allowPhysicalWithoutPin=false;
   assert(request("/api/session/logout",locked)==200);
@@ -3307,22 +3414,31 @@ static void tabletMode() {
   char digits[8]; snprintf(digits,sizeof(digits),"%06lu",static_cast<unsigned long>(shown->code));
   assert(request("/api/presence/confirm",tablet,{{"code",digits}})==200);
   assert(request("/api/table/reset",tablet)==403);
+  const String personalToken = tablet;
   assert(request("/api/tablet/enable",tablet)==200);
+  tablet = responseField("token");
+  assert(tablet.length() == 32 && tablet != personalToken);
+  assert(request("/api/session/me",personalToken,{},HTTP_GET)==401);
+  assert(request("/api/session/personalization",tablet,{},HTTP_GET)==403);
   assert(request("/api/session/me",tablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
   assert(server.body.find("\"participating\":false")!=std::string::npos);
 
   // The Tablet access role skips the code, e.g. for a tablet account that
   // never joins the table; without the role the code is needed again.
   {
-    String roleId; const String roleTablet=registerPhone("Table tablet",roleId);
+    String roleId; String roleTablet=registerPhone("Table tablet",roleId);
     TurnHubAccounts::Account account; account.permissions=TurnHubAccounts::TabletAccess;
     assert(TurnHubAccounts::save(roleId,account));
     assert(request("/api/tablet/enable",roleTablet)==200);
+    roleTablet = responseField("token");
     assert(request("/api/session/me",roleTablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":true")!=std::string::npos);
     assert(server.body.find("\"participating\":false")!=std::string::npos);
     assert(request("/api/table/reset",roleTablet)==403);
     assert(request("/api/tablet/disable",roleTablet)==200);
     account.permissions=0; assert(TurnHubAccounts::save(roleId,account));
+    assert(request("/api/session/me",roleTablet,{},HTTP_GET)==401);
+    assert(request("/api/session/login","",{{"profileId",roleId},{"pin","1234"}})==200);
+    roleTablet = responseField("token");
     assert(request("/api/tablet/enable",roleTablet)==403 && server.body.find("presenceRequired")!=std::string::npos);
     assert(request("/api/session/logout",roleTablet)==200);
     ProfileFixture::profiles.erase(roleId.c_str()); TurnHubAccounts::accounts.erase(roleId.c_str());
@@ -3387,10 +3503,10 @@ static void tabletMode() {
   const String winnerId=waiting==m1?avaId:benId;
   assert(ProfileFixture::profiles[winnerId].stats.gamesPlayed==1 && ProfileFixture::profiles[winnerId].stats.gamesWon==1);
 
-  // Leaving tablet mode removes the grant; the account stays signed in.
+  // Leaving tablet mode revokes the shared credential.
   assert(request("/api/tablet/disable",tablet)==200);
-  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","rematch"}})==403);
-  assert(request("/api/session/me",tablet,{},HTTP_GET)==200 && server.body.find("\"tablet\":false")!=std::string::npos);
+  assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","rematch"}})==401);
+  assert(request("/api/session/me",tablet,{},HTTP_GET)==401);
   assert(request("/api/session/logout",tablet)==200);
   // Free the fixture's profile capacity for later scenarios.
   for (const String &id:{ownerId,lockedId,avaId,benId}) ProfileFixture::profiles.erase(id.c_str());
@@ -4476,6 +4592,7 @@ int main() {
   ledStateTransport(); std::cout<<"PASS LedState transport: one packet per change, anchor age, style, legacy channel peers\n";
   profilePicker(); std::cout<<"PASS Sigil profile picker: gating, pages by name, locked/blocked profiles, stale keys, guest, confirm, policy, closing\n";
   sigilLife(); std::cout<<"PASS Sigil life: AdjustLife availability, batched own-life changes, requests shown and answered with tag checks\n";
+  artworkUploads(); std::cout<<"PASS bounded artwork upload, private review, approved public delivery and Atlas thumbnail\n";
   jewelColors(); std::cout<<"PASS personalization: Jewel color and preset avatars, validation, /api/avatars, /api/seats, TFT chips, SeatColor; custom stays private\n";
   sigilMenus(); std::cout<<"PASS Sigil menus: availability per state, defaults, MenuState2 revisions, stale choices, SelectAction Intents\n";
   turnTimerCuesAndMute(); std::cout<<"PASS one-shot timer audio cues, pause/resume, re-arm and independent mute\n";

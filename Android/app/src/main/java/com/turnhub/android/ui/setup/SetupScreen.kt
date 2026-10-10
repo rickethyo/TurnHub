@@ -1,6 +1,5 @@
 package com.turnhub.android.ui.setup
 
-import com.turnhub.android.data.FirmwareProduct
 import com.turnhub.android.data.ProfileSecret
 import android.Manifest
 import android.content.pm.PackageManager
@@ -330,8 +329,7 @@ private fun Updates(state: SetupState, actions: SetupActions) {
         is UpdatesState.Ready -> {
             Text("Latest release: ${u.release}", color = p.muted)
             u.plan.targets.forEach { t ->
-                // A card with no pack yet has nothing running; that isn't "unknown".
-                val running = t.running?.toString() ?: if (t.product == FirmwareProduct.PORTAL) "not installed" else "unknown"
+                val running = t.running?.toString() ?: "unknown"
                 val line = when {
                     t.available == null -> "${t.label}: $running, no update in this release"
                     t.needsUpdate -> "${t.label}: $running → ${t.available.version}"
@@ -341,11 +339,7 @@ private fun Updates(state: SetupState, actions: SetupActions) {
             }
             if (u.plan.anyUpdate) {
                 Text(
-                    (if (u.plan.pending.any { it.product == FirmwareProduct.PORTAL }) {
-                        "The web portal installs first, without a restart. Atlas updates next, then each Sigil. "
-                    } else {
-                        "Atlas updates first, then each Sigil. "
-                    }) +
+                    "Atlas updates first, including its admin portal, then each Sigil. " +
                         "Atlas restarts once and the app reconnects on its own, " +
                         "then asks for one more table code. Allow about a minute per device.",
                     color = p.muted,

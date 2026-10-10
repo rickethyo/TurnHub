@@ -34,11 +34,13 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
+| TH-011 | Play-note investigation | Tablet, seating, Android, Sigil, Atlas stability | Investigation complete; minor fixes staged | Owner / review staged changes and proposals |
 | TH-009 | Current enclosure print-set README | 3D, hardware | Ready for review | Owner / review documentation |
 | TH-007 | Persistent agent branches and maintenance | Git workflow, CI, shared guidance | Implemented; PR validation pending | Owner / review and merge with source branch retained |
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
-| TH-003 | High-resolution player artwork and fuller tablet UI | Android, portal, assets, profiles, storage | Agreed direction; visual details open | Design image pipeline and tablet layout; unassigned |
+| TH-003 | High-resolution player artwork and fuller tablet UI | Android, assets, profiles, storage | Artwork and tablet identity implemented in PR #86; physical acceptance pending | Owner acceptance; future LCD firmware/layouts remain planned |
 | TH-006 | Shared themes on device screens | Atlas, Sigil, design | Locally verified; ready for review | Codex / codex/device-screen-themes |
 | TH-005 | Atlas host CI display fixture | Atlas host tests | Fixed and locally validated | Codex / codex/fix-atlas-host-ci |
 | TH-004 | Collaboration lessons from device-play follow-ups | Review style, Android, import, documentation | Codex reflection recorded; shared habits proposed | Future agents / apply evidence-first review; Claude may reply |
@@ -747,3 +749,226 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - Owner requests a firm rule minimizing third-party resource time, agent execution and PR count.
 - Implemented in AGENT_WORKFLOW.md with entry points in AGENTS.md and CLAUDE.md: batch calls/pushes and related work, reuse applicable evidence, avoid redundant polling/validation, use one agent by default, and justify separate PRs. Required checks and task completion remain mandatory.
 - Included in active PR #84 as requested; documentation-only validation is link/reference review and whitespace checks.
+
+## TH-011: Play-note investigation
+
+- Date / author: 2026-10-09 / Codex; branch `codex/master`; baseline `5e067f7`.
+- Scope: trace all ten owner play notes, implement only small clear fixes,
+  and stage the findings and changes for review. Larger features and hardware
+  choices remain proposals. No publishing or integration requested.
+- Startup: clean working tree, fetched master and codex/master; both match
+  the baseline; no open PRs. Previous active scopes are integrated.
+- Status: investigation complete; minor fixes and report staged locally for review.
+- Findings: both tablet pause overlays blocked win confirmation; now they leave
+  the responding panel reachable. Signup sheet lacked scrolling; scrolling
+  added as a Fold mitigation needing device acceptance. Seat B rejects
+  already-seated profiles by design and needs seat-level reassignment; other
+  feature/hardware proposals are recorded in the report. Front LEDs are now a
+  required planned feature, superseding the former case-dependent decision.
+- Evidence and next work: [full investigation](Documentation/engineering/history/2026-10-09-play-note-investigation.md).
+  Atlas ASan/UBSan host suites, HTTP contracts, adapter audit, real Chromium
+  tablet regression, portal pack and whitespace checks passed. Android build
+  could not start with the unavailable Gradle/SDK setup; no physical acceptance.
+  No firmware code, wire contract, dependency, commit, push or PR created.
+  Next owner: project owner reviews the staged fixes and proposed larger work.
+- Owner follow-up: considering a router-style Admin portal and retiring web
+  gameplay to focus on Android. Recorded the proposed cutover and tradeoffs in
+  the report/STAGED_CHANGES; preserve HTTP game APIs used by the app. Shared
+  web tablet inclusion is being clarified; no retirement code implemented.
+
+## TH-012: Admin portal / app-play feature parity
+
+- Date / author: 2026-10-09 / Codex; branch `codex/master`; baseline `5e067f7`
+  plus staged TH-011 UI fixes. Scope: source audit/documentation only; preserve
+  those staged changes. Reused this session's fetched refs/open-PR evidence.
+- Owner confirmed the direction: web portal for Admin administration and app
+  for play, including shared tablet play. Supersedes TH-011's provisional scope.
+- Status: source audit complete; [parity report](Documentation/engineering/history/2026-10-09-portal-app-parity.md)
+  staged locally. No runtime change, commit, push or new PR for this audit.
+- Main gameplay gaps: game/table selection, arbitrary new custom timer input
+  in the reachable setup UI, and phone-side attachment of an empty paired
+  Sigil. Invite generation and configurable native event feedback also differ.
+  An old custom timer component exists but is not mounted by the production UI.
+- Admin-only differences: hardware test buttons and manual signed-package
+  upload/targeted Sigil updates can remain web-admin capabilities. Core play,
+  tablet panels, account preferences, statistics/export, moderation, settings,
+  release updates and diagnostic monitoring have active app implementations.
+- Validation: inspected portal/full and flash fallback UI, active app screens,
+  callback wiring, data paths and Atlas handlers; documented relative source
+  links and ran whitespace/link checks. No new build/device test claimed.
+- Next owner: project owner reviews the migration order. Implementation should
+  close the identified gameplay gaps and verify device flows before removal;
+  preserve the app's HTTP API and initial setup/cardless update recovery.
+
+## TH-013: App-first play cutover
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `6fa2627`.
+- Owner requested beginning portal play retirement and bridging app parity.
+  Latest TH-011/012 handoff explicitly identified by owner and fast-forwarded.
+- Scope: game-scoped native polling/selection, reachable custom timer input,
+  paired-Sigil attachment, and administration-only web cutover. Preserve Atlas
+  HTTP gameplay/tablet APIs, initial Admin bootstrap, cardless recovery, signed
+  updates and existing Developer authorization. No new dependencies.
+- Feature boundary: Atlas owns/validates game and controller actions through
+  existing Intents. Android owns only selected viewing context and presentation
+  caches; context changes discard cross-game caches/offline edits. Portal renders
+  administration; hiding gameplay UI does not change HTTP authorization.
+- Implemented: native venue selector and authenticated/game-scoped polling;
+  context changes discard presentation caches and offline edits. Explicit custom
+  timers, paired empty-Sigil attachment and app-install QR close reachable app
+  gaps. Atlas `expectedGame` rejects stale-screen actions before dispatch.
+- Web cutover: full/flash administration pages, preserved Admin bootstrap and
+  signed maintenance; retired browser tablet/statistics pages. Firmware
+  0.7.6-dev requires portal pack >=2.0.0, so installed legacy packs fall back to
+  cardless administration until replaced. Deploy firmware and pack together.
+- Validation: 215 Android unit tests and debug APK passed; Atlas ASan/UBSan host,
+  storage/profile/OTA suites passed (`detect_leaks=0` for runner restrictions).
+  HTTP contracts (10 projections / 10 fixtures), adapter audit (31 adapters),
+  design tokens (4 themes / 65 icons), manual export and whitespace checks passed.
+  Real Chromium smokes passed full/flash Admin access, explicit save, bootstrap,
+  no gameplay requests and 390px layout. Portal pack build passed (17 files).
+  Atlas PlatformIO build passed: 105,388 B RAM, 1,545,377 B flash. Sigil unchanged.
+- Manual advanced to V0.14; V0.13 archived. Native foreground sound/vibration
+  preferences and background win-decision notification remain planned. Physical
+  two-game switching, claim attachment, tablet decisions, accessibility and
+  cutover/update acceptance remain owner checks; no hardware acceptance claimed.
+- Delivery: one draft review PR from `codex/master` to `master`, following
+  AGENT_WORKFLOW; owner integration and physical cutover acceptance remain pending.
+
+### TH-013 follow-up: embed administration in Atlas firmware
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `9e57a04`.
+- Owner authorized folding the admin portal into Atlas firmware and retiring
+  separate portal packs. Continue draft PR #86 as the same app-first slice.
+- Scope: deterministic compressed assets generated from `Atlas/web/src` at
+  firmware build time, flash serving for every admin/Developer/update page,
+  removal of SD installer and independent pack signing/release/app updates.
+- Feature gate: Atlas remains the state/authorization owner; existing admin
+  APIs validate actions. Assets are disposable firmware presentation with no
+  new persisted state, gameplay Intent, radio contract or dependency. Retain
+  explicit saves, accessible controls, first-Admin bootstrap and Developer gates.
+- Validation and firmware size will be recorded after implementation. Physical
+  acceptance and owner integration remain pending.
+- Implemented: one deterministic compressed PROGMEM bundle from the web sources
+  in every Atlas build; flash serving for administration, login, Developer and
+  local Atlas/Sigil upload pages. No portal reads or uploads use the card.
+  Removed pack installer/archive/product 4, independent pack version/signing/
+  release assets and Android card/portal update planning. Retired duplicated
+  fallbacks and unused browser QR library; retained fonts/licenses in firmware.
+- Validation: Atlas PlatformIO build passed (0.7.7-dev): 105,164 B RAM,
+  1,728,329 B flash; actual image 1,735,040 B leaves 231,040 B in the OTA slot.
+  Complete-image packaging/verification passed with a disposable test key;
+  generated bundle matches firmware, reproduces exactly and all files decode.
+  Atlas ASan/UBSan application/storage/profile-store suites and separately
+  rebuilt OTA scenarios passed; real OTA page registration/gates are now linked
+  into the application host suite. Sigil ASan/UBSan suites passed, including
+  refusal of retired product 4. Leak detection disabled for runner restrictions.
+  215 Android unit tests (24 suites, zero failures/errors) and debug APK passed.
+  Chromium administration smokes passed explicit saves, unsaved choices,
+  ordinary/Admin access, bootstrap and 390px layout with/without a card;
+  maintenance smoke passed local upload/error handling, Sigil target selection,
+  Developer hardware controls and authenticated requests with no portal APIs.
+  HTTP contracts, adapter audit, tokens, manual export, workflow YAML and
+  whitespace checks passed. Manual V0.14 updated within this pending PR.
+- Delivery / next owner: extend draft PR #86 on `codex/master`; owner reviews
+  and performs physical firmware update, cardless admin/Developer maintenance
+  and bootstrap acceptance. No physical flashing, release signing/publication
+  or integration performed. Existing app-first physical acceptance remains in
+  STAGED_CHANGES; merge with a merge commit and retain the source branch.
+
+
+## TH-014: Accessibility-only portal appearance after thread handoff
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `4da302a`.
+  Owner identified another thread's completed firmware embedding. Fetched its
+  explicit remote ref (this clone's normal fetch covers only master), reviewed
+  the handoff, preserved the overlapping local work in a named stash, then
+  fast-forwarded. Keep that completed implementation and extend draft PR #86.
+- Owner follow-up: remove all decorative portal themes. Scope: portal-only
+  System/Dark/Light/High contrast appearance, explicit Save, safe migration of
+  old Brass choices to System; remove decorative styling and bundled fonts.
+  Shared Android/device themes and full device administration remain unchanged.
+- Validation: real Chromium card-present/cardless administration and maintenance
+  smokes pass accessibility options, preview/Save, old Brass migration, saved
+  High contrast on maintenance pages, firmware uploads and Developer controls.
+  Added CI smoke verifies all 13 actual flash-serving C++ gzip/binary responses,
+  cache/type headers and unknown paths. Asset generation, manual export,
+  whitespace and Android debug APK pass. Reused the unchanged handoff's 215
+  Android unit tests, Atlas/HTTP/adapter/Sigil/signing verification.
+- Atlas PlatformIO build passes: RAM 105,164 B; flash 1,583,385 B (80.5%).
+  Embedded web bytes: 103,155 B. Full image/slot figures recorded in size history.
+  No partition changes, physical flashing, release publication or integration.
+  Owner still performs cardless device administration, OTA and native play
+  acceptance. Continue draft PR #86; preserve the local pre-handoff stash.
+
+## TH-014: Post-cutover leftover audit
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `d8e621f`.
+  Owner asked about remaining unnecessary material. Reviewed portal assets and
+  Android references; fetched both remote branches and confirmed master is
+  already incorporated. Scope: audit plus small portal cleanup in draft PR #86.
+- Corrected a malformed comment introduced during the prior Brass CSS removal,
+  removed an unreferenced `showTab` helper, and updated the manifest description
+  to reflect device administration. No remaining optional features removed.
+- Candidates: retired gameplay CSS; full 65-symbol shared sprite bundled into
+  each page despite only a handful of icons used; Android `PlayerPanelCard` and
+  its callback type have no callers. Home-screen PNG icons occupy 51,622 stored
+  bytes but still provide installation icons, so their removal is a product
+  choice. Shared gameplay APIs, storage and retired-package rejection tests
+  still have active purposes.
+- Validation: asset check, all 13 actual C++ asset responses, Chromium card and
+  cardless administration and maintenance smokes pass. Atlas firmware build
+  passes: RAM 105,164 B; flash 1,583,305 B (80.5%); stored portal 103,078 B.
+  No physical flashing, release or integration. Owner reviews draft PR #86.
+
+### TH-003 / 2026-10-10 / Codex / Player icon implementation
+
+- Owner: Codex, continuing draft PR #86 on `codex/master`; baseline `c0ca713`.
+- Scope: scalable default artwork, Android crop/upload/replace/remove and Admin
+  review, Atlas-owned bounded SD artwork and public approved-image delivery.
+  Current e-paper/OLED Sigil development is frozen by owner; their firmware,
+  bitmaps and radio contract stay at the accepted baseline. Future ESP32-S3
+  2.8/4-inch layouts remain planned, with provisional 64/128-pixel previews.
+- Feature gate: Atlas profiles own artwork/approval; authenticated profile
+  upload/remove requests and Admin approve/reject requests change it. Atlas
+  validates identity, ordered chunks, JPEG dimensions/length and approval.
+  Checksummed SD blobs own image chunks and metadata, using the existing card
+  lock; originals never enter NVS or game snapshots. Android renders vectors
+  and approved JPEGs, and crops/compresses before transfer. HTTP adds artwork
+  routes/metadata; no gameplay Intent or radio change. No production dependency.
+  Names remain visible, crop sliders provide an accessible alternative to
+  dragging, preview and errors are labeled, and missing media falls back safely.
+- Limits: input 20 MiB/32 megapixels; cropped square JPEG up to 512 pixels and
+  48 KiB; 768-byte SD chunks keep Atlas scratch buffers bounded. Pending
+  replacement does not displace approved art until Admin approval.
+- Implementation: default vectors now generate 64-pixel Atlas masks; the native
+  app imports, orients, crops and previews bounded JPEGs before ordered upload.
+  Approved masters remain on SD; current Atlas uses a 16-pixel RGB332 projection.
+  Admin review, replacement/removal and revision-scoped delivery are implemented.
+- Validation: Android debug APK and 218 unit tests passed, including ordered
+  upload failure and tablet identity handoff. Atlas application, real SD storage,
+  profile-store and OTA host suites passed with ASan/UBSan (LeakSanitizer disabled
+  because of workspace tracing). All four Atlas themes and both inversion modes
+  passed incremental/full rendering comparisons, including visible uploaded
+  thumbnail, revision replacement and missing-art fallback. Atlas 0.7.8-dev
+  PlatformIO build passed: 109,516 B RAM, 1,646,429 B flash; complete image
+  1,653,152 B leaves 312,928 B in the unchanged OTA slot.
+- Generated masks/tokens, adapter audit (31 rules), client contracts (10 actual
+  plus 10 fixture responses), portal pack and actual flash asset responses
+  (13), manual export, workflow YAML and whitespace checks passed. Manual V0.15
+  replaces V0.14, which is archived. No Sigil/shared implementation changes.
+- Physical acceptance remains: SD removal/replacement during upload, on-device
+  crop/approval and Atlas readability, tablet activation/exit and simultaneous
+  personal-phone login. Future LCD layouts/firmware and persisted tablet account
+  administration are still planned. No hardware flashing, integration or release.
+- Handoff: continue existing draft PR #86; owner reviews and accepts hardware
+  behavior before integration. Implementation is in the commit containing this
+  entry (baseline `c0ca713`).
+
+TH-003 scope follow-up / owner, 2026-10-10: move Open tablet mode to Game;
+on activation sign out this device's personal account and automatically use a
+separate shared tablet account. Codex implements a token rotation to a RAM-only,
+profile-free tablet credential, with an explicit route allowlist, preserving
+other devices' sessions/player seats and leaving the app signed out on exit.
+This covers the requested dedicated runtime identity; persisted tablet account
+management/invitations from TH-002 remain separate planned work.

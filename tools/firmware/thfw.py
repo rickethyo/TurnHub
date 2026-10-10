@@ -6,7 +6,7 @@ and shared/include/firmware_package.h, which this tool must match.
 
   keygen   --out KEY.pem                 new ECDSA P-256 signing key (keep it secret)
   pubkey   --key KEY.pem --out HEADER.h  write shared/include/firmware_signing_key.h
-  package  firmware.bin --out X.thfw     sign a build or a portal pack (key: --key or $TURNHUB_FIRMWARE_SIGNING_KEY)
+  package  firmware.bin --out X.thfw     sign a firmware build (key: --key or $TURNHUB_FIRMWARE_SIGNING_KEY)
   verify   X.thfw [--pubkey-header H]    check a package against the committed public key
   info     X.thfw                        print the header
   descriptor firmware.bin [--expect-product P]  check a build carries its descriptor
@@ -46,10 +46,7 @@ DESCRIPTOR_MAGIC = b"THFWDSC1"
 HEADER_FORMAT = 1
 HEADER_BYTES = 128
 SIGNED_BYTES = 64
-PRODUCTS = {1: "atlas", 2: "sigil-eink", 3: "sigil-oled", 4: "portal"}
-# Products whose image is not an ESP32 firmware image: the portal pack is a
-# file archive that opens with its descriptor (Atlas/web/build.py).
-ARCHIVE_PRODUCTS = {4}
+PRODUCTS = {1: "atlas", 2: "sigil-eink", 3: "sigil-oled"}
 PRODUCT_IDS = {name: pid for pid, name in PRODUCTS.items()}
 # magic, format, product, major, minor, patch, radio, flags, size, hash, build, keyid
 HEADER_STRUCT = struct.Struct("<8sBBBBBBHI32s8s4s")
@@ -101,16 +98,9 @@ def key_id(public: bytes) -> bytes:
 
 def build_package(image: bytes, private_key, build_id: str = "") -> bytes:
     hashes, _, ec, utils, _ = _import_crypto()
-    if image.startswith(DESCRIPTOR_MAGIC):
-        desc = find_descriptor(image)
-        if desc["product"] not in ARCHIVE_PRODUCTS:
-            raise PackageError("only a portal pack may start with its descriptor")
-    elif not image or image[0] != ESP_IMAGE_MAGIC:
+    if not image or image[0] != ESP_IMAGE_MAGIC:
         raise PackageError("not an ESP32 firmware image (first byte is not 0xE9)")
-    else:
-        desc = find_descriptor(image)
-        if desc["product"] in ARCHIVE_PRODUCTS:
-            raise PackageError("a portal pack must start with its descriptor")
+    desc = find_descriptor(image)
     public = public_bytes(private_key.public_key())
     build = bytes.fromhex(build_id[:16]) if build_id else b""
     build = build.ljust(8, b"\0")[:8]

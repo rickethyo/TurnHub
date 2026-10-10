@@ -99,13 +99,9 @@ bool requirePermission(WebServer &server,uint8_t permission);
 bool hasPermission(WebServer &server,uint8_t permission);
 // The request's signed-in profile is verified at the table (presence code).
 bool verifiedAtTable(WebServer &server);
-// Pages the SD portal pack may replace (WEB_PORTAL.md, "Serving"): the
-// pack's `packFile` when one is installed, else the built-in `html`. A
-// `?classic=1` request always gets the built-in page.
-void servePortalPage(WebServer &server,const char *packFile,const char *html);
-// The same for pages that need an account permission. Without a token the
-// browser gets a small loader that asks again with its saved session token.
-void serveRestrictedPage(WebServer &server,const char *html,uint8_t permission,const char *packFile=nullptr);
+// Embedded firmware pages. Restricted navigation gets a token loader first.
+void servePortalPage(WebServer &server,const char *file);
+void serveRestrictedPage(WebServer &server,uint8_t permission,const char *file);
 bool connectionBlocked(const String &id);
 void revokeConnections(const String &id);
 using ModerateCallback = bool (*)(const String &actor,const String &target,const String &action,String &message);

@@ -862,3 +862,69 @@ All themes have a header mark; glyphs reuse existing graphics primitives.
 | Atlas | 105,388 B (32.2%) | 1,546,557 / 1,966,080 B (78.7%) |
 | Sigil e-paper | 53,876 B (16.4%) | 948,509 / 1,310,720 B (72.4%) |
 | Sigil OLED | 49,916 B (15.2%) | 955,973 / 1,310,720 B (72.9%) |
+
+
+### 2026-10-10 / Atlas 0.7.6-dev app-first administration cutover
+
+Verified local PlatformIO 6.1.19 Atlas build; no hardware acceptance claimed.
+Portal pack 2.0.0 removes browser play and requires matching cutover firmware.
+Native Android actions can pin their selected game with `expectedGame`; Atlas
+rejects a changed game before dispatching the existing action handler.
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,388 B (32.2%) | 1,545,377 / 1,966,080 B (78.6%) |
+
+Sigil source is unchanged. SD pack: 17 files, 401 KB raw / 243 KB packed.
+
+### 2026-10-10 / Atlas 0.7.7-dev embedded administration
+
+PlatformIO Atlas build verified locally; no hardware acceptance claimed.
+The complete compressed admin portal (17 assets, 247,904 stored bytes) is
+embedded in the application, including Developer and signed maintenance pages.
+Portal archives, SD installer/serving, duplicated fallback pages and the retired
+browser QR script are removed. Existing partitions and OTA slots are unchanged.
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,164 B (32.1%) | 1,728,329 / 1,966,080 B (87.9%) |
+
+Actual firmware.bin is 1,735,040 B, leaving 231,040 B in the OTA application
+slot. Packaging/verification of the complete image passed using a disposable
+test key, without signing a release or installing on hardware. Sigil firmware
+source is unchanged apart from the shared package product allowlist retiring
+product 4; its package regression now verifies refusal.
+
+
+### 2026-10-10 / Accessibility-only portal after firmware handoff
+
+Baseline `4da302a` already embeds administration in Atlas 0.7.7-dev. The portal
+now keeps System/Dark/Light/High contrast appearance, uses system fonts, and
+excludes decorative Brass/font assets. Shared app/device themes are unchanged.
+Verified local PlatformIO 6.1.19 build; no hardware acceptance claimed.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 105,164 B (32.1%) | 1,583,385 B (80.5%) |
+
+13 embedded web files use 103,155 B (previously 17 files / 248 KB).
+Complete firmware image: 1,590,096 B; OTA slot headroom: 375,984 B.
+Both existing OTA slots remain unchanged. Sigil source is unchanged.
+
+
+### 2026-10-10 / Atlas 0.7.8-dev SD artwork and shared tablet identity
+
+Verified local PlatformIO build; no physical acceptance claimed. High-resolution
+64-pixel default masks are generated from the existing vector masters. Custom
+512-pixel/48-KiB JPEG masters and 16-pixel RGB332 display projections live on SD;
+no new partition or legacy Sigil firmware/radio change. Tablet activation rotates
+this device's personal token into a restricted, profile-free RAM credential.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 109,516 B (33.4%) | 1,646,429 B (83.7%) |
+
+Complete firmware image: 1,653,152 B; OTA slot headroom: 312,928 B.
+Relative to the accessibility-only portal baseline: +4,352 B static RAM and
++63,044 B reported flash. Existing application slots are unchanged.
+Android debug APK: 15,849,907 B; all 218 unit tests passed.

@@ -227,6 +227,7 @@ WebSession *sessionForToken(const String &token, uint32_t nowMs) {
   if (token.length() != TOKEN_LENGTH) return nullptr;
   for (auto &session : sessions) {
     if (!session.used || !token.equalsIgnoreCase(session.token)) continue;
+    if (session.tableDevice && session.profileId[0] == 0) { session.lastSeenMs = nowMs; return &session; }
     // Archiving an account ends its sessions on their next use.
     TurnHubAccounts::Account account;
     if (!TurnHubAccounts::load(String(session.profileId), account) || account.archived) {
@@ -525,12 +526,13 @@ void handleSessionMe(WebServer &server) {
   response += ",\"life\":"; response += String(snapshot.life);
   response += ",\"profileId\":\""; response += jsonEscape(profileId);
   response += "\",\"statsUrl\":\"/stats\",\"name\":\"";
-  response += jsonEscape(TurnHubProfiles::nameForProfile(profileId));
+  response += jsonEscape(session->tableDevice && profileId.length() == 0 ? String("Shared tablet") : TurnHubProfiles::nameForProfile(profileId));
   response += "\",\"hasPin\":"; response += jsonBool(TurnHubProfiles::hasPinForProfile(profileId));
   TurnHubProfiles::ProfilePolicy policy;
   const bool policyAvailable = TurnHubProfiles::loadPolicyForProfile(profileId, policy);
   response += ",\"policyAvailable\":"; response += jsonBool(policyAvailable);
   response += ",\"tablet\":"; response += jsonBool(session->tableDevice);
+  response += ",\"game\":"; response += String(requestGame(server) + 1);
   if (policyAvailable) {
     response += ",\"allowPhysicalWithoutPin\":"; response += jsonBool(policy.allowPhysicalWithoutPin);
     response += ",\"hideStatsWithoutAuthentication\":";

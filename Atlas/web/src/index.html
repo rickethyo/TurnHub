@@ -14,7 +14,6 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="TurnHub">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preload" href="./../../../design/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <!-- build:css portal.css -->
 <link rel="stylesheet" href="../../../design/dist/tokens.css">
 <link rel="stylesheet" href="portal.css">
@@ -22,34 +21,12 @@
 </head>
 <body>
 <!-- build:sprite -->
-<a class="skip" href="#main">Skip to content</a>
-<div class="shell">
-<header class="appbar">
- <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Atlas table console</span></span></a>
- <nav class="tabs" aria-label="Portal sections">
-  <button class="tab active" data-tab="game" onclick="showTab('game')"><svg class="i" aria-hidden="true"><use href="#i-timer"/></svg><span>Game</span></button>
-  <button class="tab" data-tab="players" onclick="showTab('players')"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Players</span></button>
-  <button class="tab" data-tab="account" onclick="showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span>My Account</span></button>
-  <button id="deviceSettingsTab" class="tab" data-tab="settings" onclick="showTab('settings')" hidden><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg><span>Device Settings</span></button>
- </nav>
- <div class="appbar-end">
-  <span id="connPill" class="conn"><span id="dot" class="dot"></span><span id="connection" class="conn-text">Connecting</span></span>
-  <a id="signInButton" class="btn primary signin" href="/login"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg><span>Sign in</span></a>
-  <div id="accountMenuWrap" class="menu-wrap" hidden>
-   <button id="accountButton" class="acct-btn" aria-expanded="false" aria-controls="accountMenu" aria-label="Account menu" onclick="toggleAccountMenu()"><span id="accountAvatar" class="avatar" aria-hidden="true">?</span><span id="accountName" class="acct-name"></span><span class="caret" aria-hidden="true"></span></button>
-   <div id="accountMenu" class="menu" hidden>
-    <div class="menu-head"><strong id="menuName"></strong><span id="menuMeta"></span></div>
-    <button class="menu-item" onclick="closeAccountMenu();showTab('account')"><svg class="i" aria-hidden="true"><use href="#i-user"/></svg>Account settings</button>
-    <a class="menu-item" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>My statistics</a>
-    <a class="menu-item" href="/tablet"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Tablet mode</a>
-    <a id="devLink" class="menu-item" href="/dev" hidden><svg class="i" aria-hidden="true"><use href="#i-sparkle"/></svg>Developer</a>
-    <button class="menu-item danger" onclick="closeAccountMenu();logoutSession()"><svg class="i" aria-hidden="true"><use href="#i-logout"/></svg>Log out</button>
-   </div>
-  </div>
- </div>
-</header>
-
-<section id="lifeRequestAlert" class="notice req-alert" hidden aria-label="Pending life change"><span id="lifeAlertText" role="status" aria-live="polite"></span><button class="primary" onclick="reviewLifeRequest()">Review life request</button><span id="lifeAlertBar" class="bar" aria-hidden="true"></span></section>
+<a class="skip" href="#main">Skip to content</a><div class="shell">
+<header class="appbar" style="flex-wrap:wrap"><a class="brand" href="/portal"><span class="brand-mark" aria-hidden="true"></span><span><span class="brand-name">TurnHub</span><span class="brand-sub">Atlas administration</span></span></a>
+<div class="appbar-end"><span id="connection" role="status">Connecting</span><a id="signInButton" class="btn primary" href="/login">Admin sign in</a><span id="accountName"></span><button id="signOutButton" hidden onclick="logoutSession()">Sign out</button></div></header>
+<section class="notice info"><h1>Atlas administration</h1><p>Play, tablet mode, player accounts and statistics are in the TurnHub Android app. Use a Sigil for physical play.</p><a class="btn" href="https://play.google.com/store/apps/details?id=com.turnhub.android">Get the Android app</a></section>
+<section id="accessNotice" class="notice" role="status">Sign in with an Admin account to manage Atlas.</section>
+<div class="actions"><label for="portalTheme">Accessibility appearance</label><select id="portalTheme" onchange="previewTheme(this.value)"><option value="auto">System</option><option value="graphite">Dark</option><option value="daylight">Light</option><option value="contrast">High contrast</option></select><button onclick="savePortalTheme()">Save appearance</button><span id="themeMessage" role="status"></span><a id="devLink" class="btn" href="/dev" hidden>Developer diagnostics and hardware tests</a></div>
 <section id="setupWizard" class="card wizard" hidden aria-labelledby="wizardTitle">
  <div class="wizard-head"><span class="brand-mark hero-mark" aria-hidden="true"></span><div><p class="eyebrow">New table</p><h2 id="wizardTitle">Set up this Atlas</h2><p class="small">Three short steps. Only someone at the table can finish them.</p></div><button class="small ghost" onclick="skipSetup()">Skip for now</button></div>
  <div class="wizard-progress" aria-hidden="true"><span id="wizardBar"></span></div>
@@ -63,195 +40,9 @@
  </form>
  <p id="wizardMessage" class="msg" role="status" aria-live="polite"></p>
 </section>
-<section id="adminSetup" class="notice good" hidden><strong>Set up this Atlas</strong><p>Create or sign into your account in My Account, then select the button below. The Atlas screen shows a six-digit code; enter it here (or scan the QR code on the Atlas screen with this phone) to prove you are at the table.</p><button class="primary" onclick="setupAdmin()">Make my account the initial Admin</button></section>
+<section id="adminSetup" class="notice good" hidden><strong>Set up this Atlas</strong><p>Create the initial Admin account or sign in at /login, then select the button below. The Atlas screen shows a six-digit code; enter it here (or scan the QR code on the Atlas screen with this phone) to prove you are at the table.</p><button class="primary" onclick="setupAdmin()">Make my account the initial Admin</button></section>
 
-<main id="main">
-<section id="view-game" class="view active">
-<h1 class="sr-only">Game</h1>
-<div class="board">
-<div class="col">
- <div id="gameSwitch" class="segmented game-switch" role="tablist" aria-label="Game on this Atlas" hidden></div>
- <section id="stage" class="card stage" data-state="" data-phase="idle">
-  <span class="cog stage-cog" aria-hidden="true"></span>
-  <div class="gauge" aria-hidden="true">
-   <svg viewBox="0 0 200 200" focusable="false">
-    <defs><linearGradient id="bezelGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="stop-hi"/><stop offset=".55" class="stop-mid"/><stop offset="1" class="stop-lo"/></linearGradient></defs>
-    <circle class="g-bezel" cx="100" cy="100" r="98"/>
-    <circle class="g-face" cx="100" cy="100" r="88"/>
-    <g id="gaugeTicks" class="g-ticks"></g>
-    <path class="g-track" d="M53.3 146.7A66 66 0 1 1 146.7 146.7" pathLength="100"/>
-    <path id="gaugeArc" class="g-arc" d="M53.3 146.7A66 66 0 1 1 146.7 146.7" pathLength="100" stroke-dasharray="0 100"/>
-    <g id="gaugeNeedle" class="g-needle" style="transform:rotate(-135deg)"><path d="M100 38L104.5 100L100 114L95.5 100Z"/></g>
-    <circle class="g-hub" cx="100" cy="100" r="10"/><circle class="g-hub-dot" cx="100" cy="100" r="3.5"/>
-   </svg>
-   <div class="gauge-readout"><strong id="gaugeValue">—</strong><span id="gaugeCaption">Atlas</span></div>
-  </div>
-  <div class="stage-text"><div id="eyebrow" class="eyebrow">TurnHub</div><h2 id="heroTitle">READY</h2><p id="heroSub">Waiting for Atlas</p><div id="heroBadges" class="badges"></div></div>
- </section>
-
- <section id="lifeCard" class="card life-card" hidden>
-  <div class="card-head"><div style="flex:1"><h2 class="eyebrow">Life</h2><p id="gameProfileSummary" class="small"></p></div></div>
-  <div id="tableLifeTotals" class="life-grid"></div>
-  <p id="lifeMessage" class="msg" role="status" aria-live="polite"></p>
-  <p class="hint">Your own changes apply immediately. Other players have 15 seconds to respond (longer if they chose it in My Account) before Atlas accepts a request.</p>
-  <div id="lifePanel" hidden>
-   <div class="my-life"><h3>My life</h3><strong id="myLifeTotal" aria-live="polite">—</strong></div>
-   <details class="drawer"><summary>Custom and preset life changes</summary><fieldset id="lifeFields"><legend class="sr-only">Adjust life</legend>
-    <label for="lifeTarget">Player whose life changes</label><select id="lifeTarget" onchange="renderCounterControls()"></select>
-    <p id="lifeTargetHelp" class="small">Your own changes apply immediately.</p>
-    <div class="pad"><button type="button" id="lifeMinusBig" onclick="adjustMyLife(-lifeBigStep)">−5</button><button type="button" id="lifePlusBig" onclick="adjustMyLife(lifeBigStep)">+5</button><button type="button" id="lifeMinus" onclick="adjustMyLife(-lifeStep)">−1</button><button type="button" id="lifePlus" onclick="adjustMyLife(lifeStep)">+1</button></div>
-    <div id="lifeTens" class="pad" hidden><button type="button" aria-label="Subtract 10 life" onclick="adjustMyLife(-10)">−10</button><button type="button" aria-label="Add 10 life" onclick="adjustMyLife(10)">+10</button></div>
-    <form onsubmit="event.preventDefault();adjustMyLife(Number(lifeDelta.value))"><label for="lifeDelta">Custom life change (negative to subtract)</label><div class="inline"><input id="lifeDelta" type="number" step="1" min="-1000000" max="1000000" required><button id="lifeSubmit" type="submit" class="primary">Apply life change</button></div></form>
-   </fieldset></details>
-  </div>
-  <section id="lifeRequestsPanel" class="requests" hidden><h3>Life change requests</h3><p id="lifeRequestNotice" class="small" role="status" aria-live="polite"></p><div id="lifeRequestActions"></div><p id="lifeRequestCountdown" class="small"></p><div id="outgoingLifeRequests" class="small"></div></section>
- </section>
-
- <section id="commanderPanel" class="card" hidden>
-  <div class="card-head"><div><h2 class="eyebrow">My received Commander damage</h2><p class="small">Record damage from each commander separately. Adding damage also subtracts life. A negative correction restores life. Players decide when to concede.</p></div></div>
-  <div id="commanderTotals"></div>
-  <form onsubmit="saveCommanderDamage(event)"><fieldset id="commanderFields"><legend class="sr-only">Record or correct damage received</legend>
-   <div class="grid" style="gap:0 12px"><div class="field third"><label for="commanderSource">Commander owner</label><select id="commanderSource"></select></div>
-   <div class="field third"><label for="commanderSlot">Commander</label><select id="commanderSlot"><option value="1">Commander 1</option><option value="2">Commander 2</option></select></div>
-   <div class="field third"><label for="commanderDelta">Damage change (negative to correct)</label><input id="commanderDelta" type="number" step="1" min="-1000000" max="1000000" required></div></div>
-   <button type="submit" class="primary" style="margin-top:14px">Update damage and life</button></fieldset></form>
-  <p id="commanderMessage" class="msg" role="status" aria-live="polite"></p>
- </section>
-
- <section class="card setup-card">
-  <div class="card-head"><h2 class="eyebrow">Game setup</h2></div>
-  <form onsubmit="saveGameSettings(event)"><fieldset id="gameSettingsFields"><legend class="sr-only">Game setup</legend>
-   <div class="field"><label for="gameProfileSelect">Game profile</label>
-   <select id="gameProfileSelect" onchange="chooseGameProfile()"><option value="generic">Generic</option><option value="mtg">Magic: The Gathering</option><option value="mtg_commander">MTG Commander</option><option value="yugioh">Yu-Gi-Oh!</option></select></div>
-   <div class="switch-row"><div><label for="twoHeadedGiantInput">Two-Headed Giant</label><small id="twoHeadedGiantHint">Magic and Commander only. Players 1 and 2 are a team, then 3 and 4, and so on; change turn order to change teams. Teammates share one life total and one turn, and either can pass. Needs an even number of players, at least 4. The starting team skips its first draw.</small></div><input id="twoHeadedGiantInput" type="checkbox" aria-describedby="twoHeadedGiantHint" onchange="chooseTwoHeadedGiant()"></div>
-   <label for="startingLifeInput">Starting life</label><input id="startingLifeInput" type="number" min="0" max="1000000" step="1" required value="40" oninput="gameSettingsDirty=true">
-   <label for="turnTimerSelect">Turn timer</label><select id="turnTimerSelect" onchange="gameSettingsDirty=true;turnTimerCustomRow.hidden=this.value!=='custom'"></select>
-   <div id="turnTimerCustomRow" hidden><label for="turnTimerCustom">Custom turn length in seconds (15 to 3600)</label><input id="turnTimerCustom" type="number" min="15" max="3600" step="1" value="90" oninput="gameSettingsDirty=true"></div>
-   <p class="hint">Off: no countdown; a gentle cue appears after 5 minutes. With a timer, Atlas warns 10 seconds before time runs out. Running out of time never passes the turn.</p>
-   <button type="submit" class="primary" style="width:100%;margin-top:6px">Save game settings</button></fieldset></form>
-  <p id="gameSettingsMessage" class="msg" role="status" aria-live="polite">Any seated player can change these in the lobby.</p>
-  <p class="hint">Life and Commander damage do not automatically eliminate a player. Changes to another player's life need their approval; Atlas accepts unanswered requests after 15 seconds, or the longer time a player chose.</p>
- </section>
-</div>
-
-<div class="col">
- <section id="sessionBox" class="card seat-card">
-  <div class="card-head"><h2 class="eyebrow">My seat</h2></div>
-  <div class="who"><span id="sessionAvatar" class="avatar lg" aria-hidden="true">?</span><div class="who-text"><div id="sessionTitle" class="who-name">Not signed in</div><div id="sessionMeta" class="small">Sign into your profile to join or reconnect.</div></div></div>
-  <div id="sessionState" class="badges"></div>
-  <div id="sessionControls" class="control-grid" hidden></div>
-  <div id="claimHelp" class="notice info"><p>Sign in to play from this phone. A physical Sigil is optional.</p><a class="btn primary" href="/login">Sign in or create a profile</a></div>
- </section>
-
- <section class="card table-card">
-  <div class="card-head"><h2 class="eyebrow">Table</h2></div>
-  <div class="metrics"><div class="metric"><label>Players</label><strong id="playersMetric">0</strong></div><div class="metric"><label>Sigils</label><strong id="sigilsMetric">0</strong></div><div class="metric"><label>Starter</label><strong id="starterMetric">None</strong></div></div>
-  <div style="margin-top:10px">
-   <div class="status-row"><span>State</span><strong id="stateMetric">—</strong></div>
-   <div class="status-row"><span>Active</span><strong id="activeMetricGame">None</strong></div>
-   <div class="status-row"><span>Starting player</span><strong id="starterGame">None</strong></div>
-   <div class="status-row"><span>Win response</span><strong id="confirmGame">None</strong></div>
-   <div class="status-row"><span>Elimination target</span><strong id="eliminationGame">None</strong></div>
-   <div class="status-row"><span>Winner</span><strong id="winnerGame">None</strong></div>
-  </div>
- </section>
-
-</div>
-</div>
-</section>
-
-<section id="view-players" class="view" hidden>
-<h1 class="sr-only">Players</h1>
-<div class="grid">
- <section class="card two-third"><div class="card-head"><div><h2 class="eyebrow">At the table</h2><p class="small">Who is playing, whose turn it is, and how each player is connected.</p></div><div class="actions"><button class="small" onclick="refreshAll()">Refresh</button><button class="small primary" onclick="openInvite()"><svg class="i" aria-hidden="true"><use href="#i-qr"/></svg>Invite players</button></div></div><ul id="players" class="roster rows" aria-live="polite"></ul></section>
- <section class="card third"><div class="card-head"><div><h2 class="eyebrow">Connect a Sigil</h2><p class="small">A physical Sigil is optional. Sign in, pair it once, then attach a seat to your profile.</p></div></div><ol id="sigilSteps" class="steps"></ol></section>
- <section class="card"><div class="card-head"><div><h2 class="eyebrow">Sigils</h2><p class="small">Paired controllers and their two seats. Account sign-in and table participation are separate.</p></div></div><div id="devices" class="devices"></div></section>
- <section class="card" id="peopleCard" hidden aria-labelledby="peopleTitle"><div class="card-head"><div><h2 id="peopleTitle" class="eyebrow">People</h2><p id="peopleHint" class="small">Everyone with an account on this Atlas. Select a person to manage them.</p></div><button class="small" onclick="refreshAccountList()">Refresh</button></div><ul id="peopleList" class="roster rows people" aria-live="polite"></ul><details id="archivedPeople" class="archived-people" hidden><summary>Archived accounts (<span id="archivedCount">0</span>)</summary><ul id="archivedList" class="roster rows people"></ul></details></section>
-</div>
-<dialog id="inviteSheet" class="sheet" aria-labelledby="inviteTitle"><form method="dialog"><h2 id="inviteTitle">Invite players</h2><p>Join the table’s Wi-Fi<span id="inviteSsid"></span>, then scan a code with the phone’s camera.</p>
- <div class="qr-grid"><div class="qr-box"><h3>Table portal</h3><div id="portalQr"></div><a id="portalQrLink">Open portal</a></div><div class="qr-box"><h3>Sign in / join</h3><div id="joinQr"></div><a id="joinQrLink">Open sign in</a></div></div>
- <div class="actions"><button value="close" class="primary">Done</button></div></form></dialog>
-</section>
-
-<section id="view-account" class="view" hidden>
-<h1 class="sr-only">My Account</h1>
-<div class="grid">
- <section id="profileHero" class="card profile-hero" hidden>
-  <span id="heroAvatar" class="avatar xl" aria-hidden="true">?</span>
-  <div class="profile-hero-text"><div id="heroName" class="who-name">Player</div><div id="heroMeta" class="small"></div><div id="heroRoles" class="badges" style="margin-top:10px"></div></div>
-  <div class="hero-stats">
-   <div class="dial sm" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="dial-track" cx="60" cy="60" r="50"/><circle id="heroDial" class="dial-fill" cx="60" cy="60" r="50" pathLength="100" stroke-dasharray="0 100"/></svg><div class="dial-text"><strong id="heroRate">—</strong><span>Win rate</span></div></div>
-   <div class="metrics two"><div class="metric"><label>Played</label><strong id="heroPlayed">—</strong></div><div class="metric"><label>Won</label><strong id="heroWon">—</strong></div></div>
-   <a class="btn small" href="/stats"><svg class="i" aria-hidden="true"><use href="#i-chart"/></svg>All statistics</a>
-  </div>
- </section>
-  <section class="card half"><div class="card-head"><h2 class="eyebrow">Sign-in and privacy</h2></div>
-  <div id="profileSignedOut" class="notice info"><p>Sign in to save your name, PIN, privacy choices and statistics. New here? Create an account on the same page.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
-  <div id="profileBox" hidden>
-   <div class="who"><span id="profileAvatar" class="avatar lg" aria-hidden="true">?</span><div class="who-text"><div class="who-name" id="profileSeatTitle">My seat</div><div class="mono" id="profileSeatMeta"></div></div></div>
-   <div class="actions" style="margin-top:14px"><a class="btn small" href="/stats">My statistics</a><button class="small bad" onclick="logoutSession()">Log out</button></div>
-   <label for="profileName">Display name</label><div class="inline"><input id="profileName" maxlength="32" placeholder="Player name" autocomplete="nickname"><button onclick="saveName()">Save name</button></div>
-   <label for="profilePin">New PIN or password</label><div class="inline"><input id="profilePin" type="password" maxlength="64" placeholder="4–8 digits, or 8–64 characters" autocomplete="new-password"><button onclick="savePin()">Set PIN</button></div>
-   <button id="clearPinButton" class="bad small" style="margin-top:10px" hidden onclick="clearPin()">Remove PIN</button>
-   <form id="profilePolicyForm" style="margin-top:20px" onsubmit="saveProfilePolicy(event)"><fieldset id="profilePolicyFields"><legend>Physical access and privacy</legend>
-    <div class="switch-row"><div><label for="allowPhysicalWithoutPin">Allow Sigil and tablet use without a PIN</label><small id="allowPhysicalWithoutPinHelp">When off, a Sigil or a table tablet asks for this PIN first (or sign in on a phone). An existing game continues.</small></div><input id="allowPhysicalWithoutPin" type="checkbox" aria-describedby="allowPhysicalWithoutPinHelp" onchange="profilePolicyDirty=true"></div>
-    <div class="switch-row"><div><label for="hideStatsWithoutAuthentication">Hide stats without authentication</label><small id="hideStatsWithoutAuthenticationHelp">Statistics always accumulate. This choice also applies to future Sigil statistics screens. Signing into this profile enables its connected Sigil's full display.</small></div><input id="hideStatsWithoutAuthentication" type="checkbox" aria-describedby="hideStatsWithoutAuthenticationHelp" onchange="profilePolicyDirty=true"></div>
-    <button type="submit" class="primary" style="margin-top:10px">Save profile choices</button></fieldset>
-    <p id="profilePolicyStatus" class="msg" role="status" aria-live="polite"></p></form>
-  </div>
- </section>
- <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Appearance and feedback</h2><p class="small">Saved in this browser only. No sign-in needed.</p></div></div>
-  <fieldset><legend class="sr-only">Portal theme</legend><p class="small" style="margin-top:0">Tap a theme to preview it; Save appearance keeps it in this browser. Themes never change the game.</p>
-   <div class="themes">
-    <label class="theme-opt"><input type="radio" name="theme" value="auto"><strong>Automatic</strong><span class="swatch" aria-hidden="true"><i style="background-image:linear-gradient(90deg,#0A0B0E 50%,#F2F3F6 50%)"></i><i style="background:#262A33"></i><i style="background:#F5B53F"></i><i style="background:#3DDBB1"></i></span><small>Follows this device: Graphite when it is dark, Daylight when it is light, High contrast when it asks for more contrast.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="graphite"><strong>Graphite</strong><span class="swatch" aria-hidden="true"><i style="background:#0A0B0E"></i><i style="background:#262A33"></i><i style="background:#F5B53F"></i><i style="background:#3DDBB1"></i></span><small>Modern dark with one warm gold accent.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="daylight"><strong>Daylight</strong><span class="swatch" aria-hidden="true"><i style="background:#F2F3F6"></i><i style="background:#FFFFFF"></i><i style="background:#9A5D00"></i><i style="background:#00775E"></i></span><small>Bright and clean for well-lit rooms.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="brass"><strong>Brass</strong><span class="swatch" aria-hidden="true"><i style="background:#110D09"></i><i style="background:#30251A"></i><i style="background:#E2AE4A"></i><i style="background:#62D6B2"></i></span><small>The classic TurnHub look: gold, rivets and a gauge.</small></label>
-    <label class="theme-opt"><input type="radio" name="theme" value="contrast"><strong>High contrast</strong><span class="swatch" aria-hidden="true"><i style="background:#000"></i><i style="background:#fff"></i><i style="background:#FFD400"></i><i style="background:#00F0D8"></i></span><small>Maximum legibility, no decoration.</small></label>
-   </div></fieldset>
-  <div class="switch-row" style="margin-top:14px"><div><label for="reduceMotionToggle">Reduce motion</label><small id="reduceMotionHelp">Stops the turning gear, ring sweeps and other animation in this browser. Your device's reduced-motion setting also does this.</small></div><input id="reduceMotionToggle" type="checkbox" aria-describedby="reduceMotionHelp"></div>
-  <h3 style="margin:22px 0 4px">Browser feedback</h3>
-  <div class="switch-row"><div><label for="soundToggle">Browser sound</label><small id="soundToggleHelp">Play lightweight feedback tones on this device.</small></div><input id="soundToggle" type="checkbox" aria-describedby="soundToggleHelp"></div>
-  <div class="switch-row"><div><label for="vibrationToggle">Vibration</label><small id="vibrationToggleHelp">Use haptics when supported by the browser.</small></div><input id="vibrationToggle" type="checkbox" aria-describedby="vibrationToggleHelp"></div>
-  <div class="inline" style="margin-top:6px;align-items:end"><div class="field"><label for="volumeSelect" style="margin-top:8px">Feedback volume</label><select id="volumeSelect"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><button class="blue" onclick="playFeedback('test',true)">Test feedback</button></div>
-  <div class="actions" style="margin-top:14px"><button class="primary" onclick="saveAppearance()">Save appearance</button></div>
-  <p id="appearanceStatus" class="msg" role="status" aria-live="polite"></p>
- </section>
- <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Sigil accessibility</h2><p class="small">Saved with your profile on Atlas. Follows you to whichever Sigil you sit at.</p></div></div>
-  <div id="sigilAccessSignedOut" class="notice info"><p>Sign in to choose how your Sigil sounds, how its lights behave and how long its buttons must be held.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
-  <form id="sigilAccessForm" hidden onsubmit="saveSigilAccess(event)"><fieldset id="sigilAccessFields"><legend class="sr-only">Sigil accessibility</legend>
-   <div class="switch-row"><div><label for="sigilSoundToggle">Sigil sound</label><small id="sigilSoundHelp">Buzzer tones on your Sigil. Everything a tone means also shows as text here and on the Sigil screen. A shared Sigil stays quiet if either player turns sound off.</small></div><input id="sigilSoundToggle" type="checkbox" aria-describedby="sigilSoundHelp"></div>
-   <fieldset style="margin-top:14px"><legend>Sigil lights</legend>
-    <div class="themes">
-     <label class="theme-opt"><input type="radio" name="ledStyle" value="standard"><strong>Standard</strong><small>Breathing and pulsing lights, as before.</small></label>
-     <label class="theme-opt"><input type="radio" name="ledStyle" value="reduced-motion"><strong>Reduced motion</strong><small>Steady lights and slow blinks only; your turn is bright, waiting is dim. Also safe without color.</small></label>
-     <label class="theme-opt"><input type="radio" name="ledStyle" value="monochrome-safe"><strong>Monochrome-safe</strong><small>Standard lights, but no two signals differ by color alone.</small></label>
-    </div></fieldset>
-   <label for="longPressSelect">Hold to confirm Leave, Eliminate or Reset</label><select id="longPressSelect" aria-describedby="holdHelp"></select>
-   <label for="winHoldSelect">Hold to claim a win</label><select id="winHoldSelect" aria-describedby="holdHelp"></select>
-   <p id="holdHelp" class="hint">How long a Sigil key is held to confirm those menu choices. The win hold must be at least one second longer than the other. On a shared Sigil the longer times apply. You can always do these from this portal instead.</p>
-   <label for="lifeApprovalSelect">Time to answer life-change requests</label><select id="lifeApprovalSelect" aria-describedby="lifeApprovalHelp"></select>
-   <p id="lifeApprovalHelp" class="hint">How long another player's request to change your life waits for your answer before Atlas accepts it.</p>
-   <button type="submit" class="primary" style="margin-top:10px">Save Sigil accessibility</button></fieldset>
-   <p id="sigilAccessStatus" class="msg" role="status" aria-live="polite"></p></form>
- </section>
- <section class="card half"><div class="card-head"><div><h2 class="eyebrow">Personalization</h2><p class="small">How you show up at the table. Saved with your profile on Atlas's microSD card.</p></div></div>
-  <div id="personalSignedOut" class="notice info"><p>Sign in to choose your avatar and Sigil light color.</p><a class="btn primary" href="/login">Sign in / create account</a></div>
-  <div id="jewelBox" hidden><fieldset><legend>Avatar</legend>
-   <div id="avatarGrid" class="themes" role="radiogroup"></div>
-   <p class="hint">Shown next to your name here, in the app, on Atlas's screen and on OLED Sigils.</p></fieldset>
-   <label for="jewelColor" style="margin-top:12px">Sigil light color</label>
-   <div class="inline" style="align-items:center;gap:8px"><input id="jewelColor" type="color" value="#00c8c8" aria-describedby="jewelHelp" style="width:64px;height:40px">
-   <label class="inline" style="gap:6px;align-items:center;margin:0"><input id="jewelStandard" type="checkbox"> Use the standard colors instead</label></div>
-   <p id="jewelHelp" class="hint">Your Sigil's ring glows in this color while you wait in the lobby and between your turns, so you can spot your seat. Turns, pauses, warnings and wins keep their usual colors. Saved on Atlas's microSD card.</p>
-   <div class="actions" style="margin-top:12px"><button class="primary" type="button" onclick="savePersonalization()">Save personalization</button></div>
-   <p id="jewelStatus" class="msg" role="status" aria-live="polite"></p></div>
- </section>
- <section id="moderationCard" class="card" hidden><div class="card-head"><div><h2 class="eyebrow">Private moderation history</h2><p class="small">Kept with your statistics and shown only to you after you sign in with your PIN. Game Masters and other accounts cannot see it.</p></div></div><a class="btn" href="/stats">View on my statistics</a></section>
-</div>
-</section>
-
-<section id="view-settings" class="view" hidden>
+<main id="main" hidden><label for="adminGame">Game to administer</label><select id="adminGame" onchange="followGame(this.value)"></select><section id="view-settings" class="view">
 <h1 class="sr-only">Device Settings</h1>
 <div class="grid">
  <section id="presenceCard" class="card presence" aria-labelledby="presenceTitle">
@@ -265,8 +56,8 @@
   <label class="switch-row" id="tableCodeRow" hidden><div>Require a table code<small id="tableCodeHint">Off: a signed-in Admin can change these settings. On: each change also needs the code the Atlas screen shows. Firmware installs only when signed either way.</small></div><input type="checkbox" id="tableCodeToggle" aria-describedby="tableCodeHint" onchange="saveTableCode(this.checked)"></label>
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas</h2></div>
-  <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>Portal pack</span><strong id="portalPackMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Verified at the table</span><strong id="adminUnlockMetric">No one</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
-  <div class="link-list"><a href="/update"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span>Atlas firmware and portal</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a><a href="/sigil-update"><svg class="i" aria-hidden="true"><use href="#i-sigil"/></svg><span>Sigil firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a></div>
+  <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Verified at the table</span><strong id="adminUnlockMetric">No one</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
+  <div class="link-list"><a href="/update"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span>Atlas firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a><a href="/sigil-update"><svg class="i" aria-hidden="true"><use href="#i-sigil"/></svg><span>Sigil firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a></div>
   <p class="hint">Update from Lobby or Game Over.</p>
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas Wi-Fi security</h2></div>
@@ -293,7 +84,7 @@
   <div class="link-list danger">
    <button onclick="resetTableToLobby()" aria-label="Return table to lobby"><span>Return table to lobby</span><small>Ends a match in progress as a draw (every player gets a draw in their statistics) and clears the table, even if nobody can reach their Sigil.</small></button>
    <button onclick="forgetAllSigils()" aria-label="Forget all Sigils"><span>Forget all Sigils</span><small>Removes every pairing. Pair them again from the Atlas screen.</small></button>
-   <button onclick="factoryResetAtlas()" aria-label="Factory reset Atlas"><span>Factory reset Atlas</span><small>Erases every profile, PIN, pairing, Wi-Fi password and setting, then restarts. The microSD card and portal are kept.</small></button>
+   <button onclick="factoryResetAtlas()" aria-label="Factory reset Atlas"><span>Factory reset Atlas</span><small>Erases every profile, PIN, pairing, Wi-Fi password and setting, then restarts. Empties the microSD card. The admin portal stays in firmware.</small></button>
   </div>
   <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
  </section>
@@ -302,62 +93,48 @@
  </section>
 </div>
 </section>
-</main>
-
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
+ <section class="card" id="peopleCard" hidden aria-labelledby="peopleTitle"><div class="card-head"><div><h2 id="peopleTitle" class="eyebrow">People</h2><p id="peopleHint" class="small">Everyone with an account on this Atlas. Select a person to manage them.</p></div><button class="small" onclick="refreshAccountList()">Refresh</button></div><ul id="peopleList" class="roster rows people" aria-live="polite"></ul><details id="archivedPeople" class="archived-people" hidden><summary>Archived accounts (<span id="archivedCount">0</span>)</summary><ul id="archivedList" class="roster rows people"></ul></details></section></main><div id="toast" class="toast" role="status" aria-live="polite"></div>
 <dialog id="personSheet" class="sheet person-sheet" aria-labelledby="personSheetName"><form method="dialog">
  <div class="person-head"><span id="personSheetAvatar"></span><div><h2 id="personSheetName"></h2><div id="personSheetMeta" class="small"></div></div></div>
  <div id="personBody"></div>
  <p id="personStatus" class="msg" role="status" aria-live="polite"></p>
  <div class="actions"><button value="close" class="primary">Done</button></div></form></dialog>
 <dialog id="uiDialog" aria-labelledby="uiDialogTitle"><form method="dialog"><h2 id="uiDialogTitle"></h2><p id="uiDialogText"></p><div id="uiDialogInputRow" hidden><label for="uiDialogInput" id="uiDialogLabel"></label><input id="uiDialogInput"></div><div class="actions"><button id="uiDialogOk" value="ok" class="primary">OK</button><button value="cancel" formnovalidate>Cancel</button></div></form></dialog>
-<p class="foot-note">TurnHub runs locally on Atlas. No cloud connection is required for table control.</p>
-</div>
-<script src="/portal-qr.js"></script>
-<script>
-let refreshInFlight=null,gameSettingsData=null,gameSettingsDirty=false,atlasHardwareDirty=false,gameSettingsSaving=false,lifeBusy=false,lifeStep=1,lifeBigStep=5;
-let profilePolicyDirty=false,profilePolicyOwner=null;
-let counterData=null,counterBusy=false,counterOwner=null;
-let statusData=null,deviceData={devices:[]},seatData={seats:[]},networkData=null,sessionInfo=null,pendingClaim=null,pendingTimer=null;
-let sessionToken=localStorage.getItem('turnhubSessionToken')||'';
-let lastObservedState=null,lastObservedActive=0,lastObservedConfirm=0,lastObservedNudge=0,toastTimer=null,lastGauge=0;
-const lifeSeen={};
-let browserPrefs={sound:true,vibration:true,volume:'medium'};
-try{browserPrefs=Object.assign(browserPrefs,JSON.parse(localStorage.getItem('turnhubBrowserPrefs')||'{}'))}catch(_){}
-const TABS=['game','players','account','settings'];
-const ROLES=[[1,'Admin'],[2,'Game Master'],[4,'Developer'],[32,'Tablet access']];
-let heroStatsAt=0;
-// The profile header: who is signed in, their roles and a win-rate summary from /api/session/stats.
-function renderProfileHero(){const me=sessionInfo;profileHero.hidden=!(me&&me.authenticated);if(profileHero.hidden)return;const name=me.name||'Unnamed profile';
- heroName.textContent=name;heroMeta.textContent=`Profile ${me.profileId}`+(me.participating?` · Player ${me.player} at the table`:'');heroAvatar.innerHTML=avatarSvg(myAvatar)||initials(name);heroAvatar.style.setProperty('--hue',hue(me.participating?me.player:0));
- const roles=ROLES.filter(([bit])=>Number(me.permissions)&bit).map(([,label])=>badge(label,'blue')).join('')+(me.hasPin?badge('PIN or password set','good'):badge('No PIN yet','warn'));if(heroRoles.innerHTML!==roles)heroRoles.innerHTML=roles;if(!document.getElementById('view-account').hidden)loadHeroStats()}
-async function loadHeroStats(force=false){if(!sessionInfo||!sessionInfo.authenticated||(!force&&Date.now()-heroStatsAt<30000))return;heroStatsAt=Date.now();try{const r=await fetch('/api/session/stats',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw 0;const l=d.lifetime||{},played=Number(l.gamesPlayed)||0,won=Number(l.gamesWon)||0,rate=played?Math.round(100*won/played):0;heroPlayed.textContent=played;heroWon.textContent=won;heroRate.textContent=played?rate+'%':'—';requestAnimationFrame(()=>heroDial.setAttribute('stroke-dasharray',rate+' 100'))}catch(_){heroRate.textContent='—'}}
-
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function badge(t,c=''){return `<span class="badge ${c}">${esc(t)}</span>`}
+</div><script>
+let sessionToken=localStorage.getItem('turnhubSessionToken')||'',sessionInfo=null,deviceData={devices:[]},networkData=null,atlasHardwareDirty=false,toastTimer=null,refreshInFlight=null;
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')}
 function authHeaders(){return sessionToken?{'X-TurnHub-Token':sessionToken}:{}}
-function seatByPlayer(n){return seatData.seats.find(s=>Number(s.player)===Number(n))}
-function deviceById(id){return (deviceData&&deviceData.devices||[]).find(d=>Number(d.id)===Number(id))||null}
-function sigilLabel(id){if(Number(id)>=8&&Number(id)<24)return 'Phone controller';const d=deviceById(id);return d&&d.label?d.label:`Sigil ${Number(id)+1}`}
-function playerLabel(n){if(!Number(n))return 'None';const s=seatByPlayer(n);return s&&s.name?s.name:`Player ${n}`}
-function sameSessionSeat(s){return !!(sessionInfo&&sessionInfo.authenticated&&Number(sessionInfo.module)===Number(s.module)&&Number(sessionInfo.slot)===Number(s.slot))}
-function initials(name){const w=String(name||'?').trim().split(/\s+/).filter(Boolean);return esc(((w[0]||'?')[0]+(w.length>1?w[w.length-1][0]:'')).toUpperCase())}
-// Decorative only: the name always sits beside the avatar.
-function hue(n){return [38,168,12,205,95,280,330,60][(Number(n)||0)%8]}
-let avatarIcons=null,myAvatar=0;
-async function loadAvatarIcons(){try{const r=await fetch('/api/avatars',{cache:'force-cache'});const d=await r.json();if(r.ok)avatarIcons=d.avatars||[]}catch(e){}}
-loadAvatarIcons();
-// One preset as an inline SVG, drawn from the same 16x16 rows Atlas and the Sigils use.
-// Presets draw from the design sprite (design/avatars, symbol a-<key>); a key
-// the sprite lacks falls back to Atlas's 16x16 rows.
-function avatarSvg(id){const a=avatarIcons&&avatarIcons[Number(id)-1];if(!a)return '';if(a.key&&document.getElementById('a-'+a.key))return `<svg class="avatar-glyph" viewBox="0 0 24 24" aria-hidden="true"><use href="#a-${a.key}"/></svg>`;let d='';a.rows.forEach((row,y)=>{let x=0;while(x<row.length){if(row[x]==='#'){let e=x;while(e<row.length&&row[e]==='#')e++;d+=`M${x} ${y}h${e-x}v1h-${e-x}z`;x=e}else x++}});return `<svg viewBox="0 0 16 16" width="70%" height="70%" shape-rendering="crispEdges" aria-hidden="true"><path d="${d}" fill="currentColor"/></svg>`}
-function avatar(name,n,cls='',icon=0){const svg=avatarSvg(icon);return `<span class="avatar ${cls}" style="--hue:${hue(n)}" aria-hidden="true">${svg||initials(name)}</span>`}
-function showToast(msg,bad=false){const e=document.getElementById('toast');e.textContent=msg;e.className='toast show'+(bad?' bad':'');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>e.className='toast',3500)}
-function setTheme(name,save=true){const auto=name==='auto'||!['graphite','daylight','brass','contrast'].includes(name);const t=auto?deviceTheme():name;document.documentElement.dataset.theme=t;if(save)try{auto?localStorage.removeItem('turnhubTheme'):localStorage.setItem('turnhubTheme',t)}catch(_){}const m=document.querySelector('meta[name=theme-color]');if(m)m.content=getComputedStyle(document.documentElement).getPropertyValue('--c-bg').trim()||'#0A0B0E';document.querySelectorAll('input[name=theme]').forEach(r=>r.checked=r.value===(auto?'auto':t))}
-// With no saved choice the portal follows the device as its settings change.
-for(const q of ['(prefers-color-scheme: light)','(prefers-contrast: more)'])try{matchMedia(q).addEventListener('change',()=>{if(!savedTheme())setTheme('auto',false)})}catch(_){}
-
-// Modal confirm/prompt that matches the portal; falls back to the browser's own.
+function badge(t,c=''){return `<span class="badge ${c}">${esc(t)}</span>`}
+function avatar(name){return `<span class="avatar" aria-hidden="true">${esc((name||'?').slice(0,2))}</span>`}
+function deviceById(id){return deviceData.devices.find(d=>Number(d.id)===Number(id))}
+function showToast(msg,bad=false){toast.textContent=msg;toast.className='toast show'+(bad?' bad':'');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.className='toast',3500)}
+function previewTheme(name){document.documentElement.dataset.theme=name==='auto'?deviceTheme():name;themeMessage.textContent='Previewing. Save appearance to keep this choice.'}
+function savePortalTheme(){setTheme(portalTheme.value);themeMessage.textContent='Appearance saved on this browser.'}
+function setTheme(name){if(name==='auto'){localStorage.removeItem('turnhubTheme');document.documentElement.dataset.theme=deviceTheme()}else{localStorage.setItem('turnhubTheme',name);document.documentElement.dataset.theme=name}}
+async function logoutSession(){try{await fetch('/api/session/logout',{method:'POST',headers:authHeaders()})}catch(_){}localStorage.removeItem('turnhubSessionToken');sessionToken='';sessionInfo=null;await refreshAll()}
+async function pollJson(path,headers=authHeaders()){const r=await fetch(path,{headers,cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+async function accountPost(path,data){return pollPost('/api/accounts/'+path,data)}
+async function pollPost(path,data){const r=await fetch(path,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+async function setupAdmin(){try{if(!await ensureVerified())return;await accountPost('setup',{});showToast('Admin account established.');await refreshAll();await loadSetupStage()}catch(e){showToast(e.message,true)}}
+async function followGame(game){try{await pollPost('/api/session/game',{game});await refreshAll()}catch(e){showToast(e.message,true);await refreshAll()}}
+async function refreshAll(){
+ if(refreshInFlight)return refreshInFlight;
+ refreshInFlight=(async()=>{try{
+  sessionInfo=null;if(sessionToken){const r=await fetch('/api/session/me',{headers:authHeaders(),cache:'no-store'});if(r.status===401){sessionToken='';localStorage.removeItem('turnhubSessionToken')}else if(r.ok)sessionInfo=await r.json();else throw Error('Session unavailable')}
+  const admin=!!(sessionInfo&&sessionInfo.permissions&1),dev=!!(sessionInfo&&sessionInfo.permissions&4);
+  main.hidden=!admin;peopleCard.hidden=!admin;devLink.hidden=!dev;signInButton.hidden=!!sessionInfo;signOutButton.hidden=!sessionInfo;accountName.textContent=sessionInfo?.name||'';
+  accessNotice.hidden=admin;accessNotice.textContent=sessionInfo?'This account has no Admin permission. Use the app for play, or sign out and sign in as an Admin.':'Sign in with an Admin account to manage Atlas.';
+  connection.textContent='Connected';await loadSetupStage();const initial=await pollJson('/api/accounts/setup',{});adminSetup.hidden=!initial.setupRequired;
+  if(!admin){accounts=[];if(personSheet.open)personSheet.close();return;}
+  const [s,d,n,p,v]=await Promise.all(['/api/status','/api/devices','/api/network','/api/pairing','/api/speaker'].map(x=>pollJson(x)));
+  deviceData=d;renderDeviceSettings(d);renderNetwork(n);renderPairing(p);renderSpeaker(v);renderPresence();
+  atlasDevice.textContent=`Atlas · ${d.atlas.hardwareId} · ${d.atlas.firmware}`;
+  for(const [id,value] of Object.entries({stateMetricSystem:s.state,firmwareMetric:s.firmware,buildMetric:s.build,espMetric:s.espNow?'Ready':'Error',adminUnlockMetric:s.presenceActive?'Verified':'No one',otaMetric:s.otaStateAllowed?'Ready':'Game locked',activeMetric:s.active||'None',winnerMetric:s.winner||'None',connectionMetric:'Connected',browserSeatMetric:sessionInfo.name,portalAddress:location.host}))document.getElementById(id).textContent=value||'—';
+  const options=(s.games||[]).map(g=>`<option value="${Number(g.game)}">Game ${Number(g.game)} · ${esc(g.state)} · ${Number(g.players)} players</option>`).join('');if(adminGame.innerHTML!==options)adminGame.innerHTML=options;adminGame.value=String(s.game||1);
+  await refreshAccountList();
+ }catch(e){connection.textContent='Reconnecting';main.hidden=true;showToast(e.message,true)}
+ })().finally(()=>refreshInFlight=null);return refreshInFlight;
+}
 function uiAsk({title,text,ok='Confirm',danger=false,input=null}){
  if(typeof uiDialog.showModal!=='function')return Promise.resolve(input?prompt(text,input.value||''):confirm(text));
  return new Promise(resolve=>{
@@ -368,200 +145,6 @@ function uiAsk({title,text,ok='Confirm',danger=false,input=null}){
   uiDialog.addEventListener('close',()=>{const accepted=uiDialog.returnValue==='ok';const value=uiDialogInput.value;uiDialogInput.value='';resolve(input?(accepted?value:null):accepted)},{once:true});
  });
 }
-
-function toggleAccountMenu(force){const open=typeof force==='boolean'?force:accountMenu.hidden;accountMenu.hidden=!open;accountButton.setAttribute('aria-expanded',String(open));if(open)accountMenu.querySelector('.menu-item')?.focus()}
-function closeAccountMenu(){if(!accountMenu.hidden){accountMenu.hidden=true;accountButton.setAttribute('aria-expanded','false')}}
-document.addEventListener('click',e=>{if(!accountMenuWrap.contains(e.target))closeAccountMenu()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!accountMenu.hidden){closeAccountMenu();accountButton.focus()}});
-
-function showTab(name){
- if(!TABS.includes(name))name='game';
- if(name==='settings'&&!(sessionInfo&&sessionInfo.permissions&1))name='game';
- document.querySelectorAll('.view').forEach(v=>{const on=v.id==='view-'+name;v.classList.toggle('active',on);v.hidden=!on});
- document.querySelectorAll('.tab').forEach(b=>{const on=b.dataset.tab===name;b.classList.toggle('active',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
- try{localStorage.setItem('turnhubPortalTab',name)}catch(_){}
- if(name!=='game')refreshAccountList();
- if(name==='account')loadHeroStats();
-}
-
-function loadMotionPref(){let on=false;try{on=localStorage.getItem('turnhubReduceMotion')==='1'}catch(_){}reduceMotionToggle.checked=on;if(on)document.documentElement.dataset.motion='reduce';else delete document.documentElement.dataset.motion}
-function setReduceMotion(on){try{if(on)localStorage.setItem('turnhubReduceMotion','1');else localStorage.removeItem('turnhubReduceMotion')}catch(_){}loadMotionPref()}
-let sigilAccessOwner=null,sigilAccessLimits=null;
-function holdChoices(select,min,max,step,value,defaultMs){select.innerHTML='';for(let ms=min;ms<=max;ms+=step){const o=document.createElement('option');o.value=ms;o.textContent=(ms/1000).toLocaleString(undefined,{maximumFractionDigits:2})+' seconds'+(ms===defaultMs?' (default)':'');select.appendChild(o)}select.value=String(value)}
-function renderSigilAccess(d){sigilAccessLimits=d.limits;sigilSoundToggle.checked=!!d.sigilSound;document.querySelectorAll('input[name=ledStyle]').forEach(r=>r.checked=r.value===d.ledStyle);
- holdChoices(longPressSelect,d.limits.longPressMinMs,d.limits.longPressMaxMs,d.limits.stepMs,d.longPressMs,2000);holdChoices(winHoldSelect,d.limits.winHoldMinMs,d.limits.winHoldMaxMs,d.limits.stepMs,d.winHoldMs,5000);
- lifeApprovalSelect.innerHTML=(d.lifeApprovalOptionsMs||[15000]).map(ms=>`<option value="${Number(ms)}">${Number(ms)/1000} seconds${Number(ms)===15000?' (default)':''}</option>`).join('');lifeApprovalSelect.value=String(d.lifeApprovalMs||15000);
- sigilAccessStatus.textContent=d.stored?'':'Your saved Sigil settings could not be read, so defaults are shown. Saving replaces them.'}
-function renderAvatarGrid(current){const opts=[{id:0,label:'None'}].concat((avatarIcons||[]).map(a=>({id:a.id,label:a.label})));avatarGrid.innerHTML=opts.map(o=>`<label class="theme-opt" style="text-align:center"><input type="radio" name="avatarPick" value="${o.id}" ${Number(current)===o.id?'checked':''}><span class="avatar" style="--hue:${hue(1)};margin:4px auto">${o.id?avatarSvg(o.id):'&ndash;'}</span><small>${esc(o.label)}</small></label>`).join('')}
-async function savePersonalization(){const a=document.querySelector('input[name=avatarPick]:checked');const fields={avatar:a?a.value:'0',color:jewelStandard.checked?'none':jewelColor.value};try{const r=await fetch('/api/session/personalization',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(fields)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');myAvatar=Number(d.avatar)||0;renderAvatarGrid(d.avatar);jewelStandard.checked=!d.color;jewelStatus.textContent='Saved. Your Sigil and the table update within a few seconds.';showToast('Personalization saved.')}catch(e){jewelStatus.textContent=e.message;showToast(e.message,true)}}
-async function loadJewel(){if(!avatarIcons)await loadAvatarIcons();try{const r=await fetch('/api/session/personalization',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Unavailable');jewelBox.hidden=false;personalSignedOut.hidden=true;myAvatar=Number(d.avatar)||0;renderAvatarGrid(d.avatar);if(d.color)jewelColor.value=d.color;jewelStandard.checked=!d.color;jewelStatus.textContent=!d.card?'Insert a microSD card in Atlas to choose a color.':d.color?'Current color: '+d.color:'Using the standard colors.'}catch(e){jewelBox.hidden=true;personalSignedOut.hidden=false}}
-async function loadSigilAccess(){sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{headers:authHeaders(),cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Sigil settings are unavailable');renderSigilAccess(d);sigilAccessFields.disabled=false}catch(e){sigilAccessStatus.textContent=e.message}}
-async function saveSigilAccess(event){event.preventDefault();const style=document.querySelector('input[name=ledStyle]:checked');const longMs=Number(longPressSelect.value),winMs=Number(winHoldSelect.value);
- if(sigilAccessLimits&&winMs<longMs+sigilAccessLimits.minGapMs){sigilAccessStatus.textContent='Choose a win hold at least one second longer than the other hold.';winHoldSelect.focus();return}
- sigilAccessFields.disabled=true;try{const r=await fetch('/api/session/accessibility',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({sigilSound:sigilSoundToggle.checked?'1':'0',ledStyle:style?style.value:'standard',longPressMs:String(longMs),winHoldMs:String(winMs),lifeApprovalMs:lifeApprovalSelect.value})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save');renderSigilAccess(d);sigilAccessStatus.textContent='Saved. Your Sigil updates within a few seconds.';showToast('Sigil accessibility saved.')}catch(e){sigilAccessStatus.textContent=e.message}finally{sigilAccessFields.disabled=false}}
-function loadBrowserPrefs(){soundToggle.checked=!!browserPrefs.sound;vibrationToggle.checked=!!browserPrefs.vibration;volumeSelect.value=browserPrefs.volume||'medium'}
-function saveBrowserPrefs(){browserPrefs={sound:soundToggle.checked,vibration:vibrationToggle.checked,volume:volumeSelect.value};try{localStorage.setItem('turnhubBrowserPrefs',JSON.stringify(browserPrefs))}catch(_){}}
-function saveAppearance(){const t=document.querySelector('input[name=theme]:checked');setTheme(t?t.value:'auto');setReduceMotion(reduceMotionToggle.checked);saveBrowserPrefs();appearanceStatus.textContent='Saved in this browser.';showToast('Appearance saved.')}
-function playFeedback(kind,force=false){if((browserPrefs.vibration||force)&&navigator.vibrate){const p=kind==='turn'?[70,35,70]:kind==='alert'?[100,50,100]:kind==='gameover'?[130,60,130]:[55];try{navigator.vibrate(p)}catch(_){}}
- if(!browserPrefs.sound&&!force)return;try{const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;const ctx=window.turnhubAudioContext||(window.turnhubAudioContext=new Ctx());if(ctx.state==='suspended')ctx.resume();const gain=ctx.createGain();gain.gain.value=({low:.025,medium:.055,high:.1})[browserPrefs.volume]||.055;gain.connect(ctx.destination);let tones=[620];if(kind==='turn')tones=[700,900];else if(kind==='pause')tones=[440,330];else if(kind==='resume')tones=[440,660];else if(kind==='alert')tones=[760,760];else if(kind==='gameover')tones=[620,780,980];else if(kind==='test')tones=[620,820];tones.forEach((hz,i)=>{const o=ctx.createOscillator();o.type='sine';o.frequency.value=hz;o.connect(gain);const t=ctx.currentTime+i*.105;o.start(t);o.stop(t+.075)})}catch(_){}
-}
-function processBrowserFeedback(s){const me=sessionInfo&&sessionInfo.authenticated?Number(sessionInfo.player):0;if(lastObservedState!==null&&me){if(Number(s.active)===me&&Number(lastObservedActive)!==me)playFeedback('turn');if(Number(s.winConfirm)===me&&Number(lastObservedConfirm)!==me)playFeedback('alert');if(Number(s.nudgeSeq)>lastObservedNudge&&Number(s.nudgeTo)===me&&Number(s.nudgeAgeMs)<10000){playFeedback('alert');showToast(`${playerLabel(s.nudgeFrom)} nudged you`)}if(s.state!==lastObservedState){if(s.state==='PAUSED')playFeedback('pause');else if(s.state==='RUNNING'&&lastObservedState==='PAUSED')playFeedback('resume');else if(s.state==='GAME_OVER')playFeedback('gameover')}}lastObservedState=s.state;lastObservedActive=Number(s.active)||0;lastObservedConfirm=Number(s.winConfirm)||0;lastObservedNudge=Number(s.nudgeSeq)||0}
-
-function buildGaugeTicks(){let out='';for(let i=0;i<=30;i++){const a=(-135+270*i/30)*Math.PI/180,major=i%5===0,r1=major?71:75,r2=81;out+=`<line class="${major?'major':''}" x1="${(100+r1*Math.sin(a)).toFixed(1)}" y1="${(100-r1*Math.cos(a)).toFixed(1)}" x2="${(100+r2*Math.sin(a)).toFixed(1)}" y2="${(100-r2*Math.cos(a)).toFixed(1)}"/>`}gaugeTicks.innerHTML=out}
-// Display only: Atlas owns the timer; the gauge redraws what /api/status reports.
-function renderGauge(s){
- const limit=Number(s.turnTimerMs)||0,elapsed=Number(s.turnElapsedMs)||0,live=['RUNNING','PAUSED'].includes(s.state)&&Number(s.active);
- let p=0,value='—',caption='',phase='idle';
- if(live){
-  if(s.timerPhase==='EXPIRED'){value='+'+clockText(elapsed-limit);caption="Time's up";phase='expired'}
-  else if(limit){p=Math.max(0,Math.min(1,(Number(s.turnRemainingMs)||0)/limit));value=clockText(s.turnRemainingMs);caption=s.timerPhase==='WARNING'?'Almost up':'Remaining';phase=s.timerPhase==='WARNING'?'warning':'counting'}
-  else{p=(elapsed%60000)/60000;value=clockText(elapsed);caption=s.timerPhase==='LONG_TURN'?'Long turn':'Turn time';phase=s.timerPhase==='LONG_TURN'?'warning':'counting'}
-  if(s.state==='PAUSED')caption='Paused';
- }else if(s.state==='LOBBY'){value=String(Number(s.players)||0);caption=Number(s.players)===1?'Player':'Players'}
- else if(s.state==='STARTING'){p=1;value='3·2·1';caption='Starting'}
- else if(s.state==='GAME_OVER'){p=1;value='Done';caption='Game over'}
- const snap=Math.abs(p-lastGauge)>.5;lastGauge=p;
- gaugeArc.classList.toggle('snap',snap);gaugeNeedle.classList.toggle('snap',snap);
- gaugeArc.setAttribute('stroke-dasharray',`${(p*100).toFixed(2)} 100`);
- gaugeNeedle.style.transform=`rotate(${(-135+270*p).toFixed(1)}deg)`;
- gaugeValue.textContent=value;gaugeCaption.textContent=caption;stage.dataset.phase=phase;stage.dataset.state=s.state||'';
-}
-
-// Venue tables: Atlas runs two games. A signed-in phone follows one on Atlas
-// (POST /api/session/game); a signed-out page asks for it with ?game=N.
-let viewGame=Number(localStorage.getItem('turnhubGame'))||1;
-function forGame(path){return sessionToken?path:`${path}${path.includes('?')?'&':'?'}game=${viewGame}`}
-const GAME_STATES={LOBBY:'Lobby',STARTING:'Starting',RUNNING:'Playing',PAUSED:'Paused',GAME_OVER:'Finished'};
-function renderGameSwitch(s){const g=s.games||[];gameSwitch.hidden=g.length<2;if(g.length<2)return;
- const html=g.map(x=>`<button type="button" role="tab" aria-selected="${Number(x.game)===Number(s.game)}" data-game="${Number(x.game)}">Game ${Number(x.game)}<span class="game-switch-meta"> · ${esc(GAME_STATES[x.state]||x.state)}${Number(x.players)?`, ${Number(x.players)} player${Number(x.players)===1?'':'s'}`:''}</span></button>`).join('');
- if(gameSwitch.innerHTML!==html)gameSwitch.innerHTML=html}
-gameSwitch.onclick=async e=>{const b=e.target.closest('button');if(!b)return;const n=Number(b.dataset.game);if(statusData&&n===Number(statusData.game))return;
- if(!sessionToken){viewGame=n;localStorage.setItem('turnhubGame',String(n));await refreshAll();return}
- try{const r=await fetch('/api/session/game',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({game:String(n)})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not switch games');showToast(d.message||`Game ${n}`);await refreshAll()}catch(err){showToast(err.message,true)}};
-function winnerText(s){return s.state==='GAME_OVER'&&!Number(s.winner)?'Draw (no winner)':playerLabel(s.winner)}
-function renderStatus(s){statusData=s;renderGameSwitch(s);dot.className='dot online';connPill.className='conn ok';connection.textContent='Connected';connectionMetric.textContent='Connected';playersMetric.textContent=s.players;sigilsMetric.textContent=s.sigils;starterMetric.textContent=playerLabel(s.starter);stateMetric.textContent=s.state;stateMetricSystem.textContent=s.state;firmwareMetric.textContent='v'+s.firmware;buildMetric.textContent=s.build||'—';espMetric.textContent=s.espNow?'Ready':'Error';activeMetric.textContent=playerLabel(s.active);activeMetricGame.textContent=playerLabel(s.active);winnerMetric.textContent=winnerText(s);adminUnlockMetric.textContent=s.presenceCodeShown?'Code on the Atlas screen':(s.presenceActive?'An Admin is verified':'No one');otaMetric.textContent=s.otaStateAllowed?'State ready':'Game locked';starterGame.textContent=playerLabel(s.starter);confirmGame.textContent=playerLabel(s.winConfirm);eliminationGame.textContent=playerLabel(s.eliminationTarget);winnerGame.textContent=winnerText(s);
- let title='Ready',sub='Sign in and join from your phone, or choose Join on a Sigil',eye='Lobby',bs='';
- if(s.state==='LOBBY'){title=s.players?`${s.players} player${Number(s.players)===1?'':'s'} seated`:'Ready';sub=s.starter?`${playerLabel(s.starter)} goes first`:'Sign in and join from your phone, or choose Join on a Sigil';if(s.starter)bs+=badge(`${playerLabel(s.starter)} starter`,'blue')}
- else if(s.state==='STARTING'){eye='Countdown';title='3 · 2 · 1';sub=`${playerLabel(s.starter)} starts`;bs+=badge('Countdown','blue')}
- else if(s.state==='RUNNING'){eye='Active turn';title=s.active?playerLabel(s.active):'Running';sub=turnTimerText(s);bs+=badge('Running','active');if(s.timerPhase==='WARNING')bs+=badge('Time almost up','warn');else if(s.timerPhase==='EXPIRED')bs+=badge("Time's up",'bad');else if(s.timerPhase==='LONG_TURN')bs+=badge('Long turn','warn');if(Number(s.passPending))bs+=badge(`${playerLabel(s.passPending)} passing`,'blue')}
- else if(s.state==='PAUSED'){eye='Paused';title=s.winConfirm?'Respond':'Paused';sub=s.winConfirm?`${playerLabel(s.winConfirm)} must confirm or deny`:s.eliminationTarget?`${playerLabel(s.eliminationTarget)} selected`:'Game paused';bs+=badge('Paused','warn')}
- else if(s.state==='GAME_OVER'){eye='Game over';title=s.winner?playerLabel(s.winner):'Draw';sub=s.winner?'Winner confirmed':'Ended as a draw at Atlas; no winner';bs+=badge(s.winner?'Game over':'Draw','good')}
- else eye=s.state||'TurnHub';
- eyebrow.textContent=eye;heroTitle.textContent=title;heroSub.textContent=sub;if(heroBadges.innerHTML!==bs)heroBadges.innerHTML=bs;
- if(s.state==='RUNNING')document.documentElement.dataset.running='';else delete document.documentElement.dataset.running;
- renderGauge(s);renderPlayers();renderSession();processBrowserFeedback(s);renderSetupWizard();syncWakeLock()}
-
-function playerStateText(s){if(s.eliminated)return 'Eliminated';if(s.winner||(s.winner===undefined&&statusData&&Number(statusData.winner)===Number(s.player)))return 'Winner';if(s.active)return 'Active turn';if(statusData&&Number(statusData.winConfirm)===Number(s.player))return 'Response needed';return 'At table'}
-function renderPlayers(){const rows=seatData.seats.slice().sort((a,b)=>a.player-b.player).map(s=>{let cls='player row';if(s.active)cls+=' active';const won=s.winner!==undefined?!!s.winner:statusData&&Number(statusData.winner)===Number(s.player);if(won)cls+=' winner';if(s.eliminated)cls+=' eliminated';const current=sameSessionSeat(s),name=s.name||`Player ${s.player}`;
- let controls='';if(s.virtual&&!current)controls=`<a class="btn small" href="/login?profile=${encodeURIComponent(s.profileId)}">Sign into this profile</a>`;else if(current)controls='<span class="badge good">You</span>';else{controls+=`<button class="small" onclick="claimSeat(${s.module},${s.slot})">Use this seat</button>`;if(s.hasPin&&!s.virtual)controls+=`<button class="small blue" onclick="pinLogin(${s.module},${s.slot})">PIN login</button>`}
- if(myFlags()&2&&s.profileId&&accounts.some(a=>a.profileId===s.profileId&&!a.archived))controls+=`<button class="small" onclick="openPerson('${esc(s.profileId)}')" aria-label="Moderate ${esc(name)}"><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg>Moderate</button>`;
- const via=s.virtual?'Phone':`${esc(sigilLabel(s.module))} · seat ${esc(s.slotName)}`+(s.sessionClaimed?' + phone':'');
- const life=s.lifeAvailable&&s.life!==undefined?`<span class="row-life" aria-label="Life ${Number(s.life)}">${Number(s.life)}</span>`:'';
- return `<li class="${cls}">${avatar(name,s.player,'',s.avatar)}<div class="row-main"><div class="player-name">${esc(name)}${s.hasPin?' <svg class="i lock" aria-label="Has a PIN or password" role="img"><use href="#i-lock"/></svg>':''}</div><div class="small">${s.team?`Team ${Number(s.team)} · `:''}Player ${s.player} · ${via}</div></div>${life}<span class="player-state ${s.active?'on':''}${won?' win':''}${s.eliminated?' out':''}">${esc(playerStateText(s))}</span><div class="row-actions actions">${controls}</div></li>`});
- const html=rows.length?rows.join(''):'<li class="empty">No players have joined yet. Tap Invite players to show the QR codes.</li>';if(players.innerHTML!==html)players.innerHTML=html;renderSigilSteps()}
-// "Connect a Sigil" as numbered steps; each step's state comes from what Atlas reports.
-function renderSigilSteps(){const authed=!!(sessionInfo&&sessionInfo.authenticated),devs=(deviceData&&deviceData.devices)||[],paired=devs.length>0,mine=authed&&seatData.seats.some(s=>sameSessionSeat(s)&&!s.virtual),lobby=statusData&&statusData.state==='LOBBY';
- const steps=[[authed,'Sign in on this phone',authed?`Signed in as ${esc(sessionInfo.name||'your profile')}.`:'<a href="/login">Sign in or create a profile</a>. Your statistics follow your profile, not the Sigil.'],
-  [paired,'Pair the Sigil with Atlas',paired?`${devs.length} Sigil${devs.length===1?'':'s'} paired.`:'On the Atlas screen open <strong>Menu → Pair a Sigil</strong>, then press <strong>Pair</strong> on the Sigil within 60 seconds.'],
-  [paired,'Check the codes match','The Sigil and Atlas show the same code. An Admin confirms it under Device Settings, or on the Atlas screen.'],
-  [mine,'Attach a seat to your profile',mine?'Your profile is on a Sigil seat.':lobby?'Under Sigils below, tap <strong>Attach seat A to my profile</strong>.':'Do this in the lobby, between games.']];
- let current=steps.findIndex(x=>!x[0]);const html=steps.map(([done,title,text],i)=>`<li class="step ${done?'done':i===current?'current':''}"><span class="step-dot" aria-hidden="true">${done?'<svg class="i"><use href="#i-check"/></svg>':i+1}</span><div><strong>${title}</strong><span class="sr-only">${done?' (done)':i===current?' (next)':''}</span><p class="small">${text}</p></div></li>`).join('');if(sigilSteps.innerHTML!==html)sigilSteps.innerHTML=html}
-function openInvite(){inviteSsid.textContent=networkData&&networkData.ssid?` (${networkData.ssid})`:'';if(typeof inviteSheet.showModal==='function')inviteSheet.showModal();else inviteSheet.setAttribute('open','')}
-function seatsForModule(id){return seatData.seats.filter(s=>Number(s.module)===Number(id))}
-function capabilityHtml(x){const caps=[];if(x.display==='oled')caps.push(badge('OLED: up to 2 players','blue'));else if(x.display==='epaper')caps.push(badge('E-paper: up to 2 players','blue'));if(!x.metadata)caps.push(badge('No Hello yet','warn'));if(x.customName)caps.push(badge('Custom name','blue'));return caps.join('')}
-function batteryText(b){return b?`Battery ${Number(b.percent)}%${b.low?' (low)':''}${b.charging?' (charging)':''} ·${(Number(b.millivolts)/1000).toFixed(2)} V`:''}
-function renderDevices(d){renderPresence();
- const battery=d.atlas.battery;
- deviceData=d;atlasDevice.className=battery&&battery.low?'notice bad':'notice good';
- atlasDevice.innerHTML=`<strong>Atlas</strong> · <span class="mono">${esc(d.atlas.hardwareId)}</span> · firmware ${esc(d.atlas.firmware)}${battery?' · '+esc(batteryText(battery)):''}`;
- const html=d.devices.length?d.devices.map(x=>{
-  const state=x.online?'<span class="device-state online-text">ONLINE</span>':'<span class="device-state offline-text">OFFLINE</span>';
-  const fw=x.metadata?`Firmware ${esc(x.firmware)}`:'Firmware metadata unavailable';
-  const seats=seatsForModule(x.id);
-  const seatHtml=seats.length?seats.map(s=>{
-   const current=sameSessionSeat(s);let controls=current?'<button class="small" disabled>Current seat</button>':`<button class="small" ${x.online?'':'disabled'} onclick="claimSeat(${s.module},${s.slot})">Use ${esc(s.slotName)}</button>`;
-   if(s.hasPin&&!current)controls+=`<button class="small blue" onclick="pinLogin(${s.module},${s.slot})">PIN login</button>`;
-   return `<div class="seat ${s.active?'active':''}"><div class="seat-top"><div><span class="slot">${esc(s.slotName)}</span><strong>${esc(s.name||`Player ${s.player}`)}</strong></div><span class="small">P${s.player}</span></div><div class="actions">${controls}</div></div>`
-  }).join(''):'<div class="small">No seats have joined yet.</div>';
-  const attach=sessionInfo&&sessionInfo.authenticated&&statusData&&statusData.state==='LOBBY'?`<button class="small primary" ${x.online?'':'disabled'} onclick="claimSeat(${x.id},1)">Attach seat A to my profile</button>`:'';
-  const signIn=!sessionInfo||!sessionInfo.authenticated?'<a class="btn small" href="/login">Sign in to attach a Sigil</a>':'';
-  const defaultLine=x.customName?`<div class="small">${esc(x.defaultLabel)}</div>`:'';
-  return `<article class="device"><div class="device-top"><div><div class="device-name">${esc(x.label)}</div>${defaultLine}<div class="mono">${esc(x.hardwareId)}</div></div>${state}</div><div class="small" style="margin-top:8px">${fw}<br>Last seen ${Math.round(Number(x.ageMs)/100)/10}s ago · ${Number(x.sessionCount)} browser session${Number(x.sessionCount)===1?'':'s'}</div><div class="badges">${capabilityHtml(x)}</div><div class="actions">${attach}${signIn}</div><div class="small" style="margin-top:8px">Both seats clear on restart and at game end. Rematch restores the same players.</div><div class="seats">${seatHtml}</div></article>`
- }).join(''):'<div class="empty">No Sigils discovered yet.</div>';
- if(devices.innerHTML!==html)devices.innerHTML=html;
-}
-
-function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—';wifiSecuritySetting.textContent=n.security||'—';wifiClientsSetting.textContent=String(n.stations??'—');wifiPasswordState.textContent=n.passwordIsDefault?'Factory default (change it)':n.passwordConfigured?`${n.passwordLength} characters`:'Not configured';wifiSsidSystem.textContent=n.ssid||'—';wifiSecuritySystem.textContent=n.security||'—';wifiClientsSystem.textContent=String(n.stations??'—')}
-
-function renderSession(){
- const authed=!!(sessionInfo&&sessionInfo.authenticated);
- if(!authed){gameSettingsDirty=false;lifePanel.hidden=true;profilePolicyOwner=null;profilePolicyDirty=false;sessionTitle.textContent='Not signed in';sessionMeta.textContent='Sign into your profile to join or reconnect.';sessionAvatar.textContent='?';sessionAvatar.style.removeProperty('--hue');sessionState.innerHTML='';sessionControls.hidden=true;claimHelp.hidden=false;signInButton.hidden=false;accountMenuWrap.hidden=true;closeAccountMenu();moderationCard.hidden=true;profileBox.hidden=true;profileSignedOut.hidden=false;sigilAccessOwner=null;sigilAccessForm.hidden=true;sigilAccessSignedOut.hidden=false;jewelBox.hidden=true;personalSignedOut.hidden=false;browserSeatMetric.textContent='Not signed in';renderProfileHero();return}
- const policyOwnerChanged=profilePolicyOwner!==sessionInfo.profileId;
- if(policyOwnerChanged){profilePolicyDirty=false;profilePolicyOwner=sessionInfo.profileId}
- if(sigilAccessOwner!==sessionInfo.profileId){sigilAccessOwner=sessionInfo.profileId;sigilAccessForm.hidden=false;sigilAccessSignedOut.hidden=true;loadSigilAccess();loadJewel()}
- profilePolicyFields.disabled=!sessionInfo.policyAvailable;
- if(!profilePolicyDirty&&sessionInfo.policyAvailable){
-   allowPhysicalWithoutPin.checked=!!sessionInfo.allowPhysicalWithoutPin;
-   hideStatsWithoutAuthentication.checked=!!sessionInfo.hideStatsWithoutAuthentication;
- }
- if(!sessionInfo.policyAvailable)profilePolicyStatus.textContent='Profile settings are unavailable. Reload before trying again.';
- else if(policyOwnerChanged)profilePolicyStatus.textContent='';
- const me=sessionInfo, joined=!!me.participating, name=me.name||'Unnamed profile', state=statusData||{};
- sessionTitle.textContent=name;sessionMeta.textContent=joined?`Player ${me.player} · ${me.virtual?'Phone play':sigilLabel(me.module)+' + phone'}`:'Signed in · not at the table';
- accountName.textContent=name;menuName.textContent=name;menuMeta.textContent=joined?`Player ${me.player} · at the table`:'Signed in · not at the table';accountButton.setAttribute('aria-label',`Account menu, ${name}`);
- for(const a of [sessionAvatar,profileAvatar,accountAvatar]){a.innerHTML=avatarSvg(myAvatar)||initials(name);a.style.setProperty('--hue',hue(joined?me.player:0))}
- renderProfileHero();
- browserSeatMetric.textContent=joined?`${name} · Player ${me.player}`:name+' · signed in';claimHelp.hidden=true;signInButton.hidden=true;accountMenuWrap.hidden=false;moderationCard.hidden=false;profileBox.hidden=false;profileSignedOut.hidden=true;
- profileSeatTitle.textContent=name;profileSeatMeta.textContent=`Profile ${me.profileId}`;if(document.activeElement!==profileName)profileName.value=me.name||'';
- clearPinButton.hidden=!(me.hasPin&&joined&&!me.virtual);
- const stateHtml=(me.active?badge('Your turn','active'):'')+(me.eliminated?badge('Eliminated','bad'):'');
- if(sessionState.innerHTML!==stateHtml)sessionState.innerHTML=stateHtml;
- const buttons=[];
- if(!joined){buttons.push(`<button class="primary wide xl" ${state.state==='LOBBY'?'':'disabled'} onclick="participation('join')">Join table</button>`)}
- else if(state.state==='LOBBY'){
-  buttons.push(`<button onclick="sendControl('starter')">I go first</button>`);
-  if(me.host)buttons.push(`<button class="primary" ${Number(state.players)>=2?'':'disabled'} onclick="sendControl('start')">Start game</button>`);
-  buttons.push(`<button onclick="participation('leave')">Leave table</button>`);
-  if(me.host)buttons.push(`<button class="bad" onclick="resetTable()">Reset table</button>`);
- }else if(state.state==='STARTING'){buttons.push(`<button class="wide" onclick="sendControl('cancel-start')">Cancel countdown</button>`)}
- else if(state.state==='RUNNING'&&!me.eliminated){
-  buttons.push(`<button class="primary wide xl" ${me.active?'':'disabled'} onclick="sendControl('pass')">${Number(state.passPending)===Number(me.player)?'Cancel pending pass':'Pass turn'}</button>`);
-  if(!me.active&&Number(state.active))buttons.push(`<button class="wide" onclick="sendControl('nudge')">Nudge ${esc(playerLabel(state.active))}</button>`);
-  buttons.push(`<button onclick="sendControl('pause')">Pause</button>`);
-  buttons.push(`<button ${me.active?'':'disabled'} onclick="sendControl('win')">Claim win</button>`);
-  buttons.push(`<button class="bad wide" onclick="concede()">Concede</button>`);
- }else if(state.state==='PAUSED'&&!me.eliminated){
-  if(Number(state.winConfirm)===Number(me.player)){buttons.push(`<button class="primary" onclick="sendControl('confirm')">Confirm win</button><button onclick="sendControl('deny')">Deny claim</button>`)}
-  else if(!state.winConfirm&&!state.eliminationTarget){buttons.push(`<button class="primary wide xl" onclick="sendControl('pause')">Resume game</button>`);if(me.active)buttons.push(`<button onclick="sendControl('win')">Claim win</button>`);buttons.push(`<button class="bad" onclick="concede()">Concede</button>`)}
- }else if(state.state==='GAME_OVER'&&me.host){buttons.push(`<button class="primary" onclick="sendControl('rematch')">Rematch</button><button onclick="resetTable()">Reset table</button>`)}
- const html=buttons.join('');if(sessionControls.innerHTML!==html){const action=document.activeElement&&document.activeElement.getAttribute('onclick');sessionControls.innerHTML=html;if(action){const replacement=[...sessionControls.querySelectorAll('button')].find(b=>b.getAttribute('onclick')===action);if(replacement)replacement.focus()}}
- sessionControls.hidden=false;
-}
-async function resetTable(){if(await uiAsk({title:'Reset the table?',text:'Everyone returns to the lobby. Profiles and saved statistics are kept.',ok:'Reset table',danger:true}))sendControl('reset')}
-async function participation(action){try{const r=await fetch('/api/session/'+action,{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');showToast(d.message||'Updated');await refreshAll()}catch(e){showToast(e.message,true)}}
-
-async function refreshSession(){if(!sessionToken){sessionInfo=null;renderSession();return}const r=await fetch('/api/session/me',{headers:authHeaders(),cache:'no-store'});if(r.status===401){sessionToken='';sessionInfo=null;localStorage.removeItem('turnhubSessionToken')}else if(!r.ok){throw new Error('Session unavailable')}else{sessionInfo=await r.json()}renderSession()}
-
-async function claimSeat(module,slot){const label=sigilLabel(module);showToast(`Waiting for ${label} ${slot===1?'A':'B'} authorization...`);try{const r=await fetch(`/api/session/request?module=${module}&slot=${slot}`,{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Claim failed');pendingClaim=d.requestId;if(pendingTimer)clearInterval(pendingTimer);pendingTimer=setInterval(pollClaim,450);showToast(`On ${label}, choose Link phone within 30 seconds for seat ${slot===1?'A':'B'}.`)}catch(e){showToast(e.message,true)}}
-async function pollClaim(){if(!pendingClaim)return;try{const r=await fetch(`/api/session/poll?id=${encodeURIComponent(pendingClaim)}`,{cache:'no-store'});const d=await r.json();if(!r.ok){clearInterval(pendingTimer);pendingClaim=null;showToast(d.error||'Authorization expired.',true);return}if(d.status==='approved'){clearInterval(pendingTimer);pendingClaim=null;sessionToken=d.token;localStorage.setItem('turnhubSessionToken',sessionToken);playFeedback('test');showToast('Seat authorized.');await refreshAll()}}catch(_){}}
-async function pinLogin(module,slot){const pin=await uiAsk({title:'PIN login',text:`Enter the PIN for ${sigilLabel(module)} seat ${slot===1?'A':'B'}.`,ok:'Sign in',input:{label:'PIN',type:'password',inputMode:'numeric',maxLength:8,autocomplete:'current-password'}});if(pin===null)return;try{const r=await fetch('/api/session/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({module,slot,pin})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Login failed');sessionToken=d.token;localStorage.setItem('turnhubSessionToken',sessionToken);playFeedback('test');showToast('PIN accepted.');await refreshAll()}catch(e){showToast(e.message,true)}}
-async function logoutSession(){try{await fetch('/api/session/logout',{method:'POST',headers:authHeaders()})}catch(_){}sessionToken='';sessionInfo=null;localStorage.removeItem('turnhubSessionToken');showToast('Logged out.');await refreshAll()}
-async function sendControl(name){try{const r=await fetch('/api/control/'+name,{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Control rejected');playFeedback('test');showToast(d.message||'Control accepted');setTimeout(refreshAll,100)}catch(e){showToast(e.message,true)}}
-async function concede(){if(await uiAsk({title:'Concede?',text:'Concede this player from the current game?',ok:'Concede',danger:true}))sendControl('concede')}
-async function saveProfilePolicy(event){
- event.preventDefault();
- const choices={allowPhysicalWithoutPin:allowPhysicalWithoutPin.checked?'1':'0',hideStatsWithoutAuthentication:hideStatsWithoutAuthentication.checked?'1':'0'};
- profilePolicyFields.disabled=true;
- try{
-  const r=await fetch('/api/session/policy',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(choices)});
-  const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save profile choices');
-  profilePolicyDirty=false;profilePolicyStatus.textContent='Profile choices saved on Atlas.';await refreshAll();
- }catch(e){profilePolicyStatus.textContent=e.message;showToast(e.message,true)}
- finally{profilePolicyFields.disabled=!(sessionInfo&&sessionInfo.policyAvailable)}
-}
-async function saveName(){const name=profileName.value.trim();try{const r=await fetch('/api/session/profile?name='+encodeURIComponent(name),{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save name');showToast('Player name saved.');await refreshAll()}catch(e){showToast(e.message,true)}}
-async function savePin(){const pin=profilePin.value;const bytes=new TextEncoder().encode(pin).length;if(!/^\d{4,8}$/.test(pin)&&(bytes<8||bytes>64||/[\x00-\x1f\x7f]/.test(pin))){showToast('Use a 4–8 digit PIN or a password of 8 to 64 characters.',true);return}try{const r=await fetch('/api/session/profile',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({pin})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not set PIN');profilePin.value='';showToast('PIN saved.');await refreshAll()}catch(e){showToast(e.message,true)}}
-async function clearPin(){if(!await uiAsk({title:'Remove PIN?',text:'Remove the saved PIN for this profile?',ok:'Remove PIN',danger:true}))return;try{const r=await fetch('/api/session/profile?clearPin=1',{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not remove PIN');showToast('PIN removed.');await refreshAll()}catch(e){showToast(e.message,true)}}
 
 async function presenceState(){try{const r=await fetch('/api/presence',{headers:authHeaders(),cache:'no-store'});return r.ok?await r.json():null}catch(_){return null}}
 async function confirmPresence(code){try{const r=await fetch('/api/presence/confirm?code='+encodeURIComponent(code),{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not verify');showToast('Verified at the table for 10 minutes.');renderPresence();return true}catch(e){showToast(e.message,true);return false}}
@@ -578,7 +161,7 @@ async function renderPresence(){const el=document.getElementById('presenceStatus
 async function saveTableCode(required){try{const r=await presenceFetch('/api/table-code?required='+(required?1:0),{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not change the table code');showToast(d.message||'Saved.')}catch(e){showToast(e.message,true)}renderPresence()}
 async function showPresenceCode(){try{const r=await fetch('/api/presence/request',{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Atlas could not show a code');presenceStatus.textContent='Atlas is showing a six-digit code now. Type it here.';presenceShow.hidden=true;presenceForm.hidden=false;presenceCode.value='';presenceCode.focus()}catch(e){showToast(e.message,true)}}
 async function submitPresenceCode(){if(await confirmPresence(presenceCode.value.trim())){presenceForm.hidden=true}}
-async function presenceFromHash(){const m=/^#code=(\d{6})$/.exec(location.hash);if(!m)return;history.replaceState(null,'',location.pathname+location.search);if(!token){showToast('Sign in on this phone first, then enter the code.',true);return}await confirmPresence(m[1])}
+async function presenceFromHash(){const m=/^#code=(\d{6})$/.exec(location.hash);if(!m)return;history.replaceState(null,'',location.pathname+location.search);if(!sessionToken){showToast('Sign in on this phone first, then enter the code.',true);return}await confirmPresence(m[1])}
 async function renameSigil(id){const d=deviceById(id);if(!d)return;const next=await uiAsk({title:'Rename device',text:'You will be asked for the code the Atlas screen shows.',ok:'Save name',input:{label:`Custom name for ${d.defaultLabel||('Sigil '+(Number(id)+1))}`,value:d.customName||'',maxLength:32}});if(next===null)return;await saveSigilName(id,next.trim())}
 async function clearSigilName(id){const d=deviceById(id);if(!d)return;if(!await uiAsk({title:'Clear custom name?',text:`Clear the custom name “${d.label}”?`,ok:'Clear name',danger:true}))return;await saveSigilName(id,'')}
 async function forgetSigil(id){const d=deviceById(id);if(!d)return;if(!await uiAsk({title:'Forget this Sigil?',text:`Atlas forgets “${d.label}”. It must be paired again (Menu → Pair a Sigil on the Atlas screen, then the Sigil's Pair button) before anyone can use it.`,ok:'Forget Sigil',danger:true}))return;await forgetRequest(`module=${Number(id)}`)}
@@ -599,197 +182,10 @@ function generateNetworkPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefgh
 function toggleNetworkPassword(){const show=networkPasswordInput.type==='password';networkPasswordInput.type=show?'text':'password';wifiRevealButton.textContent=show?'Hide':'Show'}
 async function saveNetworkPassword(){const password=networkPasswordInput.value;if(password.length<8||password.length>63){showToast('Wi-Fi password must be 8 to 63 characters.',true);return}if(!await uiAsk({title:'Change the Wi-Fi password?',text:'Atlas will restart and every connected device will be disconnected. If the table code is on, you will be asked for the code the Atlas screen shows.',ok:'Save & restart',danger:true}))return;networkRestartNotice.className='notice';networkRestartNotice.textContent='Saving network password...';try{const r=await presenceFetch('/api/network/password?password='+encodeURIComponent(password),{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not update Wi-Fi password');if(!d.changed){networkRestartNotice.className='notice good';networkRestartNotice.textContent=d.message||'Password already matches.';showToast(d.message||'No network change needed.');return}networkRestartNotice.className='notice good';networkRestartNotice.textContent=`Password saved. Atlas is restarting. Reconnect to ${networkData&&networkData.ssid?networkData.ssid:'TurnHub-Atlas'} using the new password, then reopen this page.`;showToast('Wi-Fi password saved. Atlas is restarting.')}catch(e){networkRestartNotice.className='notice';networkRestartNotice.textContent=e.message||'Network password update failed.';showToast(e.message,true)}}
 
-async function pollJson(path,headers={}){
- const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);
- try{const r=await fetch(path,{cache:'no-store',headers,signal:controller.signal});if(!r.ok)throw new Error('Refresh failed');return await r.json()}finally{clearTimeout(timer)}
-}
-// Atlas serves one request at a time on the loop that also runs the game, so
-// the timer polls live data only; devices, settings and admin data follow on
-// every POLL_FULL_EVERY-th tick or whenever an action calls refreshAll().
-const POLL_MS=1000,POLL_FULL_EVERY=5;let pollTick=0;
-function pollTimer(){if(document.hidden)return;refreshAll(++pollTick%POLL_FULL_EVERY===0)}
-function refreshAll(full=true){
- if(refreshInFlight)return refreshInFlight;
- refreshInFlight=(async()=>{
-  try{
-   const s=await pollJson(forGame('/api/status'),authHeaders());
-   // A table-state or Sigil-count change pulls everything straight away.
-   const slow=full||!gameSettingsData||!statusData||s.state!==statusData.state||s.sigils!==statusData.sigils;
-   const d=slow?await pollJson('/api/devices'):deviceData;
-   const seats=await pollJson(forGame('/api/seats'),authHeaders());
-   await refreshSession();
-   const admin=!!(sessionInfo&&sessionInfo.permissions&1);
-   const n=admin?(slow||!networkData?await pollJson('/api/network',authHeaders()):networkData):null;
-   const pairing=n&&slow?await pollJson('/api/pairing',authHeaders()):null;const speaker=n&&slow?await pollJson('/api/speaker',authHeaders()):null;
-   if(slow)gameSettingsData=await pollJson('/api/game/settings',authHeaders());
-   counterData=sessionInfo&&sessionInfo.participating&&sessionInfo.lifeAvailable?await pollJson('/api/game/counters',authHeaders()):null;
-   deviceData=d;seatData=seats;networkData=n;
-   renderDevices(d);renderDeviceSettings(d);if(n)renderNetwork(n);if(pairing)renderPairing(pairing);if(speaker)renderSpeaker(speaker);renderStatus(s);renderGameLife();renderCounterControls();renderAccess();
-  }catch(_){dot.className='dot';connPill.className='conn';connection.textContent='Reconnecting';connectionMetric.textContent='Disconnected';counterData=null;lifeFields.disabled=true;renderCounterControls()}
- })().finally(()=>{refreshInFlight=null});
- return refreshInFlight;
-}
-const PROFILE_LABELS={generic:'Generic',mtg:'Magic: The Gathering',mtg_commander:'MTG Commander',yugioh:'Yu-Gi-Oh!'};
-function renderGameLife(){
- const settings=gameSettingsData,me=sessionInfo||{},state=statusData||{};
- gameProfileSummary.textContent=settings?`${PROFILE_LABELS[settings.gameProfile]||settings.gameProfile}${settings.twoHeadedGiant?' · Two-Headed Giant · Team life':' · Starting life'} ${settings.startingLife} · Turn timer ${timerLabel(settings.turnTimerMs||0)}`:'';
- renderLifeCards();
- if(settings&&settings.turnTimer&&!turnTimerSelect.options.length){turnTimerSelect.innerHTML=settings.turnTimer.presetsMs.map(ms=>`<option value="${ms}">${timerLabel(ms)}</option>`).join('')+'<option value="custom">Custom…</option>'}
- if(settings&&!gameSettingsDirty){gameProfileSelect.value=settings.gameProfile;startingLifeInput.value=settings.startingLife;twoHeadedGiantInput.checked=!!settings.twoHeadedGiant;
-  const ms=settings.turnTimerMs||0,preset=!settings.turnTimer||settings.turnTimer.presetsMs.includes(ms);
-  turnTimerSelect.value=preset?String(ms):'custom';turnTimerCustomRow.hidden=preset;if(!preset)turnTimerCustom.value=ms/1000}
- if(!gameSettingsDirty)syncTwoHeadedGiant();
- gameSettingsFields.disabled=gameSettingsSaving||!settings||!settings.canEdit;
- const show=!!(me.authenticated&&me.lifeAvailable);
- lifePanel.hidden=!show;
- if(show&&myLifeTotal.textContent!==String(me.life))myLifeTotal.textContent=String(me.life);
- lifeStep=settings&&settings.gameProfile==='yugioh'?100:1;lifeBigStep=lifeStep===100?1000:5;
- lifeMinus.textContent='−'+lifeStep;lifePlus.textContent='+'+lifeStep;
- lifeMinusBig.textContent='−'+lifeBigStep;lifePlusBig.textContent='+'+lifeBigStep;
- lifeMinus.setAttribute('aria-label',`Subtract ${lifeStep} life`);lifePlus.setAttribute('aria-label',`Add ${lifeStep} life`);
- lifeMinusBig.setAttribute('aria-label',`Subtract ${lifeBigStep} life`);lifePlusBig.setAttribute('aria-label',`Add ${lifeBigStep} life`);
- lifeFields.disabled=lifeBusy||!show||me.eliminated||!['RUNNING','PAUSED'].includes(state.state)||!!state.winConfirm||!!state.eliminationTarget;
- lifeTens.hidden=!settings||!['mtg','mtg_commander'].includes(settings.gameProfile);
- if(settings&&!settings.available)gameSettingsMessage.textContent='Game settings storage is unavailable.';
-}
-function clockText(ms){const t=Math.max(0,Math.floor(ms/1000));return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`}
-function timerLabel(ms){if(!ms)return 'Off (cue after 5 minutes)';return ms%60000?`${ms/1000} seconds`:`${ms/60000} minute${ms===60000?'':'s'}`}
-// Atlas decides the phase; the text carries the meaning, the badge and gauge only reinforce it.
-function turnTimerText(s){const elapsed=Number(s.turnElapsedMs)||0,limit=Number(s.turnTimerMs)||0;
- if(s.timerPhase==='EXPIRED')return `Time's up · ${clockText(elapsed-limit)} over`;
- if(limit)return `${clockText(s.turnRemainingMs)} left${s.timerPhase==='WARNING'?' · 10-second warning':''}`;
- return s.timerPhase==='LONG_TURN'?`Long turn · ${clockText(elapsed)}`:`Turn time ${clockText(elapsed)}`}
-const TEAM_PROFILES=['mtg','mtg_commander'];
-function teamLife(profile){const t=gameSettingsData&&gameSettingsData.teamLife;return (t&&t[profile])||({mtg:30,mtg_commander:60})[profile]}
-function syncTwoHeadedGiant(){const ok=TEAM_PROFILES.includes(gameProfileSelect.value);if(!ok)twoHeadedGiantInput.checked=false;twoHeadedGiantInput.disabled=!ok}
-function chooseGameProfile(){gameSettingsDirty=true;syncTwoHeadedGiant();startingLifeInput.value=twoHeadedGiantInput.checked?teamLife(gameProfileSelect.value):({generic:40,mtg:20,mtg_commander:40,yugioh:8000})[gameProfileSelect.value]}
-function chooseTwoHeadedGiant(){gameSettingsDirty=true;startingLifeInput.value=twoHeadedGiantInput.checked?teamLife(gameProfileSelect.value):({mtg:20,mtg_commander:40})[gameProfileSelect.value]||startingLifeInput.value}
-async function saveGameSettings(event){
- event.preventDefault();if(gameSettingsSaving)return;
- const turnTimerMs=turnTimerSelect.value==='custom'?String(Number(turnTimerCustom.value)*1000):turnTimerSelect.value;
- const settings={gameProfile:gameProfileSelect.value,startingLife:startingLifeInput.value,twoHeadedGiant:twoHeadedGiantInput.checked&&TEAM_PROFILES.includes(gameProfileSelect.value)?'1':'0'};
- if(turnTimerMs)settings.turnTimerMs=turnTimerMs;
- gameSettingsSaving=true;renderGameLife();
- try{
-  const r=await fetch('/api/game/settings',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(settings)});
-  const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save game settings');
-  gameSettingsDirty=false;gameSettingsMessage.textContent='Game settings saved on Atlas.';
-  await refreshAll();await refreshAll();
- }catch(e){gameSettingsMessage.textContent=e.message}
- finally{gameSettingsSaving=false;renderGameLife()}
-}
-async function adjustMyLife(delta,player=Number(lifeTarget.value)){
- if(lifeBusy)return;
- if(!Number.isInteger(delta)||!delta||Math.abs(delta)>1000000){lifeMessage.textContent='Enter a nonzero whole-number change up to 1000000.';return}
- const target=Number(player),own=target===Number(sessionInfo&&sessionInfo.player);
- if(!target||!counterData||!counterData.editable){lifeMessage.textContent='Refresh the current game before changing life.';return}
- lifeBusy=true;renderGameLife();
- try{
-  const r=await fetch(own?'/api/control/life':'/api/control/life/request',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(own?{delta}:{delta,target})});
-  const d=await r.json();if(!r.ok)throw new Error(d.error||'Life change rejected');
-  lifeMessage.textContent=own?'Life updated.':d.message||'Life change requested.';lifeDelta.value='';
-  await refreshAll();await refreshAll();
- }catch(e){lifeMessage.textContent=e.message+' Check the current total before retrying.'}
- finally{lifeBusy=false;renderGameLife();renderCounterControls()}
-}
-
-function updatePlayerOptions(select,seats,preferred){
- const options=seats.map(s=>`<option value="${Number(s.player)}">${esc(s.name||'Player '+s.player)}${Number(s.player)===Number(sessionInfo&&sessionInfo.player)?' (me)':''}</option>`).join('');
- if(select.innerHTML!==options){const previous=select.value;select.innerHTML=options;select.value=seats.some(s=>String(s.player)===previous)?previous:String(preferred);if(!select.value&&seats.length)select.value=String(seats[0].player)}
-}
-// A short-lived +/- marker beside a total that just changed (visual echo only; the total itself is the record).
-function lifeDeltaChip(id,life){const now=Date.now(),seen=lifeSeen[id];if(!seen){lifeSeen[id]={life,delta:0,until:0};return ''}if(seen.life!==life){seen.delta=(now<seen.until?seen.delta:0)+(life-seen.life);seen.life=life;seen.until=now+2600}if(now>=seen.until||!seen.delta)return '';return `<span class="life-delta ${seen.delta>0?'up':'down'}" aria-hidden="true">${seen.delta>0?'+':'−'}${Math.abs(seen.delta)}</span>`}
-function renderLifeCards(){
- lifeCard.hidden=!(seatData.seats||[]).some(s=>s.lifeAvailable);
- const me=sessionInfo||{},data=counterData;
- const editable=!!(me.authenticated&&!me.eliminated&&data&&data.available&&data.editable&&Number(data.player)===Number(me.player)&&['RUNNING','PAUSED'].includes(statusData?.state)&&!statusData.winConfirm&&!statusData.eliminationTarget);
- const steps=gameSettingsData&&gameSettingsData.gameProfile==='yugioh'?[100,1000]:[1,10];
- const totals=(seatData.seats||[]).filter(s=>s.lifeAvailable).map(s=>{
-  const name=s.name||'Player '+s.player,id=Number(s.player),own=id===Number(me.player);
-  const tag=s.eliminated?'Eliminated':s.active?'Active turn':own?'You':'';
-  return `<article class="life-player${s.active?' active':''}${s.eliminated?' eliminated':''}${own?' me':''}" data-player="${id}" aria-label="${esc(name)} life"><div class="life-head">${avatar(name,id,'',s.avatar)}<div><h3>${esc(name)}${own?' (me)':''}</h3><span class="life-tag">${tag||'&nbsp;'}</span></div></div><div class="life-num"><span class="life-total">${Number(s.life)}</span>${lifeDeltaChip(id,Number(s.life))}</div><div class="life-buttons">${[-steps[1],-steps[0],steps[0],steps[1]].map(delta=>`<button data-delta="${delta}" aria-label="${delta>0?'Add':'Subtract'} ${Math.abs(delta)} life ${delta>0?'to':'from'} ${esc(name)}" onclick="adjustMyLife(${delta},${id})">${delta>0?'+':'−'}${Math.abs(delta)}</button>`).join('')}</div><p class="small">${own?'Applies immediately':'Requires approval · 15 seconds'}</p></article>`;
- }).join('')||'<div class="empty">Life totals appear when the game starts.</div>';
- if(tableLifeTotals.renderedCards!==totals){tableLifeTotals.renderedCards=totals;const focused=document.activeElement,player=focused?.closest('[data-player]')?.dataset.player,delta=focused?.dataset.delta;tableLifeTotals.innerHTML=totals;if(player&&delta)tableLifeTotals.querySelector(`[data-player="${player}"] [data-delta="${delta}"]`)?.focus({preventScroll:true})}
- tableLifeTotals.querySelectorAll('button').forEach(b=>b.disabled=lifeBusy||!editable||b.closest('.life-player').classList.contains('eliminated'));
-}
-function renderCounterControls(){
- renderLifeCards();
- const me=sessionInfo||{},data=counterData,available=!!(me.authenticated&&data&&data.available&&Number(data.player)===Number(me.player));
- const owner=me.profileId||'';
- if(counterOwner!==owner){counterOwner=owner;lifeTarget.innerHTML='';commanderSource.innerHTML='';commanderDelta.value='';lifeDelta.value='';lifeMessage.textContent='';commanderMessage.textContent=''}
- updatePlayerOptions(lifeTarget,(seatData.seats||[]).filter(s=>s.lifeAvailable&&!s.eliminated),me.player);
- const own=Number(lifeTarget.value)===Number(me.player);
- lifeTargetHelp.textContent=own?'Your own changes apply immediately.':'This sends a request. The recipient can accept or reject it; Atlas accepts it after 15 seconds (or the longer time the recipient chose) without a response.';
- lifeSubmit.textContent=own?'Apply life change':'Request life change';
- if(!available||!data.editable)lifeFields.disabled=true;
- const requests=available?data.requests||[]:[],incoming=requests.find(r=>Number(r.target)===Number(me.player));
- lifeRequestsPanel.hidden=!me.authenticated||(!me.lifeAvailable&&!requests.length);
- const outcomes={accepted:'Accepted',rejected:'Rejected',automatic:'Automatically accepted',cancelled:'Canceled by a table decision or player departure',failed:'Not applied: life limits or player state changed'};
- const describe=r=>`${playerLabel(r.actor)} requests ${Number(r.delta)>0?'+':''}${r.delta} life for ${playerLabel(r.target)}.`;
- const notice=!available?'Request status unavailable. Reconnect to Atlas; its timer continues.':incoming?describe(incoming)+(incoming.state==='pending'?' Accept or reject this change.':' '+(outcomes[incoming.state]||incoming.state)+'.'):'No request awaiting your response.';
- if(lifeRequestNotice.textContent!==notice)lifeRequestNotice.textContent=notice;
- const pending=incoming&&incoming.state==='pending';
- lifeRequestAlert.hidden=!pending;
- const windowMs=Math.max(1000,Number(incoming&&incoming.windowMs)||15000);
- lifeAlertBar.style.width=pending?Math.max(0,Math.min(100,Number(incoming.remainingMs)*100/windowMs))+'%':'0';
- const alertText=pending?`${playerLabel(incoming.actor)} requests ${Number(incoming.delta)>0?'+':''}${incoming.delta} life for you. Respond within ${Math.round(windowMs/1000)} seconds or Atlas accepts it.`:'';
- if(lifeAlertText.textContent!==alertText)lifeAlertText.textContent=alertText;
- const controls=pending?`<div class="actions"><button class="good" onclick="respondLifeChange(${Number(incoming.id)},true)">Accept life change</button><button class="bad" onclick="respondLifeChange(${Number(incoming.id)},false)">Reject life change</button></div>`:'';
- if(lifeRequestActions.innerHTML!==controls)lifeRequestActions.innerHTML=controls;
- lifeRequestActions.querySelectorAll('button').forEach(button=>button.disabled=counterBusy||!available||!data.editable);
- lifeRequestCountdown.textContent=pending?`Atlas automatically accepts in ${Math.ceil(Number(incoming.remainingMs)/1000)} seconds.`:'';
- const outgoing=requests.filter(r=>Number(r.actor)===Number(me.player)).map(r=>`<p>${esc(describe(r))} ${esc(r.state==='pending'?'Awaiting response · '+Math.ceil(Number(r.remainingMs)/1000)+' seconds':outcomes[r.state]||r.state)}</p>`).join('');
- if(outgoingLifeRequests.innerHTML!==outgoing)outgoingLifeRequests.innerHTML=outgoing;
- commanderPanel.hidden=!available||!data.commanderEnabled;
- commanderFields.disabled=counterBusy||!available||!data.editable;
- if(available&&data.commanderEnabled){
-  updatePlayerOptions(commanderSource,seatData.seats||[],(seatData.seats||[]).find(s=>Number(s.player)!==Number(me.player))?.player||me.player);
-  const totals=(data.damage||[]).map(d=>`<div class="status-row"><span>${esc(playerLabel(d.source))}</span><strong>Commander 1: ${Number(d.commanders[0])}<br>Commander 2: ${Number(d.commanders[1])}</strong></div>`).join('');
-  if(commanderTotals.innerHTML!==totals)commanderTotals.innerHTML=totals;
- }
-}
-async function sendCounterControl(path,values,messageElement){
- if(counterBusy||!counterData||!counterData.editable)return;
- counterBusy=true;renderCounterControls();
- try{
-  const r=await fetch('/api/control/'+path,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(values)});
-  const result=await r.json();if(!r.ok)throw Error(result.error||'Change rejected');
-  messageElement.textContent=result.message||'Updated';
-  if(path==='commander')commanderDelta.value='';
-  await refreshAll();await refreshAll();
- }catch(e){messageElement.textContent=e.message+' Check the current totals before retrying.';showToast(e.message,true);await refreshAll()}
- finally{counterBusy=false;renderCounterControls()}
-}
-function respondLifeChange(requestId,accept){return sendCounterControl('life/respond',{requestId,accept:accept?'1':'0'},lifeMessage)}
-function reviewLifeRequest(){showTab('game');lifeRequestsPanel.scrollIntoView({block:'center'});const button=lifeRequestActions.querySelector('button');if(button)button.focus({preventScroll:true})}
-function saveCommanderDamage(event){event.preventDefault();return sendCounterControl('commander',{source:commanderSource.value,commander:commanderSlot.value,delta:commanderDelta.value},commanderMessage)}
-function renderInviteCodes(){
- for(const [id,path] of [['portal','/portal'],['join','/login']]){
-  const url=location.origin+path,box=document.getElementById(id+'Qr'),link=document.getElementById(id+'QrLink');link.href=url;
-  try{const code=qrcode(0,'M');code.addData(url);code.make();box.innerHTML=code.createSvgTag({cellSize:4,margin:8,scalable:true});box.querySelector('svg').setAttribute('aria-label',id==='portal'?'Table portal QR code':'Sign in QR code')}
-  catch(_){box.textContent='QR code unavailable. Use the link below.'}
- }
-}
-
-let lastAccessKey='';
-function renderAccess(){
- const flags=sessionInfo&&sessionInfo.permissions||0;
- deviceSettingsTab.hidden=!(flags&1);devLink.hidden=!(flags&4);peopleCard.hidden=!(flags&3);
- if(!(flags&1)&&!document.getElementById('view-settings').hidden)showTab('game');
- if(!(flags&3)){accounts=[];renderPeople();if(personSheet.open)personSheet.close()}
- const key=(sessionInfo&&sessionInfo.profileId||'')+':'+flags;
- if(key!==lastAccessKey){lastAccessKey=key;if(sessionInfo&&sessionInfo.authenticated)refreshAccountList()}
-}
+function renderNetwork(n){networkData=n;wifiSsidSetting.textContent=n.ssid||'—';wifiSecuritySetting.textContent=n.security||'—';wifiClientsSetting.textContent=String(n.stations??'—');wifiPasswordState.textContent=n.passwordIsDefault?'Factory default (change it)':n.passwordConfigured?`${n.passwordLength} characters`:'Not configured';wifiSsidSystem.textContent=n.ssid||'—';wifiSecuritySystem.textContent=n.security||'—';wifiClientsSystem.textContent=String(n.stations??'—');}
 function renderPairingChecks(d){const html=(d.pendingPairings||[]).map(p=>`<div class="setting-box notice"><div class="device-name">Sigil ${Number(p.id)+1} is waiting to pair</div><p>Code <strong class="mono">${esc(p.code)}</strong> (${Number(p.secondsLeft)} s left). Does the Sigil show the same code? You will be asked for the code the Atlas screen shows first, unless you are verified at the table.</p><div class="actions"><button class="small primary" onclick="pairConfirm(${Number(p.id)},true)" aria-label="Codes match: pair Sigil ${Number(p.id)+1}">Codes match</button><button class="small warn" onclick="pairConfirm(${Number(p.id)},false)" aria-label="Reject Sigil ${Number(p.id)+1}">Reject</button></div></div>`).join('');if(pairingChecks.innerHTML!==html)pairingChecks.innerHTML=html}
 async function pairConfirm(id,accept){try{const r=await presenceFetch(`/api/device/pair-confirm?module=${Number(id)}&accept=${accept?1:0}`,{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not answer the pairing');showToast(d.message||(accept?'Sigil paired securely.':'Pairing rejected.'));await refreshAll()}catch(e){showToast(e.message,true)}}
 function renderDeviceSettings(d){renderPairingChecks(d);const html=(d.devices||[]).map(x=>`<div class="setting-box"><div class="device-top"><div><div class="device-name">${esc(x.label)}</div><div class="mono">${esc(x.hardwareId)}</div></div><div class="actions"><button class="small" onclick="renameSigil(${x.id})">Rename</button>${x.customName?`<button class="small" onclick="clearSigilName(${x.id})">Clear name</button>`:''}<button class="small warn" onclick="forgetSigil(${x.id})" aria-label="Forget ${esc(x.label)}">Forget</button><button class="small warn" onclick="factoryResetSigil(${x.id})" aria-label="Factory reset ${esc(x.label)}">Factory reset</button></div></div></div>`).join('')||'<div class="empty">No Sigils discovered yet.</div>';if(deviceSettingsList.innerHTML!==html)deviceSettingsList.innerHTML=html}
-async function accountPost(path,data){const r=await fetch('/api/accounts/'+path,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(data)});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
-async function setupAdmin(){try{if(!await ensureVerified())return;await accountPost('setup',{});adminSetup.hidden=true;await refreshAll();if(setupWizard.hidden)showTab('settings');else loadSetupStage();showToast('Admin account established.')}catch(e){showToast(e.message,true)}}
-async function loadSetup(){try{const d=await pollJson('/api/accounts/setup');adminSetup.hidden=!d.setupRequired}catch(e){showToast('Account setup unavailable',true)}}
-// People: one list of accounts for Admins and Game Masters. Selecting a person
-// opens a sheet with only what applies to them right now: moderation while they
-// are at the table (Game Master), nudges, roles that save as they change
-// (Admin) and archiving. Atlas still validates every action.
 const ROLE_INFO=[[1,'Admin','Device settings, Wi-Fi, updates and people.'],[2,'Game Master','Moderates players at the table.'],[4,'Developer','The diagnostics page and the Atlas log.'],[32,'Tablet access','Turns on tablet mode without a code from the Atlas screen, e.g. for a tablet account that never joins the table.']];
 const GM_POWERS=[[8,'Reset connections','Can sign a player out everywhere until they sign in again.'],[16,'Remove from game','Can take a player out of the game.']];
 let accounts=[],openPersonId='';
@@ -802,27 +198,20 @@ function personRow(a){const me=sessionInfo&&a.profileId===sessionInfo.profileId;
 function renderPeople(){const live=accounts.filter(a=>!a.archived).sort((a,b)=>Number(!!b.atTable)-Number(!!a.atTable)||personName(a).localeCompare(personName(b))),archived=accounts.filter(a=>a.archived);
  const html=live.map(personRow).join('')||'<li class="empty">No accounts yet.</li>';if(peopleList.innerHTML!==html)peopleList.innerHTML=html;
  archivedPeople.hidden=!archived.length;archivedCount.textContent=archived.length;const ah=archived.map(personRow).join('');if(archivedList.innerHTML!==ah)archivedList.innerHTML=ah;
- peopleHint.textContent=myFlags()&1?'Everyone with an account on this Atlas. Select a person to change their roles'+(myFlags()&2?' or moderate them.':'.'):'Everyone with an account on this Atlas. Select a person to moderate them.';
+ peopleHint.textContent='Select an account to manage roles or archive it. Gameplay moderation is in the app.';
  if(personSheet.open)renderPerson()}
 async function refreshAccountList(){
- if(!sessionToken||!sessionInfo||!sessionInfo.authenticated||!(myFlags()&3))return;
+ if(!sessionToken||!sessionInfo||!sessionInfo.authenticated||!(myFlags()&1))return;
  const requestedToken=sessionToken;
- try{const d=await pollJson('/api/accounts',authHeaders());if(requestedToken!==sessionToken||!sessionInfo)return;accounts=d.accounts||[];renderPeople();renderPlayers()}catch(e){showToast(e.message,true)}
+ try{const d=await pollJson('/api/accounts',authHeaders());if(requestedToken!==sessionToken||!sessionInfo)return;accounts=d.accounts||[];renderPeople()}catch(e){showToast(e.message,true)}
 }
-function showPeople(){showTab('players');refreshAccountList();requestAnimationFrame(()=>peopleCard.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'}))}
+function showPeople(){peopleCard.scrollIntoView({block:'start'});refreshAccountList()}
 function openPerson(id){openPersonId=id;personStatus.textContent='';renderPerson();if(!personSheet.open){if(typeof personSheet.showModal==='function')personSheet.showModal();else personSheet.setAttribute('open','')}}
-function personAction(action,title,detail,{disabled='',danger=false,icon='chevron-right'}={}){return `<button type="button" class="${danger?'danger':''}" onclick="moderate('${action}')" ${disabled?'disabled':''}><svg class="i" aria-hidden="true"><use href="#i-${icon}"/></svg><span><strong>${title}</strong><small>${esc(disabled||detail)}</small></span></button>`}
 function renderPerson(){const a=accounts.find(x=>x.profileId===openPersonId);if(!a){if(personSheet.open)personSheet.close();return}
  const flags=myFlags(),me=sessionInfo&&a.profileId===sessionInfo.profileId,live=!a.archived;
  personSheetAvatar.innerHTML=avatar(personName(a),0,'',a.avatar);personSheetName.textContent=personName(a)+(me?' (you)':'');
  personSheetMeta.innerHTML=`<span class="mono">${esc(a.profileId)}</span>${a.archived?' · Archived':''}${a.hasPin===false?' · No PIN or password':''}`;
  let html='';
- if(flags&2&&live&&a.atTable){const seat=seatData.seats.find(s=>s.profileId===a.profileId),turn=!!(seat&&seat.active&&statusData&&statusData.state==='RUNNING'),noPin=a.hasPin===false?'Needs a PIN or password on their account first.':'';
-  html+=`<h3 class="sheet-label">At the table</h3><div class="link-list actions-list">${personAction('pass','Pass their turn','Ends their turn now, without the pass grace period.',{disabled:turn?'':'Available while it is their turn.',icon:'pass'})}`;
-  if(flags&8)html+=personAction('reset','Reset connections','Signs them out everywhere and pauses their Sigil until they sign in again. Their seat and life stay.',{disabled:a.reconnectRequired?'Waiting for them to sign in again.':noPin,icon:'refresh'});
-  if(flags&16)html+=personAction('remove','Remove from game','Takes them out of this game. In a match it counts as a concession.',{disabled:noPin,danger:true,icon:'close'});
-  html+='</div>'}
- if(flags&2&&live)html+=`<h3 class="sheet-label">Nudges</h3><div class="group"><label class="switch-row"><div>Can send nudges<small id="nudge-hint">Turn off to stop this account from nudging other players.</small></div><input type="checkbox" id="personNudges" aria-label="Can send nudges" aria-describedby="nudge-hint" ${a.nudgeMuted?'':'checked'} onchange="moderate(this.checked?'unmute':'mute')"></label></div>`;
  if(flags&1&&live){const locked=a.hasPin===false&&!a.permissions;
   html+=`<h3 class="sheet-label">Roles</h3>${locked?'<p class="small notice">Roles need a PIN or password on this account. They can set one in My Account.</p>':''}<div class="group roles">`+ROLE_INFO.map(([bit,label,text])=>{const fixed=bit===1&&a.primary;
    let row=`<label class="switch-row"><div>${label}<small id="role-hint-${bit}">${fixed?'The initial Admin always keeps this role.':text}</small></div><input type="checkbox" aria-label="${label}" aria-describedby="role-hint-${bit}" data-bit="${bit}" ${a.permissions&bit?'checked':''} ${fixed||locked?'disabled':''} onchange="saveRoles()"></label>`;
@@ -842,12 +231,6 @@ async function saveRoles(){const a=accounts.find(x=>x.profileId===openPersonId);
 async function archiveAccount(archived){const a=accounts.find(x=>x.profileId===openPersonId);if(!a)return;
  if(archived&&!await uiAsk({title:`Archive ${personName(a)}?`,text:'They can no longer sign in or use a Sigil. Their statistics stay saved, and you can restore the account later.',ok:'Archive',danger:true}))return;
  try{await accountPost('archive',{profileId:a.profileId,archived:archived?'1':'0'});await refreshAccountList();personStatus.textContent=archived?'Account archived.':'Account restored.';showToast(personStatus.textContent)}catch(e){personStatus.textContent=e.message;showToast(e.message,true)}}
-async function moderate(action){const a=accounts.find(x=>x.profileId===openPersonId);if(!a)return;const name=personName(a);
- const ask={pass:[`Pass ${name}’s turn?`,'Their turn ends now and the next player starts.','Pass turn',false],reset:[`Reset ${name}’s connections?`,'Every phone they use is signed out and their Sigil pauses until they sign in again with their PIN. Their seat and life total stay.','Reset connections',true],remove:[`Remove ${name} from the game?`,'They leave the table and are signed out everywhere. In a match this counts as a concession.','Remove',true]}[action];
- if(ask&&!await uiAsk({title:ask[0],text:ask[1],ok:ask[2],danger:ask[3]})){renderPerson();return}
- const done={pass:`Passed ${name}’s turn.`,reset:`${name} must sign in again.`,remove:`${name} was removed from the game.`,mute:`${name} can no longer send nudges.`,unmute:`${name} can send nudges again.`}[action];
- try{await accountPost('moderate',{profileId:a.profileId,action});personStatus.textContent=done;showToast(done);await refreshAll();await refreshAccountList()}catch(e){personStatus.textContent=e.message;showToast(e.message,true);renderPerson()}}
-
 // First-run setup in the portal (FIRST_RUN_SETUP.md): the same steps and endpoints as the app.
 let setupInfo=null;
 function newWifiPassword(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';const a=new Uint32Array(16);crypto.getRandomValues(a);return [...a].map(n=>chars[n%chars.length]).join('')}
@@ -865,18 +248,7 @@ async function loadSetupStage(){try{const r=await fetch('/api/setup',{cache:'no-
 async function finishSetup(){const password=wizardPassword.value;if(password.length<8||password.length>63){wizardMessage.textContent='Choose 8 to 63 characters.';return}
  try{const r=await presenceFetch('/api/setup/finish',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Atlas could not finish setup');
   wizardWifi.hidden=true;wizardBar.style.width='100%';wizardMessage.textContent=`You’re all set. Atlas is restarting: rejoin ${setupInfo.ssid||'TurnHub-Atlas'} with your new password, then open this page again.`;showToast('Setup finished. Atlas is restarting.')}catch(e){wizardMessage.textContent=e.message}}
-async function loadPortalPack(){try{const r=await fetch('/api/portal',{cache:'no-store'});const d=await r.json();portalPackMetric.textContent=d.installed?'v'+d.version:d.card?'Not installed':'No microSD card'}catch(_){portalPackMetric.textContent='—'}}
-// Keeps the screen on while this phone is in a running game. Browsers allow it only on HTTPS, so on Atlas's plain HTTP it does nothing until HTTPS arrives.
-let wakeLock=null;
-async function syncWakeLock(){const want=!!(sessionInfo&&sessionInfo.participating&&statusData&&['STARTING','RUNNING','PAUSED'].includes(statusData.state)&&!document.hidden);
- if(!('wakeLock' in navigator))return;try{if(want&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}else if(!want&&wakeLock){await wakeLock.release();wakeLock=null}}catch(_){wakeLock=null}}
 
-// With no saved choice, follow the operating system's increased-contrast setting.
-setTheme(savedTheme()||'auto',false);loadMotionPref();
-document.querySelectorAll('input[name=theme]').forEach(r=>r.addEventListener('change',()=>{setTheme(r.value,false);appearanceStatus.textContent='Previewing this theme. Save appearance to keep it.'}));
-buildGaugeTicks();renderInviteCodes();portalAddress.textContent=location.host;loadBrowserPrefs();presenceFromHash();
-let savedTab='game';try{savedTab=localStorage.getItem('turnhubPortalTab')||'game'}catch(_){}
-showTab(savedTab);refreshAll();setInterval(pollTimer,POLL_MS);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll();syncWakeLock()});loadSetup();loadSetupStage();loadPortalPack();
-</script>
-</body>
-</html>
+
+portalTheme.value=savedTheme()||'auto';refreshAll().then(presenceFromHash);setInterval(()=>{if(!document.hidden)refreshAll()},5000);
+</script></body></html>

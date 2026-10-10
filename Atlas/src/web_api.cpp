@@ -5,7 +5,6 @@
 #include "web_api.h"
 
 #include "config.h"
-#include "profile_login_page.h"
 #include "web_pages.h"
 #include "serial_log.h"
 #include "http_diagnostics.h"
@@ -153,9 +152,9 @@ void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-void statsPage(WebServer &server) { servePortalPage(server, "stats.html", TurnHubWeb::BASIC_PORTAL_HTML); }
-void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
-void tabletPage(WebServer &server) { servePortalPage(server, "tablet.html", TurnHubWeb::BASIC_PORTAL_HTML); }
+void statsPage(WebServer &server) { servePortalPage(server, "index.html"); }
+void loginPage(WebServer &server) { servePortalPage(server, "login.html"); }
+void tabletPage(WebServer &server) { servePortalPage(server, "index.html"); }
 
 struct Route {
   const char *uri;
@@ -227,6 +226,9 @@ const Route ROUTES[] = {
   {"/api/session/personalization", HTTP_GET, handlePersonalization},
   {"/api/session/personalization", HTTP_POST, handleSavePersonalization},
   {"/api/avatars", HTTP_GET, handleAvatars},
+  {"/api/session/avatar", HTTP_POST, handleAvatarUpload},
+  {"/api/avatar/review", HTTP_POST, handleAvatarReview},
+  {"/api/avatar", HTTP_GET, handleAvatarImage},
   {"/api/session/stats", HTTP_GET, handleProfileStats},
   {"/api/session/stats/export", HTTP_GET, handleProfileStatsExport},
   {"/api/session/logout", HTTP_POST, handleLogout},
@@ -309,8 +311,27 @@ class RouteTableHandler final : public RequestHandler {
   bool handle(WebServer &server, HTTPMethod method, String uri) override {
     const Route *route = findRoute(method, uri);
     if (route == nullptr) return false;
+    const WebSession *session = sessionForRequest(server);
+    if (session && session->tableDevice && session->profileId[0] == 0) {
+      const bool tabletRoute = strncmp(uri.c_str(), "/api/tablet/", 12) == 0;
+      const bool readRoute = method == HTTP_GET && (uri == "/api/v1/info" || uri == "/api/v1/state" ||
+          uri == "/api/seats" || uri == "/api/profiles" || uri == "/api/avatars" || uri == "/api/avatar" ||
+          uri == "/api/counters" || uri == "/api/session/me");
+      const bool sessionRoute = method == HTTP_POST && (uri == "/api/session/game" || uri == "/api/session/logout");
+      if (!tabletRoute && !readRoute && !sessionRoute) {
+        sendError(server, 403, "The shared tablet account only has table controls");
+        return true;
+      }
+    }
     // Every handler acts on the request's game; the previous one is restored.
-    const uint8_t previous = tableHooks.select ? tableHooks.select(requestGame(server)) : 0;
+    const uint8_t game = requestGame(server);
+    // A stale native screen must not mutate a different followed table, even
+    // when that table happens to have the same revision/player numbers.
+    if (server.hasArg("expectedGame") && server.arg("expectedGame") != String(game + 1)) {
+      internal::sendError(server, 409, "The selected game changed. Refresh the table and try again");
+      return true;
+    }
+    const uint8_t previous = tableHooks.select ? tableHooks.select(game) : 0;
     // Target the recurring phone workload. Administrative requests and log
     // downloads stay outside tracing so diagnostics don't trace themselves
     // or evict gameplay evidence with unrelated activity.

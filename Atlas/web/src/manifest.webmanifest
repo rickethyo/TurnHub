@@ -1,7 +1,7 @@
 {
   "name": "TurnHub",
   "short_name": "TurnHub",
-  "description": "Turn timer, life totals and lobby for your TurnHub table.",
+  "description": "Device administration and firmware updates for your TurnHub table.",
   "id": "/portal",
   "start_url": "/portal",
   "scope": "/",

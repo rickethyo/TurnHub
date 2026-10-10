@@ -855,10 +855,14 @@ void addPlayers(AtlasScreen &screen, uint32_t nowMs) {
     // Phone-joined players included (they showed as "Player N" in the lobby).
     const String profile = profileIdForTableSeat(seat, inGame);
     playerName(seat, profile, nowMs, p.name);
-    // Only preset avatars reach Atlas's screen; custom ones stay signed-in only.
+    // Current Atlas uses a tiny approved thumbnail; future LCD layouts use the JPEG master.
     const uint8_t avatar = TurnHubProfiles::avatarForProfile(
         profile.length() ? profile : TurnHubControllers::profileForSeat(seat.controllerId, seat.slot));
     if (TurnHubAvatars::validPresetAvatar(avatar)) p.avatar = avatar;
+    if (avatar == TurnHubAvatars::AVATAR_CUSTOM) {
+      p.avatarPixels = TurnHubProfiles::artworkThumbnail(profile, p.imageRevision);
+      if (p.avatarPixels) p.avatar = avatar;
+    }
     if (inGame) {
       p.life = table().game.lifeTotal(seat.playerNumber);
       uint32_t turnMs = 0;

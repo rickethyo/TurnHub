@@ -1,18 +1,15 @@
-// The portal the smoke checks render: the SD portal pack (WEB_PORTAL.md),
-// built here with `python3 Atlas/web/build.py` into dist/site/ when missing,
-// whose /assets/ files are served the way Atlas serves them from the card.
-// (Atlas's flash keeps only a small install page since 2026-10-02.)
+// Build the same source bundle embedded by PlatformIO; always refresh to avoid stale smoke assets.
 const fs=require('node:fs'),path=require('node:path');
 const site=path.resolve(__dirname,'../../web/dist/site');
 const types={'.css':'text/css','.js':'application/javascript','.svg':'image/svg+xml','.woff2':'font/woff2','.txt':'text/plain','.json':'application/json','.png':'image/png','.webmanifest':'application/manifest+json'};
 const enabled=true;
-if(!fs.existsSync(path.join(site,'index.html')))require('node:child_process').execFileSync(process.env.PYTHON||'python3',[path.resolve(__dirname,'../../web/build.py')],{stdio:'inherit'});
+require('node:child_process').execFileSync(process.env.PYTHON||'python3',[path.resolve(__dirname,'../../web/build.py')],{stdio:'inherit'});
 module.exports={
  enabled,
  html:enabled?fs.readFileSync(path.join(site,'index.html'),'utf8'):null,
- // Another page of the pack (login.html, stats.html...), or null in flash mode.
+ // Another embedded page (login.html, update.html...).
  page:name=>enabled?fs.readFileSync(path.join(site,name),'utf8'):null,
- // True when the request was a pack asset and has been answered.
+ // True when the request was an embedded asset and has been answered.
  serve(pathname,res){
   if(!enabled||!pathname.startsWith('/assets/'))return false;
   const file=path.join(site,path.normalize(pathname).replace(/^[/\\]+/,''));

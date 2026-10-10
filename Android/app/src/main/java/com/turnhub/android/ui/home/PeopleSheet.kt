@@ -46,6 +46,7 @@ import com.turnhub.android.protocol.AvatarIcon
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Eyebrow
+import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.GroupedList
 import com.turnhub.android.ui.components.PlayerAvatar
 import com.turnhub.android.ui.components.StatusBadge
@@ -72,6 +73,10 @@ private val GM_POWERS = listOf(
     Triple(AccountPermission.GM_REMOVE_FROM_GAME, "Remove from game", "Can take a player out of the game."),
 )
 private const val MODERATION_BITS = 8 or 16
+
+private fun AccountInfo.avatarIcon(avatars: List<AvatarIcon>): AvatarIcon? =
+    if (customAvatar.isNotBlank()) AvatarIcon(128, "custom", "Uploaded player image", emptyList(), customImage)
+    else avatars.firstOrNull { it.id == avatar }
 
 private fun AccountInfo.displayName() = name.ifBlank { "Unnamed account" }
 
@@ -122,7 +127,7 @@ private fun PeopleList(people: List<AccountInfo>, info: SessionInfo, avatars: Li
         people.forEach { account ->
             val me = account.profileId == info.profileId
             row(Modifier.clickable(role = Role.Button, onClickLabel = "Manage ${account.displayName()}") { onOpen(account.profileId) }) {
-                PlayerAvatar(account.displayName(), 0, avatars.firstOrNull { it.id == account.avatar }, size = 40.dp)
+                PlayerAvatar(account.displayName(), 0, account.avatarIcon(avatars), size = 40.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(account.displayName() + if (me) " (you)" else "", color = p.text, style = MaterialTheme.typography.titleSmall)
                     Text(account.roleSummary(), color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -201,7 +206,7 @@ private fun PersonSheet(
             verticalArrangement = Arrangement.spacedBy(DesignTokens.Space.s5),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                PlayerAvatar(name, 0, avatars.firstOrNull { it.id == account.avatar }, size = 52.dp)
+                PlayerAvatar(name, 0, account.avatarIcon(avatars), size = 52.dp)
                 Column(Modifier.weight(1f)) {
                     Text(
                         name + if (me) " (you)" else "",
@@ -218,6 +223,18 @@ private fun PersonSheet(
                 }
             }
             AdminMessage(admin, actions)
+            if (isAdmin && account.pendingAvatar.isNotBlank()) {
+                BrassCard {
+                    Eyebrow("Player image awaiting approval")
+                    AvatarBytesPreview(account.pendingImage, "$name's submitted image")
+                    Text("Approval makes this image visible to everyone at the table.", color = p.muted)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ToneButton("Approve image", { actions.run { reviewAvatar(account.profileId, account.pendingAvatar, true) } },
+                            enabled = account.pendingImage != null && !admin.busy)
+                        ToneButton("Reject image", { actions.run { reviewAvatar(account.profileId, account.pendingAvatar, false) } }, enabled = !admin.busy)
+                    }
+                }
+            }
 
             if (isGm && live && account.atTable) {
                 val noPin = if (!account.hasPin) "Needs a PIN or password on their account first." else null

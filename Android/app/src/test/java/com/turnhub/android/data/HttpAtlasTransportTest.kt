@@ -21,11 +21,13 @@ class HttpAtlasTransportTest {
 
     /** "METHOD path token body" for each request the server received. */
     private val received = mutableListOf<String>()
+    private val queries = mutableListOf<String>()
 
     @Before
     fun start() {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
+            queries += exchange.requestURI.rawQuery.orEmpty()
             val requestBody = exchange.requestBody.use { it.readBytes().toString(Charsets.UTF_8) }
             received += listOf(
                 exchange.requestMethod,
@@ -156,4 +158,31 @@ class HttpAtlasTransportTest {
         assertTrue(failure is AtlasFailure.Timeout)
         assertTrue(failure.technicalDetail!!.startsWith("SocketTimeoutException"))
     }
+    @Test
+    fun `state and seats follow the current session and viewing context`() = runBlocking {
+        routes["/api/v1/state"] = Triple(200, Fixtures.text("running.response.json"), 0)
+        routes["/api/seats"] = Triple(200, "{\"seats\":[]}", 0)
+        var context = PollContext("FIRST", 1)
+        val transport = HttpAtlasTransport(
+            endpoint = AtlasEndpoint.parse("http://127.0.0.1:${server.address.port}").getOrThrow(),
+            pollContext = { context },
+        )
+        transport.getState()
+        context = PollContext("SECOND", 2)
+        transport.getSeats()
+        assertTrue(received.any { it == "GET /api/v1/state FIRST" })
+        assertTrue(received.any { it == "GET /api/seats SECOND" })
+        assertTrue(!context.toString().contains("SECOND"))
+        assertEquals(listOf("game=1", "game=2"), queries)
+    }
+
+    @Test
+    fun `typed controls carry the originating screen game`() = runBlocking {
+        routes["/api/control/pass"] = Triple(200, "{\"ok\":true,\"status\":\"ACCEPTED\"}", 0)
+        kotlinx.coroutines.withContext(ExpectedGame(2)) {
+            transport().control("TOKEN", ControlAction.PASS, null, null)
+        }
+        assertTrue(received.last().endsWith("expectedGame=2"))
+    }
+
 }

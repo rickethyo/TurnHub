@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include "avatars.h"
+#include "avatar_masks.h"
 #include "brass_fonts.h"
 #include "modern_fonts.h"
 #include "firmware_version.h"
@@ -752,7 +753,26 @@ void drawChip(const ScreenPlayer &p, bool showLife, int16_t x, int16_t y, int16_
   // The avatar goes before the name only when the whole name still fits.
   tft().setFont(nameFont.get());
   if (p.avatar != 0 && tft().textWidth(p.name) <= x + w - 5 - (nameX + TurnHubAvatars::AVATAR_SIZE + 3)) {
-    TurnHubAvatars::drawAvatar(tft(), p.avatar, nameX, y + 4, out ? DIM : MUTED);
+    if (p.avatarPixels) {
+      for (int row = 0; row < 16; ++row) for (int col = 0; col < 16; ++col) {
+        const uint8_t pixel = p.avatarPixels[row * 16 + col];
+        const uint32_t rgb = uint32_t((pixel >> 5) * 255 / 7) << 16 |
+            uint32_t(((pixel >> 2) & 7) * 255 / 7) << 8 | uint32_t((pixel & 3) * 255 / 3);
+        tft().drawPixel(nameX + col, y + 4 + row, out ? mix(fill, rgb, 128) : rgb);
+      }
+    }
+    const uint8_t *mask = TurnHubArtwork::presetMask(p.avatar);
+    if (mask) {
+      // Area-filter the vector-derived 64px master into today's 16px slot.
+      // Future LCD layouts can use the same master at larger sizes.
+      for (int row = 0; row < 16; ++row) for (int col = 0; col < 16; ++col) {
+        unsigned coverage = 0;
+        for (int sy = 0; sy < 4; ++sy) for (int sx = 0; sx < 4; ++sx)
+          coverage += mask[(row * 4 + sy) * 64 + col * 4 + sx];
+        const uint8_t alpha = coverage / 16;
+        if (alpha) tft().drawPixel(nameX + col, y + 4 + row, mix(fill, out ? DIM : MUTED, alpha));
+      }
+    }
     nameX += TurnHubAvatars::AVATAR_SIZE + 3;
   }
   // Life total: Oswald figures, large on tall chips.

@@ -22,9 +22,9 @@ Pins and the touchscreen layout are in the
 
 ## Profiles and phone play
 
-Open **Profiles** in the portal to create a local profile or sign in with its
+Use the Android app to create a local profile or sign in with its
 PIN; no Sigil is needed. Signing in and joining the table are separate: choose
-**Join table** after signing in. Any seated player may start (with a
+**Join game** after signing in. Any seated player may start (with a
 countdown any seated player can cancel), choose the starter and rematch.
 Phones support every game action through the same Intent handlers as Sigils.
 
@@ -34,11 +34,11 @@ the lobby, **Connect a Sigil → Attach seat A to my profile**, confirmed with
 A Sigil can also join on its own through its profile picker. Unassigned Sigils
 and Guest play as guests, which never create saved accounts or statistics.
 
-Logout revokes only that browser session; signing in again reconnects to the
+Logout revokes only that app session; signing in again reconnects to the
 same participant. PIN changes revoke the profile's other sessions, and five
 failed PIN attempts within 15 seconds throttle that profile.
 
-Limits: 16 table participants (8 physical Sigils, two seats each), 32 browser
+Limits: 16 table participants (8 physical Sigils, two seats each), 32 HTTP
 sessions, 64 profiles, 8 Wi-Fi stations at once.
 
 Details: [Players and Accounts](../Documentation/engineering/PLAYERS_AND_ACCOUNTS.md).
@@ -69,7 +69,8 @@ GET /api/session/stats
 GET /api/session/stats/export
 ```
 
-The portal links to `/stats` to view and download them.
+The Android app displays and exports profile statistics. The browser portal
+is for administration and is embedded in Atlas firmware; it needs no card.
 
 ## Wi-Fi access point password
 

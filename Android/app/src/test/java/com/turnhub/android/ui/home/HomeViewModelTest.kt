@@ -122,6 +122,7 @@ private class FakeSessionTransport : AtlasSessionTransport {
         return profileChoices
     }
     override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): com.turnhub.android.data.RawResponse {
+        if (method == "GET" && path == "/api/devices") return com.turnhub.android.data.RawResponse(200, "{\"devices\":[],\"pendingPairings\":[]}")
         importRequests += fields
         importGate?.await()
         return com.turnhub.android.data.RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}")

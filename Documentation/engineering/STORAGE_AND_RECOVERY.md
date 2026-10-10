@@ -58,7 +58,7 @@ prefix plus the profile ID.
 | Sigil pairings and spare-only marks | `th_pair/s0`-`s7`, `th_pair/p<slot>` | `sigil_bus.cpp` |
 | Touchscreen calibration | `atlas-touch/cal2` | `atlas_display.cpp` |
 | Interrupted-match recovery record | `th_game_v1/checkpoint` | `game_recovery*.cpp` |
-| Detailed statistics, Jewel color, custom avatar | card: `s`, `k`, `v` + id | `profile_store.cpp` via `sdBlobStore()` |
+| Detailed statistics, Jewel color, avatar selection | card: `s`, `k`, `v` + id | `profile_store.cpp` via `sdBlobStore()` |
 
 **RAM only:** browser sessions, table participation, seat bindings (released
 when a seat leaves, at Reset, and on restart; kept through Game Over so
@@ -86,7 +86,7 @@ NVS plus checksummed SD blobs with no SQL database (owner, 2026-10-06).
 ## microSD card
 
 Every Atlas ships with a card, but play never depends on it. The card holds
-the web portal pack ([Web Portal](WEB_PORTAL.md)), detailed statistics and
+detailed statistics and
 other luxury records, and the rotating diagnostics log
 ([Diagnostics](DIAGNOSTICS.md)). Without a card only the NVS core counts are
 recorded and the stats API reports `"detailed": false`.
@@ -106,7 +106,7 @@ recorded and the stats API reports `"detailed": false`.
   The application loop follows `sdCardGeneration()` and moves detailed
   statistics to or from the card. The Atlas screen shows **NO SD CARD** while
   none is ready.
-- **Factory reset** empties the card except `/turnhub/portal` (`wipeSdCard()`),
+- **Factory reset** empties the card (`wipeSdCard()`); the portal stays in firmware,
   then erases NVS.
 
 ## Interrupted-match recovery
@@ -164,3 +164,33 @@ cannot be recovered. See [Android](../../Android/README.md) for schema, validato
 retention, storage-failure and backup limits. Atlas's existing `sgimport` receipt
 ring remains 64 entries; completion receipts/partial-write durability are not
 expanded by this feature, and the parked storage batch remains parked.
+
+## Bounded SD artwork records (2026-10-10)
+
+`avatar_artwork.h` chunks each immutable JPEG into 768-byte records, below
+SdBlobStore's unchanged 1024-byte ceiling. Keys `i<8-hex-revision><2-hex-index>`
+hold image chunks; `r<revision>` holds the schema byte plus a 16×16 RGB332
+thumbnail for today's Atlas. Per-profile `a`, `p`, `u` prefixes hold approved,
+pending and unfinished manifests (schema byte, little-endian revision and length,
+9 bytes). All pass through the existing locked/checksummed BlobStore and its
+verified temp/backup replacement; no direct SD calls or image allocations on
+Atlas. Metadata publication is the commit point, after complete image-envelope
+validation. There is no cross-record transaction or FAT power-loss guarantee.
+
+Each profile can hold one approved, one pending and one unfinished asset, bounded
+by 48 KiB each plus headers/thumbnail. One transfer runs at a time with a two-minute
+inactivity deadline. Ordered writes advance only on confirmed storage success;
+a lost response requires restarting rather than replaying a chunk. Starting the
+next upload/removing artwork cleans that profile's unfinished chunks, including
+a transfer interrupted by restart. Old approved/pending chunks are reclaimed
+after successful replacement. Failed cleanup may retain bounded orphan records;
+no general garbage collector is claimed. Removal does not discard chunks still
+referenced by another manifest after a partial approval/cleanup failure.
+
+Readers validate metadata, lengths, checksums and a baseline JPEG envelope
+(square 32–512 pixels, three 8-bit components, complete scan/EOI); firmware does
+not fully decode the JPEG. Android bounds decoded dimensions and falls back on
+decode failure. Pending GET requires the owning player or Admin, approved GET is
+public. Public paths include revision; cache is disposable and scoped to the
+Atlas connection. Thumbnail pixels come from the app's final compressed crop and
+are reviewed as part of the same asset; the phone retains no original on Atlas.

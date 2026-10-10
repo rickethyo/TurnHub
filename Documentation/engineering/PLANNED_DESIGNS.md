@@ -159,15 +159,17 @@ image or shows an "Asleep" card (e-paper holds either with no power); LED ring
 behavior (off while asleep); measured current in light sleep versus today
 (ties into check H03); how long a battery lasts either way.
 
-## E-ink Sigil: player-facing LED strip (possible, depends on the case)
+## Sigil: required player-facing LEDs
 
-*Planned, conditional* (owner, 2026-09-26). The enclosure concept is a 45° wedge
+*Planned, required* (owner, 2026-10-09; supersedes the conditional
+2026-09-26 decision). Player-facing LEDs are required; confirm the implementation
+for both display variants. The enclosure concept is a 45° wedge
 about 48 mm wide, 78 mm deep and 78 mm tall: portrait e-paper on the upper
 slope, joystick below it, main board flat in the base, USB through the back
 wall. In that shape the Jewel 7 status ring faces the **other players** from the
 back wall, so the seated player can't see it. A short LED strip on the front lip
-would give the **player** their own light. Build this only if the final case
-keeps that split; if the case lets one light face both ways, drop it.
+gives the **player** their own light. Case revisions must retain visible
+player-facing cues. Exact position and pixel count remain hardware decisions.
 
 - **Hardware:** reserved on Sigil Rev A (2026-09-28): J6, a JST-XH 3-pin
   socket fed by its own data line, GPIO13 through U3 (74AHCT1G125) and R2, same

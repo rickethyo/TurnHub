@@ -2,9 +2,11 @@
 #include <Arduino.h>
 #include <vector>
 #include "nvs.h"
-struct esp_partition_t { uint32_t size; };
+struct esp_partition_t { uint32_t size; const char *label="test"; uint32_t address=0x10000; };
 inline std::vector<uint8_t> &testOtaFlash() { static std::vector<uint8_t> bytes(0x1E0000, 0xFF); return bytes; }
 inline const esp_partition_t *esp_ota_get_next_update_partition(void *) { static esp_partition_t p{0x1E0000}; return &p; }
+inline const esp_partition_t *esp_ota_get_running_partition() { return esp_ota_get_next_update_partition(nullptr); }
+inline const esp_partition_t *esp_ota_get_boot_partition() { return esp_ota_get_running_partition(); }
 inline int esp_partition_erase_range(const esp_partition_t *, size_t at, size_t n) {
  if(at+n>testOtaFlash().size()) return -1;
  std::fill(testOtaFlash().begin()+at,testOtaFlash().begin()+at+n,0xFF);return ESP_OK;

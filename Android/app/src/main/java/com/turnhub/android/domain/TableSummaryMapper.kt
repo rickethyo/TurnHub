@@ -75,6 +75,8 @@ object TableSummaryMapper {
                 .sortedBy { it.controller.id },
             nudge = snapshot.nudge,
             battery = snapshot.battery,
+            game = snapshot.game,
+            games = snapshot.games,
         )
     }
 }

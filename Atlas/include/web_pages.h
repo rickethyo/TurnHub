@@ -1,11 +1,8 @@
 #pragma once
-
-#include <Arduino.h>
+#include <WebServer.h>
 
 namespace TurnHubWeb {
-
-extern const char THEME_CSS[] PROGMEM;
-// The basic portal, served while no pack is installed (web_pages.cpp).
-extern const char BASIC_PORTAL_HTML[] PROGMEM;
-
-}  // namespace TurnHubWeb
+// Serves a generated flash asset; false without sending when the path is absent.
+// Pages are never cached. Content-hashed assets can be cached indefinitely.
+bool serveFile(WebServer &server, const char *path);
+} // namespace TurnHubWeb

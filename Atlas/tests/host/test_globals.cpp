@@ -44,8 +44,6 @@ TurnHubStorage::BlobStore *TurnHubAtlas::sdBlobStore() { return nullptr; }
 bool fixtureSdCardReady = true;
 bool TurnHubAtlas::sdCardReady() { return fixtureSdCardReady; }
 uint32_t TurnHubAtlas::sdCardGeneration() { return 0; }
-// No pack on a host card: every page falls back to the built-in one.
-bool TurnHubAtlas::sdServePortalFile(WebServer &, const char *, const char *) { return false; }
 // Firmware-only (mbedTLS); the link logic itself is host-tested in
 // Sigil/tests/host/secure_link_scenarios.cpp.
 bool TurnHubAtlas::runSecureLinkSelfTest() { return true; }

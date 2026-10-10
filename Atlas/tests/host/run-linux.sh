@@ -7,7 +7,7 @@ compiler="${CXX:-g++}"
 flags=(-std=c++14 -Wall -Wextra -mno-ms-bitfields -g -O1
        -fsanitize=address,undefined -fno-omit-frame-pointer)
 export UBSAN_OPTIONS="${UBSAN_OPTIONS:-halt_on_error=1:print_stacktrace=1}"
-includes=(-Istubs -I../../include -I../../../shared/include)
+includes=(-Istubs -Ibuild/generated -I../../include -I../../../shared/include)
 application_sources=(
   scenarios.cpp test_globals.cpp profile_fixture.cpp
   ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp
@@ -17,13 +17,14 @@ application_sources=(
   ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp
   ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp
   ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/sigil_update_service.cpp ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp
-  ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp ../../src/profile_login_page.cpp
+  ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp ../../src/ota_manager.cpp
   ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp
   ../../src/client_state.cpp ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp
   ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp
 )
 
 mkdir -p build
+python3 ../../web/build.py --header build/generated/web_assets.h
 # Contract checks must use responses from this run, not an earlier executable.
 rm -f build/client-*.json
 "$compiler" "${flags[@]}" "${includes[@]}" "${application_sources[@]}" -o build/scenarios
@@ -41,5 +42,5 @@ rm -f build/client-*.json
 ./build/profile_store_scenarios
 
 "$compiler" "${flags[@]}" "${includes[@]}" \
-  ota_scenarios.cpp ../../src/sigil_update_jobs.cpp ../../src/portal_pack.cpp -o build/ota_scenarios
+  ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
 ./build/ota_scenarios

@@ -306,8 +306,11 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
-            playerSession.state.collect {
-                if (it is PlayerSessionState.SignedOut) {
+            playerSession.state.map { it is PlayerSessionState.SignedIn }.distinctUntilChanged().collect { signedIn ->
+                if (signedIn) {
+                    adminConsole.refreshDevices()
+                }
+                if (!signedIn) {
                     adminConsole.forget()
                     tablet.forget()
                 }
@@ -376,7 +379,10 @@ class HomeViewModel(
                         playerSession.forget()
                         if (summary == null) local.update { it.copy(signIn = null) }
                     }
-                    last != null && summary.revision != last.revision -> launch { playerSession.refresh() }
+                    last != null && (summary.revision != last.revision || summary.game != last.game) -> {
+                        if (summary.game != last.game) tablet.forget()
+                        launch { playerSession.refresh() }
+                    }
                 }
                 // A new Atlas (or a new boot of it): is it still being set up?
                 if (summary != null && (last == null || summary.atlasId != last.atlasId || summary.bootId != last.bootId)) {
@@ -392,6 +398,15 @@ class HomeViewModel(
             }
         }
     }
+
+    fun onFollowGame(game: Int) {
+        if (repository.offlineSinceMs.value != null) return
+        viewModelScope.launch {
+            if (playerSession.followGame(game)) tablet.forget()
+        }
+    }
+
+    fun onPlayersRefresh() = viewModelScope.launch { adminConsole.refreshDevices() }
 
     // --- playing from this phone ------------------------------------------------
 
@@ -587,7 +602,7 @@ class HomeViewModel(
     }
 
     fun onJoinClicked() {
-        viewModelScope.launch { playerSession.join() }
+        launchTable { playerSession.join() }
     }
 
     fun onPassClicked() = sendControl(ControlAction.PASS)
@@ -624,7 +639,7 @@ class HomeViewModel(
     /** Changes this player's own life; applies immediately on Atlas. */
     fun onChangeMyLife(delta: Int) {
         if (delta == 0) return
-        viewModelScope.launch {
+        launchTable {
             playerSession.counter("/api/control/life", listOf("delta" to delta.toString()), "Life updated.")
         }
     }
@@ -632,7 +647,7 @@ class HomeViewModel(
     /** Asks [target] to approve a change to their life (Atlas accepts it after 15 s unless rejected). */
     fun onRequestLife(target: Int, delta: Int) {
         if (delta == 0) return
-        viewModelScope.launch {
+        launchTable {
             playerSession.counter(
                 "/api/control/life/request",
                 listOf("target" to target.toString(), "delta" to delta.toString()),
@@ -642,7 +657,7 @@ class HomeViewModel(
     }
 
     fun onRespondLife(requestId: Long, accept: Boolean) {
-        viewModelScope.launch {
+        launchTable {
             playerSession.counter(
                 "/api/control/life/respond",
                 listOf("requestId" to requestId.toString(), "accept" to if (accept) "1" else "0"),
@@ -654,7 +669,7 @@ class HomeViewModel(
     /** Records Commander damage this player received (negative corrects it). */
     fun onCommanderDamage(source: Int, commander: Int, delta: Int) {
         if (delta == 0) return
-        viewModelScope.launch {
+        launchTable {
             playerSession.counter(
                 "/api/control/commander",
                 listOf("source" to source.toString(), "commander" to commander.toString(), "delta" to delta.toString()),
@@ -664,7 +679,7 @@ class HomeViewModel(
     }
 
     fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean? = null) {
-        viewModelScope.launch { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs, twoHeadedGiant) }
+        launchTable { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs, twoHeadedGiant) }
     }
 
     fun onSaveName(name: String) {
@@ -710,6 +725,9 @@ class HomeViewModel(
     }
 
     /** [color] is `#rrggbb` or `none`; [avatar] 0 clears it. */
+    fun onUploadAvatar(bytes: ByteArray, thumbnail: String) { viewModelScope.launch { playerSession.uploadAvatar(bytes, thumbnail) } }
+    fun onRemoveAvatar() { viewModelScope.launch { playerSession.removeAvatar() } }
+
     fun onSavePersonalization(color: String?, avatar: Int?) {
         viewModelScope.launch { playerSession.savePersonalization(color, avatar) }
     }
@@ -900,10 +918,15 @@ class HomeViewModel(
 
     fun onFeedbackDismissed() = playerSession.clearFeedback()
 
+    private fun launchTable(block: suspend () -> Unit) {
+        val game = repository.tableSummary.value?.game ?: return
+        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(game)) { block() }
+    }
+
     /** Sends once, pinned to the snapshot the player was looking at. */
     private fun sendControl(action: ControlAction) {
         val summary = repository.tableSummary.value ?: return
-        viewModelScope.launch { playerSession.control(action, summary.revision, summary.bootId) }
+        viewModelScope.launch(com.turnhub.android.data.ExpectedGame(summary.game)) { playerSession.control(action, summary.revision, summary.bootId) }
     }
 
     fun onEndpointChanged(text: String) {

@@ -6,7 +6,7 @@ and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
 On Linux, run `bash Atlas/tests/host/run-linux.sh` from the repository root.
-It builds all three suites with C++14, AddressSanitizer and UBSan, then runs them.
+It builds the application, storage, profile-store and OTA suites with C++14, AddressSanitizer and UBSan, then runs them.
 GitHub Actions uses this runner; see [CI checks](../../../Documentation/engineering/CONTINUOUS_INTEGRATION.md).
 
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command
@@ -45,27 +45,27 @@ With GCC/Clang on another host, from this directory:
 
 ```sh
 mkdir -p build
-c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
+python3 ../../web/build.py --header build/generated/web_assets.h
+c++ -std=c++17 -Wall -Wextra -Istubs -Ibuild/generated -I../../include -I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp \
     ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp \
     ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp ../../src/commander_picker.cpp ../../src/profile_picker.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp ../../src/harness_link.cpp ../../src/sigil_accessibility.cpp \
-    ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/web_admin_api.cpp \
-    ../../src/profile_statistics.cpp ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp \
-    ../../src/profile_login_page.cpp \
+    ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/web_admin_api.cpp ../../src/sigil_update_service.cpp ../../src/sigil_update_jobs.cpp \
+    ../../src/profile_statistics.cpp ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp ../../src/ota_manager.cpp \
     ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp \
     ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
     -o build/scenarios
 ./build/scenarios
-c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
+c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -Ibuild/generated -I../../include -I../../../shared/include \
     storage_scenarios.cpp test_globals.cpp ../../src/nvs_blob_store.cpp ../../src/sd_blob_store.cpp \
     ../../src/profile_stats_storage.cpp ../../src/profile_policy.cpp -o build/storage_scenarios
 ./build/storage_scenarios
-c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -I../../include -I../../../shared/include \
+c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -Ibuild/generated -I../../include -I../../../shared/include \
     profile_store_scenarios.cpp test_globals.cpp ../../src/profile_store.cpp \
     ../../src/nvs_blob_store.cpp ../../src/profile_stats_storage.cpp \
     ../../src/profile_policy.cpp -o build/profile_store_scenarios
 ./build/profile_store_scenarios
-c++ -std=c++17 -Wall -Wextra -Istubs -I../../include -I../../../shared/include \
-    ota_scenarios.cpp ../../src/sigil_update_jobs.cpp ../../src/portal_pack.cpp -o build/ota_scenarios
+c++ -std=c++17 -Wall -Wextra -Istubs -Ibuild/generated -I../../include -I../../../shared/include \
+    ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
 ./build/ota_scenarios
 ```
 
@@ -101,18 +101,19 @@ PIN-protected physical claim rejection, hidden-stat accumulation, and unavailabl
 policy storage. The storage executable checks the real three-byte policy codec
 and NVS failure handling; gameplay scenarios use the profile repository fixture.
 
-Optional browser smoke check: run `node portal_smoke.cjs` with Playwright resolvable
-(or `PLAYWRIGHT_MODULE` set to its module path) and Edge installed (or set
-`PLAYWRIGHT_CHANNEL=` to use Playwright's bundled Chromium, e.g. on Linux/CI). It uses local
-HTTP fixtures and checks the rendered portal/login flow at phone and desktop sizes.
-It also checks policy saving/reloading and that polling preserves unsaved choices.
+Optional administration smoke: `node Atlas/tests/host/portal_smoke.cjs` with
+Playwright/Chromium (or `PLAYWRIGHT_EXECUTABLE_PATH`). It rebuilds the assets
+embedded by firmware and renders with/without a card, checks Admin-only visibility, bootstrap,
+explicit hardware saves and absence of gameplay requests.
+`maintenance_smoke.cjs` checks local signed-upload controls, Sigil selection
+and Developer hardware tests. Both use the same assets embedded in firmware.
 The gameplay executable also covers ending a match as a draw through the real
 touchscreen adapter (hold threshold, overrides, statistics once, recovery
 validation), table presence codes (request, confirm, wrong codes, expiry), no table host, the
 Atlas speaker's cue routing and volume setting, and admin device management (forget one/all Sigils,
 seated/in-game refusal, storage failure, the 60/90/120-second pairing window). The
 storage executable checks the `pairwin` and `spkvol` codecs and the v1 `Draw` result byte.
-The portal smoke also covers the Paired Sigils card and the Draw label.
+The administration smoke covers both the SD-pack page and the cardless fallback, including staged settings and initial Admin setup.
 
 Game/life checks cover persisted setup, host-only edits, captured match settings,
 own-life authorization, bounds, companion sessions, negative life and rematches.
@@ -121,10 +122,8 @@ The harness now links real LED/audio renderers and replaces the radio boundary.
 Life approval and Commander coverage: the native gameplay executable checks
 recipient-only acceptance/rejection, duplicate and stale IDs, Atlas's 15-second
 deadline including rollover, concurrent edits, lifecycle cancellation and atomic
-Commander/life bounds. `node counter_smoke.cjs` uses the same Playwright setup as
-the portal smoke check and opens two independent browser contexts to check the
-production UI, cross-tab prompts, keyboard focus, corrections and reconnects.
-These counter features still require a hardware table check after flashing.
+Commander/life bounds. Browser gameplay tests are retired after the app-first
+cutover. These features still require native device/table acceptance.
 
 Manual pairing Intent scenarios cover origin authorization, radio unavailability,
 15-second timeout, clock rollover and rejection during gameplay. Radio transport
@@ -183,3 +182,9 @@ cannot be bypassed by the later observer. The per-profile boundary remains a
 fixture; real profile-store/storage suites test those repositories separately.
 Missing/partial results after interruption are an explicit limitation, not a
 passing claim of exactly-once multi-record persistence.
+
+`python3 Atlas/tests/host/firmware_portal_smoke.py` checks every actual C++ asset
+response against its source bytes, including gzip decoding, binary icons,
+cache/type headers and unknown paths. The administration browser smoke also
+checks accessibility-only choices, preview versus Save and old-theme migration;
+maintenance smoke checks saved High contrast across maintenance pages.

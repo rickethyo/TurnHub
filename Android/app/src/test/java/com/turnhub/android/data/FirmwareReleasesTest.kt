@@ -73,26 +73,15 @@ class FirmwareReleasesTest {
     }
 
     @Test
-    fun `the portal pack installs first, only where there is a card`() {
-        val json = """
-            {"schema":1,"release":"0.9.1","packages":[
-              {"product":"atlas","version":"0.7.0","file":"atlas-0.7.0.thfw","size":300,"sha256":"${sha(atlasBytes)}"},
-              {"product":"portal","version":"1.2.0","file":"portal-1.2.0.thfw","size":6000000,"sha256":"${"c".repeat(64)}"}
+    fun `retired portal packages are ignored and Atlas carries the portal`() {
+        val feed = FirmwareReleaseFeed.parse("""
+            {"schema":1,"packages":[
+              {"product":"atlas","version":"0.7.7","file":"atlas-0.7.7.thfw","size":300,"sha256":"${sha(atlasBytes)}"},
+              {"product":"portal","version":"2.0.0","file":"portal-2.0.0.thfw","size":6000000,"sha256":"${"c".repeat(64)}"}
             ]}
-        """.trimIndent()
-        // Larger than a firmware slot but within the pack limit.
-        val feed = FirmwareReleaseFeed.parse(json)
-        assertEquals(FirmwareVersion(1, 2, 0), feed.packageFor(FirmwareProduct.PORTAL)?.version)
-
-        val fresh = UpdatePlan.build(feed, "0.7.0", emptyList(), PortalStatus.parse("""{"card":true,"installed":false,"version":""}"""))
-        assertEquals(listOf("Web portal", "Atlas"), fresh.targets.map { it.label })
-        assertEquals(listOf("Web portal"), fresh.pending.map { it.label })
-
-        val current = PortalStatus.parse("""{"card":true,"installed":true,"version":"1.2.0"}""")
-        assertFalse(UpdatePlan.build(feed, "0.7.0", emptyList(), current).anyUpdate)
-
-        val noCard = PortalStatus.parse("""{"card":false,"installed":false,"version":""}""")
-        assertEquals(listOf("Atlas"), UpdatePlan.build(feed, "0.7.0", emptyList(), noCard).targets.map { it.label })
-        assertNull(PortalStatus.parse("<html>"))
+        """.trimIndent())
+        assertEquals(listOf(FirmwareProduct.ATLAS), feed.packages.map { it.product })
+        val plan = UpdatePlan.build(feed, "0.7.6", emptyList())
+        assertEquals(listOf("Atlas"), plan.pending.map { it.label })
     }
 }

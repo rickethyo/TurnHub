@@ -1,6 +1,6 @@
 # Firmware Updates, Signing and Spare Sigils
 
-How Atlas, Sigils and the portal pack are packaged, signed, released and
+How Atlas (including its admin portal) and Sigils are packaged, signed, released and
 installed over the air, and how a spare Sigil is parked and brought back.
 USB flashing and board identification are in [Hardware](HARDWARE.md).
 
@@ -8,7 +8,7 @@ USB flashing and board identification are in [Hardware](HARDWARE.md).
 
 - Every update is a signed `.thfw` package. Each device checks the signature
   itself before installing anything.
-- **Atlas** installs its own firmware and the portal pack from the portal's
+- **Atlas** installs its own firmware including the admin portal from the portal's
   `/update` page or the app. **Sigils** update through Atlas: Atlas stages the
   package and the Sigil downloads it over Atlas's Wi-Fi.
 - The **Android app carries updates**: it reads the public release feed while
@@ -25,17 +25,16 @@ USB flashing and board identification are in [Hardware](HARDWARE.md).
 
 ## Package format (`.thfw`)
 
-A 128-byte signed header, then the plain `firmware.bin` (or the portal
-archive). Little-endian. Code: `shared/include/firmware_package.h`,
+A 128-byte signed header, then the plain `firmware.bin`. Little-endian. Code: `shared/include/firmware_package.h`,
 `tools/firmware/thfw.py`.
 
 ```
 off size field
   0   8  magic "THFWPKG1"
   8   1  header format (1)
-  9   1  product: 1 Atlas, 2 Sigil e-ink, 3 Sigil OLED, 4 portal pack
+  9   1  product: 1 Atlas, 2 Sigil e-ink, 3 Sigil OLED (4 is retired)
  10   3  version major, minor, patch
- 13   1  radio protocol VERSION (0 for the portal)
+ 13   1  radio protocol VERSION
  14   2  flags (0)
  16   4  image size
  20  32  image SHA-256
@@ -60,7 +59,7 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
 
 - A device refuses a package **older** than what it runs; the same version
   reinstalls. Downgrades need USB. To update over a running build, raise
-  `PATCH` in `firmware_version.h` (or `Atlas/web/VERSION` for the portal).
+  `PATCH` in `firmware_version.h`.
 - Before release, protocol versions must match exactly (protocol 3).
 - **Needed for release:** freeze the secure-session handshake and update
   packets so a newer Atlas can still update an older Sigil (show it as "needs
@@ -76,8 +75,7 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
   app. Rotating it needs a USB flash of every device, or an update signed by
   the old key that carries the new one (last rotated 2026-10-05, `e89210a`).
 - **CI** signs every firmware build when the secret is available (fork PRs
-  stay unsigned). **Releases:** pushing a `v*` tag (everything), `atlas-v*` (Atlas and
-  portal pack) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
+  stay unsigned). **Releases:** pushing a `v*` tag (everything), `atlas-v*` (Atlas including its portal) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
   signs and publishes the `.thfw` files and `turnhub-firmware.json`; a
   one-product tag carries the other products over from the previous release so
   the feed stays complete (CONTINUOUS_INTEGRATION.md).
@@ -99,11 +97,10 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
 
 `size` and `sha256` cover the whole `.thfw` file. The feed isn't signed; a
 tampered feed can only point at a package that fails its signature check.
-The web portal pack is listed too, as product `portal` with the
-`Atlas/web/VERSION` version. The app's update step installs it first
-(`POST /api/portal/install`, no restart) when Atlas has a microSD card and an
-older or no pack, then Atlas, then the Sigils. Readers skip products they
-don't know.
+Atlas's UI is embedded in its firmware package; the feed lists only Atlas and
+both Sigil variants. The app updates Atlas, then Sigils; old `portal` entries
+are ignored. Release and local-signing workflows do not build or carry portal
+archives forward. Product 4 is no longer accepted by firmware or signing tools.
 
 ## Updating a Sigil
 

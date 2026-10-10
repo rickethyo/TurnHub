@@ -66,6 +66,10 @@ data class AccountInfo(
     val primary: Boolean = false,
     val atTable: Boolean = false,
     val reconnectRequired: Boolean = false,
+    val pendingAvatar: String = "",
+    val pendingImage: ByteArray? = null,
+    val customAvatar: String = "",
+    val customImage: ByteArray? = null,
 ) {
     fun has(permission: com.turnhub.android.protocol.AccountPermission): Boolean = permissions and permission.bit != 0
 }
@@ -190,6 +194,10 @@ class AtlasAdminConsole(
                         primary = x.optBoolean("primary"),
                         atTable = x.optBoolean("atTable"),
                         reconnectRequired = x.optBoolean("reconnectRequired"),
+                        pendingAvatar = x.optString("pendingAvatar"),
+                        customAvatar = x.optString("customAvatar"),
+                        pendingImage = x.optString("pendingAvatar").takeIf { it.isNotBlank() }?.let { session.avatarImage(it) },
+                        customImage = x.optString("customAvatar").takeIf { it.isNotBlank() }?.let { session.avatarImage(it) },
                     )
                 }.sortedWith(compareBy<AccountInfo>({ it.archived }, { !it.atTable }, { it.name.lowercase() }))
                 _state.update { it.copy(accounts = list) }
@@ -198,6 +206,13 @@ class AtlasAdminConsole(
     }
 
     /** Paired Sigils and pairing requests; the Sigils card polls this while it is shown. */
+    suspend fun reviewAvatar(profileId: String, imagePath: String, approve: Boolean) {
+        val revision = imagePath.substringAfter("&revision=").substringBefore('&')
+        post("/api/avatar/review", listOf("profileId" to profileId, "revision" to revision,
+            "action" to if (approve) "approve" else "reject"),
+            success = if (approve) "Player image approved." else "Player image rejected.", then = { refresh(admin = true, gameMaster = true) })
+    }
+
     suspend fun refreshDevices() {
         get("/api/devices")?.let { d ->
             val list = d.optJSONArray("devices").objects().map { x ->

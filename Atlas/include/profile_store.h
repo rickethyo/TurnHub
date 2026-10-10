@@ -93,8 +93,11 @@ bool saveAccessibilityForProfile(const String &profileId, const AccessibilityPre
 bool jewelColorForProfile(const String &profileId, uint32_t &rgb);
 bool saveJewelColorForProfile(const String &profileId, bool set, uint32_t rgb);
 // The profile's avatar (avatars.h: 0 none, 1..AVATAR_COUNT a preset,
-// AVATAR_CUSTOM reserved), also a luxury record on the card (v<profileId>).
+// AVATAR_CUSTOM approved upload), also a luxury record on the card (v<profileId>).
 uint8_t avatarForProfile(const String &profileId);
+TurnHubStorage::BlobStore *profileArtworkStore();
+String artworkPath(const String &profileId, bool pending = false);
+const uint8_t *artworkThumbnail(const String &profileId, uint32_t &revision);
 bool saveAvatarForProfile(const String &profileId, uint8_t avatar);
 
 // Statistics are split (owner decision 2026-09-25): a small core record in

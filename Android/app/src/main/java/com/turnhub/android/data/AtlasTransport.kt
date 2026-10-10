@@ -23,7 +23,14 @@ import com.turnhub.android.protocol.StateSnapshot
  * (profiles, login, join, `/api/session/me`, PASS) will be added here in the
  * next milestone; `/api/v1/intent` and events do not exist yet.
  */
-interface AtlasTransport {
+interface AvatarImageTransport {
+    suspend fun getAvatarImage(path: String, token: String = ""): ByteArray = unsupported()
+}
+
+interface AtlasTransport : AvatarImageTransport {
+    /** Changes when sign-in or followed game changes; never log this opaque key. */
+    val contextKey: String get() = ""
+
     /** `GET /api/v1/info`. */
     suspend fun getInfo(): AtlasInfo
 
@@ -67,6 +74,10 @@ data class Personalization(
     val avatar: Int,
     /** False when Atlas has no microSD card (color and avatar cannot be saved). */
     val cardPresent: Boolean,
+    val customAvatar: String = "",
+    val pendingAvatar: String = "",
+    val customImage: ByteArray? = null,
+    val pendingImage: ByteArray? = null,
 )
 
 /** An unparsed Atlas response. */
@@ -84,7 +95,7 @@ private fun unsupported(): Nothing =
  * is [AtlasFailure.SessionExpired], and a refusal with Atlas's reason is
  * [AtlasFailure.Rejected].
  */
-interface AtlasSessionTransport {
+interface AtlasSessionTransport : AvatarImageTransport {
     /** `GET /api/profiles` (public). */
     suspend fun getProfiles(): List<ProfileSummary>
 

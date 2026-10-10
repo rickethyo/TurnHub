@@ -1,92 +1,77 @@
 # Web Portal
 
-The browser interface Atlas serves at `192.168.4.1`. It is presentation only:
+The administration interface Atlas serves at `192.168.4.1`. Personal and shared-tablet play, player preferences/statistics and Game Master moderation live in the Android app. It is presentation only:
 every action goes through the same HTTP handlers and Intents as the app, and
 Atlas validates everything. The shared design system (tokens, icons, fonts,
 components) is `design/` (see `design/README.md`).
 
-## Two portals
+## Firmware owns the portal
 
-- **The V1 portal pack** lives on the microSD card: a signed pack built from
-  `Atlas/web/` and `design/`, updated separately from firmware (owner,
-  2026-10-02). Every Atlas ships with a card.
-- **The basic portal** stays in flash (`web_pages.cpp` `BASIC_PORTAL_HTML`,
-  about 14 KB, gzip) so a failed or missing card still leaves the essentials:
-  game status and the player's own controls (join, start, pass, pause, life,
-  concede, rematch), accessibility preferences, device settings (verify at the
-  table, speaker, pairing window, Wi-Fi password, forget Sigils, return to
-  lobby, factory reset), links to the firmware pages and the pack installer.
-  Flash also keeps the sign-in, firmware and Sigil firmware pages and the
-  shared `/theme.css`.
+Atlas 0.7.7-dev embeds the complete administration UI in its application image.
+There is one signed Atlas update for firmware and web UI. The microSD card is
+optional for administration, including initial-Admin setup, Developer hardware
+tests, diagnostics and local signed Atlas/Sigil uploads. No portal pack, separate
+portal version or installer is needed; old files on a card are never served.
+Factory reset may erase them with the rest of the card without affecting the UI.
+Reload existing browser tabs after updating firmware.
 
-| Route | Served from |
+| Route | Embedded page / policy |
 |---|---|
-| `/portal` | the pack's `index.html` (no-cache), else the basic portal |
-| `/login`, `/update`, `/sigil-update` | the pack's copy, else the built-in page (`/update` and `/sigil-update` after the Admin check) |
-| `/stats`, `/dev` | the pack's copy, else the basic portal (`/dev` after the Developer check) |
-| any of those with `?classic=1` | the built-in page, skipping the pack, so a damaged pack can be replaced |
-| `/assets/...` | the pack, `Cache-Control: immutable` (content-hashed names) |
-| `/theme.css` | flash (`THEME_CSS`) |
+| `/portal` | `index.html`, `Cache-Control: no-store` |
+| `/login` | administrator sign-in, no-store |
+| `/update`, `/sigil-update` | signed firmware upload, after Admin check |
+| `/dev` | diagnostics/hardware tests, after Developer check |
+| `/tablet`, `/stats` | same administration home; browser play/statistics retired |
+| `/assets/...` | content-hashed assets, `public, max-age=31536000, immutable` |
 
-Restricted pages first serve an authentication shell; their contents need the
-session header. Card reads take the SD card lock.
+Restricted pages first serve an authentication shell; their contents require
+the session header. Page gzip bytes are sent directly from flash with explicit
+lengths and content types, without decompression or SD reads. Icons and
+styles are embedded; text uses system fonts. An unknown asset returns 404.
+`?classic=1` no longer selects another UI. `/api/portal` and
+`/api/portal/install` are retired. HTTP gameplay/tablet APIs remain available
+for native clients; permissions stay Atlas-owned.
 
-## Building and installing the pack
+## Building and previewing
 
-| Path | What |
+| Path | Purpose |
 |---|---|
-| `Atlas/web/src/` | Pages (`index.html`, `login.html`, `stats.html`, `tablet.html`, `update.html`, `sigil-update.html`, `dev.html`), `portal.css`, `tablet.css`, `theme-boot.js`, the web manifest and icons |
-| `Atlas/web/VERSION` | Pack version; raise it for every pack installed over another |
-| `Atlas/web/build.py` | Builds, checks, signs and previews (standard library only) |
+| `Atlas/web/src/` | Single source for pages, styles, scripts, manifest and icons |
+| `Atlas/web/build.py` | Builds/checks assets and generates the C++ header; standard library only |
+| `Atlas/tools/embed_web.py` | PlatformIO pre-build hook; writes `generated/web_assets.h` in the build directory |
+| `Atlas/src/web_pages.cpp` | Serves generated PROGMEM assets with binary-safe lengths |
 
 ```
-python3 Atlas/web/build.py              # dist/site/ and dist/portal-<version>.bin
-python3 Atlas/web/build.py --check      # CI: build and check, write nothing
-python3 Atlas/web/build.py --serve      # preview at 127.0.0.1:8080 against a real Atlas
-tools\sign-local.cmd -Products portal   # signed package in Private\TurnHub-builds
+pio run -d Atlas -e atlas              # generates and embeds all assets automatically
+python3 Atlas/web/build.py             # dist/site/ for browser checks
+python3 Atlas/web/build.py --check      # CI: validate in memory, write nothing
+python3 Atlas/web/build.py --serve      # local preview; APIs proxied to a real Atlas
 ```
 
-The pack is a `.thfw` package, product 4 ([Firmware Updates](FIRMWARE_UPDATES.md)),
-signed with the firmware key. Its image is an archive
-(`Atlas/include/portal_pack.h`): the descriptor, `THWEBAR1`, a file count
-(1-512), then per file a path (letters, digits, `.`, `_`, `-`, `/`; no `..`),
-a gzip flag, a size and the data. `index.html` is required; at most 16 MB.
-Text files are gzipped with a fixed timestamp, so builds are reproducible.
-
-Upload it on `/update`, or let the app's update step install it from the
-release feed ([Firmware Updates](FIRMWARE_UPDATES.md)); either way it reaches `POST /api/portal/install`
-(Admin verified at the table, Lobby or Game Over). Atlas checks signature and
-hash while streaming into `/turnhub/portal/stage`, then swaps `live` → `old`,
-`stage` → `live`, and removes `old`; a failed step puts the previous `live`
-back. Same version or newer only. `GET /api/portal` reports
-`{card, installed, version}`. Factory reset keeps the pack.
+Builds gzip text with a fixed timestamp when compression saves space. Content
+hashes and stored bytes are reproducible. The generated header is written only
+when contents change, so unchanged assets do not force recompilation. Host
+runners generate the same header; browser checks rebuild the preview each time
+to avoid testing stale assets. Firmware partition-size checks enforce fit in
+both existing 1,966,080-byte OTA app slots. No new filesystem partition is used.
 
 ## Look and layout
 
-- **Themes:** Automatic (follow the device: Graphite when dark, Daylight when
-  light, High contrast when it asks for more), Graphite, Daylight, Brass and
-  High contrast. The choice is per browser (`localStorage`), never sent to
-  Atlas. Themes are only token sets on `html[data-theme]`; components never
-  hard-code colors. The turn hero is a ring in the modern themes and the
-  brass gauge in Brass. Decorative graphics are `aria-hidden`; the same
-  information is in text.
-- **Phones:** one column, a bottom tab bar, the primary action (Join / Pass
-  turn / Resume) as a large button in My seat. **Wide screens (≥1000 px):**
-  main column (stage, life, Commander damage) plus a side column. The sticky
-  header must not use `backdrop-filter` on phones (it would capture the fixed
-  tab bar).
-- **Where things live:** sign-in and the account menu at top right; table
-  actions only in My seat; game setup under the stage in the lobby; roster,
-  invite QR codes, Sigil attachment and Game Master tools on Players; name,
-  secret, privacy, theme, motion, Sigil accessibility and statistics on My
-  Account; Wi-Fi, devices, permissions and firmware on Device Settings
-  (Admin), which also has an inline Verify at the table card.
-- **First-run setup:** while `GET /api/setup` reports `welcome`, the Game
-  view opens the same steps as the app (account, presence code, Wi-Fi
-  password). Pairing and updates stay on the Atlas screen and in the app.
-- **Home screen:** a manifest and Apple meta tags let a phone add the portal
-  to its home screen. Full-screen launch and the screen wake lock need HTTPS,
-  which Atlas doesn't serve yet; both quietly fall back.
+The home page is administration, with an Android installation link and Admin
+sign-in. Ordinary signed-in profiles see a message directing play to the app.
+Admin content includes network/device settings, pairing decisions, account roles
+and archive/restore, and explicit game selection for table resets. No personal
+seat claims, life/Commander edits, timers, invitations to web play or moderation
+controls are generated. Initial-Admin account creation remains available before
+bootstrap is complete. Existing authentication/permission checks on APIs remain
+Atlas-owned. Developer diagnostics and hardware tests require Developer, including
+for an Admin; the portal links them only when that bit is present.
+
+System/Dark/Light/High contrast accessibility appearance remains browser-local.
+Brass, ornamental styling and bundled web fonts are excluded from portal assets.
+Old decorative choices use System. Shared Android/device themes are unchanged. Setup
+uses the existing account, presence and Wi-Fi endpoints. All signed package file
+pickers and device-specific update selection remain on the maintenance pages.
 
 ## Rules
 
@@ -99,15 +84,16 @@ back. Same version or newer only. `GET /api/portal` reports
   `aria-describedby`; `prefers-reduced-motion` and the per-browser Reduce
   motion switch; `forced-colors` support. A design target toward WCAG 2.2 AA,
   not a conformance claim.
-- **Test contract:** `portal_smoke.cjs` and `counter_smoke.cjs` drive the
-  pack by element IDs, accessible names and a few page globals
-  (`refreshAll`, `sessionInfo`, `gameSettingsData`, `counterData`). Keep them
-  stable when restyling. `basic_portal_smoke.cjs` covers the flash portal.
-  `PORTAL_RENDERS=1 node Atlas/tests/host/counter_smoke.cjs` screenshots every
-  theme.
+- **Test contract:** `portal_smoke.cjs` covers the actual embedded HTML with/without a card:
+  Admin/ordinary account visibility, bootstrap, explicit hardware save,
+  unsaved-choice preservation and absence of gameplay requests.
+  `maintenance_smoke.cjs` checks local firmware uploads, per-Sigil selection
+  and Developer hardware controls with authenticated requests. Both use
+  Playwright/Chromium; `PLAYWRIGHT_EXECUTABLE_PATH` selects the browser.
+  The former browser gameplay/Commander/tablet smokes are retired; Atlas host
+  and Android tests cover those contracts.
 - **Dependencies:** no web fonts or frameworks are downloaded from the
-  internet; fonts and icons ship in the pack from `design/`. The vendored
-  `qrcode-generator` 1.4.4 (MIT) is the only third-party script.
+  internet; icons ship in firmware from `design/`, and text uses system fonts. No third-party browser script is required.
 
 ## Hardware tests
 
@@ -125,10 +111,10 @@ Apps may use the same Developer-authenticated endpoint:
 Tests are `buzzer`, `screen`, and (Sigil only) `lights`; module IDs are
 zero-based. Offline, spare and harness Sigils are rejected. HTTP success
 means the request was started/sent, not that the hardware passed. Update
-both the firmware and the SD portal pack to use these controls.
+Atlas firmware to use these controls.
 
 ## Status
 
-Host smoke checks cover both portals and the installer; the pack is the portal in daily use.
+Host and browser checks cover flash asset serving, restricted pages, administration and cardless bootstrap/update access.
 Still open: golden screenshot tests for the app and portal, theme packs from
 the card, and HTTPS ([Staged Changes](STAGED_CHANGES.md)).

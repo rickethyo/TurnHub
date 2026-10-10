@@ -63,8 +63,8 @@ jobs:
               Sigil/*) sigil=true ;;
               # Shared fixtures feed the Atlas contract check and Android tests.
               protocol/*) atlas=true android=true ;;
-              # Tokens generate Android resources (the portal pack check always runs).
-              design/*) android=true ;;
+              # Tokens generate Android resources (the embedded portal check always runs).
+              design/*) atlas=true android=true ;;
               # The offline manual is generated from the docx; the always-run
               # manual asset check covers it, so it needs no Gradle build.
               Android/app/src/main/assets/manual.md) ;;
@@ -106,9 +106,13 @@ jobs:
         if: env.ATLAS == 'true'
         run: python3 Atlas/tests/host/check_client_contract.py
       - name: Design tokens are current and pass contrast checks
-        run: python3 design/build_tokens.py --check
-      - name: Web portal pack builds
+        run: |
+          python3 design/build_tokens.py --check
+          python3 design/build_avatar_masks.py --check
+      - name: Embedded admin portal builds
         run: python3 Atlas/web/build.py --check
+      - name: Firmware portal asset serving integrity
+        run: python3 Atlas/tests/host/firmware_portal_smoke.py
       - name: Android manual asset matches the newest user manual
         run: python3 Android/tools/export_manual.py --check
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7

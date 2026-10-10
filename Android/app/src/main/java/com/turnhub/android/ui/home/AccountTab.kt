@@ -71,6 +71,8 @@ data class AccountActions(
     val onShareStats: () -> Unit = {},
     val onLoadPersonalization: () -> Unit = {},
     val onSavePersonalization: (color: String?, avatar: Int?) -> Unit = { _, _ -> },
+    val onUploadAvatar: (ByteArray, String) -> Unit = { _, _ -> },
+    val onRemoveAvatar: () -> Unit = {},
     val onAccessibility: () -> Unit = {},
     val onSignOut: () -> Unit = {},
     val onDisconnect: () -> Unit = {},
@@ -78,8 +80,6 @@ data class AccountActions(
     val onReduceMotion: (Boolean) -> Unit = {},
     /** Switches "Sign in automatically" off: forgets this table's profile on this phone. */
     val onForgetSavedProfile: () -> Unit = {},
-    /** Opens tablet mode: this device as one shared screen for the whole table. */
-    val onOpenTablet: () -> Unit = {},
 )
 
 /** Sigil light colors to pick from (the portal offers a free color picker; these cover the wheel). */
@@ -123,18 +123,6 @@ fun AccountTab(
                 ToneButton("Sigil accessibility…", actions.onAccessibility, Modifier.fillMaxWidth(), tone = Tone.INFO)
             }
         }
-        if (uiState.tableSummary != null) {
-            BrassCard {
-                Eyebrow("Tablet mode")
-                Text(
-                    "Lay this device in the middle of the table: every player gets a panel facing their seat for life, " +
-                        "Commander damage and passing the turn. New players can be added by name.",
-                    color = p.muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                ToneButton("Open tablet mode", actions.onOpenTablet, Modifier.fillMaxWidth(), tone = Tone.INFO)
-            }
-        }
         AppearanceCard(theme, reduceMotion, actions)
         BrassCard {
             Eyebrow("Atlas connection")
@@ -158,7 +146,9 @@ private fun ProfileCard(uiState: HomeUiState, session: PlayerSessionState.Signed
     BrassCard {
         Eyebrow("My account")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            val icon = uiState.avatars.firstOrNull { it.id == uiState.personalization?.avatar } ?: me?.avatar
+            val icon = if (uiState.personalization?.avatar == 128)
+                com.turnhub.android.protocol.AvatarIcon(128, "custom", "Uploaded player image", emptyList(), uiState.personalization.customImage)
+            else uiState.avatars.firstOrNull { it.id == uiState.personalization?.avatar } ?: me?.avatar
             PlayerAvatar(session.name ?: "?", me?.playerNumber ?: 0, icon, size = 56.dp)
             Column(Modifier.weight(1f)) {
                 Text(session.name ?: "Unnamed profile", color = p.text, style = MaterialTheme.typography.titleLarge)
@@ -293,6 +283,13 @@ private fun PersonalizationCard(uiState: HomeUiState, actions: AccountActions) {
                 }
             }
         }
+        if (current?.customAvatar?.isNotEmpty() == true) {
+            AvatarChoice("Uploaded", avatarDraft == 128, { avatarDraft = 128 }) {
+                AvatarGlyph(com.turnhub.android.protocol.AvatarIcon(128, "custom", "Uploaded image", emptyList(), current.customImage), p.text, 40.dp)
+            }
+        }
+        AvatarUploadControls(current, uiState.player?.busy == true, actions.onUploadAvatar, actions.onRemoveAvatar)
+        ToneButton("Refresh image approval", actions.onLoadPersonalization, enabled = uiState.player?.busy != true)
         Text("Sigil light color", color = p.text, style = MaterialTheme.typography.titleSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             JEWEL_COLORS.forEach { hex ->
