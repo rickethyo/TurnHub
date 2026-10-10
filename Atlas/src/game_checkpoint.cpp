@@ -13,6 +13,7 @@ void clearCheckpoint(GameCheckpoint &out) {
     out.players[i] = PlayerSeat{};
     out.stats[i] = PlayerStats{};
     out.eliminated[i] = false;
+    out.conceded[i] = false;
     out.life[i] = 0;
     for (auto &source : out.damage[i]) for (auto &value : source) value = 0;
   }
@@ -49,13 +50,14 @@ bool validCheckpoint(const GameCheckpoint &s) {
           (p.participantId && p.participantId == s.players[j].participantId) ||
           (p.profileId[0] && !strcmp(p.profileId, s.players[j].profileId))) return false;
     }
+    if (s.conceded[i] && !s.eliminated[i]) return false;
     if (!s.eliminated[i]) ++living;
     for (uint8_t j = 0; j < s.count; ++j) for (uint8_t c = 0; c < 2; ++c)
       if (s.damage[i][j][c] < 0 || s.damage[i][j][c] > LIFE_LIMIT ||
           (s.settings.profile != GameProfile::Commander && s.damage[i][j][c])) return false;
   }
   // A finished match without a winner is a draw (GameEngine::endInDraw).
-  return living && (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
+  return (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
       (living >= 2 && !s.eliminated[s.active]));
 }
 
@@ -69,6 +71,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   out.nextRequestId = nextLifeRequestId_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
     out.players[i] = players_[i]; out.stats[i] = stats_[i];
+    out.conceded[i] = conceded_[i];
     out.eliminated[i] = eliminated_[i]; out.life[i] = life_[i];
     for (uint8_t j = 0; j < playerCount_; ++j)
       for (uint8_t c = 0; c < 2; ++c) out.damage[i][j][c] = commanderDamage_[i][j][c];
@@ -90,6 +93,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   gameEndedAtMs_ = s.over ? nowMs : 0;
   for (uint8_t i = 0; i < s.count; ++i) {
     players_[i] = s.players[i]; stats_[i] = s.stats[i];
+    conceded_[i] = s.conceded[i];
     eliminated_[i] = s.eliminated[i]; life_[i] = s.life[i];
     for (uint8_t j = 0; j < s.count; ++j)
       for (uint8_t c = 0; c < 2; ++c) commanderDamage_[i][j][c] = s.damage[i][j][c];

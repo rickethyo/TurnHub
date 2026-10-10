@@ -196,6 +196,8 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                 }
             }
 
+            ToneButton("Automatic elimination at zero life: " + if (game.autoEliminateAtZeroLife) "On" else "Off",
+                { table.setZeroLifeElimination(!game.autoEliminateAtZeroLife) }, Modifier.fillMaxWidth())
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
             AccentButton(

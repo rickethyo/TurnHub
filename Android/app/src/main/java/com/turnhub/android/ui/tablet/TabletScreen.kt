@@ -464,6 +464,12 @@ private fun GameCard(summary: TableSummary, tablet: TabletState, actions: Tablet
                 )
             }
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Automatic elimination at zero life", color = p.text, modifier = Modifier.weight(1f))
+            Switch(checked = settings.autoEliminateAtZeroLife,
+                onCheckedChange = { on -> seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } } },
+                enabled = seat != null && !tablet.busy)
+        }
         var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(

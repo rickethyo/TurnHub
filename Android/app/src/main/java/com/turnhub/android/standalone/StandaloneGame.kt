@@ -22,6 +22,7 @@ data class LocalPlayer(
     val profileId: String? = null,
     val life: Int = 0,
     val eliminated: Boolean = false,
+    val conceded: Boolean = false,
     /** 1 for the first player out, 2 for the next, and so on. */
     val outOrder: Int? = null,
     val turnsCompleted: Int = 0,
@@ -50,6 +51,7 @@ data class StandaloneGame(
     val state: TableState = TableState.LOBBY,
     val profile: GameProfile = GameProfile.MTG_COMMANDER,
     val startingLife: Int = 40,
+    val autoEliminateAtZeroLife: Boolean = true,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -131,6 +133,7 @@ data class StandaloneGame(
         return StandaloneGame(
             profile = profile,
             startingLife = startingLife,
+            autoEliminateAtZeroLife = autoEliminateAtZeroLife,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
@@ -164,18 +167,18 @@ data class StandaloneGame(
         else -> this
     }
 
-    fun changeLife(index: Int, delta: Int): StandaloneGame {
+    fun changeLife(index: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || delta == 0) return this
         val life = (player.life.toLong() + delta).coerceIn(-MAX_LIFE.toLong(), MAX_LIFE.toLong()).toInt()
-        return update(index) { it.copy(life = life) }
+        return update(index) { it.copy(life = life) }.resolveZeroLife(nowMs)
     }
 
     /**
      * Commander damage [index] received from [source]'s [commander] (1 or 2).
      * It costs the same life, as on Atlas; a total never goes below zero.
      */
-    fun commanderDamage(index: Int, source: Int, commander: Int, delta: Int): StandaloneGame {
+    fun commanderDamage(index: Int, source: Int, commander: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
         val totals = player.commanderDamage[source] ?: listOf(0, 0)
@@ -184,20 +187,43 @@ data class StandaloneGame(
         val applied = next - now
         if (applied == 0) return this
         val updated = totals.toMutableList().also { it[commander - 1] = next }
-        return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated), life = it.life - applied) }
+        return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated), life = it.life - applied) }.resolveZeroLife(nowMs)
     }
 
     /** The player leaves the game; when one is left standing, they win. */
-    fun concede(index: Int, nowMs: Long): StandaloneGame {
+    fun concede(index: Int, nowMs: Long): StandaloneGame = eliminate(index, nowMs, conceded = true)
+
+    fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated) return this
         val out = players.count { it.eliminated } + 1
-        var game = update(index) { it.copy(eliminated = true, outOrder = out) }
+        var game = update(index) { it.copy(eliminated = true, conceded = conceded, outOrder = out) }
         val standing = game.players.indices.filter { !game.players[it].eliminated }
         if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
         if (active == index) {
             val next = game.nextIn(index) ?: return game
             game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
+        }
+        return game
+    }
+
+    fun setAutoEliminateAtZeroLife(enabled: Boolean, nowMs: Long): StandaloneGame {
+        if (state == TableState.GAME_OVER) return this
+        return copy(autoEliminateAtZeroLife = enabled).bump().resolveZeroLife(nowMs)
+    }
+
+    private fun resolveZeroLife(nowMs: Long): StandaloneGame {
+        if (!playing || !autoEliminateAtZeroLife) return this
+        val targets = players.indices.filter { !players[it].eliminated && players[it].life <= 0 }
+        if (targets.isEmpty()) return this
+        var out = players.count { it.eliminated }
+        var game = copy(players = players.mapIndexed { i, p ->
+            if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
+        }).bump()
+        val standing = game.players.indices.filter { !game.players[it].eliminated }
+        if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
+        if (active in targets) {
+            game = game.copy(active = game.nextIn(active!!), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
         }
         return game
     }
@@ -255,6 +281,7 @@ data class StandaloneGame(
                     fastestTurnMs = p.fastestTurnMs,
                     longestTurnMs = p.longestTurnMs,
                     outOrder = p.outOrder,
+                    conceded = p.conceded,
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
                 )
             },
@@ -276,7 +303,7 @@ data class StandaloneGame(
             firmwareVersion = "",
             revision = revision,
             state = state,
-            settings = TableSettings(profile, startingLife),
+            settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
@@ -295,6 +322,7 @@ data class StandaloneGame(
                     slot = 1,
                     participantId = (i + 1).toLong(),
                     eliminated = p.eliminated,
+                    conceded = p.conceded,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },

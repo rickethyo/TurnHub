@@ -39,12 +39,15 @@ constexpr int32_t TEAM_LIFE_COMMANDER = 60;
 constexpr uint8_t PROFILE_BYTE_TEAMS = 0x80;
 // The ConfigureGame Intent's payload.flags bit for the same setting.
 constexpr uint32_t GAME_FLAG_TWO_HEADED_GIANT = 0x100;
+constexpr uint32_t GAME_FLAG_MANUAL_ELIMINATION = 0x200;
+constexpr uint8_t PROFILE_BYTE_MANUAL_ELIMINATION = 0x40;
 
 struct GameSettings {
   GameProfile profile = GameProfile::Generic;
   int32_t startingLife = 40;
   uint32_t turnTimerMs = TURN_TIMER_OFF;
   bool twoHeadedGiant = false;
+  bool autoEliminateAtZeroLife = true;
 };
 inline bool teamsAllowed(GameProfile profile) {
   return profile == GameProfile::Magic || profile == GameProfile::Commander;
@@ -57,18 +60,21 @@ inline bool validGameSettings(const GameSettings &settings) {
 }
 inline bool sameGameSettings(const GameSettings &a, const GameSettings &b) {
   return a.profile == b.profile && a.startingLife == b.startingLife && a.turnTimerMs == b.turnTimerMs &&
-      a.twoHeadedGiant == b.twoHeadedGiant;
+      a.twoHeadedGiant == b.twoHeadedGiant &&
+      a.autoEliminateAtZeroLife == b.autoEliminateAtZeroLife;
 }
 inline bool validTeamTable(const GameSettings &settings, uint8_t playerCount) {
   return !settings.twoHeadedGiant ||
       (playerCount >= TEAM_MIN_PLAYERS && playerCount % TEAM_SIZE == 0);
 }
 inline uint8_t profileByte(const GameSettings &settings) {
-  return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0);
+  return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0) |
+      (settings.autoEliminateAtZeroLife ? 0 : PROFILE_BYTE_MANUAL_ELIMINATION);
 }
 inline void readProfileByte(uint8_t value, GameSettings &settings) {
-  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~PROFILE_BYTE_TEAMS));
+  settings.profile = static_cast<GameProfile>(value & static_cast<uint8_t>(~(PROFILE_BYTE_TEAMS | PROFILE_BYTE_MANUAL_ELIMINATION)));
   settings.twoHeadedGiant = (value & PROFILE_BYTE_TEAMS) != 0;
+  settings.autoEliminateAtZeroLife = (value & PROFILE_BYTE_MANUAL_ELIMINATION) == 0;
 }
 inline const char *gameProfileKey(GameProfile profile) {
   switch (profile) {

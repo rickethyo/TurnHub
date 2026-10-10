@@ -93,8 +93,11 @@ void existingRecords() {
   assert(writeStoredStats(store, key, again) == Status::Ok);
   assert(FakeNvs::blobs[key][66] == 4);
   assert(readStoredStats(store, key, out) == Status::Ok && out.lastGameResult == LastGameResult::Draw);
+  again.lastGameResult = LastGameResult::Conceded; again.gamesConceded = 2;
+  assert(writeStoredStats(store, key, again) == Status::Ok);
+  assert(readStoredStats(store, key, out) == Status::Ok && out.lastGameResult == LastGameResult::Conceded && out.gamesConceded == 2);
   std::vector<uint8_t> future = FakeNvs::blobs[key];
-  future[66] = 5;
+  future[66] = 6;
   FakeNvs::blobs[key] = future;
   assert(readStoredStats(store, key, out) == Status::Corrupt);
   FakeNvs::blobs[key] = legacy;
@@ -143,7 +146,7 @@ void protectedRecords() {
   reject(std::vector<uint8_t>(71, 0), Status::Corrupt);
   reject(std::vector<uint8_t>(73, 0), Status::Corrupt);
   std::vector<uint8_t> future(72, 0);
-  future[64] = 2;
+  future[64] = 3;
   reject(future, Status::UnsupportedSchema);
   future[64] = 1; future[66] = 255;
   reject(future, Status::Corrupt);
@@ -157,7 +160,7 @@ void protectedRecords() {
   assert(FakeNvs::writes == 0);
   FakeNvs::readError = ESP_OK;
   ProfileStats invalid;
-  invalid.schemaVersion = 2;
+  invalid.schemaVersion = 3;
   assert(writeStoredStats(store, "s12345678", invalid) == Status::UnsupportedSchema);
   assert(FakeNvs::writes == 0);
 }

@@ -11,6 +11,19 @@ import org.junit.Test
 class AtlasWireParserTest {
 
     @Test
+    fun `parses zero life setting and concession reason`() {
+        val state = Fixtures.state("running.response.json") {
+            getJSONObject("settings").put("autoEliminateAtZeroLife", true)
+            getJSONArray("players").getJSONObject(0).put("eliminated", true).put("conceded", true)
+        }
+        assertTrue(state.settings.autoEliminateAtZeroLife)
+        assertTrue(state.players[0].conceded)
+        assertThrows(AtlasWireException.Malformed::class.java) {
+            Fixtures.state("running.response.json") { getJSONObject("settings").put("autoEliminateAtZeroLife", "yes") }
+        }
+    }
+
+    @Test
     fun `parses the info fixture`() {
         val info = AtlasWireParser.parseInfo(Fixtures.text("info.response.json"))
 

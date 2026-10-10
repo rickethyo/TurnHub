@@ -34,6 +34,7 @@ data class GameRecord(
         val outOrder: Int?,
         val commanderDamageReceived: Int,
         val localId: String? = null,
+        val conceded: Boolean = false,
     )
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -56,6 +57,7 @@ data class GameRecord(
                     put("fastestTurnMs", p.fastestTurnMs)
                     put("longestTurnMs", p.longestTurnMs)
                     put("outOrder", p.outOrder ?: JSONObject.NULL)
+                    put("conceded", p.conceded)
                     put("commanderDamageReceived", p.commanderDamageReceived)
                 })
             }
@@ -83,6 +85,7 @@ data class GameRecord(
             add("fastest$i" to "${p.fastestTurnMs.coerceIn(0, DAY_MS)}")
             add("longest$i" to "${p.longestTurnMs.coerceIn(0, DAY_MS)}")
             add("out$i" to "${p.outOrder ?: 0}")
+            add("conceded$i" to if (p.conceded) "1" else "0")
         }
     }
 
@@ -113,6 +116,7 @@ data class GameRecord(
                         fastestTurnMs = p.optLong("fastestTurnMs"),
                         longestTurnMs = p.optLong("longestTurnMs"),
                         outOrder = p.optIntOrNull("outOrder"),
+                        conceded = p.optBoolean("conceded"),
                         commanderDamageReceived = p.optInt("commanderDamageReceived"),
                     )
                 },

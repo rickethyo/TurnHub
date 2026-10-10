@@ -20,6 +20,7 @@ enum class IntentType : uint8_t {
   Resume,
   TogglePause,
   Concede,
+  EliminateSeat,
   ClaimWin,
   ConfirmWin,
   DenyWin,
@@ -242,6 +243,7 @@ inline const char *intentName(IntentType type) {
     case IntentType::Resume: return "RESUME";
     case IntentType::TogglePause: return "TOGGLE_PAUSE";
     case IntentType::Concede: return "CONCEDE";
+    case IntentType::EliminateSeat: return "ELIMINATE_SEAT";
     case IntentType::ClaimWin: return "CLAIM_WIN";
     case IntentType::ConfirmWin: return "CONFIRM_WIN";
     case IntentType::DenyWin: return "DENY_WIN";

@@ -196,6 +196,7 @@ object AtlasWireParser {
                     startingLife = root.int("startingLife"),
                     turnTimerMs = root.uint32("turnTimerMs"),
                     twoHeadedGiant = root.optionalBoolean("twoHeadedGiant"),
+                    autoEliminateAtZeroLife = if (root.has("autoEliminateAtZeroLife")) root.boolean("autoEliminateAtZeroLife") else false,
                 ),
                 available = root.boolean("available"),
                 canEdit = root.boolean("canEdit"),
@@ -264,6 +265,7 @@ object AtlasWireParser {
         startingLife = settings.int("startingLife"),
         turnTimerMs = settings.uint32("turnTimerMs"),
         twoHeadedGiant = settings.optionalBoolean("twoHeadedGiant"),
+        autoEliminateAtZeroLife = if (settings.has("autoEliminateAtZeroLife")) settings.boolean("autoEliminateAtZeroLife") else false,
     )
 
     private fun parseTurnTimer(timer: JSONObject): TurnTimer {
@@ -293,6 +295,7 @@ object AtlasWireParser {
         profileId = player.optionalString("profileId"),
         displayName = player.optionalString("displayName"),
         eliminated = player.boolean("eliminated"),
+        conceded = player.optionalBoolean("conceded"),
         life = player.nullableInt("life"),
         turnsCompleted = player.uint32("turnsCompleted"),
         commanderDamage = player.array("commanderDamage").objects().map { entry ->

@@ -1,4 +1,4 @@
-<!-- Generated from TurnHub Manual V0.15.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.16.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
@@ -423,13 +423,13 @@ This helps prevent an accidental button press from ending the game.
 
 When a game ends, choose Rematch to play again with the same players, or Reset to empty the table. Both are on the Atlas screen as well as on the Sigils and in the app.
 
-# 15. Conceding
+# 15. Conceding and elimination
 
 A player who is leaving the game can concede. On a Sigil, choose I’m out from Menu, then hold Confirm out. On a shared Sigil, Other seat switches to the other player first. In the app or tablet mode, choose Concede and confirm.
 
-Conceding removes that player from normal turn progression while preserving the rest of the game.
+Concede records a voluntary exit. Eliminate records a loss due to a game condition. Both remove that player from turn progression; the last player or team remaining wins. They have separate statistics and are shown separately in tablet panels and local history.
 
-Earlier prototype versions may refer to this function as Eliminate. Current terminology uses Concede for a player intentionally leaving the game.
+Automatic elimination at zero life is on by default. You can change it before or during play from Game, the table menu, or the standalone lobby. Disable it before a card changes the loss condition. Enabling it immediately eliminates every living player at zero or below, including while paused. If nobody survives, the match ends as a draw. Turning it off does not restore eliminated players.
 
 ## Ending a Match as a Draw
 
@@ -485,7 +485,7 @@ Players seated by the tablet can still use their own Sigil or phone as well: a S
 
 - The player whose turn it is holds **Hold to pass**. While it says **Passing… tap to keep**, a tap undoes the pass.
 
-- **More** on a panel holds **Claim the win** and **Concede** (tap again to confirm) and Commander damage received from each opponent, with partner commanders when needed.
+- **More on a panel holds Claim the win, Concede and Eliminate (tap again to confirm), and Commander damage received from each opponent, with partner commanders when needed. Tap the middle table control to change Automatic elimination at zero life during play; the paused screen also offers this setting.**
 
 - **Menu** in the middle of the table holds **Pause**, **Turn panels around**, **End without a winner** (a draw) and **Leave tablet mode**. After the game choose **Rematch** or **New players**.
 

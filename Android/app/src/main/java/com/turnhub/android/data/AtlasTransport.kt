@@ -57,6 +57,7 @@ enum class ControlAction(val path: String) {
     CONFIRM_WIN("/api/control/confirm"),
     DENY_WIN("/api/control/deny"),
     CONCEDE("/api/control/concede"),
+    ELIMINATE("/api/control/eliminate"),
     SELECT_STARTER("/api/control/starter"),
     START("/api/control/start"),
     CANCEL_START("/api/control/cancel-start"),
@@ -167,6 +168,7 @@ interface AtlasSessionTransport : AvatarImageTransport {
         startingLife: Int?,
         turnTimerMs: Long?,
         twoHeadedGiant: Boolean? = null,
+        autoEliminateAtZeroLife: Boolean? = null,
     ): String? = unsupported()
 
     /** `POST /api/session/profile` with a new `name` and/or `pin`. */

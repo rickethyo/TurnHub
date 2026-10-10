@@ -71,7 +71,7 @@ bool archived(const String &profileId) {
 TurnHubProfiles::LastGameResult resultFor(const ImportedGame &game, uint8_t index) {
   using TurnHubProfiles::LastGameResult;
   if (game.winner == static_cast<int8_t>(index)) return LastGameResult::Win;
-  if (game.players[index].outOrder > 0) return LastGameResult::Eliminated;
+  if (game.players[index].outOrder > 0) return game.players[index].conceded ? LastGameResult::Conceded : LastGameResult::Eliminated;
   if (game.winner < 0) return LastGameResult::Draw;
   return LastGameResult::Loss;
 }
@@ -126,6 +126,7 @@ ImportResult importGame(const ImportedGame &game) {
   // Exact identities only. Validate the whole mapping before taking the receipt
   // or changing any statistics. Names remain display labels.
   for (uint8_t i = 0; i < game.playerCount; ++i) {
+    if (game.players[i].conceded && !game.players[i].outOrder) return result;
     const String &id = game.players[i].profileId;
     bool bad = id.length() == 0 || !TurnHubProfiles::profileExists(id) || archived(id);
     for (uint8_t j = 0; j < i; ++j) bad = bad || game.players[j].profileId == id;

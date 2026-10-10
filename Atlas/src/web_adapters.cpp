@@ -41,6 +41,7 @@ bool seatIntentForControl(WebControl control, IntentType &type) {
     case WebControl::Pass: type = IntentType::Pass; return true;
     case WebControl::PauseResume: type = IntentType::TogglePause; return true;
     case WebControl::Concede: type = IntentType::Concede; return true;
+    case WebControl::EliminateSeat: type = IntentType::EliminateSeat; return true;
     case WebControl::ClaimWin: type = IntentType::ClaimWin; return true;
     case WebControl::ConfirmWin: type = IntentType::ConfirmWin; return true;
     case WebControl::DenyWin: type = IntentType::DenyWin; return true;
@@ -142,7 +143,8 @@ bool configureGame(uint8_t controller, uint8_t slot,
     const TurnHub::GameSettings &settings, String &message) {
   TurnHub::IntentPayload payload;
   payload.flags = static_cast<uint32_t>(settings.profile) |
-      (settings.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0);
+      (settings.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0) |
+      (settings.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
   payload.value = settings.startingLife;
   payload.durationMs = settings.turnTimerMs;
   return dispatchBrowserSeatIntent(controller, slot, IntentType::ConfigureGame, payload, message);

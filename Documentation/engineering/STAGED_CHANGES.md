@@ -102,6 +102,13 @@ everything implemented. Only the checks listed below are still open.
   System/Dark/Light/High contrast accessibility appearance.
 - **HTTPS on Atlas:** revisit administration transport after the app-first cutover; native tablet wake/immersive behavior does not depend on portal HTTPS.
 
+- **Zero-life elimination and separate concessions** (*Implemented locally*,
+  owner, 2026-10-10): automatic elimination at zero/negative life defaults on,
+  editable in lobby and during running/paused play; enabling checks everyone
+  immediately. Concede and Eliminate have separate controls, state, saved exit
+  reasons and statistics, in connected and standalone play. Atlas host/firmware
+  checks and 222 Android unit tests pass; physical acceptance pending. See [GAMEPLAY.md](GAMEPLAY.md).
+
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and
   seating, the portal's `/tablet` with life, Commander damage, pass, win and
   concede; round two, the same screen in the Android app; see

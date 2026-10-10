@@ -45,7 +45,7 @@ class ClientState {
   struct Player {
     uint8_t number = 0, controller = INVALID_ID, slot = 0, team = 0;
     uint32_t participant = 0, turnsCompleted = 0;
-    bool eliminated = false;
+    bool eliminated = false, conceded = false;
     int32_t life = 0;
     int32_t damage[MAX_PLAYERS][COMMANDERS_PER_PLAYER] = {};
     LifeChangeRequest request{};

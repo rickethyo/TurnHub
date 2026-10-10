@@ -264,7 +264,7 @@ internal fun TabletTable(
                         onToggleDrawer = { if (unit.key in drawers) drawers.remove(unit.key) else drawers.add(unit.key) },
                         onBump = { bump(unit, it) },
                         onControl = { seat, action ->
-                            if (action == "concede") drawers.remove(unit.key)
+                            if (action == "concede" || action == "eliminate") drawers.remove(unit.key)
                             send(seat, action)
                         },
                         onCommander = { member, source, which, delta ->
@@ -344,6 +344,9 @@ internal fun TabletTable(
                         Overlay("Player removal pending", "Confirm or cancel the removal on Atlas or the selecting Sigil.") {}
                     } else {
                         Overlay("Paused", "The clocks are stopped.") {
+                            ZeroLifeSetting(summary, isOffline || anySeat == null) { enabled ->
+                                anySeat?.let { seat -> controls { setAutoEliminateAtZeroLife(seat, enabled) } }
+                            }
                             AccentButton("Resume", { send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                         }
                     }
@@ -364,6 +367,9 @@ internal fun TabletTable(
             }
             else -> if (menuOpen) {
                 Overlay("Table", "Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", onDismiss = { menuOpen = false }) {
+                    ZeroLifeSetting(summary, isOffline || anySeat == null) { enabled ->
+                        anySeat?.let { seat -> controls { setAutoEliminateAtZeroLife(seat, enabled) } }
+                    }
                     ToneButton("Pause", { menuOpen = false; send(activeSeat, "pause") }, Modifier.fillMaxWidth())
                     ToneButton("Turn panels around", { flipped = !flipped; menuOpen = false }, Modifier.fillMaxWidth())
                     ToneButton("Back to the app", { menuOpen = false; onClose() }, Modifier.fillMaxWidth())
@@ -434,12 +440,23 @@ private fun OverlayFrame(title: String, text: String, onDismiss: (() -> Unit)?, 
             .pointerInput(onDismiss) { detectTapGestures { onDismiss?.invoke() } },
         contentAlignment = Alignment.Center,
     ) {
-        BrassCard(Modifier.widthIn(max = 380.dp).padding(16.dp).pointerInput(Unit) { detectTapGestures { } }) {
+        BrassCard(Modifier.widthIn(max = 380.dp).padding(16.dp).verticalScroll(rememberScrollState()).pointerInput(Unit) { detectTapGestures { } }) {
             Text(title, color = p.text, style = MaterialTheme.typography.headlineSmall)
             Text(text, color = p.muted)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
         }
     }
+}
+
+@Composable
+private fun ZeroLifeSetting(summary: TableSummary, offline: Boolean, onChange: (Boolean) -> Unit) {
+    androidx.compose.material3.TextButton(
+        onClick = { onChange(!summary.settings.autoEliminateAtZeroLife) }, enabled = !offline,
+    ) {
+        Text("Automatic elimination at zero life: " + if (summary.settings.autoEliminateAtZeroLife) "On" else "Off")
+    }
+    Text("When on, players at zero or below are eliminated immediately. Disable before a card changes the loss condition.",
+        color = palette.muted, style = MaterialTheme.typography.bodySmall)
 }
 
 // --- one player's panel -----------------------------------------------------------
@@ -493,7 +510,7 @@ private fun PlayerPanel(
             Text(name, color = p.text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = nameMax))
             if (active) Tag("Turn", p.active, p.onActive)
-            if (out) Tag("Out", p.bad, p.surface)
+            if (out) Tag(if (unit.members.any { it.conceded }) "Conceded" else "Eliminated", p.bad, p.surface)
         }
 
         Column(
@@ -761,6 +778,10 @@ private fun Drawer(
                     "Tap again to concede",
                     Tone.BAD,
                 ) { onControl(member.seat(), "concede") }
+                ArmedButton(
+                    if (unit.members.size > 1) "Eliminate ${member.label}" else "Eliminate",
+                    "Tap again to eliminate", Tone.BAD,
+                ) { onControl(member.seat(), "eliminate") }
             }
         }
         if (summary.settings.profile == GameProfile.MTG_COMMANDER) {

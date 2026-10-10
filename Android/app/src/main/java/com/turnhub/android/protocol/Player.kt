@@ -22,6 +22,7 @@ data class Player(
     val profileId: String?,
     val displayName: String?,
     val eliminated: Boolean,
+    val conceded: Boolean = false,
     /** Null in the lobby, before Atlas has captured starting life. */
     val life: Int?,
     /** Unsigned 32-bit. */

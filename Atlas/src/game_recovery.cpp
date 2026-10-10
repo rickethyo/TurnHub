@@ -10,7 +10,7 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 1;
+constexpr uint32_t SCHEMA = 2;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
 // Wire layout (little-endian): magic, schema, 7 header bytes, 5 header words,
 // then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
@@ -68,7 +68,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
     for (char c : p.profileId) w.byte(static_cast<uint8_t>(c));
     w.word(stats.turnsCompleted); w.word(stats.totalTurnMs);
     w.word(stats.fastestTurnMs); w.word(stats.longestTurnMs);
-    w.byte(s.eliminated[i]); w.word(static_cast<uint32_t>(s.life[i]));
+    w.byte((s.eliminated[i] ? 1 : 0) | (s.conceded[i] ? 2 : 0)); w.word(static_cast<uint32_t>(s.life[i]));
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       w.word(static_cast<uint32_t>(s.damage[i][j][c]));
   }
@@ -81,7 +81,8 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   if (!bytes || size < MIN_RECORD_SIZE || size > GAME_CHECKPOINT_CAPACITY) return Status::Corrupt;
   Reader header{bytes,size};
   if (header.word()!=MAGIC) return Status::Corrupt;
-  if (header.word()!=SCHEMA) return Status::UnsupportedSchema;
+  const uint32_t schema = header.word();
+  if (schema != 1 && schema != SCHEMA) return Status::UnsupportedSchema;
   Reader checksum{bytes + size - CRC_SIZE, CRC_SIZE};
   if (checksum.word() != crc32(bytes, size - CRC_SIZE)) return Status::Corrupt;
   Reader r{bytes, size - CRC_SIZE};
@@ -99,7 +100,10 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
     for (char &c : p.profileId) c=static_cast<char>(r.byte());
     stats.turnsCompleted=r.word(); stats.totalTurnMs=r.word();
     stats.fastestTurnMs=r.word(); stats.longestTurnMs=r.word();
-    s.eliminated[i]=r.flag(); s.life[i]=static_cast<int32_t>(r.word());
+    const uint8_t exitFlags = r.byte();
+    if (exitFlags > (schema == 1 ? 1 : 3)) return Status::Corrupt;
+    s.eliminated[i] = (exitFlags & 1) != 0;
+    s.conceded[i] = (exitFlags & 2) != 0; s.life[i]=static_cast<int32_t>(r.word());
     for (uint8_t j=0;j<s.count;++j) for (uint8_t c=0;c<2;++c)
       s.damage[i][j][c]=static_cast<int32_t>(r.word());
   }

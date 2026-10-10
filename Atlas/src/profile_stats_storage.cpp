@@ -6,8 +6,8 @@ namespace TurnHubProfiles {
 using TurnHubStorage::Status;
 
 // v1 is the ESP32's struct image, including four trailing padding bytes. The
-// asserts catch an accidental layout change; a deliberate one just needs a
-// factory reset until TurnHub saves live stats (owner, 2026-09-30).
+// schema 2 uses its trailing padding for gamesConceded; the deployed size and
+// all existing offsets stay fixed. Schema 1 reads that new count as zero.
 static_assert(sizeof(ProfileStats) == 72, "v1 statistics size changed");
 static_assert(offsetof(ProfileStats, schemaVersion) == 64, "v1 schema offset changed");
 static_assert(offsetof(ProfileStats, lastGameResult) == 66, "v1 result offset changed");
@@ -23,9 +23,10 @@ Status readStoredStats(TurnHubStorage::BlobStore &store, const char *key,
   status = store.read(key, &stored, sizeof(stored), size);
   if (status != Status::Ok) return status;
   if (size != sizeof(stored)) return Status::Corrupt;
-  if (stored.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
+  if (stored.schemaVersion != 1 && stored.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
+  if (stored.schemaVersion == 1) { stored.gamesConceded = 0; stored.schemaVersion = STATS_SCHEMA_VERSION; }
   if (static_cast<uint8_t>(stored.lastGameResult) >
-      static_cast<uint8_t>(LastGameResult::Draw)) return Status::Corrupt;
+      static_cast<uint8_t>(LastGameResult::Conceded)) return Status::Corrupt;
   stats = stored;
   return Status::Ok;
 }
@@ -34,7 +35,7 @@ Status writeStoredStats(TurnHubStorage::BlobStore &store, const char *key,
                         const ProfileStats &stats) {
   if (stats.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
   if (static_cast<uint8_t>(stats.lastGameResult) >
-      static_cast<uint8_t>(LastGameResult::Draw)) return Status::Corrupt;
+      static_cast<uint8_t>(LastGameResult::Conceded)) return Status::Corrupt;
   ProfileStats existing{};
   const Status status = readStoredStats(store, key, existing);
   if (status != Status::Ok && status != Status::NotFound) return status;
@@ -97,7 +98,7 @@ Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStat
   if (status != Status::Ok) return status;
   if (size != sizeof(data)) return Status::Corrupt;
   if (data[0] != CORE_SCHEMA) return Status::UnsupportedSchema;
-  if (data[1] > static_cast<uint8_t>(LastGameResult::Draw)) return Status::Corrupt;
+  if (data[1] > static_cast<uint8_t>(LastGameResult::Conceded)) return Status::Corrupt;
   stats.lastGameResult = static_cast<LastGameResult>(data[1]);
   stats.lastGameProfile = data[2];
   stats.gamesPlayed = readLe32(data + 4);
@@ -107,7 +108,7 @@ Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStat
 
 // Like the other statistics records, an unreadable record is never overwritten.
 Status writeCoreStats(TurnHubStorage::BlobStore &store, const char *key, const CoreStats &stats) {
-  if (static_cast<uint8_t>(stats.lastGameResult) > static_cast<uint8_t>(LastGameResult::Draw)) {
+  if (static_cast<uint8_t>(stats.lastGameResult) > static_cast<uint8_t>(LastGameResult::Conceded)) {
     return Status::Corrupt;
   }
   CoreStats existing;

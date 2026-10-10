@@ -85,7 +85,8 @@ fun LocalLibraryScreen(
                     Text("${record.profile.wireValue} · ${record.durationMs / 60_000} minutes · ${record.startingLife} starting life", color = p.muted)
                     Text(record.winner?.let { "Winner: ${record.players[it].name}" } ?: "Draw / no winner", color = p.text)
                     record.players.forEach { player ->
-                        Text("${player.name}: ${player.finalLife} life, ${player.turnsCompleted} completed turns", color = p.muted)
+                        Text("${player.name}: ${player.finalLife} life, ${player.turnsCompleted} completed turns" +
+                            if (player.outOrder != null) (if (player.conceded) ", conceded" else ", eliminated") else "", color = p.muted)
                     }
                     val status = when (delivery.status) {
                         DeliveryStatus.NEEDS_LINKING -> "Local result · Atlas import needs explicit linking"

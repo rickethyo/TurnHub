@@ -326,7 +326,7 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   if (seat == nullptr) return rejectMissingSeat();
   if (!gameInProgress()) {
     return IntentResult::reject(IntentStatus::InvalidState,
-        "Concede is only available during an active game");
+        "Player removal is only available during an active game");
   }
   if (tableDecisionPending()) {
     return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table decision first");
@@ -335,20 +335,21 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
     return IntentResult::reject(IntentStatus::Conflict, "This player has already left the game");
   }
 
-  clearPendingPass("CONCEDE");
+  clearPendingPass(intent.type == IntentType::Concede ? "CONCEDE" : "ELIMINATE");
   const uint32_t nowMs = millis();
   const bool restoreRunning = table().hubState == HubState::Running;
   if (restoreRunning) {
     if (!table().game.pause(nowMs)) {
-      return IntentResult::reject(IntentStatus::Conflict, "Could not prepare the concession");
+      return IntentResult::reject(IntentStatus::Conflict, "Could not prepare player removal");
     }
     table().hubState = HubState::Paused;
   }
 
+  const bool conceded = intent.type == IntentType::Concede;
   bool gameFinished = false;
-  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished)) {
+  if (!table().game.eliminatePlayer(seat->playerNumber, nowMs, gameFinished, conceded)) {
     if (restoreRunning && table().game.resume(nowMs)) table().hubState = HubState::Running;
-    return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected the concession");
+    return IntentResult::reject(IntentStatus::Conflict, "Atlas rejected player removal");
   }
 
   audio.playerEliminated(seat->controllerId);
@@ -356,14 +357,18 @@ IntentResult handleConcedeIntent(const Intent &intent, void *) {
   if (const PlayerSeat *mate = table().game.playerByNumber(table().game.teammateOf(seat->playerNumber)))
     if (mate->controllerId != seat->controllerId) audio.playerEliminated(mate->controllerId);
   leds.invalidateAll();
-  logIntent("CONCEDE", intent.actor.origin, seat->playerNumber);
+  logIntent(conceded ? "CONCEDE" : "ELIMINATE", intent.actor.origin, seat->playerNumber);
 
   if (gameFinished) {
     finishGameState();
   } else if (restoreRunning && table().game.resume(nowMs)) {
     table().hubState = HubState::Running;
   }
-  return IntentResult::accept("Player conceded");
+  return IntentResult::accept(conceded ? "Player conceded" : "Player eliminated");
+}
+
+IntentResult handleEliminateSeatIntent(const Intent &intent, void *context) {
+  return handleConcedeIntent(intent, context);
 }
 
 // --- Win claims -------------------------------------------------------------------

@@ -31,6 +31,7 @@ void GameEngine::reset() {
   ++matchGeneration_;
   for (auto &hit : lastHits_) hit = CommanderHit{};
   settings_ = GameSettings{};
+  batchElimination_ = false;
   playerCount_ = 0;
   activeIndex_ = 0;
   starterPlayer_ = 0;
@@ -49,6 +50,7 @@ void GameEngine::reset() {
     players_[i] = PlayerSeat{};
     stats_[i] = PlayerStats{};
     eliminated_[i] = false;
+    conceded_[i] = false;
     life_[i] = 0;
     lifeChanges_[i] = LifeChangeRequest{};
     partner_[i] = false;
@@ -297,6 +299,7 @@ bool GameEngine::start(
     players_[i] = players[i];
     life_[i] = settings_.startingLife;
     eliminated_[i] = false;
+    conceded_[i] = false;
   }
 
   const int starterIndex = indexForSeat(starter);
@@ -379,7 +382,7 @@ bool GameEngine::resume(uint32_t nowMs) {
 bool GameEngine::eliminatePlayer(
     uint8_t playerNumber,
     uint32_t nowMs,
-    bool &gameFinished) {
+    bool &gameFinished, bool conceded) {
   gameFinished = false;
 
   if (!running_ || !paused_ || gameOver_ || winClaimActive_) {
@@ -391,7 +394,7 @@ bool GameEngine::eliminatePlayer(
     return false;
   }
 
-  if (livingSideCount() <= 1) {
+  if (!batchElimination_ && livingSideCount() <= 1) {
     return false;
   }
 
@@ -399,10 +402,12 @@ bool GameEngine::eliminatePlayer(
   const bool wasActive = static_cast<uint8_t>(index) == activeIndex_ ||
       (mate >= 0 && static_cast<uint8_t>(mate) == activeIndex_);
   eliminated_[index] = true;
+  conceded_[index] = conceded;
   cancelLifeChanges(playerNumber);
   // Two-Headed Giant: the team leaves together.
   if (mate >= 0 && !eliminated_[mate]) {
     eliminated_[mate] = true;
+    conceded_[mate] = conceded;
     cancelLifeChanges(players_[mate].playerNumber);
   }
 
@@ -415,7 +420,7 @@ bool GameEngine::eliminatePlayer(
     turnStartedAtMs_ = pauseStartedAtMs_ != 0 ? pauseStartedAtMs_ : nowMs;
   }
 
-  if (livingSideCount() == 1) {
+  if (!batchElimination_ && livingSideCount() == 1) {
     for (uint8_t i = 0; i < playerCount_; ++i) {
       if (!eliminated_[i]) {
         finishGame(players_[i].playerNumber, nowMs);
@@ -425,6 +430,33 @@ bool GameEngine::eliminatePlayer(
     }
   }
 
+  return true;
+}
+
+bool GameEngine::hasConceded(uint8_t player) const {
+  const int index = indexForPlayerNumber(player);
+  return index >= 0 && conceded_[index];
+}
+
+bool GameEngine::resolveZeroLife(uint32_t nowMs) {
+  if (!settings_.autoEliminateAtZeroLife || !running_ || gameOver_ || winClaimActive_) return false;
+  bool changed = false;
+  const bool restoreRunning = !paused_;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    if (eliminated_[i] || life_[i] > 0) continue;
+    if (!changed && restoreRunning) pause(nowMs);
+    batchElimination_ = true;
+    bool finished = false;
+    changed |= eliminatePlayer(players_[i].playerNumber, nowMs, finished);
+  }
+  batchElimination_ = false;
+  if (!changed) return false;
+  const uint8_t sides = livingSideCount();
+  if (sides == 0) finishGame(0, nowMs);
+  else if (sides == 1) {
+    for (uint8_t i = 0; i < playerCount_; ++i)
+      if (!eliminated_[i]) { finishGame(players_[i].playerNumber, nowMs); break; }
+  } else if (restoreRunning) resume(nowMs);
   return true;
 }
 

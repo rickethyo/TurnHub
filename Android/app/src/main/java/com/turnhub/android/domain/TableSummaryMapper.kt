@@ -36,6 +36,7 @@ object TableSummaryMapper {
                 participantId = player.participantId,
                 profileId = player.profileId?.takeIf { it.isNotEmpty() },
                 eliminated = player.eliminated,
+                conceded = player.conceded,
                 life = player.life,
                 turnsCompleted = player.turnsCompleted,
                 commanderDamage = player.commanderDamage,

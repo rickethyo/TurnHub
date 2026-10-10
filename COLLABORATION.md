@@ -972,3 +972,31 @@ profile-free tablet credential, with an explicit route allowlist, preserving
 other devices' sessions/player seats and leaving the app signed out on exit.
 This covers the requested dedicated runtime identity; persisted tablet account
 management/invitations from TH-002 remain separate planned work.
+
+### 2026-10-10 / Codex / Zero-life elimination and concessions
+- Owner: Codex on `codex/master`, baseline `c111da0`; no open PR or overlapping active implementation found.
+- Owner request: automatic elimination at zero or negative life, on by default,
+  editable during play and applied immediately on enable; separate Concede and
+  Eliminate controls and recorded reasons.
+- Feature gate: Atlas GameEngine owns connected settings/outcomes; ConfigureGame
+  validates seated-player changes and allows only this setting during play.
+  A separate seat elimination Intent shares domain removal with concession.
+  NVS settings and match checkpoints persist the setting and exit reason;
+  Android standalone owns its separate equivalent and local history. HTTP state,
+  settings and standalone import expose the additions; no radio change or new
+  dependency. Controls have text labels and deliberate confirmation for removal.
+- Implementation: automatic zero/negative-life elimination defaults on, with
+  live settings in personal Game, shared tablet menus (including pause) and
+  standalone play. Immediate batch resolution prevents a false winner when
+  all remaining players have nonpositive life. Separate confirmed controls,
+  state/recovery reasons, local history/import and profile statistics distinguish
+  concession from elimination. Existing Sigil “I’m out” records a concession;
+  no Sigil firmware or radio contract change. Manual V0.16 supersedes V0.15.
+- Validation: all Atlas application/storage/profile-store/OTA host suites passed
+  with ASan/UBSan at -O0 (LeakSanitizer disabled for workspace tracing); 20
+  actual/fixture contracts, 31 adapter guards, generated tokens and manual export
+  passed. Android 222 unit tests passed and the final debug APK (including
+  the scrollable table menu) built. Atlas 0.7.9-dev firmware built: 109,580 B RAM,
+  1,649,473 B flash. Physical tablet/phone and hardware acceptance pending.
+- Handoff: new PR from `codex/master` because PR #86 is already integrated;
+  owner reviews/integrates. No hardware flashing, release or merge performed.

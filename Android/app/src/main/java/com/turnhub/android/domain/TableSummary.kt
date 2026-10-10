@@ -98,6 +98,7 @@ data class TablePlayer(
     /** The seated profile; tablet mode removes a player by it. */
     val profileId: String? = null,
     val eliminated: Boolean,
+    val conceded: Boolean = false,
     /** Null in the lobby. */
     val life: Int?,
     val turnsCompleted: Long,

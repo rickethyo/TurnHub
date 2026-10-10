@@ -692,7 +692,8 @@ static void gameProfilesAndLife() {
   assert(request("/api/game/settings",first,magic)==409); // Countdown is frozen.
   testNow+=3000;updateCountdown(testNow);
   assert(table().game.settings().profile==GameProfile::Magic && table().game.lifeTotal(1)==20 && table().game.lifeTotal(2)==20);
-  assert(request("/api/game/settings",first,magic)==409);
+  assert(request("/api/game/settings",first,magic)==200); // Unchanged setup is legal.
+  assert(request("/api/game/settings",first,{{"autoEliminateAtZeroLife","0"}})==200);
   assert(request("/api/control/life","",{{"delta","-1"}})==401);
   for (const char *invalid : {"", "0", "-", "1.5", "1abc", "1000001", "9999999999999"})
     assert(request("/api/control/life",first,{{"delta",invalid}})==400);
@@ -727,7 +728,7 @@ static void gameProfilesAndLife() {
   assert(request("/api/control/concede",third)==200);
   assert(request("/api/control/reset",first)==200);
   assert(request("/api/session/join",first)==200 && request("/api/session/join",second)==200);
-  assert(request("/api/game/settings",first,{{"gameProfile","generic"},{"startingLife","0"}})==200);
+  assert(request("/api/game/settings",first,{{"gameProfile","generic"},{"startingLife","0"},{"autoEliminateAtZeroLife","0"}})==200);
   assert(request("/api/control/start",first)==200);
   testNow+=3000;updateCountdown(testNow);
   assert(table().game.lifeTotal(1)==0 && table().game.lifeTotal(2)==0 && table().game.livingPlayerCount()==2);
@@ -1050,7 +1051,7 @@ static void lifeApprovalsAndCommander() {
   assert(request("/api/session/join",first)==200);
   assert(request("/api/session/join",second)==200);
   assert(request("/api/session/join",third)==200);
-  assert(request("/api/game/settings",first,{{"gameProfile","mtg_commander"},{"startingLife","40"}})==200);
+  assert(request("/api/game/settings",first,{{"gameProfile","mtg_commander"},{"startingLife","40"},{"autoEliminateAtZeroLife","0"}})==200);
   assert(request("/api/control/life/request",first,{{"target","2"},{"delta","-7"}})==409);
   assert(request("/api/control/start",first)==200);
   testNow+=3000;updateCountdown(testNow);
@@ -3067,7 +3068,7 @@ static void endMatchAsDraw() {
   assert(table().game.endedInDraw() && !table().game.hasWinClaim() && completedGames==1);
 
   // Statistics: every player gets a game played and a Draw, not a win or loss;
-  // a player who conceded first keeps Eliminated.
+  // a player who conceded first keeps Conceded.
   enterEmptyLobby(); TurnHub::fixtureRadio=false; completedGames=0;
   String aId,bId,cId;
   const String a=registerPhone("Draw one",aId),b=registerPhone("Draw two",bId),c=registerPhone("Draw three",cId);
@@ -3085,7 +3086,7 @@ static void endMatchAsDraw() {
   }
   assert(ProfileFixture::profiles[aId.c_str()].stats.lastGameResult==LastGameResult::Draw);
   assert(ProfileFixture::profiles[bId.c_str()].stats.lastGameResult==LastGameResult::Draw);
-  assert(ProfileFixture::profiles[cId.c_str()].stats.lastGameResult==LastGameResult::Eliminated);
+  assert(ProfileFixture::profiles[cId.c_str()].stats.lastGameResult==LastGameResult::Conceded);
   assert(String(TurnHubProfileStats::resultName(LastGameResult::Draw))=="Draw");
   assert(request("/api/v1/state",a,{},HTTP_GET)==200);
   assert(server.body.find("\"state\":\"GAME_OVER\"")!=std::string::npos &&
@@ -4528,6 +4529,68 @@ static void powerSource() {
   assert(seen>0 && cold.source()==PowerSource::Usb);
 }
 
+static void zeroLifeAndExitReasons() {
+  using namespace TurnHub;
+  using TurnHubProfiles::LastGameResult;
+  enterEmptyLobby(); fixtureRadio=false;
+  String aId,bId,cId;
+  const String a=registerPhone("Zero one",aId), b=registerPhone("Zero two",bId), c=registerPhone("Zero three",cId);
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/join",*token)==200);
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg_commander"},{"startingLife","40"},{"autoEliminateAtZeroLife","1"},{"twoHeadedGiant","0"}})==200);
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  assert(table().game.settings().autoEliminateAtZeroLife);
+  assert(request("/api/game/settings",a,{{"autoEliminateAtZeroLife","no"}})==400);
+  assert(request("/api/game/settings",a,{{"startingLife","20"}})==409);
+  assert(request("/api/game/settings",a,{{"autoEliminateAtZeroLife","0"}})==200);
+  assert(request("/api/control/life",a,{{"delta","-40"}})==200 && !table().game.isEliminated(1));
+  assert(request("/api/control/life",b,{{"delta","-41"}})==200 && !table().game.isEliminated(2));
+  assert(request("/api/control/pause",c)==200);
+  assert(request("/api/game/settings",c,{{"autoEliminateAtZeroLife","1"}})==200);
+  assert(table().hubState==HubState::GameOver && table().game.winnerPlayerNumber()==3);
+  assert(table().game.isEliminated(1) && table().game.isEliminated(2) && !table().game.hasConceded(1));
+  assert(ProfileFixture::profiles[aId.c_str()].stats.lastGameResult==LastGameResult::Eliminated);
+  assert(request("/api/control/rematch",c)==200);
+  assert(request("/api/control/start",c)==200); testNow+=3000; updateCountdown(testNow);
+  assert(request("/api/control/concede",a)==200);
+  assert(table().game.hasConceded(1) && table().hubState==HubState::Running);
+  assert(request("/api/control/eliminate",b)==200 && !table().game.hasConceded(2));
+  assert(ProfileFixture::profiles[aId.c_str()].stats.lastGameResult==LastGameResult::Conceded);
+  assert(ProfileFixture::profiles[aId.c_str()].stats.gamesConceded==1);
+  assert(ProfileFixture::profiles[bId.c_str()].stats.lastGameResult==LastGameResult::Eliminated);
+  GameCheckpoint saved; table().game.checkpoint(saved,testNow);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY]; const size_t size=encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && decodeCheckpoint(bytes,size,saved)==TurnHubStorage::Status::Ok);
+  GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow));
+  assert(restored.hasConceded(1) && !restored.hasConceded(2) && restored.settings().autoEliminateAtZeroLife);
+
+  // Resolve an approved lethal request, and Commander life loss, through real HTTP.
+  assert(request("/api/control/rematch",c)==200);
+  assert(request("/api/control/start",c)==200); testNow+=3000; updateCountdown(testNow);
+  assert(request("/api/control/life/request",a,{{"target","2"},{"delta","-40"}})==200);
+  const uint32_t id=table().game.lifeChangeFor(2)->id;
+  assert(request("/api/control/life/respond",b,{{"requestId",String(id)},{"accept","1"}})==200);
+  assert(table().game.isEliminated(2) && table().hubState==HubState::Running);
+  assert(request("/api/control/commander",a,{{"source","3"},{"commander","1"},{"delta","40"}})==200);
+  assert(table().hubState==HubState::GameOver && table().game.winnerPlayerNumber()==3);
+
+  // A simultaneous check must not crown a player who also has nonpositive life.
+  PlayerSeat players[4]; for (uint8_t i=0;i<4;++i) { players[i].playerNumber=i+1; players[i].controllerId=i; players[i].slot=1; }
+  GameEngine engine; GameSettings settings; settings.startingLife=20; settings.autoEliminateAtZeroLife=false;
+  assert(engine.start(players,3,players[0],testNow,settings));
+  for (uint8_t i=1;i<=3;++i) assert(engine.changeLife(i,-20));
+  engine.setAutoEliminateAtZeroLife(true); assert(engine.resolveZeroLife(testNow));
+  assert(engine.endedInDraw()); engine.checkpoint(saved,testNow); assert(validCheckpoint(saved));
+  settings.profile=GameProfile::Magic; settings.twoHeadedGiant=true; settings.autoEliminateAtZeroLife=true;
+  assert(engine.start(players,4,players[0],testNow,settings));
+  assert(engine.changeLife(2,-20) && engine.resolveZeroLife(testNow));
+  assert(engine.isEliminated(1) && engine.isEliminated(2) && engine.isWinner(3) && engine.isWinner(4));
+  enterEmptyLobby();
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
+  for (const String *id : {&aId,&bId,&cId}) {
+    ProfileFixture::profiles.erase(id->c_str()); TurnHubAccounts::accounts.erase(id->c_str());
+  }
+}
+
 int main() {
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
@@ -4550,6 +4613,7 @@ int main() {
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
+  zeroLifeAndExitReasons(); std::cout<<"PASS zero-life policy, immediate toggle, separate exits, recovery, lethal requests, Commander and teams\n";
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";
   twoHeadedGiantEngine(); std::cout<<"PASS Two-Headed Giant engine: team turns, shared life, requests, claims, elimination, Commander, recovery\n";
   twoHeadedGiantTable(); std::cout<<"PASS Two-Headed Giant table: settings, state, teammate pass and life, team concession\n";

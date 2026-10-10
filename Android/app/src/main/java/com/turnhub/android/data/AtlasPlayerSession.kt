@@ -291,9 +291,10 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         startingLife: Int?,
         turnTimerMs: Long?,
         twoHeadedGiant: Boolean? = null,
+        autoEliminateAtZeroLife: Boolean? = null,
     ) = act {
         val message = transports.create(it.first)
-            .saveGameSettings(it.second, gameProfile, startingLife, turnTimerMs, twoHeadedGiant)
+            .saveGameSettings(it.second, gameProfile, startingLife, turnTimerMs, twoHeadedGiant, autoEliminateAtZeroLife)
         ActionFeedback(message ?: "Game settings saved on Atlas.", isError = false)
     }
 

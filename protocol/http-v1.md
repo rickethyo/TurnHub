@@ -261,7 +261,7 @@ decimal text) and `expectedBootId`. Supply both from the latest snapshot. A stal
 revision, missing/wrong boot ID, or unavailable revision provider returns HTTP 409
 with `status: "CONFLICT"` before dispatch. Invalid revision text returns HTTP 400.
 
-Supported routes: `/api/control/pass`, `pause`, `concede`, `win`, `confirm`, `deny`,
+Supported routes: `/api/control/pass`, `pause`, `concede`, `eliminate`, `win`, `confirm`, `deny`,
 `starter`, `start`, `cancel-start`, `rematch`, `reset`, `nudge`. Omitting the check preserves
 browser behavior. Life, counters, participation and settings retain their existing
 contracts and do not yet accept this check.
@@ -353,7 +353,7 @@ One shared screen at the table acting for every seat. Engineering record:
      The app sends such changes once on reconnect, only for the same boot,
      the same game and a player still in it, and never retries a refused one.
    - `POST /api/tablet/settings`: the `/api/game/settings` fields.
-   - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `win`,
+   - `POST /api/tablet/control`: `action` = `pass`, `pause`, `concede`, `eliminate`, `win`,
      `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch`,
      `reset`, or (lobby) `move-earlier`/`move-later` for turn order; answers like `/api/control/*` (status, revision, optional
      `expectedRevision`).
@@ -410,3 +410,23 @@ not use this guard. Authentication and semantic Intent validation remain require
 
 Browser `/tablet` and `/stats` now serve administration recovery. Native gameplay,
 profile statistics and `/api/tablet/*` contracts remain available.
+
+### Zero-life elimination and voluntary concessions (2026-10-10)
+
+`GET /api/game/settings` and state `settings` expose `autoEliminateAtZeroLife`
+(Boolean, default true). The settings POST and `/api/tablet/settings` accept
+`autoEliminateAtZeroLife=0|1`. Seated players can change it in the lobby or during
+running/paused play; only this field may change during play. Enabling applies
+immediately to all living participants at zero or negative life, including
+paused matches. An open win claim/elimination decision blocks changes. Lobby
+changes persist as the next-game default; in-play changes persist in recovery
+for the current match. Profile/life/timer/team changes remain lobby-only.
+
+`POST /api/control/eliminate` and tablet control `action=eliminate` remove the
+caller/selected seat with an elimination reason. Concede remains a voluntary
+exit. State `players[].conceded` distinguishes it while `eliminated` remains
+true for either exit. Both actions reject already-out seats and open decisions.
+Statistics add lifetime `gamesConceded` and last result `Conceded`, separate from
+`gamesEliminated`/`Eliminated`. Standalone import optionally accepts `concededN`
+(0 or 1, default 0); 1 requires nonzero `outN`. Android retains the reason in
+local history regardless of import.

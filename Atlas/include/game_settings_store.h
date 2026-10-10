@@ -9,7 +9,8 @@ TurnHubStorage::Status saveGameSettings(const GameSettings &settings);
 
 // "gamecfg" little-endian image. Schema 1: {1, profile, life[4]} (timer OFF).
 // Schema 2 appends turnTimerMs[4]. Writes always use schema 2. The profile
-// byte's top bit is Two-Headed Giant (PROFILE_BYTE_TEAMS).
+// byte's top bit is Two-Headed Giant (PROFILE_BYTE_TEAMS); bit 0x40 disables
+// automatic zero-life elimination.
 constexpr char GAME_SETTINGS_KEY[] = "gamecfg";
 constexpr size_t GAME_SETTINGS_V1_SIZE = 6;
 constexpr size_t GAME_SETTINGS_V2_SIZE = 10;

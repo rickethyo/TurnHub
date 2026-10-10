@@ -211,6 +211,7 @@ void handleGameSettings(WebServer &server) {
   const String json = String("{\"gameProfile\":\"") + TurnHub::gameProfileKey(settings.profile) +
       "\",\"startingLife\":" + String(settings.startingLife) +
       ",\"turnTimerMs\":" + String(settings.turnTimerMs) +
+      ",\"autoEliminateAtZeroLife\":" + jsonBool(settings.autoEliminateAtZeroLife) +
       ",\"twoHeadedGiant\":" + jsonBool(settings.twoHeadedGiant) +
       ",\"teamLife\":{\"mtg\":" + String(TurnHub::TEAM_LIFE_MAGIC) +
       ",\"mtg_commander\":" + String(TurnHub::TEAM_LIFE_COMMANDER) + "}" +
@@ -248,6 +249,14 @@ bool parseGameSettings(WebServer &server, TurnHub::GameSettings &settings) {
   } else if (!TurnHub::teamsAllowed(settings.profile)) {
     // Switching to a profile without teams turns Two-Headed Giant off.
     settings.twoHeadedGiant = false;
+  }
+  if (server.hasArg("autoEliminateAtZeroLife")) {
+    const String value = server.arg("autoEliminateAtZeroLife");
+    if (value != "0" && value != "1") {
+      sendError(server, 400, "autoEliminateAtZeroLife must be 0 or 1");
+      return false;
+    }
+    settings.autoEliminateAtZeroLife = value == "1";
   }
   return true;
 }

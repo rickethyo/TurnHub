@@ -848,18 +848,18 @@ void cancelEliminationSelection(const PlayerSeat &target) {
   serialLog.println("ATLAS|GAME|ELIMINATION|CANCEL");
 }
 
-// Unlike a concession, a surviving elimination leaves the table paused.
-void confirmElimination(const PlayerSeat &target) {
+// The Sigil confirmation flow stays paused; its "I’m out" records concession.
+void confirmElimination(const PlayerSeat &target, bool conceded) {
   const uint8_t eliminatedNumber = target.playerNumber;
   const uint8_t sigilId = target.controllerId;
   bool gameFinished = false;
-  if (!table().game.eliminatePlayer(eliminatedNumber, millis(), gameFinished)) return;
+  if (!table().game.eliminatePlayer(eliminatedNumber, millis(), gameFinished, conceded)) return;
 
   table().eliminationTargetPlayer = 0;
   audio.playerEliminated(sigilId);
   leds.invalidateAll();
 
-  serialLog.print("ATLAS|GAME|ELIMINATED|PLAYER|");
+  serialLog.print(conceded ? "ATLAS|GAME|CONCEDED|PLAYER|" : "ATLAS|GAME|ELIMINATED|PLAYER|");
   serialLog.println(eliminatedNumber);
 
   if (gameFinished) {
@@ -903,7 +903,7 @@ IntentResult handleEliminationIntent(const Intent &intent, void *) {
   if (intent.type == IntentType::CycleElimination) {
     cycleEliminationTarget(module);
   } else {
-    confirmElimination(*target);
+    confirmElimination(*target, intent.actor.origin == IntentOrigin::PhysicalSigil);
   }
   return IntentResult::accept();
 }
@@ -1379,19 +1379,20 @@ void serviceFactoryReset(uint32_t nowMs) {
 // life, durationMs = turn timer.
 IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   PlayerSeat actor;
-  // Any seated player, in the lobby (no table host).
-  if (table().hubState != HubState::Lobby || table().lobby.playerCount() == 0 ||
+  // Any seated player; during play only the zero-life policy can change.
+  if ((table().hubState != HubState::Lobby && table().hubState != HubState::Running && table().hubState != HubState::Paused) || table().lobby.playerCount() == 0 ||
       !seatForModuleSlot(intent.actor.controllerId, intent.actor.slot, actor) ||
       actor.playerNumber != intent.actor.playerNumber) {
     return IntentResult::reject(IntentStatus::Unauthorized,
-        "Only a seated player can change game settings, in the lobby");
+        "Only a seated player can change settings in the lobby or during play");
   }
-  const uint32_t profile = intent.payload.flags & ~TurnHub::GAME_FLAG_TWO_HEADED_GIANT;
+  const uint32_t profile = intent.payload.flags & ~(TurnHub::GAME_FLAG_TWO_HEADED_GIANT | TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
   if (profile >= static_cast<uint32_t>(TurnHub::GameProfile::Count)) {
     return IntentResult::reject(IntentStatus::Rejected, "Unknown game profile");
   }
   TurnHub::GameSettings settings;
   settings.profile = static_cast<TurnHub::GameProfile>(profile);
+  settings.autoEliminateAtZeroLife = !(intent.payload.flags & TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
   settings.twoHeadedGiant = (intent.payload.flags & TurnHub::GAME_FLAG_TWO_HEADED_GIANT) != 0;
   if (settings.twoHeadedGiant && !TurnHub::teamsAllowed(settings.profile)) {
     return IntentResult::reject(IntentStatus::Rejected, "Two-Headed Giant needs the Magic or Commander profile");
@@ -1404,6 +1405,16 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   }
   if (!TurnHub::validGameSettings(settings)) {
     return IntentResult::reject(IntentStatus::Rejected, "Starting life must be between 0 and 1000000");
+  }
+  if (table().hubState != HubState::Lobby) {
+    const auto &current = table().game.settings();
+    if (settings.profile != current.profile || settings.startingLife != current.startingLife ||
+        settings.turnTimerMs != current.turnTimerMs || settings.twoHeadedGiant != current.twoHeadedGiant)
+      return IntentResult::reject(IntentStatus::Conflict, "Only zero-life elimination can change during play");
+    if (table().game.hasWinClaim() || table().eliminationTargetPlayer)
+      return IntentResult::reject(IntentStatus::Conflict, "Resolve the current table decision first");
+    table().game.setAutoEliminateAtZeroLife(settings.autoEliminateAtZeroLife);
+    return IntentResult::accept("Zero-life elimination updated for this match");
   }
   if (!gameSettingsAvailable || TurnHub::saveGameSettings(settings) != TurnHubStorage::Status::Ok) {
     return IntentResult::reject(IntentStatus::Rejected, "Game settings could not be saved");

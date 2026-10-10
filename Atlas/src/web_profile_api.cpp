@@ -518,6 +518,7 @@ void handleProfileStats(WebServer &server) {
   response += ",\"gamesWon\":" + String(stats.gamesWon);
   response += ",\"gamesStarted\":" + String(stats.gamesStarted);
   response += ",\"gamesEliminated\":" + String(stats.gamesEliminated);
+  response += ",\"gamesConceded\":" + String(stats.gamesConceded);
   response += ",\"turnsCompleted\":" + String(stats.turnsCompleted);
   response += ",\"totalTurnMs\":" + uint64Text(stats.totalTurnMs);
   response += ",\"averageTurnMs\":" + String(averageMs(stats.totalTurnMs, stats.turnsCompleted));

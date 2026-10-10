@@ -9,7 +9,7 @@ namespace TurnHubStorage { class BlobStore; }
 
 namespace TurnHubProfiles {
 
-constexpr uint16_t STATS_SCHEMA_VERSION = 1;
+constexpr uint16_t STATS_SCHEMA_VERSION = 2;
 constexpr size_t PROFILE_ID_LENGTH = TurnHubIdentity::ProfileId::length;
 
 enum class LastGameResult : uint8_t {
@@ -19,6 +19,7 @@ enum class LastGameResult : uint8_t {
   Eliminated = 3,
   // Value 4 was reserved as "Completed" but never written; draws reuse it.
   Draw = 4,
+  Conceded = 5,
 };
 
 struct ProfileStats {
@@ -44,6 +45,7 @@ struct ProfileStats {
   // GameProfile of the last completed game. Was an unused reserved byte, so
   // older records read 0 (Generic) and the v1 layout is unchanged.
   uint8_t lastGameProfile = 0;
+  uint32_t gamesConceded = 0;
 };
 
 // Private moderation history: Game Master actions taken against this profile.
@@ -102,7 +104,7 @@ bool saveAvatarForProfile(const String &profileId, uint8_t avatar);
 
 // Statistics are split (owner decision 2026-09-25): a small core record in
 // NVS (games played and won, last result and game profile) that every Atlas
-// keeps, and the full v1 record as luxury data on the microSD card. Without
+// keeps, and the full statistics record as luxury data on the microSD card. Without
 // a card the detail is not recorded ("limp mode").
 // Load returns the combined view; *detailed says whether the detail fields
 // are backed by a record (false: only the core counts are real).

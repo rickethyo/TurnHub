@@ -30,6 +30,7 @@ data class ProfileStatistics(
         val longestTurnMs: Long,
         val totalGameMs: Long,
         val averageGameMs: Long,
+        val gamesConceded: Long = 0,
     )
 
     data class LastGame(
@@ -65,6 +66,7 @@ data class ProfileStatistics(
                     gamesWon = l.optLong("gamesWon"),
                     gamesStarted = l.optLong("gamesStarted"),
                     gamesEliminated = l.optLong("gamesEliminated"),
+                    gamesConceded = l.optLong("gamesConceded"),
                     turnsCompleted = l.optLong("turnsCompleted"),
                     totalTurnMs = l.optLong("totalTurnMs"),
                     averageTurnMs = l.optLong("averageTurnMs"),

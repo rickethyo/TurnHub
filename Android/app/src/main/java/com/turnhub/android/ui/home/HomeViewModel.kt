@@ -678,6 +678,10 @@ class HomeViewModel(
         }
     }
 
+    fun onSetZeroLifeElimination(enabled: Boolean) {
+        launchTable { playerSession.saveGameSettings(null, null, null, autoEliminateAtZeroLife = enabled) }
+    }
+
     fun onSaveGameSettings(gameProfile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean? = null) {
         launchTable { playerSession.saveGameSettings(gameProfile, startingLife, turnTimerMs, twoHeadedGiant) }
     }

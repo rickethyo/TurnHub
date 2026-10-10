@@ -407,6 +407,7 @@ class MainActivity : ComponentActivity() {
                             onRespondLife = homeViewModel::onRespondLife,
                             onCommanderDamage = homeViewModel::onCommanderDamage,
                             onSaveGameSettings = homeViewModel::onSaveGameSettings,
+                            onSetZeroLifeElimination = homeViewModel::onSetZeroLifeElimination,
                         ),
                         accountActions = AccountActions(
                             onPlayFromPhone = homeViewModel::onPlayFromPhoneClicked,

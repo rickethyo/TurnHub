@@ -280,6 +280,10 @@
                 "description": "The recipient's approval window; Atlas accepts the request this long after requestedAtMs."
               }
             }
+          },
+          "conceded": {
+            "type": "boolean",
+            "description": "Voluntary concession; eliminated remains true for all removed players."
           }
         }
       },
@@ -319,6 +323,10 @@
         "twoHeadedGiant": {
           "description": "Two-Headed Giant (mtg and mtg_commander only): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
           "type": "boolean"
+        },
+        "autoEliminateAtZeroLife": {
+          "type": "boolean",
+          "description": "Eliminate living players at zero or negative life; editable during play."
         }
       }
     },

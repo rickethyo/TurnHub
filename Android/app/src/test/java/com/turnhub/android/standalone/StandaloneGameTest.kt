@@ -27,6 +27,42 @@ class StandaloneGameTest {
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
 
     @Test
+    fun `zero life eliminates by default and advances the turn`() {
+        val game = threePlayers().changeLife(0, -40, 2_000)
+        assertTrue(game.players[0].eliminated)
+        assertTrue(!game.players[0].conceded)
+        assertEquals(1, game.active)
+        val won = game.commanderDamage(1, 2, 1, 40, 3_000)
+        assertEquals(TableState.GAME_OVER, won.state)
+        assertEquals(2, won.winner)
+    }
+
+    @Test
+    fun `zero life policy can change while paused and checks everyone together`() {
+        var game = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+        for (i in game.players.indices) game = game.changeLife(i, -41, 2_000)
+        assertTrue(game.players.none { it.eliminated })
+        game = game.togglePause(3_000).setAutoEliminateAtZeroLife(true, 4_000)
+        assertEquals(TableState.GAME_OVER, game.state)
+        assertNull(game.winner)
+        assertTrue(game.players.all { it.eliminated && !it.conceded })
+    }
+
+    @Test
+    fun `concession and elimination preserve distinct reasons in saved games and records`() {
+        val game = threePlayers().concede(0, 2_000).eliminate(1, 3_000)
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertTrue(restored.players[0].conceded)
+        assertTrue(!restored.players[1].conceded)
+        val record = GameRecord.fromJson(game.record()!!.toJson())!!
+        assertTrue(record.players[0].conceded)
+        assertTrue(!record.players[1].conceded)
+        assertTrue(record.importFields("THA-1", listOf("1", "2", "3")).contains("conceded0" to "1"))
+        val disabled = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+        assertTrue(!StandaloneTable.gameFromJson(StandaloneTable.gameToJson(disabled)).autoEliminateAtZeroLife)
+    }
+
+    @Test
     fun `a game starts everyone on the format's life with a first player`() {
         val game = threePlayers()
         assertEquals(TableState.RUNNING, game.state)

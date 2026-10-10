@@ -1,8 +1,9 @@
 # Gameplay: Turns, Life, Commander and Cues
 
 The rules Atlas runs during a match, and how they reach players as light,
-sound and text. TurnHub is a bookkeeping tool, not a rules engine: no life or
-damage total ever eliminates anyone automatically.
+sound and text. TurnHub tracks life and outcomes. Automatic elimination at zero
+or negative life is on by default and may be disabled when cards change the
+loss condition; Commander damage totals alone do not trigger elimination.
 
 ## Game profiles and settings
 
@@ -21,6 +22,38 @@ damage total ever eliminates anyone automatically.
 - HTTP: `GET/POST /api/game/settings` (omitted fields keep their value);
   `/api/session/me` and `/api/seats` report `lifeAvailable` and `life`.
 - Lifetime statistics are not yet split by game (staged).
+
+## Zero-life elimination and exit reasons
+
+`autoEliminateAtZeroLife` is on by default. Any seated player can change it in
+Android Game, the connected tablet lobby/table menu, or standalone play. During
+a connected match ConfigureGame permits only this field to change: profile,
+starting life, teams and turn timer stay fixed. The live change belongs to the
+current match; lobby changes choose the next-match default. Changes wait while a
+win claim or manual elimination decision is open.
+
+Enabling it immediately checks all living players at zero or below, including
+paused games. The engine resolves the full set before choosing a winner; if
+no side survives the match is a draw. Life reductions from Commander hits and
+accepted or expired life requests use the same check. Active-player elimination
+advances the turn and cancels a queued pass; eliminated players cannot be healed
+back into the match. Disable the setting before applying a card's alternate
+loss condition. Shared team life eliminates both teammates.
+
+Concede records a voluntary exit (`conceded=true`, `eliminated=true`); Eliminate
+and automatic zero-life removal record elimination (`conceded=false`). Both
+remove the player from turn order and can leave the last side as winner. The
+Android controls confirm both actions; table panels and standalone history show
+the recorded reason. Concessions increment `gamesConceded` and use the Conceded
+last result; eliminations increment `gamesEliminated`. Team exits share a reason.
+Saved match recovery preserves the policy and reason. Standalone results carry
+the reason through optional Atlas import (`concededN`, 0 or 1).
+
+The settings profile byte uses bit 0x40 for manual-only elimination (clear means
+automatic). Checkpoint schema 2 uses the existing eliminated byte as flags:
+bit 0 out, bit 1 conceded. Statistics schema 2 uses the former four trailing
+padding bytes for `gamesConceded`, preserving the record size. Historical
+concessions cannot be reconstructed from older eliminated results.
 
 ## Two-Headed Giant
 
@@ -120,7 +153,7 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   nudge per player every 30 s; a Game Master can mute an account's nudges.
 - Life is bounded to ±1,000,000 and changes are accepted while running or
   paused, except during a table decision or after elimination. Zero or less
-  never eliminates. Life changes never write flash (only the checkpoint).
+  eliminates when `autoEliminateAtZeroLife` is enabled (default true). Life changes never write flash (only the checkpoint).
 - HTTP: `POST /api/control/life` (own life), `/life/request`,
   `/life/respond`, `GET /api/game/counters`.
 

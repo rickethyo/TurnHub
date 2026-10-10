@@ -15,6 +15,8 @@ interface TableControls {
     /** Commander damage the seat received from [source]'s [commander] (1 or 2). */
     suspend fun commander(seat: TabletSeat, source: Int, commander: Int, delta: Int)
 
+    suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean)
+
     /** Answers a phone's request to change this seat's life. */
     suspend fun respondLife(seat: TabletSeat, requestId: Long, accept: Boolean)
 

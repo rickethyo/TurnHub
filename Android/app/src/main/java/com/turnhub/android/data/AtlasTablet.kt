@@ -203,6 +203,11 @@ class AtlasTablet(
     // --- the table ----------------------------------------------------------------
 
     /** `pass`, `pause`, `concede`, `win`, `confirm`, `deny`, `starter`, `start`, `cancel-start`, `rematch` or `reset`. */
+    override suspend fun setAutoEliminateAtZeroLife(seat: TabletSeat, enabled: Boolean) {
+        val response = post("/api/tablet/settings", seat.fields + ("autoEliminateAtZeroLife" to if (enabled) "1" else "0")) ?: return
+        if (response.ok) succeed() else fail(response)
+    }
+
     override suspend fun control(seat: TabletSeat, action: String): Boolean {
         val response = post("/api/tablet/control", seat.fields + ("action" to action)) ?: return false
         if (response.ok) succeed() else fail(response)

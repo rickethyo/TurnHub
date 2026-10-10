@@ -39,6 +39,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
   changed |= update(settings_.startingLife, settings.startingLife);
   changed |= update(settings_.turnTimerMs, settings.turnTimerMs);
   changed |= update(settings_.twoHeadedGiant, settings.twoHeadedGiant);
+  changed |= update(settings_.autoEliminateAtZeroLife, settings.autoEliminateAtZeroLife);
   // hostModuleId stays null: there is no table host (2026-09-25); the field
   // remains for client-contract compatibility.
   PlayerSeat selected;
@@ -82,6 +83,7 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
       }
     }
     changed |= update(p.eliminated, inGame_ && game.isEliminated(seat.playerNumber));
+    changed |= update(p.conceded, inGame_ && game.hasConceded(seat.playerNumber));
     changed |= update(p.life, inGame_ ? game.lifeTotal(seat.playerNumber) : int32_t(0));
     const auto *stats = inGame_ ? game.statsForPlayer(seat.playerNumber) : nullptr;
     changed |= update(p.turnsCompleted, stats ? stats->turnsCompleted : uint32_t(0));
@@ -136,6 +138,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);
   out += "\",\"startingLife\":"; out += String(settings_.startingLife);
   out += ",\"turnTimerMs\":"; out += String(settings_.turnTimerMs);
+  out += ",\"autoEliminateAtZeroLife\":"; out += settings_.autoEliminateAtZeroLife ? "true" : "false";
   out += ",\"twoHeadedGiant\":"; out += settings_.twoHeadedGiant ? "true" : "false";
   out += "},\"sampledAtMs\":"; out += String(nowMs);
   out += ",\"gameElapsedMs\":"; out += String(game.gameElapsedMs(nowMs));
@@ -175,6 +178,7 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
     if (p.name[0]) { out += '"'; out += jsonEscape(p.name); out += '"'; } else out += "null";
     out += ",\"participantId\":"; out += String(p.participant);
     out += ",\"turnsCompleted\":"; out += String(p.turnsCompleted);
+    out += ",\"conceded\":"; out += p.conceded ? "true" : "false";
     out += ",\"eliminated\":"; out += p.eliminated ? "true" : "false";
     out += ",\"life\":";
     if (inGame_) out += String(p.life); else out += "null";

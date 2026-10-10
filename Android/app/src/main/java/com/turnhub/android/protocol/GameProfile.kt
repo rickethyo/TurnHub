@@ -34,6 +34,8 @@ data class TableSettings(
      * the team's total. Older firmware omits it (false).
      */
     val twoHeadedGiant: Boolean = false,
+    /** Older firmware omits this setting and never auto-eliminates. */
+    val autoEliminateAtZeroLife: Boolean = false,
 ) {
     val turnTimerEnabled: Boolean get() = turnTimerMs > 0
 }
