@@ -541,7 +541,13 @@ function clock(ms){const s=Math.floor(ms/1000),h=Math.floor(s/3600),m=Math.floor
 function renderOverlay(){
   const s=state.state;
   if(s==='STARTING')return openOverlay('Starting…','The game begins in a moment.',[['Cancel','',()=>control(anySeat(),'cancel-start')]]);
-  if(s==='PAUSED')return openOverlay('Paused','The clocks are stopped.',[['Resume','primary',()=>pauseToggle()]]);
+  if(s==='PAUSED'){
+    const pending=state.pending||{};
+    // Win claims pause play; let the player's panel answer instead of covering it.
+    if(pending.winClaimPlayer||pending.winConfirmationPlayer)return closeOverlay();
+    if(pending.eliminationTargetPlayer)return openOverlay('Player removal pending','Confirm or cancel the removal on Atlas or the selecting Sigil.',[]);
+    return openOverlay('Paused','The clocks are stopped.',[['Resume','primary',()=>pauseToggle()]]);
+  }
   if(s==='GAME_OVER'){
     const w=state.players.find(p=>p.playerNumber===state.winnerPlayer);
     return openOverlay(w?`${playerName(w)} wins`:'Game over',w?'Well played, everyone.':'The game ended as a draw.',

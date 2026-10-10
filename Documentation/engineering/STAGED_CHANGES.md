@@ -24,6 +24,10 @@ everything implemented. Only the checks listed below are still open.
 
 ### Stability and diagnostics
 
+- **2026-10-09 play-note investigation:** source findings and proposed designs
+  for all ten notes are in [the report](history/2026-10-09-play-note-investigation.md).
+  Minor tablet overlay and signup scrolling fixes are staged on `codex/master`;
+  portal browser verification passed, Android/device acceptance remains open.
 - **Multi-phone stability** (in progress): bench the Atlas 0.6.7+ build with
   unchanged polling, then the wider matrix, then seat-metadata caching and
   lighter client polling. Steps in [Diagnostics](DIAGNOSTICS.md).
@@ -49,6 +53,17 @@ everything implemented. Only the checks listed below are still open.
 
 ### Accounts, portal and app
 
+- **Router-style web administration** (*Planned*, owner confirmed, 2026-10-09):
+  web portal for Admin settings/maintenance and Android for personal/shared
+  tablet play; retire browser gameplay, including the web tablet. Preserve the
+  app's HTTP game APIs.
+  Define app parity, initial-Admin bootstrap, diagnostics permissions,
+  cardless administration/update fallback and installed-pack cutover before
+  removal. [Feature parity audit](history/2026-10-09-portal-app-parity.md)
+  records existing app coverage and missing custom timer entry, multi-game
+  selection, empty paired-Sigil attachment, invite QR generation and local
+  event feedback settings. Hardware tests/local signed-package uploads remain
+  web-admin features. No portal functionality removed yet.
 - **Password hashing:** parked, see "Parked: storage batch" below.
 - **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
   owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):
@@ -90,6 +105,19 @@ everything implemented. Only the checks listed below are still open.
   "counters received"; uploaded player backgrounds are tracked above;
   tablet seating of Sigil seat B.
 
+- **Seat B attachment:** the picker offers already-seated tablet players but
+  the handler rejects them. Needs identity-preserving seat-level reassignment,
+  including an explicit order policy for nonadjacent shared players; see the
+  play-note report. Do not solve it by removing a rejection alone.
+- **Tablet win-claim acceptance:** verify reachable player-facing Confirm/Deny
+  without the central Resume overlay on Android and the portal, including
+  sequential four-player claims and denial. The browser regression passes;
+  Android compilation/physical testing remains outstanding. Later UX: claim
+  progress, responder/waiting labels and decision-first controls.
+- **Fold signup acceptance:** verify staged scrolling with keyboard open,
+  folded/unfolded, rotation, large text and long account lists; retain the
+  7- and 10-inch tablet checks.
+
 - **Standalone tablet game, later rounds** (round one, 2026-10-07: the app
   plays a game alone; round two: Atlas imports each finished game once,
   `POST /api/standalone/import`, protocol/http-v1.md; user manual V0.12,
@@ -110,6 +138,16 @@ everything implemented. Only the checks listed below are still open.
 
 ### Table, controllers and accessibility
 
+- **Eliminated-controller release** (owner, 2026-10-09): permit release once
+  all players on a Sigil are eliminated, preserving their match identities and
+  results; then attach the hardware to another seated player. Needs seat-level
+  reassignment, recovery, rematch and two-game isolation; report has the design.
+- **Temporary turns** (owner, 2026-10-09): support gifted extra turns using
+  a separate scheduled-turn model; grant order, permissions and team behavior
+  require decisions before implementation.
+- **Waiting LED breathing** (decision open): waiting is intentionally steady
+  in each seat's custom color today. Evaluate optional gentle breathing while
+  retaining steady reduced motion and distinct turn/decision cues.
 - **Tablet re-entry and dedicated tablet-only accounts** (*Planned*, owner,
   2026-10-08; discussion TH-002 in [COLLABORATION.md](../../COLLABORATION.md)):
   - A seated player can reopen tablet mode during an active game after leaving
@@ -163,6 +201,16 @@ everything implemented. Only the checks listed below are still open.
 
 ### Hardware
 
+- **Player-facing Sigil LEDs are required** (owner, 2026-10-09): implement
+  the existing GPIO13/J6 front-strip plan on both display variants; choose
+  count/location/brightness and verify current and case fit.
+- **Dedicated pass/action button alongside joystick** (proposal): settle
+  Pass versus contextual Action behavior, then GPIO/carrier/wake design and
+  shared semantic input routing. Keep the joystick.
+- **Atlas S3/second-radio evaluation:** capture current multi-Android failure
+  evidence first. A PSRAM S3 board addresses movable memory pressure; a wired
+  radio bridge may isolate transport contention. Neither is a confirmed fix;
+  the report records port requirements and a common acceptance matrix.
 - **Sigil carrier PCB:** caliper-check the DevKit rows (22.86 mm assumed) and
   test-fit DevKit and Jewel footprints, finish layout and DRC, then inspect
   assembled boards. The OLED PCB is still a placeholder

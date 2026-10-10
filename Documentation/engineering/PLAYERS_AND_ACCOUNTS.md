@@ -112,6 +112,10 @@ the screen on and hides the system bars during play.
   only its own life, records only Commander damage it received, only the
   active player passes or claims a win, and win confirmations go to the
   confirming seat. Statistics are recorded per profile as for any game.
+- **Paused decisions:** tablet clients keep the central pause overlay closed
+  during a win claim so the scheduled player's panel can Confirm or Deny.
+  Resume is offered only for an ordinary pause. Elimination selection directs
+  the table to the existing Atlas/Sigil controls instead of offering Resume.
 
 ## Owner policy
 

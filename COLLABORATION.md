@@ -34,6 +34,8 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
+| TH-011 | Play-note investigation | Tablet, seating, Android, Sigil, Atlas stability | Investigation complete; minor fixes staged | Owner / review staged changes and proposals |
 | TH-009 | Current enclosure print-set README | 3D, hardware | Ready for review | Owner / review documentation |
 | TH-007 | Persistent agent branches and maintenance | Git workflow, CI, shared guidance | Implemented; PR validation pending | Owner / review and merge with source branch retained |
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
@@ -747,3 +749,53 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - Owner requests a firm rule minimizing third-party resource time, agent execution and PR count.
 - Implemented in AGENT_WORKFLOW.md with entry points in AGENTS.md and CLAUDE.md: batch calls/pushes and related work, reuse applicable evidence, avoid redundant polling/validation, use one agent by default, and justify separate PRs. Required checks and task completion remain mandatory.
 - Included in active PR #84 as requested; documentation-only validation is link/reference review and whitespace checks.
+
+## TH-011: Play-note investigation
+
+- Date / author: 2026-10-09 / Codex; branch `codex/master`; baseline `5e067f7`.
+- Scope: trace all ten owner play notes, implement only small clear fixes,
+  and stage the findings and changes for review. Larger features and hardware
+  choices remain proposals. No publishing or integration requested.
+- Startup: clean working tree, fetched master and codex/master; both match
+  the baseline; no open PRs. Previous active scopes are integrated.
+- Status: investigation complete; minor fixes and report staged locally for review.
+- Findings: both tablet pause overlays blocked win confirmation; now they leave
+  the responding panel reachable. Signup sheet lacked scrolling; scrolling
+  added as a Fold mitigation needing device acceptance. Seat B rejects
+  already-seated profiles by design and needs seat-level reassignment; other
+  feature/hardware proposals are recorded in the report. Front LEDs are now a
+  required planned feature, superseding the former case-dependent decision.
+- Evidence and next work: [full investigation](Documentation/engineering/history/2026-10-09-play-note-investigation.md).
+  Atlas ASan/UBSan host suites, HTTP contracts, adapter audit, real Chromium
+  tablet regression, portal pack and whitespace checks passed. Android build
+  could not start with the unavailable Gradle/SDK setup; no physical acceptance.
+  No firmware code, wire contract, dependency, commit, push or PR created.
+  Next owner: project owner reviews the staged fixes and proposed larger work.
+- Owner follow-up: considering a router-style Admin portal and retiring web
+  gameplay to focus on Android. Recorded the proposed cutover and tradeoffs in
+  the report/STAGED_CHANGES; preserve HTTP game APIs used by the app. Shared
+  web tablet inclusion is being clarified; no retirement code implemented.
+
+## TH-012: Admin portal / app-play feature parity
+
+- Date / author: 2026-10-09 / Codex; branch `codex/master`; baseline `5e067f7`
+  plus staged TH-011 UI fixes. Scope: source audit/documentation only; preserve
+  those staged changes. Reused this session's fetched refs/open-PR evidence.
+- Owner confirmed the direction: web portal for Admin administration and app
+  for play, including shared tablet play. Supersedes TH-011's provisional scope.
+- Status: source audit complete; [parity report](Documentation/engineering/history/2026-10-09-portal-app-parity.md)
+  staged locally. No runtime change, commit, push or new PR for this audit.
+- Main gameplay gaps: game/table selection, arbitrary new custom timer input
+  in the reachable setup UI, and phone-side attachment of an empty paired
+  Sigil. Invite generation and configurable native event feedback also differ.
+  An old custom timer component exists but is not mounted by the production UI.
+- Admin-only differences: hardware test buttons and manual signed-package
+  upload/targeted Sigil updates can remain web-admin capabilities. Core play,
+  tablet panels, account preferences, statistics/export, moderation, settings,
+  release updates and diagnostic monitoring have active app implementations.
+- Validation: inspected portal/full and flash fallback UI, active app screens,
+  callback wiring, data paths and Atlas handlers; documented relative source
+  links and ran whitespace/link checks. No new build/device test claimed.
+- Next owner: project owner reviews the migration order. Implementation should
+  close the identified gameplay gaps and verify device flows before removal;
+  preserve the app's HTTP API and initial setup/cardless update recovery.

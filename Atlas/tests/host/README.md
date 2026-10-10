@@ -183,3 +183,10 @@ cannot be bypassed by the later observer. The per-profile boundary remains a
 fixture; real profile-store/storage suites test those repositories separately.
 Missing/partial results after interruption are an explicit limitation, not a
 passing claim of exactly-once multi-record persistence.
+
+Optional tablet browser regression: `node Atlas/tests/host/tablet_smoke.cjs`
+uses Playwright and Chromium to exercise the real tablet page with four virtual
+players, claim/denial, sequential win confirmations in portrait, normal resume
+and elimination-selection display. Set `PLAYWRIGHT_EXECUTABLE_PATH` or
+`PLAYWRIGHT_CHANNEL` when needed for the installed browser. This checks browser
+interaction, not Android layout or hardware acceptance.
