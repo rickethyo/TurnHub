@@ -34,6 +34,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-009 | Current enclosure print-set README | 3D, hardware | Ready for review | Owner / review documentation |
 | TH-007 | Persistent agent branches and maintenance | Git workflow, CI, shared guidance | Implemented; PR validation pending | Owner / review and merge with source branch retained |
 | TH-001 | App-only player experience and battery presence | Android, Atlas, hardware, contracts, documentation | Local players/history/import implemented; CI and lint passed; device acceptance pending | project owner / physical acceptance; Codex follow-up slices staged |
 | TH-002 | Shared tablet access and dedicated account type | Android, Atlas, identity, authorization | Agreed requirements; not implemented | Define capability allowlist and implementation scope; unassigned |
@@ -723,3 +724,26 @@ remains open. The prerequisite host fixture PR #79 is separately green.
 - Remote fetch and open-PR inspection attempted; environment proxy unavailable. Working tree was clean; branch starts at the locally available `origin/master`.
 - Validation: compiled the actual `stickConfig()` with the production joystick tracker for e-ink, OLED and Wokwi using GCC C++14 with warnings as errors. All four corrected e-ink cardinal directions passed; OLED and Wokwi configuration checks passed. `git diff --check` passed. PlatformIO is unavailable, so no firmware build or device test was run.
 - Status: implemented; physical acceptance requires flashing the updated firmware. Network-permitted retry fetched current origin/master and confirmed no open PRs. Owner authorized publishing on codex/master.
+
+### TH-008 follow-up: both installed joysticks reversed
+
+- Date / author: 2026-10-09 / Codex; baseline `08fcdf5`; owner Codex on `codex/master`.
+- Owner confirms both Sigils have Up/Down and Left/Right reversed after flashing, and reports rotating the stick 180 degrees for case installation. Boot logs identify both physical display variants and successful joystick calibration.
+- Scope: toggle both axis inversions relative to each current physical build; retain the axis swap and simulated orientation. Add the active orientation to the joystick boot log so reflashing can be verified.
+- Validation: GCC C++14 with warnings as errors compiled the actual previous/current firmware configuration and production tracker for e-ink, OLED and Wokwi. All four raw cardinal inputs produce the opposite direction on both physical profiles, return-to-center works, and Wokwi directions remain unchanged. Whitespace check passed. PlatformIO/physical validation remains pending.
+
+## TH-009: Current enclosure print-set README
+
+- Date / author: 2026-10-09 / Codex.
+- Baseline: `a3c39db` (owner-uploaded 3D print files). Scope / owner: Codex on `codex/print-files-readme`; document `3D/` inventory, measured mesh extents, fit workflow and installed joystick orientation. Separate worktree because joystick PR #84 is active.
+- Status: ready for review; original STL files remain unchanged.
+- Validation: parsed all 12 binary STL files; triangle counts match their byte lengths and all vertex coordinates are finite. Measured extents and inspected a rendered mesh overview. README local links resolve and all 12 uploaded models are listed; whitespace check passed. No physical fit or slicer validation claimed. Documentation-only; no CI run.
+
+- Consolidation / owner verification (2026-10-09): owner confirms both installed joysticks now work correctly. At owner request, enclosure README PR #85 is combined into joystick PR #84 on `codex/master`; PR #85 is superseded. Physical enclosure fit remains unverified.
+
+## TH-010: Mandatory resource efficiency
+
+- Date / author: 2026-10-09 / Codex; baseline `2cd5a56`; owner Codex on `codex/master`.
+- Owner requests a firm rule minimizing third-party resource time, agent execution and PR count.
+- Implemented in AGENT_WORKFLOW.md with entry points in AGENTS.md and CLAUDE.md: batch calls/pushes and related work, reuse applicable evidence, avoid redundant polling/validation, use one agent by default, and justify separate PRs. Required checks and task completion remain mandatory.
+- Included in active PR #84 as requested; documentation-only validation is link/reference review and whitespace checks.

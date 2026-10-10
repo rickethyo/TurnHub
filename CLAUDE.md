@@ -7,7 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Use `claude/master` as Claude's persistent branch. Read `AGENTS.md` and
 [`AGENT_WORKFLOW.md`](Documentation/engineering/AGENT_WORKFLOW.md) for startup,
 PR and synchronization rules. Keep permanent branches after merge and use merge
-commits for their PRs.
+commits for their PRs. The mandatory resource-efficiency rules in that reference
+apply to Claude too: minimize third-party calls and agent runtime, batch related
+work, and reuse an existing reviewable PR whenever practical.
 
 Read [`COLLABORATION.md`](COLLABORATION.md) at the start of project work. It is the permanent, project-wide discussion and handoff document shared by Codex and Claude. Add attributed findings, questions, replies, implementation commits and validation results there. Keep accepted unfinished work in `Documentation/engineering/STAGED_CHANGES.md` and current behavior in its owning reference document.
 

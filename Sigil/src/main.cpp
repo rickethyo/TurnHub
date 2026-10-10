@@ -406,19 +406,19 @@ void updateLeds() {
   ledOutputValid = true;
 }
 
-// Both physical builds swap the stick axes. Owner follow-up (2026-10-09):
-// e-ink still reports both cardinal axes backwards; invert both relative
-// to the previous e-ink mapping. OLED retains its existing orientation.
+// Both physical builds swap the stick axes. Owner case-installation check
+// (2026-10-09): both sticks report reversed cardinal directions after the
+// 180-degree mounting rotation; reverse both axes in each physical profile.
 TurnHubSigil::StickConfig stickConfig() {
   TurnHubSigil::StickConfig config;
 #ifndef TURNHUB_WOKWI  // The simulated stick reads the right way round.
   config.swapAxes = true;
 #ifdef TURNHUB_DISPLAY_OLED
-  config.invertX = true;
-  config.invertY = false;
-#else
   config.invertX = false;
   config.invertY = true;
+#else
+  config.invertX = true;
+  config.invertY = false;
 #endif
 #endif
   return config;
@@ -429,6 +429,10 @@ uint32_t lastStickSampleMs = 0;
 // Rest the stick at boot: a missing or held stick disables the directions
 // (the click still works as Select).
 void calibrateJoystick() {
+  const auto config = stickConfig();
+  Serial.printf("SIGIL|JOYSTICK|ORIENTATION|SWAP_XY|%u|INVERT_X|%u|INVERT_Y|%u\n",
+      static_cast<unsigned>(config.swapAxes), static_cast<unsigned>(config.invertX),
+      static_cast<unsigned>(config.invertY));
   int16_t xs[JOYSTICK_CALIBRATION_SAMPLES];
   int16_t ys[JOYSTICK_CALIBRATION_SAMPLES];
   for (uint8_t i = 0; i < JOYSTICK_CALIBRATION_SAMPLES; ++i) {
