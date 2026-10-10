@@ -111,7 +111,6 @@ function showToast(msg,bad=false){toast.textContent=msg;toast.className='toast s
 function previewTheme(name){document.documentElement.dataset.theme=name==='auto'?deviceTheme():name;themeMessage.textContent='Previewing. Save appearance to keep this choice.'}
 function savePortalTheme(){setTheme(portalTheme.value);themeMessage.textContent='Appearance saved on this browser.'}
 function setTheme(name){if(name==='auto'){localStorage.removeItem('turnhubTheme');document.documentElement.dataset.theme=deviceTheme()}else{localStorage.setItem('turnhubTheme',name);document.documentElement.dataset.theme=name}}
-function showTab(){document.getElementById('main').scrollIntoView({block:'start'})}
 async function logoutSession(){try{await fetch('/api/session/logout',{method:'POST',headers:authHeaders()})}catch(_){}localStorage.removeItem('turnhubSessionToken');sessionToken='';sessionInfo=null;await refreshAll()}
 async function pollJson(path,headers=authHeaders()){const r=await fetch(path,{headers,cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
 async function accountPost(path,data){return pollPost('/api/accounts/'+path,data)}

@@ -900,3 +900,23 @@ remains open. The prerequisite host fixture PR #79 is separately green.
   No partition changes, physical flashing, release publication or integration.
   Owner still performs cardless device administration, OTA and native play
   acceptance. Continue draft PR #86; preserve the local pre-handoff stash.
+
+## TH-014: Post-cutover leftover audit
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `d8e621f`.
+  Owner asked about remaining unnecessary material. Reviewed portal assets and
+  Android references; fetched both remote branches and confirmed master is
+  already incorporated. Scope: audit plus small portal cleanup in draft PR #86.
+- Corrected a malformed comment introduced during the prior Brass CSS removal,
+  removed an unreferenced `showTab` helper, and updated the manifest description
+  to reflect device administration. No remaining optional features removed.
+- Candidates: retired gameplay CSS; full 65-symbol shared sprite bundled into
+  each page despite only a handful of icons used; Android `PlayerPanelCard` and
+  its callback type have no callers. Home-screen PNG icons occupy 51,622 stored
+  bytes but still provide installation icons, so their removal is a product
+  choice. Shared gameplay APIs, storage and retired-package rejection tests
+  still have active purposes.
+- Validation: asset check, all 13 actual C++ asset responses, Chromium card and
+  cardless administration and maintenance smokes pass. Atlas firmware build
+  passes: RAM 105,164 B; flash 1,583,305 B (80.5%); stored portal 103,078 B.
+  No physical flashing, release or integration. Owner reviews draft PR #86.
