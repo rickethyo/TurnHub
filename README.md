@@ -3,7 +3,7 @@
 TurnHub is a local-first tabletop game-management system: turn timer, lobby,
 life totals and Commander damage, player profiles and statistics. An
 authoritative **Atlas** table controller runs the game; player-facing
-**Sigils**, phones (browser portal or the Android app) and the Atlas
+**Sigils**, phones and tablets (the Android app) and the Atlas
 touchscreen request the same semantic actions from it.
 
 **Current firmware:** Atlas **0.6.6**, Sigil **0.9.8** (protocol 3), on `master`.

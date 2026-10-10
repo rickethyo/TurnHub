@@ -1,7 +1,7 @@
 # First-run Setup
 
 The guided setup for a new or factory-reset Atlas (2026-09-30), in Atlas, the
-Android app and the portal pack, and in use (owner, 2026-10-02). It is the
+Android app and the embedded portal, and in use (owner, 2026-10-02). It is the
 implemented part of the broader provisioning ideas in `Atlas/OOBE.md`.
 
 ## Principles
@@ -92,7 +92,7 @@ Welcome. Stages never go backwards otherwise.
    stage Finished.
 4. **Persistence:** `turnhub/setup`; the Wi-Fi password keeps its own store.
 5. **Rendering:** the touchscreen (`ScreenKind::Setup`), the app's setup
-   steps and the portal pack.
+   steps and the embedded portal.
 6. **Contract:** portal-private routes, not part of `/api/v1`:
    `GET /api/setup` (no sign-in; stage, `adminExists`, `passwordIsDefault`,
    SSID, never the password) and `POST /api/setup/finish` (`password=`;

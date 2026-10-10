@@ -454,7 +454,7 @@ app-lock, haptics, motion and assistive checks before device acceptance.
 
 ### App-first play cutover (2026-10-10)
 
-Atlas 0.7.6 / portal 2.0.0 retire browser gameplay and browser tablet/statistics.
+Atlas 0.7.7 (with the embedded admin portal) retires browser gameplay and browser tablet/statistics.
 Android polls state and seats with the current session token, or `?game=N` while
 signed out. It parses Atlas’s existing `game`/`games` fields and offers the venue
 selector in personal and shared-tablet views. Atlas validates switching; personal
@@ -473,3 +473,7 @@ Wi-Fi and choosing Connect remain explicit steps. There is no password in the QR
 Native foreground event sound/vibration settings and a background win-decision
 notification remain planned. Existing native haptics, turn notifications and
 text decision controls remain; device acceptance is tracked in STAGED_CHANGES.
+
+Atlas firmware includes the complete admin portal and its maintenance/Developer
+assets. The update assistant lists only Atlas and Sigils, never queries portal
+installation or card status, and ignores retired `portal` release entries.

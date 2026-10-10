@@ -4,7 +4,6 @@
 #include <FS.h>
 #include <SD.h>
 #include <SPI.h>
-#include <WebServer.h>
 #include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -14,7 +13,6 @@
 #include "diagnostic_log.h"
 #include "firmware_version.h"
 #include "game_recovery.h"
-#include "portal_pack.h"
 #include "runtime_diagnostics.h"
 #include "sd_blob_store.h"
 #include "sd_hotplug.h"
@@ -253,10 +251,8 @@ void unmountCard() {
 
 // Deletes everything under `path` (not `path` itself). One entry per pass,
 // with no handle open while it is removed; an entry that will not go is
-// skipped rather than retried forever. Depth-limited. `keep`, when set, is a
-// folder left in place with its contents (its parents then stay too). Under
-// the card lock.
-int removeTree(const String &path, uint8_t depth, const char *keep = nullptr) {
+// skipped rather than retried forever. Depth-limited and under the card lock.
+int removeTree(const String &path, uint8_t depth) {
   constexpr uint8_t MAX_DEPTH = 8;
   int removed = 0;
   uint16_t skip = 0;
@@ -279,19 +275,10 @@ int removeTree(const String &path, uint8_t depth, const char *keep = nullptr) {
     const bool isDirectory = child.isDirectory();
     child.close();
     dir.close();
-    if (keep != nullptr && childPath == keep) {
-      ++skip;
-      continue;
-    }
     bool gone = false;
     if (isDirectory) {
-      if (depth < MAX_DEPTH) removed += removeTree(childPath, depth + 1, keep);
+      if (depth < MAX_DEPTH) removed += removeTree(childPath, depth + 1);
       gone = SD.rmdir(childPath);
-      // A parent of the kept folder stays without complaint.
-      if (!gone && keep != nullptr && String(keep).startsWith(childPath + "/")) {
-        ++skip;
-        continue;
-      }
     } else {
       gone = SD.remove(childPath);
     }
@@ -484,7 +471,7 @@ int wipeSdCard() {
     serialLog.println("ATLAS|SD|WIPE|NO_CARD");
     return -1;
   }
-  const int removed = removeTree("/", 0, TurnHubPortal::ROOT_DIR);
+  const int removed = removeTree("/", 0);
   serialLog.print("ATLAS|SD|WIPE|REMOVED|");
   serialLog.println(String(removed));
   // Unmounted, so neither the log worker nor the luxury store writes again
@@ -494,135 +481,5 @@ int wipeSdCard() {
 }
 
 uint32_t sdCardGeneration() { return cardGeneration.load(); }
-
-// --- Web portal pack ------------------------------------------------------------
-namespace {
-
-bool cardMounted() { return cardState.load() == CardState::Mounted; }
-
-// The portal installer's view of the card. Every call takes the card lock; the
-// one open file stays open between calls (the log worker writes other files).
-class SdPortalFiles final : public TurnHubPortal::Files {
- public:
-  bool exists(const char *path) override {
-    CardLock lock;
-    return cardMounted() && SD.exists(path);
-  }
-  bool makeDir(const char *path) override {
-    CardLock lock;
-    if (!cardMounted()) return false;
-    return SD.exists(path) || SD.mkdir(path);
-  }
-  bool removeTree(const char *path) override {
-    CardLock lock;
-    if (!cardMounted()) return false;
-    if (!SD.exists(path)) return true;
-    TurnHubAtlas::removeTree(path, 0);
-    return SD.rmdir(path) || !SD.exists(path);
-  }
-  bool rename(const char *from, const char *to) override {
-    CardLock lock;
-    return cardMounted() && SD.rename(from, to);
-  }
-  bool beginFile(const char *path) override {
-    CardLock lock;
-    if (!cardMounted()) return false;
-    if (file_) file_.close();
-    file_ = SD.open(path, FILE_WRITE);
-    return static_cast<bool>(file_);
-  }
-  bool writeFile(const uint8_t *data, size_t length) override {
-    CardLock lock;
-    if (!file_ || !cardMounted()) return false;
-    return file_.write(data, length) == length;
-  }
-  bool endFile() override {
-    CardLock lock;
-    if (!file_) return false;
-    file_.flush();
-    file_.close();
-    return true;
-  }
-  bool readText(const char *path, char *out, size_t capacity) override {
-    CardLock lock;
-    if (!cardMounted() || capacity == 0) return false;
-    File file = SD.open(path, FILE_READ);
-    if (!file || file.isDirectory() || file.size() >= capacity) {
-      if (file) file.close();
-      return false;
-    }
-    const size_t n = file.read(reinterpret_cast<uint8_t *>(out), capacity - 1);
-    file.close();
-    out[n] = '\0';
-    return true;
-  }
-
- private:
-  File file_;
-};
-
-SdPortalFiles portalFiles;
-// Installed pack version, cached per mount.
-uint32_t portalCachedGeneration = UINT32_MAX;
-bool portalHasVersion = false;
-TurnHubFirmwarePackage::Version portalVersion = {0, 0, 0};
-
-const char *portalContentType(const char *path) {
-  const char *dot = strrchr(path, '.');
-  if (dot == nullptr) return "application/octet-stream";
-  if (strcmp(dot, ".html") == 0) return "text/html";
-  if (strcmp(dot, ".css") == 0) return "text/css";
-  if (strcmp(dot, ".js") == 0) return "application/javascript";
-  if (strcmp(dot, ".json") == 0) return "application/json";
-  if (strcmp(dot, ".webmanifest") == 0) return "application/manifest+json";
-  if (strcmp(dot, ".svg") == 0) return "image/svg+xml";
-  if (strcmp(dot, ".png") == 0) return "image/png";
-  if (strcmp(dot, ".woff2") == 0) return "font/woff2";
-  if (strcmp(dot, ".txt") == 0) return "text/plain";
-  return "application/octet-stream";
-}
-
-}  // namespace
-
-TurnHubPortal::Files *sdPortalFiles() { return storeUsable() ? &portalFiles : nullptr; }
-
-void sdPortalChanged() { portalCachedGeneration = UINT32_MAX; }
-
-bool sdPortalVersion(TurnHubFirmwarePackage::Version &version) {
-  if (!storeUsable()) return false;
-  const uint32_t generation = cardGeneration.load();
-  if (generation != portalCachedGeneration) {
-    portalHasVersion = TurnHubPortal::installedVersion(portalFiles, portalVersion);
-    portalCachedGeneration = generation;
-  }
-  if (portalHasVersion) version = portalVersion;
-  return portalHasVersion;
-}
-
-bool sdServePortalFile(WebServer &server, const char *relPath, const char *cacheControl) {
-  if (!storeUsable() || !TurnHubPortal::safePackPath(relPath, strlen(relPath))) return false;
-  // Pre-cutover packs must not revive browser gameplay.
-  TurnHubFirmwarePackage::Version version;
-  if (!sdPortalVersion(version) || version.major < 2) return false;
-  char path[160];
-  CardLock lock;
-  if (!cardMounted()) return false;
-  snprintf(path, sizeof(path), "%s/%s.gz", TurnHubPortal::LIVE_DIR, relPath);
-  File file = SD.open(path, FILE_READ);
-  if (!file || file.isDirectory()) {
-    if (file) file.close();
-    snprintf(path, sizeof(path), "%s/%s", TurnHubPortal::LIVE_DIR, relPath);
-    file = SD.open(path, FILE_READ);
-  }
-  if (!file || file.isDirectory()) {
-    if (file) file.close();
-    return false;
-  }
-  server.sendHeader("Cache-Control", cacheControl);
-  // streamFile adds Content-Encoding: gzip for a .gz file name.
-  server.streamFile(file, portalContentType(relPath));
-  file.close();
-  return true;
-}
 
 }  // namespace TurnHubAtlas

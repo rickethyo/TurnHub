@@ -86,7 +86,7 @@ NVS plus checksummed SD blobs with no SQL database (owner, 2026-10-06).
 ## microSD card
 
 Every Atlas ships with a card, but play never depends on it. The card holds
-the web portal pack ([Web Portal](WEB_PORTAL.md)), detailed statistics and
+detailed statistics and
 other luxury records, and the rotating diagnostics log
 ([Diagnostics](DIAGNOSTICS.md)). Without a card only the NVS core counts are
 recorded and the stats API reports `"detailed": false`.
@@ -106,7 +106,7 @@ recorded and the stats API reports `"detailed": false`.
   The application loop follows `sdCardGeneration()` and moves detailed
   statistics to or from the card. The Atlas screen shows **NO SD CARD** while
   none is ready.
-- **Factory reset** empties the card except `/turnhub/portal` (`wipeSdCard()`),
+- **Factory reset** empties the card (`wipeSdCard()`); the portal stays in firmware,
   then erases NVS.
 
 ## Interrupted-match recovery

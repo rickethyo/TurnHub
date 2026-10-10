@@ -28,7 +28,7 @@
 </header>
 <main id="main" class="focus wide-focus">
  <div class="focus-head"><span class="update-badge" aria-hidden="true"><svg class="i"><use href="#i-download"/></svg></span><h1>Update Atlas</h1>
-  <p class="small">Install a signed <code>.thfw</code> package: Atlas firmware, or the portal pack (<code>portal-x.y.z.thfw</code>). A portal pack goes onto the microSD card and needs no restart.</p></div>
+  <p class="small">Install a signed Atlas firmware <code>.thfw</code> package. The admin portal is included and updates with Atlas.</p></div>
  <section class="card">
   <ol class="steps compact">
    <li class="step"><span class="step-dot" aria-hidden="true">1</span><div><strong>Between games</strong><p class="small">Start updates from Lobby or Game Over.</p></div></li>
@@ -38,7 +38,7 @@
  </section>
  <section class="card">
   <div id="current" class="status-line">Reading current firmware...</div>
-  <div class="drop"><label for="file">Firmware or portal package</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
+  <div class="drop"><label for="file">Atlas firmware package</label><input id="file" type="file" accept=".thfw,application/octet-stream"></div>
   <button id="upload" class="primary block" disabled>Upload &amp; Verify</button>
   <progress id="progress" max="100" value="0" aria-label="Upload progress"></progress>
   <p id="message" role="status" aria-live="polite"></p>
@@ -73,46 +73,6 @@
     } catch (_) {
       current.textContent = 'Unable to read current firmware identity.';
     }
-    try {
-      const portal = await (await fetch('/api/portal', { cache: 'no-store' })).json();
-      current.textContent += portal.installed ? ' · portal v' + portal.version
-        : (portal.card ? ' · no portal pack installed' : ' · no microSD card');
-    } catch (_) {}
-  }
-
-  // Byte 9 of a .thfw header is the product; 4 is the web portal pack.
-  async function packageProduct(f) {
-    const head = new Uint8Array(await f.slice(0, 16).arrayBuffer());
-    const magic = String.fromCharCode(...head.slice(0, 8));
-    return magic === 'THFWPKG1' ? head[9] : 0;
-  }
-
-  function uploadPortal(f) {
-    setMessage('Uploading the portal pack... Atlas checks the signature and unpacks it onto the microSD card.');
-    const form = new FormData();
-    form.append('portal', f);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/portal/install');
-    xhr.upload.onprogress = event => {
-      if (event.lengthComputable) progress.value = Math.round((event.loaded / event.total) * 95);
-    };
-    xhr.onload = () => {
-      let data = {};
-      try { data = JSON.parse(xhr.responseText); } catch (_) {}
-      if (xhr.status >= 200 && xhr.status < 300) {
-        progress.value = 100;
-        setMessage('Portal v' + data.version + ' installed. Reload the portal to see it.', 'ok');
-        loadBaseline();
-      } else {
-        setMessage(data.error || 'Portal install failed.', 'error');
-      }
-      button.disabled = false;
-    };
-    xhr.onerror = () => { setMessage('Connection lost during the upload; the previous portal is still installed.', 'error'); button.disabled = false; };
-    xhr.timeout = 300000;
-    xhr.ontimeout = () => { setMessage('The upload took too long and was stopped. The previous portal is still installed.', 'error'); button.disabled = false; };
-    xhr.setRequestHeader('X-TurnHub-Token', localStorage.getItem('turnhubSessionToken') || '');
-    xhr.send(form);
   }
 
   async function verifyRestart() {
@@ -161,10 +121,6 @@
     if (!file.files.length) return;
 
     button.disabled = true;
-    if (await packageProduct(file.files[0]) === 4) {
-      uploadPortal(file.files[0]);
-      return;
-    }
     setMessage('Uploading... Atlas checks your Admin sign-in (and the table code, if on) when the upload begins.');
 
     const form = new FormData();

@@ -16,6 +16,7 @@
 #include "controller_profiles.h"
 #include "profile_store.h"
 #include "web_api_internal.h"
+#include "web_pages.h"
 // Compile the actual application entry point; the handler and adapter
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
@@ -141,10 +142,7 @@ bool SigilBus::sendProfilePicker(const TurnHubProtocol::ProfilePickerPacket &p) 
 static unsigned fixtureBuzzes[MAX_PHYSICAL_SIGILS]{};
 static std::vector<int32_t> fixtureTones[MAX_PHYSICAL_SIGILS];
 bool SigilBus::buzzer(uint8_t id,int32_t v) { ++fixtureBuzzes[id]; fixtureTones[id].push_back(v); return send(id,PacketType::Buzzer,v); }
-OtaManager::OtaManager(WebServer &webServer,AllowedCallback allowed) : server_(webServer),allowedCallback_(allowed) {}
-void OtaManager::begin() {}
-void OtaManager::update(uint32_t) {}
-bool OtaManager::inProgress() const { return false; }
+
 }
 static int completedGames=0;
 static void completed(const GameEngine &g) {
@@ -829,9 +827,31 @@ static void accountPermissionsAndModeration(){
   assert(request("/api/accounts/moderate",gm,{{"profileId",playerId},{"action","remove"}})==409);
   assert(request("/api/accounts/permissions",admin,{{"profileId",adminId},{"permissions","31"}})==200);
   assert(has(adminId,Admin|GameMaster|Developer));
+  // Every maintenance route is present without a card; the separate pack
+  // installer/status are gone. /assets cannot expose permission-gated pages.
+  ota.begin();
+  assert(server.routes.count("0/portal") && server.routes.count("0/dev") && server.routes.count("0/update"));
+  assert(server.uploads.count("/api/firmware"));
+  assert(!server.routes.count("0/api/portal") && !server.uploads.count("/api/portal/install"));
+  server.headers["X-TurnHub-Token"]=gm;
+  server.routes.at("0/update")();assert(server.status==403);
+  server.headers["X-TurnHub-Token"]=admin;
+  server.routes.at("0/update")();assert(server.status==200 && server.contentType=="text/html");
+  assert(static_cast<unsigned char>(server.body[0])==0x1f);
   // Direct page requests with credentials must enforce the independent permission.
-  server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==200&&server.body=="dev-secret");
-  server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,"dev-secret",Developer);assert(server.status==403);
+  // The full Developer page and all fonts/styles are flash assets, independent
+  // of the SD stub (which has no card). Binary-safe lengths and HTTP metadata.
+  WebServer assets(80);
+  assert(TurnHubWeb::serveFile(assets,"index.html"));
+  assert(assets.status==200 && assets.contentType=="text/html");
+  assert(assets.responseHeaders["Cache-Control"]=="no-store");
+  assert(assets.responseHeaders["Content-Encoding"]=="gzip");
+  assert(static_cast<unsigned char>(assets.body[0])==0x1f && static_cast<unsigned char>(assets.body[1])==0x8b);
+  assets.status=0;
+  assert(!TurnHubWeb::serveFile(assets,"../index.html") && assets.status==0);
+  assert(!TurnHubWeb::serveFile(assets,"assets/missing.css") && assets.status==0);
+  server.headers["X-TurnHub-Token"]=dev;TurnHubWebApi::serveRestrictedPage(server,Developer,"dev.html");assert(server.status==200&&!server.body.empty());
+  server.headers["X-TurnHub-Token"]=gm;TurnHubWebApi::serveRestrictedPage(server,Developer,"dev.html");assert(server.status==403);
   // The serial log download is a Developer diagnostic, like /api/diagnostics.
   assert(request("/api/diagnostics/log","",{},HTTP_GET)==401);
   assert(request("/api/diagnostics/log",gm,{},HTTP_GET)==403);

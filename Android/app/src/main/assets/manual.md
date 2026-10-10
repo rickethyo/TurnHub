@@ -187,7 +187,7 @@ The same screen has **Sleep**: tap it between games and Atlas says “Going to s
 
 - **A Sigil** erases everything it has saved, including its pairing, and restarts as new. Atlas forgets it. Nobody may be seated on it. If the Sigil is out of range, Atlas only forgets it; hold the Sigil’s Pair button for 3 seconds to clear it too.
 
-- **Atlas** asks you to type RESET to confirm. It then erases every profile, PIN, statistic it holds, Sigil pairing, the Wi-Fi password (back to TurnHub-Setup) and all settings, empties the microSD card apart from the web portal kept on it, and restarts as new, asking for touchscreen calibration and then setup (section 3). This cannot be undone.
+- **Atlas** asks you to type RESET to confirm. It then erases every profile, PIN, statistic it holds, Sigil pairing, the Wi-Fi password (back to TurnHub-Setup) and all settings, empties the microSD card (the admin portal stays in firmware), and restarts as new, asking for touchscreen calibration and then setup (section 3). This cannot be undone.
 
 # 6. Player Setup
 
@@ -445,7 +445,7 @@ Open http://192.168.4.1/portal on Atlas Wi-Fi and sign in as Admin. Initial setu
 
 Admin controls cover Wi-Fi, the table-code setting, pairing decisions, speaker/pairing window, device names/forget/reset and account roles/archive/restore. Choose Save for staged settings.
 
-Signed local Atlas, Sigil and portal package installation remains available. Developer diagnostics and hardware tests require Developer permission, including for an Admin.
+Signed local Atlas and Sigil firmware installation remains available. The full admin portal is included in Atlas firmware and works without a microSD card. Developer diagnostics and hardware tests require Developer permission, including for an Admin.
 
 Atlas 0.7.6 and portal 2.0.0 form the cutover. A missing card or installed v1 pack uses flash administration recovery; install a signed v2 pack and reload old browser tabs. Browser /tablet and /stats open recovery.
 
@@ -699,7 +699,7 @@ Join the table first: any seated player can change the turn timer, and only in t
 
 ## The Browser No Longer Shows Play Controls
 
-Use the TurnHub Android app or a Sigil for play. The portal handles administration. Install Atlas firmware 0.7.6 and portal pack 2.0.0 together; earlier installed portal packs use the cardless administration fallback on this firmware.
+Use the TurnHub Android app or a Sigil for play. The portal handles administration. Atlas firmware 0.7.7 includes the full portal: install one Atlas firmware update and reload existing browser tabs. No separate portal pack or microSD card is needed for administration.
 
 Tap or click the TurnHub interface once, then try again.
 

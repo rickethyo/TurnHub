@@ -5,7 +5,6 @@
 #include "web_api.h"
 
 #include "config.h"
-#include "profile_login_page.h"
 #include "web_pages.h"
 #include "serial_log.h"
 #include "http_diagnostics.h"
@@ -153,9 +152,9 @@ void accountSetupStatus(WebServer &server) { handleAccountSetup(server, true); }
 void accountSetupCreate(WebServer &server) { handleAccountSetup(server, false); }
 void joinSession(WebServer &server) { handleParticipation(server, WebControl::Join); }
 void leaveSession(WebServer &server) { handleParticipation(server, WebControl::Leave); }
-void statsPage(WebServer &server) { servePortalPage(server, nullptr, TurnHubWeb::BASIC_PORTAL_HTML); }
-void loginPage(WebServer &server) { servePortalPage(server, "login.html", TurnHubLoginPage::HTML); }
-void tabletPage(WebServer &server) { servePortalPage(server, nullptr, TurnHubWeb::BASIC_PORTAL_HTML); }
+void statsPage(WebServer &server) { servePortalPage(server, "index.html"); }
+void loginPage(WebServer &server) { servePortalPage(server, "login.html"); }
+void tabletPage(WebServer &server) { servePortalPage(server, "index.html"); }
 
 struct Route {
   const char *uri;

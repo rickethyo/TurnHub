@@ -31,12 +31,15 @@ class WebServer {
   template<class F, class U> void on(const char *path,int method,F f,U u) {
     routes[std::to_string(method)+path]=f; uploads[path]=u;
   }
+  std::map<std::string,String> responseHeaders;
+  String contentType;
   int status = 0;
   String body;
   explicit WebServer(int) {}
-  void sendHeader(const char*,const String &) {}
-  void send(int code,const char*,const String &value) { status=code; body=value; }
+  void sendHeader(const char *name,const String &value) { responseHeaders[name]=value; }
+  void send(int code,const char *type,const String &value) { status=code; contentType=type; body=value; }
   void send_P(int code,const char *type,const char *value) { send(code,type,value); }
+  void send_P(int code,const char *type,const char *value,size_t size) { status=code; contentType=type; body.assign(value,size); }
   // Chunked responses append to the body sent with send().
   void sendContent(const String &value) { body+=value; }
   void sendContent(const char *value,size_t size) { body.append(value,size); }

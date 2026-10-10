@@ -16,16 +16,14 @@
   they already run, or reinstall the same version freely. Going to an older
   version needs a USB flash (FIRMWARE_UPDATES.md).
 
-  portal is the web portal pack (Atlas/web, WEB_PORTAL.md): built by
-  Atlas/web/build.py without PlatformIO, versioned by Atlas/web/VERSION, and
-  installed from the Atlas /update page.
+  Atlas firmware includes the admin portal; no separate portal package is built.
 
-.PARAMETER Products  atlas, sigil-eink, sigil-oled, portal. Default: all four.
+.PARAMETER Products  atlas, sigil-eink, sigil-oled. Default: all three.
 .PARAMETER Key       Path to the PEM key. Default: the single .pem in ..\Private\TurnHub-keys.
 .PARAMETER OutDir    Where packages go. Default: ..\Private\TurnHub-builds\local-<time>-<commit>.
 #>
 param(
-  [string[]]$Products = @('atlas', 'sigil-eink', 'sigil-oled', 'portal'),
+  [string[]]$Products = @('atlas', 'sigil-eink', 'sigil-oled'),
   [string]$Key,
   [string]$OutDir
 )
@@ -40,7 +38,7 @@ function Fail($message) { Write-Host "`nERROR: $message" -ForegroundColor Red; e
 # `powershell -File ... -Products a,b` delivers one string "a,b": split it.
 $Products = @($Products | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 foreach ($p in $Products) {
-  if ($p -notin 'atlas', 'sigil-eink', 'sigil-oled', 'portal') { Fail "Unknown product '$p' (atlas, sigil-eink, sigil-oled, portal)." }
+  if ($p -notin 'atlas', 'sigil-eink', 'sigil-oled') { Fail "Unknown product '$p' (atlas, sigil-eink, sigil-oled)." }
 }
 
 $map = @{
@@ -85,14 +83,9 @@ if ($dirty) { Write-Host 'Working copy has uncommitted changes; the build id mar
 $results = @()
 foreach ($product in $Products) {
   Write-Host "`n== Building $product" -ForegroundColor Cyan
-  if ($product -eq 'portal') {
-    $bin = Join-Path $OutDir 'portal.bin'
-    & $python (Join-Path $root 'Atlas\web\build.py') --out $bin
-  } else {
-    $t = $map[$product]
-    & $pio run --project-dir (Join-Path $root $t.Dir) --environment $t.Env
-    $bin = Join-Path $root "$($t.Dir)\.pio\build\$($t.Env)\firmware.bin"
-  }
+  $t = $map[$product]
+  & $pio run --project-dir (Join-Path $root $t.Dir) --environment $t.Env
+  $bin = Join-Path $root "$($t.Dir)\.pio\build\$($t.Env)\firmware.bin"
   if ($LASTEXITCODE -ne 0) { $results += "$product : BUILD FAILED"; continue }
   $tmp = Join-Path $OutDir "$product.thfw"
   & $python $thfw package $bin --out $tmp --key $Key --expect-product $product --build-id $buildId

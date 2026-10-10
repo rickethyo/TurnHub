@@ -18,7 +18,7 @@ and maintenance-script changes require CI, not `[skip ci]`.
 
 | Check name | Work performed |
 | --- | --- |
-| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); portal pack builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
+| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
 | Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw`; render Atlas screen previews |
 | Firmware (sigil) | E-ink Sigil; descriptor check, signed `sigil-eink.thfw`, e-ink and OLED screen previews |
 | Firmware (sigil-oled) | OLED Sigil; descriptor check and signed `sigil-oled.thfw` |
@@ -63,9 +63,9 @@ a pushed tag:
 
 | Tag | Builds and signs | Carried over unchanged |
 | --- | --- | --- |
-| `v0.9.0` | Atlas, the web portal pack, both Sigils | nothing |
-| `atlas-v0.7.1` | Atlas and the web portal pack | both Sigil packages |
-| `sigil-v0.9.13` | both Sigils (e-ink and OLED) | Atlas and the portal pack |
+| `v0.9.0` | Atlas (including its portal), both Sigils | nothing |
+| `atlas-v0.7.1` | Atlas including its portal | both Sigil packages |
+| `sigil-v0.9.13` | both Sigils (e-ink and OLED) | Atlas including its portal |
 
 Each publishes a GitHub Release with the `.thfw` packages and
 `turnhub-firmware.json`, the feed the Android app reads from the *latest*
@@ -74,8 +74,7 @@ packages from the previous latest release and lists them in its feed, so the
 feed always names every product and the app and Atlas see every available
 update. A `atlas-v`/`sigil-v` tag fails if there is no earlier release to
 carry from, so publish a plain `v*` release first. The version in a tag is a
-release label only; each package's own version comes from `firmware_version.h`
-(or `Atlas/web/VERSION`). It needs `contents: write` and fails without the
+release label only; each package's own version comes from `firmware_version.h`. It needs `contents: write` and fails without the
 signing secret. Branch protection is configured
 separately in GitHub, not by this file.
 
@@ -91,7 +90,8 @@ the paths into four switches:
 | `Sigil/` | | yes | | |
 | `shared/` | yes | yes | | |
 | `protocol/` | yes | | yes | |
-| `Android/` (except the generated `assets/manual.md`), `design/` | | | yes | |
+| `Android/` (except the generated `assets/manual.md`) | | | yes | |
+| `design/` | yes | | yes | |
 | `tools/firmware/` | yes | yes | | yes |
 | `.github/` | yes | yes | yes | yes |
 | anything else (docs, KiCad, scripts) | | | | |
@@ -102,7 +102,7 @@ the paths into four switches:
 - **Android** runs the Android unit tests and release bundle.
 - **Packaging tool** runs `tools/firmware/test_thfw.py`.
 
-The quick Python checks (adapter audit, design tokens, portal pack, manual
+The quick Python checks (adapter audit, design tokens, embedded portal, manual
 asset) run on every PR, so a documentation-only PR skips every build and
 suite.
 

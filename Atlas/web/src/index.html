@@ -57,8 +57,8 @@
   <label class="switch-row" id="tableCodeRow" hidden><div>Require a table code<small id="tableCodeHint">Off: a signed-in Admin can change these settings. On: each change also needs the code the Atlas screen shows. Firmware installs only when signed either way.</small></div><input type="checkbox" id="tableCodeToggle" aria-describedby="tableCodeHint" onchange="saveTableCode(this.checked)"></label>
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas</h2></div>
-  <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>Portal pack</span><strong id="portalPackMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Verified at the table</span><strong id="adminUnlockMetric">No one</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
-  <div class="link-list"><a href="/update"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span>Atlas firmware and portal</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a><a href="/sigil-update"><svg class="i" aria-hidden="true"><use href="#i-sigil"/></svg><span>Sigil firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a></div>
+  <div class="status-row"><span>State</span><strong id="stateMetricSystem">—</strong></div><div class="status-row"><span>Firmware</span><strong id="firmwareMetric">—</strong></div><div class="status-row"><span>Build</span><strong id="buildMetric">—</strong></div><div class="status-row"><span>ESP-NOW</span><strong id="espMetric">—</strong></div><div class="status-row"><span>Verified at the table</span><strong id="adminUnlockMetric">No one</strong></div><div class="status-row"><span>Atlas OTA</span><strong id="otaMetric">Locked</strong></div><div class="status-row"><span>Active player</span><strong id="activeMetric">None</strong></div><div class="status-row"><span>Winner</span><strong id="winnerMetric">None</strong></div>
+  <div class="link-list"><a href="/update"><svg class="i" aria-hidden="true"><use href="#i-download"/></svg><span>Atlas firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a><a href="/sigil-update"><svg class="i" aria-hidden="true"><use href="#i-sigil"/></svg><span>Sigil firmware</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></a></div>
   <p class="hint">Update from Lobby or Game Over.</p>
  </section>
  <section class="card half"><div class="card-head"><h2 class="eyebrow">Atlas Wi-Fi security</h2></div>
@@ -85,7 +85,7 @@
   <div class="link-list danger">
    <button onclick="resetTableToLobby()" aria-label="Return table to lobby"><span>Return table to lobby</span><small>Ends a match in progress as a draw (every player gets a draw in their statistics) and clears the table, even if nobody can reach their Sigil.</small></button>
    <button onclick="forgetAllSigils()" aria-label="Forget all Sigils"><span>Forget all Sigils</span><small>Removes every pairing. Pair them again from the Atlas screen.</small></button>
-   <button onclick="factoryResetAtlas()" aria-label="Factory reset Atlas"><span>Factory reset Atlas</span><small>Erases every profile, PIN, pairing, Wi-Fi password and setting, then restarts. The microSD card and portal are kept.</small></button>
+   <button onclick="factoryResetAtlas()" aria-label="Factory reset Atlas"><span>Factory reset Atlas</span><small>Erases every profile, PIN, pairing, Wi-Fi password and setting, then restarts. Empties the microSD card. The admin portal stays in firmware.</small></button>
   </div>
   <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
  </section>
@@ -133,7 +133,7 @@ async function refreshAll(){
   atlasDevice.textContent=`Atlas · ${d.atlas.hardwareId} · ${d.atlas.firmware}`;
   for(const [id,value] of Object.entries({stateMetricSystem:s.state,firmwareMetric:s.firmware,buildMetric:s.build,espMetric:s.espNow?'Ready':'Error',adminUnlockMetric:s.presenceActive?'Verified':'No one',otaMetric:s.otaStateAllowed?'Ready':'Game locked',activeMetric:s.active||'None',winnerMetric:s.winner||'None',connectionMetric:'Connected',browserSeatMetric:sessionInfo.name,portalAddress:location.host}))document.getElementById(id).textContent=value||'—';
   const options=(s.games||[]).map(g=>`<option value="${Number(g.game)}">Game ${Number(g.game)} · ${esc(g.state)} · ${Number(g.players)} players</option>`).join('');if(adminGame.innerHTML!==options)adminGame.innerHTML=options;adminGame.value=String(s.game||1);
-  await refreshAccountList();await loadPortalPack();
+  await refreshAccountList();
  }catch(e){connection.textContent='Reconnecting';main.hidden=true;showToast(e.message,true)}
  })().finally(()=>refreshInFlight=null);return refreshInFlight;
 }
@@ -250,7 +250,7 @@ async function loadSetupStage(){try{const r=await fetch('/api/setup',{cache:'no-
 async function finishSetup(){const password=wizardPassword.value;if(password.length<8||password.length>63){wizardMessage.textContent='Choose 8 to 63 characters.';return}
  try{const r=await presenceFetch('/api/setup/finish',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Atlas could not finish setup');
   wizardWifi.hidden=true;wizardBar.style.width='100%';wizardMessage.textContent=`You’re all set. Atlas is restarting: rejoin ${setupInfo.ssid||'TurnHub-Atlas'} with your new password, then open this page again.`;showToast('Setup finished. Atlas is restarting.')}catch(e){wizardMessage.textContent=e.message}}
-async function loadPortalPack(){try{const r=await fetch('/api/portal',{cache:'no-store'});const d=await r.json();portalPackMetric.textContent=d.installed?'v'+d.version:d.card?'Not installed':'No microSD card'}catch(_){portalPackMetric.textContent='—'}}
+
 
 portalTheme.value=localStorage.getItem('turnhubTheme')||'auto';refreshAll().then(presenceFromHash);setInterval(()=>{if(!document.hidden)refreshAll()},5000);
 </script></body></html>

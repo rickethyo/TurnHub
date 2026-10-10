@@ -23,7 +23,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Gameplay](GAMEPLAY.md) | Game profiles, turns, turn timer, life and approvals, Commander damage, light and sound cues |
 | [First-run Setup](FIRST_RUN_SETUP.md) | Guided setup of a new Atlas from the app or portal |
 | [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices, spare Sigils |
-| [Web Portal](WEB_PORTAL.md) | The SD portal pack, the flash fallback portal, themes, layout and test contract |
+| [Web Portal](WEB_PORTAL.md) | The embedded admin portal, themes, layout and test contract |
 | [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
 | [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
 | [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |

@@ -81,7 +81,7 @@ is ignored until released.
   match): for a free Sigil, Atlas sends `FactoryReset` ("FRES") ahead of the
   `Unpair`; an out-of-range Sigil is only forgotten. For Atlas (lobby or game
   over; the portal asks for RESET to be typed), Atlas replies, waits 1.5 s,
-  empties the microSD card except the portal pack, erases NVS and restarts:
+  empties the microSD card (the portal stays in firmware), erases NVS and restarts:
   every profile, statistic, account, pairing, the Wi-Fi password, settings and
   touch calibration go, and setup starts again at Welcome.
 

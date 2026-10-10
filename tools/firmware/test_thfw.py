@@ -72,16 +72,12 @@ class ThfwTest(unittest.TestCase):
         with self.assertRaisesRegex(thfw.PackageError, "0xE9"):
             thfw.build_package(b"\0" + fake_image()[1:], self.key)
 
-    def test_portal_pack(self):
-        desc = thfw.DESCRIPTOR_MAGIC + bytes([4, 1, 0, 0, 0, 0, 0, 0])
-        archive = desc + b"THWEBAR1" + bytes(200)
-        header = thfw.verify_package(thfw.build_package(archive, self.key), self.public)
-        self.assertEqual(header["productName"], "portal")
-        self.assertEqual(header["version"], (1, 0, 0))
-        with self.assertRaisesRegex(thfw.PackageError, "must start with its descriptor"):
+    def test_retired_portal_archive_is_rejected(self):
+        desc = thfw.DESCRIPTOR_MAGIC + bytes([4, 2, 0, 0, 0, 0, 0, 0])
+        with self.assertRaisesRegex(thfw.PackageError, "0xE9"):
+            thfw.build_package(desc + b"THWEBAR1" + bytes(200), self.key)
+        with self.assertRaisesRegex(thfw.PackageError, "unknown product"):
             thfw.build_package(fake_image(product=4), self.key)
-        with self.assertRaisesRegex(thfw.PackageError, "only a portal pack"):
-            thfw.build_package(thfw.DESCRIPTOR_MAGIC + bytes([1, 0, 6, 4, 0, 0, 0, 0]) + bytes(64), self.key)
 
     def test_cli_and_pubkey_header(self):
         with tempfile.TemporaryDirectory() as tmp:

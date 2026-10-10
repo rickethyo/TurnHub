@@ -876,3 +876,21 @@ rejects a changed game before dispatching the existing action handler.
 | Atlas | 105,388 B (32.2%) | 1,545,377 / 1,966,080 B (78.6%) |
 
 Sigil source is unchanged. SD pack: 17 files, 401 KB raw / 243 KB packed.
+
+### 2026-10-10 / Atlas 0.7.7-dev embedded administration
+
+PlatformIO Atlas build verified locally; no hardware acceptance claimed.
+The complete compressed admin portal (17 assets, 247,904 stored bytes) is
+embedded in the application, including Developer and signed maintenance pages.
+Portal archives, SD installer/serving, duplicated fallback pages and the retired
+browser QR script are removed. Existing partitions and OTA slots are unchanged.
+
+| Environment | Static RAM / 327,680 B | Flash / application partition |
+|---|---|---|
+| Atlas | 105,164 B (32.1%) | 1,728,329 / 1,966,080 B (87.9%) |
+
+Actual firmware.bin is 1,735,040 B, leaving 231,040 B in the OTA application
+slot. Packaging/verification of the complete image passed using a disposable
+test key, without signing a release or installing on hardware. Sigil firmware
+source is unchanged apart from the shared package product allowlist retiring
+product 4; its package regression now verifies refusal.

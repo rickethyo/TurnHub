@@ -1,15 +1,15 @@
-// Administration cutover, including the cardless page. Uses the real HTML/JS.
+// Embedded administration: identical assets with and without a card. Real HTML/JS.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 let chromium; try { ({ chromium } = require('playwright')); } catch { ({ chromium } = require('playwright-core')); }
 const root = path.resolve(__dirname, '../../..');
-const basic = fs.readFileSync(path.join(root, 'Atlas/src/web_pages.cpp'), 'utf8').match(/BASIC_PORTAL_HTML\[\].*?R"HTML\(([\s\S]*?)\)HTML";/)[1];
-const full = fs.readFileSync(path.join(root, 'Atlas/web/dist/site/index.html'), 'utf8');
+const source = require('./portal_source.cjs');
+const full = source.html;
 (async () => {
  const browser = await chromium.launch({headless:true, executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH || '/usr/bin/chromium'});
  try {
-  for (const [kind, html] of [['full', full], ['basic', basic]]) {
+  for (const [kind, html] of [['with-card', full], ['cardless', full]]) {
    const page = await browser.newPage({viewport:{width:390,height:844}});
    const errors=[], posts=[]; let permissions=1, initial=false, volume=2;
    page.on('pageerror',e=>errors.push(e.message));
@@ -32,7 +32,7 @@ const full = fs.readFileSync(path.join(root, 'Atlas/web/dist/site/index.html'), 
      case '/api/devices':data={atlas:{hardwareId:'TEST',firmware:'0.7.6'},devices:[{id:0,label:'Sigil 1',firmware:'test',hardwareId:'TEST',online:true}],pendingPairings:[]};break;
      case '/api/network':data={ssid:'TurnHub-Atlas',security:'WPA2',stations:1};break;
      case '/api/presence':data={verified:true,codeRequired:false,canRequest:true};break;
-     case '/api/portal':data={card:false,installed:false};break;
+     case '/api/portal':throw Error('Retired portal status must not be requested');
      case '/api/pairing':data={windowMs:60000,choicesMs:[15000,30000,60000]};break;
      case '/api/speaker':if(req.method()==='POST')volume=Number(url.searchParams.get('volume'));data={volume,max:3};break;
      case '/api/accounts':data={accounts:[{profileId:'ADMIN',name:'Admin',permissions:1,primary:true,hasPin:true}]};break;
@@ -44,14 +44,10 @@ const full = fs.readFileSync(path.join(root, 'Atlas/web/dist/site/index.html'), 
    await page.waitForFunction(()=>document.getElementById('speakerVolumeSelect')?.options.length || document.getElementById('volume')?.options.length);
    for(const name of ['Join table','Pass turn','Claim win','Concede','Tablet mode','Apply life change'])assert.equal(await page.getByRole('button',{name,exact:true}).count(),0);
    assert.equal(await page.locator('a[href="/tablet"],a[href="/stats"]').count(),0);
-   if(kind==='full'){
-    await page.selectOption('#speakerVolumeSelect','3');
-    await page.evaluate(()=>refreshAll());assert.equal(await page.inputValue('#speakerVolumeSelect'),'3');
-    assert.equal(posts.length,0,'Staging settings must not save');
-    await page.getByRole('button',{name:'Save Atlas settings',exact:true}).click();
-   }else{
-    await page.selectOption('#volume','3');await page.locator('#saveHw').click();
-   }
+   await page.selectOption('#speakerVolumeSelect','3');
+   await page.evaluate(()=>refreshAll());assert.equal(await page.inputValue('#speakerVolumeSelect'),'3');
+   assert.equal(posts.length,0,'Staging settings must not save');
+   await page.getByRole('button',{name:'Save Atlas settings',exact:true}).click();
    await page.waitForFunction(()=>document.body.innerText.includes('saved')||document.body.innerText.includes('Saved'));
    assert.equal(volume,3);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390,`${kind}: mobile overflow`);
@@ -61,9 +57,9 @@ const full = fs.readFileSync(path.join(root, 'Atlas/web/dist/site/index.html'), 
    }
    assert(posts.every(p=>!/^\/api\/(control|tablet)\//.test(p)),posts.join('\n'));
    permissions=0;await page.evaluate(()=>typeof refreshAll==='function'?refreshAll():load());
-   assert.equal(await page.locator(kind==='full'?'#main':'#adminContent').isVisible(),false);
+   assert.equal(await page.locator('#main').isVisible(),false);
    initial=true;await page.evaluate(()=>typeof refreshAll==='function'?refreshAll():load());
-   assert.equal(await page.locator(kind==='full'?'#setupWizard':'#bootstrap').isVisible(),true);
+   assert.equal(await page.locator('#setupWizard').isVisible(),true);
    assert.deepEqual(errors,[],`${kind}: JavaScript errors`);
    await page.close();console.log(`PASS ${kind} portal: admin access, staged hardware settings, bootstrap, no gameplay requests`);
   }

@@ -834,3 +834,44 @@ remains open. The prerequisite host fixture PR #79 is separately green.
   cutover/update acceptance remain owner checks; no hardware acceptance claimed.
 - Delivery: one draft review PR from `codex/master` to `master`, following
   AGENT_WORKFLOW; owner integration and physical cutover acceptance remain pending.
+
+### TH-013 follow-up: embed administration in Atlas firmware
+
+- Date / owner: 2026-10-10 / Codex; branch `codex/master`; baseline `9e57a04`.
+- Owner authorized folding the admin portal into Atlas firmware and retiring
+  separate portal packs. Continue draft PR #86 as the same app-first slice.
+- Scope: deterministic compressed assets generated from `Atlas/web/src` at
+  firmware build time, flash serving for every admin/Developer/update page,
+  removal of SD installer and independent pack signing/release/app updates.
+- Feature gate: Atlas remains the state/authorization owner; existing admin
+  APIs validate actions. Assets are disposable firmware presentation with no
+  new persisted state, gameplay Intent, radio contract or dependency. Retain
+  explicit saves, accessible controls, first-Admin bootstrap and Developer gates.
+- Validation and firmware size will be recorded after implementation. Physical
+  acceptance and owner integration remain pending.
+- Implemented: one deterministic compressed PROGMEM bundle from the web sources
+  in every Atlas build; flash serving for administration, login, Developer and
+  local Atlas/Sigil upload pages. No portal reads or uploads use the card.
+  Removed pack installer/archive/product 4, independent pack version/signing/
+  release assets and Android card/portal update planning. Retired duplicated
+  fallbacks and unused browser QR library; retained fonts/licenses in firmware.
+- Validation: Atlas PlatformIO build passed (0.7.7-dev): 105,164 B RAM,
+  1,728,329 B flash; actual image 1,735,040 B leaves 231,040 B in the OTA slot.
+  Complete-image packaging/verification passed with a disposable test key;
+  generated bundle matches firmware, reproduces exactly and all files decode.
+  Atlas ASan/UBSan application/storage/profile-store suites and separately
+  rebuilt OTA scenarios passed; real OTA page registration/gates are now linked
+  into the application host suite. Sigil ASan/UBSan suites passed, including
+  refusal of retired product 4. Leak detection disabled for runner restrictions.
+  215 Android unit tests (24 suites, zero failures/errors) and debug APK passed.
+  Chromium administration smokes passed explicit saves, unsaved choices,
+  ordinary/Admin access, bootstrap and 390px layout with/without a card;
+  maintenance smoke passed local upload/error handling, Sigil target selection,
+  Developer hardware controls and authenticated requests with no portal APIs.
+  HTTP contracts, adapter audit, tokens, manual export, workflow YAML and
+  whitespace checks passed. Manual V0.14 updated within this pending PR.
+- Delivery / next owner: extend draft PR #86 on `codex/master`; owner reviews
+  and performs physical firmware update, cardless admin/Developer maintenance
+  and bootstrap acceptance. No physical flashing, release signing/publication
+  or integration performed. Existing app-first physical acceptance remains in
+  STAGED_CHANGES; merge with a merge commit and retain the source branch.

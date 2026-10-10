@@ -3,8 +3,8 @@ name: TurnHub firmware release
 # Pushing a tag builds and signs .thfw OTA packages and publishes a GitHub
 # Release with the packages and the release feed the Android app reads
 # (Documentation/engineering/FIRMWARE_UPDATES.md, "Release feed"):
-#   v0.9.0         Atlas, the web portal pack and both Sigils
-#   atlas-v0.7.1   Atlas and the web portal pack only
+#   v0.9.0         Atlas (including its admin portal) and both Sigils
+#   atlas-v0.7.1   Atlas including its admin portal only
 #   sigil-v0.9.13  both Sigils only
 # The app reads the feed of the *latest* release, so a one-product release
 # carries the other products' packages and feed entries over unchanged from the
@@ -70,13 +70,6 @@ jobs:
           }
           if [ "$scope" != sigil ]; then
             build Atlas atlas atlas
-            # The web portal pack (WEB_PORTAL.md): in the feed as product
-            # "portal", so the app can install it; older apps skip the product.
-            python Atlas/web/build.py --out "$RUNNER_TEMP/portal.bin"
-            python tools/firmware/thfw.py package "$RUNNER_TEMP/portal.bin" \
-              --out "$out/portal.thfw" --expect-product portal --build-id "$GITHUB_SHA"
-            python tools/firmware/thfw.py verify "$out/portal.thfw"
-            mv "$out/portal.thfw" "$out/portal-$(cat Atlas/web/VERSION | tr -d '[:space:]').thfw"
           fi
           if [ "$scope" != atlas ]; then
             build Sigil sigil sigil-eink
@@ -84,7 +77,7 @@ jobs:
           fi
           if [ "$scope" != all ]; then
             # Carry the other products over from the previous latest release.
-            if [ "$scope" = atlas ]; then keep='sigil-eink-* sigil-oled-*'; else keep='atlas-* portal-*'; fi
+            if [ "$scope" = atlas ]; then keep='sigil-eink-* sigil-oled-*'; else keep='atlas-*'; fi
             prev="$RUNNER_TEMP/previous"
             mkdir -p "$prev"
             if ! gh release download --repo "$GITHUB_REPOSITORY" --dir "$prev" --pattern '*.thfw'; then
@@ -113,4 +106,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP"/release/* \
             --repo "$GITHUB_REPOSITORY" --title "TurnHub $GITHUB_REF_NAME" \
-            --notes "Signed firmware packages for Atlas and both Sigils, and the web portal pack (an atlas- or sigil-tagged release rebuilds only that product; the others are carried over unchanged from the release before). Install firmware from the TurnHub app or the Atlas portal, and the portal pack from the TurnHub app or the Atlas /update page."
+            --notes "Signed firmware packages for Atlas (including its admin portal) and both Sigils (an atlas- or sigil-tagged release rebuilds only that product; the others are carried over unchanged from the release before). Install firmware from the TurnHub app or the Atlas portal."

@@ -16,7 +16,7 @@
 #include "serial_log.h"
 #include "web_api_internal.h"
 #include "avatars.h"
-#include "sd_card.h"
+#include "web_pages.h"
 #include "atlas_battery.h"
 
 using TurnHub::serialLog;
@@ -910,29 +910,18 @@ void handleModerate(WebServer &server) {
 // Serves a permission-gated page. A plain navigation has no token header,
 // so it first gets a small loader that re-requests the page with the
 // browser's stored session token.
-namespace {
-bool servePackCopy(WebServer &server, const char *packFile) {
-  return packFile != nullptr && !server.hasArg("classic") &&
-         TurnHubAtlas::sdServePortalFile(server, packFile, "no-store");
-}
-}  // namespace
-
-void servePortalPage(WebServer &server, const char *packFile, const char *html) {
-  if (servePackCopy(server, packFile)) return;
-  server.sendHeader("Cache-Control", "no-store");
-  server.send_P(200, "text/html", html);
+void servePortalPage(WebServer &server, const char *file) {
+  if (!TurnHubWeb::serveFile(server, file)) server.send(404, "text/plain", "Not found");
 }
 
-void serveRestrictedPage(WebServer &server, const char *html, uint8_t permission, const char *packFile) {
+void serveRestrictedPage(WebServer &server, uint8_t permission, const char *file) {
   if (!server.header(internal::TOKEN_HEADER).length()) {
     server.sendHeader("Cache-Control", "no-store");
     server.send(200, "text/html", R"HTML(<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><p id="m">Checking account access…</p><a href="/portal">Back to portal</a><script>fetch(location.pathname+location.search,{headers:{'X-TurnHub-Token':localStorage.getItem('turnhubSessionToken')||''}}).then(async r=>{if(!r.ok)throw Error('Access denied. Sign in with the required account permission.');const t=await r.text();if(!localStorage.getItem('turnhubSessionToken'))throw Error('Sign in first.');document.open();document.write(t);document.close()}).catch(e=>document.getElementById('m').textContent=e.message)</script>)HTML");
     return;
   }
   if (!requirePermission(server, permission)) return;
-  if (servePackCopy(server, packFile)) return;
-  server.sendHeader("Cache-Control", "no-store");
-  server.send_P(200, "text/html", html);
+  servePortalPage(server, file);
 }
 
 }  // namespace TurnHubWebApi

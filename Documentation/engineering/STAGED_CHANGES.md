@@ -58,16 +58,15 @@ everything implemented. Only the checks listed below are still open.
   tablet play; retire browser gameplay, including the web tablet. Preserve the
   app's HTTP game APIs.
   Define app parity, initial-Admin bootstrap, diagnostics permissions,
-  cardless administration/update fallback and installed-pack cutover before
-  removal. [Feature parity audit](history/2026-10-09-portal-app-parity.md)
+  cardless administration/updates before removal. [Feature parity audit](history/2026-10-09-portal-app-parity.md)
   records existing app coverage and missing custom timer entry, multi-game
   selection, empty paired-Sigil attachment, invite QR generation and local
   event feedback settings. Hardware tests/local signed-package uploads remain
-  web-admin features. Implemented in the current TH-013 slice: administration-only SD/flash pages,
-  old-pack v2 floor, retired tablet/statistics routes, preserved bootstrap and
+  web-admin features. Implemented in the current TH-013 slice: administration-only embedded pages in Atlas 0.7.7-dev,
+  retired separate pack build/install/app/release flows, retired tablet/statistics routes, preserved bootstrap and
   signed maintenance, native game/session polling, custom timer entry, empty
   seat A attachment and app-install QR. Android unit tests/debug build, Atlas
-  host/firmware checks and both administration browser smokes pass; device
+  host/firmware checks and administration browser checks with/without a card pass; device
   acceptance remains pending; native event-feedback preferences/background decision alert remain open.
 - **Password hashing:** parked, see "Parked: storage batch" below.
 - **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
@@ -98,7 +97,7 @@ everything implemented. Only the checks listed below are still open.
 - **App and portal screenshot tests:** golden images of the Android screens
   in every theme (Roborazzi or Paparazzi on the JVM) next to the portal
   renders.
-- **Portal theme packs** from the card; built-in themes stay in the pack.
+- **Portal theme packs** from the card; built-in themes stay in firmware.
 - **HTTPS on Atlas:** revisit administration transport after the app-first cutover; native tablet wake/immersive behavior does not depend on portal HTTPS.
 
 - **Tablet mode, later rounds** (round one, 2026-10-06: Atlas grant and

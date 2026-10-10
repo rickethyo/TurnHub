@@ -23,13 +23,12 @@ constexpr size_t BUILD_ID_BYTES = 8;
 constexpr uint8_t HEADER_FORMAT = 1;
 constexpr size_t SIGNED_BYTES = 64;      // The header bytes the signature covers.
 
-// Portal is the Atlas web portal pack (Atlas/web): not a firmware image but a
-// signed file archive that Atlas unpacks onto its SD card (WEB_PORTAL.md).
-enum class Product : uint8_t { Atlas = 1, SigilEink = 2, SigilOled = 3, Portal = 4 };
+// Product 4 (retired SD portal archive) is no longer accepted.
+enum class Product : uint8_t { Atlas = 1, SigilEink = 2, SigilOled = 3 };
 
 inline bool knownProduct(uint8_t product) {
   return product >= static_cast<uint8_t>(Product::Atlas) &&
-      product <= static_cast<uint8_t>(Product::Portal);
+      product <= static_cast<uint8_t>(Product::SigilOled);
 }
 
 struct Version {

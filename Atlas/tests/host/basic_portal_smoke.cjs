@@ -1,2 +1,2 @@
-// The combined smoke covers the full pack and cardless administration.
+// The full embedded portal also works without a card.
 require('./portal_smoke.cjs');
