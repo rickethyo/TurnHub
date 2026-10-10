@@ -406,6 +406,8 @@ class MainActivity : ComponentActivity() {
                             onRequestLife = homeViewModel::onRequestLife,
                             onRespondLife = homeViewModel::onRespondLife,
                             onCommanderDamage = homeViewModel::onCommanderDamage,
+                            onPlayerCounter = homeViewModel::onPlayerCounter,
+                            onEliminationRule = homeViewModel::onEliminationRule,
                             onSaveGameSettings = homeViewModel::onSaveGameSettings,
                             onSetZeroLifeElimination = homeViewModel::onSetZeroLifeElimination,
                         ),

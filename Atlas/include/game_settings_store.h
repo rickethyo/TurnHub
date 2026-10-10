@@ -8,12 +8,13 @@ TurnHubStorage::Status loadGameSettings(GameSettings &settings);
 TurnHubStorage::Status saveGameSettings(const GameSettings &settings);
 
 // "gamecfg" little-endian image. Schema 1: {1, profile, life[4]} (timer OFF).
-// Schema 2 appends turnTimerMs[4]. Writes always use schema 2. The profile
+// Schema 2 appends turnTimerMs[4]. Schema 3 adds loss flags and poisonLimit. Writes use schema 3. The profile
 // byte's top bit is Two-Headed Giant (PROFILE_BYTE_TEAMS); bit 0x40 disables
 // automatic zero-life elimination.
 constexpr char GAME_SETTINGS_KEY[] = "gamecfg";
 constexpr size_t GAME_SETTINGS_V1_SIZE = 6;
 constexpr size_t GAME_SETTINGS_V2_SIZE = 10;
+constexpr size_t GAME_SETTINGS_V3_SIZE = 15;
 
 inline uint32_t readLe32(const uint8_t *data) {
   return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
@@ -27,25 +28,32 @@ inline void writeLe32(uint8_t *data, uint32_t value) {
 inline TurnHubStorage::Status readGameSettings(TurnHubStorage::BlobStore &store, GameSettings &settings) {
   using TurnHubStorage::Status;
   const auto validSize = [](size_t size) {
-    return size == GAME_SETTINGS_V1_SIZE || size == GAME_SETTINGS_V2_SIZE;
+    return size == GAME_SETTINGS_V1_SIZE || size == GAME_SETTINGS_V2_SIZE || size == GAME_SETTINGS_V3_SIZE;
   };
   size_t size = 0;
   Status status = store.read(GAME_SETTINGS_KEY, nullptr, 0, size);
   if (status != Status::Ok) return status;
   if (!validSize(size)) return Status::Corrupt;
-  uint8_t data[GAME_SETTINGS_V2_SIZE] = {};
+  uint8_t data[GAME_SETTINGS_V3_SIZE] = {};
   status = store.read(GAME_SETTINGS_KEY, data, sizeof(data), size);
   if (status != Status::Ok) return status;
   if (!validSize(size)) return Status::Corrupt;
-  if (data[0] != 1 && data[0] != 2) return Status::UnsupportedSchema;
-  if (size != (data[0] == 1 ? GAME_SETTINGS_V1_SIZE : GAME_SETTINGS_V2_SIZE)) return Status::Corrupt;
+  if (data[0] != 1 && data[0] != 2 && data[0] != 3) return Status::UnsupportedSchema;
+  if (size != (data[0] == 1 ? GAME_SETTINGS_V1_SIZE : data[0] == 2 ? GAME_SETTINGS_V2_SIZE : GAME_SETTINGS_V3_SIZE)) return Status::Corrupt;
 
   GameSettings value;
   readProfileByte(data[1], value);
   const uint32_t life = readLe32(data + 2);
   if (life > static_cast<uint32_t>(LIFE_LIMIT)) return Status::Corrupt;
   value.startingLife = static_cast<int32_t>(life);
-  value.turnTimerMs = data[0] == 2 ? readLe32(data + 6) : TURN_TIMER_OFF;
+  value.turnTimerMs = data[0] >= 2 ? readLe32(data + 6) : TURN_TIMER_OFF;
+  value.poisonLimit = value.twoHeadedGiant ? 15 : 10;
+  if (data[0] == 3) {
+    if (data[10] > 3) return Status::Corrupt;
+    value.autoEliminateAtPoisonLimit = data[10] & 1;
+    value.autoEliminateAtCommanderDamage = data[10] & 2;
+    value.poisonLimit = static_cast<int32_t>(readLe32(data + 11));
+  }
   if (!validGameSettings(value)) return Status::Corrupt;
   settings = value;
   return Status::Ok;
@@ -60,9 +68,11 @@ inline TurnHubStorage::Status writeGameSettings(TurnHubStorage::BlobStore &store
   if (status != Status::Ok && status != Status::NotFound) return status;
   if (status == Status::Ok && sameGameSettings(old, settings)) return Status::Ok;
 
-  uint8_t data[GAME_SETTINGS_V2_SIZE] = {2, profileByte(settings)};
+  uint8_t data[GAME_SETTINGS_V3_SIZE] = {3, profileByte(settings)};
   writeLe32(data + 2, static_cast<uint32_t>(settings.startingLife));
   writeLe32(data + 6, settings.turnTimerMs);
+  data[10] = (settings.autoEliminateAtPoisonLimit ? 1 : 0) | (settings.autoEliminateAtCommanderDamage ? 2 : 0);
+  writeLe32(data + 11, settings.poisonLimit);
   return store.write(GAME_SETTINGS_KEY, data, sizeof(data));
 }
 

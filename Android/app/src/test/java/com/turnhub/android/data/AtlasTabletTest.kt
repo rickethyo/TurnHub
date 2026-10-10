@@ -72,6 +72,28 @@ class AtlasTabletTest {
     }
 
     @Test
+    fun `Magic counters and live rules retain seat and game scope`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        val seat = TabletSeat(9, 1)
+        tablet.inGame(2) {
+            counter(seat, "commander-casts", 1, 2)
+            assertEquals("/api/tablet/counter", atlas.posts.last().first)
+            assertEquals("2", atlas.posts.last().second["expectedGame"])
+            assertEquals("9", atlas.posts.last().second["module"])
+            assertEquals("2", atlas.posts.last().second["commander"])
+            assertEquals("1", atlas.posts.last().second["delta"])
+            counter(seat, "initiative", 1)
+            assertEquals("1", atlas.posts.last().second["value"])
+            assertNull(atlas.posts.last().second["delta"])
+            setEliminationRule(seat, "poisonLimit", 17)
+            assertEquals("/api/tablet/settings", atlas.posts.last().first)
+            assertEquals("17", atlas.posts.last().second["poisonLimit"])
+            assertEquals("2", atlas.posts.last().second["expectedGame"])
+        }
+    }
+
+    @Test
     fun `the code from Atlas turns this session into the tablet`() = runTest {
         val atlas = TabletAtlas()
         val (session, tablet) = signedIn(atlas)

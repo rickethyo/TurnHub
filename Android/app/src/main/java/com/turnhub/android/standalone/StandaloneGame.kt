@@ -4,6 +4,7 @@ import com.turnhub.android.domain.ControllerHandle
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.CommanderDamage
+import com.turnhub.android.protocol.PlayerCounters
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.PendingDecisions
 import com.turnhub.android.protocol.TableSettings
@@ -23,6 +24,7 @@ data class LocalPlayer(
     val life: Int = 0,
     val eliminated: Boolean = false,
     val conceded: Boolean = false,
+    val counters: PlayerCounters = PlayerCounters(),
     /** 1 for the first player out, 2 for the next, and so on. */
     val outOrder: Int? = null,
     val turnsCompleted: Int = 0,
@@ -52,6 +54,9 @@ data class StandaloneGame(
     val profile: GameProfile = GameProfile.MTG_COMMANDER,
     val startingLife: Int = 40,
     val autoEliminateAtZeroLife: Boolean = true,
+    val autoEliminateAtPoisonLimit: Boolean = true,
+    val autoEliminateAtCommanderDamage: Boolean = true,
+    val poisonLimit: Int = 10,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -59,6 +64,7 @@ data class StandaloneGame(
     val winner: Int? = null,
     /** One individual player, even when teams share life. */
     val monarch: Int? = null,
+    val initiative: Int? = null,
     /** Wall clock when the match started. */
     val startedAtMs: Long = 0,
     /** Game time banked before [runningSinceMs]. */
@@ -123,6 +129,7 @@ data class StandaloneGame(
             starter = first,
             winner = null,
             monarch = null,
+            initiative = null,
             startedAtMs = nowMs,
             elapsedMs = 0,
             runningSinceMs = nowMs,
@@ -137,6 +144,9 @@ data class StandaloneGame(
             profile = profile,
             startingLife = startingLife,
             autoEliminateAtZeroLife = autoEliminateAtZeroLife,
+            autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit,
+            autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage,
+            poisonLimit = poisonLimit,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
@@ -174,7 +184,7 @@ data class StandaloneGame(
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || delta == 0) return this
         val life = (player.life.toLong() + delta).coerceIn(-MAX_LIFE.toLong(), MAX_LIFE.toLong()).toInt()
-        return update(index) { it.copy(life = life) }.resolveZeroLife(nowMs)
+        return update(index) { it.copy(life = life) }.resolveEliminationRules(nowMs)
     }
 
     /**
@@ -183,14 +193,14 @@ data class StandaloneGame(
      */
     fun commanderDamage(index: Int, source: Int, commander: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (!playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
+        if (profile != GameProfile.MTG_COMMANDER || !playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
         val totals = player.commanderDamage[source] ?: listOf(0, 0)
         val now = totals[commander - 1]
         val next = (now + delta).coerceIn(0, MAX_LIFE)
         val applied = next - now
         if (applied == 0) return this
         val updated = totals.toMutableList().also { it[commander - 1] = next }
-        return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated), life = it.life - applied) }.resolveZeroLife(nowMs)
+        return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated), life = it.life - applied) }.resolveEliminationRules(nowMs)
     }
 
     /** The player leaves the game; when one is left standing, they win. */
@@ -200,6 +210,52 @@ data class StandaloneGame(
         return copy(monarch = index).bump()
     }
 
+    fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
+        val player = players.getOrNull(index) ?: return this
+        if (!playing || player.eliminated || (profile != GameProfile.MTG && profile != GameProfile.MTG_COMMANDER)) return this
+        if (kind == "initiative") {
+            if (value !in 0..1 || (value == 0 && initiative != index)) return this
+            return copy(initiative = if (value == 1) index else null).bump()
+        }
+        val c = player.counters
+        if (kind == "city-blessing") {
+            if (value !in 0..1) return this
+            return update(index) { it.copy(counters = c.copy(cityBlessing = value == 1)) }
+        }
+        if (value == 0 || value !in -MAX_LIFE..MAX_LIFE) return this
+        val old = when (kind) {
+            "poison" -> c.poison
+            "energy" -> c.energy
+            "experience" -> c.experience
+            "commander-casts" -> {
+                if (profile != GameProfile.MTG_COMMANDER || commander !in 1..2) return this
+                c.commanderCasts[commander-1]
+            }
+            else -> return this
+        }
+        val next = old + value
+        if (next !in 0..MAX_LIFE) return this
+        val updated = when (kind) {
+            "poison" -> c.copy(poison = next)
+            "energy" -> c.copy(energy = next)
+            "experience" -> c.copy(experience = next)
+            else -> c.copy(commanderCasts = c.commanderCasts.toMutableList().also { it[commander-1] = next })
+        }
+        return update(index) { it.copy(counters = updated) }.resolveEliminationRules(nowMs)
+    }
+
+    fun setEliminationRule(field: String, value: Int, nowMs: Long): StandaloneGame {
+        if (state == TableState.GAME_OVER || (field != "poisonLimit" && value !in 0..1)) return this
+        val next = when (field) {
+            "autoEliminateAtZeroLife" -> copy(autoEliminateAtZeroLife = value == 1)
+            "autoEliminateAtPoisonLimit" -> copy(autoEliminateAtPoisonLimit = value == 1)
+            "autoEliminateAtCommanderDamage" -> copy(autoEliminateAtCommanderDamage = value == 1)
+            "poisonLimit" -> if (value in 1..MAX_LIFE) copy(poisonLimit = value) else return this
+            else -> return this
+        }
+        return next.bump().resolveEliminationRules(nowMs)
+    }
+
     fun concede(index: Int, nowMs: Long): StandaloneGame = eliminate(index, nowMs, conceded = true)
 
     fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false): StandaloneGame {
@@ -207,7 +263,7 @@ data class StandaloneGame(
         if (!playing || player.eliminated) return this
         val out = players.count { it.eliminated } + 1
         var game = update(index) { it.copy(eliminated = true, conceded = conceded, outOrder = out) }
-            .let { if (it.monarch == index) it.copy(monarch = null) else it }
+            .let { it.copy(monarch = it.monarch?.takeUnless { n -> n == index }, initiative = it.initiative?.takeUnless { n -> n == index }) }
         val standing = game.players.indices.filter { !game.players[it].eliminated }
         if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
         if (active == index) {
@@ -219,15 +275,20 @@ data class StandaloneGame(
 
     fun setAutoEliminateAtZeroLife(enabled: Boolean, nowMs: Long): StandaloneGame {
         if (state == TableState.GAME_OVER) return this
-        return copy(autoEliminateAtZeroLife = enabled).bump().resolveZeroLife(nowMs)
+        return copy(autoEliminateAtZeroLife = enabled).bump().resolveEliminationRules(nowMs)
     }
 
-    private fun resolveZeroLife(nowMs: Long): StandaloneGame {
-        if (!playing || !autoEliminateAtZeroLife) return this
-        val targets = players.indices.filter { !players[it].eliminated && players[it].life <= 0 }
+    private fun resolveEliminationRules(nowMs: Long): StandaloneGame {
+        if (!playing) return this
+        val targets = players.indices.filter { i ->
+            val p = players[i]
+            !p.eliminated && ((autoEliminateAtZeroLife && p.life <= 0) ||
+                ((profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER) && autoEliminateAtPoisonLimit && p.counters.poison >= poisonLimit) ||
+                (profile == GameProfile.MTG_COMMANDER && autoEliminateAtCommanderDamage && p.commanderDamage.values.any { damage -> damage.any { it >= 21 } }))
+        }
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
-        var game = copy(monarch = monarch?.takeUnless { it in targets }, players = players.mapIndexed { i, p ->
+        var game = copy(monarch = monarch?.takeUnless { it in targets }, initiative = initiative?.takeUnless { it in targets }, players = players.mapIndexed { i, p ->
             if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
         }).bump()
         val standing = game.players.indices.filter { !game.players[it].eliminated }
@@ -313,12 +374,14 @@ data class StandaloneGame(
             firmwareVersion = "",
             revision = revision,
             state = state,
-            settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife),
+            settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife,
+                autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
             winnerPlayerNumber = winner?.plus(1),
             monarchPlayerNumber = monarch?.plus(1),
+            initiativePlayerNumber = initiative?.plus(1),
             pending = PendingDecisions(null, 0, null, null, null),
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),
@@ -334,6 +397,7 @@ data class StandaloneGame(
                     participantId = (i + 1).toLong(),
                     eliminated = p.eliminated,
                     conceded = p.conceded,
+                    counters = p.counters,
                     life = if (state == TableState.LOBBY) null else p.life,
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },

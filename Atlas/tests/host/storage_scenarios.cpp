@@ -327,11 +327,12 @@ void gameSettingsRecords() {
   for (uint8_t profile=0;profile<4;++profile) for(int32_t life : {0,27,1000000})
       for(uint32_t timer : {TURN_TIMER_OFF,TURN_TIMER_MIN_MS,120000u,TURN_TIMER_MAX_MS}) {
     settings.profile=static_cast<GameProfile>(profile);settings.startingLife=life;settings.turnTimerMs=timer;
+    settings.autoEliminateAtPoisonLimit = profile & 1; settings.autoEliminateAtCommanderDamage = profile & 2; settings.poisonLimit = 17;
     assert(writeGameSettings(store,settings)==Status::Ok);
-    assert(FakeNvs::blobs["gamecfg"].size()==10 && FakeNvs::blobs["gamecfg"][0]==2);
+    assert(FakeNvs::blobs["gamecfg"].size()==15 && FakeNvs::blobs["gamecfg"][0]==3);
     NvsBlobStore reopened;assert(reopened.begin("turnhub")==Status::Ok);
     GameSettings again;assert(readGameSettings(reopened,again)==Status::Ok);
-    assert(again.profile==settings.profile && again.startingLife==life && again.turnTimerMs==timer);
+    assert(sameGameSettings(again,settings));
     const int before=FakeNvs::writes;
     assert(writeGameSettings(reopened,settings)==Status::Ok && FakeNvs::writes==before);
   }
@@ -347,10 +348,10 @@ void gameSettingsRecords() {
     {settings.turnTimerMs=timer;assert(writeGameSettings(store,settings)==Status::InvalidArgument);}
   for(const auto &bytes : {std::vector<uint8_t>{}, {1,0,20}, {1,0,20,0,0,0,0},
       {1,4,20,0,0,0}, {1,0,0xff,0xff,0xff,0xff}, {2,0,20,0,0,0}, {1,0,20,0,0,0,0,0,0,0},
-      {2,0,20,0,0,0,0xe8,0x03,0,0}, {3,0,20,0,0,0}}) {
+      {2,0,20,0,0,0,0xe8,0x03,0,0}, {99,0,20,0,0,0}}) {
     FakeNvs::blobs["gamecfg"]=bytes;
     settings=GameSettings{};
-    const Status expected=bytes.size()==6&&bytes[0]==3?Status::UnsupportedSchema:Status::Corrupt;
+    const Status expected=bytes.size()==6&&bytes[0]==99?Status::UnsupportedSchema:Status::Corrupt;
     const int before=FakeNvs::writes;
     assert(readGameSettings(store,settings)==expected && settings.startingLife==40);
     assert(writeGameSettings(store,settings)==expected && FakeNvs::writes==before);

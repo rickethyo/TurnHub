@@ -259,15 +259,15 @@ String clientSnapshot(const String &atlasId, const char *bootId) {
   return json;
 }
 
-// Application domain phase: settle zero-life outcomes before projecting or saving.
+// Application domain phase: settle automatic loss outcomes before projecting or saving.
 void finalizeGameRules(const Intent &intent) {
   if (intent.type == IntentType::ExpireLifeChanges && !table().clientState.expirationDue(millis())) return;
   if (table().eliminationTargetPlayer) return;
   bool wasOut[MAX_PLAYERS]{};
   for (uint8_t i=0;i<table().game.playerCount();++i)
     wasOut[i] = table().game.isEliminated(table().game.playerAt(i)->playerNumber);
-  if (!table().game.resolveZeroLife(millis())) return;
-  clearPendingPass("ZERO_LIFE");
+  if (!table().game.resolveEliminationRules(millis())) return;
+  clearPendingPass("AUTO_ELIMINATION");
   for (uint8_t i=0;i<table().game.playerCount();++i) {
     const auto *seat = table().game.playerAt(i);
     if (!wasOut[i] && table().game.isEliminated(seat->playerNumber)) audio.playerEliminated(seat->controllerId);

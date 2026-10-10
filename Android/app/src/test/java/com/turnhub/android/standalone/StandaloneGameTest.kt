@@ -27,6 +27,63 @@ class StandaloneGameTest {
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
 
     @Test
+    fun `poison and commander damage rules are independent and live`() {
+        var game = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+        val poisoned = game.changeCounter(0, "poison", 10, nowMs = 2_000)
+        assertTrue(poisoned.players[0].eliminated)
+        assertEquals(40, poisoned.players[0].life)
+        game = game.setEliminationRule("autoEliminateAtPoisonLimit", 0, 1_000).changeCounter(0, "poison", 12)
+        assertTrue(!game.players[0].eliminated)
+        assertTrue(game.togglePause(2_000).setEliminationRule("autoEliminateAtPoisonLimit", 1, 3_000).players[0].eliminated)
+        val custom = threePlayers().setEliminationRule("poisonLimit", 20, 1_000).changeCounter(0, "poison", 19)
+        assertTrue(!custom.players[0].eliminated)
+        assertTrue(custom.setEliminationRule("poisonLimit", 19, 2_000).players[0].eliminated)
+        val damage = threePlayers().setAutoEliminateAtZeroLife(false, 1_000)
+            .commanderDamage(0, 1, 1, 20).commanderDamage(0, 1, 2, 20).commanderDamage(0, 2, 1, 20)
+        assertTrue(!damage.players[0].eliminated) // Never pool sources or partners.
+        assertTrue(damage.commanderDamage(0, 1, 2, 1).players[0].eliminated)
+        val protected = threePlayers().setEliminationRule("autoEliminateAtCommanderDamage", 0, 1_000).commanderDamage(0, 1, 1, 21)
+        assertTrue(!protected.players[0].eliminated)
+        assertTrue(protected.setEliminationRule("autoEliminateAtCommanderDamage", 1, 2_000).players[0].eliminated)
+    }
+
+    @Test
+    fun `statuses transfer independently and counters tax and rules survive recovery`() {
+        val game = threePlayers().claimMonarch(0).changeCounter(1, "initiative", 1).changeCounter(2, "initiative", 1)
+            .changeCounter(0, "city-blessing", 1).changeCounter(1, "city-blessing", 1)
+            .changeCounter(0, "energy", 4).changeCounter(0, "energy", -1).changeCounter(0, "experience", 2)
+            .changeCounter(0, "commander-casts", 2, 1).changeCounter(0, "commander-casts", 1, 2)
+            .setEliminationRule("poisonLimit", 17, 1_000).setEliminationRule("autoEliminateAtCommanderDamage", 0, 1_000)
+        assertEquals(0, game.monarch)
+        assertEquals(2, game.initiative)
+        assertTrue(game.players[0].counters.cityBlessing && game.players[1].counters.cityBlessing)
+        assertEquals(4, game.players[0].counters.commanderTax(1))
+        assertEquals(2, game.players[0].counters.commanderTax(2))
+        val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
+        assertEquals(game, restored)
+        assertEquals(game.players[0].counters, restored.toSummary(2_000, 2_000).players[0].counters)
+        assertNull(restored.concede(2, 2_000).initiative)
+        val reset = game.reset()
+        assertNull(reset.initiative)
+        assertEquals(com.turnhub.android.protocol.PlayerCounters(), reset.players[0].counters)
+        assertEquals(17, reset.poisonLimit)
+    }
+
+    @Test
+    fun `counter corrections reject negative overflow format and inactive seats`() {
+        val game = threePlayers()
+        assertSame(game, game.changeCounter(0, "energy", -1))
+        assertSame(game, game.changeCounter(0, "poison", Int.MAX_VALUE))
+        assertSame(game, game.changeCounter(0, "commander-casts", 1, 3))
+        assertSame(game, game.changeCounter(0, "city-blessing", 2))
+        assertSame(game, game.setEliminationRule("poisonLimit", 0, 2_000))
+        val out = game.eliminate(0, 2_000)
+        assertSame(out, out.changeCounter(0, "experience", 1))
+        val generic = game.reset().setFormat(GameProfile.GENERIC).start(3_000, "g2", firstSeat)
+        assertSame(generic, generic.changeCounter(0, "initiative", 1))
+    }
+
+    @Test
     fun `monarch transfers to one living player and survives pause and storage`() {
         val game = threePlayers().claimMonarch(0).claimMonarch(1).togglePause(2_000)
         assertEquals(1, game.monarch)

@@ -242,6 +242,7 @@ const Route ROUTES[] = {
   {"/api/control/life/request", HTTP_POST, counterRoute<TurnHub::IntentType::RequestLifeChange>},
   {"/api/control/life/respond", HTTP_POST, counterRoute<TurnHub::IntentType::RespondLifeChange>},
   {"/api/control/commander", HTTP_POST, counterRoute<TurnHub::IntentType::ChangeCounter>},
+  {"/api/control/counter", HTTP_POST, counterRoute<TurnHub::IntentType::ChangeCounter>},
 
   // Session controls.
   {"/api/control/pass", HTTP_POST, controlRoute<WebControl::Pass>},
@@ -269,6 +270,7 @@ const Route ROUTES[] = {
   {"/api/tablet/settings", HTTP_POST, handleTabletSettings},
   {"/api/tablet/life/respond", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::RespondLifeChange>},
   {"/api/tablet/commander", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},
+  {"/api/tablet/counter", HTTP_POST, tabletCounterRoute<TurnHub::IntentType::ChangeCounter>},
 };
 
 const Route *findRoute(HTTPMethod method, const String &uri) {

@@ -1051,7 +1051,7 @@ static void lifeApprovalsAndCommander() {
   assert(request("/api/session/join",first)==200);
   assert(request("/api/session/join",second)==200);
   assert(request("/api/session/join",third)==200);
-  assert(request("/api/game/settings",first,{{"gameProfile","mtg_commander"},{"startingLife","40"},{"autoEliminateAtZeroLife","0"}})==200);
+  assert(request("/api/game/settings",first,{{"gameProfile","mtg_commander"},{"startingLife","40"},{"autoEliminateAtZeroLife","0"},{"autoEliminateAtCommanderDamage","0"}})==200);
   assert(request("/api/control/life/request",first,{{"target","2"},{"delta","-7"}})==409);
   assert(request("/api/control/start",first)==200);
   testNow+=3000;updateCountdown(testNow);
@@ -1129,7 +1129,7 @@ static void lifeApprovalsAndCommander() {
   assert(server.body.find("Cannot remove more Commander damage") != std::string::npos);
   assert(table().game.commanderDamage(2,1,1)==0&&table().game.lifeTotal(2)==39);
   assert(damage(second,1,1,21)==200&&table().game.commanderDamage(2,1,1)==21&&table().game.lifeTotal(2)==18);
-  assert(!table().game.isEliminated(2)); // No automatic rules adjudication.
+  assert(!table().game.isEliminated(2)); // This scenario explicitly disables Commander-loss adjudication.
   assert(damage(companion,1,2,3)==200&&table().game.commanderDamage(2,1,2)==3&&table().game.lifeTotal(2)==15);
   assert(damage(second,3,1,5)==200&&table().game.commanderDamage(2,3,1)==5&&table().game.lifeTotal(2)==10);
   assert(table().game.lifeTotal(1)==40); // Forged target ignored: received damage belongs to caller.
@@ -3484,6 +3484,9 @@ static void tabletMode() {
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","move-later"}})==409);
   assert(request("/api/tablet/control",tablet,{{"module",m1},{"slot","1"},{"action","monarch"}})==200 && table().game.monarchPlayerNumber()==1);
   assert(request("/api/tablet/control",tablet,{{"module",m2},{"slot","1"},{"action","monarch"}})==200 && table().game.monarchPlayerNumber()==2);
+  assert(request("/api/tablet/counter",tablet,{{"module",m1},{"slot","1"},{"counter","poison"},{"delta","2"}})==200 && table().game.countersForPlayer(1)->poison==2);
+  assert(request("/api/tablet/counter",tablet,{{"module",m2},{"slot","1"},{"counter","initiative"},{"value","1"}})==200 && table().game.initiativePlayerNumber()==2);
+  assert(request("/api/tablet/counter",tablet,{{"module",m1},{"slot","1"},{"counter","commander-casts"},{"commander","2"},{"delta","1"}})==200 && table().game.countersForPlayer(1)->commanderCasts[1]==1);
   assert(String(table().game.playerAt(0)->profileId)==avaId && String(table().game.playerAt(1)->profileId)==benId);
 
   // Each panel changes its own seat's life and records damage it received.
@@ -4531,6 +4534,65 @@ static void powerSource() {
   assert(seen>0 && cold.source()==PowerSource::Usb);
 }
 
+static void magicCountersAndRules() {
+  using namespace TurnHub;
+  enterEmptyLobby(); fixtureRadio=false;
+  String aId,bId,cId;
+  const String a=registerPhone("Magic one",aId), b=registerPhone("Magic two",bId), c=registerPhone("Magic three",cId);
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/join",*token)==200);
+  auto counter = [&](const String &token, const char *kind, int value, int commander=1) {
+    return request("/api/control/counter",token,{{"counter",kind},{"delta",String(value)},{"value",String(value)},{"commander",String(commander)},{"target","3"}});
+  };
+  assert(counter(a,"energy",1)==409 && counter("","poison",1)==401);
+  assert(request("/api/game/settings",a,{{"gameProfile","mtg_commander"},{"startingLife","40"},{"twoHeadedGiant","0"},
+      {"autoEliminateAtZeroLife","0"},{"autoEliminateAtPoisonLimit","1"},{"autoEliminateAtCommanderDamage","1"},{"poisonLimit","10"}})==200);
+  assert(request("/api/control/start",a)==200); testNow+=3000; updateCountdown(testNow);
+  assert(counter(a,"fly",1)==400 && counter(a,"energy",-1)==409 && counter(a,"city-blessing",2)==400);
+  assert(counter(a,"commander-casts",1,3)==400);
+  assert(counter(a,"energy",5)==200 && counter(a,"energy",-2)==200);
+  assert(counter(a,"experience",7)==200 && table().game.countersForPlayer(1)->energy==3 && table().game.countersForPlayer(3)->experience==0);
+  assert(counter(a,"commander-casts",2,1)==200 && counter(a,"commander-casts",1,2)==200);
+  assert(table().game.countersForPlayer(1)->commanderCasts[0]==2 && table().game.countersForPlayer(1)->commanderCasts[1]==1);
+  assert(request("/api/control/monarch",c)==200);
+  assert(counter(a,"initiative",1)==200 && counter(b,"initiative",1)==200 && table().game.initiativePlayerNumber()==2 && table().game.monarchPlayerNumber()==3);
+  assert(counter(a,"city-blessing",1)==200 && counter(b,"city-blessing",1)==200);
+  assert(request("/api/control/pause",a)==200 && counter(a,"energy",1)==200);
+  assert(request("/api/game/settings",a,{{"autoEliminateAtPoisonLimit","0"},{"autoEliminateAtCommanderDamage","0"},{"poisonLimit","17"}})==200);
+  assert(request("/api/game/settings",a,{{"poisonLimit","0"}})==400);
+  assert(request("/api/game/settings",a,{{"autoEliminateAtCommanderDamage","yes"}})==400);
+  assert(counter(a,"poison",16)==200 && !table().game.isEliminated(1));
+  GameCheckpoint saved; table().game.checkpoint(saved,testNow); uint8_t bytes[GAME_CHECKPOINT_CAPACITY];
+  const size_t size=encodeCheckpoint(saved,bytes,sizeof(bytes)); assert(size && decodeCheckpoint(bytes,size,saved)==TurnHubStorage::Status::Ok);
+  GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow));
+  assert(restored.initiativePlayerNumber()==2 && restored.monarchPlayerNumber()==3 && restored.countersForPlayer(1)->energy==4);
+  assert(restored.countersForPlayer(1)->commanderCasts[1]==1 && restored.countersForPlayer(1)->cityBlessing && restored.hasPartner(1));
+  assert(!restored.settings().autoEliminateAtCommanderDamage && restored.settings().poisonLimit==17);
+  saved.counters[0].poison=-1; assert(!validCheckpoint(saved)); saved.counters[0].poison=16;
+  assert(request("/api/v1/state",a,{},HTTP_GET)==200 && server.body.find("\"initiativePlayer\":2")!=std::string::npos && server.body.find("\"commanderCasts\":[2,1]")!=std::string::npos);
+  assert(request("/api/game/settings",a,{{"autoEliminateAtPoisonLimit","1"},{"poisonLimit","16"}})==200 && table().game.isEliminated(1));
+  assert(counter(a,"energy",1)==409);
+  assert(request("/api/control/commander",b,{{"source","3"},{"commander","1"},{"delta","20"}})==200);
+  assert(request("/api/control/commander",b,{{"source","3"},{"commander","2"},{"delta","20"}})==200 && !table().game.isEliminated(2));
+  assert(request("/api/control/commander",b,{{"source","3"},{"commander","2"},{"delta","1"}})==200 && !table().game.isEliminated(2));
+  assert(request("/api/game/settings",c,{{"autoEliminateAtCommanderDamage","1"}})==200 && table().game.isEliminated(2));
+  assert(table().hubState==HubState::GameOver && table().game.winnerPlayerNumber()==3 && table().game.initiativePlayerNumber()==0);
+  assert(counter(c,"initiative",1)==409);
+  enterEmptyLobby();
+  for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
+  for (const String *id : {&aId,&bId,&cId}) { ProfileFixture::profiles.erase(id->c_str()); TurnHubAccounts::accounts.erase(id->c_str()); }
+  table().nextGameSettings=GameSettings{};
+  PlayerSeat seats[4]; for (uint8_t i=0;i<4;++i) { seats[i].playerNumber=i+1; seats[i].controllerId=i; seats[i].slot=1; }
+  GameEngine engine; GameSettings settings; settings.profile=GameProfile::Magic; settings.twoHeadedGiant=true; settings.poisonLimit=15;
+  assert(engine.start(seats,4,seats[0],testNow,settings));
+  assert(engine.changePlayerCounter(1,CounterKind::Poison,14) && engine.countersForPlayer(2)->poison==14);
+  assert(!engine.resolveEliminationRules(testNow));
+  assert(engine.changePlayerCounter(2,CounterKind::Poison,1) && engine.resolveEliminationRules(testNow));
+  assert(engine.isEliminated(1) && engine.isEliminated(2) && engine.isWinner(3));
+  settings.twoHeadedGiant=false; assert(engine.start(seats,4,seats[0],testNow,settings) && engine.countersForPlayer(1)->poison==0);
+  assert(engine.initiativePlayerNumber()==0 && !engine.changePlayerCounter(1,CounterKind::CommanderCast,1));
+  settings.profile=GameProfile::Generic; assert(engine.start(seats,4,seats[0],testNow,settings) && !engine.changePlayerCounter(1,CounterKind::Poison,1));
+}
+
 static void magicMonarch() {
   using namespace TurnHub;
   enterEmptyLobby(); fixtureRadio=false;
@@ -4625,11 +4687,11 @@ static void zeroLifeAndExitReasons() {
   GameEngine engine; GameSettings settings; settings.startingLife=20; settings.autoEliminateAtZeroLife=false;
   assert(engine.start(players,3,players[0],testNow,settings));
   for (uint8_t i=1;i<=3;++i) assert(engine.changeLife(i,-20));
-  engine.setAutoEliminateAtZeroLife(true); assert(engine.resolveZeroLife(testNow));
+  engine.setAutoEliminateAtZeroLife(true); assert(engine.resolveEliminationRules(testNow));
   assert(engine.endedInDraw()); engine.checkpoint(saved,testNow); assert(validCheckpoint(saved));
   settings.profile=GameProfile::Magic; settings.twoHeadedGiant=true; settings.autoEliminateAtZeroLife=true;
   assert(engine.start(players,4,players[0],testNow,settings));
-  assert(engine.changeLife(2,-20) && engine.resolveZeroLife(testNow));
+  assert(engine.changeLife(2,-20) && engine.resolveEliminationRules(testNow));
   assert(engine.isEliminated(1) && engine.isEliminated(2) && engine.isWinner(3) && engine.isWinner(4));
   enterEmptyLobby();
   for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
@@ -4660,6 +4722,7 @@ int main() {
   physicalCompanionFlow(); std::cout<<"PASS mixed table, physical attachment, two phones and one Sigil, statistics once\n";
   attachNamedProfileToGuest(); std::cout<<"PASS named guest attachment, browser merge and ownership protection\n";
   profilePolicyFlow(); std::cout<<"PASS profile choices, physical authorization, companion privacy, expiry and claim revalidation\n";
+  magicCountersAndRules(); std::cout<<"PASS Magic counters, live loss rules, per-commander casts, status, recovery and shared poison\n";
   magicMonarch(); std::cout<<"PASS Magic monarch: transfer, permissions, pause, recovery, exit, reset and teams\n";
   zeroLifeAndExitReasons(); std::cout<<"PASS zero-life policy, immediate toggle, separate exits, recovery, lethal requests, Commander and teams\n";
   gameProfilesAndLife(); std::cout<<"PASS game settings, own life, companion state, limits, rematch and authorization\n";

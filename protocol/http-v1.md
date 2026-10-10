@@ -442,3 +442,36 @@ per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individu
 player number), absent on older firmware. It clears when that player leaves
 play, on reset or new match, and survives pause and recovery. Players apply
 Magic’s card rules themselves. No life, turn or victory change is implied.
+
+### Magic counters and live loss rules
+
+`POST /api/control/counter` changes the authenticated living player’s own
+Magic counters. The shared-table equivalent is `/api/tablet/counter` with the
+normal `module`, `slot` and game scope. Both converge on ChangeCounter.
+
+| counter | Value fields | Meaning |
+| --- | --- | --- |
+| `poison`, `energy`, `experience` | `delta` (nonzero, ±1,000,000) | Add/correct a nonnegative bounded total. Poison is shared by 2HG teammates. |
+| `commander-casts` | `delta`, `commander` (1 or 2) | Command-zone casts in Commander. Next tax = 2 × casts. |
+| `city-blessing` | `value` (0 or 1) | Declare blessing or clear an erroneous entry; independent per player. |
+| `initiative` | `value` (0 or 1) | Claim/transfer, or release one’s own initiative. |
+
+Lobby/finished matches, eliminated seats, non-Magic formats and open table
+decisions are rejected (409). Bad fields/ranges are 400; unauthenticated
+personal requests are 401. Existing commander-damage routes are unchanged.
+
+`POST /api/game/settings` and `/api/tablet/settings` additionally accept
+`autoEliminateAtPoisonLimit`, `autoEliminateAtCommanderDamage` (0 or 1) and
+`poisonLimit` (1..1,000,000), in the lobby and during running/paused play.
+Zero-life, poison and Commander rules are independent. All default on for
+new matches; poison defaults 10, or 15 for 2HG. A team-mode change selects
+the standard poison limit unless a limit is explicitly supplied. Enabling
+a rule/changing a limit applies immediately. Commander loss is 21 from one
+commander, never a pooled damage sum; only Commander games apply it.
+
+State adds nullable `initiativePlayer` and per-player `counters` with poison,
+energy, experience, exactly two `commanderCasts`, and `cityBlessing`. Settings
+expose the three new fields. Old snapshots omit these fields (clients render
+zero counters/no initiative and disabled new automatic rules). Clocks and
+turns do not change when statuses are claimed. Recovery preserves these facts;
+new matches clear counters/status, and leaving clears held initiative.

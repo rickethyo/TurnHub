@@ -145,7 +145,10 @@ bool configureGame(uint8_t controller, uint8_t slot,
   TurnHub::IntentPayload payload;
   payload.flags = static_cast<uint32_t>(settings.profile) |
       (settings.twoHeadedGiant ? TurnHub::GAME_FLAG_TWO_HEADED_GIANT : 0) |
-      (settings.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
+      (settings.autoEliminateAtZeroLife ? 0 : TurnHub::GAME_FLAG_MANUAL_ELIMINATION) |
+      (settings.autoEliminateAtPoisonLimit ? 0 : TurnHub::GAME_FLAG_MANUAL_POISON) |
+      (settings.autoEliminateAtCommanderDamage ? 0 : TurnHub::GAME_FLAG_MANUAL_COMMANDER);
+  payload.poisonLimit = settings.poisonLimit;
   payload.value = settings.startingLife;
   payload.durationMs = settings.turnTimerMs;
   return dispatchBrowserSeatIntent(controller, slot, IntentType::ConfigureGame, payload, message);

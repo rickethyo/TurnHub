@@ -75,6 +75,7 @@ object AtlasWireParser {
                 activePlayer = root.optionalInt("activePlayer"),
                 winnerPlayer = root.optionalInt("winnerPlayer"),
                 monarchPlayer = root.optionalInt("monarchPlayer"),
+                initiativePlayer = root.optionalInt("initiativePlayer"),
                 settings = parseSettings(settings, profileKey),
                 sampledAtMs = root.uint32("sampledAtMs"),
                 gameElapsedMs = root.uint32("gameElapsedMs"),
@@ -198,6 +199,11 @@ object AtlasWireParser {
                     turnTimerMs = root.uint32("turnTimerMs"),
                     twoHeadedGiant = root.optionalBoolean("twoHeadedGiant"),
                     autoEliminateAtZeroLife = if (root.has("autoEliminateAtZeroLife")) root.boolean("autoEliminateAtZeroLife") else false,
+                    autoEliminateAtPoisonLimit = root.optionalBoolean("autoEliminateAtPoisonLimit"),
+                    autoEliminateAtCommanderDamage = root.optionalBoolean("autoEliminateAtCommanderDamage"),
+                    poisonLimit = if (root.has("poisonLimit")) root.int("poisonLimit").also {
+                        if (it !in 1..1_000_000) malformed("Invalid poison limit")
+                    } else if (root.optionalBoolean("twoHeadedGiant")) 15 else 10,
                 ),
                 available = root.boolean("available"),
                 canEdit = root.boolean("canEdit"),
@@ -267,7 +273,21 @@ object AtlasWireParser {
         turnTimerMs = settings.uint32("turnTimerMs"),
         twoHeadedGiant = settings.optionalBoolean("twoHeadedGiant"),
         autoEliminateAtZeroLife = if (settings.has("autoEliminateAtZeroLife")) settings.boolean("autoEliminateAtZeroLife") else false,
+        autoEliminateAtPoisonLimit = settings.optionalBoolean("autoEliminateAtPoisonLimit"),
+        autoEliminateAtCommanderDamage = settings.optionalBoolean("autoEliminateAtCommanderDamage"),
+        poisonLimit = if (settings.has("poisonLimit")) settings.int("poisonLimit").also {
+            if (it !in 1..1_000_000) malformed("Invalid poison limit")
+        } else if (settings.optionalBoolean("twoHeadedGiant")) 15 else 10,
     )
+
+    private fun parsePlayerCounters(c: JSONObject): PlayerCounters {
+        fun count(key: String): Int = c.int(key).also { if (it !in 0..1_000_000) malformed("Invalid $key counter") }
+        val casts = c.array("commanderCasts")
+        if (casts.length() != 2) malformed("commanderCasts must have two entries")
+        return PlayerCounters(count("poison"), count("energy"), count("experience"),
+            List(2) { casts.intAt(it, "commanderCasts").also { value -> if (value !in 0..1_000_000) malformed("Invalid cast count") } },
+            c.boolean("cityBlessing"))
+    }
 
     private fun parseTurnTimer(timer: JSONObject): TurnTimer {
         val phaseKey = timer.string("phase")
@@ -297,6 +317,7 @@ object AtlasWireParser {
         displayName = player.optionalString("displayName"),
         eliminated = player.boolean("eliminated"),
         conceded = player.optionalBoolean("conceded"),
+        counters = if (player.isAbsentOrNull("counters")) PlayerCounters() else parsePlayerCounters(player.obj("counters")),
         life = player.nullableInt("life"),
         turnsCompleted = player.uint32("turnsCompleted"),
         commanderDamage = player.array("commanderDamage").objects().map { entry ->

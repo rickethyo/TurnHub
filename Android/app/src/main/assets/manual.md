@@ -791,3 +791,15 @@ Product names and specifications subject to change.
 ## The monarch (Magic and Commander)
 
 Choose I’m the monarch in your player controls or the More drawer on your table tile. While paused, the table also lists the monarch controls. A crown and Monarch label identify the holder. Only one player can be monarch: claiming it immediately transfers the crown. In team games, the crown belongs to the named individual. If the holder concedes or is eliminated, the crown clears. It survives pause and game recovery, and resets for a new match. Players resolve the card’s combat and draw rules themselves.
+
+## Magic counters, commander tax and statuses
+
+Use Counters and status in your player controls or the More drawer on a table tile. Poison, energy and experience have plus/minus controls; minus corrects or spends a counter. Two-Headed Giant shares poison across the team. Table tiles show poison and active status markers.
+
+I have the initiative transfers it from its previous holder. Initiative and monarch may belong to different players. Release initiative corrects an entry. I have the city’s blessing marks your own blessing; multiple players can have it. Clearing blessing is a correction, not a game rule. Players resolve card effects and the Undercity themselves.
+
+For Commander, count each commander’s casts from the command zone separately. The next-cast tax is two generic mana per previous command-zone cast. First cast has no tax; each commander has its own count. Use minus to correct an accidental cast.
+
+Automatic elimination has separate switches for zero life, poison, and 21 damage from one commander. All are on by default. Poison normally loses at 10, or 15 shared poison in Two-Headed Giant; the poison limit is editable. Commander damage is never pooled across different commanders. Change the switches and poison limit in game settings during play, including while paused. Enabling a rule or changing a limit checks existing totals immediately. Disable the relevant rule before a card changes a loss condition.
+
+Counters and statuses survive app close and game recovery. New matches clear them. Leaving the game clears held initiative and monarch. Connected counter/status controls need Atlas to be answering; standalone games apply them locally.

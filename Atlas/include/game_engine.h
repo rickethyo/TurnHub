@@ -78,8 +78,12 @@ class GameEngine {
   const GameSettings &settings() const { return settings_; }
   uint8_t monarchPlayerNumber() const { return monarchPlayer_; }
   bool claimMonarch(uint8_t playerNumber);
+  uint8_t initiativePlayerNumber() const { return initiativePlayer_; }
+  const PlayerCounters *countersForPlayer(uint8_t playerNumber) const;
+  bool changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander = 1);
+  bool setEliminationSettings(const GameSettings &settings);
   void setAutoEliminateAtZeroLife(bool enabled) { settings_.autoEliminateAtZeroLife = enabled; }
-  bool resolveZeroLife(uint32_t nowMs);
+  bool resolveEliminationRules(uint32_t nowMs);
   bool hasConceded(uint8_t player) const;
 
   // --- Two-Headed Giant teams (game_profile.h) ---
@@ -251,7 +255,8 @@ class GameEngine {
   uint8_t playerCount_ = 0;
   uint8_t activeIndex_ = 0;
   uint8_t starterPlayer_ = 0;
-  uint8_t monarchPlayer_ = 0;
+  uint8_t monarchPlayer_ = 0, initiativePlayer_ = 0;
+  PlayerCounters counters_[MAX_PLAYERS]{};
 
   bool running_ = false;
   bool paused_ = false;

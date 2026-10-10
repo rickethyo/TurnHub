@@ -284,6 +284,48 @@
           "conceded": {
             "type": "boolean",
             "description": "Voluntary concession; eliminated remains true for all removed players."
+          },
+          "counters": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "poison",
+              "energy",
+              "experience",
+              "commanderCasts",
+              "cityBlessing"
+            ],
+            "properties": {
+              "poison": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "energy": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "experience": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "commanderCasts": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "cityBlessing": {
+                "type": "boolean"
+              }
+            },
+            "description": "Shared team poison in 2HG; other values belong to this player. Commander tax is twice each command-zone cast count."
           }
         }
       },
@@ -327,6 +369,17 @@
         "autoEliminateAtZeroLife": {
           "type": "boolean",
           "description": "Eliminate living players at zero or negative life; editable during play."
+        },
+        "autoEliminateAtPoisonLimit": {
+          "type": "boolean"
+        },
+        "autoEliminateAtCommanderDamage": {
+          "type": "boolean"
+        },
+        "poisonLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
         }
       }
     },
@@ -487,6 +540,15 @@
       ],
       "minimum": 1,
       "maximum": 255
+    },
+    "initiativePlayer": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 16,
+      "description": "The one living initiative holder in a Magic game, independent of monarch."
     }
   }
 }

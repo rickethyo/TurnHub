@@ -35,7 +35,7 @@ void GameEngine::reset() {
   playerCount_ = 0;
   activeIndex_ = 0;
   starterPlayer_ = 0;
-  monarchPlayer_ = 0;
+  monarchPlayer_ = initiativePlayer_ = 0;
   running_ = false;
   paused_ = false;
   gameOver_ = false;
@@ -52,6 +52,7 @@ void GameEngine::reset() {
     stats_[i] = PlayerStats{};
     eliminated_[i] = false;
     conceded_[i] = false;
+    counters_[i] = PlayerCounters{};
     life_[i] = 0;
     lifeChanges_[i] = LifeChangeRequest{};
     partner_[i] = false;
@@ -219,6 +220,7 @@ bool GameEngine::setPartner(uint8_t player, bool on) {
   const int from = indexForPlayerNumber(player);
   if (settings_.profile != GameProfile::Commander || from < 0) return false;
   if (!on) {
+    if (counters_[from].commanderCasts[1]) return false;
     for (uint8_t to = 0; to < playerCount_; ++to)
       if (commanderDamage_[to][from][1]) return false;
   }
@@ -403,6 +405,7 @@ bool GameEngine::eliminatePlayer(
   const bool wasActive = static_cast<uint8_t>(index) == activeIndex_ ||
       (mate >= 0 && static_cast<uint8_t>(mate) == activeIndex_);
   if (sameTeam(monarchPlayer_, playerNumber)) monarchPlayer_ = 0;
+  if (sameTeam(initiativePlayer_, playerNumber)) initiativePlayer_ = 0;
   eliminated_[index] = true;
   conceded_[index] = conceded;
   cancelLifeChanges(playerNumber);
@@ -443,17 +446,74 @@ bool GameEngine::claimMonarch(uint8_t playerNumber) {
   return true;
 }
 
+const PlayerCounters *GameEngine::countersForPlayer(uint8_t playerNumber) const {
+  const int index = indexForPlayerNumber(playerNumber);
+  return index >= 0 ? &counters_[index] : nullptr;
+}
+
+bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
+  const int index = indexForPlayerNumber(playerNumber);
+  if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || !teamsAllowed(settings_.profile)) return false;
+  auto &c = counters_[index];
+  if (kind == CounterKind::Initiative) {
+    if (value != 0 && value != 1) return false;
+    if (value) initiativePlayer_ = playerNumber;
+    else if (initiativePlayer_ == playerNumber) initiativePlayer_ = 0;
+    else return false;
+    return true;
+  }
+  if (kind == CounterKind::CityBlessing) {
+    if (value != 0 && value != 1) return false;
+    c.cityBlessing = value == 1;
+    return true;
+  }
+  int32_t *target = nullptr;
+  switch (kind) {
+    case CounterKind::Poison: target = &c.poison; break;
+    case CounterKind::Energy: target = &c.energy; break;
+    case CounterKind::Experience: target = &c.experience; break;
+    case CounterKind::CommanderCast:
+      if (settings_.profile != GameProfile::Commander || commander < 1 || commander > 2) return false;
+      target = &c.commanderCasts[commander-1]; break;
+    default: return false;
+  }
+  if (!value || value < -LIFE_LIMIT || value > LIFE_LIMIT) return false;
+  const int64_t next = int64_t(*target) + value;
+  if (next < 0 || next > LIFE_LIMIT) return false;
+  *target = static_cast<int32_t>(next);
+  if (kind == CounterKind::Poison) {
+    const int mate = teammateIndex(index);
+    if (mate >= 0) counters_[mate].poison = c.poison;
+  }
+  if (kind == CounterKind::CommanderCast && commander == 2 && *target) partner_[index] = true;
+  return true;
+}
+
+bool GameEngine::setEliminationSettings(const GameSettings &settings) {
+  if (!validGameSettings(settings) || settings.profile != settings_.profile || settings.startingLife != settings_.startingLife ||
+      settings.turnTimerMs != settings_.turnTimerMs || settings.twoHeadedGiant != settings_.twoHeadedGiant) return false;
+  settings_ = settings;
+  return true;
+}
+
 bool GameEngine::hasConceded(uint8_t player) const {
   const int index = indexForPlayerNumber(player);
   return index >= 0 && conceded_[index];
 }
 
-bool GameEngine::resolveZeroLife(uint32_t nowMs) {
-  if (!settings_.autoEliminateAtZeroLife || !running_ || gameOver_ || winClaimActive_) return false;
+bool GameEngine::resolveEliminationRules(uint32_t nowMs) {
+  if (!running_ || gameOver_ || winClaimActive_) return false;
   bool changed = false;
   const bool restoreRunning = !paused_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
-    if (eliminated_[i] || life_[i] > 0) continue;
+    if (eliminated_[i]) continue;
+    bool lethal = settings_.autoEliminateAtZeroLife && life_[i] <= 0;
+    if (teamsAllowed(settings_.profile) && settings_.autoEliminateAtPoisonLimit && counters_[i].poison >= settings_.poisonLimit) lethal = true;
+    if (settings_.profile == GameProfile::Commander && settings_.autoEliminateAtCommanderDamage)
+      for (uint8_t source = 0; source < playerCount_; ++source)
+        for (uint8_t c = 0; c < 2; ++c)
+          if (commanderDamage_[i][source][c] >= COMMANDER_DAMAGE_LIMIT) lethal = true;
+    if (!lethal) continue;
     if (!changed && restoreRunning) pause(nowMs);
     batchElimination_ = true;
     bool finished = false;

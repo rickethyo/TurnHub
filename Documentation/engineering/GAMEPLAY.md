@@ -243,3 +243,40 @@ on ClaimMonarch; the domain rejects other formats, players out of the game,
 and inactive matches. The state projection exposes nullable `monarchPlayer`,
 and schema 3 checkpoints preserve it. Android standalone maintains and recovers
 the equivalent singleton for its separate local game. No radio change.
+
+## Magic counters, commander tax and statuses
+
+Magic/Commander native player controls and table drawers now expose poison,
+energy and experience, initiative, city’s blessing, and (Commander) command-zone
+casts. Counters range from 0 to 1,000,000; negative corrections cannot cross zero.
+Counters and city’s blessing remain associated with their individual owner.
+Initiative has one living holder per game, independent of monarch; claiming it
+transfers it, and the holder may release it to correct an entry. City’s blessing
+is independently declared by each player; clearing it is an explicit correction.
+TurnHub does not count permanents, resolve the Undercity or enforce card effects.
+
+Each commander’s casts from the command zone are tracked separately. Its next
+cast tax is derived as twice the count; first cast has no tax. Counting a second
+commander’s casts enables partners in Atlas. A minus corrects an accidental cast.
+
+Automatic elimination has independent live toggles for zero life, poison and
+21 damage received from one commander (not pooled across sources or partners).
+New-game defaults are on. Poison defaults to 10, or 15 shared for a Two-Headed
+Giant team; its limit is editable. Switching team mode in the lobby selects the
+standard poison limit unless the request supplies a custom one. Changing a limit
+or enabling a rule immediately checks all living players, as one batch; this
+avoids a false winner if multiple players meet loss conditions simultaneously.
+Poison/Commander losses use the elimination reason, not concession. The relevant
+rule should be disabled before a card changes that loss condition. All these
+settings remain reachable during pause.
+
+Connected counters use the existing ChangeCounter intent with CounterKind,
+validated by GameEngine and the living-seat/table-decision handler. Settings use
+ConfigureGame; the common post-intent rule finalizer resolves automatic losses
+before projecting/checkpointing. Settings schema 3 and checkpoint schema 4
+persist rules, counters and initiative. The HTTP state is a read model; no
+radio change. Native connected clients require Atlas for the new actions while
+disconnected (they do not replay status/counter changes). Standalone games own
+and persist their equivalent local state. New matches reset counters/status;
+match settings carry forward. Elimination clears initiative; city’s blessing
+and numerical counters remain as the last values on an eliminated player.

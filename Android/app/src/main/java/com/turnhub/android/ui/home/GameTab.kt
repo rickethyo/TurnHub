@@ -91,6 +91,9 @@ import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
+import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.EliminationRulesEditor
+import com.turnhub.android.ui.components.magicStatus
 import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.CountdownBar
@@ -116,6 +119,8 @@ data class GameActions(
     val onRequestLife: (target: Int, delta: Int) -> Unit = { _, _ -> },
     val onRespondLife: (requestId: Long, accept: Boolean) -> Unit = { _, _ -> },
     val onCommanderDamage: (source: Int, commander: Int, delta: Int) -> Unit = { _, _, _ -> },
+    val onPlayerCounter: (String, Int, Int) -> Unit = { _, _, _ -> },
+    val onEliminationRule: (String, Int) -> Unit = { _, _ -> },
     val onSetZeroLifeElimination: (Boolean) -> Unit = {},
     val onSaveGameSettings: (profile: String?, startingLife: Int?, turnTimerMs: Long?, twoHeadedGiant: Boolean?) -> Unit =
         { _, _, _, _ -> },
@@ -157,19 +162,24 @@ fun GameTab(
         ) {
             CommanderCard(summary, me, labelFor, actions)
         }
+        if (me != null && (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) &&
+            (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
+            BrassCard {
+                Eyebrow("Counters and status")
+                MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
+                    summary.settings.profile == GameProfile.MTG_COMMANDER,
+                    enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                    onChange = actions.onPlayerCounter)
+            }
+        }
         if (summary.state == TableState.LOBBY) {
             SetupCard(summary, uiState.gameSettings, me != null, actions)
         }
         if (me != null && (summary.state == TableState.LOBBY || summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
             BrassCard {
-                Text("Automatic elimination at zero life", color = p.text)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (summary.settings.autoEliminateAtZeroLife) "On" else "Off", color = p.text, modifier = Modifier.weight(1f))
-                    Switch(checked = summary.settings.autoEliminateAtZeroLife,
-                        onCheckedChange = actions.onSetZeroLifeElimination,
-                        enabled = uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null)
-                }
-                Text("When on, zero or negative life eliminates a player immediately. Disable before a card changes the loss condition.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                EliminationRulesEditor(summary.settings,
+                    enabled = uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                    onChange = actions.onEliminationRule)
             }
         }
         TableCard(summary, labelFor)
@@ -624,6 +634,8 @@ private fun LifeCard(
                     mine = player.playerNumber == me?.playerNumber,
                     winner = summary.isWinner(player.playerNumber),
                     monarch = summary.monarchPlayerNumber == player.playerNumber,
+                    initiative = summary.initiativePlayerNumber == player.playerNumber,
+                    magic = summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER,
                     onRequest = if (canAct && player.playerNumber != me.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
@@ -666,6 +678,8 @@ private fun LifeTile(
     mine: Boolean,
     winner: Boolean,
     monarch: Boolean,
+    initiative: Boolean,
+    magic: Boolean,
     onRequest: (() -> Unit)?,
     reduceMotion: Boolean,
     modifier: Modifier = Modifier,
@@ -743,7 +757,7 @@ private fun LifeTile(
             .padding(12.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = "${player.label}, life ${life ?: "not set"}" +
-                    (if (active) ", active" else "") + (if (monarch) ", monarch" else "") + (if (player.eliminated) ", eliminated" else "")
+                    (if (active) ", active" else "") + (if (monarch) ", monarch" else "") + (if (magic) ", " + magicStatus(player.counters, initiative) else "") + (if (player.eliminated) ", eliminated" else "")
             },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -758,6 +772,7 @@ private fun LifeTile(
             )
         }
         if (monarch) MonarchBadge()
+        if (magic) Text(magicStatus(player.counters, initiative), color = p.text, style = MaterialTheme.typography.labelSmall)
         Box(contentAlignment = Alignment.TopEnd) {
             Text(
                 if (life == null) "—" else counter.value.roundToInt().toString(),

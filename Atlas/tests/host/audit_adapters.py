@@ -30,7 +30,7 @@ ADAPTERS = {
 }
 
 FORBIDDEN = [
-    r"game\.(?:start|reset|passTurn|pause|resume|endInDraw|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|recordCommanderHit|undoCommanderHit|eliminatePlayer|claimMonarch|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
+    r"game\.(?:start|reset|passTurn|pause|resume|endInDraw|changeLife|requestLifeChange|respondLifeChange|expireLifeChanges|cancelLifeChanges|changeCommanderDamage|recordCommanderHit|undoCommanderHit|eliminatePlayer|claimMonarch|changePlayerCounter|setEliminationSettings|beginWinClaim|confirmWinClaim|denyWinClaim|cancelWinClaim)\s*\(",
     r"lobby\.(?:join|leave|toggleSecondary|selectStarter|selectStarterSeat|randomStarter|resetEmpty|resetForRematch|setStartArmedBy|clearStartArm|replaceController)\s*\(",
     r"\b(?:hubState|eliminationTargetPlayer|winArmedModule|winArmedPlayer|pendingPass|countdownStartedAtMs|nextGameSettings)\s*=(?!=)",
     r"\b(?:enterEmptyLobby|enterRematchLobby|startGame|beginCountdown|cancelCountdown|finishGameState|clearDecisionState|confirmElimination|beginEliminationSelection|cycleEliminationTarget|cancelEliminationSelection|clearPendingPass|cancelPendingPassForModule)\s*\(",
