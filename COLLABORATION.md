@@ -1126,5 +1126,5 @@ management/invitations from TH-002 remain separate planned work.
 - Branch: `codex/esp32-s3-lvgl`, explicitly requested dedicated scope. User direction overrides normal persistent-branch/master-merge startup; neither master nor codex/master is modified. Existing checkout was clean; all history preserved.
 - Scope: complete hardware/BOM planning first, then an isolated desktop LVGL UI foundation. Legacy Atlas/DevKit Sigils, PlatformIO, radio, OTA, engine, profile/statistics and CAD assets are preserved.
 - Hardware research: [board/electrical/mechanical record](Documentation/engineering/hardware/ESP32_S3_REFRESH.md), [prototype BOM](Documentation/engineering/hardware/PROTOTYPE_BOM.md), primary-source digests. Documented schematic/page conflicts and unsupported $1.80 price; no physical acceptance claimed.
-- Status: hardware planning completed; firmware architecture and actual simulator implementation follow as separate milestones.
+- Status: hardware planning completed; [firmware/presentation architecture](Documentation/engineering/LVGL_MIGRATION.md) and eight-part feature gate documented before implementation. Actual simulator implementation follows.
 - Git completion follows AGENT_WORKFLOW step 4: one reviewable PR to master is required by repository conventions, permitted by the user's exception; no integration/release.

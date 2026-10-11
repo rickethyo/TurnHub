@@ -25,6 +25,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices, spare Sigils |
 | [Web Portal](WEB_PORTAL.md) | The embedded admin portal, themes, layout and test contract |
 | [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
+| [LVGL migration](LVGL_MIGRATION.md) | Desktop presentation boundaries, dependencies, memory and firmware handoff |
 | [S3 prototype refresh](hardware/ESP32_S3_REFRESH.md) | Candidate boards, electrical/mechanical verification and prototype BOM |
 | [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
 | [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |
