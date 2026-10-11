@@ -363,16 +363,17 @@ class AtlasSetupAssistant(
     // --- 5. Wi-Fi and finish ----------------------------------------------------
 
     /** Saves the table's own Wi-Fi password and finishes setup; Atlas restarts onto it. */
-    suspend fun finish(password: String) {
+    suspend fun finish(password: String, uploadApprovalRequired: Boolean = _state.value.status?.uploadApprovalRequired ?: true) {
         if (password.length !in 8..63) return fail("Wi-Fi passwords are 8 to 63 characters.")
         if (password == WifiCredentials.DEFAULT_ATLAS_PASSPHRASE) {
             return fail("Choose a password other than the one printed for setup.")
         }
         work {
-            val response = session.raw("POST", "/api/setup/finish", listOf("password" to password))
+            val response = session.raw("POST", "/api/setup/finish", listOf("password" to password,
+                "uploadApprovalRequired" to if (uploadApprovalRequired) "1" else "0"))
                 ?: return@work signedOut()
             if (response.code == 403 && presenceRequired(response)) {
-                afterCode = { finish(password) }
+                afterCode = { finish(password, uploadApprovalRequired) }
                 requestCodeQuietly()
                 return@work
             }

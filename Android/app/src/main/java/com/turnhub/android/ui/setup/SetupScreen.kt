@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Switch
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LinearProgressIndicator
@@ -157,6 +159,7 @@ private fun Account(state: SetupState, actions: SetupActions) {
     var name by rememberSaveable { mutableStateOf("") }
     var pin by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
+    var approvalRequired by rememberSaveable { mutableStateOf(state.status?.uploadApprovalRequired ?: true) }
     var chosen by rememberSaveable { mutableStateOf<String?>(null) }
     if (!existing || state.profiles.isEmpty()) {
         Text("This account becomes the table's Admin. Your name and statistics stay with it.", color = p.muted)
@@ -395,6 +398,7 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
     val p = palette
     var password by rememberSaveable { mutableStateOf("") }
     var confirm by rememberSaveable { mutableStateOf("") }
+    var approvalRequired by rememberSaveable { mutableStateOf(state.status?.uploadApprovalRequired ?: true) }
     var show by rememberSaveable { mutableStateOf(false) }
     val ssid = state.status?.ssid?.ifBlank { null } ?: "TurnHub-Atlas"
     Text(
@@ -403,6 +407,14 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
             "Other phones will need the new password.",
         color = p.muted,
     )
+    Row(Modifier.fillMaxWidth().toggleable(approvalRequired, enabled = !state.busy,
+        role = Role.Switch, onValueChange = { approvalRequired = it }),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text("Require Admin approval for uploaded images", color = p.text, modifier = Modifier.weight(1f))
+        Switch(checked = approvalRequired, onCheckedChange = null, enabled = !state.busy)
+    }
+    Text("On: an Admin reviews new images before the table sees them. Off: new images appear immediately. " +
+        "Images stay on this local Atlas; TurnHub does not post them online. You can change this later in Device Settings.", color = p.muted)
     val transform = if (show) VisualTransformation.None else PasswordVisualTransformation()
     OutlinedTextField(
         password, { password = it.take(63) }, label = { Text("New Wi-Fi password") }, singleLine = true,
@@ -419,7 +431,7 @@ private fun Wifi(state: SetupState, actions: SetupActions) {
     if (password.isNotEmpty() && password.length < 8) Text("At least 8 characters.", color = p.muted)
     AccentButton(
         "Finish setup",
-        { actions.run { finish(password) } },
+        { actions.run { finish(password, approvalRequired) } },
         Modifier.fillMaxWidth(),
         enabled = !state.busy && password.length >= 8 && confirm == password,
     )

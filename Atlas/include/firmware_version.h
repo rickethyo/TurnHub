@@ -9,7 +9,7 @@ namespace TurnHubFirmware {
 constexpr uint8_t MAJOR = 0;
 constexpr uint8_t MINOR = 7;
 constexpr uint8_t PATCH = 11;
-constexpr const char *VERSION = "0.7.11-dev";
+constexpr const char *VERSION = "0.7.13-dev";
 constexpr const char *BUILD_DATE = __DATE__;
 constexpr const char *BUILD_TIME = __TIME__;
 

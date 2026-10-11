@@ -20,6 +20,7 @@ using TurnHub::serialLog;
 
 namespace TurnHubAtlas {
 
+bool uploadApprovalRequired = true;
 bool tableCodeRequired = TurnHub::DEFAULT_TABLE_CODE_REQUIRED;
 
 bool pairingActive = false;

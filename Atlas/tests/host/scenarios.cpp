@@ -1709,6 +1709,7 @@ static void jewelColors() {
 
 static void artworkUploads() {
   enterEmptyLobby();
+  uploadApprovalRequired = true;
   String playerId, adminId, otherId;
   const String player = registerPhone("Image player", playerId);
   const String admin = registerPhone("Image admin", adminId);
@@ -1742,6 +1743,13 @@ static void artworkUploads() {
   ProfileFixture::artworkAvailable=false;
   assert(request("/api/session/avatar",player,{{"action","start"},{"size","1000"}})==503);
   ProfileFixture::artworkAvailable=true;
+  assert(request("/api/upload-approval","",{},HTTP_GET)==401);
+  assert(request("/api/upload-approval",player,{{"required","0"}})==403);
+  assert(request("/api/upload-approval",admin,{{"required","2"}})==400);
+  assert(request("/api/upload-approval",admin,{},HTTP_GET)==200 && server.body.find("true")!=std::string::npos);
+  ProfileFixture::gameSettingsWritable=false;
+  assert(request("/api/upload-approval",admin,{{"required","0"}})==409 && uploadApprovalRequired);
+  ProfileFixture::gameSettingsWritable=true;
   String revision=start();
   assert(chunk(revision,1)==400); // Out-of-order and incomplete transfers cannot publish.
   assert(submit(revision)==400);
@@ -1775,10 +1783,24 @@ static void artworkUploads() {
   assert(request("/api/avatar","",{{"profileId",playerId},{"revision",approved}},HTTP_GET)==200);
   assert(request("/api/avatar/review",admin,{{"profileId",playerId},{"revision",revision},{"action","reject"}})==200);
   assert(request("/api/avatar","",{{"profileId",playerId},{"revision",approved}},HTTP_GET)==200);
+  // Off takes effect at submission, but does not approve previously pending images.
+  String pending=upload();
+  assert(request("/api/upload-approval",admin,{{"required","0"}})==200 && !uploadApprovalRequired);
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",pending}},HTTP_GET)==404);
+  String immediate=upload();
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",immediate}},HTTP_GET)==200);
+  assert(request("/api/avatar",player,{{"profileId",playerId},{"revision",pending},{"pending","1"}},HTTP_GET)==200);
+  assert(request("/api/session/personalization",player,{},HTTP_GET)==200 && server.body.find("\"uploadApprovalRequired\":false")!=std::string::npos);
+  assert(request("/api/upload-approval",admin,{{"required","1"}})==200 && uploadApprovalRequired);
+  revision=upload();
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",revision}},HTTP_GET)==404);
+  assert(request("/api/avatar","",{{"profileId",playerId},{"revision",immediate}},HTTP_GET)==200);
+  assert(request("/api/upload-approval",admin,{{"required","0"}})==200);
   // The JPEG validator rejects a truncated envelope even with all declared chunks.
   const char last=jpeg.back(); jpeg.back()=0; revision=start();
   for(size_t i=0;i<(jpeg.size()+TurnHubArtwork::CHUNK-1)/TurnHubArtwork::CHUNK;++i) assert(chunk(revision,i)==200);
   assert(submit(revision)==400); jpeg.back()=last;
+  assert(request("/api/upload-approval",admin,{{"required","1"}})==200);
   assert(request("/api/session/avatar",player,{{"action","remove"}})==200);
   assert(TurnHubProfiles::avatarForProfile(playerId)==0);
   assert(request("/api/avatar","",{{"profileId",playerId},{"revision",approved}},HTTP_GET)==404);
@@ -3298,9 +3320,13 @@ static void firstRunSetup() {
   assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
   TurnHub::fixtureRecords[1].capabilities=0;
   setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
-  assert(request("/api/setup/finish",owner,{{"password","table-pass-3"}})==200);
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-3"},{"uploadApprovalRequired","invalid"}})==400);
+  assert(uploadApprovalRequired);
+  assert(request("/api/setup/finish",owner,{{"password","table-pass-3"},{"uploadApprovalRequired","0"}})==200);
+  assert(!uploadApprovalRequired);
   assert(server.body.find("\"restarting\":true")!=std::string::npos);
   assert(setupStage==SetupStage::Complete && TurnHub::fixtureSetupStageSaved==2);
+  assert(request("/api/upload-approval",owner,{{"required","1"}})==200);
   assert(currentScreen().kind==ScreenKind::Status);
   memcpy(TurnHub::fixtureRecords,savedRecords,sizeof(savedRecords)); TurnHub::fixtureRadio=previousRadio;
 

@@ -62,7 +62,8 @@ private class FakeAtlas : AtlasSessionTransport {
             permissions = if (id == admin) 1 else 0)
     }
 
-    override suspend fun getSetup() = SetupStatus(stage, admin != null, wifiPassword == null, "TurnHub-Atlas")
+    var uploadApprovalRequired = true
+    override suspend fun getSetup() = SetupStatus(stage, admin != null, wifiPassword == null, "TurnHub-Atlas", uploadApprovalRequired)
 
     override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): RawResponse {
         calls += "$method $path"
@@ -88,7 +89,7 @@ private class FakeAtlas : AtlasSessionTransport {
             "POST /api/setup/finish" -> when {
                 id != admin -> RawResponse(403, """{"error":"Admin permission required"}""")
                 id !in verified -> RawResponse(403, """{"ok":false,"presenceRequired":true,"error":"Verify at the table first"}""")
-                else -> { wifiPassword = arg["password"]; stage = SetupStage.FINISHED; RawResponse(200, """{"ok":true,"restarting":true}""") }
+                else -> { uploadApprovalRequired = arg["uploadApprovalRequired"] != "0"; wifiPassword = arg["password"]; stage = SetupStage.FINISHED; RawResponse(200, """{"ok":true,"restarting":true}""") }
             }
             else -> RawResponse(404, """{"error":"no route"}""")
         }
@@ -206,6 +207,7 @@ class AtlasSetupAssistantTest {
         assertEquals(null, atlas.wifiPassword)
         assistant.finish("our-table-pw")
         assertEquals("our-table-pw", atlas.wifiPassword)
+        assertTrue(atlas.uploadApprovalRequired)
         assertEquals("TurnHub-Atlas" to "our-table-pw", host.saved)
         assertEquals(SetupStep.DONE, assistant.state.value.step)
 
@@ -294,10 +296,11 @@ class AtlasSetupAssistantTest {
         assistant.skipUpdates()
         assistant.next()
         atlas.verified.clear()
-        assistant.finish("our-table-pw")
+        assistant.finish("our-table-pw", uploadApprovalRequired = false)
         assertTrue(assistant.state.value.codeShowing)
         assistant.confirmCode("123456")
         assertEquals("our-table-pw", atlas.wifiPassword)
+        assertFalse(atlas.uploadApprovalRequired)
         assertEquals(SetupStep.DONE, assistant.state.value.step)
     }
 

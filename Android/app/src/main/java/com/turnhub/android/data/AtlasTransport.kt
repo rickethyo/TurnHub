@@ -80,6 +80,7 @@ data class Personalization(
     val pendingAvatar: String = "",
     val customImage: ByteArray? = null,
     val pendingImage: ByteArray? = null,
+    val uploadApprovalRequired: Boolean = true,
 )
 
 /** An unparsed Atlas response. */

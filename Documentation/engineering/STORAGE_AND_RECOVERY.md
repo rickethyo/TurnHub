@@ -174,7 +174,10 @@ thumbnail for today's Atlas. Per-profile `a`, `p`, `u` prefixes hold approved,
 pending and unfinished manifests (schema byte, little-endian revision and length,
 9 bytes). All pass through the existing locked/checksummed BlobStore and its
 verified temp/backup replacement; no direct SD calls or image allocations on
-Atlas. Metadata publication is the commit point, after complete image-envelope
+Atlas. Device upload approval defaults on (`imgreview` in NVS); off publishes new
+validated submissions directly to the approved manifest and selects custom art.
+Existing pending manifests remain available for explicit Admin review.
+Metadata publication is the commit point, after complete image-envelope
 validation. There is no cross-record transaction or FAT power-loss guarantee.
 
 Each profile can hold one approved, one pending and one unfinished asset, bounded
@@ -194,3 +197,11 @@ decode failure. Pending GET requires the owning player or Admin, approved GET is
 public. Public paths include revision; cache is disposable and scoped to the
 Atlas connection. Thumbnail pixels come from the app's final compressed crop and
 are reviewed as part of the same asset; the phone retains no original on Atlas.
+
+Android gives artwork reads/upload steps/review a 30-second read deadline while
+ordinary state polling retains its short deadline. Atlas validates all chunks
+before sending image headers; failed previews keep approval disabled and expose
+a retry. This does not relax the 48 KiB image bound or review authorization.
+SD replacement checks backup existence before cleanup or rollback; a missing
+backup is normal on a first write and must not emit a filesystem error. Cleanup
+failure after publication still leaves the new committed record readable.

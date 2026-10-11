@@ -14,6 +14,7 @@
 #include "pairing_settings.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
+#include "upload_approval.h"
 #include "wifi_password_store.h"
 #include "profile_store.h"
 #include "sd_card.h"
@@ -1089,6 +1090,19 @@ IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *) {
   serialLog.print("ATLAS|PRESENCE|REQUIRED|");
   serialLog.println(required ? "ON" : "OFF");
   return IntentResult::accept(required ? "Table code turned on" : "Table code turned off");
+}
+
+IntentResult handleConfigureUploadApprovalIntent(const Intent &intent, void *) {
+  if (!adminIntent(intent)) return IntentResult::reject(IntentStatus::Unauthorized, "Admin permission required");
+  if (intent.payload.value != 0 && intent.payload.value != 1)
+    return IntentResult::reject(IntentStatus::Rejected, "Choose on or off");
+  const bool required = intent.payload.value == 1;
+  if (required != uploadApprovalRequired) {
+    if (TurnHub::saveUploadApprovalRequired(required) != TurnHubStorage::Status::Ok)
+      return IntentResult::reject(IntentStatus::Rejected, "Upload approval setting could not be saved");
+    uploadApprovalRequired = required;
+  }
+  return IntentResult::accept(required ? "Upload approval turned on" : "Upload approval turned off");
 }
 
 // --- First-run setup (FIRST_RUN_SETUP.md) ---------------------------------

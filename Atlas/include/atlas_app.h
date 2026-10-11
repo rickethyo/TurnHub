@@ -282,6 +282,7 @@ IntentResult handleForgetPairingIntent(const Intent &intent, void *);
 IntentResult handlePairConfirmIntent(const Intent &intent, void *);
 IntentResult handleConfigurePairingIntent(const Intent &intent, void *);
 IntentResult handleConfigureSpeakerIntent(const Intent &intent, void *);
+IntentResult handleConfigureUploadApprovalIntent(const Intent &intent, void *);
 IntentResult handleConfigureTableCodeIntent(const Intent &intent, void *);
 IntentResult handleResetTableIntent(const Intent &intent, void *);
 IntentResult handleFactoryResetIntent(const Intent &intent, void *);
@@ -411,6 +412,7 @@ void cancelPresenceCode();
 // Admin setting (table_code_setting.h, off by default): while false, every
 // signed-in profile counts as verified at the table and no code is needed.
 extern bool tableCodeRequired;
+extern bool uploadApprovalRequired;
 bool presenceConfirmedFor(const String &profileId, uint32_t nowMs);
 // Time left for that profile, or 0.
 uint32_t presenceRemainingMs(const String &profileId, uint32_t nowMs);

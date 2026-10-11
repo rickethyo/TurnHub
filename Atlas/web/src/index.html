@@ -36,6 +36,9 @@
   <label for="wizardPassword">New Wi-Fi password for <span id="wizardSsid">TurnHub-Atlas</span></label>
   <div class="secret"><input id="wizardPassword" type="text" minlength="8" maxlength="63" autocomplete="new-password" placeholder="8–63 characters" required><button type="button" class="ghost small reveal" onclick="wizardPassword.value=newWifiPassword()">Generate</button></div>
   <p class="hint">Write it down: every phone and the app rejoin with it after Atlas restarts.</p>
+  <label for="wizardUploadApproval">Admin approval for uploaded images</label>
+  <select id="wizardUploadApproval"><option value="1" selected>On — Admin reviews new images</option><option value="0">Off — new images appear immediately</option></select>
+  <p class="hint">Images stay on this local Atlas; TurnHub does not post them online. Change this later in Device Settings.</p>
   <button class="primary block">Finish and restart Atlas</button>
  </form>
  <p id="wizardMessage" class="msg" role="status" aria-live="polite"></p>
@@ -88,6 +91,10 @@
   </div>
   <p id="resetTableStatus" class="msg" role="status" aria-live="polite"></p>
  </section>
+ <section class="card half"><h2 class="eyebrow">Uploaded images</h2>
+ <label for="uploadApprovalToggle">Require Admin approval</label><input id="uploadApprovalToggle" type="checkbox" checked onchange="saveUploadApproval(this.checked)">
+ <p class="small">On: review new images before the local table sees them. Off: new images appear immediately. TurnHub does not post images online. Existing pending images still need review.</p>
+ </section>
  <section class="card half"><div class="card-head"><div><h2 class="eyebrow">People and roles</h2><p class="small">Give accounts the Admin, Game Master, Developer or Tablet access role, and archive accounts that no longer play here.</p></div></div>
   <div class="link-list"><button onclick="showPeople()"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg><span>Manage people</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron-right"/></svg></button></div>
  </section>
@@ -127,7 +134,7 @@ async function refreshAll(){
   connection.textContent='Connected';await loadSetupStage();const initial=await pollJson('/api/accounts/setup',{});adminSetup.hidden=!initial.setupRequired;
   if(!admin){accounts=[];if(personSheet.open)personSheet.close();return;}
   const [s,d,n,p,v]=await Promise.all(['/api/status','/api/devices','/api/network','/api/pairing','/api/speaker'].map(x=>pollJson(x)));
-  deviceData=d;renderDeviceSettings(d);renderNetwork(n);renderPairing(p);renderSpeaker(v);renderPresence();
+  deviceData=d;renderDeviceSettings(d);renderNetwork(n);renderPairing(p);renderSpeaker(v);renderPresence();loadUploadApproval();
   atlasDevice.textContent=`Atlas · ${d.atlas.hardwareId} · ${d.atlas.firmware}`;
   for(const [id,value] of Object.entries({stateMetricSystem:s.state,firmwareMetric:s.firmware,buildMetric:s.build,espMetric:s.espNow?'Ready':'Error',adminUnlockMetric:s.presenceActive?'Verified':'No one',otaMetric:s.otaStateAllowed?'Ready':'Game locked',activeMetric:s.active||'None',winnerMetric:s.winner||'None',connectionMetric:'Connected',browserSeatMetric:sessionInfo.name,portalAddress:location.host}))document.getElementById(id).textContent=value||'—';
   const options=(s.games||[]).map(g=>`<option value="${Number(g.game)}">Game ${Number(g.game)} · ${esc(g.state)} · ${Number(g.players)} players</option>`).join('');if(adminGame.innerHTML!==options)adminGame.innerHTML=options;adminGame.value=String(s.game||1);
@@ -158,6 +165,8 @@ async function renderPresence(){const el=document.getElementById('presenceStatus
  presenceTitle.textContent=on?'Verified at the table':'Verify at the table';
  el.textContent=!p?'Sign in with an Admin account to verify.':on?`${Math.ceil(Number(p.remainingMs)/60000)} min left. Settings that need proof work without asking again.`:'Changing Wi-Fi, device names, firmware and resets needs proof you are at the table.';
  presenceShow.hidden=on||!presenceForm.hidden;presenceStop.hidden=!on;if(on)presenceForm.hidden=true}
+async function loadUploadApproval(){try{const r=await fetch('/api/upload-approval',{headers:authHeaders(),cache:'no-store'});if(r.ok){const d=await r.json();uploadApprovalToggle.checked=d.required!==false}}catch(_){}}
+async function saveUploadApproval(required){try{const r=await fetch('/api/upload-approval',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({required:required?'1':'0'})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not save upload approval');showToast(d.message||'Saved.')}catch(e){showToast(e.message,true)}await loadUploadApproval()}
 async function saveTableCode(required){try{const r=await presenceFetch('/api/table-code?required='+(required?1:0),{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not change the table code');showToast(d.message||'Saved.')}catch(e){showToast(e.message,true)}renderPresence()}
 async function showPresenceCode(){try{const r=await fetch('/api/presence/request',{method:'POST',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Atlas could not show a code');presenceStatus.textContent='Atlas is showing a six-digit code now. Type it here.';presenceShow.hidden=true;presenceForm.hidden=false;presenceCode.value='';presenceCode.focus()}catch(e){showToast(e.message,true)}}
 async function submitPresenceCode(){if(await confirmPresence(presenceCode.value.trim())){presenceForm.hidden=true}}
@@ -244,9 +253,9 @@ function renderSetupWizard(){let skipped=false;try{skipped=sessionStorage.getIte
  const current=steps.findIndex(x=>!x[0]);wizardBar.style.width=Math.round(100*current/steps.length)+'%';wizardStepLabel.textContent=`Step ${current+1} of ${steps.length}: ${steps[current][1]}`;
  const html=steps.map(([done,title,text,action],i)=>`<li class="step ${done?'done':i===current?'current':''}"><span class="step-dot" aria-hidden="true">${done?'<svg class="i"><use href="#i-check"/></svg>':i+1}</span><div><strong>${title}</strong><p class="small">${text}</p>${i===current&&action?`<div class="actions" style="margin-top:8px">${action}</div>`:''}</div></li>`).join('');
  if(wizardSteps.innerHTML!==html)wizardSteps.innerHTML=html;wizardWifi.hidden=current!==2;wizardSsid.textContent=setupInfo.ssid||'TurnHub-Atlas'}
-async function loadSetupStage(){try{const r=await fetch('/api/setup',{cache:'no-store'});setupInfo=r.ok?await r.json():null}catch(_){setupInfo=null}renderSetupWizard()}
+async function loadSetupStage(){try{const r=await fetch('/api/setup',{cache:'no-store'});const next=r.ok?await r.json():null;if(!setupInfo&&next)wizardUploadApproval.value=next.uploadApprovalRequired===false?'0':'1';setupInfo=next}catch(_){setupInfo=null}renderSetupWizard()}
 async function finishSetup(){const password=wizardPassword.value;if(password.length<8||password.length>63){wizardMessage.textContent='Choose 8 to 63 characters.';return}
- try{const r=await presenceFetch('/api/setup/finish',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Atlas could not finish setup');
+ try{const r=await presenceFetch('/api/setup/finish',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({password,uploadApprovalRequired:wizardUploadApproval.value})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Atlas could not finish setup');
   wizardWifi.hidden=true;wizardBar.style.width='100%';wizardMessage.textContent=`You’re all set. Atlas is restarting: rejoin ${setupInfo.ssid||'TurnHub-Atlas'} with your new password, then open this page again.`;showToast('Setup finished. Atlas is restarting.')}catch(e){wizardMessage.textContent=e.message}}
 
 

@@ -1,4 +1,4 @@
-<!-- Generated from TurnHub Manual V0.16.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.17.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
@@ -103,7 +103,7 @@ A new Atlas, or one that was factory reset, shows **Welcome to TurnHub** instead
 
 - **Updates:** install new firmware on Atlas and every Sigil, or choose Later. This needs internet on the phone; without it, Continue.
 
-- **Secure Wi-Fi:** choose the table’s own Wi-Fi password, 8 to 63 characters. Finish saves it and restarts Atlas, and the app rejoins with the new password.
+- **Secure Wi-Fi:** choose the table’s own Wi-Fi password, 8 to 63 characters. Finish saves it and restarts Atlas, and the app rejoins with the new password. Choose Require Admin approval for uploaded images On (default) or Off. Change this later in Device Settings. Existing images awaiting approval still need review.
 
 The browser covers the account, the code and the Wi-Fi password; pairing and updates are on the Atlas screen and in the app. To play first, tap **Skip for now** on the Atlas screen: setup comes back at the next start-up and under Menu. When setup is done, Atlas says You’re all set; tap **Pair a Sigil** or **Done**.
 
@@ -459,7 +459,7 @@ The app’s Players screen displays an installation QR. After installing, join A
 
 In My account, open Personalization to choose a smooth default icon or Upload your own image. Insert a working microSD card in Atlas first. Choose a JPEG, PNG or WebP image up to 20 MiB and 32 megapixels; the source stays on your phone.
 
-Use Zoom, Horizontal position and Vertical position to crop a square. Preview compressed image shows the final crop and provisional 2.8-inch/4-inch display previews. Tap Upload for approval to save a 512-pixel JPEG up to 48 KiB on Atlas. An Admin opens Players → People, selects your account and approves or rejects the image. Until approved, only you and Admins can preview it; an earlier approved image stays visible while a replacement waits.
+Use Zoom, Horizontal position and Vertical position to crop a square. Preview compressed image shows the final crop and provisional 2.8-inch/4-inch display previews. Tap Upload image to save a 512-pixel JPEG up to 48 KiB on Atlas. Upload approval is on by default: an Admin opens Players → People, selects your account and approves or rejects the image. Until approved, only you and Admins can preview it; an earlier approved image stays visible while a replacement waits. With approval off, valid new images appear immediately at the local table. Images stay on Atlas; TurnHub does not post them online.
 
 Refresh image approval reloads your image status. You can choose None or a default icon without deleting your uploaded image. Remove uploaded image deletes pending and approved artwork and selects None. Missing card or damaged artwork uses a fallback while play continues. The current Atlas shows a small thumbnail; current e-ink/OLED Sigils keep their existing icons. Larger ESP32-S3 LCD layouts are planned.
 

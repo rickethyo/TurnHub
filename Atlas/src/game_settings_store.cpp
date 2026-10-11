@@ -4,6 +4,7 @@
 #include "setup_stage.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
+#include "upload_approval.h"
 namespace TurnHub {
 namespace { TurnHubStorage::NvsBlobStore store; }
 TurnHubStorage::Status loadGameSettings(GameSettings &settings) {
@@ -29,6 +30,14 @@ TurnHubStorage::Status loadSpeakerVolume(uint8_t &volume) {
 TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
   const auto status=store.begin("turnhub");
   return status==TurnHubStorage::Status::Ok?writeSpeakerVolume(store,volume):status;
+}
+TurnHubStorage::Status loadUploadApprovalRequired(bool &required) {
+  const auto status = store.begin("turnhub");
+  return status == TurnHubStorage::Status::Ok ? readUploadApprovalRequired(store, required) : status;
+}
+TurnHubStorage::Status saveUploadApprovalRequired(bool required) {
+  const auto status = store.begin("turnhub");
+  return status == TurnHubStorage::Status::Ok ? writeUploadApprovalRequired(store, required) : status;
 }
 TurnHubStorage::Status loadTableCodeRequired(bool &required) {
   const auto status=store.begin("turnhub");

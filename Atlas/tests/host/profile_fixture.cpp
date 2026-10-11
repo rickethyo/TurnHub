@@ -44,6 +44,10 @@ TurnHubStorage::Status saveSpeakerVolume(uint8_t volume) {
   if (!ProfileFixture::gameSettingsWritable) return TurnHubStorage::Status::IoError;
   fixtureSpeakerVolumeSaved=volume;return TurnHubStorage::Status::Ok;
 }
+TurnHubStorage::Status loadUploadApprovalRequired(bool &) { return TurnHubStorage::Status::NotFound; }
+TurnHubStorage::Status saveUploadApprovalRequired(bool) {
+  return ProfileFixture::gameSettingsWritable ? TurnHubStorage::Status::Ok : TurnHubStorage::Status::IoError;
+}
 TurnHubStorage::Status loadTableCodeRequired(bool &) { return TurnHubStorage::Status::NotFound; }
 TurnHubStorage::Status saveTableCodeRequired(bool) {
   return ProfileFixture::gameSettingsWritable ? TurnHubStorage::Status::Ok : TurnHubStorage::Status::IoError;

@@ -195,6 +195,8 @@ const Route ROUTES[] = {
   {"/api/pairing", HTTP_POST, handleSavePairingSettings},
   {"/api/speaker", HTTP_GET, handleSpeakerSettings},
   {"/api/speaker", HTTP_POST, handleSaveSpeakerSettings},
+  {"/api/upload-approval", HTTP_GET, handleUploadApprovalSettings},
+  {"/api/upload-approval", HTTP_POST, handleSaveUploadApprovalSettings},
   {"/api/table-code", HTTP_GET, handleTableCodeSettings},
   {"/api/table-code", HTTP_POST, handleSaveTableCodeSettings},
   {"/api/table/reset", HTTP_POST, handleResetTable},

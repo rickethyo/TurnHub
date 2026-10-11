@@ -121,13 +121,15 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
     }
     ToneButton(if (loading) "Opening image…" else "Upload your own image", { picker.launch("image/*") },
         enabled = current?.cardPresent == true && !busy && !loading)
-    Text("Crop a square image. Saved at up to 512 × 512 pixels and 48 KiB. An Admin approves images before public display.",
+    Text("Crop a square image. Saved at up to 512 × 512 pixels and 48 KiB. " +
+        if (current?.uploadApprovalRequired != false) "An Admin reviews new images before the local table sees them."
+        else "New images appear immediately at the local table.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
     error?.let { Text(it, color = palette.warn) }
     if (current?.pendingAvatar?.isNotBlank() == true) {
         Text("Awaiting Admin approval", color = palette.warn)
         AvatarBytesPreview(current.pendingImage, "Image awaiting approval")
-    } else if (current?.customAvatar?.isNotBlank() == true) Text("Uploaded image approved", color = palette.muted)
+    } else if (current?.customAvatar?.isNotBlank() == true) Text("Uploaded image ready", color = palette.muted)
     if (current?.pendingAvatar?.isNotBlank() == true || current?.customAvatar?.isNotBlank() == true)
         ToneButton("Remove uploaded image", remove, enabled = !busy)
     source?.let { bitmap ->
@@ -209,7 +211,7 @@ private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (B
                     catch (e: Exception) { error = e.message ?: "Could not compress crop" }
                     finally { saving = false }
                 }
-            }) { Text(if (saving) "Compressing…" else if (encoded == null) "Preview compressed image" else "Upload for approval") }
+            }) { Text(if (saving) "Compressing…" else if (encoded == null) "Preview compressed image" else "Upload image") }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") } },
     )
