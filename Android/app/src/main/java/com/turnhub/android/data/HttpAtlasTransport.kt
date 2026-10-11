@@ -282,7 +282,8 @@ class HttpAtlasTransport(
         val connection = opener.open(URL(endpoint.baseUrl + path))
         try {
             connection.connectTimeout = connectTimeoutMs
-            connection.readTimeout = readTimeoutMs
+            // Atlas validates every SD chunk before sending the first image byte.
+            connection.readTimeout = maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS)
             connection.instanceFollowRedirects = false
             connection.useCaches = false
             if (token.isNotEmpty()) connection.setRequestProperty(TOKEN_HEADER, token)
@@ -414,7 +415,8 @@ class HttpAtlasTransport(
         formBody: String? = null,
         rawBody: ByteArray? = null,
         contentType: String? = null,
-        readTimeout: Int = readTimeoutMs,
+        readTimeout: Int = if (path == "/api/avatar/review" || path == "/api/session/avatar")
+            maxOf(readTimeoutMs, ARTWORK_TIMEOUT_MS) else readTimeoutMs,
     ): Response = withContext(ioDispatcher) {
         val expectedGame = kotlinx.coroutines.currentCoroutineContext()[ExpectedGame]?.game
         val tableAction = path.startsWith("/api/control/") || path.startsWith("/api/tablet/") ||
@@ -496,6 +498,9 @@ class HttpAtlasTransport(
 
         /** A firmware upload: about 1.3 MB over the Atlas AP while Atlas writes flash. */
         const val UPLOAD_TIMEOUT_MS = 180_000
+
+        /** Bounded SD artwork validation and writes can exceed the polling deadline. */
+        const val ARTWORK_TIMEOUT_MS = 30_000
     }
 }
 

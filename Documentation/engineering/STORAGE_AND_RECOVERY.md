@@ -194,3 +194,11 @@ decode failure. Pending GET requires the owning player or Admin, approved GET is
 public. Public paths include revision; cache is disposable and scoped to the
 Atlas connection. Thumbnail pixels come from the app's final compressed crop and
 are reviewed as part of the same asset; the phone retains no original on Atlas.
+
+Android gives artwork reads/upload steps/review a 30-second read deadline while
+ordinary state polling retains its short deadline. Atlas validates all chunks
+before sending image headers; failed previews keep approval disabled and expose
+a retry. This does not relax the 48 KiB image bound or review authorization.
+SD replacement checks backup existence before cleanup or rollback; a missing
+backup is normal on a first write and must not emit a filesystem error. Cleanup
+failure after publication still leaves the new committed record readable.

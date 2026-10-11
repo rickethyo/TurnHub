@@ -452,7 +452,8 @@ struct FakeFs final : FileSystem {
   std::map<std::string, bool> dirs;
   bool failRead = false, failWrite = false, flipOnWrite = false;
   int failRenamesTo = 0;  // how many renames onto renameTarget fail
-  std::string renameTarget;
+  std::string renameTarget, removeTarget;
+  unsigned missingRemoves = 0, missingRenames = 0;
   bool exists(const char *path) override { return files.count(path) || dirs.count(path); }
   bool readFile(const char *path, void *data, size_t capacity, size_t &size) override {
     size = 0;
@@ -471,12 +472,17 @@ struct FakeFs final : FileSystem {
   }
   bool rename(const char *from, const char *to) override {
     if (failRenamesTo > 0 && renameTarget == to) { --failRenamesTo; return false; }
-    if (!files.count(from) || exists(to)) return false;
+    if (!files.count(from)) { ++missingRenames; return false; }
+    if (exists(to)) return false;
     files[to] = files[from];
     files.erase(from);
     return true;
   }
-  bool remove(const char *path) override { return files.erase(path) == 1; }
+  bool remove(const char *path) override {
+    if (!files.count(path)) { ++missingRemoves; return false; }
+    if (removeTarget == path) return false;
+    return files.erase(path) == 1;
+  }
   bool mkdir(const char *path) override { dirs[path] = true; return true; }
 };
 
@@ -539,6 +545,7 @@ void sdRecords() {
   assert(store.read("rec", out, sizeof(out), size) == Status::NotFound);
   assert(store.write("rec", "first", 6) == Status::Ok);
   assert(fs.files.size() == 1 && fs.files.count("/turnhub/rec"));
+  assert(fs.missingRemoves == 0 && fs.missingRenames == 0);
   assert(fs.files["/turnhub/rec"].size() == SdBlobStore::HEADER_BYTES + 6);
   assert(store.read("rec", nullptr, 0, size) == Status::Ok && size == 6);
   assert(store.read("rec", out, sizeof(out), size) == Status::Ok && size == 6 && !strcmp(out, "first"));
@@ -548,6 +555,21 @@ void sdRecords() {
   assert(store.write("rec", "second", 7) == Status::Ok);
   assert(fs.files.size() == 1);
   assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "second"));
+
+  // Cleanup failure after commit does not turn a successful replace into failure.
+  fs.removeTarget = "/turnhub/rec.bak";
+  assert(store.write("rec", "second", 7) == Status::Ok);
+  assert(fs.files.count("/turnhub/rec.bak"));
+  assert(store.read("rec", out, sizeof(out), size) == Status::Ok && !strcmp(out, "second"));
+  fs.removeTarget.clear();
+  assert(store.write("rec", "second", 7) == Status::Ok && fs.files.size() == 1);
+
+  // A first-write rename failure has no old record to restore.
+  fs.renameTarget = "/turnhub/fresh"; fs.failRenamesTo = 1;
+  assert(store.write("fresh", "x", 2) == Status::IoError);
+  assert(store.read("fresh", out, sizeof(out), size) == Status::NotFound);
+  assert(fs.missingRemoves == 0 && fs.missingRenames == 0);
+  assert(store.remove("fresh") == Status::Ok); // Clear only its staged file.
 
   // Invalid keys and sizes never touch the card.
   for (const char *bad : {"", "../rec", "a/b", "a.b", "sixteen_chars_xx"}) {

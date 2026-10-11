@@ -227,6 +227,10 @@ private fun PersonSheet(
                 BrassCard {
                     Eyebrow("Player image awaiting approval")
                     AvatarBytesPreview(account.pendingImage, "$name's submitted image")
+                    if (account.pendingImage == null) {
+                        Text("Image preview could not load. Retry the preview before approving.", color = p.warn)
+                        ToneButton("Retry preview", actions.onRefresh, enabled = !admin.busy)
+                    }
                     Text("Approval makes this image visible to everyone at the table.", color = p.muted)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ToneButton("Approve image", { actions.run { reviewAvatar(account.profileId, account.pendingAvatar, true) } },

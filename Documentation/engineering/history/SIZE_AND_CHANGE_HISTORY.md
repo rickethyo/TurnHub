@@ -928,3 +928,19 @@ Complete firmware image: 1,653,152 B; OTA slot headroom: 312,928 B.
 Relative to the accessibility-only portal baseline: +4,352 B static RAM and
 +63,044 B reported flash. Existing application slots are unchanged.
 Android debug APK: 15,849,907 B; all 218 unit tests passed.
+
+
+### 2026-10-11 / Atlas 0.7.12-dev artwork approval follow-up
+
+Verified local PlatformIO build; physical acceptance pending. SD replacement
+skips nonexistent backup cleanup and rollback. Android artwork requests allow
+30 seconds for SD validation, with an explicit retry when the preview fails.
+Image bounds, review authorization, partitions and radio remain unchanged.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 111,884 B (34.1%) | 1,655,089 B (84.2%) |
+
+Compared with 0.7.11-dev: unchanged static RAM, +36 B reported flash.
+All 233 Android unit tests and debug APK build passed. SD host storage scenarios
+passed with ASan/UBSan at -O0 (LeakSanitizer disabled for workspace tracing).

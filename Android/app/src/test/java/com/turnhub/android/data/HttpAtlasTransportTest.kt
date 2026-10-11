@@ -38,6 +38,7 @@ class HttpAtlasTransportTest {
             val (code, body, delayMs) = routes[exchange.requestURI.path] ?: Triple(404, "Not found", 0L)
             if (delayMs > 0) Thread.sleep(delayMs)
             val bytes = body.toByteArray()
+            if (exchange.requestURI.path == "/api/avatar") exchange.responseHeaders.add("Content-Type", "image/jpeg")
             if (code in 300..399) exchange.responseHeaders.add("Location", "http://example.invalid/")
             exchange.sendResponseHeaders(code, if (bytes.isEmpty()) -1 else bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
@@ -55,6 +56,27 @@ class HttpAtlasTransportTest {
 
     private fun failureOf(block: suspend () -> Unit): AtlasFailure =
         assertThrows(AtlasException::class.java) { runBlocking { block() } }.failure
+
+    @Test
+    fun `SD artwork preview and approval outlast the polling deadline`() = runBlocking {
+        routes["/api/avatar"] = Triple(200, "test-image", 400)
+        routes["/api/avatar/review"] = Triple(200, "{\"ok\":true}", 400)
+        routes["/api/session/avatar"] = Triple(200, "{\"ok\":true}", 400)
+        val client = transport(readTimeoutMs = 100)
+        assertEquals("test-image", client.getAvatarImage(
+            "/api/avatar?profileId=ABC12345&revision=abcdef01&pending=1", "admin-token").toString(Charsets.UTF_8))
+        assertTrue(client.raw("POST", "/api/avatar/review", "admin-token",
+            listOf("action" to "approve")).ok)
+        assertTrue(client.raw("POST", "/api/session/avatar", "player-token",
+            listOf("action" to "submit")).ok)
+    }
+
+    @Test
+    fun `SD artwork still rejects responses above 48 KiB`() {
+        routes["/api/avatar"] = Triple(200, "x".repeat(48 * 1024 + 1), 0)
+        assertTrue(failureOf { transport().getAvatarImage(
+            "/api/avatar?profileId=ABC12345&revision=abcdef01", "") } is AtlasFailure.Malformed)
+    }
 
     @Test
     fun `reads info and state from a live server`() = runBlocking {

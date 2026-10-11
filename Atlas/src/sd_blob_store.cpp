@@ -151,12 +151,12 @@ Status SdBlobStore::write(const char *key, const void *data, size_t size) {
   }
   if (!fs_->rename(temporary, current)) {
     // Put the old record back; if that fails too, reads still find the backup.
-    fs_->rename(backup, current);
+    if (fs_->exists(backup)) fs_->rename(backup, current);
     return Status::IoError;
   }
   // The new record is committed. A backup left here is harmless: reads prefer
   // the current file and the next write clears it.
-  fs_->remove(backup);
+  if (fs_->exists(backup)) fs_->remove(backup);
   return Status::Ok;
 }
 
