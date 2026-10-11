@@ -34,7 +34,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-015 | ESP32-S3 hardware and LVGL foundation | Hardware, BOM, LVGL | Active | Codex / codex/esp32-s3-lvgl |
+| TH-015 | ESP32-S3 hardware and LVGL foundation | Hardware, BOM, LVGL | Simulator validated; ready for review | Owner review; future agents use LVGL/README.md |
 | TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
 | TH-011 | Play-note investigation | Tablet, seating, Android, Sigil, Atlas stability | Investigation complete; minor fixes staged | Owner / review staged changes and proposals |
 | TH-009 | Current enclosure print-set README | 3D, hardware | Ready for review | Owner / review documentation |
@@ -1126,5 +1126,8 @@ management/invitations from TH-002 remain separate planned work.
 - Branch: `codex/esp32-s3-lvgl`, explicitly requested dedicated scope. User direction overrides normal persistent-branch/master-merge startup; neither master nor codex/master is modified. Existing checkout was clean; all history preserved.
 - Scope: complete hardware/BOM planning first, then an isolated desktop LVGL UI foundation. Legacy Atlas/DevKit Sigils, PlatformIO, radio, OTA, engine, profile/statistics and CAD assets are preserved.
 - Hardware research: [board/electrical/mechanical record](Documentation/engineering/hardware/ESP32_S3_REFRESH.md), [prototype BOM](Documentation/engineering/hardware/PROTOTYPE_BOM.md), primary-source digests. Documented schematic/page conflicts and unsupported $1.80 price; no physical acceptance claimed.
-- Status: hardware planning completed; [firmware/presentation architecture](Documentation/engineering/LVGL_MIGRATION.md) and eight-part feature gate documented before implementation. Actual simulator implementation follows.
+- Status: completed first desktop milestone. Hardware/BOM `76a447c`, architecture/feature gate `addf22d`, working simulator `2857474`. Validation/previews/handoff follow in the final milestone on this same branch.
+- Implemented: [LVGL simulator](LVGL/README.md), both profiles, common Inter/Cinzel and theme palettes, existing 64px presets, disposable presentation state/action sink, SDL pointer/five-way input, life requests, player/theme menus, mock pairing and deterministic timed/paused/game-over fixtures. No production hardware or transport bindings.
+- Validation: Linux Debug + source-pinned Release builds; 2/2 CTest suites on both; both X11 event-input suites; 2/2 ASan/UBSan suites with leak detection disabled; 14 SDL/Xvfb captures; font/token/avatar digests, 31 adapter guards and whitespace passed. [Previews and evidence](Documentation/engineering/history/2026-10-11-lvgl-previews/README.md). Windows and all physical checks remain untested.
+- Handoff: use `LVGL/README.md` to build/launch; hardware holds and remaining migration work are owned by STAGED_CHANGES and linked topic docs. Next development: supplier/sample qualification, power/connector verification, then separate board drivers and production snapshot/Intent adapters. No merge, release or hardware flash. Push this feature branch only.
 - Git completion follows AGENT_WORKFLOW step 4: one reviewable PR to master is required by repository conventions, permitted by the user's exception; no integration/release.

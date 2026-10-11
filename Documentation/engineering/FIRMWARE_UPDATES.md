@@ -185,3 +185,11 @@ says `SIGIL|SPARE|EINK` or `SIGIL|SPARE|OLED`.
 - Keeping older packages on the card for reinstalling is undecided;
   delivery doesn't depend on it. Atlas fetching updates over home Wi-Fi is
   staged.
+
+## Planned ESP32-S3 targets
+
+The [LVGL foundation](LVGL_MIGRATION.md) is desktop-only and creates no OTA product.
+Legacy descriptors, signatures, slots and update mechanisms remain unchanged.
+Before S3 firmware packaging, define distinct board/product identity, verified
+partition sizes and product rejection/USB recovery tests; do not distribute an
+S3 image with a legacy product identifier. S3 OTA integration remains staged.

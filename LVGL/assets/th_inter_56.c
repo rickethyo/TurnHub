@@ -893,4 +893,3 @@ lv_font_t th_inter_56 = {
 
 
 #endif /*#if TH_INTER_56*/
-

@@ -960,3 +960,17 @@ Compared with 0.7.12-dev: +8 B static RAM / +2,496 B flash. Android 233 unit tes
 and final debug APK passed. Atlas four host suites passed with ASan/UBSan at
 -O0 (LeakSanitizer off for workspace tracing); 20 state contracts, 31 adapter
 guards, portal browser tests, tokens and Manual V0.17 export passed.
+
+### 2026-10-11 / Isolated desktop LVGL foundation 0.1.0
+
+No legacy firmware version, PlatformIO environment, partition or radio change.
+Hardware/BOM planning precedes a shared desktop UI with Atlas 480×320 and Sigil
+240×320 profiles, four existing palettes, Inter/Cinzel fonts, existing avatar
+masks, SDL touch/keypad and fixture-only action/state adapters. No S3 image built.
+
+GCC 14.2.0 Release executable with statically built SDL 2.32.4 and LVGL 9.3.0:
+file 3,490,528 B; GNU `size` text 3,058,162 B, data 58,632 B, BSS 21,472 B.
+These are **desktop sections, not ESP32 flash/RAM estimates**. Device frame/cache
+budgets are in LVGL_MIGRATION.md. Both profile suites passed in Debug/Release and
+ASan/UBSan (leak checks disabled); X11 input suites and 14 rendered captures passed.
+Physical hardware, Windows and embedded memory/performance remain unverified.

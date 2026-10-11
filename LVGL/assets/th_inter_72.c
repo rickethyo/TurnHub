@@ -1376,4 +1376,3 @@ lv_font_t th_inter_72 = {
 
 
 #endif /*#if TH_INTER_72*/
-

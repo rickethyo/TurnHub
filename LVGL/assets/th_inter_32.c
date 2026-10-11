@@ -2403,4 +2403,3 @@ lv_font_t th_inter_32 = {
 
 
 #endif /*#if TH_INTER_32*/
-

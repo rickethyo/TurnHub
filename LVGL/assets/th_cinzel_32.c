@@ -2574,4 +2574,3 @@ lv_font_t th_cinzel_32 = {
 
 
 #endif /*#if TH_CINZEL_32*/
-

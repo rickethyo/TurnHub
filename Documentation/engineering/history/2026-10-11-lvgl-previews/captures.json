@@ -1,0 +1,91 @@
+{
+  "lvgl": "9.3.0",
+  "sdl": "2.32.4",
+  "driver": "x11",
+  "captures": [
+    {
+      "file": "atlas-graphite-game-0.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "e6600b2f48ff9c8b992ed80fe2fe9c03cfc963ffc58e73f93ded2f7749d84c84"
+    },
+    {
+      "file": "atlas-daylight-game-0.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "7b687241deb97c48e89f2a9c8b06dc226ea25ff30091ffa07ccc22f566a18f89"
+    },
+    {
+      "file": "atlas-brass-game-0.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "b22021177895055d88912fa7f7513290c596a9e288425fc27cbcd8be7e7e5889"
+    },
+    {
+      "file": "atlas-contrast-game-0.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "3a8e25eea6c1d78c4ccc4e206c3793c1397da2fed1845e2791468bdc9b3ca770"
+    },
+    {
+      "file": "sigil-graphite-game-0.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "3158a295e047a56c1df5edc6ffd07d6312def10e8da012206681bbd937dd83b2"
+    },
+    {
+      "file": "sigil-daylight-game-0.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "b26710325880bff9369180029e60b43283cdbccb31011ca102259c590c027f98"
+    },
+    {
+      "file": "sigil-brass-game-0.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "e61a4cd52f4b2ec8fcbdff43ee73a9f3e87bde8b855c50bb5ee4d4aab0ce7006"
+    },
+    {
+      "file": "sigil-contrast-game-0.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "687819e7fd1d6b4de2b1db417efce2afd8021d96134918b0b6b419a80cf829d1"
+    },
+    {
+      "file": "atlas-graphite-pairing-0.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "6ef485f8bf38cb2d9eaba92a838c01b43dce0605b256b8887ea8f742955b86b0"
+    },
+    {
+      "file": "atlas-graphite-game-2.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "1f7ba64bf8d75633cf29dd4b40c53b35cd13a0c282bb9fb5a86d8e34fdec97b3"
+    },
+    {
+      "file": "atlas-graphite-game-3.png",
+      "width": 480,
+      "height": 320,
+      "rgba_sha256": "927fbd06efd684363168685ff929c60cf4ffdb6887e5e5d32d05d1b01441a384"
+    },
+    {
+      "file": "sigil-graphite-pairing-0.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "51a133c4fe9557978b00dc03062f521c7228d9566b165a208e031a4d6770fdd7"
+    },
+    {
+      "file": "sigil-graphite-game-2.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "f2ea30935d9fe370fb7e05dc3a9b2b4c9d600c7011092aa5b0c4abfae9c4f3e9"
+    },
+    {
+      "file": "sigil-graphite-game-3.png",
+      "width": 240,
+      "height": 320,
+      "rgba_sha256": "64745f0ccf61d34c83351b1e938941d9242bc9b9468a5c5a89fb736ef81a31f3"
+    }
+  ]
+}

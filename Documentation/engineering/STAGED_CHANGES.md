@@ -219,8 +219,10 @@ everything implemented. Only the checks listed below are still open.
   direction and partial prototype BOM are in [the hardware plan](hardware/ESP32_S3_REFRESH.md).
   Resolve listed flash/audio/UART conflicts, supplier prices/MOQ, connector families,
   battery/boost power and physical measurements before hardware fabrication.
-  [LVGL migration](LVGL_MIGRATION.md) defines isolated desktop presentation work;
-  per-board firmware, production Intent/snapshot bindings, SD JPEG loading and S3
+  [LVGL desktop foundation](../../LVGL/README.md) now builds and exercises both
+  profiles, shared themes and interactive fixtures; [migration architecture](LVGL_MIGRATION.md)
+  preserves the production boundaries.
+  Per-board firmware, production Intent/snapshot bindings, SD JPEG loading and S3
   OTA remain pending. Legacy e-ink/OLED features stay frozen.
 
 - **Player-facing Sigil LEDs are required** (owner, 2026-10-09): implement

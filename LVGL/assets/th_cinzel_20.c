@@ -1261,4 +1261,3 @@ lv_font_t th_cinzel_20 = {
 
 
 #endif /*#if TH_CINZEL_20*/
-

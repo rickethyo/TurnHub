@@ -203,3 +203,21 @@ are implemented. SD JPEG decoding, artwork backgrounds, eight-seat pagination,
 production setup/settings, real recovery/reset, embedded rendering, network/Intent
 bindings, physical drivers, battery detection, power control and S3 OTA are pending.
 No production renderer is replaced. Follow hardware verification before GPIO bindings.
+
+## Recorded validation (2026-10-11)
+
+- Linux Debug build using exact system SDL 2.32.4: both CTest UI suites passed.
+- Linux Release build using pinned **SDL sources** and LVGL release sources: both
+  CTest suites and both X11 `--self-test` runs passed, including rendered label updates.
+- GCC ASan/UBSan build: both suites passed (`ASAN_OPTIONS=detect_leaks=0`,
+  `UBSAN_OPTIONS=halt_on_error=1`); leak detection was not tested.
+- X11 SDL rendering under Xvfb: 14 captures passed exact dimensions, token palette
+  background, nonblank and distinct-scene checks; selected captures visually reviewed.
+  [Committed previews](../Documentation/engineering/history/2026-10-11-lvgl-previews/README.md).
+- Font/source/tool digests, shared tokens/contrast, existing avatar-mask digests,
+  31 authoritative-adapter guards, Python syntax and final whitespace checks passed.
+
+Windows/MSVC, physical capacitive touch, PCA9554, LEDs, battery/audio, S3 firmware
+and panel readability were not tested. Existing CI does not yet build this new
+CMake target; the targeted commands above are the validation route for this
+milestone. A future scoped LVGL CI job belongs with continued simulator work.
