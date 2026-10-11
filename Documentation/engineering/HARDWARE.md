@@ -13,9 +13,11 @@ playtesting and bench testing (2026-10-02).
 Current ESP32 DevKit e-paper and OLED Sigil feature development is frozen.
 Their accepted firmware, radio contract and 16-pixel preset assets remain the
 baseline. New screen work targets planned ESP32-S3 LCD hardware with 2.8-inch
-and 4-inch displays. Board/panel selection, GPIOs, orientation, exact display
-resolution, PSRAM, power budget and the new screen layouts are still to be
-confirmed; neither S3 firmware target exists yet.
+and 4-inch displays. Candidates are now LCDWIKI ES3C40P (Atlas 480×320 landscape) and ES3C28P
+(Sigil 240×320 portrait). [S3 hardware planning](hardware/ESP32_S3_REFRESH.md)
+owns source-verified specifications, pin conflicts, electrical/mechanical holds
+and [prototype BOM](hardware/PROTOTYPE_BOM.md). Physical compatibility and prices
+remain open; neither S3 firmware target exists yet.
 
 Player artwork begins independently of those ports: vector defaults, 64-pixel
 Atlas alpha masks, and square JPEG masters up to 512 pixels/48 KiB stored on

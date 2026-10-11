@@ -1,0 +1,15 @@
+retrieved_utc,document,url,sha256
+2026-10-11,40.html,https://www.lcdwiki.com/4.0inch_ESP32-S3_Display,f1929562d724cb251074b68cb554451f793c28f03973f286e61d6b51767766c6
+2026-10-11,28.html,https://www.lcdwiki.com/2.8inch_ESP32-S3_Display,bd88b976be41cad568d3779e22f180d7f28570608adfd9a9942cd7cb6fc03820
+2026-10-11,nav.html,https://www.sparkfun.com/sparkfun-qwiic-navigation-switch.html,205450675bbfa5acb1c24af37c888ce585c9528cdde789c7269601fabd952e65
+2026-10-11,40-sch.pdf,https://www.lcdwiki.com/res/ES3C40P/4.0inch_ESP32-S3_Display_Schematic.pdf,293e2d6e9e1cd261d2308060a396f7417f4434e910e6cdbc7c2a8286eddeb26b
+2026-10-11,28-sch.pdf,https://www.lcdwiki.com/res/ES3C28P/2.8inch_ESP32-S3_Display_Schematic.pdf,f82f969a519085ef2aa15d90af6bf067467cd0f1985f635606dccf8724d304a1
+2026-10-11,40-man.pdf,https://www.lcdwiki.com/res/ES3C40P/4.0inch_IPS_ESP32-S3_ES3C40P_User_Manual.pdf,93f9783c1c607cd8f76cd0df7ccbf38e5d51ce69b2f6fc8739253b14df17db2a
+2026-10-11,28-man.pdf,https://www.lcdwiki.com/res/ES3C28P/2.8inch_IPS_ESP32-S3_ES3C28P_ES3N28P_User_Manual.pdf,aff14586017ee85e581db89ea50812ace642f9effe3d31d3af11d12c12d9ef7b
+2026-10-11,40-size.pdf,https://www.lcdwiki.com/res/ES3C40P/ES3C40P_Size.pdf,36021ca169637ed7339d0c6a9f6835895216da853669bc35a0207eb757334f37
+2026-10-11,28-size.pdf,https://www.lcdwiki.com/res/ES3C28P/ES3C28P_Size.pdf,d5ecf24ce3842672c924a1f4ba68e7166879e1860df7c9f1689bb8e2d1525720
+2026-10-11,nav-sch.pdf,https://docs.sparkfun.com/SparkFun_Qwiic_Navigation_Switch/assets/board_files/SparkFun_Qwiic_Navigation_Switch_v11_Schematic.pdf,17f6192260f2aa42ec87711c92851fb5c0bd9462bdeb6354c925091c58510b06
+2026-10-11,pca.pdf,https://docs.sparkfun.com/SparkFun_Qwiic_Navigation_Switch/assets/component_documentation/pca9554.pdf,178791edd710858a4b179f7f94099b2566d2dad976bdd334f2405b3267ad1ceb
+2026-10-11,s3.pdf,https://www.lcdwiki.com/res/PublicFile/esp32-s3_datasheet_en.pdf,b6db403d6d5db8d1b4db0c8390ff7e0a7db714b8388e986e1c64bff563f76b61
+2026-10-11,charger.pdf,https://www.lcdwiki.com/res/PublicFile/TP4054.PDF,106401976c059b7b32075404c3ed2b70d72d62aeecd795542b332c7c453bf623
+2026-10-11,ldo.pdf,https://www.lcdwiki.com/res/PublicFile/ME6217_LDO.pdf,fa5da3a17123585b4e30e5a03b389a659cf028f6cef5bf8d08e52c1169b7fb90
