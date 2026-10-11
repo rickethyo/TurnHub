@@ -13,3 +13,7 @@ retrieved_utc,document,url,sha256
 2026-10-11,s3.pdf,https://www.lcdwiki.com/res/PublicFile/esp32-s3_datasheet_en.pdf,b6db403d6d5db8d1b4db0c8390ff7e0a7db714b8388e986e1c64bff563f76b61
 2026-10-11,charger.pdf,https://www.lcdwiki.com/res/PublicFile/TP4054.PDF,106401976c059b7b32075404c3ed2b70d72d62aeecd795542b332c7c453bf623
 2026-10-11,ldo.pdf,https://www.lcdwiki.com/res/PublicFile/ME6217_LDO.pdf,fa5da3a17123585b4e30e5a03b389a659cf028f6cef5bf8d08e52c1169b7fb90
+2026-10-11,28-demo,https://www.lcdwiki.com/res/ES3C28P/2.8inch_ES3C28P_ES3N28P_arduino_Demo_Instructions.pdf,520cfa915a640e6c371c462a10874e65b83021f51bfb3f3f2be2c0dfc269d40d
+2026-10-11,40-demo,https://www.lcdwiki.com/res/ES3C40P/4.0inch_ES3C40P_arduino_Demo_Instructions.pdf,180b7f1a2dbf4ae8589f30e43705f6c4e39d63e82c5097c16cab39c132089831
+2026-10-11,s3-official,https://www.espressif.com/sites/default/files/documentation/esp32-s3_datasheet_en.pdf,2d5a7cb7fd559d8d972bd88db32669c0196d23f22d7afaafb0f63d099b589a3f
+2026-10-11,qwiic-guide,https://docs.sparkfun.com/SparkFun_Qwiic_Navigation_Switch/hardware_overview/,f36c2b84951d7d396bd93ecc0b0bb1a3d3dc4038fd49c565f25c35dad5ad9fe5

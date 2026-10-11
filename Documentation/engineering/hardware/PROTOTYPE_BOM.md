@@ -31,7 +31,9 @@ Manufacturer page distinguishes complete ES3C28P capacitive hardware from ES3N28
 without touch and documents the complete board features, but publishes **no
 purchase price, normal-quantity quote or MOQ**. No reliable ordinary-quantity
 complete-board listing supporting $1.80 was found. A web-search request returned
-an interstitial, not supplier evidence. It could be a variant/accessory price,
+an interstitial, and Bing returned unrelated results, not supplier evidence.
+An AliExpress exact-SKU search was denied by the outbound gateway (403), so no
+listing, variant, normal purchasing quantity or MOQ could be verified there. It could be a variant/accessory price,
 first-customer promotion, deposit or quantity-tier quote; none of those hypotheses
 is confirmed. Obtain an itemized quote for 8 and 10 **ES3C28P N16R8 complete boards**,
 including touch, taxes, freight, speaker and harness contents. $20.27 is similarly

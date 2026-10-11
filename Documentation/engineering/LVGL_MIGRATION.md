@@ -57,8 +57,11 @@ flush/touch adapter, or ESP-IDF `esp_lcd` plus `esp_lvgl_port` and a compatible
 ST7796/ILI9341 component. Both panels are **SPI**, not an RGB-parallel framebuffer
 board. Verify exact library release/core compatibility and DMA buffer placement
 on sample boards before adding separate `atlas-s3` / `sigil-s3` environments.
-Manufacturer supplies Arduino, ESP-IDF and LVGL instructions, but that is not
-TurnHub firmware acceptance. Prefer one graphics driver path for both boards,
+Manufacturer Arduino demo instructions name Arduino IDE 2.3.4, Arduino-ESP32
+3.2.0, TFT_eSPI and **LVGL 8.3 only, explicitly excluding 9.x**. Therefore
+this 9.3 foundation needs new display/touch adapters; vendor example compatibility
+is not claimed. ESP-IDF instructions are offered but their exact compatible
+component versions remain unverified. This is not TurnHub firmware acceptance. Prefer one graphics driver path for both boards,
 with explicit differing controller/pin/power profiles. Do not copy vendor demos
 or their unexplored dependency versions into production.
 

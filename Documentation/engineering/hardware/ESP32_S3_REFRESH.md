@@ -45,6 +45,11 @@ pin table reverses I²S input/output relative to the schematic (see below). The
 The 4-inch drawing's temperature range differs from its page. Neither board is
 assumed electrically identical to the other.
 
+Manufacturer Arduino examples target core 3.2.0 and LVGL 8.3/TFT_eSPI; they
+explicitly exclude LVGL 9.x. ESP-IDF examples and an LVGL port guide are linked,
+but their exact versions have not been qualified. The isolated desktop uses
+LVGL 9.3 with its official SDL backend, not those vendor sketches.
+
 ## Pin and connector planning
 
 These are **source-reviewed maps, not implemented firmware bindings**. GPIOs are
@@ -186,15 +191,23 @@ current: LDOs, dividers, power LEDs, touch, codec and booster remain loads.
 | Capped Jewel | — | ~0.525 W + idle | 105 mA at regulated 5 V |
 | Charge (USB only) | ~1.5 W input allowance | ~1.5 W input allowance | ~0.3 A charger input; heat and losses included approximately |
 
+ESP32-S3 datasheet Table 5-7 reports **340 mA peak TX** (802.11b, 21 dBm)
+and **88–91 mA RX** at 3.3 V, under its stated CPU/radio conditions. At 340 mA,
+the 3.3 V chip rail is ~1.12 W; the 5 V LDO input can consume ~1.7 W before
+other loads. ESP-NOW shares this radio: duty cycle lowers average, not burst
+requirements. These chip figures are not complete-board measurements. Reserve
+that burst separately from the average-radio allowance above.
+
 Typical screen/radio planning: Atlas **1.5–2 W**, Sigil + capped ring **1.5–2 W**.
-Peak source allocation: Atlas ~6 W incl. charge/audio/radio; Sigil ~6 W capped,
-~8 W uncapped ring fault envelope. These are design headroom, not certified maxima.
+Peak source allocation: Atlas ~7 W incl. charge/audio/radio; Sigil ~7 W capped,
+~10 W uncapped ring fault envelope. These are design headroom, not certified maxima.
 Use a quality 5 V / 2 A USB supply per prototype; the Type-C CC resistors do not
 prove a 2 A negotiation contract. Confirm source advertisement/cable ratings and
 board path current/temperature; limit loads to the negotiated/available supply.
 
 Provisional fit candidates: Atlas **2000–4000 mAh**, Sigil **1500–2500 mAh**, with
-≥1 A continuous/adequate burst cell rating (uncapped fault + audio can exceed it).
+≥1 A continuous and ≥2 A short-burst cell rating as initial candidates (uncapped
+fault + audio at low cell can exceed 3 A; enforce a verified combined load cap).
 Do not buy a pack by capacity alone. Runtime example with 80% usable energy:
 `t_hours = 3.7 × capacity_Ah × 0.8 / average_W` (includes a conservative combined
 usable-energy/loss factor): at 1.5–2 W, 2000 mAh gives **3.0–3.9 h**, 2500 mAh
@@ -208,7 +221,9 @@ await samples. No battery runtime or sleep current has been measured.
 Reviewed `3D/README.md` and both print sets, plus KiCad EInk/OLED/JewelAdapter
 schematics, PCB nets and existing fit/DRC holds. Current Atlas shell 98 × 90.95 ×
 43.34 mm and Sigil shell 64 × 167.28 × 73.70 mm are legacy envelopes, not proof
-new boards fit. Preserve them; start new revision directories when measured CAD
+new boards fit. The rotated 4-inch board is 112 mm wide, exceeding the legacy
+Atlas shell's 98 mm external width, so it requires a new/wider mounting envelope.
+Preserve them; start new revision directories when measured CAD
 exists. Existing OLED PCB remains a placeholder; EInk routing is not repurposed.
 
 Plan a 4-inch landscape Atlas bezel and a 2.8-inch portrait Sigil bezel with
