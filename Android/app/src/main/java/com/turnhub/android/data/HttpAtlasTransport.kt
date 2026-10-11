@@ -312,6 +312,7 @@ class HttpAtlasTransport(
             cardPresent = root.optBoolean("card", true),
             customAvatar = root.optString("customAvatar"),
             pendingAvatar = root.optString("pendingAvatar"),
+            uploadApprovalRequired = root.optBoolean("uploadApprovalRequired", true),
         )
     } catch (e: org.json.JSONException) {
         throw AtlasException(AtlasFailure.Malformed(e.message ?: "personalization"))

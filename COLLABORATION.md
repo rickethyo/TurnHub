@@ -1086,3 +1086,35 @@ management/invitations from TH-002 remain separate planned work.
   This is a plausible hardware cause, not a confirmed reproduction. GitHub REST
   lookup recovered and showed no open PR; use a new PR for this integrated-baseline
   follow-up. No merge, release or flash; owner retests on hardware.
+
+### 2026-10-11 — Codex: optional upload approval (PR #88 follow-up)
+
+- Owner Codex on `codex/master`, baseline `0af9ba6`; master already merged,
+  PR #88 remains open. Add device-wide upload approval, on by default, selected
+  during OOBE and editable by Admins afterward. Off publishes validated new
+  submissions immediately; existing pending images retain explicit review.
+- Feature gate: Atlas owns device policy; ConfigureUploadApproval Intent validates
+  Admin actor and boolean. NVS `imgreview` stores it; missing/bad records default
+  on. Android and portal setup/settings render the option; personalization reports
+  it. Existing upload validation and SD publication own image persistence. No
+  new dependency/radio contract. Text-labeled switch explains local visibility.
+- Implementation: NVS-backed Admin ConfigureUploadApproval; policy is reported in
+  setup/personalization. Android and portal final startup forms select On/Off;
+  Device Settings can change it later. Off publishes valid new submissions to
+  the local approved asset and selects it immediately. Existing pending assets
+  stay private and retain review controls. Upload text/feedback follows the
+  outcome. Archived integrated Manual V0.16; new V0.17 and app asset document it.
+- Validation: all 233 Android tests and final APK passed; Off survives setup's
+  presence verification retry. Portal with-card/cardless browser tests passed,
+  exercising persisted Admin toggle and startup Off form. Atlas application,
+  storage, profile-store and OTA suites passed with ASan/UBSan at -O0 (workspace
+  tracing requires LeakSanitizer off). Tests cover default-on/private submission,
+  unauthorized/invalid policy edits, storage failure, immediate publication,
+  retaining older pending assets, re-enabling review and invalid images while
+  Off. NVS round-trips/corrupt records tested. All 20 state contracts, 31 adapter
+  guards, token check, manual export and whitespace passed. Atlas 0.7.13-dev
+  built: 111,892 B RAM / 1,657,585 B flash. Physical acceptance pending.
+- Handoff: add to existing PR #88 as explicitly requested. No integration,
+  hardware flashing or release. Setup preference/Wi-Fi/stage writes are separate;
+  if a later setup step fails, the chosen policy may remain saved and is reported
+  on the next setup read. Full image validation and size limits still apply.

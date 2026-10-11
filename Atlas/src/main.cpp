@@ -29,6 +29,7 @@
 #include "serial_log.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
+#include "upload_approval.h"
 #include "wifi_password_store.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -352,6 +353,7 @@ bool configureIntentHandlers() {
       {IntentType::PairConfirm, handlePairConfirmIntent},
       {IntentType::ConfigurePairing, handleConfigurePairingIntent},
       {IntentType::ConfigureSpeaker, handleConfigureSpeakerIntent},
+      {IntentType::ConfigureUploadApproval, handleConfigureUploadApprovalIntent},
       {IntentType::ConfigureTableCode, handleConfigureTableCodeIntent},
       {IntentType::ResetTable, handleResetTableIntent},
       {IntentType::FactoryReset, handleFactoryResetIntent},
@@ -601,6 +603,12 @@ void setup() {
   } else if (codeStatus != TurnHubStorage::Status::NotFound) {
     serialLog.println("ATLAS|PRESENCE|SETTING|STORAGE_ERROR");
   }
+  uploadApprovalRequired = TurnHub::DEFAULT_UPLOAD_APPROVAL_REQUIRED;
+  bool approvalRequired = uploadApprovalRequired;
+  const auto approvalStatus = TurnHub::loadUploadApprovalRequired(approvalRequired);
+  if (approvalStatus == TurnHubStorage::Status::Ok) uploadApprovalRequired = approvalRequired;
+  else if (approvalStatus != TurnHubStorage::Status::NotFound)
+    serialLog.println("ATLAS|UPLOAD_APPROVAL|SETTING|STORAGE_ERROR");
   hardwareTestSpeaker = beginAtlasSpeaker();
   audio.setSpeaker(hardwareTestSpeaker);
   TurnHubWebApi::configureHardwareTests([](const String &test) {

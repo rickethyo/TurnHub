@@ -87,6 +87,7 @@ fun SettingsTab(info: SessionInfo, admin: AdminState, actions: AdminActions, onS
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         AdminMessage(admin, actions)
         PresenceCard(admin, actions)
+        UploadApprovalCard(admin, actions)
         WifiCard(admin, actions)
         SigilsCard(admin, actions)
         TableAndAtlasCard(admin, actions)
@@ -190,6 +191,26 @@ fun PresenceCodeDialog(admin: AdminState, actions: AdminActions) {
         },
         dismissButton = { TextButton(onClick = { actions.run { dismissCode() } }) { Text("Cancel", color = p.text) } },
     )
+}
+
+@Composable
+private fun UploadApprovalCard(admin: AdminState, actions: AdminActions) {
+    val p = palette
+    val required = admin.uploadApprovalRequired ?: true
+    BrassCard {
+        Eyebrow("Uploaded images")
+        Row(Modifier.fillMaxWidth().toggleable(required,
+            enabled = !admin.busy && admin.uploadApprovalRequired != null,
+            role = Role.Switch, onValueChange = { actions.run { setUploadApprovalRequired(it) } }),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Require Admin approval", color = p.text, modifier = Modifier.weight(1f))
+            Switch(checked = required, onCheckedChange = null,
+                enabled = !admin.busy && admin.uploadApprovalRequired != null)
+        }
+        Text("On: review new images before the table sees them. Off: new images appear immediately. " +
+            "Images stay on this local Atlas; TurnHub does not post them online. " +
+            "Images already awaiting approval still need review.", color = p.muted)
+    }
 }
 
 @Composable

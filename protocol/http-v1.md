@@ -165,10 +165,11 @@ One flow for the Android app and the portal
 ([First-run setup](../Documentation/engineering/FIRST_RUN_SETUP.md)).
 
 - `GET /api/setup` (no sign-in): `{"stage":"welcome"|"finished"|"complete",
-  "adminExists":bool,"passwordIsDefault":bool,"ssid":"TurnHub-Atlas"}`.
+  "adminExists":bool,"passwordIsDefault":bool,"ssid":"TurnHub-Atlas",
+  "uploadApprovalRequired":bool}`.
   Never carries the password. An Atlas from before this route answers 404;
   clients treat that as `complete`.
-- `POST /api/setup/finish` with `password` (8 to 63 characters, not the
+- `POST /api/setup/finish` with `uploadApprovalRequired=0|1` and `password` (8 to 63 characters, not the
   printed default): an Admin verified at the table, stage `welcome`, between
   games. Stores the Wi-Fi password, moves the stage to `finished`, answers
   `{"ok":true,"restarting":true,...}` and restarts Atlas onto the new
@@ -292,7 +293,8 @@ separate future work. No Android application ID is selected here.
 - `GET/POST /api/session/personalization`: color and avatar selection (`0`,
   preset ID, or `128` when an approved image exists), `card`, `customAvatar`
   (approved image path, even when a preset is selected), `pendingAvatar` (private
-  pending path). Empty paths mean unavailable. Saves require working SD storage.
+  pending path), and `uploadApprovalRequired` (device-wide, default true). Empty
+  paths mean unavailable. Saves require working SD storage.
 - Seats/accounts add `customAvatar` when an approved custom image is selected;
   the historical numeric seat `avatar` remains preset-or-zero. Only Admins see
   `pendingAvatar` in account listings. Artwork bytes never enter live state.
@@ -302,11 +304,18 @@ separate future work. No Android application ID is selected here.
   writes the next zero-based chunk; `data` is lowercase hex, exactly 768 bytes
   except the final chunk. `action=submit,revision,thumbnail` validates the complete
   square baseline JPEG (32..512px, RGB, not progressive), plus a 512-character hex
-  RGB332 16px Atlas thumbnail, then publishes pending art. Start/submit/remove
+  RGB332 16px Atlas thumbnail, then publishes pending art when approval is on.
+  With approval off at submission, publishes and selects custom art immediately.
+  Existing pending images retain explicit review. Start/submit/remove
   responses return personalization where appropriate; chunk returns `{ok:true}`.
   `action=remove` clears art and selects None. 401 sign-in, 400 invalid envelope,
   409 busy/stale/order/card-change, 503 SD failure. One transfer, 120s idle timeout;
   no automatic retry after uncertain delivery. Re-start cleans interrupted data.
+- `GET/POST /api/upload-approval`: Admin-only device setting, `required=0|1`
+  on POST, `{required:bool}` on GET. Default on; persists in NVS. Changes use
+  ConfigureUploadApproval. Invalid boolean 400, unauthorized 401/403, refused
+  or failed persistence 409. Applies to new submissions, without approving old
+  pending artwork. Images are shared on the local Atlas, not posted online.
 - `POST /api/avatar/review`: Admin, `profileId,revision,action=approve|reject`.
   Exact pending revision required (409 if changed). Approval publishes and selects
   custom art; rejection retains previously approved art. Storage failures are 503.

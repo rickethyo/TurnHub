@@ -1,3 +1,4 @@
+#include "atlas_app.h"
 // Administration endpoints: paired devices and Sigil naming, the Wi-Fi AP
 // password, the downloadable serial log, and account administration. System
 // settings additionally need the Admin verified at the table (presence code).
@@ -312,6 +313,22 @@ void handleSaveSpeakerSettings(WebServer &server) {
   sendOkMessage(server, message);
 }
 
+void handleUploadApprovalSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  sendJson(server, 200, String("{\"required\":") + jsonBool(TurnHubAtlas::uploadApprovalRequired) + "}");
+}
+void handleSaveUploadApprovalSettings(WebServer &server) {
+  if (!requirePermission(server, TurnHubAccounts::Admin)) return;
+  const String value = server.arg("required");
+  if (value != "0" && value != "1") { sendError(server, 400, "Choose on or off"); return; }
+  String message = "Device management unavailable";
+  if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+      TurnHub::IntentType::ConfigureUploadApproval, value.toInt(), message)) {
+    sendError(server, 409, message); return;
+  }
+  sendOkMessage(server, message);
+}
+
 // Whether protected actions need a table presence code (off by default).
 // Admin only; saving is the ConfigureTableCode Intent.
 void handleTableCodeSettings(WebServer &server) {
@@ -496,6 +513,8 @@ void handleSetupStatus(WebServer &server) {
   json += TurnHub::setupStageName(static_cast<TurnHub::SetupStage>(stage));
   json += "\",\"adminExists\":";
   json += jsonBool(adminExists);
+  json += ",\"uploadApprovalRequired\":";
+  json += jsonBool(TurnHubAtlas::uploadApprovalRequired);
   json += ",\"passwordIsDefault\":";
   json += jsonBool(passwordIsDefault);
   json += ",\"ssid\":\"";
@@ -515,6 +534,18 @@ void handleSetupFinish(WebServer &server) {
     return;
   }
   const String password = server.arg("password");
+  if (server.hasArg("uploadApprovalRequired")) {
+    const String approval = server.arg("uploadApprovalRequired");
+    if (approval != "0" && approval != "1") { sendError(server, 400, "Choose upload approval on or off"); return; }
+    if (!TurnHub::validWifiPassword(password) || password == AtlasConfig::WIFI_DEFAULT_PASSWORD) {
+      sendError(server, 400, "Choose a new Wi-Fi password of 8 to 63 characters"); return;
+    }
+    String message = "Device management unavailable";
+    if (!deviceHandler || !deviceHandler(sessionForRequest(server)->profileId,
+        TurnHub::IntentType::ConfigureUploadApproval, approval.toInt(), message)) {
+      sendError(server, 409, message); return;
+    }
+  }
   // The validator reads the stored password, so it is written first; if
   // Atlas then refuses, the previous one goes back, so a refused finish
   // never changes the Wi-Fi at the next restart.

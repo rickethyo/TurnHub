@@ -2,6 +2,7 @@
 // name/PIN edits, the per-profile policy and statistics.
 
 #include "account_access.h"
+#include "atlas_app.h"
 #include "profile_statistics.h"
 #include "web_api_internal.h"
 #include "avatars.h"
@@ -331,6 +332,8 @@ void handlePersonalization(WebServer &server) {
   snprintf(color, sizeof(color), "#%06lx", static_cast<unsigned long>(rgb & 0xFFFFFFUL));
   String body = "{\"ok\":true,\"card\":";
   body += TurnHubProfiles::luxuryStoreAvailable() ? "true" : "false";
+  body += ",\"uploadApprovalRequired\":";
+  body += jsonBool(TurnHubAtlas::uploadApprovalRequired);
   body += ",\"color\":";
   if (set) { body += '"'; body += color; body += '"'; } else { body += "null"; }
   body += ",\"avatar\":";
@@ -682,11 +685,15 @@ void handleAvatarUpload(WebServer &server) {
   char thumbKey[16]; TurnHubArtwork::thumbnailKey(thumbKey, stage.revision);
   if (store->write(thumbKey, thumb, sizeof(thumb)) != Status::Ok) { sendError(server, 503, "Atlas thumbnail could not be saved"); return; }
   Image previous;
-  const String pendingKey = artworkKey('p', profile);
+  const bool reviewRequired = TurnHubAtlas::uploadApprovalRequired;
+  const String pendingKey = artworkKey(reviewRequired ? 'p' : 'a', profile);
   const Status previousStatus = TurnHubArtwork::metadata(*store, pendingKey.c_str(), previous);
   if ((previousStatus != Status::Ok && previousStatus != Status::NotFound) ||
       TurnHubArtwork::publish(*store, pendingKey.c_str(), stage) != Status::Ok) {
     sendError(server, 503, "The image could not be submitted for review"); return;
+  }
+  if (!reviewRequired && !TurnHubProfiles::saveAvatarForProfile(profile, TurnHubAvatars::AVATAR_CUSTOM)) {
+    sendError(server, 503, "The image was saved but could not be selected; try again"); return;
   }
   // Manifest publication happens first; uncertain failures never discard new chunks.
   store->remove(artworkKey('u', profile).c_str());

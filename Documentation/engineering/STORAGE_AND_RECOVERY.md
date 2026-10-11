@@ -174,7 +174,10 @@ thumbnail for today's Atlas. Per-profile `a`, `p`, `u` prefixes hold approved,
 pending and unfinished manifests (schema byte, little-endian revision and length,
 9 bytes). All pass through the existing locked/checksummed BlobStore and its
 verified temp/backup replacement; no direct SD calls or image allocations on
-Atlas. Metadata publication is the commit point, after complete image-envelope
+Atlas. Device upload approval defaults on (`imgreview` in NVS); off publishes new
+validated submissions directly to the approved manifest and selects custom art.
+Existing pending manifests remain available for explicit Admin review.
+Metadata publication is the commit point, after complete image-envelope
 validation. There is no cross-record transaction or FAT power-loss guarantee.
 
 Each profile can hold one approved, one pending and one unfinished asset, bounded

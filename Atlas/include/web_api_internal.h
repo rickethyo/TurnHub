@@ -222,6 +222,8 @@ void handlePairingSettings(WebServer &server);
 void handleSavePairingSettings(WebServer &server);
 void handleSpeakerSettings(WebServer &server);
 void handleSaveSpeakerSettings(WebServer &server);
+void handleUploadApprovalSettings(WebServer &server);
+void handleSaveUploadApprovalSettings(WebServer &server);
 void handleTableCodeSettings(WebServer &server);
 void handleSaveTableCodeSettings(WebServer &server);
 void handleResetTable(WebServer &server);

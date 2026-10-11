@@ -11,7 +11,7 @@ const full = source.html;
  try {
   for (const [kind, html] of [['with-card', full], ['cardless', full]]) {
    const page = await browser.newPage({viewport:{width:390,height:844}});
-   const errors=[], posts=[]; let permissions=1, initial=false, volume=2;
+   const errors=[], posts=[]; let permissions=1, initial=false, volume=2, approval=true;
    page.on('pageerror',e=>errors.push(e.message));
    await page.addInitScript(()=>{localStorage.setItem('turnhubSessionToken','T'.repeat(32));localStorage.setItem('turnhubTheme','brass')});
    await page.route('http://atlas.test/**', async route=>{
@@ -26,7 +26,7 @@ const full = source.html;
     switch(url.pathname){
      case '/api/session/me': data={authenticated:true,name:'Admin',profileId:'ADMIN',permissions,participating:false};break;
      case '/api/accounts/setup':data={setupRequired:initial};break;
-     case '/api/setup':data={stage:initial?'welcome':'done',adminExists:!initial,ssid:'TurnHub-Atlas'};break;
+     case '/api/setup':data={stage:initial?'welcome':'done',adminExists:!initial,ssid:'TurnHub-Atlas',uploadApprovalRequired:approval};break;
      case '/api/status':data={state:'LOBBY',firmware:'0.7.6',build:'test',espNow:true,game:1,games:[{game:1,state:'LOBBY',players:0},{game:2,state:'RUNNING',players:2}]};break;
      case '/api/v1/state':data={state:'LOBBY',players:[]};break;
      case '/api/devices':data={atlas:{hardwareId:'TEST',firmware:'0.7.6'},devices:[{id:0,label:'Sigil 1',firmware:'test',hardwareId:'TEST',online:true}],pendingPairings:[]};break;
@@ -34,6 +34,7 @@ const full = source.html;
      case '/api/presence':data={verified:true,codeRequired:false,canRequest:true};break;
      case '/api/portal':throw Error('Retired portal status must not be requested');
      case '/api/pairing':data={windowMs:60000,choicesMs:[15000,30000,60000]};break;
+     case '/api/upload-approval':if(req.method()==='POST')approval=new URLSearchParams(req.postData()).get('required')==='1';data={required:approval};break;
      case '/api/speaker':if(req.method()==='POST')volume=Number(url.searchParams.get('volume'));data={volume,max:3};break;
      case '/api/accounts':data={accounts:[{profileId:'ADMIN',name:'Admin',permissions:1,primary:true,hasPin:true}]};break;
      default:if(req.method()!=='POST')return route.fulfill({status:404,body:'{}'});data={ok:true};
@@ -57,6 +58,12 @@ const full = source.html;
    await page.getByRole('button',{name:'Save Atlas settings',exact:true}).click();
    await page.waitForFunction(()=>document.body.innerText.includes('Atlas settings saved.'));
    assert.equal(volume,3);
+   assert.equal(await page.isChecked('#uploadApprovalToggle'),true);
+   await page.uncheck('#uploadApprovalToggle');
+   await page.waitForFunction(()=>!document.getElementById('uploadApprovalToggle').checked);
+   await page.evaluate(()=>refreshAll());
+   assert.equal(approval,false);
+   assert.equal(await page.isChecked('#uploadApprovalToggle'),false);
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390,`${kind}: mobile overflow`);
    if(process.env.PORTAL_RENDERS) {
     fs.mkdirSync(path.join(__dirname,'build'),{recursive:true});
@@ -67,6 +74,12 @@ const full = source.html;
    assert.equal(await page.locator('#main').isVisible(),false);
    initial=true;await page.evaluate(()=>typeof refreshAll==='function'?refreshAll():load());
    assert.equal(await page.locator('#setupWizard').isVisible(),true);
+   permissions=1;await page.evaluate(()=>refreshAll());
+   await page.selectOption('#wizardUploadApproval','0');
+   await page.fill('#wizardPassword','our-local-table');
+   await page.locator('#wizardWifi button.primary').click();
+   await page.waitForFunction(()=>document.getElementById('wizardMessage').textContent.includes('restarting'));
+   assert(posts.some(p=>p.startsWith('/api/setup/finish ')&&p.includes('uploadApprovalRequired=0')));
    assert.deepEqual(errors,[],`${kind}: JavaScript errors`);
    await page.close();console.log(`PASS ${kind} portal: admin access, staged hardware settings, bootstrap, no gameplay requests`);
   }

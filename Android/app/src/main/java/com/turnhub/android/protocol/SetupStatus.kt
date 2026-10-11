@@ -29,6 +29,7 @@ data class SetupStatus(
     val adminExists: Boolean,
     val passwordIsDefault: Boolean,
     val ssid: String,
+    val uploadApprovalRequired: Boolean = true,
 ) {
     companion object {
 
@@ -46,6 +47,7 @@ data class SetupStatus(
                 adminExists = root.optBoolean("adminExists"),
                 passwordIsDefault = root.optBoolean("passwordIsDefault"),
                 ssid = root.optString("ssid"),
+                uploadApprovalRequired = root.optBoolean("uploadApprovalRequired", true),
             )
         }
     }

@@ -17,6 +17,7 @@
 #include "sd_hotplug.h"
 #include "speaker_settings.h"
 #include "table_code_setting.h"
+#include "upload_approval.h"
 
 using namespace TurnHubStorage;
 using namespace TurnHubProfiles;
@@ -762,7 +763,27 @@ void artworkStorage() {
   discard(store,image);assert(!validateJpeg(store,image));
 }
 
+void uploadApprovalRecords() {
+  using namespace TurnHub;
+  FakeNvs::blobs.clear(); NvsBlobStore store; assert(store.begin("turnhub")==Status::Ok);
+  bool required = DEFAULT_UPLOAD_APPROVAL_REQUIRED;
+  assert(required && readUploadApprovalRequired(store,required)==Status::NotFound && required);
+  for (bool value : {false,true}) {
+    assert(writeUploadApprovalRequired(store,value)==Status::Ok);
+    NvsBlobStore reopened; assert(reopened.begin("turnhub")==Status::Ok);
+    required=!value;
+    assert(readUploadApprovalRequired(reopened,required)==Status::Ok && required==value);
+  }
+  FakeNvs::blobs[UPLOAD_APPROVAL_KEY] = {1,2}; required=true;
+  assert(readUploadApprovalRequired(store,required)==Status::Corrupt && required);
+  FakeNvs::blobs[UPLOAD_APPROVAL_KEY] = {2,0};
+  assert(readUploadApprovalRequired(store,required)==Status::UnsupportedSchema && required);
+  FakeNvs::blobs[UPLOAD_APPROVAL_KEY] = {1};
+  assert(readUploadApprovalRequired(store,required)==Status::Corrupt && required);
+}
+
 int main() {
+  uploadApprovalRecords();
   artworkStorage(); std::cout << "PASS bounded artwork on checksummed SD records\n";
   diagnosticLogRecords();
   accountRecords();

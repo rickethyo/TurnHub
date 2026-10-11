@@ -944,3 +944,19 @@ Image bounds, review authorization, partitions and radio remain unchanged.
 Compared with 0.7.11-dev: unchanged static RAM, +36 B reported flash.
 All 233 Android unit tests and debug APK build passed. SD host storage scenarios
 passed with ASan/UBSan at -O0 (LeakSanitizer disabled for workspace tracing).
+
+### 2026-10-11 / Atlas 0.7.13-dev optional upload approval
+
+Verified local PlatformIO build; physical acceptance pending. Device-wide upload
+approval defaults on, selected in app/portal setup and editable by Admins later.
+Off publishes validated new images immediately to the local table. NVS holds
+one schema-checked boolean; image bounds, partitions and radio are unchanged.
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 111,892 B (34.1%) | 1,657,585 B (84.3%) |
+
+Compared with 0.7.12-dev: +8 B static RAM / +2,496 B flash. Android 233 unit tests
+and final debug APK passed. Atlas four host suites passed with ASan/UBSan at
+-O0 (LeakSanitizer off for workspace tracing); 20 state contracts, 31 adapter
+guards, portal browser tests, tokens and Manual V0.17 export passed.

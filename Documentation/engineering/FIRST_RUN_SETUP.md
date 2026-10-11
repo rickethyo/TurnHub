@@ -39,7 +39,8 @@ Phone, "Set up this table" (Step n of 5):
   3. Sigils         pair each one (code check on the Atlas screen), or skip
   4. Updates        Atlas and every Sigil: running vs available; Install all
                     or Later. Atlas first, then each Sigil
-  5. Secure Wi-Fi   choose the table's password (8-63 characters);
+  5. Secure Wi-Fi   choose upload approval On (default) or Off, then
+                    choose the table's password (8-63 characters);
                     Finish saves it and restarts Atlas
 
 Atlas restarts, stage Finished: "You're all set. Next: pair your Sigils."
@@ -96,6 +97,7 @@ Welcome. Stages never go backwards otherwise.
 6. **Contract:** portal-private routes, not part of `/api/v1`:
    `GET /api/setup` (no sign-in; stage, `adminExists`, `passwordIsDefault`,
    SSID, never the password) and `POST /api/setup/finish` (`password=`;
+   accepts `uploadApprovalRequired=0|1` via ConfigureUploadApproval, then
    saves the password, then the stage, then restarts; a refused
    `AdvanceSetup` means no restart). If power is cut between the two writes,
    setup simply runs again.
@@ -110,3 +112,15 @@ Host scenario `firstRunSetup`, Android JVM tests (`AtlasSetupAssistantTest`,
 crash on the final reconnect was fixed the same day, log in
 [history/logs](history/logs/README.md)). Still open: a "Setting up a new
 table" section in the user manual, and an Atlas name step later.
+
+## Upload approval choice
+
+The final app/portal startup form includes **Require Admin approval for uploaded
+images**, on by default. Off allows complete, validated new uploads to appear at
+the local table immediately. TurnHub does not post images online. Admins can
+change this later in Device Settings or the embedded portal. Existing pending
+images retain review controls. NVS `imgreview` holds schema 1 `{1,0|1}`; missing,
+corrupt or unreadable storage defaults to on. The selection uses the same
+ConfigureUploadApproval Intent as the later Admin setting. Setup preference,
+Wi-Fi and stage writes are separate commits; a later setup failure may retain
+the selected preference, and the setup status reports its saved value.

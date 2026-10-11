@@ -451,7 +451,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         }
         post(listOf("action" to "submit", "revision" to revision, "thumbnail" to thumbnail))
         _personalization.value = artworkImages(transport, it.second, transport.getPersonalization(it.second))
-        ActionFeedback("Image saved on Atlas. An Admin must approve it before it appears at the table.", false)
+        ActionFeedback(if (_personalization.value?.pendingAvatar?.contains("&revision=$revision") == true)
+            "Image saved on Atlas. An Admin must approve it before it appears at the table."
+        else "Image saved and available at the local table.", false)
     }
 
     suspend fun removeAvatar() = act {

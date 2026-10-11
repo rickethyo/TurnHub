@@ -98,6 +98,7 @@ data class AdminState(
     val devPanels: Map<String, String> = emptyMap(),
     /** A presence code is showing on the Atlas screen; the UI asks for it. */
     val codePrompt: Boolean = false,
+    val uploadApprovalRequired: Boolean? = null,
     val busy: Boolean = false,
     val message: ActionFeedback? = null,
 )
@@ -156,6 +157,7 @@ class AtlasAdminConsole(
             }
         }
         if (admin) {
+            refreshUploadApproval()
             get("/api/network")?.let { d ->
                 _state.update {
                     it.copy(
@@ -301,6 +303,18 @@ class AtlasAdminConsole(
      * Turns the table code on or off (`/api/table-code`). Off is Atlas's
      * default; turning it off again asks for a code while it is on.
      */
+    private suspend fun refreshUploadApproval() {
+        get("/api/upload-approval")?.let { d ->
+            _state.update { it.copy(uploadApprovalRequired = d.optBoolean("required", true)) }
+        }
+    }
+
+    suspend fun setUploadApprovalRequired(required: Boolean) = post(
+        "/api/upload-approval", listOf("required" to if (required) "1" else "0"),
+        success = if (required) "Upload approval turned on." else "Upload approval turned off.",
+        then = { refreshUploadApproval() },
+    )
+
     suspend fun setTableCodeRequired(required: Boolean) = protectedPost(
         "/api/table-code",
         listOf("required" to if (required) "1" else "0"),
