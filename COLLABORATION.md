@@ -1199,3 +1199,48 @@ management/invitations from TH-002 remain separate planned work.
 - Delivery: extend PR #90 from `codex/master`; LVGL remains at its existing tip.
   This records isolation, not a request to merge either PR or update LVGL.
   Owner selects the scope and timing of later upstream integrations.
+
+## 2026-10-12 laptop return and Claude handoff
+
+- Owner / scope: Codex on `codex/master`; baseline
+  `2f8dad4de1563a01f130e2cc99f0581d2645c63f`. Documentation-only wrap-up;
+  owner requests leaving build-directory behavior unchanged. Clean tree and no
+  stashes at audit; fetched refs. Master, Codex, Claude and experimental remote
+  branches all matched this baseline. PR #90 is integrated (merge commit above).
+- Integrated battery and workflow work: TH-015 and TH-016 above retain their
+  original validation evidence; their review/integration requests are now
+  superseded by the merge. Battery physical acceptance and calibration remain
+  open in `Documentation/engineering/STAGED_CHANGES.md` and `BATTERY_GAUGE.md`.
+- Only open PR at audit: #89, ESP32-S3 hardware/LVGL foundation, on
+  `codex/esp32-s3-lvgl` at `a6dfc59b8c00e2b69c7eccc8c0d40fb9ed2c3521`.
+  Keep it isolated; do not automatically synchronize it with master. Its own
+  `COLLABORATION.md`, `LVGL/README.md`, `LVGL_MIGRATION.md`, hardware/BOM records
+  and committed preview evidence own continuation. Desktop milestone validation
+  is recorded there; Windows/MSVC and physical board qualification are pending.
+  That branch independently used TH-015 for LVGL; use topic names and branch
+  names to distinguish it from master's TH-015 battery topic.
+- Laptop environment repaired: installed Arduino ESP32 framework lacked its
+  entire `variants` directory. Reinstalled the same
+  `4.20017.260907+sha.dcc1105b` package; `pins_arduino.h` restored and
+  `pio run -e sigil` passed (53,900 B RAM, 948,869 B flash). Installed missing
+  `cryptography==46.0.7` into PlatformIO's Python; an ephemeral Ed25519 key
+  successfully signed/verified a test message. No real private key was opened.
+- Current checkout is `D:\TurnHub\Include`. Main launchers derive the private
+  directory from the checkout parent: keys in `D:\TurnHub\Private\TurnHub-keys`,
+  signed packages in `D:\TurnHub\Private\TurnHub-builds\local-<time>-<commit>`.
+  One PEM exists. Latest observed folder `local-20261012-151655-2f8dad4de156`
+  contains Atlas 0.7.14 and both Sigil 0.9.17 packages; existence is not a fresh
+  verification of those packages. Intermediate compiler files stay in each
+  firmware project's `.pio\build`. Owner declined a new directory setup option.
+- Board inventory was saved by the owner's setup run in ignored
+  `tools/boards.local.md`; keep hardware identities and private artifacts out of
+  commits. This chat did not flash boards or confirm the owner's later flash
+  outcome. Next hardware session should confirm installed versions first.
+- Legacy `tools/flash-signed-here.*` wrappers still describe the temporary laptop
+  and use its old path layout. Use `tools/flash-all.cmd` or `tools/sign-local.cmd`
+  on this laptop. No wrapper changes were authorized in this wrap-up.
+- Next owner / Claude: read this handoff and the owning engineering references,
+  use `claude/master` with normal startup checks, and select the next scope with
+  the owner. Preserve physical acceptance items; do not infer completion from
+  host builds or package existence. No new firmware changes or repeated full
+  regression runs were needed for these local environment repairs.
