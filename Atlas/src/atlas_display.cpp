@@ -615,7 +615,7 @@ void sleepAtlas(bool batteryEmpty) {
   holdPin(RGB_BLUE_PIN, HIGH);
   holdPin(AUDIO_ENABLE_PIN, HIGH);  // Amplifier off.
   // On USB, only a touch or BOOT wakes Atlas; on the cell, so does USB.
-  sleptOnBattery = atlasOnBattery();
+  sleptOnBattery = atlasOnBattery() || batteryEmpty;
   sleptEmpty = batteryEmpty;
   restingCellMv = 0;
   armWakeAndSleep();

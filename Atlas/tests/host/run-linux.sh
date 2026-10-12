@@ -44,3 +44,8 @@ rm -f build/client-*.json
 "$compiler" "${flags[@]}" "${includes[@]}" \
   ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
 ./build/ota_scenarios
+
+"$compiler" "${flags[@]}" -Ibattery_stubs "${includes[@]}" \
+  battery_firmware_scenarios.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
+  -o build/battery_firmware_scenarios
+./build/battery_firmware_scenarios

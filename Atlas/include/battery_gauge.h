@@ -48,7 +48,13 @@ struct BatteryReading {
   uint16_t millivolts = 0;  // Smoothed cell voltage.
   uint8_t percent = 0;      // Shown charge, 0-100; meaningful only when present.
   bool low = false;         // At or below BATTERY_LOW_PERCENT.
-  bool charging = false;    // On USB with a cell and below 100 %: the charger is filling it.
+  bool charging = false;    // Inferred USB charging, not a hardware charger signal.
+  uint16_t rawMillivolts = 0; // Short-window ADC average, before gauge filtering.
+  uint16_t safetyMillivolts = 0; // Median + faster filter, independent of display.
+  uint8_t voltagePercent = 0;
+  bool criticalLow = false; // Voltage-based protection; never cosmetic percent.
+  bool emergencyLow = false;
+  uint32_t corrections = 0; // Accelerated reconciliation events.
 };
 
 // Below this the line is floating or shorted: no cell.
@@ -84,133 +90,153 @@ constexpr uint32_t CHARGE_FULL_AFTER_LIMIT_MS = 20UL * 60 * 1000;
 // Started on USB, nothing is known but the charger's reading: the cell is
 // taken as about this much below it until the count takes over.
 constexpr uint16_t CHARGE_RISE_MV = 210;
-// Started on USB and already at the limit: at least this full.
-constexpr uint8_t CHARGE_AT_LIMIT_MIN_PERCENT = 85;
 
-// Smooths the samples and steadies the shown percent, so a load change (the
-// backlight, a radio burst, a chime) doesn't make it jump; counts it up while
-// charging (above).
+// Median-of-three rejects isolated load spikes; retain the 16 s EMA for SoC.
+// Timers use unsigned differences and actual elapsed time, never loop counts.
 class BatteryGauge {
  public:
-  // Exponential average with a time constant of about SMOOTHING_SAMPLES
-  // samples (one sample a second on firmware).
   static constexpr uint8_t SMOOTHING_SAMPLES = 16;
   static constexpr uint32_t SAMPLE_MS = 1000;
-  // The shown percent moves only when the estimate is this far from it.
   static constexpr uint8_t PERCENT_HYSTERESIS = 2;
+  static constexpr uint16_t CRITICAL_MV = 3580;
+  static constexpr uint16_t CRITICAL_CLEAR_MV = 3640;
+  static constexpr uint16_t EMERGENCY_MV = 3450;
 
   void reset() { *this = BatteryGauge(); }
-
-  // One reading of the cell voltage (already scaled for the divider), and
-  // whether Atlas is on USB (charging). A change of source starts over from
-  // this sample instead of easing over a minute.
-  void addSample(uint32_t cellMillivolts, bool charging = false) {
-    if (cellMillivolts < BATTERY_ABSENT_BELOW_MV) {
-      // Unplugged: start over so a new cell isn't averaged with nothing.
-      reset();
+  void addSample(uint32_t mv, bool usb = false) {
+    addTimedSample(mv, usb, clock_ + SAMPLE_MS);
+  }
+  void addTimedSample(uint32_t cellMv, bool usb, uint32_t now) {
+    uint32_t dt = timed_ ? now - clock_ : 0;
+    if (dt > 2000) dt = 2000; // A blocked loop cannot invent charge or evidence.
+    clock_ = now; timed_ = true;
+    const uint16_t mv = static_cast<uint16_t>(cellMv > 5000 ? 5000 : cellMv);
+    reading_.rawMillivolts = mv;
+    if (mv < BATTERY_ABSENT_BELOW_MV) {
+      if (++absentCount_ >= 3) {
+        reset(); clock_ = now; timed_ = true;
+      }
       return;
     }
-    if (!seeded_ || charging != onUsb_) {
-      start(cellMillivolts, charging);
-    } else {
-      // Fixed point (x16) so small steps aren't lost to rounding.
-      const int32_t target = static_cast<int32_t>(cellMillivolts * 16);
-      averageMv16_ += (target - averageMv16_) / SMOOTHING_SAMPLES;
-      reading_.millivolts = static_cast<uint16_t>((averageMv16_ + 8) / 16);
-      if (charging) countCharge(static_cast<uint16_t>(cellMillivolts));
-      else followCurve();
+    absentCount_ = 0;
+    if (!seeded_) {
+      seeded_ = true; onUsb_ = usb;
+      for (auto &v : samples_) v = mv;
+      averageMv16_ = safetyMv16_ = mv * 16;
+      reading_.present = true;
+      reading_.percent = lipoPercentFromMillivolts(usb && mv > CHARGE_RISE_MV ? mv - CHARGE_RISE_MV : mv);
+      if (usb && reading_.percent > CHARGE_BELOW_LIMIT_MAX_PERCENT) reading_.percent = CHARGE_BELOW_LIMIT_MAX_PERCENT;
     }
-    // Full shows as full, not charging (owner 2026-10-08: no bolt at 100 %).
-    reading_.charging = onUsb_ && reading_.percent < 100;
-    if (reading_.percent <= BATTERY_LOW_PERCENT) {
-      reading_.low = true;
-    } else if (reading_.percent >= BATTERY_LOW_PERCENT + BATTERY_LOW_CLEAR_MARGIN) {
-      reading_.low = false;
+    if (usb != onUsb_) {
+      // Rebase voltage filters across a genuine source step, keep shown SoC.
+      onUsb_ = usb; chargeMs_ = limitMs_ = 0; atLimit_ = false;
+      recentCount_ = recentNext_ = 0; recentMs_ = belowLimitMs_ = 0;
+      downMs_ = upMs_ = fastMs_ = fallingMs_ = moveMs_ = 0; upCorrection_ = false;
+      averageMv16_ = safetyMv16_ = mv * 16;
+      for (auto &v : samples_) v = mv;
+      dt = 0;
     }
+    samples_[sampleNext_] = mv;
+    sampleNext_ = static_cast<uint8_t>((sampleNext_ + 1) % 3);
+    uint16_t a = samples_[0], b = samples_[1], c = samples_[2];
+    if (a > b) { const uint16_t t = a; a = b; b = t; }
+    if (b > c) { const uint16_t t = b; b = c; c = t; }
+    if (a > b) b = a;
+    averageMv16_ += (static_cast<int32_t>(b * 16) - averageMv16_) / SMOOTHING_SAMPLES;
+    safetyMv16_ += (static_cast<int32_t>(b * 16) - safetyMv16_) / 4;
+    reading_.millivolts = static_cast<uint16_t>((averageMv16_ + 8) / 16);
+    reading_.safetyMillivolts = static_cast<uint16_t>((safetyMv16_ + 8) / 16);
+    reading_.voltagePercent = lipoPercentFromMillivolts(reading_.millivolts);
+    if (reading_.safetyMillivolts <= CRITICAL_MV) reading_.criticalLow = true;
+    else if (reading_.safetyMillivolts >= CRITICAL_CLEAR_MV) reading_.criticalLow = false;
+    reading_.emergencyLow = reading_.safetyMillivolts <= EMERGENCY_MV;
+    if (usb && !reading_.criticalLow) countCharge(b, dt);
+    else followCurve(dt); // Invalid low voltage overrides inferred charging.
+    reading_.charging = usb && !reading_.criticalLow && reading_.percent < 100;
+    const uint8_t warning = !usb || reading_.criticalLow
+        ? (reading_.percent < reading_.voltagePercent ? reading_.percent : reading_.voltagePercent)
+        : reading_.percent;
+    if (reading_.criticalLow || warning <= BATTERY_LOW_PERCENT) reading_.low = true;
+    else if (warning >= BATTERY_LOW_PERCENT + BATTERY_LOW_CLEAR_MARGIN) reading_.low = false;
   }
-
   const BatteryReading &reading() const { return reading_; }
-
-  // Starts over from this sample (on the cell).
-  void reseed(uint32_t cellMillivolts) {
-    reset();
-    addSample(cellMillivolts);
+  bool onUsb() const { return onUsb_; }
+  // Storage adapter calls only after checkpoint validation against live ADC.
+  void restorePercent(uint8_t percent) {
+    if (seeded_ && percent <= 100) reading_.percent = percent;
+    reading_.charging = onUsb_ && !reading_.criticalLow && reading_.percent < 100;
+    if (reading_.criticalLow || reading_.percent <= BATTERY_LOW_PERCENT) reading_.low = true;
+    chargeMs_ = limitMs_ = downMs_ = upMs_ = fastMs_ = fallingMs_ = moveMs_ = 0;
+    upCorrection_ = false;
+    atLimit_ = false; recentCount_ = recentNext_ = 0; recentMs_ = belowLimitMs_ = 0;
   }
+  void reseed(uint32_t mv) { reset(); addSample(mv); }
 
  private:
-  void start(uint32_t cellMillivolts, bool charging) {
-    // The on-battery percent, if there is one, is where a charge starts.
-    const bool fromBattery = seeded_ && !onUsb_;
-    const uint8_t last = reading_.percent;
-    seeded_ = true;
-    averageMv16_ = static_cast<int32_t>(cellMillivolts * 16);
-    reading_.present = true;
-    onUsb_ = charging;
-    reading_.millivolts = static_cast<uint16_t>(cellMillivolts);
-    chargeMs_ = 0;
-    limitMs_ = 0;
-    atLimit_ = false;
-    recentCount_ = 0;
-    recentNext_ = 0;
-    startedOnUsb_ = charging && !fromBattery;
-    if (!charging) {
-      reading_.percent = lipoPercentFromMillivolts(cellMillivolts);
-    } else if (fromBattery) {
-      reading_.percent = last;
-    } else {
-      const uint8_t guess = lipoPercentFromMillivolts(cellMillivolts > CHARGE_RISE_MV ? cellMillivolts - CHARGE_RISE_MV : 0);
-      reading_.percent = guess < CHARGE_BELOW_LIMIT_MAX_PERCENT ? guess : CHARGE_BELOW_LIMIT_MAX_PERCENT;
+  static uint32_t accrue(uint32_t value, uint32_t dt) {
+    return value < 3600000 ? value + dt : value;
+  }
+  void followCurve(uint32_t dt) {
+    const int diff = static_cast<int>(reading_.voltagePercent) - reading_.percent;
+    downMs_ = diff <= -PERCENT_HYSTERESIS ? accrue(downMs_, dt) : 0;
+    // Only a large, persistent contradiction justifies upward correction on battery.
+    upMs_ = diff >= 15 ? accrue(upMs_, dt) : 0;
+    if (upMs_ >= 120000) upCorrection_ = true;
+    if (diff < PERCENT_HYSTERESIS) upCorrection_ = false;
+    fastMs_ = diff <= -20 ? accrue(fastMs_, dt) : 0;
+    fallingMs_ = diff <= -5 ? accrue(fallingMs_, dt) : 0;
+    const bool fast = fastMs_ >= 15000;
+    const bool falling = fallingMs_ >= 30000;
+    const uint32_t interval = fast ? 1000 : falling ? 5000 : 30000;
+    if (downMs_ || upMs_ || upCorrection_) moveMs_ = accrue(moveMs_, dt);
+    else moveMs_ = 0;
+    if (moveMs_ < interval) return;
+    if (downMs_) {
+      --reading_.percent;
+      if (fast || falling) ++reading_.corrections;
+      moveMs_ = 0;
+    } else if (upCorrection_) {
+      ++reading_.percent; ++reading_.corrections; moveMs_ = 0;
     }
   }
-
-  void followCurve() {
-    const uint8_t estimate = lipoPercentFromMillivolts(reading_.millivolts);
-    const int diff = static_cast<int>(estimate) - static_cast<int>(reading_.percent);
-    if (diff >= PERCENT_HYSTERESIS || diff <= -PERCENT_HYSTERESIS || estimate == 0 || estimate == 100) {
-      reading_.percent = estimate;
+  void countCharge(uint16_t mv, uint32_t dt) {
+    if (!dt) return;
+    recentMs_ += dt;
+    if (recentMs_ >= SAMPLE_MS) {
+      recentMs_ %= SAMPLE_MS;
+      recent_[recentNext_] = mv;
+      recentNext_ = static_cast<uint8_t>((recentNext_ + 1) % CHARGE_LIMIT_SAMPLES);
+      if (recentCount_ < CHARGE_LIMIT_SAMPLES) ++recentCount_;
     }
-  }
-
-  // Never down while charging; up one point per CHARGE_MS_PER_POINT, half
-  // that at the limit, and 100 only after CHARGE_FULL_AFTER_LIMIT_MS there.
-  void countCharge(uint16_t mv) {
-    recent_[recentNext_] = mv;
-    recentNext_ = static_cast<uint8_t>((recentNext_ + 1) % CHARGE_LIMIT_SAMPLES);
-    if (recentCount_ < CHARGE_LIMIT_SAMPLES) ++recentCount_;
-    if (!atLimit_ && recentCount_ == CHARGE_LIMIT_SAMPLES) {
-      uint16_t lo = recent_[0], hi = recent_[0];
+    if (recentCount_ == CHARGE_LIMIT_SAMPLES) {
+      uint16_t lo = recent_[0], hi = lo;
       for (uint8_t i = 1; i < CHARGE_LIMIT_SAMPLES; ++i) {
         if (recent_[i] < lo) lo = recent_[i];
         if (recent_[i] > hi) hi = recent_[i];
       }
-      atLimit_ = lo >= CHARGE_LIMIT_MIN_MV && hi - lo <= CHARGE_LIMIT_SPREAD_MV;
-      if (atLimit_ && startedOnUsb_ && reading_.percent < CHARGE_AT_LIMIT_MIN_PERCENT) {
-        reading_.percent = CHARGE_AT_LIMIT_MIN_PERCENT;
-      }
+      const bool steady = lo >= CHARGE_LIMIT_MIN_MV && hi - lo <= CHARGE_LIMIT_SPREAD_MV;
+      if (steady) atLimit_ = true;
+      if (mv < CHARGE_LIMIT_MIN_MV) {
+        belowLimitMs_ = accrue(belowLimitMs_, dt);
+        if (belowLimitMs_ >= 10000) { atLimit_ = false; limitMs_ = 0; }
+      } else belowLimitMs_ = 0;
     }
-    chargeMs_ += SAMPLE_MS;
-    if (atLimit_) limitMs_ += SAMPLE_MS;
+    chargeMs_ += dt;
+    if (atLimit_) limitMs_ = accrue(limitMs_, dt);
     const uint32_t perPoint = atLimit_ ? CHARGE_LIMIT_MS_PER_POINT : CHARGE_MS_PER_POINT;
     const uint8_t cap = !atLimit_ ? CHARGE_BELOW_LIMIT_MAX_PERCENT : limitMs_ >= CHARGE_FULL_AFTER_LIMIT_MS ? 100 : 99;
     if (chargeMs_ >= perPoint) {
-      chargeMs_ -= perPoint;
+      chargeMs_ %= perPoint; // Never bank time at the cap.
       if (reading_.percent < cap) ++reading_.percent;
     }
-    if (cap == 100 && reading_.percent == 99) reading_.percent = 100;
   }
-
-  bool seeded_ = false;
-  bool onUsb_ = false;
-  int32_t averageMv16_ = 0;
+  bool seeded_ = false, onUsb_ = false, timed_ = false, atLimit_ = false, upCorrection_ = false;
+  uint32_t clock_ = 0, downMs_ = 0, upMs_ = 0, fastMs_ = 0, fallingMs_ = 0, moveMs_ = 0;
+  uint32_t chargeMs_ = 0, limitMs_ = 0, belowLimitMs_ = 0, recentMs_ = 0;
+  int32_t averageMv16_ = 0, safetyMv16_ = 0;
   BatteryReading reading_;
-  // Charging.
-  uint32_t chargeMs_ = 0;
-  uint32_t limitMs_ = 0;
-  bool atLimit_ = false;
-  bool startedOnUsb_ = false;
-  uint16_t recent_[CHARGE_LIMIT_SAMPLES] = {};
-  uint8_t recentNext_ = 0;
-  uint8_t recentCount_ = 0;
+  uint16_t samples_[3] = {}, recent_[CHARGE_LIMIT_SAMPLES] = {};
+  uint8_t sampleNext_ = 0, absentCount_ = 0, recentNext_ = 0, recentCount_ = 0;
 };
 
 // Whether Atlas runs from USB ("shore power") or its cell. The board has no
@@ -224,8 +250,8 @@ enum class PowerSource : uint8_t { Usb, Battery };
 
 class PowerSourceTracker {
  public:
-  // A sample this far below the highest (or above the lowest) of the last
-  // STEP_WINDOW samples is USB pulled (or plugged in).
+  // Steps relative to the preceding STEP_WINDOW mean require a frozen
+  // baseline and corroboration before inferring USB pulled or plugged in.
   static constexpr uint16_t STEP_MV = 100;
   static constexpr uint8_t STEP_WINDOW = 4;  // 1 s at 4 samples a second.
   // The slow cue, for a start on the cell (no step to see): a steady fall of
@@ -243,27 +269,44 @@ class PowerSourceTracker {
   bool addSample(uint32_t cellMillivolts) {
     if (cellMillivolts < BATTERY_ABSENT_BELOW_MV) {
       // No cell: Atlas can only be running from USB.
+      if (++absentCount_ < 3) return false;
       const PowerSource was = source_;
       *this = PowerSourceTracker();
       return was != source_;
     }
+    absentCount_ = 0;
     const uint16_t mv = static_cast<uint16_t>(cellMillivolts > 0xFFFF ? 0xFFFF : cellMillivolts);
     PowerSource next = source_;
-    if (recentCount_ > 0) {
-      uint16_t lo = recent_[0], hi = recent_[0];
-      for (uint8_t i = 1; i < recentCount_; ++i) {
-        if (recent_[i] < lo) lo = recent_[i];
-        if (recent_[i] > hi) hi = recent_[i];
+    if (candidateCount_) {
+      const bool holds = candidate_ == PowerSource::Battery
+          ? mv + STEP_MV <= candidateBaseline_ : mv >= candidateBaseline_ + STEP_MV;
+      if (!holds) candidateCount_ = 0;
+      else if (++candidateCount_ >= candidateNeeded_) next = candidate_;
+    } else if (recentCount_ == STEP_WINDOW) {
+      // Mean of the preceding second, not its noisiest extreme. Freeze the
+      // baseline while confirming a step; don't mistake a rebound for USB.
+      uint32_t sum = 0;
+      for (uint8_t i = 0; i < STEP_WINDOW; ++i) sum += recent_[i];
+      const uint16_t baseline = static_cast<uint16_t>(sum / STEP_WINDOW);
+      if ((source_ == PowerSource::Usb && mv + STEP_MV <= baseline) ||
+          (source_ == PowerSource::Battery && mv >= baseline + STEP_MV)) {
+        candidate_ = source_ == PowerSource::Usb ? PowerSource::Battery : PowerSource::Usb;
+        candidateBaseline_ = baseline;
+        const uint16_t delta = mv > baseline ? mv - baseline : baseline - mv;
+        candidateNeeded_ = delta >= 180 ? 3 : 6; // 0.75 s bench steps, 1.5 s weaker cues.
+        candidateCount_ = 1;
       }
-      if (mv + STEP_MV <= hi) next = PowerSource::Battery;
-      else if (mv >= lo + STEP_MV) next = PowerSource::Usb;
     }
     recent_[recentNext_] = mv;
     recentNext_ = static_cast<uint8_t>((recentNext_ + 1) % STEP_WINDOW);
     if (recentCount_ < STEP_WINDOW) ++recentCount_;
 
-    if (next == source_) next = driftSource(mv);
+    const PowerSource drift = driftSource(mv);
+    if (partCount_ == 0 && next == source_ && drift != source_) {
+      if (++driftConfirm_ >= 3) next = drift; // Three consecutive one-second averages.
+    } else if (partCount_ == 0 && drift == source_) driftConfirm_ = 0;
     if (next == source_) return false;
+    candidateCount_ = driftConfirm_ = 0;
     source_ = next;
     // A fresh baseline for the slow cue; the step window keeps its samples.
     averageCount_ = 0;
@@ -300,6 +343,9 @@ class PowerSourceTracker {
 
   // Atlas starts as if on USB, so the screen is on at power-up.
   PowerSource source_ = PowerSource::Usb;
+  PowerSource candidate_ = PowerSource::Usb;
+  uint16_t candidateBaseline_ = 0;
+  uint8_t candidateCount_ = 0, candidateNeeded_ = 3, driftConfirm_ = 0, absentCount_ = 0;
   uint16_t recent_[STEP_WINDOW] = {};
   uint8_t recentNext_ = 0;
   uint8_t recentCount_ = 0;

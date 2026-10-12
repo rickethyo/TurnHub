@@ -88,11 +88,12 @@ constexpr uint32_t BATTERY_DIVIDER_DENOMINATOR = 1;
 // action (an Intent from a Sigil, phone or the touchscreen, or a touch). On
 // USB it never sleeps by itself.
 constexpr uint32_t BATTERY_IDLE_SLEEP_MS = 5UL * 60UL * 1000UL;
-// At or below this shown charge, on the cell, Atlas sleeps even mid-game (the
-// interrupted match comes back paused) and stays asleep until USB returns.
-constexpr uint8_t BATTERY_EMPTY_PERCENT = 3;
+// Voltage protection is independent of displayed percent (battery_gauge.h).
+// An interrupted match comes back paused; only USB wakes an empty Atlas.
 // The empty reading must hold this long, so one sag under load can't trip it.
 constexpr uint32_t BATTERY_EMPTY_CONFIRM_MS = 30UL * 1000UL;
+// Severe undervoltage also protects a cold boot whose source is still uncertain.
+constexpr uint32_t BATTERY_EMERGENCY_CONFIRM_MS = 5UL * 1000UL;
 
 constexpr char WIFI_SSID[] = "TurnHub-Atlas";
 constexpr uint8_t WIFI_CHANNEL = 6;

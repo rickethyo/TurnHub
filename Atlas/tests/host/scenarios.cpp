@@ -12,6 +12,7 @@
 #include "protocol.h"
 #pragma pack(pop)
 #endif
+#include "battery_checkpoint.h"
 #include "avatars.h"
 #include "avatar_artwork.h"
 #include "controller_profiles.h"
@@ -3994,16 +3995,28 @@ static void autoSleepOnBattery() {
   // Mid-game, idle never sleeps it.
   enterEmptyLobby(); freshLobby(2); startFromHost();
   testNow+=idle*2; serviceAutoSleep(testNow); assert(!sleepScheduled());
-  // An empty cell does, once the reading has held, but not while charging.
-  fixtureBattery.percent=AtlasConfig::BATTERY_EMPTY_PERCENT; fixtureBattery.low=true; fixtureBattery.charging=true;
+  // Voltage protection works while cosmetic charge remains high. Inferred
+  // USB alone does not request critical-low sleep without emergency evidence.
+  fixtureBattery.percent=80; fixtureBattery.low=true; fixtureBattery.charging=true;
+  fixtureBattery.criticalLow=true;
+  fixtureOnBattery=false;
   serviceAutoSleep(testNow); testNow+=AtlasConfig::BATTERY_EMPTY_CONFIRM_MS*2; serviceAutoSleep(testNow);
   assert(!sleepScheduled());
-  fixtureBattery.charging=false;
+  fixtureOnBattery=true; fixtureBattery.charging=false;
   serviceAutoSleep(testNow); testNow+=AtlasConfig::BATTERY_EMPTY_CONFIRM_MS/2; serviceAutoSleep(testNow);
   assert(!sleepScheduled());
   testNow+=AtlasConfig::BATTERY_EMPTY_CONFIRM_MS/2; serviceAutoSleep(testNow);
   assert(sleepScheduled() && table().hubState==HubState::Running);
   serviceSleep(testNow+3000); assert(fixtureSleeps==2 && fixtureSleptEmpty);
+  // Severe voltage protects even a cold boot still assuming USB. High
+  // cosmetic percent and an isolated critical indication cannot prevent sleep.
+  fixtureOnBattery=false; serviceAutoSleep(testNow); // cold boot clears old confirmations
+  fixtureBattery.percent=90; fixtureBattery.emergencyLow=true;
+  serviceAutoSleep(testNow);
+  testNow+=AtlasConfig::BATTERY_EMERGENCY_CONFIRM_MS-1; serviceAutoSleep(testNow);
+  assert(!sleepScheduled());
+  ++testNow; serviceAutoSleep(testNow); assert(sleepScheduled());
+  serviceSleep(testNow+3000); assert(fixtureSleeps==3 && fixtureSleptEmpty);
   fixtureOnBattery=false; fixtureBattery=TurnHub::BatteryReading();
   enterEmptyLobby(); resetTouchControls();
 }
@@ -4446,19 +4459,19 @@ static void batteryGauge() {
   assert(!gauge.reading().present);
   gauge.addSample(3900);
   assert(gauge.reading().present && gauge.reading().millivolts==3900 && gauge.reading().percent==62 && !gauge.reading().low);
-  // One sagging sample (a chime, the backlight) barely moves it.
+  // Median rejects a one-second sag before either voltage filter sees it.
   gauge.addSample(3700);
-  assert(gauge.reading().millivolts>3880 && gauge.reading().percent>=60);
-  // A steady new level is followed.
-  for (int i=0;i<120;++i) gauge.addSample(3700);
+  assert(gauge.reading().millivolts==3900 && gauge.reading().percent==62);
+  gauge.addSample(3900);
+  // Sustained real discharge cannot be hidden behind cosmetic smoothing.
+  for (int i=0;i<360;++i) gauge.addSample(3700);
   assert(gauge.reading().millivolts>=3700 && gauge.reading().millivolts<=3702 && gauge.reading().percent<=15 && gauge.reading().low);
-  // The low warning clears only well above the threshold.
   for (int i=0;i<120;++i) gauge.addSample(3720);
   assert(gauge.reading().low);
-  for (int i=0;i<120;++i) gauge.addSample(3800);
-  assert(!gauge.reading().low && gauge.reading().percent>=36 && gauge.reading().percent<=38);
-  // Unplugged: no cell, and the next cell starts fresh.
-  gauge.addSample(100);
+  // A compelling persistent correction can rise slowly on battery.
+  for (int i=0;i<1000;++i) gauge.addSample(3900);
+  assert(!gauge.reading().low && gauge.reading().percent>40);
+  for (int i=0;i<3;++i) gauge.addSample(100);
   assert(!gauge.reading().present);
   gauge.addSample(4100);
   assert(gauge.reading().millivolts==4100 && gauge.reading().percent==92);
@@ -4511,53 +4524,169 @@ static void chargingEstimate() {
   for (int s=0;s<200;++s) gauge.addSample(4110, true);
   // Full is shown as full: no bolt at 100.
   assert(gauge.reading().percent==100 && !gauge.reading().low && !gauge.reading().charging);
-  // USB out: read from the curve again.
+  // A lower charger plateau for ten seconds cancels full/taper evidence.
+  TurnHub::BatteryGauge taper;
+  taper.addSample(4110,true); taper.restorePercent(99);
+  for (int s=0;s<900;++s) taper.addSample(4110,true);
+  for (int s=0;s<30;++s) taper.addSample(4000,true);
+  for (int s=0;s<900;++s) taper.addSample(4110,true);
+  assert(taper.reading().percent==99 && taper.reading().charging);
+  // USB out: retain the last percentage, reconcile sustained evidence later.
   gauge.addSample(3900);
-  assert(!gauge.reading().charging && gauge.reading().percent==62);
+  assert(!gauge.reading().charging && gauge.reading().percent==100);
 
   // Started on USB: nothing to count from, so the cell is taken as 210 mV
   // below the charger's reading...
   TurnHub::BatteryGauge cold;
   cold.addSample(4070, true);
   assert(cold.reading().charging && cold.reading().percent==lipoPercentFromMillivolts(3860));
-  // ...and already at the limit means at least 85.
+  // No jump to an invented 85% when the charger reaches its limit.
   TurnHub::BatteryGauge full;
   for (int s=0;s<241;++s) full.addSample(4120, true);
-  assert(full.reading().percent>=TurnHub::CHARGE_AT_LIMIT_MIN_PERCENT && full.reading().percent<=TurnHub::CHARGE_AT_LIMIT_MIN_PERCENT+1);
+  assert(full.reading().percent>=62 && full.reading().percent<85);
 }
 
 static void powerSource() {
   using TurnHub::PowerSource;
   TurnHub::PowerSourceTracker power;
-  assert(power.source()==PowerSource::Usb);  // Screen on at power-up.
-  // On USB: steady, with sample noise.
+  assert(power.source()==PowerSource::Usb);
   for (int i=0;i<200;++i) assert(!power.addSample(i%2 ? 4106 : 4096));
-  // USB pulled: the next sample is 240 mV down.
-  assert(power.addSample(3866) && power.source()==PowerSource::Battery);
-  // The cell sags quickly under load; noisy, but no step up.
+  auto step = [&](uint32_t mv, PowerSource expected) {
+    assert(!power.addSample(mv)); assert(!power.addSample(mv));
+    assert(power.addSample(mv) && power.source()==expected);
+  };
+  step(3866, PowerSource::Battery);
   uint32_t mv=3860;
   for (int i=0;i<180;++i) { mv-=1; assert(!power.addSample(mv + (i%3==0 ? 30 : 0))); }
-  assert(power.source()==PowerSource::Battery);
-  // USB back: 200 mV up, then charging climbs slowly.
-  assert(power.addSample(mv+200) && power.source()==PowerSource::Usb);
-  for (int i=0;i<400;++i) assert(!power.addSample(mv+200+i/4));
-  // A small step (the backlight going off) is not USB.
-  assert(power.addSample(3700) && power.source()==PowerSource::Battery);
+  step(mv+220, PowerSource::Usb);
+  for (int i=0;i<400;++i) assert(!power.addSample(mv+220+i/4));
+  step(3700, PowerSource::Battery);
   for (int i=0;i<8;++i) assert(!power.addSample(3730));
-  // No cell: only USB can be powering Atlas.
-  assert(power.addSample(100) && power.source()==PowerSource::Usb);
+  step(100, PowerSource::Usb);
   assert(!power.addSample(100));
 
-  // Started on the cell: no step, but the steady fall gives it away within
-  // a minute, and USB's steady rise brings it back.
   TurnHub::PowerSourceTracker cold;
   int seen=-1;
   for (int i=0;i<240 && seen<0;++i) if (cold.addSample(3860-i/2)) seen=i;
   assert(seen>0 && seen<240 && cold.source()==PowerSource::Battery);
-  mv=3860-seen/2;
-  seen=-1;
+  mv=3860-seen/2; seen=-1;
   for (int i=0;i<400 && seen<0;++i) if (cold.addSample(mv+i/2)) seen=i;
   assert(seen>0 && cold.source()==PowerSource::Usb);
+}
+
+static void batteryStability() {
+  using namespace TurnHub;
+  BatteryGauge noisy;
+  noisy.addSample(3800);
+  for (int i=0;i<300;++i) noisy.addSample(i%2 ? 3808 : 3792);
+  assert(noisy.reading().percent>=36 && noisy.reading().percent<=38);
+  const auto before=noisy.reading().percent;
+  for (int i=0;i<120;++i) {
+    noisy.addSample(i%10==0 ? 3520 : 3800); // radio/backlight/speaker pulses
+    assert(noisy.reading().percent>=before-1 && !noisy.reading().criticalLow);
+  }
+  // Load removal is not a reason to report rising charge on battery.
+  for (int i=0;i<180;++i) noisy.addSample(3820);
+  assert(noisy.reading().percent<=before);
+
+  BatteryGauge slow;
+  slow.addSample(3860);
+  slow.restorePercent(55);
+  for (int i=0;i<29;++i) slow.addSample(3850);
+  assert(slow.reading().percent==55);
+  for (int i=0;i<31;++i) slow.addSample(3850);
+  assert(slow.reading().percent>=53 && slow.reading().percent<=54);
+  // Measured small cell can discharge quickly: accelerate a sustained gap.
+  for (int i=0;i<180;++i) slow.addSample(3700);
+  assert(slow.reading().percent<=20 && slow.reading().corrections>0);
+
+  BatteryGauge underreported; underreported.addSample(4100); underreported.restorePercent(10);
+  for (int i=0;i<3000;++i) underreported.addSample(4100);
+  assert(underreported.reading().percent>=90 && underreported.reading().percent<=92);
+
+  BatteryGauge cycling; cycling.addSample(3860);
+  const auto unplugged=cycling.reading().percent;
+  for (int cycle=0;cycle<5;++cycle) {
+    cycling.addSample(4070,true);
+    assert(cycling.reading().percent==unplugged);
+    for (int i=0;i<10;++i) cycling.addSample(4070,true);
+    cycling.addSample(3860,false);
+    assert(cycling.reading().percent==unplugged);
+  }
+  // Reboot restores credible percent, never elapsed charge or full timers.
+  const auto saved=makeBatteryCheckpoint(cycling.reading(),false);
+  assert(validBatteryCheckpoint(saved) && usableBatteryCheckpoint(saved,3860));
+  assert(usableBatteryCheckpoint(saved,4070)); // legitimate charger step
+  BatteryGauge reboot; reboot.addSample(4070,true); reboot.restorePercent(saved.bytes[5]);
+  assert(reboot.reading().percent==unplugged && reboot.reading().charging);
+  for (int i=0;i<29;++i) reboot.addSample(4070,true);
+  assert(reboot.reading().percent==unplugged);
+  reboot.addSample(4070,true); assert(reboot.reading().percent==unplugged+1);
+  // RTC restore uses exactly the same codec/plausibility, not charging state.
+  BatteryGauge wake; wake.addSample(3860); wake.restorePercent(saved.bytes[5]);
+  assert(wake.reading().percent==unplugged && !wake.reading().charging);
+  auto corrupt=saved; corrupt.bytes[5]^=1; assert(!validBatteryCheckpoint(corrupt));
+  corrupt=saved; corrupt.bytes[4]=2; assert(!validBatteryCheckpoint(corrupt));
+  corrupt=saved; corrupt.bytes[9]^=1; assert(!validBatteryCheckpoint(corrupt));
+  assert(!usableBatteryCheckpoint(saved,3500) && !usableBatteryCheckpoint(saved,100));
+  BatteryGauge high; high.addSample(4180);
+  assert(!usableBatteryCheckpoint(makeBatteryCheckpoint(high.reading(),false),3700));
+  BatteryGauge empty; empty.addSample(3500);
+  assert(!usableBatteryCheckpoint(makeBatteryCheckpoint(empty.reading(),false),4150));
+  cycling.addSample(100); assert(cycling.reading().present); // isolated disconnect noise
+  cycling.addSample(100); cycling.addSample(100); assert(!cycling.reading().present);
+  const auto absent=makeBatteryCheckpoint(cycling.reading(),true);
+  assert(validBatteryCheckpoint(absent) && !usableBatteryCheckpoint(absent,4100));
+  cycling.addSample(4100); assert(cycling.reading().percent==92);
+
+  BatteryGauge safety; safety.addSample(3900); safety.restorePercent(95);
+  safety.addSample(3400); safety.addSample(3900);
+  assert(!safety.reading().criticalLow);
+  for (int i=0;i<12;++i) safety.addSample(3400);
+  assert(safety.reading().criticalLow && safety.reading().emergencyLow && safety.reading().percent>80 && safety.reading().low);
+  for (int i=0;i<80;++i) safety.addSample(3650);
+  assert(!safety.reading().criticalLow && !safety.reading().emergencyLow);
+  // Even incorrectly inferred USB must not fabricate charging in undervoltage.
+  BatteryGauge coldLow; for (int i=0;i<8;++i) coldLow.addSample(3400,true);
+  assert(coldLow.reading().criticalLow && coldLow.reading().emergencyLow && !coldLow.reading().charging);
+
+  BatteryGauge wrapped; uint32_t now=0xfffff000UL;
+  wrapped.addTimedSample(3860,true,now); wrapped.restorePercent(50);
+  for (int i=0;i<30;++i) { now+=1000; wrapped.addTimedSample(4070,true,now); }
+  assert(wrapped.reading().percent==51);
+  now+=600000; wrapped.addTimedSample(4070,true,now);
+  assert(wrapped.reading().percent==51); // delayed service cannot invent ten minutes of charge
+  BatteryCheckpointPolicy policy; const uint32_t start=0xffff0000UL;
+  policy.begin(start,&saved);
+  auto changed=saved; BatteryReading r=cycling.reading(); r.percent=70;
+  changed=makeBatteryCheckpoint(r,false);
+  assert(!policy.due(changed,start+59999)); assert(policy.due(changed,start+60000));
+  policy.attempted(changed,start+60000,false);
+  assert(!policy.due(changed,start+60001)); assert(policy.due(changed,start+120000));
+  policy.attempted(changed,start+120000,true);
+  assert(!policy.due(changed,start+900000)); // unchanged does not wear flash
+  r.percent=71; const auto small=makeBatteryCheckpoint(r,false);
+  assert(!policy.due(small,start+180000)); assert(policy.due(small,start+720000));
+  assert(policy.due(absent,start+180000));
+
+  PowerSourceTracker pulses;
+  for (int i=0;i<40;++i) pulses.addSample(4100);
+  for (int i=0;i<100;++i) assert(!pulses.addSample(i%10==0 ? 3850 : 4100));
+  assert(pulses.source()==PowerSource::Usb);
+  for (int i=0;i<3;++i) pulses.addSample(3850);
+  assert(pulses.source()==PowerSource::Battery);
+  for (int i=0;i<40;++i) pulses.addSample(3850);
+  for (int i=0;i<100;++i) assert(!pulses.addSample(i%10==0 ? 4100 : 3850));
+  assert(pulses.source()==PowerSource::Battery);
+  // Weaker steps need 1.5 seconds of corroboration.
+  for (int i=0;i<5;++i) assert(!pulses.addSample(3970));
+  assert(pulses.addSample(3970) && pulses.source()==PowerSource::Usb);
+  for (int i=0;i<8;++i) pulses.addSample(3970);
+  for (int i=0;i<6;++i) pulses.addSample(3850);
+  assert(pulses.source()==PowerSource::Battery);
+  // Two-sample load events don't change the source or flip on rebound.
+  for (int i=0;i<10;++i) { assert(!pulses.addSample(4050)); assert(!pulses.addSample(4050));
+    for (int j=0;j<8;++j) assert(!pulses.addSample(3850)); }
 }
 
 static void magicCountersAndRules() {
@@ -4767,6 +4896,7 @@ int main() {
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";
+  batteryStability(); std::cout<<"PASS persistent battery stability, safety and source debounce\n";
   batteryGauge(); std::cout<<"PASS battery gauge curve, smoothing, low warning and /api/devices\n";
   chargingEstimate(); std::cout<<"PASS charging estimate: no jump on USB, counted climb, never down, full only after the limit\n";
   powerSource(); std::cout<<"PASS power source: USB pulled and plugged in, slow discharge, no cell, started on the cell\n";

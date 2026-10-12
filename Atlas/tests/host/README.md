@@ -6,7 +6,7 @@ and `IntentDispatcher`. Clock, radio, GPIO, web server, presentation, and
 NVS boundaries are replaced by deterministic stubs. No firmware is flashed.
 
 On Linux, run `bash Atlas/tests/host/run-linux.sh` from the repository root.
-It builds the application, storage, profile-store and OTA suites with C++14, AddressSanitizer and UBSan, then runs them.
+It builds the application, storage, profile-store, OTA and battery-adapter suites with C++14, AddressSanitizer and UBSan, then runs them.
 GitHub Actions uses this runner; see [CI checks](../../../Documentation/engineering/CONTINUOUS_INTEGRATION.md).
 
 On Windows, run `Atlas\tests\host\run.cmd` from an x64 Native Tools Command
@@ -26,8 +26,15 @@ the account limit. No saved user records are deleted by this filtering.
 `src/sd_card.cpp` (Arduino SD) and `src/secure_link_backend.cpp` (mbedTLS
 self-test) are firmware-only too; `test_globals.cpp` stubs them (no speaker,
 a battery reading the scenarios set, no card, self-test passes; the gauge
-logic itself is the header-only `battery_gauge.h`, tested directly), and the
-speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
+logic and checkpoint codec/throttling are header-only `battery_gauge.h` and
+`battery_checkpoint.h`, tested directly for load noise, fast discharge, source
+cycles, restore/replacement, safety, elapsed-time rollover and write failures).
+A separate `battery_firmware_scenarios` executable includes the actual
+`atlas_battery.cpp` and NVS/serial modules with ADC, reset reason, RTC and flash
+boundaries in `battery_stubs`: it verifies startup publication, real restore
+selection, absent tombstones, corrupt/short records and failed-write throttling.
+This simulates RTC retention; physical ESP32 retention still needs acceptance.
+The speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
 `src/atlas_display.cpp` and `src/atlas_art.cpp` are firmware-only (they need
 LovyanGFX), so they are not in any runner's source list. `test_globals.cpp`
 provides a no-op `beginAtlasDisplay()`.
@@ -67,6 +74,10 @@ c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -Ibuild/generated -I../../i
 c++ -std=c++17 -Wall -Wextra -Istubs -Ibuild/generated -I../../include -I../../../shared/include \
     ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
 ./build/ota_scenarios
+c++ -std=c++17 -Wall -Wextra -Ibattery_stubs -Istubs -I../../include -I../../../shared/include \
+    battery_firmware_scenarios.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
+    -o build/battery_firmware_scenarios
+./build/battery_firmware_scenarios
 ```
 
 `ota_scenarios` covers Sigil OTA on Atlas (`sigil_update_jobs.cpp`):

@@ -1302,6 +1302,8 @@ uint32_t atlasSleepAtMs = 0;
 uint32_t lastActivityMs = 0;
 bool emptySeen = false;
 uint32_t emptySinceMs = 0;
+bool emergencySeen = false;
+uint32_t emergencySinceMs = 0;
 }  // namespace
 
 // Menu > Device Sleep: the touchscreen only (whoever taps it is at the
@@ -1347,28 +1349,34 @@ void noteAtlasActivity(uint32_t nowMs) { lastActivityMs = nowMs; }
 
 void serviceAutoSleep(uint32_t nowMs) {
   if (atlasSleepScheduled) return;
-  // On USB nothing sleeps by itself, and the idle count starts at unplugging.
-  if (!atlasOnBattery()) {
+  // Idle sleep requires inferred battery power. Severe undervoltage can
+  // override the cold-boot USB assumption independently of shown charge.
+  if (!atlasOnBattery() && !atlasBattery().emergencyLow) {
     lastActivityMs = nowMs;
-    emptySeen = false;
+    emptySeen = emergencySeen = false;
     return;
   }
   Intent intent;
   intent.type = IntentType::Sleep;
   intent.actor.origin = IntentOrigin::System;
   const TurnHub::BatteryReading &battery = atlasBattery();
-  if (battery.present && !battery.charging && battery.percent <= AtlasConfig::BATTERY_EMPTY_PERCENT) {
+  if (battery.present && battery.criticalLow) {
     if (!emptySeen) {
       emptySeen = true;
       emptySinceMs = nowMs;
-    } else if (nowMs - emptySinceMs >= AtlasConfig::BATTERY_EMPTY_CONFIRM_MS) {
+    }
+    if (battery.emergencyLow) {
+      if (!emergencySeen) { emergencySeen = true; emergencySinceMs = nowMs; }
+    } else emergencySeen = false;
+    if (nowMs - emptySinceMs >= AtlasConfig::BATTERY_EMPTY_CONFIRM_MS ||
+        (emergencySeen && nowMs - emergencySinceMs >= AtlasConfig::BATTERY_EMERGENCY_CONFIRM_MS)) {
       intent.payload.value = SLEEP_REASON_EMPTY;
       // Refused (an update is running): try again after another confirm wait.
-      if (!intents.dispatch(intent).accepted()) emptySinceMs = nowMs;
+      if (!intents.dispatch(intent).accepted()) emptySinceMs = emergencySinceMs = nowMs;
       return;
     }
   } else {
-    emptySeen = false;
+    emptySeen = emergencySeen = false;
   }
   if (nowMs - lastActivityMs < AtlasConfig::BATTERY_IDLE_SLEEP_MS) return;
   // A full idle wait again before the next try, whatever happens now.
