@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 
+# Explicit allowlist, never a codex/* or other prefix match.
+# codex/esp32-s3-lvgl stays independent; the owner selects upstream updates later.
 BRANCHES = ("codex/master", "claude/master", "agent/experimental")
 
 

@@ -60,10 +60,15 @@ fuel-gauge chip, so the charge is estimated from the cell voltage alone:
 `atlas_battery.cpp` reads GPIO 34 four times a second (8 ADC reads averaged, the
 ESP32's calibrated millivolts) and scales it by the divider ratio in
 `config.h` (`BATTERY_DIVIDER_NUMERATOR` / `DENOMINATOR`, 2/1). The pure logic
-in `battery_gauge.h` smooths their per-second average (an exponential average over about 16 s),
-maps it through a LiPo discharge curve (flat through the middle, steep at both
-ends, not linear), holds the shown percent until it moves 2 points, and
-raises a low warning at 15 % that clears at 20 %. Below 2.5 V there is no cell.
+in `battery_gauge.h` rejects isolated spikes with a median and smooths voltage
+with a 16-sample exponential average. Its generic curve produces a voltage
+estimate; the displayed percentage is a separate historical estimate with
+hysteresis, controlled movement, NVS/RTC checkpoints and sustained corrections.
+A separate faster voltage filter protects low-battery sleep. The full algorithm,
+checkpoint rules, curve review and physical acceptance procedure are in
+[Battery estimation and protection](BATTERY_GAUGE.md). Below 2.5 V for three
+consecutive gauge samples there is no cell-like reading; a USB-held empty
+connector remains ambiguous.
 
 Shown in: the touchscreen header (at the right, a phone-style cell icon and
 the percent, the Sigil count having moved to the header's middle; the icon
@@ -71,10 +76,11 @@ fills red and a red **LOW BATTERY** pill appears while low; a lightning bolt
 over it while charging, gone once full at 100%) and Menu > Info ("SD card: ready, battery 82%",
 ", charging" added when it fits), the portal's Atlas line under Devices, the
 basic portal, and `GET /api/devices` (`atlas.battery`: `percent`,
-`millivolts`, `low`, `charging`, or `null` with no cell). Each 5-point
-change, and each start or end of charging, is logged as
-`ATLAS|BATTERY|<mV>|<percent>` (`|LOW`, `|CHARGING`) for checking the curve
-against a timed discharge.
+`millivolts`, `low`, `charging`, or `null` while unavailable). Each 5-point
+change, inferred charging or safety change, and a minute heartbeat
+is logged as `ATLAS|BATTERY|<mV>|<percent>` with raw/filtered/estimated/displayed
+voltage/percentage, source, restore and safety evidence appended
+([Diagnostics](DIAGNOSTICS.md)).
 
 **Charging** (2026-10-08). The charger is a TP4054 (the schematic's U6; the
 fitted part is marked LTH7, the LTC4054 equivalent): 4.2 V, stopping on its
@@ -90,16 +96,14 @@ Plugged in, the reading is the charger's, not the cell's: the cell plus the
 charge current through its resistance (about 210 mV on the bench), then a
 flat 4.21 V at the charger's limit, and a flat 4.10 V once it has stopped
 (measured 2026-10-08). Read through the curve that is "full" at once (it
-jumped 60 % to 100 %). So while charging the percent is counted instead: it
-starts from the last on-battery percent, never falls, and climbs one point
-per 30 s (300 mA into 250 mAh), stopping at 90 % until the reading has held
-steady at 4.08 V or more for 4 minutes (the charger's limit; climbing to it,
-the reading rises 30 mV or more in that time). Then it climbs one point a
-minute and shows 100 % only after 20 minutes there. Started on USB, with no
-on-battery percent, it takes the cell as 210 mV below the reading, and as at
-least 85 % once at the limit. Unplugged, it reads the curve again. Checked on
-the bench (unplug, replug: the percent held and crept up with the bolt
-showing); the counted rate is *Needs verification* against a timed charge.
+jumped 60 % to 100 %). While inferred charging the percent is counted from
+the last credible
+percentage and never reseeded merely because USB is connected or removed.
+The existing capacity/current estimate and taper/full constraints remain;
+reboot restores percentage only, never charging/full timers. Cold USB startup
+without a usable checkpoint still estimates the cell as 210 mV below the reading.
+The new stability/checkpoint behavior is host-tested; the actual charging rate
+and thresholds need timed-charge acceptance ([Battery gauge](BATTERY_GAUGE.md)).
 
 **Screen off on battery** (2026-10-08). The cell is a backup that keeps the
 game, the radio and the portal running through a pulled cable, not a power
@@ -114,26 +118,32 @@ reads the power source from the raw samples. Measured on the 502030 with a
 temporary probe (2026-10-08, four samples a second, two pulls and replugs):
 pulling USB dropped the reading 220-240 mV within one sample (4.10 V to
 3.83-3.87 V), plugging it back raised it 200-220 mV, sample noise stayed
-within about 30 mV, and on the cell alone it fell about 100 mV in 45 s. So a
-sample 100 mV below the highest of the last second is USB pulled, and 100 mV
-above the lowest is USB back. Atlas starts as if on USB (screen on); if it
-was started on the cell, a steady 60 mV fall within a minute (which the
-charger never allows) switches it to battery, in about 20 s on the measured
-trace, and a steady 60 mV rise switches it back. With no cell it is always
-USB. Changes are logged as `ATLAS|POWER|BATTERY` / `ATLAS|POWER|USB`, and the
-charge estimate restarts from the new level.
+within about 30 mV, and on the cell alone it fell about 100 mV in 45 s. The
+tracker now compares steps against the preceding one-second mean and
+confirms measured large steps for three samples (0.75 s), weaker 100 mV steps
+for six (1.5 s). Slow 60 mV drift requires three corroborating one-second
+averages. Source inference is independent of displayed percentage smoothing.
+Short load dips/rebounds do not switch source; sustained load changes can still
+mimic USB and require bench testing. Atlas retains the startup USB assumption
+(screen on) until battery evidence appears. Source changes are logged as
+`ATLAS|POWER|BATTERY` / `ATLAS|POWER|USB`; they preserve the displayed percentage
+and restart charging timers.
 
 **Auto sleep on battery** (2026-10-08, owner: keep the cell from running
 flat). On the cell, Atlas goes into the menu's deep sleep by itself
 (`serviceAutoSleep`, `table_intents.cpp`; a System-origin `Sleep` Intent):
+
 - between games, after `BATTERY_IDLE_SLEEP_MS` (5 min) with no player action:
   any Intent from a Sigil, phone or the touchscreen, or a touch;
-- at any time, once the shown charge has stayed at or below
-  `BATTERY_EMPTY_PERCENT` (3%, about 3.58 V under load) for 30 s. Mid-game
+- at any time on inferred battery power, once separately filtered voltage
+  is critically low (3.58 V, clearing at 3.64 V) for 30 s; emergency voltage
+  (3.45 V or lower) uses a five-second confirmation even while a cold boot
+  still assumes USB. Displayed percentage cannot delay protection. Mid-game
   the interrupted-match record brings the game back paused. A touch or BOOT
   doesn't wake an empty Atlas; only USB does.
 
-On USB it never sleeps by itself, and an update, Sigil update or factory reset
+On inferred USB it does not idle-sleep; emergency undervoltage can override that
+assumption. An update, Sigil update or factory reset
 under way holds it off. Asleep on the cell, the RTC timer wakes the chip 5 s
 after it sleeps (the resting-cell reading) and then each minute
 (`stayAsleepWithoutUsb`, `atlas_display.cpp`, before anything else in

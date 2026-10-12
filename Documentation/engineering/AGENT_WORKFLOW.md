@@ -14,6 +14,14 @@ All four branches are permanent. Experiments need a named owner and scope in
 both agents to push independently. Separate worktrees prevent one chat or GitHub
 Desktop from switching another chat's checkout.
 
+`codex/esp32-s3-lvgl` is a separate development branch, outside the permanent
+agent maintenance allowlist. Owner direction (2026-10-12): keep its LVGL/S3
+work independent and integrate selected upstream changes later. Do not
+fast-forward, rebase or automatically merge `origin/master`/`codex/master`
+into it, including during session startup. Inspect/fetch refs as usual;
+upstream integration requires an explicitly scoped owner-directed update.
+Its PR remains separate from continuing work on `codex/master`.
+
 ## Mandatory resource efficiency
 
 Owner rule, 2026-10-09: all agents must minimize third-party resource consumption
@@ -72,7 +80,10 @@ specific cross-agent handoff.
 
 `Agent branch maintenance` runs on pushes to `master` and can be run manually
 from Actions after its workflow has reached master. It snapshots the current
-master tip and checks each permanent agent branch:
+master tip and checks only the explicit allowlist: `codex/master`,
+`claude/master`, `agent/experimental`. It never enumerates `codex/*` or other
+branch prefixes. `codex/esp32-s3-lvgl` is excluded even when it would be eligible
+for a fast-forward; both automatic and manual workflow runs leave it alone.
 
 - An ancestor of master is fast-forwarded using GitHub's non-force ref update.
 - A branch already at or ahead of that snapshot is left alone.

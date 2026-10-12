@@ -960,3 +960,25 @@ Compared with 0.7.12-dev: +8 B static RAM / +2,496 B flash. Android 233 unit tes
 and final debug APK passed. Atlas four host suites passed with ASan/UBSan at
 -O0 (LeakSanitizer off for workspace tracing); 20 state contracts, 31 adapter
 guards, portal browser tests, tokens and Manual V0.17 export passed.
+
+
+### 2026-10-12 / Atlas 0.7.14-dev persistent battery indication
+
+Verified local PlatformIO build; physical acceptance pending. Battery ADC,
+voltage-derived SoC and displayed history are separated. Validated NVS/RTC
+checkpoints preserve credible percentage; source debounce and sustained
+reconciliation reduce load/USB jumps. Independent voltage safety can sleep a
+running game despite a high cosmetic percentage. Existing radio, HTTP JSON
+shapes and partition layout are unchanged. Descriptor PATCH now matches the
+version string (the previous baseline descriptor still said 0.7.11).
+
+| Environment | Static RAM / 327,680 B | Flash / 1,966,080 B |
+|---|---|---|
+| Atlas | 112,060 B (34.2%) | 1,660,629 B (84.5%) |
+
+Compared with 0.7.13-dev: +168 B static RAM / +3,044 B reported flash.
+Five Atlas host suites passed with ASan/UBSan at -O1 (LeakSanitizer disabled
+for workspace tracing), including the real ADC/NVS/RTC adapter. All 20 client
+contract cases, 31 adapter guards, tokens and Manual V0.18 export/XML checks
+passed. ADC calibration, curve/charge rate, regulator margin, USB/source and
+physical deep-sleep acceptance remain in [Staged Changes](../STAGED_CHANGES.md).

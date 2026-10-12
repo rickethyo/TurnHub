@@ -206,12 +206,15 @@ everything implemented. Only the checks listed below are still open.
   factory reset, scanning Atlas QR codes, and calm LED colors with independent
   shared-seat preferences. Host previews/tests and firmware builds passed;
   physical appearance/persistence acceptance is still open.
-- **Atlas battery gauge, later rounds** (round one, 2026-10-08: the voltage
-  estimate, see HARDWARE.md "Atlas battery"): calibrate the divider and curve
-  on the board, the existing Android percent gauge needs device acceptance, and a manual entry once the
-  readings are trusted. Auto sleep (2026-10-08: Atlas idle or empty on the
-  cell, Sigils idle; HARDWARE.md, PAIRING_AND_SECURE_LINK.md) also needs its
-  manual entry, and its USB wake check a bench test.
+- **Atlas battery physical acceptance (TH-015, 2026-10-12):** persistent stable
+  indication, debounced source inference and independent voltage protection are
+  implemented. Calibrate the ADC divider and generic curve against real timed
+  discharge; confirm source/absence ambiguity, charge/taper rate, sustained load
+  changes, critical/emergency latency before regulator brownout, checkpoint
+  restart/deep-sleep continuity, interrupted-game recovery, sleep current and
+  USB wake at full/middle/low charge. Procedures and limitations are in
+  [Battery estimation and protection](BATTERY_GAUGE.md). Android/display device
+  acceptance remains pending; manual now describes the implemented behavior.
 
 ### Hardware
 

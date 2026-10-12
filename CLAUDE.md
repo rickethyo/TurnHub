@@ -58,7 +58,7 @@ Keep their source lists aligned with the Windows runners when sources change.
 See `Documentation/engineering/CONTINUOUS_INTEGRATION.md` for the workflow,
 build artifacts and check names.
 
-These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers, the statistics bridge and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce three executables: `scenarios` (gameplay/login/recovery), `storage_scenarios` and `profile_store_scenarios`.
+These compile the **real** `main.cpp` and application modules, `GameEngine`, `Lobby`, `IntentDispatcher`, HTTP handlers, the statistics bridge and storage code against stubs in `tests/host/stubs/` and `tests/host/storage_stubs/`. They produce five executables: `scenarios` (gameplay/login/recovery), `storage_scenarios`, `profile_store_scenarios`, `ota_scenarios` and `battery_firmware_scenarios` (real battery adapter with ADC/NVS/RTC boundaries).
 ```
 Atlas\tests\host\run-gcc.ps1          # PowerShell, uses PlatformIO's toolchain-gccmingw32 (or -Compiler <g++>)
 Atlas\tests\host\run.cmd              # from an x64 VS Native Tools prompt (MSVC)
