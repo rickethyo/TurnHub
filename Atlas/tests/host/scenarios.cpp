@@ -4730,7 +4730,8 @@ static void magicCountersAndRules() {
   assert(request("/api/control/commander",b,{{"source","3"},{"commander","2"},{"delta","20"}})==200 && !table().game.isEliminated(2));
   assert(request("/api/control/commander",b,{{"source","3"},{"commander","2"},{"delta","1"}})==200 && !table().game.isEliminated(2));
   assert(request("/api/game/settings",c,{{"autoEliminateAtCommanderDamage","1"}})==200 && table().game.isEliminated(2));
-  assert(table().hubState==HubState::GameOver && table().game.winnerPlayerNumber()==3 && table().game.initiativePlayerNumber()==0);
+  // CR 725.4: the initiative passes to the surviving active player.
+  assert(table().hubState==HubState::GameOver && table().game.winnerPlayerNumber()==3 && table().game.initiativePlayerNumber()==3);
   assert(counter(c,"initiative",1)==409);
   enterEmptyLobby();
   for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
@@ -4770,10 +4771,13 @@ static void magicMonarch() {
   assert(size && decodeCheckpoint(bytes,size,saved)==TurnHubStorage::Status::Ok && saved.monarch==3);
   GameEngine restored; assert(restored.restoreCheckpoint(saved,testNow) && restored.monarchPlayerNumber()==3);
   saved.monarch=4; assert(!validCheckpoint(saved)); saved.monarch=3;
-  assert(request("/api/control/concede",c)==200 && table().game.monarchPlayerNumber()==0);
+  // CR 724.4: the crown passes to the active player, or the next in turn
+  // order when the monarch is the active player.
+  const uint8_t heir = table().game.activePlayerNumber()==3 ? 1 : table().game.activePlayerNumber();
+  assert(request("/api/control/concede",c)==200 && table().game.monarchPlayerNumber()==heir);
   assert(request("/api/control/monarch",c)==409);
   assert(request("/api/control/monarch",a)==200);
-  assert(request("/api/control/life",a,{{"delta","-20"}})==200 && table().game.monarchPlayerNumber()==0);
+  assert(request("/api/control/life",a,{{"delta","-20"}})==200 && table().game.monarchPlayerNumber()==2);
   assert(request("/api/control/monarch",b)==409); // Finished game.
   enterEmptyLobby();
   for (const String *token : {&a,&b,&c}) assert(request("/api/session/logout",*token)==200);
@@ -4789,8 +4793,9 @@ static void magicMonarch() {
   assert(engine.start(seats,4,seats[0],testNow,settings));
   assert(engine.claimMonarch(1) && engine.claimMonarch(2) && engine.monarchPlayerNumber()==2);
   bool finished=false; assert(engine.pause(testNow) && engine.eliminatePlayer(1,testNow,finished));
-  assert(engine.monarchPlayerNumber()==0); // Individual crown clears if either teammate leaves.
+  assert(engine.monarchPlayerNumber()==3); // The leaving team's crown goes to the next team's active player.
   assert(engine.start(seats,4,seats[0],testNow,settings) && engine.monarchPlayerNumber()==0);
+  assert(engine.beginWinClaim(1,false,testNow) && !engine.claimMonarch(3)); // Not while a win claim waits.
 }
 
 static void zeroLifeAndExitReasons() {

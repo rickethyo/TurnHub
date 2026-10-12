@@ -1244,3 +1244,25 @@ management/invitations from TH-002 remain separate planned work.
   the owner. Preserve physical acceptance items; do not infer completion from
   host builds or package existence. No new firmware changes or repeated full
   regression runs were needed for these local environment repairs.
+
+## 2026-10-12 — Claude: review of Codex work since 2026-10-08; monarch/initiative succession
+
+- Owner Claude, branch `claude/master`, baseline `b9cd577`. Reviewed the 31
+  commits since `ec98e03` (battery gauge/checkpoint, live loss rules and
+  concessions, monarch/initiative/counters and checkpoint schema 4, SD artwork
+  upload/review, shared-tablet sessions, hardware tests, Sigil themes and
+  joystick). No defects found in traced paths; Linux host suites, adapter audit,
+  client contract, tokens, portal and manual checks all passed on master.
+- Owner decision (2026-10-12): follow Magic CR 724.4/725.4. A leaving holder's
+  monarch or initiative now passes to the active player, or to the next living
+  player in turn order when the active player leaves; it clears only if nobody
+  remains. Atlas `GameEngine::eliminatePlayer` and Android
+  `StandaloneGame.passStatuses` implement it; `claimMonarch` also rejects during
+  a pending win claim, matching counter changes. Manual V0.18 (in place),
+  `manual.md`, `GAMEPLAY.md` and `http-v1.md` updated.
+- Not changed: recovery still decodes checkpoint schemas 1–3. Dropping them
+  would make an old record `UnsupportedSchema`, which leaves recovery read-only
+  rather than overwriting it; keep until a factory reset policy covers it.
+- Validation: Atlas Linux host suites (ASan/UBSan) passed with updated monarch
+  and counter scenarios. Android unit tests were updated but not run locally (no
+  SDK in this container); CI runs them. Hardware acceptance pending.

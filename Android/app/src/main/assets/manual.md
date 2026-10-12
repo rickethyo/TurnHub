@@ -790,7 +790,7 @@ Product names and specifications subject to change.
 
 ## The monarch (Magic and Commander)
 
-Choose I’m the monarch in your player controls or the More drawer on your table tile. While paused, the table also lists the monarch controls. A crown and Monarch label identify the holder. Only one player can be monarch: claiming it immediately transfers the crown. In team games, the crown belongs to the named individual. If the holder concedes or is eliminated, the crown clears. It survives pause and game recovery, and resets for a new match. Players resolve the card’s combat and draw rules themselves.
+Choose I’m the monarch in your player controls or the More drawer on your table tile. While paused, the table also lists the monarch controls. A crown and Monarch label identify the holder. Only one player can be monarch: claiming it immediately transfers the crown. In team games, the crown belongs to the named individual. If the holder concedes or is eliminated, the crown passes to the player whose turn it is, or to the next player in turn order when the holder was taking that turn. It survives pause and game recovery, and resets for a new match. Players resolve the card’s combat and draw rules themselves.
 
 ## Magic counters, commander tax and statuses
 
@@ -802,7 +802,7 @@ For Commander, count each commander’s casts from the command zone separately. 
 
 Automatic elimination has separate switches for zero life, poison, and 21 damage from one commander. All are on by default. Poison normally loses at 10, or 15 shared poison in Two-Headed Giant; the poison limit is editable. Commander damage is never pooled across different commanders. Change the switches and poison limit in game settings during play, including while paused. Enabling a rule or changing a limit checks existing totals immediately. Disable the relevant rule before a card changes a loss condition.
 
-Counters and statuses survive app close and game recovery. New matches clear them. Leaving the game clears held initiative and monarch. Connected counter/status controls need Atlas to be answering; standalone games apply them locally.
+Counters and statuses survive app close and game recovery. New matches clear them. When a holder leaves the game, initiative and monarch pass the same way: to the player whose turn it is, or to the next player in turn order. Connected counter/status controls need Atlas to be answering; standalone games apply them locally.
 
 ## Atlas backup battery
 

@@ -62,7 +62,7 @@ class StandaloneGameTest {
         val restored = StandaloneTable.gameFromJson(StandaloneTable.gameToJson(game))
         assertEquals(game, restored)
         assertEquals(game.players[0].counters, restored.toSummary(2_000, 2_000).players[0].counters)
-        assertNull(restored.concede(2, 2_000).initiative)
+        assertEquals(0, restored.concede(2, 2_000).initiative) // CR 725.4: to the active player.
         val reset = game.reset()
         assertNull(reset.initiative)
         assertEquals(com.turnhub.android.protocol.PlayerCounters(), reset.players[0].counters)
@@ -95,11 +95,15 @@ class StandaloneGameTest {
     }
 
     @Test
-    fun `crown clears on concession elimination lethal life and new match`() {
+    fun `crown passes on by CR 724_4 and clears for a new match`() {
         val game = threePlayers().claimMonarch(0)
-        assertNull(game.concede(0, 2_000).monarch)
-        assertNull(game.eliminate(0, 2_000).monarch)
-        assertNull(game.changeLife(0, -40, 2_000).monarch)
+        // The active monarch leaves: the next player in turn order takes it.
+        assertEquals(1, game.concede(0, 2_000).monarch)
+        assertEquals(1, game.eliminate(0, 2_000).monarch)
+        assertEquals(1, game.changeLife(0, -40, 2_000).monarch)
+        // Another player leaves: the active player takes it.
+        assertEquals(0, threePlayers().claimMonarch(2).concede(2, 2_000).monarch)
+        assertEquals(0, threePlayers().claimMonarch(1).changeLife(1, -40, 2_000).monarch)
         assertNull(game.reset().monarch)
         assertNull(game.claimWin(1, 2_000).rematch(3_000, "g2", firstSeat).monarch)
         val out = game.eliminate(0, 2_000)

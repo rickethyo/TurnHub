@@ -263,7 +263,7 @@ data class StandaloneGame(
         if (!playing || player.eliminated) return this
         val out = players.count { it.eliminated } + 1
         var game = update(index) { it.copy(eliminated = true, conceded = conceded, outOrder = out) }
-            .let { it.copy(monarch = it.monarch?.takeUnless { n -> n == index }, initiative = it.initiative?.takeUnless { n -> n == index }) }
+            .passStatuses(listOf(index))
         val standing = game.players.indices.filter { !game.players[it].eliminated }
         if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
         if (active == index) {
@@ -288,9 +288,9 @@ data class StandaloneGame(
         }
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
-        var game = copy(monarch = monarch?.takeUnless { it in targets }, initiative = initiative?.takeUnless { it in targets }, players = players.mapIndexed { i, p ->
+        var game = copy(players = players.mapIndexed { i, p ->
             if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
-        }).bump()
+        }).passStatuses(targets).bump()
         val standing = game.players.indices.filter { !game.players[it].eliminated }
         if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
         if (active in targets) {
@@ -324,6 +324,19 @@ data class StandaloneGame(
 
     private fun update(index: Int, change: (LocalPlayer) -> LocalPlayer): StandaloneGame =
         copy(players = players.mapIndexed { i, p -> if (i == index) change(p) else p }).bump()
+
+    /**
+     * CR 724.4 / 725.4: a leaving holder's monarch or initiative goes to the
+     * active player, or the next player in turn order when the active player
+     * is leaving too. [leaving] are already marked eliminated.
+     */
+    private fun passStatuses(leaving: Collection<Int>): StandaloneGame {
+        val heir = active?.let { if (!players[it].eliminated) it else nextIn(it) }
+        return copy(
+            monarch = if (monarch != null && monarch in leaving) heir else monarch,
+            initiative = if (initiative != null && initiative in leaving) heir else initiative,
+        )
+    }
 
     /** The next player still in, clockwise after [index]. */
     private fun nextIn(index: Int): Int? = (1..players.size)
