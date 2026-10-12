@@ -20,6 +20,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | Dir | What | Toolchain |
 |---|---|---|
 | `Atlas/` | ESP32 table controller: **the authoritative game engine**, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio to Sigils, NVS persistence | PlatformIO, Arduino ESP32, C++ |
+| `LVGL/` | Isolated experimental desktop Atlas/Sigil presentation simulator; never a second production game authority | CMake, pinned LVGL/SDL, C++17; see `LVGL/README.md` |
 | `Sigil/` | ESP32 player controller: buttons, LEDs, buzzer, e-ink (GxEPD2), ESP-NOW | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |

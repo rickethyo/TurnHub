@@ -14,13 +14,12 @@ All four branches are permanent. Experiments need a named owner and scope in
 both agents to push independently. Separate worktrees prevent one chat or GitHub
 Desktop from switching another chat's checkout.
 
-`codex/esp32-s3-lvgl` is a separate development branch, outside the permanent
-agent maintenance allowlist. Owner direction (2026-10-12): keep its LVGL/S3
-work independent and integrate selected upstream changes later. Do not
-fast-forward, rebase or automatically merge `origin/master`/`codex/master`
-into it, including during session startup. Inspect/fetch refs as usual;
-upstream integration requires an explicitly scoped owner-directed update.
-Its PR remains separate from continuing work on `codex/master`.
+`codex/esp32-s3-lvgl` was a separate development branch for the LVGL/S3
+foundation. Owner direction (2026-10-12, later the same day): its PR #89 is
+integrated into master through `claude/master`, and LVGL work continues on the
+permanent agent branches like any other scope. The branch stays outside the
+maintenance allowlist and is not synchronized automatically; treat it as
+historical unless the owner reopens it.
 
 ## Mandatory resource efficiency
 

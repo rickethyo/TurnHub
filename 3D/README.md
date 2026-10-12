@@ -79,3 +79,11 @@ mechanical fit; keep print and assembly findings with the next model revision.
 - [Sigil electrical drafts](../KiCad/PCB/Sigilv1/README.md)
 - [Earlier Sigil PCB fit-test model](../KiCad/PCB/Sigilv1/case/sigil_fit_test.stl)
   — a separate PCB fit test, not part of these enclosure sets.
+
+## Planned ESP32-S3 enclosures
+
+These print sets remain the legacy prototype baseline. ES3C40P Atlas and ES3C28P
+Sigil candidates need a new measured revision; do not stretch these meshes into
+a manufacturing drawing. [S3 mechanical planning](../Documentation/engineering/hardware/ESP32_S3_REFRESH.md#mechanical-changes-and-release-checklist)
+owns dimensions, board/USB/navigation/Jewel/battery placement and sample fit holds.
+No new S3 model or physical fit is claimed.

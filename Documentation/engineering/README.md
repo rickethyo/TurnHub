@@ -26,6 +26,8 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Web Portal](WEB_PORTAL.md) | The embedded admin portal, themes, layout and test contract |
 | [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
 | [Battery estimation and protection](BATTERY_GAUGE.md) | Atlas voltage/SoC/display separation, NVS/RTC history, source inference, independent safety and calibration |
+| [LVGL migration](LVGL_MIGRATION.md) | Desktop presentation boundaries, dependencies, memory and firmware handoff |
+| [S3 prototype refresh](hardware/ESP32_S3_REFRESH.md) | Candidate boards, electrical/mechanical verification and prototype BOM |
 | [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
 | [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |
 | [Continuous Integration](CONTINUOUS_INTEGRATION.md) | GitHub Actions checks, artifacts and local equivalents |
