@@ -34,6 +34,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-015 | Atlas persistent, stable battery indication | Atlas battery, power, safety, persistence, tests | Ready for review; local checks pass | Owner / review and physical acceptance |
 | TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
 | TH-011 | Play-note investigation | Tablet, seating, Android, Sigil, Atlas stability | Investigation complete; minor fixes staged | Owner / review staged changes and proposals |
 | TH-009 | Current enclosure print-set README | 3D, hardware | Ready for review | Owner / review documentation |
@@ -1118,3 +1119,59 @@ management/invitations from TH-002 remain separate planned work.
   hardware flashing or release. Setup preference/Wi-Fi/stage writes are separate;
   if a later setup step fails, the chosen policy may remain saved and is reported
   on the next setup read. Full image validation and size limits still apply.
+
+## TH-015: Atlas persistent, stable battery indication
+
+- Date / owner: 2026-10-12 / Codex on `codex/master`; baseline
+  `01bfe9c3be2b51b7de38d49a9cbdea4d43933db1` (master and agent branch match).
+- Status: implemented; ready for review. Clean startup; fetched master and both persistent agent refs.
+  Open PR #89 uses `codex/esp32-s3-lvgl`; no overlapping battery scope found.
+- Scope: pure gauge/source/checkpoint policy, firmware NVS/RTC adapter,
+  voltage-based safety through the existing System Sleep Intent, host regressions
+  and engineering documentation. Preserve game recovery and client JSON shape.
+- Feature gate: Atlas battery module owns historical estimator evidence (cannot
+  reconstruct it from one ADC sample); sampling validates evidence without a new
+  game Intent. Existing System Sleep handler owns sleep/recovery authorization.
+  Firmware owns `battery/gauge` NVS and RTC copies; pure helpers own validation
+  and throttling. Existing screen/HTTP/Android clients render percent/low/charging.
+  No radio/API schema or dependency changes. Low warning remains text plus icon.
+- Assumptions: source/charging remain voltage-only inferences; charger-held empty
+  connectors cannot be identified reliably. No wall clock survives cold restart,
+  so checkpoint age cannot be certified; voltage plausibility and sustained
+  reconciliation must reject/correct stale evidence. Keep the generic curve;
+  its middle slope reaches 7 points per 20 mV and needs physical calibration.
+- Implementation commit: `7d6f7bc77b57a18a094696fa592735377b078b8b`.
+  Delivery also aligns firmware descriptor/string at 0.7.14-dev and updates the
+  engineering record and Manual V0.18 with the Android offline export.
+- Decisions: retain the uncalibrated curve; median plus existing 16-sample EMA,
+  separate four-sample voltage safety, 1%/30 s cosmetic discharge with sustained
+  5/20-point acceleration, two-minute evidence before upward reconciliation,
+  debounced 0.75/1.5 s source steps and corroborated drift. Source changes retain
+  percentage; charging/full timers never restore. Five live samples validate
+  boot history before publication, with critical protection active meanwhile.
+  NVS writes require at least 60 s plus meaningful movement; RTC retains newer
+  evidence on actual deep-sleep resets. Contradicted estimates invalidate old
+  storage history; flash policy compares against NVS even after RTC restoration.
+- Validation: all five Atlas host suites passed with GCC C++14, -O1, ASan/UBSan
+  (`ASAN_OPTIONS=detect_leaks=0` for workspace tracing). The real battery adapter
+  suite was rerun after the final invalidation change and passed. Scenarios cover
+  all twelve requested categories, including ADC/load pulses, sustained discharge,
+  USB cycles/taper, valid/corrupt/stale/short records, absence/replacement, simulated
+  RTC/deep sleep, high displayed percent during critical voltage, wraparound,
+  minimum intervals and failed commits, and spurious source pulses. All 20 client
+  contract cases, 31 adapter guards, generated tokens, manual export/XML integrity
+  and diff whitespace checks passed. Windows source lists updated, not executed.
+  Atlas 0.7.14-dev PlatformIO build passed: 112,060 B RAM / 1,660,629 B flash.
+  Existing application format-truncation warnings remain outside battery scope.
+- Review: fetched again before delivery; master/codex remote baselines unchanged,
+  no unrelated working-tree changes. No Android behavior/API/radio changes beyond
+  the manual asset; no Sigil work, flashing, merge, signing or release performed.
+  Mixed firmware commits run normal PR CI; no CI-skip marker is used.
+- Outstanding / next owner: physical acceptance and measured curve/divider/charger
+  calibration, source debounce, regulator protection margin, RTC persistence and
+  USB sleep wake. Voltage-only detection cannot reliably resolve every charger,
+  battery presence and power-source combination. Procedures are in
+  [Battery estimation and protection](Documentation/engineering/BATTERY_GAUGE.md)
+  and genuinely unfinished checks remain in STAGED_CHANGES. Owner reviews the
+  draft PR targeting master and integrates with a merge commit, retaining the
+  persistent branch. GitHub CI is pending; no physical testing occurred.

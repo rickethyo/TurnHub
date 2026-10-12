@@ -23,6 +23,25 @@ download stamps it into the ring. Lines appear as `[E][file:line] ...` or
 `E (ms) tag: ...`; ESP-IDF lines over 159 characters are cut short.
 *Needs verification* on hardware.
 
+## Battery evidence
+
+`ATLAS|BATTERY|<filtered mV>|<displayed percent>` retains its original prefix
+and optional `LOW`/`CHARGING` flags. Added fields are `RAW` (short-window ADC
+average), `FILTERED`, `EST` (curve percentage), `SOURCE` (`USB`/`BATTERY`
+inference), `RESTORE`, `SAFETY` (faster voltage filter), `CRITICAL` and
+`CORRECTIONS` (accelerated percentage steps). Restore codes: 0 missing,
+1 invalid, 2 contradicted, 3 NVS restored, 4 RTC restored. `NONE` means no
+cell-like reading, not proof of physical absence with a charger present.
+
+Samples are summarized at five-point movement, charging/safety changes,
+every five accelerated corrections, and at most once a minute otherwise.
+`CHECKPOINT_EVALUATED` is followed by the current restore evidence;
+`CHECKPOINT_SAVED`/`CHECKPOINT_SAVE_FAILED` report rate-limited flash attempts.
+`ATLAS|POWER|USB`/`BATTERY` logs debounced source changes independently.
+See [Battery estimation and protection](BATTERY_GAUGE.md) for thresholds,
+limitations and the timed discharge/charge acceptance procedure. No raw ADC
+stream is enabled in normal firmware.
+
 ## SD diagnostics log
 
 - A low-priority worker drains the RAM ring to the card once a second in

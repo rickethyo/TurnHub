@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.17.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.18.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.13
+## Prototype Edition v0.18
 
 **TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
 
@@ -783,9 +783,9 @@ Then get out of the way.
 
 ## TurnHub Prototype Documentation
 
-Manual Version: 0.15
+Manual Version: 0.18
 Hardware: Prototype (Atlas E32R28T touchscreen board; frozen e-ink/OLED Sigils; ESP32-S3 LCD layouts planned)
-Software: Atlas 0.7.8, existing Sigil firmware, TurnHub Android app (Google Play)
+Software: Atlas 0.7.14, existing Sigil firmware, TurnHub Android app (Google Play)
 Product names and specifications subject to change.
 
 ## The monarch (Magic and Commander)
@@ -803,3 +803,15 @@ For Commander, count each commander’s casts from the command zone separately. 
 Automatic elimination has separate switches for zero life, poison, and 21 damage from one commander. All are on by default. Poison normally loses at 10, or 15 shared poison in Two-Headed Giant; the poison limit is editable. Commander damage is never pooled across different commanders. Change the switches and poison limit in game settings during play, including while paused. Enabling a rule or changing a limit checks existing totals immediately. Disable the relevant rule before a card changes a loss condition.
 
 Counters and statuses survive app close and game recovery. New matches clear them. Leaving the game clears held initiative and monarch. Connected counter/status controls need Atlas to be answering; standalone games apply them locally.
+
+## Atlas backup battery
+
+Atlas’s battery is a small backup that keeps the game, radio and portal alive when USB is pulled. On battery the screen turns off; a touch lights it for 15 seconds and that first touch does not press a game control. USB lights it again. Between games, five minutes without player activity puts Atlas to sleep.
+
+The header and device pages show estimated charge. The percentage now holds steady through short load changes and USB unplug/replug. It usually falls gradually, but sustained evidence of rapid discharge or an inaccurate estimate makes it catch up faster. On USB it estimates charging over time; the lightning bolt is an inference, not a measured charger-status signal.
+
+Atlas remembers credible charge through restarts and deep sleep. A saved estimate is checked against current voltage, so a discharged or replaced cell can start at a different percentage. During startup the battery indicator can be unavailable for about five seconds while that check runs. The gauge cannot reliably identify an empty battery connector when the USB charger holds its voltage up.
+
+LOW BATTERY uses conservative voltage evidence as well as the percentage. Low-voltage protection works independently of the displayed percentage: sustained critical voltage puts Atlas to sleep even if the number still looks high. An interrupted game returns paused when USB wakes Atlas. After low-battery sleep, plug in USB to wake it; touch and BOOT do not wake the empty cell.
+
+The voltage curve, charging rate and USB detection are estimates awaiting calibration on the real cell. Keep USB connected for normal play. Do not use the percentage as a battery-capacity measurement.
