@@ -448,8 +448,10 @@ normal module, slot and game scope. Both require a living player in a running
 or paused `mtg`/`mtg_commander` game; invalid game/seat state returns 409.
 Declaring monarch transfers the crown immediately, with at most one holder
 per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individual
-player number), absent on older firmware. It clears when that player leaves
-play, on reset or new match, and survives pause and recovery. Players apply
+player number), absent on older firmware. When that player leaves play it
+passes to the active player, or to the next living player in turn order when
+the active player is leaving (Magic CR 724.4); it clears on reset or new match,
+and survives pause and recovery. A pending win claim rejects a claim with 409. Players apply
 Magic’s card rules themselves. No life, turn or victory change is implied.
 
 ### Magic counters and live loss rules
@@ -483,4 +485,5 @@ energy, experience, exactly two `commanderCasts`, and `cityBlessing`. Settings
 expose the three new fields. Old snapshots omit these fields (clients render
 zero counters/no initiative and disabled new automatic rules). Clocks and
 turns do not change when statuses are claimed. Recovery preserves these facts;
-new matches clear counters/status, and leaving clears held initiative.
+new matches clear counters/status, and a leaving holder's initiative passes
+like the monarch (CR 725.4).

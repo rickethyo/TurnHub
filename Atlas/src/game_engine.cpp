@@ -404,8 +404,8 @@ bool GameEngine::eliminatePlayer(
   const int mate = teammateIndex(index);
   const bool wasActive = static_cast<uint8_t>(index) == activeIndex_ ||
       (mate >= 0 && static_cast<uint8_t>(mate) == activeIndex_);
-  if (sameTeam(monarchPlayer_, playerNumber)) monarchPlayer_ = 0;
-  if (sameTeam(initiativePlayer_, playerNumber)) initiativePlayer_ = 0;
+  const bool passMonarch = sameTeam(monarchPlayer_, playerNumber);
+  const bool passInitiative = sameTeam(initiativePlayer_, playerNumber);
   eliminated_[index] = true;
   conceded_[index] = conceded;
   cancelLifeChanges(playerNumber);
@@ -425,6 +425,13 @@ bool GameEngine::eliminatePlayer(
     turnStartedAtMs_ = pauseStartedAtMs_ != 0 ? pauseStartedAtMs_ : nowMs;
   }
 
+  // CR 724.4 / 725.4: the active player takes over a leaving holder's
+  // monarch or initiative; when the active player is leaving, the next in
+  // turn order (already active here). Nobody, when no one is left.
+  const uint8_t heir = eliminated_[activeIndex_] ? 0 : players_[activeIndex_].playerNumber;
+  if (passMonarch) monarchPlayer_ = heir;
+  if (passInitiative) initiativePlayer_ = heir;
+
   if (!batchElimination_ && livingSideCount() == 1) {
     for (uint8_t i = 0; i < playerCount_; ++i) {
       if (!eliminated_[i]) {
@@ -440,7 +447,7 @@ bool GameEngine::eliminatePlayer(
 
 bool GameEngine::claimMonarch(uint8_t playerNumber) {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || eliminated_[index] || gameOver_ || !running_ ||
+  if (index < 0 || eliminated_[index] || gameOver_ || !running_ || winClaimActive_ ||
       (settings_.profile != GameProfile::Magic && settings_.profile != GameProfile::Commander)) return false;
   monarchPlayer_ = playerNumber;
   return true;

@@ -234,7 +234,10 @@ monarch** from their player controls or table tile drawer, including while
 paused. Claiming immediately transfers the crown from the previous holder;
 there is no turn restriction. Table tiles show the crown and a Monarch label.
 If the holder concedes or is eliminated (including through zero-life resolution
-or team removal), the crown clears. Pause and recovery preserve it; a new
+or team removal), the crown passes to the active player, or to the next living
+player in turn order when the active player is leaving (Magic CR 724.4; owner
+decision 2026-10-12, replacing the earlier clear-on-exit behavior). It clears
+only if nobody is left. A pending win claim blocks new claims. Pause and recovery preserve it; a new
 match or return to lobby clears it. TurnHub tracks the declaration; players
 resolve the card’s combat and draw rules themselves.
 
@@ -251,7 +254,8 @@ energy and experience, initiative, city’s blessing, and (Commander) command-zo
 casts. Counters range from 0 to 1,000,000; negative corrections cannot cross zero.
 Counters and city’s blessing remain associated with their individual owner.
 Initiative has one living holder per game, independent of monarch; claiming it
-transfers it, and the holder may release it to correct an entry. City’s blessing
+transfers it, and the holder may release it to correct an entry. A leaving
+holder's initiative passes like the monarch (CR 725.4). City’s blessing
 is independently declared by each player; clearing it is an explicit correction.
 TurnHub does not count permanents, resolve the Undercity or enforce card effects.
 
