@@ -34,6 +34,7 @@ Keep the topic index and active discussions here. When a discussion becomes long
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-016 | Independent LVGL branch synchronization | Git workflow, maintenance tests | Verified and guarded | Owner / select upstream integrations later |
 | TH-015 | Atlas persistent, stable battery indication | Atlas battery, power, safety, persistence, tests | Ready for review; local checks pass | Owner / review and physical acceptance |
 | TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
 | TH-011 | Play-note investigation | Tablet, seating, Android, Sigil, Atlas stability | Investigation complete; minor fixes staged | Owner / review staged changes and proposals |
@@ -1175,3 +1176,26 @@ management/invitations from TH-002 remain separate planned work.
   and genuinely unfinished checks remain in STAGED_CHANGES. Owner reviews the
   draft PR targeting master and integrates with a merge commit, retaining the
   persistent branch. GitHub CI is pending; no physical testing occurred.
+
+## TH-016: Keep the LVGL development branch independently synchronized
+
+- Date / owner: 2026-10-12 / Codex on `codex/master`; baseline
+  `97d0106aa2723d6f4fb48577f6a7d3f4c98f0d9d`; continuing draft PR #90.
+- Scope: owner requests keeping `codex/esp32-s3-lvgl` independent of automatic
+  fast-forward CI and deferring selected upstream integrations until later.
+  Clarify startup/maintenance guidance and pin this boundary with a regression.
+- Evidence before edits: the maintenance workflow executes a fixed allowlist of
+  `codex/master`, `claude/master`, `agent/experimental`; LVGL is already excluded.
+  Its remote tip is `a6dfc59b8c00e2b69c7eccc8c0d40fb9ed2c3521`, with PR #89
+  separate from this work. Master remains `01bfe9c`; working tree was clean.
+- Status: verified and guarded. Maintenance already excludes the LVGL branch;
+  keep its fixed three-branch allowlist and document the owner-directed manual
+  integration exception in startup guidance. A new regression verifies exclusion
+  even when LVGL would be an ancestor eligible for fast-forward, independent of
+  its current divergence or PR status.
+- Validation: all five branch-maintenance tests passed; diff whitespace passed.
+  No firmware change in this follow-up, so earlier battery validation remains
+  applicable. Script/test changes use normal CI, without a skip marker.
+- Delivery: extend PR #90 from `codex/master`; LVGL remains at its existing tip.
+  This records isolation, not a request to merge either PR or update LVGL.
+  Owner selects the scope and timing of later upstream integrations.

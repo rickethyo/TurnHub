@@ -7,9 +7,11 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
   Claude normally uses `claude/master`. These branches persist across chats.
 - Check the working tree and open PRs before switching or updating a branch.
   Preserve uncommitted work. Never reset, force-push or delete a persistent branch.
-- Merge `origin/master` into your branch before starting a new slice. Do not
-  rebase a published persistent branch or merge another agent's unfinished work
-  without an explicit handoff.
+- Merge `origin/master` into your permanent agent branch before starting a new
+  slice. The isolated `codex/esp32-s3-lvgl` branch follows the manual upstream
+  integration policy in `AGENT_WORKFLOW.md`; do not synchronize it at startup.
+  Do not rebase a published persistent branch or merge another agent's
+  unfinished work without an explicit handoff.
 - Record scope, owner, branch and baseline SHA in `COLLABORATION.md`. Read the
   other agent's active scope before editing overlapping files.
 - Minimize third-party resource use and agent runtime. Batch related work into

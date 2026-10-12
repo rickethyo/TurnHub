@@ -40,6 +40,18 @@ class MaintenanceTests(unittest.TestCase):
         self.assertIn("Diverged", rows[1][1])
         self.assertIn("preserved", rows[2][1])
 
+    def test_lvgl_stays_excluded_even_when_it_could_fast_forward(self):
+        # Treat every candidate as an ancestor: exclusion must not depend on
+        # today's LVGL divergence or whether it currently has an open PR.
+        lvgl = "codex/esp32-s3-lvgl"
+        statuses = dict.fromkeys((*sync.BRANCHES, lvgl), "ahead")
+        (_, rows), writes = self.run_sync(statuses)
+        allowed = {"codex/master", "claude/master", "agent/experimental"}
+        self.assertEqual({branch for branch, _ in rows}, allowed)
+        self.assertEqual({path for path, _ in writes},
+                         {f"repos/owner/repo/git/refs/heads/{branch}" for branch in allowed})
+        self.assertTrue(all(lvgl not in path for path, _ in writes))
+
     def test_identical_and_missing_are_left_alone(self):
         statuses = dict.fromkeys(sync.BRANCHES, "identical")
         self.assertEqual(self.run_sync(statuses)[1], [])
