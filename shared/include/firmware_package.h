@@ -51,6 +51,16 @@ inline bool versionAllowed(const Version &running, const Version &offered) {
   return compareVersions(offered, running) >= 0;
 }
 
+// Owner, 2026-10-12: the ESP32 DevKit Sigils and the E32R28T Atlas are retired
+// in favour of the ESP32-S3 boards. Their firmware builds set
+// TURNHUB_OTA_RETIRED=1, so the last USB flash is final: Atlas refuses Atlas
+// and Sigil packages and a Sigil refuses every offer (Error::Retired). Host
+// tests leave it 0 so the update paths stay covered.
+#ifndef TURNHUB_OTA_RETIRED
+#define TURNHUB_OTA_RETIRED 0
+#endif
+constexpr bool otaRetired() { return TURNHUB_OTA_RETIRED != 0; }
+
 // --- Embedded descriptor ------------------------------------------------------
 // Every Atlas and Sigil image carries exactly one, so the packaging tool reads
 // the product and version from the image itself. Its magic appears nowhere
@@ -137,6 +147,7 @@ enum class Error : uint8_t {
   HashMismatch = 10,
   Storage = 11,  // The sink refused a write.
   Crypto = 12,
+  Retired = 13,  // This hardware generation takes no more updates (otaRetired()).
 };
 
 inline const char *errorName(Error error) {
@@ -154,6 +165,7 @@ inline const char *errorName(Error error) {
     case Error::HashMismatch: return "hashMismatch";
     case Error::Storage: return "storage";
     case Error::Crypto: return "crypto";
+    case Error::Retired: return "retired";
   }
   return "unknown";
 }
@@ -175,6 +187,7 @@ inline const char *errorMessage(Error error) {
     case Error::HashMismatch: return "The firmware image does not match its signature";
     case Error::Storage: return "The device could not write the firmware to flash";
     case Error::Crypto: return "The device could not check the package";
+    case Error::Retired: return "This hardware generation is retired and no longer accepts updates; flash it over USB";
   }
   return "The firmware update failed";
 }

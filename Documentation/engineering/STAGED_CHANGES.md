@@ -249,6 +249,11 @@ everything implemented. Only the checks listed below are still open.
 
 ## Frozen legacy Sigils (owner, 2026-10-10)
 
+Owner, 2026-10-12: the current-generation Atlas is retired too. After one final
+USB flash, both refuse every OTA update ([Firmware Updates](FIRMWARE_UPDATES.md#retired-hardware-no-more-updates));
+open checks below that need further legacy flashing (U06, G12) apply to the S3
+hardware instead.
+
 Current e-paper/OLED Sigil feature development is frozen. Future display work
 moves to ESP32-S3 ES3C28P/ES3C40P candidates; source specifications and verification
 holds are documented above. Hardware firmware targets and artwork transfer/cache

@@ -41,6 +41,9 @@ inline OfferCheck checkUpdateOffer(const TurnHubProtocol::SigilUpdateOfferPacket
       memcmp(memory.token, offer.token, TurnHubProtocol::UPDATE_TOKEN_BYTES) == 0) {
     return {OfferDecision::Repeat, 0};
   }
+  if (TurnHubFirmwarePackage::otaRetired()) {
+    return {OfferDecision::Refuse, static_cast<uint8_t>(Error::Retired)};
+  }
   if (memory.running) {
     return {OfferDecision::Refuse, static_cast<uint8_t>(TurnHubProtocol::UpdateError::Busy)};
   }

@@ -36,6 +36,7 @@ uint32_t initialSession = 0;
 bool downloadUsed = false;
 bool uploadOk = false;
 bool uploadDenied = false;
+bool uploadRetired = false;
 bool uploadSeen = false;
 constexpr uint32_t UPLOAD_STALL_MS = 30000;
 uint32_t lastUploadChunkMs = 0;
@@ -65,11 +66,16 @@ void uploadChunk() {
     // Multipart requests may contain only one package.
     if (uploadSeen) { store.abortUpload(); uploadDenied = true; uploadOk = false; return; }
     uploadSeen = true;
+    uploadRetired = false;
     uploadOk = false;
     // No response may be sent from here: the browser is still sending the
     // body. The POST handler answers once the upload is over.
     uploadDenied = !TurnHubWebApi::hasPermission(server, TurnHubAccounts::Admin) ||
         !TurnHubWebApi::verifiedAtTable(server) || !betweenGames() || sigilUpdatesBusy() || ota.inProgress();
+    if (!uploadDenied && TurnHubFirmwarePackage::otaRetired()) {
+      uploadDenied = true;
+      uploadRetired = true;
+    }
     if (!uploadDenied) store.startUpload();
     lastUploadChunkMs = millis();
     serialLog.println(uploadDenied ? "ATLAS|SIGIL_OTA|UPLOAD|DENIED" : "ATLAS|SIGIL_OTA|UPLOAD|START");
@@ -240,10 +246,11 @@ void beginSigilUpdates(const char *ssid, const char *password) {
   });
   server.on("/api/sigil-firmware", HTTP_GET, statusRoute);
   server.on("/api/sigil-firmware", HTTP_POST, []() {
-    if (uploadDenied) sendError(server, 403, "Upload as an Admin (verified at the table if the table code is on), between games, with no update running");
+    if (uploadRetired) sendError(server, 403, TurnHubFirmwarePackage::errorMessage(TurnHubFirmwarePackage::Error::Retired));
+    else if (uploadDenied) sendError(server, 403, "Upload as an Admin (verified at the table if the table code is on), between games, with no update running");
     else if (!uploadOk) sendError(server, 400, TurnHubFirmwarePackage::errorMessage(store.error()));
     else sendOkMessage(server, "Signed Sigil package ready");
-    uploadSeen = uploadOk = uploadDenied = false;
+    uploadSeen = uploadOk = uploadDenied = uploadRetired = false;
   }, uploadChunk);
   server.on("/api/sigil-package", HTTP_GET, downloadRoute);
   server.on("/api/sigil-update", HTTP_POST, []() {

@@ -1293,3 +1293,20 @@ management/invitations from TH-002 remain separate planned work.
   master already uses TH-015 for the battery gauge. `AGENTS.md` and
   `AGENT_WORKFLOW.md` now describe the old branch as historical; the
   maintenance allowlist still excludes it.
+
+## 2026-10-12 — Claude: retire OTA on current-generation Atlas and Sigils
+
+- Owner direction (2026-10-12): legacy builds need not stay intact; the owner
+  flashes the current hardware one final time, then never again, and asked
+  that it refuse OTA updates after that version.
+- `firmware_package.h` gains `Error::Retired` and `otaRetired()`, driven by
+  `TURNHUB_OTA_RETIRED`, which both PlatformIO projects set to 1. Atlas fails
+  Atlas uploads and denies Sigil package uploads with the retired message;
+  `checkUpdateOffer` refuses every offer; Atlas ignores app release reports so
+  the update LED stays off. Host suites build with the flag at 0, so existing
+  OTA coverage still runs.
+- Validation: Atlas and Sigil Linux host suites (ASan/UBSan) and the adapter
+  audit passed; a scratch build of `update_offer.h` with the flag on compiled
+  and returned the retired message. Firmware builds run in CI. Hardware
+  acceptance (an upload and a Sigil offer both refused after the final flash)
+  is the owner's next flash.

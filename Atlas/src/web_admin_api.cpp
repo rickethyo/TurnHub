@@ -5,6 +5,7 @@
 
 #include <WiFi.h>
 #include "sigil_update_service.h"
+#include "firmware_package.h"
 
 #include "account_access.h"
 #include "config.h"
@@ -630,7 +631,8 @@ void handleLatestFirmware(WebServer &server) {
     sendError(server, 400, "Report at least one of atlas, sigilEink and sigilOled");
     return;
   }
-  if (updateNoticeHooks.note) updateNoticeHooks.note(latest);
+  // Retired hardware takes no updates, so a newer release is not news here.
+  if (updateNoticeHooks.note && !TurnHubFirmwarePackage::otaRetired()) updateNoticeHooks.note(latest);
   sendUpdateStatus(server);
 }
 
