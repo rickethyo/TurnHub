@@ -19,6 +19,7 @@ struct Options {
     unsigned frames = 0;
     float zoom = 1;
     bool self_test = false;
+    bool reduced_motion = false;
     std::string capture;
 };
 void require(bool ok, const std::string& message) { if(!ok) throw std::runtime_error(message); }
@@ -47,6 +48,7 @@ Options options(int argc, char** argv) {
         else if(flag == "--zoom") { o.zoom = std::stof(value()); require(o.zoom >= 1 && o.zoom <= 4, "Zoom must be 1..4"); }
         else if(flag == "--capture") o.capture = value();
         else if(flag == "--self-test") o.self_test = true;
+        else if(flag == "--reduced-motion") o.reduced_motion = true;
         else if(flag == "--help") {
             std::cout << "TurnHub LVGL desktop demo\n--device atlas|sigil --theme graphite|daylight|brass|contrast\n"
                          "--screen game|settings|pairing|themes|players --scenario 0..3\n"
@@ -178,6 +180,8 @@ int main(int argc, char** argv) {
             for(unsigned i = 0; i < o.scenario; ++i) fixtures.request({th::ActionKind::DemoNextScenario});
             th::PresetAssets assets;
             th::Ui ui(p, fixtures, fixtures, assets);
+            // Tests and captures need settled geometry, never a frame mid-transition.
+            ui.set_reduced_motion(o.reduced_motion || o.self_test || !o.capture.empty());
             ui.set_theme(o.theme); ui.show(o.screen);
             th::SdlInput input(ui, fixtures);
             pump(ui, input, 100);

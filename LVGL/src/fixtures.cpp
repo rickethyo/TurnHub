@@ -6,7 +6,7 @@ void Fixtures::load() {
     const auto revision = state_.revision + 1;
     state_ = {{{{101, "Rowan", 40, true, 1}, {102, "Mira", 27, true, 2},
                 {103, "Ash", 13, true, 3}, {104, "Vale", 0, false, 4}}},
-              scenario_ == 0 ? 0u : 1u, 87, Phase::Running, revision};
+              scenario_ == 0 ? 0u : 1u, 87, 120, Phase::Running, revision};
     if(scenario_ == 1) state_.remaining_seconds = 42;
     if(scenario_ == 2) state_.phase = Phase::Paused;
     if(scenario_ == 3) { state_.phase = Phase::GameOver; state_.remaining_seconds = 0; }

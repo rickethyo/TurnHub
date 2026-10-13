@@ -26,6 +26,7 @@ struct Snapshot {
     std::array<PlayerView, 4> players;
     unsigned turn_holder = 0;
     unsigned remaining_seconds = 87;
+    unsigned turn_seconds = 120; // Full turn allowance, for clock progress only.
     Phase phase = Phase::Running;
     uint32_t revision = 1;
 };

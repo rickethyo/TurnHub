@@ -157,6 +157,10 @@ cmake --build LVGL/build-asan --parallel 4
 ctest --test-dir LVGL/build-asan --output-on-failure
 ```
 
+Screens slide between menus, the Atlas turn ring sweeps continuously, life changes pop with a merged
+`+3` badge and the turn holder's card glows. `--reduced-motion` keeps every state but drops movement,
+scaling and pulses; `--self-test` and `--capture` always use it so geometry is settled.
+
 BMP output captures the actual SDL renderer. `--capture` exits after rendering;
 `--frames N` is a bounded launch check. `--zoom` changes window pixels, not logical
 profile dimensions; use zoom 1 for exact-resolution captures. `previews/` and
@@ -174,6 +178,7 @@ history. The launcher does not require an image conversion package.
 | `src/main.cpp` | SDL display/pointer bootstrap, event loop, CLI, integration self-tests, capture |
 | `src/assets.cpp` | Existing TurnHub 64px alpha presets via replaceable asset provider |
 | `assets/th_*.c` | Generated Inter/Cinzel glyphs, tabular digit advances, checked source/output digests |
+| `assets/th_icons.c` | `design/icons` rasterized to 24/40 px A8 masks, tinted per theme at runtime; `tools/generate_icons.py` (headless Edge/Chrome; `--check` is stdlib) |
 | `lv_conf.h` | Desktop LVGL configuration only; software rendering and development assertions |
 
 `Ui` consumes `SnapshotSource` and emits `ActionSink::request`. The fixture object
