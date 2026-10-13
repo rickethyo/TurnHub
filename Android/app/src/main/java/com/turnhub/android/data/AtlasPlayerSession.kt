@@ -417,6 +417,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     /** The profile's avatar and Sigil light color, once read with [loadPersonalization]. */
     private val _personalization = MutableStateFlow<Personalization?>(null)
     val personalization: StateFlow<Personalization?> = _personalization.asStateFlow()
+    private val _uploadProgress = MutableStateFlow<Float?>(null)
+    /** 0..1 while an image upload to Atlas runs; null otherwise. */
+    val uploadProgress: StateFlow<Float?> = _uploadProgress.asStateFlow()
 
     private val _avatars = MutableStateFlow<List<com.turnhub.android.protocol.AvatarIcon>>(emptyList())
     val avatars: StateFlow<List<com.turnhub.android.protocol.AvatarIcon>> = _avatars.asStateFlow()
@@ -444,12 +447,23 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
                 com.turnhub.android.protocol.AtlasWireParser.errorMessage(response.body) ?: "Image upload failed"))
             return org.json.JSONObject(response.body)
         }
-        val revision = post(listOf("action" to "start", "size" to bytes.size.toString())).getString("revision")
-        bytes.asList().chunked(768).forEachIndexed { index, chunk ->
-            val hex = chunk.joinToString("") { byte -> "%02x".format(byte.toInt() and 255) }
-            post(listOf("action" to "chunk", "revision" to revision, "index" to index.toString(), "data" to hex))
+        val chunks = bytes.asList().chunked(768)
+        // Start, each chunk and submit are the steps the progress bar counts.
+        val steps = chunks.size + 2f
+        _uploadProgress.value = 0f
+        val revision = try {
+            val started = post(listOf("action" to "start", "size" to bytes.size.toString())).getString("revision")
+            _uploadProgress.value = 1 / steps
+            chunks.forEachIndexed { index, chunk ->
+                val hex = chunk.joinToString("") { byte -> "%02x".format(byte.toInt() and 255) }
+                post(listOf("action" to "chunk", "revision" to started, "index" to index.toString(), "data" to hex))
+                _uploadProgress.value = (index + 2) / steps
+            }
+            post(listOf("action" to "submit", "revision" to started, "thumbnail" to thumbnail))
+            started
+        } finally {
+            _uploadProgress.value = null
         }
-        post(listOf("action" to "submit", "revision" to revision, "thumbnail" to thumbnail))
         _personalization.value = artworkImages(transport, it.second, transport.getPersonalization(it.second))
         ActionFeedback(if (_personalization.value?.pendingAvatar?.contains("&revision=$revision") == true)
             "Image saved on Atlas. An Admin must approve it before it appears at the table."

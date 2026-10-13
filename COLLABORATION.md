@@ -1359,3 +1359,19 @@ management/invitations from TH-002 remain separate planned work.
   recovery, stats). Local Gradle could not resolve dependencies (Maven Central
   HTTP 429 through the container proxy), so tests run in CI. Device acceptance
   and the user manual's wording are pending.
+
+## 2026-10-13 — Claude: app round 2 (owner device feedback)
+
+- Owner feedback (2026-10-13, screenshots): no approve button for a pending
+  image, uploads look stuck, the custom life change field rendered one letter
+  per line, counters looked basic, and the Game tab was crowded.
+- Settings > Uploaded images now lists every pending image with Approve and
+  Reject (before, only the per-person sheet had them). Image uploads show a
+  progress bar (`AtlasPlayerSession.uploadProgress`, start/chunks/submit).
+  The custom change Apply button has a fixed width (`AccentButton` fills its
+  constraints). Counters show as colored chips (`CounterChips`) on My seat and
+  each life tile; the counter editor folds behind Change and uses round
+  steppers. Game setup, elimination rules and table details moved into a Game
+  settings screen opened beside a Full-screen table button.
+- Validation: local Gradle still blocked by Maven Central HTTP 429; CI runs the
+  build and unit tests. Device acceptance pending.

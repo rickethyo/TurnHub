@@ -92,6 +92,14 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.CounterChips
+import com.turnhub.android.ui.components.tableBackground
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.turnhub.android.ui.components.EliminationRulesEditor
 import com.turnhub.android.ui.components.magicStatus
 import com.turnhub.android.ui.components.MonarchBadge
@@ -164,35 +172,48 @@ fun GameTab(
         }
         if (me != null && (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) &&
             (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
+            // Folded by default: the chips on My seat show what is in play; this is for changing it.
+            var editing by rememberSaveable { mutableStateOf(false) }
             BrassCard {
-                Eyebrow("Counters and status")
-                MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
-                    summary.settings.profile == GameProfile.MTG_COMMANDER,
-                    enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
-                    onChange = actions.onPlayerCounter)
+                Row(
+                    Modifier.fillMaxWidth().clickable(onClickLabel = if (editing) "Hide counters" else "Change counters") { editing = !editing },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Eyebrow("Counters and status", Modifier.weight(1f))
+                    Text(if (editing) "Done" else "Change", color = if (p.dark) p.accentHi else p.accent,
+                        style = MaterialTheme.typography.labelLarge)
+                }
+                if (editing) {
+                    MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
+                        summary.settings.profile == GameProfile.MTG_COMMANDER,
+                        enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                        onChange = actions.onPlayerCounter)
+                }
             }
         }
-        if (summary.state == TableState.LOBBY) {
-            SetupCard(summary, uiState.gameSettings, me != null, actions)
+        // Game setup, rules and table details live one level down, so the game itself stays uncrowded.
+        var showSettings by rememberSaveable { mutableStateOf(false) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AccentButton("Full-screen table", actions.onOpenTablet, Modifier.weight(1f))
+            ToneButton("Game settings", { showSettings = true }, Modifier.weight(1f).heightIn(min = 48.dp), tone = Tone.INFO)
         }
-        if (me != null && (summary.state == TableState.LOBBY || summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
-            BrassCard {
-                EliminationRulesEditor(summary.settings,
-                    enabled = uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
-                    onChange = actions.onEliminationRule)
+        if (showSettings) {
+            GameSettingsScreen(onClose = { showSettings = false }) {
+                // Format, life, timer and teams are chosen in the lobby; Atlas keeps them fixed during a game.
+                if (summary.state == TableState.LOBBY) SetupCard(summary, uiState.gameSettings, me != null, actions)
+                if (me != null && (summary.state == TableState.LOBBY || summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
+                    BrassCard {
+                        EliminationRulesEditor(summary.settings,
+                            enabled = uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
+                            onChange = actions.onEliminationRule)
+                    }
+                } else {
+                    Text(if (me == null) "Join the table to change its rules." else "Rules can change again in the next game.",
+                        color = p.muted)
+                }
+                TableCard(summary, labelFor)
             }
         }
-        TableCard(summary, labelFor)
-        BrassCard {
-                Eyebrow("Tablet mode")
-                Text(
-                    "Lay this device in the middle of the table: every player gets a panel facing their seat for life, " +
-                        "Commander damage and passing the turn. New players can be added by name.",
-                    color = p.muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                ToneButton("Open tablet mode", actions.onOpenTablet, Modifier.fillMaxWidth(), tone = Tone.INFO)
-            }
 
     }
 }
@@ -399,6 +420,10 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                 if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else "Eliminated", Tone.BAD)
                 if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
                 me.life?.let { StatusBadge(if (me.team != null) "Team life $it" else "Life $it", Tone.GOOD) }
+            }
+            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                CounterChips(me.counters, summary.initiativePlayerNumber == me.playerNumber,
+                    summary.settings.profile == GameProfile.MTG_COMMANDER, summary.settings.poisonLimit)
             }
         }
         panel?.feedback?.let { feedback ->
@@ -636,6 +661,8 @@ private fun LifeCard(
                     monarch = summary.monarchPlayerNumber == player.playerNumber,
                     initiative = summary.initiativePlayerNumber == player.playerNumber,
                     magic = summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER,
+                    commander = summary.settings.profile == GameProfile.MTG_COMMANDER,
+                    poisonLimit = summary.settings.poisonLimit,
                     onRequest = if (canAct && player.playerNumber != me.playerNumber && !player.eliminated) {
                         { requestTarget = player }
                     } else null,
@@ -680,6 +707,8 @@ private fun LifeTile(
     monarch: Boolean,
     initiative: Boolean,
     magic: Boolean,
+    commander: Boolean,
+    poisonLimit: Int,
     onRequest: (() -> Unit)?,
     reduceMotion: Boolean,
     modifier: Modifier = Modifier,
@@ -772,7 +801,7 @@ private fun LifeTile(
             )
         }
         if (monarch) MonarchBadge()
-        if (magic) Text(magicStatus(player.counters, initiative), color = p.text, style = MaterialTheme.typography.labelSmall)
+        if (magic) CounterChips(player.counters, initiative, commander, poisonLimit, compact = true)
         Box(contentAlignment = Alignment.TopEnd) {
             Text(
                 if (life == null) "—" else counter.value.roundToInt().toString(),
@@ -870,10 +899,11 @@ private fun MyLifePad(life: Int?, onChange: (Int) -> Unit, busy: Boolean, steps:
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f),
             )
+            // A fixed width: AccentButton fills whatever it is given, which squeezed the field to one letter per line.
             AccentButton("Apply", {
                 custom.toIntOrNull()?.takeIf { it != 0 }?.let(onChange)
                 custom = ""
-            }, enabled = !busy && (custom.toIntOrNull() ?: 0) != 0)
+            }, Modifier.width(104.dp), enabled = !busy && (custom.toIntOrNull() ?: 0) != 0)
         }
     }
 }
@@ -1113,6 +1143,36 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
 }
 
 // --- Table --------------------------------------------------------------------
+
+@Composable
+/** Game settings, opened from the Game tab: a full screen of its own, separate from the device Settings tab. */
+@Composable
+private fun GameSettingsScreen(onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    val p = palette
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(Modifier.fillMaxSize().tableBackground(p), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier
+                    .widthIn(max = 720.dp)
+                    .fillMaxWidth()
+                    .safeDrawingPadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Game settings", color = p.text, style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.weight(1f).semantics { heading() })
+                    TextButton(onClick = onClose) { Text("Done", color = if (p.dark) p.accentHi else p.accent) }
+                }
+                content()
+            }
+        }
+    }
+}
 
 @Composable
 private fun TableCard(summary: TableSummary, labelFor: (Int) -> String) {
