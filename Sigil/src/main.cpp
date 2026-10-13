@@ -47,6 +47,7 @@ TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigil
 #include "life_adjust.h"
 #include "status_ring.h"
 #include "idle_sleep.h"
+#include "sigil_board.h"
 
 namespace {
 
@@ -58,27 +59,19 @@ using TurnHubSigil::SigilDisplay;
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
-// Status light: NeoPixel Jewel 7 Data Input, via 330 ohm (J10). Powered from
-// 5V (J1). Both hardware Sigils use it; there is no separate LED.
-constexpr uint8_t STATUS_RING_PIN = 26;
+using TurnHubSigilBoard::STATUS_RING_PIN;
+using TurnHubSigilBoard::JOYSTICK_X_PIN;
+using TurnHubSigilBoard::JOYSTICK_Y_PIN;
+using TurnHubSigilBoard::BUZZER_PIN;
+constexpr uint8_t PAIR_BUTTON = TurnHubSigilBoard::PAIR_BUTTON_PIN;
 // Five keys (Up, Down, Left, Right, Select). Each is a debounced button: a
 // real GPIO switched to GND, or a virtual pin (0xE0+) read from the stick.
 constexpr uint8_t STICK_UP_PIN = 0xE0;  // 0xE0-0xE3: Up, Down, Left, Right.
-// Analog thumbstick (powered from 3.3 V, never 5 V: VRX/VRY swing to the
-// supply); clicking it is Select. VRX/VRY must be ADC1 pins: ADC2 is unusable
-// while ESP-NOW has the radio. GPIO25 is unused; GPIO26 drives the ring.
-constexpr uint8_t JOYSTICK_X_PIN = 34;     // VRX, input-only ADC1 (J15).
-constexpr uint8_t JOYSTICK_Y_PIN = 35;     // VRY, input-only ADC1 (J14).
 constexpr uint8_t JOYSTICK_CALIBRATION_SAMPLES = 16;
 constexpr uint32_t JOYSTICK_SAMPLE_MS = 5;
 constexpr uint8_t KEY_PINS[] = {STICK_UP_PIN, STICK_UP_PIN + 1, STICK_UP_PIN + 2,
-    STICK_UP_PIN + 3, 32 /* SW (J13) */};
-constexpr uint8_t BUZZER_PIN = 33;
+    STICK_UP_PIN + 3, TurnHubSigilBoard::JOYSTICK_SELECT_PIN};
 constexpr uint8_t BUZZER_CHANNEL = 7;
-// The DevKit's onboard BOOT button (GPIO0, pulled up on the board). GPIO0 is
-// a strapping pin only at reset: holding BOOT while resetting enters the ROM
-// downloader instead of this firmware, so Pair works from boot onward.
-constexpr uint8_t PAIR_BUTTON = 0;
 
 // Hello announces only what varies between Sigils (protocol.h). There is one
 // Sigil build, so it announces nothing extra.
@@ -123,20 +116,17 @@ TurnHubProtocol::ThreePartButton pairGesture;
 ButtonState keys[] = {ButtonState(KEY_PINS[0]), ButtonState(KEY_PINS[1]),
     ButtonState(KEY_PINS[2]), ButtonState(KEY_PINS[3]), ButtonState(KEY_PINS[4])};
 static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One button per key");
-// The e-ink uses the fixed-key compass; the OLED, which redraws instantly, a
-// scrolling list behind Up (the click still passes) that names a held action
-// on screen. The e-ink leaves hold progress to the light.
+// The fixed-key compass menu; hold progress is shown on the light.
 TurnHubSigil::SigilMenu sigilMenu(TurnHubSigil::MenuStyle::Compass);
 TurnHubProtocol::SigilAction lastSelectedAction = TurnHubProtocol::SigilAction::Count;
 // Menu snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::MenuView publishedMenuView;
 TurnHubSigil::MenuView pendingMenuView;
 bool menuViewChanged = false;
-// Menu Sigils also draw Atlas's profile picker (ProfilePickerPacket): the
-// e-ink as a compass, the OLED as a list (picker_list.h).
-// Latest page from Atlas (guarded by displayProfileMux). While open, the keys
-// go to the picker (PickerKey) instead of the menu. pickerCursor is the OLED
-// list row, reset on every new page.
+// Atlas's profile picker (ProfilePickerPacket). Latest page from Atlas
+// (guarded by displayProfileMux). While open, the keys go to the picker
+// (PickerKey) instead of the menu. pickerCursor is the list row
+// (picker_list.h), reset on every new page.
 TurnHubProtocol::CommanderFlowPacket pendingCommander{};
 volatile bool commanderActive = false;
 bool commanderChanged = false;
@@ -151,7 +141,7 @@ uint8_t pickerCursor = 0;
 // key-downs went to life so their releases do not reach the menu.
 TurnHubSigil::LifeAdjuster lifeAdjuster;
 TurnHubProtocol::LifeRequestFields lifeRequest;
-uint8_t seatAvatars[2] = {0, 0};  // From SeatColor; drawn by the OLED.
+uint8_t seatAvatars[2] = {0, 0};  // From SeatColor.
 int32_t startingLife = 0;  // From StartingLife: sizes the life heart.
 uint8_t passingPlayer = 0;  // From PassPending: whose pass is pending.
 uint8_t updateNotice = 0;   // From UpdateNotice: 0 none, 1 Atlas, 2 a Sigil.
@@ -659,7 +649,8 @@ volatile bool sleepScreenDrawn = false;
 uint32_t sleepRequestedMs = 0;
 // The e-ink's full refresh takes a few seconds; never wait longer than this.
 constexpr uint32_t SLEEP_SCREEN_TIMEOUT_MS = 8000;
-constexpr gpio_num_t WAKE_CLICK_PIN = GPIO_NUM_32;  // KEY_PINS' thumbstick click.
+constexpr gpio_num_t WAKE_CLICK_PIN =
+    static_cast<gpio_num_t>(TurnHubSigilBoard::JOYSTICK_SELECT_PIN);
 
 void updateDisplay() {
   if (sleepRequested) {
@@ -1109,7 +1100,7 @@ void sendUpdateStatus(int32_t value) {
 void showUpdateProgress(const char *status, int8_t percent) {
   static char shownText[sizeof(updateScreenText)] = {};
   static int8_t shownBucket = -2;
-  // E-ink: a full refresh per quarter, not per 10%.
+  // A slow display redraws per quarter, not per 10%.
   const int8_t bucket = percent < 0 ? -1 : static_cast<int8_t>(percent / 25);
   const bool redraw = strcmp(shownText, status) != 0 || bucket != shownBucket;
   if (redraw) {
@@ -1480,7 +1471,7 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
   }
   if (key != TurnHubSigil::Key::Left && key != TurnHubSigil::Key::Right) return false;
   const bool right = key == TurnHubSigil::Key::Right;
-  // An open menu (the OLED's list) keeps its keys: Left goes back.
+  // An open Device menu keeps its keys: Left goes back.
   if (lifeRequest.target != 0 && !sigilMenu.deviceMenuOpen()) {
     Serial.print("SIGIL|");
     Serial.print(sigilId);
@@ -1501,7 +1492,7 @@ bool routeLifeKey(TurnHubSigil::Key key, bool down, uint32_t nowMs) {
 }
 
 // Repeats a held life key, sends the batched total once it settles, and
-// shows the running total on the ring (and the OLED).
+// shows the running total on the ring.
 void updateLife(uint32_t nowMs) {
   if (!sigilMenu.lifeOffered() && lifeAdjuster.pending() != 0) {
     Serial.println("SIGIL|LIFE|DROPPED|NOT_OFFERED");
@@ -1766,7 +1757,7 @@ void startPairing() {
 
   pairingToken = static_cast<int32_t>(esp_random());
   // A fresh key pair per press (about 0.2 s of X25519 on the ESP32).
-  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2, false)) {
+  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2)) {
     Serial.println("SIGIL|PAIR|V2|KEY_ERROR");
     return;
   }

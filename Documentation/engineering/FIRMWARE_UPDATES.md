@@ -5,9 +5,8 @@ installed over the air.
 
 > **Branches (2026-10-13).** Gen 1 firmware, its spare build, flashing scripts
 > and the tag-driven release workflow live on `legacy/gen1`. On master the Sigil
-> has one build (`sigil`), there is no spare image and no `release.yml`; the
-> spare handling Atlas still carries (`CAPABILITY_SPARE`, `PairRequestSpare`) is
-> removed with the S3 product step in [Staged Changes](STAGED_CHANGES.md).
+> has one build (`sigil`), there is no spare image or spare pairing and no
+> `release.yml`.
 USB flashing and board identification are in [Hardware](HARDWARE.md).
 
 ## Retired hardware: no more updates
@@ -18,8 +17,7 @@ in favour of the ESP32-S3 boards. Their PlatformIO builds set
 `TURNHUB_OTA_RETIRED=1` (`firmware_package.h`), so the next USB flash is the
 last: Atlas refuses Atlas and Sigil package uploads with the `retired` error,
 a Sigil refuses every update offer with it, and Atlas ignores app reports of
-newer releases (no update LED). USB flashing still works. A spare Sigil on this
-firmware can no longer return to service over the air; flash it over USB.
+newer releases (no update LED). USB flashing still works.
 Host tests build with the flag off so the update paths below stay covered;
 the rest of this document describes those paths.
 
@@ -167,12 +165,6 @@ factory needs one USB flash before its first OTA.
   background): Admin sign-in, one table code, Atlas first, wait for it to
   return, sign in again and get a new code, then each Sigil in turn. First-run
   setup uses the same steps.
-
-## Spare Sigils
-
-Gen 1 only: parking a Sigil as an inert spare and returning it to service is
-documented on `legacy/gen1`. Master has no spare build; Atlas still accepts
-`PairRequestSpare` and skips spares until the S3 product step removes them.
 
 ## Limits
 

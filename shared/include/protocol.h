@@ -47,19 +47,14 @@ constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 // (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
 // The byte carries only what varies (owner, 2026-09-30).
 //
-// 0x01, 0x02, 0x04, 0x08, 0x20 and 0x80 are free (0x80 was the Gen 1 test
-// harness, now on legacy/gen1; 0x01 was the OLED Sigil's
+// 0x01, 0x02, 0x04, 0x08, 0x20, 0x40 and 0x80 are free (0x40 was the Gen 1
+// spare Sigil and 0x80 its test harness, both on legacy/gen1; 0x01 was the OLED Sigil's
 // five-button d-pad, retired 2026-10-01 when every Sigil got the thumbstick;
 // the others were the feature bits protocol 2 used to announce the baseline).
 //
 // The Sigil has the OLED display (sigil-oled); clear: e-paper. Also picks the
 // OTA package. Both displays seat two players.
 constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
-// A spare Sigil (Sigil env:sigil-spare, FIRMWARE_UPDATES.md): paired but inert,
-// with no display or input. Atlas never seats it or takes its input, and
-// sends it the OTA package its display bit (its GPIO4 strap) names, which
-// brings it back as a normal Sigil.
-constexpr uint8_t CAPABILITY_SPARE = 0x40;
 
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
@@ -84,7 +79,8 @@ enum class PacketType : uint8_t {
   Ack = 2,
   // Unused numbers (3-8, 10-11, 14, 20-22, 26-27) belonged to retired packets:
   // the three-button gestures, keyless pairing, the per-channel light stream,
-  // the pre-0.8 menu and the Gen 1 test harness's report and command. Free for new packets from protocol 3 on.
+  // the pre-0.8 menu, the Gen 1 test harness's report and command, and the
+  // Gen 1 spare pairing request (52). Free for new packets from protocol 3 on.
   DisplayProfileRequest = 9,
   // Atlas -> Sigil: Atlas forgot this Sigil; it erases its saved pairing.
   // Best effort: a Sigil that misses it stays paired until re-paired or reset.
@@ -156,11 +152,6 @@ enum class PacketType : uint8_t {
   GameDisplay = 32,
   CommanderFlow = 50,
   CommanderKey = 51,
-  // A spare Sigil's PairRequest2 (same layout, FIRMWARE_UPDATES.md). Atlas pairs
-  // it during its pairing window without the owner's code check, and keeps
-  // that Sigil spare-only: if it later says it is a normal Sigil, Atlas
-  // forgets it so it pairs again with the code check.
-  PairRequestSpare = 52,
 };
 
 enum class DisplayMode : uint8_t {

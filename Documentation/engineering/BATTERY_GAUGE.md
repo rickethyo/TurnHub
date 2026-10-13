@@ -1,5 +1,10 @@
 # Atlas battery estimation and protection
 
+> **Branches (2026-10-13).** The E32R28T battery adapter (`atlas_battery.cpp`)
+> is on `legacy/gen1`. Master keeps the header-only gauge and checkpoint logic
+> (`battery_gauge.h`, `battery_checkpoint.h`, host-tested) for the next board;
+> its board-less build reports no battery.
+
 *Experimental; host logic verified by regression tests, physical acceptance
 pending.* Atlas E32R28T uses a nominal 250 mAh single-cell LiPo, its divider
 and GPIO34 ADC. There is no fuel-gauge, dependable USB-sense or charger-status
@@ -9,7 +14,7 @@ empty connector high can look like an installed full battery. The existing
 
 ## Measurement and displayed percentage
 
-`atlas_battery.cpp` averages eight calibrated ADC reads every 250 ms and
+The Gen 1 adapter (`atlas_battery.cpp`) averages eight calibrated ADC reads every 250 ms and
 scales the divider by `config.h`. `PowerSourceTracker` consumes those values
 independently. Four readings are averaged for each nominal one-second gauge
 sample. `battery_gauge.h` then keeps three separate quantities:

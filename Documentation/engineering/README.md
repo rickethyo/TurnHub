@@ -22,7 +22,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Players and Accounts](PLAYERS_AND_ACCOUNTS.md) | Profiles, sign-in, joining from phones and Sigils, the picker, permissions, presence codes, moderation |
 | [Gameplay](GAMEPLAY.md) | Game profiles, turns, turn timer, life and approvals, Commander damage, light and sound cues |
 | [First-run Setup](FIRST_RUN_SETUP.md) | Guided setup of a new Atlas from the app or portal |
-| [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices, spare Sigils |
+| [Firmware Updates](FIRMWARE_UPDATES.md) | `.thfw` packages, signing, releases, Sigil OTA, update notices |
 | [Web Portal](WEB_PORTAL.md) | The embedded admin portal, themes, layout and test contract |
 | [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
 | [Battery estimation and protection](BATTERY_GAUGE.md) | Atlas voltage/SoC/display separation, NVS/RTC history, source inference, independent safety and calibration |

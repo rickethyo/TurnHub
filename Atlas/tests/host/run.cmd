@@ -25,9 +25,6 @@ cl /nologo /std:c++17 /EHsc /W4 /Istubs /Ibuild/generated /I../../include /I../.
 if errorlevel 1 (popd & exit /b 1)
 build\ota_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
-cl /nologo /std:c++17 /EHsc /W4 /Ibattery_stubs /Istubs /I../../include /I../../../shared/include battery_firmware_scenarios.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp /Fo:build/ /Fe:build/battery_firmware_scenarios.exe
-if errorlevel 1 (popd & exit /b 1)
-build\battery_firmware_scenarios.exe
 set result=%errorlevel%
 popd
 exit /b %result%

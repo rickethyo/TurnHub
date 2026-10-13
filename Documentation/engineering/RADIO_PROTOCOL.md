@@ -18,8 +18,8 @@ contract is `protocol/http-v1.md`.
   (what it needs is listed in [Firmware Updates](FIRMWARE_UPDATES.md),
   "Version rules").
 - **Sealed.** After pairing, every packet in both directions travels inside
-  the Secure Link envelope (AES-128-CCM, +15 bytes). Only `PairRequest2`,
-  `PairRequestSpare` and `PairAccept2` are cleartext.
+  the Secure Link envelope (AES-128-CCM, +15 bytes). Only `PairRequest2` and
+  `PairAccept2` are cleartext.
 - **Packed structs.** Host tests check the sizes: the 7-byte control
   `Packet` and the 110-byte `GameDisplay`. The GCC runner's
   `-mno-ms-bitfields` keeps the layout.
@@ -45,13 +45,12 @@ drawn from `LedState`. Atlas reads the byte through `helloCapabilities()`.
 
 | Bit | Name | Meaning |
 |---|---|---|
-| 0x10 | `CAPABILITY_DISPLAY_OLED` | OLED display; clear means e-paper. Also picks the OTA package. On a spare it reports the GPIO4 strap |
-| 0x40 | `CAPABILITY_SPARE` | Running the inert spare firmware ([Firmware Updates](FIRMWARE_UPDATES.md), "Spare Sigils") |
-| 0x01, 0x02, 0x04, 0x08, 0x20, 0x80 | free (0x80 was the Gen 1 test harness, on `legacy/gen1`) | Take one for a new meaning (battery, haptics, "can sleep") with the protocol version that introduces it |
+| 0x10 | `CAPABILITY_DISPLAY_OLED` | OLED display; clear means e-paper. Also picks the OTA package |
+| 0x01, 0x02, 0x04, 0x08, 0x20, 0x40, 0x80 | free (0x40 was the Gen 1 spare Sigil and 0x80 its test harness, on `legacy/gen1`) | Take one for a new meaning (battery, haptics, "can sleep") with the protocol version that introduces it |
 
 ## Packets
 
-Direction A→S is Atlas to Sigil. Numbers 3-8, 10-11, 20-22 and 26 belonged to
+Direction A→S is Atlas to Sigil. Numbers 3-8, 10-11, 20-22, 26 and 52 belonged to
 retired packets and are free again.
 
 | Type | # | Dir | Purpose |
@@ -75,7 +74,7 @@ retired packets and are free again.
 | `UpdateNotice` | 49 | A→S | Update available: 0 none, 1 Atlas only, 2 a Sigil |
 | `CommanderFlow` / `CommanderKey` | 50 / 51 | A→S / S→A | Commander damage entry pages (80 bytes) and keys, tagged with the page revision |
 | `FactoryReset` | 28 | A→S | Erase NVS and restart; needs `FACTORY_RESET_CONFIRM` ("FRES") from the saved Atlas for this Sigil's ID |
-| `PairRequest2`, `PairAccept2`, `PairConfirmed`, `PairRejected`, `PairRequestSpare` | 40-43, 52 | both | Pairing ([Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md)) |
+| `PairRequest2`, `PairAccept2`, `PairConfirmed`, `PairRejected` | 40-43 | both | Pairing ([Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md)) |
 | `SecureHello`, `SecureHelloAck`, `Secure` | 44-46 | both | Session start and the sealed envelope |
 | `SigilUpdateOffer` / `SigilUpdateStatus` | 47 / 48 | A→S / S→A | Firmware update ([Firmware Updates](FIRMWARE_UPDATES.md)) |
 

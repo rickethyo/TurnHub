@@ -19,7 +19,7 @@ and maintenance-script changes require CI, not `[skip ci]`.
 | Check name | Work performed |
 | --- | --- |
 | Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
-| Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw`; render Atlas screen previews |
+| Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` (board-less until the S3 Atlas) |
 | Firmware (sigil) | The one Sigil build (headless until the LVGL renderer is bound); descriptor check and, with the signing secret, `sigil-eink.thfw` (refused by every board while `TURNHUB_OTA_RETIRED` is set) |
 | LVGL simulator | Desktop LVGL simulator built with ASan/UBSan, its CTest self-tests (SDL dummy drivers) and the font digest check |
 | Android build and unit tests | Run JVM unit tests and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
@@ -157,7 +157,7 @@ Promoting a build beyond Internal testing stays a manual Play Console step.
 3. Open a successful run's **Artifacts** to download per-target firmware or the
    Android release bundle. Android test reports are retained when available, including
    on failed test runs. Artifacts expire after seven days (the Android bundle
-   and screen previews after 14).
+   after 14).
 
 Firmware artifacts contain `firmware.bin`, `firmware.elf`, and `build-info.txt`.
 Atlas artifacts also retain `firmware.map` and `stack-usage.tar.gz` (compiler
@@ -167,13 +167,6 @@ They are development app images, not a complete factory-flash bundle. Match the
 environment to the device and retain the normal PlatformIO upload process for
 initial provisioning. PR artifact names identify the tested merge commit, which
 may differ from the branch head or the eventual merge commit.
-
-The `atlas` firmware job also uploads **screen previews**
-(`screens-atlas-<sha>`, kept 14 days, added 2026-09-29): PNGs of the Atlas
-touchscreen rendered on the runner from the real display code
-(`Atlas/tests/host/render-atlas-screens.sh`). The render fails the job if
-a region-by-region redraw differs from a full redraw. Previews show the design,
-not the panel: colors, contrast and ghosting still need the bench.
 
 CI artifacts are not accepted releases; hardware behavior is checked on the
 bench. Browser smoke tests and Android device/UI tests are not part of CI.

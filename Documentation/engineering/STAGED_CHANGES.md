@@ -23,12 +23,11 @@ everything implemented. Only the checks listed below are still open.
   harness, Sigil v1 PCB, enclosures, flash/board-setup scripts and firmware
   release workflow live on `legacy/gen1`, a one-way branch for fixing Gen 1
   bugs in place. Master is the LVGL/S3 track with one `sigil` build
-  (headless behind `sigil_display.h`). Still on master until the S3 boards
-  replace them, in the same change that adds `atlas-s3`/`sigil-s3`: the
-  Atlas E32R28T board layer (TFT/touch, battery ADC, speaker, sleep pins,
-  `config.h` pins), Gen 1 OTA products (`atlas`, `sigil-eink`, `sigil-oled`,
-  `CAPABILITY_DISPLAY_OLED`), the spare path (`CAPABILITY_SPARE`,
-  `PairRequestSpare`) and `TURNHUB_OTA_RETIRED`.
+  (headless behind `sigil_display.h`, pins in `sigil_board.h`) and a
+  board-less Atlas (`atlas_board_none.cpp`); the spare path is gone. Still on
+  master until `atlas-s3`/`sigil-s3` land, because the Android update flow
+  reads them: the OTA product names (`sigil-eink`, `sigil-oled`),
+  `CAPABILITY_DISPLAY_OLED` and `TURNHUB_OTA_RETIRED`.
 
 ## Open work
 

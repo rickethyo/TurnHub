@@ -189,8 +189,7 @@ void handleHardwareTest(WebServer &server) {
     }
     SigilBus *bus = SigilBus::activeInstance();
     const SigilRecord *record = bus ? bus->record(static_cast<uint8_t>(id)) : nullptr;
-    if (!record || millis() - record->lastSeenMs > SigilBus::SIGIL_TIMEOUT_MS ||
-        (record->capabilities & TurnHubProtocol::CAPABILITY_SPARE)) {
+    if (!record || millis() - record->lastSeenMs > SigilBus::SIGIL_TIMEOUT_MS) {
       sendError(server, 409, "Choose an online player Sigil"); return;
     }
     const auto type = test == "buzzer" ? TurnHubProtocol::PacketType::Buzzer : TurnHubProtocol::PacketType::HardwareTest;

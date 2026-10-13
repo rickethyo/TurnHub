@@ -230,23 +230,6 @@ jobs:
           path: ${{ runner.temp }}/firmware/
           if-no-files-found: error
           retention-days: 7
-      # Screen previews: the Atlas TFT code rendered to PNGs on the runner, with
-      # incremental redraws checked against full redraws. The unified Sigil is
-      # headless until the LVGL renderer is bound, so it has none.
-      - name: Render screen previews
-        if: env.BUILD == 'true' && matrix.environment == 'atlas'
-        run: |
-          mkdir -p "$RUNNER_TEMP/screens"
-          bash Atlas/tests/host/render-atlas-screens.sh
-          cp Atlas/tests/host/build/screens/*.png "$RUNNER_TEMP/screens/"
-      - name: Upload screen previews
-        if: env.BUILD == 'true' && matrix.environment == 'atlas'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: screens-${{ matrix.environment }}-${{ github.sha }}
-          path: ${{ runner.temp }}/screens/
-          if-no-files-found: error
-          retention-days: 14
 
   # Desktop LVGL presentation simulator (LVGL/README.md): sanitizer build,
   # its CTest self-tests under SDL's dummy drivers, and the font digests.

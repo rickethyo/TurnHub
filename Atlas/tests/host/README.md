@@ -22,31 +22,15 @@ and run `profile_store_scenarios`: unused seat lookups, 100 reconnect cycles,
 guest reads/writes, temporary bindings, legacy remember-key cleanup and placeholder filtering before
 the account limit. No saved user records are deleted by this filtering.
 
-`src/atlas_speaker.cpp` (ESP32 DAC), `src/atlas_battery.cpp` (ESP32 ADC),
-`src/sd_card.cpp` (Arduino SD) and `src/secure_link_backend.cpp` (mbedTLS
-self-test) are firmware-only too; `test_globals.cpp` stubs them (no speaker,
-a battery reading the scenarios set, no card, self-test passes; the gauge
-logic and checkpoint codec/throttling are header-only `battery_gauge.h` and
-`battery_checkpoint.h`, tested directly for load noise, fast discharge, source
-cycles, restore/replacement, safety, elapsed-time rollover and write failures).
-A separate `battery_firmware_scenarios` executable includes the actual
-`atlas_battery.cpp` and NVS/serial modules with ADC, reset reason, RTC and flash
-boundaries in `battery_stubs`: it verifies startup publication, real restore
-selection, absent tombstones, corrupt/short records and failed-write throttling.
-This simulates RTC retention; physical ESP32 retention still needs acceptance.
-The speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
-`src/atlas_display.cpp` and `src/atlas_art.cpp` are firmware-only (they need
-LovyanGFX), so they are not in any runner's source list. `test_globals.cpp`
-provides a no-op `beginAtlasDisplay()`.
-
-**Screen previews (Linux, optional).** `bash render-atlas-screens.sh` builds
-LovyanGFX from PlatformIO's download (`pio pkg install -e atlas` in `Atlas/`
-first) with its framebuffer back end, runs the real `atlas_art.cpp` against an
-off-screen sprite, writes one PNG per scene to `build/screens/`, and checks
-that region-by-region redraws land on exactly the pixels of a full redraw
-(clock tick, turn pass, life change, timer warning, hold progress, screen
-changes). It exits non-zero on a mismatch. Previews are not hardware
-acceptance: colors are RGB565 as the panel receives them, not as it shows them.
+`src/atlas_board_none.cpp` (master's board-less boundary: status LED, BOOT
+sleep, no display, speaker or battery), `src/sd_card.cpp` (Arduino SD) and
+`src/secure_link_backend.cpp` (mbedTLS self-test) are firmware-only;
+`test_globals.cpp` stubs them (no speaker, a battery reading the scenarios
+set, no card, self-test passes). The gauge logic and checkpoint
+codec/throttling are header-only `battery_gauge.h` and `battery_checkpoint.h`,
+tested directly for load noise, fast discharge, source cycles,
+restore/replacement, safety, elapsed-time rollover and write failures. The
+speaker scenario plugs a fake `ToneOutput` into the real `AudioController`.
 
 With GCC/Clang on another host, from this directory:
 
@@ -74,10 +58,6 @@ c++ -std=c++17 -Wall -Wextra -Istorage_stubs -Istubs -Ibuild/generated -I../../i
 c++ -std=c++17 -Wall -Wextra -Istubs -Ibuild/generated -I../../include -I../../../shared/include \
     ota_scenarios.cpp ../../src/sigil_update_jobs.cpp -o build/ota_scenarios
 ./build/ota_scenarios
-c++ -std=c++17 -Wall -Wextra -Ibattery_stubs -Istubs -I../../include -I../../../shared/include \
-    battery_firmware_scenarios.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp \
-    -o build/battery_firmware_scenarios
-./build/battery_firmware_scenarios
 ```
 
 `ota_scenarios` covers Sigil OTA on Atlas (`sigil_update_jobs.cpp`):

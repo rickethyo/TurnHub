@@ -1126,13 +1126,10 @@ void beginFirstRunSetup() {
   serialLog.println(TurnHub::setupStageName(setupStage));
 }
 
-// A real Sigil (not the test harness or a spare) is already paired, e.g.
-// during the phone's Sigils step.
+// A Sigil is already paired, e.g. during the phone's Sigils step.
 static bool sigilPaired() {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
-    const TurnHub::SigilRecord *record = sigilBus.record(id);
-    if (record != nullptr && (record->capabilities &
-        TurnHubProtocol::CAPABILITY_SPARE) == 0) return true;
+    if (sigilBus.record(id) != nullptr) return true;
   }
   return false;
 }

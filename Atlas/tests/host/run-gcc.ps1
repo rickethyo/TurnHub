@@ -30,10 +30,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Update test compilation failed.' }
     & .\build\ota_scenarios.exe
     if ($LASTEXITCODE -ne 0) { throw 'Update scenarios failed.' }
-    & $Compiler @flags -Ibattery_stubs -Istubs -I../../include -I../../../shared/include battery_firmware_scenarios.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp -o build/battery_firmware_scenarios.exe
-    if ($LASTEXITCODE -ne 0) { throw 'Battery adapter test compilation failed.' }
-    & .\build\battery_firmware_scenarios.exe
-    if ($LASTEXITCODE -ne 0) { throw 'Battery adapter scenarios failed.' }
 } finally {
     Pop-Location
     $env:PATH = $previousPath

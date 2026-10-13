@@ -996,3 +996,22 @@ These are **desktop sections, not ESP32 flash/RAM estimates**. Device frame/cach
 budgets are in LVGL_MIGRATION.md. Both profile suites passed in Debug/Release and
 ASan/UBSan (leak checks disabled); X11 input suites and 14 rendered captures passed.
 Physical hardware, Windows and embedded memory/performance remain unverified.
+
+### 2026-10-13 / Gen 1 split: board-less master
+
+The Gen 1 boards moved to `legacy/gen1`. Master's Atlas drops the E32R28T
+TFT, touch, art and fonts, speaker and battery adapter for
+`atlas_board_none.cpp`; the Sigil is one headless `sigil` build with its pins
+in `sigil_board.h`; the spare pairing path is gone. No firmware version bump
+(same protocol 3; still `TURNHUB_OTA_RETIRED`).
+
+| Environment | Static RAM / 327,680 B | Flash |
+|---|---|---|
+| Atlas | 101,636 B (31.0%) | 1,269,573 B (64.6% of 1,966,080 B) |
+| Sigil | 49,340 B (15.1%) | 889,781 B (67.9% of 1,310,720 B) |
+
+Atlas compared with the last recorded build: -10,424 B static RAM /
+-391,056 B flash. Four Atlas host suites and the Sigil suites passed with
+ASan/UBSan; the adapter audit, client contract, tokens, portal, manual export,
+sync and documentation checks passed. Board-less builds are compile targets
+only, not hardware acceptance.

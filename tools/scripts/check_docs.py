@@ -12,11 +12,14 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 SKIP_DIRS = {".git", "node_modules", ".pio", "build", ".gradle", "history"}
-# Moved to legacy/gen1 (or retired) on 2026-10-13. A mention is fine only in a
+# Moved to legacy/gen1 (or retired) on 2026-10-13, including the Gen 1 Atlas
+# board layer and the spare Sigil path. A mention is fine only in a
 # paragraph that says where it went.
 RETIRED = ("TestHarness/", "KiCad/", "3D/", "Sigil/WOKWI.md", "Sigil/DISPLAY.md",
            "flash-all", "setup-boards", "sigil-wokwi", "sigil-spare",
-           "agent/experimental")
+           "agent/experimental", "atlas_display.cpp", "atlas_art", "atlas_speaker.cpp",
+           "atlas_battery.cpp", "render-atlas-screens", "tools/fonts",
+           "battery_firmware", "CAPABILITY_SPARE", "PairRequestSpare")
 CONTEXT = ("legacy/gen1", "retired", "Gen 1")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 

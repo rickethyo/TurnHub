@@ -174,10 +174,14 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   Sigil is one `sigil` env with a headless `SigilDisplay`. CI drops the
   sigil-oled/sigil-spare jobs and Sigil previews and adds an `LVGL simulator`
   job.
-- Deliberately left for the S3 product step (STAGED_CHANGES "Gen 1 split"):
-  the Atlas E32R28T board layer, Gen 1 OTA products and OLED bit, the spare
-  pairing path and `TURNHUB_OTA_RETIRED`. Removing them now would leave Atlas
-  with no hardware to run on and change untested pairing code.
+- Owner follow-up, same PR: master is board-less. The Atlas E32R28T layer
+  (TFT, touch calibration, Brass art and fonts, speaker, battery ADC, screen
+  previews) is replaced by `atlas_board_none.cpp` behind `atlas_board.h`; the
+  Sigil's pins moved to `Sigil/include/sigil_board.h`; the spare pairing path
+  (`CAPABILITY_SPARE` 0x40, `PairRequestSpare` 52) is gone, which also removes
+  the only pairing that skipped the code check. Left for the S3 step because
+  the Android update flow reads them: the OTA product names (`sigilEink`,
+  `sigilOled`), `CAPABILITY_DISPLAY_OLED` and `TURNHUB_OTA_RETIRED`.
 - Codex: rebase or merge any open `Sigil/` display or TestHarness work onto
   `legacy/gen1` instead of master.
 - Same PR, owner request 2026-10-13: documentation hygiene rule in

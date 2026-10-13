@@ -27,8 +27,6 @@ TurnHubSecureLink::MbedtlsCrypto linkCrypto;
 constexpr char PAIRING_NAMESPACE[] = "th_pair";
 constexpr size_t PAIRING_RECORD_BYTES = 6 + TurnHubSecureLink::KEY_BYTES;
 String pairingKey(uint8_t slot) { return String("s") + String(slot); }
-// Present when that slot was paired as a spare without the code check.
-String spareKey(uint8_t slot) { return String("p") + String(slot); }
 
 void displaySafeName(const String &name,
     char (&safe)[TurnHubProtocol::DISPLAY_NAME_MAX_LENGTH + 1]) {
@@ -72,7 +70,6 @@ bool SigilBus::begin() {
     records_[i].id = i;
     memcpy(records_[i].mac, record, 6);
     memcpy(records_[i].pairKey, record + 6, TurnHubSecureLink::KEY_BYTES);
-    records_[i].spareOnly = prefs.isKey(spareKey(i).c_str());
     TurnHubSecureLink::wipe(record, sizeof(record));
     records_[i].lastSeenMs = millis() - SIGIL_TIMEOUT_MS - 1;
   }
@@ -132,7 +129,6 @@ bool SigilBus::forget(uint8_t sigilId) {
     return false;
   }
   const bool removed = !prefs.isKey(key.c_str()) || prefs.remove(key.c_str());
-  if (prefs.isKey(spareKey(sigilId).c_str())) prefs.remove(spareKey(sigilId).c_str());
   prefs.end();
   if (!removed) {
     serialLog.println("ATLAS|PAIRING|STORE_ERROR");
@@ -153,14 +149,6 @@ bool SigilBus::forget(uint8_t sigilId) {
 }
 
 bool SigilBus::poll(SigilEvent &event) {
-  // A spare-only Sigil that came back as a normal one pairs again, this time
-  // with the owner's code check.
-  for (uint8_t id = 0; unverifiedReturns_ != 0 && id < MAX_PHYSICAL_SIGILS; ++id) {
-    if ((unverifiedReturns_ & (1u << id)) == 0) continue;
-    unverifiedReturns_ &= ~(1u << id);
-    serialLog.printf("ATLAS|PAIRING|SPARE_RETURNED|%u|REPAIR\n", static_cast<unsigned>(id));
-    forget(id);
-  }
   if (pairingOpen_ && !pairingActive()) closePairing();
   RxRequest request;
   // Radio callbacks only copy packets; pairing, NVS and records belong to loop().
@@ -362,13 +350,6 @@ void SigilBus::handleReceive(
   }
   sigil->lastSeenMs = millis();
 
-  // A spare Sigil (CAPABILITY_SPARE) only keeps its link and reports OTA
-  // progress; any other input from it is dropped, so it cannot play.
-  if ((sigil->capabilities & TurnHubProtocol::CAPABILITY_SPARE) != 0 &&
-      packet.type != PacketType::Hello && packet.type != PacketType::SigilUpdateStatus) {
-    return;
-  }
-
   switch (packet.type) {
     case PacketType::Hello:
       sigil->confirmedSessionGeneration = sigil->sessionGeneration;
@@ -427,12 +408,6 @@ void SigilBus::handlePairRequest2(const uint8_t *mac,
     return;
   }
   sendRaw(mac, &accept, sizeof(accept));
-  if (packet.type == PacketType::PairRequestSpare) {
-    // A spare (FIRMWARE_UPDATES.md): no code check, so it stays spare-only.
-    if (!repeat) serialLog.printf("ATLAS|PAIRING|V2|SPARE|%u\n", static_cast<unsigned>(slot));
-    decidePairing(slot, true, true);
-    return;
-  }
   if (!repeat) {
     // The code itself is shown on the screens, never logged.
     serialLog.printf("ATLAS|PAIRING|V2|CODE_SHOWN|%u|PENDING|%u\n",
@@ -446,7 +421,7 @@ const TurnHubSecureLink::PendingPairing *SigilBus::pendingPairing(uint8_t slot) 
 
 uint8_t SigilBus::pendingPairingCount() const { return pairings_.count(); }
 
-bool SigilBus::decidePairing(uint8_t slot, bool confirm, bool spareOnly) {
+bool SigilBus::decidePairing(uint8_t slot, bool confirm) {
   const TurnHubSecureLink::PendingPairing *pending = pairings_.findSlot(slot);
   if (pending == nullptr) return false;
   uint8_t mac[6];
@@ -456,7 +431,7 @@ bool SigilBus::decidePairing(uint8_t slot, bool confirm, bool spareOnly) {
   uint8_t sigilMac[6];
   // Store before telling the Sigil: one told "confirmed" must find Atlas
   // holding its key. A failed store turns the confirm into a reject.
-  if (confirm && !storeRecord(slot, pending->mac, pending->pairKey, spareOnly)) {
+  if (confirm && !storeRecord(slot, pending->mac, pending->pairKey)) {
     if (pairings_.decide(linkCrypto, slot, false, result, key, sigilMac)) {
       sendRaw(mac, &result, sizeof(result));
     }
@@ -483,8 +458,7 @@ bool SigilBus::slotFree(uint8_t slot) const {
 }
 
 // Saves a confirmed Sigil in its slot: its MAC and the pair key, one record.
-bool SigilBus::storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey,
-    bool spareOnly) {
+bool SigilBus::storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pairKey) {
   if (slot >= MAX_PHYSICAL_SIGILS) return false;
   SigilRecord &record = records_[slot];
   if (record.used && memcmp(record.mac, mac, 6) != 0) return false;
@@ -495,16 +469,11 @@ bool SigilBus::storeRecord(uint8_t slot, const uint8_t *mac, const uint8_t *pair
   memcpy(bytes + 6, pairKey, TurnHubSecureLink::KEY_BYTES);
   bool stored = prefs.putBytes(pairingKey(slot).c_str(), bytes, sizeof(bytes)) == sizeof(bytes);
   TurnHubSecureLink::wipe(bytes, sizeof(bytes));
-  // A normal (code-checked) pairing clears an earlier spare-only mark.
-  const String spare = spareKey(slot);
-  if (stored && spareOnly) stored = prefs.putUChar(spare.c_str(), 1) == 1;
-  else if (stored && prefs.isKey(spare.c_str())) stored = prefs.remove(spare.c_str());
   prefs.end();
   if (!stored) return false;
   const bool wasUsed = record.used;
   record.used = true;
   record.id = slot;
-  record.spareOnly = spareOnly;
   memcpy(record.mac, mac, 6);
   memcpy(record.pairKey, pairKey, TurnHubSecureLink::KEY_BYTES);
   if (!wasUsed) {
@@ -599,14 +568,6 @@ void SigilBus::updateHelloInfo(SigilRecord &sigil, int32_t value) {
   const uint8_t minor = TurnHubProtocol::helloFirmwareMinor(value);
   const uint8_t patch = TurnHubProtocol::helloFirmwarePatch(value);
   uint8_t capabilities = TurnHubProtocol::helloCapabilities(value);
-  if (sigil.spareOnly) {
-    // Never verified by the owner: it stays a spare whatever it says, and if
-    // it says it is a normal Sigil it is forgotten so it pairs again.
-    if ((capabilities & TurnHubProtocol::CAPABILITY_SPARE) == 0 && sigil.id < MAX_PHYSICAL_SIGILS) {
-      unverifiedReturns_ |= 1u << sigil.id;
-    }
-    capabilities |= TurnHubProtocol::CAPABILITY_SPARE;
-  }
 
   const bool changed =
       !sigil.helloInfoValid ||

@@ -205,9 +205,9 @@ that Sigil: `ActionRequired`, two short notes, for a pending win confirmation
 or life request), muted per player by their accessibility setting. The
 **Atlas speaker** plays table-wide cues (countdown, start, turn change, timer
 warning and expiry, pause, eliminations, win claim results, game over) so
-phone players hear them: a small chime synthesizer (`atlas_speaker.cpp`,
-pentatonic chimes on the DAC), volume Off/Low/Medium/High (Admin,
-`ConfigureSpeaker`). Timer cues play once per turn.
+phone players hear them, through `ATLAS_SPEAKER_MASK` to the board's speaker
+(none on master's board-less build; the Gen 1 chime synthesizer is on
+`legacy/gen1`), volume Off/Low/Medium/High (Admin, `ConfigureSpeaker`). Timer cues play once per turn.
 
 **Text.** The app and Atlas screen show every state in words (time
 left, warning, time over, long turn, PASSING, pending requests).

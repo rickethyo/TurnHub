@@ -2,7 +2,8 @@
 // adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
 // decide. The exceptions change no table state: Cancel takes a presence code
 // off the screen (front_panel.cpp), and the Menu, Info, QR and Table
-// buttons switch screens. Drawing lives in atlas_art.cpp; the panel and touch reads in atlas_display.cpp.
+// buttons switch screens. The board draws the screen model (atlas_board.h);
+// master's board-less build draws nothing.
 
 #include "avatars.h"
 #include "touch_controls.h"
@@ -1280,10 +1281,6 @@ void updateTouchControls(uint32_t nowMs, bool touched, int16_t x, int16_t y) {
   }
   pressedAction = TouchAction::None;
   pressInside = false;
-}
-
-bool touchCalibrationAllowed() {
-  return table().hubState == HubState::Lobby;
 }
 
 void resetTouchControls() {

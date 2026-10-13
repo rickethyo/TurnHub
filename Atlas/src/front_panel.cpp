@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "atlas_app.h"
+#include "atlas_board.h"
 #include "config.h"
 #include "firmware_version.h"
 #include "serial_log.h"
@@ -79,18 +80,11 @@ PresenceGrant *grantFor(const String &profileId) {
 static bool pairingLedOn(uint32_t elapsedMs) { return elapsedMs % 500 < 250; }
 
 static void setStatusLed(bool red, bool blue, bool green = false) {
-  if (green != greenLedLit) {
-    greenLedLit = green;
-    digitalWrite(AtlasConfig::RGB_GREEN_PIN, green ? LOW : HIGH);
-  }
-  if (red != redLedLit) {
-    redLedLit = red;
-    digitalWrite(AtlasConfig::RGB_RED_PIN, red ? LOW : HIGH);
-  }
-  if (blue != blueLedLit) {
-    blueLedLit = blue;
-    digitalWrite(AtlasConfig::RGB_BLUE_PIN, blue ? LOW : HIGH);
-  }
+  if (red == redLedLit && green == greenLedLit && blue == blueLedLit) return;
+  redLedLit = red;
+  greenLedLit = green;
+  blueLedLit = blue;
+  setAtlasStatusLed(red, green, blue);
 }
 
 void noteLatestFirmware(const TurnHub::LatestFirmware &reported) {
@@ -117,9 +111,7 @@ uint8_t sigilsBehind() {
   uint8_t count = 0;
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     const TurnHub::SigilRecord *record = sigilBus.record(id);
-    if (record == nullptr || !record->helloInfoValid ||
-        (record->capabilities &
-            TurnHubProtocol::CAPABILITY_SPARE) != 0) continue;
+    if (record == nullptr || !record->helloInfoValid) continue;
     const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
     if (TurnHub::releaseNewer(oled ? latest.sigilOled : latest.sigilEink, record->firmwareMajor,
             record->firmwareMinor, record->firmwarePatch)) ++count;
@@ -133,13 +125,8 @@ uint8_t firmwareUpdatesAvailable() { return (atlasBehind() ? 1 : 0) + sigilsBehi
 TurnHub::UpdateKind firmwareUpdateKind() { return TurnHub::updateKindFor(atlasBehind(), sigilsBehind()); }
 
 void beginFrontPanel() {
-  // Park the on-board RGB LED (active low); pairing blinks its red channel.
-  pinMode(AtlasConfig::RGB_RED_PIN, OUTPUT);
-  pinMode(AtlasConfig::RGB_GREEN_PIN, OUTPUT);
-  pinMode(AtlasConfig::RGB_BLUE_PIN, OUTPUT);
-  digitalWrite(AtlasConfig::RGB_RED_PIN, HIGH);
-  digitalWrite(AtlasConfig::RGB_GREEN_PIN, HIGH);
-  digitalWrite(AtlasConfig::RGB_BLUE_PIN, HIGH);
+  // Park the board's status light; pairing blinks its red channel.
+  beginAtlasStatusLed();
   pinMode(AtlasConfig::BOOT_BUTTON_PIN, INPUT_PULLUP);
 }
 
