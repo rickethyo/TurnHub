@@ -133,6 +133,7 @@ data class TablePlayer(
     val avatar: AvatarIcon? = null,
     /** Disposable local presentation; never a game-state field. */
     val color: String? = null,
+    val tileBackground: TileBackground = TileBackground(),
 )
 
 /**

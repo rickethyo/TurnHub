@@ -107,7 +107,7 @@ private suspend fun compressCrop(source: Bitmap, zoom: Float, horizontal: Float,
 
 @Composable
 fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (ByteArray, String) -> Unit, remove: () -> Unit,
-    localOnly: Boolean = false) {
+    localOnly: Boolean = false, imageKind: String = "player image") {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var source by remember { mutableStateOf<Bitmap?>(null) }
@@ -122,7 +122,7 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
             finally { loading = false }
         }
     }
-    ToneButton(if (loading) "Opening image…" else if (localOnly) "Choose player image" else "Upload your own image", { picker.launch("image/*") },
+    ToneButton(if (loading) "Opening image…" else if (localOnly) "Choose $imageKind" else "Upload your own image", { picker.launch("image/*") },
         enabled = current?.cardPresent == true && !busy && !loading)
     Text("Crop a square image. Saved at up to 512 × 512 pixels and 48 KiB. " +
         if (localOnly) "Saved on this device. No Atlas is required."
@@ -143,11 +143,11 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
     if (current?.pendingAvatar?.isNotBlank() == true) {
         Text("Awaiting Admin approval", color = palette.warn)
         AvatarBytesPreview(current.pendingImage, "Image awaiting approval")
-    } else if (current?.customAvatar?.isNotBlank() == true) Text(if (localOnly) "Saved player image" else "Uploaded image ready", color = palette.muted)
+    } else if (current?.customAvatar?.isNotBlank() == true) Text(if (localOnly) "Saved $imageKind" else "Uploaded image ready", color = palette.muted)
     if (current?.pendingAvatar?.isNotBlank() == true || current?.customAvatar?.isNotBlank() == true)
-        ToneButton(if (localOnly) "Remove player image" else "Remove uploaded image", remove, enabled = !busy)
+        ToneButton(if (localOnly) "Remove $imageKind" else "Remove uploaded image", remove, enabled = !busy)
     source?.let { bitmap ->
-        AvatarCropDialog(bitmap, localOnly = localOnly, onDismiss = { source = null }, onUpload = { bytes -> source = null
+        AvatarCropDialog(bitmap, localOnly = localOnly, imageKind = imageKind, onDismiss = { source = null }, onUpload = { bytes -> source = null
             val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             val thumb = Bitmap.createScaledBitmap(decoded, 16, 16, true)
             val pixels = IntArray(256); thumb.getPixels(pixels, 0, 16, 0, 0, 16, 16)
@@ -176,7 +176,8 @@ fun AvatarBytesPreview(bytes: ByteArray?, description: String) {
 }
 
 @Composable
-private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (ByteArray) -> Unit, localOnly: Boolean = false) {
+private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (ByteArray) -> Unit, localOnly: Boolean = false,
+    imageKind: String = "player image") {
     var zoom by remember { mutableFloatStateOf(1f) }
     var horizontal by remember { mutableFloatStateOf(.5f) }
     var vertical by remember { mutableFloatStateOf(.5f) }
@@ -188,7 +189,7 @@ private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (B
     fun changed() { encoded = null; error = null }
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text("Crop player image") },
+        title = { Text("Crop $imageKind") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val side = (minOf(source.width, source.height) / zoom).toInt().coerceAtLeast(1)

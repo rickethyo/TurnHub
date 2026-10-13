@@ -45,6 +45,8 @@ private class TabletAtlas : AtlasSessionTransport {
                 else -> RawResponse(200, """{"ok":true,"profileId":"${f["profileId"]}"}""")
             }
             "/api/tablet/life" -> RawResponse(200, """{"ok":true,"status":"ACCEPTED"}""")
+            "/api/tablet/unseat" -> if (f["profileId"] == "refused") RawResponse(409, """{"error":"Game already started"}""")
+                else RawResponse(200, """{"ok":true}""")
             else -> RawResponse(404, "{}")
         }
     }
@@ -64,6 +66,16 @@ private class TabletAtlas : AtlasSessionTransport {
 }
 
 class AtlasTabletTest {
+    @Test
+    fun `clear seats is scoped deduplicated and stops at the first refusal`() = runTest {
+        val atlas = TabletAtlas()
+        val (_, tablet) = signedIn(atlas)
+        tablet.inGame(2) { clearSeats(listOf("one", "one", "refused", "three")) }
+        assertEquals(listOf("one", "refused"), atlas.posts.filter { it.first == "/api/tablet/unseat" }.map { it.second["profileId"] })
+        assertTrue(atlas.posts.filter { it.first == "/api/tablet/unseat" }.all { it.second["expectedGame"] == "2" })
+        assertEquals("Game already started", tablet.state.value.message?.message)
+        assertFalse(tablet.state.value.busy)
+    }
 
     private suspend fun signedIn(atlas: TabletAtlas): Pair<AtlasPlayerSession, AtlasTablet> {
         val session = AtlasPlayerSession { atlas }

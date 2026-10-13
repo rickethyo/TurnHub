@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destination: LocalImportState,
-    canLink: Boolean, onLink: (String, String?, String) -> Unit) {
+    canLink: Boolean, onLink: (String, String?, String) -> Unit, backgroundOnly: Boolean = false) {
     val scope = rememberCoroutineScope()
     var unlocked by remember(player.localId) { mutableStateOf(table.accountUnlocked(player.localId)) }
     var unlockSecret by remember(player.localId) { mutableStateOf("") }
@@ -38,6 +38,10 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
             }
         }, enabled = !credentialBusy && ProfileSecret.isValid(unlockSecret))
         credentialError?.let { Text(it, color = palette.warn) }
+        return
+    }
+    if (backgroundOnly) {
+        TileBackgroundEditor(player, table)
         return
     }
     var name by rememberSaveable(player.localId, player.name) { mutableStateOf(player.name) }
@@ -82,6 +86,7 @@ fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destina
         upload = { bytes, thumbnail -> table.saveAccount(player.localId, player.name,
             prefs.copy(image = Base64.getEncoder().encodeToString(bytes), thumbnail = thumbnail)) },
         remove = { table.saveAccount(player.localId, player.name, prefs.copy(image = null, thumbnail = null)) }, localOnly = true)
+    TileBackgroundEditor(player, table)
     if (canLink && destination.atlasId != null) {
         val link = player.links.firstOrNull { it.atlasId == destination.atlasId }
         link?.let { Text("Linked to Atlas account ${it.profileId}. Matching games import automatically when signed in.", color = palette.muted) }

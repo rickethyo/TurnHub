@@ -82,6 +82,21 @@ merged back live. The rules above apply in full whenever Atlas is present.
 - Adding a typed name creates a reusable player with a local UUID. Selecting a
   saved player reuses that identity. Same-name players stay distinct and short ID
   labels distinguish them. Reset/rematch preserves IDs; records snapshot names.
+- The lobby seat preview stays visible with zero or one player, reserving two
+  seats until the second player joins. Drag a player onto another or tap two
+  seats to swap them. **Clear all** empties the local selection in one saved
+  update, preserving accounts, history and game settings.
+- Local accounts store an independent tile background: default, solid, gradient
+  or a cropped image (up to 512 × 512 pixels and 48 KiB). The lobby's Background
+  button and account editor configure it. It follows the local UUID through
+  swaps, clearing and new games; avatars and match records remain separate.
+  Connected tables use this phone's background only through a verified link
+  to that Atlas/profile. Images are decorative and dimmed behind controls.
+- `TableLobby` and `TableLobbyActions` share setup rendering/input behavior;
+  `TabletTable` and `TableControls` share live rendering/controls. Authority
+  adapters own validation and persistence. Complete common-engine hosting,
+  automatic phone takeover and reconnect reconciliation remain a
+  [design](../Documentation/engineering/TABLE_AUTHORITY.md).
 - **Device players and history** opens from Home (connected or disconnected),
   and the local lobby. It shows results and detailed statistics derived
   only from retained local matches by local ID, without combining Atlas totals.
@@ -107,7 +122,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   dropped records cannot be reconstructed. Atlas's 64-receipt dedupe window and
   possible partial credit after storage failure/power loss remain unchanged;
   this is not crash-safe exactly-once statistics across arbitrary retries.
-- No Two-Headed Giant, multi-phone play or Sigils in standalone mode.
+- No multi-phone play or Sigils in standalone mode.
 
 ```text
 Compose UI

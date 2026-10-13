@@ -48,6 +48,19 @@ data class LocalLibrary(
     val history: List<GameRecord> = emptyList(),
     val deliveries: List<MatchDelivery> = emptyList(),
 ) {
+    /** Only a verified destination link joins local decoration to a connected player. */
+    fun linkedPlayer(atlasId: String, profileId: String?): SavedLocalPlayer? =
+        if (atlasId.isBlank() || profileId == null) null else players.firstOrNull { player ->
+            player.links.any { it.atlasId == atlasId && it.profileId == profileId }
+        }
+
+    fun decorateTable(summary: com.turnhub.android.domain.TableSummary): com.turnhub.android.domain.TableSummary =
+        summary.copy(players = summary.players.map { player ->
+            linkedPlayer(summary.atlasId, player.profileId)?.let { local ->
+                player.copy(tileBackground = local.personalization.tileBackground)
+            } ?: player
+        })
+
     fun totals(localId: String): LocalTotals {
         val matches = history.filter { r -> r.players.any { it.localId == localId } }
         return LocalTotals(matches.size, matches.count { r -> r.won(r.players.indexOfFirst { it.localId == localId }) },

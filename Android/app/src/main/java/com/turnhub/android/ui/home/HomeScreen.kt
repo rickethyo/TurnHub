@@ -146,6 +146,8 @@ fun HomeScreen(
     hasLocalGame: Boolean = false,
     onFollowGame: (Int) -> Unit = {},
     onLocalHistory: () -> Unit = {},
+    localState: com.turnhub.android.standalone.StandaloneState = com.turnhub.android.standalone.StandaloneState(),
+    localTable: com.turnhub.android.standalone.StandaloneTable? = null,
 ) {
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
@@ -166,7 +168,11 @@ fun HomeScreen(
     }
     val p = palette
     val haptics = rememberHaptics()
-    val summary = uiState.tableSummary
+    val summary = uiState.tableSummary?.let { localState.library.decorateTable(it) }
+    var editingBackgroundId by rememberSaveable { mutableStateOf<String?>(null) }
+    if (localTable != null) localState.library.players.firstOrNull { it.localId == editingBackgroundId }?.let { player ->
+        com.turnhub.android.ui.tablet.LocalTileBackgroundDialog(player, localTable) { editingBackgroundId = null }
+    }
     var tab by rememberSaveable { mutableStateOf(HomeTab.GAME) }
     val me = uiState.me()
     val info = uiState.sessionInfo()
@@ -208,6 +214,10 @@ fun HomeScreen(
                 if (info?.tablet == true) tabletActions.run { disable() }
             },
             modifier = modifier,
+            onEditBackground = if (localTable == null) null else { player ->
+                editingBackgroundId = summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId)?.localId }
+            },
+            canEditBackground = { player -> summary?.let { localState.library.linkedPlayer(it.atlasId, player.profileId) } != null },
         )
         return
     }

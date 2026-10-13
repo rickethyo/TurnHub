@@ -120,6 +120,12 @@ data class StandaloneGame(
         return copy(players = players.filterIndexed { i, _ -> i != index }).bump()
     }
 
+    /** Clears the selected roster while retaining the lobby's game settings. */
+    fun clearPlayers(): StandaloneGame {
+        if (state != TableState.LOBBY || players.isEmpty()) return this
+        return copy(players = emptyList()).bump()
+    }
+
     /** Moves a player one place earlier ([by] = -1) or later (+1) in turn order. */
     fun movePlayer(index: Int, by: Int): StandaloneGame = swapPlayers(index, index + by)
 
@@ -526,6 +532,7 @@ data class StandaloneGame(
                     team = if (twoHeadedGiant) i / 2 + 1 else null,
                     avatar = personalizations[p.localId]?.icon(),
                     color = personalizations[p.localId]?.color,
+                    tileBackground = personalizations[p.localId]?.tileBackground ?: com.turnhub.android.domain.TileBackground(),
                 )
             },
             physicalSigils = emptyList(),

@@ -33,8 +33,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -43,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -609,11 +609,6 @@ private fun PlayerPanel(
             .fillMaxSize()
             .clip(shape)
             .background(p.surface)
-            // Full-bleed seat color, deeper toward the player's edge, so each seat reads at a glance.
-            .background(Brush.verticalGradient(listOf(
-                hue.copy(alpha = if (p.dark) .30f else .22f),
-                hue.copy(alpha = if (p.dark) .52f else .40f),
-            )))
             .then(
                 if (!active) Modifier.border(1.dp, p.line, shape)
                 else Modifier.drawWithContent {
@@ -629,6 +624,12 @@ private fun PlayerPanel(
                 },
             ),
     ) {
+        // Team panels share space; each player's chosen background gets an equal share.
+        Row(Modifier.fillMaxSize()) {
+            unit.members.forEach { member ->
+                PlayerTileBackground(member.tileBackground, hue, Modifier.weight(1f).fillMaxHeight())
+            }
+        }
         val nameMax = maxWidth * .6f
         val panelWidth = maxWidth
         // Short panels (five or six on a phone) put Menu and Hold to pass beside each other in a

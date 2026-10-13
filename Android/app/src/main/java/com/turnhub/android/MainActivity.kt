@@ -420,6 +420,8 @@ class MainActivity : ComponentActivity() {
                             onAtlasEnabled = ::chooseAtlasEnabled,
                         )
                     } else HomeScreen(
+                        localState = localState,
+                        localTable = standaloneViewModel.table,
                         onFollowGame = homeViewModel::onFollowGame,
                         onPlayStandalone = ::playOnDevice,
                         onLocalHistory = { localHistory = true },

@@ -493,7 +493,7 @@ In tablet mode one Android tablet or phone lies in the middle of the table and a
 
 ## Seating Players
 
-In the lobby, add everyone who is playing with **Seat player**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. Use the arrows to set turn order; panels sit clockwise in that order. Then choose the game, starting life and Two-Headed Giant, and tap **Start the game**.
+In the lobby, add everyone who is playing with **Seat player**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. The table preview stays visible while players join. Drag one player onto another seat, or tap two seats, to swap them; panels sit clockwise in number order. Clear all removes seated accounts through Atlas. Saved accounts remain available. Then choose the game, starting life and Two-Headed Giant, and tap **Start full-screen game**.
 
 Players seated by the tablet can still use their own Sigil or phone as well: a Sigil’s Join picker lists them as at the table, and a phone can sign in to the same player.
 
@@ -515,7 +515,9 @@ The Android app opens directly to the full-screen table on every fresh launch. A
 
 - Type a name in the lobby to create a reusable local player, or select a saved player. Accounts and history also lets you create accounts without starting a game. Every account has a stable local identity and an eight-character hexadecimal account ID. Equal names remain separate. A PIN or password is optional for local account settings; use a 4–8 digit PIN or an 8–64 byte password. Shared-table play remains available without signing in. PIN-protected account settings need unlocking after the app restarts.
 
-- Use the arrows to set turn order, choose the game and starting life, and tap **Start the game**.
+- The table preview stays visible even with zero or one player. Drag a player onto another seat, or tap two seats, to swap their positions. Clear all removes the selected players in one step and preserves saved accounts, history and game settings. Choose the game and starting life, and tap **Start full-screen game**.
+
+Each player's Background button opens their tile settings. Choose Default, Solid, Gradient or a custom cropped image. Backgrounds follow the player across seats and games and stay separate from avatars. Images are saved on this phone at up to 512 by 512 pixels and 48 KiB. Account settings also offer tile backgrounds; an account PIN is required if one is set. A verified link to an Atlas account applies the same background on this phone's connected table.
 
 - The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede, the turn timer, Two-Headed Giant, Star Commander and the winners. There are no phones or Sigils in this mode.
 
