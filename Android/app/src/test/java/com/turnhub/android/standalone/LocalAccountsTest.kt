@@ -36,7 +36,8 @@ class LocalAccountsTest {
     @Test fun `connected decoration requires verified links and preserves canonical state`() {
         val background = TileBackground(TileBackgroundStyle.SOLID, "#123ABC")
         val local = SavedLocalPlayer("local", "Alex", "AABBCCDD", LocalPersonalization(tileBackground = background))
-        val base = StandaloneGame().addPlayer("Alex", profileId = local.profileId).toSummary(0, 0).copy(atlasId = "atlas-a")
+        val localSummary = StandaloneGame().addPlayer("Alex").toSummary(0, 0)
+        val base = localSummary.copy(atlasId = "atlas-a", players = localSummary.players.map { it.copy(profileId = local.profileId) })
         val unlinked = LocalLibrary(players = listOf(local))
         assertEquals(base, unlinked.decorateTable(base))
         val linked = LocalLibrary(players = listOf(local.copy(links = listOf(AtlasProfileLink("atlas-a", local.profileId)))))
