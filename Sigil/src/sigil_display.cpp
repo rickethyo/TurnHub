@@ -1,27 +1,11 @@
 #include "sigil_display.h"
 
-#ifndef TURNHUB_DISPLAY_OLED
-#define TURNHUB_DISPLAY_OLED 0
-#endif
-
-#ifndef TURNHUB_SPARE
-#define TURNHUB_SPARE 0
-#endif
-
-#if TURNHUB_SPARE
-// The spare build drives no panel (FIRMWARE_UPDATES.md).
-#elif TURNHUB_DISPLAY_OLED == 1
-#include "oled_display.h"
-#elif TURNHUB_DISPLAY_OLED == 0
-#include "epaper_display.h"
-#else
-#error "TURNHUB_DISPLAY_OLED must be 0 (e-paper) or 1 (OLED)"
-#endif
-
 namespace TurnHubSigil {
 
-#if TURNHUB_SPARE
 namespace {
+// The Gen 1 e-paper and OLED drivers live on legacy/gen1. Until the LVGL Sigil
+// renderer (LVGL/) is bound to this interface, the unified Sigil is headless:
+// the status ring, buzzer and serial log still report state.
 class NoDisplay : public SigilDisplay {
  public:
   void begin() override {}
@@ -36,16 +20,9 @@ class NoDisplay : public SigilDisplay {
   void showState(uint8_t, TurnHubProtocol::DisplayMode, uint8_t, uint8_t, uint8_t, uint8_t) override {}
 };
 }  // namespace
-#endif
 
 SigilDisplay &getSigilDisplay() {
-#if TURNHUB_SPARE
   static NoDisplay display;
-#elif TURNHUB_DISPLAY_OLED
-  static OledDisplay display;
-#else
-  static EpaperDisplay display;
-#endif
   return display;
 }
 

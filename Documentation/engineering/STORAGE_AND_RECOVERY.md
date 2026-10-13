@@ -55,9 +55,9 @@ prefix plus the profile ID.
 | Speaker volume | `spkvol` | `speaker_settings.h` |
 | First-run setup stage | `setup` | `setup_stage.h` |
 | Atlas Wi-Fi password | `atlas-net/ap-pass` | `web_admin_api.cpp` |
-| Sigil pairings and spare-only marks | `th_pair/s0`-`s7`, `th_pair/p<slot>` | `sigil_bus.cpp` |
-| Battery estimator history | `battery/gauge` + deep-sleep RTC checkpoint; [format/policy](BATTERY_GAUGE.md) | `atlas_battery.cpp` |
-| Touchscreen calibration | `atlas-touch/cal2` | `atlas_display.cpp` |
+| Sigil pairings | `th_pair/s0`-`s7` | `sigil_bus.cpp` |
+| Battery estimator history (Gen 1 only, `legacy/gen1`) | `battery/gauge` + deep-sleep RTC checkpoint; [format/policy](BATTERY_GAUGE.md) | `atlas_battery.cpp` |
+| Display theme and inversion | `display/theme`, `display/inverted` | `atlas_board_none.cpp` |
 | Interrupted-match recovery record | `th_game_v1/checkpoint` | `game_recovery*.cpp` |
 | Detailed statistics, Jewel color, avatar selection | card: `s`, `k`, `v` + id | `profile_store.cpp` via `sdBlobStore()` |
 

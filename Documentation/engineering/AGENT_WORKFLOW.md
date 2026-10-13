@@ -7,12 +7,18 @@
 | `master` | Accepted integration baseline; existing push CI and Play internal upload | Project owner |
 | `codex/master` | Codex's continuing work across chats | Codex |
 | `claude/master` | Claude's continuing work across chats | Claude |
-| `agent/experimental` | Explicitly assigned experiments; no automatic promotion | Owner assigns one current agent |
+| `legacy/gen1` | Frozen current-generation ESP32 Atlas/Sigil firmware, test harness, Sigil v1 PCB and enclosures; Gen 1 bug fixes only | Project owner |
 
-All four branches are permanent. Experiments need a named owner and scope in
-`COLLABORATION.md` before use. The shared experimental branch is not a place for
-both agents to push independently. Separate worktrees prevent one chat or GitHub
-Desktop from switching another chat's checkout.
+All four branches are permanent. Codex and Claude keep separate branches so
+concurrent work never overwrites the other's. `agent/experimental` was retired
+on 2026-10-13 (unused, identical to master). Separate worktrees prevent one
+chat or GitHub Desktop from switching another chat's checkout.
+
+`legacy/gen1` (owner, 2026-10-13) is one-way and isolated: to fix a bug on the
+current ESP32 boards, branch from `legacy/gen1`, open the PR against
+`legacy/gen1`, and merge it there. Never merge `legacy/gen1` into master or
+master into `legacy/gen1`, and never add it to the maintenance allowlist. Its
+CI runs on its own pushes and PRs.
 
 `codex/esp32-s3-lvgl` was a separate development branch for the LVGL/S3
 foundation. Owner direction (2026-10-12, later the same day): its PR #89 is
@@ -20,6 +26,34 @@ integrated into master through `claude/master`, and LVGL work continues on the
 permanent agent branches like any other scope. The branch stays outside the
 maintenance allowlist and is not synchronized automatically; treat it as
 historical unless the owner reopens it.
+
+## Documentation hygiene
+
+Owner rule, 2026-10-13: documentation describes what is true now, in one place,
+for the person who needs it. Every PR prunes what it makes obsolete, in the
+same PR, without being asked:
+
+- **Delete, don't annotate.** Remove documents, sections and lines about
+  removed code, retired hardware (now on `legacy/gen1`), finished plans and
+  superseded designs. Don't leave "was", "used to" or "since <date>" narrative
+  in reference docs; Git and `Documentation/engineering/history/` keep the past.
+- **Agent-only text stays in agent files.** Setup steps, environment
+  workarounds, tool quirks and session notes meant for AI agents belong only in
+  `AGENTS.md`, `CLAUDE.md`, this file and `COLLABORATION.md`, never in
+  human-facing READMEs, references or the manual. Drop a workaround once its
+  cause is fixed, and a dated note once it is simply how things are.
+- **COLLABORATION.md holds open work only.** When a topic closes or its
+  outcome lands in an owning document, move the exchange to `history/` and keep
+  at most a one-line outcome. Session log entries go the same way once their PR
+  merges.
+- **One home per fact.** Link to the owning document rather than repeating it;
+  when two documents disagree, fix the owner and delete the copy.
+
+`python3 tools/scripts/check_docs.py` (run by CI's host-tests job) fails on
+Markdown links to repository paths that no longer exist and on mentions of
+paths retired to `legacy/gen1` outside a paragraph that says so. Its output
+lists the lines to delete or update. Add a path to its `RETIRED` list when a
+later change retires one.
 
 ## Mandatory resource efficiency
 
@@ -79,8 +113,8 @@ specific cross-agent handoff.
 
 `Agent branch maintenance` runs on pushes to `master` and can be run manually
 from Actions after its workflow has reached master. It snapshots the current
-master tip and checks only the explicit allowlist: `codex/master`,
-`claude/master`, `agent/experimental`. It never enumerates `codex/*` or other
+master tip and checks only the explicit allowlist: `codex/master` and
+`claude/master`. It never enumerates `codex/*` or other
 branch prefixes. `codex/esp32-s3-lvgl` is excluded even when it would be eligible
 for a fast-forward; both automatic and manual workflow runs leave it alone.
 

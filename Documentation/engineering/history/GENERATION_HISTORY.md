@@ -158,9 +158,12 @@ That separation meant a player could change controller without changing the play
 
 ## Generation 2 - ESP32 Atlas/Sigil migration
 
-**Status:** Current development generation. This section was written on
-2026-09-19, early in the port; for today's hardware, transport and pairing
-see the topic documents in `Documentation/engineering/`.
+**Status:** Retired 2026-10-12 and frozen on the `legacy/gen1` branch on
+2026-10-13 (the branch name counts ESP32 hardware generations, so this
+Generation 2 is its "Gen 1"). Fix bugs for these boards on that branch; master
+is the ESP32-S3/LVGL track. This section was written on 2026-09-19, early in
+the port; for its hardware, transport and pairing see the topic documents on
+`legacy/gen1`.
 
 ### Product goal
 

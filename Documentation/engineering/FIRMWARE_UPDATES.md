@@ -1,7 +1,12 @@
-# Firmware Updates, Signing and Spare Sigils
+# Firmware Updates and Signing
 
 How Atlas (including its admin portal) and Sigils are packaged, signed, released and
-installed over the air, and how a spare Sigil is parked and brought back.
+installed over the air.
+
+> **Branches (2026-10-13).** Gen 1 firmware, its spare build, flashing scripts
+> and the tag-driven release workflow live on `legacy/gen1`. On master the Sigil
+> has one build (`sigil`), there is no spare image or spare pairing and no
+> `release.yml`.
 USB flashing and board identification are in [Hardware](HARDWARE.md).
 
 ## Retired hardware: no more updates
@@ -12,8 +17,7 @@ in favour of the ESP32-S3 boards. Their PlatformIO builds set
 `TURNHUB_OTA_RETIRED=1` (`firmware_package.h`), so the next USB flash is the
 last: Atlas refuses Atlas and Sigil package uploads with the `retired` error,
 a Sigil refuses every update offer with it, and Atlas ignores app reports of
-newer releases (no update LED). USB flashing still works. A spare Sigil on this
-firmware can no longer return to service over the air; flash it over USB.
+newer releases (no update LED). USB flashing still works.
 Host tests build with the flag off so the update paths below stay covered;
 the rest of this document describes those paths.
 
@@ -88,14 +92,14 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
   app. Rotating it needs a USB flash of every device, or an update signed by
   the old key that carries the new one (last rotated 2026-10-05, `e89210a`).
 - **CI** signs every firmware build when the secret is available (fork PRs
-  stay unsigned). **Releases:** pushing a `v*` tag (everything), `atlas-v*` (Atlas including its portal) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
+  stay unsigned). **Releases** (on `legacy/gen1` only): pushing a `v*` tag (everything), `atlas-v*` (Atlas including its portal) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
   signs and publishes the `.thfw` files and `turnhub-firmware.json`; a
   one-product tag carries the other products over from the previous release so
   the feed stays complete (CONTINUOUS_INTEGRATION.md).
   Cloud sessions can't push tags; the owner pushes them.
 - **Local:** `tools\sign-local.cmd` builds from the working copy and writes
-  verified packages to `Private\TurnHub-builds`; `tools\flash-all.cmd -Sign`
-  signs and flashes over USB (see `CLAUDE.md`).
+  verified packages to `Private\TurnHub-builds`. The one-button USB flasher
+  (`tools\flash-all.cmd -Sign`) is on `legacy/gen1`.
 
 ## Release feed
 
@@ -161,31 +165,6 @@ factory needs one USB flash before its first OTA.
   background): Admin sign-in, one table code, Atlas first, wait for it to
   return, sign in again and get a new code, then each Sigil in turn. First-run
   setup uses the same steps.
-
-## Spare Sigils
-
-A spare is a paired Sigil kept out of play (owner, 2026-10-06; host-tested,
-not yet tried on hardware). It runs `sigil-spare`, one inert image for
-either display.
-
-1. `tools\setup-boards.cmd` > **Make spare** records the board as
-   `spare:<firmware it ran>` in `tools\boards.local.md`.
-2. The next `flash-all` uploads `sigil-spare` over USB (never packaged or
-   signed). Pairing and NVS are kept.
-3. The spare announces `CAPABILITY_SPARE`, with the OLED bit reporting its
-   GPIO4 strap. To bring it back, stage the matching package on the portal's
-   Sigil firmware page (the device shows `spare`) and update it. The package
-   must be at least the spare's version.
-4. The next `flash-all` with that board attached hears the normal boot line,
-   records it as `sigil` or `sigil-oled` and flashes it as that.
-
-An unpaired spare pairs with `PairRequestSpare`, without the code check, and
-stays spare-only ([Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md)).
-Atlas drops everything from a spare except Hello and update status, and the
-picker, the first-run "Sigil paired" check and the update count skip it. The
-spare draws nothing (an e-ink panel keeps its last image), plays nothing and
-sends no input; its ring shows only pairing and update animations. Serial
-says `SIGIL|SPARE|EINK` or `SIGIL|SPARE|OLED`.
 
 ## Limits
 

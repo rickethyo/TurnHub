@@ -12,12 +12,12 @@ the longer-term provisioning direction (home Wi-Fi, recovery mode) is in [`OOBE.
 
 ## Hardware
 
-- LCDwiki E32R28T 2.8" display module (ESP32-32E). The touchscreen is the only
-  physical input, plus the DevKit BOOT button for pair / unpair / factory reset.
-- On-board speaker for table-wide cues; optional microSD card.
+- Master builds board-less for a generic 4 MB ESP32 until the S3 Atlas lands:
+  no screen, speaker or battery; the BOOT button pairs, unpairs and factory
+  resets; optional microSD card. The Gen 1 E32R28T build is on `legacy/gen1`.
 - ESP-NOW Sigil transport and the WPA2 access point, both on Wi-Fi channel 6.
 
-Pins and the touchscreen layout are in the
+Pins and the board boundary are in the
 [Hardware Reference](../Documentation/engineering/HARDWARE.md).
 
 ## Profiles and phone play
@@ -122,8 +122,7 @@ pio device monitor
 ```
 
 Find the port each time (Atlas is the CH340 port); never hard-code it. Signed
-local builds, the one-button `tools\flash-all.cmd` (run `tools\setup-boards.cmd`
-first on a new PC or with new boards) and OTA updates are
+local builds and OTA updates are
 described in the repository's `CLAUDE.md` and in
 [Sigil OTA](../Documentation/engineering/FIRMWARE_UPDATES.md). The portal is at
 `192.168.4.1`.

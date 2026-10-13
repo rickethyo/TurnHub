@@ -47,23 +47,14 @@ constexpr uint32_t LINK_TIMEOUT_MS = 7000;
 // (InputTiming) and the NeoPixel Jewel status ring it draws itself (LedState).
 // The byte carries only what varies (owner, 2026-09-30).
 //
-// 0x01, 0x02, 0x04, 0x08 and 0x20 are free (0x01 was the OLED Sigil's
+// 0x01, 0x02, 0x04, 0x08, 0x20, 0x40 and 0x80 are free (0x40 was the Gen 1
+// spare Sigil and 0x80 its test harness, both on legacy/gen1; 0x01 was the OLED Sigil's
 // five-button d-pad, retired 2026-10-01 when every Sigil got the thumbstick;
 // the others were the feature bits protocol 2 used to announce the baseline).
 //
 // The Sigil has the OLED display (sigil-oled); clear: e-paper. Also picks the
 // OTA package. Both displays seat two players.
 constexpr uint8_t CAPABILITY_DISPLAY_OLED = 0x10;
-// A hardware test harness (TestHarness/), not a player controller. Atlas then
-// offers its premade tests on the touchscreen and sends HarnessCommand; the
-// harness answers with HarnessReport. It still plays only through the normal
-// Sigil packets, so it gains no authority.
-constexpr uint8_t CAPABILITY_HARNESS = 0x80;
-// A spare Sigil (Sigil env:sigil-spare, FIRMWARE_UPDATES.md): paired but inert,
-// with no display or input. Atlas never seats it or takes its input, and
-// sends it the OTA package its display bit (its GPIO4 strap) names, which
-// brings it back as a normal Sigil.
-constexpr uint8_t CAPABILITY_SPARE = 0x40;
 
 
 // Action-button hold thresholds. Atlas chooses them from the seated players'
@@ -86,17 +77,16 @@ constexpr uint16_t HOLD_STEP_MS = 250;
 enum class PacketType : uint8_t {
   Hello = 1,
   Ack = 2,
-  // Unused numbers (3-8, 10-11, 20-22, 26) belonged to retired packets: the
-  // three-button gestures, keyless pairing, the per-channel light stream and
-  // the pre-0.8 menu. Free for new packets from protocol 3 on.
+  // Unused numbers (3-8, 10-11, 14, 20-22, 26-27) belonged to retired packets:
+  // the three-button gestures, keyless pairing, the per-channel light stream,
+  // the pre-0.8 menu, the Gen 1 test harness's report and command, and the
+  // Gen 1 spare pairing request (52). Free for new packets from protocol 3 on.
   DisplayProfileRequest = 9,
   // Atlas -> Sigil: Atlas forgot this Sigil; it erases its saved pairing.
   // Best effort: a Sigil that misses it stays paired until re-paired or reset.
   Unpair = 12,
   // Sigil -> Atlas: the player chose a menu action (encodeSelectAction).
   SelectAction = 13,
-  // Harness -> Atlas: test run progress (encodeHarnessReport).
-  HarnessReport = 14,
   // Sigil -> Atlas: a key pressed in the profile picker (encodePickerKey).
   PickerKey = 15,
   // Sigil -> Atlas: change one of this Sigil's players' life by a
@@ -109,7 +99,6 @@ enum class PacketType : uint8_t {
   HardwareTest = 50,  // Atlas -> Sigil: 1 screen, 2 status ring; temporary only.
   InputTiming = 24,  // Atlas -> Sigil: hold thresholds (encodeInputTiming).
   LedState = 25,     // Atlas -> Sigil: semantic light state (encodeLedState).
-  HarnessCommand = 27,  // Atlas -> harness: run or stop a test (encodeHarnessCommand).
   // Atlas -> Sigil: erase all saved settings (NVS) and restart. Only honored
   // from the paired Atlas, for this Sigil's ID, with FACTORY_RESET_CONFIRM.
   FactoryReset = 28,
@@ -163,11 +152,6 @@ enum class PacketType : uint8_t {
   GameDisplay = 32,
   CommanderFlow = 50,
   CommanderKey = 51,
-  // A spare Sigil's PairRequest2 (same layout, FIRMWARE_UPDATES.md). Atlas pairs
-  // it during its pairing window without the owner's code check, and keeps
-  // that Sigil spare-only: if it later says it is a normal Sigil, Atlas
-  // forgets it so it pairs again with the code check.
-  PairRequestSpare = 52,
 };
 
 enum class DisplayMode : uint8_t {
@@ -814,96 +798,6 @@ inline uint16_t inputTimingLongPress(int32_t value) {
 }
 inline uint16_t inputTimingWinHold(int32_t value) {
   return static_cast<uint16_t>((static_cast<uint32_t>(value) >> 16) & 0xFFFFu);
-}
-
-// --- Test harness (CAPABILITY_HARNESS) -------------------------------------
-// Premade tests the Atlas touchscreen can start. The harness owns what each
-// one does; Atlas only names them.
-enum class HarnessTest : uint8_t {
-  RadioCheck = 0,   // Every virtual Sigil paired, answering Hello, with a menu.
-  QuickGame = 1,    // 2 players, 3 turns, reset.
-  FullGame = 2,     // 4 players, 6 turns, pause, elimination, win, reset.
-  RematchGame = 3,  // 3 players: a game, rematch, a second game, reset.
-  Soak = 4,         // Five 4-player games in a row.
-  Count
-};
-
-inline const char *harnessTestName(uint8_t test) {
-  switch (static_cast<HarnessTest>(test)) {
-    case HarnessTest::RadioCheck: return "Radio check";
-    case HarnessTest::QuickGame: return "2-player game";
-    case HarnessTest::FullGame: return "4-player game";
-    case HarnessTest::RematchGame: return "Rematch game";
-    case HarnessTest::Soak: return "Soak x5";
-    default: return "Unknown test";
-  }
-}
-
-// The checkpoints a run reports, in the order a game reaches them.
-enum class HarnessStep : uint8_t {
-  None = 0, Paired, HelloAck, Menu, Lobby, Join, SeatB, Host, Start, Turn, Pause, Resume,
-  Eliminate, ResumeAfterElimination, ClaimWin, ConfirmWin, GameOver, RematchLobby, ResetTable,
-  // Join through the profile picker (Guest), a life change
-  // checked against the game display, and leaving the lobby.
-  Picker, Life, Leave,
-  Count
-};
-
-inline const char *harnessStepName(uint8_t step) {
-  static const char *const NAMES[] = {"NONE", "PAIRED", "HELLO_ACK", "MENU", "LOBBY", "JOIN",
-      "SEAT_B", "HOST", "START", "TURN", "PAUSE", "RESUME", "ELIMINATE",
-      "RESUME_AFTER_ELIMINATION", "CLAIM_WIN", "CONFIRM_WIN", "GAME_OVER", "REMATCH_LOBBY",
-      "RESET_TABLE", "PICKER", "LIFE", "LEAVE"};
-  static_assert(sizeof(NAMES) / sizeof(NAMES[0]) == static_cast<size_t>(HarnessStep::Count),
-      "One name per HarnessStep");
-  return step < static_cast<uint8_t>(HarnessStep::Count) ? NAMES[step] : "UNKNOWN";
-}
-
-enum class HarnessCommandKind : uint8_t { Run = 0, Stop = 1 };
-
-// HarnessCommand payload: bits 0-3 kind, 4-7 test.
-inline int32_t encodeHarnessCommand(HarnessCommandKind kind, HarnessTest test = HarnessTest::RadioCheck) {
-  return static_cast<int32_t>((static_cast<uint32_t>(kind) & 0x0Fu) |
-      ((static_cast<uint32_t>(test) & 0x0Fu) << 4));
-}
-inline uint8_t harnessCommandKind(int32_t value) {
-  return static_cast<uint8_t>(static_cast<uint32_t>(value) & 0x0Fu);
-}
-inline uint8_t harnessCommandTest(int32_t value) {
-  return static_cast<uint8_t>((static_cast<uint32_t>(value) >> 4) & 0x0Fu);
-}
-
-enum class HarnessRunState : uint8_t { Idle = 0, Running = 1, Passed = 2, Failed = 3, Stopped = 4 };
-
-// HarnessReport payload: bits 0-2 state, 3-7 test, 8-15 last step, 16-23
-// steps passed, 24-31 steps failed (both saturate at 255).
-struct HarnessReportFields {
-  HarnessRunState state = HarnessRunState::Idle;
-  uint8_t test = 0;
-  uint8_t step = 0;
-  uint8_t passed = 0;
-  uint8_t failed = 0;
-};
-
-inline int32_t encodeHarnessReport(const HarnessReportFields &f) {
-  return static_cast<int32_t>((static_cast<uint32_t>(f.state) & 0x07u) |
-      ((static_cast<uint32_t>(f.test) & 0x1Fu) << 3) |
-      (static_cast<uint32_t>(f.step) << 8) |
-      (static_cast<uint32_t>(f.passed) << 16) |
-      (static_cast<uint32_t>(f.failed) << 24));
-}
-
-inline HarnessReportFields decodeHarnessReport(int32_t value) {
-  const uint32_t v = static_cast<uint32_t>(value);
-  HarnessReportFields f;
-  const uint8_t state = static_cast<uint8_t>(v & 0x07u);
-  f.state = state <= static_cast<uint8_t>(HarnessRunState::Stopped)
-      ? static_cast<HarnessRunState>(state) : HarnessRunState::Idle;
-  f.test = static_cast<uint8_t>((v >> 3) & 0x1Fu);
-  f.step = static_cast<uint8_t>((v >> 8) & 0xFFu);
-  f.passed = static_cast<uint8_t>((v >> 16) & 0xFFu);
-  f.failed = static_cast<uint8_t>((v >> 24) & 0xFFu);
-  return f;
 }
 
 }  // namespace TurnHubProtocol

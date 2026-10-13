@@ -4,8 +4,8 @@ Status: **Planned hardware; verified vendor documents, not physical acceptance**
 Research date: 2026-10-11. Atlas candidate ES3C40P; Sigil candidate ES3C28P.
 Require the capacitive **C** SKU: ES3N28P has no touch. An equivalent must match
 controller, memory, connector, power and mechanical requirements individually.
-Legacy Atlas E32R28T and all ESP32 DevKit Sigil targets remain the working baseline.
-No legacy pins, PlatformIO environments, radio packets, OTA or enclosure files change.
+The Gen 1 E32R28T Atlas and ESP32 DevKit Sigils remain the working baseline on
+`legacy/gen1`; master builds board-less until these targets exist.
 
 ## Evidence and confidence
 
@@ -218,7 +218,7 @@ await samples. No battery runtime or sleep current has been measured.
 
 ## Mechanical changes and release checklist
 
-Reviewed `3D/README.md` and both print sets, plus KiCad EInk/OLED/JewelAdapter
+Reviewed `3D/README.md` and both print sets (now on `legacy/gen1`), plus KiCad EInk/OLED/JewelAdapter
 schematics, PCB nets and existing fit/DRC holds. Current Atlas shell 98 × 90.95 ×
 43.34 mm and Sigil shell 64 × 167.28 × 73.70 mm are legacy envelopes, not proof
 new boards fit. The rotated 4-inch board is 112 mm wide, exceeding the legacy

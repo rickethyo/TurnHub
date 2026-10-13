@@ -9,7 +9,7 @@ pushd "%~dp0"
 if not exist build mkdir build
 python ../../web/build.py --header build/generated/web_assets.h
 if errorlevel 1 exit /b 1
-cl /nologo /std:c++17 /EHsc /W4 /Istubs /Ibuild/generated /I../../include /I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp ../../src/commander_picker.cpp ../../src/profile_picker.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp ../../src/harness_link.cpp ../../src/sigil_accessibility.cpp ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/sigil_update_service.cpp ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp ../../src/ota_manager.cpp ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp /Fo:build/ /Fe:build/scenarios.exe
+cl /nologo /std:c++17 /EHsc /W4 /Istubs /Ibuild/generated /I../../include /I../../../shared/include scenarios.cpp test_globals.cpp profile_fixture.cpp ../../src/app_context.cpp ../../src/gameplay_intents.cpp ../../src/table_intents.cpp ../../src/moderation_intent.cpp ../../src/sigil_input.cpp ../../src/sigil_menu.cpp ../../src/commander_picker.cpp ../../src/profile_picker.cpp ../../src/web_adapters.cpp ../../src/front_panel.cpp ../../src/touch_controls.cpp ../../src/sigil_accessibility.cpp ../../src/audio_controller.cpp ../../src/led_renderer.cpp ../../src/controller_profiles.cpp ../../src/web_api.cpp ../../src/web_session.cpp ../../src/web_profile_api.cpp ../../src/web_game_api.cpp ../../src/web_tablet_api.cpp ../../src/web_standalone_api.cpp ../../src/standalone_import.cpp ../../src/sigil_update_service.cpp ../../src/sigil_update_jobs.cpp ../../src/web_admin_api.cpp ../../src/profile_statistics.cpp ../../src/profile_stats_bridge.cpp ../../src/web_pages.cpp ../../src/ota_manager.cpp ../../src/game_engine.cpp ../../src/lobby.cpp ../../src/intent_dispatcher.cpp ../../src/client_state.cpp ../../src/game_checkpoint.cpp ../../src/game_recovery.cpp ../../src/game_recovery_store.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp /Fo:build/ /Fe:build/scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
 build\scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
@@ -25,9 +25,6 @@ cl /nologo /std:c++17 /EHsc /W4 /Istubs /Ibuild/generated /I../../include /I../.
 if errorlevel 1 (popd & exit /b 1)
 build\ota_scenarios.exe
 if errorlevel 1 (popd & exit /b 1)
-cl /nologo /std:c++17 /EHsc /W4 /Ibattery_stubs /Istubs /I../../include /I../../../shared/include battery_firmware_scenarios.cpp ../../src/nvs_blob_store.cpp ../../src/serial_log.cpp /Fo:build/ /Fe:build/battery_firmware_scenarios.exe
-if errorlevel 1 (popd & exit /b 1)
-build\battery_firmware_scenarios.exe
 set result=%errorlevel%
 popd
 exit /b %result%

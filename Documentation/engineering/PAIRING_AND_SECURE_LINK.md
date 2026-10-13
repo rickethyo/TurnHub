@@ -40,11 +40,9 @@ Rules:
   A reboot never opens one. Several Sigils can wait at once, each with its
   own code.
 - Radio callbacks only enqueue; NVS work runs in `loop()`.
-- **Spares** (owner, 2026-10-06) have no screen, so they send
-  `PairRequestSpare` and Atlas confirms them during its window without the
-  code check. That pairing is marked spare-only (`th_pair/p<slot>`): Atlas
-  drops all its input but Hello and update status, and forgets it if it
-  later announces a normal Sigil, which then pairs again with the code check.
+- Every pairing goes through the code check. The Gen 1 spare Sigil's
+  code-less pairing (`PairRequestSpare`) was removed from master on
+  2026-10-13 and lives on `legacy/gen1`.
 
 ## Forgetting and erasing
 

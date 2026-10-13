@@ -23,9 +23,7 @@
 // modules it binds are linked from ../../src, not copied rules.
 #include "../../src/main.cpp"
 #include "profile_stats_bridge.h"
-#include "touch_calibration.h"
 #include "touch_controls.h"
-#include "harness_link.h"
 #include "../../../Sigil/include/received_packet.h"
 #include "../../../Sigil/include/display_name.h"
 
@@ -69,7 +67,7 @@ const TurnHubSecureLink::PendingPairing *SigilBus::pendingPairing(uint8_t slot) 
 uint8_t SigilBus::pendingPairingCount() const {
   uint8_t n=0; for (const auto &p:fixturePending) n+=p.used?1:0; return n;
 }
-bool SigilBus::decidePairing(uint8_t slot, bool confirm, bool) {
+bool SigilBus::decidePairing(uint8_t slot, bool confirm) {
   if(slot>=MAX_PHYSICAL_SIGILS||!fixturePending[slot].used) return false;
   fixturePending[slot]=TurnHubSecureLink::PendingPairing{};
   if(confirm&&fixturePairStoreFails){ fixturePairDecisions[slot]=-1; return false; }
@@ -103,8 +101,6 @@ static int32_t fixturePassPending[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureStartingLife[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureUpdateNotice[MAX_PHYSICAL_SIGILS]{};
 static int32_t fixtureSeatColor[MAX_PHYSICAL_SIGILS][2]{};  // [id][slot & 1]: A at 1, B at 0.
-static int32_t fixtureHarnessCommand=-1;
-static unsigned fixtureHarnessCommands=0;
 static int fixtureFactoryResetSigil=-1;
 static int32_t fixtureFactoryResetValue=0;
 bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
@@ -117,7 +113,6 @@ bool SigilBus::send(uint8_t id,TurnHubProtocol::PacketType type,int32_t value) {
   if(type==TurnHubProtocol::PacketType::StartingLife&&fixtureRadio) fixtureStartingLife[id]=value;
   if(type==TurnHubProtocol::PacketType::UpdateNotice&&fixtureRadio) fixtureUpdateNotice[id]=value;
   if(type==TurnHubProtocol::PacketType::SeatColor&&fixtureRadio) fixtureSeatColor[id][TurnHubProtocol::seatColorSlot(value)&1]=value;
-  if(type==TurnHubProtocol::PacketType::HarnessCommand&&fixtureRadio) { fixtureHarnessCommand=value; ++fixtureHarnessCommands; }
   if(type==TurnHubProtocol::PacketType::FactoryReset&&fixtureRadio) { fixtureFactoryResetSigil=id; fixtureFactoryResetValue=value; }
   return fixtureRadio;
 }
@@ -1410,8 +1405,9 @@ static void profilePicker() {
     record.helloInfoValid = true; record.capabilities = 0;
   }
   fixtureRecords[2].capabilities |= CAPABILITY_DISPLAY_OLED;
-  fixtureRecords[6].capabilities |= CAPABILITY_HARNESS;
+  fixtureRecords[6].helloInfoValid = false;
   assert(pickerSigil(1) && pickerSigil(2) && pickerSigil(3) && !pickerSigil(6));
+  fixtureRecords[6].helloInfoValid = true;
   const auto pick = [](uint8_t id, A a) { handleSelectAction(id, encodeSelectAction(a, sigilMenuRevision(id))); };
   const auto key = [](uint8_t id, PickerKeyCode k) {
     handlePickerKey(id, encodePickerKey(k, profilePickerPage(id).revision), testNow);
@@ -1596,10 +1592,6 @@ static void sigilLife() {
   assert(offered(0) && offered(1));
   // One seat per Sigil here: nothing to switch to (two-seat case: physicalGameDisplay).
   assert(!(sigilMenuFor(0).actions & sigilActionBit(SigilAction::SwitchSeat)));
-  // The test harness plays life like a real Sigil.
-  fixtureRecords[1].capabilities |= CAPABILITY_HARNESS;
-  assert(offered(1));
-  fixtureRecords[1].capabilities = 0;
   const PlayerSeat a = *table().game.playerByNumber(table().lobby.playerNumber(0, 1));
   const PlayerSeat b = *table().game.playerByNumber(table().lobby.playerNumber(1, 1));
   const int32_t start = table().game.lifeTotal(a.playerNumber);
@@ -2434,43 +2426,6 @@ static void seatPass() {
   assert(dispatchSeatIntent(IntentType::Pass,IntentOrigin::PhysicalSigil,*table().game.activePlayer()).accepted());
 }
 
-// Touch calibration math: solve from four simulated presses, then map.
-static void touchCalibrationMath() {
-  const int16_t W=ATLAS_SCREEN_WIDTH, H=ATLAS_SCREEN_HEIGHT;
-  // Simulated panels: raw = offset + scale * pixel on each channel, optionally
-  // swapped. The second has a different Y offset and scale from the shipped
-  // defaults, like the first E32R28T, whose touches landed low.
-  struct Panel { bool swap; int32_t x0,xStep100,y0,yStep100; };
-  for (const Panel &p : {Panel{false,3700,-1094,3800,-1483}, Panel{false,3700,-1094,3500,-1400},
-                         Panel{true,300,1100,3900,-1500}}) {
-    uint16_t rawX[TOUCH_CAL_POINTS], rawY[TOUCH_CAL_POINTS];
-    auto rawAt=[&](int16_t sx,int16_t sy,uint16_t &rx,uint16_t &ry){
-      const int32_t a=p.x0+p.xStep100*sx/100, b=p.y0+p.yStep100*sy/100;
-      rx=static_cast<uint16_t>(p.swap?b:a); ry=static_cast<uint16_t>(p.swap?a:b);
-    };
-    for (uint8_t i=0;i<TOUCH_CAL_POINTS;++i) {
-      int16_t tx,ty; touchCalibrationTarget(i,W,H,tx,ty); rawAt(tx,ty,rawX[i],rawY[i]);
-    }
-    TouchCalibration cal; assert(solveTouchCalibration(rawX,rawY,W,H,cal));
-    assert(cal.swapXY==(p.swap?1:0) && validTouchCalibration(cal));
-    for (int16_t sy : {0,60,104,134,164,239}) for (int16_t sx : {0,8,160,311,319}) {
-      uint16_t rx,ry; rawAt(sx,sy,rx,ry); int16_t mx,my; mapTouch(cal,rx,ry,W,H,mx,my);
-      assert(abs(mx-sx)<=2 && abs(my-sy)<=2);
-    }
-  }
-  // Presses that do not span the panel, or axes that do not separate, are refused.
-  uint16_t same[TOUCH_CAL_POINTS]={2000,2000,2000,2000};
-  TouchCalibration untouched; assert(!solveTouchCalibration(same,same,W,H,untouched));
-  uint16_t diagX[TOUCH_CAL_POINTS]={500,3500,3500,500}, diagY[TOUCH_CAL_POINTS]={500,3500,3500,500};
-  assert(!solveTouchCalibration(diagX,diagY,W,H,untouched));
-  // The shipped defaults are a valid fallback, and mapping clamps to the screen.
-  const TouchCalibration fallback=defaultTouchCalibration(); assert(validTouchCalibration(fallback));
-  int16_t mx,my; mapTouch(fallback,0,65535,W,H,mx,my); assert(mx>=0&&mx<W&&my>=0&&my<H);
-  // Recalibration may only take over the screen in the lobby.
-  freshLobby(2); assert(touchCalibrationAllowed());
-  startFromHost(); assert(!touchCalibrationAllowed()); enterEmptyLobby();
-}
-
 // Both display variants can join Seat B and start a shared-seat match.
 static void oledSigilSeatsTwoPlayers() {
   using TurnHubProtocol::CAPABILITY_DISPLAY_OLED;
@@ -2857,7 +2812,7 @@ static void atlasScreens() {
 
 // Newer firmware (update_notice.h): the app reports the release feed's
 // versions; Atlas counts itself and each paired Sigil that runs something
-// older (never the harness), and says so on the Menu and Info screens.
+// older, and says so on the Menu and Info screens.
 static void updateNotice() {
   using namespace TurnHubProtocol;
   TurnHub::FirmwareRelease r;
@@ -2875,13 +2830,13 @@ static void updateNotice() {
   assert(request("/api/updates/latest","",{{"atlas","nine"}})==400);
   char newer[16];
   snprintf(newer,sizeof(newer),"%u.%u.%u",TurnHubFirmware::MAJOR,TurnHubFirmware::MINOR,TurnHubFirmware::PATCH+1);
-  // Two e-ink Sigils on 0.9.2 and an OLED on 0.9.3, plus the harness on 0.1.0.
+  // Two e-ink Sigils on 0.9.2 and an OLED on 0.9.3.
   auto hello=[](uint8_t id,uint8_t caps,uint8_t patch){
     auto &record=TurnHub::fixtureRecords[id];
     record.helloInfoValid=true; record.capabilities=caps;
     record.firmwareMajor=0; record.firmwareMinor=9; record.firmwarePatch=patch;
   };
-  hello(0,0,2); hello(1,0,2); hello(2,CAPABILITY_DISPLAY_OLED,3); hello(3,CAPABILITY_HARNESS,0);
+  hello(0,0,2); hello(1,0,2); hello(2,CAPABILITY_DISPLAY_OLED,3);
   assert(request("/api/updates/latest","",{{"sigilEink","0.9.3"},{"sigilOled","0.9.3"}})==200);
   assert(firmwareUpdatesAvailable()==2 && server.body.find("\"updatesAvailable\":2")!=std::string::npos &&
       server.body.find("\"atlas\":null")!=std::string::npos);
@@ -2908,58 +2863,6 @@ static void updateNotice() {
   assert(startsWith(currentScreen().lines[4],"Up "));
   for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=false; record.capabilities=0; }
   resetTouchControls();
-}
-
-// A connected test harness (CAPABILITY_HARNESS) adds Tests to the lobby; its
-// screen starts premade tests over the radio and shows progress in words.
-static void harnessScreen() {
-  using namespace TurnHubProtocol;
-  resetTouchControls(); resetHarnessLink(); freshLobby(2); pairingActive=false;
-  openMenuScreen(); AtlasScreen s=currentScreen();
-  assert(!screenButton(s,TouchAction::OpenTests) && harnessSigilId(testNow)==INVALID_ID);
-  // A report from an ordinary Sigil is ignored.
-  HarnessReportFields running; running.state=HarnessRunState::Running;
-  running.test=static_cast<uint8_t>(HarnessTest::FullGame); running.step=static_cast<uint8_t>(HarnessStep::Turn);
-  running.passed=12;
-  noteHarnessReport(2,encodeHarnessReport(running),testNow); HarnessReportFields r;
-  assert(!harnessReport(testNow,r));
-
-  TurnHub::SigilRecord &rec=TurnHub::fixtureRecords[2];
-  rec.helloInfoValid=true; rec.capabilities=CAPABILITY_HARNESS;
-  assert(harnessSigilId(testNow)==2);
-  s=currentScreen();
-  const TouchButton *info=screenButton(s,TouchAction::OpenInfo), *tests=screenButton(s,TouchAction::OpenTests);
-  assert(info && tests && info->w>=44 && tests->w>=44 && info->x>=tests->x+tests->w && tests->y==info->y);
-  tapButton(TouchAction::OpenTests); s=currentScreen();
-  assert(String(s.title)=="Test harness" && String(s.detail)=="Ready: pick a test" && s.buttonCount==6);
-  for (const TouchButton &b : s.buttons) if (b.action!=TouchAction::None)
-    assert(b.w>=44 && b.h>=44 && b.x>=0 && b.x+b.w<=ATLAS_SCREEN_WIDTH && b.y+b.h<=ATLAS_SCREEN_HEIGHT);
-
-  TurnHub::fixtureHarnessCommands=0; tapButton(TouchAction::RunFullGame);
-  assert(TurnHub::fixtureHarnessCommands==1 && harnessCommandKind(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessCommandKind::Run) &&
-      harnessCommandTest(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessTest::FullGame));
-  assert(table().hubState==HubState::Lobby);  // Atlas changes nothing itself; the harness plays.
-
-  noteHarnessReport(2,encodeHarnessReport(running),testNow); s=currentScreen();
-  assert(String(s.title)=="4-player game" && String(s.detail)=="TURN, 12 ok" &&
-      s.buttonCount==2 && screenButton(s,TouchAction::StopTest) && screenButton(s,TouchAction::CloseTests));
-  tapButton(TouchAction::StopTest);
-  assert(harnessCommandKind(TurnHub::fixtureHarnessCommand)==static_cast<uint8_t>(HarnessCommandKind::Stop));
-  HarnessReportFields failed=running; failed.state=HarnessRunState::Failed; failed.failed=1;
-  noteHarnessReport(2,encodeHarnessReport(failed),testNow);
-  assert(String(currentScreen().detail)=="FAILED at TURN");
-  // The screen stays up while the harness plays, then a stale report lapses.
-  startFromHost(); assert(String(currentScreen().detail)=="FAILED at TURN");
-  testNow+=HARNESS_REPORT_STALE_MS; assert(String(currentScreen().detail)=="Ready: pick a test");
-  tapButton(TouchAction::CloseTests); assert(!screenButton(currentScreen(),TouchAction::StopTest));
-  assert(String(currentScreen().title)!="Test harness");
-  enterEmptyLobby(); openMenuScreen();
-  // Without a harness the Tests button goes, and an open test screen offers only Back.
-  tapButton(TouchAction::OpenTests); rec.capabilities=0; s=currentScreen();
-  assert(String(s.detail)=="Harness offline" && s.buttonCount==1 && screenButton(s,TouchAction::CloseTests));
-  tapButton(TouchAction::CloseTests); assert(currentScreen().kind==ScreenKind::Menu);
-  assert(!screenButton(currentScreen(),TouchAction::OpenTests));
-  rec.helloInfoValid=false; rec.capabilities=0; resetTouchControls(); resetHarnessLink();
 }
 
 // The touchscreen between games: Start (two or more players), Cancel start,
@@ -3195,7 +3098,6 @@ static void helloCapabilityLayout() {
   using namespace TurnHubProtocol;
   assert(helloCapabilities(encodeHelloInfo(0,9,0,CAPABILITY_DISPLAY_OLED)) == CAPABILITY_DISPLAY_OLED);
   assert(helloCapabilities(encodeHelloInfo(0,9,0,0)) == 0);  // E-paper.
-  assert(helloCapabilities(encodeHelloInfo(1,2,3,CAPABILITY_HARNESS)) == CAPABILITY_HARNESS);
   assert(helloFirmwareMajor(encodeHelloInfo(1,2,3,0)) == 1 && helloFirmwareMinor(encodeHelloInfo(1,2,3,0)) == 2 &&
       helloFirmwarePatch(encodeHelloInfo(1,2,3,0)) == 3);
 }
@@ -3311,15 +3213,15 @@ static void firstRunSetup() {
   tapButton(TouchAction::CloseScreen);
 
   // Sigils paired during the phone's steps: nothing is left for "You're all
-  // set" to say, so finishing goes straight to Complete. The test harness
-  // alone doesn't count as a Sigil.
+  // set" to say, so finishing goes straight to Complete.
   TurnHub::fixtureRadio=true;
   TurnHub::SigilRecord savedRecords[MAX_PHYSICAL_SIGILS]; memcpy(savedRecords,TurnHub::fixtureRecords,sizeof(savedRecords));
-  for (auto &record : TurnHub::fixtureRecords) { record.helloInfoValid=true; record.capabilities=TurnHubProtocol::CAPABILITY_HARNESS; }
+  bool savedForgotten[MAX_PHYSICAL_SIGILS]; memcpy(savedForgotten,TurnHub::fixtureForgotten,sizeof(savedForgotten));
+  for (bool &forgotten : TurnHub::fixtureForgotten) forgotten=true;
   setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
   assert(request("/api/setup/finish",owner,{{"password","table-pass-3"}})==200);
   assert(setupStage==SetupStage::Finished && TurnHub::fixtureSetupStageSaved==1);
-  TurnHub::fixtureRecords[1].capabilities=0;
+  TurnHub::fixtureForgotten[1]=false;
   setupStage=SetupStage::Welcome; Preferences::strings().erase(AtlasConfig::WIFI_PREF_KEY);
   assert(request("/api/setup/finish",owner,{{"password","table-pass-3"},{"uploadApprovalRequired","invalid"}})==400);
   assert(uploadApprovalRequired);
@@ -3329,7 +3231,7 @@ static void firstRunSetup() {
   assert(setupStage==SetupStage::Complete && TurnHub::fixtureSetupStageSaved==2);
   assert(request("/api/upload-approval",owner,{{"required","1"}})==200);
   assert(currentScreen().kind==ScreenKind::Status);
-  memcpy(TurnHub::fixtureRecords,savedRecords,sizeof(savedRecords)); TurnHub::fixtureRadio=previousRadio;
+  memcpy(TurnHub::fixtureRecords,savedRecords,sizeof(savedRecords)); memcpy(TurnHub::fixtureForgotten,savedForgotten,sizeof(savedForgotten)); TurnHub::fixtureRadio=previousRadio;
 
   assert(request("/api/session/logout",owner)==200 && request("/api/session/logout",guest)==200);
   // The fixture's profile store is small; later scenarios need the room.
@@ -4894,10 +4796,8 @@ int main() {
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
   touchTableLifecycle(); std::cout<<"PASS touchscreen Start, Cancel start, Rematch and Reset between games, lobby Clear hold\n";
   masterPass(); std::cout<<"PASS master pass: Table screen hold, Atlas hardware only, immediate, logged, overrides a queued PASS\n";
-  touchCalibrationMath(); std::cout<<"PASS touch calibration: solve, swap/invert, offset panel, refusals, clamp, lobby-only\n";
   touchControls(); std::cout<<"PASS touchscreen: Pair, Start, presence code screen/cancel/expiry, Pause/Resume, Table screen, end-match hold, slide-off, drop-out, stale press\n";
-  harnessScreen(); std::cout<<"PASS test harness screen: Tests button, premade tests, progress, stop, stale reports, offline\n";
-  updateNotice(); std::cout<<"PASS update notice: app-reported versions, devices behind (harness excluded), Menu and Info text\n";
+  updateNotice(); std::cout<<"PASS update notice: app-reported versions, devices behind, Menu and Info text\n";
   atlasScreens(); std::cout<<"PASS Atlas screens: player chips, NO SD CARD, info, QR codes (Wi-Fi, portal, sign in), turn clock" << std::endl;
   oledSigilSeatsTwoPlayers(); std::cout<<"PASS OLED and e-paper shared seats: chord, join, leave and game start\n";
   atlasSpeaker(); std::cout<<"PASS Atlas speaker: table-wide cues, phone-only table, Sigil mute independence, admin volume setting\n";

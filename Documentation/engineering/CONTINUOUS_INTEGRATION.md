@@ -18,20 +18,16 @@ and maintenance-script changes require CI, not `[skip ci]`.
 
 | Check name | Work performed |
 | --- | --- |
-| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil OLED, LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
-| Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw`; render Atlas screen previews |
-| Firmware (sigil) | E-ink Sigil; descriptor check, signed `sigil-eink.thfw`, e-ink and OLED screen previews |
-| Firmware (sigil-oled) | OLED Sigil; descriptor check and signed `sigil-oled.thfw` |
-| Firmware (sigil-spare) | The inert spare image `flash-all` puts on spare boards; never packaged |
+| Host tests and contracts | Atlas gameplay, storage and profile-store suites; Sigil LED, menu, secure-link, pairing and firmware-package suites; adapter audit; generated-response and shared-fixture contract validation; design tokens current (`design/build_tokens.py --check`); embedded admin portal builds (`Atlas/web/build.py --check`); the app's manual asset matches the newest manual; `tools/firmware/thfw.py` tests |
+| Firmware (atlas) | Build Atlas; check its firmware descriptor and, with the signing secret, add a signed `atlas.thfw` (board-less until the S3 Atlas) |
+| Firmware (sigil) | The one Sigil build (headless until the LVGL renderer is bound); descriptor check and, with the signing secret, `sigil-eink.thfw` (refused by every board while `TURNHUB_OTA_RETIRED` is set) |
+| LVGL simulator | Desktop LVGL simulator built with ASan/UBSan, its CTest self-tests (SDL dummy drivers) and the font digest check |
 | Android build and unit tests | Run JVM unit tests and build the Play release bundle (`.aab`), signed with the upload key when its secrets are set |
 
-The bench and simulation builds (`sigil-epd-bn`, `sigil-epd-gdey`, `sigil-wokwi`)
-are not built in CI (since 2026-10-06): nothing ships them, and they compile the same sources as `sigil`.
-Build them locally with `pio run -e <env>` when working on them.
-
-The hardware `TestHarness/` target was retired on 2026-10-05. CI no longer
-builds it or publishes harness firmware artifacts. Its source is historical and
-unsupported; the Atlas and Sigil host suites remain supported.
+Gen 1 builds (e-ink and OLED Sigils, the spare image, the bench and Wokwi
+builds, the test harness) and the tag-driven firmware release workflow live on
+the `legacy/gen1` branch since 2026-10-13, where its own copy of this workflow
+runs them. Master carries the LVGL/S3 track.
 
 Host suites use GCC, C++14, AddressSanitizer and UBSan on Ubuntu 24.04, with
 assertions enabled. Sanitizer failures fail the check. The firmware jobs use
@@ -57,50 +53,37 @@ pull request) builds are left unsigned and still pass. It does not flash devices
 or modify repository content/settings; its only publishing is master's
 Android bundle to Play internal testing.
 
-Releases are a separate workflow,
-[`.github/workflows/release.yml`](../../.github/workflows/release.yml), run by
-a pushed tag:
-
-| Tag | Builds and signs | Carried over unchanged |
-| --- | --- | --- |
-| `v0.9.0` | Atlas (including its portal), both Sigils | nothing |
-| `atlas-v0.7.1` | Atlas including its portal | both Sigil packages |
-| `sigil-v0.9.13` | both Sigils (e-ink and OLED) | Atlas including its portal |
-
-Each publishes a GitHub Release with the `.thfw` packages and
-`turnhub-firmware.json`, the feed the Android app reads from the *latest*
-release. Because of that, a one-product release copies the other products'
-packages from the previous latest release and lists them in its feed, so the
-feed always names every product and the app and Atlas see every available
-update. A `atlas-v`/`sigil-v` tag fails if there is no earlier release to
-carry from, so publish a plain `v*` release first. The version in a tag is a
-release label only; each package's own version comes from `firmware_version.h`. It needs `contents: write` and fails without the
-signing secret. Branch protection is configured
+Firmware releases (`release.yml`, tag-driven `.thfw` packages and the app's
+release feed) are Gen 1 only and live on `legacy/gen1`. Master gains a release
+workflow again when the S3 products exist. Branch protection is configured
 separately in GitHub, not by this file.
 
 ## What runs
 
 A pull request runs only the work its changed files can affect. The first job,
 **Detect changed components**, diffs the PR against its base branch and turns
-the paths into four switches:
+the paths into five switches:
 
-| Changed path | Atlas | Sigil | Android | Packaging tool |
-| --- | --- | --- | --- | --- |
-| `Atlas/` | yes | | | |
-| `Sigil/` | | yes | | |
-| `shared/` | yes | yes | | |
-| `protocol/` | yes | | yes | |
-| `Android/` (except the generated `assets/manual.md`) | | | yes | |
-| `design/` | yes | | yes | |
-| `tools/firmware/` | yes | yes | | yes |
-| `.github/` | yes | yes | yes | yes |
-| anything else (docs, KiCad, scripts) | | | | |
+| Changed path | Atlas | Sigil | Android | Packaging tool | LVGL |
+| --- | --- | --- | --- | --- | --- |
+| `Atlas/include/` | yes | | | | yes |
+| `Atlas/` (elsewhere) | yes | | | | |
+| `Sigil/` | | yes | | | |
+| `LVGL/` | | | | | yes |
+| `shared/` | yes | yes | | | yes |
+| `protocol/` | yes | | yes | | |
+| `Android/` (except the generated `assets/manual.md`) | | | yes | | |
+| `design/` | yes | | yes | | yes |
+| `tools/firmware/` | yes | yes | | yes | |
+| `.github/` | yes | yes | yes | yes | yes |
+| anything else (docs, scripts) | | | | | |
 
 - **Atlas** runs the Atlas host suites, the generated-response contract check
   and the `Firmware (atlas)` build and previews.
-- **Sigil** runs the Sigil host suites and the three Sigil firmware builds.
+- **Sigil** runs the Sigil host suites and the Sigil firmware build.
 - **Android** runs the Android unit tests and release bundle.
 - **Packaging tool** runs `tools/firmware/test_thfw.py`.
+- **LVGL** runs the `LVGL simulator` job.
 
 The quick Python checks (adapter audit, design tokens, embedded portal, manual
 asset) run on every PR, so a documentation-only PR skips every build and
@@ -174,7 +157,7 @@ Promoting a build beyond Internal testing stays a manual Play Console step.
 3. Open a successful run's **Artifacts** to download per-target firmware or the
    Android release bundle. Android test reports are retained when available, including
    on failed test runs. Artifacts expire after seven days (the Android bundle
-   and screen previews after 14).
+   after 14).
 
 Firmware artifacts contain `firmware.bin`, `firmware.elf`, and `build-info.txt`.
 Atlas artifacts also retain `firmware.map` and `stack-usage.tar.gz` (compiler
@@ -184,15 +167,6 @@ They are development app images, not a complete factory-flash bundle. Match the
 environment to the device and retain the normal PlatformIO upload process for
 initial provisioning. PR artifact names identify the tested merge commit, which
 may differ from the branch head or the eventual merge commit.
-
-The `atlas` and `sigil` firmware jobs also upload **screen previews**
-(`screens-atlas-<sha>`, `screens-sigil-<sha>`, kept 14 days, added
-2026-09-29): PNGs of the Atlas touchscreen, e-ink Sigil and OLED Sigil screens,
-rendered on the runner from the real display code
-(`Atlas/tests/host/render-atlas-screens.sh`,
-`Sigil/tests/host/render-sigil-screens.sh`). The Atlas render fails the job if
-a region-by-region redraw differs from a full redraw. Previews show the design,
-not the panel: colors, contrast and ghosting still need the bench.
 
 CI artifacts are not accepted releases; hardware behavior is checked on the
 bench. Browser smoke tests and Android device/UI tests are not part of CI.

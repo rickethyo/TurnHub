@@ -2,6 +2,7 @@
 #include <WiFi.h>
 
 #include "atlas_battery.h"
+#include "atlas_board.h"
 #include "atlas_display.h"
 #include "atlas_speaker.h"
 #include "sd_card.h"
@@ -83,3 +84,7 @@ void fixtureConnectOta(TurnHub::SigilRecord &r) {
   assert(peer.makeHello(crypto,TurnHubProtocol::encodeHelloInfo(0,9,0,TurnHubProtocol::CAPABILITY_DISPLAY_OLED),hello));
   assert(r.session.acceptHello(crypto,key,0,hello,ack));
 }
+
+// The status light is board-specific; host builds have none.
+void TurnHubAtlas::beginAtlasStatusLed() {}
+void TurnHubAtlas::setAtlasStatusLed(bool, bool, bool) {}

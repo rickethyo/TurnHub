@@ -33,24 +33,25 @@ class MaintenanceTests(unittest.TestCase):
         return result, writes
 
     def test_only_ancestor_is_updated_without_force(self):
-        (_, rows), writes = self.run_sync(dict(zip(sync.BRANCHES,
-                                                   ("ahead", "diverged", "behind"))))
+        (_, rows), writes = self.run_sync(dict(zip(sync.BRANCHES, ("ahead", "diverged"))))
         self.assertEqual(writes, [("repos/owner/repo/git/refs/heads/codex/master",
                                    {"sha": "master-sha", "force": False})])
         self.assertIn("Diverged", rows[1][1])
-        self.assertIn("preserved", rows[2][1])
+        (_, rows), writes = self.run_sync(dict(zip(sync.BRANCHES, ("behind", "behind"))))
+        self.assertEqual(writes, [])
+        self.assertTrue(all("preserved" in message for _, message in rows))
 
-    def test_lvgl_stays_excluded_even_when_it_could_fast_forward(self):
+    def test_lvgl_and_legacy_stay_excluded_even_when_they_could_fast_forward(self):
         # Treat every candidate as an ancestor: exclusion must not depend on
-        # today's LVGL divergence or whether it currently has an open PR.
-        lvgl = "codex/esp32-s3-lvgl"
-        statuses = dict.fromkeys((*sync.BRANCHES, lvgl), "ahead")
+        # today's divergence or whether a branch currently has an open PR.
+        excluded = ("codex/esp32-s3-lvgl", "legacy/gen1", "agent/experimental")
+        statuses = dict.fromkeys((*sync.BRANCHES, *excluded), "ahead")
         (_, rows), writes = self.run_sync(statuses)
-        allowed = {"codex/master", "claude/master", "agent/experimental"}
+        allowed = {"codex/master", "claude/master"}
         self.assertEqual({branch for branch, _ in rows}, allowed)
         self.assertEqual({path for path, _ in writes},
                          {f"repos/owner/repo/git/refs/heads/{branch}" for branch in allowed})
-        self.assertTrue(all(lvgl not in path for path, _ in writes))
+        self.assertTrue(all(name not in path for name in excluded for path, _ in writes))
 
     def test_identical_and_missing_are_left_alone(self):
         statuses = dict.fromkeys(sync.BRANCHES, "identical")
@@ -62,7 +63,7 @@ class MaintenanceTests(unittest.TestCase):
     def test_concurrent_update_is_not_retried_or_forced(self):
         (_, rows), writes = self.run_sync(dict.fromkeys(sync.BRANCHES, "ahead"),
                                           update_error="HTTP 422: not a fast forward")
-        self.assertEqual(len(writes), 3)
+        self.assertEqual(len(writes), len(sync.BRANCHES))
         self.assertTrue(all(not payload["force"] for _, payload in writes))
         self.assertTrue(all("refused" in message for _, message in rows))
 

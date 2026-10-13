@@ -5,6 +5,9 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
 
 - Fetch current remote refs before work. Codex normally uses `codex/master`;
   Claude normally uses `claude/master`. These branches persist across chats.
+- `master` is the ESP32-S3/LVGL track. Bugs on the current ESP32 boards are
+  fixed on the one-way `legacy/gen1` branch (branch from it, PR against it);
+  never merge it with master. `agent/experimental` is retired.
 - Check the working tree and open PRs before switching or updating a branch.
   Preserve uncommitted work. Never reset, force-push or delete a persistent branch.
 - Merge `origin/master` into your permanent agent branch before starting a new
@@ -20,6 +23,8 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
 - Keep each PR reviewable and target `master`. Use a separate temporary branch
   and worktree only when scope, ownership, dependencies or reviewability require
   separation; explain the reason in `COLLABORATION.md`.
+- Prune documentation your change makes obsolete, and keep agent-only setup
+  text in agent files (`AGENT_WORKFLOW.md`, "Documentation hygiene").
 - Run the relevant checks and record actual results. Only documentation-only
   commits use `[skip ci]`; workflow and script changes require CI.
 - Use a merge commit for persistent-branch PRs and retain their source branches.
