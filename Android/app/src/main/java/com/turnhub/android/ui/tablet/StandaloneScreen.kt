@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TurnTimerStatus
+import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.LocalPlayer
 import com.turnhub.android.standalone.StandaloneGame
@@ -205,7 +206,7 @@ private fun Lobby(
                     OutlinedTextField(
                         value = life,
                         onValueChange = { life = it.filter(Char::isDigit).take(5) },
-                        label = { Text("Starting life") },
+                        label = { Text(if (game.twoHeadedGiant) "Starting life per team" else "Starting life") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -216,12 +217,17 @@ private fun Lobby(
                         enabled = (life.toIntOrNull() ?: 0) > 0 && life != "${game.startingLife}",
                     )
                 }
+                if (game.profile == GameProfile.MTG || game.profile == GameProfile.MTG_COMMANDER) {
+                    GameModeChips(if (game.twoHeadedGiant) GameMode.TWO_HEADED_GIANT else GameMode.STANDARD, enabled = true) {
+                        table.setTwoHeadedGiant(it == GameMode.TWO_HEADED_GIANT)
+                    }
+                }
                 TurnTimerChips(game.turnTimerMs, enabled = true, onSelect = table::setTurnTimer)
                 SetupSwitch("Automatic elimination at zero life", null, game.autoEliminateAtZeroLife, enabled = true,
                     onChange = table::setZeroLifeElimination)
             }
 
-            StartTableButton(game.players.size, enabled = true, onStart = table::start)
+            StartTableButton(game.players.size, game.twoHeadedGiant, enabled = true, onStart = table::start)
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
             // Quiet on purpose: a phone-only player never needs Atlas, so it is one small switch.

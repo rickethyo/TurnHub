@@ -299,3 +299,19 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   of taking a row.
 - Validation: `testDebugUnitTest` passes locally. Needs an owner device pass
   (with Atlas, the seat map's swap is untested on hardware).
+
+## 2026-10-13 — Claude: game mode picker; Two-Headed Giant without Atlas
+
+- Owner: Two-Headed Giant is a game modification, not an Atlas feature; game
+  modes belong in a picker so more can be added.
+- Both full-screen setups now show **Game mode** (Standard, Two-Headed Giant) for
+  Magic and Commander (`GameMode`, `GameModeChips` in `TableSetup.kt`), replacing
+  the Atlas lobby's switch. The start button says when a team game needs an even
+  table of four or more.
+- `StandaloneGame.twoHeadedGiant` follows GAMEPLAY.md's Atlas rules (team life,
+  shared poison, team turns, leaving together); `toSummary` reports teams so the
+  shared table draws team panels as it does for Atlas. Saved games and records
+  keep the flag; local history credits both winners. Unit tests cover setup,
+  turns, shared life/poison, Commander damage and the team win.
+- Validation: `testDebugUnitTest` passes locally (31 standalone game tests).
+  Needs a playtest.

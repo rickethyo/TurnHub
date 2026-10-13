@@ -63,15 +63,46 @@ internal fun SetupSwitch(title: String, detail: String?, checked: Boolean, enabl
     }
 }
 
-/** The one big start button. */
+/** Game modes beyond the standard game; Magic and Commander only, for now Two-Headed Giant. */
+enum class GameMode(val label: String, val detail: String) {
+    STANDARD("Standard", "Everyone for themselves."),
+    TWO_HEADED_GIANT("Two-Headed Giant", "Neighbours in turn order play as teams of two, sharing life, poison and the turn."),
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun StartTableButton(players: Int, enabled: Boolean, onStart: () -> Unit) =
+internal fun GameModeChips(selected: GameMode, enabled: Boolean, onSelect: (GameMode) -> Unit) {
+    val p = palette
+    Text("Game mode", color = p.muted, style = MaterialTheme.typography.labelLarge)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        GameMode.entries.forEach { mode ->
+            FilterChip(
+                selected = selected == mode,
+                onClick = { onSelect(mode) },
+                label = { Text(mode.label) },
+                enabled = enabled,
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
+            )
+        }
+    }
+    Text(selected.detail, color = p.faint, style = MaterialTheme.typography.bodySmall)
+}
+
+/** The one big start button; a team game needs an even table of at least four. */
+@Composable
+internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, onStart: () -> Unit) {
+    val ready = players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
     AccentButton(
-        if (players < 2) "Add two players to start" else "Start full-screen game",
+        when {
+            players < 2 -> "Add two players to start"
+            !ready -> "Two-Headed Giant needs an even table of four or more"
+            else -> "Start full-screen game"
+        },
         onStart,
         Modifier.fillMaxWidth().heightIn(min = 64.dp),
-        enabled = enabled && players >= 2,
+        enabled = enabled && ready,
     )
+}
 
 /** How the seat map is explained in both lobbies. */
 internal const val SEAT_MAP_HINT = "This is how the table will look. Drag a player onto another seat to swap them, " +

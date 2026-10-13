@@ -407,7 +407,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
 
             GameCard(summary, tablet, actions)
 
-            StartTableButton(summary.players.size, enabled = !tablet.busy) {
+            StartTableButton(summary.players.size, summary.settings.twoHeadedGiant, enabled = !tablet.busy) {
                 summary.anySeat()?.let { seat -> actions.run { control(seat, "start") } }
             }
         }
@@ -485,20 +485,8 @@ private fun GameCard(summary: TableSummary, tablet: TabletState, actions: Tablet
             seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } }
         }
         if (settings.profile == GameProfile.MTG || settings.profile == GameProfile.MTG_COMMANDER) {
-            Row(
-                Modifier.fillMaxWidth().toggleable(
-                    value = settings.twoHeadedGiant,
-                    enabled = seat != null && !tablet.busy,
-                    role = Role.Switch,
-                    onValueChange = { on -> seat?.let { actions.run { saveSettings(it, null, null, on) } } },
-                ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Two-Headed Giant", color = p.text)
-                    Text("Neighbours in turn order play as teams of two.", color = p.muted, style = MaterialTheme.typography.bodySmall)
-                }
-                Switch(checked = settings.twoHeadedGiant, onCheckedChange = null)
+            GameModeChips(if (settings.twoHeadedGiant) GameMode.TWO_HEADED_GIANT else GameMode.STANDARD, seat != null && !tablet.busy) { mode ->
+                seat?.let { actions.run { saveSettings(it, null, null, mode == GameMode.TWO_HEADED_GIANT) } }
             }
         }
     }

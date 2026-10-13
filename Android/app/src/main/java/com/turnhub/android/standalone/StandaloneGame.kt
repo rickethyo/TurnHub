@@ -59,6 +59,12 @@ data class StandaloneGame(
     val poisonLimit: Int = 10,
     /** 0 = off; else the countdown each turn gets. As on Atlas, running out never passes the turn. */
     val turnTimerMs: Long = 0,
+    /**
+     * Two-Headed Giant (Magic and Commander), as on Atlas (GAMEPLAY.md): neighbours
+     * in turn order (players 1+2, 3+4, ...) are teams sharing one life total,
+     * poison count and turn, and leaving together.
+     */
+    val twoHeadedGiant: Boolean = false,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -82,6 +88,15 @@ data class StandaloneGame(
     private fun bump(): StandaloneGame = copy(revision = revision + 1)
 
     private val playing: Boolean get() = state == TableState.RUNNING || state == TableState.PAUSED
+
+    private val magic: Boolean get() = profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER
+
+    /** [index] and, in Two-Headed Giant, their teammate. */
+    fun mates(index: Int): List<Int> =
+        if (!twoHeadedGiant) listOf(index) else (index - index % 2).let { listOf(it, it + 1) }.filter { it in players.indices }
+
+    /** Two players, or (Two-Headed Giant) an even table of at least four. */
+    val canStart: Boolean get() = players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
 
     // --- the lobby ------------------------------------------------------------------
 
@@ -110,9 +125,25 @@ data class StandaloneGame(
         return copy(players = list).bump()
     }
 
-    fun setFormat(profile: GameProfile, startingLife: Int = defaultLife(profile)): StandaloneGame {
+    fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
         if (state != TableState.LOBBY) return this
-        return copy(profile = profile, startingLife = startingLife.coerceIn(1, MAX_LIFE)).bump()
+        val teams = twoHeadedGiant && (profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER)
+        return copy(
+            profile = profile,
+            twoHeadedGiant = teams,
+            poisonLimit = if (teams) TEAM_POISON else poisonLimit.takeIf { twoHeadedGiant == teams } ?: SOLO_POISON,
+            startingLife = (startingLife ?: defaultLife(profile, teams)).coerceIn(1, MAX_LIFE),
+        ).bump()
+    }
+
+    /** The game mode: Two-Headed Giant (Magic and Commander) or standard; lobby only. */
+    fun setTwoHeadedGiant(on: Boolean): StandaloneGame {
+        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && !magic)) return this
+        return copy(
+            twoHeadedGiant = on,
+            startingLife = defaultLife(profile, on),
+            poisonLimit = if (on) TEAM_POISON else SOLO_POISON,
+        ).bump()
     }
 
     fun setStartingLife(life: Int): StandaloneGame {
@@ -145,8 +176,9 @@ data class StandaloneGame(
     /** Starts a match with a random first player; needs two players. */
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
-        if (players.size < 2) return this
-        val first = random.nextInt(players.size)
+        if (!canStart) return this
+        // A team game starts with a team: its first player holds the turn for both.
+        val first = if (twoHeadedGiant) random.nextInt(players.size / 2) * 2 else random.nextInt(players.size)
         return copy(
             gameId = gameId,
             state = TableState.RUNNING,
@@ -174,6 +206,7 @@ data class StandaloneGame(
             autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage,
             poisonLimit = poisonLimit,
             turnTimerMs = turnTimerMs,
+            twoHeadedGiant = twoHeadedGiant,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
@@ -182,13 +215,16 @@ data class StandaloneGame(
     // --- the table ------------------------------------------------------------------
 
     fun pass(index: Int, nowMs: Long): StandaloneGame {
-        if (state != TableState.RUNNING || index != active) return this
-        val next = nextIn(index) ?: return this
+        val holder = active ?: return this
+        // Either teammate may pass the team's turn; it goes to the next team.
+        val team = mates(holder)
+        if (state != TableState.RUNNING || index !in team) return this
+        val next = nextIn(team.last()) ?: return this
         val now = gameElapsedMs(nowMs)
         val took = (now - turnStartedAtElapsedMs).coerceAtLeast(0)
         return copy(
             players = players.mapIndexed { i, p ->
-                if (i != index) p else p.copy(
+                if (i !in team || p.eliminated) p else p.copy(
                     turnsCompleted = p.turnsCompleted + 1,
                     turnMs = p.turnMs + took,
                     fastestTurnMs = if (p.fastestTurnMs == 0L) took else minOf(p.fastestTurnMs, took),
@@ -211,7 +247,7 @@ data class StandaloneGame(
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated || delta == 0) return this
         val life = (player.life.toLong() + delta).coerceIn(-MAX_LIFE.toLong(), MAX_LIFE.toLong()).toInt()
-        return update(index) { it.copy(life = life) }.resolveEliminationRules(nowMs)
+        return updateTeam(index) { it.copy(life = life) }.resolveEliminationRules(nowMs)
     }
 
     /**
@@ -227,7 +263,10 @@ data class StandaloneGame(
         val applied = next - now
         if (applied == 0) return this
         val updated = totals.toMutableList().also { it[commander - 1] = next }
-        return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated), life = it.life - applied) }.resolveEliminationRules(nowMs)
+        // Damage is counted per player; in Two-Headed Giant it comes off the team's life.
+        return update(index) { it.copy(commanderDamage = it.commanderDamage + (source to updated)) }
+            .updateTeam(index) { it.copy(life = it.life - applied) }
+            .resolveEliminationRules(nowMs)
     }
 
     /** The player leaves the game; when one is left standing, they win. */
@@ -262,6 +301,8 @@ data class StandaloneGame(
         }
         val next = old + value
         if (next !in 0..MAX_LIFE) return this
+        // A team shares its poison count.
+        if (kind == "poison") return updateTeam(index) { it.copy(counters = it.counters.copy(poison = next)) }.resolveEliminationRules(nowMs)
         val updated = when (kind) {
             "poison" -> c.copy(poison = next)
             "energy" -> c.copy(energy = next)
@@ -288,13 +329,15 @@ data class StandaloneGame(
     fun eliminate(index: Int, nowMs: Long, conceded: Boolean = false): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated) return this
+        // Teammates leave together.
+        val leaving = mates(index).filter { !players[it].eliminated }
         val out = players.count { it.eliminated } + 1
-        var game = update(index) { it.copy(eliminated = true, conceded = conceded, outOrder = out) }
-            .passStatuses(listOf(index))
-        val standing = game.players.indices.filter { !game.players[it].eliminated }
-        if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
-        if (active == index) {
-            val next = game.nextIn(index) ?: return game
+        var game = copy(players = players.mapIndexed { i, p ->
+            if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out) else p
+        }).bump().passStatuses(leaving)
+        game.decided()?.let { return game.finish(it.firstOrNull(), nowMs) }
+        if (active in leaving) {
+            val next = game.nextIn(leaving.last()) ?: return game
             game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
         }
         return game
@@ -312,16 +355,15 @@ data class StandaloneGame(
             !p.eliminated && ((autoEliminateAtZeroLife && p.life <= 0) ||
                 ((profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER) && autoEliminateAtPoisonLimit && p.counters.poison >= poisonLimit) ||
                 (profile == GameProfile.MTG_COMMANDER && autoEliminateAtCommanderDamage && p.commanderDamage.values.any { damage -> damage.any { it >= 21 } }))
-        }
+        }.flatMap { mates(it) }.distinct().filter { !players[it].eliminated }
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
         var game = copy(players = players.mapIndexed { i, p ->
             if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
         }).passStatuses(targets).bump()
-        val standing = game.players.indices.filter { !game.players[it].eliminated }
-        if (standing.size <= 1) return game.finish(standing.firstOrNull(), nowMs)
+        game.decided()?.let { return game.finish(it.firstOrNull(), nowMs) }
         if (active in targets) {
-            game = game.copy(active = game.nextIn(active!!), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
+            game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
         }
         return game
     }
@@ -352,6 +394,18 @@ data class StandaloneGame(
     private fun update(index: Int, change: (LocalPlayer) -> LocalPlayer): StandaloneGame =
         copy(players = players.mapIndexed { i, p -> if (i == index) change(p) else p }).bump()
 
+    /** Changes [index] and (Two-Headed Giant) their teammate: what a team shares. */
+    private fun updateTeam(index: Int, change: (LocalPlayer) -> LocalPlayer): StandaloneGame {
+        val team = mates(index)
+        return copy(players = players.mapIndexed { i, p -> if (i in team) change(p) else p }).bump()
+    }
+
+    /** The living players when one side (a player or a team) is left, or none: the game is over. */
+    private fun decided(): List<Int>? {
+        val standing = players.indices.filter { !players[it].eliminated }
+        return standing.takeIf { s -> s.map { mates(it).first() }.distinct().size <= 1 }
+    }
+
     /**
      * CR 724.4 / 725.4: a leaving holder's monarch or initiative goes to the
      * active player, or the next player in turn order when the active player
@@ -381,6 +435,7 @@ data class StandaloneGame(
             durationMs = elapsedMs,
             starter = starter,
             winner = winner,
+            twoHeadedGiant = twoHeadedGiant,
             players = players.map { p ->
                 GameRecord.Player(
                     name = p.name,
@@ -418,7 +473,7 @@ data class StandaloneGame(
             state = state,
             settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife,
                 autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit,
-                turnTimerMs = turnTimerMs),
+                turnTimerMs = turnTimerMs, twoHeadedGiant = twoHeadedGiant),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
@@ -445,6 +500,7 @@ data class StandaloneGame(
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
                     lifeRequest = null,
+                    team = if (twoHeadedGiant) i / 2 + 1 else null,
                     avatar = personalizations[p.localId]?.icon(),
                     color = personalizations[p.localId]?.color,
                 )
@@ -462,11 +518,16 @@ data class StandaloneGame(
         private const val WARNING_MS = 10_000L
         private const val LONG_TURN_MS = 300_000L
 
-        fun defaultLife(profile: GameProfile): Int = when (profile) {
-            GameProfile.MTG_COMMANDER -> 40
+        /** A Two-Headed Giant team's total is 30 for Magic and 60 for Commander. */
+        fun defaultLife(profile: GameProfile, twoHeadedGiant: Boolean = false): Int = when (profile) {
+            GameProfile.MTG_COMMANDER -> if (twoHeadedGiant) 60 else 40
+            GameProfile.MTG -> if (twoHeadedGiant) 30 else 20
             GameProfile.YUGIOH -> 8000
             else -> 20
         }
+
+        private const val SOLO_POISON = 10
+        private const val TEAM_POISON = 15
 
         /** Each player is drawn as a virtual controller handle (8 up), slot 1. */
         fun seatHandle(index: Int) = ControllerHandle(ControllerHandle.VIRTUAL.first + index)
