@@ -39,7 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
-| TH-021 | Unified table setup, backgrounds and authority design | Android, hosting design | Implemented; CI pending | Codex / validation; owner / device acceptance |
+| TH-021 | Unified table setup, backgrounds and authority design | Android, hosting design | Ready for review; CI passes | Owner / PR #106 and device acceptance |
 | TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
 | TH-019 | iOS foundation and development flow | iOS, contracts, CI | Active framework slice | Codex / scaffold and staged plan; owner / Apple device acceptance |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
@@ -67,38 +67,34 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 
 ## TH-021: Unified table setup, tile backgrounds and authority design
 
-- Owner: Codex on `codex/master`; baseline `211ae99`. Fetched master and
-  both agent refs; clean checkout, no open PRs or overlapping active scope.
-- Scope: keep the shared seat preview visible with zero/one selected players;
-  add a lobby-only, single-update Clear all action for the standalone table.
-  Saved accounts, history and game settings remain intact. Android owns local
-  state/persistence; connected previews remain presentation only. No contract
-  or dependency change. Empty seats have text labels and no swap actions;
-  Clear all uses a standard accessible button. Device acceptance remains open.
-- Validation: documentation links, manual export consistency and whitespace
-  checks pass. Local Gradle cannot download its distribution (direct Java
-  connection refused); Android CI will validate the new JVM regressions and
-  Compose compilation. The first CI pass caught a format-list import removed
-  during the refactor; the list now lives in shared `TableSetup.kt`. Physical
-  phone/Atlas and TalkBack acceptance remain open. The next pass compiled
-  debug/release app code; the new clear test now uses the existing `seatHandle`
-  helper rather than a nonexistent `moduleId` helper.
-- Owner follow-up: a per-player tile-background framework. Android local accounts
-  own the saved style/color/image, keyed by UUID; `saveAccount` validates and
-  persists changes with the existing local library transaction and account lock.
-  The shared table and local seat preview render disposable presentation fields;
-  match records and the Atlas wire contract remain unchanged. No new dependency.
-  Backgrounds use the existing bounded phone image cropper, independently of
-  avatars. Standard labeled chips/buttons support assistive input; decorative
-  images have no accessibility role and a surface overlay preserves text contrast.
-
-- Owner follow-up: unify table screens/functions; app should have the same engine
-  and authority abilities, prefer connected Atlas and take over fully offline.
-  Shared setup now uses `TableLobby`/`TableLobbyActions`; live rendering already
-  used `TabletTable`/`TableControls`. Full-engine hosting, fenced takeover and
-  reconciliation are the requested design scope in [Table authority](Documentation/engineering/TABLE_AUTHORITY.md).
-  No new connected authority behavior is claimed by this implementation.
-
+- Owner: Codex on `codex/master`; baseline `211ae99`, implementation through
+  `2675c79`; [PR #106](https://github.com/rickethyo/TurnHub/pull/106).
+- Both setup screens now use `TableLobby`/`TableLobbyActions`. Live rendering
+  remains shared through `TabletTable`/`TableControls`. The zero/one-player
+  preview reserves two seats. Clear all changes the local selection in one
+  saved update; the connected adapter uses scoped Atlas unseat requests and
+  stops at the first refusal. Accounts, history and game settings remain intact.
+- Per-player tile backgrounds (default/solid/gradient/image) are saved under
+  local UUIDs separately from avatars and match records. Preview/live panels
+  share the decorative renderer. Connected tables use the phone's backgrounds
+  only through verified Atlas/profile links. Account locks and bounded image
+  cropping remain enforced. No gameplay contract or dependency change.
+- Owner requested a common engine with full phone authority, deferring to Atlas
+  while connected, and chose design of full takeover/reconciliation. The
+  [authority design](Documentation/engineering/TABLE_AUTHORITY.md) owns the
+  feature gate, portable C++ core extraction, checkpoints/journal, fenced
+  ownership, reconnect reconciliation and durable completion receipts.
+  Full-engine hosting and live authority transfers remain planned; current
+  connected offline behavior still queues life/Commander edits only.
+- Validation: [CI on `2675c79`](https://github.com/rickethyo/TurnHub/actions/runs/38483995794)
+  passes Android JVM tests and the release bundle build, plus relevant host
+  guards/manual/design checks. Documentation links, Word ZIP/XML, manual export
+  consistency and whitespace checks pass locally. The final documentation-only
+  follow-up updates the manual's Add label and this handoff, with `[skip ci]`.
+  No physical phone/Atlas, image-picker, TalkBack or text-scale acceptance is
+  claimed.
+- Next owner: PR review and device acceptance; shared-engine/authority work
+  follows the staged design separately.
 
 ## TH-019: iOS foundation and development flow
 

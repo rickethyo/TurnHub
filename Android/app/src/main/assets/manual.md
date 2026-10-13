@@ -493,7 +493,7 @@ In tablet mode one Android tablet or phone lies in the middle of the table and a
 
 ## Seating Players
 
-In the lobby, add everyone who is playing with **Seat player**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. The table preview stays visible while players join. Drag one player onto another seat, or tap two seats, to swap them; panels sit clockwise in number order. Clear all removes seated accounts through Atlas. Saved accounts remain available. Then choose the game, starting life and Two-Headed Giant, and tap **Start full-screen game**.
+In the lobby, add everyone who is playing with **Add**. Type a new name to create an account for that player with no PIN, or pick a saved player. A saved player who keeps a PIN types it on the tablet, unless they turned on **Allow Sigil and tablet use without a PIN** in My account. The table preview stays visible while players join. Drag one player onto another seat, or tap two seats, to swap them; panels sit clockwise in number order. Clear all removes seated accounts through Atlas. Saved accounts remain available. Then choose the game, starting life and Two-Headed Giant, and tap **Start full-screen game**.
 
 Players seated by the tablet can still use their own Sigil or phone as well: a Sigil’s Join picker lists them as at the table, and a phone can sign in to the same player.
 
