@@ -227,3 +227,17 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   yet measured. Existing bounded import receipts/partial-credit limitations remain.
   MSVC host runner hit pre-existing GNU-attribute incompatibility; supported GCC
   runner passed instead. Keep `codex/master` after integration with a merge commit.
+
+## 2026-10-13 — Claude: standalone setup shows the table
+
+- Owner feedback: the lobby's player list was hard to match to where the
+  panels land; a small version of the table with drag-and-drop seats was
+  suggested.
+- The lobby now shows `SeatMap`, a miniature of the full-screen table using
+  the same `placements()` and orientation rule: each player's panel in its
+  seat, turned the way it will face, in its seat color and numbered in turn
+  order. Drag one panel onto another to swap them, or tap two panels; screen
+  readers get a "Swap with" action per seat. The list's turn-order arrows are
+  gone; the list keeps adding and removing. `StandaloneGame.swapPlayers`
+  (lobby only) backs it, with a unit test.
+- Validation: `testDebugUnitTest` passes locally. Needs an owner device pass.

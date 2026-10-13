@@ -144,11 +144,13 @@ private fun Lobby(
             BrassCard {
                 Eyebrow("At the table")
                 if (game.players.isEmpty()) Text("Add everyone who is playing.", color = p.muted)
-                game.players.forEachIndexed { index, player -> PlayerRow(index, player, game.players.size, table) }
                 if (game.players.size > 1) {
-                    Text("Arrows set the turn order; panels sit clockwise in this order.", color = p.faint,
-                        style = MaterialTheme.typography.bodySmall)
+                    // How the game will look: each panel where it lands, numbered in turn order.
+                    SeatMap(game.players.map { it.name }, table::swapPlayers)
+                    Text("This is how the table will look. Drag a player onto another seat to swap them, or tap two seats. " +
+                        "Turns go clockwise in number order.", color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
+                game.players.forEachIndexed { index, player -> PlayerRow(index, player, game.players.size, table) }
                 var name by rememberSaveable { mutableStateOf("") }
                 val full = game.players.size >= StandaloneGame.MAX_PLAYERS
                 val add = {
