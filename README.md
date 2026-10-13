@@ -2,9 +2,10 @@
 
 TurnHub is a local-first tabletop game-management system: turn timer, lobby,
 life totals and Commander damage, player profiles and statistics. An
-authoritative **Atlas** table controller runs the game; player-facing
-**Sigils**, phones and tablets (the Android app) and the Atlas
-touchscreen request the same semantic actions from it.
+authoritative **Atlas** table controller runs connected games; player-facing
+**Sigils**, phones and tablets and the Atlas touchscreen request the same
+semantic actions from it. The Android app also runs separate standalone games;
+an iPhone/iPad app is at the framework stage.
 
 **Current firmware:** Atlas **0.6.6**, Sigil **0.9.8** (protocol 3), on `master`.
 Signed releases are published on GitHub Releases and installed from the
@@ -29,6 +30,7 @@ branch from `legacy/gen1` and open the PR against it. The two never merge.
 | [`Sigil/`](Sigil/platformio.ini) | ESP32 player controller: one build (radio, pairing, input, status ring), headless until the LVGL renderer is bound |
 | [`LVGL/`](LVGL/README.md) | Desktop LVGL simulator for the ESP32-S3 Atlas and Sigil screens |
 | [`Android/`](Android/README.md) | Native client: table view, player controls, guided setup and firmware updates |
+| [`iOS/`](iOS/README.md) | SwiftUI iPhone/iPad foundation, core package and staged development plan; gameplay not yet implemented |
 | [`protocol/`](protocol/README.md) | Client contract: JSON schemas, [`http-v1.md`](protocol/http-v1.md), example responses |
 | [`shared/include/`](shared/include) | Firmware headers shared by Atlas and Sigil (radio contract, firmware package format) |
 | [`Documentation/engineering/`](Documentation/engineering/README.md) | The engineering record: invariants, design references, staged work |

@@ -27,6 +27,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Diagnostics](DIAGNOSTICS.md) | Serial, RAM and SD logs, tracing, and the multi-phone stability work |
 | [Battery estimation and protection](BATTERY_GAUGE.md) | Atlas voltage/SoC/display separation, NVS/RTC history, source inference, independent safety and calibration |
 | [LVGL migration](LVGL_MIGRATION.md) | Desktop presentation boundaries, dependencies, memory and firmware handoff |
+| [iOS development](IOS_DEVELOPMENT.md) | SwiftUI foundation, native app boundaries, milestones and acceptance flow |
 | [S3 prototype refresh](hardware/ESP32_S3_REFRESH.md) | Candidate boards, electrical/mechanical verification and prototype BOM |
 | [Hardware](HARDWARE.md) | Atlas and Sigil boards, pins, the touchscreen, displays, controls, identifying and flashing boards |
 | [Accessibility](ACCESSIBILITY.md) | Requirements and the implemented accessibility settings |

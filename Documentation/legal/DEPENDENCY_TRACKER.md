@@ -33,6 +33,14 @@ The goal is simple: know what entered the project, where it came from, how it is
 
 ## Platform/toolchain follow-up
 
+iOS foundation: Swift 6, SwiftPM and XCTest are development tools; Foundation
+and SwiftUI are Apple platform frameworks used under the applicable SDK terms.
+There is no third-party iOS runtime package or project generator. Simulator CI
+uses the official checkout action already tracked above. Before distribution,
+review Apple SDK/developer agreement obligations and record any fonts, artwork
+or additional packages that actually enter the app. Build requirements are in
+[iOS/README.md](../../iOS/README.md).
+
 Optional Windows native-test compiler: PlatformIO package
 `platformio/toolchain-gccmingw32` 1.50100.0 (GCC 5.1.0), used by
 `Atlas/tests/host/run-gcc.ps1`. Installed package provenance is recorded in its

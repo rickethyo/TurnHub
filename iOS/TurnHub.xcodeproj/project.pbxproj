@@ -1,0 +1,205 @@
+// !$*UTF8*$!
+{
+    archiveVersion = 1;
+    classes = {};
+    objectVersion = 56;
+    objects = {
+
+/* Begin PBXBuildFile section */
+        A10000000000000000000001 /* TurnHubApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* TurnHubApp.swift */; };
+        A10000000000000000000002 /* FoundationHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* FoundationHomeView.swift */; };
+        A10000000000000000000003 /* TurnHubCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000001 /* TurnHubCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+        A20000000000000000000001 /* TurnHubApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnHubApp.swift; sourceTree = "<group>"; };
+        A20000000000000000000002 /* FoundationHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationHomeView.swift; sourceTree = "<group>"; };
+        A20000000000000000000003 /* App.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = App.xcconfig; sourceTree = "<group>"; };
+        A20000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+        A20000000000000000000005 /* TurnHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TurnHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+        A30000000000000000000001 /* Frameworks */ = {
+            isa = PBXFrameworksBuildPhase;
+            buildActionMask = 2147483647;
+            files = (A10000000000000000000003 /* TurnHubCore in Frameworks */,);
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+        A40000000000000000000001 = {
+            isa = PBXGroup;
+            children = (
+                A40000000000000000000002 /* App */,
+                A40000000000000000000003 /* Config */,
+                A40000000000000000000004 /* Products */,
+            );
+            sourceTree = "<group>";
+        };
+        A40000000000000000000002 /* App */ = {
+            isa = PBXGroup;
+            children = (
+                A20000000000000000000001 /* TurnHubApp.swift */,
+                A20000000000000000000002 /* FoundationHomeView.swift */,
+            );
+            path = App;
+            sourceTree = "<group>";
+        };
+        A40000000000000000000003 /* Config */ = {
+            isa = PBXGroup;
+            children = (
+                A20000000000000000000003 /* App.xcconfig */,
+                A20000000000000000000004 /* Info.plist */,
+            );
+            path = Config;
+            sourceTree = "<group>";
+        };
+        A40000000000000000000004 /* Products */ = {
+            isa = PBXGroup;
+            children = (A20000000000000000000005 /* TurnHub.app */,);
+            name = Products;
+            sourceTree = "<group>";
+        };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+        A50000000000000000000001 /* TurnHub */ = {
+            isa = PBXNativeTarget;
+            buildConfigurationList = A90000000000000000000002 /* Build configuration list for PBXNativeTarget "TurnHub" */;
+            buildPhases = (
+                A70000000000000000000001 /* Sources */,
+                A30000000000000000000001 /* Frameworks */,
+                A70000000000000000000002 /* Resources */,
+            );
+            buildRules = ();
+            dependencies = ();
+            name = TurnHub;
+            packageProductDependencies = (AA0000000000000000000001 /* TurnHubCore */,);
+            productName = TurnHub;
+            productReference = A20000000000000000000005 /* TurnHub.app */;
+            productType = "com.apple.product-type.application";
+        };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+        A60000000000000000000001 /* Project object */ = {
+            isa = PBXProject;
+            attributes = {
+                BuildIndependentTargetsInParallel = YES;
+                LastUpgradeCheck = 1600;
+                TargetAttributes = {
+                    A50000000000000000000001 = {CreatedOnToolsVersion = 16.0; };
+                };
+            };
+            buildConfigurationList = A90000000000000000000001 /* Build configuration list for PBXProject "TurnHub" */;
+            compatibilityVersion = "Xcode 14.0";
+            developmentRegion = en;
+            hasScannedForEncodings = 0;
+            knownRegions = (en, Base,);
+            mainGroup = A40000000000000000000001;
+            packageReferences = (AB0000000000000000000001 /* XCLocalSwiftPackageReference "Core" */,);
+            productRefGroup = A40000000000000000000004 /* Products */;
+            projectDirPath = "";
+            projectRoot = "";
+            targets = (A50000000000000000000001 /* TurnHub */,);
+        };
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+        A70000000000000000000001 /* Sources */ = {
+            isa = PBXSourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = (
+                A10000000000000000000001 /* TurnHubApp.swift in Sources */,
+                A10000000000000000000002 /* FoundationHomeView.swift in Sources */,
+            );
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXResourcesBuildPhase section */
+        A70000000000000000000002 /* Resources */ = {
+            isa = PBXResourcesBuildPhase;
+            buildActionMask = 2147483647;
+            files = ();
+            runOnlyForDeploymentPostprocessing = 0;
+        };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+        A80000000000000000000001 /* Debug */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                SDKROOT = iphoneos;
+                DEBUG_INFORMATION_FORMAT = dwarf;
+                ENABLE_TESTABILITY = YES;
+                GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)",);
+                SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+                SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+            };
+            name = Debug;
+        };
+        A80000000000000000000002 /* Release */ = {
+            isa = XCBuildConfiguration;
+            buildSettings = {
+                SDKROOT = iphoneos;
+                DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+                SWIFT_COMPILATION_MODE = wholemodule;
+                SWIFT_OPTIMIZATION_LEVEL = "-O";
+            };
+            name = Release;
+        };
+        A80000000000000000000003 /* Debug */ = {
+            isa = XCBuildConfiguration;
+            baseConfigurationReference = A20000000000000000000003 /* App.xcconfig */;
+            buildSettings = {
+                LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks",);
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+            };
+            name = Debug;
+        };
+        A80000000000000000000004 /* Release */ = {
+            isa = XCBuildConfiguration;
+            baseConfigurationReference = A20000000000000000000003 /* App.xcconfig */;
+            buildSettings = {
+                LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks",);
+                SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+            };
+            name = Release;
+        };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+        A90000000000000000000001 /* Build configuration list for PBXProject "TurnHub" */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (A80000000000000000000001 /* Debug */, A80000000000000000000002 /* Release */,);
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+        A90000000000000000000002 /* Build configuration list for PBXNativeTarget "TurnHub" */ = {
+            isa = XCConfigurationList;
+            buildConfigurations = (A80000000000000000000003 /* Debug */, A80000000000000000000004 /* Release */,);
+            defaultConfigurationIsVisible = 0;
+            defaultConfigurationName = Release;
+        };
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+        AB0000000000000000000001 /* XCLocalSwiftPackageReference "Core" */ = {
+            isa = XCLocalSwiftPackageReference;
+            relativePath = Core;
+        };
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+        AA0000000000000000000001 /* TurnHubCore */ = {
+            isa = XCSwiftPackageProductDependency;
+            package = AB0000000000000000000001 /* XCLocalSwiftPackageReference "Core" */;
+            productName = TurnHubCore;
+        };
+/* End XCSwiftPackageProductDependency section */
+    };
+    rootObject = A60000000000000000000001 /* Project object */;
+}

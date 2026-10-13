@@ -7,6 +7,16 @@ After the workflow reaches `master`, it can also be started from **Actions >
 TurnHub CI > Run workflow**. A new push cancels an older run for the same PR or
 branch. A PR run tests GitHub's proposed merge with the base branch.
 
+The separate [iOS workflow](../../.github/workflows/ios.yml) runs **iOS core
+tests and simulator build** on a macOS 15 runner for changes to `iOS/`,
+`protocol/` or its own workflow, plus manual runs. It uses the runner's active
+Xcode/Swift toolchain (versions printed in the log), runs the core package tests
+against shared fixtures and builds the app for the iPhone/iPad simulator without
+signing. It neither launches a simulator nor tests on physical devices, and
+does not publish or require Apple credentials. Its path-filtered check should
+not be required for unrelated PRs. Local commands live in
+[iOS/README.md](../../iOS/README.md).
+
 ## Checks
 
 Persistent agent branch maintenance is a separate lightweight workflow:
@@ -75,7 +85,7 @@ the paths into five switches:
 | `Android/` (except the generated `assets/manual.md`) | | | yes | | |
 | `design/` | yes | | yes | | yes |
 | `tools/firmware/` | yes | yes | | yes | |
-| `.github/` | yes | yes | yes | yes | yes |
+| `.github/` (except `workflows/ios.yml`) | yes | yes | yes | yes | yes |
 | anything else (docs, scripts) | | | | | |
 
 - **Atlas** runs the Atlas host suites, the generated-response contract check
@@ -84,6 +94,10 @@ the paths into five switches:
 - **Android** runs the Android unit tests and release bundle.
 - **Packaging tool** runs `tools/firmware/test_thfw.py`.
 - **LVGL** runs the `LVGL simulator` job.
+
+`iOS/` and `.github/workflows/ios.yml` do not select firmware, Android or LVGL
+work in this classifier; their build/test coverage belongs to the separate
+iOS workflow above. Changing shared protocol fixtures also runs iOS tests.
 
 The quick Python checks (adapter audit, design tokens, embedded portal, manual
 asset) run on every PR, so a documentation-only PR skips every build and
