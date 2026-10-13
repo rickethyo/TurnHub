@@ -8,6 +8,7 @@ void clearCheckpoint(GameCheckpoint &out) {
   out.settings = GameSettings{};
   out.monarch = out.initiative = 0;
   out.count = out.active = out.starter = out.winner = 0;
+  out.winners = 0;
   out.paused = out.over = false;
   out.gameElapsed = out.turnElapsed = out.nextRequestId = 0;
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
@@ -23,13 +24,21 @@ void clearCheckpoint(GameCheckpoint &out) {
 
 bool validCheckpoint(const GameCheckpoint &s) {
   if (!validGameSettings(s.settings) || s.count > MAX_PLAYERS) return false;
-  if (s.initiative && (s.initiative > s.count || s.eliminated[s.initiative-1] || !teamsAllowed(s.settings.profile))) return false;
-  if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] ||
-      (s.settings.profile != GameProfile::Magic && s.settings.profile != GameProfile::Commander))) return false;
-  if (!s.count) return !s.over && !s.winner;
+  if (s.initiative && (s.initiative > s.count || s.eliminated[s.initiative-1] || !magicRules(s.settings.profile))) return false;
+  if (s.monarch && (s.monarch > s.count || s.eliminated[s.monarch-1] || !magicRules(s.settings.profile))) return false;
+  if (!s.count) return !s.over && !s.winner && !s.winners;
   if (s.count < 2 || s.active >= s.count || !s.starter || s.starter > s.count ||
       s.winner > s.count || (!s.over && s.winner)) return false;
-  if (!validTeamTable(s.settings, s.count)) return false;
+  if (!validTeamTable(s.settings, s.count) || !validStarTable(s.settings, s.count)) return false;
+  // The winner set: the first winner is its lowest bit; only Star Commander
+  // shares a victory, and every winner was still in the game.
+  if (!s.winner != !s.winners || (s.count < 16 && (s.winners >> s.count))) return false;
+  if (s.winner) {
+    if ((s.winners & ((1u << (s.winner - 1)) - 1u)) || !(s.winners & (1u << (s.winner - 1)))) return false;
+    if (s.settings.profile != GameProfile::StarCommander && s.winners != (1u << (s.winner - 1))) return false;
+    for (uint8_t i = 0; i < s.count; ++i)
+      if ((s.winners & (1u << i)) && s.eliminated[i]) return false;
+  }
   // Two-Headed Giant teammates share one life total and leave together.
   if (s.settings.twoHeadedGiant)
     for (uint8_t i = 0; i + 1 < s.count; i += TEAM_SIZE)
@@ -56,13 +65,15 @@ bool validCheckpoint(const GameCheckpoint &s) {
           (p.profileId[0] && !strcmp(p.profileId, s.players[j].profileId))) return false;
     }
     if (!validCounters(s.counters[i]) ||
-        (!teamsAllowed(s.settings.profile) && !sameCounters(s.counters[i], PlayerCounters{})) ||
-        (s.settings.profile != GameProfile::Commander && (s.counters[i].commanderCasts[0] || s.counters[i].commanderCasts[1]))) return false;
+        (!magicRules(s.settings.profile) && !sameCounters(s.counters[i], PlayerCounters{})) ||
+        (!commanderRules(s.settings.profile) && (s.counters[i].commanderCasts[0] || s.counters[i].commanderCasts[1]))) return false;
     if (s.conceded[i] && !s.eliminated[i]) return false;
     if (!s.eliminated[i]) ++living;
     for (uint8_t j = 0; j < s.count; ++j) for (uint8_t c = 0; c < 2; ++c)
       if (s.damage[i][j][c] < 0 || s.damage[i][j][c] > LIFE_LIMIT ||
-          (s.settings.profile != GameProfile::Commander && s.damage[i][j][c])) return false;
+          (!commanderRules(s.settings.profile) && s.damage[i][j][c]) ||
+          // Star Commander allies never deal each other Commander damage.
+          (s.settings.profile == GameProfile::StarCommander && s.damage[i][j][c] && starAllied(i + 1, j + 1))) return false;
   }
   // A finished match without a winner is a draw (GameEngine::endInDraw).
   return (s.over ? (!s.winner || !s.eliminated[s.winner-1]) :
@@ -76,7 +87,7 @@ void GameEngine::checkpoint(GameCheckpoint &out, uint32_t nowMs) const {
   out.count = playerCount_; out.active = activeIndex_; out.starter = starterPlayer_;
   out.monarch = monarchPlayer_;
   out.initiative = initiativePlayer_;
-  out.winner = winnerPlayer_; out.paused = paused_; out.over = gameOver_;
+  out.winner = winnerPlayer_; out.winners = winnerMask_; out.paused = paused_; out.over = gameOver_;
   out.gameElapsed = gameElapsedMs(nowMs); out.turnElapsed = currentTurnElapsedMs(nowMs);
   out.nextRequestId = nextLifeRequestId_;
   for (uint8_t i = 0; i < playerCount_; ++i) {
@@ -96,7 +107,7 @@ bool GameEngine::restoreCheckpoint(const GameCheckpoint &s, uint32_t nowMs) {
   settings_ = s.settings; playerCount_ = s.count; activeIndex_ = s.active;
   monarchPlayer_ = s.monarch;
   initiativePlayer_ = s.initiative;
-  starterPlayer_ = s.starter; winnerPlayer_ = s.winner;
+  starterPlayer_ = s.starter; winnerPlayer_ = s.winner; winnerMask_ = s.winners;
   running_ = true; gameOver_ = s.over; paused_ = !s.over;
   nextLifeRequestId_ = s.nextRequestId;
   // Rebase durations into the new boot's millis domain, excluding downtime.

@@ -20,7 +20,7 @@ void close(Flow &f) { f.page.stage = CommanderStage::Closed; changed(f); }
 bool eligible(const Flow &f) {
   const auto *seat = table().game.playerByNumber(f.page.recipient);
   return tableReady() && f.generation == table().game.matchGeneration() &&
-      table().game.settings().profile == TurnHub::GameProfile::Commander && seat &&
+      TurnHub::commanderRules(table().game.settings().profile) && seat &&
       seat->controllerId == f.page.sigilId && seat->slot == f.page.recipientSlot &&
       seat->participantId == f.participant && !table().game.isEliminated(seat->playerNumber);
 }
@@ -47,8 +47,8 @@ void name(uint8_t player, char *out) {
     namesCached |= bit;
   }
 }
-// The next source from `from` in seat order, skipping the recipient and
-// eliminated players (self-damage is rare; record it from a phone). Falls
+// The next source from `from` in seat order, skipping the recipient,
+// Star Commander allies and eliminated players (self-damage is rare; record it from a phone). Falls
 // back to `from` when nobody else qualifies.
 uint8_t nextSource(uint8_t recipient, uint8_t from, int step) {
   const int count = table().game.playerCount();
@@ -56,7 +56,9 @@ uint8_t nextSource(uint8_t recipient, uint8_t from, int step) {
   int player = from;
   for (int i = 0; i < count; ++i) {
     player = (player - 1 + count + step) % count + 1;
-    if (player != recipient && !table().game.isEliminated(static_cast<uint8_t>(player)))
+    // Star Commander allies cannot deal each other Commander damage.
+    if (player != recipient && !table().game.isEliminated(static_cast<uint8_t>(player)) &&
+        !table().game.starAllies(recipient, static_cast<uint8_t>(player)))
       return static_cast<uint8_t>(player);
   }
   return from;
@@ -99,7 +101,7 @@ void openCommanderPicker(uint8_t sigilId, uint8_t recipient, bool undo, uint32_t
   const auto *seat = table().game.playerByNumber(recipient);
   if (!seat || seat->controllerId != sigilId || table().game.isEliminated(recipient) ||
       !tableReady() ||
-      table().game.settings().profile != TurnHub::GameProfile::Commander) return;
+      !TurnHub::commanderRules(table().game.settings().profile)) return;
   namesCached = 0;
   Flow &f = flows[sigilId];
   const uint16_t revision = f.page.revision;

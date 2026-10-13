@@ -7,8 +7,8 @@ import org.json.JSONObject
 /**
  * An immutable finished local match, retained independently of Atlas delivery.
  * Local identity is [Player.localId]; an old unscoped profileId is not a link.
- * Player indices ([starter], [winner]) are positions in [players], which is
- * turn order.
+ * Player indices ([starter], [winner], [winners]) are positions in [players],
+ * which is turn order.
  */
 data class GameRecord(
     val recordId: String,
@@ -23,6 +23,8 @@ data class GameRecord(
     val players: List<Player>,
     /** Teams of neighbours (players 1+2, 3+4, ...): the winner's teammate won too. */
     val twoHeadedGiant: Boolean = false,
+    /** Every winner, [winner] first: several share a Star Commander victory. */
+    val winners: List<Int> = listOfNotNull(winner),
 ) {
     data class Player(
         val name: String,
@@ -41,8 +43,13 @@ data class GameRecord(
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
     )
 
-    /** Whether player [index] won: the winner, or (Two-Headed Giant) the winner's teammate. */
-    fun won(index: Int): Boolean = winner != null && (index == winner || (twoHeadedGiant && index / 2 == winner / 2))
+    /** Whether player [index] won: any winner, or (Two-Headed Giant) the winner's teammate. */
+    fun won(index: Int): Boolean = (winners.ifEmpty { listOfNotNull(winner) }).any { w ->
+        index == w || (twoHeadedGiant && index / 2 == w / 2)
+    }
+
+    /** No winner at all. A shared victory is never a draw. */
+    val draw: Boolean get() = winner == null && winners.isEmpty()
 
     fun toJson(): JSONObject = JSONObject().apply {
         if (twoHeadedGiant) put("twoHeadedGiant", true)
@@ -53,6 +60,7 @@ data class GameRecord(
         put("durationMs", durationMs)
         put("starter", starter ?: JSONObject.NULL)
         put("winner", winner ?: JSONObject.NULL)
+        put("winners", JSONArray(winners))
         put("players", JSONArray().apply {
             players.forEach { p ->
                 put(JSONObject().apply {
@@ -89,6 +97,8 @@ data class GameRecord(
         add("players" to "${players.size}")
         add("starter" to (starter?.toString() ?: ""))
         add("winner" to (winner?.toString() ?: ""))
+        // Every winner, comma-separated; a shared Star Commander victory has several.
+        add("winners" to winners.joinToString(","))
         players.forEachIndexed { i, p ->
             add("name$i" to p.name)
             add("profile$i" to profileIds[i])
@@ -116,6 +126,8 @@ data class GameRecord(
                 durationMs = json.getLong("durationMs"),
                 starter = json.optIntOrNull("starter"),
                 winner = json.optIntOrNull("winner"),
+                // Records saved before shared victories: the single winner, if any.
+                winners = json.optIntList("winners") ?: listOfNotNull(json.optIntOrNull("winner")),
                 twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
@@ -142,6 +154,8 @@ data class GameRecord(
             ).also { record ->
                 require(record.recordId.isNotBlank() && record.players.size in 2..StandaloneGame.MAX_PLAYERS)
                 require(record.winner == null || record.winner in record.players.indices)
+                require(record.winners.all { it in record.players.indices } && record.winners.distinct().size == record.winners.size)
+                require(record.winners.firstOrNull() == record.winner)
                 require(record.starter == null || record.starter in record.players.indices)
             }
         }.getOrNull()
@@ -151,5 +165,8 @@ data class GameRecord(
 internal fun JSONObject.optIntOrNull(key: String): Int? = if (!has(key) || isNull(key)) null else getInt(key)
 
 internal fun JSONObject.optLongOrNull(key: String): Long? = if (!has(key) || isNull(key)) null else getLong(key)
+
+internal fun JSONObject.optIntList(key: String): List<Int>? =
+    if (!has(key) || isNull(key)) null else getJSONArray(key).let { a -> List(a.length()) { a.getInt(it) } }
 
 internal fun JSONObject.optStringOrNull(key: String): String? = if (!has(key) || isNull(key)) null else getString(key)

@@ -185,6 +185,7 @@ void startGame() {
   serialLog.print("|TIMER_MS|");
   serialLog.print(settings.turnTimerMs);
   if (settings.twoHeadedGiant) serialLog.print("|TEAMS|2HG");
+  if (settings.profile == TurnHub::GameProfile::StarCommander) serialLog.print("|STAR");
   serialLog.print("|PLAYERS|");
   serialLog.println(count);
 }
@@ -206,7 +207,13 @@ void finishGameState() {
     serialLog.println("ATLAS|GAME|OVER|DRAW");
   } else {
     serialLog.print("ATLAS|GAME|OVER|WINNER|");
-    serialLog.println(table().game.winnerPlayerNumber());
+    uint8_t winners[MAX_PLAYERS];
+    const uint8_t count = table().game.winnerPlayers(winners, MAX_PLAYERS);
+    for (uint8_t i = 0; i < count; ++i) {
+      if (i) serialLog.print(',');
+      serialLog.print(winners[i]);
+    }
+    serialLog.println();
   }
 }
 
@@ -699,6 +706,9 @@ IntentResult handleStartIntent(const Intent &intent, void *) {
   if (!TurnHub::validTeamTable(table().nextGameSettings, table().lobby.playerCount())) {
     return IntentResult::reject(IntentStatus::InvalidState,
         "Two-Headed Giant needs an even number of players, at least 4");
+  }
+  if (!TurnHub::validStarTable(table().nextGameSettings, table().lobby.playerCount())) {
+    return IntentResult::reject(IntentStatus::InvalidState, "Star Commander needs exactly five players.");
   }
   if (intent.type == IntentType::ArmStart) {
     table().lobby.setStartArmedBy(module);
@@ -1416,6 +1426,9 @@ IntentResult handleGameSettingsIntent(const Intent &intent, void *) {
   settings.autoEliminateAtCommanderDamage = !(intent.payload.flags & TurnHub::GAME_FLAG_MANUAL_COMMANDER);
   settings.autoEliminateAtZeroLife = !(intent.payload.flags & TurnHub::GAME_FLAG_MANUAL_ELIMINATION);
   settings.twoHeadedGiant = (intent.payload.flags & TurnHub::GAME_FLAG_TWO_HEADED_GIANT) != 0;
+  if (settings.twoHeadedGiant && settings.profile == TurnHub::GameProfile::StarCommander) {
+    return IntentResult::reject(IntentStatus::Rejected, "Two-Headed Giant isn't available in Star Commander");
+  }
   if (settings.twoHeadedGiant && !TurnHub::teamsAllowed(settings.profile)) {
     return IntentResult::reject(IntentStatus::Rejected, "Two-Headed Giant needs the Magic or Commander profile");
   }

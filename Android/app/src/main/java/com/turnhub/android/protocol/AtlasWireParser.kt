@@ -74,6 +74,14 @@ object AtlasWireParser {
                 starterPlayer = root.optionalInt("starterPlayer"),
                 activePlayer = root.optionalInt("activePlayer"),
                 winnerPlayer = root.optionalInt("winnerPlayer"),
+                // Every winner (shared Star Commander victories). Older firmware omits
+                // it: the single winnerPlayer, if any, is the whole list.
+                winnerPlayers = if (root.isAbsentOrNull("winnerPlayers")) {
+                    listOfNotNull(root.optionalInt("winnerPlayer"))
+                } else {
+                    root.array("winnerPlayers").let { array -> List(array.length()) { array.intAt(it, "winnerPlayers") } }
+                        .also { if (it.size > 16 || it.distinct().size != it.size || it.any { n -> n !in 1..255 }) malformed("Invalid winnerPlayers") }
+                },
                 monarchPlayer = root.optionalInt("monarchPlayer"),
                 initiativePlayer = root.optionalInt("initiativePlayer"),
                 settings = parseSettings(settings, profileKey),

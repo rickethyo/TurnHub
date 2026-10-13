@@ -34,6 +34,7 @@ import com.turnhub.android.standalone.GameRecord
 import com.turnhub.android.standalone.MatchDelivery
 import com.turnhub.android.standalone.LocalImportState
 import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.displayName
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.palette
@@ -116,6 +117,7 @@ fun LocalLibraryScreen(
                         Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)
                         Text("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}", color = p.muted)
                         Text("Average game ${f(stats.averageGameMs)}", color = p.muted)
+                        if (stats.starPlayed > 0) Text("Star Commander: ${stats.starPlayed} played · ${stats.starWon} won", color = p.muted)
                         val full = state.library.profileStatistics(player.localId)
                         Text("Total game time ${f(full.lifetime.totalGameMs)} · total turn time ${f(full.lifetime.totalTurnMs)}", color = p.muted)
                         Text("Last game: ${full.lastGame.result} · ${f(full.lastGame.durationMs)} · ${full.lastGame.turns} turns", color = p.muted)
@@ -123,7 +125,8 @@ fun LocalLibraryScreen(
                         ToneButton("Share statistics", { onShareStats("${player.name} · ${player.profileId}\n${full.winRate} win rate\n" +
                             "${totals.played} played, ${totals.won} won, ${totals.draws} draws\nWent first ${stats.started}, eliminated ${stats.eliminated}, conceded ${stats.conceded}\n" +
                             "${stats.turnsCompleted} turns, total ${f(full.lifetime.totalTurnMs)}, average ${f(stats.averageTurnMs)}, fastest ${f(stats.fastestTurnMs)}, longest ${f(stats.longestTurnMs)}\n" +
-                            "Games total ${f(full.lifetime.totalGameMs)}, average ${f(stats.averageGameMs)}\nLast result ${full.lastGame.result}, duration ${f(full.lastGame.durationMs)}, turns ${full.lastGame.turns}\n" +
+                            "Games total ${f(full.lifetime.totalGameMs)}, average ${f(stats.averageGameMs)}\n" +
+                            (if (stats.starPlayed > 0) "Star Commander ${stats.starPlayed} played, ${stats.starWon} won\n" else "") + "Last result ${full.lastGame.result}, duration ${f(full.lastGame.durationMs)}, turns ${full.lastGame.turns}\n" +
                             "Last turn average ${f(full.lastGame.averageTurnMs)}, fastest ${f(full.lastGame.fastestTurnMs)}, longest ${f(full.lastGame.longestTurnMs)}") })
                     } else if (totals.played > 0) {
                         Text("Tap for statistics", color = p.faint, style = MaterialTheme.typography.bodySmall)
@@ -137,8 +140,14 @@ fun LocalLibraryScreen(
                 val delivery = state.library.delivery(record.recordId)
                 BrassCard {
                     Text(DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(record.startedAtMs)), color = p.text)
-                    Text("${record.profile.wireValue} · ${record.durationMs / 60_000} minutes · ${record.startingLife} starting life", color = p.muted)
-                    Text(record.winner?.let { "Winner: ${record.players[it].name}" } ?: "Draw / no winner", color = p.text)
+                    Text("${record.profile.displayName()}${if (record.twoHeadedGiant) " · Two-Headed Giant" else ""} · " +
+                        "${record.durationMs / 60_000} minutes · ${record.startingLife} starting life", color = p.muted)
+                    val names = record.winners.map { record.players[it].name }
+                    Text(when {
+                        names.isEmpty() -> "Draw / no winner"
+                        names.size == 1 -> "Winner: ${names.single()}"
+                        else -> "Shared victory: ${names.joinToString(", ")}"
+                    }, color = p.text)
                     record.players.forEach { player ->
                         Text("${player.name}: ${player.finalLife} life, ${player.turnsCompleted} completed turns" +
                             if (player.outOrder != null) (if (player.conceded) ", conceded" else ", eliminated") else "", color = p.muted)

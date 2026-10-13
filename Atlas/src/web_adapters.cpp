@@ -174,7 +174,7 @@ bool readCounters(uint8_t controller, uint8_t slot, TurnHubWebApi::CounterSnapsh
   snapshot.playerCount = table().game.playerCount();
   snapshot.editable = (table().hubState == HubState::Running || table().hubState == HubState::Paused) &&
       !table().game.isEliminated(seat.playerNumber) && !table().eliminationTargetPlayer && !table().game.hasWinClaim();
-  snapshot.commanderEnabled = table().game.settings().profile == TurnHub::GameProfile::Commander;
+  snapshot.commanderEnabled = TurnHub::commanderRules(table().game.settings().profile);
   for (uint8_t i = 0; i < table().game.playerCount(); ++i) {
     const auto source = table().game.playerAt(i)->playerNumber;
     snapshot.sources[i] = source;

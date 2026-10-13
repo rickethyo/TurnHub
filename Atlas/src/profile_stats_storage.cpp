@@ -5,13 +5,15 @@
 namespace TurnHubProfiles {
 using TurnHubStorage::Status;
 
-// v1 is the ESP32's struct image, including four trailing padding bytes. The
-// schema 2 uses its trailing padding for gamesConceded; the deployed size and
-// all existing offsets stay fixed. Schema 1 reads that new count as zero.
-static_assert(sizeof(ProfileStats) == 72, "v1 statistics size changed");
-static_assert(offsetof(ProfileStats, schemaVersion) == 64, "v1 schema offset changed");
-static_assert(offsetof(ProfileStats, lastGameResult) == 66, "v1 result offset changed");
-static_assert(std::is_trivially_copyable<ProfileStats>::value, "v1 must remain POD");
+// The record is the ESP32's struct image. Schema 3 (2026-10-13) appended the
+// Star Commander counts (80 bytes). Earlier 72-byte records are not migrated
+// (no compatibility before release): they read as corrupt and are never
+// overwritten, like any other unreadable record.
+static_assert(sizeof(ProfileStats) == 80, "statistics size changed");
+static_assert(offsetof(ProfileStats, schemaVersion) == 64, "schema offset changed");
+static_assert(offsetof(ProfileStats, lastGameResult) == 66, "result offset changed");
+static_assert(offsetof(ProfileStats, starGamesPlayed) == 72, "Star Commander offset changed");
+static_assert(std::is_trivially_copyable<ProfileStats>::value, "the record must remain POD");
 
 Status readStoredStats(TurnHubStorage::BlobStore &store, const char *key,
                        ProfileStats &stats) {
@@ -23,8 +25,7 @@ Status readStoredStats(TurnHubStorage::BlobStore &store, const char *key,
   status = store.read(key, &stored, sizeof(stored), size);
   if (status != Status::Ok) return status;
   if (size != sizeof(stored)) return Status::Corrupt;
-  if (stored.schemaVersion != 1 && stored.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
-  if (stored.schemaVersion == 1) { stored.gamesConceded = 0; stored.schemaVersion = STATS_SCHEMA_VERSION; }
+  if (stored.schemaVersion != STATS_SCHEMA_VERSION) return Status::UnsupportedSchema;
   if (static_cast<uint8_t>(stored.lastGameResult) >
       static_cast<uint8_t>(LastGameResult::Conceded)) return Status::Corrupt;
   stats = stored;
@@ -84,8 +85,8 @@ Status writeStoredModerationStats(TurnHubStorage::BlobStore &store, const char *
 }
 
 namespace {
-constexpr uint8_t CORE_SCHEMA = 1;
-constexpr size_t CORE_RECORD_SIZE = 12;
+constexpr uint8_t CORE_SCHEMA = 2;
+constexpr size_t CORE_RECORD_SIZE = 20;
 }  // namespace
 
 Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStats &stats) {
@@ -103,6 +104,8 @@ Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStat
   stats.lastGameProfile = data[2];
   stats.gamesPlayed = readLe32(data + 4);
   stats.gamesWon = readLe32(data + 8);
+  stats.starGamesPlayed = readLe32(data + 12);
+  stats.starGamesWon = readLe32(data + 16);
   return Status::Ok;
 }
 
@@ -118,6 +121,8 @@ Status writeCoreStats(TurnHubStorage::BlobStore &store, const char *key, const C
       stats.lastGameProfile, 0};
   writeLe32(data + 4, stats.gamesPlayed);
   writeLe32(data + 8, stats.gamesWon);
+  writeLe32(data + 12, stats.starGamesPlayed);
+  writeLe32(data + 16, stats.starGamesWon);
   return store.write(key, data, sizeof(data));
 }
 }  // namespace TurnHubProfiles

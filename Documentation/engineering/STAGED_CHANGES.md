@@ -347,6 +347,9 @@ delete the line. A host or compile result never checks off a hardware line.
 - [ ] **G13** Playtest Two-Headed Giant (2026-10-06): four players on separate
   Sigils and on two shared Sigils, Magic and Commander, either teammate
   passing, team life on every client, team concession and the win.
+- [ ] **G14** Playtest Star Commander (2026-10-13): five players on phones,
+  the tablet and standalone; seat swaps, ally damage refused, a shared win,
+  a concession win and the statistics.
 - [ ] **G12** Spare Sigil end to end (`legacy/gen1`): make spare, pair without
   a code, return to service over the air, flash-all records it.
 - [ ] **H03** Power measurements (above).

@@ -37,6 +37,8 @@ data class StateSnapshot(
     val initiativePlayer: Int? = null,
     val game: Int = 1,
     val games: List<VenueGame> = emptyList(),
+    /** Every winner, first = [winnerPlayer]; several share a Star Commander victory. */
+    val winnerPlayers: List<Int> = listOfNotNull(winnerPlayer),
 )
 
 /**

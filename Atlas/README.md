@@ -101,7 +101,8 @@ Framework messages (`log_e`, ESP-IDF) bypass the Atlas log and are not captured.
 Lines that make a log readable on its own:
 
 ```text
-ATLAS|GAME|START|<starter>|PROFILE|<generic|mtg|mtg_commander|yugioh>|LIFE|<n>|TIMER_MS|<0=off>|PLAYERS|<n>
+ATLAS|GAME|START|<starter>|PROFILE|<generic|mtg|mtg_commander|yugioh|mtg_star_commander>|LIFE|<n>|TIMER_MS|<0=off>[|TEAMS|2HG][|STAR]|PLAYERS|<n>
+ATLAS|GAME|OVER|<DRAW|WINNER|<n>[,<n>]>   (Star Commander: shared winners, comma-separated)
 ATLAS|LOBBY|JOIN|BROWSER|<controller>|PLAYER|<n>|PROFILE|<profileId>
 ATLAS|LOBBY|LEAVE|BROWSER|<controller>|SLOT|<1|2>|PROFILE|<profileId>
 ATLAS|LOBBY|EMPTY|RESET|ORIGIN|<SIGIL|BROWSER|SYSTEM|...>[|CONTROLLER|<id>]|FROM|<state>

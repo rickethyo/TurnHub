@@ -401,7 +401,7 @@ internal fun TabletTable(
                             EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
                                 anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                             }
-                            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                            if (summary.settings.profile.magicRules) {
                                 summary.players.filter { !it.eliminated }.forEach { member ->
                                     ToneButton("${member.label}: I’m the monarch", { send(member.seat(), "monarch") },
                                         Modifier.fillMaxWidth(), tone = Tone.ACCENT,
@@ -417,12 +417,25 @@ internal fun TabletTable(
                 }
             }
             TableState.GAME_OVER -> {
-                val winner = summary.players.firstOrNull { it.playerNumber == summary.winnerPlayerNumber }
-                val winners = if (winner == null) null else units.firstOrNull { u -> u.members.any { it.playerNumber == winner.playerNumber } }
+                // Every winner: one player, a Two-Headed Giant team, or Star Commander players sharing the win.
+                val winners = units.filter { u -> u.members.any { summary.isWinner(it.playerNumber) } }
+                val names = winners.joinToString(" and ") { it.name }
+                val star = summary.settings.profile.starCommander
                 Overlay(
-                    if (winners != null) "${winners.name} ${if (winners.members.size > 1) "win" else "wins"}" else "Game over",
-                    if (winners != null) "Well played, everyone." else "The game ended as a draw.",
+                    when {
+                        winners.isEmpty() -> "Game over"
+                        star -> "Star Commander victory"
+                        winners.size > 1 -> "Shared victory"
+                        else -> "$names ${if (winners.single().members.size > 1) "win" else "wins"}"
+                    },
+                    when {
+                        winners.isEmpty() -> "The game ended as a draw."
+                        winners.size > 1 -> "$names share the victory."
+                        star -> "$names wins. Well played, everyone."
+                        else -> "Well played, everyone."
+                    },
                 ) {
+                    if (winners.isNotEmpty()) WinnerRow(winners.flatMap { it.members })
                     OverlayButtons {
                         ToneButton("New players", { send(anySeat, "reset") }, Modifier.weight(1f))
                         AccentButton("Rematch", { send(anySeat, "rematch") }, Modifier.weight(1f))
@@ -432,6 +445,10 @@ internal fun TabletTable(
             else -> if (menuOpen) {
                 Overlay("Table", null, onDismiss = { menuOpen = false }) {
                     GameClockLine(summary)
+                    if (summary.star) {
+                        // Live: eliminated players are struck through; tap one to see their allies and enemies.
+                        StarMap(summary.starSeats())
+                    }
                     TableToolsCard(summary.players.filter { !it.eliminated }.map { it.label }, reduceMotion) { haptics.tick() }
                     EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
                         anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
@@ -457,6 +474,22 @@ internal fun TabletTable(
                     }
                     AccentButton("Close", { menuOpen = false }, Modifier.fillMaxWidth())
                 }
+            }
+        }
+    }
+}
+
+/** The winners' avatars and names on the game-over card. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WinnerRow(winners: List<TablePlayer>) {
+    val p = palette
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        winners.forEach { winner ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                com.turnhub.android.ui.components.PlayerAvatar(winner.label, winner.playerNumber, winner.avatar, size = 52.dp)
+                Text(winner.label, color = p.text, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 120.dp))
             }
         }
     }
@@ -524,7 +557,7 @@ private fun GameClockLine(summary: TableSummary) {
 
 @Composable
 private fun PausedMagicCounters(summary: TableSummary, enabled: Boolean, onCounter: (TablePlayer, String, Int, Int) -> Unit) {
-    if (summary.settings.profile != GameProfile.MTG && summary.settings.profile != GameProfile.MTG_COMMANDER) return
+    if (!summary.settings.profile.magicRules) return
     var selected by remember { mutableStateOf<Int?>(null) }
     var expanded by remember { mutableStateOf(false) }
     val living = summary.players.filter { !it.eliminated }
@@ -538,7 +571,7 @@ private fun PausedMagicCounters(summary: TableSummary, enabled: Boolean, onCount
         }
     }
     MagicCountersEditor(player.counters, summary.initiativePlayerNumber == player.playerNumber,
-        summary.settings.profile == GameProfile.MTG_COMMANDER, enabled) { kind, value, commander -> onCounter(player, kind, value, commander) }
+        summary.settings.profile.commanderRules, enabled) { kind, value, commander -> onCounter(player, kind, value, commander) }
 }
 
 @Composable
@@ -597,6 +630,7 @@ private fun PlayerPanel(
             ),
     ) {
         val nameMax = maxWidth * .6f
+        val panelWidth = maxWidth
         // Short panels (five or six on a phone) put Menu and Hold to pass beside each other in a
         // slim bottom bar, and the number is sized to the room between it and the name.
         val compact = maxHeight < 260.dp
@@ -654,10 +688,11 @@ private fun PlayerPanel(
                 }
             }
             CommanderSummary(unit, summary, offlineCommander)
-            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+            StarProgressLine(unit, summary, panelWidth)
+            if (summary.settings.profile.magicRules) {
                 unit.members.forEach { member ->
                     CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                        summary.settings.profile == GameProfile.MTG_COMMANDER, summary.settings.poisonLimit,
+                        summary.settings.profile.commanderRules, summary.settings.poisonLimit,
                         Modifier.padding(top = 4.dp), compact = true)
                 }
             }
@@ -849,11 +884,30 @@ private fun TurnClock(summary: TableSummary) {
         })
 }
 
+/** Star Commander: "Enemies out 1/2", with the enemies' names when the panel is wide enough. */
+@Composable
+private fun StarProgressLine(unit: TableUnit, summary: TableSummary, width: androidx.compose.ui.unit.Dp) {
+    if (!summary.star) return
+    val member = unit.members.first()
+    val seats = summary.starSeats()
+    val seat = member.playerNumber - 1
+    val enemies = summary.starEnemies(member.playerNumber)
+    val names = enemies.joinToString(", ") { it.label + if (it.eliminated) " (out)" else "" }
+    Text(
+        starProgress(seats, seat) + if (width >= 260.dp) " · $names" else "",
+        color = palette.muted,
+        style = MaterialTheme.typography.labelMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = 2.dp),
+    )
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CommanderSummary(unit: TableUnit, summary: TableSummary, offlineCommander: (Long, Int, Int) -> Int) {
     val p = palette
-    if (summary.settings.profile != GameProfile.MTG_COMMANDER) return
+    if (!summary.settings.profile.commanderRules) return
     val rows = unit.members.flatMap { m ->
         summary.players.filter { it.playerNumber != m.playerNumber }.map { source ->
             val damage = m.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
@@ -993,10 +1047,10 @@ private fun PlayerMenuItems(
         }
         if (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) {
             unit.members.filter { !it.eliminated }.forEach { member ->
-                if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+                if (summary.settings.profile.magicRules) {
                     Text(if (unit.members.size > 1) "${member.label} counters and status" else "Counters and status", color = p.text)
                     MagicCountersEditor(member.counters, summary.initiativePlayerNumber == member.playerNumber,
-                        summary.settings.profile == GameProfile.MTG_COMMANDER) { kind, value, commander -> onCounter(member, kind, value, commander) }
+                        summary.settings.profile.commanderRules) { kind, value, commander -> onCounter(member, kind, value, commander) }
                     ToneButton(
                         if (unit.members.size > 1) "${member.label}: I’m the monarch" else "I’m the monarch",
                         { onControl(member.seat(), "monarch") }, Modifier.fillMaxWidth(), tone = Tone.ACCENT,
@@ -1014,7 +1068,7 @@ private fun PlayerMenuItems(
                 ) { onControl(member.seat(), "eliminate") }
             }
         }
-        if (summary.settings.profile == GameProfile.MTG_COMMANDER) {
+        if (summary.settings.profile.commanderRules) {
             unit.members.filter { !it.eliminated }.forEach { member ->
                 Text(
                     if (unit.members.size > 1) "Commander damage to ${member.label}" else "Commander damage received",
@@ -1022,7 +1076,13 @@ private fun PlayerMenuItems(
                     style = MaterialTheme.typography.labelLarge,
                 )
                 val showPartner = member.playerNumber in partners
-                summary.players.filter { it.playerNumber != member.playerNumber }.forEach { source ->
+                // Star Commander allies can't deal each other Commander damage: they aren't listed.
+                val allies = summary.starAllies(member.playerNumber)
+                if (allies.isNotEmpty()) {
+                    Text("Allies can't deal you Commander damage (${allies.joinToString(" and ") { it.label }}).",
+                        color = p.faint, style = MaterialTheme.typography.bodySmall)
+                }
+                summary.players.filter { summary.commanderDamageAllowed(member.playerNumber, it.playerNumber) }.forEach { source ->
                     val damage = member.commanderDamage.firstOrNull { it.sourcePlayer == source.playerNumber }?.damage.orEmpty()
                     fun valueOf(c: Int) = (damage.getOrNull(c - 1) ?: 0) + offlineCommander(member.participantId, source.playerNumber, c)
                     val commanders = if (showPartner || valueOf(2) > 0) listOf(1, 2) else listOf(1)

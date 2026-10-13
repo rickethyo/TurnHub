@@ -506,15 +506,21 @@ IntentResult handleExpireLifeChangesIntent(const Intent &intent, void *) {
 
 namespace {
 
+constexpr char STAR_ALLY_DAMAGE_MESSAGE[] =
+    "Allies can't deal Commander damage to each other in Star Commander.";
+
 IntentResult changeCommanderDamage(const PlayerSeat &seat, const TurnHub::IntentPayload &payload) {
   // Players record only the Commander damage they received.
   if (payload.targetPlayer != seat.playerNumber) {
     return IntentResult::reject(IntentStatus::Unauthorized,
         "Record only your own received Commander damage");
   }
-  if (table().game.settings().profile != TurnHub::GameProfile::Commander) {
+  if (!TurnHub::commanderRules(table().game.settings().profile)) {
     return IntentResult::reject(IntentStatus::Conflict,
         "Commander damage requires an MTG Commander game");
+  }
+  if (table().game.starAllies(seat.playerNumber, payload.counterSource)) {
+    return IntentResult::reject(IntentStatus::Conflict, STAR_ALLY_DAMAGE_MESSAGE);
   }
   if (!table().game.playerByNumber(payload.counterSource) || payload.counterSlot < 1 ||
       payload.counterSlot > TurnHub::COMMANDERS_PER_PLAYER) {
@@ -592,6 +598,8 @@ IntentResult handleCounterIntent(const Intent &intent, void *) {
     case IntentType::UndoCommanderHit: {
       if (payload.targetPlayer != seat->playerNumber)
         return IntentResult::reject(IntentStatus::Unauthorized, "Record only your own received damage");
+      if (table().game.starAllies(seat->playerNumber, payload.counterSource))
+        return IntentResult::reject(IntentStatus::Conflict, STAR_ALLY_DAMAGE_MESSAGE);
       bool applied = false;
       if (intent.type == IntentType::RecordCommanderHit) {
         applied = table().game.recordCommanderHit(seat->playerNumber,payload.counterSource,payload.counterSlot,payload.value);

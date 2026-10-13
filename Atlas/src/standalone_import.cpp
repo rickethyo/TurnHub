@@ -70,7 +70,7 @@ bool archived(const String &profileId) {
 
 TurnHubProfiles::LastGameResult resultFor(const ImportedGame &game, uint8_t index) {
   using TurnHubProfiles::LastGameResult;
-  if (game.winner == static_cast<int8_t>(index)) return LastGameResult::Win;
+  if (game.winner == static_cast<int8_t>(index) || (game.winners & (1u << index))) return LastGameResult::Win;
   if (game.players[index].outOrder > 0) return game.players[index].conceded ? LastGameResult::Conceded : LastGameResult::Eliminated;
   if (game.winner < 0) return LastGameResult::Draw;
   return LastGameResult::Loss;
@@ -103,7 +103,10 @@ ImportResult importGame(const ImportedGame &game) {
   ImportResult result;
   if (!validRecordId(game.recordId) || game.playerCount < 2 || game.playerCount > MAX_IMPORT_PLAYERS ||
       game.gameProfile >= static_cast<uint8_t>(TurnHub::GameProfile::Count) ||
-      game.winner >= static_cast<int8_t>(game.playerCount) || game.starter >= static_cast<int8_t>(game.playerCount)) {
+      game.winner >= static_cast<int8_t>(game.playerCount) || game.starter >= static_cast<int8_t>(game.playerCount) ||
+      // The winner set lists real players and starts at the first winner.
+      (game.winners && (game.winner < 0 || (game.winners >> game.playerCount) ||
+          !(game.winners & (1u << game.winner)) || (game.winners & ((1u << game.winner) - 1u))))) {
     return result;
   }
   TurnHubStorage::BlobStore *blobs = store();

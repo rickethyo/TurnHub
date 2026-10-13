@@ -115,6 +115,9 @@ import com.turnhub.android.ui.components.Tone
 import com.turnhub.android.ui.components.ToneButton
 import com.turnhub.android.ui.components.TurnRing
 import com.turnhub.android.ui.components.displayName
+import com.turnhub.android.ui.tablet.starProgress
+import com.turnhub.android.ui.tablet.starRelations
+import com.turnhub.android.ui.tablet.starSeats
 import com.turnhub.android.ui.theme.palette
 
 /** Everything the Game tab can ask Atlas to do. Each sends at most one request; Atlas decides. */
@@ -165,12 +168,12 @@ fun GameTab(
         ) {
             LifeCard(summary, me, nowMs, labelFor, actions, busy = uiState.player?.busy == true, reduceMotion = reduceMotion)
         }
-        if (me != null && summary.settings.profile == GameProfile.MTG_COMMANDER &&
+        if (me != null && summary.settings.profile.commanderRules &&
             (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)
         ) {
             CommanderCard(summary, me, labelFor, actions)
         }
-        if (me != null && (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) &&
+        if (me != null && (summary.settings.profile.magicRules) &&
             (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED)) {
             // Folded by default: the chips on My seat show what is in play; this is for changing it.
             var editing by rememberSaveable { mutableStateOf(false) }
@@ -185,7 +188,7 @@ fun GameTab(
                 }
                 if (editing) {
                     MagicCountersEditor(me.counters, summary.initiativePlayerNumber == me.playerNumber,
-                        summary.settings.profile == GameProfile.MTG_COMMANDER,
+                        summary.settings.profile.commanderRules,
                         enabled = !me.eliminated && uiState.player?.busy != true && summary.pending.winClaimPlayer == null && summary.pending.eliminationTargetPlayer == null,
                         onChange = actions.onPlayerCounter)
                 }
@@ -255,7 +258,10 @@ private fun StageCard(summary: TableSummary, myNumber: Int?, nowMs: Long, labelF
             else -> active?.let { "$it was up" } ?: "The table is paused"
         }
         TableState.GAME_OVER -> if (summary.endedInDraw) "Draw" to "The match ended as a draw"
-        else "Game over" to "${summary.teamLabel(summary.winnerPlayerNumber) ?: labelFor(summary.winnerPlayerNumber ?: 0)} wins"
+        else if (summary.winnerPlayerNumbers.any { !summary.sameTeam(it, summary.winnerPlayerNumber) }) (if (summary.settings.profile.starCommander) "Star Commander victory" else "Game over") to
+            "${summary.winnerPlayerNumbers.joinToString(" and ") { labelFor(it) }} share the victory"
+        else (if (summary.settings.profile.starCommander) "Star Commander victory" else "Game over") to
+            "${summary.teamLabel(summary.winnerPlayerNumber) ?: labelFor(summary.winnerPlayerNumber ?: 0)} wins"
     }
     // The dial: turn countdown when a timer runs, else the turn clock against the 5-minute long-turn mark.
     val (gaugeValue, gaugeCaption, fraction) = when {
@@ -419,11 +425,19 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
                 if (summary.monarchPlayerNumber == me.playerNumber) MonarchBadge()
                 if (me.eliminated) StatusBadge(if (me.conceded) "Conceded" else "Eliminated", Tone.BAD)
                 if (summary.isWinner(me.playerNumber)) StatusBadge("Winner", Tone.ACCENT)
+                if (summary.star && summary.state != TableState.LOBBY) {
+                    val seats = summary.starSeats()
+                    StatusBadge(starProgress(seats, me.playerNumber - 1), Tone.INFO)
+                }
                 me.life?.let { StatusBadge(if (me.team != null) "Team life $it" else "Life $it", Tone.GOOD) }
             }
-            if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
+            if (summary.star) {
+                // Star Commander: who is on my side follows the seats, so it changes when seats move in the lobby.
+                Text(starRelations(summary.starSeats(), me.playerNumber - 1), color = p.muted, style = MaterialTheme.typography.bodySmall)
+            }
+            if (summary.settings.profile.magicRules) {
                 CounterChips(me.counters, summary.initiativePlayerNumber == me.playerNumber,
-                    summary.settings.profile == GameProfile.MTG_COMMANDER, summary.settings.poisonLimit)
+                    summary.settings.profile.commanderRules, summary.settings.poisonLimit)
             }
         }
         panel?.feedback?.let { feedback ->
@@ -437,7 +451,7 @@ private fun SeatCard(uiState: HomeUiState, summary: TableSummary, me: TablePlaye
         val busy = panel?.busy == true
         if (me != null && !me.eliminated &&
             (summary.state == TableState.RUNNING || summary.state == TableState.PAUSED) &&
-            (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER)) {
+            (summary.settings.profile.magicRules)) {
             ToneButton("I’m the monarch", { actions.onControl(ControlAction.MONARCH) }, Modifier.fillMaxWidth(),
                 tone = Tone.ACCENT, enabled = !busy && summary.monarchPlayerNumber != me.playerNumber)
         }
@@ -660,8 +674,8 @@ private fun LifeCard(
                     winner = summary.isWinner(player.playerNumber),
                     monarch = summary.monarchPlayerNumber == player.playerNumber,
                     initiative = summary.initiativePlayerNumber == player.playerNumber,
-                    magic = summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER,
-                    commander = summary.settings.profile == GameProfile.MTG_COMMANDER,
+                    magic = summary.settings.profile.magicRules,
+                    commander = summary.settings.profile.commanderRules,
                     poisonLimit = summary.settings.poisonLimit,
                     onRequest = if (canAct && player.playerNumber != me.playerNumber && !player.eliminated) {
                         { requestTarget = player }
@@ -951,7 +965,9 @@ private fun LifeRequestDialog(target: TablePlayer, steps: LifeSteps, onSend: (In
 @Composable
 private fun CommanderCard(summary: TableSummary, me: TablePlayer, labelFor: (Int) -> String, actions: GameActions) {
     val p = palette
-    val sources = summary.players.filter { it.playerNumber != me.playerNumber }
+    // Star Commander allies can't deal each other Commander damage, so they aren't offered.
+    val sources = summary.players.filter { summary.commanderDamageAllowed(me.playerNumber, it.playerNumber) }
+    val allies = summary.starAllies(me.playerNumber)
     var source by remember(sources) { mutableIntStateOf(sources.firstOrNull()?.playerNumber ?: 0) }
     var commander by remember { mutableIntStateOf(1) }
     BrassCard {
@@ -961,6 +977,10 @@ private fun CommanderCard(summary: TableSummary, me: TablePlayer, labelFor: (Int
             color = p.muted,
             style = MaterialTheme.typography.bodySmall,
         )
+        if (allies.isNotEmpty()) {
+            Text("Allies can't deal you Commander damage (${allies.joinToString(" and ") { it.label }}).",
+                color = p.muted, style = MaterialTheme.typography.bodySmall)
+        }
         sources.forEach { from ->
             val damage = me.commanderDamage.firstOrNull { it.sourcePlayer == from.playerNumber }?.damage ?: listOf(0, 0)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1048,11 +1068,13 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
     val customMs = seconds.toLongOrNull()?.takeIf { it in 15..3600 }?.times(1000)
     val chosenTimer = if (custom) customMs else timer
     var teams by remember(current.twoHeadedGiant) { mutableStateOf(current.twoHeadedGiant) }
-    val teamsAllowed = profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER
+    // Star Commander never has teams.
+    val teamsAllowed = profile.magicRules && !profile.starCommander
     // Two-Headed Giant team life: 30, or 60 for Commander.
     fun defaultLife(choice: GameProfile, withTeams: Boolean) = when (choice) {
         GameProfile.MTG -> if (withTeams) "30" else "20"
         GameProfile.MTG_COMMANDER -> if (withTeams) "60" else "40"
+        GameProfile.MTG_STAR_COMMANDER -> "40"
         GameProfile.YUGIOH -> "8000"
         GameProfile.GENERIC -> life
     }
@@ -1064,7 +1086,7 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
             selected = profile,
             onSelect = {
                 profile = it
-                if (it != GameProfile.MTG && it != GameProfile.MTG_COMMANDER) teams = false
+                if (!it.magicRules) teams = false
                 life = defaultLife(it, teams)
             },
             enabled = editable,
@@ -1189,7 +1211,9 @@ private fun TableCard(summary: TableSummary, labelFor: (Int) -> String) {
             StatusRow("Starting player", summary.starterPlayerNumber?.let(labelFor) ?: "None")
             StatusRow("Win response", summary.pending.winConfirmationPlayer?.let(labelFor) ?: "None")
             StatusRow("Elimination target", summary.pending.eliminationTargetPlayer?.let(labelFor) ?: "None")
-            StatusRow("Winner", summary.winnerPlayerNumber?.let(labelFor) ?: if (summary.endedInDraw) "Draw" else "None")
+            StatusRow(if (summary.winnerPlayerNumbers.size > 1) "Winners" else "Winner",
+                summary.winnerPlayerNumbers.takeIf { it.isNotEmpty() }?.joinToString(", ") { labelFor(it) }
+                    ?: if (summary.endedInDraw) "Draw" else "None")
         }
     }
 }

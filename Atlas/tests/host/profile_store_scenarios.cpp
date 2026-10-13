@@ -159,11 +159,11 @@ static void statisticsSplit() {
   setLuxuryStore(nullptr);
   assert(loadStatsForProfile(id, stats, &detailed) && stats.gamesPlayed == 0 && !detailed);
 
-  // No card: only the 12-byte core record is written.
+  // No card: only the 20-byte core record is written.
   stats.gamesPlayed = 2; stats.gamesWon = 1; stats.totalTurnMs = 9000; stats.turnsCompleted = 4;
   stats.lastGameResult = LastGameResult::Win; stats.lastGameProfile = 2;
   assert(saveStatsForProfile(id, stats));
-  assert(FakeNvs::blobs.count(core) && FakeNvs::blobs[core].size() == 12 && !FakeNvs::blobs.count(detail));
+  assert(FakeNvs::blobs.count(core) && FakeNvs::blobs[core].size() == 20 && !FakeNvs::blobs.count(detail));
   assert(loadStatsForProfile(id, stats, &detailed) && !detailed && stats.gamesPlayed == 2 &&
       stats.gamesWon == 1 && stats.lastGameProfile == 2 && stats.lastGameResult == LastGameResult::Win &&
       stats.totalTurnMs == 0);

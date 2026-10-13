@@ -179,14 +179,14 @@ private fun StepButton(text: String, description: String, enabled: Boolean, onCl
 @Composable
 fun EliminationRulesEditor(settings: TableSettings, enabled: Boolean = true, onChange: (field: String, value: Int) -> Unit) {
     RuleToggle("Zero life", "autoEliminateAtZeroLife", settings.autoEliminateAtZeroLife, enabled, onChange)
-    if (settings.profile == GameProfile.MTG || settings.profile == GameProfile.MTG_COMMANDER) {
+    if (settings.profile.magicRules) {
         RuleToggle("Poison limit", "autoEliminateAtPoisonLimit", settings.autoEliminateAtPoisonLimit, enabled, onChange)
         var limit by remember(settings.poisonLimit) { mutableStateOf("${settings.poisonLimit}") }
         OutlinedTextField(limit, { limit = it }, label = { Text("Poison limit${if (settings.twoHeadedGiant) " (shared team total)" else ""}") },
             singleLine = true, enabled = enabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
         TextButton({ limit.toIntOrNull()?.let { onChange("poisonLimit", it) } },
             enabled = enabled && limit.toIntOrNull()?.let { it in 1..1_000_000 && it != settings.poisonLimit } == true) { Text("Apply poison limit") }
-        if (settings.profile == GameProfile.MTG_COMMANDER)
+        if (settings.profile.commanderRules)
             RuleToggle("21 damage from one commander", "autoEliminateAtCommanderDamage", settings.autoEliminateAtCommanderDamage, enabled, onChange)
     }
     Text("Automatic elimination applies immediately when enabled or a limit changes. Disable the relevant rule before a card changes the loss condition.",

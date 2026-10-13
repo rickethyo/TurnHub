@@ -424,6 +424,8 @@ bool loadStatsForProfile(const String &profileId, ProfileStats &stats, bool *det
     stats.gamesWon = core.gamesWon;
     stats.lastGameResult = core.lastGameResult;
     stats.lastGameProfile = core.lastGameProfile;
+    stats.starGamesPlayed = core.starGamesPlayed;
+    stats.starGamesWon = core.starGamesWon;
   }
   return true;
 }

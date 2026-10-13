@@ -12,6 +12,7 @@ loss condition; Commander damage totals alone do not trigger elimination.
 | Generic (default) | 40 |
 | Magic | 20 |
 | Commander | 40, plus Commander damage |
+| Star Commander | 40, Commander rules for exactly five players (below) |
 | Yu-Gi-Oh! | 8000, counted in hundreds on every client |
 
 - Custom starting life 0 to 1,000,000. Any seated player may change the
@@ -21,7 +22,8 @@ loss condition; Commander damage totals alone do not trigger elimination.
   blocks setup rather than being overwritten.
 - HTTP: `GET/POST /api/game/settings` (omitted fields keep their value);
   `/api/session/me` and `/api/seats` report `lifeAvailable` and `life`.
-- Lifetime statistics are not yet split by game (staged).
+- Lifetime statistics are not yet split by game (staged), apart from the
+  Star Commander counters below.
 
 ## Zero-life elimination and exit reasons
 
@@ -92,6 +94,55 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   of `gamecfg` and the recovery record, so neither layout changed. Sigils need
   no new firmware: Atlas sends the team's life and turn in the existing
   display packets.
+
+## Star Commander
+
+*Implemented 2026-10-13 (owner request); host and JVM tests only, needs a
+playtest.* A five-player Commander variant with its own profile,
+`mtg_star_commander` (`GameProfile::StarCommander`, Android
+`MTG_STAR_COMMANDER`). Every Commander rule, counter and automatic-elimination
+switch applies (`commanderRules()` / `magicRules()` in `game_profile.h`).
+
+- **Exactly five players** (`STAR_PLAYERS`, `validStarTable`); start is refused
+  with "Star Commander needs exactly five players." Two-Headed Giant is not
+  allowed with it. Life (40), turns, counters and statistics stay individual.
+- **Relationships by seat.** For player number p, i = p − 1: allies are
+  (i+1)%5 and (i+4)%5, enemies (i+2)%5 and (i+3)%5 (`starAllies`,
+  `starEnemies`; Android `domain/StarCommander.kt`). They follow the lobby turn
+  order, are fixed once the match starts, and eliminated players keep their
+  seat. Names, profiles and Sigils never decide them. Allies are not a team:
+  no shared life, turns or automatic win.
+- **Ally protection.** Not attacking or targeting allies is a table rule that
+  TurnHub only explains. Commander damage between allies is refused by the
+  engine (`changeCommanderDamage`, HTTP 409 "Allies can't deal Commander damage
+  to each other in Star Commander."), by the standalone engine, and allies are
+  left out of every source list (app, tablet, Sigil picker). Life changes are
+  never restricted, so blanket effects still hit allies.
+- **Victory** (`evaluateStarVictory`, standalone `StandaloneGame`): after every
+  elimination batch on any path (manual, concession, zero life, poison,
+  Commander damage, a rule switch), each living player whose two enemies are
+  out wins; all who qualify after the same batch share the win (at most two,
+  always neighbours). An eliminated player never wins, even if their enemies
+  are later out (owner review). Last-player-standing does not apply; a batch
+  that leaves nobody alive is a draw. Win claims for alternate win conditions
+  are unchanged and name one winner.
+- **Shared winners** are a winner set (`winnerMask_`), sent as `winnerPlayers`
+  next to `winnerPlayer` (the lowest winner) in the state, kept in recovery
+  schema 5, and credited to each winner's statistics. A shared win is never a
+  draw. Standalone records carry `winners`, and the Atlas import accepts the
+  `winners` field. In Two-Headed Giant `winnerPlayers` lists both teammates.
+- **Statistics** count Star games separately (`starGamesPlayed`,
+  `starGamesWon`, also counted in the totals), in the SD record (schema 3) and
+  the NVS core record (schema 2). Older stats records read as corrupt and need
+  a factory reset (no migrations before release). Local app statistics show the
+  same pair.
+- **Clients.** Android setup offers Star Commander under Game mode with a star
+  map (pentagon of allies, dashed pentagram of enemies, tap a player to
+  highlight their relationships, tap two to swap seats) and a text list of
+  allies and enemies. Panels show "Enemies out n/2", the table menu shows the
+  live star, and game over names every winner as a Star Commander victory.
+  Sigils get no new display text: the display packet has no free field, and
+  master's Sigil is headless until LVGL.
 
 ## Turns
 
@@ -219,6 +270,12 @@ phone players hear them, through `ATLAS_SPEAKER_MASK` to the board's speaker
 left, warning, time over, long turn, PASSING, pending requests).
 
 ## Verification
+
+Star Commander: `starCommander*` and `starStandaloneImport` host scenarios
+(relationships, five-player start, ally Commander damage, victory paths, shared
+winners, claims, recovery, rematch, two tables, statistics, import) and the
+Star cases in Android `StandaloneGameTest`. Not yet played at the table.
+
 
 Two-Headed Giant: host scenarios cover team turns, shared life, requests,
 win claims, elimination, Commander, recovery, the settings API, the state JSON

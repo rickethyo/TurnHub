@@ -941,7 +941,18 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
       if (table().game.endedInDraw()) {
         snprintf(screen.detail, sizeof(screen.detail), "The match ended in a draw");
       } else {
-        formatSide(screen.detail, sizeof(screen.detail), screen, table().game.winnerPlayerNumber(), " wins");
+        uint8_t winners[MAX_PLAYERS];
+        const uint8_t count = table().game.winnerPlayers(winners, MAX_PLAYERS);
+        if (count == 2) {
+          // Star Commander: a shared victory names both winners.
+          char first[24] = {};
+          snprintf(first, sizeof(first), "%s", nameOfPlayer(screen, winners[0]));
+          snprintf(screen.detail, sizeof(screen.detail), "%s and %s win", first, nameOfPlayer(screen, winners[1]));
+        } else if (count > 2) {
+          snprintf(screen.detail, sizeof(screen.detail), "%u players share the victory", static_cast<unsigned>(count));
+        } else {
+          formatSide(screen.detail, sizeof(screen.detail), screen, table().game.winnerPlayerNumber(), " wins");
+        }
       }
       break;
   }

@@ -61,6 +61,7 @@ class ClientState {
   uint8_t count_ = 0, host_ = INVALID_ID, starter_ = 0, active_ = 0;
   uint8_t monarch_ = 0, initiative_ = 0;
   uint8_t winner_ = 0, claimant_ = 0, confirmation_ = 0;
+  uint16_t winners_ = 0;  // Every winner (bit playerNumber - 1).
   bool inGame_ = false, initialized_ = false;
   static uint32_t revision_;
 };

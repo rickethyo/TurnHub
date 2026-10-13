@@ -10,8 +10,22 @@ enum class GameProfile(val wireValue: String) {
     GENERIC("generic"),
     MTG("mtg"),
     MTG_COMMANDER("mtg_commander"),
+    /**
+     * Star Commander: a five-player Commander variant. Each seat's two
+     * neighbours are allies and the two across the star are enemies; a player
+     * wins once both enemies are out ([com.turnhub.android.domain.StarCommander]).
+     */
+    MTG_STAR_COMMANDER("mtg_star_commander"),
     YUGIOH("yugioh"),
     ;
+
+    /** Commander rules (Commander damage, commander casts, 40 life): Commander and Star Commander. */
+    val commanderRules: Boolean get() = this == MTG_COMMANDER || this == MTG_STAR_COMMANDER
+
+    /** Magic rules (poison, energy, monarch, initiative...): every Magic format. */
+    val magicRules: Boolean get() = this == MTG || commanderRules
+
+    val starCommander: Boolean get() = this == MTG_STAR_COMMANDER
 
     companion object {
         fun fromWire(value: String): GameProfile? = entries.firstOrNull { it.wireValue == value }

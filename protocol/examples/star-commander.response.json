@@ -1,0 +1,196 @@
+{
+  "protocolVersion": "0.1",
+  "atlasId": "THA-025448410001",
+  "bootId": "0123456789ABCDEF0123456789ABCDEF",
+  "revision": 57,
+  "state": "GAME_OVER",
+  "hostModuleId": null,
+  "starterPlayer": 1,
+  "activePlayer": null,
+  "winnerPlayer": 1,
+  "winnerPlayers": [
+    1,
+    2
+  ],
+  "monarchPlayer": null,
+  "initiativePlayer": null,
+  "settings": {
+    "profile": "mtg_star_commander",
+    "startingLife": 40,
+    "turnTimerMs": 0,
+    "autoEliminateAtZeroLife": true,
+    "autoEliminateAtPoisonLimit": true,
+    "autoEliminateAtCommanderDamage": true,
+    "poisonLimit": 10,
+    "twoHeadedGiant": false
+  },
+  "sampledAtMs": 3605000,
+  "gameElapsedMs": 3540000,
+  "turnElapsedMs": 95000,
+  "turnTimer": {
+    "phase": "NORMAL",
+    "remainingMs": null
+  },
+  "pending": {
+    "passPlayer": null,
+    "passGraceRemainingMs": 0,
+    "winClaimPlayer": null,
+    "winConfirmationPlayer": null,
+    "eliminationTargetPlayer": null
+  },
+  "nudge": null,
+  "players": [
+    {
+      "playerNumber": 1,
+      "moduleId": 0,
+      "slot": 1,
+      "team": null,
+      "displayName": "Ana",
+      "participantId": 41,
+      "turnsCompleted": 9,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 12,
+      "commanderDamage": [],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 2,
+      "moduleId": 1,
+      "slot": 1,
+      "team": null,
+      "displayName": "Ben",
+      "participantId": 42,
+      "turnsCompleted": 9,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": false,
+      "life": 7,
+      "commanderDamage": [
+        {
+          "sourcePlayer": 4,
+          "damage": [
+            6,
+            0
+          ]
+        }
+      ],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 3,
+      "moduleId": 2,
+      "slot": 1,
+      "team": null,
+      "displayName": "Cai",
+      "participantId": 43,
+      "turnsCompleted": 9,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": true,
+      "life": 0,
+      "commanderDamage": [
+        {
+          "sourcePlayer": 1,
+          "damage": [
+            9,
+            0
+          ]
+        }
+      ],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 4,
+      "moduleId": 3,
+      "slot": 1,
+      "team": null,
+      "displayName": "Dee",
+      "participantId": 44,
+      "turnsCompleted": 6,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": true,
+      "life": 18,
+      "commanderDamage": [
+        {
+          "sourcePlayer": 1,
+          "damage": [
+            21,
+            0
+          ]
+        }
+      ],
+      "lifeRequest": null
+    },
+    {
+      "playerNumber": 5,
+      "moduleId": 4,
+      "slot": 1,
+      "team": null,
+      "displayName": "Eli",
+      "participantId": 45,
+      "turnsCompleted": 8,
+      "counters": {
+        "poison": 0,
+        "energy": 0,
+        "experience": 0,
+        "commanderCasts": [
+          1,
+          0
+        ],
+        "cityBlessing": false
+      },
+      "conceded": false,
+      "eliminated": true,
+      "life": -3,
+      "commanderDamage": [
+        {
+          "sourcePlayer": 2,
+          "damage": [
+            11,
+            0
+          ]
+        }
+      ],
+      "lifeRequest": null
+    }
+  ]
+}

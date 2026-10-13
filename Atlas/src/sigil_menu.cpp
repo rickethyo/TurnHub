@@ -162,7 +162,7 @@ MenuStateFields sigilMenuFor(uint8_t sigilId) {
   if ((table().hubState == HubState::Running || table().hubState == HubState::Paused) &&
       hasLivingSeat && !table().game.hasWinClaim() && table().eliminationTargetPlayer == 0) {
     add(SigilAction::AdjustLife);
-    if (table().game.settings().profile == TurnHub::GameProfile::Commander) {
+    if (TurnHub::commanderRules(table().game.settings().profile)) {
       add(SigilAction::CommanderDamage);
       const uint8_t shown = leds.shownPlayer(sigilId,table().game);
       if (table().game.lastCommanderHit(shown)) add(SigilAction::UndoCommanderHit);

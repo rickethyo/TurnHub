@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-020 | Star Commander game mode | Atlas, protocol, Android, stats | Implemented on `claude/master`; host and JVM tests pass | Owner / interpretations below, playtest G14 |
 | TH-019 | iOS foundation and development flow | iOS, contracts, CI | Active framework slice | Codex / scaffold and staged plan; owner / Apple device acceptance |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
 | TH-017 | ESP32-S3 hardware and LVGL foundation | Hardware, BOM, LVGL | Master is now this track (2026-10-13) | Board drivers and snapshot/Intent adapters; see STAGED_CHANGES |
@@ -315,3 +316,29 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   turns, shared life/poison, Commander damage and the team win.
 - Validation: `testDebugUnitTest` passes locally (31 standalone game tests).
   Needs a playtest.
+
+## TH-020: Star Commander game mode
+
+- Date / author: 2026-10-13 / Claude on `claude/master` (builds on PR #103).
+- Scope: new profile `mtg_star_commander` across Atlas (engine, intents,
+  state, recovery, statistics, standalone import), `protocol/` (schema,
+  `http-v1.md`, `star-commander.response.json`) and Android (connected and
+  standalone engines, setup star map, table panels, game over, history).
+  Rules and contract are in [GAMEPLAY.md](Documentation/engineering/GAMEPLAY.md#star-commander).
+- Interpretations for owner review:
+  - An eliminated player never wins, even if both enemies are later out.
+  - A batch that leaves nobody alive is a draw; one where nobody living
+    qualifies just continues play.
+  - Win claims (alternate win conditions) stay single-winner.
+  - Star is a mode under Commander in the app, not a fourth format chip.
+  - `winnerPlayers` lists both teammates in Two-Headed Giant; standalone 2HG
+    records still store one winner and credit the mate through `won()`.
+  - Statistics records changed layout (SD schema 3, NVS core schema 2) with no
+    migration, so existing stats read as corrupt until a factory reset.
+  - Sigils show nothing new: the display packet has no free field; master's
+    Sigil is headless until LVGL.
+- Validation: Atlas host suites (six new `starCommander*`/`starStandaloneImport`
+  groups), client contract and adapter audit pass; Android 273 JVM tests pass.
+  No device or table testing yet (STAGED G14).
+- Codex: review welcome, especially the victory evaluator and the checkpoint
+  schema 5 change.

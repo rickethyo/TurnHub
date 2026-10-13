@@ -8,6 +8,7 @@
   "starterPlayer": 1,
   "activePlayer": 2,
   "winnerPlayer": null,
+  "winnerPlayers": [],
   "settings": {
     "profile": "generic",
     "startingLife": 40,

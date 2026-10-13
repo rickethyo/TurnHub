@@ -56,6 +56,7 @@ object TableSummaryMapper {
             starterPlayerNumber = snapshot.starterPlayer,
             activePlayerNumber = snapshot.activePlayer,
             winnerPlayerNumber = snapshot.winnerPlayer,
+            winnerPlayerNumbers = snapshot.winnerPlayers,
             monarchPlayerNumber = snapshot.monarchPlayer,
             initiativePlayerNumber = snapshot.initiativePlayer,
             pending = snapshot.pending,

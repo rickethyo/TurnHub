@@ -38,6 +38,9 @@ data class LocalStats(
     val fastestTurnMs: Long,
     val longestTurnMs: Long,
     val averageGameMs: Long,
+    /** Star Commander games, counted apart too: played and won (shared victories included). */
+    val starPlayed: Int = 0,
+    val starWon: Int = 0,
 )
 
 data class LocalLibrary(
@@ -48,7 +51,7 @@ data class LocalLibrary(
     fun totals(localId: String): LocalTotals {
         val matches = history.filter { r -> r.players.any { it.localId == localId } }
         return LocalTotals(matches.size, matches.count { r -> r.won(r.players.indexOfFirst { it.localId == localId }) },
-            matches.count { it.winner == null })
+            matches.count { it.draw })
     }
 
     fun stats(localId: String): LocalStats {
@@ -68,6 +71,8 @@ data class LocalLibrary(
             fastestTurnMs = mine.map { it.fastestTurnMs }.filter { it > 0 }.minOrNull() ?: 0,
             longestTurnMs = mine.maxOfOrNull { it.longestTurnMs } ?: 0,
             averageGameMs = if (seats.isNotEmpty()) seats.sumOf { it.first.durationMs } / seats.size else 0,
+            starPlayed = seats.count { (r, _) -> r.profile.starCommander },
+            starWon = seats.count { (r, i) -> r.profile.starCommander && r.won(i) },
         )
     }
 
@@ -87,7 +92,7 @@ data class LocalLibrary(
                 stats.averageGameMs, stats.conceded.toLong()),
             com.turnhub.android.data.ProfileStatistics.LastGame(when {
                 last == null -> "None"
-                last.first.winner == null -> "Draw"
+                last.first.draw -> "Draw"
                 last.first.won(last.second) -> "Win"
                 seat?.conceded == true -> "Conceded"
                 seat?.outOrder != null -> "Eliminated"

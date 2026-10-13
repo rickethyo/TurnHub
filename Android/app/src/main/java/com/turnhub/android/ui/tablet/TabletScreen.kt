@@ -72,6 +72,7 @@ import com.turnhub.android.protocol.AccountPermission
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.SessionInfo
 import com.turnhub.android.protocol.TableState
+import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.OfflineBanner
@@ -352,7 +353,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                     // How the game will look, as without Atlas. Atlas moves a player one place at a time,
                     // so a swap is the lower player moved down to the higher seat and the other moved back up.
                     val players = summary.players.sortedBy { it.playerNumber }
-                    SeatMap(players.map { it.label }, { a, b ->
+                    val swap = { a: Int, b: Int ->
                         if (!tablet.busy) {
                             val lo = minOf(a, b)
                             val hi = maxOf(a, b)
@@ -364,8 +365,17 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                                 repeat(hi - lo - 1) { if (ok) ok = control(high, "move-earlier") }
                             }
                         }
-                    })
-                    Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (summary.star) {
+                        // Star Commander: relationships follow the seats, so the star is the seat map.
+                        val seats = summary.starSeats()
+                        StarMap(seats, onSwap = swap)
+                        StarRelationsList(seats)
+                        Text(STAR_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        SeatMap(players.map { it.label }, swap)
+                        Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 summary.players.forEach { player -> SeatedRow(player, tablet.busy, actions) }
                 var name by rememberSaveable { mutableStateOf("") }
@@ -407,7 +417,8 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
 
             GameCard(summary, tablet, actions)
 
-            StartTableButton(summary.players.size, summary.settings.twoHeadedGiant, enabled = !tablet.busy) {
+            StartTableButton(summary.players.size, summary.settings.twoHeadedGiant, enabled = !tablet.busy,
+                star = summary.settings.profile.starCommander) {
                 summary.anySeat()?.let { seat -> actions.run { control(seat, "start") } }
             }
         }
@@ -454,8 +465,10 @@ private fun GameCard(summary: TableSummary, tablet: TabletState, actions: Tablet
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FORMATS.forEach { (profile, label, life) ->
                 FilterChip(
-                    selected = settings.profile == profile,
-                    onClick = { seat?.let { actions.run { saveSettings(it, profile.wireValue, life, null) } } },
+                    selected = formatSelected(settings.profile, profile),
+                    onClick = {
+                        if (!formatSelected(settings.profile, profile)) seat?.let { actions.run { saveSettings(it, profile.wireValue, life, null) } }
+                    },
                     label = { Text(label) },
                     enabled = seat != null && !tablet.busy,
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
@@ -484,9 +497,23 @@ private fun GameCard(summary: TableSummary, tablet: TabletState, actions: Tablet
         SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, seat != null && !tablet.busy) { on ->
             seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } }
         }
-        if (settings.profile == GameProfile.MTG || settings.profile == GameProfile.MTG_COMMANDER) {
-            GameModeChips(if (settings.twoHeadedGiant) GameMode.TWO_HEADED_GIANT else GameMode.STANDARD, seat != null && !tablet.busy) { mode ->
-                seat?.let { actions.run { saveSettings(it, null, null, mode == GameMode.TWO_HEADED_GIANT) } }
+        if (settings.profile.magicRules) {
+            GameModeChips(GameMode.of(settings.profile, settings.twoHeadedGiant), seat != null && !tablet.busy) { mode ->
+                seat?.let {
+                    actions.run {
+                        when {
+                            // Star Commander is its own format at 40 life, never with Two-Headed Giant.
+                            mode == GameMode.STAR_COMMANDER ->
+                                saveSettings(it, GameProfile.MTG_STAR_COMMANDER.wireValue, StandaloneGame.defaultLife(GameProfile.MTG_STAR_COMMANDER), false)
+                            // Leaving it goes back to Commander, with that mode's life.
+                            settings.profile.starCommander -> {
+                                val teams = mode == GameMode.TWO_HEADED_GIANT
+                                saveSettings(it, GameProfile.MTG_COMMANDER.wireValue, StandaloneGame.defaultLife(GameProfile.MTG_COMMANDER, teams), teams)
+                            }
+                            else -> saveSettings(it, null, null, mode == GameMode.TWO_HEADED_GIANT)
+                        }
+                    }
+                }
             }
         }
     }

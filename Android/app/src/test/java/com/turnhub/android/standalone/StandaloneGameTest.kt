@@ -2,6 +2,7 @@ package com.turnhub.android.standalone
 
 import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.RawResponse
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimer
@@ -519,6 +520,208 @@ class StandaloneGameTest {
         assertTrue(!table.queueImport(id, "THA-A", listOf("p-a", "p-b"), setOf("p-a", "p-b")))
         assertEquals(0, table.sendRecords("THA-A") { calls++; null })
         assertEquals(0, calls)
+    }
+
+    // --- Star Commander ---------------------------------------------------------------
+
+    private fun starLobby(): StandaloneGame = StandaloneGame()
+        .setFormat(GameProfile.MTG_STAR_COMMANDER)
+        .addPlayer("Ana", localId = "a").addPlayer("Ben", localId = "b").addPlayer("Cy", localId = "c")
+        .addPlayer("Dee", localId = "d").addPlayer("Eve", localId = "e")
+
+    private fun star(): StandaloneGame = starLobby().start(1_000, "s1", firstSeat)
+
+    /** Takes [seats] out together in one rule-change batch (zero life, then the rule back on). */
+    private fun StandaloneGame.knockOut(vararg seats: Int): StandaloneGame {
+        var game = setAutoEliminateAtZeroLife(false, 2_000)
+        seats.forEach { game = game.changeLife(it, -game.players[it].life) }
+        return game.setAutoEliminateAtZeroLife(true, 3_000)
+    }
+
+    @Test
+    fun `star commander needs exactly five players, starts at 40 and has no teams`() {
+        val four = starLobby().removePlayer(4)
+        assertEquals(40, four.startingLife)
+        assertTrue(!four.canStart)
+        assertSame(four, four.start(0, "g", firstSeat))
+        assertTrue(starLobby().canStart)
+        assertTrue(!starLobby().addPlayer("Fay").canStart)
+        // Choosing Star turns Two-Headed Giant off, and it can't be turned back on.
+        val fromTeams = teams().addPlayer("Eve").setFormat(GameProfile.MTG_STAR_COMMANDER)
+        assertTrue(!fromTeams.twoHeadedGiant)
+        assertEquals(10, fromTeams.poisonLimit)
+        assertSame(fromTeams, fromTeams.setTwoHeadedGiant(true))
+        // Seat order is the order players joined.
+        assertEquals(listOf("Ana", "Ben", "Cy", "Dee", "Eve"), star().players.map { it.name })
+        assertEquals(List(5) { 40 }, star().players.map { it.life })
+    }
+
+    @Test
+    fun `allies are neighbours and enemies are across the star for every seat`() {
+        val expected = listOf(
+            listOf(1, 4) to listOf(2, 3),
+            listOf(2, 0) to listOf(3, 4),
+            listOf(3, 1) to listOf(4, 0),
+            listOf(4, 2) to listOf(0, 1),
+            listOf(0, 3) to listOf(1, 2),
+        )
+        expected.forEachIndexed { seat, (allies, enemies) ->
+            assertEquals(allies, StarCommander.allies(seat))
+            assertEquals(enemies, StarCommander.enemies(seat))
+            // Symmetric, and every other seat is exactly one of the two.
+            allies.forEach { assertTrue(StarCommander.allied(it, seat)) }
+            enemies.forEach { assertTrue(!StarCommander.allied(it, seat) && seat in StarCommander.enemies(it)) }
+            assertEquals((0 until 5).filter { it != seat }.toSet(), (allies + enemies).toSet())
+        }
+        val summary = star().toSummary(1_000, 0)
+        assertEquals(listOf("Ben", "Eve"), summary.starAllies(1).map { it.label })
+        assertEquals(listOf("Cy", "Dee"), summary.starEnemies(1).map { it.label })
+    }
+
+    @Test
+    fun `swapping seats changes relationships in the lobby and they are fixed in the game`() {
+        val swapped = starLobby().swapPlayers(1, 2)
+        assertEquals(listOf("Cy", "Eve"), swapped.toSummary(0, 0).starAllies(1).map { it.label })
+        assertEquals(listOf("Ben", "Dee"), swapped.toSummary(0, 0).starEnemies(1).map { it.label })
+        val game = swapped.start(1_000, "s", firstSeat)
+        assertSame(game, game.swapPlayers(0, 2))
+        assertEquals(listOf("Ana", "Cy", "Ben", "Dee", "Eve"), game.players.map { it.name })
+    }
+
+    @Test
+    fun `allies can't deal each other commander damage but enemies can and life is never restricted`() {
+        val game = star()
+        assertSame(game, game.commanderDamage(0, source = 1, commander = 1, delta = 5))
+        assertSame(game, game.commanderDamage(0, source = 4, commander = 2, delta = 5))
+        val hit = game.commanderDamage(0, source = 2, commander = 1, delta = 5)
+        assertEquals(35, hit.players[0].life)
+        assertEquals(listOf(5, 0), hit.players[0].commanderDamage[2])
+        val summary = game.toSummary(1_000, 0)
+        assertTrue(!summary.commanderDamageAllowed(1, 2) && !summary.commanderDamageAllowed(1, 5))
+        assertTrue(summary.commanderDamageAllowed(1, 3) && summary.commanderDamageAllowed(1, 4))
+        // Ordinary life changes between allies are fine, and can knock an ally out.
+        val lost = game.changeLife(1, -40)
+        assertTrue(lost.players[1].eliminated)
+        assertEquals(TableState.RUNNING, lost.state)
+        // Commander damage still works in plain Commander between any two players.
+        assertEquals(35, threePlayers().commanderDamage(0, 1, 1, 5).players[0].life)
+    }
+
+    @Test
+    fun `a player wins once both enemies are out, not after one`() {
+        var game = star().changeLife(2, -40)
+        assertTrue(game.players[2].eliminated)
+        assertEquals(TableState.RUNNING, game.state)
+        assertEquals("Enemies out 1/2", "Enemies out ${StarCommander.enemiesOut(0, game.players.map { it.eliminated })}/2")
+        game = game.eliminate(3, 5_000)
+        assertEquals(TableState.GAME_OVER, game.state)
+        assertEquals(0, game.winner)
+        assertEquals(listOf(0), game.winners)
+        // Three players are still in: Star Commander never waits for the last one standing.
+        assertEquals(3, game.players.count { !it.eliminated })
+    }
+
+    @Test
+    fun `concessions and commander damage count as enemies out`() {
+        val conceded = star().concede(2, 2_000).concede(3, 3_000)
+        assertEquals(listOf(0), conceded.winners)
+        var game = star().concede(2, 2_000)
+        repeat(21) { game = game.commanderDamage(3, source = 0, commander = 1, delta = 1) }
+        assertEquals(TableState.GAME_OVER, game.state)
+        assertEquals(listOf(0), game.winners)
+        val poisoned = star().concede(3, 2_000).changeCounter(2, "poison", 10)
+        assertEquals(listOf(0), poisoned.winners)
+    }
+
+    @Test
+    fun `simultaneous eliminations share the victory and nobody left is a draw`() {
+        val shared = star().knockOut(2, 3, 4)
+        assertEquals(TableState.GAME_OVER, shared.state)
+        assertEquals(listOf(0, 1), shared.winners)
+        assertEquals(0, shared.winner)
+        val summary = shared.toSummary(4_000, 0)
+        assertEquals(listOf(1, 2), summary.winnerPlayerNumbers)
+        assertTrue(summary.isWinner(1) && summary.isWinner(2) && !summary.isWinner(3))
+        assertTrue(!summary.endedInDraw)
+        val record = shared.record()!!
+        assertTrue(record.won(0) && record.won(1) && !record.won(2) && !record.draw)
+
+        val nobody = star().knockOut(0, 1, 2, 3, 4)
+        assertEquals(TableState.GAME_OVER, nobody.state)
+        assertEquals(emptyList<Int>(), nobody.winners)
+        assertNull(nobody.winner)
+        assertTrue(nobody.toSummary(4_000, 0).endedInDraw)
+        assertTrue(nobody.record()!!.draw)
+    }
+
+    @Test
+    fun `players already out never win even when their enemies are gone`() {
+        // Dee out, then Ana and Cy together: Ana's enemies (Cy, Dee) are out, but so is she.
+        var game = star().eliminate(3, 2_000).knockOut(0, 2)
+        assertEquals(TableState.RUNNING, game.state)
+        game = game.eliminate(4, 5_000)
+        assertEquals(listOf(1), game.winners)
+    }
+
+    @Test
+    fun `a claimed win still ends a star game with one winner`() {
+        val game = star().claimWin(3, 9_000)
+        assertEquals(TableState.GAME_OVER, game.state)
+        assertEquals(listOf(3), game.winners)
+        assertEquals(listOf(4), game.toSummary(9_000, 0).winnerPlayerNumbers)
+        assertEquals(listOf(""), star().endWithoutWinner(2_000).record()!!.importFields("THA-A", List(5) { "p$it" })
+            .filter { it.first == "winners" }.map { it.second })
+    }
+
+    @Test
+    fun `rematch and reset keep star and the seats and start over`() {
+        val over = star().changeLife(1, -3).knockOut(2, 3, 4)
+        val again = over.rematch(10_000, "s2", firstSeat)
+        assertEquals(TableState.RUNNING, again.state)
+        assertEquals(GameProfile.MTG_STAR_COMMANDER, again.profile)
+        assertEquals(listOf("Ana", "Ben", "Cy", "Dee", "Eve"), again.players.map { it.name })
+        assertEquals(List(5) { 40 }, again.players.map { it.life })
+        assertTrue(again.players.none { it.eliminated })
+        assertEquals(emptyList<Int>(), again.winners)
+        assertNull(again.winner)
+        val lobby = over.reset()
+        assertEquals(TableState.LOBBY, lobby.state)
+        assertEquals(GameProfile.MTG_STAR_COMMANDER, lobby.profile)
+        assertEquals(emptyList<Int>(), lobby.winners)
+        assertEquals(listOf("Ana", "Ben", "Cy", "Dee", "Eve"), lobby.players.map { it.name })
+    }
+
+    @Test
+    fun `records, history and stats credit every winner and survive storage`() {
+        val shared = star().knockOut(2, 3, 4)
+        val record = shared.record()!!
+        assertEquals(listOf(0, 1), record.winners)
+        assertEquals(record, GameRecord.fromJson(record.toJson()))
+        // Records from before shared victories read their single winner.
+        val old = GameRecord.fromJson(record.toJson().apply { remove("winners") })!!
+        assertEquals(listOf(0), old.winners)
+        val fields = record.importFields("THA-A", List(5) { "p$it" }).toMap()
+        assertEquals("0", fields["winner"])
+        assertEquals("0,1", fields["winners"])
+        assertEquals("mtg_star_commander", fields["gameProfile"])
+
+        val library = LocalLibrary(players = listOf(SavedLocalPlayer("b", "Ben")))
+            .withRecord(record).withRecord(threePlayers().claimWin(0, 5_000).record()!!)
+        assertEquals(LocalTotals(1, 1, 0), library.totals("a"))
+        assertEquals(LocalTotals(1, 1, 0), library.totals("b"))
+        assertEquals(LocalTotals(1, 0, 0), library.totals("c"))
+        assertEquals(1, library.stats("b").starPlayed)
+        assertEquals(1, library.stats("b").starWon)
+        assertEquals(0, library.stats("c").starWon)
+        assertEquals("Win", library.profileStatistics("b").lastGame.result)
+        assertEquals(library, LocalLibrary.fromJson(library.toJson()))
+
+        // The game itself, mid-match and finished, round-trips too.
+        val running = star().changeLife(2, -40).commanderDamage(0, 3, 1, 4)
+        assertEquals(running, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(running)))
+        assertEquals(shared, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(shared)))
+        val before = StandaloneTable.gameToJson(star().claimWin(3, 2_000)).apply { remove("winners") }
+        assertEquals(listOf(3), StandaloneTable.gameFromJson(before).winners)
     }
 
     private class MemoryStore : StandaloneStore {

@@ -60,6 +60,11 @@ def validate(path):
             assert value[field] is None or value[field] in numbers
         for player in value["players"]:
             assert all(d["sourcePlayer"] in numbers for d in player["commanderDamage"])
+        winners = value["winnerPlayers"]
+        assert winners == sorted(set(winners)) and all(w in numbers for w in winners)
+        assert (value["winnerPlayer"] is None) == (not winners)
+        assert value["winnerPlayer"] is None or value["winnerPlayer"] in winners
+        assert not winners or value["state"] == "GAME_OVER"
     elif schema_name == "accessibility-v1":
         limits = value["limits"]
         assert value["winHoldMs"] >= value["longPressMs"] + limits["minGapMs"]

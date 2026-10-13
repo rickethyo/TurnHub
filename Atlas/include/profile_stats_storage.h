@@ -5,7 +5,7 @@
 
 namespace TurnHubProfiles {
 
-// The v1 blob under s<profileId>. Unknown or damaged records are never reset or
+// The schema 3 blob under s<profileId>. Unknown or damaged records are never reset or
 // overwritten.
 TurnHubStorage::Status readStoredStats(TurnHubStorage::BlobStore &store,
                                       const char *key, ProfileStats &stats);
@@ -13,15 +13,18 @@ TurnHubStorage::Status writeStoredStats(TurnHubStorage::BlobStore &store,
                                        const char *key, const ProfileStats &stats);
 
 // c<profileId>: the statistics every Atlas keeps in NVS, card or not (owner
-// decision 2026-09-25). 12 bytes, little-endian: schema 1, last result, last
-// game profile, reserved 0, games played (uint32), games won (uint32). The
-// full v1 record above is luxury data and lives on the microSD card.
+// decision 2026-09-25). 20 bytes, little-endian: schema 2, last result, last
+// game profile, reserved 0, games played, games won, Star Commander games
+// played and won (uint32 each). The full record above is luxury data and
+// lives on the microSD card.
 constexpr char CORE_STATS_PREFIX = 'c';
 struct CoreStats {
   uint32_t gamesPlayed = 0;
   uint32_t gamesWon = 0;
   LastGameResult lastGameResult = LastGameResult::None;
   uint8_t lastGameProfile = 0;
+  uint32_t starGamesPlayed = 0;
+  uint32_t starGamesWon = 0;
 };
 inline CoreStats coreOf(const ProfileStats &stats) {
   CoreStats core;
@@ -29,6 +32,8 @@ inline CoreStats coreOf(const ProfileStats &stats) {
   core.gamesWon = stats.gamesWon;
   core.lastGameResult = stats.lastGameResult;
   core.lastGameProfile = stats.lastGameProfile;
+  core.starGamesPlayed = stats.starGamesPlayed;
+  core.starGamesWon = stats.starGamesWon;
   return core;
 }
 TurnHubStorage::Status readCoreStats(TurnHubStorage::BlobStore &store, const char *key, CoreStats &stats);

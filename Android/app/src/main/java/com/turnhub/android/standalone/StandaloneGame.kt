@@ -1,6 +1,7 @@
 package com.turnhub.android.standalone
 
 import com.turnhub.android.domain.ControllerHandle
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TablePlayer
 import com.turnhub.android.domain.TableSummary
 import com.turnhub.android.protocol.CommanderDamage
@@ -69,7 +70,10 @@ data class StandaloneGame(
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
     val starter: Int? = null,
+    /** The first of [winners]; null for a draw or while the game runs. */
     val winner: Int? = null,
+    /** Every winner: one, except a shared Star Commander victory. */
+    val winners: List<Int> = listOfNotNull(winner),
     /** One individual player, even when teams share life. */
     val monarch: Int? = null,
     val initiative: Int? = null,
@@ -89,14 +93,17 @@ data class StandaloneGame(
 
     private val playing: Boolean get() = state == TableState.RUNNING || state == TableState.PAUSED
 
-    private val magic: Boolean get() = profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER
+    private val magic: Boolean get() = profile.magicRules
+
+    private val star: Boolean get() = profile.starCommander
 
     /** [index] and, in Two-Headed Giant, their teammate. */
     fun mates(index: Int): List<Int> =
         if (!twoHeadedGiant) listOf(index) else (index - index % 2).let { listOf(it, it + 1) }.filter { it in players.indices }
 
-    /** Two players, or (Two-Headed Giant) an even table of at least four. */
-    val canStart: Boolean get() = players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
+    /** Two players, (Two-Headed Giant) an even table of at least four, or (Star Commander) exactly five. */
+    val canStart: Boolean get() = if (star) players.size == StarCommander.PLAYERS
+        else players.size >= 2 && (!twoHeadedGiant || (players.size >= 4 && players.size % 2 == 0))
 
     // --- the lobby ------------------------------------------------------------------
 
@@ -127,7 +134,8 @@ data class StandaloneGame(
 
     fun setFormat(profile: GameProfile, startingLife: Int? = null): StandaloneGame {
         if (state != TableState.LOBBY) return this
-        val teams = twoHeadedGiant && (profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER)
+        // Star Commander has no teams: choosing it turns Two-Headed Giant off.
+        val teams = twoHeadedGiant && profile.magicRules && !profile.starCommander
         return copy(
             profile = profile,
             twoHeadedGiant = teams,
@@ -136,9 +144,9 @@ data class StandaloneGame(
         ).bump()
     }
 
-    /** The game mode: Two-Headed Giant (Magic and Commander) or standard; lobby only. */
+    /** The game mode: Two-Headed Giant (Magic and Commander, not Star Commander) or standard; lobby only. */
     fun setTwoHeadedGiant(on: Boolean): StandaloneGame {
-        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && !magic)) return this
+        if (state != TableState.LOBBY || on == twoHeadedGiant || (on && (!magic || star))) return this
         return copy(
             twoHeadedGiant = on,
             startingLife = defaultLife(profile, on),
@@ -186,6 +194,7 @@ data class StandaloneGame(
             active = first,
             starter = first,
             winner = null,
+            winners = emptyList(),
             monarch = null,
             initiative = null,
             startedAtMs = nowMs,
@@ -252,11 +261,13 @@ data class StandaloneGame(
 
     /**
      * Commander damage [index] received from [source]'s [commander] (1 or 2).
-     * It costs the same life, as on Atlas; a total never goes below zero.
+     * It costs the same life, as on Atlas; a total never goes below zero. Star
+     * Commander allies can't deal each other Commander damage.
      */
     fun commanderDamage(index: Int, source: Int, commander: Int, delta: Int, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (profile != GameProfile.MTG_COMMANDER || !playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
+        if (!profile.commanderRules || !playing || player.eliminated || source == index || source !in players.indices || commander !in 1..2) return this
+        if (star && StarCommander.allied(index, source)) return this
         val totals = player.commanderDamage[source] ?: listOf(0, 0)
         val now = totals[commander - 1]
         val next = (now + delta).coerceIn(0, MAX_LIFE)
@@ -272,13 +283,13 @@ data class StandaloneGame(
     /** The player leaves the game; when one is left standing, they win. */
     fun claimMonarch(index: Int): StandaloneGame {
         if (!playing || index !in players.indices || players[index].eliminated ||
-            (profile != GameProfile.MTG && profile != GameProfile.MTG_COMMANDER) || monarch == index) return this
+            !magic || monarch == index) return this
         return copy(monarch = index).bump()
     }
 
     fun changeCounter(index: Int, kind: String, value: Int, commander: Int = 1, nowMs: Long = startedAtMs): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
-        if (!playing || player.eliminated || (profile != GameProfile.MTG && profile != GameProfile.MTG_COMMANDER)) return this
+        if (!playing || player.eliminated || !magic) return this
         if (kind == "initiative") {
             if (value !in 0..1 || (value == 0 && initiative != index)) return this
             return copy(initiative = if (value == 1) index else null).bump()
@@ -294,7 +305,7 @@ data class StandaloneGame(
             "energy" -> c.energy
             "experience" -> c.experience
             "commander-casts" -> {
-                if (profile != GameProfile.MTG_COMMANDER || commander !in 1..2) return this
+                if (!profile.commanderRules || commander !in 1..2) return this
                 c.commanderCasts[commander-1]
             }
             else -> return this
@@ -335,7 +346,7 @@ data class StandaloneGame(
         var game = copy(players = players.mapIndexed { i, p ->
             if (i in leaving) p.copy(eliminated = true, conceded = conceded, outOrder = out) else p
         }).bump().passStatuses(leaving)
-        game.decided()?.let { return game.finish(it.firstOrNull(), nowMs) }
+        game.decided()?.let { return game.finish(it, nowMs) }
         if (active in leaving) {
             val next = game.nextIn(leaving.last()) ?: return game
             game = game.copy(active = next, turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
@@ -353,15 +364,15 @@ data class StandaloneGame(
         val targets = players.indices.filter { i ->
             val p = players[i]
             !p.eliminated && ((autoEliminateAtZeroLife && p.life <= 0) ||
-                ((profile == GameProfile.MTG || profile == GameProfile.MTG_COMMANDER) && autoEliminateAtPoisonLimit && p.counters.poison >= poisonLimit) ||
-                (profile == GameProfile.MTG_COMMANDER && autoEliminateAtCommanderDamage && p.commanderDamage.values.any { damage -> damage.any { it >= 21 } }))
+                (magic && autoEliminateAtPoisonLimit && p.counters.poison >= poisonLimit) ||
+                (profile.commanderRules && autoEliminateAtCommanderDamage && p.commanderDamage.values.any { damage -> damage.any { it >= 21 } }))
         }.flatMap { mates(it) }.distinct().filter { !players[it].eliminated }
         if (targets.isEmpty()) return this
         var out = players.count { it.eliminated }
         var game = copy(players = players.mapIndexed { i, p ->
             if (i in targets) p.copy(eliminated = true, conceded = false, outOrder = ++out) else p
         }).passStatuses(targets).bump()
-        game.decided()?.let { return game.finish(it.firstOrNull(), nowMs) }
+        game.decided()?.let { return game.finish(it, nowMs) }
         if (active in targets) {
             game = game.copy(active = game.nextIn(mates(active!!).last()), turnStartedAtElapsedMs = game.gameElapsedMs(nowMs))
         }
@@ -372,11 +383,11 @@ data class StandaloneGame(
     fun claimWin(index: Int, nowMs: Long): StandaloneGame {
         val player = players.getOrNull(index) ?: return this
         if (!playing || player.eliminated) return this
-        return finish(index, nowMs)
+        return finish(listOf(index), nowMs)
     }
 
     /** The table ends the game with no winner (it still counts as played). */
-    fun endWithoutWinner(nowMs: Long): StandaloneGame = if (!playing) this else finish(null, nowMs)
+    fun endWithoutWinner(nowMs: Long): StandaloneGame = if (!playing) this else finish(emptyList(), nowMs)
 
     /** The same players play again; a new [gameId] makes it a separate record. */
     fun rematch(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
@@ -384,9 +395,10 @@ data class StandaloneGame(
         return start(nowMs, gameId, random)
     }
 
-    private fun finish(winner: Int?, nowMs: Long): StandaloneGame = copy(
+    private fun finish(winners: List<Int>, nowMs: Long): StandaloneGame = copy(
         state = TableState.GAME_OVER,
-        winner = winner,
+        winner = winners.firstOrNull(),
+        winners = winners,
         elapsedMs = gameElapsedMs(nowMs),
         runningSinceMs = null,
     ).bump()
@@ -400,10 +412,19 @@ data class StandaloneGame(
         return copy(players = players.mapIndexed { i, p -> if (i in team) change(p) else p }).bump()
     }
 
-    /** The living players when one side (a player or a team) is left, or none: the game is over. */
+    /**
+     * The winners once the game is over, or null while it goes on; empty is a
+     * draw. Runs after a whole batch of eliminations is applied. Normally one
+     * side (a player or a Two-Headed Giant team, given as its first player) is
+     * left standing. Star Commander ignores who is left: every living player
+     * whose two enemies are out wins together, and nobody alive is a draw.
+     */
     private fun decided(): List<Int>? {
         val standing = players.indices.filter { !players[it].eliminated }
-        return standing.takeIf { s -> s.map { mates(it).first() }.distinct().size <= 1 }
+        if (star && players.size == StarCommander.PLAYERS) {
+            return StarCommander.winners(players.map { it.eliminated }).takeIf { it.isNotEmpty() || standing.isEmpty() }
+        }
+        return standing.takeIf { s -> s.map { mates(it).first() }.distinct().size <= 1 }?.take(1)
     }
 
     /**
@@ -435,6 +456,7 @@ data class StandaloneGame(
             durationMs = elapsedMs,
             starter = starter,
             winner = winner,
+            winners = winners,
             twoHeadedGiant = twoHeadedGiant,
             players = players.map { p ->
                 GameRecord.Player(
@@ -478,6 +500,7 @@ data class StandaloneGame(
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
             winnerPlayerNumber = winner?.plus(1),
+            winnerPlayerNumbers = winners.map { it + 1 },
             monarchPlayerNumber = monarch?.plus(1),
             initiativePlayerNumber = initiative?.plus(1),
             pending = PendingDecisions(null, 0, null, null, null),
@@ -521,6 +544,7 @@ data class StandaloneGame(
         /** A Two-Headed Giant team's total is 30 for Magic and 60 for Commander. */
         fun defaultLife(profile: GameProfile, twoHeadedGiant: Boolean = false): Int = when (profile) {
             GameProfile.MTG_COMMANDER -> if (twoHeadedGiant) 60 else 40
+            GameProfile.MTG_STAR_COMMANDER -> 40
             GameProfile.MTG -> if (twoHeadedGiant) 30 else 20
             GameProfile.YUGIOH -> 8000
             else -> 20

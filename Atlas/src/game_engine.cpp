@@ -45,6 +45,7 @@ void GameEngine::reset() {
   pauseStartedAtMs_ = 0;
   totalPausedMs_ = 0;
   winnerPlayer_ = 0;
+  winnerMask_ = 0;
   clearWinClaim();
 
   for (uint8_t i = 0; i < MAX_PLAYERS; ++i) {
@@ -109,7 +110,60 @@ bool GameEngine::hasTurn(uint8_t playerNumber) const {
 }
 
 bool GameEngine::isWinner(uint8_t playerNumber) const {
-  return gameOver_ && winnerPlayer_ != 0 && sameTeam(winnerPlayer_, playerNumber);
+  if (!gameOver_ || winnerPlayer_ == 0 || playerNumber == 0) return false;
+  // Star Commander can have several winners; Two-Headed Giant shares one with the teammate.
+  if (playerNumber <= MAX_PLAYERS && (winnerMask_ & winnerBit(playerNumber))) return true;
+  return sameTeam(winnerPlayer_, playerNumber);
+}
+
+uint8_t GameEngine::winnerPlayers(uint8_t *out, uint8_t capacity) const {
+  uint8_t count = 0;
+  for (uint8_t number = 1; number <= MAX_PLAYERS; ++number)
+    if ((winnerMask_ & winnerBit(number)) && out && count < capacity) out[count++] = number;
+  return count;
+}
+
+bool GameEngine::starCommander() const {
+  return settings_.profile == GameProfile::StarCommander && playerCount_ == STAR_PLAYERS;
+}
+
+bool GameEngine::starAllies(uint8_t a, uint8_t b) const {
+  return starCommander() && a != b && starAllied(a, b);
+}
+
+bool GameEngine::starVictoryPending(uint8_t playerNumber) const {
+  uint8_t enemies[2] = {};
+  if (!starCommander() || isEliminated(playerNumber) || !TurnHub::starEnemies(playerNumber, enemies)) return false;
+  return isEliminated(enemies[0]) && isEliminated(enemies[1]);
+}
+
+uint8_t GameEngine::starEnemiesEliminated(uint8_t playerNumber) const {
+  uint8_t enemies[2] = {};
+  if (!starCommander() || !TurnHub::starEnemies(playerNumber, enemies)) return 0;
+  return static_cast<uint8_t>((isEliminated(enemies[0]) ? 1 : 0) + (isEliminated(enemies[1]) ? 1 : 0));
+}
+
+// The Star Commander victory policy, evaluated once a whole elimination batch
+// has been applied: every living player whose two enemies are out wins
+// (shared), whoever eliminated them. No living player and no winner is a draw.
+bool GameEngine::evaluateStarVictory(uint32_t nowMs) {
+  if (!starCommander() || gameOver_) return false;
+  uint16_t winners = 0;
+  uint8_t living = 0;
+  for (uint8_t i = 0; i < playerCount_; ++i) {
+    if (eliminated_[i]) continue;
+    ++living;
+    if (starVictoryPending(players_[i].playerNumber)) winners |= winnerBit(players_[i].playerNumber);
+  }
+  if (winners) {
+    finishGameWithWinners(winners, nowMs);
+    return true;
+  }
+  if (living == 0) {
+    finishGame(0, nowMs);
+    return true;
+  }
+  return false;
 }
 
 uint8_t GameEngine::livingSideCount() const {
@@ -194,7 +248,9 @@ int32_t GameEngine::commanderDamage(uint8_t recipient, uint8_t source, uint8_t c
 
 bool GameEngine::changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta) {
   const int to = indexForPlayerNumber(recipient), from = indexForPlayerNumber(source);
-  if (settings_.profile != GameProfile::Commander || to < 0 || from < 0 ||
+  if (!commanderRules(settings_.profile) || to < 0 || from < 0 ||
+      // Star Commander: an ally is never a source of Commander damage.
+      starAllies(players_[to].playerNumber, players_[from].playerNumber) ||
       commander < 1 || commander > COMMANDERS_PER_PLAYER || delta == 0 ||
       delta < -LIFE_LIMIT || delta > LIFE_LIMIT) return false;
   const int64_t total = static_cast<int64_t>(commanderDamage_[to][from][commander - 1]) + delta;
@@ -218,7 +274,7 @@ bool GameEngine::hasPartner(uint8_t player) const {
 
 bool GameEngine::setPartner(uint8_t player, bool on) {
   const int from = indexForPlayerNumber(player);
-  if (settings_.profile != GameProfile::Commander || from < 0) return false;
+  if (!commanderRules(settings_.profile) || from < 0) return false;
   if (!on) {
     if (counters_[from].commanderCasts[1]) return false;
     for (uint8_t to = 0; to < playerCount_; ++to)
@@ -290,7 +346,7 @@ bool GameEngine::start(
     const PlayerSeat &starter,
     uint32_t nowMs, const GameSettings &settings) {
   if (players == nullptr || playerCount < 2 || playerCount > MAX_PLAYERS || !validGameSettings(settings) ||
-      !validTeamTable(settings, playerCount)) {
+      !validTeamTable(settings, playerCount) || !validStarTable(settings, playerCount)) {
     return false;
   }
 
@@ -432,7 +488,10 @@ bool GameEngine::eliminatePlayer(
   if (passMonarch) monarchPlayer_ = heir;
   if (passInitiative) initiativePlayer_ = heir;
 
-  if (!batchElimination_ && livingSideCount() == 1) {
+  if (!batchElimination_ && starCommander()) {
+    // Star Commander never uses last-player-standing: its own policy decides.
+    gameFinished = evaluateStarVictory(nowMs);
+  } else if (!batchElimination_ && livingSideCount() == 1) {
     for (uint8_t i = 0; i < playerCount_; ++i) {
       if (!eliminated_[i]) {
         finishGame(players_[i].playerNumber, nowMs);
@@ -448,7 +507,7 @@ bool GameEngine::eliminatePlayer(
 bool GameEngine::claimMonarch(uint8_t playerNumber) {
   const int index = indexForPlayerNumber(playerNumber);
   if (index < 0 || eliminated_[index] || gameOver_ || !running_ || winClaimActive_ ||
-      (settings_.profile != GameProfile::Magic && settings_.profile != GameProfile::Commander)) return false;
+      !magicRules(settings_.profile)) return false;
   monarchPlayer_ = playerNumber;
   return true;
 }
@@ -460,7 +519,7 @@ const PlayerCounters *GameEngine::countersForPlayer(uint8_t playerNumber) const 
 
 bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int32_t value, uint8_t commander) {
   const int index = indexForPlayerNumber(playerNumber);
-  if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || !teamsAllowed(settings_.profile)) return false;
+  if (index < 0 || eliminated_[index] || !running_ || gameOver_ || winClaimActive_ || !magicRules(settings_.profile)) return false;
   auto &c = counters_[index];
   if (kind == CounterKind::Initiative) {
     if (value != 0 && value != 1) return false;
@@ -480,7 +539,7 @@ bool GameEngine::changePlayerCounter(uint8_t playerNumber, CounterKind kind, int
     case CounterKind::Energy: target = &c.energy; break;
     case CounterKind::Experience: target = &c.experience; break;
     case CounterKind::CommanderCast:
-      if (settings_.profile != GameProfile::Commander || commander < 1 || commander > 2) return false;
+      if (!commanderRules(settings_.profile) || commander < 1 || commander > 2) return false;
       target = &c.commanderCasts[commander-1]; break;
     default: return false;
   }
@@ -515,8 +574,8 @@ bool GameEngine::resolveEliminationRules(uint32_t nowMs) {
   for (uint8_t i = 0; i < playerCount_; ++i) {
     if (eliminated_[i]) continue;
     bool lethal = settings_.autoEliminateAtZeroLife && life_[i] <= 0;
-    if (teamsAllowed(settings_.profile) && settings_.autoEliminateAtPoisonLimit && counters_[i].poison >= settings_.poisonLimit) lethal = true;
-    if (settings_.profile == GameProfile::Commander && settings_.autoEliminateAtCommanderDamage)
+    if (magicRules(settings_.profile) && settings_.autoEliminateAtPoisonLimit && counters_[i].poison >= settings_.poisonLimit) lethal = true;
+    if (commanderRules(settings_.profile) && settings_.autoEliminateAtCommanderDamage)
       for (uint8_t source = 0; source < playerCount_; ++source)
         for (uint8_t c = 0; c < 2; ++c)
           if (commanderDamage_[i][source][c] >= COMMANDER_DAMAGE_LIMIT) lethal = true;
@@ -528,6 +587,11 @@ bool GameEngine::resolveEliminationRules(uint32_t nowMs) {
   }
   batchElimination_ = false;
   if (!changed) return false;
+  // The whole batch is applied; only now is the outcome decided.
+  if (starCommander()) {
+    if (!evaluateStarVictory(nowMs) && restoreRunning) resume(nowMs);
+    return true;
+  }
   const uint8_t sides = livingSideCount();
   if (sides == 0) finishGame(0, nowMs);
   else if (sides == 1) {
@@ -557,11 +621,18 @@ bool GameEngine::endInDraw(uint32_t nowMs) {
 }
 
 void GameEngine::finishGame(uint8_t winnerPlayer, uint32_t nowMs) {
+  finishGameWithWinners(winnerPlayer >= 1 && winnerPlayer <= MAX_PLAYERS ? winnerBit(winnerPlayer) : 0, nowMs);
+}
+
+void GameEngine::finishGameWithWinners(uint16_t winners, uint32_t nowMs) {
   if (gameOver_) {
     return;
   }
 
-  winnerPlayer_ = winnerPlayer;
+  winnerMask_ = winners;
+  winnerPlayer_ = 0;
+  for (uint8_t number = 1; number <= MAX_PLAYERS && !winnerPlayer_; ++number)
+    if (winners & winnerBit(number)) winnerPlayer_ = number;
   gameEndedAtMs_ = nowMs;
 
   if (paused_ && pauseStartedAtMs_ != 0) {

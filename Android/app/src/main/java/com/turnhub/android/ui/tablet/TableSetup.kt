@@ -18,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TurnTimerStatus
+import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.standalone.StandaloneGame
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.theme.palette
@@ -63,11 +65,33 @@ internal fun SetupSwitch(title: String, detail: String?, checked: Boolean, enabl
     }
 }
 
-/** Game modes beyond the standard game; Magic and Commander only, for now Two-Headed Giant. */
+/**
+ * Game modes beyond the standard game, for Magic and Commander: Two-Headed Giant,
+ * and Star Commander (its own format, `mtg_star_commander`; choosing it turns
+ * Two-Headed Giant off, and Standard from it goes back to Commander).
+ */
 enum class GameMode(val label: String, val detail: String) {
     STANDARD("Standard", "Everyone for themselves."),
     TWO_HEADED_GIANT("Two-Headed Giant", "Neighbours in turn order play as teams of two, sharing life, poison and the turn."),
+    STAR_COMMANDER("Star Commander", "Five players. Your neighbours are allies who can't deal you Commander damage; " +
+        "win when both players across the star are out."),
+    ;
+
+    companion object {
+        fun of(profile: GameProfile, twoHeadedGiant: Boolean): GameMode = when {
+            profile.starCommander -> STAR_COMMANDER
+            twoHeadedGiant -> TWO_HEADED_GIANT
+            else -> STANDARD
+        }
+    }
 }
+
+/**
+ * The lobby's format chips select a format's base; Star Commander shows as
+ * Commander, and tapping Commander then keeps it (Standard leaves Star).
+ */
+internal fun formatSelected(current: GameProfile, chip: GameProfile): Boolean =
+    current == chip || (current.starCommander && chip == GameProfile.MTG_COMMANDER)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,12 +112,13 @@ internal fun GameModeChips(selected: GameMode, enabled: Boolean, onSelect: (Game
     Text(selected.detail, color = p.faint, style = MaterialTheme.typography.bodySmall)
 }
 
-/** The one big start button; a team game needs an even table of at least four. */
+/** The one big start button; a team game needs an even table of at least four, Star Commander exactly five. */
 @Composable
-internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, onStart: () -> Unit) {
-    val ready = players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
+internal fun StartTableButton(players: Int, teams: Boolean, enabled: Boolean, star: Boolean = false, onStart: () -> Unit) {
+    val ready = if (star) players == StarCommander.PLAYERS else players >= 2 && (!teams || (players >= 4 && players % 2 == 0))
     AccentButton(
         when {
+            star && !ready -> "Star Commander needs exactly five players."
             players < 2 -> "Add two players to start"
             !ready -> "Two-Headed Giant needs an even table of four or more"
             else -> "Start full-screen game"

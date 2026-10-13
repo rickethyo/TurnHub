@@ -3,7 +3,54 @@
 #include <string.h>
 
 namespace TurnHub {
-enum class GameProfile : uint8_t { Generic, Magic, Commander, Yugioh, Count };
+enum class GameProfile : uint8_t { Generic, Magic, Commander, Yugioh, StarCommander, Count };
+
+// Commander rules (Commander damage, commander casts and partners): Commander
+// and Star Commander.
+inline bool commanderRules(GameProfile profile) {
+  return profile == GameProfile::Commander || profile == GameProfile::StarCommander;
+}
+// Magic rules (monarch, initiative, poison, energy, experience, city's
+// blessing): Magic and both Commander formats.
+inline bool magicRules(GameProfile profile) {
+  return profile == GameProfile::Magic || commanderRules(profile);
+}
+
+// Star Commander: exactly five players. Relationships follow the seat (player
+// number 1..5, fixed for the match, also after elimination): the two
+// neighbours are allies and the two across the table are enemies. A player
+// wins when both enemies are eliminated; allies cannot deal each other
+// Commander damage. Never tied to names, profiles or Sigil hardware.
+constexpr uint8_t STAR_PLAYERS = 5;
+constexpr int32_t STAR_DEFAULT_LIFE = 40;
+inline bool validStarPlayer(uint8_t playerNumber) {
+  return playerNumber >= 1 && playerNumber <= STAR_PLAYERS;
+}
+// Writes the two allies (player numbers) of playerNumber; false when invalid.
+inline bool starAllies(uint8_t playerNumber, uint8_t out[2]) {
+  if (!validStarPlayer(playerNumber)) return false;
+  const uint8_t i = static_cast<uint8_t>(playerNumber - 1);
+  out[0] = static_cast<uint8_t>((i + 1) % STAR_PLAYERS + 1);
+  out[1] = static_cast<uint8_t>((i + 4) % STAR_PLAYERS + 1);
+  return true;
+}
+// Writes the two enemies (player numbers) of playerNumber; false when invalid.
+inline bool starEnemies(uint8_t playerNumber, uint8_t out[2]) {
+  if (!validStarPlayer(playerNumber)) return false;
+  const uint8_t i = static_cast<uint8_t>(playerNumber - 1);
+  out[0] = static_cast<uint8_t>((i + 2) % STAR_PLAYERS + 1);
+  out[1] = static_cast<uint8_t>((i + 3) % STAR_PLAYERS + 1);
+  return true;
+}
+// Distinct seated players who are allies.
+inline bool starAllied(uint8_t a, uint8_t b) {
+  uint8_t allies[2] = {};
+  return starAllies(a, allies) && (allies[0] == b || allies[1] == b);
+}
+inline bool starEnemy(uint8_t a, uint8_t b) {
+  uint8_t enemies[2] = {};
+  return starEnemies(a, enemies) && (enemies[0] == b || enemies[1] == b);
+}
 
 // Bound on starting life, life totals, life deltas and Commander damage.
 // Life totals may go negative down to -LIFE_LIMIT.
@@ -71,6 +118,7 @@ struct GameSettings {
   bool autoEliminateAtCommanderDamage = true;
   int32_t poisonLimit = 10;
 };
+// Two-Headed Giant: Magic and Commander only (never Star Commander).
 inline bool teamsAllowed(GameProfile profile) {
   return profile == GameProfile::Magic || profile == GameProfile::Commander;
 }
@@ -91,6 +139,9 @@ inline bool validTeamTable(const GameSettings &settings, uint8_t playerCount) {
   return !settings.twoHeadedGiant ||
       (playerCount >= TEAM_MIN_PLAYERS && playerCount % TEAM_SIZE == 0);
 }
+inline bool validStarTable(const GameSettings &settings, uint8_t playerCount) {
+  return settings.profile != GameProfile::StarCommander || playerCount == STAR_PLAYERS;
+}
 inline uint8_t profileByte(const GameSettings &settings) {
   return static_cast<uint8_t>(settings.profile) | (settings.twoHeadedGiant ? PROFILE_BYTE_TEAMS : 0) |
       (settings.autoEliminateAtZeroLife ? 0 : PROFILE_BYTE_MANUAL_ELIMINATION);
@@ -105,6 +156,7 @@ inline const char *gameProfileKey(GameProfile profile) {
     case GameProfile::Magic: return "mtg";
     case GameProfile::Commander: return "mtg_commander";
     case GameProfile::Yugioh: return "yugioh";
+    case GameProfile::StarCommander: return "mtg_star_commander";
     default: return "generic";
   }
 }

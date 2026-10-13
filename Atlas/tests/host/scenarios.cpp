@@ -4772,6 +4772,367 @@ static void zeroLifeAndExitReasons() {
   }
 }
 
+// --- Star Commander -------------------------------------------------------------------------
+
+// Seat geometry: for player p (i = p - 1) the neighbours (i+1, i+4) are allies
+// and the two across the table (i+2, i+3) are enemies.
+static void starCommanderRelationships() {
+  using namespace TurnHub;
+  const uint8_t expectedAllies[5][2] = {{2,5},{3,1},{4,2},{5,3},{1,4}};
+  const uint8_t expectedEnemies[5][2] = {{3,4},{4,5},{5,1},{1,2},{2,3}};
+  for (uint8_t p = 1; p <= STAR_PLAYERS; ++p) {
+    uint8_t allies[2] = {}, enemies[2] = {};
+    assert(starAllies(p,allies) && starEnemies(p,enemies));
+    assert(allies[0]==expectedAllies[p-1][0] && allies[1]==expectedAllies[p-1][1]);
+    assert(enemies[0]==expectedEnemies[p-1][0] && enemies[1]==expectedEnemies[p-1][1]);
+    assert(!starAllied(p,p) && !starEnemy(p,p));
+    for (uint8_t q = 1; q <= STAR_PLAYERS; ++q) {
+      if (q == p) continue;
+      assert(starAllied(p,q) != starEnemy(p,q));  // Every other seat is exactly one.
+      assert(starAllied(p,q) == starAllied(q,p) && starEnemy(p,q) == starEnemy(q,p));
+    }
+  }
+  uint8_t out[2] = {};
+  assert(!starAllies(0,out) && !starEnemies(6,out) && !starAllied(1,6));
+  GameProfile parsed = GameProfile::Generic;
+  assert(parseGameProfile("mtg_star_commander",parsed) && parsed==GameProfile::StarCommander);
+  assert(!strcmp(gameProfileKey(GameProfile::StarCommander),"mtg_star_commander"));
+  assert(commanderRules(GameProfile::StarCommander) && magicRules(GameProfile::StarCommander));
+  assert(!teamsAllowed(GameProfile::StarCommander) && !commanderRules(GameProfile::Magic));
+}
+
+static void starCommanderEngine() {
+  using namespace TurnHub;
+  PlayerSeat seats[6];
+  for (uint8_t i = 0; i < 6; ++i) { seats[i].playerNumber = i + 1; seats[i].controllerId = i; seats[i].slot = 1; }
+  GameSettings star; star.profile = GameProfile::StarCommander; star.startingLife = STAR_DEFAULT_LIFE;
+  GameEngine engine;
+  // Exactly five players, and never Two-Headed Giant.
+  assert(validGameSettings(star) && !validStarTable(star,4) && validStarTable(star,5));
+  assert(!engine.start(seats,4,seats[0],1000,star) && !engine.start(seats,6,seats[0],1000,star));
+  GameSettings teams = star; teams.twoHeadedGiant = true;
+  assert(!validGameSettings(teams) && !engine.start(seats,5,seats[0],1000,teams));
+  GameSettings read; readProfileByte(profileByte(star),read);
+  assert(read.profile==GameProfile::StarCommander && !read.twoHeadedGiant);
+  // Normal Commander with five players has no relationships.
+  GameSettings commander = star; commander.profile = GameProfile::Commander;
+  assert(engine.start(seats,5,seats[0],1000,commander) && !engine.starCommander() && !engine.starAllies(1,2));
+  assert(engine.changeCommanderDamage(1,2,1,1));
+
+  assert(engine.start(seats,5,seats[0],1000,star) && engine.starCommander() && engine.lifeTotal(5)==40);
+  // Allies never deal each other Commander damage; enemies do.
+  for (uint8_t to = 1; to <= 5; ++to)
+    for (uint8_t from = 1; from <= 5; ++from) {
+      if (to == from) continue;
+      assert(engine.starAllies(to,from) == starAllied(to,from));
+      assert(engine.changeCommanderDamage(to,from,1,1) == !starAllied(to,from));
+    }
+  for (uint8_t p = 1; p <= 5; ++p) assert(engine.lifeTotal(p)==38);
+  assert(engine.setPartner(1,true) && !engine.recordCommanderHit(1,2,1,3) && !engine.recordCommanderHit(1,5,2,3));
+  assert(engine.recordCommanderHit(1,3,1,3) && engine.undoCommanderHit(1) && engine.lifeTotal(1)==38);
+  // Ordinary life changes are never restricted, also between allies.
+  assert(engine.changeLife(2,-5) && engine.requestLifeChange(1,2,-1,1000));
+  assert(engine.respondLifeChange(2,engine.lifeChangeFor(2)->id,true,1100) && engine.lifeTotal(2)==32);
+  assert(engine.changePlayerCounter(3,CounterKind::CommanderCast,1) && engine.claimMonarch(4));
+
+  // One enemy out is no victory; the second is, whoever removed them. A
+  // concession counts like any elimination.
+  bool finished = false;
+  int before = completedGames;
+  assert(engine.pause(2000) && engine.eliminatePlayer(3,2000,finished) && !finished);
+  assert(engine.starEnemiesEliminated(1)==1 && !engine.starVictoryPending(1) && !engine.gameOver());
+  assert(engine.eliminatePlayer(4,2000,finished,true) && finished);
+  assert(engine.gameOver() && engine.winnerPlayerNumber()==1 && engine.winnerMask()==1u && !engine.endedInDraw());
+  assert(engine.isWinner(1) && !engine.isWinner(2) && !engine.isWinner(5) && completedGames==before+1);
+
+  // The whole batch first: 4 is out, then 3 and 5 fall together. Allies 1
+  // (enemies 3, 4) and 2 (enemies 4, 5) share the victory; it is no draw.
+  assert(engine.start(seats,5,seats[0],3000,star));
+  assert(engine.pause(3000) && engine.eliminatePlayer(4,3000,finished) && !finished && engine.resume(3000));
+  assert(engine.changeLife(3,-40) && engine.changeLife(5,-40));
+  before = completedGames;
+  assert(engine.resolveEliminationRules(3100) && engine.gameOver() && completedGames==before+1);
+  assert(engine.isWinner(1) && engine.isWinner(2) && !engine.isWinner(3) && !engine.isWinner(4) && !engine.isWinner(5));
+  assert(engine.winnerPlayerNumber()==1 && engine.winnerMask()==3u && !engine.endedInDraw());
+  uint8_t winners[MAX_PLAYERS] = {};
+  assert(engine.winnerPlayers(winners,MAX_PLAYERS)==2 && winners[0]==1 && winners[1]==2);
+  for (uint8_t id = 0; id < 5; ++id) {
+    const SigilLedState cue = selectSigilLedState(id,HubState::GameOver,table().lobby,engine,0,0,0,3200);
+    assert(cue.has(LedOverlay::Winner) == (id < 2));
+  }
+  // A finished shared victory survives the checkpoint, without replaying completion.
+  GameCheckpoint saved; engine.checkpoint(saved,3200);
+  uint8_t bytes[GAME_CHECKPOINT_CAPACITY];
+  size_t size = encodeCheckpoint(saved,bytes,sizeof(bytes));
+  GameCheckpoint decoded;
+  assert(size && decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok && decoded.winners==3);
+  GameEngine restored; before = completedGames;
+  assert(restored.restoreCheckpoint(decoded,9000) && restored.gameOver() && completedGames==before);
+  assert(restored.isWinner(1) && restored.isWinner(2) && restored.settings().profile==GameProfile::StarCommander);
+  decoded.winners = 1 | 4; assert(!validCheckpoint(decoded));  // Player 3 is out.
+  decoded.winners = 2; assert(!validCheckpoint(decoded));      // Must include the first winner.
+  decoded.winners = 3; decoded.settings.profile = GameProfile::Commander;
+  assert(!validCheckpoint(decoded));                           // Only Star Commander shares.
+
+  // An interrupted Star match restores paused, with its profile and seats.
+  assert(engine.start(seats,5,seats[2],4000,star) && engine.changeCommanderDamage(1,3,1,7));
+  engine.checkpoint(saved,4500);
+  size = encodeCheckpoint(saved,bytes,sizeof(bytes));
+  assert(size && decodeCheckpoint(bytes,size,decoded)==TurnHubStorage::Status::Ok);
+  assert(restored.restoreCheckpoint(decoded,9000) && restored.paused() && restored.starCommander());
+  assert(restored.activePlayerNumber()==3 && restored.commanderDamage(1,3,1)==7 && restored.lifeTotal(1)==33);
+  assert(!restored.changeCommanderDamage(1,2,1,1) && restored.changeCommanderDamage(1,4,1,1));
+  decoded.damage[0][1][0] = 1; assert(!validCheckpoint(decoded));  // Ally damage is impossible.
+  decoded.damage[0][1][0] = 0; decoded.count = 4; assert(!validCheckpoint(decoded));
+
+  // An eliminated player never wins, and nobody qualifying keeps play going.
+  assert(engine.start(seats,5,seats[0],5000,star));
+  assert(engine.pause(5000) && engine.eliminatePlayer(1,5000,finished) && !finished && engine.resume(5000));
+  assert(engine.changeLife(3,-40) && engine.changeLife(4,-40) && engine.resolveEliminationRules(5100));
+  assert(!engine.gameOver() && engine.running() && !engine.paused() && engine.livingPlayerCount()==2);
+  assert(!engine.starVictoryPending(1) && !engine.isWinner(1));
+  // A batch leaving nobody, and so no winner, is a draw.
+  assert(engine.changeLife(2,-40) && engine.changeLife(5,-40) && engine.resolveEliminationRules(5200));
+  assert(engine.gameOver() && engine.endedInDraw() && engine.winnerMask()==0 && !engine.isWinner(1));
+
+  // Poison and Commander damage feed the same victory policy.
+  assert(engine.start(seats,5,seats[0],6000,star));
+  assert(engine.changePlayerCounter(3,CounterKind::Poison,10) && engine.changeCommanderDamage(4,1,1,21));
+  assert(engine.resolveEliminationRules(6100) && engine.gameOver() && engine.winnerMask()==1u);
+
+  // An alternate win claim keeps its single-claimant confirmation workflow.
+  assert(engine.start(seats,5,seats[0],7000,star) && engine.beginWinClaim(2,true,7000));
+  for (uint8_t i = 0; i < 4; ++i) {
+    const uint8_t next = engine.nextWinConfirmationPlayerNumber();
+    assert(next && next != 2 && engine.confirmWinClaim(next,7100,finished));
+  }
+  assert(finished && engine.winnerMask()==2u && engine.isWinner(2) && !engine.isWinner(1) && !engine.isWinner(3));
+  engine.reset(); assert(engine.winnerMask()==0 && !engine.starCommander());
+}
+
+// Sigils at a Star Commander table: five seats, relationships from the
+// lobby order (fixed in play), the Commander picker and refused ally hits.
+static void starCommanderSigils() {
+  using namespace TurnHub;
+  using namespace TurnHubProtocol;
+  using A = SigilAction;
+  resetCommanderPickers();
+  freshLobby(4);
+  table().nextGameSettings.profile = GameProfile::StarCommander;
+  table().nextGameSettings.startingLife = STAR_DEFAULT_LIFE;
+  const IntentResult four = dispatchModuleIntent(IntentType::StartGame,0);
+  assert(!four.accepted() && !strcmp(four.message,"Star Commander needs exactly five players."));
+  assert(table().hubState==HubState::Lobby);
+  choose(4,A::Join); assert(table().lobby.playerCount()==5);
+  // Moving a seat in the lobby changes its relationships: Sigil 4 becomes player 4.
+  assert(table().lobby.playerNumber(4,1)==5);
+  assert(web(4,1,WebControl::MoveEarlier) && table().lobby.playerNumber(4,1)==4 && table().lobby.playerNumber(3,1)==5);
+  startFromHost();
+  assert(table().game.starCommander() && table().game.playerByNumber(4)->controllerId==4);
+  // Fixed once the game starts.
+  assert(!web(4,1,WebControl::MoveLater) && table().game.playerByNumber(5)->controllerId==3);
+  assert(table().game.starAllies(4,5) && table().game.starAllies(4,3) && !table().game.starAllies(4,1));
+  // The Sigil Commander picker offers only enemies (player 1: 3 and 4).
+  leds.render(table().hubState,table().lobby,table().game,0,0,0,testNow);
+  syncSigilMenus(testNow);
+  assert(sigilMenuFor(0).actions & sigilActionBit(A::CommanderDamage));
+  handleSelectAction(0,encodeSelectAction(A::CommanderDamage,sigilMenuRevision(0),1));
+  auto key = [&](uint8_t k) { handleCommanderKey(0,encodeCommanderKey(k,commanderPage(0).revision),testNow); };
+  assert(commanderPage(0).stage==CommanderStage::Source && commanderPage(0).source==3);
+  key(3); assert(commanderPage(0).source==4);
+  key(3); assert(commanderPage(0).source==3);
+  key(2); assert(commanderPage(0).source==4);
+  key(1); assert(commanderPage(0).stage==CommanderStage::Closed);
+  // An ally hit is refused by the handler for every adapter.
+  Intent hit; hit.type = IntentType::RecordCommanderHit; hit.actor.origin = IntentOrigin::PhysicalSigil;
+  hit.actor.controllerId = 0; hit.actor.slot = 1; hit.actor.playerNumber = 1;
+  hit.payload.targetPlayer = 1; hit.payload.counterSource = 2; hit.payload.counterSlot = 1; hit.payload.value = 3;
+  IntentResult result = intents.dispatch(hit);
+  assert(result.status==IntentStatus::Conflict &&
+      !strcmp(result.message,"Allies can't deal Commander damage to each other in Star Commander."));
+  hit.payload.counterSource = 3; assert(intents.dispatch(hit).accepted() && table().game.lifeTotal(1)==37);
+  // Enemies 3 (Sigil 2) and 4 (Sigil 4) concede: player 1 wins, not by last standing.
+  assert(dispatchSeatIntent(IntentType::Concede,IntentOrigin::PhysicalSigil,player(3)).accepted());
+  assert(table().hubState==HubState::Running);
+  assert(dispatchSeatIntent(IntentType::Concede,IntentOrigin::PhysicalSigil,player(4)).accepted());
+  assert(table().hubState==HubState::GameOver && table().game.livingPlayerCount()==3);
+  assert(table().game.isWinner(1) && !table().game.isWinner(2) && !table().game.isWinner(5));
+  enterEmptyLobby();
+  table().nextGameSettings = GameSettings{};
+}
+
+// Two Atlas games stay separate: Star Commander in Game 1, Commander in Game 2.
+static void starCommanderVenue() {
+  using namespace TurnHub;
+  using TurnHubProtocol::SigilAction;
+  registerWebCallbacks();
+  freshLobby(5);
+  choose(5,SigilAction::SwitchTable); choose(6,SigilAction::SwitchTable);
+  choose(5,SigilAction::Join); choose(6,SigilAction::Join);
+  assert(tables[1].lobby.playerCount()==2 && tables[0].lobby.playerCount()==5);
+  tables[0].nextGameSettings.profile = GameProfile::StarCommander;
+  tables[1].nextGameSettings.profile = GameProfile::Commander;
+  for (uint8_t index : {0, 1}) {
+    choose(index ? 5 : 0,SigilAction::StartGame);
+    TableScope scope(index);
+    testNow += 3000; updateCountdown(testNow); assert(table().hubState==HubState::Running);
+  }
+  assert(tables[0].game.starCommander() && tables[1].game.settings().profile==GameProfile::Commander);
+  auto hit = [](uint8_t sigil, uint8_t recipient, uint8_t source) {
+    Intent intent; intent.type = IntentType::RecordCommanderHit; intent.actor.origin = IntentOrigin::PhysicalSigil;
+    intent.actor.controllerId = sigil; intent.actor.slot = 1; intent.actor.playerNumber = recipient;
+    intent.payload.targetPlayer = recipient; intent.payload.counterSource = source;
+    intent.payload.counterSlot = 1; intent.payload.value = 2;
+    TableScope scope(tableForController(sigil));
+    return intents.dispatch(intent).accepted();
+  };
+  assert(!hit(1,2,1) && hit(1,2,4));         // Game 1: allies refused, enemies counted.
+  assert(hit(6,2,1) && !tables[1].game.starCommander());  // Game 2: a neighbour is just an opponent.
+  assert(tables[1].game.commanderDamage(2,1,1)==2 && tables[0].game.commanderDamage(2,1,1)==0);
+  { TableScope scope(0); enterEmptyLobby(); }
+  { TableScope scope(1); enterEmptyLobby(); }
+  for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) sigilTable[id] = 0;
+  tables[0].nextGameSettings = GameSettings{}; tables[1].nextGameSettings = GameSettings{};
+}
+
+// Phones at a Star Commander table: settings, start, the 409 reasons, a
+// shared victory after one batch, state, statistics and rematch.
+static void starCommanderTable() {
+  using namespace TurnHub;
+  using TurnHubProfiles::LastGameResult;
+  enterEmptyLobby(); fixtureRadio = false; testNow = 1000;
+  registerWebCallbacks();
+  String ids[5], tokens[5];
+  const char *names[5] = {"Star One","Star Two","Star Three","Star Four","Star Five"};
+  for (int i = 0; i < 5; ++i) tokens[i] = registerPhone(names[i],ids[i]);
+  for (int i = 0; i < 4; ++i) assert(request("/api/session/join",tokens[i])==200);
+  // Star Commander never allows Two-Headed Giant; choosing it turns teams off.
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","mtg"},{"twoHeadedGiant","1"}})==200);
+  assert(request("/api/game/settings",tokens[0],{{"gameProfile","mtg_star_commander"},{"twoHeadedGiant","1"}})==409);
+  assert(server.body.find("Two-Headed Giant isn't available in Star Commander")!=std::string::npos);
+  assert(table().nextGameSettings.profile==GameProfile::Magic);
+  assert(request("/api/game/settings",tokens[0],
+      {{"gameProfile","mtg_star_commander"},{"startingLife","40"},{"autoEliminateAtZeroLife","0"}})==200);
+  assert(table().nextGameSettings.profile==GameProfile::StarCommander && !table().nextGameSettings.twoHeadedGiant);
+  assert(request("/api/game/settings",tokens[0],{},HTTP_GET)==200 &&
+      server.body.find("\"gameProfile\":\"mtg_star_commander\"")!=std::string::npos);
+  assert(request("/api/control/start",tokens[0])==409);
+  assert(server.body.find("Star Commander needs exactly five players.")!=std::string::npos);
+  assert(request("/api/session/join",tokens[4])==200);
+  assert(request("/api/control/start",tokens[0])==200);
+  testNow += 3000; updateCountdown(testNow);
+  assert(table().hubState==HubState::Running && table().game.starCommander() && table().game.lifeTotal(5)==40);
+  String seatProfile[6];
+  for (uint8_t p = 1; p <= 5; ++p) seatProfile[p] = table().game.playerByNumber(p)->profileId;
+  auto token = [&](uint8_t p) {
+    for (int i = 0; i < 5; ++i) if (ids[i] == seatProfile[p]) return tokens[i];
+    assert(false); return String();
+  };
+  auto statsOf = [&](uint8_t p) { return ProfileFixture::profiles[seatProfile[p].c_str()].stats; };
+  TurnHubProfiles::ProfileStats before[6];
+  for (uint8_t p = 1; p <= 5; ++p) before[p] = statsOf(p);
+  // Allied Commander damage is refused with its reason; enemy damage and any
+  // life change work.
+  assert(request("/api/control/commander",token(1),{{"source","2"},{"commander","1"},{"delta","3"}})==409);
+  assert(server.body.find("Allies can't deal Commander damage to each other in Star Commander.")!=std::string::npos);
+  assert(table().game.commanderDamage(1,2,1)==0 && table().game.lifeTotal(1)==40);
+  assert(request("/api/control/commander",token(1),{{"source","3"},{"commander","1"},{"delta","3"}})==200);
+  assert(table().game.lifeTotal(1)==37);
+  // Player 4 concedes: no one has both enemies out yet.
+  assert(request("/api/control/concede",token(4))==200 && table().hubState==HubState::Running);
+  // A blanket effect takes 3 and 5 (an ally of 1) to zero; zero-life
+  // elimination is off, so they stay in until it is turned on.
+  assert(request("/api/control/life",token(3),{{"delta","-40"}})==200);
+  assert(request("/api/control/life",token(5),{{"delta","-40"}})==200);
+  assert(!table().game.isEliminated(3) && !table().game.isEliminated(5));
+  // One batch eliminates both: allies 1 and 2 share the victory.
+  assert(request("/api/game/settings",token(1),{{"autoEliminateAtZeroLife","1"}})==200);
+  assert(table().hubState==HubState::GameOver && !table().game.endedInDraw());
+  assert(table().game.isWinner(1) && table().game.isWinner(2) && table().game.winnerPlayerNumber()==1);
+  assert(request("/api/v1/state",token(1),{},HTTP_GET)==200);
+  assert(server.body.find("\"winnerPlayer\":1,\"winnerPlayers\":[1,2]")!=std::string::npos);
+  assert(server.body.find("\"profile\":\"mtg_star_commander\"")!=std::string::npos);
+  saveClientFixture("star-commander-game-over",server.body);
+  // Every winner is credited, and Star Commander games are counted apart.
+  for (uint8_t p = 1; p <= 5; ++p) {
+    const auto after = statsOf(p);
+    const bool won = p <= 2;
+    assert(after.gamesPlayed==before[p].gamesPlayed+1 && after.gamesWon==before[p].gamesWon+(won ? 1 : 0));
+    assert(after.starGamesPlayed==before[p].starGamesPlayed+1 && after.starGamesWon==before[p].starGamesWon+(won ? 1 : 0));
+    assert(after.lastGameProfile==static_cast<uint8_t>(GameProfile::StarCommander));
+    assert(after.lastGameResult==(won ? LastGameResult::Win : p==4 ? LastGameResult::Conceded : LastGameResult::Eliminated));
+  }
+  assert(request("/api/session/stats",token(2),{},HTTP_GET)==200);
+  assert(server.body.find("\"starGamesPlayed\":1,\"starGamesWon\":1")!=std::string::npos);
+  assert(server.body.find("\"lastGameType\":\"mtg_star_commander\"")!=std::string::npos);
+  assert(TurnHubProfileStats::buildTextReport("x","y",statsOf(2)).find("Star Commander games won: 1")!=std::string::npos);
+  // Rematch keeps the profile and the seats; life, eliminations and the
+  // victory start over.
+  assert(request("/api/control/rematch",token(1))==200);
+  assert(request("/api/control/start",token(1))==200);
+  testNow += 3000; updateCountdown(testNow);
+  assert(table().hubState==HubState::Running && table().game.starCommander() && table().game.winnerMask()==0);
+  for (uint8_t p = 1; p <= 5; ++p) {
+    assert(String(table().game.playerByNumber(p)->profileId)==seatProfile[p]);
+    assert(table().game.lifeTotal(p)==40 && !table().game.isEliminated(p) && !table().game.isWinner(p));
+  }
+  assert(request("/api/v1/state",token(1),{},HTTP_GET)==200 && server.body.find("\"winnerPlayers\":[]")!=std::string::npos);
+  enterEmptyLobby();
+  table().nextGameSettings = GameSettings{};
+  for (int i = 0; i < 5; ++i) assert(request("/api/session/logout",tokens[i])==200);
+  for (const String &id : ids) { ProfileFixture::profiles.erase(id.c_str()); TurnHubAccounts::accounts.erase(id.c_str()); }
+}
+
+// A standalone Star Commander record credits every listed winner.
+static void starStandaloneImport() {
+  using TurnHubProfiles::LastGameResult;
+  MemoryBlobs blobs; TurnHubStandalone::useImportStore(&blobs);
+  enterEmptyLobby(); TurnHub::fixtureRadio = false; testNow = 1000;
+  String ids[5], tokens[5];
+  const char *names[5] = {"Import A","Import B","Import C","Import D","Import E"};
+  for (int i = 0; i < 5; ++i) tokens[i] = registerPhone(names[i],ids[i]);
+  std::map<std::string,String> record = {
+    {"recordId","5a7c0c3e-1111-4222-8333-444455556666"},{"atlasId",TurnHubWebApi::internal::atlasHardwareId()},
+    {"gameProfile","mtg_star_commander"},{"durationMs","3600000"},{"players","5"},{"starter","0"},
+    {"winner","0"},{"winners","0,1"},
+  };
+  for (int i = 0; i < 5; ++i) {
+    const String n(i);
+    record[("name"+n).c_str()] = names[i]; record[("profile"+n).c_str()] = ids[i];
+    record[("turns"+n).c_str()] = "8"; record[("turnMs"+n).c_str()] = "800000";
+    record[("fastest"+n).c_str()] = "20000"; record[("longest"+n).c_str()] = "200000";
+    record[("out"+n).c_str()] = i >= 2 ? String(i - 1) : String("0");
+  }
+  TurnHubProfiles::ProfileStats before[5];
+  for (int i = 0; i < 5; ++i) before[i] = ProfileFixture::profiles[ids[i].c_str()].stats;
+  for (const char *bad : {"1,2", "0,5", "0,0", "0,x", ",", "1"}) {
+    auto invalid = record; invalid["winners"] = bad;
+    assert(request("/api/standalone/import",tokens[0],invalid)==400);
+  }
+  assert(blobs.blobs.empty());
+  assert(request("/api/standalone/import",tokens[0],record)==200 && server.body.find("\"credited\":5")!=std::string::npos);
+  for (int i = 0; i < 5; ++i) {
+    const auto &after = ProfileFixture::profiles[ids[i].c_str()].stats;
+    const bool won = i < 2;
+    assert(after.gamesPlayed==before[i].gamesPlayed+1 && after.gamesWon==before[i].gamesWon+(won ? 1 : 0));
+    assert(after.starGamesPlayed==before[i].starGamesPlayed+1 && after.starGamesWon==before[i].starGamesWon+(won ? 1 : 0));
+    assert(after.lastGameResult==(won ? LastGameResult::Win : LastGameResult::Eliminated));
+  }
+  // Without "winner", the lowest listed index is the first winner.
+  auto next = record; next["recordId"] = "5a7c0c3e-2222-4222-8333-444455556666";
+  next["winner"] = ""; next["winners"] = "4,3"; next["out0"] = "1"; next["out1"] = "2"; next["out2"] = "3";
+  next["out3"] = "0"; next["out4"] = "0";
+  assert(request("/api/standalone/import",tokens[0],next)==200);
+  assert(ProfileFixture::profiles[ids[3].c_str()].stats.lastGameResult==LastGameResult::Win);
+  assert(ProfileFixture::profiles[ids[4].c_str()].stats.lastGameResult==LastGameResult::Win);
+  assert(ProfileFixture::profiles[ids[0].c_str()].stats.lastGameResult==LastGameResult::Eliminated);
+  for (int i = 0; i < 5; ++i) {
+    assert(request("/api/session/logout",tokens[i])==200);
+    ProfileFixture::profiles.erase(ids[i].c_str()); TurnHubAccounts::accounts.erase(ids[i].c_str());
+  }
+  TurnHubStandalone::useImportStore(nullptr);
+}
+
 int main() {
   // These scenarios exercise the presence code; tableCodeOptional() covers
   // the default (off).
@@ -4801,6 +5162,12 @@ int main() {
   twoHeadedGiantEngine(); std::cout<<"PASS Two-Headed Giant engine: team turns, shared life, requests, claims, elimination, Commander, recovery\n";
   twoHeadedGiantTable(); std::cout<<"PASS Two-Headed Giant table: settings, state, teammate pass and life, team concession\n";
   twoHeadedGiantSigils(); std::cout<<"PASS Two-Headed Giant Sigils: both teammates active, shared life, either cancels the pass\n";
+  starCommanderRelationships(); std::cout<<"PASS Star Commander seats: allies and enemies for every seat, profile key and rule helpers\n";
+  starCommanderEngine(); std::cout<<"PASS Star Commander engine: five players, ally damage refused, enemy victory, shared batch winners, draw, claims, recovery\n";
+  starCommanderSigils(); std::cout<<"PASS Star Commander Sigils: five-player start, lobby order, fixed seats, enemy-only picker, refused ally hits\n";
+  starCommanderVenue(); std::cout<<"PASS Star Commander venue: Game 1 Star Commander and Game 2 Commander stay separate\n";
+  starCommanderTable(); std::cout<<"PASS Star Commander table: settings, 409 reasons, shared victory, state, statistics, rematch\n";
+  starStandaloneImport(); std::cout<<"PASS Star Commander standalone import: every listed winner credited, invalid winner sets refused\n";
   lifeApprovalsAndCommander(); std::cout<<"PASS life approval authorization, deadlines, rollover, atomic Commander counters and lifecycle\n";
   accountPermissionsAndModeration(); std::cout<<"PASS account setup, independent permissions, moderation, revocation and private counts\n";
   endMatchAsDraw(); std::cout<<"PASS touchscreen hold ends a match as a draw: authorization, overrides, stats once, recovery\n";
