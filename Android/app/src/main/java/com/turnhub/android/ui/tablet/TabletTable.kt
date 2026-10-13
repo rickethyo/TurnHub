@@ -87,6 +87,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.Brush
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import com.turnhub.android.ui.components.EliminationRulesEditor
 import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
@@ -189,10 +195,14 @@ internal fun TabletTable(
     val sent = remember { mutableStateListOf<SentLife>() }
     val gathering = remember { mutableMapOf<String, Job>() }
     var nextId by remember { mutableStateOf(0L) }
-    val drawers = remember { mutableStateListOf<String>() }
+    // One player's menu at a time, full screen and turned to face that player.
+    var playerMenu by remember { mutableStateOf<String?>(null) }
     var flipped by rememberSaveable { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
+    BackHandler(enabled = playerMenu != null || menuOpen) {
+        playerMenu = null
+        menuOpen = false
+    }
 
     LaunchedEffect(summary.revision) { sent.removeAll { it.acked && it.sentAtRevision != summary.revision } }
     LaunchedEffect(tablet.message) {
@@ -260,11 +270,18 @@ internal fun TabletTable(
     BoxWithConstraints(Modifier.fillMaxSize().background(p.bg)) {
         val landscape = maxWidth >= maxHeight || units.size <= 2
         val plan = placements(units.size)
+        fun degreesOf(index: Int) = when {
+            landscape -> if (index in plan.far) 180 else 0
+            else -> if (index in plan.far) 90 else 270
+        }
         val panel: @Composable (Int, Int, Modifier) -> Unit = { index, degrees, modifier ->
             val unit = units[index]
             key(unit.key) {
                 val pending = unsent[unit.key] ?: 0
-                val life = (unit.lifeSeat.life ?: 0) + pending + sent.filter { it.key == unit.key }.sumOf { it.delta } +
+                // An acknowledged change is dropped as soon as a newer snapshot arrives (which carries
+                // it), in the same frame, so the number never counts it twice and jumps back.
+                val inFlight = sent.filter { it.key == unit.key && !(it.acked && it.sentAtRevision != summary.revision) }
+                val life = (unit.lifeSeat.life ?: 0) + pending + inFlight.sumOf { it.delta } +
                     unit.members.sumOf { tablet.offlineLife(it.participantId) }
                 Box(modifier.padding(4.dp).facing((degrees + turn) % 360)) {
                     PlayerPanel(
@@ -272,23 +289,12 @@ internal fun TabletTable(
                         summary = summary,
                         life = life,
                         pendingDelta = pending,
-                        nowMs = nowMs,
-                        drawerOpen = unit.key in drawers,
-                        onToggleDrawer = { if (unit.key in drawers) drawers.remove(unit.key) else drawers.add(unit.key) },
-                        onBump = { bump(unit, it) },
-                        onControl = { seat, action ->
-                            if (action == "concede" || action == "eliminate") drawers.remove(unit.key)
-                            send(seat, action)
-                        },
-                        onCommander = { member, source, which, delta ->
+                        onOpenMenu = {
                             haptics.tick()
-                            if (isOffline) keep(member, delta, source, which)
-                            else controls { this.commander(member.seat(), source, which, delta) }
+                            playerMenu = unit.key
                         },
-                        onCounter = { member, kind, value, commander ->
-                            if (isOffline) controls { refuseOffline() }
-                            else controls { counter(member.seat(), kind, value, commander) }
-                        },
+                        onBump = { bump(unit, it) },
+                        onControl = { seat, action -> send(seat, action) },
                         onRespond = { seat, id, accept ->
                             if (isOffline) controls { refuseOffline() }
                             else controls { this.respondLife(seat, id, accept) }
@@ -326,9 +332,37 @@ internal fun TabletTable(
             }
         }
 
-        Hub(summary, nowMs, Modifier.align(Alignment.Center)) {
+        Hub(summary, Modifier.align(Alignment.Center)) {
             haptics.tick()
             menuOpen = true
+        }
+
+        val menuIndex = units.indexOfFirst { it.key == playerMenu }
+        if (menuIndex < 0 || summary.state == TableState.GAME_OVER) {
+            if (playerMenu != null) playerMenu = null
+        } else {
+            val unit = units[menuIndex]
+            Box(Modifier.fillMaxSize().facing((degreesOf(menuIndex) + turn) % 360)) {
+                PlayerMenu(
+                    unit = unit,
+                    summary = summary,
+                    onClose = { playerMenu = null },
+                    onControl = { seat, action ->
+                        if (action == "concede" || action == "eliminate" || action == "win") playerMenu = null
+                        send(seat, action)
+                    },
+                    onCommander = { member, source, which, delta ->
+                        haptics.tick()
+                        if (isOffline) keep(member, delta, source, which)
+                        else controls { this.commander(member.seat(), source, which, delta) }
+                    },
+                    onCounter = { member, kind, value, commander ->
+                        if (isOffline) controls { refuseOffline() }
+                        else controls { counter(member.seat(), kind, value, commander) }
+                    },
+                    offlineCommander = tablet::offlineCommander,
+                )
+            }
         }
 
         tablet.message?.let { message ->
@@ -394,7 +428,8 @@ internal fun TabletTable(
                 }
             }
             else -> if (menuOpen) {
-                Overlay("Table", "Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", onDismiss = { menuOpen = false }) {
+                Overlay("Table", null, onDismiss = { menuOpen = false }) {
+                    GameClockLine(summary)
                     TableToolsCard(summary.players.filter { !it.eliminated }.map { it.label }, reduceMotion) { haptics.tick() }
                     EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
                         anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
@@ -427,8 +462,10 @@ internal fun TabletTable(
 
 /** The centre disc: the game clock, and the table menu on tap. */
 @Composable
-private fun Hub(summary: TableSummary, nowMs: Long, modifier: Modifier, onOpen: () -> Unit) {
+private fun Hub(summary: TableSummary, modifier: Modifier, onOpen: () -> Unit) {
     val p = palette
+    // Ticks here only, so the clock never redraws the panels around it.
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
     val clock = TableClock.format(TableClock.gameElapsedMs(summary, nowMs))
     Column(
         modifier
@@ -449,7 +486,7 @@ private fun Hub(summary: TableSummary, nowMs: Long, modifier: Modifier, onOpen: 
 @Composable
 private fun Overlay(
     title: String,
-    text: String,
+    text: String?,
     onDismiss: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) = OverlayFrame(title, text, onDismiss, content)
@@ -459,7 +496,7 @@ private fun OverlayButtons(content: @Composable RowScope.() -> Unit) =
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), content = content)
 
 @Composable
-private fun OverlayFrame(title: String, text: String, onDismiss: (() -> Unit)?, content: @Composable () -> Unit) {
+private fun OverlayFrame(title: String, text: String?, onDismiss: (() -> Unit)?, content: @Composable () -> Unit) {
     val p = palette
     Box(
         Modifier
@@ -471,10 +508,16 @@ private fun OverlayFrame(title: String, text: String, onDismiss: (() -> Unit)?, 
     ) {
         BrassCard(Modifier.widthIn(max = 380.dp).padding(16.dp).verticalScroll(rememberScrollState()).pointerInput(Unit) { detectTapGestures { } }) {
             Text(title, color = p.text, style = MaterialTheme.typography.headlineSmall)
-            Text(text, color = p.muted)
+            text?.let { Text(it, color = p.muted) }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
         }
     }
+}
+
+@Composable
+private fun GameClockLine(summary: TableSummary) {
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
+    Text("Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", color = palette.muted)
 }
 
 @Composable
@@ -502,13 +545,9 @@ private fun PlayerPanel(
     summary: TableSummary,
     life: Int,
     pendingDelta: Int,
-    nowMs: Long,
-    drawerOpen: Boolean,
-    onToggleDrawer: () -> Unit,
+    onOpenMenu: () -> Unit,
     onBump: (Int) -> Unit,
     onControl: (TabletSeat, String) -> Unit,
-    onCommander: (TablePlayer, Int, Int, Int) -> Unit,
-    onCounter: (TablePlayer, String, Int, Int) -> Unit,
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
@@ -521,12 +560,14 @@ private fun PlayerPanel(
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
-    // The active panel's edge breathes slowly; steady when motion is reduced.
+    // The active panel's edge breathes slowly; steady when motion is reduced. The value is
+    // read only while drawing, so the pulse redraws the edge without recomposing the panel.
     val glow = if (active && !reduceMotion) {
         rememberInfiniteTransition(label = "turnGlow").animateFloat(
             .55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "glow",
-        ).value
-    } else 1f
+        )
+    } else null
+    val activeColor = p.active
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -537,7 +578,20 @@ private fun PlayerPanel(
                 hue.copy(alpha = if (p.dark) .30f else .22f),
                 hue.copy(alpha = if (p.dark) .52f else .40f),
             )))
-            .border(if (active) 4.dp else 1.dp, if (active) p.active.copy(alpha = glow) else p.line, shape),
+            .then(
+                if (!active) Modifier.border(1.dp, p.line, shape)
+                else Modifier.drawWithContent {
+                    drawContent()
+                    val w = 4.dp.toPx()
+                    drawRoundRect(
+                        activeColor.copy(alpha = glow?.value ?: 1f),
+                        topLeft = Offset(w / 2, w / 2),
+                        size = Size(size.width - w, size.height - w),
+                        cornerRadius = CornerRadius(22.dp.toPx() - w / 2),
+                        style = Stroke(w),
+                    )
+                },
+            ),
     ) {
         val nameMax = maxWidth * .6f
         val lifeSize = (minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f).coerceIn(28f, 160f)
@@ -585,8 +639,7 @@ private fun PlayerPanel(
                             .padding(horizontal = 12.dp, vertical = 2.dp))
                 }
             }
-            val shown by animateIntAsState(life, if (reduceMotion) snap() else tween(220), label = "life")
-            Text("$shown", color = p.text, fontSize = lifeSize.sp, fontWeight = FontWeight.Black, lineHeight = lifeSize.sp)
+            LifeNumber(life, lifeSize, reduceMotion)
             CommanderSummary(unit, summary, offlineCommander)
             if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
                 unit.members.forEach { member ->
@@ -602,7 +655,7 @@ private fun PlayerPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            TextButton(onClick = onToggleDrawer) { Text("More", color = p.text, fontWeight = FontWeight.SemiBold) }
+            MenuButton(name, onOpenMenu)
             val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
             if (actor != null && !out && summary.state == TableState.RUNNING) {
                 val passing = summary.pending.passPlayer != null && unit.members.any { it.playerNumber == summary.pending.passPlayer }
@@ -610,11 +663,38 @@ private fun PlayerPanel(
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            if (active) TurnClock(summary, nowMs)
+            if (active) TurnClock(summary)
         }
 
         Prompt(unit, summary, onControl, onRespond, Modifier.align(Alignment.BottomCenter))
-        if (drawerOpen) Drawer(unit, summary, onToggleDrawer, onControl, onCommander, onCounter, offlineCommander)
+    }
+}
+
+/** The life total, counting to its new value; only this text recomposes while it animates. */
+@Composable
+private fun LifeNumber(life: Int, size: Float, reduceMotion: Boolean) {
+    val shown by animateIntAsState(life, if (reduceMotion) snap() else tween(220), label = "life")
+    Text("$shown", color = palette.text, fontSize = size.sp, fontWeight = FontWeight.Black, lineHeight = size.sp)
+}
+
+/** Opens the player's menu: a clear, thumb-sized pill rather than a bare word. */
+@Composable
+private fun MenuButton(name: String, onOpen: () -> Unit) {
+    val p = palette
+    val shape = RoundedCornerShape(99.dp)
+    Row(
+        Modifier
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(p.surface.copy(alpha = .85f))
+            .border(1.dp, p.lineStrong, shape)
+            .clickable(onClickLabel = "Open $name's menu", role = Role.Button, onClick = onOpen)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("☰", color = p.text, fontSize = 18.sp)
+        Text("Menu", color = p.text, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -729,8 +809,9 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
 }
 
 @Composable
-private fun TurnClock(summary: TableSummary, nowMs: Long) {
+private fun TurnClock(summary: TableSummary) {
     val p = palette
+    val nowMs = rememberNowMs(ticking = summary.state == TableState.RUNNING, intervalMs = 500)
     val expired = summary.turnTimer.phase == TurnTimerPhase.EXPIRED
     val remaining = TableClock.turnRemainingMs(summary, nowMs)
     // Over time shows "+" and the overtime, so time-up never rests on color alone.
@@ -819,9 +900,13 @@ private fun Prompt(
     }
 }
 
-/** The panel's drawer: Commander damage received, claiming the win and conceding. It faces the player too. */
+/**
+ * A player's menu over the whole table, turned to face that player: counters,
+ * Commander damage received, claiming the win and conceding. It closes with
+ * the ✕, the Done button at the bottom, or Back.
+ */
 @Composable
-private fun Drawer(
+private fun PlayerMenu(
     unit: TableUnit,
     summary: TableSummary,
     onClose: () -> Unit,
@@ -832,20 +917,57 @@ private fun Drawer(
 ) {
     val p = palette
     val partners = remember { mutableStateListOf<Int>() }
+    val hue = p.avatarColor(unit.members.first().playerNumber)
     Column(
         Modifier
             .fillMaxSize()
-            .background(p.surface.copy(alpha = .98f))
-            // Keeps taps on the drawer from reaching the life halves underneath.
-            .pointerInput(Unit) { detectTapGestures { } }
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .background(p.bg)
+            .background(Brush.verticalGradient(listOf(hue.copy(alpha = .10f), hue.copy(alpha = .28f))))
+            // Keeps taps on the menu from reaching the table underneath.
+            .pointerInput(Unit) { detectTapGestures { } },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(unit.name, color = p.text, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("Close", color = p.text) }
+        Row(
+            Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(unit.name, color = p.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .clickable(onClickLabel = "Close ${unit.name}'s menu", role = Role.Button, onClick = onClose),
+                contentAlignment = Alignment.Center,
+            ) { Text("✕", color = p.text, fontSize = 26.sp) }
         }
+        Column(
+            Modifier
+                .weight(1f)
+                .widthIn(max = 640.dp)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            PlayerMenuItems(unit, summary, partners, onControl, onCommander, onCounter, offlineCommander)
+        }
+        AccentButton("Done", onClose, Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp))
+    }
+}
+
+@Composable
+private fun PlayerMenuItems(
+    unit: TableUnit,
+    summary: TableSummary,
+    partners: MutableList<Int>,
+    onControl: (TabletSeat, String) -> Unit,
+    onCommander: (TablePlayer, Int, Int, Int) -> Unit,
+    onCounter: (TablePlayer, String, Int, Int) -> Unit,
+    offlineCommander: (Long, Int, Int) -> Int,
+) {
+    val p = palette
+    run {
         // Claim the win and concede first, so a long Commander list never hides them.
         val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
         if (actor != null && summary.state == TableState.RUNNING) {
