@@ -135,6 +135,11 @@ void OtaManager::handleUpload() {
         return;
       }
 
+      if (TurnHubFirmwarePackage::otaRetired()) {
+        fail(static_cast<uint8_t>(TurnHubFirmwarePackage::Error::Retired));
+        return;
+      }
+
       {
         const auto *slot = esp_ota_get_next_update_partition(nullptr);
         if (!slot) { fail(static_cast<uint8_t>(TurnHubFirmwarePackage::Error::Storage)); return; }

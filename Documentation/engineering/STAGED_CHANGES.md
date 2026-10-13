@@ -218,6 +218,16 @@ everything implemented. Only the checks listed below are still open.
 
 ### Hardware
 
+- **S3 generation / LVGL** (2026-10-11, TH-015): source-reviewed ES3C40P/ES3C28P
+  direction and partial prototype BOM are in [the hardware plan](hardware/ESP32_S3_REFRESH.md).
+  Resolve listed flash/audio/UART conflicts, supplier prices/MOQ, connector families,
+  battery/boost power and physical measurements before hardware fabrication.
+  [LVGL desktop foundation](../../LVGL/README.md) now builds and exercises both
+  profiles, shared themes and interactive fixtures; [migration architecture](LVGL_MIGRATION.md)
+  preserves the production boundaries.
+  Per-board firmware, production Intent/snapshot bindings, SD JPEG loading and S3
+  OTA remain pending. Legacy e-ink/OLED features stay frozen.
+
 - **Player-facing Sigil LEDs are required** (owner, 2026-10-09): implement
   the existing GPIO13/J6 front-strip plan on both display variants; choose
   count/location/brightness and verify current and case fit.
@@ -239,9 +249,15 @@ everything implemented. Only the checks listed below are still open.
 
 ## Frozen legacy Sigils (owner, 2026-10-10)
 
+Owner, 2026-10-12: the current-generation Atlas is retired too. After one final
+USB flash, both refuse every OTA update ([Firmware Updates](FIRMWARE_UPDATES.md#retired-hardware-no-more-updates));
+open checks below that need further legacy flashing (U06, G12) apply to the S3
+hardware instead.
+
 Current e-paper/OLED Sigil feature development is frozen. Future display work
-moves to planned ESP32-S3 2.8/4-inch LCD hardware; board specifications, layouts,
-firmware targets and artwork transfer/cache remain to be built. Player artwork's
+moves to ESP32-S3 ES3C28P/ES3C40P candidates; source specifications and verification
+holds are documented above. Hardware firmware targets and artwork transfer/cache
+remain to be built. Player artwork's
 512px SD master and provisional 64/128px app previews are implemented in PR #86;
 physical acceptance of crop fidelity, card removal/reinsert, approval and Atlas
 thumbnail display remains outstanding. Background artwork and standalone local

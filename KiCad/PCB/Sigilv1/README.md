@@ -73,3 +73,10 @@ python tools/verify_schematic.py eink.xml oled.xml adapter.xml
 ```
 
 Without KiCad, `python tools/offline_netlist.py Sigil_EInk.kicad_sch eink.xml` (and the same for OLED) writes an equivalent netlist from the generated files. It only understands what `build_schematic.py` writes and is not ERC.
+
+## Planned S3 interface
+
+These DevKit carrier/Jewel projects are preserved. Future integrated S3 LCD
+boards need a separate interface design for navigation bus/INT, GPIO21 buffering
+and qualified LED battery power; see [the S3 electrical plan](../../../Documentation/engineering/hardware/ESP32_S3_REFRESH.md).
+No S3 fabrication-ready schematic/layout or reused footprint acceptance exists.

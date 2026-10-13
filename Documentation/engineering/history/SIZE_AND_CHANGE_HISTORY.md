@@ -982,3 +982,17 @@ for workspace tracing), including the real ADC/NVS/RTC adapter. All 20 client
 contract cases, 31 adapter guards, tokens and Manual V0.18 export/XML checks
 passed. ADC calibration, curve/charge rate, regulator margin, USB/source and
 physical deep-sleep acceptance remain in [Staged Changes](../STAGED_CHANGES.md).
+
+### 2026-10-11 / Isolated desktop LVGL foundation 0.1.0
+
+No legacy firmware version, PlatformIO environment, partition or radio change.
+Hardware/BOM planning precedes a shared desktop UI with Atlas 480×320 and Sigil
+240×320 profiles, four existing palettes, Inter/Cinzel fonts, existing avatar
+masks, SDL touch/keypad and fixture-only action/state adapters. No S3 image built.
+
+GCC 14.2.0 Release executable with statically built SDL 2.32.4 and LVGL 9.3.0:
+file 3,490,528 B; GNU `size` text 3,058,162 B, data 58,632 B, BSS 21,472 B.
+These are **desktop sections, not ESP32 flash/RAM estimates**. Device frame/cache
+budgets are in LVGL_MIGRATION.md. Both profile suites passed in Debug/Release and
+ASan/UBSan (leak checks disabled); X11 input suites and 14 rendered captures passed.
+Physical hardware, Windows and embedded memory/performance remain unverified.

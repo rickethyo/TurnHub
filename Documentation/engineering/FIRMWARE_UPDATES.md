@@ -4,6 +4,19 @@ How Atlas (including its admin portal) and Sigils are packaged, signed, released
 installed over the air, and how a spare Sigil is parked and brought back.
 USB flashing and board identification are in [Hardware](HARDWARE.md).
 
+## Retired hardware: no more updates
+
+*Implemented; hardware acceptance pending.* Owner, 2026-10-12: the E32R28T
+Atlas and the ESP32 DevKit Sigils (e-ink, OLED and spare builds) are retired
+in favour of the ESP32-S3 boards. Their PlatformIO builds set
+`TURNHUB_OTA_RETIRED=1` (`firmware_package.h`), so the next USB flash is the
+last: Atlas refuses Atlas and Sigil package uploads with the `retired` error,
+a Sigil refuses every update offer with it, and Atlas ignores app reports of
+newer releases (no update LED). USB flashing still works. A spare Sigil on this
+firmware can no longer return to service over the air; flash it over USB.
+Host tests build with the flag off so the update paths below stay covered;
+the rest of this document describes those paths.
+
 ## Overview
 
 - Every update is a signed `.thfw` package. Each device checks the signature
@@ -185,3 +198,11 @@ says `SIGIL|SPARE|EINK` or `SIGIL|SPARE|OLED`.
 - Keeping older packages on the card for reinstalling is undecided;
   delivery doesn't depend on it. Atlas fetching updates over home Wi-Fi is
   staged.
+
+## Planned ESP32-S3 targets
+
+The [LVGL foundation](LVGL_MIGRATION.md) is desktop-only and creates no OTA product.
+Legacy descriptors, signatures, slots and update mechanisms remain unchanged.
+Before S3 firmware packaging, define distinct board/product identity, verified
+partition sizes and product rejection/USB recovery tests; do not distribute an
+S3 image with a legacy product identifier. S3 OTA integration remains staged.

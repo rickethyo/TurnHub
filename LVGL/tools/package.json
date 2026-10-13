@@ -1,0 +1,1 @@
+{"name":"turnhub-lvgl-font-tools","private":true,"version":"1.0.0","description":"Pinned font converter for checked-in TurnHub Inter/Cinzel sources","dependencies":{"lv_font_conv":"1.5.3"}}

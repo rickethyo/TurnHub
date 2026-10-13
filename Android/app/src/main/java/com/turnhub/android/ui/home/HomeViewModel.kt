@@ -211,6 +211,8 @@ class HomeViewModel(
         val accessibilityOpen: Boolean = false,
         val discovery: Discovery = Discovery.Idle,
         val rejoining: Boolean = false,
+        /** Launched with a saved table and still inside [LAUNCH_WAIT_MS]. */
+        val launchWait: Boolean = false,
         /** Bumped when the vault changes, so the saved profile is re-read. */
         val vaultVersion: Int = 0,
     )
@@ -294,6 +296,8 @@ class HomeViewModel(
             discovery = screen.discovery,
             hasSavedTable = credentialStore.lastSsid() != null,
             rejoining = screen.rejoining,
+            awaitingTable = screen.launchWait && tableSummary == null &&
+                screen.discovery != Discovery.NotFound && shown == null,
             // vaultVersion is part of `screen`, so a save or forget recomputes this.
             savedProfile = tableSummary?.atlasId?.let { id -> vault?.saved(id) },
             appLockAvailable = vault?.available == true,
@@ -832,6 +836,7 @@ class HomeViewModel(
 
     private var autoStarted = false
     private var discoveryJob: Job? = null
+    private var launchWaitJob: Job? = null
     private var wifiJoinJob: Job? = null
     private var connectJob: Job? = null
     private var disconnectJob: Job? = null
@@ -847,6 +852,13 @@ class HomeViewModel(
     fun onAppStarted() {
         if (autoStarted) return
         autoStarted = true
+        if (credentialStore.lastSsid() != null) {
+            local.update { it.copy(launchWait = true) }
+            launchWaitJob = viewModelScope.launch {
+                delay(LAUNCH_WAIT_MS)
+                local.update { it.copy(launchWait = false) }
+            }
+        }
         discoveryJob = viewModelScope.launch {
             disconnectJob?.join()
             rejoinSavedTable()
@@ -1012,10 +1024,13 @@ class HomeViewModel(
         localImportJob?.cancel()
         _localImport.value = com.turnhub.android.standalone.LocalImportState()
         discoveryJob?.cancel()
+        launchWaitJob?.cancel()
         wifiJoinJob?.cancel()
         connectJob?.cancel()
         pendingEndpoint = null
-        local.update { it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, failure = null) }
+        local.update {
+            it.copy(discovery = Discovery.Idle, joiningSsid = null, wifiPrompt = null, failure = null, launchWait = false)
+        }
         disconnectJob = viewModelScope.launch {
             repository.disconnect()
             wifiLink.release()
@@ -1074,6 +1089,13 @@ class HomeViewModel(
     }
 
     companion object {
+
+        /**
+         * How long a launch with a saved table shows the game screen while it
+         * connects; after that, or sooner if the table can't be found, the
+         * connect screen explains what's wrong.
+         */
+        const val LAUNCH_WAIT_MS = 15_000L
 
         /** Atlas answers, then restarts about a second later. */
         private const val RESTART_GRACE_MS = 4_000L

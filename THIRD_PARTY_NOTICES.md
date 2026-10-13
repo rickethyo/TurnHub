@@ -8,6 +8,10 @@ This is a working development record, not a substitute for the complete license 
 
 | Component | Copyright / project owner | Use in TurnHub | Upstream license | Distribution note |
 | --- | --- | --- | --- | --- |
+| LVGL 9.3.0 | LVGL Kft and contributors | Isolated desktop UI simulator | MIT | Preserve [full upstream license](LVGL/licenses/LVGL-MIT.txt) with desktop distribution; no legacy firmware link. |
+| LVGL default font glyphs | Montserrat and Font Awesome projects | Bundled internal fallback in LVGL 9.3; visible UI uses Inter/Cinzel | SIL OFL 1.1 for font glyphs | Preserve [Montserrat OFL](LVGL/licenses/OFL-Montserrat.txt) and [Font Awesome font notice](LVGL/licenses/FontAwesome-Free.txt). |
+| SDL 2.32.4 | SDL project and contributors | Desktop display and input | zlib | Preserve [upstream license](LVGL/licenses/SDL-zlib.txt) and source notices. |
+| lv_font_conv 1.5.3 | LVGL font converter project | Development-only generation of Inter/Cinzel bitmaps | MIT | [Tool license](LVGL/licenses/lv-font-conv-MIT.txt); font output remains under the existing [Inter](design/fonts/OFL-Inter.txt) and [Cinzel](design/fonts/OFL-Cinzel.txt) OFL notices. |
 | Arduino-ESP32 | Espressif Systems and contributors | Arduino framework used by ESP32 Atlas and Sigil firmware | LGPL-2.1 | Firmware distribution obligations must be verified before release. Preserve upstream notices and license terms. |
 | GxEPD2 | Jean-Marc Zingg | Sigil e-ink display driver | GPL-3.0 | **Review required before commercial firmware distribution.** Current use may impose strong copyleft/source obligations on distributed firmware. |
 | Adafruit GFX Library | Adafruit Industries and contributors | Transitive graphics dependency used by GxEPD2 | BSD-style license | Preserve copyright/license/disclaimer notices when distributed in source or binary form as required. |

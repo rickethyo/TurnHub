@@ -228,6 +228,12 @@ updates on Atlas and the Sigils.
    Android remembers its approval, so this is silent when the table is
    there. *Verified* on the Pixel Fold, 2026-09-30: a cold start opens the
    live lobby with no taps.
+   - While it connects, the app shows the game screen (tabs, a "Your table"
+     status line and player-card placeholders, with Play on this device
+     instead) rather than the connect screen. After 15 s
+     (`HomeViewModel.LAUNCH_WAIT_MS`), or as soon as the table isn't found or
+     an error appears, the connect screen takes over (*Implemented*
+     2026-10-12; device acceptance pending).
    - The saved table doesn't answer: "Couldn't reach your table" with Try
      again and Set up a new table (a factory-reset Atlas).
    - A phone that never joined a table leads with Set up a new table, which

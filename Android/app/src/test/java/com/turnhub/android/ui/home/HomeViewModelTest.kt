@@ -32,12 +32,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -256,6 +258,45 @@ class HomeViewModelTest {
         assertEquals(defaultCredentials, store.saved["TurnHub-Atlas"])
         assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
         assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
+    }
+
+    @Test
+    fun `launch with a saved table shows the game screen until the table arrives`() = runTest {
+        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
+        val viewModel = viewModel()
+
+        viewModel.onAppStarted()
+        assertTrue(viewModel.uiState.value.awaitingTable)
+
+        repository.tableSummary.value = table("lobby.response.json", 2)
+        assertFalse(viewModel.uiState.value.awaitingTable)
+    }
+
+    @Test
+    fun `a slow table falls back to the connect screen after the launch wait`() = runTest {
+        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
+        val gate = CompletableDeferred<Unit>()
+        link.gate = gate
+        val viewModel = viewModel()
+
+        viewModel.onAppStarted()
+        advanceTimeBy(HomeViewModel.LAUNCH_WAIT_MS - 1)
+        assertTrue(viewModel.uiState.value.awaitingTable)
+        advanceTimeBy(2)
+        assertFalse(viewModel.uiState.value.awaitingTable)
+        gate.complete(Unit)
+    }
+
+    @Test
+    fun `a saved table that isn't found shows the connect screen at once`() = runTest {
+        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
+        link.results.addLast(WifiJoinResult.Unavailable)
+        val viewModel = viewModel()
+
+        viewModel.onAppStarted()
+
+        assertEquals(Discovery.NotFound, viewModel.uiState.value.discovery)
+        assertFalse(viewModel.uiState.value.awaitingTable)
     }
 
     @Test

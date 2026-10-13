@@ -8,8 +8,8 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
 - Check the working tree and open PRs before switching or updating a branch.
   Preserve uncommitted work. Never reset, force-push or delete a persistent branch.
 - Merge `origin/master` into your permanent agent branch before starting a new
-  slice. The isolated `codex/esp32-s3-lvgl` branch follows the manual upstream
-  integration policy in `AGENT_WORKFLOW.md`; do not synchronize it at startup.
+  slice. LVGL work now lives on master (PR #89 integrated 2026-10-12); the old
+  `codex/esp32-s3-lvgl` branch is historical and is not synchronized at startup.
   Do not rebase a published persistent branch or merge another agent's
   unfinished work without an explicit handoff.
 - Record scope, owner, branch and baseline SHA in `COLLABORATION.md`. Read the
