@@ -1310,3 +1310,18 @@ management/invitations from TH-002 remain separate planned work.
   and returned the retired message. Firmware builds run in CI. Hardware
   acceptance (an upload and a Sigil offer both refused after the final flash)
   is the owner's next flash.
+
+## 2026-10-12 — Claude: app opens to the game screen while connecting
+
+- Owner request (2026-10-12): after first-time setup, open to the main game
+  screen while connecting, and fall back to the current opening screen if
+  Atlas doesn't connect within a set time.
+- `HomeViewModel.onAppStarted` sets a launch wait when a table is saved;
+  `HomeUiState.awaitingTable` holds while no table has arrived, the table
+  hasn't been reported not found and no error shows, for at most
+  `LAUNCH_WAIT_MS` (15 s, Claude's default). `HomeScreen` then shows the
+  bottom tabs, a "Your table" status line, player-card placeholders and "Play
+  on this device instead". Device play cancels the wait.
+- Validation: three `HomeViewModelTest` cases added (arrival, timeout, not
+  found). No Android SDK in this container, so tests run in CI only. Device
+  acceptance pending on the owner's phone.

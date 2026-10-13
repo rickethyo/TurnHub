@@ -50,6 +50,11 @@ data class HomeUiState(
     val hasSavedTable: Boolean = false,
     /** Atlas is restarting (new Wi-Fi password, factory reset, update) and the app is rejoining it. */
     val rejoining: Boolean = false,
+    /**
+     * Opened with a saved table and still connecting within the launch wait:
+     * show the game screen as it loads, not the connect screen.
+     */
+    val awaitingTable: Boolean = false,
     /** The account this phone signs in to this Atlas automatically, if any (app lock). */
     val savedProfile: com.turnhub.android.data.SavedProfile? = null,
     /** This phone can keep a profile behind its fingerprint, face or screen lock (Android 11+). */

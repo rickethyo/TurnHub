@@ -208,7 +208,7 @@ fun HomeScreen(
                 onManualClick = { showManual = true })
         },
         bottomBar = {
-            if (summary != null && !setup.visible) {
+            if ((summary != null || uiState.awaitingTable) && !setup.visible) {
                 // A translucent bar over the content with a hairline top edge,
                 // drawn behind the gesture area (edge-to-edge).
                 NavigationBar(
@@ -283,6 +283,8 @@ fun HomeScreen(
                 ToneButton("Device players and history", onLocalHistory, Modifier.fillMaxWidth())
                 if (setup.visible) {
                     SetupScreen(setup, setupActions)
+                } else if (summary == null && uiState.awaitingTable) {
+                    ConnectingGame(uiState, reduceMotion, onPlayStandalone)
                 } else if (summary == null) {
                     BrassCard(highlight = p.accent) {
                         Eyebrow("Play on this device")
@@ -459,6 +461,45 @@ data class DiscoveryActions(
  * doing; a phone with no saved table leads with setup. The address is for
  * unusual setups and stays under Advanced.
  */
+/**
+ * The game screen while a saved table connects on launch: the table's place
+ * holders under a short status line. After the launch wait, or once the table
+ * can't be found, the connect screen takes over and explains.
+ */
+@Composable
+private fun ConnectingGame(uiState: HomeUiState, reduceMotion: Boolean, onPlayStandalone: () -> Unit) {
+    val p = palette
+    val status = when {
+        uiState.rejoining -> "Atlas is restarting. Rejoining the table's Wi-Fi…"
+        uiState.joiningSsid != null -> "Joining ${uiState.joiningSsid}. If Android asks to connect, choose Connect."
+        else -> "Connecting to Atlas…"
+    }
+    BrassCard(highlight = p.accent) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            GearMark(40.dp, spinning = true, reduceMotion = reduceMotion)
+            Column(Modifier.weight(1f)) {
+                Text("Your table", style = MaterialTheme.typography.titleMedium, color = p.text,
+                    modifier = Modifier.semantics { heading() })
+                Text(status, color = p.muted, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            }
+        }
+    }
+    // Player card shapes, so the screen keeps its layout when the table arrives.
+    repeat(4) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(88.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(p.surface.copy(alpha = .6f)),
+        )
+    }
+    TextButton(onClick = onPlayStandalone, modifier = Modifier.fillMaxWidth()) {
+        Text("Play on this device instead", color = p.muted)
+    }
+}
+
 @Composable
 private fun ConnectCard(
     uiState: HomeUiState,
