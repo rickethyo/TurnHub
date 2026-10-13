@@ -265,8 +265,6 @@ private fun PlayerRow(index: Int, player: LocalPlayer, count: Int, table: Standa
         Column(Modifier.weight(1f)) {
             Text(player.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
         }
-        MoveButton("↑", "Move ${player.name} earlier in turn order", index > 0) { table.movePlayer(index, -1) }
-        MoveButton("↓", "Move ${player.name} later in turn order", index < count - 1) { table.movePlayer(index, 1) }
         IconButton(onClick = { table.removePlayer(index) }) {
             Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { contentDescription = "Remove ${player.name}" })
