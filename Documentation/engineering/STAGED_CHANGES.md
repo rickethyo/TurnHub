@@ -70,6 +70,18 @@ everything implemented. Only the checks listed below are still open.
 - **Session history:** bounded game records on the card, enough to rebuild
   aggregates, with a retention limit, separate from the recovery record.
 
+### iOS app
+
+- **Native iPhone/iPad app** (*Foundation implemented; gameplay planned*, owner,
+  2026-10-13; TH-019): SwiftUI shell, a Foundation-only core package, metadata/
+  endpoint contract tests and unsigned simulator CI. The
+  [development framework](IOS_DEVELOPMENT.md) owns the architecture, milestone
+  sequence and acceptance criteria. Next: standalone lobby, then full local
+  gameplay and recovery/history; Atlas connection and shared-table controls
+  follow. [Build and source layout](../../iOS/README.md). Physical iPhone/iPad,
+  VoiceOver and lifecycle acceptance remain open. Signing and distribution
+  are later owner decisions.
+
 ### Accounts, portal and app
 
 - **Router-style web administration** (*Implemented locally; device acceptance pending*, owner confirmed, 2026-10-09):
