@@ -29,6 +29,7 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -91,10 +92,14 @@ fun StandaloneScreen(
             Lobby(state, table, onClose, onHistory, atlasEnabled, onAtlasEnabled)
         } else {
             Immersive()
-            // Re-derive each tick so the turn timer's phase (warning, time up) moves on its own.
+            // The clocks tick on their own from the summary; it is rebuilt only when the game
+            // changes or the turn timer's phase (warning, time up) moves on, so the panels
+            // aren't redrawn every tick.
             rememberNowMs(ticking = game.state == TableState.RUNNING, intervalMs = 500)
+            val phase = game.turnTimer(System.currentTimeMillis()).phase
+            val summary = remember(game, phase) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs()) }
             TabletTable(
-                summary = game.toSummary(System.currentTimeMillis(), TableClock.nowMs()),
+                summary = summary,
                 tablet = TabletState(),
                 controls = { block -> scope.launch { table.block() } },
                 onDismissMessage = {},

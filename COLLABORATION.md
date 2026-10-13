@@ -1383,3 +1383,24 @@ management/invitations from TH-002 remain separate planned work.
   game state). Generic life-counter patterns only, no third-party assets.
 - Local Gradle now works through Google's Maven Central mirror (a throwaway
   init script outside the repo). `testDebugUnitTest`: 240 tests, 0 failures.
+
+## 2026-10-13 — Claude: smoother full-screen table, full-screen player menu
+
+- Owner feedback (screen recording on a phone): the player panels in the
+  full-screen table were jerky, and the per-panel "More" drawer was awkward to
+  open and close; a full-screen menu is fine.
+- Causes found in code (inferred; the recording wasn't readable from here):
+  every 500 ms tick rebuilt the standalone summary and recomposed every panel
+  (each a `BoxWithConstraints`); the active panel's glow was read during
+  composition, recomposing that panel every frame; and in the gap between a
+  newer snapshot and the effect that drops acknowledged life changes, the
+  number counted a change twice and bounced back.
+- Fixes: the standalone summary is rebuilt only when the game or the turn
+  timer's phase changes, and the centre clock, turn clock and menu clock tick
+  on their own (`TableClock` extrapolates). The glow is read only while drawing
+  (`drawWithContent`). Life animates in its own `LifeNumber`. Acknowledged
+  changes are filtered against the current revision in the same frame.
+- The player menu is now full screen and turned to face the player. It opens
+  from a 48 dp "☰ Menu" pill on the panel and closes with ✕, a Done button at
+  the bottom or Back.
+- Validation: `testDebugUnitTest` passes locally. Needs an owner device pass.
