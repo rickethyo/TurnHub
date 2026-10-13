@@ -157,7 +157,10 @@ cmake --build LVGL/build-asan --parallel 4
 ctest --test-dir LVGL/build-asan --output-on-failure
 ```
 
-Screens slide between menus, the Atlas turn ring sweeps continuously, life changes pop with a merged
+Atlas follows the app's table: four seat panels (tap the top half +1, bottom half -1, hold for -5/+5
+repeating), hold-to-pass on the turn holder, and a centre hub whose ring drains with the turn clock and
+opens the table menu. Sigil keeps the joystick with a visible focus ring in menus, a tap-split life card and
+hold-to-pass on your turn. Screens slide between menus, the turn ring sweeps continuously, life changes pop with a merged
 `+3` badge and the turn holder's card glows. `--reduced-motion` keeps every state but drops movement,
 scaling and pulses; `--self-test` and `--capture` always use it so geometry is settled.
 
@@ -178,6 +181,7 @@ history. The launcher does not require an image conversion package.
 | `src/main.cpp` | SDL display/pointer bootstrap, event loop, CLI, integration self-tests, capture |
 | `src/assets.cpp` | Existing TurnHub 64px alpha presets via replaceable asset provider |
 | `assets/th_*.c` | Generated Inter/Cinzel glyphs, tabular digit advances, checked source/output digests |
+| `assets/th_{eyebrow,semi,bold,num}_*.c` | Semibold/bold Inter at the app's weights; `tools/generate_display_fonts.py` (headless browser canvas from the checked-in variable font; `--check` is stdlib) |
 | `assets/th_icons.c` | `design/icons` rasterized to 24/40 px A8 masks, tinted per theme at runtime; `tools/generate_icons.py` (headless Edge/Chrome; `--check` is stdlib) |
 | `lv_conf.h` | Desktop LVGL configuration only; software rendering and development assertions |
 

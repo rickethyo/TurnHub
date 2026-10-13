@@ -72,7 +72,11 @@ void key(th::Ui& ui, th::SdlInput& input, SDL_Keycode code) {
     e.type = SDL_KEYUP; e.key.state = SDL_RELEASED;
     require(SDL_PushEvent(&e) == 1, "Could not inject keyboard release"); pump(ui, input, 80);
 }
-void touch(th::Ui& ui, th::SdlInput& input, const std::string& id) {
+void press(th::Ui& ui, th::SdlInput& input, const std::string& id, unsigned hold_ms);
+void touch(th::Ui& ui, th::SdlInput& input, const std::string& id) { press(ui, input, id, 80); }
+void press(th::Ui& ui, th::SdlInput& input, const std::string& id, unsigned hold_ms) {
+    // Atlas keeps table actions in the hub menu: open it like a player would.
+    if(!ui.control(id) && ui.control("hub")) press(ui, input, "hub", 80);
     auto* obj = ui.control(id); require(obj != nullptr, "Missing control " + id);
     lv_obj_update_layout(lv_screen_active());
     lv_area_t a; lv_obj_get_coords(obj, &a);
@@ -81,7 +85,7 @@ void touch(th::Ui& ui, th::SdlInput& input, const std::string& id) {
     require(SDL_PushEvent(&e) == 1, "Could not inject pointer motion");
     e.type = SDL_MOUSEBUTTONDOWN; e.button.button = SDL_BUTTON_LEFT; e.button.state = SDL_PRESSED;
     e.button.x = (a.x1 + a.x2) / 2; e.button.y = (a.y1 + a.y2) / 2;
-    require(SDL_PushEvent(&e) == 1, "Could not inject pointer press"); pump(ui, input, 80);
+    require(SDL_PushEvent(&e) == 1, "Could not inject pointer press"); pump(ui, input, hold_ms);
     e.type = SDL_MOUSEBUTTONUP; e.button.state = SDL_RELEASED;
     require(SDL_PushEvent(&e) == 1, "Could not inject pointer release"); pump(ui, input, 80);
 }
@@ -117,6 +121,20 @@ void self_test(th::Ui& ui, th::Fixtures& fixtures, th::SdlInput& input, lv_displ
     touch(ui, input, "players"); touch(ui, input, "choose2");
     require(ui.selected_player() == 2 && ui.bounds_valid(), "Touch player selection failed");
     touch(ui, input, "settings"); touch(ui, input, "back");
+    if(!ui.display_profile().compact()) {
+        // Touch-only Atlas: seat halves step by one, holding steps by five.
+        const auto before = fixtures.snapshot().players[1].life;
+        touch(ui, input, "plus1"); require(fixtures.snapshot().players[1].life == before + 1, "Seat tap did not raise life");
+        press(ui, input, "minus1", 700); require(fixtures.snapshot().players[1].life < before - 3, "Seat hold did not step by five");
+        fixtures.request({th::ActionKind::AdjustLife, 102, before - fixtures.snapshot().players[1].life}); ui.update();
+        touch(ui, input, "hub"); require(ui.control("card_close") && ui.bounds_valid(), "Hub menu failed");
+        touch(ui, input, "card_close"); require(!ui.control("card_close"), "Hub menu did not close");
+        touch(ui, input, "pass0"); require(fixtures.snapshot().turn_holder == 0, "A tap must not pass");
+        press(ui, input, "pass0", th::Ui::PASS_HOLD_MS + 200);
+        require(fixtures.snapshot().turn_holder == 1, "Hold to pass failed");
+        fixtures.request({th::ActionKind::DemoNextScenario}); fixtures.request({th::ActionKind::DemoNextScenario});
+        fixtures.request({th::ActionKind::DemoNextScenario}); fixtures.request({th::ActionKind::DemoNextScenario}); ui.update();
+    }
     if(ui.display_profile().compact()) {
         const auto before = fixtures.snapshot().players[2].life;
         touch(ui, input, "plus");
@@ -175,6 +193,7 @@ int main(int argc, char** argv) {
         lv_sdl_window_set_title(display, p.compact() ? "TurnHub Sigil / LVGL demo" : "TurnHub Atlas / LVGL demo");
         lv_sdl_window_set_resizeable(display, false); lv_sdl_window_set_zoom(display, o.zoom);
         auto* pointer = lv_sdl_mouse_create(); lv_indev_set_display(pointer, display);
+        lv_indev_set_long_press_time(pointer, 450); lv_indev_set_long_press_repeat_time(pointer, 280);
         {
             th::Fixtures fixtures;
             for(unsigned i = 0; i < o.scenario; ++i) fixtures.request({th::ActionKind::DemoNextScenario});

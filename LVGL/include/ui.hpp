@@ -6,6 +6,7 @@
 #include <deque>
 #include <map>
 #include <string>
+#include <vector>
 namespace th {
 enum class Screen { Gameplay, Settings, Pairing, Themes, Players };
 class Ui {
@@ -28,10 +29,16 @@ public:
     const DisplayProfile& display_profile() const { return profile_; }
     bool bounds_valid();
     std::string visible_text(const std::string& role) const;
+    static constexpr uint32_t PASS_HOLD_MS = 700;
 private:
     struct Binding { Ui* ui; std::string name; };
-    enum class Look { Normal, Accent, Quiet };
+    enum class Look { Normal, Accent, Quiet, Turn };
     enum class Motion { None, Forward, Back, Fade };
+    enum class Card { None, Menu, Paused, Over };
+    struct Seat {
+        lv_obj_t *panel = nullptr, *token = nullptr, *glyph = nullptr, *life = nullptr, *badge = nullptr;
+        lv_obj_t *tag = nullptr, *tag_text = nullptr, *pass = nullptr, *up = nullptr, *down = nullptr;
+    };
     DisplayProfile profile_;
     SnapshotSource& source_;
     ActionSink& sink_;
@@ -49,16 +56,17 @@ private:
     lv_obj_t* root_ = nullptr;
     // Gameplay widgets; null on other screens.
     lv_obj_t *timer_ = nullptr, *life_ = nullptr, *name_ = nullptr, *status_ = nullptr, *status_pill_ = nullptr;
-    lv_obj_t *avatar_ = nullptr, *token_ = nullptr, *clock_arc_ = nullptr, *clock_bar_ = nullptr, *badge_ = nullptr;
-    lv_obj_t *overlay_ = nullptr, *overlay_icon_ = nullptr, *overlay_title_ = nullptr, *overlay_text_ = nullptr;
-    lv_obj_t *turn_frame_ = nullptr, *pause_icon_ = nullptr, *pause_text_ = nullptr;
-    lv_obj_t *sheet_ = nullptr, *sheet_scrim_ = nullptr, *sheet_life_ = nullptr, *sheet_badge_ = nullptr;
-    std::array<lv_obj_t*, 4> card_life_{}, card_tag_{}, cards_{}, card_token_{}, card_avatar_{}, card_badge_{};
+    lv_obj_t *hub_ = nullptr, *clock_arc_ = nullptr, *clock_head_ = nullptr, *clock_bar_ = nullptr, *badge_ = nullptr;
+    lv_obj_t *turn_frame_ = nullptr, *life_card_ = nullptr, *bottom_seat_ = nullptr, *bottom_pass_ = nullptr;
+    lv_obj_t *card_scrim_ = nullptr, *card_ = nullptr;
+    Card card_kind_ = Card::None;
+    std::vector<std::string> card_names_;
+    std::array<Seat, 4> seats_{};
     std::array<int, 4> last_life_{}, delta_{};
     std::array<uint32_t, 4> delta_at_{};
     unsigned last_turn_ = 0;
     unsigned last_seconds_ = 0;
-    Phase last_phase_ = Phase::Running;
+    unsigned last_selected_ = 0;
     std::map<std::string, lv_obj_t*> controls_;
     std::deque<NavEvent> keys_;
     uint32_t last_key_ = LV_KEY_ENTER;
@@ -72,27 +80,31 @@ private:
     void build_themes();
     void build_players();
     void build_pairing();
-    void open_sheet(unsigned seat);
-    void close_sheet();
+    void open_card(Card kind);
+    void close_card();
     void update_gameplay(const Snapshot& s);
     int accumulate(unsigned seat, int delta);
     void show_badge(lv_obj_t* badge, int total);
     void activate(const std::string& name);
     void gameplay_key(uint32_t key);
-    void bind(lv_obj_t* obj, const std::string& name, bool focusable = true);
+    void bind(lv_obj_t* obj, const std::string& name, bool focusable = true, bool holdable = false);
     lv_obj_t* box(lv_obj_t* parent, int x, int y, int w, int h);
     lv_obj_t* panel(lv_obj_t* parent, int x, int y, int w, int h);
     lv_obj_t* label(lv_obj_t* parent, const char* text, int x, int y, int width, const lv_font_t* font, uint32_t color);
     lv_obj_t* icon(lv_obj_t* parent, const lv_image_dsc_t* src, uint32_t color);
-    lv_obj_t* token(lv_obj_t* parent, int x, int y, int side, uint8_t avatar, lv_obj_t** image = nullptr);
+    lv_obj_t* token(lv_obj_t* parent, int x, int y, int side, uint8_t avatar, unsigned seat, lv_obj_t** image = nullptr);
     lv_obj_t* pill(lv_obj_t* parent, int x, int y, const char* text, uint32_t bg, uint32_t fg, lv_obj_t** text_out = nullptr);
     lv_obj_t* button(lv_obj_t* parent, const std::string& name, const char* text, const lv_image_dsc_t* glyph,
                      int x, int y, int w, int h, Look look = Look::Normal, const lv_font_t* font = nullptr);
+    lv_obj_t* hold_to_pass(lv_obj_t* parent, const std::string& name, int x, int y, int w, int h);
     const TurnHubTheme::Palette& palette() const { return TurnHubTheme::palette(theme_); }
     const lv_font_t* title_font(bool large = false) const;
+    uint32_t seat_color(unsigned seat) const;
+    uint32_t seat_tint(unsigned seat) const;
     uint32_t ms(uint32_t duration) const { return reduced_motion_ ? 0 : duration; }
     void pop(lv_obj_t* obj, int32_t peak = 300);
     static void click(lv_event_t* event);
+    static void pass_event(lv_event_t* event);
     static void free_binding(lv_event_t* event);
     static void key_event(lv_event_t* event);
     static void read_keypad(lv_indev_t* indev, lv_indev_data_t* data);

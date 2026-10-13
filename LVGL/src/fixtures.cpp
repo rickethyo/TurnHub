@@ -27,6 +27,17 @@ void Fixtures::request(Action action) {
     case ActionKind::DemoNextScenario: scenario_ = (scenario_ + 1) % 4; load(); break;
     case ActionKind::MockPair: paired_ = true; break;
     case ActionKind::MockUnpair: paired_ = false; break;
+    case ActionKind::PassTurn:
+        // Demo turn rotation only: the next active seat, with a fresh allowance.
+        if(state_.phase == Phase::Running && state_.players[state_.turn_holder].participant_id == action.participant_id) {
+            for(unsigned step = 1; step <= state_.players.size(); ++step) {
+                const unsigned next = (state_.turn_holder + step) % state_.players.size();
+                if(state_.players[next].active) { state_.turn_holder = next; break; }
+            }
+            state_.remaining_seconds = state_.turn_seconds;
+            elapsed_ = 0;
+        }
+        break;
     }
     ++state_.revision;
 }

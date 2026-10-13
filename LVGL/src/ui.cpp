@@ -2,7 +2,10 @@
 #include "fonts.hpp"
 #include "icons.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <set>
 
 #define TH_ICON(name, size) (&th_icon_##name##_##size)
 
@@ -15,12 +18,26 @@ const char* phase_name(Phase p) {
 lv_obj_t* as_obj(void* v) { return static_cast<lv_obj_t*>(v); }
 void set_opa(void* o, int32_t v) { lv_obj_set_style_opa(as_obj(o), static_cast<lv_opa_t>(v), 0); }
 void set_scale(void* o, int32_t v) { lv_obj_set_style_transform_scale(as_obj(o), v, 0); }
-void set_tx(void* o, int32_t v) { lv_obj_set_style_translate_x(as_obj(o), v, 0); }
 void set_ty(void* o, int32_t v) { lv_obj_set_style_translate_y(as_obj(o), v, 0); }
+void set_tx(void* o, int32_t v) { lv_obj_set_style_translate_x(as_obj(o), v, 0); }
 void set_shadow(void* o, int32_t v) { lv_obj_set_style_shadow_opa(as_obj(o), static_cast<lv_opa_t>(v), 0); }
 void set_border_opa(void* o, int32_t v) { lv_obj_set_style_border_opa(as_obj(o), static_cast<lv_opa_t>(v), 0); }
 void set_bg_opa(void* o, int32_t v) { lv_obj_set_style_bg_opa(as_obj(o), static_cast<lv_opa_t>(v), 0); }
-void set_arc(void* o, int32_t v) { lv_arc_set_value(as_obj(o), v); }
+void set_width(void* o, int32_t v) { lv_obj_set_width(as_obj(o), v); }
+// The turn ring and the bright head riding its moving end (as in the app).
+void set_ring(void* o, int32_t v) {
+    auto* arc = as_obj(o);
+    lv_arc_set_value(arc, v);
+    auto* head = static_cast<lv_obj_t*>(lv_obj_get_user_data(arc));
+    if(!head) return;
+    if(v <= 0) { lv_obj_add_flag(head, LV_OBJ_FLAG_HIDDEN); return; }
+    lv_obj_remove_flag(head, LV_OBJ_FLAG_HIDDEN);
+    const int32_t side = lv_obj_get_style_width(arc, 0), width = lv_obj_get_style_arc_width(arc, LV_PART_INDICATOR);
+    const int32_t r = side / 2 - width / 2, dot = lv_obj_get_style_width(head, 0);
+    const auto angle = static_cast<int16_t>((270 + v * 360 / 1000) % 360);
+    lv_obj_set_pos(head, lv_obj_get_style_x(arc, 0) + side / 2 + r * lv_trigo_cos(angle) / 32768 - dot / 2,
+                   lv_obj_get_style_y(arc, 0) + side / 2 + r * lv_trigo_sin(angle) / 32768 - dot / 2);
+}
 void delete_var(lv_anim_t* a) { lv_obj_delete(as_obj(a->var)); }
 
 // Replaces any running animation of the same property. A zero-length,
@@ -37,7 +54,7 @@ void animate(lv_obj_t* obj, lv_anim_exec_xcb_t cb, int32_t from, int32_t to, uin
     lv_anim_start(&a);
 }
 void pulse(lv_obj_t* obj, lv_anim_exec_xcb_t cb, int32_t low, int32_t high, uint32_t period) {
-    lv_anim_delete(obj, cb);
+    if(lv_anim_get(obj, cb)) return; // Already breathing; restarting would stutter.
     lv_anim_t a; lv_anim_init(&a);
     lv_anim_set_var(&a, obj); lv_anim_set_exec_cb(&a, cb);
     lv_anim_set_values(&a, low, high); lv_anim_set_duration(&a, period); lv_anim_set_reverse_duration(&a, period);
@@ -45,6 +62,14 @@ void pulse(lv_obj_t* obj, lv_anim_exec_xcb_t cb, int32_t low, int32_t high, uint
     lv_anim_start(&a);
 }
 int depth(Screen s) { return s == Screen::Gameplay ? 0 : s == Screen::Settings ? 1 : 2; }
+uint32_t hsl(float h, float s, float l) {
+    const float c = (1 - std::fabs(2 * l - 1)) * s, hp = h / 60, x = c * (1 - std::fabs(std::fmod(hp, 2.0f) - 1)), m = l - c / 2;
+    float r = 0, g = 0, b = 0;
+    if(hp < 1) { r = c; g = x; } else if(hp < 2) { r = x; g = c; } else if(hp < 3) { g = c; b = x; }
+    else if(hp < 4) { g = x; b = c; } else if(hp < 5) { r = x; b = c; } else { r = c; b = x; }
+    auto to = [&](float v) { return static_cast<uint32_t>(std::lround((v + m) * 255)); };
+    return to(r) << 16 | to(g) << 8 | to(b);
+}
 } // namespace
 
 Ui::Ui(DisplayProfile p, SnapshotSource& s, ActionSink& sink, const AssetProvider& a)
@@ -66,7 +91,20 @@ Ui::~Ui() {
 }
 const lv_font_t* Ui::title_font(bool large) const {
     return palette().ornament ? (large ? &th_cinzel_32 : &th_cinzel_20)
-                              : (large ? &th_inter_32 : &th_inter_20);
+                              : (large ? &th_bold_28 : &th_semi_20);
+}
+// Seat hues and their panel washes follow the app (Palette.avatarColor).
+uint32_t Ui::seat_color(unsigned seat) const {
+    static const float hues[] = {38, 168, 12, 205, 95, 280, 330, 60};
+    const auto& pal = palette();
+    const bool contrast = theme_ == TurnHubTheme::Id::Contrast;
+    const float s = contrast ? 0.0f : pal.ornament ? 0.42f : 0.5f;
+    const float l = contrast ? 0.18f : pal.ornament ? 0.34f : pal.light ? 0.44f : 0.38f;
+    return hsl(hues[seat % 8], s, l);
+}
+uint32_t Ui::seat_tint(unsigned seat) const {
+    const auto mixed = lv_color_mix(lv_color_hex(seat_color(seat)), lv_color_hex(palette().surface1), palette().light ? 41 : 56);
+    return lv_color_to_u32(mixed) & 0xFFFFFF;
 }
 
 // ---- Widget helpers ----------------------------------------------------
@@ -82,7 +120,7 @@ lv_obj_t* Ui::panel(lv_obj_t* parent, int x, int y, int w, int h) {
     auto* obj = box(parent, x, y, w, h);
     lv_obj_set_style_bg_color(obj, lv_color_hex(palette().surface1), 0);
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(obj, 14, 0);
+    lv_obj_set_style_radius(obj, 20, 0);
     lv_obj_set_style_border_width(obj, palette().ornament ? 2 : 1, 0);
     lv_obj_set_style_border_color(obj, lv_color_hex(palette().separatorStrong), 0);
     return obj;
@@ -109,14 +147,15 @@ lv_obj_t* Ui::icon(lv_obj_t* parent, const lv_image_dsc_t* src, uint32_t color) 
     lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
     return obj;
 }
-lv_obj_t* Ui::token(lv_obj_t* parent, int x, int y, int side, uint8_t avatar, lv_obj_t** image) {
+lv_obj_t* Ui::token(lv_obj_t* parent, int x, int y, int side, uint8_t avatar, unsigned seat, lv_obj_t** image) {
+    // A filled disc in the seat's hue with a light glyph, like the app's avatars.
     auto* circle = box(parent, x, y, side, side);
     lv_obj_set_style_radius(circle, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_opa(circle, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(circle, lv_color_hex(palette().accentSoft), 0);
-    lv_obj_set_style_border_width(circle, 2, 0);
-    lv_obj_set_style_border_color(circle, lv_color_hex(palette().accent), 0);
-    auto* glyph = icon(circle, assets_.avatar(avatar), palette().accent);
+    lv_obj_set_style_bg_color(circle, lv_color_hex(seat_color(seat)), 0);
+    lv_obj_set_style_border_color(circle, lv_color_hex(palette().turn), 0);
+    lv_obj_set_style_border_width(circle, 0, 0);
+    auto* glyph = icon(circle, assets_.avatar(avatar), palette().ornament ? 0xFFF6E4 : 0xFFFFFF);
     // 64 px preset masks, drawn at roughly 60% of the token.
     lv_image_set_scale(glyph, static_cast<uint32_t>(256 * side * 6 / 10 / 64));
     lv_obj_set_size(glyph, side, side);
@@ -127,19 +166,25 @@ lv_obj_t* Ui::token(lv_obj_t* parent, int x, int y, int side, uint8_t avatar, lv
 }
 lv_obj_t* Ui::pill(lv_obj_t* parent, int x, int y, const char* text, uint32_t bg, uint32_t fg, lv_obj_t** text_out) {
     auto* obj = box(parent, x, y, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_radius(obj, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_radius(obj, 8, 0);
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(obj, lv_color_hex(bg), 0);
-    lv_obj_set_style_pad_hor(obj, 10, 0); lv_obj_set_style_pad_ver(obj, 3, 0);
-    auto* caption = label(obj, text, 0, 0, 0, &th_inter_16, fg);
+    lv_obj_set_style_pad_hor(obj, 8, 0); lv_obj_set_style_pad_ver(obj, 3, 0);
+    auto* caption = label(obj, text, 0, 0, 0, &th_eyebrow_13, fg);
     if(text_out) *text_out = caption;
     return obj;
 }
-void Ui::bind(lv_obj_t* obj, const std::string& name, bool focusable) {
+void Ui::bind(lv_obj_t* obj, const std::string& name, bool focusable, bool holdable) {
     controls_[name] = obj;
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
     // Owned by the object, so a screen sliding out keeps valid callbacks.
-    lv_obj_add_event_cb(obj, click, LV_EVENT_CLICKED, new Binding{this, name});
+    auto* binding = new Binding{this, name};
+    if(holdable) {
+        // Tap for one step; hold for big steps that repeat while held.
+        lv_obj_add_event_cb(obj, click, LV_EVENT_SHORT_CLICKED, binding);
+        lv_obj_add_event_cb(obj, click, LV_EVENT_LONG_PRESSED, binding);
+        lv_obj_add_event_cb(obj, click, LV_EVENT_LONG_PRESSED_REPEAT, binding);
+    } else lv_obj_add_event_cb(obj, click, LV_EVENT_CLICKED, binding);
     lv_obj_add_event_cb(obj, free_binding, LV_EVENT_DELETE, nullptr);
     if(focusable) lv_group_add_obj(group_, obj);
 }
@@ -151,13 +196,13 @@ lv_obj_t* Ui::button(lv_obj_t* parent, const std::string& name, const char* text
     if(!ready) { lv_style_transition_dsc_init(&transition, props, lv_anim_path_ease_out, 140, 0, nullptr); ready = true; }
     const auto& pal = palette();
     auto* obj = box(parent, x, y, w, h);
-    const uint32_t fill = look == Look::Accent ? pal.accent : look == Look::Quiet ? pal.surface1 : pal.surface3;
-    const uint32_t ink = look == Look::Accent ? pal.onAccent : pal.text;
+    const uint32_t fill = look == Look::Accent ? pal.accent : look == Look::Turn ? pal.turn : look == Look::Quiet ? pal.surface1 : pal.surface3;
+    const uint32_t ink = look == Look::Accent ? pal.onAccent : look == Look::Turn ? pal.onTurn : pal.text;
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(obj, lv_color_hex(fill), 0);
-    lv_obj_set_style_bg_color(obj, lv_color_hex(look == Look::Accent ? pal.accentPressed : pal.fillStrong), LV_STATE_PRESSED);
-    lv_obj_set_style_radius(obj, 12, 0);
-    lv_obj_set_style_border_width(obj, look == Look::Accent ? 0 : 1, 0);
+    lv_obj_set_style_bg_color(obj, lv_color_hex(look == Look::Accent ? pal.accentPressed : look == Look::Turn ? pal.turnSoft : pal.fillStrong), LV_STATE_PRESSED);
+    lv_obj_set_style_radius(obj, 14, 0);
+    lv_obj_set_style_border_width(obj, look == Look::Accent || look == Look::Turn ? 0 : 1, 0);
     lv_obj_set_style_border_color(obj, lv_color_hex(pal.separatorStrong), 0);
     lv_obj_set_style_transform_width(obj, -3, LV_STATE_PRESSED);
     lv_obj_set_style_transform_height(obj, -3, LV_STATE_PRESSED);
@@ -165,7 +210,8 @@ lv_obj_t* Ui::button(lv_obj_t* parent, const std::string& name, const char* text
         lv_obj_set_style_transition(obj, &transition, 0);
         lv_obj_set_style_transition(obj, &transition, LV_STATE_PRESSED);
     }
-    lv_obj_set_style_outline_width(obj, 2, LV_STATE_FOCUS_KEY);
+    // The Sigil's joystick moves a visible focus ring; touch never shows it.
+    lv_obj_set_style_outline_width(obj, 3, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_outline_pad(obj, 2, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_outline_color(obj, lv_color_hex(pal.focus), LV_STATE_FOCUS_KEY);
     if(text || glyph) {
@@ -173,9 +219,35 @@ lv_obj_t* Ui::button(lv_obj_t* parent, const std::string& name, const char* text
         lv_obj_set_flex_align(obj, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(obj, 8, 0);
         if(glyph) icon(obj, glyph, ink);
-        if(text) label(obj, text, 0, 0, 0, font ? font : &th_inter_16, ink);
+        if(text) label(obj, text, 0, 0, 0, font ? font : &th_semi_16, ink);
     }
     bind(obj, name);
+    return obj;
+}
+lv_obj_t* Ui::hold_to_pass(lv_obj_t* parent, const std::string& name, int x, int y, int w, int h) {
+    // Hold to pass, so a brushed panel never ends a turn (as in the app).
+    const auto& pal = palette();
+    auto* obj = box(parent, x, y, w, h);
+    lv_obj_set_style_radius(obj, 14, 0);
+    lv_obj_set_style_clip_corner(obj, true, 0);
+    lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(obj, lv_color_hex(pal.turnSoft), 0);
+    lv_obj_set_style_border_width(obj, 1, 0);
+    lv_obj_set_style_border_color(obj, lv_color_hex(pal.turn), 0);
+    lv_obj_set_style_outline_width(obj, 3, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_pad(obj, 2, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_color(obj, lv_color_hex(pal.focus), LV_STATE_FOCUS_KEY);
+    auto* fill = box(obj, 0, 0, 0, h);
+    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(fill, lv_color_hex(pal.turn), 0);
+    auto* caption = label(obj, "Hold to pass", 0, 0, 0, &th_semi_16, pal.text);
+    lv_obj_center(caption);
+    controls_[name] = obj;
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+    auto* binding = new Binding{this, name};
+    for(auto code : {LV_EVENT_PRESSED, LV_EVENT_RELEASED, LV_EVENT_PRESS_LOST})
+        lv_obj_add_event_cb(obj, pass_event, code, binding);
+    lv_obj_add_event_cb(obj, free_binding, LV_EVENT_DELETE, nullptr);
     return obj;
 }
 void Ui::pop(lv_obj_t* obj, int32_t peak) {
@@ -193,139 +265,161 @@ void Ui::pop(lv_obj_t* obj, int32_t peak) {
 // ---- Screens ---------------------------------------------------------------
 void Ui::build_status_bar(lv_obj_t* parent) {
     const auto& pal = palette();
-    const bool compact = profile_.compact();
     const int w = profile_.width;
     auto* brand = box(parent, 10, 2, LV_SIZE_CONTENT, 28);
     lv_obj_set_flex_flow(brand, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(brand, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(brand, 6, 0);
-    icon(brand, compact ? TH_ICON(sigil, 24) : TH_ICON(hub, 24), pal.accent);
-    label(brand, compact ? "Sigil" : "TurnHub", 0, 0, 0, compact ? &th_inter_20 : title_font(), pal.text);
-    auto* demo = label(brand, "DEMO", 0, 0, 0, &th_inter_16, pal.textTertiary);
+    icon(brand, TH_ICON(sigil, 24), pal.accent);
+    label(brand, "Sigil", 0, 0, 0, &th_semi_20, pal.text);
+    auto* demo = label(brand, "DEMO", 0, 0, 0, &th_eyebrow_13, pal.textTertiary);
     lv_obj_set_style_margin_left(demo, 4, 0);
     // Battery is not measured in the simulator: show the gauge outline and "--", never a guess.
     auto* bat = icon(parent, TH_ICON(battery, 24), pal.textSecondary);
     lv_obj_set_pos(bat, w - 58, 4);
-    label(parent, "--", w - 30, 7, 0, &th_inter_16, pal.textSecondary);
+    label(parent, "--", w - 30, 7, 0, &th_semi_16, pal.textSecondary);
 }
 void Ui::build_header(const char* title, const char* back) {
     label(root_, title, 64, profile_.compact() ? 14 : 12, profile_.width - 76, title_font(!profile_.compact()), palette().text);
     button(root_, back, nullptr, TH_ICON(chevron_left, 24), 10, 8, 44, 40, Look::Quiet);
 }
 void Ui::build_gameplay_atlas() {
+    // The app's table layout: four seat panels around a centre hub. Atlas is
+    // touch-first, so every action is on screen; there is no focus ring.
     const auto& pal = palette();
     const auto& s = source_.snapshot();
-    build_status_bar(root_);
-    // Hero: the turn clock ring and whose turn it is.
-    auto* hero = panel(root_, 12, 36, 184, 228);
-    clock_arc_ = lv_arc_create(hero);
+    constexpr int PW = 234, PH = 154, HUB = 136;
+    for(unsigned i = 0; i < 4; ++i) {
+        const auto& p = s.players[i];
+        const bool left = i % 2 == 0, top = i < 2;
+        auto& seat = seats_[i];
+        seat.panel = panel(root_, left ? 4 : 242, top ? 4 : 162, PW, PH);
+        lv_obj_set_style_bg_color(seat.panel, lv_color_hex(seat_tint(i)), 0);
+        lv_obj_set_style_shadow_color(seat.panel, lv_color_hex(pal.turn), 0);
+        lv_obj_set_style_shadow_width(seat.panel, 24, 0);
+        lv_obj_set_style_shadow_opa(seat.panel, LV_OPA_TRANSP, 0);
+        // Tap halves: top raises, bottom lowers; holding repeats by five.
+        seat.up = box(seat.panel, 0, 0, PW, PH / 2);
+        seat.down = box(seat.panel, 0, PH / 2, PW, PH - PH / 2);
+        for(auto* half : {seat.up, seat.down}) {
+            lv_obj_set_style_bg_color(half, lv_color_hex(pal.text), 0);
+            lv_obj_set_style_bg_opa(half, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_bg_opa(half, 18, LV_STATE_PRESSED);
+            lv_obj_set_style_radius(half, 20, 0);
+        }
+        if(p.active) {
+            bind(seat.up, "plus" + std::to_string(i), false, true);
+            bind(seat.down, "minus" + std::to_string(i), false, true);
+        }
+        const int outer = left ? 14 : PW - 38;
+        auto* plus = icon(seat.panel, TH_ICON(plus, 24), pal.textTertiary);
+        lv_obj_set_pos(plus, outer, top ? 46 : 60);
+        auto* minus = icon(seat.panel, TH_ICON(minus, 24), pal.textTertiary);
+        lv_obj_set_pos(minus, outer, top ? 112 : 120);
+        // Header hugs the outer edge, clear of the hub.
+        auto* head = box(seat.panel, 12, 10, PW - 24, 32);
+        lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(head, left ? LV_FLEX_ALIGN_START : LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(head, 8, 0);
+        seat.token = token(head, 0, 0, 30, p.avatar, i, &seat.glyph);
+        auto* name = label(head, p.name.c_str(), 0, 0, 0, &th_semi_20, pal.text);
+        lv_obj_set_style_max_width(name, 104, 0);
+        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
+        seat.tag = pill(head, 0, 0, "", pal.turn, pal.onTurn, &seat.tag_text);
+        // Life, biased to the outer side so the hub never covers it.
+        const int cx = left ? 104 : PW - 104;
+        seat.life = label(seat.panel, "", cx - 70, top ? 50 : 62, 140, &th_num_64, pal.text);
+        lv_obj_set_style_text_align(seat.life, LV_TEXT_ALIGN_CENTER, 0);
+        seat.badge = label(seat.panel, "", left ? cx + 52 : cx - 104, top ? 62 : 74, 52, &th_semi_20, pal.good);
+        lv_obj_set_style_text_align(seat.badge, left ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_style_opa(seat.badge, LV_OPA_TRANSP, 0);
+        seat.pass = hold_to_pass(seat.panel, "pass" + std::to_string(i), left ? 46 : 64, 112, 124, 32);
+        lv_obj_add_flag(seat.pass, LV_OBJ_FLAG_HIDDEN);
+    }
+    // Centre hub: the turn ring, the clock, and the table menu on tap.
+    hub_ = box(root_, 240 - HUB / 2, 160 - HUB / 2, HUB, HUB);
+    lv_obj_set_style_radius(hub_, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(hub_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(hub_, lv_color_hex(pal.surface2), 0);
+    lv_obj_set_style_bg_color(hub_, lv_color_hex(pal.surface3), LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(hub_, 4, 0);
+    lv_obj_set_style_border_color(hub_, lv_color_hex(pal.bg), 0);
+    lv_obj_set_style_shadow_width(hub_, 30, 0);
+    lv_obj_set_style_shadow_color(hub_, lv_color_hex(pal.turn), 0);
+    lv_obj_set_style_shadow_opa(hub_, LV_OPA_TRANSP, 0);
+    bind(hub_, "hub", false);
+    clock_arc_ = lv_arc_create(hub_);
     lv_obj_remove_style_all(clock_arc_);
-    lv_obj_set_size(clock_arc_, 136, 136);
-    lv_obj_set_pos(clock_arc_, 24, 12);
+    lv_obj_set_size(clock_arc_, HUB - 16, HUB - 16);
+    lv_obj_set_pos(clock_arc_, 4, 4);
     lv_obj_remove_flag(clock_arc_, LV_OBJ_FLAG_CLICKABLE);
     lv_arc_set_rotation(clock_arc_, 270);
     lv_arc_set_bg_angles(clock_arc_, 0, 360);
     lv_arc_set_range(clock_arc_, 0, 1000);
-    lv_arc_set_value(clock_arc_, 1000);
-    lv_obj_set_style_arc_width(clock_arc_, 10, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(clock_arc_, 8, LV_PART_MAIN);
     lv_obj_set_style_arc_color(clock_arc_, lv_color_hex(pal.fillStrong), LV_PART_MAIN);
-    lv_obj_set_style_arc_width(clock_arc_, 10, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(clock_arc_, 8, LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(clock_arc_, true, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(clock_arc_, lv_color_hex(pal.turn), LV_PART_INDICATOR);
-    auto* clock_icon = icon(hero, TH_ICON(clock, 24), pal.textTertiary);
-    lv_obj_set_pos(clock_icon, 80, 40);
-    timer_ = label(hero, "", 24, 66, 136, &th_inter_32, pal.text);
-    lv_obj_set_style_text_align(timer_, LV_TEXT_ALIGN_CENTER, 0);
-    name_ = label(hero, "", 8, 154, 168, title_font(true), pal.text);
+    clock_head_ = box(hub_, 0, 0, 4, 4);
+    lv_obj_set_style_radius(clock_head_, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(clock_head_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(clock_head_, lv_color_hex(pal.bg), 0);
+    lv_obj_set_user_data(clock_arc_, clock_head_);
+    status_ = label(hub_, "", 0, 0, 0, &th_eyebrow_13, pal.textSecondary);
+    lv_obj_align(status_, LV_ALIGN_CENTER, 0, -30);
+    timer_ = label(hub_, "", 0, 0, 0, &th_bold_28, pal.text);
+    lv_obj_align(timer_, LV_ALIGN_CENTER, 0, -4);
+    name_ = label(hub_, "", 0, 0, 84, &th_semi_16, pal.textSecondary);
     lv_obj_set_style_text_align(name_, LV_TEXT_ALIGN_CENTER, 0);
-    status_pill_ = pill(hero, 0, 194, "", pal.turnSoft, pal.turn, &status_);
-    lv_obj_align(status_pill_, LV_ALIGN_TOP_MID, 0, 194);
-    // Seats: a 2x2 grid of touch cards; tapping one opens its life sheet.
-    for(unsigned i = 0; i < 4; ++i) {
-        const auto& player = s.players[i];
-        auto* card = panel(root_, 204 + static_cast<int>(i % 2) * 136, 36 + static_cast<int>(i / 2) * 118, 128, 110);
-        cards_[i] = card;
-        lv_obj_set_style_shadow_color(card, lv_color_hex(pal.turn), 0);
-        lv_obj_set_style_shadow_width(card, 22, 0);
-        lv_obj_set_style_shadow_opa(card, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_bg_color(card, lv_color_hex(pal.surface2), LV_STATE_PRESSED);
-        lv_obj_set_style_outline_color(card, lv_color_hex(pal.focus), 0);
-        lv_obj_set_style_outline_pad(card, 3, 0);
-        card_token_[i] = token(card, 10, 10, 40, player.avatar, &card_avatar_[i]);
-        card_life_[i] = label(card, "", 54, 10, 64, &th_inter_32, pal.text);
-        lv_obj_set_style_text_align(card_life_[i], LV_TEXT_ALIGN_RIGHT, 0);
-        label(card, player.name.c_str(), 10, 58, 108, &th_inter_20, pal.text);
-        card_tag_[i] = label(card, "", 10, 83, 70, &th_inter_16, pal.textSecondary);
-        card_badge_[i] = label(card, "", 70, 82, 48, &th_inter_20, pal.good);
-        lv_obj_set_style_text_align(card_badge_[i], LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_style_opa(card_badge_[i], LV_OPA_TRANSP, 0);
-        bind(card, "seat" + std::to_string(i));
-    }
-    button(root_, "pause", "Pause", TH_ICON(pause, 24), 12, 272, 150, 44);
-    button(root_, "scenario", "Sample", TH_ICON(dice, 24), 170, 272, 140, 44);
-    button(root_, "menu", "Settings", TH_ICON(sliders, 24), 318, 272, 150, 44);
-    // Paused / game-over veil over the play area; the action bar stays live.
-    overlay_ = box(root_, 0, 30, profile_.width, 238);
-    lv_obj_set_style_bg_color(overlay_, lv_color_hex(pal.scrim), 0);
-    lv_obj_set_style_bg_opa(overlay_, LV_OPA_80, 0);
-    overlay_icon_ = icon(overlay_, TH_ICON(pause, 40), pal.warning);
-    lv_obj_align(overlay_icon_, LV_ALIGN_CENTER, 0, -42);
-    overlay_title_ = label(overlay_, "", 0, 0, 0, title_font(true), pal.text);
-    lv_obj_align(overlay_title_, LV_ALIGN_CENTER, 0, 4);
-    overlay_text_ = label(overlay_, "", 0, 0, 0, &th_inter_16, pal.textSecondary);
-    lv_obj_align(overlay_text_, LV_ALIGN_CENTER, 0, 40);
-    lv_obj_add_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-    bind(overlay_, "veil", false);
+    lv_obj_align(name_, LV_ALIGN_CENTER, 0, 24);
 }
 void Ui::build_gameplay_sigil() {
     const auto& pal = palette();
     build_status_bar(root_);
-    token_ = token(root_, 12, 34, 48, 1, &avatar_);
-    name_ = label(root_, "", 70, 34, 158, title_font(), pal.text);
-    status_pill_ = pill(root_, 70, 60, "", pal.turn, pal.onTurn, &status_);
-    auto* clock_icon = icon(root_, TH_ICON(timer, 24), pal.textSecondary);
-    lv_obj_set_pos(clock_icon, 10, 94);
-    timer_ = label(root_, "", 40, 95, 90, &th_inter_20, pal.text);
-    char allowance[24];
-    const auto total = source_.snapshot().turn_seconds;
-    std::snprintf(allowance, sizeof allowance, "of %u:%02u", total / 60, total % 60);
-    auto* of = label(root_, allowance, 128, 98, 100, &th_inter_16, pal.textTertiary);
-    lv_obj_set_style_text_align(of, LV_TEXT_ALIGN_RIGHT, 0);
+    life_card_ = panel(root_, 10, 128, 220, 136);
+    // The header token and life card are recolored per seat in update().
+    seats_[0].token = token(root_, 12, 34, 44, 1, selected_, &seats_[0].glyph);
+    name_ = label(root_, "", 66, 33, 162, &th_semi_20, pal.text);
+    status_pill_ = pill(root_, 66, 60, "", pal.turn, pal.onTurn, &status_);
+    label(root_, "TURN CLOCK", 12, 94, 0, &th_eyebrow_13, pal.textTertiary);
+    timer_ = label(root_, "", 128, 88, 100, &th_semi_20, pal.text);
+    lv_obj_set_style_text_align(timer_, LV_TEXT_ALIGN_RIGHT, 0);
     clock_bar_ = lv_bar_create(root_);
     lv_obj_remove_style_all(clock_bar_);
-    lv_obj_set_pos(clock_bar_, 12, 124); lv_obj_set_size(clock_bar_, 216, 8);
+    lv_obj_set_pos(clock_bar_, 12, 114); lv_obj_set_size(clock_bar_, 216, 6);
     lv_bar_set_range(clock_bar_, 0, 1000);
     lv_obj_set_style_bg_opa(clock_bar_, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_bg_color(clock_bar_, lv_color_hex(pal.fillStrong), LV_PART_MAIN);
-    lv_obj_set_style_radius(clock_bar_, 4, LV_PART_MAIN);
+    lv_obj_set_style_radius(clock_bar_, 3, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(clock_bar_, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(clock_bar_, lv_color_hex(pal.turn), LV_PART_INDICATOR);
-    lv_obj_set_style_radius(clock_bar_, 4, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(clock_bar_, 3, LV_PART_INDICATOR);
     lv_obj_set_style_anim_duration(clock_bar_, 950, LV_PART_MAIN);
-    // Touch-first life: the left half lowers, the right half raises.
-    // One card, two invisible halves that light up while pressed.
-    panel(root_, 10, 142, 220, 122);
+    // Touch halves on the life card; the joystick's left/right do the same.
     auto zone = [&](const char* name, int x, const lv_image_dsc_t* glyph, lv_align_t corner) {
-        auto* z = button(root_, name, nullptr, nullptr, x, 142, 110, 122, Look::Quiet);
-        lv_obj_set_style_radius(z, 14, 0);
+        auto* z = box(root_, x, 128, 110, 136);
+        lv_obj_set_style_radius(z, 20, 0);
+        lv_obj_set_style_bg_color(z, lv_color_hex(pal.text), 0);
         lv_obj_set_style_bg_opa(z, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_bg_opa(z, LV_OPA_COVER, LV_STATE_PRESSED);
-        lv_obj_set_style_border_width(z, 0, 0);
-        auto* g = icon(z, glyph, pal.textSecondary);
-        lv_obj_align(g, corner, corner == LV_ALIGN_BOTTOM_LEFT ? 10 : -10, -8);
+        lv_obj_set_style_bg_opa(z, 18, LV_STATE_PRESSED);
+        bind(z, name, false, true);
+        auto* g = icon(z, glyph, pal.textTertiary);
+        lv_obj_align(g, corner, corner == LV_ALIGN_BOTTOM_LEFT ? 12 : -12, -10);
     };
     zone("minus", 10, TH_ICON(minus, 24), LV_ALIGN_BOTTOM_LEFT);
     zone("plus", 120, TH_ICON(plus, 24), LV_ALIGN_BOTTOM_RIGHT);
-    auto* heart = icon(root_, TH_ICON(heart, 24), pal.critical);
-    lv_obj_set_pos(heart, 108, 150);
-    life_ = label(root_, "", 12, 166, 216, &th_inter_72, pal.text);
+    label(root_, "LIFE", 24, 140, 0, &th_eyebrow_13, pal.textTertiary);
+    life_ = label(root_, "", 12, 160, 216, &th_num_96, pal.text);
     lv_obj_set_style_text_align(life_, LV_TEXT_ALIGN_CENTER, 0);
-    badge_ = label(root_, "", 140, 150, 80, &th_inter_20, pal.good);
+    badge_ = label(root_, "", 150, 138, 68, &th_semi_20, pal.good);
     lv_obj_set_style_text_align(badge_, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_set_style_opa(badge_, LV_OPA_TRANSP, 0);
-    button(root_, "menu", nullptr, TH_ICON(sliders, 24), 12, 272, 64, 44);
-    button(root_, "player", nullptr, TH_ICON(users, 24), 88, 272, 64, 44);
-    button(root_, "scenario", nullptr, TH_ICON(dice, 24), 164, 272, 64, 44);
+    button(root_, "menu", nullptr, TH_ICON(sliders, 24), 12, 272, 52, 44);
+    bottom_seat_ = button(root_, "player", "Seat", TH_ICON(users, 24), 72, 272, 104, 44);
+    bottom_pass_ = hold_to_pass(root_, "pass", 72, 272, 104, 44);
+    lv_group_add_obj(group_, bottom_pass_); // Hidden objects are skipped by focus.
+    button(root_, "scenario", nullptr, TH_ICON(dice, 24), 184, 272, 44, 44);
     // Your-turn frame around the whole panel; never intercepts touches.
     turn_frame_ = box(root_, 0, 0, profile_.width, profile_.height);
     lv_obj_set_style_border_width(turn_frame_, 3, 0);
@@ -347,8 +441,8 @@ void Ui::build_settings() {
         if(profile_.compact()) {
             auto* row = button(root_, it.name, nullptr, nullptr, 12, 64 + static_cast<int>(i) * 60, 216, 52);
             auto* g = icon(row, it.small, pal.accent); lv_obj_align(g, LV_ALIGN_LEFT_MID, 12, 0);
-            label(row, it.title, 46, 5, 140, &th_inter_20, pal.text);
-            label(row, it.detail, 46, 28, 140, &th_inter_16, pal.textSecondary);
+            label(row, it.title, 46, 5, 140, &th_semi_20, pal.text);
+            label(row, it.detail, 46, 29, 140, &th_inter_16, pal.textSecondary);
             auto* c = icon(row, TH_ICON(chevron_right, 24), pal.textTertiary); lv_obj_align(c, LV_ALIGN_RIGHT_MID, -8, 0);
         } else {
             auto* tile = button(root_, it.name, nullptr, nullptr, 12 + static_cast<int>(i) * 156, 72, 144, 176);
@@ -358,9 +452,9 @@ void Ui::build_settings() {
             lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_CENTER, 0); lv_obj_align(d, LV_ALIGN_TOP_MID, 0, 120);
         }
     }
-    label(root_, "Changes here stay on this demo; nothing is saved.", 12, profile_.compact() ? 250 : 268,
-          profile_.width - 24, &th_inter_16, pal.textTertiary);
-    if(profile_.compact()) { auto* note = lv_obj_get_child(root_, -1); lv_obj_set_height(note, LV_SIZE_CONTENT); lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP); }
+    auto* note = label(root_, "Changes here stay on this demo; nothing is saved.", 12, profile_.compact() ? 250 : 268,
+                       profile_.width - 24, &th_inter_16, pal.textTertiary);
+    lv_obj_set_height(note, LV_SIZE_CONTENT); lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
     build_header("Settings", "back");
 }
 void Ui::build_themes() {
@@ -389,7 +483,7 @@ void Ui::build_themes() {
             lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
             lv_obj_set_style_bg_color(dot, lv_color_hex(dots[d]), 0);
         }
-        const lv_font_t* font = look.ornament ? (compact ? &th_cinzel_20 : &th_cinzel_20) : &th_inter_20;
+        const lv_font_t* font = look.ornament ? &th_cinzel_20 : &th_semi_20;
         if(compact) label(tile, look.label, 72, 13, 110, font, look.text);
         else {
             label(tile, look.label, 108, 18, 104, font, look.text);
@@ -412,10 +506,11 @@ void Ui::build_players() {
         const int y = compact ? 62 + static_cast<int>(i) * 58 : 72 + static_cast<int>(i / 2) * 96;
         const int w = compact ? 216 : 222, h = compact ? 52 : 84;
         auto* row = button(root_, "choose" + std::to_string(i), nullptr, nullptr, x, y, w, h, i == selected_ ? Look::Normal : Look::Quiet);
+        lv_obj_set_style_bg_color(row, lv_color_hex(seat_tint(i)), 0);
         if(i == selected_) { lv_obj_set_style_border_color(row, lv_color_hex(pal.accent), 0); lv_obj_set_style_border_width(row, 2, 0); }
         const int side = compact ? 36 : 52;
-        token(row, 8, (h - side) / 2, side, p.avatar);
-        label(row, p.name.c_str(), side + 18, compact ? 6 : 14, 100, compact ? &th_inter_20 : title_font(), p.active ? pal.text : pal.textTertiary);
+        token(row, 8, (h - side) / 2, side, p.avatar, i);
+        label(row, p.name.c_str(), side + 18, compact ? 6 : 14, 100, compact ? &th_semi_20 : title_font(), p.active ? pal.text : pal.textTertiary);
         char line[32]; std::snprintf(line, sizeof line, p.active ? "%d life" : "Out", p.life);
         label(row, line, side + 18, compact ? 29 : 46, 100, &th_inter_16, pal.textSecondary);
         if(i == selected_) { auto* tick = icon(row, TH_ICON(check, 24), pal.accent); lv_obj_align(tick, LV_ALIGN_RIGHT_MID, -10, 0); }
@@ -426,9 +521,8 @@ void Ui::build_pairing() {
     const auto& pal = palette();
     const bool compact = profile_.compact();
     const char* code = "314159";
-    auto* warn = pill(root_, 12, compact ? 60 : 64, "MOCK  /  no radio", pal.fillStrong, pal.warning);
-    (void)warn;
-    label(root_, "Pairing code", 12, compact ? 94 : 104, 0, &th_inter_16, pal.textSecondary);
+    pill(root_, 12, compact ? 60 : 64, "MOCK  /  NO RADIO", pal.fillStrong, pal.warning);
+    label(root_, "PAIRING CODE", 12, compact ? 96 : 106, 0, &th_eyebrow_13, pal.textTertiary);
     const int cell = compact ? 30 : 40, tall = compact ? 44 : 60, gap = compact ? 4 : 8;
     for(int d = 0; d < 6; ++d) {
         const int x = 12 + d * (cell + gap) + (d >= 3 ? (compact ? 8 : 16) : 0);
@@ -439,7 +533,7 @@ void Ui::build_pairing() {
         lv_obj_set_style_border_width(c, 1, 0);
         lv_obj_set_style_border_color(c, lv_color_hex(pal.separatorStrong), 0);
         const char digit[2] = {code[d], 0};
-        auto* l = label(c, digit, 0, 0, 0, compact ? &th_inter_20 : &th_inter_32, pal.text);
+        auto* l = label(c, digit, 0, 0, 0, compact ? &th_bold_28 : &th_num_40, pal.text);
         lv_obj_center(l);
         if(!reduced_motion_) { lv_obj_set_style_opa(c, LV_OPA_TRANSP, 0); animate(c, set_opa, 0, 255, 220, 60 * static_cast<uint32_t>(d)); }
     }
@@ -465,7 +559,7 @@ void Ui::build_pairing() {
             lv_obj_set_pos(g, sx + 24, sy + 24);
         }
     }
-    if(!compact) lv_obj_set_style_text_align(label(root_, "Searching", 348, 146, 96, &th_inter_16, pal.textTertiary), LV_TEXT_ALIGN_CENTER, 0);
+    if(!compact) lv_obj_set_style_text_align(label(root_, "SEARCHING", 348, 146, 96, &th_eyebrow_13, pal.textTertiary), LV_TEXT_ALIGN_CENTER, 0);
     if(compact) {
         button(root_, "pair", "Codes match", TH_ICON(check, 24), 12, 196, 216, 48, Look::Accent);
         button(root_, "unpair", "Unpair (mock)", TH_ICON(close, 24), 12, 252, 216, 44);
@@ -478,11 +572,10 @@ void Ui::build_pairing() {
 void Ui::render(Motion motion) {
     lv_group_remove_all_objs(group_);
     controls_.clear();
-    timer_ = life_ = name_ = status_ = status_pill_ = avatar_ = token_ = clock_arc_ = clock_bar_ = badge_ = nullptr;
-    overlay_ = overlay_icon_ = overlay_title_ = overlay_text_ = turn_frame_ = pause_icon_ = pause_text_ = nullptr;
-    sheet_ = sheet_scrim_ = sheet_life_ = sheet_badge_ = nullptr;
-    card_life_.fill(nullptr); card_tag_.fill(nullptr); cards_.fill(nullptr);
-    card_token_.fill(nullptr); card_avatar_.fill(nullptr); card_badge_.fill(nullptr);
+    timer_ = life_ = name_ = status_ = status_pill_ = hub_ = clock_arc_ = clock_head_ = clock_bar_ = badge_ = nullptr;
+    turn_frame_ = life_card_ = bottom_seat_ = bottom_pass_ = card_scrim_ = card_ = nullptr;
+    card_kind_ = Card::None; card_names_.clear();
+    seats_.fill(Seat{});
     auto* old = screen_obj_;
     screen_obj_ = lv_obj_create(nullptr);
     lv_obj_remove_style_all(screen_obj_);
@@ -509,11 +602,80 @@ void Ui::render(Motion motion) {
     else {
         const auto type = motion == Motion::Forward ? LV_SCR_LOAD_ANIM_MOVE_LEFT
                         : motion == Motion::Back ? LV_SCR_LOAD_ANIM_MOVE_RIGHT : LV_SCR_LOAD_ANIM_FADE_IN;
-        lv_screen_load_anim(screen_obj_, type, motion == Motion::Fade ? 260 : 240, 0, true);
+        lv_screen_load_anim(screen_obj_, type, 260, 0, true);
     }
     revision_ = 0;
     fresh_ = true;
     update();
+}
+
+// ---- Atlas overlay cards (menu, paused, game over) -------------------------
+void Ui::open_card(Card kind) {
+    close_card();
+    const auto& pal = palette();
+    const auto& s = source_.snapshot();
+    const auto before = controls_;
+    card_kind_ = kind;
+    card_scrim_ = box(root_, 0, 0, profile_.width, profile_.height);
+    lv_obj_set_style_bg_color(card_scrim_, lv_color_hex(pal.scrim), 0);
+    animate(card_scrim_, set_bg_opa, 0, kind == Card::Menu ? LV_OPA_50 : LV_OPA_70, ms(200));
+    bind(card_scrim_, "card_scrim", false);
+    const int h = kind == Card::Menu ? 210 : 190;
+    card_ = panel(root_, 80, (profile_.height - h) / 2, 320, h);
+    lv_obj_set_style_bg_color(card_, lv_color_hex(pal.surface2), 0);
+    lv_obj_set_style_shadow_width(card_, 40, 0);
+    lv_obj_set_style_shadow_offset_y(card_, 12, 0);
+    lv_obj_set_style_shadow_color(card_, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_shadow_opa(card_, static_cast<lv_opa_t>(pal.light ? LV_OPA_20 : LV_OPA_60), 0);
+    lv_obj_add_flag(card_, LV_OBJ_FLAG_CLICKABLE); // Swallow taps between buttons.
+    const auto& holder = s.players[s.turn_holder];
+    const lv_image_dsc_t* glyph = kind == Card::Menu ? TH_ICON(hub, 40) : kind == Card::Paused ? TH_ICON(pause, 40) : TH_ICON(crown, 40);
+    auto* g = icon(card_, glyph, kind == Card::Paused ? pal.warning : pal.accent);
+    lv_obj_set_pos(g, 20, 18);
+    char title[48];
+    std::snprintf(title, sizeof title, kind == Card::Menu ? "Table" : kind == Card::Paused ? "Paused" : "%s wins", holder.name.c_str());
+    label(card_, title, 72, 16, 228, title_font(true), pal.text);
+    const char* text = kind == Card::Menu ? "Battery --   /   demo fixtures"
+                     : kind == Card::Paused ? "The clock is stopped for everyone." : "Game over. The next sample deals a new table.";
+    auto* t = label(card_, text, 72, 52, 230, &th_inter_16, pal.textSecondary);
+    lv_obj_set_height(t, LV_SIZE_CONTENT); lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+    if(kind == Card::Menu) {
+        const bool paused = s.phase == Phase::Paused;
+        button(card_, "pause", paused ? "Resume" : "Pause", paused ? TH_ICON(play, 24) : TH_ICON(pause, 24), 20, 92, 136, 48);
+        button(card_, "scenario", "Sample", TH_ICON(dice, 24), 164, 92, 136, 48);
+        button(card_, "menu", "Settings", TH_ICON(sliders, 24), 20, 148, 136, 48);
+        button(card_, "card_close", "Close", TH_ICON(close, 24), 164, 148, 136, 48, Look::Quiet);
+    } else if(kind == Card::Paused) {
+        button(card_, "resume", "Resume", TH_ICON(play, 24), 20, 120, 136, 52, Look::Accent);
+        button(card_, "scenario", "Sample", TH_ICON(dice, 24), 164, 120, 136, 52);
+    } else {
+        button(card_, "scenario", "Next sample", TH_ICON(dice, 24), 20, 120, 280, 52, Look::Accent);
+    }
+    for(const auto& entry : controls_) if(!before.count(entry.first)) card_names_.push_back(entry.first);
+    if(!reduced_motion_) {
+        animate(card_, set_opa, 0, 255, 200);
+        animate(card_, set_ty, 24, 0, 300, 0, lv_anim_path_overshoot);
+    }
+}
+void Ui::close_card() {
+    if(!card_) return;
+    for(const auto& name : card_names_) {
+        auto it = controls_.find(name);
+        if(it != controls_.end()) { lv_group_remove_obj(it->second); controls_.erase(it); }
+    }
+    card_names_.clear();
+    lv_obj_remove_flag(card_scrim_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(card_, LV_OBJ_FLAG_CLICKABLE);
+    if(reduced_motion_) { lv_obj_delete(card_); lv_obj_delete(card_scrim_); }
+    else {
+        // Children stay deaf to touch while the card fades away.
+        for(uint32_t i = 0; i < lv_obj_get_child_count(card_); ++i)
+            lv_obj_remove_flag(lv_obj_get_child(card_, static_cast<int32_t>(i)), LV_OBJ_FLAG_CLICKABLE);
+        animate(card_, set_opa, 255, 0, 160, 0, lv_anim_path_ease_in, delete_var);
+        animate(card_scrim_, set_bg_opa, lv_obj_get_style_bg_opa(card_scrim_, 0), 0, 180, 0, lv_anim_path_linear, delete_var);
+    }
+    card_ = card_scrim_ = nullptr;
+    card_kind_ = Card::None;
 }
 
 // ---- Live state ----------------------------------------------------------
@@ -550,7 +712,7 @@ void Ui::update_gameplay(const Snapshot& s) {
     if(clock_arc_) {
         lv_obj_set_style_arc_color(clock_arc_, lv_color_hex(urgency), LV_PART_INDICATOR);
         // A steady sweep between whole-second updates; jumps settle quickly.
-        animate(clock_arc_, set_arc, lv_arc_get_value(clock_arc_), progress, fresh_ ? 0 : ms(ticking ? 980 : 320), 0,
+        animate(clock_arc_, set_ring, lv_arc_get_value(clock_arc_), progress, fresh_ ? 0 : ms(ticking ? 980 : 420), 0,
                 ticking ? lv_anim_path_linear : lv_anim_path_ease_out);
     }
     if(clock_bar_) {
@@ -569,8 +731,13 @@ void Ui::update_gameplay(const Snapshot& s) {
     if(compact) {
         const auto& player = s.players[selected_];
         const bool mine = player.participant_id == holder.participant_id;
+        if(fresh_ || selected_ != last_selected_) {
+            lv_obj_set_style_bg_color(seats_[0].token, lv_color_hex(seat_color(selected_)), 0);
+            lv_image_set_src(seats_[0].glyph, assets_.avatar(player.avatar));
+            lv_obj_set_style_bg_color(life_card_, lv_color_hex(seat_tint(selected_)), 0);
+            if(!fresh_ && !reduced_motion_) { animate(name_, set_tx, 16, 0, 220); animate(life_, set_opa, 0, 255, 220); }
+        }
         lv_label_set_text(name_, player.name.c_str());
-        lv_image_set_src(avatar_, assets_.avatar(player.avatar));
         const char* tag = !player.active ? "OUT" : s.phase == Phase::GameOver ? (mine ? "WINNER" : "GAME OVER")
                           : s.phase == Phase::Paused ? "PAUSED" : mine ? "YOUR TURN" : "WAITING";
         lv_label_set_text(status_, tag);
@@ -582,11 +749,12 @@ void Ui::update_gameplay(const Snapshot& s) {
         else if(!player.active) fg = pal.critical;
         lv_obj_set_style_bg_color(status_pill_, lv_color_hex(bg), 0);
         lv_obj_set_style_text_color(status_, lv_color_hex(fg), 0);
-        lv_obj_set_style_border_color(token_, lv_color_hex(your_turn ? pal.turn : pal.accent), 0);
-        lv_obj_set_style_image_recolor(avatar_, lv_color_hex(your_turn ? pal.turn : pal.accent), 0);
-        lv_obj_set_style_bg_color(token_, lv_color_hex(your_turn ? pal.turnSoft : pal.accentSoft), 0);
+        lv_obj_set_style_border_width(seats_[0].token, your_turn ? 3 : 0, 0);
         char text[16]; std::snprintf(text, sizeof text, "%d", player.life);
         lv_label_set_text(life_, text);
+        // Four-character totals (-999) step down so they stay inside the card.
+        lv_obj_set_style_text_font(life_, std::strlen(text) > 3 ? &th_num_64 : &th_num_96, 0);
+        lv_obj_set_y(life_, std::strlen(text) > 3 ? 172 : 160);
         lv_obj_set_style_opa(life_, static_cast<lv_opa_t>(running ? LV_OPA_COVER : LV_OPA_60), 0);
         if(change[selected_]) { pop(life_); show_badge(badge_, delta_[selected_]); }
         if(your_turn) {
@@ -597,67 +765,51 @@ void Ui::update_gameplay(const Snapshot& s) {
             lv_anim_delete(turn_frame_, set_border_opa);
             lv_obj_add_flag(turn_frame_, LV_OBJ_FLAG_HIDDEN);
         }
+        // Your turn swaps the seat button for hold-to-pass.
+        lv_obj_set_flag(bottom_pass_, LV_OBJ_FLAG_HIDDEN, !your_turn);
+        lv_obj_set_flag(bottom_seat_, LV_OBJ_FLAG_HIDDEN, your_turn);
     } else {
         lv_label_set_text(name_, holder.name.c_str());
         lv_label_set_text(status_, phase_name(s.phase));
-        const uint32_t chip_bg = running ? pal.turnSoft : s.phase == Phase::Paused ? pal.fillStrong : pal.accentSoft;
-        const uint32_t chip_fg = running ? pal.turn : s.phase == Phase::Paused ? pal.warning : pal.accent;
-        lv_obj_set_style_bg_color(status_pill_, lv_color_hex(chip_bg), 0);
-        lv_obj_set_style_text_color(status_, lv_color_hex(chip_fg), 0);
-        if(turn_moved && !reduced_motion_) { animate(name_, set_tx, 28, 0, 260); animate(name_, set_opa, 0, 255, 220); }
+        lv_obj_set_style_text_color(status_, lv_color_hex(running ? pal.turn : s.phase == Phase::Paused ? pal.warning : pal.accent), 0);
+        if(turn_moved && !reduced_motion_) { animate(name_, set_opa, 0, 255, 260); pop(timer_, 280); }
+        lv_obj_set_style_shadow_color(hub_, lv_color_hex(urgency), 0);
+        if(running && !reduced_motion_) pulse(hub_, set_shadow, 50, 150, 1600);
+        else { lv_anim_delete(hub_, set_shadow); set_shadow(hub_, 0); }
         for(unsigned i = 0; i < 4; ++i) {
             const auto& p = s.players[i];
+            auto& seat = seats_[i];
             char text[16]; std::snprintf(text, sizeof text, "%d", p.life);
-            lv_label_set_text(card_life_[i], text);
+            lv_label_set_text(seat.life, text);
+            lv_obj_set_style_text_font(seat.life, std::strlen(text) > 3 ? &th_num_40 : &th_num_64, 0);
             const bool turn = i == s.turn_holder && p.active;
-            const char* tag = !p.active ? "OUT" : turn ? (s.phase == Phase::GameOver ? "WINNER" : "TURN") : "SEATED";
-            lv_label_set_text(card_tag_[i], tag);
-            lv_obj_set_style_text_color(card_tag_[i], lv_color_hex(!p.active ? pal.critical : turn ? (s.phase == Phase::GameOver ? pal.accent : pal.turn) : pal.textSecondary), 0);
-            lv_obj_set_style_border_color(cards_[i], lv_color_hex(turn ? pal.turn : pal.separatorStrong), 0);
-            lv_obj_set_style_border_width(cards_[i], turn ? 2 : (pal.ornament ? 2 : 1), 0);
-            lv_obj_set_style_outline_width(cards_[i], i == selected_ ? 2 : 0, 0);
-            lv_obj_set_style_opa(cards_[i], static_cast<lv_opa_t>(p.active ? LV_OPA_COVER : LV_OPA_50), 0);
-            lv_obj_set_style_border_color(card_token_[i], lv_color_hex(turn ? pal.turn : pal.accent), 0);
-            lv_obj_set_style_bg_color(card_token_[i], lv_color_hex(turn ? pal.turnSoft : pal.accentSoft), 0);
-            lv_obj_set_style_image_recolor(card_avatar_[i], lv_color_hex(turn ? pal.turn : pal.accent), 0);
-            if(turn && running && !reduced_motion_) pulse(cards_[i], set_shadow, 40, 150, 1000);
-            else { lv_anim_delete(cards_[i], set_shadow); set_shadow(cards_[i], turn ? 90 : 0); }
-            if(change[i]) { pop(card_life_[i]); show_badge(card_badge_[i], delta_[i]); }
+            const bool won = turn && s.phase == Phase::GameOver;
+            const char* tag = !p.active ? "OUT" : won ? "WINNER" : turn ? "TURN" : "";
+            lv_label_set_text(seat.tag_text, tag);
+            lv_obj_set_flag(seat.tag, LV_OBJ_FLAG_HIDDEN, !*tag);
+            lv_obj_set_style_bg_color(seat.tag, lv_color_hex(!p.active ? pal.critical : won ? pal.accent : pal.turn), 0);
+            lv_obj_set_style_text_color(seat.tag_text, lv_color_hex(!p.active ? pal.bg : won ? pal.onAccent : pal.onTurn), 0);
+            lv_obj_set_style_border_color(seat.panel, lv_color_hex(turn ? (won ? pal.accent : pal.turn) : pal.separatorStrong), 0);
+            lv_obj_set_style_border_width(seat.panel, turn ? 3 : (pal.ornament ? 2 : 1), 0);
+            lv_obj_set_style_border_width(seat.token, turn ? 2 : 0, 0);
+            lv_obj_set_style_opa(seat.panel, static_cast<lv_opa_t>(p.active ? LV_OPA_COVER : 115), 0);
+            if(turn && running && !reduced_motion_) pulse(seat.panel, set_shadow, 30, 130, 1200);
+            else { lv_anim_delete(seat.panel, set_shadow); set_shadow(seat.panel, 0); }
+            const bool can_pass = turn && running;
+            if(can_pass && lv_obj_has_flag(seat.pass, LV_OBJ_FLAG_HIDDEN) && !fresh_) animate(seat.pass, set_opa, 0, 255, ms(240));
+            lv_obj_set_flag(seat.pass, LV_OBJ_FLAG_HIDDEN, !can_pass);
+            if(turn_moved && turn) pop(seat.token, 340);
+            if(change[i]) { pop(seat.life); show_badge(seat.badge, delta_[i]); }
         }
-        if(sheet_) {
-            char text[16]; std::snprintf(text, sizeof text, "%d", s.players[selected_].life);
-            lv_label_set_text(sheet_life_, text);
-            if(change[selected_]) { pop(sheet_life_); show_badge(sheet_badge_, delta_[selected_]); }
-        }
-        // Pause / game-over veil.
-        auto* pause = control("pause");
-        if(pause) {
-            auto* glyph = lv_obj_get_child(pause, 0);
-            auto* caption = lv_obj_get_child(pause, 1);
-            lv_image_set_src(glyph, s.phase == Phase::Paused ? TH_ICON(play, 24) : TH_ICON(pause, 24));
-            lv_label_set_text(caption, s.phase == Phase::Paused ? "Resume" : "Pause");
-            lv_obj_set_style_opa(pause, static_cast<lv_opa_t>(s.phase == Phase::GameOver ? LV_OPA_40 : LV_OPA_COVER), 0);
-        }
-        if(running) lv_obj_add_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-        else {
-            const bool over = s.phase == Phase::GameOver;
-            lv_image_set_src(overlay_icon_, over ? TH_ICON(crown, 40) : TH_ICON(pause, 40));
-            lv_obj_set_style_image_recolor(overlay_icon_, lv_color_hex(over ? pal.accent : pal.warning), 0);
-            char title[48]; std::snprintf(title, sizeof title, over ? "%s wins" : "Paused", holder.name.c_str());
-            lv_label_set_text(overlay_title_, title);
-            lv_label_set_text(overlay_text_, over ? "GAME OVER  /  tap Sample for a new table" : "Tap anywhere or Resume to continue");
-            const bool appearing = lv_obj_has_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(overlay_, LV_OBJ_FLAG_HIDDEN);
-            if(appearing && !fresh_) {
-                animate(overlay_, set_opa, 0, 255, ms(220));
-                if(!reduced_motion_) { lv_obj_set_style_transform_pivot_x(overlay_icon_, lv_pct(50), 0); lv_obj_set_style_transform_pivot_y(overlay_icon_, lv_pct(50), 0); animate(overlay_icon_, set_scale, 160, 256, 320, 0, lv_anim_path_overshoot); }
-            } else set_opa(overlay_, LV_OPA_COVER);
-        }
+        // State cards over the whole table; the menu yields to them.
+        const Card wanted = s.phase == Phase::Paused ? Card::Paused : s.phase == Phase::GameOver ? Card::Over
+                          : card_kind_ == Card::Menu ? Card::Menu : Card::None;
+        if(wanted != card_kind_) { if(wanted == Card::None) close_card(); else open_card(wanted); }
     }
     for(unsigned i = 0; i < 4; ++i) last_life_[i] = s.players[i].life;
     last_turn_ = s.turn_holder;
     last_seconds_ = s.remaining_seconds;
-    last_phase_ = s.phase;
+    last_selected_ = selected_;
     fresh_ = false;
 }
 void Ui::update() {
@@ -665,54 +817,6 @@ void Ui::update() {
     if(screen_ != Screen::Gameplay || revision_ == s.revision) return;
     revision_ = s.revision;
     update_gameplay(s);
-}
-
-// ---- Atlas life sheet -----------------------------------------------------
-void Ui::open_sheet(unsigned seat) {
-    if(sheet_ || profile_.compact()) return;
-    const auto& pal = palette();
-    const auto& p = source_.snapshot().players[seat];
-    selected_ = seat;
-    sheet_scrim_ = box(root_, 0, 0, profile_.width, profile_.height);
-    lv_obj_set_style_bg_color(sheet_scrim_, lv_color_hex(pal.scrim), 0);
-    animate(sheet_scrim_, set_bg_opa, 0, LV_OPA_60, ms(200));
-    bind(sheet_scrim_, "sheet_scrim", false);
-    sheet_ = panel(root_, 12, 92, 456, 220);
-    lv_obj_set_style_bg_color(sheet_, lv_color_hex(pal.surface2), 0);
-    lv_obj_set_style_shadow_width(sheet_, 30, 0);
-    lv_obj_set_style_shadow_color(sheet_, lv_color_hex(pal.scrim), 0);
-    lv_obj_set_style_shadow_opa(sheet_, LV_OPA_70, 0);
-    lv_obj_add_flag(sheet_, LV_OBJ_FLAG_CLICKABLE); // Swallow taps between buttons.
-    token(sheet_, 16, 14, 56, p.avatar);
-    label(sheet_, p.name.c_str(), 86, 14, 200, title_font(true), pal.text);
-    char seat_text[32]; std::snprintf(seat_text, sizeof seat_text, "Seat %u  /  life total", seat + 1);
-    label(sheet_, seat_text, 86, 52, 200, &th_inter_16, pal.textSecondary);
-    sheet_life_ = label(sheet_, "", 280, 6, 160, &th_inter_56, pal.text);
-    lv_obj_set_style_text_align(sheet_life_, LV_TEXT_ALIGN_RIGHT, 0);
-    char life[16]; std::snprintf(life, sizeof life, "%d", p.life); lv_label_set_text(sheet_life_, life);
-    sheet_badge_ = label(sheet_, "", 300, 76, 140, &th_inter_20, pal.good);
-    lv_obj_set_style_text_align(sheet_badge_, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_style_opa(sheet_badge_, LV_OPA_TRANSP, 0);
-    const char* names[] = {"sheet_m5", "sheet_m1", "sheet_p1", "sheet_p5"};
-    const char* texts[] = {"-5", "-1", "+1", "+5"};
-    for(int i = 0; i < 4; ++i)
-        button(sheet_, names[i], texts[i], nullptr, 16 + i * 108, 104, 100, 56, i == 2 ? Look::Accent : Look::Normal, &th_inter_32);
-    button(sheet_, "sheet_close", "Done", TH_ICON(chevron_down, 24), 16, 168, 424, 40, Look::Quiet);
-    lv_group_focus_obj(control("sheet_p1"));
-    if(!reduced_motion_) animate(sheet_, set_ty, 240, 0, 280, 0, lv_anim_path_ease_out);
-}
-void Ui::close_sheet() {
-    if(!sheet_) return;
-    for(auto it = controls_.begin(); it != controls_.end();)
-        if(it->first.rfind("sheet_", 0) == 0) { lv_group_remove_obj(it->second); it = controls_.erase(it); } else ++it;
-    lv_obj_remove_flag(sheet_scrim_, LV_OBJ_FLAG_CLICKABLE);
-    if(reduced_motion_) { lv_obj_delete(sheet_); lv_obj_delete(sheet_scrim_); }
-    else {
-        animate(sheet_, set_ty, 0, 240, 220, 0, lv_anim_path_ease_in, delete_var);
-        animate(sheet_scrim_, set_bg_opa, LV_OPA_60, 0, 220, 0, lv_anim_path_linear, delete_var);
-    }
-    sheet_ = sheet_scrim_ = sheet_life_ = sheet_badge_ = nullptr;
-    lv_group_focus_obj(root_);
 }
 
 // ---- Input -----------------------------------------------------------------
@@ -724,26 +828,30 @@ void Ui::set_theme(TurnHubTheme::Id theme) {
     if(!TurnHubTheme::valid(static_cast<uint8_t>(theme))) return;
     theme_ = theme; render(Motion::Fade);
 }
-void Ui::activate(const std::string& name) {
+void Ui::activate(const std::string& raw) {
     const auto& s = source_.snapshot();
-    if(name == "menu" || name == "settings") show(Screen::Settings);
+    const bool hold = raw.size() > 5 && raw.compare(raw.size() - 5, 5, ":hold") == 0;
+    const std::string name = hold ? raw.substr(0, raw.size() - 5) : raw;
+    auto seat_of = [&](size_t prefix) { return name.size() > prefix ? static_cast<unsigned>(name[prefix] - '0') : selected_; };
+    if(name == "settings") show(Screen::Settings);
+    else if(name == "menu") { close_card(); show(Screen::Settings); }
     else if(name == "back") show(Screen::Gameplay);
     else if(name == "pairing") show(Screen::Pairing);
     else if(name == "themes") show(Screen::Themes);
     else if(name == "players") show(Screen::Players);
     else if(name.rfind("theme", 0) == 0) set_theme(static_cast<TurnHubTheme::Id>(name.back() - '0'));
     else if(name.rfind("choose", 0) == 0) { selected_ = static_cast<unsigned>(name.back() - '0'); show(Screen::Players); }
-    else if(name.rfind("seat", 0) == 0) { selected_ = static_cast<unsigned>(name.back() - '0'); revision_ = 0; update(); open_sheet(selected_); }
-    else if(name == "sheet_close" || name == "sheet_scrim") close_sheet();
-    else if(name.rfind("sheet_", 0) == 0) {
-        const int amount = name == "sheet_m5" ? -5 : name == "sheet_m1" ? -1 : name == "sheet_p1" ? 1 : 5;
-        sink_.request({ActionKind::AdjustLife, s.players[selected_].participant_id, amount});
+    else if(name == "hub") open_card(Card::Menu);
+    else if(name == "card_close" || name == "card_scrim") { if(card_kind_ == Card::Menu) close_card(); }
+    else if(name == "player") { selected_ = (selected_ + 1) % s.players.size(); revision_ = 0; }
+    else if(name.rfind("plus", 0) == 0 || name.rfind("minus", 0) == 0) {
+        const bool up = name[0] == 'p';
+        const unsigned seat = seat_of(up ? 4 : 5);
+        sink_.request({ActionKind::AdjustLife, s.players[seat].participant_id, (up ? 1 : -1) * (hold ? 5 : 1)});
     }
-    else if(name == "veil") { if(s.phase == Phase::Paused) sink_.request({ActionKind::RequestPause}); }
-    else if(name == "player") { selected_ = (selected_ + 1) % s.players.size(); revision_ = 0; fresh_ = true; }
-    else if(name == "plus" || name == "minus") sink_.request({ActionKind::AdjustLife, s.players[selected_].participant_id, name == "plus" ? 1 : -1});
-    else if(name == "pause") sink_.request({ActionKind::RequestPause});
-    else if(name == "scenario") sink_.request({ActionKind::DemoNextScenario});
+    else if(name.rfind("pass", 0) == 0) sink_.request({ActionKind::PassTurn, s.players[seat_of(4)].participant_id});
+    else if(name == "pause" || name == "resume") { if(card_kind_ == Card::Menu) close_card(); sink_.request({ActionKind::RequestPause}); }
+    else if(name == "scenario") { if(card_kind_ == Card::Menu) close_card(); sink_.request({ActionKind::DemoNextScenario}); }
     else if(name == "pair" || name == "unpair") { sink_.request({name == "pair" ? ActionKind::MockPair : ActionKind::MockUnpair}); show(Screen::Settings); }
     update();
 }
@@ -752,17 +860,42 @@ void Ui::click(lv_event_t* e) {
     Ui* ui = binding->ui;
     // A screen still sliding out must not act.
     if(lv_obj_get_screen(static_cast<lv_obj_t*>(lv_event_get_current_target(e))) != ui->screen_obj_) return;
+    const auto code = lv_event_get_code(e);
     // Copy: a navigation action can delete the object and its binding.
-    const std::string name = binding->name;
+    const std::string name = binding->name + (code == LV_EVENT_LONG_PRESSED || code == LV_EVENT_LONG_PRESSED_REPEAT ? ":hold" : "");
     ui->activate(name);
+}
+void Ui::pass_event(lv_event_t* e) {
+    auto* binding = static_cast<Binding*>(lv_event_get_user_data(e));
+    auto* obj = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    auto* fill = lv_obj_get_child(obj, 0);
+    if(lv_event_get_code(e) == LV_EVENT_PRESSED) {
+        lv_anim_t a; lv_anim_init(&a);
+        lv_anim_set_var(&a, fill); lv_anim_set_exec_cb(&a, set_width);
+        lv_anim_set_values(&a, 0, lv_obj_get_width(obj)); lv_anim_set_duration(&a, PASS_HOLD_MS);
+        lv_anim_set_path_cb(&a, lv_anim_path_linear);
+        lv_anim_set_user_data(&a, binding);
+        lv_anim_set_completed_cb(&a, [](lv_anim_t* done) {
+            auto* b = static_cast<Binding*>(lv_anim_get_user_data(done));
+            set_width(done->var, 0);
+            b->ui->activate(b->name);
+        });
+        lv_anim_start(&a);
+    } else {
+        lv_anim_delete(fill, set_width);
+        set_width(fill, 0);
+    }
 }
 void Ui::free_binding(lv_event_t* e) {
     auto* obj = static_cast<lv_obj_t*>(lv_event_get_current_target(e));
+    std::set<Binding*> owned;
     const auto count = lv_obj_get_event_count(obj);
     for(uint32_t i = 0; i < count; ++i) {
         auto* dsc = lv_obj_get_event_dsc(obj, i);
-        if(lv_event_dsc_get_cb(dsc) == click) delete static_cast<Binding*>(lv_event_dsc_get_user_data(dsc));
+        const auto cb = lv_event_dsc_get_cb(dsc);
+        if(cb == click || cb == pass_event) owned.insert(static_cast<Binding*>(lv_event_dsc_get_user_data(dsc)));
     }
+    for(auto* b : owned) delete b;
 }
 void Ui::gameplay_key(uint32_t key) {
     if(key == LV_KEY_UP) show(Screen::Settings);
@@ -785,8 +918,8 @@ void Ui::read_keypad(lv_indev_t* indev, lv_indev_data_t* data) {
     if(ui->keys_.empty()) return;
     const auto e = ui->keys_.front(); ui->keys_.pop_front();
     if(!e.pressed) { ui->key_state_ = LV_INDEV_STATE_RELEASED; data->key = ui->last_key_; data->state = ui->key_state_; data->continue_reading = !ui->keys_.empty(); return; }
-    // With the Atlas life sheet open, the five-way moves between its buttons.
-    const bool game = ui->screen_ == Screen::Gameplay && !ui->sheet_;
+    // With an Atlas card open, the keys move between its buttons.
+    const bool game = ui->screen_ == Screen::Gameplay && !ui->card_;
     if(game) lv_group_focus_obj(ui->root_);
     switch(e.key) {
     case NavKey::Up: data->key = game ? LV_KEY_UP : LV_KEY_PREV; break;

@@ -30,7 +30,7 @@ struct Snapshot {
     Phase phase = Phase::Running;
     uint32_t revision = 1;
 };
-enum class ActionKind { AdjustLife, RequestPause, DemoNextScenario, MockPair, MockUnpair };
+enum class ActionKind { AdjustLife, RequestPause, DemoNextScenario, MockPair, MockUnpair, PassTurn };
 struct Action { ActionKind kind; uint32_t participant_id = 0; int amount = 0; };
 class SnapshotSource {
 public:
