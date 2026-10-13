@@ -284,13 +284,6 @@ internal fun Feedback(message: String, isError: Boolean) {
 // --- the lobby ----------------------------------------------------------------------
 
 /** Formats offered in the lobby, with the starting life each sets. */
-internal val FORMATS = listOf(
-    Triple(GameProfile.MTG_COMMANDER, "Commander", 40),
-    Triple(GameProfile.MTG, "Magic", 20),
-    Triple(GameProfile.YUGIOH, "Yu-Gi-Oh!", 8000),
-    Triple(GameProfile.GENERIC, "Other", 20),
-)
-
 /** Any seated player carries lobby settings and Start; Atlas treats them alike. */
 internal fun TableSummary.anySeat(): TabletSeat? = players.firstOrNull()?.seat()
 

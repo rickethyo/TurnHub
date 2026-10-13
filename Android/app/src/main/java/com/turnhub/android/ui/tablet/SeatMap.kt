@@ -163,7 +163,7 @@ internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: 
                 },
             contentAlignment = Alignment.Center,
         ) {
-            PlayerTileBackground(backgrounds.getOrNull(index) ?: TileBackground(), hue, Modifier.fillMaxSize())
+            PlayerTileBackground(backgrounds.getOrNull(index) ?: TileBackground(), hue, Modifier.fillMaxSize().facing(degrees))
             Box(Modifier.fillMaxSize().facing(degrees), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
                     Box(Modifier.size(24.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {

@@ -34,7 +34,6 @@ Keep the topic index and active discussions here. Prune by the documentation hyg
 
 ## Topic index
 
-
 Open topics only. Closed topics (TH-004 to TH-011, TH-013 to TH-016) and the
 session logs up to 2026-10-13 are in the [archive](Documentation/engineering/history/2026-10-13-collaboration-archive.md).
 
@@ -79,7 +78,9 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
 - Validation: documentation links, manual export consistency and whitespace
   checks pass. Local Gradle cannot download its distribution (direct Java
   connection refused); Android CI will validate the new JVM regressions and
-  Compose compilation. Physical phone/Atlas and TalkBack acceptance remain open.
+  Compose compilation. The first CI pass caught a format-list import removed
+  during the refactor; the list now lives in shared `TableSetup.kt`. Physical
+  phone/Atlas and TalkBack acceptance remain open.
 - Owner follow-up: a per-player tile-background framework. Android local accounts
   own the saved style/color/image, keyed by UUID; `saveAccount` validates and
   persists changes with the existing local library transaction and account lock.
