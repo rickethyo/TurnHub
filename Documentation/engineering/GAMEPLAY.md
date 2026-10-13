@@ -127,6 +127,9 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
 - Shown as text in the app and as a countdown on the Atlas screen.
   Not on Sigil screens: e-ink refresh doesn't suit a live clock (owner
   decision); try it on a future LCD Sigil, which needs a radio field.
+- The Android standalone game (no Atlas) applies the same rules locally
+  (`StandaloneGame.turnTimer`, lobby presets only). *Implemented* 2026-10-13;
+  device acceptance pending.
 
 ## Life
 

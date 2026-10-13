@@ -1339,3 +1339,23 @@ management/invitations from TH-002 remain separate planned work.
 - Validation: Release build, CTest atlas_ui/sigil_ui passed, both
   `--self-test` runs passed with real windows, Atlas 480x320 and Sigil
   (zoom 2) captures reviewed. README Windows section updated as validated.
+
+## 2026-10-13 — Claude: phone-first app, round 1
+
+- Owner direction (2026-10-13): the app should be fully featured without a
+  physical Atlas, with extras unlocked by one. Multi-phone play stays
+  Atlas-only. Phone-only play leads with the full-screen (tablet) table. The
+  app opens to the game either way and does not push Atlas on phone-only
+  users; an in-app switch can hide Atlas altogether.
+- Branch `claude/project-thread-orsvc7` from `origin/master` 55d7d43 (the
+  session's assigned branch; `claude/master` had no unmerged work).
+- Standalone turn timer (`StandaloneGame.turnTimerMs`, `turnTimer()`), saved
+  with the game. The tablet turn clock shows `+m:ss` overtime when expired, for
+  Atlas tablet mode too. Local per-player statistics (`LocalLibrary.stats`) in
+  Device players and history. Launch opens device play when no Atlas Wi-Fi is
+  saved; `atlas_enabled` switch in the lobby. Lobby renamed Full-screen table,
+  with a larger Start full-screen game button.
+- Validation: unit tests added in `StandaloneGameTest` (timer phases, pause,
+  recovery, stats). Local Gradle could not resolve dependencies (Maven Central
+  HTTP 429 through the container proxy), so tests run in CI. Device acceptance
+  and the user manual's wording are pending.

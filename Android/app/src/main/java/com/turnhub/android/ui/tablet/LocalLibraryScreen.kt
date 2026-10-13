@@ -1,6 +1,7 @@
 package com.turnhub.android.ui.tablet
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.turnhub.android.domain.TableClock
 import com.turnhub.android.standalone.DeliveryStatus
 import com.turnhub.android.standalone.StandaloneState
 import com.turnhub.android.standalone.GameRecord
@@ -70,10 +72,21 @@ fun LocalLibraryScreen(
             item { Text("Local players", color = p.text, modifier = Modifier.semantics { heading() }) }
             if (state.library.players.isEmpty()) item { Text("Add players in Play on this device. No account is needed.", color = p.muted) }
             items(state.library.players, key = { "player-${it.localId}" }) { player ->
-                val totals = state.library.totals(player.localId)
-                BrassCard {
+                val stats = state.library.stats(player.localId)
+                val totals = stats.totals
+                var open by rememberSaveable(player.localId) { mutableStateOf(false) }
+                BrassCard(Modifier.clickable(onClickLabel = if (open) "Hide statistics" else "Show statistics") { open = !open }) {
                     Text(player.name, color = p.text)
-                    Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws", color = p.muted)
+                    val rate = if (totals.played > 0) " · ${totals.won * 100 / totals.played}% won" else ""
+                    Text("${totals.played} played · ${totals.won} won · ${totals.draws} draws$rate", color = p.muted)
+                    if (open && totals.played > 0) {
+                        val f = TableClock::format
+                        Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)
+                        Text("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}", color = p.muted)
+                        Text("Average game ${f(stats.averageGameMs)}", color = p.muted)
+                    } else if (totals.played > 0) {
+                        Text("Tap for statistics", color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
             item { Text("Finished games", color = p.text, modifier = Modifier.semantics { heading() }) }

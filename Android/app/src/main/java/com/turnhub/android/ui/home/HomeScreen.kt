@@ -287,11 +287,11 @@ fun HomeScreen(
                     ConnectingGame(uiState, reduceMotion, onPlayStandalone)
                 } else if (summary == null) {
                     BrassCard(highlight = p.accent) {
-                        Eyebrow("Play on this device")
-                        Text("Track life, Commander damage, turns and results on this phone or tablet.", color = p.text)
+                        Eyebrow("Full-screen table")
+                        Text("Lay this phone or tablet on the table: life, Commander damage, turns, the turn timer and results on one screen.", color = p.text)
                         Text("No Atlas, account or network needed. Your game stays on this device when you close the app.",
                             color = p.muted, style = MaterialTheme.typography.bodySmall)
-                        AccentButton(if (hasLocalGame) "Resume game" else "Play on this device", onPlayStandalone,
+                        AccentButton(if (hasLocalGame) "Resume full-screen game" else "Open full-screen table", onPlayStandalone,
                             Modifier.fillMaxWidth().heightIn(min = 56.dp))
                     }
                     ConnectCard(uiState, onEndpointChange, onConnectClick, onDisconnectClick, discoveryActions, reduceMotion)

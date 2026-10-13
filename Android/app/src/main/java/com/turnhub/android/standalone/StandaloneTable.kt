@@ -91,6 +91,7 @@ class StandaloneTable(
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
     fun setFormat(profile: GameProfile) = edit { it.setFormat(profile) }
     fun setStartingLife(life: Int) = edit { it.setStartingLife(life) }
+    fun setTurnTimer(ms: Long) = edit { it.setTurnTimer(ms) }
     fun start() = edit { it.start(wallClock(), newId()) }
 
     /** A pending/acknowledged payload cannot be silently redirected or remapped. */
@@ -277,6 +278,7 @@ class StandaloneTable(
             put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
             put("autoEliminateAtCommanderDamage", game.autoEliminateAtCommanderDamage)
             put("poisonLimit", game.poisonLimit)
+            put("turnTimerMs", game.turnTimerMs)
             put("startedAtMs", game.startedAtMs)
             put("elapsedMs", game.elapsedMs)
             put("runningSinceMs", game.runningSinceMs ?: JSONObject.NULL)
@@ -324,6 +326,7 @@ class StandaloneTable(
                 autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),
                 autoEliminateAtCommanderDamage = json.optBoolean("autoEliminateAtCommanderDamage", true),
                 poisonLimit = json.optInt("poisonLimit", 10),
+                turnTimerMs = json.optLong("turnTimerMs", 0),
                 startedAtMs = json.getLong("startedAtMs"),
                 elapsedMs = json.getLong("elapsedMs"),
                 runningSinceMs = json.optLongOrNull("runningSinceMs"),

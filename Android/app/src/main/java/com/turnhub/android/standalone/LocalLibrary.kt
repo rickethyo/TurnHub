@@ -20,6 +20,19 @@ data class MatchDelivery(
 
 data class LocalTotals(val played: Int, val won: Int, val draws: Int)
 
+/** One device player's statistics from retained local matches, in the shape of Atlas's profile stats. */
+data class LocalStats(
+    val totals: LocalTotals,
+    val started: Int,
+    val eliminated: Int,
+    val conceded: Int,
+    val turnsCompleted: Int,
+    val averageTurnMs: Long,
+    val fastestTurnMs: Long,
+    val longestTurnMs: Long,
+    val averageGameMs: Long,
+)
+
 data class LocalLibrary(
     val players: List<SavedLocalPlayer> = emptyList(),
     val history: List<GameRecord> = emptyList(),
@@ -29,6 +42,26 @@ data class LocalLibrary(
         val matches = history.filter { r -> r.players.any { it.localId == localId } }
         return LocalTotals(matches.size, matches.count { r -> r.winner?.let { r.players[it].localId == localId } == true },
             matches.count { it.winner == null })
+    }
+
+    fun stats(localId: String): LocalStats {
+        val seats = history.mapNotNull { r ->
+            r.players.indexOfFirst { it.localId == localId }.takeIf { it >= 0 }?.let { r to it }
+        }
+        val mine = seats.map { (r, i) -> r.players[i] }
+        val turns = mine.sumOf { it.turnsCompleted }
+        val turnMs = mine.sumOf { it.turnMs }
+        return LocalStats(
+            totals = totals(localId),
+            started = seats.count { (r, i) -> r.starter == i },
+            eliminated = mine.count { it.outOrder != null && !it.conceded },
+            conceded = mine.count { it.conceded },
+            turnsCompleted = turns,
+            averageTurnMs = if (turns > 0) turnMs / turns else 0,
+            fastestTurnMs = mine.map { it.fastestTurnMs }.filter { it > 0 }.minOrNull() ?: 0,
+            longestTurnMs = mine.maxOfOrNull { it.longestTurnMs } ?: 0,
+            averageGameMs = if (seats.isNotEmpty()) seats.sumOf { it.first.durationMs } / seats.size else 0,
+        )
     }
 
     fun delivery(recordId: String): MatchDelivery = deliveries.firstOrNull { it.recordId == recordId }

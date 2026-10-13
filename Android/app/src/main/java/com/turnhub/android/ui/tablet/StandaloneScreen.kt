@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
+import com.turnhub.android.domain.TurnTimerStatus
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.LocalPlayer
 import com.turnhub.android.standalone.StandaloneGame
@@ -52,6 +54,7 @@ import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Eyebrow
 import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.rememberNowMs
 import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.palette
 import kotlinx.coroutines.launch
@@ -69,6 +72,8 @@ fun StandaloneScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onHistory: () -> Unit = {},
+    atlasEnabled: Boolean = true,
+    onAtlasEnabled: (Boolean) -> Unit = {},
 ) {
     val p = palette
     KeepScreenOn()
@@ -83,9 +88,11 @@ fun StandaloneScreen(
                 TextButton(onClick = onClose) { Text("Back") }
             }
         } else if (game.state == TableState.LOBBY) {
-            Lobby(state, table, onClose, onHistory)
+            Lobby(state, table, onClose, onHistory, atlasEnabled, onAtlasEnabled)
         } else {
             Immersive()
+            // Re-derive each tick so the turn timer's phase (warning, time up) moves on its own.
+            rememberNowMs(ticking = game.state == TableState.RUNNING, intervalMs = 500)
             TabletTable(
                 summary = game.toSummary(System.currentTimeMillis(), TableClock.nowMs()),
                 tablet = TabletState(),
@@ -101,7 +108,14 @@ fun StandaloneScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () -> Unit, onHistory: () -> Unit) {
+private fun Lobby(
+    state: StandaloneState,
+    table: StandaloneTable,
+    onClose: () -> Unit,
+    onHistory: () -> Unit,
+    atlasEnabled: Boolean,
+    onAtlasEnabled: (Boolean) -> Unit,
+) {
     val p = palette
     val game = state.game
     Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
@@ -110,13 +124,14 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Play on this device", color = p.text, style = MaterialTheme.typography.headlineSmall,
+                Text("Full-screen table", color = p.text, style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.weight(1f).semantics { heading() })
-                TextButton(onClick = onClose) { Text("Back", color = p.muted) }
+                if (atlasEnabled) TextButton(onClick = onClose) { Text("Atlas", color = p.muted) }
             }
             Text(
-                "This device keeps the game: life, Commander damage, turns and the winner. " +
-                    "Add names below and start playing. Your game is saved when you close the app.",
+                "This phone or tablet becomes the table: lay it in the middle and everyone plays on one screen. " +
+                    "It keeps life, Commander damage, counters, turns, the turn timer and the winner. " +
+                    "Your game is saved when you close the app.",
                 color = p.muted,
             )
 
@@ -194,18 +209,40 @@ private fun Lobby(state: StandaloneState, table: StandaloneTable, onClose: () ->
                         enabled = (life.toIntOrNull() ?: 0) > 0 && life != "${game.startingLife}",
                     )
                 }
+                Text("Turn timer", color = p.muted, style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StandaloneGame.TURN_TIMER_PRESETS_MS.forEach { ms ->
+                        FilterChip(
+                            selected = game.turnTimerMs == ms,
+                            onClick = { table.setTurnTimer(ms) },
+                            label = { Text(TurnTimerStatus.settingLabel(ms)) },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
+                        )
+                    }
+                }
+                Text("Running out never passes the turn: the clock counts the overtime until the player passes.",
+                    color = p.faint, style = MaterialTheme.typography.bodySmall)
             }
+
+            AccentButton(
+                if (game.players.size < 2) "Add two players to start" else "Start full-screen game",
+                table::start,
+                Modifier.fillMaxWidth().heightIn(min = 64.dp),
+                enabled = game.players.size >= 2,
+            )
 
             ToneButton("Automatic elimination at zero life: " + if (game.autoEliminateAtZeroLife) "On" else "Off",
                 { table.setZeroLifeElimination(!game.autoEliminateAtZeroLife) }, Modifier.fillMaxWidth())
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
-            AccentButton(
-                if (game.players.size < 2) "Add two players to start" else "Start the game",
-                table::start,
-                Modifier.fillMaxWidth(),
-                enabled = game.players.size >= 2,
-            )
+            // Quiet on purpose: a phone-only player never needs Atlas, so it is one small switch.
+            TextButton(onClick = { onAtlasEnabled(!atlasEnabled) }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (atlasEnabled) "TurnHub Atlas table: shown. Turn off if you play on this device only"
+                    else "TurnHub Atlas table: hidden. Turn on to connect Sigils and a phone for every player",
+                    color = p.faint, style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

@@ -4,6 +4,8 @@ import com.turnhub.android.data.TabletSeat
 import com.turnhub.android.data.RawResponse
 import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
+import com.turnhub.android.protocol.TurnTimer
+import com.turnhub.android.protocol.TurnTimerPhase
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,6 +27,51 @@ class StandaloneGameTest {
         .addPlayer("Ben")
         .addPlayer("Cy")
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
+
+    @Test
+    fun `turn timer counts down, warns, expires without passing and survives recovery`() {
+        val lobby = StandaloneGame().addPlayer("Ana").addPlayer("Ben")
+        assertSame(lobby, lobby.setTurnTimer(10_000)) // Below Atlas's 15 s minimum.
+        assertSame(lobby, lobby.setTurnTimer(60_500)) // Whole seconds only.
+        val game = lobby.setTurnTimer(60_000).start(nowMs = 1_000, gameId = "g", random = firstSeat)
+        assertSame(game, game.setTurnTimer(0)) // Fixed once the game starts.
+        assertEquals(TurnTimer(TurnTimerPhase.NORMAL, 60_000), game.turnTimer(1_000))
+        assertEquals(TurnTimer(TurnTimerPhase.WARNING, 10_000), game.turnTimer(51_000))
+        assertEquals(TurnTimer(TurnTimerPhase.EXPIRED, 0), game.turnTimer(90_000))
+        assertEquals(0, game.active) // Expiry never passes the turn.
+        val paused = game.togglePause(31_000)
+        assertEquals(30_000L, paused.turnTimer(500_000).remainingMs) // Pause freezes it.
+        val next = game.pass(0, 70_000)
+        assertEquals(TurnTimer(TurnTimerPhase.NORMAL, 60_000), next.turnTimer(70_000)) // A new turn restarts it.
+        val summary = next.toSummary(80_000, 0)
+        assertEquals(60_000L, summary.settings.turnTimerMs)
+        assertEquals(50_000L, summary.turnTimer.remainingMs)
+        assertEquals(60_000L, StandaloneTable.gameFromJson(StandaloneTable.gameToJson(next)).turnTimerMs)
+        assertEquals(60_000L, next.reset().turnTimerMs)
+        val untimed = lobby.start(nowMs = 0, gameId = "u", random = firstSeat)
+        assertEquals(TurnTimer(TurnTimerPhase.NORMAL, null), untimed.turnTimer(299_999))
+        assertEquals(TurnTimer(TurnTimerPhase.LONG_TURN, null), untimed.turnTimer(300_000))
+    }
+
+    @Test
+    fun `local stats summarize turns, starts and exits`() {
+        val game = StandaloneGame().addPlayer("Ana", localId = "a").addPlayer("Ben", localId = "b").addPlayer("Cy", localId = "c")
+            .start(nowMs = 0, gameId = "g", random = firstSeat)
+            .pass(0, 10_000).pass(1, 40_000).pass(2, 45_000).pass(0, 75_000)
+            .concede(2, 80_000).claimWin(0, 100_000)
+        val library = LocalLibrary().withRecord(game.record()!!)
+        val ana = library.stats("a")
+        assertEquals(LocalTotals(1, 1, 0), ana.totals)
+        assertEquals(1, ana.started)
+        assertEquals(2, ana.turnsCompleted)
+        assertEquals(20_000L, ana.averageTurnMs)
+        assertEquals(10_000L, ana.fastestTurnMs)
+        assertEquals(30_000L, ana.longestTurnMs)
+        assertEquals(100_000L, ana.averageGameMs)
+        assertEquals(1, library.stats("c").conceded)
+        assertEquals(0, library.stats("c").eliminated)
+        assertEquals(0, library.stats("nobody").totals.played)
+    }
 
     @Test
     fun `poison and commander damage rules are independent and live`() {

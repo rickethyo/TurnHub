@@ -57,6 +57,8 @@ data class StandaloneGame(
     val autoEliminateAtPoisonLimit: Boolean = true,
     val autoEliminateAtCommanderDamage: Boolean = true,
     val poisonLimit: Int = 10,
+    /** 0 = off; else the countdown each turn gets. As on Atlas, running out never passes the turn. */
+    val turnTimerMs: Long = 0,
     val players: List<LocalPlayer> = emptyList(),
     /** Index into [players] of whose turn it is. */
     val active: Int? = null,
@@ -116,6 +118,28 @@ data class StandaloneGame(
         return copy(startingLife = life).bump()
     }
 
+    /** Off (0) or 15 s to 60 min in whole seconds, Atlas's range; set in the lobby only. */
+    fun setTurnTimer(ms: Long): StandaloneGame {
+        if (state != TableState.LOBBY || (ms != 0L && (ms !in TURN_TIMER_RANGE_MS || ms % 1000 != 0L))) return this
+        return copy(turnTimerMs = ms).bump()
+    }
+
+    /** The turn clock's phase, derived like Atlas's (GAMEPLAY.md "Turn timer"). */
+    fun turnTimer(nowMs: Long): TurnTimer {
+        if (active == null || !playing) return TurnTimer(TurnTimerPhase.NORMAL, null)
+        val turn = (gameElapsedMs(nowMs) - turnStartedAtElapsedMs).coerceAtLeast(0)
+        if (turnTimerMs <= 0) {
+            return TurnTimer(if (turn >= LONG_TURN_MS) TurnTimerPhase.LONG_TURN else TurnTimerPhase.NORMAL, null)
+        }
+        val remaining = (turnTimerMs - turn).coerceAtLeast(0)
+        val phase = when {
+            remaining == 0L -> TurnTimerPhase.EXPIRED
+            remaining <= WARNING_MS -> TurnTimerPhase.WARNING
+            else -> TurnTimerPhase.NORMAL
+        }
+        return TurnTimer(phase, remaining)
+    }
+
     /** Starts a match with a random first player; needs two players. */
     fun start(nowMs: Long, gameId: String, random: Random = Random.Default): StandaloneGame {
         if (state != TableState.LOBBY && state != TableState.GAME_OVER) return this
@@ -147,6 +171,7 @@ data class StandaloneGame(
             autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit,
             autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage,
             poisonLimit = poisonLimit,
+            turnTimerMs = turnTimerMs,
             players = players.map { LocalPlayer(it.name, it.profileId, localId = it.localId) },
             revision = revision + 1,
         )
@@ -388,7 +413,8 @@ data class StandaloneGame(
             revision = revision,
             state = state,
             settings = TableSettings(profile, startingLife, autoEliminateAtZeroLife = autoEliminateAtZeroLife,
-                autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit),
+                autoEliminateAtPoisonLimit = autoEliminateAtPoisonLimit, autoEliminateAtCommanderDamage = autoEliminateAtCommanderDamage, poisonLimit = poisonLimit,
+                turnTimerMs = turnTimerMs),
             host = null,
             starterPlayerNumber = starter?.plus(1),
             activePlayerNumber = active?.plus(1),
@@ -398,7 +424,7 @@ data class StandaloneGame(
             pending = PendingDecisions(null, 0, null, null, null),
             gameElapsedMs = elapsed,
             turnElapsedMs = (elapsed - turnStartedAtElapsedMs).coerceAtLeast(0),
-            turnTimer = TurnTimer(TurnTimerPhase.NORMAL, null),
+            turnTimer = turnTimer(nowMs),
             receivedAtMs = monoNowMs,
             players = players.mapIndexed { i, p ->
                 TablePlayer(
@@ -425,6 +451,10 @@ data class StandaloneGame(
         const val MAX_PLAYERS = 8
         const val MAX_NAME = 32
         const val MAX_LIFE = 99_999
+        val TURN_TIMER_RANGE_MS = 15_000L..3_600_000L
+        val TURN_TIMER_PRESETS_MS = listOf(0L, 60_000L, 120_000L, 180_000L, 300_000L)
+        private const val WARNING_MS = 10_000L
+        private const val LONG_TURN_MS = 300_000L
 
         fun defaultLife(profile: GameProfile): Int = when (profile) {
             GameProfile.MTG_COMMANDER -> 40

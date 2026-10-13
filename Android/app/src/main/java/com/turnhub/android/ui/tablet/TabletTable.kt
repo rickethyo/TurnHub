@@ -701,15 +701,24 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
 @Composable
 private fun TurnClock(summary: TableSummary, nowMs: Long) {
     val p = palette
+    val expired = summary.turnTimer.phase == TurnTimerPhase.EXPIRED
     val remaining = TableClock.turnRemainingMs(summary, nowMs)
-    val text = TableClock.format(remaining ?: TableClock.turnElapsedMs(summary, nowMs))
+    // Over time shows "+" and the overtime, so time-up never rests on color alone.
+    val text = if (expired) "+" + TableClock.format(TableClock.overtimeMs(summary, nowMs))
+        else TableClock.format(remaining ?: TableClock.turnElapsedMs(summary, nowMs))
     val color = when (summary.turnTimer.phase) {
         TurnTimerPhase.WARNING -> p.warn
         TurnTimerPhase.EXPIRED -> p.bad
         else -> p.text
     }
     Text(text, color = color, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.semantics { contentDescription = if (remaining != null) "Turn time left $text" else "Turn time $text" })
+        modifier = Modifier.semantics {
+            contentDescription = when {
+                expired -> "Turn time is up, over by ${text.drop(1)}"
+                remaining != null -> "Turn time left $text"
+                else -> "Turn time $text"
+            }
+        })
 }
 
 @OptIn(ExperimentalLayoutApi::class)

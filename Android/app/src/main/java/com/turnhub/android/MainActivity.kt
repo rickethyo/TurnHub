@@ -230,6 +230,14 @@ class MainActivity : ComponentActivity() {
     private var theme by mutableStateOf(TurnHubThemeChoice.AUTO)
     private var reduceMotion by mutableStateOf(false)
     private var standalone by mutableStateOf(false)
+    /** Off hides everything about connecting to an Atlas: the app is a phone-only game. */
+    private var atlasEnabled by mutableStateOf(true)
+
+    private fun chooseAtlasEnabled(on: Boolean) {
+        atlasEnabled = on
+        uiPrefs.edit().putBoolean("atlas_enabled", on).apply()
+        if (!on) playOnDevice()
+    }
     private var localHistory by mutableStateOf(false)
 
     private fun playOnDevice() {
@@ -330,8 +338,10 @@ class MainActivity : ComponentActivity() {
         homeViewModel.standalone = standaloneViewModel.table
         theme = TurnHubThemeChoice.fromKey(uiPrefs.getString("theme", null))
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
-        standalone = savedInstanceState?.getBoolean("device_play_open")
-            ?: uiPrefs.getBoolean("prefer_device_play", false)
+        atlasEnabled = uiPrefs.getBoolean("atlas_enabled", true)
+        // Phone-only users (Atlas off, or never set one up) open straight to their game.
+        standalone = !atlasEnabled || (savedInstanceState?.getBoolean("device_play_open")
+            ?: uiPrefs.getBoolean("prefer_device_play", PreferencesWifiCredentialStore(applicationContext).lastSsid() == null))
         localHistory = savedInstanceState?.getBoolean("local_history_open") ?: false
         pendingAtlasAction = AtlasAction.entries.firstOrNull {
             it.name == savedInstanceState?.getString("atlas_action")
@@ -375,10 +385,15 @@ class MainActivity : ComponentActivity() {
                             table = standaloneViewModel.table,
                             reduceMotion = reduceMotion,
                             onClose = {
-                                standalone = false
-                                uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
+                                if (!atlasEnabled) moveTaskToBack(true)
+                                else {
+                                    standalone = false
+                                    uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
+                                }
                             },
                             onHistory = { localHistory = true },
+                            atlasEnabled = atlasEnabled,
+                            onAtlasEnabled = ::chooseAtlasEnabled,
                         )
                     } else HomeScreen(
                         onFollowGame = homeViewModel::onFollowGame,

@@ -4,6 +4,8 @@ This directory holds the native TurnHub Android client.
 
 The Android app is a controller and presentation client. It is not a second TurnHub game engine, with one exception: the standalone tablet game below.
 
+Product direction (owner, 2026-10-13): the app is a full, general-purpose game app on its own; a physical Atlas unlocks extras (Sigils, a phone for every player, shared profiles and table-wide statistics, the Atlas screen and speaker, administration). Multi-phone play needs an Atlas. Phone-only play leads with the full-screen table. The standalone game is therefore a supported engine for games with no Atlas, but it still never merges into, copies or changes a game Atlas runs.
+
 ## Hard architecture rule
 
 The app may:
@@ -42,9 +44,21 @@ connects, then disconnects polling and releases the Atlas network. A later
 connection waits for the disconnect to finish. Local history and explicit Atlas-scoped linking are described below
 (TH-001 in `COLLABORATION.md`).
 
-With **no Atlas at the table**, **Play on this device**
-runs a small game on the device itself: life, Commander damage, turns, pause,
-concede and the winner (`standalone/StandaloneGame.kt`). It is a separate
+Phone-first launch (2026-10-13, *Implemented*, device acceptance pending):
+`prefer_device_play` defaults to on when no Atlas Wi-Fi has been saved, so a
+new install opens straight to the full-screen table's lobby; an Atlas user
+still opens to the connecting game screen. The lobby's quiet switch
+`turnhub_ui/atlas_enabled` (default on) hides Atlas altogether: off always
+opens device play, and closing it leaves the app instead of showing Home.
+
+With **no Atlas at the table**, the **full-screen table**
+runs the game on the device itself: life, Commander damage, counters,
+Monarch/Initiative, turns, pause, concede, the winner and the turn timer
+(`standalone/StandaloneGame.kt`). The timer follows Atlas's rules
+(GAMEPLAY.md "Turn timer"): lobby presets Off/1/2/3/5 min, warning at 10 s,
+expiry shows the overtime and never passes the turn, and Long turn at 5 min
+when off. Device players and history shows per-player statistics derived from
+local records (went first, eliminations, concessions, turn and game times). It is a separate
 game, never a copy of or a change to a game Atlas is running, so nothing is
 merged back live. The rules above apply in full whenever Atlas is present.
 
@@ -230,7 +244,7 @@ updates on Atlas and the Sigils.
    live lobby with no taps.
    - While it connects, the app shows the game screen (tabs, a "Your table"
      status line and player-card placeholders, with Play on this device
-     instead) rather than the connect screen. After 15 s
+     instead; the full-screen table since 2026-10-13) rather than the connect screen. After 15 s
      (`HomeViewModel.LAUNCH_WAIT_MS`), or as soon as the table isn't found or
      an error appears, the connect screen takes over (*Implemented*
      2026-10-12; device acceptance pending).
