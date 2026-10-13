@@ -51,9 +51,15 @@ against the committed CMake hashes first. Do not substitute arbitrary versions.
 
 ## Windows
 
-Use Visual Studio 2022 Desktop development with C++ (C11-capable MSVC), CMake
-3.24+ and Ninja from an x64 Native Tools prompt. The same CMake source fetches
-build SDL locally; no Linux-specific toolchain is needed. PowerShell:
+Validated 2026-10-13 on Windows 11 with Visual Studio 2022 Build Tools 17.14
+(MSVC, x64), the bundled CMake 3.31.6 and Ninja. If no compiler is installed:
+
+```powershell
+winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.CMake.Project --includeRecommended"
+```
+
+From an **x64 Native Tools Command Prompt for VS 2022** (or after running
+`vcvars64.bat`), at the repository root:
 
 ```powershell
 cmake -S LVGL -B LVGL/build-win -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -62,11 +68,12 @@ cmake --build LVGL/build-win --parallel 4
 ctest --test-dir LVGL/build-win --output-on-failure
 ```
 
-MSVC builds LVGL as a DLL because 9.3's global-data exports require it; CMake
-places the DLL next to the executable. Keep both when sharing a build. SDL is
-static in the default source route. Windows/MSVC instructions are **not yet
-validated in this Linux workspace**. WSL2 + WSLg can also use the Linux commands;
-without WSLg use the headless tests. Do not change legacy PlatformIO to build this.
+MSVC builds LVGL as a DLL because 9.3's global-data exports require it, so SDL
+is built as `SDL2.dll` too: a static SDL inside `lvgl.dll` would leave the
+executable with a second, uninitialized SDL that never receives events. CMake
+places `lvgl.dll` and `SDL2.dll` next to the executable; keep all three when
+sharing a build. WSL2 + WSLg can also use the Linux commands. Do not change
+legacy PlatformIO to build this.
 
 ## Interaction
 
@@ -214,10 +221,13 @@ No production renderer is replaced. Follow hardware verification before GPIO bin
 - X11 SDL rendering under Xvfb: 14 captures passed exact dimensions, token palette
   background, nonblank and distinct-scene checks; selected captures visually reviewed.
   [Committed previews](../Documentation/engineering/history/2026-10-11-lvgl-previews/README.md).
+- Windows 11, MSVC 17.14 Release with source SDL (2026-10-13): build clean at `/W4`
+  for TurnHub sources, both CTest suites passed under the dummy driver, both
+  `--self-test` runs passed and Atlas/Sigil captures rendered in real windows.
 - Font/source/tool digests, shared tokens/contrast, existing avatar-mask digests,
   31 authoritative-adapter guards, Python syntax and final whitespace checks passed.
 
-Windows/MSVC, physical capacitive touch, PCA9554, LEDs, battery/audio, S3 firmware
+Physical capacitive touch, PCA9554, LEDs, battery/audio, S3 firmware
 and panel readability were not tested. Existing CI does not yet build this new
 CMake target; the targeted commands above are the validation route for this
 milestone. A future scoped LVGL CI job belongs with continued simulator work.

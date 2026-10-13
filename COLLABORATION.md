@@ -1325,3 +1325,17 @@ management/invitations from TH-002 remain separate planned work.
 - Validation: three `HomeViewModelTest` cases added (arrival, timeout, not
   found). No Android SDK in this container, so tests run in CI only. Device
   acceptance pending on the owner's phone.
+
+## 2026-10-13 — Claude: LVGL simulator builds and runs on Windows
+
+- Owner request (2026-10-13): get the LVGL simulator running on the Windows
+  machine. Installed VS 2022 Build Tools (C++ workload with CMake/Ninja).
+- The MSVC build compiled first time, but both self-tests failed injecting
+  input: LVGL is a DLL on MSVC and SDL was linked statically into both
+  `lvgl.dll` and the executable, so the executable's SDL was never
+  initialized (its event queue, event watch and renderer calls went to the
+  wrong copy; real keyboard input would also have been lost). MSVC now builds
+  SDL as `SDL2.dll`; Linux keeps static SDL.
+- Validation: Release build, CTest atlas_ui/sigil_ui passed, both
+  `--self-test` runs passed with real windows, Atlas 480x320 and Sigil
+  (zoom 2) captures reviewed. README Windows section updated as validated.
