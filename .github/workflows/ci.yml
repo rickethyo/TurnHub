@@ -2,9 +2,9 @@ name: TurnHub CI
 
 on:
   pull_request:
-    branches: [master]
+    branches: [legacy/gen1]
   push:
-    branches: [master]
+    branches: [legacy/gen1]
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,8 @@ concurrency:
 jobs:
   # Pull requests run only the work their changed paths can affect
   # (CONTINUOUS_INTEGRATION.md, "What runs"). Pushes to master and manual runs
-  # build everything, so master's Play upload and artifacts are unchanged.
+  # build everything. On legacy/gen1 the Play upload below never runs (it is
+  # master-only), so this branch only builds and tests.
   changes:
     name: Detect changed components
     runs-on: ubuntu-24.04

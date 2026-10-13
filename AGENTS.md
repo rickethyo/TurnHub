@@ -1,5 +1,11 @@
 # Working in TurnHub
 
+> **Legacy branch `legacy/gen1`.** This is the frozen Gen 1 ESP32 Atlas and
+> Sigil firmware (e-paper/OLED Sigils, the 2.8" TFT Atlas, the test harness,
+> the Sigil v1 PCB and enclosures). Development moved to `master` (LVGL/ESP32-S3).
+> Fix Gen 1 bugs here in place: branch from `legacy/gen1`, open the PR against
+> `legacy/gen1`, and never merge this branch into `master` or the reverse.
+
 Read `CLAUDE.md`, `COLLABORATION.md` and the relevant engineering references before
 editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
 
