@@ -153,6 +153,7 @@ class StandaloneTable(
     }
     fun removePlayer(index: Int) = edit { it.removePlayer(index) }
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
+    fun swapPlayers(a: Int, b: Int) = edit { it.swapPlayers(a, b) }
     fun setFormat(profile: GameProfile) = edit { it.setFormat(profile) }
     fun setStartingLife(life: Int) = edit { it.setStartingLife(life) }
     fun setTurnTimer(ms: Long) = edit { it.setTurnTimer(ms) }

@@ -1,0 +1,197 @@
+package com.turnhub.android.ui.tablet
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import com.turnhub.android.ui.theme.palette
+
+/**
+ * A small copy of the full-screen table for the lobby: each player's panel
+ * where it will land, turned the way it will face, numbered in turn order.
+ * Drag a panel onto another to swap the two, or tap one and then the other
+ * (also the screen-reader path, with a "Swap with" action per seat).
+ */
+@Composable
+internal fun SeatMap(names: List<String>, onSwap: (Int, Int) -> Unit, modifier: Modifier = Modifier) {
+    if (names.isEmpty()) return
+    val p = palette
+    val swap by rememberUpdatedState(onSwap)
+    val configuration = LocalConfiguration.current
+    // The same choice the table makes: side-by-side rows unless the screen is upright and more than two play.
+    val landscape = configuration.screenWidthDp >= configuration.screenHeightDp || names.size <= 2
+    val plan = placements(names.size)
+    val bounds = remember { mutableStateMapOf<Int, Rect>() }
+    var picked by remember { mutableStateOf<Int?>(null) }
+    var dragging by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var pointer by remember { mutableStateOf(Offset.Zero) }
+    val target = dragging?.let { from -> bounds.entries.firstOrNull { it.key != from && it.key < names.size && it.value.contains(pointer) }?.key }
+    if (picked != null && picked!! >= names.size) picked = null
+
+    val seat: @Composable (Int, Int, Modifier) -> Unit = { index, degrees, slotModifier ->
+        val hue = p.avatarColor(index + 1)
+        val shape = RoundedCornerShape(12.dp)
+        val isDragged = dragging == index
+        val highlighted = picked == index || target == index
+        val others = names.indices.filter { it != index }
+        Box(
+            slotModifier
+                .padding(3.dp)
+                .zIndex(if (isDragged) 1f else 0f)
+                .onGloballyPositioned { bounds[index] = it.boundsInRoot() }
+                .graphicsLayer {
+                    if (isDragged) {
+                        translationX = dragOffset.x
+                        translationY = dragOffset.y
+                        scaleX = 1.06f
+                        scaleY = 1.06f
+                        shadowElevation = 12f
+                    }
+                }
+                .clip(shape)
+                .background(p.surface)
+                .background(Brush.verticalGradient(listOf(hue.copy(alpha = if (p.dark) .30f else .22f), hue.copy(alpha = if (p.dark) .55f else .42f))))
+                .border(if (highlighted) 3.dp else 1.dp, if (highlighted) p.active else p.line, shape)
+                .pointerInput(index) {
+                    detectTapGestures {
+                        val first = picked
+                        picked = when (first) {
+                            null -> index
+                            index -> null
+                            else -> { swap(first, index); null }
+                        }
+                    }
+                }
+                .pointerInput(index) {
+                    detectDragGestures(
+                        onDragStart = { at ->
+                            picked = null
+                            dragging = index
+                            dragOffset = Offset.Zero
+                            pointer = (bounds[index]?.topLeft ?: Offset.Zero) + at
+                        },
+                        onDrag = { change, amount ->
+                            change.consume()
+                            dragOffset += amount
+                            pointer += amount
+                        },
+                        onDragEnd = {
+                            val from = dragging
+                            val to = from?.let { f -> bounds.entries.firstOrNull { it.key != f && it.key < names.size && it.value.contains(pointer) }?.key }
+                            if (from != null && to != null) swap(from, to)
+                            dragging = null
+                            dragOffset = Offset.Zero
+                        },
+                        onDragCancel = {
+                            dragging = null
+                            dragOffset = Offset.Zero
+                        },
+                    )
+                }
+                .clearAndSetSemantics {
+                    contentDescription = "Seat ${index + 1}, ${names[index]}" +
+                        if (picked == index) ", picked. Tap another seat to swap" else ""
+                    role = Role.Button
+                    selected = picked == index
+                    onClick(label = "Pick to swap") {
+                        val first = picked
+                        picked = when (first) { null -> index; index -> null; else -> { swap(first, index); null } }
+                        true
+                    }
+                    customActions = others.map { other ->
+                        CustomAccessibilityAction("Swap with ${names[other]}") { swap(index, other); true }
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.fillMaxSize().facing(degrees), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(4.dp)) {
+                    Box(Modifier.size(24.dp).background(hue, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("${index + 1}", color = p.avatarText, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Text(names[index], color = p.text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                }
+            }
+        }
+    }
+
+    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Box(
+        Modifier
+            .wrapAspect(landscape)
+            .clip(RoundedCornerShape(18.dp))
+            .background(p.bg)
+            .border(1.dp, p.lineStrong, RoundedCornerShape(18.dp))
+            .padding(4.dp),
+    ) {
+        if (landscape) {
+            Column(Modifier.fillMaxSize()) {
+                if (plan.far.isNotEmpty()) {
+                    Row(Modifier.weight(1f).fillMaxWidth()) { plan.far.forEach { seat(it, 180, Modifier.weight(1f).fillMaxHeight()) } }
+                }
+                Row(Modifier.weight(1f).fillMaxWidth()) { plan.near.forEach { seat(it, 0, Modifier.weight(1f).fillMaxHeight()) } }
+            }
+        } else {
+            Row(Modifier.fillMaxSize()) {
+                if (plan.far.isNotEmpty()) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) { plan.far.asReversed().forEach { seat(it, 90, Modifier.weight(1f).fillMaxWidth()) } }
+                }
+                Column(Modifier.weight(1f).fillMaxHeight()) { plan.near.asReversed().forEach { seat(it, 270, Modifier.weight(1f).fillMaxWidth()) } }
+            }
+        }
+        // The centre menu disc, so the miniature reads as the same table.
+        Box(Modifier.align(Alignment.Center).size(26.dp).background(p.surface, CircleShape).border(1.dp, p.lineStrong, CircleShape))
+    } }
+}
+
+/** Wide like the table on its side; upright and capped so a phone's portrait map isn't a scroll of its own. */
+private fun Modifier.wrapAspect(landscape: Boolean): Modifier =
+    if (landscape) fillMaxWidth().aspectRatio(16f / 10f)
+    else height(420.dp).aspectRatio(10f / 15f, matchHeightConstraintsFirst = true)

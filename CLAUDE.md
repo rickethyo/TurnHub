@@ -30,6 +30,7 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 | `LVGL/` | Isolated experimental desktop Atlas/Sigil presentation simulator; never a second production game authority | CMake, pinned LVGL/SDL, C++17; see `LVGL/README.md` |
 | `Sigil/` | ESP32 player controller: one `sigil` build (thumbstick, status ring, buzzer, ESP-NOW, pairing, updater); display behind `sigil_display.h`, headless until the LVGL renderer is bound | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
+| `iOS/` | SwiftUI iPhone/iPad foundation; local `TurnHubCore` package; see `iOS/README.md` and `Documentation/engineering/IOS_DEVELOPMENT.md` | Xcode 16+, Swift 6, SwiftPM |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
 | `design/` | V1 design system shared by the portal and Android: `tokens.json` (themes, type, motion), the icon set, Inter and Cinzel fonts, web components and the style guide. `python3 design/build_tokens.py` regenerates `design/dist/` and Android's `DesignTokens.kt` and `ic_th_*` drawables (CI runs `--check`); see `design/README.md` | Python (stdlib) |

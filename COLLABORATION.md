@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-019 | iOS foundation and development flow | iOS, contracts, CI | Active framework slice | Codex / scaffold and staged plan; owner / Apple device acceptance |
 | TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
 | TH-017 | ESP32-S3 hardware and LVGL foundation | Hardware, BOM, LVGL | Master is now this track (2026-10-13) | Board drivers and snapshot/Intent adapters; see STAGED_CHANGES |
 | TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
@@ -61,6 +62,33 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 - Next action / intended responder:
 
 Append replies under the same topic with date, author and reviewed SHA. Record a final outcome and links when resolved.
+
+## TH-019: iOS foundation and development flow
+
+- Date / owner: 2026-10-13 / Codex on `codex/master`; accepted baseline
+  `9fa32bbd83824c2905b6be31524125b2e6239030`. Clean checkout, fetched master
+  and agent refs, no open PRs or overlapping active iOS scope.
+- Owner authorizes an iOS framework, with emphasis on architecture and the
+  development flow. Scope: native SwiftUI iPhone/iPad shell, a local Swift
+  package for non-UI code, metadata/endpoint contract tests, unsigned simulator
+  CI and a milestone plan. No gameplay, live network controls or distribution
+  in this slice. Android and firmware implementations remain separate.
+- Feature gate: iOS owns shell navigation only; Atlas owns connected game
+  state and validates existing form-based controls. The future standalone
+  iOS domain owns its separate local matches/players/history. No game Intent
+  or persistence is implemented here. SwiftUI renders the shell; the shared
+  HTTP contract is unchanged. Apple frameworks/SwiftPM only, no third-party
+  runtime library. System controls support VoiceOver and Dynamic Type;
+  every forthcoming screen needs explicit accessibility acceptance.
+- Validation: documentation hygiene and whitespace checks pass. Info.plist,
+  scheme XML and workflow YAML parse; all 25 Xcode project objects and their
+  file/package/scheme references validate. The canonical fixture path resolves.
+  Linux workspace has neither Swift nor Xcode; Swift tests and simulator build
+  run in the PR's macOS CI, with results recorded in its checks/handoff. Physical
+  iPhone/iPad and VoiceOver acceptance remain open.
+- Next action: finish the framework and plan, then start the standalone lobby
+  slice after review. Signing, TestFlight and App Store submission remain owner
+  decisions; no account credentials or release secrets required for foundation.
 
 ## TH-001: App-only player experience
 
@@ -227,3 +255,17 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   yet measured. Existing bounded import receipts/partial-credit limitations remain.
   MSVC host runner hit pre-existing GNU-attribute incompatibility; supported GCC
   runner passed instead. Keep `codex/master` after integration with a merge commit.
+
+## 2026-10-13 — Claude: standalone setup shows the table
+
+- Owner feedback: the lobby's player list was hard to match to where the
+  panels land; a small version of the table with drag-and-drop seats was
+  suggested.
+- The lobby now shows `SeatMap`, a miniature of the full-screen table using
+  the same `placements()` and orientation rule: each player's panel in its
+  seat, turned the way it will face, in its seat color and numbered in turn
+  order. Drag one panel onto another to swap them, or tap two panels; screen
+  readers get a "Swap with" action per seat. The list's turn-order arrows are
+  gone; the list keeps adding and removing. `StandaloneGame.swapPlayers`
+  (lobby only) backs it, with a unit test.
+- Validation: `testDebugUnitTest` passes locally. Needs an owner device pass.

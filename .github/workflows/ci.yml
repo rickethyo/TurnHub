@@ -58,6 +58,8 @@ jobs:
           atlas=false sigil=false android=false tools=false lvgl=false
           while IFS= read -r f; do
             case "$f" in
+              # iOS has its own path-filtered macOS workflow.
+              .github/workflows/ios.yml) ;;
               .github/*) atlas=true sigil=true android=true tools=true lvgl=true ;;
               shared/*) atlas=true sigil=true lvgl=true ;;
               # The simulator reads Atlas's avatar masks (Atlas/include).

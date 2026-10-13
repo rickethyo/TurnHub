@@ -144,11 +144,13 @@ private fun Lobby(
             BrassCard {
                 Eyebrow("At the table")
                 if (game.players.isEmpty()) Text("Add everyone who is playing.", color = p.muted)
-                game.players.forEachIndexed { index, player -> PlayerRow(index, player, game.players.size, table) }
                 if (game.players.size > 1) {
-                    Text("Arrows set the turn order; panels sit clockwise in this order.", color = p.faint,
-                        style = MaterialTheme.typography.bodySmall)
+                    // How the game will look: each panel where it lands, numbered in turn order.
+                    SeatMap(game.players.map { it.name }, table::swapPlayers)
+                    Text("This is how the table will look. Drag a player onto another seat to swap them, or tap two seats. " +
+                        "Turns go clockwise in number order.", color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
+                game.players.forEachIndexed { index, player -> PlayerRow(index, player, game.players.size, table) }
                 var name by rememberSaveable { mutableStateOf("") }
                 val full = game.players.size >= StandaloneGame.MAX_PLAYERS
                 val add = {
@@ -263,8 +265,6 @@ private fun PlayerRow(index: Int, player: LocalPlayer, count: Int, table: Standa
         Column(Modifier.weight(1f)) {
             Text(player.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
         }
-        MoveButton("↑", "Move ${player.name} earlier in turn order", index > 0) { table.movePlayer(index, -1) }
-        MoveButton("↓", "Move ${player.name} later in turn order", index < count - 1) { table.movePlayer(index, 1) }
         IconButton(onClick = { table.removePlayer(index) }) {
             Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.semantics { contentDescription = "Remove ${player.name}" })

@@ -99,12 +99,14 @@ data class StandaloneGame(
     }
 
     /** Moves a player one place earlier ([by] = -1) or later (+1) in turn order. */
-    fun movePlayer(index: Int, by: Int): StandaloneGame {
-        val to = index + by
-        if (state != TableState.LOBBY || index !in players.indices || to !in players.indices) return this
+    fun movePlayer(index: Int, by: Int): StandaloneGame = swapPlayers(index, index + by)
+
+    /** Trades two players' seats (and so their places in turn order); lobby only. */
+    fun swapPlayers(a: Int, b: Int): StandaloneGame {
+        if (state != TableState.LOBBY || a !in players.indices || b !in players.indices || a == b) return this
         val list = players.toMutableList()
-        list[index] = players[to]
-        list[to] = players[index]
+        list[a] = players[b]
+        list[b] = players[a]
         return copy(players = list).bump()
     }
 

@@ -231,6 +231,16 @@ class StandaloneGameTest {
     }
 
     @Test
+    fun `seats can be swapped in the lobby only`() {
+        val lobby = StandaloneGame().addPlayer("Ana").addPlayer("Ben").addPlayer("Cy")
+        assertEquals(listOf("Cy", "Ben", "Ana"), lobby.swapPlayers(0, 2).players.map { it.name })
+        assertEquals(lobby, lobby.swapPlayers(1, 1))
+        assertEquals(lobby, lobby.swapPlayers(0, 3))
+        val started = lobby.start(0, "g")
+        assertEquals(started, started.swapPlayers(0, 1))
+    }
+
+    @Test
     fun `passing moves the turn clockwise and counts the finished turn`() {
         val game = threePlayers().pass(0, 61_000)
         assertEquals(1, game.active)
