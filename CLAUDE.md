@@ -9,7 +9,8 @@ Use `claude/master` as Claude's persistent branch. Read `AGENTS.md` and
 PR and synchronization rules. Keep permanent branches after merge and use merge
 commits for their PRs. The mandatory resource-efficiency rules in that reference
 apply to Claude too: minimize third-party calls and agent runtime, batch related
-work, and reuse an existing reviewable PR whenever practical.
+work, and reuse an existing reviewable PR whenever practical. Its documentation
+hygiene rule applies too: prune docs your change makes obsolete in the same PR.
 
 **Branches:** `master` is the ESP32-S3/LVGL track. The current ESP32 boards
 (e-ink/OLED Sigils, E32R28T Atlas), the test harness, the Sigil v1 PCB, the
@@ -73,7 +74,7 @@ python3 Atlas/web/build.py                         # embedded portal preview (WE
 ```
 There is no per-test filter. To run one group, build the single executable (the command lines are in `tests/host/README.md`).
 - **Adding a new `src/*.cpp` to Atlas:** add it to the source lists in `run.cmd`, `run-gcc.ps1` and the README command lines too. Those lists also carry the `shared/include` path. The exception is firmware-only code that needs a hardware library: `atlas_display.cpp` and `atlas_art.cpp` (LovyanGFX), `atlas_speaker.cpp` (ESP32 DAC), `atlas_battery.cpp` (ESP32 ADC; its logic is the header-only `battery_gauge.h`), `sd_card.cpp` (Arduino SD), `factory_reset.cpp` (NVS erase + restart) and `secure_link_backend.cpp` (mbedTLS) are left out, and `test_globals.cpp` stubs them.
-- **Python and `pio`:** PlatformIO's `%USERPROFILE%\.platformio\penv\Scripts` is on the user PATH ahead of the Microsoft Store stub (added 2026-09-28), so new shells resolve `python` and `pio` there. Shells started before that, and the Bash tool if it doesn't see it, need the full path. That interpreter runs both `.py` checks with the standard library only.
+- **Python and `pio`:** PlatformIO's `%USERPROFILE%\.platformio\penv\Scripts` is on the user PATH ahead of the Microsoft Store stub, so shells resolve `python` and `pio` there; use the full path if a shell doesn't. That interpreter runs both `.py` checks with the standard library only.
 - **Packed-struct flag:** the GCC runner uses `-mno-ms-bitfields` and C++14 to preserve the packed radio packet layout. Keep it.
 - **Test ordering:** the recovery scenario runs last on purpose (the recovery store is a one-way process-wide latch).
 

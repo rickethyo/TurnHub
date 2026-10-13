@@ -34,7 +34,7 @@ Cross-agent discussion and project-wide handoffs live in [`COLLABORATION.md`](..
 | [Planned Designs](PLANNED_DESIGNS.md) | Designs for features not built yet: venue model, Sigil sleep, front LED strip, shared SD cards |
 
 Elsewhere: the HTTP client contract is [`protocol/http-v1.md`](../../protocol/http-v1.md);
-Sigil screens and menus are [`Sigil/DISPLAY.md`](../../Sigil/DISPLAY.md); the
+the LVGL screens are [`LVGL/README.md`](../../LVGL/README.md); the
 host test suites are [`Atlas/tests/host/README.md`](../../Atlas/tests/host/README.md);
 the design system is [`design/README.md`](../../design/README.md); the Android
 app is [`Android/README.md`](../../Android/README.md); dependencies and IP are

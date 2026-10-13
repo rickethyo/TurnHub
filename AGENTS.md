@@ -23,6 +23,8 @@ editing. `Documentation/engineering/AGENT_WORKFLOW.md` owns the Git workflow.
 - Keep each PR reviewable and target `master`. Use a separate temporary branch
   and worktree only when scope, ownership, dependencies or reviewability require
   separation; explain the reason in `COLLABORATION.md`.
+- Prune documentation your change makes obsolete, and keep agent-only setup
+  text in agent files (`AGENT_WORKFLOW.md`, "Documentation hygiene").
 - Run the relevant checks and record actual results. Only documentation-only
   commits use `[skip ci]`; workflow and script changes require CI.
 - Use a merge commit for persistent-branch PRs and retain their source branches.

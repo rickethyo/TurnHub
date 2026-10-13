@@ -27,6 +27,34 @@ permanent agent branches like any other scope. The branch stays outside the
 maintenance allowlist and is not synchronized automatically; treat it as
 historical unless the owner reopens it.
 
+## Documentation hygiene
+
+Owner rule, 2026-10-13: documentation describes what is true now, in one place,
+for the person who needs it. Every PR prunes what it makes obsolete, in the
+same PR, without being asked:
+
+- **Delete, don't annotate.** Remove documents, sections and lines about
+  removed code, retired hardware (now on `legacy/gen1`), finished plans and
+  superseded designs. Don't leave "was", "used to" or "since <date>" narrative
+  in reference docs; Git and `Documentation/engineering/history/` keep the past.
+- **Agent-only text stays in agent files.** Setup steps, environment
+  workarounds, tool quirks and session notes meant for AI agents belong only in
+  `AGENTS.md`, `CLAUDE.md`, this file and `COLLABORATION.md`, never in
+  human-facing READMEs, references or the manual. Drop a workaround once its
+  cause is fixed, and a dated note once it is simply how things are.
+- **COLLABORATION.md holds open work only.** When a topic closes or its
+  outcome lands in an owning document, move the exchange to `history/` and keep
+  at most a one-line outcome. Session log entries go the same way once their PR
+  merges.
+- **One home per fact.** Link to the owning document rather than repeating it;
+  when two documents disagree, fix the owner and delete the copy.
+
+`python3 tools/scripts/check_docs.py` (run by CI's host-tests job) fails on
+Markdown links to repository paths that no longer exist and on mentions of
+paths retired to `legacy/gen1` outside a paragraph that says so. Its output
+lists the lines to delete or update. Add a path to its `RETIRED` list when a
+later change retires one.
+
 ## Mandatory resource efficiency
 
 Owner rule, 2026-10-09: all agents must minimize third-party resource consumption

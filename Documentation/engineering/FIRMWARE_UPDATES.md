@@ -1,7 +1,7 @@
-# Firmware Updates, Signing and Spare Sigils
+# Firmware Updates and Signing
 
 How Atlas (including its admin portal) and Sigils are packaged, signed, released and
-installed over the air, and how a spare Sigil is parked and brought back.
+installed over the air.
 
 > **Branches (2026-10-13).** Gen 1 firmware, its spare build, flashing scripts
 > and the tag-driven release workflow live on `legacy/gen1`. On master the Sigil
@@ -170,28 +170,9 @@ factory needs one USB flash before its first OTA.
 
 ## Spare Sigils
 
-*Gen 1 only (`legacy/gen1`).* A spare is a paired Sigil kept out of play (owner, 2026-10-06; host-tested,
-not yet tried on hardware). It runs `sigil-spare`, one inert image for
-either display.
-
-1. `tools\setup-boards.cmd` > **Make spare** records the board as
-   `spare:<firmware it ran>` in `tools\boards.local.md`.
-2. The next `flash-all` uploads `sigil-spare` over USB (never packaged or
-   signed). Pairing and NVS are kept.
-3. The spare announces `CAPABILITY_SPARE`, with the OLED bit reporting its
-   GPIO4 strap. To bring it back, stage the matching package on the portal's
-   Sigil firmware page (the device shows `spare`) and update it. The package
-   must be at least the spare's version.
-4. The next `flash-all` with that board attached hears the normal boot line,
-   records it as `sigil` or `sigil-oled` and flashes it as that.
-
-An unpaired spare pairs with `PairRequestSpare`, without the code check, and
-stays spare-only ([Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md)).
-Atlas drops everything from a spare except Hello and update status, and the
-picker, the first-run "Sigil paired" check and the update count skip it. The
-spare draws nothing (an e-ink panel keeps its last image), plays nothing and
-sends no input; its ring shows only pairing and update animations. Serial
-says `SIGIL|SPARE|EINK` or `SIGIL|SPARE|OLED`.
+Gen 1 only: parking a Sigil as an inert spare and returning it to service is
+documented on `legacy/gen1`. Master has no spare build; Atlas still accepts
+`PairRequestSpare` and skips spares until the S3 product step removes them.
 
 ## Limits
 

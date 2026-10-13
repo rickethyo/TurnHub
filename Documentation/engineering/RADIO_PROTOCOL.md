@@ -87,7 +87,7 @@ before A.
 
 - **Menus.** Atlas works out which actions a Sigil may use from table state
   (`Atlas/src/sigil_menu.cpp`) and sends `MenuState2` on change. The Sigil
-  lays them out (`SigilMenu`; the layout is in `Sigil/DISPLAY.md`, "Menus")
+  lays them out (`SigilMenu`; the Gen 1 layouts are in `Sigil/DISPLAY.md` on `legacy/gen1`)
   and times holds itself with the seated players' thresholds. Atlas
   dispatches the same Intents a phone would (`handleSelectAction` in
   `sigil_input.cpp`). Device entries (Sleep, Unpair, Factory reset) never go

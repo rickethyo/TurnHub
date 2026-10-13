@@ -218,7 +218,7 @@ await samples. No battery runtime or sleep current has been measured.
 
 ## Mechanical changes and release checklist
 
-Reviewed `3D/README.md` and both print sets, plus KiCad EInk/OLED/JewelAdapter
+Reviewed `3D/README.md` and both print sets (now on `legacy/gen1`), plus KiCad EInk/OLED/JewelAdapter
 schematics, PCB nets and existing fit/DRC holds. Current Atlas shell 98 × 90.95 ×
 43.34 mm and Sigil shell 64 × 167.28 × 73.70 mm are legacy envelopes, not proof
 new boards fit. The rotated 4-inch board is 112 mm wide, exceeding the legacy

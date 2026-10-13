@@ -278,8 +278,8 @@ slots).
   and Wokwi builds. Master's single `sigil` build drives no display and does
   not read the GPIO4 strap.
 
-**Controls** (one rule set since Sigil 0.9.10; details in `Sigil/DISPLAY.md`,
-"Menus"): the click is the obvious next step (Join, Start, Pass, Undo pass,
+**Controls** (one rule set since Sigil 0.9.10; Gen 1 details in `Sigil/DISPLAY.md`
+on `legacy/gen1`): the click is the obvious next step (Join, Start, Pass, Undo pass,
 Resume, Rematch, Confirm); Left/Right change life in a game (seat B and next
 starter in the lobby, answers in a decision); Down switches seat on a shared
 Sigil; Up always opens **Menu** with every other action, then Device (Sleep,

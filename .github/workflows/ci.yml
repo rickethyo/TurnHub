@@ -105,6 +105,8 @@ jobs:
         run: python3 Atlas/tests/host/audit_adapters.py
       - name: Persistent branch maintenance safety checks
         run: python3 tools/scripts/test_sync_agent_branches.py
+      - name: Documentation links and retired paths
+        run: python3 tools/scripts/check_docs.py
       # Reads the responses the Atlas host suites generate.
       - name: Validate generated responses and shared contracts
         if: env.ATLAS == 'true'
