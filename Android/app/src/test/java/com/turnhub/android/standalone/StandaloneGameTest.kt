@@ -56,8 +56,8 @@ class StandaloneGameTest {
         table.addPlayer("Ana")
         table.addPlayer("Ben")
         table.start()
-        table.control(TabletSeat(StandaloneGame.moduleId(0), 1), "win")
-        table.control(TabletSeat(StandaloneGame.moduleId(0), 1), "reset")
+        table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "win")
+        table.control(TabletSeat(StandaloneGame.seatHandle(0).id, 1), "reset")
         val library = table.state.value.library
         assertEquals(1, library.history.size)
         library.players.forEach { table.selectPlayer(it.localId) }

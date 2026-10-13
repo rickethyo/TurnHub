@@ -283,7 +283,6 @@ internal fun Feedback(message: String, isError: Boolean) {
 
 // --- the lobby ----------------------------------------------------------------------
 
-/** Formats offered in the lobby, with the starting life each sets. */
 /** Any seated player carries lobby settings and Start; Atlas treats them alike. */
 internal fun TableSummary.anySeat(): TabletSeat? = players.firstOrNull()?.seat()
 

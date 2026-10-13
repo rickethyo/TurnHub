@@ -80,7 +80,9 @@ Append replies under the same topic with date, author and reviewed SHA. Record a
   connection refused); Android CI will validate the new JVM regressions and
   Compose compilation. The first CI pass caught a format-list import removed
   during the refactor; the list now lives in shared `TableSetup.kt`. Physical
-  phone/Atlas and TalkBack acceptance remain open.
+  phone/Atlas and TalkBack acceptance remain open. The next pass compiled
+  debug/release app code; the new clear test now uses the existing `seatHandle`
+  helper rather than a nonexistent `moduleId` helper.
 - Owner follow-up: a per-player tile-background framework. Android local accounts
   own the saved style/color/image, keyed by UUID; `saveAccount` validates and
   persists changes with the existing local library transaction and account lock.
