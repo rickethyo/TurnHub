@@ -81,6 +81,8 @@ data class Personalization(
     val customImage: ByteArray? = null,
     val pendingImage: ByteArray? = null,
     val uploadApprovalRequired: Boolean = true,
+    /** 0..1 while this phone is sending an image to Atlas; null otherwise. Never sent by Atlas. */
+    val uploadProgress: Float? = null,
 )
 
 /** An unparsed Atlas response. */

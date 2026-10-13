@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -126,6 +128,16 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
         else "New images appear immediately at the local table.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
     error?.let { Text(it, color = palette.warn) }
+    current?.uploadProgress?.let { progress ->
+        Text("Uploading image… ${(progress * 100).toInt()}%", color = palette.muted,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        androidx.compose.material3.LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth(),
+            color = palette.accent,
+            trackColor = palette.inset,
+        )
+    }
     if (current?.pendingAvatar?.isNotBlank() == true) {
         Text("Awaiting Admin approval", color = palette.warn)
         AvatarBytesPreview(current.pendingImage, "Image awaiting approval")

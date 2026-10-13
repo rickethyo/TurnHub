@@ -210,6 +210,21 @@ private fun UploadApprovalCard(admin: AdminState, actions: AdminActions) {
         Text("On: review new images before the table sees them. Off: new images appear immediately. " +
             "Images stay on this local Atlas; TurnHub does not post them online. " +
             "Images already awaiting approval still need review.", color = p.muted)
+        // Every image waiting on review, so an Admin approves from here (their own included).
+        val pending = admin.accounts.filter { it.pendingAvatar.isNotBlank() }
+        if (pending.isEmpty()) Text("No images are waiting for approval.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+        pending.forEach { account ->
+            val name = account.name.ifBlank { account.profileId }
+            Text("$name's new image", color = p.text, style = MaterialTheme.typography.titleSmall)
+            AvatarBytesPreview(account.pendingImage, "$name's submitted image")
+            if (account.pendingImage == null) Text("Preview could not load. Refresh before approving.", color = p.warn)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ToneButton("Approve", { actions.run { reviewAvatar(account.profileId, account.pendingAvatar, true) } },
+                    enabled = account.pendingImage != null && !admin.busy, tone = Tone.GOOD)
+                ToneButton("Reject", { actions.run { reviewAvatar(account.profileId, account.pendingAvatar, false) } },
+                    enabled = !admin.busy, tone = Tone.BAD)
+            }
+        }
     }
 }
 

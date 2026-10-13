@@ -249,7 +249,7 @@ class HomeViewModel(
 
     private val sessionFlows = combine(
         baseSessionFlows,
-        playerSession.personalization,
+        combine(playerSession.personalization, playerSession.uploadProgress) { p, progress -> p?.copy(uploadProgress = progress) },
         playerSession.avatars,
         playerSession.choices,
         playerSession.stats,
