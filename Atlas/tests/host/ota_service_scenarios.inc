@@ -46,8 +46,6 @@ static void otaServiceScenarios() {
   assert(request("/api/sigil-update",admin,{{"module","0"}})==409); // E-ink cannot go to OLED.
   assert(upload(admin,otaTestPackage(3))==200);
   r.capabilities=0;assert(request("/api/sigil-update",admin,{{"module","0"}})==409); // Nor vice versa.
-  r.capabilities=CAPABILITY_DISPLAY_OLED|CAPABILITY_HARNESS;
-  assert(request("/api/sigil-update",admin,{{"module","0"}})==409);
   r.capabilities=CAPABILITY_DISPLAY_OLED;
   assert(request("/api/sigil-update",admin,{{"module","abc"}})==400);
   table().hubState=HubState::Running;assert(request("/api/sigil-update",admin,{{"module","0"}})==409);table().hubState=HubState::Lobby;

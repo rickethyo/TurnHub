@@ -8,7 +8,7 @@
 // screen is part of the Atlas and its only physical input); Atlas's handlers
 // decide every outcome. Its non-Intent actions change no table state: the
 // presence code screen (canceling a code a phone asked for), moving between screens
-// (status, Menu, info, QR codes, test harness, Table) and starting a harness test.
+// (status, Menu, info, QR codes, Table).
 
 #include <Arduino.h>
 #include <string.h>
@@ -50,10 +50,7 @@ enum class TouchAction : uint8_t {
   CancelCode,
   // Screens that change no table state.
   OpenInfo, OpenQr, CloseScreen, QrWifi, QrPortal, QrSignIn,
-  // Test harness screen (only while a harness is connected): no Intents.
-  OpenTests, CloseTests, StopTest, RunRadioCheck, RunQuickGame, RunFullGame, RunRematchGame,
-  RunSoak,
-  // Between games: the Menu screen holding Pair, QR codes, Tests and Info.
+  // Between games: the Menu screen holding Pair, QR codes and Info.
   OpenMenu,
   // Pairing v2 code check: the codes on the Sigil and Atlas match, or not.
   PairConfirm, PairReject,
@@ -78,14 +75,14 @@ enum class TouchAction : uint8_t {
 
 // Code: a presence code a phone asked for, shown over any other screen.
 // Table: in-game controls kept off the main row (master pass, End match).
-// Menu: the between-games extras (Pair, QR codes, Tests, Info) kept off the
+// Menu: the between-games extras (Pair, QR codes, Info) kept off the
 // lobby's main row.
 // PairCode: a Sigil waiting for the owner's pairing-code check (lobby only).
 // Player: one player's screen, from their chip: life and Concede in a game,
 // turn order in the lobby.
 // Setup: first-run setup in the lobby, Welcome or "You're all set".
 // Device: under Menu, Unpair Sigils and Factory reset (held), and Sleep.
-enum class ScreenKind : uint8_t { Status, Info, Qr, Tests, Code, Table, Menu, PairCode, Player, Setup, Device, Themes };
+enum class ScreenKind : uint8_t { Status, Info, Qr, Code, Table, Menu, PairCode, Player, Setup, Device, Themes };
 
 struct TouchButton {
   TouchAction action = TouchAction::None;
@@ -107,7 +104,7 @@ struct TouchButton {
   }
 };
 
-// Seven: the Menu's three above, and Tests, Info, Device and Back below.
+// Seven: the Menu's three above, and Info, Device and Back below.
 constexpr uint8_t MAX_TOUCH_BUTTONS = 7;
 constexpr uint8_t SCREEN_NAME_LENGTH = 12;
 constexpr uint8_t MAX_SCREEN_PLAYERS = 8;

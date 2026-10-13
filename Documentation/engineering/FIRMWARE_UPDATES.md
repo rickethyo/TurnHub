@@ -2,6 +2,12 @@
 
 How Atlas (including its admin portal) and Sigils are packaged, signed, released and
 installed over the air, and how a spare Sigil is parked and brought back.
+
+> **Branches (2026-10-13).** Gen 1 firmware, its spare build, flashing scripts
+> and the tag-driven release workflow live on `legacy/gen1`. On master the Sigil
+> has one build (`sigil`), there is no spare image and no `release.yml`; the
+> spare handling Atlas still carries (`CAPABILITY_SPARE`, `PairRequestSpare`) is
+> removed with the S3 product step in [Staged Changes](STAGED_CHANGES.md).
 USB flashing and board identification are in [Hardware](HARDWARE.md).
 
 ## Retired hardware: no more updates
@@ -88,14 +94,14 @@ mbedTLS in the Arduino core, Python `cryptography` and Android
   app. Rotating it needs a USB flash of every device, or an update signed by
   the old key that carries the new one (last rotated 2026-10-05, `e89210a`).
 - **CI** signs every firmware build when the secret is available (fork PRs
-  stay unsigned). **Releases:** pushing a `v*` tag (everything), `atlas-v*` (Atlas including its portal) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
+  stay unsigned). **Releases** (on `legacy/gen1` only): pushing a `v*` tag (everything), `atlas-v*` (Atlas including its portal) or `sigil-v*` (both Sigils) runs `release.yml`, which builds,
   signs and publishes the `.thfw` files and `turnhub-firmware.json`; a
   one-product tag carries the other products over from the previous release so
   the feed stays complete (CONTINUOUS_INTEGRATION.md).
   Cloud sessions can't push tags; the owner pushes them.
 - **Local:** `tools\sign-local.cmd` builds from the working copy and writes
-  verified packages to `Private\TurnHub-builds`; `tools\flash-all.cmd -Sign`
-  signs and flashes over USB (see `CLAUDE.md`).
+  verified packages to `Private\TurnHub-builds`. The one-button USB flasher
+  (`tools\flash-all.cmd -Sign`) is on `legacy/gen1`.
 
 ## Release feed
 
@@ -164,7 +170,7 @@ factory needs one USB flash before its first OTA.
 
 ## Spare Sigils
 
-A spare is a paired Sigil kept out of play (owner, 2026-10-06; host-tested,
+*Gen 1 only (`legacy/gen1`).* A spare is a paired Sigil kept out of play (owner, 2026-10-06; host-tested,
 not yet tried on hardware). It runs `sigil-spare`, one inert image for
 either display.
 

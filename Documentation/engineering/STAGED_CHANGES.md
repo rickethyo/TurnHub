@@ -18,7 +18,17 @@ everything implemented. Only the checks listed below are still open.
 - **The OLED Sigil leads** (owner, 2026-09-28): new Sigil UI lands on the OLED
   first; the e-ink follows and may drop extras that cost it full refreshes.
 - **No turn timer on e-ink**; try it on a future LCD Sigil.
-- **Test harness retired** (2026-10-05): source kept, no builds, no upkeep.
+- **Test harness retired** (2026-10-05); moved off master with the rest of Gen 1.
+- **Gen 1 split** (owner, 2026-10-13): the Gen 1 ESP32 Atlas/Sigil firmware,
+  harness, Sigil v1 PCB, enclosures, flash/board-setup scripts and firmware
+  release workflow live on `legacy/gen1`, a one-way branch for fixing Gen 1
+  bugs in place. Master is the LVGL/S3 track with one `sigil` build
+  (headless behind `sigil_display.h`). Still on master until the S3 boards
+  replace them, in the same change that adds `atlas-s3`/`sigil-s3`: the
+  Atlas E32R28T board layer (TFT/touch, battery ADC, speaker, sleep pins,
+  `config.h` pins), Gen 1 OTA products (`atlas`, `sigil-eink`, `sigil-oled`,
+  `CAPABILITY_DISPLAY_OLED`), the spare path (`CAPABILITY_SPARE`,
+  `PairRequestSpare`) and `TURNHUB_OTA_RETIRED`.
 
 ## Open work
 
@@ -240,8 +250,8 @@ everything implemented. Only the checks listed below are still open.
   the report records port requirements and a common acceptance matrix.
 - **Sigil carrier PCB:** caliper-check the DevKit rows (22.86 mm assumed) and
   test-fit DevKit and Jewel footprints, finish layout and DRC, then inspect
-  assembled boards. The OLED PCB is still a placeholder
-  ([KiCad](../../KiCad/PCB/Sigilv1/README.md)).
+  assembled boards. The OLED PCB is still a placeholder (`KiCad/PCB/Sigilv1/`
+  on `legacy/gen1`).
 - **Power:** measure idle, radio, display, buzzer, capped LED and sleep
   current; confirm the USB supplies and power banks hold up.
 - Freeze hardware revisions only after GPIO, power, display, transport,
@@ -315,8 +325,8 @@ delete the line. A host or compile result never checks off a hardware line.
 - [ ] **G13** Playtest Two-Headed Giant (2026-10-06): four players on separate
   Sigils and on two shared Sigils, Magic and Commander, either teammate
   passing, team life on every client, team concession and the win.
-- [ ] **G12** Spare Sigil end to end: make spare, pair without a code, return
-  to service over the air, flash-all records it.
+- [ ] **G12** Spare Sigil end to end (`legacy/gen1`): make spare, pair without
+  a code, return to service over the air, flash-all records it.
 - [ ] **H03** Power measurements (above).
 - [ ] **F02** Someone unfamiliar with the build sets up, pairs, assigns
   players and plays using only the kit and manual.

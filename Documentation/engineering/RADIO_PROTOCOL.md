@@ -47,8 +47,7 @@ drawn from `LedState`. Atlas reads the byte through `helloCapabilities()`.
 |---|---|---|
 | 0x10 | `CAPABILITY_DISPLAY_OLED` | OLED display; clear means e-paper. Also picks the OTA package. On a spare it reports the GPIO4 strap |
 | 0x40 | `CAPABILITY_SPARE` | Running the inert spare firmware ([Firmware Updates](FIRMWARE_UPDATES.md), "Spare Sigils") |
-| 0x80 | `CAPABILITY_HARNESS` | The retired hardware test harness |
-| 0x01, 0x02, 0x04, 0x08, 0x20 | free | Take one for a new meaning (battery, haptics, "can sleep") with the protocol version that introduces it |
+| 0x01, 0x02, 0x04, 0x08, 0x20, 0x80 | free (0x80 was the Gen 1 test harness, on `legacy/gen1`) | Take one for a new meaning (battery, haptics, "can sleep") with the protocol version that introduces it |
 
 ## Packets
 
@@ -79,7 +78,6 @@ retired packets and are free again.
 | `PairRequest2`, `PairAccept2`, `PairConfirmed`, `PairRejected`, `PairRequestSpare` | 40-43, 52 | both | Pairing ([Pairing and Secure Link](PAIRING_AND_SECURE_LINK.md)) |
 | `SecureHello`, `SecureHelloAck`, `Secure` | 44-46 | both | Session start and the sealed envelope |
 | `SigilUpdateOffer` / `SigilUpdateStatus` | 47 / 48 | A→S / S→A | Firmware update ([Firmware Updates](FIRMWARE_UPDATES.md)) |
-| `HarnessCommand` / `HarnessReport` | 27 / 14 | both | Retired test harness; Sigils ignore them |
 
 Display flag `DISPLAY_FLAG_PRIMARY_B` (bit 0x10, the old host bit) marks
 physical seat B, so Sigils name seats by physical identity even when B plays

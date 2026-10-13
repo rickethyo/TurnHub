@@ -1132,7 +1132,7 @@ static bool sigilPaired() {
   for (uint8_t id = 0; id < MAX_PHYSICAL_SIGILS; ++id) {
     const TurnHub::SigilRecord *record = sigilBus.record(id);
     if (record != nullptr && (record->capabilities &
-        (TurnHubProtocol::CAPABILITY_HARNESS | TurnHubProtocol::CAPABILITY_SPARE)) == 0) return true;
+        TurnHubProtocol::CAPABILITY_SPARE) == 0) return true;
   }
   return false;
 }

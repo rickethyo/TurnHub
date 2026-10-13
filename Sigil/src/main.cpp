@@ -28,34 +28,18 @@
 #include "pairing_v2.h"
 #include "secure_session.h"
 #include "secure_link_mbedtls.h"
-#ifndef TURNHUB_SPARE
-#define TURNHUB_SPARE 0
-#endif
-#ifndef TURNHUB_WOKWI
 #include "firmware_package.h"
 
-#if !TURNHUB_SPARE
 // This build's identity, read by tools/firmware/thfw.py when it packages
 // firmware.bin for OTA (FIRMWARE_UPDATES.md). The Wokwi build has none, so it can't
 // be packaged.
-#ifdef TURNHUB_DISPLAY_OLED
-constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilOled;
-#else
 constexpr TurnHubFirmwarePackage::Product SIGIL_PRODUCT = TurnHubFirmwarePackage::Product::SigilEink;
-#endif
 TURNHUB_FIRMWARE_DESCRIPTOR(sigilFirmwareDescriptor, SIGIL_PRODUCT, TurnHubSigilFirmware::MAJOR,
     TurnHubSigilFirmware::MINOR, TurnHubSigilFirmware::PATCH, TurnHubProtocol::VERSION);
-#endif
 #include "sigil_updater.h"
 #define TURNHUB_OTA 1
-#else
-#define TURNHUB_OTA 0
-#endif
 
 #include "joystick_input.h"
-#ifndef TURNHUB_DISPLAY_OLED
-#define TURNHUB_DISPLAY_OLED 0
-#endif
 // Every Sigil has the same thumbstick (five keys), Atlas's action menu and
 // the Jewel ring, on the same GPIOs; only the display differs (2026-10-01).
 #include "sigil_menu.h"
@@ -74,11 +58,6 @@ using TurnHubSigil::SigilDisplay;
 constexpr uint8_t UNASSIGNED_SIGIL_ID = 0xFF;
 constexpr uint8_t WIFI_CHANNEL = 6;
 
-// Hardware-type strap (carrier header A7, GPIO4): left open on an E-ink
-// Sigil, wired to GND on an OLED Sigil. It stays with the board through every
-// flash and erase, so a build for the other display refuses to start.
-constexpr uint8_t HW_TYPE_STRAP_PIN = 4;
-
 // Status light: NeoPixel Jewel 7 Data Input, via 330 ohm (J10). Powered from
 // 5V (J1). Both hardware Sigils use it; there is no separate LED.
 constexpr uint8_t STATUS_RING_PIN = 26;
@@ -96,32 +75,14 @@ constexpr uint8_t KEY_PINS[] = {STICK_UP_PIN, STICK_UP_PIN + 1, STICK_UP_PIN + 2
     STICK_UP_PIN + 3, 32 /* SW (J13) */};
 constexpr uint8_t BUZZER_PIN = 33;
 constexpr uint8_t BUZZER_CHANNEL = 7;
-#if defined(TURNHUB_WOKWI)
-constexpr uint8_t PAIR_BUTTON = 19;  // diagram.json's Pair pushbutton.
-#else
 // The DevKit's onboard BOOT button (GPIO0, pulled up on the board). GPIO0 is
 // a strapping pin only at reset: holding BOOT while resetting enters the ROM
 // downloader instead of this firmware, so Pair works from boot onward.
 constexpr uint8_t PAIR_BUTTON = 0;
-#endif
 
-// Spare build (env:sigil-spare, FIRMWARE_UPDATES.md): one image for any Sigil
-// board, with no display, input or buzzer. It keeps its pairing, announces
-// CAPABILITY_SPARE and its strap's display type, and takes the matching OTA
-// package, which brings it back as a normal Sigil.
-bool spareStrapOled = false;
-
-// Hello announces only what varies between Sigils (protocol.h); Atlas assumes
-// the rest. The display bit also picks the OTA package (a spare reports its
-// GPIO4 strap).
-uint8_t deviceCapabilities() {
-#if TURNHUB_SPARE
-  return TurnHubProtocol::CAPABILITY_SPARE |
-      (spareStrapOled ? TurnHubProtocol::CAPABILITY_DISPLAY_OLED : 0);
-#else
-  return TURNHUB_DISPLAY_OLED ? TurnHubProtocol::CAPABILITY_DISPLAY_OLED : 0;
-#endif
-}
+// Hello announces only what varies between Sigils (protocol.h). There is one
+// Sigil build, so it announces nothing extra.
+uint8_t deviceCapabilities() { return 0; }
 
 constexpr uint32_t DEBOUNCE_MS = 30;
 constexpr uint32_t HELLO_INTERVAL_MS = 2000;
@@ -165,8 +126,7 @@ static_assert(sizeof(keys) / sizeof(keys[0]) == TurnHubSigil::KEY_COUNT, "One bu
 // The e-ink uses the fixed-key compass; the OLED, which redraws instantly, a
 // scrolling list behind Up (the click still passes) that names a held action
 // on screen. The e-ink leaves hold progress to the light.
-TurnHubSigil::SigilMenu sigilMenu(TURNHUB_DISPLAY_OLED ? TurnHubSigil::MenuStyle::List
-                                                       : TurnHubSigil::MenuStyle::Compass);
+TurnHubSigil::SigilMenu sigilMenu(TurnHubSigil::MenuStyle::Compass);
 TurnHubProtocol::SigilAction lastSelectedAction = TurnHubProtocol::SigilAction::Count;
 // Menu snapshot for the display task (guarded by displayProfileMux).
 TurnHubSigil::MenuView publishedMenuView;
@@ -250,7 +210,7 @@ TaskHandle_t displayTaskHandle = nullptr;
 TurnHubProtocol::GameDisplayPacket pendingGameDisplay{};
 bool gameDisplayValid = false;
 portMUX_TYPE displayProfileMux = portMUX_INITIALIZER_UNLOCKED;
-TurnHubTheme::Id selectedTheme = TURNHUB_DISPLAY_OLED ? TurnHubTheme::Id::Graphite : TurnHubTheme::Id::Daylight;
+TurnHubTheme::Id selectedTheme = TurnHubTheme::Id::Daylight;
 TurnHubTheme::Id pendingTheme = selectedTheme;
 bool themeChanged = false;
 bool selectedInverted = false;
@@ -371,9 +331,8 @@ void sendHello() {
 // Renders the current light state to the Jewel ring (hardware Sigils) or the
 // RGB LED pins (Wokwi; PWM on all three for full color). Hardware changes
 // only when the frame differs.
-// "identify" on the serial console (tools\setup-boards.cmd sends it) blinks
-// the whole ring white until then, so the owner can tell which board the
-// script is asking about.
+// "identify" on the serial console blinks the whole ring white until then,
+// so the owner can tell boards apart on the bench.
 constexpr uint32_t IDENTIFY_MS = 10000;
 uint32_t identifyUntilMs = 0;
 bool identifying = false;
@@ -411,16 +370,9 @@ void updateLeds() {
 // 180-degree mounting rotation; reverse both axes in each physical profile.
 TurnHubSigil::StickConfig stickConfig() {
   TurnHubSigil::StickConfig config;
-#ifndef TURNHUB_WOKWI  // The simulated stick reads the right way round.
   config.swapAxes = true;
-#ifdef TURNHUB_DISPLAY_OLED
-  config.invertX = false;
-  config.invertY = true;
-#else
   config.invertX = true;
   config.invertY = false;
-#endif
-#endif
   return config;
 }
 TurnHubSigil::StickTracker stick(stickConfig());
@@ -951,10 +903,8 @@ void displayTask(void *parameter) {
       sigilDisplay.idleWork(millis());
       continue;
     }
-#if !TURNHUB_DISPLAY_OLED
     // State, game and menu packets arrive together: one e-ink refresh for all.
     vTaskDelay(pdMS_TO_TICKS(80));
-#endif
     updateDisplay();
 
     // A newer display packet may have arrived while the e-paper was busy.
@@ -1159,12 +1109,8 @@ void sendUpdateStatus(int32_t value) {
 void showUpdateProgress(const char *status, int8_t percent) {
   static char shownText[sizeof(updateScreenText)] = {};
   static int8_t shownBucket = -2;
-#if TURNHUB_DISPLAY_OLED
-  const int8_t bucket = percent;
-#else
   // E-ink: a full refresh per quarter, not per 10%.
   const int8_t bucket = percent < 0 ? -1 : static_cast<int8_t>(percent / 25);
-#endif
   const bool redraw = strcmp(shownText, status) != 0 || bucket != shownBucket;
   if (redraw) {
     strncpy(shownText, status, sizeof(shownText) - 1);
@@ -1213,10 +1159,6 @@ void handleAtlasPacket(
     handleUpdateOffer(mac, incomingData);
     return;
   }
-#endif
-#if TURNHUB_SPARE
-  // A spare keeps its link and takes OTA; it draws and plays nothing.
-  if (length != sizeof(Packet)) return;
 #endif
   if (length == sizeof(TurnHubProtocol::CommanderFlowPacket)) {
     TurnHubProtocol::CommanderFlowPacket page{};
@@ -1302,11 +1244,6 @@ void handleAtlasPacket(
   rememberAtlas(mac);
   noteAtlasHeard();
 
-#if TURNHUB_SPARE
-  // Only Unpair and Factory reset reach a spare; game, menu, light and
-  // buzzer packets are ignored.
-  if (packet.type != PacketType::Unpair && packet.type != PacketType::FactoryReset) return;
-#endif
   switch (packet.type) {
     case PacketType::Ack:
       Serial.print("SIGIL|ACK|");
@@ -1520,10 +1457,6 @@ void publishLifeOverlay() {
   overlay.passingPlayer = passingPlayer;
   overlay.update = updateNotice;
   ledModel.setPassPending(overlay.passPending || passingPlayer != 0, overlay.passPending, millis());
-#if TURNHUB_DISPLAY_OLED
-  overlay.pending = lifeAdjuster.pending();
-  overlay.pendingPlayer = lifeAdjuster.player();
-#endif
   if (overlay == publishedLifeOverlay) return;
   publishedLifeOverlay = overlay;
   portENTER_CRITICAL(&displayProfileMux);
@@ -1663,7 +1596,7 @@ void updateMenuKeys() {
   }
   if (sigilId == UNASSIGNED_SIGIL_ID && !sigilMenu.active()) sigilMenu.setOffline();
   sigilMenu.setHoldTimes(static_cast<uint16_t>(longPressMs), static_cast<uint16_t>(winHoldMs));
-  lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(!TURNHUB_DISPLAY_OLED, longPressMs));
+  lifeAdjuster.setPace(TurnHubSigil::lifePaceFor(true, longPressMs));
   lifeAdjuster.setUnit(TurnHubSigil::lifeUnitFor(startingLife));
   for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) {
     if (!debouncedEdge(keys[k], nowMs)) continue;
@@ -1694,22 +1627,8 @@ void updateMenuKeys() {
         const TurnHubProtocol::ProfilePickerPacket page = pendingPicker;
         uint8_t cursor = pickerCursor;
         portEXIT_CRITICAL(&displayProfileMux);
-#if TURNHUB_DISPLAY_OLED
-        // List navigation: Up/Down move locally; a choice becomes the key
-        // the compass would have sent.
-        TurnHubProtocol::PickerKeyCode code = TurnHubProtocol::PickerKeyCode::Left;
-        const bool choose = TurnHubSigil::pickerListKey(page, cursor, key, code);
-        portENTER_CRITICAL(&displayProfileMux);
-        const bool moved = cursor != pickerCursor;
-        pickerCursor = cursor;
-        if (moved) pickerChanged = true;
-        portEXIT_CRITICAL(&displayProfileMux);
-        if (moved) { displayNeedsRefresh = true; notifyDisplayTask(); }
-        if (!choose) continue;
-#else
         (void)cursor;
         const auto code = static_cast<TurnHubProtocol::PickerKeyCode>(k);
-#endif
         Serial.print("SIGIL|");
         Serial.print(sigilId);
         Serial.print("|PICKER|KEY|");
@@ -1782,15 +1701,6 @@ void updateMenuKeys() {
   publishMenuView();
 }
 
-#if TURNHUB_SPARE
-// A spare sends no input: the keys only debounce for the joystick pairing
-// hold, which still pairs an unpaired spare.
-void updateSpareKeys() {
-  const uint32_t nowMs = millis();
-  for (uint8_t k = 0; k < TurnHubSigil::KEY_COUNT; ++k) debouncedEdge(keys[k], nowMs);
-  ledModel.setHoldProgress(updateJoystickPair(nowMs));
-}
-#endif
 
 // Powers down until a joystick click or the Pair button. The ring is dark and
 // its data line held low, so it cannot light while the ESP32 sleeps; the
@@ -1809,10 +1719,8 @@ void enterDeepSleep() {
   rtc_gpio_pullup_en(WAKE_CLICK_PIN);
   rtc_gpio_pulldown_dis(WAKE_CLICK_PIN);
   esp_sleep_enable_ext0_wakeup(WAKE_CLICK_PIN, 0);
-#ifndef TURNHUB_WOKWI
   // The DevKit pulls BOOT (GPIO0, an RTC pin) up on the board.
   esp_sleep_enable_ext1_wakeup(1ULL << PAIR_BUTTON, ESP_EXT1_WAKEUP_ALL_LOW);
-#endif
   esp_deep_sleep_start();
 }
 
@@ -1822,14 +1730,11 @@ void updateSleep(uint32_t nowMs) {
   TurnHubSigil::statusRingShow(TurnHubSigil::LedFrame{});
   const bool drawn = sleepScreenDrawn || nowMs - sleepRequestedMs >= SLEEP_SCREEN_TIMEOUT_MS;
   const bool released = digitalRead(WAKE_CLICK_PIN) == HIGH
-#ifndef TURNHUB_WOKWI
       && digitalRead(PAIR_BUTTON) == HIGH
-#endif
       ;
   if (drawn && released) enterDeepSleep();
 }
 
-#if !TURNHUB_SPARE
 // Auto sleep (idle_sleep.h): the device menu's Sleep, chosen by itself after
 // a while untouched outside a game, or with no Atlas to play with.
 void updateIdleSleep(uint32_t nowMs) {
@@ -1851,7 +1756,6 @@ void updateIdleSleep(uint32_t nowMs) {
   displayNeedsRefresh = true;
   notifyDisplayTask();
 }
-#endif
 
 // Only a physical Pair press enables broadcast association requests.
 void startPairing() {
@@ -1862,7 +1766,7 @@ void startPairing() {
 
   pairingToken = static_cast<int32_t>(esp_random());
   // A fresh key pair per press (about 0.2 s of X25519 on the ESP32).
-  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2, TURNHUB_SPARE)) {
+  if (!pairingV2.begin(linkCrypto, pairingToken, pairRequest2, false)) {
     Serial.println("SIGIL|PAIR|V2|KEY_ERROR");
     return;
   }
@@ -1997,51 +1901,12 @@ bool startEspNow() {
   Serial.println(WiFi.macAddress());
   Serial.print("SIGIL|FW|");
   Serial.println(TurnHubSigilFirmware::VERSION);
-#if !defined(TURNHUB_WOKWI) && !TURNHUB_SPARE
   // A real read of the descriptor, so the linker keeps it in the image.
   Serial.print("SIGIL|FW_PRODUCT|");
   Serial.println(*reinterpret_cast<const volatile uint8_t *>(&sigilFirmwareDescriptor.product));
-#endif
   Serial.println("SIGIL|ESP_NOW|READY");
   return true;
 }
-
-#ifndef TURNHUB_WOKWI
-// Halts before the display, radio or pairing start when the strap names the
-// other display type: the serial line says why, and the status light flashes
-// red.
-void checkHardwareType() {
-  pinMode(HW_TYPE_STRAP_PIN, INPUT_PULLUP);
-  delay(2);
-  const bool boardIsOled = digitalRead(HW_TYPE_STRAP_PIN) == LOW;
-#if TURNHUB_SPARE
-  // Any board: remember the strap so Atlas sends the right package.
-  spareStrapOled = boardIsOled;
-  Serial.print("SIGIL|SPARE|");
-  Serial.println(boardIsOled ? "OLED" : "EINK");
-  return;
-#endif
-  const char *board = boardIsOled ? "OLED" : "EINK";
-  const char *build = TURNHUB_DISPLAY_OLED ? "OLED" : "EINK";
-  if (boardIsOled == static_cast<bool>(TURNHUB_DISPLAY_OLED)) {
-    Serial.print("SIGIL|HW|");
-    Serial.println(board);
-    return;
-  }
-  TurnHubSigil::statusRingBegin(STATUS_RING_PIN);
-  for (bool on = true;; on = !on) {
-    Serial.print("SIGIL|HW|MISMATCH|BOARD|");
-    Serial.print(board);
-    Serial.print("|BUILD|");
-    Serial.print(build);
-    Serial.println("|HALTED (GPIO4 open = E-ink, GPIO4 to GND = OLED)");
-    TurnHubSigil::LedFrame frame{};
-    for (auto &pixel : frame.pixels) pixel = TurnHubSigil::Rgb(on ? 80 : 0, 0, 0);
-    TurnHubSigil::statusRingShow(frame);
-    delay(500);
-  }
-}
-#endif
 
 }  // namespace
 
@@ -2051,9 +1916,7 @@ void setup() {
   const esp_sleep_wakeup_cause_t wake = esp_sleep_get_wakeup_cause();
   if (wake == ESP_SLEEP_WAKEUP_EXT0 || wake == ESP_SLEEP_WAKEUP_EXT1) {
     rtc_gpio_deinit(WAKE_CLICK_PIN);
-#ifndef TURNHUB_WOKWI
     rtc_gpio_deinit(static_cast<gpio_num_t>(PAIR_BUTTON));
-#endif
   }
   gpio_hold_dis(static_cast<gpio_num_t>(STATUS_RING_PIN));
   gpio_deep_sleep_hold_dis();
@@ -2061,9 +1924,6 @@ void setup() {
   delay(250);
   if (wake == ESP_SLEEP_WAKEUP_EXT0) Serial.println("SIGIL|WAKE|CLICK");
   if (wake == ESP_SLEEP_WAKEUP_EXT1) Serial.println("SIGIL|WAKE|PAIR_BUTTON");
-#ifndef TURNHUB_WOKWI
-  checkHardwareType();
-#endif
 
   for (auto &key : keys) {
     if (key.pin < STICK_UP_PIN) pinMode(key.pin, INPUT_PULLUP);
@@ -2115,10 +1975,6 @@ void setup() {
 
   espNowReady = startEspNow();
 #if TURNHUB_OTA
-#if TURNHUB_SPARE
-  const auto SIGIL_PRODUCT = spareStrapOled ? TurnHubFirmwarePackage::Product::SigilOled :
-      TurnHubFirmwarePackage::Product::SigilEink;
-#endif
   updater.begin(SIGIL_PRODUCT,
       TurnHubFirmwarePackage::Version{TurnHubSigilFirmware::MAJOR, TurnHubSigilFirmware::MINOR,
           TurnHubSigilFirmware::PATCH},
@@ -2131,9 +1987,7 @@ void setup() {
   Serial.println("SIGIL|READY");
 }
 
-#if !defined(TURNHUB_WOKWI)
-// Bench commands typed on the serial console (the Wokwi build reads serial
-// for its simulated Atlas instead): "identify", then the display's own.
+// Bench commands typed on the serial console: "identify", then the display's own.
 void readSerialCommands() {
   static char line[40];
   static uint8_t length = 0;
@@ -2155,12 +2009,9 @@ void readSerialCommands() {
     }
   }
 }
-#endif
 
 void loop() {
-#if !defined(TURNHUB_WOKWI)
   readSerialCommands();
-#endif
   // Going to sleep: nothing else runs (the display task draws the screen).
   if (sleepRequested) {
     if (displayTaskHandle == nullptr) updateDisplay();
@@ -2181,17 +2032,11 @@ void loop() {
   if (updater.pending()) updater.run();  // Blocks; restarts on success.
 #endif
   updateJoystick(millis());
-#if TURNHUB_SPARE
-  updateSpareKeys();
-#else
   updateMenuKeys();
-#endif
   updatePairButton();
   updatePairing();
   applyAtlasLinkChange(atlasLink.update(millis()));
-#if !TURNHUB_SPARE
   updateIdleSleep(millis());
-#endif
   updateLeds();
   updateBuzzer();
   updateDisplayProfileSync();

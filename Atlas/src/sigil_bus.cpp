@@ -383,7 +383,6 @@ void SigilBus::handleReceive(
     case PacketType::LifeAdjust:
     case PacketType::LifeResponse:
     case PacketType::SigilUpdateStatus:
-    case PacketType::HarnessReport:
     case PacketType::DisplayProfileRequest:
       sendAck(mac, *sigil, packet.type);
       enqueue(*sigil, packet);

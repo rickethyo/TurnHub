@@ -6,7 +6,6 @@
 #include "atlas_app.h"
 #include "sigil_update_service.h"
 #include "controller_profiles.h"
-#include "harness_link.h"
 #include "profile_picker.h"
 #include "commander_picker.h"
 #include "runtime_diagnostics.h"
@@ -331,11 +330,6 @@ void processSigilEvents() {
     }
     if (event.type == PacketType::SigilUpdateStatus) {
       noteSigilUpdateStatus(event.sigilId, event.value, millis());
-      continue;
-    }
-    // Test-harness progress is shown on the touchscreen; it is not gameplay.
-    if (event.type == PacketType::HarnessReport) {
-      noteHarnessReport(event.sigilId, event.value, millis());
       continue;
     }
     TurnHub::recordActivity(activityKind(event.type), String("sigil=") + String(event.sigilId));

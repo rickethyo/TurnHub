@@ -119,7 +119,7 @@ uint8_t sigilsBehind() {
     const TurnHub::SigilRecord *record = sigilBus.record(id);
     if (record == nullptr || !record->helloInfoValid ||
         (record->capabilities &
-            (TurnHubProtocol::CAPABILITY_HARNESS | TurnHubProtocol::CAPABILITY_SPARE)) != 0) continue;
+            TurnHubProtocol::CAPABILITY_SPARE) != 0) continue;
     const bool oled = (record->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) != 0;
     if (TurnHub::releaseNewer(oled ? latest.sigilOled : latest.sigilEink, record->firmwareMajor,
             record->firmwareMinor, record->firmwarePatch)) ++count;

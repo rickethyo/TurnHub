@@ -1,9 +1,8 @@
 // Atlas touchscreen: the TFT's screen model and its touch buttons. The touch
 // adapter only builds Intents (IntentOrigin::AtlasHardware); the handlers
 // decide. The exceptions change no table state: Cancel takes a presence code
-// off the screen (front_panel.cpp), the Menu, Info, QR, Tests and Table
-// buttons switch screens, and a test is started on the harness. Drawing lives in
-// atlas_art.cpp; the panel and touch reads in atlas_display.cpp.
+// off the screen (front_panel.cpp), and the Menu, Info, QR and Table
+// buttons switch screens. Drawing lives in atlas_art.cpp; the panel and touch reads in atlas_display.cpp.
 
 #include "avatars.h"
 #include "touch_controls.h"
@@ -16,7 +15,6 @@
 #include "atlas_display.h"
 #include "controller_profiles.h"
 #include "firmware_version.h"
-#include "harness_link.h"
 #include "profile_store.h"
 #include "sd_card.h"
 #include "serial_log.h"
@@ -98,34 +96,6 @@ void addRow(AtlasScreen &screen, int16_t y, const ButtonSpec *specs, uint8_t cou
   }
 }
 
-bool harnessRunning(uint32_t nowMs) {
-  TurnHubProtocol::HarnessReportFields report;
-  return harnessReport(nowMs, report) && report.state == TurnHubProtocol::HarnessRunState::Running;
-}
-
-// The test harness screen: its premade tests in two rows of three, or Stop
-// while one runs. It stays up through the game the harness plays until Back.
-void layoutTests(AtlasScreen &screen, uint32_t nowMs) {
-  if (harnessSigilId(nowMs) == INVALID_ID) {
-    const ButtonSpec back[] = {{TouchAction::CloseTests, "Back", 0, 1}};
-    addRow(screen, BUTTON_ROW_Y, back, 1);
-    return;
-  }
-  if (harnessRunning(nowMs)) {
-    const ButtonSpec stop[] = {{TouchAction::StopTest, "Stop test", 0, 1}};
-    const ButtonSpec back[] = {{TouchAction::CloseTests, "Back", 0, 1}};
-    addRow(screen, BUTTON_UPPER_ROW_Y, stop, 1);
-    addRow(screen, BUTTON_ROW_Y, back, 1);
-    return;
-  }
-  const ButtonSpec upper[] = {{TouchAction::RunRadioCheck, "Radio", 0, 1},
-      {TouchAction::RunQuickGame, "2p game", 0, 1}, {TouchAction::RunFullGame, "4p game", 0, 1}};
-  const ButtonSpec lower[] = {{TouchAction::RunRematchGame, "Rematch", 0, 1},
-      {TouchAction::RunSoak, "Soak x5", 0, 1}, {TouchAction::CloseTests, "Back", 0, 1}};
-  addRow(screen, BUTTON_UPPER_ROW_Y, upper, 3);
-  addRow(screen, BUTTON_ROW_Y, lower, 3);
-}
-
 bool matchInProgress() {
   return table().hubState == HubState::Running || table().hubState == HubState::Paused;
 }
@@ -202,9 +172,9 @@ ScreenKind activeScreen(uint32_t nowMs) {
   return openScreen;
 }
 
-// Between games: Pair (lobby only) and QR codes above; Tests (while a
-// harness is connected), Info, Device and Back below.
-void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
+// Between games: Pair (lobby only) and QR codes above; Info, Device and
+// Back below.
+void layoutMenu(AtlasScreen &screen) {
   ButtonSpec upper[3];
   uint8_t n = 0;
   if (table().hubState == HubState::Lobby && setupStage != TurnHub::SetupStage::Complete) {
@@ -215,7 +185,6 @@ void layoutMenu(AtlasScreen &screen, uint32_t nowMs) {
   addRow(screen, BUTTON_UPPER_ROW_Y, upper, n);
   ButtonSpec lower[4];
   n = 0;
-  if (harnessSigilId(nowMs) != INVALID_ID) lower[n++] = {TouchAction::OpenTests, "Tests", 0, 1};
   lower[n++] = {TouchAction::OpenInfo, "Info", 0, 1};
   lower[n++] = {TouchAction::OpenDevice, "Device", 0, 1};
   lower[n++] = {TouchAction::CloseScreen, "Back", 0, 1};
@@ -345,14 +314,11 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
       addRow(screen, BUTTON_ROW_Y, row, 2);
       return;
     }
-    case ScreenKind::Tests:
-      layoutTests(screen, nowMs);
-      return;
     case ScreenKind::Table:
       layoutTable(screen);
       return;
     case ScreenKind::Menu:
-      layoutMenu(screen, nowMs);
+      layoutMenu(screen);
       return;
     case ScreenKind::Themes: layoutThemes(screen); return;
     case ScreenKind::Device:
@@ -391,7 +357,7 @@ void layoutButtons(AtlasScreen &screen, uint32_t nowMs) {
   }
 
   switch (table().hubState) {
-    // Start and Clear up front; Pair, QR codes, Tests and Info wait under Menu.
+    // Start and Clear up front; Pair, QR codes and Info wait under Menu.
     case HubState::Lobby: {
       ButtonSpec row[3];
       uint8_t n = 0;
@@ -472,14 +438,6 @@ const char *actionName(TouchAction action) {
     case TouchAction::QrWifi: return "QR_WIFI";
     case TouchAction::QrPortal: return "QR_PORTAL";
     case TouchAction::QrSignIn: return "QR_SIGN_IN";
-    case TouchAction::OpenTests: return "OPEN_TESTS";
-    case TouchAction::CloseTests: return "CLOSE_TESTS";
-    case TouchAction::StopTest: return "STOP_TEST";
-    case TouchAction::RunRadioCheck: return "RUN_RADIO_CHECK";
-    case TouchAction::RunQuickGame: return "RUN_QUICK_GAME";
-    case TouchAction::RunFullGame: return "RUN_FULL_GAME";
-    case TouchAction::RunRematchGame: return "RUN_REMATCH_GAME";
-    case TouchAction::RunSoak: return "RUN_SOAK";
     case TouchAction::OpenMenu: return "OPEN_MENU";
     case TouchAction::OpenPlayer: return "OPEN_PLAYER";
     case TouchAction::LifeMinus5: return "LIFE_MINUS_5";
@@ -544,14 +502,13 @@ const char *holdPurpose(TouchAction action) {
 }
 
 // Screen changes: no Intent, no table state, no notice. Back leaves the
-// Menu's own screens (Info, QR codes, Tests) for the Menu while it is
+// Menu's own screens (Info, QR codes) for the Menu while it is
 // available, and everything else for the status screen.
 bool navigate(TouchAction action) {
   switch (action) {
     case TouchAction::OpenMenu: openScreen = ScreenKind::Menu; return true;
     case TouchAction::OpenInfo: openScreen = ScreenKind::Info; return true;
     case TouchAction::OpenQr: openScreen = ScreenKind::Qr; return true;
-    case TouchAction::OpenTests: openScreen = ScreenKind::Tests; return true;
     case TouchAction::OpenTable: openScreen = ScreenKind::Table; return true;
     case TouchAction::OpenThemes: openScreen = ScreenKind::Themes; return true;
     case TouchAction::InvertDisplay:
@@ -575,12 +532,11 @@ bool navigate(TouchAction action) {
     // Concede asks again; only ConfirmConcede sends the Intent.
     case TouchAction::Concede: concedeArmed = true; return true;
     case TouchAction::CancelConcede: concedeArmed = false; return true;
-    case TouchAction::CloseScreen:
-    case TouchAction::CloseTests: {
+    case TouchAction::CloseScreen: {
       concedeArmed = false;
       if (openScreen == ScreenKind::Themes) { openScreen = ScreenKind::Device; return true; }
       const bool fromMenuScreen = openScreen == ScreenKind::Info || openScreen == ScreenKind::Qr ||
-          openScreen == ScreenKind::Tests || openScreen == ScreenKind::Device;
+          openScreen == ScreenKind::Device;
       openScreen = fromMenuScreen && menuAvailable() ? ScreenKind::Menu : ScreenKind::Status;
       return true;
     }
@@ -768,22 +724,6 @@ void dispatchTouchAction(uint32_t nowMs, TouchAction action) {
       intent.type = IntentType::Sleep;
       intent.actor.origin = IntentOrigin::AtlasHardware;
       result = intents.dispatch(intent);
-      break;
-    }
-    // A test plays through the harness's own Sigils and Atlas's normal handlers.
-    case TouchAction::StopTest:
-      result = requestHarnessStop(nowMs) ? IntentResult::accept("Stopping the test")
-          : IntentResult::reject(IntentStatus::InvalidState, "The test harness is not connected");
-      break;
-    case TouchAction::RunRadioCheck:
-    case TouchAction::RunQuickGame:
-    case TouchAction::RunFullGame:
-    case TouchAction::RunRematchGame:
-    case TouchAction::RunSoak: {
-      const TurnHubProtocol::HarnessTest test = static_cast<TurnHubProtocol::HarnessTest>(
-          static_cast<uint8_t>(action) - static_cast<uint8_t>(TouchAction::RunRadioCheck));
-      result = requestHarnessTest(test, nowMs) ? IntentResult::accept("Test sent to the harness")
-          : IntentResult::reject(IntentStatus::InvalidState, "The test harness is not connected");
       break;
     }
     default:
@@ -1011,39 +951,6 @@ void formatStatus(AtlasScreen &screen, uint32_t nowMs) {
     if (sigilUpdateNotice(update, sizeof(update), nowMs)) {
       snprintf(screen.detail, sizeof(screen.detail), "%s", update);
     }
-  }
-}
-
-// Test screen text: the test's name and its progress, all in words (a pass or
-// failure never relies on color).
-void formatTests(AtlasScreen &screen, uint32_t nowMs) {
-  using TurnHubProtocol::HarnessRunState;
-  snprintf(screen.badge, sizeof(screen.badge), "TESTS");
-  snprintf(screen.title, sizeof(screen.title), "Test harness");
-  if (harnessSigilId(nowMs) == INVALID_ID) {
-    snprintf(screen.detail, sizeof(screen.detail), "Harness offline");
-    return;
-  }
-  TurnHubProtocol::HarnessReportFields r;
-  if (!harnessReport(nowMs, r) || r.state == HarnessRunState::Idle) {
-    snprintf(screen.detail, sizeof(screen.detail), "Ready: pick a test");
-    return;
-  }
-  snprintf(screen.title, sizeof(screen.title), "%s", TurnHubProtocol::harnessTestName(r.test));
-  const char *step = TurnHubProtocol::harnessStepName(r.step);
-  switch (r.state) {
-    case HarnessRunState::Running:
-      snprintf(screen.detail, sizeof(screen.detail), "%s, %u ok", step, static_cast<unsigned>(r.passed));
-      break;
-    case HarnessRunState::Passed:
-      snprintf(screen.detail, sizeof(screen.detail), "PASSED: %u steps", static_cast<unsigned>(r.passed));
-      break;
-    case HarnessRunState::Failed:
-      snprintf(screen.detail, sizeof(screen.detail), "FAILED at %s", step);
-      break;
-    default:
-      snprintf(screen.detail, sizeof(screen.detail), "Stopped at %s", step);
-      break;
   }
 }
 
@@ -1303,7 +1210,6 @@ void buildAtlasScreen(uint32_t nowMs, AtlasScreen &screen) {
   screen.sigilsOnline = sigilBus.activeCount(nowMs);
   switch (screen.kind) {
     case ScreenKind::Status: formatStatus(screen, nowMs); break;
-    case ScreenKind::Tests: formatTests(screen, nowMs); break;
     case ScreenKind::Info: formatInfo(screen, nowMs); break;
     case ScreenKind::Qr: formatQr(screen, nowMs); break;
     case ScreenKind::Code: formatCode(screen, nowMs); break;

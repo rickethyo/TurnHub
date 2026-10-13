@@ -27,6 +27,7 @@ jobs:
       sigil: ${{ steps.filter.outputs.sigil }}
       android: ${{ steps.filter.outputs.android }}
       tools: ${{ steps.filter.outputs.tools }}
+      lvgl: ${{ steps.filter.outputs.lvgl }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: github.event_name == 'pull_request'
@@ -40,7 +41,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          all() { for c in atlas sigil android tools; do echo "$c=true"; done >> "$GITHUB_OUTPUT"; }
+          all() { for c in atlas sigil android tools lvgl; do echo "$c=true"; done >> "$GITHUB_OUTPUT"; }
           if [ "$EVENT" != pull_request ]; then
             echo "::notice::$EVENT run: building everything."
             all; exit 0
@@ -54,17 +55,20 @@ jobs:
             echo "::warning::Could not list changed files; building everything."
             all; exit 0
           fi
-          atlas=false sigil=false android=false tools=false
+          atlas=false sigil=false android=false tools=false lvgl=false
           while IFS= read -r f; do
             case "$f" in
-              .github/*) atlas=true sigil=true android=true tools=true ;;
-              shared/*) atlas=true sigil=true ;;
+              .github/*) atlas=true sigil=true android=true tools=true lvgl=true ;;
+              shared/*) atlas=true sigil=true lvgl=true ;;
+              # The simulator reads Atlas's avatar masks (Atlas/include).
+              Atlas/include/*) atlas=true lvgl=true ;;
               Atlas/*) atlas=true ;;
+              LVGL/*) lvgl=true ;;
               Sigil/*) sigil=true ;;
               # Shared fixtures feed the Atlas contract check and Android tests.
               protocol/*) atlas=true android=true ;;
               # Tokens generate Android resources (the embedded portal check always runs).
-              design/*) atlas=true android=true ;;
+              design/*) atlas=true android=true lvgl=true ;;
               # The offline manual is generated from the docx; the always-run
               # manual asset check covers it, so it needs no Gradle build.
               Android/app/src/main/assets/manual.md) ;;
@@ -74,7 +78,7 @@ jobs:
             esac
           done <<< "$files"
           printf '%s\n' "$files" | sed 's/^/  /'
-          printf 'atlas=%s\nsigil=%s\nandroid=%s\ntools=%s\n' "$atlas" "$sigil" "$android" "$tools" |
+          printf 'atlas=%s\nsigil=%s\nandroid=%s\ntools=%s\nlvgl=%s\n' "$atlas" "$sigil" "$android" "$tools" "$lvgl" |
             tee -a "$GITHUB_OUTPUT"
 
   host-tests:
@@ -142,11 +146,6 @@ jobs:
           - project: Sigil
             environment: sigil
             product: sigil-eink
-          - project: Sigil
-            environment: sigil-oled
-            product: sigil-oled
-          - project: Sigil
-            environment: sigil-spare
     env:
       # Steps are skipped (not the job) when this project is unaffected, so
       # each matrix check still reports under its own name.
@@ -229,27 +228,49 @@ jobs:
           path: ${{ runner.temp }}/firmware/
           if-no-files-found: error
           retention-days: 7
-      # Screen previews: the real display code rendered to PNGs on the runner,
-      # with the Atlas art's incremental redraws checked against full redraws.
+      # Screen previews: the Atlas TFT code rendered to PNGs on the runner, with
+      # incremental redraws checked against full redraws. The unified Sigil is
+      # headless until the LVGL renderer is bound, so it has none.
       - name: Render screen previews
-        if: env.BUILD == 'true' && (matrix.environment == 'atlas' || matrix.environment == 'sigil')
+        if: env.BUILD == 'true' && matrix.environment == 'atlas'
         run: |
           mkdir -p "$RUNNER_TEMP/screens"
-          if [ "$PIO_ENVIRONMENT" = atlas ]; then
-            bash Atlas/tests/host/render-atlas-screens.sh
-            cp Atlas/tests/host/build/screens/*.png "$RUNNER_TEMP/screens/"
-          else
-            bash Sigil/tests/host/render-sigil-screens.sh
-            cp Sigil/.pio/host-tests/screens/*.png "$RUNNER_TEMP/screens/"
-          fi
+          bash Atlas/tests/host/render-atlas-screens.sh
+          cp Atlas/tests/host/build/screens/*.png "$RUNNER_TEMP/screens/"
       - name: Upload screen previews
-        if: env.BUILD == 'true' && (matrix.environment == 'atlas' || matrix.environment == 'sigil')
+        if: env.BUILD == 'true' && matrix.environment == 'atlas'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: screens-${{ matrix.environment }}-${{ github.sha }}
           path: ${{ runner.temp }}/screens/
           if-no-files-found: error
           retention-days: 14
+
+  # Desktop LVGL presentation simulator (LVGL/README.md): sanitizer build,
+  # its CTest self-tests under SDL's dummy drivers, and the font digests.
+  lvgl:
+    name: LVGL simulator
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BUILD: ${{ needs.changes.outputs.lvgl }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: env.BUILD == 'true'
+        with:
+          persist-credentials: false
+      - name: Build the simulator (ASan and UBSan)
+        if: env.BUILD == 'true'
+        run: |
+          cmake -S LVGL -B LVGL/build -DCMAKE_BUILD_TYPE=Release -DTURNHUB_SANITIZERS=ON
+          cmake --build LVGL/build --parallel
+      - name: Simulator self-tests
+        if: env.BUILD == 'true'
+        run: ctest --test-dir LVGL/build --output-on-failure
+      - name: Fonts match their recorded digests
+        if: env.BUILD == 'true'
+        run: python3 LVGL/tools/generate_fonts.py --check
 
   android:
     name: Android build and unit tests

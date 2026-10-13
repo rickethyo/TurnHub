@@ -251,7 +251,7 @@ bool pickerSigil(uint8_t sigilId) {
   // Every Sigil but the test harness, which joins as a guest instead, and a
   // spare, which never plays.
   return (record->capabilities &
-      (TurnHubProtocol::CAPABILITY_HARNESS | TurnHubProtocol::CAPABILITY_SPARE)) == 0;
+      TurnHubProtocol::CAPABILITY_SPARE) == 0;
 }
 
 bool pickerOpen(uint8_t sigilId) {

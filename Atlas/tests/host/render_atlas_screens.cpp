@@ -176,7 +176,7 @@ std::vector<std::pair<std::string, AtlasScreen>> scenes() {
   AtlasScreen menu = base("MENU", "Table menu", "Pair Sigils, share codes, table info");
   menu.kind = ScreenKind::Menu;
   row(menu, BUTTON_UPPER_ROW_Y, {{TouchAction::Pair, "Pair a Sigil", 0, 1}, {TouchAction::OpenQr, "QR codes", 0, 1}});
-  row(menu, BUTTON_ROW_Y, {{TouchAction::OpenTests, "Tests", 0, 1}, {TouchAction::OpenInfo, "Info", 0, 1},
+  row(menu, BUTTON_ROW_Y, {{TouchAction::OpenInfo, "Info", 0, 1}, {TouchAction::OpenDevice, "Device", 0, 1},
       {TouchAction::CloseScreen, "Back", 0, 1}});
   out.push_back({"menu", menu});
 

@@ -2,8 +2,12 @@
 
 The current Generation 2 prototype hardware and the tools that flash it.
 Earlier generations are in [Generation History](history/GENERATION_HISTORY.md).
-The Sigil carrier PCB is in `KiCad/PCB/Sigilv1/`; Sigil screen layouts and
-menus are in `Sigil/DISPLAY.md`.
+> **Branches (2026-10-13).** This page describes the Gen 1 ESP32 boards. Their
+> e-ink/OLED Sigil drivers, `Sigil/DISPLAY.md`, the Sigil carrier PCB
+> (`KiCad/PCB/Sigilv1/`), the 3D enclosures and the board setup/flash scripts
+> live on the `legacy/gen1` branch; fix Gen 1 bugs there. Master builds one
+> headless `sigil` and the Atlas board layer below until the S3 boards
+> ([ESP32-S3 refresh](hardware/ESP32_S3_REFRESH.md)) replace them.
 
 Pin maps are in daily use and the owner reports them verified through
 playtesting and bench testing (2026-10-02).
@@ -269,16 +273,10 @@ slots).
 | E-ink BUSY | 21 | E-ink only; GPIO19 is detached from SPI MISO |
 | Front LED strip (reserved) | 13 | J6 on the Rev A carrier, unused ([Planned Designs](PLANNED_DESIGNS.md)) |
 
-- **E-ink Sigil** (`sigil`): 2.13" GDEM0213B74 (SSD1680) via
-  `GxEPD2_213_B74`, portrait 122x250, rotation 0. Partial refresh with
-  periodic full clean-ups; a trial with a driver-loaded waveform is on the
-  bench (`Sigil/DISPLAY.md`).
-- **OLED Sigil** (`sigil-oled`): Inland 1.3" 128x64 SH1106 over 4-wire SPI at
-  3.3 V.
-- **Wokwi** (`sigil-wokwi`) keeps an RGB LED on 27/14/13 and a Pair
-  pushbutton on GPIO19; see `Sigil/WOKWI.md`.
-- **Spare** (`sigil-spare`): inert image for either board
-  ([Firmware Updates](FIRMWARE_UPDATES.md)).
+- **Gen 1 displays** (`legacy/gen1` only): the e-ink Sigil (2.13"
+  GDEM0213B74 via GxEPD2) and the OLED Sigil (1.3" SH1106), plus the spare
+  and Wokwi builds. Master's single `sigil` build drives no display and does
+  not read the GPIO4 strap.
 
 **Controls** (one rule set since Sigil 0.9.10; details in `Sigil/DISPLAY.md`,
 "Menus"): the click is the obvious next step (Join, Start, Pass, Undo pass,
@@ -301,7 +299,7 @@ pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac
 
 (Reading the MAC resets the board.) Each PC keeps its own list in the
 git-ignored `tools\boards.local.md`; never put real boards in a committed
-file. `tools\setup-boards.cmd` writes it: it reads each attached board's MAC,
+file. On `legacy/gen1`, `tools\setup-boards.cmd` writes it: it reads each attached board's MAC,
 suggests a type (CH340 = Atlas; a Sigil running TurnHub firmware reports its
 strap as `SIGIL|HW|EINK` or `SIGIL|HW|OLED`), blinks the board in question
 white for 10 s (the serial `identify` command), and lets you rename, retype,
@@ -318,8 +316,9 @@ real board has one):
 
 `atlas`, `sigil` and `sigil-oled` are flashed; `spare` or
 `spare:<firmware>` gets the spare image; anything else (the retired
-`harness`) is listed and never flashed. `tools\flash-all.cmd` and the
-signing tools are described in `CLAUDE.md`.
+`harness`) is listed and never flashed. `tools\flash-all.cmd` lives on
+`legacy/gen1`; on master, flash with `pio run -e <env> --target upload
+--upload-port COMx`. The signing tools are described in `CLAUDE.md`.
 
 ## Rules and open items
 

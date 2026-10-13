@@ -890,7 +890,7 @@ void drawBody(const AtlasScreen &screen, const AtlasScreen *previous) {
     return;
   }
   // Their buttons use the body.
-  if (screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table ||
+  if (screen.kind == ScreenKind::Table ||
       screen.kind == ScreenKind::Menu || screen.kind == ScreenKind::Player ||
       screen.kind == ScreenKind::Device || screen.kind == ScreenKind::Themes) return;
 
@@ -1004,7 +1004,7 @@ bool sameButtonLayout(const AtlasScreen &a, const AtlasScreen &b) {
 }
 
 void drawButtons(const AtlasScreen &screen) {
-  const int16_t top = screen.kind == ScreenKind::Tests || screen.kind == ScreenKind::Table ||
+  const int16_t top = screen.kind == ScreenKind::Table ||
       screen.kind == ScreenKind::Menu || screen.kind == ScreenKind::Player || screen.kind == ScreenKind::Device
       ? BUTTON_UPPER_ROW_Y : BUTTON_ROW_Y;
   tft().fillRect(0, top, W, ATLAS_SCREEN_HEIGHT - top, WALNUT);

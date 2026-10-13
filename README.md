@@ -14,17 +14,23 @@ Earlier Python/Raspberry Pi generations are recorded in
 [Generation History](Documentation/engineering/history/GENERATION_HISTORY.md). They are
 not part of this repository or the current runtime.
 
+## Branches
+
+`master` is the ESP32-S3/LVGL development track. The current ESP32 boards
+(e-ink and OLED Sigils, the 2.8" Atlas), the test harness, the Sigil v1 PCB and
+the 3D enclosures are frozen on **`legacy/gen1`**: to fix a bug on those boards,
+branch from `legacy/gen1` and open the PR against it. The two never merge.
+
 ## Where to look
 
 | Path | What |
 |---|---|
 | [`Atlas/`](Atlas/README.md) | ESP32 table controller: game engine, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio, NVS and optional microSD storage |
-| [`Sigil/`](Sigil/DISPLAY.md) | ESP32 player controller, e-ink and OLED variants ([Wokwi simulation](Sigil/WOKWI.md)) |
+| [`Sigil/`](Sigil/platformio.ini) | ESP32 player controller: one build (radio, pairing, input, status ring), headless until the LVGL renderer is bound |
+| [`LVGL/`](LVGL/README.md) | Desktop LVGL simulator for the ESP32-S3 Atlas and Sigil screens |
 | [`Android/`](Android/README.md) | Native client: table view, player controls, guided setup and firmware updates |
 | [`protocol/`](protocol/README.md) | Client contract: JSON schemas, [`http-v1.md`](protocol/http-v1.md), example responses |
 | [`shared/include/`](shared/include) | Firmware headers shared by Atlas and Sigil (radio contract, firmware package format) |
-| [`TestHarness/`](TestHarness/README.md) | Retired hardware test harness; historical source only, unsupported and excluded from builds |
-| [`KiCad/`](KiCad/PCB/Sigilv1/README.md) | Sigil carrier PCB and schematics |
 | [`Documentation/engineering/`](Documentation/engineering/README.md) | The engineering record: invariants, design references, staged work |
 | [`Documentation/User Manual/`](Documentation/User%20Manual) | The user manual (newest `.docx`; the app bundles the same text) |
 

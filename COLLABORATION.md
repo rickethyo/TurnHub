@@ -7,8 +7,10 @@ Scope confirmed by project owner: 2026-10-08.
 ## Working agreement
 
 - Persistent branch workflow adopted by the owner, 2026-10-09: Codex uses
-  `codex/master`, Claude uses `claude/master`, and `agent/experimental` has one
-  explicitly assigned owner at a time. `master` is the accepted baseline.
+  `codex/master`, Claude uses `claude/master` and `master` is the accepted
+  baseline. Owner, 2026-10-13: `agent/experimental` is retired, and the current
+  ESP32 boards are maintained on the one-way `legacy/gen1` branch (Gen 1 fixes
+  only, never merged with master); master is the LVGL/S3 track.
   See [Agent workflow](Documentation/engineering/AGENT_WORKFLOW.md) for the
   single source of branch, PR, merge and synchronization rules.
 
@@ -1404,3 +1406,27 @@ management/invitations from TH-002 remain separate planned work.
   from a 48 dp "☰ Menu" pill on the panel and closes with ✕, a Done button at
   the bottom or Back.
 - Validation: `testDebugUnitTest` passes locally. Needs an owner device pass.
+
+## 2026-10-13 — Claude: Gen 1 split onto `legacy/gen1`; master becomes the LVGL/S3 track
+
+- Owner direction (2026-10-13): keep the current ESP32 Atlas/Sigil firmware on
+  an isolated branch where Gen 1 bugs can be fixed in place, and keep master,
+  `codex/master` and `claude/master` free of it. `agent/experimental` is
+  unused and retired (owner deletes the ref). Codex and Claude keep separate
+  branches.
+- `legacy/gen1` was created from master `70d378b`; its one setup commit points
+  CI at itself, drops the agent-branch workflow and adds README/AGENTS banners.
+  It never merges with master and is not in the maintenance allowlist.
+- Master cleanup PR (branch `claude/project-thread-17ttlk`): removes
+  `TestHarness/`, `KiCad/`, `3D/`, the e-ink/OLED/spare/bench/Wokwi Sigil
+  builds and drivers, the Atlas harness link and Tests screen, the harness
+  packets and capability bit, the flash/board-setup scripts and `release.yml`.
+  Sigil is one `sigil` env with a headless `SigilDisplay`. CI drops the
+  sigil-oled/sigil-spare jobs and Sigil previews and adds an `LVGL simulator`
+  job.
+- Deliberately left for the S3 product step (STAGED_CHANGES "Gen 1 split"):
+  the Atlas E32R28T board layer, Gen 1 OTA products and OLED bit, the spare
+  pairing path and `TURNHUB_OTA_RETIRED`. Removing them now would leave Atlas
+  with no hardware to run on and change untested pairing code.
+- Codex: rebase or merge any open `Sigil/` display or TestHarness work onto
+  `legacy/gen1` instead of master.

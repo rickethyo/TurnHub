@@ -11,6 +11,12 @@ commits for their PRs. The mandatory resource-efficiency rules in that reference
 apply to Claude too: minimize third-party calls and agent runtime, batch related
 work, and reuse an existing reviewable PR whenever practical.
 
+**Branches:** `master` is the ESP32-S3/LVGL track. The current ESP32 boards
+(e-ink/OLED Sigils, E32R28T Atlas), the test harness, the Sigil v1 PCB, the
+enclosures, the flash/board-setup scripts and the firmware release workflow are
+frozen on `legacy/gen1`. Fix bugs for those boards there (branch from it, PR
+against it); never merge it with master. Its own CLAUDE.md describes its tools.
+
 Read [`COLLABORATION.md`](COLLABORATION.md) at the start of project work. It is the permanent, project-wide discussion and handoff document shared by Codex and Claude. Add attributed findings, questions, replies, implementation commits and validation results there. Keep accepted unfinished work in `Documentation/engineering/STAGED_CHANGES.md` and current behavior in its owning reference document.
 
 ## What this is
@@ -21,12 +27,10 @@ TurnHub is a local-first tabletop game-management system (turn timer, lobby, lif
 |---|---|---|
 | `Atlas/` | ESP32 table controller: **the authoritative game engine**, Wi-Fi AP, web portal and HTTP API, ESP-NOW radio to Sigils, NVS persistence | PlatformIO, Arduino ESP32, C++ |
 | `LVGL/` | Isolated experimental desktop Atlas/Sigil presentation simulator; never a second production game authority | CMake, pinned LVGL/SDL, C++17; see `LVGL/README.md` |
-| `Sigil/` | ESP32 player controller: buttons, LEDs, buzzer, e-ink (GxEPD2), ESP-NOW | PlatformIO, Arduino ESP32, C++ |
+| `Sigil/` | ESP32 player controller: one `sigil` build (thumbstick, status ring, buzzer, ESP-NOW, pairing, updater); display behind `sigil_display.h`, headless until the LVGL renderer is bound | PlatformIO, Arduino ESP32, C++ |
 | `Android/` | Native client over HTTP (`HttpAtlasRepository`, polling `/api/v1/state`): live table, player controls, first-run setup, firmware updates | Gradle, Kotlin |
 | `shared/include/` | Firmware headers shared by Atlas and Sigil (currently `protocol.h`, the ESP-NOW radio contract) | C++ |
 | `protocol/` | Transport-neutral client contract: JSON schemas, `http-v1.md`, example responses | — |
-| `TestHarness/` | Retired hardware test harness: historical source only; unsupported, no builds or compatibility maintenance (see its README) | PlatformIO, Arduino ESP32, C++ |
-| `KiCad/` | Sigil PCB/schematic, plus Python scripts in `PCB/Sigilv1/tools/` that build and verify the schematic | KiCad, Python |
 | `design/` | V1 design system shared by the portal and Android: `tokens.json` (themes, type, motion), the icon set, Inter and Cinzel fonts, web components and the style guide. `python3 design/build_tokens.py` regenerates `design/dist/` and Android's `DesignTokens.kt` and `ic_th_*` drawables (CI runs `--check`); see `design/README.md` | Python (stdlib) |
 | `Documentation/engineering/` | The durable engineering record: design decisions, invariants, staged work, verification backlog | — |
 
@@ -46,9 +50,7 @@ pio device monitor                    # serial, 115200 baud
 ```
 Portal at `192.168.4.1` on the `TurnHub-Atlas` AP.
 
-**One-button flash:** `tools\flash-all.cmd` runs `tools\scripts\flash-all.ps1 -Sign` (options `-NoPull`, `-DryRun`, `-Key`): it pulls the repo when the working copy is clean (with uncommitted changes it signs them unpulled), builds, signs with the local key (see "Local signing"), verifies and flashes each attached board by MAC from the git-ignored `tools\boards.local.md`. Signed and unsigned runs both flash fully (bootloader, partition table, blank OTA selector, app; NVS kept), so an erased board starts. Each board first compares its flash with what would be written (esptool `verify_flash`) and is skipped as unchanged when it matches; `-Force` writes anyway. `tools\flash-all-unsigned.cmd` is the same without signing; it builds and uploads with `pio` and refuses to pull over uncommitted changes. Both skip the harness, flash spare Sigils with the inert `sigil-spare` build (`FIRMWARE_UPDATES.md`; one returned to service over the air is recorded instead), and offer board setup for unknown MACs (`-NoSetup` skips the offer). **Board setup:** `tools\setup-boards.cmd` (`-DryRun` to preview) identifies attached boards (CH340 = Atlas; a CP210x Sigil's running firmware reports its GPIO4 strap, `SIGIL|HW|EINK`/`OLED`), asks what each new one is (a board running TurnHub firmware blinks white for 10 s: setup sends the serial command `identify`), then lets you rename, retype, retire (`spare:<firmware>`), return to service or delete (erases an attached board's flash) any recorded board. It writes only `tools\boards.local.md`. `Documentation/engineering/HARDWARE.md` shows its format with made-up MACs: never put real boards in a committed file.
-
-**Local signing:** the git root is `D:\TurnHub\Include`; `D:\TurnHub\Private` (outside git) holds `TurnHub-keys`, `TurnHub-backups` and `TurnHub-builds`. Never move keys, backups or builds into the repo. `tools\sign-local.cmd` (`-Products atlas,sigil-eink,sigil-oled`; the PowerShell behind the launchers is in `tools\scripts\`) builds from the working copy and signs with the single `.pem` in `Private\TurnHub-keys`, then writes verified `.thfw` packages to `Private\TurnHub-builds\local-<time>-<commit>`. Install them from the Atlas portal's `/update` page, the Sigil firmware page, or the app (not on the retired current-generation boards, which refuse every OTA package since 2026-10-12: `TURNHUB_OTA_RETIRED` in `firmware_package.h`; flash those over USB). OTA accepts the same or a newer version only; raise `PATCH` in `firmware_version.h` to update over a running build, and a downgrade needs USB. Needs python `cryptography` 46.0.7 in PlatformIO's Python. Never print or open the key.
+**Local signing:** the git root is `D:\TurnHub\Include`; `D:\TurnHub\Private` (outside git) holds `TurnHub-keys`, `TurnHub-backups` and `TurnHub-builds`. Never move keys, backups or builds into the repo. `tools\sign-local.cmd` (`-Products atlas,sigil-eink`; the PowerShell behind the launchers is in `tools\scripts\`) builds from the working copy and signs with the single `.pem` in `Private\TurnHub-keys`, then writes verified `.thfw` packages to `Private\TurnHub-builds\local-<time>-<commit>`. Install them from the Atlas portal's `/update` page, the Sigil firmware page, or the app (not on the retired current-generation boards, which refuse every OTA package since 2026-10-12: `TURNHUB_OTA_RETIRED` in `firmware_package.h`; flash those over USB). OTA accepts the same or a newer version only; raise `PATCH` in `firmware_version.h` to update over a running build, and a downgrade needs USB. Needs python `cryptography` 46.0.7 in PlatformIO's Python. Never print or open the key.
 
 **Serial ports:** never hard-code COM numbers (in `platformio.ini`, docs or scripts). They change whenever the PC restarts. Find the board each time (Atlas is the CH340 port, Sigils are CP210x; see "Identifying boards" below), pass `--upload-port` / `--port`, and ask the owner if several candidates are attached.
 
@@ -77,12 +79,8 @@ There is no per-test filter. To run one group, build the single executable (the 
 
 ### Sigil firmware (run from `Sigil/`)
 ```
-pio run -e sigil                      # E-ink Sigil with analog joystick
-pio run -e sigil-oled                 # OLED Sigil (same thumbstick, ring and GPIOs; only the display differs)
-pio run -e sigil-spare                # Spare Sigil: inert, either board; returns to service by OTA (FIRMWARE_UPDATES.md)
-pio run -e sigil-wokwi                # Wokwi simulation build (ESP-NOW replaced by wokwi_espnow_shim.h, which acts as a fake Atlas)
+pio run -e sigil                      # the one Sigil build (sigil-s3 replaces it with the S3 drivers)
 ```
-Wokwi serial-console commands for driving the simulated Atlas are listed in `Sigil/WOKWI.md`.
 
 ### Android (run from `Android/`)
 ```
@@ -98,12 +96,6 @@ Wokwi serial-console commands for driving the simulated Atlas are listed in `Sig
 - **Joining Atlas's Wi-Fi:** the app joins it itself via `TargetedAtlasWifiLink` (`WifiNetworkSpecifier`, API 29+). It tries a saved password, then the shipped default, then prompts. The default passphrase `TurnHub-Setup` exists in two places that must stay in sync: `Atlas/include/config.h` (`WIFI_DEFAULT_PASSWORD`) and `WifiCredentials.DEFAULT_ATLAS_PASSPHRASE`. It's documented in `protocol/http-v1.md`.
 - **Phone testing:** with USB debugging on, `adb` is at `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`. Drive the UI with `uiautomator dump` plus `input tap`. `screencap` needs a display ID on the Pixel Fold. Never type passwords for the user.
 - **Identifying boards:** Atlas (LCDwiki E32R28T 2.8" display board) uses a CH340C USB bridge; Sigils use CP210x. To confirm a board, read its MAC with `pio pkg exec -p tool-esptoolpy -- esptool.py --port COMx read_mac`; Atlas's MAC is its `THA-` ID. Reading the MAC resets the board.
-
-### Test harness (run from `TestHarness/`)
-```
-pio run -e harness --target upload --upload-port COMx   # the harness is a CP210x port too; ask which one
-```
-Serial console (115200): `status`, `pair` (tap Menu → Pair a Sigil on Atlas), `test` (premade tests), `run game [players] [turns]`, `pace <ms>`. It pairs as two Sigils (its station and soft-AP MACs), and the first advertises `CAPABILITY_HARNESS` so Atlas shows **Tests** under the lobby's Menu.
 
 ## Architecture: rules that span files
 
@@ -138,7 +130,7 @@ durable completion receipts and replay-safe persistence exist. See
 
 **No compatibility before release:** every Atlas and Sigil is a prototype the owner reflashes together. Backward compatibility (older protocol versions, older firmware, OTA upgrade paths) applies only once hardware is released, and saved data (profiles, stats, pairings) needs no migrations until the owner says TurnHub is saving live stats: a changed layout means a factory reset. Remove code that only served retired devices or formats rather than keeping fallbacks.
 
-**Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (60 s, the minimum on every device) or the Hello capability bits (only what varies between Sigils: OLED vs e-paper and the test harness; Atlas assumes the rest and reads the byte through `helloCapabilities()`). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
+**Radio contract:** `shared/include/protocol.h` is the single source for Atlas and Sigil (both `platformio.ini` files and the host test runners add `-I../shared/include`). Put any value both firmwares must agree on there, e.g. `PAIRING_WINDOW_MS` (60 s, the minimum on every device) or the Hello capability bits (only what varies between Sigils, today the Gen 1 OLED bit and the spare bit until the S3 product step; Atlas assumes the rest and reads the byte through `helloCapabilities()`). Never recreate per-project copies (Invariant 4). Changing it means reflashing both device types. The packet structs are packed, and host tests check their sizes (7-byte control, 110-byte display).
 
 **Client contract:** live HTTP is `GET /api/v1/state`, `GET /api/v1/info` and form-based session controls such as `POST /api/control/pass`. State carries a `revision` scoped to `atlasId` + `bootId`. The JSON Intent envelope (`intent-v0.1.schema.json`), `POST /api/v1/intent` and the events WebSocket are **drafts, not implemented**. Android `protocol/` models mirror these JSON schemas, not the C++ types.
 

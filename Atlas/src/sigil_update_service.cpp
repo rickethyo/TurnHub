@@ -192,9 +192,8 @@ TurnHub::IntentResult handleUpdateSigilIntent(const TurnHub::Intent &intent, voi
     return IntentResult::reject(IntentStatus::Conflict, "Update between games with no other update running");
   const int32_t id = intent.payload.value;
   const auto *r = id >= 0 && id < MAX_PHYSICAL_SIGILS ? sigilBus.record(id) : nullptr;
-  if (!r || !r->helloInfoValid || !r->session.ready() || !sigilBus.isOnline(id, millis()) ||
-      (r->capabilities & TurnHubProtocol::CAPABILITY_HARNESS))
-    return IntentResult::reject(IntentStatus::InvalidActor, "Choose an online paired Sigil, not a harness");
+  if (!r || !r->helloInfoValid || !r->session.ready() || !sigilBus.isOnline(id, millis()))
+    return IntentResult::reject(IntentStatus::InvalidActor, "Choose an online paired Sigil");
   const auto product = (r->capabilities & TurnHubProtocol::CAPABILITY_DISPLAY_OLED) ?
       TurnHubFirmwarePackage::Product::SigilOled : TurnHubFirmwarePackage::Product::SigilEink;
   if (!store.staged() || store.header().product != static_cast<uint8_t>(product))

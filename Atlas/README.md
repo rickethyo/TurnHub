@@ -122,8 +122,7 @@ pio device monitor
 ```
 
 Find the port each time (Atlas is the CH340 port); never hard-code it. Signed
-local builds, the one-button `tools\flash-all.cmd` (run `tools\setup-boards.cmd`
-first on a new PC or with new boards) and OTA updates are
+local builds and OTA updates are
 described in the repository's `CLAUDE.md` and in
 [Sigil OTA](../Documentation/engineering/FIRMWARE_UPDATES.md). The portal is at
 `192.168.4.1`.
