@@ -23,8 +23,15 @@ option(TURNHUB_SYSTEM_SDL "Use an installed exact SDL 2.32.4 instead of building
 if(TURNHUB_SYSTEM_SDL)
   find_package(SDL2 2.32.4 EXACT CONFIG REQUIRED)
 else()
-  set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-  set(SDL_STATIC ON CACHE BOOL "" FORCE)
+  if(MSVC)
+    # Shared LVGL would embed a private static SDL, leaving the executable with a
+    # second, uninitialized copy (no events, renderer or watches); share one DLL.
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+  else()
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+  endif()
   set(SDL_TEST OFF CACHE BOOL "" FORCE)
   # Software renderer is sufficient; no GPU SDK is required.
   set(SDL_VULKAN OFF CACHE BOOL "" FORCE)
