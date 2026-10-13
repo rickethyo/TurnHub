@@ -113,7 +113,9 @@ class TargetedAtlasWifiLink(
         }
     }
 
-    override fun wifiEnabled(): Boolean = wifi?.isWifiEnabled ?: true
+    // Unknown counts as on: a failed read must never block or crash Connect.
+    override fun wifiEnabled(): Boolean =
+        try { wifi?.isWifiEnabled ?: true } catch (e: SecurityException) { true }
 
     override suspend fun awaitWifiEnabled(timeoutMs: Long): Boolean =
         withTimeoutOrNull(timeoutMs) {

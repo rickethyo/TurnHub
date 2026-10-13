@@ -14,6 +14,11 @@
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!--
+      Lets the app read whether Wi-Fi is on (WifiManager.isWifiEnabled) so
+      Connect can ask to turn it on. Read-only, granted at install.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!--
       Android 17+ blocks all local-network traffic (including HTTP to
       192.168.4.1) for apps targeting API 37 unless this runtime permission
       ("Nearby devices") is granted; blocked TCP connections just time out.
