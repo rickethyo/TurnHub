@@ -438,6 +438,16 @@ static void virtualProfileFlow() {
   assert(request("/api/session/me",afterLimit,{},HTTP_GET)==200);
 
   // A password works wherever a PIN does: registration, change and login.
+  assert(request("/api/profiles/register","",{{"name","Local account"},{"pin","2468"},{"profileId","C0DE1234"}})==200);
+  assert(responseField("profileId")=="C0DE1234");
+  const String localToken=responseField("token");
+  assert(request("/api/session/logout",localToken)==200);
+  assert(request("/api/profiles/register","",{{"name","Overwrite attempt"},{"pin","9999"},{"profileId","C0DE1234"}})==409);
+  assert(TurnHubProfiles::nameForProfile("C0DE1234")=="Local account");
+  assert(request("/api/session/login","",{{"profileId","C0DE1234"},{"pin","2468"}})==200);
+  assert(request("/api/session/logout",responseField("token"))==200);
+  assert(request("/api/profiles/register","",{{"name","Bad imported ID"},{"pin","1234"},{"profileId","NOTHEX!!"}})==400);
+  ProfileFixture::profiles.erase("C0DE1234"); // Leave the shared capacity fixture unchanged.
   for(const char *bad:{"","123","pass1","seven77","tab\there!",
       "this password is far too long to be accepted by atlas at all, honestly"})
     assert(request("/api/profiles/register","",{{"name","Bad secret"},{"pin",bad}})==400);

@@ -39,6 +39,7 @@ session logs up to 2026-10-13 are in the [archive](Documentation/engineering/his
 
 | ID | Topic | Areas | Status | Next action / owner |
 |---|---|---|---|---|
+| TH-018 | Phone-owned profiles and lighter Atlas requests | Android, account import, documentation | Implemented; local validation passes | Owner / device acceptance and PR review |
 | TH-017 | ESP32-S3 hardware and LVGL foundation | Hardware, BOM, LVGL | Master is now this track (2026-10-13) | Board drivers and snapshot/Intent adapters; see STAGED_CHANGES |
 | TH-012 | Admin portal / app-play feature parity | Portal, Android, product scope | Direction agreed; source audit complete | Owner / review migration priorities |
 | TH-001 | App-only player experience | Android, contracts | Local players/history/import implemented | Owner / physical acceptance |
@@ -189,3 +190,40 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   in CI (dead repo links, unmarked retired paths), and this file pruned to open
   topics; the full previous text is in
   `Documentation/engineering/history/2026-10-13-collaboration-archive.md`.
+
+## TH-018: Phone-owned profiles, background Atlas discovery and lighter polling
+
+- Date / owner: 2026-10-13 / Codex on `codex/master`; baseline `946ef2f`.
+- Scope: immediate local launch, quiet discovery, standalone accounts and
+  personalization, full retained match/statistics data, explicit Atlas account
+  creation/linking and automatic imports for verified identities; reduce redundant
+  presentation requests. No overlapping open PR found; clean startup, fetched
+  refs, fast-forwarded agent branch to accepted master.
+- Feature gate: Android owns standalone identities/history/preferences; Atlas
+  owns connected identities, validation, game Intents and import credit. Preserve
+  UUID local identity and Atlas-scoped verified links, never infer ownership from
+  names or an unverified 32-bit ID collision. Atlas accepts an unused requested
+  profile ID at registration without granting existing-account access. Existing
+  accounts require login before linking; match delivery freezes mappings and IDs.
+  No new dependency. Accessible text controls, bounded image crops, optional
+  Atlas entry; no Wi-Fi/permission dialogs from automatic discovery.
+- Status: implemented. Always-local cold entry (including process recreation),
+  prompt-free current-network probe, optional local credentials, personalized
+  accounts, full lifetime/last-game statistics and retained counter snapshots.
+  Verified account links enable automatic match delivery; duplicate public IDs
+  cannot overwrite Atlas accounts. Imports preserve active login; if unsigned,
+  the just-verified account signs in for delivery. No Gen 1 changes or flashing.
+- Validation: Android debug build, unit tests and lint pass (zero lint errors;
+  existing warnings remain). Atlas board-less 0.7.15 firmware builds, all four
+  Windows GCC host suites, 20 client-contract cases and 31 adapter guards pass.
+  Metadata/lifecycle cadence and identity/security/storage failure regressions
+  cover the new behavior; 254 Android tests pass. Documentation
+  hygiene and Manual V0.19 asset check pass. Manual render attempt failed because
+  LibreOffice is unavailable; source/export integrity checked, no visual QA claimed.
+  Original integrated V0.18 retained in the manual archive.
+- Continuation: owning behavior in `Android/README.md`, `protocol/http-v1.md`
+  and `DIAGNOSTICS.md`; remaining device/performance acceptance in STAGED_CHANGES.
+  Request-count reduction is validated; Atlas CPU/heap/SD/radio improvement is not
+  yet measured. Existing bounded import receipts/partial-credit limitations remain.
+  MSVC host runner hit pre-existing GNU-attribute incompatibility; supported GCC
+  runner passed instead. Keep `codex/master` after integration with a merge commit.

@@ -18,7 +18,10 @@ import org.json.JSONObject
 import java.util.UUID
 
 /** Owns the [StandaloneTable] for the Activity, so rotation keeps it. */
-class StandaloneViewModel(val table: StandaloneTable) : androidx.lifecycle.ViewModel()
+class StandaloneViewModel(val table: StandaloneTable) : androidx.lifecycle.ViewModel() {
+    /** Survives rotation, but deliberately not process recreation. */
+    var entryInitialized = false
+}
 
 /** Android owns the active game and a separate, versioned local library. */
 interface StandaloneStore {
@@ -70,6 +73,21 @@ class StandaloneTable(
     val state: StateFlow<StandaloneState> = _state.asStateFlow()
 
     private val deliveryMutex = Mutex()
+    private val unlockedAccounts = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+    fun accountUnlocked(localId: String): Boolean = _state.value.library.players.firstOrNull { it.localId == localId }
+        ?.let { it.credential == null || localId in unlockedAccounts } == true
+    fun unlockAccount(localId: String, secret: String): Boolean {
+        val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return false
+        if (player.credential?.verifies(secret) == false) return false
+        unlockedAccounts += localId
+        return true
+    }
+    fun setAccountCredential(localId: String, credential: LocalCredential): Boolean {
+        if (!accountUnlocked(localId)) return false
+        val before = _state.value
+        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+            if (it.localId == localId) it.copy(credential = credential) else it })))
+    }
 
     // --- the lobby ------------------------------------------------------------------
 
@@ -79,13 +97,59 @@ class StandaloneTable(
         val before = _state.value
         if (clean.isEmpty() || before.game.state != TableState.LOBBY ||
             before.game.players.size >= StandaloneGame.MAX_PLAYERS) return
-        val player = SavedLocalPlayer(newId(), clean)
+        var player = SavedLocalPlayer(newId(), clean)
+        while (before.library.players.any { it.profileId == player.profileId } || !LocalProfileIds.valid(player.profileId)) {
+            player = player.copy(profileId = LocalProfileIds.create())
+        }
         val game = before.game.addPlayer(clean, localId = player.localId)
         publish(before.copy(game = game, library = before.library.copy(players = before.library.players + player)))
     }
     fun selectPlayer(localId: String) {
         val player = _state.value.library.players.firstOrNull { it.localId == localId } ?: return
         edit { it.addPlayer(player.name, localId = player.localId) }
+    }
+    fun createAccount(name: String, credential: LocalCredential? = null): Boolean {
+        val clean = name.trim().take(StandaloneGame.MAX_NAME)
+        if (clean.isBlank()) return false
+        val before = _state.value
+        var player = SavedLocalPlayer(newId(), clean)
+        player = player.copy(credential = credential)
+        while (before.library.players.any { it.profileId == player.profileId } || !LocalProfileIds.valid(player.profileId)) {
+            player = player.copy(profileId = LocalProfileIds.create())
+        }
+        val saved = publish(before.copy(library = before.library.copy(players = before.library.players + player)))
+        if (saved) unlockedAccounts += player.localId
+        return saved
+    }
+
+    fun saveAccount(localId: String, name: String, personalization: LocalPersonalization): Boolean {
+        if (!accountUnlocked(localId)) return false
+        val before = _state.value
+        if (name.isBlank() || name.length > StandaloneGame.MAX_NAME || before.library.players.none { it.localId == localId }) return false
+        if (runCatching { LocalPersonalization.fromJson(personalization.toJson()) }.isFailure) return false
+        val library = before.library.copy(players = before.library.players.map {
+            if (it.localId == localId) it.copy(name = name.trim(), personalization = personalization) else it })
+        // Historical names remain snapshots. Active labels are presentation, so rename immediately.
+        val game = before.game.copy(players = before.game.players.map {
+            if (it.localId == localId) it.copy(name = name.trim()) else it }, revision = before.game.revision + 1)
+        return publish(before.copy(game = game, library = library))
+    }
+
+    /** Called only after Atlas creation or credential verification; never from a name match. */
+    fun linkAccount(localId: String, atlasId: String, profileId: String): Boolean {
+        val before = _state.value
+        if (atlasId.isBlank() || !LocalProfileIds.valid(profileId) || before.library.players.none { it.localId == localId } ||
+            before.library.players.any { it.localId != localId && it.links.any { l -> l.atlasId == atlasId && l.profileId == profileId } }) return false
+        return publish(before.copy(library = before.library.copy(players = before.library.players.map {
+            if (it.localId != localId) it else it.copy(links = it.links.filterNot { l -> l.atlasId == atlasId } + AtlasProfileLink(atlasId, profileId)) })))
+    }
+
+    fun queueAutomaticImports(atlasId: String, available: Set<String>) {
+        _state.value.library.history.forEach { record ->
+            if (_state.value.library.delivery(record.recordId).status == DeliveryStatus.NEEDS_LINKING) {
+                _state.value.library.automaticMapping(record, atlasId, available)?.let { queueImport(record.recordId, atlasId, it, available) }
+            }
+        }
     }
     fun removePlayer(index: Int) = edit { it.removePlayer(index) }
     fun movePlayer(index: Int, by: Int) = edit { it.movePlayer(index, by) }
@@ -257,6 +321,9 @@ class StandaloneTable(
             }
             // Also covers a game that was completed before its old queue write reached storage.
             game.record()?.let { library = library.withRecord(it) }
+            if (savedLibrary != null && JSONObject(savedLibrary).getInt("schema") == 1) {
+                check(store.saveSnapshot(gameToJson(game).toString(), library.toJson().toString())) { "Could not save upgraded accounts" }
+            }
             StandaloneState(game = game, library = library)
         } catch (_: Exception) {
             StandaloneState(storageProblem = "Local saved data could not be read. It has been kept untouched. Do not clear app data; recovery needs review.")

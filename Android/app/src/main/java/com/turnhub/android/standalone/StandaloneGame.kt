@@ -392,6 +392,8 @@ data class StandaloneGame(
                     outOrder = p.outOrder,
                     conceded = p.conceded,
                     commanderDamageReceived = p.commanderDamage.values.sumOf { it.sum() },
+                    counters = p.counters,
+                    commanderBySource = p.commanderDamage,
                 )
             },
         )
@@ -404,7 +406,7 @@ data class StandaloneGame(
      * draws an Atlas game. [monoNowMs] is [com.turnhub.android.domain.TableClock]'s
      * clock, which the screen extrapolates from while the game runs.
      */
-    fun toSummary(nowMs: Long, monoNowMs: Long): TableSummary {
+    fun toSummary(nowMs: Long, monoNowMs: Long, personalizations: Map<String, LocalPersonalization> = emptyMap()): TableSummary {
         val elapsed = gameElapsedMs(nowMs)
         return TableSummary(
             atlasId = "",
@@ -441,6 +443,8 @@ data class StandaloneGame(
                     turnsCompleted = p.turnsCompleted.toLong(),
                     commanderDamage = p.commanderDamage.map { (source, damage) -> CommanderDamage(source + 1, damage) },
                     lifeRequest = null,
+                    avatar = personalizations[p.localId]?.icon(),
+                    color = personalizations[p.localId]?.color,
                 )
             },
             physicalSigils = emptyList(),

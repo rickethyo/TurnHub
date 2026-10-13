@@ -38,8 +38,18 @@ everything implemented. Only the checks listed below are still open.
   Minor tablet overlay and signup scrolling fixes are staged on `codex/master`;
   the former browser verification passed; Android build and device acceptance are tracked in TH-013.
 - **Multi-phone stability** (in progress): bench the Atlas 0.6.7+ build with
-  unchanged polling, then the wider matrix, then seat-metadata caching and
-  lighter client polling. Steps in [Diagnostics](DIAGNOSTICS.md).
+  unchanged polling, then the wider matrix. Android now reduces unseen-table
+  polling and redundant metadata/settings reads (TH-018); CPU/heap/SD/radio
+  effects remain unmeasured. Steps in [Diagnostics](DIAGNOSTICS.md).
+- **Phone-owned accounts and background discovery acceptance (TH-018):** test
+  cold launch with saved Atlas preferences, process recreation/rotation, no
+  permission/Wi-Fi/biometric prompt from the probe, local PIN settings, images
+  and verbose history without an Atlas. Test new-account ID preservation on
+  Atlas 0.7.15+, verified merge into existing/pinless accounts, approval/cardless
+  behavior, automatic imports after reconnect and retained partial/rejected
+  results. Current Gen 1 firmware remains on `legacy/gen1`; master firmware
+  builds are board-less. Manual V0.19 content/export passed; visual rendering
+  awaits a host with LibreOffice.
 - **Open bug, not reproduced:** Atlas stuck on the pause screen during a
   harness soak (2026-09-28).
 
@@ -81,7 +91,8 @@ everything implemented. Only the checks listed below are still open.
 - **High-resolution uploaded avatars and tablet card backgrounds** (*Planned*,
   owner, 2026-10-08; TH-003 in [COLLABORATION.md](../../COLLABORATION.md)):
   Connected avatar upload/crop/review is implemented in PR #86 (2026-10-10).
-  Remaining: standalone local player avatars and player-card background artwork, with crop,
+  Standalone account avatars/crop/preview/replace/remove are implemented in TH-018;
+  physical acceptance remains above. Remaining: player-card background artwork, with crop,
   preview, replace and remove controls. Preserve enough image detail for large
   tablet cards; choose explicit source/display dimensions and file limits during
   design rather than reducing everything to tiny icons. Retain the existing

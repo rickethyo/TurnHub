@@ -139,6 +139,22 @@ void handleRegistration(WebServer &server) {
   String name = server.arg("name");
   name.trim();
   const String pin = server.arg("pin");
+  const bool importingId = server.hasArg("profileId");
+  const String requestedId = importingId ? server.arg("profileId") : String();
+  if (importingId) {
+    TurnHubIdentity::ProfileId parsed;
+    if (requestedId.length() != TurnHubProfiles::PROFILE_ID_LENGTH ||
+        !TurnHubIdentity::ProfileId::parse(requestedId.c_str(), parsed)) {
+      sendError(server, 400, "Invalid imported profile ID");
+      return;
+    }
+    // An import may create a new identity; it never overwrites an existing one.
+    // Even marker-only/archived accounts reserve their ID. Link by verified login.
+    if (TurnHubProfiles::profileExists(requestedId)) {
+      sendError(server, 409, "Profile ID already exists; sign in to link the existing account");
+      return;
+    }
+  }
   if (name.length() == 0 || name.length() > MAX_NAME_LENGTH || !validPin(pin)) {
     sendError(server, 400, "A name (1-32 characters) and a 4-8 digit PIN or an 8-64 character password are required");
     return;
@@ -148,7 +164,7 @@ void handleRegistration(WebServer &server) {
     sendError(server, 503, "No session slots available");
     return;
   }
-  const String id = TurnHubProfiles::createProfileWithCredentials(name, pin, profilePinHash);
+  const String id = TurnHubProfiles::createProfileWithCredentials(name, pin, profilePinHash, requestedId);
   if (id.length() == 0) {
     sendError(server, 503, "Could not create profile; storage may be full");
     return;

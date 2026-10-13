@@ -55,6 +55,10 @@ interface AtlasRepository {
      * Wi-Fi and the signed-in session the update needs.
      */
     fun holdThroughOutages(hold: Boolean) {}
+    /** UI clocks extrapolate locally; an unseen table needs fewer snapshots. */
+    fun setPresentationForeground(visible: Boolean) {}
+    /** A local name/avatar edit warrants a fresh presentation read without a game revision. */
+    fun invalidatePresentationMetadata() {}
 }
 
 private val NEVER_OFFLINE: StateFlow<Long?> = kotlinx.coroutines.flow.MutableStateFlow(null)

@@ -39,6 +39,7 @@ import com.turnhub.android.ui.components.tableBackground
 import com.turnhub.android.ui.theme.palette
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.launch
 
 /** Local facts and delivery states are presented separately, with text meaning. */
 @Composable
@@ -50,6 +51,12 @@ fun LocalLibraryScreen(
     onLoadProfiles: () -> Unit = {},
     onImport: (String, List<String>) -> Unit = { _, _ -> },
     onCancelImport: (String) -> Unit = {},
+    table: com.turnhub.android.standalone.StandaloneTable? = null,
+    canLink: Boolean = false,
+    onLinkAccount: (String, String?, String) -> Unit = { _, _, _ -> },
+    onShareStats: (String) -> Unit = {},
+    theme: com.turnhub.android.ui.theme.TurnHubThemeChoice = com.turnhub.android.ui.theme.TurnHubThemeChoice.AUTO,
+    onThemeChosen: (com.turnhub.android.ui.theme.TurnHubThemeChoice) -> Unit = {},
 ) {
     val p = palette
     BackHandler(onBack = onClose)
@@ -57,17 +64,42 @@ fun LocalLibraryScreen(
         LazyColumn(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
-                Text("Device players and history", color = p.text, style = MaterialTheme.typography.headlineSmall,
+                Text("Accounts and history", color = p.text, style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.semantics { heading() })
                 TextButton(onClick = onClose) { Text("Back") }
                 Text("Results stay here after import. No games are removed automatically. Clearing app data or uninstalling removes them; backup/export is not available yet.", color = p.muted)
                 state.storageProblem?.let { Text(it, color = p.text) }
-                Text("Atlas statistics are separate. To import, connect and sign in, load its players, then explicitly map every player in a match. Names never choose an account.", color = p.muted)
-                if (canImport) ToneButton("Load Atlas players for import", onLoadProfiles,
+                Text("Profiles, personalization and detailed results work offline. Link accounts once to import matching games automatically. Atlas verifies all imports; names never choose an account.", color = p.muted)
+                if (canLink) ToneButton("Load Atlas accounts", onLoadProfiles,
                     enabled = !importState.busy && state.storageProblem == null)
                 
                 if (importState.busy) Text("Contacting Atlas…", color = p.muted)
                 importState.message?.let { Text(it, color = p.text) }
+                Text("Appearance", color = p.text)
+                com.turnhub.android.ui.theme.TurnHubThemeChoice.entries.forEach { choice ->
+                    TextButton({ onThemeChosen(choice) }) { Text("${if (theme == choice) "✓ " else ""}${choice.name.lowercase().replaceFirstChar { it.uppercase() }}") }
+                }
+                if (table != null) {
+                    var name by rememberSaveable { mutableStateOf("") }
+                    var secret by androidx.compose.runtime.remember { mutableStateOf("") }
+                    var creating by androidx.compose.runtime.remember { mutableStateOf(false) }
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    androidx.compose.material3.OutlinedTextField(name, { name = it.take(32) }, label = { Text("New account name") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                    androidx.compose.material3.OutlinedTextField(secret, { secret = it.take(64) }, label = { Text("PIN or password (optional)") },
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+                    ToneButton(if (creating) "Creating account…" else "Create account", {
+                        scope.launch {
+                            creating = true
+                            val credential = if (secret.isEmpty()) null else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                com.turnhub.android.standalone.LocalCredential.create(secret) }
+                            val saved = table.createAccount(name, credential)
+                            if (saved) { name = ""; secret = "" }; creating = false
+                        }
+                    }, enabled = !creating && name.isNotBlank() && state.storageProblem == null &&
+                        (secret.isEmpty() || com.turnhub.android.data.ProfileSecret.isValid(secret)))
+                    Text("A PIN protects account settings on this device. Shared-table play remains available. Use a 4–8 digit PIN or an 8–64 byte password; Atlas import needs one.", color = p.muted)
+                }
             }
             item { Text("Local players", color = p.text, modifier = Modifier.semantics { heading() }) }
             if (state.library.players.isEmpty()) item { Text("Add players in Play on this device. No account is needed.", color = p.muted) }
@@ -84,9 +116,19 @@ fun LocalLibraryScreen(
                         Text("Went first ${stats.started} · knocked out ${stats.eliminated} · conceded ${stats.conceded}", color = p.muted)
                         Text("${stats.turnsCompleted} turns · average ${f(stats.averageTurnMs)} · fastest ${f(stats.fastestTurnMs)} · longest ${f(stats.longestTurnMs)}", color = p.muted)
                         Text("Average game ${f(stats.averageGameMs)}", color = p.muted)
+                        val full = state.library.profileStatistics(player.localId)
+                        Text("Total game time ${f(full.lifetime.totalGameMs)} · total turn time ${f(full.lifetime.totalTurnMs)}", color = p.muted)
+                        Text("Last game: ${full.lastGame.result} · ${f(full.lastGame.durationMs)} · ${full.lastGame.turns} turns", color = p.muted)
+                        Text("Last turn average ${f(full.lastGame.averageTurnMs)} · fastest ${f(full.lastGame.fastestTurnMs)} · longest ${f(full.lastGame.longestTurnMs)}", color = p.muted)
+                        ToneButton("Share statistics", { onShareStats("${player.name} · ${player.profileId}\n${full.winRate} win rate\n" +
+                            "${totals.played} played, ${totals.won} won, ${totals.draws} draws\nWent first ${stats.started}, eliminated ${stats.eliminated}, conceded ${stats.conceded}\n" +
+                            "${stats.turnsCompleted} turns, total ${f(full.lifetime.totalTurnMs)}, average ${f(stats.averageTurnMs)}, fastest ${f(stats.fastestTurnMs)}, longest ${f(stats.longestTurnMs)}\n" +
+                            "Games total ${f(full.lifetime.totalGameMs)}, average ${f(stats.averageGameMs)}\nLast result ${full.lastGame.result}, duration ${f(full.lastGame.durationMs)}, turns ${full.lastGame.turns}\n" +
+                            "Last turn average ${f(full.lastGame.averageTurnMs)}, fastest ${f(full.lastGame.fastestTurnMs)}, longest ${f(full.lastGame.longestTurnMs)}") })
                     } else if (totals.played > 0) {
                         Text("Tap for statistics", color = p.faint, style = MaterialTheme.typography.bodySmall)
                     }
+                    if (open && table != null) LocalAccountEditor(player, table, importState, canLink, onLinkAccount)
                 }
             }
             item { Text("Finished games", color = p.text, modifier = Modifier.semantics { heading() }) }

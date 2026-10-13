@@ -29,27 +29,41 @@ The app must not:
 
 ### The one exception: the standalone tablet game
 
-Device-first entry (2026-10-08, implemented on `codex/app-only-entry`, device
-acceptance pending): the disconnected landing screen leads with **Play on this
-device**, or **Resume game** for a running/paused local match. No account,
-network or nearby-device permission is needed. `MainActivity` owns navigation:
-`turnhub_ui/prefer_device_play` remembers local play across launches, while the
-saved instance state remembers the currently open screen across rotation.
-Back returns to Home without changing the preference or game. Explicit Atlas
-Connect, Try again or setup selects Atlas for future launches and requests local
-network permission if needed. Fresh launches never request that permission;
-Atlas-preferred launches rejoin only when permission is already available.
-Entering device play cancels discovery, Wi-Fi joins and pending repository
-connects, then disconnects polling and releases the Atlas network. A later
-connection waits for the disconnect to finish. Local history and explicit Atlas-scoped linking are described below
-(TH-001 in `COLLABORATION.md`).
+The app always opens to the local full-screen table or its saved game on a
+fresh launch. Rotation restores the open screen. Saved Atlas preferences never
+replace local play with a connection screen. With Atlas enabled, a once-per-launch
+probe checks the current network when a saved table and local-network permission
+already exist. It never joins Wi-Fi, prompts for permission, requests biometric
+sign-in or takes over navigation. The lobby's Atlas button explicitly opens
+connected play; Connect, retry and setup can join Wi-Fi and request permission.
+Turning Atlas off disconnects it. Entering local play from a connected screen
+also cancels pending joins/probes and releases the network.
 
-Phone-first launch (2026-10-13, *Implemented*, device acceptance pending):
-`prefer_device_play` defaults to on when no Atlas Wi-Fi has been saved, so a
-new install opens straight to the full-screen table's lobby; an Atlas user
-still opens to the connecting game screen. The lobby's quiet switch
-`turnhub_ui/atlas_enabled` (default on) hides Atlas altogether: off always
-opens device play, and closing it leaves the app instead of showing Home.
+Accounts and history is available without Atlas. Accounts have independent UUID
+history keys and random eight-hex public IDs compatible with Atlas. Optional
+PINs/passwords use the same input rules as Atlas; only PBKDF2-HMAC-SHA256 verifiers
+(120,000 iterations, random 16-byte salts) are saved locally. They protect account
+settings after restart; shared-table play and local results remain available.
+Local name, color, preset/custom avatar, reduced motion and phone appearance work
+offline. Image decode/crop/compression and thumbnail generation run on Android.
+The local library retains detailed lifetime/last-game statistics and final
+counter/Commander details even if the phone never connects. Statistics can be
+shared as text. Version-1 UUIDs and retained records upgrade without name guessing.
+
+Atlas 0.7.15 accepts an unused requested public ID at registration; collisions
+return 409 without modifying any account. Account import creates that identity,
+then copies available personalization through ordinary authenticated APIs and
+image review. Linking to an existing account requires its PIN/password, retains
+Atlas personalization and saves an `(atlasId, profileId)` link. Existing local
+history and UUIDs remain unchanged. Verifying an exact-ID signed-in account can
+establish its own link; an unverified public-ID match never does.
+
+Once signed in, complete verified mappings automatically queue finished matches,
+and retry pending work after reconnect. Match IDs and mappings remain frozen
+while acknowledgement is uncertain. Imported or rejected records are never
+queued again automatically; partial credit needs review. Missing/archived profiles
+or duplicate targets leave games for manual mapping. This does not enlarge
+Atlas's 64-receipt deduplication window or make its statistics transaction atomic.
 
 With **no Atlas at the table**, the **full-screen table**
 runs the game on the device itself: life, Commander damage, counters,
@@ -69,7 +83,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   saved player reuses that identity. Same-name players stay distinct and short ID
   labels distinguish them. Reset/rematch preserves IDs; records snapshot names.
 - **Device players and history** opens from Home (connected or disconnected),
-  and the local lobby. It shows results and basic played/won/draw totals derived
+  and the local lobby. It shows results and detailed statistics derived
   only from retained local matches by local ID, without combining Atlas totals.
 - The versioned local library owns roster, history and independent delivery
   metadata. Active game/library writes share one preference transaction. Every
@@ -78,13 +92,8 @@ merged back live. The rules above apply in full whenever Atlas is present.
   and identities survive reconstruction; actual Android rotation/relaunch still
   needs device acceptance. Corrupt/future data fails closed, preserves the
   stored bytes, and explains the problem rather than overwriting it.
-- Import is optional and explicit, never automatic on sign-in. From history,
-  connect/sign in, load current Atlas profiles, choose a different profile for
-  each player in a match, then Import mapped match. Nothing is preselected by
-  name. The delivery mapping snapshots `(atlasId, profileId)` per match; it
-  does not merge/replace local identities or change historical player names.
-  Pending mappings are frozen through uncertain acknowledgements; retry uses the
-  same match UUID and destination. Imported mappings cannot be resubmitted.
+- Account links enable automatic import as described above. Unlinked or historical
+  records still support manual per-match mapping, with no name-based choices.
 - History separately shows needs-linking, pending, imported and needs-attention
   (rejected) states. HTTP 400 retains the record and reason without automatic
   retry; explicit review/relink can queue it again. Transient/malformed responses
@@ -98,7 +107,7 @@ merged back live. The rules above apply in full whenever Atlas is present.
   dropped records cannot be reconstructed. Atlas's 64-receipt dedupe window and
   possible partial credit after storage failure/power loss remain unchanged;
   this is not crash-safe exactly-once statistics across arbitrary retries.
-- No turn timer, Two-Headed Giant, phones or Sigils in this mode.
+- No Two-Headed Giant, multi-phone play or Sigils in standalone mode.
 
 ```text
 Compose UI

@@ -43,6 +43,12 @@ static void guestLookups() {
 }
 
 static void existingAccounts() {
+  const String imported = createProfileWithCredentials("Phone profile", "1234", hashPin, "C0DE1234");
+  assert(imported == "C0DE1234" && nameForProfile(imported) == "Phone profile");
+  const int importWrites = FakeNvs::writes;
+  assert(createProfileWithCredentials("Hijack", "9999", hashPin, imported).length() == 0);
+  assert(createProfileWithCredentials("Invalid", "1234", hashPin, "BAD-ID").length() == 0);
+  assert(FakeNvs::writes == importWrites && nameForProfile(imported) == "Phone profile");
   const uint8_t mac[6] = {1, 2, 3, 4, 5, 6};
   const String id = createProfileWithCredentials("Owner", "1234", hashPin);
   assert(id.length() == 8);

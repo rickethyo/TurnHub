@@ -116,6 +116,12 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     suspend fun profiles(endpoint: AtlasEndpoint): List<ProfileSummary> =
         call { transports.create(endpoint).getProfiles() }
 
+    /** An independent verification session; leaves the active table login unchanged. */
+    suspend fun verifyLocalAccount(endpoint: AtlasEndpoint, player: com.turnhub.android.standalone.SavedLocalPlayer,
+        targetId: String?, secret: String): LocalAccountTransfer.Result = call {
+        LocalAccountTransfer(transports.create(endpoint)).verify(player, targetId, secret)
+    }
+
     /** Signs in; throws [AtlasException] with Atlas's reason (e.g. wrong PIN, throttled). */
     suspend fun signIn(endpoint: AtlasEndpoint, profile: ProfileSummary, pin: String) {
         mutex.withLock {
@@ -253,9 +259,9 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
     }
 
     /** Re-reads `/api/session/me` (after state changes). Quietly signs out if Atlas dropped the session. */
-    suspend fun refresh() {
+    suspend fun refresh(refreshSettings: Boolean = true) {
         if (mutex.isLocked) return
-        mutex.withLock { refreshLocked() }
+        mutex.withLock { refreshLocked(refreshSettings) }
     }
 
     suspend fun join() = act {
@@ -623,7 +629,7 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
         }
     }
 
-    private suspend fun refreshLocked() {
+    private suspend fun refreshLocked(refreshSettings: Boolean = true) {
         val endpoint = endpoint ?: return
         val token = token ?: return
         val signedIn = _state.value as? PlayerSessionState.SignedIn ?: return
@@ -632,7 +638,8 @@ class AtlasPlayerSession(private val transports: AtlasSessionTransportFactory) {
             val info = call { transport.me(token) }
             viewedGame = info.game
             _state.value = signedIn.copy(name = info.name ?: signedIn.name, info = info)
-            refreshGameSettings(transport, token, info)
+            if (refreshSettings || signedIn.info?.host != info.host || signedIn.info?.participating != info.participating ||
+                signedIn.info?.game != info.game) refreshGameSettings(transport, token, info)
         } catch (e: AtlasException) {
             if (e.failure == AtlasFailure.SessionExpired) {
                 clear()

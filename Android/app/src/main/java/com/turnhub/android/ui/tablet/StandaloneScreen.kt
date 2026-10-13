@@ -97,13 +97,14 @@ fun StandaloneScreen(
             // aren't redrawn every tick.
             rememberNowMs(ticking = game.state == TableState.RUNNING, intervalMs = 500)
             val phase = game.turnTimer(System.currentTimeMillis()).phase
-            val summary = remember(game, phase) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs()) }
+            val summary = remember(game, phase, state.library.players) { game.toSummary(System.currentTimeMillis(), TableClock.nowMs(),
+                state.library.players.associate { it.localId to it.personalization }) }
             TabletTable(
                 summary = summary,
                 tablet = TabletState(),
                 controls = { block -> scope.launch { table.block() } },
                 onDismissMessage = {},
-                reduceMotion = reduceMotion,
+                reduceMotion = reduceMotion || state.library.players.any { it.personalization.reduceMotion },
                 onClose = onClose,
                 standalone = true,
             )

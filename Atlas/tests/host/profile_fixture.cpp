@@ -69,10 +69,11 @@ String createProfile() {
   char id[9]; do { snprintf(id,sizeof(id),"%08lX",static_cast<unsigned long>(esp_random())); } while(profileExists(id));
   profiles[id]=Profile{}; return id;
 }
-String createProfileWithCredentials(const String &name,const String &pin,PinHasher hash) {
+String createProfileWithCredentials(const String &name,const String &pin,PinHasher hash,const String &requestedId) {
   char ids[MAX_LOGIN_PROFILES][9];
   if(listProfileIds(ids,MAX_LOGIN_PROFILES)>=MAX_LOGIN_PROFILES) return String();
-  const String id=createProfile(); profiles[id].name=name; profiles[id].hash=hash(id,pin); return id;
+  if(requestedId.length() && profileExists(requestedId)) return String();
+  const String id=requestedId.length()?requestedId:createProfile(); profiles[id].name=name; profiles[id].hash=hash(id,pin); return id;
 }
 String createProfileWithName(const String &name) {
   char ids[MAX_LOGIN_PROFILES][9];

@@ -101,6 +101,9 @@ private class MemoryCredentialStore : WifiCredentialStore {
 
 /** Records every request so tests can prove each tap sends exactly one. */
 private class FakeSessionTransport : AtlasSessionTransport {
+    var signedProfileId = "p1"
+    var gameSettingsReads = 0
+    val actualImports = mutableListOf<List<Pair<String, String>>>()
     val calls = mutableListOf<String>()
     var participating = false
     var host = true
@@ -126,6 +129,7 @@ private class FakeSessionTransport : AtlasSessionTransport {
     override suspend fun raw(method: String, path: String, token: String, fields: List<Pair<String, String>>): com.turnhub.android.data.RawResponse {
         if (method == "GET" && path == "/api/devices") return com.turnhub.android.data.RawResponse(200, "{\"devices\":[],\"pendingPairings\":[]}")
         importRequests += fields
+        if (path == "/api/standalone/import") actualImports += fields
         importGate?.await()
         return com.turnhub.android.data.RawResponse(200, "{\"ok\":true,\"duplicate\":false,\"credited\":2,\"unmatched\":[]}")
     }
@@ -138,7 +142,7 @@ private class FakeSessionTransport : AtlasSessionTransport {
         return LoginResult("token", "p2")
     }
     override suspend fun me(token: String): SessionInfo =
-        SessionInfo("p1", "Ricky", 8, 1, if (participating) 1 else 0, participating, host, false, false)
+        SessionInfo(signedProfileId, "Ricky", 8, 1, if (participating) 1 else 0, participating, host, false, false)
     override suspend fun join(token: String): String? {
         calls += "join"
         participating = true
@@ -154,7 +158,7 @@ private class FakeSessionTransport : AtlasSessionTransport {
         controlFailure?.let { throw it }
         return controlResult(action)
     }
-    override suspend fun getGameSettings(token: String): GameSettingsInfo = settings
+    override suspend fun getGameSettings(token: String): GameSettingsInfo { gameSettingsReads++; return settings }
     override suspend fun setTurnTimer(token: String, turnTimerMs: Long): String? {
         calls += "timer $turnTimerMs"
         return null
@@ -212,91 +216,49 @@ class HomeViewModelTest {
     // --- finding the table on launch ---------------------------------------------
 
     @Test
-    fun `launch rejoins the saved table silently`() = runTest {
-        val saved = WifiCredentials("TurnHub-Atlas", "owner-chosen-pass")
-        store.save(saved)
+    fun `launch probes the current network once without joining wifi or foreground wait`() = runTest {
+        store.save(defaultCredentials)
         val viewModel = viewModel()
-        assertTrue(viewModel.uiState.value.hasSavedTable)
-
         viewModel.onAppStarted()
-        viewModel.onAppStarted() // Once per ViewModel (rotation).
-
-        assertEquals(listOf(saved), link.joins)
+        viewModel.onAppStarted()
+        assertTrue(link.joins.isEmpty())
         assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
         assertNull(viewModel.uiState.value.wifiPrompt)
+        assertNull(viewModel.uiState.value.joiningSsid)
         assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
     }
 
     @Test
-    fun `a saved table that doesn't answer offers a retry or setup, never a password prompt`() = runTest {
-        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
-        link.results.addLast(WifiJoinResult.Unavailable)
-        val viewModel = viewModel()
-
-        viewModel.onAppStarted()
-
-        assertEquals(Discovery.NotFound, viewModel.uiState.value.discovery)
-        assertNull(viewModel.uiState.value.wifiPrompt)
-        assertTrue(repository.connects.isEmpty())
-
-        viewModel.onSearchAgain()
-        assertEquals(2, link.joins.size)
-        assertEquals(1, repository.connects.size)
-        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
-    }
-
-    @Test
-    fun `setting up a new table joins with the printed password`() = runTest {
-        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
-        link.results.addLast(WifiJoinResult.Unavailable)
-        val viewModel = viewModel()
-        viewModel.onAppStarted()
-
-        viewModel.onSetUpNewTable()
-
-        assertEquals(defaultCredentials, link.joins.last())
-        assertEquals(defaultCredentials, store.saved["TurnHub-Atlas"])
-        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
-        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
-    }
-
-    @Test
-    fun `launch with a saved table shows the game screen until the table arrives`() = runTest {
-        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
-        val viewModel = viewModel()
-
-        viewModel.onAppStarted()
-        assertTrue(viewModel.uiState.value.awaitingTable)
-
-        repository.tableSummary.value = table("lobby.response.json", 2)
-        assertFalse(viewModel.uiState.value.awaitingTable)
-    }
-
-    @Test
-    fun `a slow table falls back to the connect screen after the launch wait`() = runTest {
-        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
+    fun `slow background discovery never replaces local play with a connecting screen`() = runTest {
+        store.save(defaultCredentials)
         val gate = CompletableDeferred<Unit>()
-        link.gate = gate
+        repository.connectGate = gate
         val viewModel = viewModel()
-
         viewModel.onAppStarted()
-        advanceTimeBy(HomeViewModel.LAUNCH_WAIT_MS - 1)
-        assertTrue(viewModel.uiState.value.awaitingTable)
-        advanceTimeBy(2)
-        assertFalse(viewModel.uiState.value.awaitingTable)
+        advanceTimeBy(60_000)
+        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
+        assertTrue(link.joins.isEmpty())
+        assertNull(viewModel.uiState.value.wifiPrompt)
         gate.complete(Unit)
     }
 
     @Test
-    fun `a saved table that isn't found shows the connect screen at once`() = runTest {
-        store.save(WifiCredentials("TurnHub-Atlas", "owner-chosen-pass"))
-        link.results.addLast(WifiJoinResult.Unavailable)
+    fun `explicit retry still rejoins a saved table`() = runTest {
+        store.save(defaultCredentials)
         val viewModel = viewModel()
-
         viewModel.onAppStarted()
+        viewModel.onSearchAgain()
+        assertEquals(listOf(defaultCredentials), link.joins)
+        assertEquals(2, repository.connects.size)
+    }
 
-        assertEquals(Discovery.NotFound, viewModel.uiState.value.discovery)
-        assertFalse(viewModel.uiState.value.awaitingTable)
+    @Test
+    fun `explicit new table setup joins with the printed password`() = runTest {
+        val viewModel = viewModel()
+        viewModel.onSetUpNewTable()
+        assertEquals(listOf(defaultCredentials), link.joins)
+        assertEquals(defaultCredentials, store.saved["TurnHub-Atlas"])
+        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
     }
 
     @Test
@@ -498,27 +460,21 @@ class HomeViewModelTest {
     // --- playing from this phone ------------------------------------------------
 
     @Test
-    fun `device play cancels saved-table discovery before a late join can connect`() = runTest {
+    fun `device play cancels a background probe before it can complete`() = runTest {
         store.save(defaultCredentials)
         val gate = CompletableDeferred<Unit>()
-        link.gate = gate
+        repository.connectGate = gate
         val viewModel = viewModel()
         viewModel.onAppStarted()
-        assertEquals(Discovery.Searching, viewModel.uiState.value.discovery)
-
         viewModel.onDisconnectClicked()
         gate.complete(Unit)
-
-        assertTrue(repository.connects.isEmpty())
-        assertEquals(Discovery.Idle, viewModel.uiState.value.discovery)
-        assertNull(viewModel.uiState.value.joiningSsid)
+        assertEquals(0, repository.completedConnects)
+        assertTrue(link.joins.isEmpty())
         assertNull(viewModel.uiState.value.wifiPrompt)
         assertTrue(link.releases > 0)
-
-        // Explicitly returning to Atlas still works after the cancelled search.
-        link.gate = null
+        repository.connectGate = null
         viewModel.onConnectClicked()
-        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+        assertEquals(1, repository.completedConnects)
     }
 
     @Test
@@ -632,6 +588,48 @@ class HomeViewModelTest {
 
     private fun table(name: String, revision: Long, edit: org.json.JSONObject.() -> Unit = {}) =
         TableSummaryMapper.map(Fixtures.info(), Fixtures.state(name) { put("revision", revision); edit() })
+
+    @Test
+    fun `signing in automatically delivers fully linked games once without changing local history`() = runTest {
+        val store = object : com.turnhub.android.standalone.StandaloneStore {
+            var game: String? = null; var library: String? = null
+            override fun loadGame() = game
+            override fun loadLibrary() = library
+            override fun loadRecords(): String? = null
+            override fun saveSnapshot(game: String, library: String): Boolean { this.game = game; this.library = library; return true }
+        }
+        val local = com.turnhub.android.standalone.StandaloneTable(store)
+        local.addPlayer("A"); local.addPlayer("B"); local.start()
+        local.control(com.turnhub.android.data.TabletSeat(8, 1), "win")
+        val players = local.state.value.library.players
+        val summary = table("running.response.json", 2).copy(firmwareVersion = "0.7.15-dev")
+        local.linkAccount(players[0].localId, summary.atlasId, "AABBCCDD")
+        local.linkAccount(players[1].localId, summary.atlasId, "11223344")
+        sessionTransport.signedProfileId = "AABBCCDD"
+        sessionTransport.profileChoices = listOf(ProfileSummary("AABBCCDD", "A", true), ProfileSummary("11223344", "B", true))
+        val viewModel = connectedViewModel(summary)
+        viewModel.standalone = local
+        playerSession.signIn(AtlasEndpoint.DEFAULT, sessionTransport.profileChoices[0], "1234")
+        val record = local.state.value.library.history.single()
+        assertEquals(com.turnhub.android.standalone.DeliveryStatus.IMPORTED, local.state.value.library.delivery(record.recordId).status)
+        assertEquals(1, sessionTransport.actualImports.size)
+        viewModel.onLoadLocalImportProfiles()
+        assertEquals(1, sessionTransport.actualImports.size)
+        assertEquals(listOf(record), local.state.value.library.history)
+    }
+
+    @Test
+    fun `life changes refresh session authority without repeatedly fetching unchanged game settings`() = runTest {
+        sessionTransport.participating = true
+        val initial = seatedLobby(2)
+        val viewModel = connectedViewModel(initial)
+        viewModel.signIn()
+        val reads = sessionTransport.gameSettingsReads
+        repository.tableSummary.value = initial.copy(revision = 3, players = initial.players.map { it.copy(life = 39) })
+        assertEquals(reads, sessionTransport.gameSettingsReads)
+        repository.tableSummary.value = initial.copy(revision = 4, settings = initial.settings.copy(startingLife = 30))
+        assertEquals(reads + 1, sessionTransport.gameSettingsReads)
+    }
 
     /** Player 1 (handle 8, this phone) seated in the lobby. */
     private fun seatedLobby(revision: Long) = table("running.response.json", revision) {
