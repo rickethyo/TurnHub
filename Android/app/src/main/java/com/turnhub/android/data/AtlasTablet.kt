@@ -189,9 +189,16 @@ class AtlasTablet(
     }
 
     /** `/api/game/settings` fields, sent for any seated player; null keeps Atlas's value. */
-    suspend fun saveSettings(seat: TabletSeat, gameProfile: String?, startingLife: Int?, twoHeadedGiant: Boolean?) {
+    suspend fun saveSettings(
+        seat: TabletSeat,
+        gameProfile: String?,
+        startingLife: Int?,
+        twoHeadedGiant: Boolean?,
+        turnTimerMs: Long? = null,
+    ) {
         val fields = buildList {
             addAll(seat.fields)
+            turnTimerMs?.let { add("turnTimerMs" to "$it") }
             gameProfile?.let { add("gameProfile" to it) }
             startingLife?.let { add("startingLife" to "$it") }
             twoHeadedGiant?.let { add("twoHeadedGiant" to if (it) "1" else "0") }

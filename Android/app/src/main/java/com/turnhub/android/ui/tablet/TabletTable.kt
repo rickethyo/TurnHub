@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -595,7 +597,14 @@ private fun PlayerPanel(
             ),
     ) {
         val nameMax = maxWidth * .6f
-        val lifeSize = (minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f).coerceIn(28f, 160f)
+        // Short panels (five or six on a phone) put Menu and Hold to pass beside each other in a
+        // slim bottom bar, and the number is sized to the room between it and the name.
+        val compact = maxHeight < 260.dp
+        val between = (maxHeight.value - if (compact) 104f else 120f).coerceAtLeast(24f)
+        val lifeSize = minOf(
+            minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f,
+            between * .8f,
+        ).coerceIn(24f, 160f)
         Column(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
             HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
             HoldHalf("−", "$name: subtract $small life", !out, { onBump(-small) }, { onBump(-big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
@@ -621,26 +630,29 @@ private fun PlayerPanel(
         }
 
         Column(
-            Modifier.align(Alignment.Center).alpha(if (out) .45f else 1f)
+            Modifier.align(Alignment.Center).padding(top = 44.dp, bottom = if (compact) 56.dp else 64.dp)
+                .alpha(if (out) .45f else 1f)
                 .clearAndSetSemantics {
                     contentDescription = "$name, life $life"
                     liveRegion = LiveRegionMode.Polite
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // The running change sits above the number as a pill, then fades once sent.
+            // The running change floats as a pill over the number's top edge, so it never moves it.
             val pill = if (pendingDelta == 0) null else (if (pendingDelta > 0) "+" else "−") + kotlin.math.abs(pendingDelta)
-            Box(Modifier.heightIn(min = 30.dp), contentAlignment = Alignment.Center) {
+            Box(contentAlignment = Alignment.Center) {
+                LifeNumber(life, lifeSize, reduceMotion)
                 if (pill != null) {
                     val tone = if (pendingDelta > 0) p.good else p.bad
                     Text(pill, color = tone, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold,
                         modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 18.dp, y = (-10).dp)
                             .background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp))
                             .border(1.dp, tone.copy(alpha = .6f), RoundedCornerShape(99.dp))
-                            .padding(horizontal = 12.dp, vertical = 2.dp))
+                            .padding(horizontal = 10.dp, vertical = 1.dp))
                 }
             }
-            LifeNumber(life, lifeSize, reduceMotion)
             CommanderSummary(unit, summary, offlineCommander)
             if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
                 unit.members.forEach { member ->
@@ -656,11 +668,11 @@ private fun PlayerPanel(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            MenuButton(name, onOpenMenu)
+            MenuButton(name, compact, onOpenMenu)
             val actor = unit.members.firstOrNull { it.playerNumber == summary.activePlayerNumber }
             if (actor != null && !out && summary.state == TableState.RUNNING) {
                 val passing = summary.pending.passPlayer != null && unit.members.any { it.playerNumber == summary.pending.passPlayer }
-                HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics, Modifier.weight(1f))
+                HoldToPass(passing, { onControl(actor.seat(), "pass") }, haptics, Modifier.weight(1f), compact)
             } else {
                 Spacer(Modifier.weight(1f))
             }
@@ -680,7 +692,7 @@ private fun LifeNumber(life: Int, size: Float, reduceMotion: Boolean) {
 
 /** Opens the player's menu: a clear, thumb-sized pill rather than a bare word. */
 @Composable
-private fun MenuButton(name: String, onOpen: () -> Unit) {
+private fun MenuButton(name: String, compact: Boolean, onOpen: () -> Unit) {
     val p = palette
     val shape = RoundedCornerShape(99.dp)
     Row(
@@ -690,12 +702,13 @@ private fun MenuButton(name: String, onOpen: () -> Unit) {
             .background(p.surface.copy(alpha = .85f))
             .border(1.dp, p.lineStrong, shape)
             .clickable(onClickLabel = "Open $name's menu", role = Role.Button, onClick = onOpen)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = if (compact) 14.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("☰", color = p.text, fontSize = 18.sp)
-        Text("Menu", color = p.text, fontWeight = FontWeight.SemiBold)
+        // A short panel keeps just the icon; its spoken label still says Menu.
+        if (!compact) Text("Menu", color = p.text, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -766,7 +779,7 @@ private fun HoldHalf(
 
 /** Hold to pass, so a brushed panel never ends a turn; while Atlas holds the pass, a tap keeps the turn. */
 @Composable
-private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier) {
+private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHaptics, modifier: Modifier, compact: Boolean = false) {
     val p = palette
     val pass by rememberUpdatedState(onPass)
     val scope = rememberCoroutineScope()
@@ -802,10 +815,13 @@ private fun HoldToPass(passing: Boolean, onPass: () -> Unit, haptics: TurnHubHap
                     holding = false
                 }
             }
-            .padding(vertical = 12.dp),
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 8.dp, vertical = if (compact) 6.dp else 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (holding || passing) p.onActive else p.text, fontWeight = FontWeight.SemiBold)
+        Text(label, color = if (holding || passing) p.onActive else p.text, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = if (compact) MaterialTheme.typography.labelLarge else LocalTextStyle.current)
     }
 }
 

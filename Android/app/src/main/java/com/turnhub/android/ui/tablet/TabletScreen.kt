@@ -336,7 +336,7 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("New game", color = p.text, style = MaterialTheme.typography.headlineSmall,
+                Text("Full-screen table", color = p.text, style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.weight(1f).semantics { heading() })
                 TextButton(onClick = onClose) { Text("Back", color = p.muted) }
                 TextButton(onClick = { confirmLeave = true }) { Text("Leave tablet mode", color = p.bad) }
@@ -348,11 +348,26 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
                 if (summary.players.isEmpty()) {
                     Text("Add everyone who is playing. Sigils can join too.", color = p.muted)
                 }
-                summary.players.forEach { player -> SeatedRow(player, summary.players.size, tablet.busy, actions) }
                 if (summary.players.size > 1) {
-                    Text("Arrows set the turn order; panels sit clockwise in this order.", color = p.faint,
-                        style = MaterialTheme.typography.bodySmall)
+                    // How the game will look, as without Atlas. Atlas moves a player one place at a time,
+                    // so a swap is the lower player moved down to the higher seat and the other moved back up.
+                    val players = summary.players.sortedBy { it.playerNumber }
+                    SeatMap(players.map { it.label }, { a, b ->
+                        if (!tablet.busy) {
+                            val lo = minOf(a, b)
+                            val hi = maxOf(a, b)
+                            val low = players[lo].seat()
+                            val high = players[hi].seat()
+                            actions.run {
+                                var ok = true
+                                repeat(hi - lo) { if (ok) ok = control(low, "move-later") }
+                                repeat(hi - lo - 1) { if (ok) ok = control(high, "move-earlier") }
+                            }
+                        }
+                    })
+                    Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
+                summary.players.forEach { player -> SeatedRow(player, tablet.busy, actions) }
                 var name by rememberSaveable { mutableStateOf("") }
                 val add = {
                     val trimmed = name.trim()
@@ -392,18 +407,15 @@ private fun Lobby(summary: TableSummary, tablet: TabletState, actions: TabletAct
 
             GameCard(summary, tablet, actions)
 
-            AccentButton(
-                if (summary.players.size < 2) "Seat two players to start" else "Start the game",
-                { summary.anySeat()?.let { seat -> actions.run { control(seat, "start") } } },
-                Modifier.fillMaxWidth(),
-                enabled = summary.players.size >= 2 && !tablet.busy,
-            )
+            StartTableButton(summary.players.size, enabled = !tablet.busy) {
+                summary.anySeat()?.let { seat -> actions.run { control(seat, "start") } }
+            }
         }
     }
 }
 
 @Composable
-private fun SeatedRow(player: TablePlayer, count: Int, busy: Boolean, actions: TabletActions) {
+private fun SeatedRow(player: TablePlayer, busy: Boolean, actions: TabletActions) {
     val p = palette
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(
@@ -421,26 +433,12 @@ private fun SeatedRow(player: TablePlayer, count: Int, busy: Boolean, actions: T
                 modifier = Modifier.border(1.dp, p.line, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
             )
         }
-        MoveButton("↑", "Move ${player.label} earlier in turn order", !busy && player.playerNumber > 1) {
-            actions.run { control(player.seat(), "move-earlier") }
-        }
-        MoveButton("↓", "Move ${player.label} later in turn order", !busy && player.playerNumber < count) {
-            actions.run { control(player.seat(), "move-later") }
-        }
         player.profileId?.let { id ->
             IconButton(onClick = { actions.run { unseat(id) } }) {
                 Text("×", color = p.muted, style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.semantics { contentDescription = "Remove ${player.label}" })
             }
         }
-    }
-}
-
-@Composable
-internal fun MoveButton(glyph: String, label: String, enabled: Boolean, onClick: () -> Unit) {
-    val p = palette
-    IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = label }) {
-        Text(glyph, color = if (enabled) p.text else p.faint, style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -464,12 +462,6 @@ private fun GameCard(summary: TableSummary, tablet: TabletState, actions: Tablet
                 )
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Automatic elimination at zero life", color = p.text, modifier = Modifier.weight(1f))
-            Switch(checked = settings.autoEliminateAtZeroLife,
-                onCheckedChange = { on -> seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } } },
-                enabled = seat != null && !tablet.busy)
-        }
         var life by rememberSaveable(settings.startingLife) { mutableStateOf("${settings.startingLife}") }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
@@ -485,6 +477,12 @@ private fun GameCard(summary: TableSummary, tablet: TabletState, actions: Tablet
                 { seat?.let { s -> life.toIntOrNull()?.let { actions.run { saveSettings(s, null, it, null) } } } },
                 enabled = seat != null && life.toIntOrNull() != null && life != "${settings.startingLife}" && !tablet.busy,
             )
+        }
+        TurnTimerChips(settings.turnTimerMs, enabled = seat != null && !tablet.busy) { ms ->
+            seat?.let { actions.run { saveSettings(it, null, null, null, turnTimerMs = ms) } }
+        }
+        SetupSwitch("Automatic elimination at zero life", null, settings.autoEliminateAtZeroLife, seat != null && !tablet.busy) { on ->
+            seat?.let { actions.run { setAutoEliminateAtZeroLife(it, on) } }
         }
         if (settings.profile == GameProfile.MTG || settings.profile == GameProfile.MTG_COMMANDER) {
             Row(

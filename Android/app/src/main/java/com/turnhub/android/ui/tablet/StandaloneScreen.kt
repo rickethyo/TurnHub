@@ -147,8 +147,7 @@ private fun Lobby(
                 if (game.players.size > 1) {
                     // How the game will look: each panel where it lands, numbered in turn order.
                     SeatMap(game.players.map { it.name }, table::swapPlayers)
-                    Text("This is how the table will look. Drag a player onto another seat to swap them, or tap two seats. " +
-                        "Turns go clockwise in number order.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
                 game.players.forEachIndexed { index, player -> PlayerRow(index, player, game.players.size, table) }
                 var name by rememberSaveable { mutableStateOf("") }
@@ -217,30 +216,12 @@ private fun Lobby(
                         enabled = (life.toIntOrNull() ?: 0) > 0 && life != "${game.startingLife}",
                     )
                 }
-                Text("Turn timer", color = p.muted, style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StandaloneGame.TURN_TIMER_PRESETS_MS.forEach { ms ->
-                        FilterChip(
-                            selected = game.turnTimerMs == ms,
-                            onClick = { table.setTurnTimer(ms) },
-                            label = { Text(TurnTimerStatus.settingLabel(ms)) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
-                        )
-                    }
-                }
-                Text("Running out never passes the turn: the clock counts the overtime until the player passes.",
-                    color = p.faint, style = MaterialTheme.typography.bodySmall)
+                TurnTimerChips(game.turnTimerMs, enabled = true, onSelect = table::setTurnTimer)
+                SetupSwitch("Automatic elimination at zero life", null, game.autoEliminateAtZeroLife, enabled = true,
+                    onChange = table::setZeroLifeElimination)
             }
 
-            AccentButton(
-                if (game.players.size < 2) "Add two players to start" else "Start full-screen game",
-                table::start,
-                Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                enabled = game.players.size >= 2,
-            )
-
-            ToneButton("Automatic elimination at zero life: " + if (game.autoEliminateAtZeroLife) "On" else "Off",
-                { table.setZeroLifeElimination(!game.autoEliminateAtZeroLife) }, Modifier.fillMaxWidth())
+            StartTableButton(game.players.size, enabled = true, onStart = table::start)
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
             // Quiet on purpose: a phone-only player never needs Atlas, so it is one small switch.

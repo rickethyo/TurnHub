@@ -281,3 +281,21 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   quiet launch probe still never prompts.
 - Validation: `testDebugUnitTest` passes locally with two new `HomeViewModelTest`
   cases. Needs an owner device pass.
+
+## 2026-10-13 — Claude: full-screen table parity with and without Atlas; short panels
+
+- Owner asked for parity between the full-screen table with and without Atlas.
+  Both run the same `TabletTable`; the setup screens differed. Both lobbies are
+  now "Full-screen table" and share `TableSetup.kt`: the seat map, turn timer
+  presets, the zero-life elimination switch and the big start button. With Atlas,
+  the turn timer goes through `/api/tablet/settings` (`turnTimerMs`, already
+  parsed by `parseGameSettings`). A seat-map swap is sent as Atlas's one-place
+  `move-later`/`move-earlier` steps. The list's turn-order arrows are gone in both.
+  Atlas-only extras stay: Sigil tags, accounts, Two-Headed Giant.
+- Owner screenshot: with five players on a phone, Hold to pass and Menu covered
+  the life total. Short panels (under 260 dp) now size the number to the room
+  between the name and a slim bottom bar, the Menu pill keeps only its icon, and
+  Hold to pass stays on one line. The change pill floats over the number instead
+  of taking a row.
+- Validation: `testDebugUnitTest` passes locally. Needs an owner device pass
+  (with Atlas, the seat map's swap is untested on hardware).
