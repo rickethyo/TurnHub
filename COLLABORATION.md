@@ -269,3 +269,15 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   gone; the list keeps adding and removing. `StandaloneGame.swapPlayers`
   (lobby only) backs it, with a unit test.
 - Validation: `testDebugUnitTest` passes locally. Needs an owner device pass.
+
+## 2026-10-13 — Claude: ask to turn on Wi-Fi before joining Atlas
+
+- Owner bug: with the phone's Wi-Fi off, connecting to Atlas just failed.
+- Connect, Set up a new table and Try again now check `AtlasWifiLink.wifiEnabled()`
+  first. When Wi-Fi is off the app asks "Turn on Wi-Fi to connect?". Turn on Wi-Fi
+  opens Android's Wi-Fi panel (apps can't switch it on themselves from Android 10)
+  and the same connection carries on once Wi-Fi is on, waiting up to 60 s;
+  otherwise it shows `AtlasFailure.WifiOff`. Not now closes the question. The
+  quiet launch probe still never prompts.
+- Validation: `testDebugUnitTest` passes locally with two new `HomeViewModelTest`
+  cases. Needs an owner device pass.

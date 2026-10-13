@@ -85,6 +85,11 @@ private class FakeWifiLink : AtlasWifiLink {
     override fun release() {
         releases++
     }
+
+    var wifiOn = true
+    var wifiOnGate: CompletableDeferred<Boolean>? = null
+    override fun wifiEnabled() = wifiOn
+    override suspend fun awaitWifiEnabled(timeoutMs: Long): Boolean = (wifiOnGate?.await() ?: wifiOn).also { wifiOn = it }
 }
 
 private class MemoryCredentialStore : WifiCredentialStore {
@@ -211,6 +216,43 @@ class HomeViewModelTest {
         val viewModel = HomeViewModel({ repository }, link, store, playerSession)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
+    }
+
+    // --- Wi-Fi switched off ---------------------------------------------------------
+
+    @Test
+    fun `connecting with wifi off asks to turn it on, then joins once it is on`() = runTest {
+        link.wifiOn = false
+        val viewModel = viewModel()
+        viewModel.onConnectClicked()
+        assertTrue(viewModel.uiState.value.wifiOff)
+        assertTrue(link.joins.isEmpty())
+        assertTrue(repository.connects.isEmpty())
+
+        val on = CompletableDeferred<Boolean>()
+        link.wifiOnGate = on
+        viewModel.onTurnOnWifi()
+        assertFalse(viewModel.uiState.value.wifiOff)
+        assertTrue(link.joins.isEmpty())
+        on.complete(true)
+        assertEquals(listOf(defaultCredentials), link.joins)
+        assertEquals(listOf(AtlasEndpoint.DEFAULT), repository.connects)
+    }
+
+    @Test
+    fun `not now leaves wifi off without joining, and wifi that stays off says so`() = runTest {
+        link.wifiOn = false
+        val viewModel = viewModel()
+        viewModel.onSetUpNewTable()
+        assertTrue(viewModel.uiState.value.wifiOff)
+        viewModel.onWifiOffDismissed()
+        assertFalse(viewModel.uiState.value.wifiOff)
+        assertTrue(link.joins.isEmpty())
+
+        viewModel.onSetUpNewTable()
+        viewModel.onTurnOnWifi()
+        assertTrue(link.joins.isEmpty())
+        assertTrue(viewModel.uiState.value.errorMessage!!.contains("Wi-Fi is off"))
     }
 
     // --- finding the table on launch ---------------------------------------------

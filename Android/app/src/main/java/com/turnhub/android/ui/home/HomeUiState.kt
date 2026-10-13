@@ -32,6 +32,8 @@ data class HomeUiState(
     val joiningSsid: String? = null,
     /** Asking the user for Atlas Wi-Fi details, if non-null. */
     val wifiPrompt: WifiPrompt? = null,
+    /** The phone's Wi-Fi is off: ask to turn it on before joining Atlas. */
+    val wifiOff: Boolean = false,
     val player: PlayerPanel? = null,
     val signIn: SignInPrompt? = null,
     /** The next match's setup, while this session may read it. */

@@ -218,6 +218,18 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    /** Apps can't switch Wi-Fi on themselves (Android 10+): show Android's Wi-Fi panel. */
+    private fun turnOnWifi() {
+        homeViewModel.onTurnOnWifi()
+        val panel = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) Settings.Panel.ACTION_WIFI
+            else Settings.ACTION_WIFI_SETTINGS
+        try {
+            startActivity(Intent(panel))
+        } catch (_: android.content.ActivityNotFoundException) {
+            startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+        }
+    }
+
     /** After a permanent denial Android shows no dialog; the user must allow it here. */
     private fun openAppSettings() {
         startActivity(
@@ -421,6 +433,8 @@ class MainActivity : ComponentActivity() {
                         onWifiPasswordSubmit = homeViewModel::onWifiPasswordSubmitted,
                         onUseCurrentWifi = homeViewModel::onUseCurrentWifi,
                         onWifiPromptDismiss = homeViewModel::onWifiPromptDismissed,
+                        onTurnOnWifi = ::turnOnWifi,
+                        onWifiOffDismiss = homeViewModel::onWifiOffDismissed,
                         discoveryActions = com.turnhub.android.ui.home.DiscoveryActions(
                             onSearchAgain = { requestAtlas(AtlasAction.SEARCH) },
                             onSetUpNewTable = { requestAtlas(AtlasAction.SETUP) },

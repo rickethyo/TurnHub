@@ -116,6 +116,9 @@ fun HomeScreen(
     onWifiPasswordSubmit: (ssid: String, passphrase: String) -> Unit,
     onUseCurrentWifi: () -> Unit,
     onWifiPromptDismiss: () -> Unit,
+    /** Wi-Fi is off: open Android's Wi-Fi switch, then the connection carries on. */
+    onTurnOnWifi: () -> Unit = {},
+    onWifiOffDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
     discoveryActions: DiscoveryActions = DiscoveryActions(),
     gameActions: GameActions = GameActions(),
@@ -147,6 +150,15 @@ fun HomeScreen(
     PresenceCodeDialog(admin, adminActions)
     uiState.wifiPrompt?.let { prompt ->
         WifiPasswordDialog(prompt = prompt, onSubmit = onWifiPasswordSubmit, onUseCurrentWifi = onUseCurrentWifi, onDismiss = onWifiPromptDismiss)
+    }
+    if (uiState.wifiOff) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onWifiOffDismiss,
+            title = { Text("Turn on Wi-Fi to connect?") },
+            text = { Text("Wi-Fi is off on this phone. TurnHub reaches your Atlas table over its Wi-Fi.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = onTurnOnWifi) { Text("Turn on Wi-Fi") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = onWifiOffDismiss) { Text("Not now") } },
+        )
     }
     uiState.signIn?.let { prompt -> SignInDialog(prompt = prompt, onSubmit = onSignInSubmit, onCreate = onCreateAccount, onDismiss = onSignInDismiss) }
     uiState.accessibility?.let { prompt ->

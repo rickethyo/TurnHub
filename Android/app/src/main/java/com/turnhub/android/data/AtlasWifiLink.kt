@@ -51,6 +51,12 @@ interface AtlasWifiLink {
 
     /** Gives the network back; Android returns the phone to its usual Wi-Fi. */
     fun release()
+
+    /** False when the phone's Wi-Fi is switched off, so no join can work. */
+    fun wifiEnabled(): Boolean = true
+
+    /** Waits for Wi-Fi to be switched on; false if it isn't within [timeoutMs]. */
+    suspend fun awaitWifiEnabled(timeoutMs: Long): Boolean = wifiEnabled()
 }
 
 /** Remembers Atlas Wi-Fi passwords that have successfully joined. */

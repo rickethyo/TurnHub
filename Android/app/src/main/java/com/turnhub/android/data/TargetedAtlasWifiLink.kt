@@ -5,12 +5,15 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
 import android.os.Build
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.coroutines.resume
@@ -37,6 +40,8 @@ class TargetedAtlasWifiLink(
 
     private val connectivity: ConnectivityManager =
         context.applicationContext.getSystemService(ConnectivityManager::class.java)
+
+    private val wifi: WifiManager? = context.applicationContext.getSystemService(WifiManager::class.java)
 
     private val lock = Any()
     private var callback: ConnectivityManager.NetworkCallback? = null
@@ -107,6 +112,14 @@ class TargetedAtlasWifiLink(
             }
         }
     }
+
+    override fun wifiEnabled(): Boolean = wifi?.isWifiEnabled ?: true
+
+    override suspend fun awaitWifiEnabled(timeoutMs: Long): Boolean =
+        withTimeoutOrNull(timeoutMs) {
+            while (!wifiEnabled()) delay(500)
+            true
+        } ?: false
 
     override fun release() {
         val ending = synchronized(lock) { callback.also { callback = null } }

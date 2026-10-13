@@ -15,6 +15,9 @@ sealed class AtlasFailure(val userMessage: String, val technicalDetail: String? 
             "Allow it when asked, or in Settings › Apps › TurnHub › Permissions › Nearby devices.",
     )
 
+    /** The phone's Wi-Fi stayed off after the user was asked to turn it on. */
+    data object WifiOff : AtlasFailure("Wi-Fi is off. Turn on Wi-Fi to connect to Atlas.")
+
     class Timeout(technicalDetail: String? = null) : AtlasFailure(
         "Atlas did not respond in time. Check that this phone is on the TurnHub-Atlas Wi-Fi.",
         technicalDetail,
