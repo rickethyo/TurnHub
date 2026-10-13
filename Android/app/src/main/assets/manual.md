@@ -1,15 +1,17 @@
-<!-- Generated from TurnHub Manual V0.18.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.19.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.18
+## Prototype Edition v0.19
 
-**TurnHub** is a tabletop turn management system designed to keep the game moving without putting a phone in the middle of the table.
+TurnHub supports games entirely on a phone or tablet, with saved accounts, personalization and detailed history. An Atlas adds a shared authority for games with multiple phones and physical player controllers.
 
-The system consists of a central Atlas and one or more player Sigils. Atlas maintains the authoritative game state while Sigils give each player a simple physical interface for turns, life totals, actions, and other game events.
+When connected, Atlas validates and owns the table game; the app and player controllers display its state and request actions. A game played only on one phone is independent and can later be imported to Atlas through verified account links.
 
 **Prototype Notice**
 This manual describes the current TurnHub prototype. Controls, menus, terminology, and hardware may change before the final production version.
+
+This manual covers the app and existing prototype hardware. New hardware development continues, so controls and hardware may change. Features that require Atlas 0.7.15 or later need a compatible newer Atlas; older hardware still supports local play and verified linking to existing accounts where its firmware allows it.
 
 # 1. Meet TurnHub
 
@@ -139,7 +141,7 @@ The chosen code is framed and marked “shown”. If an administrator has set th
 
 ## Using the Android App
 
-The TurnHub Android app is on Google Play. While TurnHub is a prototype it is offered through Google Play’s testing track, so the owner adds you as a tester first. Choose Play on this device for a local game (section 18), or Connect to Atlas to join a table. The app joins the TurnHub-Atlas Wi-Fi by itself. It tries the saved password, then TurnHub-Setup, and asks only if neither works. On newer Android versions, allow Nearby devices when you choose an Atlas action; local play needs no nearby-device permission.
+The TurnHub Android app is on Google Play through the prototype testing track. It opens directly to your local full-screen table, including a saved game. No Atlas, account or network permission is needed. Atlas discovery runs quietly on the current network if a saved table and permission are available. It never opens Wi-Fi or permission dialogs or replaces local play. Choose Atlas in the local lobby when you want connected play; an explicit connection can join TurnHub-Atlas Wi-Fi using the saved password, TurnHub-Setup, or a password you enter.
 
 Sign in with your PIN or password, or choose **New here? Create an account** on the sign-in sheet to make one: a name, and either a PIN (quick to enter on a Sigil) or a password. An account made without a PIN, for example by a tablet (section 17), asks you to choose one the first time you sign in from a phone; enter it twice. From then on it is checked as usual.
 
@@ -493,17 +495,21 @@ If Atlas stops answering during a game, the panels keep taking life and Commande
 
 # 18. Playing Without Atlas
 
-The Android app can keep a game on this phone or tablet with no Atlas, account or network. Tap **Play on this device** on the first screen, or **Resume game** if a local match is running or paused. Local play is available while the app is looking for Atlas; choosing it stops that connection attempt. The app remembers device play for its next launch. Back returns to the connection screen without ending the local game; an explicit Atlas connection, search or setup chooses Atlas for future launches.
+The Android app opens directly to the full-screen table on every fresh launch. Add players and start, or continue the saved local game. Atlas discovery is a background task and does not interrupt this screen. The lobby has an Atlas button for connected play and a switch to hide Atlas entirely. A local game remains separate from every Atlas game.
 
-- Add everyone who is playing. Type a name to create a local player, or pick a saved player from this device. Short IDs distinguish people with equal names; names never select Atlas accounts automatically.
+- Type a name in the lobby to create a reusable local player, or select a saved player. Accounts and history also lets you create accounts without starting a game. Every account has a stable local identity and an eight-character hexadecimal account ID. Equal names remain separate. A PIN or password is optional for local account settings; use a 4–8 digit PIN or an 8–64 byte password. Shared-table play remains available without signing in. PIN-protected account settings need unlocking after the app restarts.
 
 - Use the arrows to set turn order, choose the game and starting life, and tap **Start the game**.
 
 - The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede and the winner. There is no turn timer, no Two-Headed Giant, and no phones or Sigils in this mode.
 
-Atlas import is optional (firmware 0.7.2 or later). Connect and sign in, open Device players and history, then Load Atlas players for import. For a match, choose Link this match for Atlas import and explicitly pick a different Atlas profile for every player. Nothing is selected by name. Check the destination Atlas ID and all player choices, then Import mapped match. Local players and match results stay on this device. History shows pending, imported or needs-attention status and the response reason. Retry a pending import with the same mapping after reconnecting; review a rejected match before explicitly linking it again. The app never automatically resends an imported match. Atlas remembers only its last 64 import IDs, and storage failures or power loss can leave partial credit; acknowledged partial credit is shown and must be reviewed rather than blindly replayed.
+To import an account, connect to Atlas, open Accounts and history, load Atlas accounts and open the local account. Create this account on Atlas preserves its account ID and copies available personalization; it needs Atlas 0.7.15 or later and a PIN or password. If the local account already has a PIN, enter that same secret. To merge with an existing Atlas account, select it and verify its PIN or password. This saves a link for that Atlas and retains both histories; existing Atlas personalization stays unchanged. A matching name or an unverified account-ID collision never merges accounts.
 
-This device saves the current game and reusable local players when you close the app. Device players and history on Home, or Players and history in the local lobby, shows finished matches and each local player’s played, won and draw totals. History has no automatic pruning and stays after import or rejection. Clearing app data or uninstalling removes it; export/backup is not available yet. Older queued records are kept without guessing their local identities; earlier discarded records cannot be recovered.
+Matching local games import automatically when signed in to the linked Atlas and every player has a verified link to an available, distinct Atlas account. An authenticated account with an exact matching ID can establish its own link. Unlinked games can still be mapped manually. Pending retries preserve the same match ID and player mapping; imported matches are never resent automatically. Local history remains after import, rejection or partial credit. Atlas keeps only its last 64 import IDs; interrupted or partially credited imports still need review.
+
+Open a local account to change its name, color, preset avatar, cropped player image or reduced-motion setting. Appearance themes are available offline too. Images are cropped and compressed on the phone to at most 512 by 512 pixels and 48 KiB. When copied to Atlas, its storage limits and image-approval policy still apply.
+
+Detailed statistics are always retained locally: games played and won, draws, starts, eliminations, concessions, completed turns, total and average game and turn times, fastest and longest turns, and last-game details. Finished records also retain life, counters and Commander damage. Share statistics exports a text report. Current game, identities, personalization and history survive closing the app; history has no automatic pruning. Clearing app data or uninstalling removes them. Match-library backup is not available yet.
 
 A game without Atlas is separate from any game Atlas is running: nothing in it changes a game on Atlas.
 
@@ -725,7 +731,7 @@ Atlas has stopped answering. Check that Atlas is on and the phone is in range; t
 
 ## A Game Played Without Atlas Is Missing From Statistics
 
-Connect the app that kept the game to Atlas (firmware 0.7.2 or later), sign in and explicitly map each player through Device players and history (section 18). Names never select an Atlas account. Pending work can be retried with the same mapping; rejected records stay available with their reason. Import never deletes the local result.
+Connect and sign in, then open Accounts and history. Games whose players have verified links to available accounts on that Atlas import automatically. For other matches, map every player manually. Names never select accounts. Rejected or partially credited results remain visible for review, and no import deletes the local result.
 
 ## Tablet Mode Asks for a Code Every Time
 

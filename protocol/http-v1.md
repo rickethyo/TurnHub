@@ -372,9 +372,11 @@ One shared screen at the table acting for every seat. Engineering record:
 
 With no Atlas at the table, the Android app can run a standalone game itself
 (`Android/README.md`, "The one exception"). Each finished game is kept on the
-device separately from delivery metadata. Import is explicit: connect, sign in,
-map every player to a profile on that Atlas, then request delivery. Android
-retains acknowledged/rejected history. Atlas 0.7.2 requires exact identities:
+device separately from delivery metadata. Sign in and map every player to an
+exact profile on that Atlas. Android can deliver automatically when every player
+has a previously verified Atlas-scoped account link; otherwise mapping is manual.
+Names and unverified public-ID matches never authorize linking. Android retains
+acknowledged/rejected history. Atlas 0.7.2 requires exact identities:
 
 `POST /api/standalone/import` (signed-in session, `X-TurnHub-Token`; 401
 otherwise), form fields:
@@ -487,3 +489,23 @@ zero counters/no initiative and disabled new automatic rules). Clocks and
 turns do not change when statuses are claimed. Recovery preserves these facts;
 new matches clear counters/status, and a leaving holder's initiative passes
 like the monarch (CR 725.4).
+
+
+## Importing a phone-owned account
+
+`POST /api/profiles/register` accepts optional `profileId` on Atlas 0.7.15+.
+It must be exactly eight hexadecimal characters; Android generates uppercase
+IDs while retaining a separate UUID for local history. Existing name/PIN rules,
+capacity and session-slot checks apply. A malformed ID returns 400; any existing
+ID (including marker-only or archived accounts) returns 409. No registration
+request may overwrite an existing identity, credentials, permissions or statistics.
+The profile marker is published only after its name and credential hash are saved.
+Omitting `profileId` preserves Atlas-generated registration behavior.
+
+To merge future imports into an existing account, Android authenticates through
+`/api/session/login`, verifies `/api/session/me`, then saves a scoped link and
+revokes the temporary token. This does not modify the active table login. It
+retains both histories and sends local match records through the existing import
+validator rather than copying computed lifetime totals. New accounts copy
+personalization using ordinary APIs; card availability, size limits and Admin
+image review remain enforced. Existing accounts retain their personalization.

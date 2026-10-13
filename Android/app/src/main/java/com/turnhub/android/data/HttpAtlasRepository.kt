@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Live, read-only view of one Atlas over its HTTP API.
@@ -51,7 +53,8 @@ class HttpAtlasRepository(
     /** Poll spacing while Atlas isn't answering. */
     private val offlinePollIntervalMs: Long = 2_000,
     /** Upper bound on polls between `/api/seats` name refreshes. */
-    private val nameRefreshPolls: Int = 5,
+    private val nameRefreshPolls: Int = 30,
+    private val backgroundPollIntervalMs: Long = 5_000,
     /** Local monotonic clock (ms), stamped on each summary so the UI can tick between polls. */
     private val clock: () -> Long = TableClock::nowMs,
 ) : AtlasRepository {
@@ -63,6 +66,18 @@ class HttpAtlasRepository(
     override val endpoint: StateFlow<AtlasEndpoint?> = _endpoint.asStateFlow()
 
     @Volatile private var holding = false
+    @Volatile private var presentationForeground = true
+    private val refreshRequests = Channel<Unit>(Channel.CONFLATED)
+    @Volatile private var metadataInvalidated = false
+    override fun invalidatePresentationMetadata() {
+        metadataInvalidated = true
+        refreshRequests.trySend(Unit)
+    }
+    override fun setPresentationForeground(visible: Boolean) {
+        val wasVisible = presentationForeground
+        presentationForeground = visible
+        if (visible && !wasVisible) refreshRequests.trySend(Unit)
+    }
 
     private val _tableSummary = MutableStateFlow<TableSummary?>(null)
     override val tableSummary: StateFlow<TableSummary?> = _tableSummary.asStateFlow()
@@ -86,6 +101,7 @@ class HttpAtlasRepository(
         val seatAvatars: Map<SeatKey, Int> = emptyMap(),
         val avatarIcons: Map<Int, AvatarIcon> = emptyMap(),
         val contextKey: String = "",
+        val membership: List<String> = emptyList(),
     )
 
     override suspend fun connect(endpoint: AtlasEndpoint) {
@@ -93,6 +109,7 @@ class HttpAtlasRepository(
         synchronized(lock) {
             if (_connectionState.value != AtlasConnectionState.DISCONNECTED) return
             val connection = ++generation
+            while (refreshRequests.tryReceive().isSuccess) { /* No refresh from an old connection. */ }
             artworkCache.clear()
             _endpoint.value = endpoint
             _failure.value = null
@@ -142,7 +159,12 @@ class HttpAtlasRepository(
 
         var failures = 0
         while (true) {
-            delay(if (_offlineSinceMs.value != null) offlinePollIntervalMs else pollIntervalMs)
+            val interval = when {
+                !presentationForeground -> maxOf(backgroundPollIntervalMs, offlinePollIntervalMs)
+                _offlineSinceMs.value != null -> offlinePollIntervalMs
+                else -> pollIntervalMs
+            }
+            withTimeoutOrNull(interval) { refreshRequests.receive() }
             try {
                 live = call { refresh(transport, live) }
                 failures = 0
@@ -175,9 +197,11 @@ class HttpAtlasRepository(
             // Different Atlas, new boot, or revision went backwards: start over.
             return handshake(transport)
         }
-        // Names aren't versioned by revision: refresh them when membership may
-        // have changed (any revision change) and periodically otherwise.
-        val refreshNames = snapshot.revision != current.revision ||
+        // Presentation has no revision yet: roster changes and explicit local
+        // edits refresh immediately, with a periodic bound for other clients.
+        val explicitlyInvalidated = metadataInvalidated
+        metadataInvalidated = false
+        val refreshNames = explicitlyInvalidated || membership(snapshot) != live.membership ||
             live.pollsSinceNames + 1 >= nameRefreshPolls
         val seats = if (refreshNames) fetchSeats(transport) else null
         val names = seats?.first ?: live.names
@@ -190,6 +214,7 @@ class HttpAtlasRepository(
             seatAvatars = avatars,
             avatarIcons = live.avatarIcons.filterKeys { it > 0 } + (seats?.third ?: live.avatarIcons.filterKeys { it < 0 }),
             contextKey = live.contextKey,
+            membership = membership(snapshot),
         ).also { requireContext(transport, live.contextKey) }
     }
 
@@ -207,7 +232,8 @@ class HttpAtlasRepository(
                 val avatars = seats?.second.orEmpty()
                 val icons = fetchAvatarIcons(transport) + seats?.third.orEmpty()
                 return Live(info, map(info, snapshot, names, avatars, icons), names, pollsSinceNames = 0,
-                    seatAvatars = avatars, avatarIcons = icons, contextKey = contextKey).also { requireContext(transport, contextKey) }
+                    seatAvatars = avatars, avatarIcons = icons, contextKey = contextKey,
+                    membership = membership(snapshot)).also { requireContext(transport, contextKey) }
             }
         }
         throw AtlasException(AtlasFailure.Malformed("Atlas identity changed while connecting; try again"))
@@ -215,6 +241,10 @@ class HttpAtlasRepository(
 
     private fun requireContext(transport: AtlasTransport, key: String) {
         if (transport.contextKey != key) throw AtlasException(AtlasFailure.Rejected("Table selection changed; refreshing."))
+    }
+
+    private fun membership(snapshot: StateSnapshot) = snapshot.players.map {
+        "${it.moduleId}/${it.slot}/${it.participantId}/${it.profileId}/${it.displayName}"
     }
 
     /** Seat names and avatars are presentation only: any failure keeps what we have. */

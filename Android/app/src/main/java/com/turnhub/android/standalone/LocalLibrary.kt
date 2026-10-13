@@ -4,7 +4,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Device-local identity. Two players may deliberately have the same display name. */
-data class SavedLocalPlayer(val localId: String, val name: String)
+data class SavedLocalPlayer(
+    val localId: String,
+    val name: String,
+    val profileId: String = LocalProfileIds.create(),
+    val personalization: LocalPersonalization = LocalPersonalization(),
+    val links: List<AtlasProfileLink> = emptyList(),
+    val credential: LocalCredential? = null,
+)
 
 enum class DeliveryStatus { NEEDS_LINKING, PENDING, IMPORTED, REJECTED }
 
@@ -64,8 +71,46 @@ data class LocalLibrary(
         )
     }
 
+    fun profileStatistics(localId: String): com.turnhub.android.data.ProfileStatistics {
+        val player = requireNotNull(players.firstOrNull { it.localId == localId })
+        val seats = history.mapNotNull { r -> r.players.indexOfFirst { it.localId == localId }
+            .takeIf { it >= 0 }?.let { r to it } }
+        val stats = stats(localId)
+        val last = seats.lastOrNull()
+        val seat = last?.let { it.first.players[it.second] }
+        val count = stats.totals.played.toLong()
+        return com.turnhub.android.data.ProfileStatistics(player.name, player.profileId,
+            String.format(java.util.Locale.ROOT, "%.1f%%", if (count == 0L) 0.0 else stats.totals.won * 100.0 / count), true,
+            com.turnhub.android.data.ProfileStatistics.Lifetime(count, stats.totals.won.toLong(), stats.started.toLong(),
+                stats.eliminated.toLong(), stats.turnsCompleted.toLong(), seats.sumOf { it.first.players[it.second].turnMs },
+                stats.averageTurnMs, stats.fastestTurnMs, stats.longestTurnMs, seats.sumOf { it.first.durationMs },
+                stats.averageGameMs, stats.conceded.toLong()),
+            com.turnhub.android.data.ProfileStatistics.LastGame(when {
+                last == null -> "None"
+                last.first.winner == null -> "Draw"
+                last.first.winner == last.second -> "Win"
+                seat?.conceded == true -> "Conceded"
+                seat?.outOrder != null -> "Eliminated"
+                else -> "Loss"
+            }, last?.first?.durationMs ?: 0, seat?.turnsCompleted?.toLong() ?: 0,
+                if (seat != null && seat.turnsCompleted > 0) seat.turnMs / seat.turnsCompleted else 0,
+                seat?.fastestTurnMs ?: 0, seat?.longestTurnMs ?: 0),
+            com.turnhub.android.data.ProfileStatistics.Moderation(false, 0, 0, "Local games have no remote moderation."))
+    }
+
     fun delivery(recordId: String): MatchDelivery = deliveries.firstOrNull { it.recordId == recordId }
         ?: MatchDelivery(recordId)
+
+    /** Only confirmed links, checked against current Atlas profiles, enable automatic credit. */
+    fun automaticMapping(record: GameRecord, atlasId: String, available: Set<String>): List<String>? {
+        val ids = record.players.map { seat ->
+            val player = players.firstOrNull { it.localId == seat.localId } ?: return null
+            val link = player.links.firstOrNull { it.atlasId == atlasId } ?: return null
+            if (link.profileId !in available) return null
+            link.profileId
+        }
+        return ids.takeIf { it.distinct().size == it.size }
+    }
 
     fun withDelivery(delivery: MatchDelivery): LocalLibrary =
         copy(deliveries = deliveries.filterNot { it.recordId == delivery.recordId } + delivery)
@@ -76,7 +121,11 @@ data class LocalLibrary(
     fun toJson(): JSONObject = JSONObject().apply {
         put("schema", SCHEMA)
         put("players", JSONArray().apply {
-            players.forEach { put(JSONObject().put("localId", it.localId).put("name", it.name)) }
+            players.forEach { p -> put(JSONObject().put("localId", p.localId).put("name", p.name)
+                .put("profileId", p.profileId).put("personalization", p.personalization.toJson())
+                .put("links", JSONArray().apply { p.links.forEach { put(JSONObject()
+                    .put("atlasId", it.atlasId).put("profileId", it.profileId)) } })
+                .put("credential", p.credential?.let { JSONObject().put("salt", it.salt).put("hash", it.hash) } ?: JSONObject.NULL)) }
         })
         put("history", JSONArray().apply { history.forEach { put(it.toJson()) } })
         put("deliveries", JSONArray().apply {
@@ -91,15 +140,21 @@ data class LocalLibrary(
     }
 
     companion object {
-        const val SCHEMA = 1
+        const val SCHEMA = 2
         fun fromJson(json: JSONObject): LocalLibrary {
-            require(json.getInt("schema") == SCHEMA) { "Unsupported local library schema" }
+            require(json.getInt("schema") in 1..SCHEMA) { "Unsupported local library schema" }
             val players = json.getJSONArray("players")
             val history = json.getJSONArray("history")
             val deliveries = json.getJSONArray("deliveries")
             return LocalLibrary(
                 players = (0 until players.length()).map { i -> players.getJSONObject(i).let {
-                    SavedLocalPlayer(it.getString("localId"), it.getString("name"))
+                    val links = it.optJSONArray("links") ?: JSONArray()
+                    SavedLocalPlayer(it.getString("localId"), it.getString("name"),
+                        it.optString("profileId").ifBlank { LocalProfileIds.create() },
+                        it.optJSONObject("personalization")?.let(LocalPersonalization::fromJson) ?: LocalPersonalization(),
+                        (0 until links.length()).map { i -> links.getJSONObject(i).let { l ->
+                            AtlasProfileLink(l.getString("atlasId"), l.getString("profileId")) } },
+                        it.optJSONObject("credential")?.let { c -> LocalCredential(c.getString("salt"), c.getString("hash")) })
                 } },
                 history = (0 until history.length()).map { i ->
                     requireNotNull(GameRecord.fromJson(history.getJSONObject(i))) { "Invalid match" }
@@ -113,6 +168,13 @@ data class LocalLibrary(
             ).also { library ->
                 require(library.players.all { it.localId.isNotBlank() && it.name.isNotBlank() })
                 require(library.players.map { it.localId }.distinct().size == library.players.size)
+                require(library.players.map { it.profileId }.distinct().size == library.players.size)
+                require(library.players.all { p -> p.credential?.let { c ->
+                    java.util.Base64.getDecoder().decode(c.salt).size == 16 && java.util.Base64.getDecoder().decode(c.hash).size == 32
+                } ?: true })
+                require(library.players.all { LocalProfileIds.valid(it.profileId) && it.links.all { l ->
+                    l.atlasId.isNotBlank() && LocalProfileIds.valid(l.profileId) } &&
+                    it.links.map { l -> l.atlasId }.distinct().size == it.links.size })
                 require(library.history.map { it.recordId }.distinct().size == library.history.size)
                 require(library.deliveries.map { it.recordId }.distinct().size == library.deliveries.size)
                 library.deliveries.forEach { delivery ->

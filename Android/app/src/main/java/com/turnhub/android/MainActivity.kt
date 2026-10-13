@@ -100,11 +100,11 @@ class MainActivity : ComponentActivity() {
 
     // Rejoin silently only when permission is already available. A fresh
     // install must reach device play without an Atlas permission dialog.
-    private fun findTableOnLaunch() {
+    private fun findTableOnLaunch(restart: Boolean = false) {
         if (Build.VERSION.SDK_INT < LOCAL_NETWORK_PERMISSION_SDK ||
             checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED
         ) {
-            homeViewModel.onAppStarted()
+            if (restart) homeViewModel.onAtlasDiscoveryEnabled() else homeViewModel.onAppStarted()
         }
     }
 
@@ -236,7 +236,7 @@ class MainActivity : ComponentActivity() {
     private fun chooseAtlasEnabled(on: Boolean) {
         atlasEnabled = on
         uiPrefs.edit().putBoolean("atlas_enabled", on).apply()
-        if (!on) playOnDevice()
+        if (!on) playOnDevice() else findTableOnLaunch(restart = true)
     }
     private var localHistory by mutableStateOf(false)
 
@@ -289,10 +289,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         turnNotifier.clear()
+        homeViewModel.onPresentationForeground(!standalone && !localHistory)
     }
 
     override fun onStop() {
         super.onStop()
+        homeViewModel.onPresentationForeground(false)
         if (!isChangingConfigurations) turnNotifier.show(homeViewModel.liveTurn.value)
     }
 
@@ -340,14 +342,15 @@ class MainActivity : ComponentActivity() {
         reduceMotion = uiPrefs.getBoolean("reduceMotion", false)
         atlasEnabled = uiPrefs.getBoolean("atlas_enabled", true)
         // Phone-only users (Atlas off, or never set one up) open straight to their game.
-        standalone = !atlasEnabled || (savedInstanceState?.getBoolean("device_play_open")
-            ?: uiPrefs.getBoolean("prefer_device_play", PreferencesWifiCredentialStore(applicationContext).lastSsid() == null))
-        localHistory = savedInstanceState?.getBoolean("local_history_open") ?: false
+        val continuingActivity = standaloneViewModel.entryInitialized
+        standalone = !atlasEnabled || (if (continuingActivity) savedInstanceState?.getBoolean("device_play_open") ?: true else true)
+        localHistory = continuingActivity && savedInstanceState?.getBoolean("local_history_open") == true
+        standaloneViewModel.entryInitialized = true
         pendingAtlasAction = AtlasAction.entries.firstOrNull {
             it.name == savedInstanceState?.getString("atlas_action")
         } ?: AtlasAction.CONNECT
         // Not again on rotation (the ViewModel also runs it once).
-        if (savedInstanceState == null && !standalone) findTableOnLaunch()
+        if (!continuingActivity && atlasEnabled) findTableOnLaunch()
         lifecycleScope.launch { homeViewModel.updatesAvailable.collect(::onUpdatesAvailable) }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) { homeViewModel.appLock.collect(::runAppLock) }
@@ -369,6 +372,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
                     val localState by standaloneViewModel.table.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(standalone, localHistory) {
+                        homeViewModel.onPresentationForeground(!standalone && !localHistory && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+                    }
                     if (localHistory) {
                         val importState by homeViewModel.localImport.collectAsStateWithLifecycle()
                         com.turnhub.android.ui.tablet.LocalLibraryScreen(
@@ -378,6 +384,11 @@ class MainActivity : ComponentActivity() {
                             onLoadProfiles = homeViewModel::onLoadLocalImportProfiles,
                             onImport = homeViewModel::onImportLocalRecord,
                             onCancelImport = { standaloneViewModel.table.cancelImport(it) },
+                            table = standaloneViewModel.table,
+                            canLink = uiState.connectionState == AtlasConnectionState.CONNECTED,
+                            onLinkAccount = homeViewModel::onLinkLocalAccount,
+                            onShareStats = ::shareStats,
+                            theme = theme, onThemeChosen = ::chooseTheme,
                         )
                     } else if (standalone) {
                         StandaloneScreen(
@@ -388,6 +399,7 @@ class MainActivity : ComponentActivity() {
                                 if (!atlasEnabled) moveTaskToBack(true)
                                 else {
                                     standalone = false
+                                    homeViewModel.onAtlasOpened()
                                     uiPrefs.edit().putBoolean("prefer_device_play", false).apply()
                                 }
                             },

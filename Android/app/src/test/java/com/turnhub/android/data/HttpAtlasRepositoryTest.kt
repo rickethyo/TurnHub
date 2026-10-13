@@ -61,6 +61,7 @@ class HttpAtlasRepositoryTest {
         scope = scope,
         pollIntervalMs = 1_000,
         maxConsecutivePollFailures = 3,
+        nameRefreshPolls = 5,
     )
 
     private fun TestScope.advance(ms: Long) {
@@ -76,6 +77,43 @@ class HttpAtlasRepositoryTest {
         assertEquals(DISCONNECTED, repository.connectionState.value)
         assertNull(repository.tableSummary.value)
         assertNull(repository.failure.value)
+    }
+
+    @Test
+    fun `background polling makes six requests in thirty seconds while local clocks remain on the phone`() = runTest {
+        val repository = repository()
+        repository.setPresentationForeground(false)
+        repository.connect(AtlasEndpoint.DEFAULT)
+        val initial = transport.stateCalls
+        advance(30_000)
+        assertEquals(6, transport.stateCalls - initial)
+        assertEquals(2, transport.seatCalls) // Metadata refresh is bounded separately.
+        repository.setPresentationForeground(true)
+        advance(6_000)
+        assertEquals(initial + 13, transport.stateCalls) // Immediate refresh, then one per second.
+    }
+
+    @Test
+    fun `a changed participant refreshes metadata immediately even without a new revision`() = runTest {
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        val sameRevision = Fixtures.state("running.response.json")
+        transport.state = { sameRevision.copy(players = sameRevision.players.mapIndexed { i, p ->
+            if (i == 0) p.copy(participantId = p.participantId + 1) else p }) }
+        advance(1_000)
+        assertEquals(2, transport.seatCalls)
+    }
+
+    @Test
+    fun `explicit personalization changes refresh the cache immediately at the same revision`() = runTest {
+        transport.seats = { listOf(SeatEntry(8, 1, 1, "Before")) }
+        val repository = repository()
+        repository.connect(AtlasEndpoint.DEFAULT)
+        transport.seats = { listOf(SeatEntry(8, 1, 1, "After")) }
+        repository.invalidatePresentationMetadata()
+        runCurrent()
+        assertEquals(2, transport.seatCalls)
+        assertEquals("After", repository.tableSummary.value!!.players[0].label)
     }
 
     @Test
@@ -463,7 +501,7 @@ class HttpAtlasRepositoryTest {
     }
 
     @Test
-    fun `names refresh on revision changes and at least every five polls`() = runTest {
+    fun `gameplay revisions do not refresh metadata but periodic refresh still does`() = runTest {
         val repository = repository()
         repository.connect(AtlasEndpoint.DEFAULT)
         assertEquals(1, transport.seatCalls)
@@ -474,7 +512,9 @@ class HttpAtlasRepositoryTest {
         assertEquals(2, transport.seatCalls)
 
         transport.state = { Fixtures.state("reconnected.response.json") }
-        advance(1_000) // Revision changed: refresh immediately.
+        advance(1_000) // Same roster, despite the game revision change.
+        assertEquals(2, transport.seatCalls)
+        advance(4_000)
         assertEquals(3, transport.seatCalls)
     }
 

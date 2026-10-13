@@ -110,6 +110,8 @@ data class TablePlayer(
     val lifeRequest: LifeRequest?,
     /** The seat's preset avatar, when Atlas has one for it. */
     val avatar: AvatarIcon? = null,
+    /** Disposable local presentation; never a game-state field. */
+    val color: String? = null,
 )
 
 /**

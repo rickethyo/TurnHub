@@ -116,3 +116,20 @@ Bench captures that back a *Verified* claim go in
 `YYYY-MM-DD-<what>-<board>.log` by role (`atlas`, `sigil-eink`,
 `sigil-oled`), never by COM port, and replace passwords, keys, tokens and real
 MAC addresses before committing.
+
+
+## Android request reduction
+
+Android keeps connected clocks and rendering on the phone. A visible Atlas view
+polls state once per second; local play, history and backgrounded screens use a
+five-second interval, with an immediate refresh when the Atlas view returns.
+Polling stays serial. Epoch, selected-game and backwards-revision changes still
+rebuild the view. Seat metadata refreshes immediately for changed membership and
+at most every 30 successful polls. Explicit name/avatar edits invalidate the cache immediately; life/turn revisions alone do not force reads.
+Game settings are not re-read for every life change when host, participation,
+game and settings are unchanged. Immutable artwork is cached within a connection.
+
+Repository tests count six state refreshes in 30 seconds for an unseen table.
+That is a request-cadence check, not a measured Atlas CPU, heap, SD or radio
+improvement. Physical stability acceptance still requires the multi-phone matrix
+above; preserve an unchanged-client baseline on the appropriate hardware branch.

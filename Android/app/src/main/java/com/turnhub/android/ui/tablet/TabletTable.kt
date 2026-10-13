@@ -555,7 +555,8 @@ private fun PlayerPanel(
 ) {
     val p = palette
     val shape = RoundedCornerShape(22.dp)
-    val hue = p.avatarColor(unit.members.first().playerNumber)
+    val hue = unit.members.first().color?.let { Color(android.graphics.Color.parseColor(it)) }
+        ?: p.avatarColor(unit.members.first().playerNumber)
     val active = unit.members.any { summary.hasTurn(it.playerNumber) } && summary.state != TableState.GAME_OVER
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
@@ -917,7 +918,8 @@ private fun PlayerMenu(
 ) {
     val p = palette
     val partners = remember { mutableStateListOf<Int>() }
-    val hue = p.avatarColor(unit.members.first().playerNumber)
+    val hue = unit.members.first().color?.let { Color(android.graphics.Color.parseColor(it)) }
+        ?: p.avatarColor(unit.members.first().playerNumber)
     Column(
         Modifier
             .fillMaxSize()

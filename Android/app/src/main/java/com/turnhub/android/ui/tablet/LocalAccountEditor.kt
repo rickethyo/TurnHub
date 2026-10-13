@@ -1,0 +1,111 @@
+package com.turnhub.android.ui.tablet
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import com.turnhub.android.data.Personalization
+import com.turnhub.android.data.ProfileSecret
+import com.turnhub.android.standalone.*
+import com.turnhub.android.ui.components.ToneButton
+import com.turnhub.android.ui.components.PlayerAvatar
+import com.turnhub.android.ui.home.AvatarUploadControls
+import com.turnhub.android.ui.theme.palette
+import java.util.Base64
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LocalAccountEditor(player: SavedLocalPlayer, table: StandaloneTable, destination: LocalImportState,
+    canLink: Boolean, onLink: (String, String?, String) -> Unit) {
+    val scope = rememberCoroutineScope()
+    var unlocked by remember(player.localId) { mutableStateOf(table.accountUnlocked(player.localId)) }
+    var unlockSecret by remember(player.localId) { mutableStateOf("") }
+    var credentialBusy by remember { mutableStateOf(false) }
+    var credentialError by remember { mutableStateOf<String?>(null) }
+    if (!unlocked) {
+        OutlinedTextField(unlockSecret, { unlockSecret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Account PIN or password") },
+            visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+        ToneButton("Unlock account settings", {
+            scope.launch {
+                credentialBusy = true
+                unlocked = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { table.unlockAccount(player.localId, unlockSecret) }
+                unlockSecret = ""; credentialBusy = false
+                credentialError = if (unlocked) null else "PIN or password was not accepted."
+            }
+        }, enabled = !credentialBusy && ProfileSecret.isValid(unlockSecret))
+        credentialError?.let { Text(it, color = palette.warn) }
+        return
+    }
+    var name by rememberSaveable(player.localId, player.name) { mutableStateOf(player.name) }
+    var color by rememberSaveable(player.localId, player.personalization.color) { mutableStateOf(player.personalization.color.orEmpty()) }
+    val prefs = player.personalization
+    val icon = remember(prefs) { prefs.icon() }
+    PlayerAvatar(player.name, 1, icon, size = 56.dp)
+    Text("Account ID ${player.profileId}", color = palette.muted)
+    OutlinedTextField(name, { name = it.take(ProfileSecret.MAX_NAME_CHARS) }, label = { Text("Display name") },
+        singleLine = true, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(color, { color = it.take(7) }, label = { Text("Player color (#RRGGBB, or blank for default)") },
+        singleLine = true, modifier = Modifier.fillMaxWidth())
+    ToneButton("Save account", { table.saveAccount(player.localId, name,
+        prefs.copy(color = color.ifBlank { null })) }, enabled = name.isNotBlank() &&
+        (color.isBlank() || color.matches(Regex("#[0-9a-fA-F]{6}"))))
+    var newSecret by remember(player.localId) { mutableStateOf("") }
+    OutlinedTextField(newSecret, { newSecret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("Set or change PIN or password") },
+        visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+    ToneButton("Save PIN or password", {
+        scope.launch {
+            credentialBusy = true
+            val credential = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LocalCredential.create(newSecret) }
+            val saved = table.setAccountCredential(player.localId, credential)
+            newSecret = ""; credentialBusy = false
+            credentialError = if (saved) "PIN or password saved." else "Could not save the PIN or password."
+        }
+    }, enabled = !credentialBusy && ProfileSecret.isValid(newSecret))
+    credentialError?.let { Text(it, color = palette.muted) }
+    Text("Avatar", color = palette.text)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        LocalPersonalization.AVATARS.forEach { key ->
+            FilterChip(prefs.avatar == key && prefs.image == null,
+                { table.saveAccount(player.localId, player.name, prefs.copy(avatar = key, image = null)) },
+                label = { Text(key.replaceFirstChar { it.uppercase() }) })
+        }
+    }
+    ToneButton("Reduced motion: ${if (prefs.reduceMotion) "On" else "Off"}", {
+        table.saveAccount(player.localId, player.name, prefs.copy(reduceMotion = !prefs.reduceMotion)) })
+    AvatarUploadControls(Personalization(prefs.color, 0, true,
+        customAvatar = if (prefs.image == null) "" else "local", customImage = icon?.image,
+        uploadApprovalRequired = false), false,
+        upload = { bytes, thumbnail -> table.saveAccount(player.localId, player.name,
+            prefs.copy(image = Base64.getEncoder().encodeToString(bytes), thumbnail = thumbnail)) },
+        remove = { table.saveAccount(player.localId, player.name, prefs.copy(image = null, thumbnail = null)) }, localOnly = true)
+    if (canLink && destination.atlasId != null) {
+        val link = player.links.firstOrNull { it.atlasId == destination.atlasId }
+        link?.let { Text("Linked to Atlas account ${it.profileId}. Matching games import automatically when signed in.", color = palette.muted) }
+        var target by rememberSaveable(player.localId, destination.atlasId) { mutableStateOf("") }
+        // Secrets deliberately do not survive saved instance state.
+        var secret by remember(player.localId, destination.atlasId) { mutableStateOf("") }
+        var expanded by remember { mutableStateOf(false) }
+        Box {
+            TextButton({ expanded = true }) { Text(destination.profiles.firstOrNull { it.profileId == target }
+                ?.let { "Link to ${it.name} · ${it.profileId}" } ?: "Create this account on Atlas") }
+            DropdownMenu(expanded, { expanded = false }) {
+                DropdownMenuItem({ Text("Create this account on Atlas") }, { target = ""; expanded = false })
+                destination.profiles.forEach { account ->
+                    DropdownMenuItem({ Text("${account.name} · ${account.profileId}${if (account.hasPin) "" else " · set PIN"}") }, { target = account.profileId; expanded = false })
+                }
+            }
+        }
+        Text(if (target.isBlank()) if (player.credential == null) "Choose a PIN or password for the new Atlas account." else "Enter this local account's PIN or password to preserve it on Atlas."
+            else "Enter that Atlas account's PIN or password to merge future imports. Both histories are retained; Atlas personalization stays unchanged.", color = palette.muted)
+        OutlinedTextField(secret, { secret = it.take(ProfileSecret.MAX_CHARS) }, label = { Text("PIN or password") },
+            visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth())
+        ToneButton(if (target.isBlank()) "Import account to Atlas" else "Verify and link account", {
+            onLink(player.localId, target.ifBlank { null }, secret); secret = ""
+        }, enabled = !destination.busy && ProfileSecret.isValid(secret))
+        Text(ProfileSecret.RULE, color = palette.muted)
+    }
+}

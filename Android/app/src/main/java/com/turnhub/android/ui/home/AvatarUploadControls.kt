@@ -106,7 +106,8 @@ private suspend fun compressCrop(source: Bitmap, zoom: Float, horizontal: Float,
     }
 
 @Composable
-fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (ByteArray, String) -> Unit, remove: () -> Unit) {
+fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (ByteArray, String) -> Unit, remove: () -> Unit,
+    localOnly: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var source by remember { mutableStateOf<Bitmap?>(null) }
@@ -121,10 +122,11 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
             finally { loading = false }
         }
     }
-    ToneButton(if (loading) "Opening image…" else "Upload your own image", { picker.launch("image/*") },
+    ToneButton(if (loading) "Opening image…" else if (localOnly) "Choose player image" else "Upload your own image", { picker.launch("image/*") },
         enabled = current?.cardPresent == true && !busy && !loading)
     Text("Crop a square image. Saved at up to 512 × 512 pixels and 48 KiB. " +
-        if (current?.uploadApprovalRequired != false) "An Admin reviews new images before the local table sees them."
+        if (localOnly) "Saved on this device. No Atlas is required."
+        else if (current?.uploadApprovalRequired != false) "An Admin reviews new images before the local table sees them."
         else "New images appear immediately at the local table.",
         color = palette.muted, style = MaterialTheme.typography.bodySmall)
     error?.let { Text(it, color = palette.warn) }
@@ -141,11 +143,11 @@ fun AvatarUploadControls(current: Personalization?, busy: Boolean, upload: (Byte
     if (current?.pendingAvatar?.isNotBlank() == true) {
         Text("Awaiting Admin approval", color = palette.warn)
         AvatarBytesPreview(current.pendingImage, "Image awaiting approval")
-    } else if (current?.customAvatar?.isNotBlank() == true) Text("Uploaded image ready", color = palette.muted)
+    } else if (current?.customAvatar?.isNotBlank() == true) Text(if (localOnly) "Saved player image" else "Uploaded image ready", color = palette.muted)
     if (current?.pendingAvatar?.isNotBlank() == true || current?.customAvatar?.isNotBlank() == true)
-        ToneButton("Remove uploaded image", remove, enabled = !busy)
+        ToneButton(if (localOnly) "Remove player image" else "Remove uploaded image", remove, enabled = !busy)
     source?.let { bitmap ->
-        AvatarCropDialog(bitmap, onDismiss = { source = null }, onUpload = { bytes -> source = null
+        AvatarCropDialog(bitmap, localOnly = localOnly, onDismiss = { source = null }, onUpload = { bytes -> source = null
             val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             val thumb = Bitmap.createScaledBitmap(decoded, 16, 16, true)
             val pixels = IntArray(256); thumb.getPixels(pixels, 0, 16, 0, 0, 16, 16)
@@ -174,7 +176,7 @@ fun AvatarBytesPreview(bytes: ByteArray?, description: String) {
 }
 
 @Composable
-private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (ByteArray) -> Unit) {
+private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (ByteArray) -> Unit, localOnly: Boolean = false) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var horizontal by remember { mutableFloatStateOf(.5f) }
     var vertical by remember { mutableFloatStateOf(.5f) }
@@ -223,7 +225,7 @@ private fun AvatarCropDialog(source: Bitmap, onDismiss: () -> Unit, onUpload: (B
                     catch (e: Exception) { error = e.message ?: "Could not compress crop" }
                     finally { saving = false }
                 }
-            }) { Text(if (saving) "Compressing…" else if (encoded == null) "Preview compressed image" else "Upload image") }
+            }) { Text(if (saving) "Compressing…" else if (encoded == null) "Preview compressed image" else if (localOnly) "Save image" else "Upload image") }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") } },
     )

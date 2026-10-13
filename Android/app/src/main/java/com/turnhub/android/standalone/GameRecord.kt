@@ -35,6 +35,8 @@ data class GameRecord(
         val commanderDamageReceived: Int,
         val localId: String? = null,
         val conceded: Boolean = false,
+        val counters: com.turnhub.android.protocol.PlayerCounters = com.turnhub.android.protocol.PlayerCounters(),
+        val commanderBySource: Map<Int, List<Int>> = emptyMap(),
     )
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -59,6 +61,10 @@ data class GameRecord(
                     put("outOrder", p.outOrder ?: JSONObject.NULL)
                     put("conceded", p.conceded)
                     put("commanderDamageReceived", p.commanderDamageReceived)
+                    put("counters", JSONObject().put("poison", p.counters.poison).put("energy", p.counters.energy)
+                        .put("experience", p.counters.experience).put("commanderCasts", JSONArray(p.counters.commanderCasts))
+                        .put("cityBlessing", p.counters.cityBlessing))
+                    put("commanderBySource", JSONObject().apply { p.commanderBySource.forEach { (key, values) -> put("$key", JSONArray(values)) } })
                 })
             }
         })
@@ -118,6 +124,12 @@ data class GameRecord(
                         outOrder = p.optIntOrNull("outOrder"),
                         conceded = p.optBoolean("conceded"),
                         commanderDamageReceived = p.optInt("commanderDamageReceived"),
+                        counters = p.optJSONObject("counters")?.let { c -> com.turnhub.android.protocol.PlayerCounters(
+                            c.optInt("poison"), c.optInt("energy"), c.optInt("experience"),
+                            c.getJSONArray("commanderCasts").let { a -> List(2) { a.getInt(it) } }, c.optBoolean("cityBlessing"))
+                        } ?: com.turnhub.android.protocol.PlayerCounters(),
+                        commanderBySource = p.optJSONObject("commanderBySource")?.let { d -> d.keys().asSequence().associate { key ->
+                            key.toInt() to d.getJSONArray(key).let { a -> List(2) { a.getInt(it) } } } } ?: emptyMap(),
                     )
                 },
             ).also { record ->

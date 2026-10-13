@@ -145,12 +145,13 @@ size_t listProfileIds(char (*ids)[PROFILE_ID_LENGTH + 1], size_t capacity) {
   return count;
 }
 
-String createProfileWithCredentials(const String &name, const String &pin, PinHasher hasher) {
+String createProfileWithCredentials(const String &name, const String &pin, PinHasher hasher, const String &requestedId) {
   if ((!preferencesReady && !begin()) || name.length() == 0 || name.length() > 32 || hasher == nullptr) return String();
+  if (requestedId.length() && (!validProfileId(requestedId) || profileExists(requestedId))) return String();
   char ids[MAX_LOGIN_PROFILES][PROFILE_ID_LENGTH + 1];
   if (listProfileIds(ids, MAX_LOGIN_PROFILES) >= MAX_LOGIN_PROFILES) return String();
   for (uint8_t attempt = 0; attempt < 16; ++attempt) {
-    const String id = makeProfileId();
+    const String id = requestedId.length() ? requestedId : makeProfileId();
     if (profileExists(id)) continue;
     const String hash = hasher(id, pin);
     if (hash.length() != 64) return String();
