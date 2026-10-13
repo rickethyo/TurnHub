@@ -8,6 +8,7 @@
   "starterPlayer": 1,
   "activePlayer": 1,
   "winnerPlayer": null,
+  "winnerPlayers": [],
   "settings": {
     "profile": "mtg",
     "startingLife": 20,

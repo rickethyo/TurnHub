@@ -59,13 +59,18 @@ data class TableSummary(
     val initiativePlayerNumber: Int? = null,
     val game: Int = 1,
     val games: List<com.turnhub.android.protocol.VenueGame> = emptyList(),
+    /**
+     * Every winner; [winnerPlayerNumber] is the first. Star Commander allies whose
+     * enemies are out at once share the victory (a shared victory is never a draw).
+     */
+    val winnerPlayerNumbers: List<Int> = listOfNotNull(winnerPlayerNumber),
 ) {
     /**
      * A finished match with no winner: the table ended it as a draw by holding
      * End match on the Atlas touchscreen (protocol/http-v1.md). Derived, never stored.
      */
     val endedInDraw: Boolean
-        get() = state == TableState.GAME_OVER && winnerPlayerNumber == null
+        get() = state == TableState.GAME_OVER && winnerPlayerNumber == null && winnerPlayerNumbers.isEmpty()
 
     private fun teamOf(playerNumber: Int?): Int? = players.firstOrNull { it.playerNumber == playerNumber }?.team
 
@@ -79,8 +84,24 @@ data class TableSummary(
     /** "Team N" for a Two-Headed Giant player, else null (name the player). */
     fun teamLabel(playerNumber: Int?): String? = teamOf(playerNumber)?.let { "Team $it" }
 
-    /** The winner, or (Two-Headed Giant) the winner's teammate. */
-    fun isWinner(playerNumber: Int): Boolean = sameTeam(winnerPlayerNumber, playerNumber)
+    /** A winner (every one of a shared victory), or (Two-Headed Giant) the winner's teammate. */
+    fun isWinner(playerNumber: Int): Boolean =
+        (winnerPlayerNumbers.ifEmpty { listOfNotNull(winnerPlayerNumber) }).any { sameTeam(it, playerNumber) }
+
+    // --- Star Commander ([StarCommander]): relationships by seat, player N is seat N-1 ----
+
+    /** A five-player Star Commander table, whose relationships the screens can draw. */
+    val star: Boolean get() = settings.profile.starCommander && players.size == StarCommander.PLAYERS
+
+    private fun seated(seats: List<Int>): List<TablePlayer> = seats.mapNotNull { s -> players.firstOrNull { it.playerNumber == s + 1 } }
+
+    fun starAllies(playerNumber: Int): List<TablePlayer> = if (!star) emptyList() else seated(StarCommander.allies(playerNumber - 1))
+
+    fun starEnemies(playerNumber: Int): List<TablePlayer> = if (!star) emptyList() else seated(StarCommander.enemies(playerNumber - 1))
+
+    /** Whether [source] may deal [receiver] Commander damage: never between Star Commander allies. */
+    fun commanderDamageAllowed(receiver: Int, source: Int): Boolean =
+        receiver != source && !(star && StarCommander.allied(receiver - 1, source - 1))
 }
 
 /** A controller seat: handle + slot. How `/api/seats` names are matched to players. */

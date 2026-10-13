@@ -18,12 +18,16 @@ void setSeat(SigilLedState &cue, const GameEngine &game, uint8_t sigilId, const 
   cue.sharedSeat = count > 1;
 }
 
-// The winning seat on this Sigil (Two-Headed Giant: either teammate), or nullptr.
+// The winning seat on this Sigil (Two-Headed Giant: either teammate; Star
+// Commander: any shared winner), or nullptr.
 const PlayerSeat *winningSeatForController(const GameEngine &game, uint8_t sigilId) {
   const PlayerSeat *winner = game.playerByNumber(game.winnerPlayerNumber());
   if (winner != nullptr && winner->controllerId == sigilId) return winner;
-  const PlayerSeat *mate = game.playerByNumber(game.teammateOf(game.winnerPlayerNumber()));
-  return mate != nullptr && mate->controllerId == sigilId ? mate : nullptr;
+  PlayerSeat local[2];
+  const uint8_t count = game.playersForController(sigilId, local, 2);
+  for (uint8_t i = 0; i < count; ++i)
+    if (game.isWinner(local[i].playerNumber)) return game.playerByNumber(local[i].playerNumber);
+  return nullptr;
 }
 
 void addTimerOverlay(SigilLedState &cue, const GameEngine &game, uint32_t nowMs) {
@@ -343,7 +347,7 @@ void LedRenderer::syncDisplay(
     snapshot.type = TurnHubProtocol::PacketType::GameDisplay;
     snapshot.sigilId = sigilId;
     snapshot.state = payload;
-    snapshot.commander = game.settings().profile == GameProfile::Commander;
+    snapshot.commander = commanderRules(game.settings().profile);
     auto name = [&](uint8_t player, char *out) {
       const auto *seat = game.playerByNumber(player);
       if (!seat) return;

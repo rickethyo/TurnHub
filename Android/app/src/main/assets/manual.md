@@ -1,8 +1,8 @@
-<!-- Generated from TurnHub Manual V0.19.docx by Android/tools/export_manual.py. Do not edit by hand. -->
+<!-- Generated from TurnHub Manual V0.20.docx by Android/tools/export_manual.py. Do not edit by hand. -->
 
 # TurnHub User Manual
 
-## Prototype Edition v0.19
+## Prototype Edition v0.20
 
 TurnHub supports games entirely on a phone or tablet, with saved accounts, personalization and detailed history. An Atlas adds a shared authority for games with multiple phones and physical player controllers.
 
@@ -227,6 +227,8 @@ Game profiles and their starting life:
 
 - Commander: 40
 
+- Star Commander: 40 (exactly five players)
+
 - Yu-Gi-Oh!: 8000
 
 - Custom starting life: any whole number from 0 to 1,000,000
@@ -244,6 +246,20 @@ Two-Headed Giant (Magic and Commander): turn it on in Game setup for teams of tw
 - When one teammate is eliminated or concedes, the whole team is out. The last team left wins, and both teammates get the win.
 
 - The starting team skips its first draw; the Atlas screen reminds you during that first turn.
+
+Star Commander (five players): choose Commander, then Star Commander under Game mode. Each player has two allies, the players seated on either side, and two enemies, the two players across the star. Change the turn order in the lobby to change who is allied; the star in setup shows each player’s allies and enemies, and they stay fixed once the game starts.
+
+- Everyone keeps their own life (40), turns, counters and statistics. Allies are not a team: they don’t share life, turns or a win.
+
+- Don’t attack or target your allies. TurnHub can’t check the cards, so the table keeps this rule; TurnHub shows who is allied.
+
+- Allies can’t deal each other Commander damage, so allies aren’t listed as sources. Ordinary life changes always work, so effects that hit everyone still hit allies.
+
+- You win when both of your enemies are out, whoever took them out: eliminated, conceded, or out on life, poison or Commander damage. If one event takes out the enemies of two players, both share the victory and both get the win. A player who is already out can’t win.
+
+- Each player’s panel shows Enemies out 1/2; the table menu shows the star, and tapping a player highlights their allies and enemies. Claiming a win for an alternate win condition works as usual. Two-Headed Giant isn’t available in Star Commander.
+
+- Statistics count Star Commander games and wins separately as well as in the totals.
 
 # 8. Taking Turns
 
@@ -501,7 +517,7 @@ The Android app opens directly to the full-screen table on every fresh launch. A
 
 - Use the arrows to set turn order, choose the game and starting life, and tap **Start the game**.
 
-- The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede and the winner. There is no turn timer, no Two-Headed Giant, and no phones or Sigils in this mode.
+- The table looks and works like tablet mode (section 17): life, Commander damage, passing, pause, concede, the turn timer, Two-Headed Giant, Star Commander and the winners. There are no phones or Sigils in this mode.
 
 To import an account, connect to Atlas, open Accounts and history, load Atlas accounts and open the local account. Create this account on Atlas preserves its account ID and copies available personalization; it needs Atlas 0.7.15 or later and a PIN or password. If the local account already has a PIN, enter that same secret. To merge with an existing Atlas account, select it and verify its PIN or password. This saves a link for that Atlas and retains both histories; existing Atlas personalization stays unchanged. A matching name or an unverified account-ID collision never merges accounts.
 

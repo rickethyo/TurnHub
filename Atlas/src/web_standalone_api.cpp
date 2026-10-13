@@ -40,6 +40,21 @@ bool parseIndex(const String &text, uint8_t players, int8_t &value) {
   return true;
 }
 
+// Comma-separated player indices ("0,1"); empty for none. Each at most once.
+bool parseIndexList(const String &text, uint8_t players, uint8_t &mask) {
+  mask = 0;
+  if (!text.length()) return true;
+  String item;
+  for (size_t i = 0; i <= text.length(); ++i) {
+    if (i < text.length() && text[i] != ',') { item += text[i]; continue; }
+    uint32_t index = 0;
+    if (!parseCount(item, players - 1u, index) || (mask & (1u << index))) return false;
+    mask = static_cast<uint8_t>(mask | (1u << index));
+    item = "";
+  }
+  return true;
+}
+
 // The numbered field of one player, as name0, turns1 and so on.
 String playerField(WebServer &server, const char *prefix, uint8_t index) {
   char key[16];
@@ -62,8 +77,15 @@ bool parseGame(WebServer &server, ImportedGame &game) {
   game.gameProfile = static_cast<uint8_t>(profile);
   game.playerCount = static_cast<uint8_t>(players);
   if (!parseIndex(server.arg("starter"), game.playerCount, game.starter) ||
-      !parseIndex(server.arg("winner"), game.playerCount, game.winner)) {
+      !parseIndex(server.arg("winner"), game.playerCount, game.winner) ||
+      !parseIndexList(server.arg("winners"), game.playerCount, game.winners)) {
     return false;
+  }
+  // "winner" is the first winner; "winners" (Star Commander's shared victory)
+  // may name it alone. Without "winner" the lowest listed index is first.
+  if (game.winners && game.winner < 0) {
+    for (uint8_t i = 0; i < game.playerCount && game.winner < 0; ++i)
+      if (game.winners & (1u << i)) game.winner = static_cast<int8_t>(i);
   }
   for (uint8_t i = 0; i < game.playerCount; ++i) {
     auto &player = game.players[i];

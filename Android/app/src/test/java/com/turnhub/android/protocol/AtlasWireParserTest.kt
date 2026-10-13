@@ -393,4 +393,40 @@ class AtlasWireParserTest {
         }
         assertTrue(error.message!!.contains("capabilities"))
     }
+    @Test
+    fun `winnerPlayers lists every winner and older firmware falls back to winnerPlayer`() {
+        val shared = Fixtures.state("running.response.json") {
+            put("state", "GAME_OVER")
+            getJSONObject("settings").put("profile", "mtg_star_commander")
+            put("winnerPlayer", 1)
+            put("winnerPlayers", org.json.JSONArray(listOf(1, 2)))
+        }
+        assertEquals(GameProfile.MTG_STAR_COMMANDER, shared.settings.profile)
+        assertTrue(shared.settings.profile.commanderRules && shared.settings.profile.magicRules)
+        assertEquals(listOf(1, 2), shared.winnerPlayers)
+        assertEquals(1, shared.winnerPlayer)
+        // Absent (older firmware): the single winner, or nobody.
+        assertEquals(listOf(3), Fixtures.state("running.response.json") { remove("winnerPlayers"); put("winnerPlayer", 3) }.winnerPlayers)
+        assertEquals(emptyList<Int>(), Fixtures.state("running.response.json") { remove("winnerPlayers") }.winnerPlayers)
+        assertEquals(emptyList<Int>(), Fixtures.state("running.response.json").winnerPlayers)
+        assertEquals(emptyList<Int>(), Fixtures.state("running.response.json") { put("winnerPlayers", org.json.JSONArray()) }.winnerPlayers)
+        listOf<Any>("2", org.json.JSONArray(listOf("x")), org.json.JSONArray(listOf(0)), org.json.JSONArray(listOf(2, 2))).forEach { bad ->
+            assertThrows(AtlasWireException.Malformed::class.java) {
+                Fixtures.state("running.response.json") { put("winnerPlayers", bad) }
+            }
+        }
+    }
+
+    @Test
+    fun `the star commander fixture parses with its shared winners`() {
+        // Written by the Atlas side of Star Commander; skipped if it is ever missing.
+        val fixture = runCatching { Fixtures.text("star-commander.response.json") }.getOrNull()
+        org.junit.Assume.assumeTrue("star-commander.response.json not present yet", fixture != null)
+        val state = AtlasWireParser.parseState(fixture!!)
+        assertEquals(GameProfile.MTG_STAR_COMMANDER, state.settings.profile)
+        assertEquals(TableState.GAME_OVER, state.state)
+        assertEquals(5, state.players.size)
+        assertEquals(2, state.winnerPlayers.size)
+        assertEquals(state.winnerPlayer, state.winnerPlayers.first())
+    }
 }

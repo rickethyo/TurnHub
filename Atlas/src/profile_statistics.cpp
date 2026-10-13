@@ -48,6 +48,10 @@ void applyGameResult(ProfileStats &persistent, const GameResult &result) {
   if (result.started) {
     ++persistent.gamesStarted;
   }
+  if (result.gameProfile == static_cast<uint8_t>(TurnHub::GameProfile::StarCommander)) {
+    ++persistent.starGamesPlayed;
+    if (result.result == LastGameResult::Win) ++persistent.starGamesWon;
+  }
 
   persistent.turnsCompleted += result.turns;
   persistent.totalTurnMs += result.turnMs;
@@ -182,6 +186,8 @@ String buildTextReport(
   appendNumber(out, F("Games started first: "), stats.gamesStarted);
   appendNumber(out, F("Games eliminated: "), stats.gamesEliminated);
   appendNumber(out, F("Games conceded: "), stats.gamesConceded);
+  appendNumber(out, F("Star Commander games played: "), stats.starGamesPlayed);
+  appendNumber(out, F("Star Commander games won: "), stats.starGamesWon);
   appendNumber(out, F("Completed turns: "), stats.turnsCompleted);
   appendLine(out, F("Total completed-turn time: "), formatDuration(stats.totalTurnMs));
   appendLine(out, F("Average completed turn: "), stats.turnsCompleted == 0 ? String("—") : formatDuration(averageMs(stats.totalTurnMs, stats.turnsCompleted)));

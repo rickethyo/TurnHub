@@ -134,7 +134,7 @@ snapshots. Firmware before the timer omits both fields; treat that as off.
 `turnTimer {presetsMs, minMs, maxMs, warningMs, longTurnMs}` alongside the
 existing fields. `POST /api/game/settings` accepts `turnTimerMs`; omitted fields
 keep their current values. `twoHeadedGiant` (`0` or `1`, `mtg` and `mtg_commander`
-only; GET returns it with the suggested `teamLife` per profile) turns on
+only, never `mtg_star_commander`; GET returns it with the suggested `teamLife` per profile) turns on
 Two-Headed Giant: neighbours in turn order are teams of two with one shared life
 total and one turn (see the state schema's `team`). Changing to another profile
 without sending it turns it off. Any seated player may change settings (there is no
@@ -180,6 +180,42 @@ One flow for the Android app and the portal
   `POST /api/accounts/setup`, `GET /api/devices`, `POST /api/firmware`
   (multipart field `firmware`), `POST /api/sigil-firmware`,
   `POST /api/sigil-update` and `GET /api/sigil-firmware`.
+
+## Star Commander (2026-10-13)
+
+`settings.profile` (state) and `gameProfile` (settings, standalone import,
+`lastGameType`) accept `mtg_star_commander`: a five-player Commander variant with
+every Commander counter, default starting life 40 and normal clockwise turns.
+
+- **Seats decide relationships.** For player number `p` (1-5, `i = p - 1`) the
+  allies are players `(i+1)%5 + 1` and `(i+4)%5 + 1`; the enemies are
+  `(i+2)%5 + 1` and `(i+3)%5 + 1`. They follow the lobby seat order and are fixed
+  once the match starts, also after a player is eliminated. Clients derive them
+  from `playerNumber`; there is no separate field.
+- **Start:** a Star Commander table needs exactly five players; Start is refused
+  with 409 `"Star Commander needs exactly five players."`. Two-Headed Giant is
+  never allowed with it (`twoHeadedGiant=1` is refused; choosing the profile
+  turns Two-Headed Giant off).
+- **Commander damage between allies** is refused by Atlas for every client
+  (phone, tablet, Sigil): 409 `"Allies can't deal Commander damage to each other
+  in Star Commander."`. Damage from an enemy works as in Commander. Ordinary
+  life changes are never restricted.
+- **Victory:** after every elimination path (elimination, concession, zero
+  life, poison, Commander damage, a loss-rule change), once the whole batch of
+  eliminations is applied, every living player whose two enemies are both out
+  wins. Two allies can share a victory: `winnerPlayers` lists both and
+  `winnerPlayer` is the lower number. A shared victory is not a draw. A batch
+  that leaves nobody and no winner is a draw (`winnerPlayer: null`,
+  `winnerPlayers: []`). Last-player-standing does not apply. Win claims
+  (alternate win conditions) work as in Commander, with a single winner.
+- **Statistics:** every winner is credited a win. `GET /api/session/stats`
+  `lifetime` adds `starGamesPlayed` and `starGamesWon` (also counted in
+  `gamesPlayed` and `gamesWon`).
+
+`winnerPlayers` (state, always present since 2026-10-13) lists every winner in
+ascending order: one player, both Two-Headed Giant teammates, or two Star
+Commander allies; empty while nobody has won and for a draw. See
+`examples/star-commander.response.json`.
 
 ## Draws
 
@@ -384,9 +420,14 @@ otherwise), form fields:
 - `atlasId`: required destination hardware ID, exactly this Atlas’s `/api/v1/info`
   identity. A foreign/missing ID is rejected before importing anything.
 - `recordId`: 8-48 characters of letters, digits and `-` (the app uses a UUID).
-- `gameProfile`: `generic`, `mtg`, `mtg_commander` or `yugioh`.
+- `gameProfile`: `generic`, `mtg`, `mtg_commander`, `yugioh` or `mtg_star_commander`.
 - `durationMs`: 0 to 604800000. `players`: 2 to 8.
 - `starter`, `winner`: a player index, or empty for none (no winner is a draw).
+  `winner` is the first winner.
+- `winners` (optional, 2026-10-13): every winner as comma-separated player
+  indices (`0,1`), for a shared Star Commander victory; each is credited a win.
+  It must include `winner` as its lowest index (with `winner` empty, the lowest
+  listed index becomes `winner`). Empty or absent means `winner` alone.
 - Per player `i` from 0, in turn order: `name<i>` (required), `profile<i>`
   (required exact profile ID chosen on the destination Atlas), `turns<i>`, `turnMs<i>`,
   `fastest<i>`, `longest<i>` (completed turns and their times), `out<i>`
@@ -447,7 +488,7 @@ local history regardless of import.
 `POST /api/control/monarch` declares the authenticated seated player monarch.
 The tablet equivalent is action `monarch` at `/api/tablet/control`, using the
 normal module, slot and game scope. Both require a living player in a running
-or paused `mtg`/`mtg_commander` game; invalid game/seat state returns 409.
+or paused `mtg`/`mtg_commander`/`mtg_star_commander` game; invalid game/seat state returns 409.
 Declaring monarch transfers the crown immediately, with at most one holder
 per game. `GET /api/v1/state` reports nullable `monarchPlayer` (1-based individual
 player number), absent on older firmware. When that player leaves play it

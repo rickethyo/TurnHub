@@ -61,7 +61,11 @@ fun TableHeader(
             summary.activePlayerNumber?.let {
                 Text("Now playing: ${summary.teamLabel(it) ?: labelFor(it)}", style = MaterialTheme.typography.titleMedium)
             }
-            summary.winnerPlayerNumber?.let {
+            // Several winners not on one Two-Headed Giant team: a shared Star Commander victory.
+            if (summary.winnerPlayerNumbers.any { !summary.sameTeam(it, summary.winnerPlayerNumber) }) {
+                Text("Winners: ${summary.winnerPlayerNumbers.joinToString(" and ") { labelFor(it) }}",
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            } else summary.winnerPlayerNumber?.let {
                 Text("Winner: ${summary.teamLabel(it) ?: labelFor(it)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             if (summary.endedInDraw) {
@@ -144,5 +148,6 @@ fun GameProfile.displayName(): String = when (this) {
     GameProfile.GENERIC -> "Generic"
     GameProfile.MTG -> "Magic"
     GameProfile.MTG_COMMANDER -> "Commander"
+    GameProfile.MTG_STAR_COMMANDER -> "Star Commander"
     GameProfile.YUGIOH -> "Yu-Gi-Oh!"
 }

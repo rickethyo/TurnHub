@@ -8,6 +8,9 @@ struct GameCheckpoint {
   GameSettings settings{};
   uint8_t count = 0, active = 0, starter = 0, winner = 0, monarch = 0, initiative = 0;
   bool paused = false, over = false;
+  // Every winner (bit playerNumber - 1); winner is its lowest bit. Several
+  // only for a shared Star Commander victory.
+  uint16_t winners = 0;
   // settings.turnTimerMs travels in schema 1's former per-turn "warningMs"
   // word: it was always 0 before the turn timer existed, which means OFF.
   uint32_t gameElapsed = 0, turnElapsed = 0, nextRequestId = 0;

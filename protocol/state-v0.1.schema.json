@@ -9,6 +9,7 @@
     "revision",
     "atlasId",
     "state",
+    "winnerPlayers",
     "players",
     "bootId",
     "settings",
@@ -68,13 +69,23 @@
       "maximum": 255
     },
     "winnerPlayer": {
-      "description": "Winning player. null in GAME_OVER means the match ended as a draw (End match hold on the Atlas touchscreen).",
+      "description": "The first winning player (the winner recorded by Atlas; with a shared Star Commander victory, the lower player number). null in GAME_OVER means the match ended as a draw (End match hold on the Atlas touchscreen, or an elimination batch that left nobody and no Star Commander winner). Every winner is in winnerPlayers.",
       "type": [
         "integer",
         "null"
       ],
       "minimum": 1,
       "maximum": 255
+    },
+    "winnerPlayers": {
+      "description": "Every player who won, ascending: one player, both Two-Headed Giant teammates, or the two allies sharing a Star Commander victory. Empty while no one has won and for a draw. A shared victory is not a draw.",
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 255
+      }
     },
     "pending": {
       "type": "object",
@@ -348,7 +359,8 @@
             "generic",
             "mtg",
             "mtg_commander",
-            "yugioh"
+            "yugioh",
+            "mtg_star_commander"
           ]
         },
         "startingLife": {
@@ -363,7 +375,7 @@
           "maximum": 3600000
         },
         "twoHeadedGiant": {
-          "description": "Two-Headed Giant (mtg and mtg_commander only): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
+          "description": "Two-Headed Giant (mtg and mtg_commander only, never mtg_star_commander): teams of two neighbours in turn order (players 1+2, 3+4, ...) share one life total and one turn; either teammate may pass. startingLife is the team total. Absent from older firmware; treat as false.",
           "type": "boolean"
         },
         "autoEliminateAtZeroLife": {

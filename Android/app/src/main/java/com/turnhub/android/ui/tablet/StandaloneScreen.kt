@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.TabletState
+import com.turnhub.android.domain.StarCommander
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TurnTimerStatus
 import com.turnhub.android.protocol.GameProfile
@@ -145,7 +146,15 @@ private fun Lobby(
             BrassCard {
                 Eyebrow("At the table")
                 if (game.players.isEmpty()) Text("Add everyone who is playing.", color = p.muted)
-                if (game.players.size > 1) {
+                if (game.profile.starCommander && game.players.size == StarCommander.PLAYERS) {
+                    // Star Commander: the star shows who is allied with whom; a swap changes it at once.
+                    val seats = game.players.mapIndexed { i, player ->
+                        StarSeat(player.name, i + 1, state.library.players.firstOrNull { it.localId == player.localId }?.personalization?.icon())
+                    }
+                    StarMap(seats, onSwap = table::swapPlayers)
+                    StarRelationsList(seats)
+                    Text(STAR_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
+                } else if (game.players.size > 1) {
                     // How the game will look: each panel where it lands, numbered in turn order.
                     SeatMap(game.players.map { it.name }, table::swapPlayers)
                     Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
@@ -194,8 +203,8 @@ private fun Lobby(
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FORMATS.forEach { (profile, label, _) ->
                         FilterChip(
-                            selected = game.profile == profile,
-                            onClick = { table.setFormat(profile) },
+                            selected = formatSelected(game.profile, profile),
+                            onClick = { if (!formatSelected(game.profile, profile)) table.setFormat(profile) },
                             label = { Text(label) },
                             colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
                         )
@@ -217,9 +226,16 @@ private fun Lobby(
                         enabled = (life.toIntOrNull() ?: 0) > 0 && life != "${game.startingLife}",
                     )
                 }
-                if (game.profile == GameProfile.MTG || game.profile == GameProfile.MTG_COMMANDER) {
-                    GameModeChips(if (game.twoHeadedGiant) GameMode.TWO_HEADED_GIANT else GameMode.STANDARD, enabled = true) {
-                        table.setTwoHeadedGiant(it == GameMode.TWO_HEADED_GIANT)
+                if (game.profile.magicRules) {
+                    GameModeChips(GameMode.of(game.profile, game.twoHeadedGiant), enabled = true) { mode ->
+                        when (mode) {
+                            GameMode.STAR_COMMANDER -> table.setFormat(GameProfile.MTG_STAR_COMMANDER)
+                            else -> {
+                                // Leaving Star Commander goes back to Commander first.
+                                if (game.profile.starCommander) table.setFormat(GameProfile.MTG_COMMANDER)
+                                table.setTwoHeadedGiant(mode == GameMode.TWO_HEADED_GIANT)
+                            }
+                        }
                     }
                 }
                 TurnTimerChips(game.turnTimerMs, enabled = true, onSelect = table::setTurnTimer)
@@ -227,7 +243,7 @@ private fun Lobby(
                     onChange = table::setZeroLifeElimination)
             }
 
-            StartTableButton(game.players.size, game.twoHeadedGiant, enabled = true, onStart = table::start)
+            StartTableButton(game.players.size, game.twoHeadedGiant, enabled = true, star = game.profile.starCommander, onStart = table::start)
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
             // Quiet on purpose: a phone-only player never needs Atlas, so it is one small switch.

@@ -538,6 +538,8 @@ void handleProfileStats(WebServer &server) {
   response += ",\"gamesStarted\":" + String(stats.gamesStarted);
   response += ",\"gamesEliminated\":" + String(stats.gamesEliminated);
   response += ",\"gamesConceded\":" + String(stats.gamesConceded);
+  response += ",\"starGamesPlayed\":" + String(stats.starGamesPlayed);
+  response += ",\"starGamesWon\":" + String(stats.starGamesWon);
   response += ",\"turnsCompleted\":" + String(stats.turnsCompleted);
   response += ",\"totalTurnMs\":" + uint64Text(stats.totalTurnMs);
   response += ",\"averageTurnMs\":" + String(averageMs(stats.totalTurnMs, stats.turnsCompleted));

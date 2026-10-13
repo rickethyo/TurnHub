@@ -10,12 +10,13 @@ using TurnHub::serialLog;
 namespace TurnHub {
 namespace {
 constexpr uint32_t MAGIC = 0x50434854; // THCP, explicit little-endian wire bytes
-constexpr uint32_t SCHEMA = 4;
+constexpr uint32_t SCHEMA = 5;
 constexpr uint32_t CLOCK_CHECKPOINT_MS = 60000;
-// Wire layout (little-endian): magic, schema, 10 header bytes (including monarch, initiative and loss flags), 6 header words,
+// Wire layout (little-endian): magic, schema, 12 header bytes (including monarch, initiative, loss flags and the
+// 16-bit winner set), 6 header words,
 // then per player: 3 bytes, participant word, 9-byte profile ID, 4 stat words,
 // 5 counter words, blessing byte, eliminated byte, life word and count x 2 Commander damage words; CRC-32 last.
-constexpr size_t HEADER_SIZE = 4 + 4 + 10 + 6 * 4;
+constexpr size_t HEADER_SIZE = 4 + 4 + 12 + 6 * 4;
 constexpr size_t CRC_SIZE = 4;
 constexpr size_t MIN_RECORD_SIZE = HEADER_SIZE + CRC_SIZE;
 constexpr size_t PLAYER_SIZE = 3 + 4 + sizeof(PlayerSeat::profileId) + 4 * 4 + 1 + 4 + 21;
@@ -63,6 +64,7 @@ size_t encodeCheckpoint(const GameCheckpoint &s, uint8_t *bytes, size_t capacity
   w.byte(s.monarch);
   w.byte(s.initiative);
   w.byte((s.settings.autoEliminateAtPoisonLimit ? 1 : 0) | (s.settings.autoEliminateAtCommanderDamage ? 2 : 0));
+  w.byte(static_cast<uint8_t>(s.winners)); w.byte(static_cast<uint8_t>(s.winners >> 8));
   w.word(static_cast<uint32_t>(s.settings.poisonLimit));
   w.word(static_cast<uint32_t>(s.settings.startingLife));
   w.word(s.gameElapsed); w.word(s.turnElapsed); w.word(s.settings.turnTimerMs); w.word(s.nextRequestId);
@@ -89,7 +91,7 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
   Reader header{bytes,size};
   if (header.word()!=MAGIC) return Status::Corrupt;
   const uint32_t schema = header.word();
-  if (schema != 1 && schema != 2 && schema != 3 && schema != SCHEMA) return Status::UnsupportedSchema;
+  if (schema < 1 || schema > SCHEMA) return Status::UnsupportedSchema;
   Reader checksum{bytes + size - CRC_SIZE, CRC_SIZE};
   if (checksum.word() != crc32(bytes, size - CRC_SIZE)) return Status::Corrupt;
   Reader r{bytes, size - CRC_SIZE};
@@ -103,8 +105,11 @@ TurnHubStorage::Status decodeCheckpoint(const uint8_t *bytes, size_t size, GameC
     s.initiative = r.byte();
     const uint8_t flags = r.byte(); if (flags > 3) return Status::Corrupt;
     s.settings.autoEliminateAtPoisonLimit = flags & 1; s.settings.autoEliminateAtCommanderDamage = flags & 2;
+    if (schema >= 5) { s.winners = r.byte(); s.winners = static_cast<uint16_t>(s.winners | (r.byte() << 8)); }
     s.settings.poisonLimit = static_cast<int32_t>(r.word());
   } else s.settings.poisonLimit = s.settings.twoHeadedGiant ? 15 : 10;
+  // Before schema 5 a finished match had at most its one winner.
+  if (schema < 5 && s.winner >= 1 && s.winner <= MAX_PLAYERS) s.winners = static_cast<uint16_t>(1u << (s.winner - 1));
   s.settings.startingLife=static_cast<int32_t>(r.word());
   s.gameElapsed=r.word(); s.turnElapsed=r.word(); s.settings.turnTimerMs=r.word(); s.nextRequestId=r.word();
   if (s.count>MAX_PLAYERS) return Status::Corrupt;

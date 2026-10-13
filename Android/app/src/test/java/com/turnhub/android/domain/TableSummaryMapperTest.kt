@@ -151,4 +151,26 @@ class TableSummaryMapperTest {
         assertTrue(plain.hasTurn(1) && !plain.hasTurn(2))
         assertNull(plain.teamLabel(1))
     }
+    @Test
+    fun `every shared winner is a winner and a shared victory is not a draw`() {
+        val summary = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json") {
+            put("state", "GAME_OVER")
+            put("winnerPlayer", 1)
+            put("winnerPlayers", org.json.JSONArray(listOf(1, 2)))
+        })
+        assertEquals(1, summary.winnerPlayerNumber)
+        assertEquals(listOf(1, 2), summary.winnerPlayerNumbers)
+        assertTrue(summary.isWinner(1) && summary.isWinner(2))
+        assertTrue(!summary.endedInDraw)
+        // Not Star Commander (and not five players): no relationships to draw.
+        assertTrue(!summary.star && summary.starAllies(1).isEmpty() && summary.commanderDamageAllowed(1, 2))
+        val star = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("star-commander.response.json"))
+        assertTrue(star.star)
+        assertEquals(listOf(1, 2), star.winnerPlayerNumbers)
+        assertEquals(listOf(2, 5), star.starAllies(1).map { it.playerNumber })
+        assertEquals(listOf(3, 4), star.starEnemies(1).map { it.playerNumber })
+        assertTrue(!star.commanderDamageAllowed(1, 2) && star.commanderDamageAllowed(1, 3))
+        val draw = TableSummaryMapper.map(Fixtures.info(), Fixtures.state("running.response.json") { put("state", "GAME_OVER") })
+        assertTrue(draw.endedInDraw && draw.winnerPlayerNumbers.isEmpty() && !draw.isWinner(1))
+    }
 }

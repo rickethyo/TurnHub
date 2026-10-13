@@ -50,6 +50,14 @@ void ClientState::observe(HubState state, const Lobby &lobby, const GameEngine &
       game.activePlayerNumber() : 0;
   changed |= update(active_, active);
   changed |= update(winner_, game.winnerPlayerNumber());
+  // Every player who shares the win: Star Commander's shared winners and a
+  // Two-Headed Giant winner's teammate (GameEngine::isWinner).
+  uint16_t winners = 0;
+  for (uint8_t i = 0; i < game.playerCount(); ++i) {
+    const uint8_t number = game.playerAt(i)->playerNumber;
+    if (number >= 1 && number <= MAX_PLAYERS && game.isWinner(number)) winners |= static_cast<uint16_t>(1u << (number - 1));
+  }
+  changed |= update(winners_, winners);
   changed |= update(monarch_, game.monarchPlayerNumber());
   changed |= update(initiative_, game.initiativePlayerNumber());
   changed |= update(claimant_, game.winClaimPlayerNumber());
@@ -140,6 +148,17 @@ String ClientState::json(const String &atlasId, const char *bootId, const GameEn
   out += ",\"starterPlayer\":"; nullablePlayer(out, starter_);
   out += ",\"activePlayer\":"; nullablePlayer(out, active_);
   out += ",\"winnerPlayer\":"; nullablePlayer(out, winner_);
+  // Every winner, ascending: one, both Two-Headed Giant teammates, or two
+  // allies sharing a Star Commander victory.
+  out += ",\"winnerPlayers\":[";
+  bool firstWinner = true;
+  for (uint8_t number = 1; number <= MAX_PLAYERS; ++number) {
+    if (!(winners_ & (1u << (number - 1)))) continue;
+    if (!firstWinner) out += ',';
+    firstWinner = false;
+    out += String(number);
+  }
+  out += ']';
   out += ",\"monarchPlayer\":"; nullablePlayer(out, monarch_);
   out += ",\"initiativePlayer\":"; nullablePlayer(out, initiative_);
   out += ",\"settings\":{\"profile\":\""; out += gameProfileKey(settings_.profile);

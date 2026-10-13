@@ -342,6 +342,7 @@ class StandaloneTable(
             put("active", game.active ?: JSONObject.NULL)
             put("starter", game.starter ?: JSONObject.NULL)
             put("winner", game.winner ?: JSONObject.NULL)
+            put("winners", JSONArray(game.winners))
             put("monarch", game.monarch ?: JSONObject.NULL)
             put("initiative", game.initiative ?: JSONObject.NULL)
             put("autoEliminateAtPoisonLimit", game.autoEliminateAtPoisonLimit)
@@ -391,6 +392,8 @@ class StandaloneTable(
                 active = json.optIntOrNull("active"),
                 starter = json.optIntOrNull("starter"),
                 winner = json.optIntOrNull("winner"),
+                // Saved before shared victories: the single winner, if any.
+                winners = json.optIntList("winners") ?: listOfNotNull(json.optIntOrNull("winner")),
                 monarch = json.optIntOrNull("monarch"),
                 initiative = json.optIntOrNull("initiative"),
                 autoEliminateAtPoisonLimit = json.optBoolean("autoEliminateAtPoisonLimit", true),

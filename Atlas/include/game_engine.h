@@ -12,6 +12,8 @@
 
 namespace TurnHub {
 
+static_assert(MAX_PLAYERS <= 16, "the winner set is a 16-bit mask over player numbers");
+
 // A requested change to another player's life is applied automatically if
 // the target neither accepts nor rejects it within this window.
 // The default life-change approval window. A recipient may choose a longer
@@ -99,8 +101,25 @@ class GameEngine {
   bool sameTeam(uint8_t a, uint8_t b) const;
   // The active player, or (Two-Headed Giant) their teammate.
   bool hasTurn(uint8_t playerNumber) const;
-  // The winner, or (Two-Headed Giant) the winner's teammate.
+  // The winner, (Two-Headed Giant) the winner's teammate, or (Star
+  // Commander) any of the shared winners.
   bool isWinner(uint8_t playerNumber) const;
+  // Every winner's player number in ascending order (Two-Headed Giant: the
+  // recorded winner only, not the teammate); returns the count.
+  uint8_t winnerPlayers(uint8_t *out, uint8_t capacity) const;
+  // Bit (playerNumber - 1) per winner; 0 for a draw or an unfinished match.
+  uint16_t winnerMask() const { return winnerMask_; }
+
+  // --- Star Commander (game_profile.h) ---
+  // A five-player Star Commander match. Relationships come from the seat's
+  // player number and stay fixed for the match, also after elimination.
+  bool starCommander() const;
+  // Distinct allies in a Star Commander match (false otherwise).
+  bool starAllies(uint8_t a, uint8_t b) const;
+  // A living Star Commander player whose two enemies are both eliminated.
+  bool starVictoryPending(uint8_t playerNumber) const;
+  // How many of the player's two enemies are out (0 outside Star Commander).
+  uint8_t starEnemiesEliminated(uint8_t playerNumber) const;
 
   // --- Life and Commander damage (running or paused, no win claim) ---
   int32_t lifeTotal(uint8_t playerNumber) const;
@@ -118,7 +137,8 @@ class GameEngine {
   const LifeChangeRequest *lifeChangeFor(uint8_t target) const;
   // Damage recipient has taken from source's commander (1 or 2).
   int32_t commanderDamage(uint8_t recipient, uint8_t source, uint8_t commander) const;
-  // Commander profile only. Adjusts damage and the recipient's life together.
+  // Commander profiles only. Adjusts damage and the recipient's life together.
+  // Star Commander refuses damage between allies.
   bool changeCommanderDamage(uint8_t recipient, uint8_t source, uint8_t commander, int32_t delta);
 
   // --- Turns ---
@@ -130,7 +150,8 @@ class GameEngine {
 
   // --- Leaving and winning ---
   // Paused games only. Sets gameFinished when one living player (or team)
-  // remains. In Two-Headed Giant the teammate is eliminated too.
+  // remains, or (Star Commander) when evaluateStarVictory ends the match.
+  // In Two-Headed Giant the teammate is eliminated too.
   bool eliminatePlayer(
       uint8_t playerNumber,
       uint32_t nowMs,
@@ -176,7 +197,9 @@ class GameEngine {
   uint8_t activeController() const;
   uint8_t starterPlayerNumber() const;
   uint8_t winnerPlayerNumber() const;
-  // A finished match without a winner. Only endInDraw() produces one.
+  // A finished match without a winner: endInDraw(), or an elimination batch
+  // that leaves nobody (and, in Star Commander, no winner). A shared Star
+  // Commander victory is never a draw.
   bool endedInDraw() const { return gameOver_ && winnerPlayer_ == 0; }
   uint8_t winClaimPlayerNumber() const;
   uint8_t nextWinConfirmationPlayerNumber() const;
@@ -236,6 +259,13 @@ class GameEngine {
 
   void clearWinClaim();
   void finishGame(uint8_t winnerPlayer, uint32_t nowMs);
+  void finishGameWithWinners(uint16_t winners, uint32_t nowMs);
+  // Star Commander's victory policy after a complete elimination batch.
+  // Finishes the match (shared winners, or a draw) and returns true.
+  bool evaluateStarVictory(uint32_t nowMs);
+  static uint16_t winnerBit(uint8_t playerNumber) {
+    return static_cast<uint16_t>(1u << (playerNumber - 1));
+  }
 
   static GameCompletedCallback gameCompletedCallback_;
 
@@ -268,7 +298,8 @@ class GameEngine {
   uint32_t pauseStartedAtMs_ = 0;
   uint32_t totalPausedMs_ = 0;
 
-  uint8_t winnerPlayer_ = 0;
+  uint8_t winnerPlayer_ = 0;  // The first (lowest-numbered) winner.
+  uint16_t winnerMask_ = 0;
 
   bool winClaimActive_ = false;
   uint8_t winClaimPlayer_ = 0;

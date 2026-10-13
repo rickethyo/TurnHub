@@ -37,6 +37,9 @@ struct ImportedGame {
   // Indices into players; -1 for none (a game with no winner).
   int8_t starter = -1;
   int8_t winner = -1;
+  // Every winner (bit per player index), for a shared Star Commander victory.
+  // 0 means winner alone; otherwise it includes winner, the first winner.
+  uint8_t winners = 0;
   uint8_t playerCount = 0;
   ImportedPlayer players[MAX_IMPORT_PLAYERS];
 };
