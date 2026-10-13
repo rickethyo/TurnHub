@@ -157,11 +157,14 @@ cmake --build LVGL/build-asan --parallel 4
 ctest --test-dir LVGL/build-asan --output-on-failure
 ```
 
-Atlas follows the app's table: four seat panels (tap the top half +1, bottom half -1, hold for -5/+5
+Atlas opens on a springboard-style home screen (glossy app icons, a dock, a now-playing card); icons
+zoom open into their screens. A new turn plays the chosen turn effect (Bubble, Flip, Push or Cube, under
+Settings > Turn effect) and a bouncing "Mira's turn" banner. The table itself follows the app's table: four seat panels (tap the top half +1, bottom half -1, hold for -5/+5
 repeating), hold-to-pass on the turn holder, and a centre hub whose ring drains with the turn clock and
 opens the table menu. Sigil keeps the joystick with a visible focus ring in menus, a tap-split life card and
 hold-to-pass on your turn. Screens slide between menus, the turn ring sweeps continuously, life changes pop with a merged
-`+3` badge and the turn holder's card glows. `--reduced-motion` keeps every state but drops movement,
+`+3` badge and the turn holder's card glows. `--pass-capture-ms N --effect 0..3` captures a frame N ms into a turn transition (development).
+`--reduced-motion` keeps every state but drops movement,
 scaling and pulses; `--self-test` and `--capture` always use it so geometry is settled.
 
 BMP output captures the actual SDL renderer. `--capture` exits after rendering;

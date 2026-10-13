@@ -24,6 +24,18 @@ void set_shadow(void* o, int32_t v) { lv_obj_set_style_shadow_opa(as_obj(o), sta
 void set_border_opa(void* o, int32_t v) { lv_obj_set_style_border_opa(as_obj(o), static_cast<lv_opa_t>(v), 0); }
 void set_bg_opa(void* o, int32_t v) { lv_obj_set_style_bg_opa(as_obj(o), static_cast<lv_opa_t>(v), 0); }
 void set_width(void* o, int32_t v) { lv_obj_set_width(as_obj(o), v); }
+void set_scale_x(void* o, int32_t v) { lv_obj_set_style_transform_scale_x(as_obj(o), v, 0); }
+// Undo a transition's transform so the settled screen is exact again.
+void settle(lv_anim_t* a) {
+    auto* obj = as_obj(a->var);
+    lv_obj_set_style_transform_scale_x(obj, 256, 0); lv_obj_set_style_transform_scale(obj, 256, 0);
+    lv_obj_set_style_translate_x(obj, 0, 0); lv_obj_set_style_opa(obj, LV_OPA_COVER, 0);
+}
+void drop_snapshot(lv_event_t* e) {
+    auto* buf = static_cast<lv_draw_buf_t*>(lv_event_get_user_data(e));
+    lv_image_cache_drop(buf);
+    lv_draw_buf_destroy(buf);
+}
 // The turn ring and the bright head riding its moving end (as in the app).
 void set_ring(void* o, int32_t v) {
     auto* arc = as_obj(o);
@@ -61,7 +73,12 @@ void pulse(lv_obj_t* obj, lv_anim_exec_xcb_t cb, int32_t low, int32_t high, uint
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE); lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
     lv_anim_start(&a);
 }
-int depth(Screen s) { return s == Screen::Gameplay ? 0 : s == Screen::Settings ? 1 : 2; }
+void pill_color(lv_obj_t* pill, uint32_t bg) {
+    lv_obj_set_style_bg_color(pill, lv_color_hex(bg), 0);
+    if(lv_obj_get_style_bg_grad_dir(pill, 0) != LV_GRAD_DIR_NONE)
+        lv_obj_set_style_bg_grad_color(pill, lv_color_darken(lv_color_hex(bg), 40), 0);
+}
+int depth(Screen s) { return s == Screen::Home ? -1 : s == Screen::Gameplay ? 0 : s == Screen::Settings ? 1 : 2; }
 uint32_t hsl(float h, float s, float l) {
     const float c = (1 - std::fabs(2 * l - 1)) * s, hp = h / 60, x = c * (1 - std::fabs(std::fmod(hp, 2.0f) - 1)), m = l - c / 2;
     float r = 0, g = 0, b = 0;
@@ -170,6 +187,11 @@ lv_obj_t* Ui::pill(lv_obj_t* parent, int x, int y, const char* text, uint32_t bg
     lv_obj_set_style_bg_opa(obj, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(obj, lv_color_hex(bg), 0);
     lv_obj_set_style_pad_hor(obj, 8, 0); lv_obj_set_style_pad_ver(obj, 3, 0);
+    if(theme_ != TurnHubTheme::Id::Contrast) {
+        // Candy tags: a lighter top edge, like the classic glossy badges.
+        lv_obj_set_style_bg_grad_color(obj, lv_color_darken(lv_color_hex(bg), 40), 0);
+        lv_obj_set_style_bg_grad_dir(obj, LV_GRAD_DIR_VER, 0);
+    }
     auto* caption = label(obj, text, 0, 0, 0, &th_eyebrow_13, fg);
     if(text_out) *text_out = caption;
     return obj;
@@ -210,6 +232,7 @@ lv_obj_t* Ui::button(lv_obj_t* parent, const std::string& name, const char* text
         lv_obj_set_style_transition(obj, &transition, 0);
         lv_obj_set_style_transition(obj, &transition, LV_STATE_PRESSED);
     }
+    if(look != Look::Quiet) gloss(obj, fill, w, h, 14);
     // The Sigil's joystick moves a visible focus ring; touch never shows it.
     lv_obj_set_style_outline_width(obj, 3, LV_STATE_FOCUS_KEY);
     lv_obj_set_style_outline_pad(obj, 2, LV_STATE_FOCUS_KEY);
@@ -347,6 +370,7 @@ void Ui::build_gameplay_atlas() {
     lv_obj_set_style_shadow_width(hub_, 30, 0);
     lv_obj_set_style_shadow_color(hub_, lv_color_hex(pal.turn), 0);
     lv_obj_set_style_shadow_opa(hub_, LV_OPA_TRANSP, 0);
+    gloss(hub_, pal.surface3, HUB, HUB, LV_RADIUS_CIRCLE);
     bind(hub_, "hub", false);
     clock_arc_ = lv_arc_create(hub_);
     lv_obj_remove_style_all(clock_arc_);
@@ -431,30 +455,30 @@ void Ui::build_settings() {
     const auto& pal = palette();
     const auto& s = source_.snapshot();
     struct Item { const char* name; const char* title; const char* detail; const lv_image_dsc_t* small; const lv_image_dsc_t* big; };
+    static const char* const effect_names[] = {"Bubble", "Flip", "Push", "Cube"};
     const Item items[] = {
         {"pairing", "Pairing", "Mock, no radio", TH_ICON(link, 24), TH_ICON(link, 40)},
         {"themes", "Theme", pal.label, TH_ICON(palette, 24), TH_ICON(palette, 40)},
         {"players", "Player", s.players[selected_].name.c_str(), TH_ICON(users, 24), TH_ICON(users, 40)},
+        {"effects", "Turn effect", effect_names[static_cast<unsigned>(turn_effect_)], TH_ICON(sparkle, 24), TH_ICON(sparkle, 40)},
     };
-    for(unsigned i = 0; i < 3; ++i) {
+    for(unsigned i = 0; i < 4; ++i) {
         const auto& it = items[i];
         if(profile_.compact()) {
-            auto* row = button(root_, it.name, nullptr, nullptr, 12, 64 + static_cast<int>(i) * 60, 216, 52);
+            auto* row = button(root_, it.name, nullptr, nullptr, 12, 58 + static_cast<int>(i) * 58, 216, 52);
             auto* g = icon(row, it.small, pal.accent); lv_obj_align(g, LV_ALIGN_LEFT_MID, 12, 0);
             label(row, it.title, 46, 5, 140, &th_semi_20, pal.text);
             label(row, it.detail, 46, 29, 140, &th_inter_16, pal.textSecondary);
             auto* c = icon(row, TH_ICON(chevron_right, 24), pal.textTertiary); lv_obj_align(c, LV_ALIGN_RIGHT_MID, -8, 0);
         } else {
-            auto* tile = button(root_, it.name, nullptr, nullptr, 12 + static_cast<int>(i) * 156, 72, 144, 176);
+            auto* tile = button(root_, it.name, nullptr, nullptr, 12 + static_cast<int>(i) * 117, 72, 105, 176);
             auto* g = icon(tile, it.big, pal.accent); lv_obj_align(g, LV_ALIGN_TOP_MID, 0, 28);
             auto* t = label(tile, it.title, 0, 0, 0, title_font(), pal.text); lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 88);
-            auto* d = label(tile, it.detail, 0, 0, 128, &th_inter_16, pal.textSecondary);
+            auto* d = label(tile, it.detail, 0, 0, 96, &th_inter_16, pal.textSecondary);
             lv_obj_set_style_text_align(d, LV_TEXT_ALIGN_CENTER, 0); lv_obj_align(d, LV_ALIGN_TOP_MID, 0, 120);
         }
     }
-    auto* note = label(root_, "Changes here stay on this demo; nothing is saved.", 12, profile_.compact() ? 250 : 268,
-                       profile_.width - 24, &th_inter_16, pal.textTertiary);
-    lv_obj_set_height(note, LV_SIZE_CONTENT); lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+    if(!profile_.compact()) label(root_, "Changes here stay on this demo; nothing is saved.", 12, 268, profile_.width - 24, &th_inter_16, pal.textTertiary);
     build_header("Settings", "back");
 }
 void Ui::build_themes() {
@@ -575,7 +599,9 @@ void Ui::render(Motion motion) {
     timer_ = life_ = name_ = status_ = status_pill_ = hub_ = clock_arc_ = clock_head_ = clock_bar_ = badge_ = nullptr;
     turn_frame_ = life_card_ = bottom_seat_ = bottom_pass_ = card_scrim_ = card_ = nullptr;
     card_kind_ = Card::None; card_names_.clear();
+    home_title_ = home_detail_ = home_token_ = home_glyph_ = home_pause_ = home_pause_text_ = home_badge_ = nullptr;
     seats_.fill(Seat{});
+    if(profile_.compact() && screen_ == Screen::Home) screen_ = Screen::Gameplay; // Sigil's main screen is its seat.
     auto* old = screen_obj_;
     screen_obj_ = lv_obj_create(nullptr);
     lv_obj_remove_style_all(screen_obj_);
@@ -596,17 +622,324 @@ void Ui::render(Motion motion) {
     case Screen::Themes: build_themes(); break;
     case Screen::Players: build_players(); break;
     case Screen::Pairing: build_pairing(); break;
+    case Screen::Home: build_home(); break;
+    case Screen::Effects: build_effects(); break;
     }
     if(!old) lv_screen_load(screen_obj_);
     else if(motion == Motion::None || reduced_motion_) { lv_screen_load(screen_obj_); lv_obj_delete(old); }
     else {
-        const auto type = motion == Motion::Forward ? LV_SCR_LOAD_ANIM_MOVE_LEFT
-                        : motion == Motion::Back ? LV_SCR_LOAD_ANIM_MOVE_RIGHT : LV_SCR_LOAD_ANIM_FADE_IN;
-        lv_screen_load_anim(screen_obj_, type, 260, 0, true);
+        // Slide-show transitions from a still of the old screen.
+        auto* shot = lv_snapshot_take(old, LV_COLOR_FORMAT_ARGB8888);
+        lv_screen_load(screen_obj_);
+        lv_obj_delete(old);
+        if(shot) {
+            const int w = profile_.width;
+            auto* img = lv_image_create(screen_obj_);
+            lv_image_set_src(img, shot);
+            lv_obj_remove_flag(img, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(img, drop_snapshot, LV_EVENT_DELETE, shot);
+            lv_obj_set_style_transform_pivot_x(img, w / 2, 0); lv_obj_set_style_transform_pivot_y(img, profile_.height / 2, 0);
+            lv_obj_set_style_transform_pivot_x(root_, w / 2, 0); lv_obj_set_style_transform_pivot_y(root_, profile_.height / 2, 0);
+            switch(motion) {
+            case Motion::Forward: case Motion::Back: {
+                const int dir = motion == Motion::Forward ? 1 : -1;
+                animate(img, set_tx, 0, -dir * w, 300, 0, lv_anim_path_ease_in_out, delete_var);
+                animate(root_, set_tx, dir * w, 0, 300, 0, lv_anim_path_ease_in_out, settle);
+                break;
+            }
+            case Motion::ZoomIn:
+                // An app opening: the new screen grows out of the springboard.
+                lv_obj_move_to_index(img, 0);
+                animate(img, set_opa, 255, 0, 340, 0, lv_anim_path_linear, delete_var);
+                animate(root_, set_scale, 40, 256, 340, 0, lv_anim_path_ease_out, settle);
+                animate(root_, set_opa, 0, 255, 200);
+                break;
+            case Motion::ZoomOut:
+                animate(img, set_scale, 256, 30, 300, 0, lv_anim_path_ease_in);
+                animate(img, set_opa, 255, 0, 300, 0, lv_anim_path_ease_in, delete_var);
+                animate(root_, set_scale, 330, 256, 320, 0, lv_anim_path_ease_out, settle);
+                break;
+            default: animate(img, set_opa, 255, 0, 280, 0, lv_anim_path_ease_in_out, delete_var); break;
+            }
+        }
     }
     revision_ = 0;
     fresh_ = true;
     update();
+}
+
+// ---- Gloss, home screen and transitions -------------------------------------
+void Ui::gloss(lv_obj_t* obj, uint32_t base, int w, int h, int radius) {
+    // Glossy candy, as in the classic iPhone era: a lighter top shading into
+    // the base, with a soft highlight over the upper half. High contrast stays flat.
+    if(theme_ == TurnHubTheme::Id::Contrast) return;
+    lv_obj_set_style_bg_color(obj, lv_color_lighten(lv_color_hex(base), 28), 0);
+    lv_obj_set_style_bg_grad_color(obj, lv_color_darken(lv_color_hex(base), 22), 0);
+    lv_obj_set_style_bg_grad_dir(obj, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_bg_grad_color(obj, lv_color_darken(lv_color_hex(base), 60), LV_STATE_PRESSED);
+    auto* shine = box(obj, 2, 1, w - 4, h / 2);
+    lv_obj_add_flag(shine, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_set_style_radius(shine, radius == LV_RADIUS_CIRCLE ? LV_RADIUS_CIRCLE : std::max(2, radius - 1), 0);
+    lv_obj_set_style_bg_color(shine, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(shine, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_main_opa(shine, static_cast<lv_opa_t>(palette().light ? 150 : 90), 0);
+    lv_obj_set_style_bg_grad_opa(shine, 8, 0);
+    lv_obj_set_style_bg_grad_color(shine, lv_color_white(), 0);
+    lv_obj_set_style_bg_grad_dir(shine, LV_GRAD_DIR_VER, 0);
+    lv_obj_move_to_index(shine, 0); // Behind the caption.
+}
+lv_obj_t* Ui::app_icon(const std::string& name, const char* title, const lv_image_dsc_t* glyph, uint32_t color, int cx, int y, unsigned order) {
+    constexpr int S = 60;
+    auto* tile = box(root_, cx - S / 2, y, S, S);
+    lv_obj_set_style_radius(tile, 14, 0);
+    lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(tile, lv_color_hex(color), 0);
+    lv_obj_set_style_border_width(tile, 1, 0);
+    lv_obj_set_style_border_color(tile, lv_color_darken(lv_color_hex(color), 70), 0);
+    lv_obj_set_style_shadow_width(tile, 10, 0);
+    lv_obj_set_style_shadow_offset_y(tile, 3, 0);
+    lv_obj_set_style_shadow_opa(tile, LV_OPA_50, 0);
+    lv_obj_set_style_transform_width(tile, -3, LV_STATE_PRESSED);
+    lv_obj_set_style_transform_height(tile, -3, LV_STATE_PRESSED);
+    gloss(tile, color, S, S, 14);
+    auto* g = icon(tile, glyph, 0xFFFFFF);
+    lv_obj_center(g);
+    bind(tile, name, false);
+    // Labels sit on the wallpaper with a soft drop shadow, springboard style.
+    auto* shade = label(root_, title, cx - 50 + 1, y + S + 6 + 1, 100, &th_semi_16, 0x000000);
+    lv_obj_set_style_text_align(shade, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_opa(shade, static_cast<lv_opa_t>(palette().light ? 40 : 160), 0);
+    auto* text = label(root_, title, cx - 50, y + S + 6, 100, &th_semi_16, palette().light ? palette().text : 0xFFFFFF);
+    lv_obj_set_style_text_align(text, LV_TEXT_ALIGN_CENTER, 0);
+    if(!reduced_motion_) {
+        // Icons zoom in from the glass, one after another.
+        lv_obj_set_style_transform_pivot_x(tile, S / 2, 0); lv_obj_set_style_transform_pivot_y(tile, S / 2, 0);
+        lv_obj_set_style_opa(tile, LV_OPA_TRANSP, 0);
+        animate(tile, set_scale, 420, 256, 380, 40 * order, lv_anim_path_ease_out);
+        animate(tile, set_opa, 0, 255, 260, 40 * order);
+    }
+    return tile;
+}
+void Ui::build_home() {
+    const auto& pal = palette();
+    const auto& s = source_.snapshot();
+    const int w = profile_.width;
+    // Wallpaper: the accent glowing down into the background.
+    lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(root_, lv_color_mix(lv_color_hex(pal.accent), lv_color_hex(pal.bg), pal.light ? 70 : 60), 0);
+    lv_obj_set_style_bg_grad_color(root_, lv_color_hex(pal.bg), 0);
+    lv_obj_set_style_bg_grad_dir(root_, LV_GRAD_DIR_VER, 0);
+    // Translucent status bar.
+    auto* bar = box(root_, 0, 0, w, 22);
+    lv_obj_set_style_bg_opa(bar, static_cast<lv_opa_t>(pal.light ? 60 : 150), 0);
+    lv_obj_set_style_bg_color(bar, lv_color_black(), 0);
+    label(bar, "TurnHub", 8, 1, 0, &th_semi_16, 0xFFFFFF);
+    auto* where = label(bar, "TABLE 1  /  DEMO", 0, 4, 0, &th_eyebrow_13, 0xE0E0E0);
+    lv_obj_align(where, LV_ALIGN_TOP_MID, 0, 4);
+    auto* bat = icon(bar, TH_ICON(battery, 24), 0xFFFFFF);
+    lv_obj_set_pos(bat, w - 56, -1);
+    label(bar, "--", w - 28, 1, 0, &th_semi_16, 0xFFFFFF);
+    // Now playing: tap to return to the table.
+    auto* widget = box(root_, 16, 32, w - 32, 84);
+    lv_obj_set_style_radius(widget, 22, 0);
+    lv_obj_set_style_bg_opa(widget, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(widget, lv_color_hex(pal.surface1), 0);
+    lv_obj_set_style_border_width(widget, 1, 0);
+    lv_obj_set_style_border_color(widget, lv_color_hex(pal.separatorStrong), 0);
+    lv_obj_set_style_shadow_width(widget, 18, 0); lv_obj_set_style_shadow_offset_y(widget, 4, 0);
+    lv_obj_set_style_shadow_opa(widget, LV_OPA_40, 0);
+    gloss(widget, pal.surface2, w - 32, 84, 22);
+    bind(widget, "nowplaying", false);
+    const auto& holder = s.players[s.turn_holder];
+    home_token_ = token(widget, 14, 16, 52, holder.avatar, s.turn_holder, &home_glyph_);
+    lv_obj_set_style_border_color(home_token_, lv_color_white(), 0);
+    lv_obj_set_style_border_width(home_token_, 2, 0);
+    home_title_ = label(widget, "", 80, 12, 280, title_font(true), pal.text);
+    home_detail_ = label(widget, "", 80, 50, 280, &th_inter_16, pal.textSecondary);
+    auto* play = box(widget, w - 32 - 66, 16, 52, 52);
+    lv_obj_set_style_radius(play, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(play, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(play, lv_color_hex(pal.turn), 0);
+    lv_obj_set_style_shadow_width(play, 10, 0); lv_obj_set_style_shadow_color(play, lv_color_hex(pal.turn), 0);
+    lv_obj_set_style_shadow_opa(play, LV_OPA_50, 0);
+    gloss(play, pal.turn, 52, 52, LV_RADIUS_CIRCLE);
+    lv_obj_center(icon(play, TH_ICON(play, 24), pal.onTurn));
+    if(!reduced_motion_) pulse(play, set_shadow, 40, 200, 1100);
+    // Apps, then the dock on its glass shelf.
+    const bool contrast = theme_ == TurnHubTheme::Id::Contrast;
+    auto vivid = [&](float hue, float sat) { return contrast ? 0x2A2A2Au : hsl(hue, sat, pal.light ? 0.46f : 0.44f); };
+    app_icon("themes", "Themes", TH_ICON(palette, 40), vivid(32, 0.62f), 60, 124, 0);
+    app_icon("effects", "Effects", TH_ICON(sparkle, 40), vivid(280, 0.62f), 180, 124, 1);
+    app_icon("scenario", "Sample", TH_ICON(dice, 40), vivid(355, 0.62f), 300, 124, 2);
+    home_pause_ = app_icon("pause", "Pause", TH_ICON(pause, 40), vivid(205, 0.62f), 420, 124, 3);
+    home_pause_text_ = lv_obj_get_child(root_, -1);
+    auto* shelf = box(root_, 8, 220, w - 16, 96);
+    lv_obj_set_style_radius(shelf, 24, 0);
+    lv_obj_set_style_bg_opa(shelf, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(shelf, lv_color_white(), 0);
+    lv_obj_set_style_bg_main_opa(shelf, static_cast<lv_opa_t>(pal.light ? 120 : 46), 0);
+    lv_obj_set_style_bg_grad_opa(shelf, static_cast<lv_opa_t>(pal.light ? 60 : 14), 0);
+    lv_obj_set_style_bg_grad_color(shelf, lv_color_white(), 0);
+    lv_obj_set_style_bg_grad_dir(shelf, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_border_width(shelf, 1, 0);
+    lv_obj_set_style_border_side(shelf, LV_BORDER_SIDE_TOP, 0);
+    lv_obj_set_style_border_color(shelf, lv_color_white(), 0);
+    lv_obj_set_style_border_opa(shelf, LV_OPA_50, 0);
+    app_icon("table", "Table", TH_ICON(hub, 40), contrast ? 0x2A2A2Au : pal.turn, 60, 228, 4);
+    auto* people = app_icon("players", "Players", TH_ICON(users, 40), vivid(215, 0.62f), 180, 228, 5);
+    app_icon("pairing", "Pair", TH_ICON(link, 40), vivid(130, 0.5f), 300, 228, 6);
+    app_icon("settings", "Settings", TH_ICON(sliders, 40), contrast ? 0x2A2A2Au : hsl(220, 0.08f, 0.5f), 420, 228, 7);
+    // A classic red badge: players still in the game.
+    lv_obj_add_flag(people, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+    home_badge_ = box(people, 42, -10, LV_SIZE_CONTENT, 24);
+    lv_obj_add_flag(home_badge_, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_set_style_min_width(home_badge_, 24, 0);
+    lv_obj_set_style_radius(home_badge_, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(home_badge_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(home_badge_, lv_color_hex(0xF2483C), 0);
+    lv_obj_set_style_bg_grad_color(home_badge_, lv_color_hex(0xB81C12), 0);
+    lv_obj_set_style_bg_grad_dir(home_badge_, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_border_width(home_badge_, 2, 0);
+    lv_obj_set_style_border_color(home_badge_, lv_color_white(), 0);
+    lv_obj_set_style_pad_hor(home_badge_, 5, 0);
+    lv_obj_set_style_shadow_width(home_badge_, 6, 0); lv_obj_set_style_shadow_opa(home_badge_, LV_OPA_50, 0);
+    auto* count = label(home_badge_, "", 0, 0, 0, &th_semi_16, 0xFFFFFF);
+    lv_obj_center(count);
+}
+void Ui::update_home(const Snapshot& s) {
+    const auto& holder = s.players[s.turn_holder];
+    char title[48], detail[64];
+    if(s.phase == Phase::GameOver) std::snprintf(title, sizeof title, "%s wins", holder.name.c_str());
+    else std::snprintf(title, sizeof title, "%s's turn", holder.name.c_str());
+    unsigned in = 0; for(const auto& p : s.players) in += p.active ? 1 : 0;
+    if(s.phase == Phase::GameOver) std::snprintf(detail, sizeof detail, "Game over  /  tap to see the table");
+    else std::snprintf(detail, sizeof detail, "%02u:%02u left%s  /  %u players in", s.remaining_seconds / 60, s.remaining_seconds % 60,
+                       s.phase == Phase::Paused ? ", paused" : "", in);
+    lv_label_set_text(home_title_, title);
+    lv_label_set_text(home_detail_, detail);
+    lv_obj_set_style_bg_color(home_token_, lv_color_hex(seat_color(s.turn_holder)), 0);
+    lv_image_set_src(home_glyph_, assets_.avatar(holder.avatar));
+    const bool paused = s.phase == Phase::Paused;
+    lv_image_set_src(lv_obj_get_child(home_pause_, -1), paused ? TH_ICON(play, 40) : TH_ICON(pause, 40));
+    lv_label_set_text(home_pause_text_, paused ? "Resume" : "Pause");
+    // The shadow copy of the label sits just before it.
+    lv_label_set_text(lv_obj_get_child(root_, static_cast<int32_t>(lv_obj_get_index(home_pause_text_)) - 1), paused ? "Resume" : "Pause");
+    char n[8]; std::snprintf(n, sizeof n, "%u", in);
+    lv_label_set_text(lv_obj_get_child(home_badge_, 0), n);
+    if(!fresh_ && !reduced_motion_ && s.turn_holder != last_turn_) pop(home_token_, 320);
+    last_turn_ = s.turn_holder;
+    fresh_ = false;
+}
+void Ui::build_effects() {
+    const auto& pal = palette();
+    const bool compact = profile_.compact();
+    struct Fx { const char* title; const char* detail; const lv_image_dsc_t* small; const lv_image_dsc_t* big; };
+    const Fx fx[] = {
+        {"Bubble", "A bouncy banner", TH_ICON(sparkle, 24), TH_ICON(sparkle, 40)},
+        {"Flip", "The table flips over", TH_ICON(swap, 24), TH_ICON(swap, 40)},
+        {"Push", "Slides to the next seat", TH_ICON(chevron_right, 24), TH_ICON(chevron_right, 40)},
+        {"Cube", "Turns like a cube", TH_ICON(dice, 24), TH_ICON(dice, 40)},
+    };
+    for(unsigned i = 0; i < 4; ++i) {
+        const bool on = static_cast<unsigned>(turn_effect_) == i;
+        const int x = compact ? 12 : 12 + static_cast<int>(i % 2) * 234;
+        const int y = compact ? 62 + static_cast<int>(i) * 58 : 64 + static_cast<int>(i / 2) * 124;
+        const int w = compact ? 216 : 222, h = compact ? 52 : 112;
+        auto* tile = button(root_, "effect" + std::to_string(i), nullptr, nullptr, x, y, w, h, on ? Look::Normal : Look::Quiet);
+        if(on) { lv_obj_set_style_border_color(tile, lv_color_hex(pal.accent), 0); lv_obj_set_style_border_width(tile, 2, 0); }
+        auto* g = icon(tile, compact ? fx[i].small : fx[i].big, pal.accent);
+        lv_obj_set_pos(g, 12, compact ? 14 : 16);
+        label(tile, fx[i].title, compact ? 46 : 12, compact ? 5 : 62, 140, &th_semi_20, pal.text);
+        label(tile, fx[i].detail, compact ? 46 : 12, compact ? 29 : 86, compact ? 150 : 196, &th_inter_16, pal.textSecondary);
+        if(on) { auto* tick = icon(tile, TH_ICON(check, 24), pal.accent); lv_obj_align(tick, compact ? LV_ALIGN_RIGHT_MID : LV_ALIGN_TOP_RIGHT, -10, compact ? 0 : 12); }
+    }
+    build_header("Turn effect", "settings");
+}
+lv_obj_t* Ui::freeze(lv_obj_t* target) {
+    // A still of what is on screen now, to animate away from (PowerPoint style).
+    auto* buf = lv_snapshot_take(target, LV_COLOR_FORMAT_ARGB8888);
+    if(!buf) return nullptr;
+    auto* img = lv_image_create(screen_obj_);
+    lv_image_set_src(img, buf);
+    lv_obj_set_pos(img, 0, 0);
+    lv_obj_remove_flag(img, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(img, drop_snapshot, LV_EVENT_DELETE, buf);
+    lv_obj_set_style_transform_pivot_x(img, profile_.width / 2, 0);
+    lv_obj_set_style_transform_pivot_y(img, profile_.height / 2, 0);
+    return img;
+}
+void Ui::banner(const char* title, const char* detail, uint8_t avatar, unsigned seat, uint32_t delay) {
+    const auto& pal = palette();
+    const bool compact = profile_.compact();
+    const int bw = compact ? 220 : 330, bh = compact ? 92 : 104, side = compact ? 50 : 64;
+    auto* b = box(screen_obj_, (profile_.width - bw) / 2, (profile_.height - bh) / 2, bw, bh);
+    lv_obj_set_style_radius(b, 30, 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(b, lv_color_hex(pal.turn), 0);
+    lv_obj_set_style_border_width(b, 3, 0);
+    lv_obj_set_style_border_color(b, lv_color_white(), 0);
+    lv_obj_set_style_border_opa(b, 200, 0);
+    lv_obj_set_style_shadow_width(b, 40, 0); lv_obj_set_style_shadow_offset_y(b, 10, 0);
+    lv_obj_set_style_shadow_opa(b, LV_OPA_60, 0);
+    gloss(b, pal.turn, bw, bh, 30);
+    auto* t = token(b, 14, (bh - side) / 2 - 3, side, avatar, seat);
+    lv_obj_set_style_border_color(t, lv_color_white(), 0);
+    lv_obj_set_style_border_width(t, 3, 0);
+    label(b, title, side + 26, compact ? 14 : 18, bw - side - 40, compact ? &th_semi_20 : title_font(true), pal.onTurn);
+    auto* sub = label(b, detail, side + 26, compact ? 44 : 56, bw - side - 40, &th_inter_16, pal.onTurn);
+    lv_obj_set_style_text_opa(sub, 200, 0);
+    // In with a bounce, a beat to read it, then up and away.
+    lv_obj_set_style_transform_pivot_x(b, bw / 2, 0); lv_obj_set_style_transform_pivot_y(b, bh / 2, 0);
+    lv_obj_set_style_opa(b, LV_OPA_TRANSP, 0);
+    animate(b, set_scale, 60, 256, 420, delay, lv_anim_path_overshoot);
+    lv_anim_t fade; lv_anim_init(&fade);
+    lv_anim_set_var(&fade, b); lv_anim_set_exec_cb(&fade, set_opa); lv_anim_set_values(&fade, 0, 255);
+    lv_anim_set_duration(&fade, 160); lv_anim_set_delay(&fade, delay);
+    lv_anim_set_reverse_delay(&fade, 1300); lv_anim_set_reverse_duration(&fade, 280);
+    lv_anim_set_completed_cb(&fade, delete_var);
+    lv_anim_start(&fade);
+    lv_anim_t rise; lv_anim_init(&rise);
+    lv_anim_set_var(&rise, b); lv_anim_set_exec_cb(&rise, set_ty); lv_anim_set_values(&rise, 0, -34);
+    lv_anim_set_duration(&rise, 280); lv_anim_set_delay(&rise, delay + 160 + 1300);
+    lv_anim_set_early_apply(&rise, false);
+    lv_anim_set_path_cb(&rise, lv_anim_path_ease_in);
+    lv_anim_start(&rise);
+}
+void Ui::play_turn_effect(lv_obj_t* before) {
+    const int w = profile_.width;
+    const auto& s = source_.snapshot();
+    const auto& holder = s.players[s.turn_holder];
+    uint32_t delay = 0;
+    if(before) {
+        switch(turn_effect_) {
+        case TurnEffect::Flip:
+            // The table turns over like a card: away edge-on, then back with the new turn.
+            lv_obj_set_style_transform_pivot_x(root_, w / 2, 0);
+            animate(before, set_scale_x, 256, 0, 200, 0, lv_anim_path_ease_in, delete_var);
+            animate(root_, set_scale_x, 0, 256, 300, 200, lv_anim_path_overshoot, settle);
+            delay = 380;
+            break;
+        case TurnEffect::Push:
+            animate(before, set_tx, 0, -w, 460, 0, lv_anim_path_ease_in_out, delete_var);
+            animate(root_, set_tx, w, 0, 460, 0, lv_anim_path_ease_in_out, settle);
+            delay = 340;
+            break;
+        case TurnEffect::Cube:
+            // Two faces sharing the edge between them, as the cube rolls left.
+            lv_obj_set_style_transform_pivot_x(before, 0, 0);
+            lv_obj_set_style_transform_pivot_x(root_, w, 0);
+            animate(before, set_scale_x, 256, 0, 520, 0, lv_anim_path_ease_in_out, delete_var);
+            animate(root_, set_scale_x, 0, 256, 520, 0, lv_anim_path_ease_in_out, settle);
+            delay = 420;
+            break;
+        default: lv_obj_delete(before); break;
+        }
+    }
+    if(profile_.compact()) { banner("Your turn!", "Hold to pass when done", holder.avatar, s.turn_holder, delay); return; }
+    char title[40], seat[48];
+    std::snprintf(title, sizeof title, "%s's turn", holder.name.c_str());
+    std::snprintf(seat, sizeof seat, "Seat %u  /  %u:%02u on the clock", s.turn_holder + 1, s.turn_seconds / 60, s.turn_seconds % 60);
+    banner(title, seat, holder.avatar, s.turn_holder, delay);
 }
 
 // ---- Atlas overlay cards (menu, paused, game over) -------------------------
@@ -643,7 +976,7 @@ void Ui::open_card(Card kind) {
         const bool paused = s.phase == Phase::Paused;
         button(card_, "pause", paused ? "Resume" : "Pause", paused ? TH_ICON(play, 24) : TH_ICON(pause, 24), 20, 92, 136, 48);
         button(card_, "scenario", "Sample", TH_ICON(dice, 24), 164, 92, 136, 48);
-        button(card_, "menu", "Settings", TH_ICON(sliders, 24), 20, 148, 136, 48);
+        button(card_, "home", "Home", TH_ICON(home, 24), 20, 148, 136, 48);
         button(card_, "card_close", "Close", TH_ICON(close, 24), 164, 148, 136, 48, Look::Quiet);
     } else if(kind == Card::Paused) {
         button(card_, "resume", "Resume", TH_ICON(play, 24), 20, 120, 136, 52, Look::Accent);
@@ -699,6 +1032,10 @@ void Ui::show_badge(lv_obj_t* badge, int total) {
 void Ui::update_gameplay(const Snapshot& s) {
     const auto& pal = palette();
     const bool compact = profile_.compact();
+    // A new turn: keep a still of the old table (not yet redrawn) to transition from.
+    const bool announce = !fresh_ && !reduced_motion_ && s.turn_holder != last_turn_ && s.phase == Phase::Running
+                          && (!compact || s.turn_holder == selected_);
+    lv_obj_t* before = announce && turn_effect_ != TurnEffect::Bubble ? freeze(root_) : nullptr;
     const bool running = s.phase == Phase::Running;
     char clock[24];
     std::snprintf(clock, sizeof clock, "%02u:%02u", s.remaining_seconds / 60, s.remaining_seconds % 60);
@@ -747,7 +1084,7 @@ void Ui::update_gameplay(const Snapshot& s) {
         else if(s.phase == Phase::GameOver && mine) { bg = pal.accent; fg = pal.onAccent; }
         else if(s.phase == Phase::Paused) fg = pal.warning;
         else if(!player.active) fg = pal.critical;
-        lv_obj_set_style_bg_color(status_pill_, lv_color_hex(bg), 0);
+        pill_color(status_pill_, bg);
         lv_obj_set_style_text_color(status_, lv_color_hex(fg), 0);
         lv_obj_set_style_border_width(seats_[0].token, your_turn ? 3 : 0, 0);
         char text[16]; std::snprintf(text, sizeof text, "%d", player.life);
@@ -787,7 +1124,7 @@ void Ui::update_gameplay(const Snapshot& s) {
             const char* tag = !p.active ? "OUT" : won ? "WINNER" : turn ? "TURN" : "";
             lv_label_set_text(seat.tag_text, tag);
             lv_obj_set_flag(seat.tag, LV_OBJ_FLAG_HIDDEN, !*tag);
-            lv_obj_set_style_bg_color(seat.tag, lv_color_hex(!p.active ? pal.critical : won ? pal.accent : pal.turn), 0);
+            pill_color(seat.tag, !p.active ? pal.critical : won ? pal.accent : pal.turn);
             lv_obj_set_style_text_color(seat.tag_text, lv_color_hex(!p.active ? pal.bg : won ? pal.onAccent : pal.onTurn), 0);
             lv_obj_set_style_border_color(seat.panel, lv_color_hex(turn ? (won ? pal.accent : pal.turn) : pal.separatorStrong), 0);
             lv_obj_set_style_border_width(seat.panel, turn ? 3 : (pal.ornament ? 2 : 1), 0);
@@ -806,6 +1143,7 @@ void Ui::update_gameplay(const Snapshot& s) {
                           : card_kind_ == Card::Menu ? Card::Menu : Card::None;
         if(wanted != card_kind_) { if(wanted == Card::None) close_card(); else open_card(wanted); }
     }
+    if(announce) play_turn_effect(before);
     for(unsigned i = 0; i < 4; ++i) last_life_[i] = s.players[i].life;
     last_turn_ = s.turn_holder;
     last_seconds_ = s.remaining_seconds;
@@ -814,14 +1152,20 @@ void Ui::update_gameplay(const Snapshot& s) {
 }
 void Ui::update() {
     const auto& s = source_.snapshot();
-    if(screen_ != Screen::Gameplay || revision_ == s.revision) return;
+    if(revision_ == s.revision) return;
+    if(screen_ == Screen::Home) { revision_ = s.revision; update_home(s); return; }
+    if(screen_ != Screen::Gameplay) return;
     revision_ = s.revision;
     update_gameplay(s);
 }
 
 // ---- Input -----------------------------------------------------------------
 void Ui::show(Screen screen) {
-    const auto motion = screen == screen_ ? Motion::None : depth(screen) >= depth(screen_) ? Motion::Forward : Motion::Back;
+    if(profile_.compact() && screen == Screen::Home) screen = Screen::Gameplay;
+    if(screen == Screen::Settings && (screen_ == Screen::Home || screen_ == Screen::Gameplay)) return_to_ = screen_;
+    const auto motion = screen == screen_ ? Motion::None : screen_ == Screen::Home ? Motion::ZoomIn
+                      : screen == Screen::Home ? Motion::ZoomOut
+                      : depth(screen) >= depth(screen_) ? Motion::Forward : Motion::Back;
     screen_ = screen; render(motion);
 }
 void Ui::set_theme(TurnHubTheme::Id theme) {
@@ -835,7 +1179,20 @@ void Ui::activate(const std::string& raw) {
     auto seat_of = [&](size_t prefix) { return name.size() > prefix ? static_cast<unsigned>(name[prefix] - '0') : selected_; };
     if(name == "settings") show(Screen::Settings);
     else if(name == "menu") { close_card(); show(Screen::Settings); }
-    else if(name == "back") show(Screen::Gameplay);
+    else if(name == "back") show(return_to_);
+    else if(name == "home") { close_card(); show(Screen::Home); }
+    else if(name == "table" || name == "nowplaying") show(Screen::Gameplay);
+    else if(name == "effects") show(Screen::Effects);
+    else if(name.rfind("effect", 0) == 0) {
+        turn_effect_ = static_cast<TurnEffect>(name.back() - '0');
+        show(Screen::Effects);
+        // Preview the choice right away.
+        if(!reduced_motion_) {
+            const auto& h = s.players[s.turn_holder];
+            char t[40]; std::snprintf(t, sizeof t, "%s's turn", h.name.c_str());
+            banner(profile_.compact() ? "Your turn!" : t, "This is how turns will look", h.avatar, s.turn_holder, 120);
+        }
+    }
     else if(name == "pairing") show(Screen::Pairing);
     else if(name == "themes") show(Screen::Themes);
     else if(name == "players") show(Screen::Players);

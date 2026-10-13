@@ -15,12 +15,16 @@ struct Options {
     th::Device device = th::Device::Sigil;
     TurnHubTheme::Id theme = TurnHubTheme::Id::Graphite;
     th::Screen screen = th::Screen::Gameplay;
+    bool screen_set = false;
     unsigned scenario = 0;
     unsigned frames = 0;
     float zoom = 1;
     bool self_test = false;
     bool reduced_motion = false;
     std::string capture;
+    // Development: capture mid-animation after passing the turn (motion stays on).
+    int pass_capture_ms = -1;
+    unsigned effect = 0;
 };
 void require(bool ok, const std::string& message) { if(!ok) throw std::runtime_error(message); }
 Options options(int argc, char** argv) {
@@ -36,27 +40,33 @@ Options options(int argc, char** argv) {
             for(unsigned t = 0; t < 4; ++t) if(v == TurnHubTheme::palette(static_cast<TurnHubTheme::Id>(t)).key) { o.theme = static_cast<TurnHubTheme::Id>(t); found = true; }
             require(found, "Unknown theme: " + v);
         } else if(flag == "--screen") {
-            const auto v = value();
+            const auto v = value(); o.screen_set = true;
             if(v == "game") o.screen = th::Screen::Gameplay;
             else if(v == "settings") o.screen = th::Screen::Settings;
             else if(v == "pairing") o.screen = th::Screen::Pairing;
             else if(v == "themes") o.screen = th::Screen::Themes;
             else if(v == "players") o.screen = th::Screen::Players;
+            else if(v == "home") o.screen = th::Screen::Home;
+            else if(v == "effects") o.screen = th::Screen::Effects;
             else throw std::runtime_error("Unknown screen: " + v);
         } else if(flag == "--scenario") { o.scenario = static_cast<unsigned>(std::stoul(value())); require(o.scenario < 4, "Scenario must be 0..3"); }
         else if(flag == "--frames") { o.frames = static_cast<unsigned>(std::stoul(value())); require(o.frames > 0, "Frames must be positive"); }
         else if(flag == "--zoom") { o.zoom = std::stof(value()); require(o.zoom >= 1 && o.zoom <= 4, "Zoom must be 1..4"); }
         else if(flag == "--capture") o.capture = value();
+        else if(flag == "--pass-capture-ms") o.pass_capture_ms = std::stoi(value());
+        else if(flag == "--effect") { o.effect = static_cast<unsigned>(std::stoul(value())); require(o.effect < 4, "Effect must be 0..3"); }
         else if(flag == "--self-test") o.self_test = true;
         else if(flag == "--reduced-motion") o.reduced_motion = true;
         else if(flag == "--help") {
             std::cout << "TurnHub LVGL desktop demo\n--device atlas|sigil --theme graphite|daylight|brass|contrast\n"
-                         "--screen game|settings|pairing|themes|players --scenario 0..3\n"
+                         "--screen home|game|settings|pairing|themes|players|effects --scenario 0..3\n"
                          "--zoom 1..4 --frames N --capture image.bmp --self-test\n"
                          "Mouse: touchscreen. Arrows/Enter: five-way. M menu, T theme, N sample, Space pause, Escape game.\n";
             std::exit(0);
         } else throw std::runtime_error("Unknown option: " + flag);
     }
+    // Atlas opens on its home screen; Sigil's main screen is its seat.
+    if(!o.screen_set && !o.self_test && o.device == th::Device::Atlas) o.screen = th::Screen::Home;
     return o;
 }
 void pump(th::Ui& ui, th::SdlInput& input, unsigned ms) {
@@ -200,11 +210,18 @@ int main(int argc, char** argv) {
             th::PresetAssets assets;
             th::Ui ui(p, fixtures, fixtures, assets);
             // Tests and captures need settled geometry, never a frame mid-transition.
-            ui.set_reduced_motion(o.reduced_motion || o.self_test || !o.capture.empty());
+            ui.set_reduced_motion(o.reduced_motion || o.self_test || (!o.capture.empty() && o.pass_capture_ms < 0));
+            ui.set_turn_effect(static_cast<th::TurnEffect>(o.effect));
             ui.set_theme(o.theme); ui.show(o.screen);
             th::SdlInput input(ui, fixtures);
             pump(ui, input, 100);
             if(o.self_test) self_test(ui, fixtures, input, display);
+            else if(!o.capture.empty() && o.pass_capture_ms >= 0) {
+                pump(ui, input, 600);
+                const auto& s = fixtures.snapshot();
+                fixtures.request({th::ActionKind::PassTurn, s.players[s.turn_holder].participant_id});
+                pump(ui, input, static_cast<unsigned>(o.pass_capture_ms)); capture(display, o.capture);
+            }
             else if(!o.capture.empty()) { pump(ui, input, 100); capture(display, o.capture); }
             else {
                 std::cout << "Desktop demo: mouse touch, arrows/Enter five-way; M menu, T theme, N sample, Space pause, Escape game\n";

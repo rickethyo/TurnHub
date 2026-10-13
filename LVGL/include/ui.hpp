@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 namespace th {
-enum class Screen { Gameplay, Settings, Pairing, Themes, Players };
+enum class Screen { Gameplay, Settings, Pairing, Themes, Players, Home, Effects };
+// How the table announces a new turn; runtime only, like the theme.
+enum class TurnEffect : uint8_t { Bubble, Flip, Push, Cube, Count };
 class Ui {
 public:
     Ui(DisplayProfile profile, SnapshotSource& source, ActionSink& sink, const AssetProvider& assets);
@@ -23,6 +25,8 @@ public:
     Screen screen() const { return screen_; }
     TurnHubTheme::Id theme() const { return theme_; }
     unsigned selected_player() const { return selected_; }
+    TurnEffect turn_effect() const { return turn_effect_; }
+    void set_turn_effect(TurnEffect effect) { if(effect < TurnEffect::Count) turn_effect_ = effect; }
     lv_obj_t* control(const std::string& name) const;
     lv_group_t* group() const { return group_; }
     lv_indev_t* keypad() const { return keypad_; }
@@ -33,7 +37,7 @@ public:
 private:
     struct Binding { Ui* ui; std::string name; };
     enum class Look { Normal, Accent, Quiet, Turn };
-    enum class Motion { None, Forward, Back, Fade };
+    enum class Motion { None, Forward, Back, Fade, ZoomIn, ZoomOut };
     enum class Card { None, Menu, Paused, Over };
     struct Seat {
         lv_obj_t *panel = nullptr, *token = nullptr, *glyph = nullptr, *life = nullptr, *badge = nullptr;
@@ -46,6 +50,8 @@ private:
     Screen screen_ = Screen::Gameplay;
     TurnHubTheme::Id theme_ = TurnHubTheme::Id::Graphite;
     unsigned selected_ = 0;
+    TurnEffect turn_effect_ = TurnEffect::Bubble;
+    Screen return_to_ = Screen::Gameplay;
     uint32_t revision_ = 0;
     bool reduced_motion_ = false;
     bool fresh_ = true;
@@ -59,6 +65,8 @@ private:
     lv_obj_t *hub_ = nullptr, *clock_arc_ = nullptr, *clock_head_ = nullptr, *clock_bar_ = nullptr, *badge_ = nullptr;
     lv_obj_t *turn_frame_ = nullptr, *life_card_ = nullptr, *bottom_seat_ = nullptr, *bottom_pass_ = nullptr;
     lv_obj_t *card_scrim_ = nullptr, *card_ = nullptr;
+    lv_obj_t *home_title_ = nullptr, *home_detail_ = nullptr, *home_token_ = nullptr, *home_glyph_ = nullptr;
+    lv_obj_t *home_pause_ = nullptr, *home_pause_text_ = nullptr, *home_badge_ = nullptr;
     Card card_kind_ = Card::None;
     std::vector<std::string> card_names_;
     std::array<Seat, 4> seats_{};
@@ -80,6 +88,14 @@ private:
     void build_themes();
     void build_players();
     void build_pairing();
+    void build_home();
+    void build_effects();
+    lv_obj_t* app_icon(const std::string& name, const char* title, const lv_image_dsc_t* glyph, uint32_t color, int cx, int y, unsigned order);
+    void update_home(const Snapshot& s);
+    lv_obj_t* freeze(lv_obj_t* target);
+    void play_turn_effect(lv_obj_t* before);
+    void banner(const char* title, const char* detail, uint8_t avatar, unsigned seat, uint32_t delay);
+    void gloss(lv_obj_t* obj, uint32_t base, int w, int h, int radius);
     void open_card(Card kind);
     void close_card();
     void update_gameplay(const Snapshot& s);
