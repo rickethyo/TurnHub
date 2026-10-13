@@ -82,6 +82,12 @@ option for the Magic and Commander profiles (`GameSettings::twoHeadedGiant`,
   wins, and both teammates get the win in their statistics.
 - **First draw.** The starting team skips its first draw; the Atlas screen
   reminds the table during that first turn. TurnHub does not track draws.
+- **On a phone without Atlas** (2026-10-13, owner request) the full-screen
+  table offers the same mode under **Game mode** in its setup, with the same
+  rules: team life 30/60, shared poison (15), one team turn credited to both,
+  Commander damage per player off the team's life, and teams leaving together.
+  The local history credits both winners (`GameRecord.won`); importing such a
+  record into Atlas still credits only the recorded winner. *Needs a playtest.*
 - Storage keeps the flag in the profile byte's top bit (`PROFILE_BYTE_TEAMS`)
   of `gamecfg` and the recovery record, so neither layout changed. Sigils need
   no new firmware: Atlas sends the team's life and turn in the existing

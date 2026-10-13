@@ -269,3 +269,49 @@ acceptance; Atlas-scoped profile identity is staged in STAGED_CHANGES.
   gone; the list keeps adding and removing. `StandaloneGame.swapPlayers`
   (lobby only) backs it, with a unit test.
 - Validation: `testDebugUnitTest` passes locally. Needs an owner device pass.
+
+## 2026-10-13 — Claude: ask to turn on Wi-Fi before joining Atlas
+
+- Owner bug: with the phone's Wi-Fi off, connecting to Atlas just failed.
+- Connect, Set up a new table and Try again now check `AtlasWifiLink.wifiEnabled()`
+  first. When Wi-Fi is off the app asks "Turn on Wi-Fi to connect?". Turn on Wi-Fi
+  opens Android's Wi-Fi panel (apps can't switch it on themselves from Android 10)
+  and the same connection carries on once Wi-Fi is on, waiting up to 60 s;
+  otherwise it shows `AtlasFailure.WifiOff`. Not now closes the question. The
+  quiet launch probe still never prompts.
+- Validation: `testDebugUnitTest` passes locally with two new `HomeViewModelTest`
+  cases. Needs an owner device pass.
+
+## 2026-10-13 — Claude: full-screen table parity with and without Atlas; short panels
+
+- Owner asked for parity between the full-screen table with and without Atlas.
+  Both run the same `TabletTable`; the setup screens differed. Both lobbies are
+  now "Full-screen table" and share `TableSetup.kt`: the seat map, turn timer
+  presets, the zero-life elimination switch and the big start button. With Atlas,
+  the turn timer goes through `/api/tablet/settings` (`turnTimerMs`, already
+  parsed by `parseGameSettings`). A seat-map swap is sent as Atlas's one-place
+  `move-later`/`move-earlier` steps. The list's turn-order arrows are gone in both.
+  Atlas-only extras stay: Sigil tags, accounts, Two-Headed Giant.
+- Owner screenshot: with five players on a phone, Hold to pass and Menu covered
+  the life total. Short panels (under 260 dp) now size the number to the room
+  between the name and a slim bottom bar, the Menu pill keeps only its icon, and
+  Hold to pass stays on one line. The change pill floats over the number instead
+  of taking a row.
+- Validation: `testDebugUnitTest` passes locally. Needs an owner device pass
+  (with Atlas, the seat map's swap is untested on hardware).
+
+## 2026-10-13 — Claude: game mode picker; Two-Headed Giant without Atlas
+
+- Owner: Two-Headed Giant is a game modification, not an Atlas feature; game
+  modes belong in a picker so more can be added.
+- Both full-screen setups now show **Game mode** (Standard, Two-Headed Giant) for
+  Magic and Commander (`GameMode`, `GameModeChips` in `TableSetup.kt`), replacing
+  the Atlas lobby's switch. The start button says when a team game needs an even
+  table of four or more.
+- `StandaloneGame.twoHeadedGiant` follows GAMEPLAY.md's Atlas rules (team life,
+  shared poison, team turns, leaving together); `toSummary` reports teams so the
+  shared table draws team panels as it does for Atlas. Saved games and records
+  keep the flag; local history credits both winners. Unit tests cover setup,
+  turns, shared life/poison, Commander damage and the team win.
+- Validation: `testDebugUnitTest` passes locally (31 standalone game tests).
+  Needs a playtest.

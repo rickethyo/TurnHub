@@ -274,6 +274,7 @@ class HomeViewModel(
         /** Problems found before any Atlas request (bad address, permission, Wi-Fi). */
         val failure: AtlasFailure? = null,
         val wifiPrompt: WifiPrompt? = null,
+        val wifiOff: Boolean = false,
         val joiningSsid: String? = null,
         val signIn: SignInPrompt? = null,
         val accessibilityOpen: Boolean = false,
@@ -284,6 +285,9 @@ class HomeViewModel(
     )
 
     private val local = MutableStateFlow(LocalState())
+
+    /** What to try again once the user turns Wi-Fi on. */
+    private var afterWifiOn: (() -> Unit)? = null
 
     /** The endpoint a pending Wi-Fi prompt will connect to once answered. */
     private var pendingEndpoint: AtlasEndpoint? = null
@@ -343,6 +347,7 @@ class HomeViewModel(
             offerAppSettings = shown is AtlasFailure.LocalNetworkPermissionDenied,
             joiningSsid = screen.joiningSsid,
             wifiPrompt = screen.wifiPrompt,
+            wifiOff = screen.wifiOff,
             player = tableSummary?.let { PlayerPanel.from(it, session, busy, feedback, gameSettings) },
             signIn = screen.signIn,
             gameSettings = gameSettings,
@@ -955,7 +960,7 @@ class HomeViewModel(
     private fun idle(): Boolean {
         val screen = local.value
         return repository.connectionState.value == AtlasConnectionState.DISCONNECTED &&
-            screen.joiningSsid == null && screen.wifiPrompt == null && !screen.rejoining
+            screen.joiningSsid == null && screen.wifiPrompt == null && !screen.wifiOff && !screen.rejoining
     }
 
     private suspend fun rejoinSavedTable() {
@@ -966,6 +971,7 @@ class HomeViewModel(
             local.update { it.copy(discovery = Discovery.Idle) }
             return
         }
+        if (!wifiLink.wifiEnabled()) return askToTurnOnWifi { onSearchAgain() }
         local.update { it.copy(discovery = Discovery.Searching, failure = null) }
         val joined = quietJoin(AtlasEndpoint.DEFAULT, saved)
         local.update { it.copy(discovery = if (joined) Discovery.Idle else Discovery.NotFound) }
@@ -1039,6 +1045,7 @@ class HomeViewModel(
         local.update {
             it.copy(endpointText = endpoint.baseUrl, failure = null, wifiPrompt = null, discovery = Discovery.Idle)
         }
+        if (!wifiLink.wifiEnabled()) return askToTurnOnWifi { onConnectClicked() }
         if (endpoint != AtlasEndpoint.DEFAULT) {
             // Not Atlas's own access point (e.g. a future Home/LAN address):
             // the phone must already be on that network.
@@ -1079,6 +1086,33 @@ class HomeViewModel(
         connectRepository(endpoint)
     }
 
+    /** Wi-Fi is off: ask first, and retry [retry] once it is on. */
+    private fun askToTurnOnWifi(retry: () -> Unit) {
+        afterWifiOn = retry
+        local.update { it.copy(wifiOff = true, discovery = Discovery.Idle) }
+    }
+
+    /**
+     * The user chose to turn Wi-Fi on (the Activity opens Android's Wi-Fi
+     * panel). The connection carries on by itself once Wi-Fi is on.
+     */
+    fun onTurnOnWifi() {
+        val retry = afterWifiOn ?: return
+        afterWifiOn = null
+        local.update { it.copy(wifiOff = false, discovery = Discovery.Searching) }
+        wifiJoinJob?.cancel()
+        wifiJoinJob = viewModelScope.launch {
+            val on = wifiLink.awaitWifiEnabled(WIFI_ON_TIMEOUT_MS)
+            local.update { it.copy(discovery = Discovery.Idle) }
+            if (on) retry() else local.update { it.copy(failure = AtlasFailure.WifiOff) }
+        }
+    }
+
+    fun onWifiOffDismissed() {
+        afterWifiOn = null
+        local.update { it.copy(wifiOff = false) }
+    }
+
     fun onWifiPromptDismissed() {
         pendingEndpoint = null
         local.update { it.copy(wifiPrompt = null) }
@@ -1112,6 +1146,7 @@ class HomeViewModel(
     }
 
     private fun joinThenConnect(endpoint: AtlasEndpoint, credentials: WifiCredentials) {
+        if (!wifiLink.wifiEnabled()) return askToTurnOnWifi { joinThenConnect(endpoint, credentials) }
         local.update { it.copy(joiningSsid = credentials.ssid, failure = null) }
         wifiJoinJob?.cancel()
         wifiJoinJob = viewModelScope.launch {
@@ -1157,6 +1192,8 @@ class HomeViewModel(
 
         /** Atlas answers, then restarts about a second later. */
         private const val RESTART_GRACE_MS = 4_000L
+        /** How long to wait for Wi-Fi after the user chose to turn it on. */
+        private const val WIFI_ON_TIMEOUT_MS = 60_000L
         private const val RECONNECT_RETRY_MS = 4_000L
 
         /** An update boot plus the Wi-Fi coming back; well past a normal restart. */

@@ -21,6 +21,8 @@ data class GameRecord(
     /** Null when the game ended with no winner. */
     val winner: Int?,
     val players: List<Player>,
+    /** Teams of neighbours (players 1+2, 3+4, ...): the winner's teammate won too. */
+    val twoHeadedGiant: Boolean = false,
 ) {
     data class Player(
         val name: String,
@@ -39,7 +41,11 @@ data class GameRecord(
         val commanderBySource: Map<Int, List<Int>> = emptyMap(),
     )
 
+    /** Whether player [index] won: the winner, or (Two-Headed Giant) the winner's teammate. */
+    fun won(index: Int): Boolean = winner != null && (index == winner || (twoHeadedGiant && index / 2 == winner / 2))
+
     fun toJson(): JSONObject = JSONObject().apply {
+        if (twoHeadedGiant) put("twoHeadedGiant", true)
         put("recordId", recordId)
         put("gameProfile", profile.wireValue)
         put("startingLife", startingLife)
@@ -110,6 +116,7 @@ data class GameRecord(
                 durationMs = json.getLong("durationMs"),
                 starter = json.optIntOrNull("starter"),
                 winner = json.optIntOrNull("winner"),
+                twoHeadedGiant = json.optBoolean("twoHeadedGiant"),
                 players = (0 until players.length()).map { i ->
                     val p = players.getJSONObject(i)
                     Player(

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import com.turnhub.android.data.TabletState
 import com.turnhub.android.domain.TableClock
 import com.turnhub.android.domain.TurnTimerStatus
+import com.turnhub.android.protocol.GameProfile
 import com.turnhub.android.protocol.TableState
 import com.turnhub.android.standalone.LocalPlayer
 import com.turnhub.android.standalone.StandaloneGame
@@ -147,8 +148,7 @@ private fun Lobby(
                 if (game.players.size > 1) {
                     // How the game will look: each panel where it lands, numbered in turn order.
                     SeatMap(game.players.map { it.name }, table::swapPlayers)
-                    Text("This is how the table will look. Drag a player onto another seat to swap them, or tap two seats. " +
-                        "Turns go clockwise in number order.", color = p.faint, style = MaterialTheme.typography.bodySmall)
+                    Text(SEAT_MAP_HINT, color = p.faint, style = MaterialTheme.typography.bodySmall)
                 }
                 game.players.forEachIndexed { index, player -> PlayerRow(index, player, game.players.size, table) }
                 var name by rememberSaveable { mutableStateOf("") }
@@ -206,7 +206,7 @@ private fun Lobby(
                     OutlinedTextField(
                         value = life,
                         onValueChange = { life = it.filter(Char::isDigit).take(5) },
-                        label = { Text("Starting life") },
+                        label = { Text(if (game.twoHeadedGiant) "Starting life per team" else "Starting life") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -217,30 +217,17 @@ private fun Lobby(
                         enabled = (life.toIntOrNull() ?: 0) > 0 && life != "${game.startingLife}",
                     )
                 }
-                Text("Turn timer", color = p.muted, style = MaterialTheme.typography.labelLarge)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StandaloneGame.TURN_TIMER_PRESETS_MS.forEach { ms ->
-                        FilterChip(
-                            selected = game.turnTimerMs == ms,
-                            onClick = { table.setTurnTimer(ms) },
-                            label = { Text(TurnTimerStatus.settingLabel(ms)) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = p.accentSoft),
-                        )
+                if (game.profile == GameProfile.MTG || game.profile == GameProfile.MTG_COMMANDER) {
+                    GameModeChips(if (game.twoHeadedGiant) GameMode.TWO_HEADED_GIANT else GameMode.STANDARD, enabled = true) {
+                        table.setTwoHeadedGiant(it == GameMode.TWO_HEADED_GIANT)
                     }
                 }
-                Text("Running out never passes the turn: the clock counts the overtime until the player passes.",
-                    color = p.faint, style = MaterialTheme.typography.bodySmall)
+                TurnTimerChips(game.turnTimerMs, enabled = true, onSelect = table::setTurnTimer)
+                SetupSwitch("Automatic elimination at zero life", null, game.autoEliminateAtZeroLife, enabled = true,
+                    onChange = table::setZeroLifeElimination)
             }
 
-            AccentButton(
-                if (game.players.size < 2) "Add two players to start" else "Start full-screen game",
-                table::start,
-                Modifier.fillMaxWidth().heightIn(min = 64.dp),
-                enabled = game.players.size >= 2,
-            )
-
-            ToneButton("Automatic elimination at zero life: " + if (game.autoEliminateAtZeroLife) "On" else "Off",
-                { table.setZeroLifeElimination(!game.autoEliminateAtZeroLife) }, Modifier.fillMaxWidth())
+            StartTableButton(game.players.size, game.twoHeadedGiant, enabled = true, onStart = table::start)
             ToneButton("Players and history", onHistory, Modifier.fillMaxWidth())
 
             // Quiet on purpose: a phone-only player never needs Atlas, so it is one small switch.

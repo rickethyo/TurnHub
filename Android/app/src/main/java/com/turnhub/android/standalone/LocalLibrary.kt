@@ -47,7 +47,7 @@ data class LocalLibrary(
 ) {
     fun totals(localId: String): LocalTotals {
         val matches = history.filter { r -> r.players.any { it.localId == localId } }
-        return LocalTotals(matches.size, matches.count { r -> r.winner?.let { r.players[it].localId == localId } == true },
+        return LocalTotals(matches.size, matches.count { r -> r.won(r.players.indexOfFirst { it.localId == localId }) },
             matches.count { it.winner == null })
     }
 
@@ -88,7 +88,7 @@ data class LocalLibrary(
             com.turnhub.android.data.ProfileStatistics.LastGame(when {
                 last == null -> "None"
                 last.first.winner == null -> "Draw"
-                last.first.winner == last.second -> "Win"
+                last.first.won(last.second) -> "Win"
                 seat?.conceded == true -> "Conceded"
                 seat?.outOrder != null -> "Eliminated"
                 else -> "Loss"

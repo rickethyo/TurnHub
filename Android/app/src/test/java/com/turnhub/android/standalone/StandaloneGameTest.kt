@@ -28,6 +28,49 @@ class StandaloneGameTest {
         .addPlayer("Cy")
         .start(nowMs = 1_000, gameId = "g1", random = firstSeat)
 
+    private fun teams(): StandaloneGame = StandaloneGame()
+        .setFormat(GameProfile.MTG_COMMANDER)
+        .addPlayer("Ana").addPlayer("Ben").addPlayer("Cy").addPlayer("Dee")
+        .setTwoHeadedGiant(true)
+
+    @Test
+    fun `two-headed giant sets team life and poison and needs an even table of four`() {
+        val lobby = teams()
+        assertEquals(60, lobby.startingLife)
+        assertEquals(15, lobby.poisonLimit)
+        assertEquals(30, lobby.setFormat(GameProfile.MTG).startingLife)
+        assertTrue(!lobby.setFormat(GameProfile.GENERIC).twoHeadedGiant)
+        val three = lobby.removePlayer(3)
+        assertSame(three, three.start(0, "g", firstSeat))
+        val off = lobby.setTwoHeadedGiant(false)
+        assertEquals(40, off.startingLife)
+        assertEquals(10, off.poisonLimit)
+    }
+
+    @Test
+    fun `two-headed giant teams share life, poison and the turn, and leave together`() {
+        var game = teams().start(1_000, "g", firstSeat)
+        // Either teammate passes the team's turn; it goes to the next team, credited to both.
+        game = game.pass(1, 31_000)
+        assertEquals(2, game.active)
+        assertEquals(listOf(1, 1, 0, 0), game.players.map { it.turnsCompleted })
+        assertSame(game, game.pass(0, 32_000))
+        // Life and poison are the team's.
+        game = game.changeLife(2, -5).changeCounter(3, "poison", 2)
+        assertEquals(listOf(60, 60, 55, 55), game.players.map { it.life })
+        assertEquals(listOf(0, 0, 2, 2), game.players.map { it.counters.poison })
+        // Commander damage counts per player but costs the team's life.
+        game = game.commanderDamage(0, 2, 1, 3)
+        assertEquals(listOf(57, 57, 55, 55), game.players.map { it.life })
+        assertEquals(listOf(3, 0), game.players[0].commanderDamage[2])
+        // One teammate conceding takes the team out; the last team wins, both teammates.
+        game = game.concede(3, 40_000)
+        assertEquals(TableState.GAME_OVER, game.state)
+        val record = game.record()!!
+        assertTrue(record.won(0) && record.won(1) && !record.won(2) && !record.won(3))
+        assertEquals(1, game.toSummary(40_000, 0).players[1].team)
+    }
+
     @Test
     fun `turn timer counts down, warns, expires without passing and survives recovery`() {
         val lobby = StandaloneGame().addPlayer("Ana").addPlayer("Ben")
