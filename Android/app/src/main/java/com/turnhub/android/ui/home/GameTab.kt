@@ -1144,7 +1144,6 @@ private fun SetupCard(summary: TableSummary, info: GameSettingsInfo?, seated: Bo
 
 // --- Table --------------------------------------------------------------------
 
-@Composable
 /** Game settings, opened from the Game tab: a full screen of its own, separate from the device Settings tab. */
 @Composable
 private fun GameSettingsScreen(onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {

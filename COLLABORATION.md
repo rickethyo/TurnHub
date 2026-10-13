@@ -1375,3 +1375,11 @@ management/invitations from TH-002 remain separate planned work.
   settings screen opened beside a Full-screen table button.
 - Validation: local Gradle still blocked by Maven Central HTTP 429; CI runs the
   build and unit tests. Device acceptance pending.
+- Full-screen table upgrade (owner request 2026-10-13, same PR, aimed at a
+  standalone closed alpha): bold seat-color gradients, a slowly pulsing edge on
+  the active panel (steady with reduced motion), animated life with a change
+  pill, counter chips and seat-colored Commander damage on panels, and table
+  tools in the centre menu (d6, d20, coin, random player; `TableTools`, never
+  game state). Generic life-counter patterns only, no third-party assets.
+- Local Gradle now works through Google's Maven Central mirror (a throwaway
+  init script outside the repo). `testDebugUnitTest`: 240 tests, 0 failures.

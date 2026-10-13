@@ -77,8 +77,17 @@ import com.turnhub.android.protocol.TableState
 import com.turnhub.android.protocol.TurnTimerPhase
 import com.turnhub.android.ui.components.AccentButton
 import com.turnhub.android.ui.components.MagicCountersEditor
+import com.turnhub.android.ui.components.CounterChips
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.Brush
 import com.turnhub.android.ui.components.EliminationRulesEditor
-import com.turnhub.android.ui.components.magicStatus
 import com.turnhub.android.ui.components.MonarchBadge
 import com.turnhub.android.ui.components.BrassCard
 import com.turnhub.android.ui.components.Tone
@@ -286,6 +295,7 @@ internal fun TabletTable(
                         },
                         offlineCommander = tablet::offlineCommander,
                         haptics = haptics,
+                        reduceMotion = reduceMotion,
                     )
                 }
             }
@@ -385,6 +395,7 @@ internal fun TabletTable(
             }
             else -> if (menuOpen) {
                 Overlay("Table", "Game clock ${TableClock.format(TableClock.gameElapsedMs(summary, nowMs))}", onDismiss = { menuOpen = false }) {
+                    TableToolsCard(summary.players.filter { !it.eliminated }.map { it.label }, reduceMotion) { haptics.tick() }
                     EliminationRulesEditor(summary.settings, !isOffline && anySeat != null) { field, value ->
                         anySeat?.let { seat -> controls { setEliminationRule(seat, field, value) } }
                     }
@@ -501,6 +512,7 @@ private fun PlayerPanel(
     onRespond: (TabletSeat, Long, Boolean) -> Unit,
     offlineCommander: (Long, Int, Int) -> Int,
     haptics: TurnHubHaptics,
+    reduceMotion: Boolean = false,
 ) {
     val p = palette
     val shape = RoundedCornerShape(22.dp)
@@ -509,19 +521,29 @@ private fun PlayerPanel(
     val out = unit.out
     val (small, big) = lifeSteps(summary.settings.profile)
     val name = unit.name
+    // The active panel's edge breathes slowly; steady when motion is reduced.
+    val glow = if (active && !reduceMotion) {
+        rememberInfiniteTransition(label = "turnGlow").animateFloat(
+            .55f, 1f, infiniteRepeatable(tween(1_100), RepeatMode.Reverse), label = "glow",
+        ).value
+    } else 1f
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .clip(shape)
             .background(p.surface)
-            .background(hue.copy(alpha = if (p.dark) .22f else .16f))
-            .border(if (active) 3.dp else 1.dp, if (active) p.active else p.line, shape),
+            // Full-bleed seat color, deeper toward the player's edge, so each seat reads at a glance.
+            .background(Brush.verticalGradient(listOf(
+                hue.copy(alpha = if (p.dark) .30f else .22f),
+                hue.copy(alpha = if (p.dark) .52f else .40f),
+            )))
+            .border(if (active) 4.dp else 1.dp, if (active) p.active.copy(alpha = glow) else p.line, shape),
     ) {
         val nameMax = maxWidth * .6f
         val lifeSize = (minOf(maxWidth, maxHeight).value * if ("$life".length > 3) .22f else .36f).coerceIn(28f, 160f)
         Column(Modifier.fillMaxSize().alpha(if (out) .45f else 1f)) {
-            HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.TopEnd, Modifier.weight(1f).fillMaxWidth())
-            HoldHalf("−", "$name: subtract $small life", !out, { onBump(-small) }, { onBump(-big) }, Alignment.BottomEnd, Modifier.weight(1f).fillMaxWidth())
+            HoldHalf("+", "$name: add $small life", !out, { onBump(small) }, { onBump(big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
+            HoldHalf("−", "$name: subtract $small life", !out, { onBump(-small) }, { onBump(-big) }, Alignment.CenterEnd, Modifier.weight(1f).fillMaxWidth())
         }
 
         Row(
@@ -551,19 +573,26 @@ private fun PlayerPanel(
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("$life", color = p.text, fontSize = lifeSize.sp, fontWeight = FontWeight.Bold, lineHeight = lifeSize.sp)
-            Text(
-                if (pendingDelta == 0) " " else (if (pendingDelta > 0) "+" else "−") + kotlin.math.abs(pendingDelta),
-                color = if (pendingDelta > 0) p.good else p.bad,
-                style = MaterialTheme.typography.titleMedium,
-            )
+            // The running change sits above the number as a pill, then fades once sent.
+            val pill = if (pendingDelta == 0) null else (if (pendingDelta > 0) "+" else "−") + kotlin.math.abs(pendingDelta)
+            Box(Modifier.heightIn(min = 30.dp), contentAlignment = Alignment.Center) {
+                if (pill != null) {
+                    val tone = if (pendingDelta > 0) p.good else p.bad
+                    Text(pill, color = tone, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier
+                            .background(p.surface.copy(alpha = .9f), RoundedCornerShape(99.dp))
+                            .border(1.dp, tone.copy(alpha = .6f), RoundedCornerShape(99.dp))
+                            .padding(horizontal = 12.dp, vertical = 2.dp))
+                }
+            }
+            val shown by animateIntAsState(life, if (reduceMotion) snap() else tween(220), label = "life")
+            Text("$shown", color = p.text, fontSize = lifeSize.sp, fontWeight = FontWeight.Black, lineHeight = lifeSize.sp)
             CommanderSummary(unit, summary, offlineCommander)
             if (summary.settings.profile == GameProfile.MTG || summary.settings.profile == GameProfile.MTG_COMMANDER) {
-                Text("Poison ${unit.lifeSeat.counters.poison}", color = p.text, style = MaterialTheme.typography.labelLarge)
                 unit.members.forEach { member ->
-                    val status = magicStatus(member.counters, summary.initiativePlayerNumber == member.playerNumber).substringAfter(" · ", "")
-                    if (status.isNotEmpty()) Text(if (unit.members.size > 1) "${member.label}: $status" else status,
-                        color = p.text, style = MaterialTheme.typography.labelSmall)
+                    CounterChips(member.counters, summary.initiativePlayerNumber == member.playerNumber,
+                        summary.settings.profile == GameProfile.MTG_COMMANDER, summary.settings.poisonLimit,
+                        Modifier.padding(top = 4.dp), compact = true)
                 }
             }
         }
@@ -649,7 +678,8 @@ private fun HoldHalf(
             },
         contentAlignment = glyphAlignment,
     ) {
-        Text(glyph, color = p.muted.copy(alpha = .7f), fontSize = 34.sp, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp))
+        Text(glyph, color = p.text.copy(alpha = if (pressed) .8f else .35f), fontSize = 44.sp, fontWeight = FontWeight.Light,
+            modifier = Modifier.padding(horizontal = 26.dp, vertical = 6.dp))
     }
 }
 
@@ -737,14 +767,16 @@ private fun CommanderSummary(unit: TableUnit, summary: TableSummary, offlineComm
         rows.forEach { (source, total) ->
             val from = summary.players.firstOrNull { it.playerNumber == source }?.label ?: "P$source"
             val lethal = total >= 21
+            // Tinted with the source seat's color, so damage is traced at a glance; the name still says who.
+            val tint = p.avatarColor(source)
             Text(
-                "${from.take(8)} $total",
+                "⚔ ${from.take(8)} $total",
                 color = if (lethal) p.bad else p.text,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (lethal) FontWeight.Bold else FontWeight.Medium,
                 modifier = Modifier
-                    .background(p.surface.copy(alpha = .8f), RoundedCornerShape(8.dp))
-                    .border(1.dp, if (lethal) p.bad else p.line, RoundedCornerShape(8.dp))
+                    .background(tint.copy(alpha = .35f), RoundedCornerShape(8.dp))
+                    .border(if (lethal) 2.dp else 1.dp, if (lethal) p.bad else tint, RoundedCornerShape(8.dp))
                     .padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
