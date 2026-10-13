@@ -474,6 +474,9 @@ void startNetworking() {
     serialLog.println("ATLAS|WIFI_AP|ERROR");
     return;
   }
+  // Wi-Fi modem power saving can make the AP answer phones late or drop them
+  // (the app timing out back to back, 2026-10-13). Costs some battery.
+  WiFi.setSleep(false);
 
   serialLog.print("ATLAS|WIFI_AP|READY|");
   serialLog.print(AtlasConfig::WIFI_SSID);
